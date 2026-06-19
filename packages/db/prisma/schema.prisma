@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Asset {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+
+  flowId    String?
+  flow      Flow?    @relation(fields: [flowId], references: [id])
+
+  ownerId   String?
+  claimedAt DateTime?
+  status    String   @default("active")
+
+  paid      Boolean  @default(false)
+ analyticsEvents AnalyticsEvent[]
+  priceCents Int @default(599)
+  premiumPriceCents Int?   
+  createdAt DateTime @default(now())
+
+  // RELATIONS (FIXED BOTH SIDES EXIST NOW)
+  ownership Ownership?
+  sessions  ScanSession[]
+  scans     ScanEvent[]
+}
+
+model Flow {
+  id        String   @id @default(cuid())
+  name      String
+  version   Int      @default(1)
+  actions   Json
+  data      Json?
+
+  assets    Asset[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  sessions  ScanSession[]
+  ownership Ownership[]
+}
+
+model ScanSession {
+  id        String   @id @default(cuid())
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  assetId   String?
+  asset     Asset?   @relation(fields: [assetId], references: [id])
+
+  startedAt DateTime @default(now())
+
+  stepIndex Int      @default(0)
+  status    String   @default("active")
+
+  // FIXED BACKLINK
+  events    ScanEvent[]
+}
+
+model ScanEvent {
+  id        String   @id @default(cuid())
+
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id])
+
+  sessionId String?
+  session   ScanSession? @relation(fields: [sessionId], references: [id])
+
+  type      String
+  meta      Json?
+
+  createdAt DateTime @default(now())
+}
+
+model Ownership {
+  id        String   @id @default(cuid())
+
+  assetId   String   @unique
+  asset     Asset    @relation(fields: [assetId], references: [id])
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  claimedAt DateTime?
+  status    String   // unclaimed | claimed
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  assetId     String
+  sessionId   String?
+  flowId      String?
+  stepIndex   Int?
+  type        String
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}

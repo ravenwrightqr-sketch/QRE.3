@@ -1,0 +1,19 @@
+{
+  "name": "qre.3",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "clean": "pnpm -r clean"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4",
+    "tsx": "^4.22.4",
+    "prisma": "^6.19.3",
+    "@types/node": "^25.9.3"
+  }
+}

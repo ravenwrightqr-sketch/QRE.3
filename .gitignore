@@ -1,0 +1,16 @@
+node_modules
+dist
+.next
+.env
+.env.*
+!.env.example
+
+coverage
+.vscode
+.DS_Store
+
+packages/db/prisma/migrations
+
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
