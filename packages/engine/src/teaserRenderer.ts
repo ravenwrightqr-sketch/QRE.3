@@ -1,7 +1,4 @@
-export type TeaserId =
-  | "unclaimed_default"
-  | "preview_mode"
-  | "unlocked";
+import type { AccessState } from "@qre/contracts";
 
 export type TeaserBlock =
   | { type: "story"; text: string }
@@ -10,51 +7,47 @@ export type TeaserBlock =
   | { type: "divider" };
 
 export function renderTeaser(
-  teaserId: TeaserId,
+  access: AccessState,
   slug: string
 ): TeaserBlock[] {
-  if (teaserId === "unclaimed_default") {
-    return [
-      {
-        type: "story",
-        text: "This asset has not been activated."
-      },
-      {
-        type: "story",
-        text: "Purchase is required before ownership can be claimed."
-      },
-      {
-        type: "divider"
-      },
-      {
-        type: "cta",
-        text: "Unlock this asset",
-        url: `/unlock/${slug}`
-      }
-    ];
-  }
+  switch (access) {
+    /**
+     * NOT PAID / NOT ACTIVATED
+     */
+    case "UNCLAIMED":
+      return [
+        { type: "story", text: "This asset is not activated yet." },
+        {
+          type: "cta",
+          text: "Unlock this experience",
+          url: `/unlock/${slug}`,
+        },
+      ];
 
-  if (teaserId === "preview_mode") {
-    return [
-      {
-        type: "story",
-        text: "This asset is already owned."
-      },
-      {
-        type: "hint",
-        text: "Only the owner can access the full experience."
-      }
-    ];
-  }
+    /**
+     * PAID BUT NOT OWNER
+     */
+    case "LOCKED":
+      return [
+        { type: "story", text: "This asset is owned by another user." },
+        { type: "hint", text: "Only the owner can access full content." },
+      ];
 
-  return [
-    {
-      type: "story",
-      text: "Owner verified."
-    },
-    {
-      type: "hint",
-      text: "Full experience available."
-    }
-  ];
+    /**
+     * OWNER ACCESS
+     */
+    case "UNLOCKED":
+      return [
+        { type: "story", text: "Owner verified." },
+        { type: "hint", text: "Full experience unlocked." },
+      ];
+
+    /**
+     * SAFETY FALLBACK
+     */
+    default:
+      return [
+        { type: "story", text: "Preview unavailable." },
+      ];
+  }
 }

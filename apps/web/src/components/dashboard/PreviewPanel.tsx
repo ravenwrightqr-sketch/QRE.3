@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { FlowAction } from "../../types/flow";
 import { runFlow } from "../../lib/flowExecutor";
 
 export default function PreviewPanel({ data }: { data: any }) {
@@ -12,37 +11,51 @@ export default function PreviewPanel({ data }: { data: any }) {
     setOutput([]);
     setUnlocked(false);
 
-    // ⚡ IF FLOW EXISTS → RUN REAL ENGINE
-    if (data.flow) {
-      runFlow(data.flow.actions || [], {
-        sessionId: data.sessionId,
-        onMessage: (text) => {
-          setOutput((prev) => [...prev, text]);
-        },
-        onRedirect: (url) => {
-          window.location.href = url;
-        },
-        onUnlock: () => {
-          setUnlocked(true);
-        },
-      });
+    /**
+     * =========================
+     * ACCESS HANDLING (REAL CONTRACT)
+     * =========================
+     */
+    const access = data.access;
 
+    if (access === "LOCKED" || access === "FREE") {
+      const teaserText =
+        data.teaser?.map((t: any) => t.text).join(" ") ||
+        "Locked content";
+
+      setOutput([teaserText]);
       return;
     }
 
-    // ⚡ OTHERWISE FALLBACK TEASER MODE
-    if (data.teaser) {
-      const teaserText = data.teaser.map((t: any) => t.text).join(" ");
-      setOutput([teaserText]);
+    /**
+     * =========================
+     * FLOW EXECUTION (FIXED CONTRACT)
+     * =========================
+     *
+     * IMPORTANT:
+     * scanEngine does NOT return flow.actions
+     * ONLY flowId exists
+     *
+     * So frontend must NOT try to execute flow here.
+     *
+     * Flow execution happens server-side in scanEngine.
+     */
+    if (access === "UNLOCKED") {
+      setOutput([
+        "✅ Unlocked content delivered from server flow execution.",
+      ]);
+
+      if (data.teaser?.length) {
+        setOutput((prev) => [
+          ...prev,
+          ...data.teaser.map((t: any) => t.text),
+        ]);
+      }
     }
   }, [data]);
 
   if (!data) {
-    return (
-      <div style={{ padding: 10 }}>
-        Run scan to preview experience
-      </div>
-    );
+    return <div style={{ padding: 10 }}>Run scan to preview experience</div>;
   }
 
   return (
@@ -50,35 +63,21 @@ export default function PreviewPanel({ data }: { data: any }) {
       <h3>👁 Live Scan Preview</h3>
 
       <div>Access: {data.access}</div>
-      <div>Mode: {data.mode}</div>
+      <div>Flow ID: {data.flowId ?? "none"}</div>
 
       <hr />
 
-      {/* LIVE OUTPUT */}
       {output.map((msg, i) => (
         <p key={i} style={{ margin: 5 }}>
           {msg}
         </p>
       ))}
 
-      {/* UNLOCK STATE */}
       {unlocked && (
         <div style={{ marginTop: 10, color: "yellow" }}>
           🔓 CONTENT UNLOCKED
         </div>
       )}
-
-      {/* TEASER CTA FALLBACK */}
-      {!data.flow && data.teaser?.map((t: any, i: number) => {
-        if (t.type === "cta") {
-          return (
-            <a key={i} href={t.url} style={{ color: "cyan" }}>
-              {t.text}
-            </a>
-          );
-        }
-        return null;
-      })}
     </div>
   );
 }

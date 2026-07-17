@@ -6,75 +6,167 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+/**
+ * =========================
+ * USER MODEL
+ * =========================
+ */
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+
+  /**
+   * SUBSCRIPTION SYSTEM
+   */
+  tier              String   @default("BASIC")
+  tierActive        Boolean  @default(true)
+  stripeCustomerId  String?
+
+  createdAt DateTime @default(now())
+
+  assets       Asset[]
+  sessions     ScanSession[]
+  ownerships   Ownership[]
+}
+
+/**
+ * =========================
+ * ASSET (QR OBJECT)
+ * =========================
+ */
 model Asset {
   id        String   @id @default(cuid())
   slug      String   @unique
+
+  /**
+   * SALES CHANNEL
+   *
+   * RETAIL:
+   *   Sold in store / shelf item
+   *   Customer scans -> claims ownership
+   *
+   * ONLINE:
+   *   Purchased through Empire QR website
+   *   Stripe webhook assigns ownership
+   *
+   * ADMIN:
+   *   Internal/demo/test/admin-controlled asset
+   */
+  saleChannel SaleChannel @default(RETAIL)
 
   flowId    String?
   flow      Flow?    @relation(fields: [flowId], references: [id])
 
   ownerId   String?
-  claimedAt DateTime?
-  status    String   @default("active")
+  owner     User?    @relation(fields: [ownerId], references: [id])
 
+  status    String   @default("active")
   paid      Boolean  @default(false)
- analyticsEvents AnalyticsEvent[]
-  priceCents Int @default(599)
-  premiumPriceCents Int?   
+
+  priceCents Int     @default(599)
+  premiumPriceCents Int?
+
+  claimedAt DateTime?
   createdAt DateTime @default(now())
 
-  // RELATIONS (FIXED BOTH SIDES EXIST NOW)
-  ownership Ownership?
   sessions  ScanSession[]
-  scans     ScanEvent[]
+  scanEvents ScanEvent[]
+  analyticsEvents AnalyticsEvent[]
+
+  ownership Ownership?
 }
 
+/**
+ * =========================
+ * OWNERSHIP (SOURCE OF TRUTH)
+ * =========================
+ */
+model Ownership {
+  id        String   @id @default(cuid())
+
+  assetId   String   @unique
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status    OwnershipStatus @default(CLAIMED)
+
+  claimedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stripeSessionId String? @unique
+  paymentIntentId  String?
+}
+
+enum OwnershipStatus {
+  CLAIMED
+  ACTIVE
+  REVOKED
+  REFUNDED
+}
+
+enum SaleChannel {
+  RETAIL
+  ONLINE
+  ADMIN
+}
+
+/**
+ * =========================
+ * FLOW ENGINE
+ * =========================
+ */
 model Flow {
   id        String   @id @default(cuid())
   name      String
   version   Int      @default(1)
+
   actions   Json
   data      Json?
 
   assets    Asset[]
+
   createdAt DateTime @default(now())
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-
-  sessions  ScanSession[]
-  ownership Ownership[]
-}
-
+/**
+ * =========================
+ * SCAN SESSION
+ * =========================
+ */
 model ScanSession {
   id        String   @id @default(cuid())
 
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
 
-  assetId   String?
-  asset     Asset?   @relation(fields: [assetId], references: [id])
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   startedAt DateTime @default(now())
 
   stepIndex Int      @default(0)
   status    String   @default("active")
 
-  // FIXED BACKLINK
   events    ScanEvent[]
 }
 
+/**
+ * =========================
+ * SCAN EVENT
+ * =========================
+ */
 model ScanEvent {
   id        String   @id @default(cuid())
 
   assetId   String
-  asset     Asset    @relation(fields: [assetId], references: [id])
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   sessionId String?
-  session   ScanSession? @relation(fields: [sessionId], references: [id])
+  session   ScanSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   type      String
   meta      Json?
@@ -82,30 +174,64 @@ model ScanEvent {
   createdAt DateTime @default(now())
 }
 
-model Ownership {
+/**
+ * =========================
+ * ANALYTICS EVENTS
+ * =========================
+ */
+model AnalyticsEvent {
   id        String   @id @default(cuid())
 
-  assetId   String   @unique
-  asset     Asset    @relation(fields: [assetId], references: [id])
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  sessionId String?
+  flowId    String?
 
-  claimedAt DateTime?
-  status    String   // unclaimed | claimed
+  stepIndex Int?
+  type      String
+  meta      Json?
 
-  updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
 }
-model AnalyticsEvent {
-  id          String   @id @default(cuid())
-  assetId     String
-  sessionId   String?
-  flowId      String?
-  stepIndex   Int?
-  type        String
-  meta        Json?
-  createdAt   DateTime @default(now())
 
-  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+/**
+ * =========================
+ * ADMIN SETTINGS
+ * =========================
+ */
+model AdminSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * =========================
+ * STRIPE EVENT DEDUP
+ * =========================
+ */
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+}
+
+/**
+ * =========================
+ * FLOW EXECUTION TRACKING
+ * =========================
+ */
+model FlowExecution {
+  id        String   @id @default(cuid())
+
+  sessionId String
+  flowId    String
+  assetId   String
+
+  status    String   @default("running") // running | complete
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, flowId])
 }

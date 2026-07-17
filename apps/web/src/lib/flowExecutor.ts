@@ -1,33 +1,46 @@
-import type { FlowAction } from "../types/flow";
+import type { FlowAction } from "@qre/contracts";
 
-export type FlowRuntimeContext = {
+type Runtime = {
   sessionId: string;
   onMessage: (text: string) => void;
   onRedirect: (url: string) => void;
   onUnlock: () => void;
 };
 
-export async function runFlow(
-  actions: FlowAction[],
-  ctx: FlowRuntimeContext
-) {
-  for (const action of actions) {
+export function runFlow(actions: FlowAction[], runtime: Runtime) {
+  if (!actions?.length) return;
+
+  let i = 0;
+
+  const next = () => {
+    if (i >= actions.length) return;
+
+    const action = actions[i++];
+
     switch (action.type) {
       case "message":
-        ctx.onMessage(action.text);
+        runtime.onMessage(action.text);
         break;
 
       case "delay":
-        await new Promise((r) => setTimeout(r, action.ms));
-        break;
-
-      case "redirect":
-        ctx.onRedirect(action.url);
+        setTimeout(next, action.ms);
         return;
 
-      case "unlock_preview":
-        ctx.onUnlock();
+      case "redirect":
+        runtime.onRedirect(action.url);
+        break;
+
+      case "unlock":
+        runtime.onUnlock();
+        break;
+
+      case "cta":
+        runtime.onMessage(action.text);
         break;
     }
-  }
+
+    setTimeout(next, 900);
+  };
+
+  next();
 }

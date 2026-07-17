@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FlowAction } from "../../types/flow";
+import type { FlowAction } from "@qre/contracts";
 
 export default function FlowPreviewPanel({
   actions,
@@ -35,74 +35,78 @@ export default function FlowPreviewPanel({
     <div style={{ border: "1px solid #ddd", padding: 12 }}>
       <h3>⚡ Flow Builder (Reorderable)</h3>
 
-      {actions.length === 0 && (
-        <p style={{ opacity: 0.6 }}>No actions yet</p>
-      )}
+      {actions.length === 0 && <p>No actions yet</p>}
 
       {actions.map((a, i) => (
         <div
           key={i}
           draggable
           onDragStart={() => setDragIndex(i)}
-          onDragOver={(e) => e.preventDefault()}
           onDrop={() => {
             if (dragIndex === null) return;
             move(dragIndex, i);
             setDragIndex(null);
           }}
+          onDragOver={(e) => e.preventDefault()}
           style={{
             padding: 10,
-            marginBottom: 10,
             border: "1px solid #eee",
-            borderRadius: 6,
-            background: "#fff",
-            cursor: "grab",
+            marginBottom: 10,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <strong>{i + 1}. {a.type}</strong>
+          <strong>
+            {i + 1}. {a.type}
+          </strong>
 
-            <div>
-              <button onClick={() => move(i, i - 1)}>↑</button>
-              <button onClick={() => move(i, i + 1)}>↓</button>
-              <button onClick={() => remove(i)}>✕</button>
-            </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => move(i, i - 1)}>↑</button>
+            <button onClick={() => move(i, i + 1)}>↓</button>
+            <button onClick={() => remove(i)}>✕</button>
           </div>
 
-          {/* MESSAGE */}
           {a.type === "message" && (
             <input
               value={a.text || ""}
               onChange={(e) => update(i, "text", e.target.value)}
-              placeholder="message"
-              style={{ width: "100%" }}
             />
           )}
 
-          {/* DELAY */}
           {a.type === "delay" && (
             <input
               type="number"
-              value={a.ms || 0}
-              onChange={(e) => update(i, "ms", Number(e.target.value))}
-              placeholder="ms"
-              style={{ width: "100%" }}
+              value={(a as any).ms || 0}
+              onChange={(e) =>
+                update(i, "ms", Number(e.target.value))
+              }
             />
           )}
 
-          {/* REDIRECT */}
           {a.type === "redirect" && (
             <input
-              value={a.url || ""}
-              onChange={(e) => update(i, "url", e.target.value)}
-              placeholder="url"
-              style={{ width: "100%" }}
+              value={(a as any).url || ""}
+              onChange={(e) =>
+                update(i, "url", e.target.value)
+              }
             />
           )}
 
-          {/* UNLOCK */}
-          {a.type === "unlock_preview" && (
-            <div style={{ opacity: 0.6 }}>Unlock action</div>
+          {a.type === "cta" && (
+            <>
+              <input
+                placeholder="text"
+                value={(a as any).text || ""}
+                onChange={(e) =>
+                  update(i, "text", e.target.value)
+                }
+              />
+              <input
+                placeholder="url"
+                value={(a as any).url || ""}
+                onChange={(e) =>
+                  update(i, "url", e.target.value)
+                }
+              />
+            </>
           )}
         </div>
       ))}

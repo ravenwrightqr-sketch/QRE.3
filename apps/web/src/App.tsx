@@ -15,67 +15,61 @@ import Product from "./pages/product";
 import Success from "./pages/Success";
 import Cancel from "./pages/Cancel";
 
-function isAuth(): boolean {
-  return !!localStorage.getItem("token");
-}
+import { useAuth } from "./components/dashboard/authContext";
 
 export default function App() {
+  const { isAuthed } = useAuth();
+
   return (
     <BrowserRouter>
       <Routes>
 
-          {/* ===================== AUTH ===================== */}
+        {/* AUTH */}
         <Route path="/login" element={<Login />} />
 
-        {/* ===================== MAIN DASHBOARD ===================== */}
+        {/* ROOT REDIRECT */}
+        <Route
+          path="/"
+          element={
+            isAuthed ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
+          }
+        />
+
+        {/* USER DASHBOARD */}
         <Route
           path="/dashboard"
-          element={isAuth() ? <Dashboard /> : <Navigate to="/login" />}
+          element={isAuthed ? <Dashboard /> : <Navigate to="/login" />}
         />
 
         <Route path="/user" element={<UserDashboard />} />
 
-        {/* ===================== ADMIN ===================== */}
+        {/* ADMIN */}
         <Route
           path="/admin"
-          element={isAuth() ? <AdminDashboard /> : <Navigate to="/login" />}
+          element={isAuthed ? <AdminDashboard /> : <Navigate to="/login" />}
         />
 
         <Route
           path="/admin/create"
-          element={isAuth() ? <CreateAsset /> : <Navigate to="/login" />}
+          element={isAuthed ? <CreateAsset /> : <Navigate to="/login" />}
         />
 
         <Route
           path="/admin/edit/:id"
-          element={isAuth() ? <EditAsset /> : <Navigate to="/login" />}
+          element={isAuthed ? <EditAsset /> : <Navigate to="/login" />}
         />
 
         <Route
           path="/admin/assets/:slug"
-          element={isAuth() ? <AssetDashboard /> : <Navigate to="/login" />}
+          element={isAuthed ? <AssetDashboard /> : <Navigate to="/login" />}
         />
 
-        {/* ===================== PUBLIC PRODUCT FLOW ===================== */}
+        {/* PUBLIC SYSTEM */}
         <Route path="/product/:slug" element={<Product />} />
-
         <Route path="/scan/:slug" element={<Scan />} />
-
         <Route path="/store" element={<Store />} />
-
         <Route path="/success" element={<Success />} />
-
         <Route path="/cancel" element={<Cancel />} />
-
-        {/* ===================== DEFAULT ===================== */}
-        <Route
-          path="/"
-          element={
-            isAuth()
-              ? <Navigate to="/dashboard" />
-              : <Navigate to="/login" />
-          }
-        />
 
       </Routes>
     </BrowserRouter>

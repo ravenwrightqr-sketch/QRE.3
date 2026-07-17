@@ -1,0 +1,35 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #05060a;
+  font-family: monospace;
+  color: #00ff88;
+}
+
+.boot {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at center, #0b0f1a, #05060a);
+}
+
+.glow {
+  font-size: 28px;
+  letter-spacing: 6px;
+  text-shadow: 0 0 10px #00ff88, 0 0 30px #00ff88;
+  animation: flicker 1.5s infinite;
+}
+
+.sub {
+  margin-top: 10px;
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+@keyframes flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}

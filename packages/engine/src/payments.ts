@@ -1,40 +1,50 @@
-import type { PaymentAction } from "./actions.js";
+import type { FlowAction as Action } from "@qre/contracts";
 
 export type PaymentResult = {
   url: string;
-  provider: PaymentAction["provider"];
+  provider: "stripe" | "cashapp" | "paypal" | "custom";
 };
 
 /**
  * =========================
- * PAYMENT RESOLVER (V1)
+ * PAYMENT RESOLVER (V1 CLEAN)
  * =========================
+ *
+ * NOTE:
+ * This assumes payment routing is handled externally
+ * (checkout/session/webhook layer).
  */
-export function createPaymentLink(action: PaymentAction): PaymentResult {
-  switch (action.provider) {
+export function createPaymentLink(action: Action): PaymentResult {
+  if (action.type !== "payment") {
+    throw new Error("Invalid action: not a payment");
+  }
+
+  const provider = action.provider;
+
+  switch (provider) {
     case "stripe":
       return {
         provider: "stripe",
-        url: `https://checkout.stripe.com/pay/${action.destination ?? ""}`,
+        url: "https://checkout.stripe.com/pay/session-placeholder",
       };
 
     case "cashapp":
       return {
         provider: "cashapp",
-        url: `https://cash.app/$${action.destination ?? ""}`,
+        url: "https://cash.app/$merchant-placeholder",
       };
 
     case "paypal":
       return {
         provider: "paypal",
-        url: `https://paypal.me/${action.destination ?? ""}`,
+        url: "https://paypal.me/merchant-placeholder",
       };
 
     case "custom":
     default:
       return {
         provider: "custom",
-        url: action.destination ?? "",
+        url: "",
       };
   }
 }

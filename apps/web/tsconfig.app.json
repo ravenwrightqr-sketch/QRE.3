@@ -1,25 +1,26 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023", "DOM"],
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
 
     "module": "ESNext",
-    "moduleResolution": "bundler",
-
-    "jsx": "react-jsx",
-    "types": ["vite/client"],
-
     "skipLibCheck": true,
 
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
+    "moduleResolution": "Bundler",
 
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
     "noEmit": true,
 
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "jsx": "react-jsx",
+
+    "strict": true,
+
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }

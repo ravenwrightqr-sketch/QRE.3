@@ -1,103 +1,155 @@
-import express from "express";
+import express, { Response } from "express";
 import { db } from "@qre/db";
-import type { Request, Response } from "express";
+import { authMiddleware, type AuthRequest } from "./authMiddleware.js";
 
 const router = express.Router();
 
 /**
  * =========================
- * ADMIN GUARD (DEV ONLY)
+ * AUTH PROTECTION
  * =========================
  */
-function isAdmin(req: Request) {
-  return process.env.QRE_ADMIN === "true";
-}
+router.use(authMiddleware);
 
 /**
  * =========================
- * NORMALIZE PARAM SAFETY
- * (fixes string | string[])
+ * CREATE ASSET (OWNED BY USER)
  * =========================
  */
-function normalizeParam(param: string | string[] | undefined): string {
-  if (!param) return "";
-  return Array.isArray(param) ? param[0] : param;
-}
+router.post("/assets", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
 
-/**
- * =========================
- * GET ALL ASSETS
- * =========================
- */
-router.get("/assets", async (req: Request, res: Response) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ error: "Forbidden" });
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { slug, flowId, priceCents } = req.body;
+
+    if (!slug) {
+      return res.status(400).json({ error: "Missing slug" });
+    }
+
+    const asset = await db.asset.create({
+      data: {
+        slug,
+        flowId: flowId ?? null,
+        priceCents: priceCents ?? 299,
+
+        ownerId: userId,
+        paid: false,
+        status: "active",
+      },
+    });
+
+    return res.json(asset);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
-
-  const assets = await db.asset.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-
-  return res.json(assets);
 });
 
 /**
  * =========================
- * CREATE ASSET (QR PRODUCT)
+ * GET USER OWN ASSETS ONLY
  * =========================
  */
-router.post("/assets", async (req: Request, res: Response) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ error: "Forbidden" });
+router.get("/assets", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const assets = await db.asset.findMany({
+      where: { ownerId: userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json(assets);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
-
-  const { slug, flowId } = req.body;
-
-  if (!slug) {
-    return res.status(400).json({ error: "Missing slug" });
-  }
-
-  const asset = await db.asset.create({
-    data: {
-      slug,
-      flowId: flowId ?? null,
-
-      // 🔥 NEW SYSTEM DEFAULT
-      paid: false,
-      status: "active",
-    },
-  });
-
-  return res.json(asset);
 });
 
 /**
  * =========================
- * UPDATE ASSET
+ * GET SINGLE ASSET (OWNED ONLY)
  * =========================
  */
-router.put("/assets/:id", async (req: Request, res: Response) => {
-  if (!isAdmin(req)) {
-    return res.status(403).json({ error: "Forbidden" });
+router.get("/assets/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    const id =
+      typeof req.params.id === "string"
+        ? req.params.id
+        : req.params.id?.[0];
+
+    if (!id) {
+      return res.status(400).json({ error: "Missing id" });
+    }
+
+    const asset = await db.asset.findFirst({
+      where: {
+        id,
+        ownerId: userId,
+      },
+    });
+
+    if (!asset) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    return res.json(asset);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
+});
 
-  const id = normalizeParam(req.params.id);
-  const { flowId, status, paid } = req.body;
+/**
+ * =========================
+ * UPDATE ASSET (OWNERS ONLY)
+ * =========================
+ */
+router.post("/asset/update", async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
 
-  if (!id) {
-    return res.status(400).json({ error: "Missing id" });
+    const { id, flowId, status, paid } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!id) {
+      return res.status(400).json({ error: "Missing id" });
+    }
+
+    const asset = await db.asset.findFirst({
+      where: {
+        id,
+        ownerId: userId,
+      },
+    });
+
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found or not owned" });
+    }
+
+    const updated = await db.asset.update({
+      where: { id },
+      data: {
+        flowId,
+        status,
+        paid,
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
-
-  const updated = await db.asset.update({
-    where: { id },
-    data: {
-      flowId,
-      status,
-      paid,
-    },
-  });
-
-  return res.json(updated);
 });
 
 export default router;

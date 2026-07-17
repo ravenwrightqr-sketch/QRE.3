@@ -1,25 +1,37 @@
-export type ActionContext = {
+export type AccessState = "UNCLAIMED" | "LOCKED" | "UNLOCKED";
+
+export type ScanEventType =
+  | "scan"
+  | "flow_start"
+  | "flow_step"
+  | "flow_end"
+  | "cta"
+  | "redirect"
+  | "unlock"
+  | "payment"
+  | "payment_required";
+
+export type ScanMode =
+  | "public"
+  | "authenticated"
+  | "auth_required";
+
+export type ScanResponse = {
+  mode: ScanMode;
+  access: AccessState;
+
   assetId: string;
   sessionId: string;
+  flowId: string | null;
+
+  stepIndex: number;
+
+  teaser: any;
+
+  preview: boolean;
+
+  nextAction?: "CHECKOUT" | "RUN_FLOW";
+  actionUrl?: string | null;
+
+  timestamp: string;
 };
-
-export type PaymentProvider = "stripe" | "cashapp" | "paypal" | "custom";
-
-export type PaymentAction = {
-  type: "payment";
-  provider: PaymentProvider;
-  destination?: string;
-  amount?: number;
-};
-
-export type Action =
-  | { type: "message"; text: string }
-  | { type: "notify_owner"; payload?: any }
-  | { type: "timer"; duration: number }
-  | { type: "redirect"; url: string }
-  | PaymentAction;
-
-export type Flow = {
-  actions: Action[];
-};
-

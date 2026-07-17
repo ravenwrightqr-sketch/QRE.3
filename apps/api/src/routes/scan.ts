@@ -1,29 +1,59 @@
-import type { Request, Response } from "express";
-import { scanEngine } from "@qre/engine";
+import express, { Response } from "express";
+import type { AuthRequest } from "../middleware/requireAuth.js";
+import { scanHandler } from "../handlers/scanHandler.js"
+import { safeStringParam } from "../lib/safeParam.js";
 
-export async function scanHandler(req: Request, res: Response) {
-  const slugParam = req.params.slug;
+const router = express.Router();
 
-  const slug = Array.isArray(slugParam)
-    ? slugParam[0]
-    : slugParam;
-
-  if (!slug) {
-    return res.status(400).json({
-      type: "error",
-      error: "missing_slug",
-    });
-  }
-
+/**
+ * =========================
+ * SCAN ENDPOINT
+ * =========================
+ * PURE HTTP LAYER
+ * - validates input
+ * - forwards to scanHandler
+ * - returns engine contract unchanged
+ */
+router.get("/:slug", async (req: AuthRequest, res: Response) => {
   try {
-    const result = await scanEngine(slug);
+    /**
+     * =========================
+     * INPUT SANITIZATION
+     * =========================
+     */
+    const slug = safeStringParam(req.params.slug);
 
-    // 🔥 CRITICAL: enforce contract safety
+    if (!slug) {
+      return res.status(400).json({
+        error: "Missing slug",
+      });
+    }
+
+    /**
+     * =========================
+     * EXECUTE SCAN PIPELINE
+     * =========================
+     * scanHandler → scanEngine (source of truth)
+     */
+    const result = await scanHandler({
+      slug,
+      userId: req.user?.userId,
+    });
+
+    /**
+     * =========================
+     * RESPONSE
+     * =========================
+     * IMPORTANT:
+     * DO NOT modify shape here.
+     * Frontend depends on scanEngine contract.
+     */
     return res.json(result);
-  } catch (err) {
+  } catch (e: any) {
     return res.status(500).json({
-      type: "error",
-      error: "scan_failed",
+      error: e.message || "Scan failed",
     });
   }
-}
+});
+
+export default router;

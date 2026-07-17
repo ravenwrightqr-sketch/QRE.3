@@ -1,24 +1,43 @@
 import { useEffect, useState } from "react";
+import { apiGet, apiPost } from "../lib/api";
+
+type Product = {
+  id: string;
+  slug: string;
+  priceCents: number;
+};
 
 export default function Store() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
+  /**
+   * =========================
+   * LOAD PRODUCTS
+   * =========================
+   */
   useEffect(() => {
-    fetch("http://localhost:3000/store")
-      .then((r) => r.json())
-      .then(setProducts);
+    apiGet("/store")
+      .then(setProducts)
+      .catch(console.error);
   }, []);
 
-  const buy = async (slug: string) => {
-    const res = await fetch("http://localhost:3000/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug }),
-    });
+  /**
+   * =========================
+   * CHECKOUT FLOW
+   * =========================
+   */
+  const buy = async (assetId: string) => {
+    try {
+      const data = await apiPost(`/checkout/${assetId}`, {
+        plan: "base",
+      });
 
-    const data = await res.json();
-
-    window.location.href = data.url;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error("Checkout failed:", err);
+    }
   };
 
   return (
@@ -30,7 +49,7 @@ export default function Store() {
           <h3>{p.slug}</h3>
           <p>${(p.priceCents / 100).toFixed(2)}</p>
 
-          <button onClick={() => buy(p.slug)}>
+          <button onClick={() => buy(p.id)}>
             Buy Unlock
           </button>
         </div>

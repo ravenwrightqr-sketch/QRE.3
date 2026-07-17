@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiPost } from "../../lib/api";
 
 export default function WritePanel({ slug }: { slug: string }) {
   const [text, setText] = useState("");
@@ -10,13 +11,9 @@ export default function WritePanel({ slug }: { slug: string }) {
     setSaving(true);
 
     try {
-      await fetch("/admin/asset/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          teaserText: text,
-        }),
+      await apiPost("/admin/asset/update", {
+        slug,
+        teaserText: text,
       });
     } finally {
       setSaving(false);
@@ -31,11 +28,7 @@ export default function WritePanel({ slug }: { slug: string }) {
         placeholder="What should this QR say?"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        style={{
-          width: "100%",
-          height: 120,
-          padding: 10,
-        }}
+        style={{ width: "100%", height: 120, padding: 10 }}
       />
 
       <button onClick={save} disabled={saving} style={{ marginTop: 10 }}>

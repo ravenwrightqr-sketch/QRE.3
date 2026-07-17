@@ -1,16 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["ES2020"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
+    "baseUrl": ".",
+    "paths": {
+      "@qre/contracts": ["packages/contracts/src/index.ts"],
+      "@qre/contracts/*": ["packages/contracts/src/*"]
+    },
     "strict": true,
     "skipLibCheck": true,
-
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-
     "types": ["node"]
   }
 }

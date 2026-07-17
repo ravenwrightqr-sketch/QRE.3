@@ -1,82 +1,48 @@
+import express from "express";
 import { db } from "@qre/db";
+import { safeStringParam } from "../lib/safeParam.js";
 
-/**
- * Centralized analytics event types
- * (Prisma is NOT enforcing this yet, so we enforce it here)
- */
-type AnalyticsEventType =
-  | "scan"
-  | "flow_start"
-  | "flow_end"
-  | "message"
-  | "redirect"
-  | "timer"
-  | "timer_complete"
-  | "notify_owner"
-  | "payment_required"
-  | "purchase_completed";
+const router = express.Router();
 
-/**
- * Lightweight normalized event shape (prevents Prisma type chaos)
- */
-type AnalyticsEvent = {
-  id: string;
-  assetId: string;
-  sessionId: string | null;
-  flowId: string | null;
-  stepIndex: number | null;
-  type: AnalyticsEventType;
-  meta: unknown;
-  createdAt: Date;
-};
+router.get("/:slug", async (req, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
 
-export async function getAssetAnalytics(assetId: string) {
-  const events = (await db.analyticsEvent.findMany({
-    where: { assetId },
-    orderBy: { createdAt: "desc" },
-  })) as AnalyticsEvent[];
+    if (!slug) {
+      return res.status(400).json({ error: "Missing slug" });
+    }
 
-  // -----------------------------
-  // METRICS
-  // -----------------------------
-  const totalScans = events.filter(e => e.type === "scan").length;
-  const flowStarts = events.filter(e => e.type === "flow_start").length;
-  const flowEnds = events.filter(e => e.type === "flow_end").length;
+    const asset = await db.asset.findUnique({
+      where: { slug },
+    });
 
-  const flowSteps = events.filter(e =>
-    e.type === "message" ||
-    e.type === "redirect" ||
-    e.type === "timer" ||
-    e.type === "timer_complete"
-  ).length;
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found" });
+    }
 
-  const redirects = events.filter(e => e.type === "redirect").length;
-  const payments = events.filter(e => e.type === "payment_required").length;
-  const purchases = events.filter(e => e.type === "purchase_completed").length;
-  const notifyOwners = events.filter(e => e.type === "notify_owner").length;
+    const assetId = asset.id;
 
-  const sessions = new Set(
-    events
-      .map(e => e.sessionId)
-      .filter((id): id is string => Boolean(id))
-  ).size;
+    const scans = await db.scanEvent.count({
+      where: { assetId, type: "scan" },
+    });
 
-  // -----------------------------
-  // RETURN SHAPE
-  // -----------------------------
-  return {
-    assetId,
-    summary: {
-      totalScans,
+    const sessions = await db.scanSession.count({
+      where: { assetId },
+    });
+
+    const purchases = await db.scanEvent.count({
+      where: { assetId, type: "purchase_completed" },
+    });
+
+    return res.json({
+      scans,
       sessions,
-      flowStarts,
-      flowSteps,
-      flowEnds,
-      redirects,
-      payments,
-      purchases,
-      notifyOwners,
-    },
-    events: events.slice(0, 200),
-  };
-}
+      conversionRate:
+        sessions > 0 ? (purchases / sessions) * 100 : 0,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+export default router;

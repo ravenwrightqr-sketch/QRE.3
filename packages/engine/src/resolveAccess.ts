@@ -1,19 +1,14 @@
-export type AccessState =
-  | "UNCLAIMED"
-  | "LOCKED"
-  | "UNLOCKED";
+import type { AccessState } from "./types.js";
 
-export function resolveAccess(input: {
+type Params = {
+  assetId: string;
+  userId?: string;
   paid: boolean;
   owned: boolean;
-}): AccessState {
-  if (!input.paid) {
-    return "UNCLAIMED";
-  }
+};
 
-  if (!input.owned) {
-    return "LOCKED";
-  }
-
-  return "UNLOCKED";
+export function resolveAccess(params: Params): AccessState {
+  if (!params.paid) return "UNCLAIMED";
+  if (params.owned) return "UNLOCKED";
+  return "LOCKED";
 }

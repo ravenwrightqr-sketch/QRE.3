@@ -4,6 +4,8 @@ export async function createSession(assetId, flowId) {
         data: {
             assetId,
             startedAt: new Date(),
+            stepIndex: 0,
+            status: "active",
         },
     });
 }
@@ -15,6 +17,8 @@ export async function getSession(sessionId) {
 export async function updateSession(sessionId, data) {
     return db.scanSession.update({
         where: { id: sessionId },
-        data,
+        data: {
+            ...data,
+        },
     });
 }

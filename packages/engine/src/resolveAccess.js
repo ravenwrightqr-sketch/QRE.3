@@ -1,9 +1,7 @@
-export function resolveAccess(input) {
-    if (!input.paid) {
+export function resolveAccess(params) {
+    if (!params.paid)
         return "UNCLAIMED";
-    }
-    if (!input.owned) {
-        return "LOCKED";
-    }
-    return "UNLOCKED";
+    if (params.owned)
+        return "UNLOCKED";
+    return "LOCKED";
 }

@@ -1,41 +1,68 @@
-export function compileFlow(input) {
-    const lines = input
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
+export function compileFlow({ input, tier = "BASIC", }) {
+    const text = input.toLowerCase().trim();
     const actions = [];
-    for (const line of lines) {
-        const lower = line.toLowerCase();
-        // STORY / MESSAGE
-        if (lower.startsWith("show") || lower.startsWith("story") || lower.startsWith("message")) {
-            actions.push({
-                type: "message",
-                text: line.replace(/^(show|story|message)\s*/i, ""),
-            });
-            continue;
-        }
-        // DELAY
-        if (lower.includes("wait") || lower.includes("delay")) {
-            const ms = parseInt(line.match(/\d+/)?.[0] ?? "1000", 10);
-            actions.push({ type: "delay", ms });
-            continue;
-        }
-        // UNLOCK
-        if (lower.includes("unlock")) {
-            actions.push({ type: "unlock_preview" });
-            continue;
-        }
-        // REDIRECT
-        if (lower.includes("redirect") || lower.includes("go to") || lower.includes("open")) {
-            const url = line.split(" ").pop() ?? "/";
-            actions.push({ type: "redirect", url });
-            continue;
-        }
-        // fallback → message
+    const intents = {
+        greeting: /(hello|hi|welcome|start|intro)/.test(text),
+        delay: /(wait|pause|hold|slow)/.test(text),
+        navigation: /(shop|store|menu|browse|products?|go to|visit)/.test(text),
+        cta: /(click|button|action|continue|next)/.test(text),
+        unlock: /(unlock|premium|vip|access)/.test(text),
+        payment: /(pay|checkout|buy|purchase|order)/.test(text),
+    };
+    if (intents.greeting) {
         actions.push({
             type: "message",
-            text: line,
+            text: "Welcome to your experience.",
         });
     }
-    return actions;
+    if (intents.delay) {
+        actions.push({
+            type: "delay",
+            ms: 1500,
+        });
+    }
+    if (intents.navigation) {
+        actions.push({
+            type: "redirect",
+            url: "/store",
+        });
+    }
+    if (intents.cta) {
+        actions.push({
+            type: "cta",
+            text: "Continue",
+            url: "/store",
+        });
+    }
+    if (intents.unlock) {
+        actions.push({
+            type: "unlock",
+        });
+    }
+    if (intents.payment) {
+        actions.push({
+            type: "payment",
+            provider: "stripe",
+            amount: 0,
+        });
+    }
+    return applyTierRules(actions, tier);
+}
+function applyTierRules(actions, tier) {
+    const featureMatrix = {
+        BASIC: ["message", "redirect"],
+        PRO: ["message", "redirect", "delay", "cta", "unlock"],
+        BUSINESS: ["message", "redirect", "delay", "cta", "unlock", "payment"],
+    };
+    const depthLimit = {
+        BASIC: 2,
+        PRO: 8,
+        BUSINESS: Infinity,
+    };
+    const allowed = featureMatrix[tier];
+    const limit = depthLimit[tier];
+    const filtered = actions
+        .filter((a) => allowed.includes(a.type))
+        .slice(0, limit);
+    return { actions: filtered };
 }

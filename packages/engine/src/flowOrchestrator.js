@@ -1,29 +1,35 @@
-import { runAction } from "./actions.js";
 import { getSession, updateSession } from "./sessionManager.js";
+import { runAction } from "./actions.js";
 export async function runFlowActions(actions, sessionId, assetId) {
-    if (!actions?.length)
-        return;
-    // 🔄 load session (DB source of truth)
     const session = await getSession(sessionId);
-    // 🧠 IMPORTANT: session may NOT have stepIndex in your current schema
-    const startIndex = session?.stepIndex ?? 0;
-    for (let i = startIndex; i < actions.length; i++) {
+    if (!session)
+        throw new Error("Session not found");
+    let currentIndex = session.stepIndex ?? 0;
+    for (let i = currentIndex; i < actions.length; i++) {
         const action = actions[i];
         if (!action)
             continue;
-        // 💾 persist progress BEFORE execution (crash-safe resume model)
+        const latest = await getSession(sessionId);
+        if (!latest)
+            throw new Error("Session lost");
+        if ((latest.stepIndex ?? 0) > i)
+            continue;
         await updateSession(sessionId, {
             stepIndex: i,
+            status: "running",
         });
-        // ⚡ execute atomic action
-        await runAction(action, {
+        const result = await runAction(action, {
             sessionId,
             assetId,
         });
+        await updateSession(sessionId, {
+            stepIndex: i + 1,
+            status: "active",
+            lastAction: result,
+        });
     }
-    // 🏁 finalize session
     await updateSession(sessionId, {
-        status: "completed",
         stepIndex: actions.length,
+        status: "completed",
     });
 }

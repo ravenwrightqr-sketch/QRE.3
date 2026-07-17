@@ -1,72 +1,91 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const API = "http://localhost:3000";
+import { apiPost } from "../lib/api";
 
 export default function Login() {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
 
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleLogin() {
     setError("");
 
     try {
-      const res = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      setLoading(true);
+
+      const res = await apiPost("/auth/login", {
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
+      // expected: { token }
+      if (res?.token) {
+        localStorage.setItem("token", res.token);
       }
 
-      /**
-       * =========================
-       * STORE TOKEN
-       * =========================
-       */
-      localStorage.setItem("token", data.token);
-
-      /**
-       * =========================
-       * NAVIGATE TO DASHBOARD
-       * =========================
-       */
       navigate("/dashboard");
-    } catch (err) {
-      setError("Network error");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="login">
-      <h1 className="glitch-title">ENTER NODE SYSTEM</h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#050505",
+      }}
+    >
+      <div
+        style={{
+          width: 420,
+          padding: 40,
+          border: "1px solid #222",
+          borderRadius: 18,
+          background: "#0b0b0b",
+        }}
+      >
+        <h1 style={{ textAlign: "center", marginBottom: 30 }}>
+          ⚡ ENTER NODE SYSTEM
+        </h1>
 
-      <input
-        placeholder="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+        <input
+          placeholder="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ width: "100%", padding: 14, marginBottom: 12 }}
+        />
 
-      <input
-        placeholder="password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+        <input
+          placeholder="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: "100%", padding: 14, marginBottom: 20 }}
+        />
 
-      <button onClick={handleLogin}>LOGIN</button>
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          style={{ width: "100%", padding: 14 }}
+        >
+          {loading ? "Connecting..." : "LOGIN"}
+        </button>
 
-      {error && <p className="error">{error}</p>}
+        {error && (
+          <p style={{ color: "red", marginTop: 20, textAlign: "center" }}>
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

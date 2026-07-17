@@ -1,16 +1,5 @@
 import { db } from "@qre/db";
-
-export type ScanEventType =
-  | "scan"
-  | "flow_start"
-  | "flow_end"
-  | "message"
-  | "redirect"
-  | "timer"
-  | "timer_complete"
-  | "notify_owner"
-  | "payment_required"
-  | "purchase_completed";
+import type { ScanEventType } from "./types.js";
 
 export async function logAnalyticsEvent(input: {
   assetId: string;

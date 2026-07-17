@@ -1,54 +1,70 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiGet, apiPut } from "../../lib/api";
+import { useParams, useNavigate } from "react-router-dom";
 
-export default function CreateAsset() {
-  const [slug, setSlug] = useState("");
-  const [priceCents, setPriceCents] = useState(299);
+export default function EditAsset() {
+  const { slug } = useParams();
+  const navigate = useNavigate();
+
+  const [priceCents, setPriceCents] = useState(0);
   const [flowId, setFlowId] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const create = async () => {
-    await fetch("http://localhost:3000/admin/assets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        slug,
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiGet(`/admin/assets/${slug}`);
+
+        setPriceCents(data.priceCents ?? 0);
+        setFlowId(data.flowId ?? "");
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (slug) load();
+  }, [slug]);
+
+  async function save() {
+    try {
+      await apiPut(`/admin/assets/${slug}`, {
         priceCents,
         flowId: flowId || null,
-      }),
-    });
+      });
 
-    window.location.href = "/admin";
-  };
+      navigate("/admin");
+    } catch (e) {
+      console.error("Update failed", e);
+      alert("Update failed");
+    }
+  }
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Create Keychain</h1>
-
-      <input
-        placeholder="slug (e.g. killer-queen)"
-        value={slug}
-        onChange={(e) => setSlug(e.target.value)}
-      />
-
-      <br />
+      <h1>Edit Keychain</h1>
 
       <input
         type="number"
-        placeholder="price in cents"
         value={priceCents}
         onChange={(e) => setPriceCents(Number(e.target.value))}
+        placeholder="price"
       />
 
       <br />
 
       <input
-        placeholder="flowId (optional)"
         value={flowId}
         onChange={(e) => setFlowId(e.target.value)}
+        placeholder="flowId"
       />
 
       <br />
 
-      <button onClick={create}>Create</button>
+      <button onClick={save}>Save</button>
     </div>
   );
 }

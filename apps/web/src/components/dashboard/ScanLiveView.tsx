@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { runFlow } from "../../lib/flowExecutor";
 import type { FlowAction } from "../../types/flow";
+import { runFlow } from "../../lib/flowExecutor";
 
 export default function ScanLiveView({
   actions,

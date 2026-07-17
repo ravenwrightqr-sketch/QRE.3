@@ -9,7 +9,6 @@ coverage
 .vscode
 .DS_Store
 
-packages/db/prisma/migrations
 
 pnpm-debug.log*
 npm-debug.log*

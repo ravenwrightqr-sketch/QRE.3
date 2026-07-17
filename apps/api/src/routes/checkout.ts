@@ -1,79 +1,133 @@
-import { db } from "@qre/db";
+
+
+import express from "express";
 import Stripe from "stripe";
+import { db } from "@qre/db";
+import { requireAuth, AuthRequest } from "../middleware/requireAuth.js";
+
+const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
- apiVersion: "2026-05-27.dahlia" ,
+  apiVersion: "2026-05-27.dahlia",
 });
 
-type PlanType = "basic" | "premium" | "subscription";
+/**
+ * =========================
+ * CHECKOUT ROUTE
+ * =========================
+ * - DEV: instantly unlocks asset
+ * - PROD: creates Stripe session
+ */
+router.post("/", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { slug } = req.body;
+    const userId = req.user?.userId;
 
-const allowedPlans: PlanType[] = ["basic", "premium", "subscription"];
+    if (typeof slug !== "string") {
+      return res.status(400).json({ error: "Missing or invalid slug" });
+    }
 
-export async function createCheckout(assetId: string, plan: PlanType) {
-  // ---------------------------
-  // VALIDATION
-  // ---------------------------
-  if (!allowedPlans.includes(plan)) {
-    throw new Error("Invalid plan");
-  }
+    const asset = await db.asset.findUnique({
+      where: { slug },
+    });
 
-  const asset = await db.asset.findUnique({
-    where: { id: assetId },
-  });
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found" });
+    }
 
-  if (!asset) throw new Error("Asset not found");
+    const baseUrl = process.env.CLIENT_URL;
+    if (!baseUrl) throw new Error("CLIENT_URL missing");
 
-  // ---------------------------
-  // PRICE LOGIC (SAFE)
-  // ---------------------------
-  const basePrice = asset.priceCents ?? 0;
-
- const price =
-  plan === "premium"
-    ? asset.priceCents * 2
-    : asset.priceCents;
-
-  if (price <= 0) {
-    throw new Error("Invalid asset pricing configuration");
-  }
-
-  // ---------------------------
-  // ENV SAFE URLS (PRODUCTION READY)
-  // ---------------------------
-  const baseUrl =
-    process.env.CLIENT_URL || "http://localhost:3000";
-
-  // ---------------------------
-  // STRIPE SESSION
-  // ---------------------------
-  const session = await stripe.checkout.sessions.create({
-    mode: plan === "subscription" ? "subscription" : "payment",
-
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          unit_amount: price,
-          product_data: {
-            name: `QRE Asset - ${asset.slug}`,
-          },
-        },
-        quantity: 1,
-      },
-    ],
-
-    success_url: `${baseUrl}/scan/${asset.slug}?success=1`,
-    cancel_url: `${baseUrl}/scan/${asset.slug}?canceled=1`,
-
-    metadata: {
-      assetId: asset.id,
-      plan,
+    /**
+     * =========================
+     * DEV MODE (LOCAL TESTING)
+     * =========================
+     * bypass Stripe entirely so your system works end-to-end
+     */
+   if (process.env.NODE_ENV === "development") {
+  const updated = await db.asset.update({
+    where: { id: asset.id },
+    data: {
+      paid: true,
+      ownerId: userId ?? null,
+      status: "active",
+      claimedAt: new Date(),
     },
   });
 
-  if (!session.url) {
-    throw new Error("Stripe session failed to generate URL");
+  if (userId) {
+    await db.ownership.upsert({
+      where: { assetId: asset.id },
+      update: {
+        userId,
+        status: "CLAIMED",
+        claimedAt: new Date(),
+      },
+      create: {
+        assetId: asset.id,
+        userId,
+        status: "CLAIMED",
+        claimedAt: new Date(),
+      },
+    });
   }
 
-  return { url: session.url };
+  return res.json({
+    dev: true,
+    unlocked: true,
+    assetId: asset.id,
+    url: `${baseUrl}/success`,
+  });
 }
+
+    /**
+     * =========================
+     * VALIDATION (PROD ONLY)
+     * =========================
+     */
+    if (!asset.priceCents || asset.priceCents <= 0) {
+      return res.status(400).json({ error: "Invalid price configuration" });
+    }
+
+    /**
+     * =========================
+     * STRIPE CHECKOUT SESSION
+     * =========================
+     */
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            unit_amount: asset.priceCents,
+            product_data: {
+              name: `QRE Asset ${asset.slug}`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+
+      success_url: `${baseUrl}/success`,
+      cancel_url: `${baseUrl}/cancel`,
+metadata: {
+  assetId: asset.id,
+  slug: asset.slug,
+  userId: userId ?? null,
+}
+    });
+
+    return res.json({
+      url: session.url ?? null,
+      assetId: asset.id,
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      error: e.message,
+    });
+  }
+});
+
+export default router;
