@@ -9,30 +9,13 @@
 
     "strict": true,
     "skipLibCheck": true,
+
     "esModuleInterop": true,
 
     "forceConsistentCasingInFileNames": true,
 
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false,
-
-    /**
-     * =========================
-     * MONOREPO WORKSPACE FIX
-     * =========================
-     */
-    "baseUrl": ".",
-    "paths": {
-      "@qre/contracts": ["../../packages/contracts/src"],
-      "@qre/engine": ["../../packages/engine/src"],
-      "@qre/db": ["../../packages/db/src"]
-    }
+    "types": ["node"]
   },
-
   "include": ["src"],
-
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "exclude": ["node_modules", "dist"]
 }

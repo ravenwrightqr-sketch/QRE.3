@@ -1,87 +1,234 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { scan } from "../lib/api";
-import { runFlow } from "../lib/flowExecutor";
 
-import type { ScanRuntimeResponse } from "../types/runtime";
+import type { ScanResponse } from "@qre/contracts";
+
+import ScanAccessRouter from "../components/scan/ScanAccessRouter";
+import { getScan } from "../lib/api";
+
 
 export default function Scan() {
+
   const { slug } = useParams();
 
-  const [loading, setLoading] = useState(true);
-  const [result, setResult] = useState<ScanRuntimeResponse | null>(null);
 
-  const [output, setOutput] = useState<string[]>([]);
-  const [unlocked, setUnlocked] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [
+    data,
+    setData
+  ] = useState<ScanResponse | null>(null);
+
+
 
   useEffect(() => {
-    async function run() {
+
+    async function load() {
+
+      if (!slug) return;
+
+
       try {
-        if (!slug) throw new Error("Missing slug");
 
-        const data: ScanRuntimeResponse = await scan(slug);
 
-        setResult(data);
+        let geo:
+          | {
+              lat:number;
+              lng:number;
+              accuracy?:number;
+            }
+          | undefined;
 
-        // =========================
-        // FLOW SAFE ACCESS (FIXED)
-        // =========================
-        const actions = data.flow?.actions ?? [];
 
-        if (Array.isArray(actions) && actions.length > 0) {
-          runFlow(actions, {
-            sessionId: data.sessionId,
 
-            onMessage: (text) =>
-              setOutput((prev) => [...prev, text]),
+        if ("geolocation" in navigator) {
 
-            onRedirect: (url) => {
-              window.location.href = url;
-            },
 
-            onUnlock: () => {
-              setUnlocked(true);
-            },
-          });
+          geo =
+            await new Promise((resolve) => {
 
-          return;
+
+              navigator.geolocation.getCurrentPosition(
+
+                (position) => {
+
+                  resolve({
+
+                    lat:
+                      position.coords.latitude,
+
+                    lng:
+                      position.coords.longitude,
+
+                    accuracy:
+                      position.coords.accuracy,
+
+                  });
+
+                },
+
+
+                () => {
+
+                  console.warn(
+                    "GPS unavailable"
+                  );
+
+                  resolve(undefined);
+
+                },
+
+
+                {
+
+                  enableHighAccuracy:true,
+
+                  timeout:5000,
+
+                  maximumAge:0,
+
+                }
+
+              );
+
+
+            });
+
         }
 
-        // =========================
-        // TEASER FALLBACK
-        // =========================
-        if (Array.isArray(data.teaser) && data.teaser.length > 0) {
-          setOutput(data.teaser.map((t) => t.text ?? ""));
-        }
-      } catch (e: any) {
-        setError(e.message || "Scan failed");
-      } finally {
-        setLoading(false);
+
+
+        const json =
+          await getScan(
+            slug,
+            geo
+          );
+
+
+
+        console.log(
+          "🔥 FULL EXPERIENCE RESPONSE",
+          {
+
+            access:
+              json.access,
+
+            geo,
+
+            moments:
+              json.moments,
+
+            geoStory:
+              json.geoStory,
+
+            cinematicScenes:
+              json.cinematicScenes,
+
+            memorySnapshot:
+              json.memorySnapshot,
+
+            receipt:
+              json.receipt,
+
+            asset:
+              json.asset,
+
+          }
+        );
+
+
+
+        setData(json);
+
+
+
+      } catch(error) {
+
+
+        console.error(
+          "🔥 SCAN PAGE FAILED",
+          error
+        );
+
+
       }
+
     }
 
-    run();
-  }, [slug]);
 
-  if (loading) return <div>SCANNING NODE...</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
+    load();
+
+
+  },[slug]);
+
+
+
+
+
+  if (!data) {
+
+    return (
+
+      <div
+        style={{
+
+          height:"100vh",
+
+          display:"grid",
+
+          placeItems:"center",
+
+          background:"#050505",
+
+          color:"white",
+
+        }}
+      >
+
+        Loading experience...
+
+      </div>
+
+    );
+
+  }
+
+
+if(
+  !data.cinematicScenes ||
+  data.cinematicScenes.length === 0
+){
 
   return (
-    <div style={{ padding: 20 }}>
-      <h3>SCAN OUTPUT</h3>
 
-      <div>Access: {result?.access}</div>
-      <div>Session: {result?.sessionId}</div>
-      <div>Flow ID: {result?.flowId ?? "none"}</div>
+    <div
+      style={{
+        height:"100vh",
+        display:"grid",
+        placeItems:"center",
+        background:"#050505",
+        color:"white",
+      }}
+    >
+      No cinematic experience generated.
 
-      <hr />
-
-      {output.map((o, i) => (
-        <p key={i}>{o}</p>
-      ))}
-
-      {unlocked && <div>🔓 UNLOCKED</div>}
     </div>
+
   );
+
+}
+
+  
+
+
+
+
+  return (
+
+    <ScanAccessRouter
+
+      data={data}
+
+    />
+
+  );
+
 }

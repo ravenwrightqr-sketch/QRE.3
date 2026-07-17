@@ -1,155 +1,283 @@
 import express, { Response } from "express";
 import { db } from "@qre/db";
-import { authMiddleware, type AuthRequest } from "./authMiddleware.js";
+import { Prisma } from "@prisma/client";
+
+import {
+  requireAuth,
+  type AuthRequest,
+} from "../middleware/requireAuth.js";
+
+import {
+  experienceCompiler,
+} from "@qre/engine";
+
 
 const router = express.Router();
 
-/**
- * =========================
- * AUTH PROTECTION
- * =========================
- */
-router.use(authMiddleware);
+
+router.use(requireAuth);
+
 
 /**
- * =========================
- * CREATE ASSET (OWNED BY USER)
- * =========================
+ * =====================================================
+ * CREATE ASSET + EXPERIENCE
+ * =====================================================
+ *
+ * Prompt
+ *        ↓
+ * Experience Compiler
+ *        ↓
+ * Flow
+ *        ↓
+ * FlowSteps
+ *        ↓
+ * AssetFlow Link
+ *        ↓
+ * Ready To Scan
+ *
+ * Ownership is NOT created here.
+ *
+ * Asset starts unclaimed.
+ * Claim flow creates Ownership later.
+ *
+ * =====================================================
  */
-router.post("/assets", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
 
-    const { slug, flowId, priceCents } = req.body;
+router.post(
+  "/assets/create-experience",
+  async (
+    req: AuthRequest,
+    res: Response
+  ) => {
 
-    if (!slug) {
-      return res.status(400).json({ error: "Missing slug" });
-    }
+    try {
 
-    const asset = await db.asset.create({
-      data: {
+      const userId =
+        req.user?.userId;
+
+
+      if(!userId){
+
+        return res.status(401).json({
+          error:"Unauthorized",
+        });
+
+      }
+
+
+      const {
+        displayName,
         slug,
-        flowId: flowId ?? null,
-        priceCents: priceCents ?? 299,
+        prompt,
+        priceCents,
+      } = req.body;
 
-        ownerId: userId,
-        paid: false,
-        status: "active",
-      },
-    });
 
-    return res.json(asset);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+
+      if(!slug || !prompt){
+
+        return res.status(400).json({
+          error:
+            "slug and prompt required",
+        });
+
+      }
+
+
+
+      /**
+       * CREATE ASSET
+       *
+       * No ownerId.
+       *
+       * Ownership is handled through:
+       *
+       * Asset
+       *   |
+       * Ownership
+       *   |
+       * Account
+       *
+       */
+
+
+      const asset =
+        await db.asset.create({
+
+          data:{
+
+            displayName,
+
+            slug,
+
+            status:
+              "active",
+
+            paid:
+              false,
+
+            saleChannel:
+              "ADMIN",
+
+            priceCents:
+              priceCents ?? 999,
+
+          },
+
+        });
+
+
+
+      /**
+       * COMPILE EXPERIENCE
+       */
+
+
+      const compiled =
+        await experienceCompiler(
+          prompt
+        );
+
+
+
+      /**
+       * CREATE FLOW
+       */
+
+
+      const flow =
+        await db.flow.create({
+
+          data:{
+
+            name:
+              compiled.title,
+
+
+            version:
+              1,
+
+
+            actions:{
+
+              category:
+                compiled.industry,
+
+
+              estimatedDuration:
+                compiled.estimatedDuration,
+
+            },
+
+
+            steps:{
+
+              create:
+
+                compiled.flowSteps.map(
+                  step => ({
+
+                    order:
+                      step.order,
+
+
+                    type:
+                      step.type,
+
+
+                    payload:
+                      step.payload as Prisma.InputJsonValue,
+
+                  })
+                ),
+
+            },
+
+          },
+
+
+          include:{
+            steps:true,
+          },
+
+        });
+
+
+
+      /**
+       * LINK EXPERIENCE
+       */
+
+
+      await db.assetFlow.create({
+
+        data:{
+
+          assetId:
+            asset.id,
+
+
+          flowId:
+            flow.id,
+
+
+          active:
+            true,
+
+
+          priority:
+            0,
+
+        },
+
+      });
+
+
+
+      return res.json({
+
+        success:
+          true,
+
+
+        assetId:
+          asset.id,
+
+
+        flowId:
+          flow.id,
+
+
+        slug:
+          asset.slug,
+
+
+        scanUrl:
+          `/api/scan/${asset.slug}`,
+
+      });
+
+
+    } catch(e:any){
+
+      console.error(
+        "CREATE EXPERIENCE ERROR",
+        e
+      );
+
+
+      return res.status(500).json({
+
+        error:
+          e.message,
+
+      });
+
+    }
+
   }
-});
+);
 
-/**
- * =========================
- * GET USER OWN ASSETS ONLY
- * =========================
- */
-router.get("/assets", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const assets = await db.asset.findMany({
-      where: { ownerId: userId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return res.json(assets);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-/**
- * =========================
- * GET SINGLE ASSET (OWNED ONLY)
- * =========================
- */
-router.get("/assets/:id", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-
-    const id =
-      typeof req.params.id === "string"
-        ? req.params.id
-        : req.params.id?.[0];
-
-    if (!id) {
-      return res.status(400).json({ error: "Missing id" });
-    }
-
-    const asset = await db.asset.findFirst({
-      where: {
-        id,
-        ownerId: userId,
-      },
-    });
-
-    if (!asset) {
-      return res.status(404).json({ error: "Not found" });
-    }
-
-    return res.json(asset);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-/**
- * =========================
- * UPDATE ASSET (OWNERS ONLY)
- * =========================
- */
-router.post("/asset/update", async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-
-    const { id, flowId, status, paid } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    if (!id) {
-      return res.status(400).json({ error: "Missing id" });
-    }
-
-    const asset = await db.asset.findFirst({
-      where: {
-        id,
-        ownerId: userId,
-      },
-    });
-
-    if (!asset) {
-      return res.status(404).json({ error: "Asset not found or not owned" });
-    }
-
-    const updated = await db.asset.update({
-      where: { id },
-      data: {
-        flowId,
-        status,
-        paid,
-      },
-    });
-
-    return res.json(updated);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
 
 export default router;

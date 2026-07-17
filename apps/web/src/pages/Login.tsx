@@ -1,35 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../lib/api";
+import { useAuth } from "../components/auth/authContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleLogin() {
+  async function handleSubmit() {
     setError("");
 
     try {
       setLoading(true);
 
-      const res = await apiPost("/auth/login", {
+      const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
+      const res = await apiPost(endpoint, {
         email,
         password,
       });
 
-      // expected: { token }
       if (res?.token) {
-        localStorage.setItem("token", res.token);
-      }
+  localStorage.setItem(
+    "token",
+    res.token
+  );
+}
 
-      navigate("/dashboard");
+if (res?.user) {
+  setUser(res.user);
+}
+
+navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || (mode === "login" ? "Login failed" : "Account creation failed"));
     } finally {
       setLoading(false);
     }
@@ -73,11 +83,34 @@ export default function Login() {
         />
 
         <button
-          onClick={handleLogin}
+          onClick={handleSubmit}
           disabled={loading}
           style={{ width: "100%", padding: 14 }}
         >
-          {loading ? "Connecting..." : "LOGIN"}
+          {loading
+            ? "Connecting..."
+            : mode === "login"
+              ? "LOGIN"
+              : "CREATE ACCOUNT"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMode((current) => (current === "login" ? "register" : "login"));
+            setError("");
+          }}
+          style={{
+            width: "100%",
+            padding: 12,
+            marginTop: 12,
+            border: "1px solid #333",
+            background: "transparent",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          {mode === "login" ? "Need an account? Create one" : "Already have an account? Log in"}
         </button>
 
         {error && (

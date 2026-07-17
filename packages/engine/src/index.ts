@@ -1,39 +1,64 @@
-export { compileFlow } from "./flowCompiler.js";
 
-export { runAction } from "./actions.js";
 export { runFlowActions } from "./flowOrchestrator.js";
+export type { Moment } from "@qre/contracts";
+
 
 export { scanEngine } from "./scanEngine.js";
-export { resolveScanState } from "./resolveScanState.js";
 
-export { createSession, getSession, updateSession } from "./sessionManager.js";
+/**
+ * =========================
+ * ANALYTICS (SINGLE ENTRY POINT)
+ * =========================
+ */
+export * from "./analytics/index.js";
+
+export {
+  createSessionManager,
+} from "./sessionManager.js";
 
 export { renderTeaser } from "./teaserRenderer.js";
 
-/**
- * =========================
- * ANALYTICS (KEEP - CLEAN EXPORT)
- * =========================
- */
-export { logAnalyticsEvent } from "./analytics.js";
-export { getAnalytics } from "./analytics/getAnalytics.js";
-
-/**
- * =========================
- * PAYMENTS / STRIPE (KEEP BUT CONTROLLED)
- * =========================
- */
 export { createPaymentLink } from "./payments.js";
 
-/**
- * =========================
- * TYPES (SAFE EXPORT ONLY)
- * =========================
- */
+export {
+  trackEvent,
+  getRecentActivity,
+  getFunnel,
+  getDashboardMetrics,
+  getScanInsights,
+  getAssetLiveMetrics,
+} from "./analytics/index.js";
+
+export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
+export { getPresenceReplay } from "./presence/getPresenceReplay.js";
+export { getPresenceMap } from "./presence/getPresenceMap.js";
+export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+export * from "./geo/geoMemoryLayer.js";
+export * from "./geo/geoStoryCompiler.js";
+
+
+// Moments
+export * from "./moments/flowToMoments.js";
+export * from "./moments/toMoment.js";
+export * from "./compiler/experienceCompiler.js";
+export * from "./experience/blueprintToFlow.js";
+export * from "./experience/momentMapper.js";
+export {
+  experienceCompiler,
+} from "./compiler/experienceCompiler.js";
+
+export {
+  parseExperiencePrompt,
+} from "./compiler/promptParser.js";
+
+export {
+  buildFlowSteps,
+} from "./compiler/flowBuilder.js";
+
+
 export type {
- 
-  AccessState,
-  ScanResponse,
-  
-  ScanEventType,
-} from "./types.js";
+  AssetRepository,
+  AssetRecord,
+  SessionRepository,
+  AccessRepository,
+} from "./repositories/index.js";

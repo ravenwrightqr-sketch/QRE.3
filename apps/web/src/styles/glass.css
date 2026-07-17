@@ -1,0 +1,222 @@
+:root {
+
+--glass-bg:
+rgba(255,255,255,0.035);
+
+--glass-border:
+rgba(120,220,255,0.18);
+
+--cyan:
+#00ffee;
+
+--purple:
+#9b5cff;
+
+--text:
+#eaffff;
+
+--bg:
+#020308;
+
+}
+
+
+
+/* BODY */
+
+body {
+
+margin:0;
+
+background:
+radial-gradient(
+circle at top,
+#10152b,
+#000
+);
+
+color:var(--text);
+
+font-family:
+monospace;
+
+}
+
+
+
+/* GLASS PANELS */
+
+.glass-card {
+
+background:
+linear-gradient(
+145deg,
+rgba(255,255,255,.06),
+rgba(255,255,255,.015)
+);
+
+
+border:
+
+1px solid
+
+rgba(255,255,255,.12);
+
+
+backdrop-filter:
+
+blur(18px);
+
+
+-webkit-backdrop-filter:
+
+blur(18px);
+
+
+border-radius:
+
+24px;
+
+
+padding:
+
+24px;
+
+
+box-shadow:
+
+0 20px 80px rgba(0,0,0,.6);
+
+
+transition:
+
+.25s ease;
+
+}
+
+
+
+
+.glass-card:hover {
+
+transform:
+
+translateY(-3px);
+
+
+border-color:
+
+rgba(0,255,238,.35);
+
+
+}
+
+
+
+
+.glass-card-glow {
+
+
+box-shadow:
+
+0 0 40px rgba(0,255,238,.12),
+
+0 0 120px rgba(155,92,255,.08);
+
+
+}
+
+
+
+/* BUTTONS */
+
+
+.cyber-button {
+
+
+padding:
+
+12px 24px;
+
+
+border-radius:
+
+14px;
+
+
+background:
+
+rgba(0,255,238,.05);
+
+
+border:
+
+1px solid rgba(0,255,238,.45);
+
+
+color:
+
+#00ffee;
+
+
+font-weight:
+
+700;
+
+
+letter-spacing:
+
+2px;
+
+
+cursor:pointer;
+
+
+box-shadow:
+
+0 0 20px rgba(0,255,238,.15);
+
+
+transition:
+
+.2s;
+
+
+}
+
+
+
+.cyber-button:hover {
+
+
+background:
+
+rgba(0,255,238,.15);
+
+
+box-shadow:
+
+0 0 35px rgba(0,255,238,.4);
+
+
+}
+
+
+
+/* TITLES */
+
+
+.glow-text {
+
+
+color:
+
+#00ffee;
+
+
+text-shadow:
+
+0 0 20px rgba(0,255,238,.6);
+
+
+}

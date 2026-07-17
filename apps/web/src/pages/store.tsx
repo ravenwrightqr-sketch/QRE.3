@@ -15,11 +15,9 @@ export default function Store() {
    * LOAD PRODUCTS
    * =========================
    */
-  useEffect(() => {
-    apiGet("/store")
-      .then(setProducts)
-      .catch(console.error);
-  }, []);
+useEffect(() => {
+  setProducts([]);
+}, []);
 
   /**
    * =========================
@@ -28,9 +26,9 @@ export default function Store() {
    */
   const buy = async (assetId: string) => {
     try {
-      const data = await apiPost(`/checkout/${assetId}`, {
-        plan: "base",
-      });
+  const data = await apiPost("/api/checkout", {
+  slug: assetId,
+});
 
       if (data?.url) {
         window.location.href = data.url;

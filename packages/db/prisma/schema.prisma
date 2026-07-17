@@ -7,98 +7,784 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/**
- * =========================
- * USER MODEL
- * =========================
- */
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
+/// =========================
+/// USER MODEL
+/// =========================
 
-  /**
-   * SUBSCRIPTION SYSTEM
-   */
-  tier              String   @default("BASIC")
-  tierActive        Boolean  @default(true)
-  stripeCustomerId  String?
+model User {
+  id String @id @default(cuid())
+
+  email String @unique
+
+  password String
+
+  stripeCustomerId String?
 
   createdAt DateTime @default(now())
 
-  assets       Asset[]
-  sessions     ScanSession[]
-  ownerships   Ownership[]
+  phone String?
+
+  mediaAssets MediaAsset[]
+
+  sessions ScanSession[]
+
+  accounts AccountUser[]
 }
 
-/**
- * =========================
- * ASSET (QR OBJECT)
- * =========================
- */
-model Asset {
-  id        String   @id @default(cuid())
-  slug      String   @unique
+/// =========================
+/// ASSET
+/// QR + NFC OBJECT
+/// =========================
+///
+/// Asset belongs to an Account.
+/// Users never directly own assets.
+/// Account ownership survives employee changes.
+///
 
-  /**
-   * SALES CHANNEL
-   *
-   * RETAIL:
-   *   Sold in store / shelf item
-   *   Customer scans -> claims ownership
-   *
-   * ONLINE:
-   *   Purchased through Empire QR website
-   *   Stripe webhook assigns ownership
-   *
-   * ADMIN:
-   *   Internal/demo/test/admin-controlled asset
-   */
+model Asset {
+  id String @id @default(cuid())
+
+  slug String @unique
+
+  // Generated identity
+
+  qrUrl String?
+
+  qrSvg String?
+
+  token String @unique @default(cuid())
+
+  nfcUid String? @unique
+
+  // Company ownership
+
+  accountId String?
+
+  // Product metadata
+
   saleChannel SaleChannel @default(RETAIL)
 
-  flowId    String?
-  flow      Flow?    @relation(fields: [flowId], references: [id])
+  templateId String?
 
-  ownerId   String?
-  owner     User?    @relation(fields: [ownerId], references: [id])
+  merchantId String?
 
-  status    String   @default("active")
-  paid      Boolean  @default(false)
+  category TemplateCategory?
 
-  priceCents Int     @default(599)
-  premiumPriceCents Int?
+  templateData Json?
+
+  // Lifecycle
+
+  status String @default("active")
 
   claimedAt DateTime?
+
   createdAt DateTime @default(now())
 
-  sessions  ScanSession[]
-  scanEvents ScanEvent[]
-  analyticsEvents AnalyticsEvent[]
+  // Monetization
+
+  paid Boolean @default(false)
+
+  activationMethod ActivationMethod @default(HYBRID)
+
+  activationCode String? @unique
+
+  priceCents Int @default(599)
+
+  premiumPriceCents Int?
+
+  totalRevenueCents Int @default(0)
+
+  // Analytics
+
+  totalScans Int @default(0)
+
+  totalUnlocks Int @default(0)
+
+  displayName String?
+
+  // Relations
+
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  template Template? @relation(fields: [templateId], references: [id])
+
+  flows AssetFlow[]
+
+  timelineEvents AssetTimelineEvent[]
+
+  claims Claim[]
+
+  memorySnapshots MemorySnapshot[]
 
   ownership Ownership?
+
+  analyticsEvents AnalyticsEvent[]
+
+  scanEvents ScanEvent[]
+
+  sessions ScanSession[]
+
+  @@index([accountId])
+  @@index([slug])
+  @@index([token])
 }
 
-/**
- * =========================
- * OWNERSHIP (SOURCE OF TRUTH)
- * =========================
- */
+/// =========================
+/// ACCOUNT
+/// COMPANY / ORGANIZATION
+/// =========================
+///
+/// The real business entity.
+///
+/// Can represent:
+/// - individual creator
+/// - restaurant
+/// - franchise
+/// - enterprise
+/// - agency
+///
+
+model Account {
+  id String @id @default(cuid())
+
+  name String?
+
+  type AccountType @default(CONSUMER)
+
+  plan AccountPlan @default(CONSUMER)
+
+  stripeCustomerId String?
+
+  createdAt DateTime @default(now())
+
+  users AccountUser[]
+
+  ownerships Ownership[]
+
+  assets Asset[]
+}
+
+/// =========================
+/// ACCOUNT USER
+/// TEAM MEMBERSHIP
+/// =========================
+///
+/// Users belong to Accounts.
+/// Permissions are controlled here.
+///
+/// Roles:
+/// OWNER
+/// ADMIN
+/// SELLER
+/// VIEWER
+///
+/// Supports:
+/// - employees
+/// - sales teams
+/// - agencies
+/// - franchises
+/// - enterprise
+///
+
+model AccountUser {
+  id String @id @default(cuid())
+
+  accountId String
+
+  userId String
+
+  role TeamRole @default(OWNER)
+
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, userId])
+  @@index([accountId])
+  @@index([userId])
+}
+
+/// =========================
+/// OWNERSHIP
+/// BILLING + ASSET CONTROL
+/// =========================
+///
+/// Account owns.
+/// Ownership records lifecycle.
+///
+/// Separates:
+/// - payment
+/// - claiming
+/// - history
+/// - business control
+///
+
 model Ownership {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  assetId   String   @unique
-  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId String @unique
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String
 
-  status    OwnershipStatus @default(CLAIMED)
+  status OwnershipStatus @default(CLAIMED)
 
   claimedAt DateTime @default(now())
+
   updatedAt DateTime @updatedAt
 
   stripeSessionId String? @unique
-  paymentIntentId  String?
+
+  paymentIntentId String?
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([assetId])
+}
+
+/// *
+/// * =========================
+/// * FLOW ENGINE
+/// * =========================
+model Flow {
+  id              String             @id @default(cuid())
+  /// *
+  /// * =========================
+  /// * CORE METADATA
+  /// * =========================
+  name            String
+  version         Int                @default(1)
+  merchantId      String?
+  actions         Json
+  /// *
+  /// * =========================
+  /// * OPTIONAL CONFIG ONLY
+  /// * =========================
+  data            Json?
+  /// *
+  /// * =========================
+  /// * LIFECYCLE
+  /// * =========================
+  createdAt       DateTime           @default(now())
+  analyticsEvents AnalyticsEvent[]
+  assetFlows      AssetFlow[]
+  metrics         FlowMetricsDaily[]
+  steps           FlowStep[]         @relation("FlowSteps")
+  sessions        ScanSession[]
+}
+
+model AssetFlow {
+  id          String    @id @default(cuid())
+  assetId     String
+  flowId      String
+  priority    Int       @default(0)
+  active      Boolean   @default(true)
+  triggerType String    @default("DEFAULT")
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime  @default(now())
+  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  flow        Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, flowId])
+  @@index([assetId])
+  @@index([flowId])
+}
+
+/// *
+/// * =========================
+/// * SCAN SESSION
+/// * =========================
+model ScanSession {
+  id              String           @id @default(cuid())
+  userId          String?
+  assetId         String
+  flowId          String?
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+  stepIndex       Int              @default(0)
+  status          String           @default("active")
+  ipAddress       String?
+  country         String?
+  region          String?
+  city            String?
+  userAgent       String?
+  lastAction      Json?
+  cinematicScenes Json?
+  completedAt     DateTime?
+  geoStory        Json?
+  memorySnapshot  Json?
+  moments         Json?
+  receipt         Json?
+  analyticsEvents AnalyticsEvent[]
+  events          ScanEvent[]
+  asset           Asset            @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  flow            Flow?            @relation(fields: [flowId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+
+  @@index([assetId])
+  @@index([flowId])
+  @@index([userId])
+}
+
+model AssetTimelineEvent {
+  id String @id @default(cuid())
+
+  assetId String
+
+  type String
+
+  title String
+
+  description String?
+
+  media Json?
+
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+}
+
+/// *
+/// * =========================
+/// * SCAN EVENT
+/// * =========================
+model ScanEvent {
+  id        String       @id @default(cuid())
+  userId    String?
+  assetId   String
+  sessionId String?
+  type      String
+  meta      Json?
+  createdAt DateTime     @default(now())
+  asset     Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  session   ScanSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+/// *
+/// * =========================
+/// * ANALYTICS EVENTS
+/// * =========================
+model AnalyticsEvent {
+  id        String             @id @default(cuid())
+  assetId   String
+  sessionId String?
+  flowId    String?
+  stepIndex Int?
+  type      AnalyticsEventType
+  meta      Json?
+  createdAt DateTime           @default(now())
+  asset     Asset              @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  flow      Flow?              @relation(fields: [flowId], references: [id])
+  session   ScanSession?       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([flowId])
+  @@index([sessionId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+/// *
+/// * =========================
+/// * ADMIN SETTINGS
+/// * =========================
+model AdminSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// *
+/// * =========================
+/// * STRIPE EVENT DEDUP
+/// * =========================
+model StripeEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+}
+
+/// *
+/// * =========================
+/// * FLOW EXECUTION TRACKING
+/// * =========================
+model FlowExecution {
+  id        String   @id @default(cuid())
+  sessionId String
+  flowId    String
+  assetId   String
+  status    String   @default("running")
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, flowId])
+  @@index([assetId])
+  @@index([flowId])
+}
+
+model MediaAsset {
+  id String @id @default(cuid())
+
+  ownerId String
+
+  type MediaType
+
+  url String
+
+  filename String?
+
+  size Int?
+
+  createdAt DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id])
+}
+
+/// *
+/// * =========================
+/// * MEDIA TYPES
+/// * =========================
+enum MediaType {
+  IMAGE
+
+  VIDEO
+
+  AUDIO
+}
+
+/// *
+/// * =========================
+/// * ACCOUNT TYPES
+/// * =========================
+///
+/// Consumer:
+/// Personal users
+///
+/// Business:
+/// Companies / organizations
+///
+enum AccountType {
+  CONSUMER
+
+  BUSINESS
+}
+
+/// *
+/// * =========================
+/// * ACCOUNT PLANS
+/// * =========================
+///
+/// Consumer:
+/// Free personal usage
+///
+/// Pro:
+/// Advanced creators/businesses
+///
+/// Business:
+/// Teams, companies, sales networks
+///
+enum AccountPlan {
+  CONSUMER
+
+  PRO
+
+  BUSINESS
+}
+
+/// *
+/// * =========================
+/// * TEAM PERMISSIONS
+/// * =========================
+///
+/// Controls what members can do
+/// inside an Account.
+///
+/// OWNER:
+/// Full ownership
+///
+/// ADMIN:
+/// Manage account operations
+///
+/// SELLER:
+/// Sell and manage assigned inventory
+///
+/// VIEWER:
+/// Read-only access
+///
+enum TeamRole {
+  OWNER
+
+  ADMIN
+
+  SELLER
+
+  VIEWER
+}
+
+model ExperienceDraft {
+  id String @id @default(cuid())
+
+  sessionId String?
+
+  userId String?
+
+  assetId String?
+
+  blueprint Json
+
+  createdAt DateTime @default(now())
+
+  expiresAt DateTime
+}
+
+/// *
+/// * =========================
+/// * FLOW METRICS
+/// * =========================
+model FlowMetricsDaily {
+  id                String   @id @default(cuid())
+  flowId            String
+  date              DateTime
+  scans             Int      @default(0)
+  sessions          Int      @default(0)
+  completions       Int      @default(0)
+  unlocks           Int      @default(0)
+  payments          Int      @default(0)
+  revenueCents      Int      @default(0)
+  avgSessionSeconds Float    @default(0)
+  conversionRate    Float    @default(0)
+  flowScore         Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  flow              Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([flowId, date])
+  @@index([date])
+}
+
+/// *
+/// * =========================
+/// * CLAIM
+/// * =========================
+model Claim {
+  id        String      @id @default(cuid())
+  assetId   String
+  userId    String
+  stripeId  String?     @unique
+  status    ClaimStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+  asset     Asset       @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@index([userId])
+}
+
+/// *
+/// * =========================
+/// * TEMPLATE SYSTEM (FIXED)
+/// * =========================
+model Template {
+  id                 String           @id @default(cuid())
+  name               String
+  slug               String           @unique
+  category           TemplateCategory
+  description        String?
+  signals            Json
+  schema             Json
+  aiPrompt           String?
+  allowPersonalLayer Boolean          @default(true)
+  allowMemoryFeed    Boolean          @default(false)
+  published          Boolean          @default(true)
+  version            Int              @default(1)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  assets             Asset[]
+
+  @@index([category])
+}
+
+model Insight {
+  id        String   @id @default(cuid())
+  assetId   String
+  type      String
+  message   String
+  impact    String?
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+}
+
+model MemorySnapshot {
+  id                   String   @id @default(cuid())
+  assetId              String
+  userId               String?
+  sessionId            String?
+  scanWeight           Float    @default(0)
+  flowEngagementWeight Float    @default(0)
+  completionWeight     Float    @default(0)
+  ctaClickWeight       Float    @default(0)
+  rewardScore          Float    @default(0)
+  confidence           Float    @default(0)
+  dominantLayer        String?
+  createdAt            DateTime @default(now())
+  dropOffPoints        Json     @default("{}")
+  asset                Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([createdAt])
+  @@index([assetId, createdAt])
+}
+
+model FlowStep {
+  id      String @id @default(cuid())
+  flowId  String
+  order   Int
+  type    String
+  payload Json
+  flow    Flow   @relation("FlowSteps", fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@index([flowId])
+}
+
+model GeoProof {
+  id        String   @id @default(cuid())
+  assetId   String
+  sessionId String?
+  userId    String?
+  lat       Float
+  lng       Float
+  accuracy  Float?
+  createdAt DateTime @default(now())
+  source    String   @default("scan")
+  label     String?
+  city      String?
+  region    String?
+  country   String?
+
+  @@index([assetId])
+  @@index([sessionId])
+}
+
+model PresenceEvent {
+  id        String   @id @default(cuid())
+  assetId   String
+  userId    String?
+  sessionId String?
+  type      String
+  lat       Float?
+  lng       Float?
+  accuracy  Float?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model PresenceSession {
+  id        String         @id @default(cuid())
+  assetId   String
+  userId    String?
+  status    PresenceStatus
+  enteredAt DateTime       @default(now())
+  exitedAt  DateTime?
+  geoLat    Float?
+  geoLng    Float?
+  accuracy  Float?
+  createdAt DateTime       @default(now())
+  sessionId String?
+
+  @@index([assetId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model EventTicket {
+  id         String       @id @default(cuid())
+  assetId    String
+  userId     String?
+  status     TicketStatus @default(ACTIVE)
+  redeemedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@index([assetId])
+  @@index([userId])
+}
+
+model EventAttendance {
+  id        String   @id @default(cuid())
+  assetId   String
+  userId    String?
+  sessionId String?
+  eventId   String?
+  status    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model MerchantSignal {
+  id         String    @id
+  merchantId String
+  assetId    String?
+  type       String
+  text       String?
+  url        String?
+  label      String?
+  data       Json?
+  active     Boolean   @default(true)
+  priority   Int       @default(50)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  isPublic   Boolean   @default(true)
+  likes      Int       @default(0)
+  views      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+
+  @@index([active])
+  @@index([assetId])
+  @@index([merchantId])
+  @@index([startsAt, endsAt])
+}
+
+/// *
+/// * =========================
+/// * TEMPLATE CATEGORY (SINGLE SOURCE OF TRUTH)
+/// * =========================
+enum TemplateCategory {
+  PERSONAL
+  GENERIC
+  MERCHANT
+  SERVICE
+  WEED_SHOP
+  AIRBNB
+  REAL_ESTATE
+  PET_RESCUE
+  BUSINESS
+  ARTIST
+}
+
+/// *
+/// * =========================
+/// * ACTIVATION METHOD
+/// * =========================
+enum ActivationMethod {
+  NFC
+  SLUG
+  HYBRID
 }
 
 enum OwnershipStatus {
@@ -114,124 +800,71 @@ enum SaleChannel {
   ADMIN
 }
 
-/**
- * =========================
- * FLOW ENGINE
- * =========================
- */
-model Flow {
-  id        String   @id @default(cuid())
-  name      String
-  version   Int      @default(1)
+/// *
+/// * =========================
+/// * ANALYTICS EVENT TYPES
+/// * =========================
+enum AnalyticsEventType {
+  SCAN
 
-  actions   Json
-  data      Json?
+  SESSION_START
+  SESSION_END
 
-  assets    Asset[]
+  FLOW_START
+  FLOW_STEP
+  FLOW_COMPLETE
+  FLOW_ABANDON
+  FLOW_TRIGGERED
 
-  createdAt DateTime @default(now())
+  AI_MEMORY_USED
+  AI_DECISION
+  MEMORY_APPLIED
+
+  GEO_MARK
+  CHECK_IN
+  CHECK_OUT
+
+  PRESENCE_JOIN
+  PRESENCE_LEAVE
+
+  CTA_CLICK
+  REDIRECT
+  TEASER_VIEW
+
+  WEBSITE_CLICK
+  SOCIAL_CLICK
+
+  PAYMENT_REQUIRED
+  PAYMENT_STARTED
+  PAYMENT_COMPLETED
+
+  CLAIM_STARTED
+  CLAIM_COMPLETED
+
+  TIP_STARTED
+  TIP_COMPLETED
+
+  FLOW_POLICY_APPLIED
+
+  UNLOCK
+  ERROR
 }
 
-/**
- * =========================
- * SCAN SESSION
- * =========================
- */
-model ScanSession {
-  id        String   @id @default(cuid())
-
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-
-  assetId   String
-  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
-  startedAt DateTime @default(now())
-
-  stepIndex Int      @default(0)
-  status    String   @default("active")
-
-  events    ScanEvent[]
+enum ClaimStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
 }
 
-/**
- * =========================
- * SCAN EVENT
- * =========================
- */
-model ScanEvent {
-  id        String   @id @default(cuid())
-
-  assetId   String
-  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
-  sessionId String?
-  session   ScanSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  type      String
-  meta      Json?
-
-  createdAt DateTime @default(now())
+enum PresenceStatus {
+  ENTERED
+  INSIDE
+  LEFT
 }
 
-/**
- * =========================
- * ANALYTICS EVENTS
- * =========================
- */
-model AnalyticsEvent {
-  id        String   @id @default(cuid())
-
-  assetId   String
-  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
-  sessionId String?
-  flowId    String?
-
-  stepIndex Int?
-  type      String
-  meta      Json?
-
-  createdAt DateTime @default(now())
-}
-
-/**
- * =========================
- * ADMIN SETTINGS
- * =========================
- */
-model AdminSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     Json
-  updatedAt DateTime @updatedAt
-}
-
-/**
- * =========================
- * STRIPE EVENT DEDUP
- * =========================
- */
-model StripeEvent {
-  id        String   @id
-  type      String
-  createdAt DateTime @default(now())
-}
-
-/**
- * =========================
- * FLOW EXECUTION TRACKING
- * =========================
- */
-model FlowExecution {
-  id        String   @id @default(cuid())
-
-  sessionId String
-  flowId    String
-  assetId   String
-
-  status    String   @default("running") // running | complete
-  createdAt DateTime @default(now())
-
-  @@unique([sessionId, flowId])
+enum TicketStatus {
+  ACTIVE
+  REDEEMED
+  VOID
 }

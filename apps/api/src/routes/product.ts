@@ -49,7 +49,7 @@ router.get("/", async (req: Request, res: Response) => {
  */
 router.post("/create", async (req: Request, res: Response) => {
   try {
-    const { quantity, priceCents, flowId } = req.body;
+    const { quantity, priceCents } = req.body;
 
     // VALIDATION
     if (typeof quantity !== "number" || quantity <= 0 || quantity > 10000) {
@@ -69,7 +69,7 @@ router.post("/create", async (req: Request, res: Response) => {
         data: {
           slug,
           priceCents,
-          flowId: flowId ?? null,
+     
           paid: false,
           status: "active",
         },

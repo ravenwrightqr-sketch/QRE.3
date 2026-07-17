@@ -1,152 +1,175 @@
-import { useEffect, useState } from "react";
-import { apiGet } from "../../lib/api";
+import React, { useEffect, useState } from "react";
+import { getAdminDashboard } from "../../lib/api";
 
-type Asset = {
-  id: string;
-  slug: string;
-  priceCents: number;
-  status: string;
-  flowId: string | null;
-};
-
-const PUBLIC_SCAN_URL =
-  import.meta.env.VITE_PUBLIC_SCAN_URL || "https://qre.ink";
-
-export default function AdminDashboard() {
-  const [assets, setAssets] = useState<Asset[]>([]);
+export default function Dashboard() {
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadAssets() {
+    async function load() {
       try {
-        setLoading(true);
+        const res = await getAdminDashboard();
 
-        const data = await apiGet("/api/user/assets")
+        console.log("ADMIN DASHBOARD:", res);
 
-        setAssets(data);
-      } catch (err: any) {
-        console.error(err);
-        setError("Failed loading assets");
+        setData(res);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
 
-    loadAssets();
+    load();
   }, []);
 
-  async function copyLink(slug: string) {
-    const url = `${PUBLIC_SCAN_URL}/scan/${slug}`;
+  if (loading) {
+    return (
+      <div style={{ color: "white", padding: 40 }}>
+        Loading Empire QR...
+      </div>
+    );
+  }
 
-    await navigator.clipboard.writeText(url);
-
-    alert("QR link copied");
+  if (!data) {
+    return (
+      <div style={{ color: "white", padding: 40 }}>
+        Dashboard unavailable.
+      </div>
+    );
   }
 
   return (
     <div
       style={{
-        padding: 24,
-        maxWidth: 1100,
+        color: "white",
+        padding: 30,
+        maxWidth: 1400,
         margin: "0 auto",
+      }}
+    >
+      <h1>⚡ Empire QR Control Center</h1>
+
+      <p style={{ opacity: 0.7 }}>
+        Global platform analytics and business health.
+      </p>
+
+      {/* SUMMARY CARDS */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit,minmax(240px,1fr))",
+          gap: 20,
+          marginTop: 30,
+        }}
+      >
+        <Card
+          title="Scans Today"
+          value={data.summary?.scansToday ?? 0}
+        />
+
+        <Card
+          title="Active Sessions"
+          value={data.summary?.activeSessions ?? 0}
+        />
+
+        <Card
+          title="Assets"
+          value={data.summary?.totalAssets ?? 0}
+        />
+
+        <Card
+          title="Flows"
+          value={data.summary?.totalFlows ?? 0}
+        />
+      </div>
+
+      {/* TOP ASSETS */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>🔥 Top Assets</h2>
+
+        <pre>
+          {JSON.stringify(
+            data.topAssets,
+            null,
+            2
+          )}
+        </pre>
+      </section>
+
+      {/* RECENT ACTIVITY */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>📈 Recent Activity</h2>
+
+        <pre>
+          {JSON.stringify(
+            data.recentActivity,
+            null,
+            2
+          )}
+        </pre>
+      </section>
+
+      {/* PLATFORM STATUS */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>🚀 Platform Status</h2>
+
+        <div>Status: {data.status}</div>
+
+        <div>
+          Revenue Model:
+          {" "}
+          {data.revenue?.model}
+        </div>
+
+        <div>
+          Timestamp:
+          {" "}
+          {data.timestamp}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  value,
+}: {
+  title: string;
+  value: any;
+}) {
+  return (
+    <div
+      style={{
+        padding: 24,
+        borderRadius: 16,
+        background: "#111",
+        border: "1px solid #333",
       }}
     >
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 30,
+          opacity: 0.6,
+          marginBottom: 12,
         }}
       >
-        <div>
-          <h1>⚡ QRE Admin</h1>
-          <p style={{ opacity: 0.7 }}>
-            Manage products, QR assets, and flows
-          </p>
-        </div>
-
-        <a
-          href="/admin/create"
-          style={{
-            padding: "12px 18px",
-            border: "1px solid #00ff99",
-            borderRadius: 10,
-            textDecoration: "none",
-          }}
-        >
-          + Create Asset
-        </a>
+        {title}
       </div>
 
-      {loading && <div>Loading assets...</div>}
-
-      {error && (
-        <div
-          style={{
-            color: "red",
-            marginBottom: 20,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {!loading && assets.length === 0 && (
-        <div>No assets created yet.</div>
-      )}
-
-      {!loading &&
-        assets.map((asset) => (
-          <div
-            key={asset.id}
-            style={{
-              border: "1px solid #333",
-              borderRadius: 14,
-              padding: 20,
-              marginBottom: 20,
-            }}
-          >
-            <h3>{asset.slug}</h3>
-
-            <div>Status: {asset.status}</div>
-
-            <div>
-              Price: ${(asset.priceCents / 100).toFixed(2)}
-            </div>
-
-            <div>
-              Flow: {asset.flowId || "No flow attached"}
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <code>
-                {PUBLIC_SCAN_URL}/scan/{asset.slug}
-              </code>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 15,
-              }}
-            >
-              <button onClick={() => copyLink(asset.slug)}>
-                Copy QR Link
-              </button>
-
-              <a href={`/admin/edit/${asset.id}`}>
-                <button>Edit</button>
-              </a>
-
-              <a href={`/admin/assets/${asset.slug}`}>
-                <button>Open Dashboard</button>
-              </a>
-            </div>
-          </div>
-        ))}
+      <div
+        style={{
+          fontSize: 40,
+          fontWeight: 800,
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }

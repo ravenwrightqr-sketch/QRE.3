@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "./styles/global.css";
-import { AuthProvider } from "./components/dashboard/authContext";
+import "./styles/glass.css";
+import { AuthProvider } from "./components/auth/authContext";
 
 function BootScreen() {
   return (
@@ -30,8 +30,13 @@ function Root() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <Root />
-  </React.StrictMode>
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Root element not found");
+}
+
+ReactDOM.createRoot(rootElement).render(
+  // ⚠️ IMPORTANT: REMOVE STRICT MODE (it duplicates scans + effects)
+  <Root />
 );

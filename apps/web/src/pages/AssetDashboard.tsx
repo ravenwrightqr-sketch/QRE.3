@@ -1,50 +1,193 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { apiGet } from "../lib/api";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-export default function AssetDashboard() {
-  const { slug } = useParams();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+import {
+  useParams,
+} from "react-router-dom";
 
-  useEffect(() => {
-    if (!slug) return;
+import {
+  getUserAssets,
+} from "../lib/api";
 
-    setLoading(true);
+import DashboardLayout from "../components/layout/DashboardLayout";
+import GlassCard from "../components/ui/GlassCard";
+import NeonButton from "../components/ui/NeonButton";
 
-    apiGet(`/api/scan/${slug}`)
-      .then((res) => setData(res))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [slug]);
+import FlowManager from "../components/flow/FlowManager";
 
-  if (loading) return <div>Loading asset...</div>;
-  if (!data) return <div>No asset found</div>;
+
+type Asset = {
+  id:string;
+  slug:string;
+  status:string;
+  tier:string;
+  flowId:string|null;
+};
+
+
+export default function AssetDashboard(){
+
+  const {
+    slug
+  } = useParams();
+
+
+  const [
+    asset,
+    setAsset
+  ] = useState<Asset|null>(null);
+
+
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
+
+
+
+  async function load(){
+
+    try{
+
+      const response =
+        await getUserAssets();
+
+
+      const assets =
+        response.assets ?? response;
+
+
+      const found =
+        assets.find(
+          (item:Asset)=>
+            item.slug === slug
+        );
+
+
+      setAsset(found ?? null);
+
+
+    }
+    catch(error){
+
+      console.error(
+        "asset loading failed",
+        error
+      );
+
+    }
+    finally{
+
+      setLoading(false);
+
+    }
+
+  }
+
+
+
+  useEffect(()=>{
+
+    load();
+
+  },[slug]);
+
+
+
+
+
+  if(loading){
+
+    return (
+      <DashboardLayout>
+        <GlassCard glow>
+          Loading object...
+        </GlassCard>
+      </DashboardLayout>
+    );
+
+  }
+
+
+
+  if(!asset){
+
+    return (
+      <DashboardLayout>
+
+        <GlassCard glow>
+
+          <h2>
+            Object not found
+          </h2>
+
+        </GlassCard>
+
+      </DashboardLayout>
+    );
+
+  }
+
+
+
+
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Asset: {slug}</h2>
 
-      <div>
-        Access: <b>{data.access}</b>
+    <DashboardLayout>
+
+
+      <GlassCard glow>
+
+        <h1>
+          {asset.slug}
+        </h1>
+
+
+        <p>
+          Object Status:
+          {" "}
+          {asset.status}
+        </p>
+
+
+        <p>
+          Tier:
+          {" "}
+          {asset.tier}
+        </p>
+
+
+      </GlassCard>
+
+
+
+
+
+      <div
+        style={{
+          marginTop:30
+        }}
+      >
+
+        <FlowManager
+
+          assetId={
+            asset.id
+          }
+
+        />
+
       </div>
 
-      <div>
-        Session: <code>{data.sessionId}</code>
-      </div>
 
-      <div>
-        Flow: {data.flowId ?? "none"}
-      </div>
 
-      <div style={{ marginTop: 20 }}>
-        <h4>Teaser Debug</h4>
-        <pre>{JSON.stringify(data.teaser, null, 2)}</pre>
-      </div>
 
-      <div style={{ marginTop: 20, opacity: 0.6 }}>
-        <pre>{JSON.stringify(data, null, 2)}</pre>
-      </div>
-    </div>
+
+    </DashboardLayout>
+
   );
+
 }

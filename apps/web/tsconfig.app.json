@@ -20,7 +20,17 @@
 
     "strict": true,
 
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+
+    "paths": {
+      "@qre/engine": ["../../packages/engine/src/index.ts"],
+      "@qre/contracts": ["../../packages/contracts/src/index.ts"],
+      "@qre/db": ["../../packages/db/src/index.ts"],
+
+      "@qre/engine/*": ["../../packages/engine/src/*"],
+      "@qre/contracts/*": ["../../packages/contracts/src/*"],
+      "@qre/db/*": ["../../packages/db/src/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "src/pages/useLiveScan.ts"]
 }

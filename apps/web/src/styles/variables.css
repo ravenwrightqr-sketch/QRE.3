@@ -1,0 +1,51 @@
+:root {
+
+  /* BACKGROUND */
+
+  --bg-0: #040506;
+  --bg-1: #0b0d11;
+  --bg-2: #12151b;
+
+  /* SURFACES */
+
+  --surface-1: rgba(18,22,30,.72);
+  --surface-2: rgba(24,30,40,.82);
+
+  /* BORDERS */
+
+  --border: rgba(255,255,255,.08);
+  --border-active: rgba(0,220,255,.28);
+
+  /* TEXT */
+
+  --text: #edf2ff;
+  --text-soft: #9ea8bc;
+  --text-muted: #6b7285;
+
+  /* ACCENTS */
+
+  --cyan: #00d9ff;
+  --purple: #7c4dff;
+  --magenta: #ff2f92;
+
+  /* SUCCESS */
+
+  --green: #32d583;
+
+  /* WARNING */
+
+  --orange: #ff9f43;
+
+  /* SHADOWS */
+
+  --shadow:
+      0 12px 60px rgba(0,0,0,.45);
+
+  --glow:
+      0 0 40px rgba(0,217,255,.10);
+
+  /* RADIUS */
+
+  --radius:18px;
+
+}

@@ -1,59 +1,219 @@
-import express from "express";
+import express, { Request, Response } from "express";
+import Stripe from "stripe";
 import { db } from "@qre/db";
+import { unlockAsset } from "../services/unlockAsset.js";
+
 
 const router = express.Router();
 
+
 /**
- * =========================================================
- * DEV ONLY - SIMULATES SUCCESSFUL STRIPE WEBHOOK
- * DELETE BEFORE PRODUCTION
- * =========================================================
+ * =========================
+ * DEV STRIPE TEST WEBHOOK
+ * =========================
+ *
+ * DEV ONLY
+ *
+ * Simulates:
+ *
+ * Stripe payment success
+ *        ↓
+ * unlockAsset()
+ *        ↓
+ * production unlock pipeline
+ *
+ * This route contains NO ownership logic.
+ *
+ * unlockAsset is the single source
+ * of truth.
+ *
+ * =========================
  */
-router.post("/test-webhook", async (req, res) => {
-  try {
-    const { assetId } = req.body;
 
-    if (!assetId || typeof assetId !== "string") {
-      return res.status(400).json({
-        error: "Missing or invalid assetId",
+router.post(
+  "/test-webhook",
+
+  async(
+    req: Request,
+    res: Response
+  )=>{
+
+    try {
+
+
+      const {
+        assetId,
+        userId,
+      } = req.body;
+
+
+
+      if(!assetId){
+
+        return res.status(400).json({
+
+          error:
+            "Missing assetId",
+
+        });
+
+      }
+
+
+
+      const asset =
+        await db.asset.findUnique({
+
+          where:{
+            id:assetId,
+          },
+
+        });
+
+
+
+      if(!asset){
+
+        return res.status(404).json({
+
+          error:
+            "Asset not found",
+
+        });
+
+      }
+
+
+
+      /**
+       * Fake Stripe session
+       *
+       * Same shape consumed
+       * by unlockAsset()
+       */
+      const fakeSession =
+      {
+
+        id:
+          `dev_test_${Date.now()}`,
+
+
+        amount_total:
+          asset.priceCents,
+
+
+        payment_intent:
+          `dev_payment_${Date.now()}`,
+
+
+      } as Stripe.Checkout.Session;
+
+
+
+
+      const updated =
+        await unlockAsset(
+
+          asset.id,
+
+          userId ?? null,
+
+          fakeSession
+
+        );
+
+
+
+
+      /**
+       * Reload account ownership
+       *
+       * Asset no longer owns users.
+       */
+      const finalAsset =
+        await db.asset.findUnique({
+
+          where:{
+            id:updated.id,
+          },
+
+
+          include:{
+
+            account:true,
+
+            ownership:true,
+
+          },
+
+        });
+
+
+
+
+      return res.json({
+
+        success:true,
+
+
+        message:
+          "DEV payment completed",
+
+
+        unlocked:true,
+
+
+        asset:{
+
+          id:
+            finalAsset?.id,
+
+
+          slug:
+            finalAsset?.slug,
+
+
+          paid:
+            finalAsset?.paid,
+
+
+          accountId:
+            finalAsset?.accountId ?? null,
+
+
+          ownershipId:
+            finalAsset?.ownership?.id ?? null,
+
+        },
+
       });
+
+
+    }
+    catch(error:any){
+
+
+      console.error(
+        "[STRIPE TEST]",
+        error
+      );
+
+
+
+      return res.status(500).json({
+
+        error:
+          error.message ||
+          "DEV payment failed",
+
+      });
+
+
     }
 
-    const asset = await db.asset.findUnique({
-      where: { id: assetId },
-    });
-
-    if (!asset) {
-      return res.status(404).json({
-        error: "Asset not found",
-      });
-    }
-
-    /**
-     * DEV TEST:
-     * Simply mark asset as paid/active.
-     * No ownership/auth required.
-     */
-    await db.asset.update({
-      where: { id: assetId },
-      data: {
-        paid: true,
-        status: "active",
-        claimedAt: new Date(),
-      },
-    });
-
-    return res.json({
-      success: true,
-      message: "Simulated webhook processed",
-      assetId,
-      unlocked: true,
-    });
-  } catch (e: any) {
-    return res.status(500).json({
-      error: e.message,
-    });
   }
-});
+
+);
+
 
 export default router;

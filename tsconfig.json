@@ -1,17 +1,42 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "baseUrl": ".",
-    "paths": {
-      "@qre/contracts": ["packages/contracts/src/index.ts"],
-      "@qre/contracts/*": ["packages/contracts/src/*"]
-    },
+
     "strict": true,
     "skipLibCheck": true,
+
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
-  }
+
+    "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true,
+
+    "baseUrl": ".",
+
+    "paths": {
+      "@qre/contracts": ["packages/contracts/src/index.ts"],
+      "@qre/contracts/*": ["packages/contracts/src/*"],
+
+      "@qre/db": ["packages/db/src/index.ts"],
+      "@qre/db/*": ["packages/db/src/*"],
+
+      "@qre/engine": ["packages/engine/src/index.ts"],
+      "@qre/engine/*": ["packages/engine/src/*"]
+    }
+  },
+
+  "ts-node": {
+    "esm": true
+  },
+
+  "files": [],
+
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/db" },
+    { "path": "./packages/engine" }
+  ]
 }

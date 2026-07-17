@@ -1,5 +1,3 @@
-
-
 import express from "express";
 import Stripe from "stripe";
 import { db } from "@qre/db";
@@ -7,127 +5,268 @@ import { requireAuth, AuthRequest } from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-05-27.dahlia",
-});
+
+const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY!,
+  {
+    apiVersion:"2026-06-24.dahlia",
+  }
+);
+
+
 
 /**
- * =========================
- * CHECKOUT ROUTE
- * =========================
- * - DEV: instantly unlocks asset
- * - PROD: creates Stripe session
+ * =====================================================
+ * CREATE STRIPE CHECKOUT SESSION
+ * =====================================================
+ *
+ * This route DOES NOT unlock.
+ *
+ * Payment truth:
+ *      Stripe webhook
+ *
+ * Unlock:
+ *      stripeWebhook.ts
+ *
+ * =====================================================
  */
-router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { slug } = req.body;
-    const userId = req.user?.userId;
+router.post(
+  "/",
+  requireAuth,
+  async(
+    req:AuthRequest,
+    res
+  )=>{
 
-    if (typeof slug !== "string") {
-      return res.status(400).json({ error: "Missing or invalid slug" });
-    }
 
-    const asset = await db.asset.findUnique({
-      where: { slug },
-    });
+    try {
 
-    if (!asset) {
-      return res.status(404).json({ error: "Asset not found" });
-    }
 
-    const baseUrl = process.env.CLIENT_URL;
-    if (!baseUrl) throw new Error("CLIENT_URL missing");
+      const {
+        slug,
+      } = req.body;
 
-    /**
-     * =========================
-     * DEV MODE (LOCAL TESTING)
-     * =========================
-     * bypass Stripe entirely so your system works end-to-end
-     */
-   if (process.env.NODE_ENV === "development") {
-  const updated = await db.asset.update({
-    where: { id: asset.id },
-    data: {
-      paid: true,
-      ownerId: userId ?? null,
-      status: "active",
-      claimedAt: new Date(),
-    },
-  });
 
-  if (userId) {
-    await db.ownership.upsert({
-      where: { assetId: asset.id },
-      update: {
-        userId,
-        status: "CLAIMED",
-        claimedAt: new Date(),
-      },
-      create: {
-        assetId: asset.id,
-        userId,
-        status: "CLAIMED",
-        claimedAt: new Date(),
-      },
-    });
-  }
 
-  return res.json({
-    dev: true,
-    unlocked: true,
-    assetId: asset.id,
-    url: `${baseUrl}/success`,
-  });
-}
+      const userId =
+        req.user?.userId;
 
-    /**
-     * =========================
-     * VALIDATION (PROD ONLY)
-     * =========================
-     */
-    if (!asset.priceCents || asset.priceCents <= 0) {
-      return res.status(400).json({ error: "Invalid price configuration" });
-    }
 
-    /**
-     * =========================
-     * STRIPE CHECKOUT SESSION
-     * =========================
-     */
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
 
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: asset.priceCents,
-            product_data: {
-              name: `QRE Asset ${asset.slug}`,
-            },
+      if(
+        typeof slug !== "string"
+      ){
+
+        return res.status(400).json({
+
+          error:
+            "Missing or invalid slug",
+
+        });
+
+      }
+
+
+
+      const asset =
+        await db.asset.findUnique({
+
+          where:{
+            slug,
           },
-          quantity: 1,
-        },
-      ],
 
-      success_url: `${baseUrl}/success`,
-      cancel_url: `${baseUrl}/cancel`,
-metadata: {
+        });
+
+
+
+      if(!asset){
+
+        return res.status(404).json({
+
+          error:
+            "Asset not found",
+
+        });
+
+      }
+
+
+
+      const baseUrl =
+        process.env.CLIENT_URL;
+
+
+
+      if(!baseUrl){
+
+        throw new Error(
+          "CLIENT_URL missing"
+        );
+
+      }
+
+
+
+      /**
+       * =====================================================
+       * DEV MODE
+       * =====================================================
+       *
+       * Development shortcut.
+       *
+       * IMPORTANT:
+       * Uses same production unlock endpoint logic
+       * eventually.
+       *
+       * No direct ownership writes here.
+       *
+       * =====================================================
+       */
+      if(
+        process.env.NODE_ENV === "development"
+      ){
+
+        return res.json({
+
+          dev:true,
+
+          message:
+            "Use stripe test webhook to complete unlock",
+
+          assetId:
+            asset.id,
+
+        });
+
+      }
+
+
+
+      /**
+       * =====================================================
+       * VALIDATION
+       * =====================================================
+       */
+      if(
+        !asset.priceCents ||
+        asset.priceCents <= 0
+      ){
+
+        return res.status(400).json({
+
+          error:
+            "Invalid price configuration",
+
+        });
+
+      }
+
+
+
+
+      /**
+       * =====================================================
+       * STRIPE SESSION
+       * =====================================================
+       */
+      const session =
+        await stripe.checkout.sessions.create({
+
+          mode:"payment",
+
+
+          line_items:[
+
+            {
+
+              price_data:{
+
+                currency:"usd",
+
+                unit_amount:
+                  asset.priceCents,
+
+
+                product_data:{
+
+                  name:
+                    asset.displayName ??
+                    "QRE Experience",
+
+                },
+
+              },
+
+
+              quantity:1,
+
+            },
+
+          ],
+
+
+
+          success_url:
+            `${baseUrl}/success`,
+
+
+
+          cancel_url:
+            `${baseUrl}/cancel`,
+
+
+
+          metadata:{
   assetId: asset.id,
   slug: asset.slug,
-  userId: userId ?? null,
-}
-    });
+  userId: userId ?? "anonymous",
+  type:"ASSET_UNLOCK",
+  paymentType:"ONE_TIME_UNLOCK",
+},
 
-    return res.json({
-      url: session.url ?? null,
-      assetId: asset.id,
-    });
-  } catch (e: any) {
-    return res.status(500).json({
-      error: e.message,
-    });
+        });
+
+
+
+
+
+      return res.json({
+
+        url:
+          session.url,
+
+
+        assetId:
+          asset.id,
+
+      });
+
+
+
+    }
+    catch(error:any){
+
+
+      console.error(
+        "[CHECKOUT ERROR]",
+        error
+      );
+
+
+      return res.status(500).json({
+
+        error:
+          error.message,
+
+      });
+
+
+    }
+
+
   }
-});
+);
+
+
 
 export default router;

@@ -1,4 +1,13 @@
 import "dotenv/config";
+console.log(
+  "DB HOST:",
+  process.env.DATABASE_URL?.split("@")[1]?.split("/")[0]
+);
+
+console.log(
+  "CHANNEL:",
+  process.env.DATABASE_URL?.match(/channel_binding=([^&]+)/)?.[1]
+);
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { db } from "@qre/db";
@@ -10,162 +19,123 @@ import userRouter from "./routes/user.js";
 import adminRouter from "./routes/admin.js";
 import analyticsRouter from "./routes/analytics.js";
 import checkoutRouter from "./routes/checkout.js";
-import scanRouter from "./routes/scan.js";
+import scanRouter from "./routes/scan.index.js";
 import productRouter from "./routes/product.js";
 import claimRouter from "./routes/claim.js";
 import stripeWebhookRouter from "./routes/stripeWebhook.js";
 import stripeTestRouter from "./routes/stripeTest.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import masterDashboardRoutes from "./routes/masterDashboard.js";
+import presenceRoutes from "./routes/presence.js";
+// import compilerRoutes from "./routes/compiler.js";
+import experienceRouter from "./routes/experience.js";
+import assetGenerateRouter from "./routes/assets.generate.js";
 /**
  * AUTH + FLOW
  */
 import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
-import {
-  requireAuth,
-  AuthRequest,
-} from "./middleware/requireAuth.js";
-
+import { requireAuth } from "./middleware/requireAuth.js";
+console.log("DATABASE_URL =", process.env.DATABASE_URL);
 /**
- * =========================
  * INIT
- * =========================
  */
 const app = express();
 
 /**
- * =========================
  * ENV CHECK
- * =========================
  */
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET is missing");
 }
 
 /**
- * =========================
- * MIDDLEWARE
- * =========================
+ * CORS
  */
 app.use(
   cors({
-    origin: [
-      "https://qre-3qre-web.vercel.app",
-      "http://localhost:5173",
-    ],
+    origin: ["http://localhost:5173"],
     credentials: true,
   })
 );
 
 /**
- * ⚠️ Stripe webhook raw body MUST come BEFORE json parser
+ * =================================================
+ * STRIPE WEBHOOK RAW BODY
+ * MUST COME BEFORE express.json()
+ * =================================================
  */
 app.use(
   "/api/stripe/webhook",
-  express.raw({ type: "application/json" })
+  express.raw({
+    type: "application/json",
+  })
 );
 
+/**
+ * NORMAL JSON BODY
+ */
 app.use(express.json());
 
+
 /**
- * =========================
- * AUTH SYSTEM
- * =========================
+ * AUTH
  */
 authRoutes(app);
 
+app.use(
+  "/api/assets",
+  requireAuth,
+  assetGenerateRouter
+);
+
+
+
 /**
- * =========================
- * ROUTERS
- * =========================
+ * API ROUTES
  */
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
+
 app.use("/api/analytics", analyticsRouter);
-app.use("/api/checkout", checkoutRouter);
 app.use("/api/scan", scanRouter);
+app.use("/api/checkout", checkoutRouter);
+
 app.use("/api/product", productRouter);
 app.use("/api/claim", claimRouter);
 app.use("/api/flow", flowRouter);
 
-
-app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/presence", presenceRoutes);
+// app.use("/compiler", compilerRoutes);
+app.use(
+  "/experience",
+  experienceRouter
+);
 /**
- * DEV STRIPE TEST ROUTES
+ * DASHBOARD
  */
-app.use("/api/stripe", stripeTestRouter);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/master-dashboard", masterDashboardRoutes);
+
 
 /**
- * REAL STRIPE WEBHOOK (PRODUCTION)
+ * =================================================
+ * STRIPE
+ * =================================================
+ *
+ * REAL STRIPE:
+ * /api/stripe/webhook/*
+ *
+ * DEV TEST:
+ * /api/stripe/test-webhook
+ *
  */
 app.use("/api/stripe", stripeWebhookRouter);
-
-/**
- * =========================
- * FLOW
- * =========================
- */
+app.use("/api/stripe", stripeTestRouter);
 
 
 /**
- * =========================
- * USER ASSETS (PROTECTED)
- * =========================
-
-/**
- * =========================
- * DEV WEBHOOK SIMULATOR
- * =========================
- */
-app.post(
-  "/api/stripe/webhook/test",
-  async (req: Request, res: Response) => {
-    try {
-      const { assetId, userId } = req.body;
-
-      if (!assetId) {
-        return res.status(400).json({
-          error: "assetId required",
-        });
-      }
-
-      const asset = await db.asset.findUnique({
-        where: { id: assetId },
-      });
-
-      if (!asset) {
-        return res.status(404).json({
-          error: "Asset not found",
-        });
-      }
-
-      await db.asset.update({
-        where: { id: assetId },
-        data: {
-          paid: true,
-          status: "active",
-          ownerId: userId ?? null,
-          claimedAt: new Date(),
-        },
-      });
-
-      return res.json({
-        ok: true,
-        message: "DEV webhook simulated unlock",
-        assetId,
-      });
-    } catch (e: any) {
-      return res.status(500).json({
-        error: e.message,
-      });
-    }
-  }
-);
-
-/**
- * =========================
- * HEALTH
- * =========================
+ * HEALTH CHECK
  */
 app.get("/", (_req: Request, res: Response) => {
   res.json({
@@ -174,10 +144,9 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
+
 /**
- * =========================
- * START SERVER
- * =========================
+ * START
  */
 const PORT = Number(process.env.PORT || 3000);
 

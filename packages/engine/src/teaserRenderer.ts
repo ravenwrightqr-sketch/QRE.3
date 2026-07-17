@@ -1,53 +1,57 @@
 import type { AccessState } from "@qre/contracts";
 
-export type TeaserBlock =
-  | { type: "story"; text: string }
-  | { type: "cta"; text: string; url: string }
-  | { type: "hint"; text: string }
-  | { type: "divider" };
+
+export type TeaserBlock = {
+  type: "text" | "action";
+  text: string;
+  url?: string;
+};
+
 
 export function renderTeaser(
   access: AccessState,
   slug: string
 ): TeaserBlock[] {
-  switch (access) {
-    /**
-     * NOT PAID / NOT ACTIVATED
-     */
-    case "UNCLAIMED":
-      return [
-        { type: "story", text: "This asset is not activated yet." },
-        {
-          type: "cta",
-          text: "Unlock this experience",
-          url: `/unlock/${slug}`,
-        },
-      ];
 
-    /**
-     * PAID BUT NOT OWNER
-     */
-    case "LOCKED":
-      return [
-        { type: "story", text: "This asset is owned by another user." },
-        { type: "hint", text: "Only the owner can access full content." },
-      ];
 
-    /**
-     * OWNER ACCESS
-     */
-    case "UNLOCKED":
-      return [
-        { type: "story", text: "Owner verified." },
-        { type: "hint", text: "Full experience unlocked." },
-      ];
+  if (access === "DEMO") {
 
-    /**
-     * SAFETY FALLBACK
-     */
-    default:
-      return [
-        { type: "story", text: "Preview unavailable." },
-      ];
+    return [
+
+      {
+        type: "text",
+        text:
+          "Demo experience"
+      },
+
+      {
+        type: "text",
+        text:
+          "Play this experience here. Own the physical QRE to save your memories, unlock your dashboard, and create your permanent experience."
+      },
+
+      {
+        type: "action",
+        text:
+          "Get this QRE",
+        url:
+          `/store/${slug}`
+      }
+
+    ];
+
   }
+
+
+  /**
+   * UNLOCKED
+   *
+   * No teaser.
+   * No button.
+   * No "experience unlocked".
+   *
+   * Cinematic player starts immediately.
+   */
+  return [];
+
 }

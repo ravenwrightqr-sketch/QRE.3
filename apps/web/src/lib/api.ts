@@ -1,87 +1,560 @@
-const API = import.meta.env.VITE_API_URL;
+const API_BASE =
+  import.meta.env.VITE_API_URL || "http://localhost:3000";
 
-if (!API) {
-  throw new Error("VITE_API_URL missing");
-}
 
-function getToken() {
-  return localStorage.getItem("token");
-}
 
-async function request(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${API}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
+/**
+ * =========================
+ * AUTHENTICATED REQUEST
+ * =========================
+ */
 
-      ...(getToken()
-        ? { Authorization: `Bearer ${getToken()}` }
-        : {}),
+async function request(
+  path: string,
+  options: RequestInit = {}
+){
 
-      ...(options.headers || {}),
-    },
-  });
+  const token =
+    localStorage.getItem("token");
 
-  const data = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    throw new Error(data.error || "Request failed");
+  const res =
+    await fetch(
+      `${API_BASE}${path}`,
+      {
+
+        method:
+          options.method || "GET",
+
+        headers:{
+
+          "Content-Type":
+            "application/json",
+
+          ...(token
+            ? {
+                Authorization:
+                  `Bearer ${token}`
+              }
+            : {}),
+
+          ...(options.headers || {}),
+
+        },
+
+        body:
+          options.body,
+
+      }
+    );
+
+
+  let data:any = {};
+
+  try{
+
+    data =
+      await res.json();
+
+  }
+  catch{
+
+    data={};
+
   }
 
+
+  if(res.status === 401){
+
+    throw new Error(
+      data.error || "Unauthorized"
+    );
+
+  }
+
+
+  if(!res.ok){
+
+    throw new Error(
+      data.error ||
+      "Request failed"
+    );
+
+  }
+
+
   return data;
+
 }
 
+
+
 /**
  * =========================
- * AUTH
+ * PUBLIC REQUEST
+ * QR SCANS
  * =========================
  */
 
-export const login = (email: string, password: string) =>
-  request("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+async function publicRequest(
+  path:string
+){
 
-export const register = (email: string, password: string) =>
-  request("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+  const res =
+    await fetch(
+      `${API_BASE}${path}`,
+      {
 
-export const getCurrentUser = () => request("/api/auth/me");
+        method:"GET",
 
-export const logout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
+        headers:{
+          "Content-Type":
+            "application/json",
+        },
+
+      }
+    );
+
+
+  let data:any={};
+
+
+  try{
+
+    data =
+      await res.json();
+
+  }
+  catch{
+
+    data={};
+
+  }
+
+
+
+  if(!res.ok){
+
+    throw new Error(
+      data.error ||
+      "Public request failed"
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+
+/**
+ * =========================
+ * CORE API METHODS
+ * =========================
+ */
+
+export const apiGet =
+(path:string)=>
+request(path);
+
+
+
+export const apiPost =
+(
+  path:string,
+  body?:any
+)=>
+request(
+  path,
+  {
+    method:"POST",
+    body:
+      JSON.stringify(body),
+  }
+);
+
+
+
+export const apiPut =
+(
+  path:string,
+  body?:any
+)=>
+request(
+  path,
+  {
+    method:"PUT",
+    body:
+      JSON.stringify(body),
+  }
+);
+
+
+
+export const apiDelete =
+(path:string)=>
+request(
+  path,
+  {
+    method:"DELETE"
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * AUTH / USER
+ * =========================
+ */
+
+export const getUserDashboard =
+() =>
+apiGet(
+  "/api/dashboard"
+);
+
+
+
+export const getUserAssets =
+() =>
+apiGet(
+  "/api/user/assets"
+);
+
+
+
+export const getAssetDashboard =
+(slug:string)=>
+apiGet(
+  `/api/dashboard/assets/${slug}`
+);
+
+
+
+export const getAdminDashboard =
+() =>
+apiGet(
+  "/api/admin/dashboard"
+);
+
+
+
+export const createExperienceAsset =
+(payload:{
+  slug:string;
+  prompt:string;
+  priceCents?:number;
+}) =>
+apiPost(
+  "/api/admin/assets/create-experience",
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * EXPERIENCE COMPILER
+ * =========================
+ *
+ * PREVIEW ONLY
+ *
+ * Prompt
+ * ↓
+ * Compiler
+ * ↓
+ * Experience Blueprint
+ *
+ * No database write
+ *
+ * =========================
+ */
+
+export const compileExperience =
+(payload:{
+  prompt:string;
+}) =>
+apiPost(
+  "/experience/compile",
+  {
+    prompt:
+      payload.prompt,
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * EXPERIENCE CREATION
+ * =========================
+ *
+ * Compiler
+ * ↓
+ * Flow
+ * ↓
+ * AssetFlow
+ *
+ * Permanent save
+ *
+ * =========================
+ */
+
+export const createAndAttachFlow =
+(payload:{
+  assetId:string;
+  name?:string;
+  blueprint:any;
+  actions?:any;
+}) =>
+apiPost(
+  "/api/flow/create-and-attach",
+  payload
+);
+
+
+
+
+
+/**
+ * Update existing flow
+ *
+ * Asset
+ * |
+ * Flow
+ * |
+ * Steps
+ *
+ */
+
+export const compileAndSaveExperience =
+(payload:{
+  assetId:string;
+  flowId:string;
+  input:string;
+}) =>
+apiPost(
+  "/api/flow/compile-and-save",
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * FLOW MANAGEMENT
+ * =========================
+ */
+
+
+
+export const getFlow =
+(flowId:string)=>
+apiGet(
+  `/api/flow/${flowId}`
+);
+
+
+
+export const saveFlow =
+(
+  flowId:string,
+  payload:any
+)=>
+apiPut(
+  `/api/flow/${flowId}`,
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * FLOW LIBRARY
+ * =========================
+ */
+
+
+
+export const getFlowLibrary =
+() =>
+apiGet(
+  "/api/flow/library"
+);
+
+
+
+/**
+ * Get flows attached
+ * to specific asset
+ *
+ * Asset
+ * |
+ * AssetFlow
+ * |
+ * Flow
+ *
+ */
+
+export const getAssetFlows =
+(assetId:string)=>
+apiGet(
+  `/api/flow/asset/${assetId}`
+);
+
+
+
+
+
+/**
+ * Attach existing flow
+ * to asset
+ *
+ */
+
+export const attachFlow =
+(
+  assetId:string,
+  flowId:string,
+  priority:number = 0
+)=>
+apiPost(
+  "/api/flow/assign-flow",
+  {
+    assetId,
+    flowId,
+    priority,
+  }
+);
+
+
+
+
+
+/**
+ * Detach flow
+ *
+ * Removes AssetFlow only
+ * Keeps Flow alive
+ *
+ */
+
+export const detachFlow =
+(
+  assetId:string,
+  flowId:string
+)=>
+apiPost(
+  "/api/flow/detach-flow",
+  {
+    assetId,
+    flowId,
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * ANALYTICS
+ * =========================
+ */
+
+export const getAnalytics =
+() =>
+apiGet(
+  "/api/analytics"
+);
+
+
+
+
+
+/**
+ * =========================
+ * SCAN SYSTEM
+ * =========================
+ */
+
+export const getScan =
+(
+  slug:string,
+  geo?:{
+    lat:number;
+    lng:number;
+    accuracy?:number;
+  }
+)=>{
+
+
+  const params =
+    new URLSearchParams();
+
+
+  if(geo){
+
+    params.set(
+      "lat",
+      String(geo.lat)
+    );
+
+
+    params.set(
+      "lng",
+      String(geo.lng)
+    );
+
+
+    if(
+      geo.accuracy !== undefined
+    ){
+
+      params.set(
+        "accuracy",
+        String(geo.accuracy)
+      );
+
+    }
+
+  }
+
+
+
+  const query =
+    params.toString();
+
+
+
+  return publicRequest(
+    `/api/scan/${slug}${query ? `?${query}` : ""}`
+  );
+
 };
 
-/**
- * =========================
- * SCAN
- * =========================
- */
 
-export const scan = (slug: string) =>
-  request(`/api/scan/${slug}`);
 
-/**
- * =========================
- * DASHBOARD
- * =========================
- */
 
-export const getDashboardAsset = (slug: string) =>
-  request(`/api/dashboard/asset/${slug}`);
 
-/**
- * =========================
- * USER ASSETS
- * =========================
- */
+export const scanLiveUrl =
+(slug:string)=>
+`${API_BASE}/api/scan/${slug}`;
 
-export const getMyAssets = () =>
-  request("/api/user/assets");
+
 
 /**
  * =========================
@@ -89,80 +562,11 @@ export const getMyAssets = () =>
  * =========================
  */
 
-export const createCheckout = (slug: string) =>
-  request("/api/checkout", {
-    method: "POST",
-    body: JSON.stringify({ slug }),
-  });
-
-/**
- * =========================
- * FLOW SYSTEM
- * =========================
- */
-
-export const compileFlow = (input: string) =>
-  request("/api/flow/compile", {
-    method: "POST",
-    body: JSON.stringify({ input }),
-  });
-
-export const createFlow = (name: string, actions: any[]) =>
-  request("/api/flow/create", {
-    method: "POST",
-    body: JSON.stringify({ name, actions }),
-  });
-
-export const assignFlowToAsset = (assetId: string, flowId: string) =>
-  request("/api/flow/assign-flow", {
-    method: "POST",
-    body: JSON.stringify({ assetId, flowId }),
-  });
-
-export const compileAndSaveFlow = (
-  assetId: string,
-  input: string,
-  tier: "BASIC" | "PRO" | "BUSINESS"
-) =>
-  request("/api/flow/compile-and-save", {
-    method: "POST",
-    body: JSON.stringify({ assetId, input, tier }),
-  });
-
-/**
- * =========================
- * ADMIN
- * =========================
- */
-
-export const getAdminStatus = () =>
-  request("/api/admin/status");
-
-export const toggleAdmin = (enabled: boolean) =>
-  request("/api/admin/toggle", {
-    method: "POST",
-    body: JSON.stringify({ enabled }),
-  });
-
-/**
- * =========================
- * GENERIC
- * =========================
- */
-
-export const apiGet = request;
-
-export const apiPost = (path: string, body?: any) =>
-  request(path, {
-    method: "POST",
-    body: JSON.stringify(body ?? {}),
-  });
-
-export const apiPut = (path: string, body?: any) =>
-  request(path, {
-    method: "PUT",
-    body: JSON.stringify(body ?? {}),
-  });
-
-export const apiDelete = (path: string) =>
-  request(path, { method: "DELETE" });
+export const checkout =
+(slug:string)=>
+apiPost(
+  "/api/checkout",
+  {
+    slug
+  }
+);

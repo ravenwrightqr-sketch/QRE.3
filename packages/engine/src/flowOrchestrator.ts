@@ -1,45 +1,284 @@
-import { getSession, updateSession } from "./sessionManager.js";
-import { runAction } from "./actions.js";
-import type { FlowAction } from "@qre/contracts";
+import { trackEvent } from "./analytics/trackEvent.js";
+
+import {
+  checkIn,
+} from "./presence/checkIn.js";
+
+import type {
+  Moment,
+} from "@qre/contracts";
+
+
+/**
+ * =====================================================
+ * QRE FLOW ACTION RUNTIME
+ * =====================================================
+ *
+ * Runtime execution layer.
+ *
+ * Flow
+ *    ↓
+ * Moments
+ *    ↓
+ * Runtime actions
+ *    ↓
+ * Analytics
+ *    ↓
+ * Geo Memory / Presence
+ *
+ *
+ * Responsibilities:
+ *
+ * - Track flow progression
+ * - Trigger runtime side effects
+ * - Connect location moments to geo memory
+ *
+ *
+ * NO PRISMA
+ * NO DIRECT DATABASE ACCESS
+ *
+ * =====================================================
+ */
+
+
+export type FlowRuntimeGeo = {
+
+  lat:
+    number;
+
+  lng:
+    number;
+
+  accuracy?:
+    number;
+
+};
+
+
 
 export async function runFlowActions(
-  actions: FlowAction[],
-  sessionId: string,
-  assetId: string
+
+  moments:
+    Moment[],
+
+  sessionId:
+    string,
+
+  assetId:
+    string,
+
+  geo?:
+    FlowRuntimeGeo,
+
+  userId?:
+    string
+
 ) {
-  const session = await getSession(sessionId);
-  if (!session) throw new Error("Session not found");
 
-  let currentIndex = session.stepIndex ?? 0;
 
-  for (let i = currentIndex; i < actions.length; i++) {
-    const action = actions[i];
-    if (!action) continue;
+  const sorted =
+    [...moments]
+      .sort(
+        (a,b) =>
+          a.order - b.order
+      );
 
-    const latest = await getSession(sessionId);
-    if (!latest) throw new Error("Session lost");
 
-    if ((latest.stepIndex ?? 0) > i) continue;
 
-    await updateSession(sessionId, {
-      stepIndex: i,
-      status: "running",
-    });
+  for (
+    let i = 0;
+    i < sorted.length;
+    i++
+  ) {
 
-    const result = await runAction(action, {
-      sessionId,
+
+    const moment =
+      sorted[i];
+
+
+
+    /**
+     * FLOW ANALYTICS
+     */
+    await trackEvent({
+
       assetId,
+
+      sessionId,
+
+      stepIndex:
+        i,
+
+      type:
+        "FLOW_STEP",
+
+      meta: {
+
+        momentType:
+          moment.type,
+
+      },
+
     });
 
-    await updateSession(sessionId, {
-      stepIndex: i + 1,
-      status: "active",
-      lastAction: result,
-    });
+
+
+    /**
+     * =========================
+     * RUNTIME SIDE EFFECTS
+     * =========================
+     */
+    switch (
+      moment.type
+    ) {
+
+
+      /**
+       * Normal content
+       */
+      case "message":
+
+        break;
+
+
+
+      /**
+       * Payment / redirect
+       *
+       * Frontend handles UI.
+       */
+      case "action":
+
+        break;
+
+
+
+      /**
+       * GEO MEMORY CONNECTION
+       *
+       * Location moments created
+       * by FlowBuilder carry:
+       *
+       * meta.geoMemory=true
+       *
+       * They trigger:
+       *
+       * checkIn()
+       * geoProof
+       * presence timeline
+       * geo analytics
+       */
+      case "location": {
+
+        const meta =
+          moment.meta ?? {};
+
+
+
+        if (
+
+          meta.geoMemory === true &&
+
+          geo
+
+        ) {
+
+
+          await checkIn({
+
+            assetId,
+
+            sessionId,
+
+            userId,
+
+            geo,
+
+          });
+
+
+        }
+
+
+        break;
+
+      }
+
+
+
+      /**
+       * Media events
+       */
+      case "media":
+
+        break;
+
+
+
+      /**
+       * System events
+       */
+      case "system":
+
+        break;
+
+
+    }
+
+
+
+    /**
+     * TIMER SUPPORT
+     */
+    const duration =
+
+      typeof moment.meta?.duration === "number"
+
+        ? moment.meta.duration
+
+        : 0;
+
+
+
+    if (
+      duration > 0
+    ) {
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            duration
+          )
+      );
+
+    }
+
+
   }
 
-  await updateSession(sessionId, {
-    stepIndex: actions.length,
-    status: "completed",
+
+
+  /**
+   * FLOW COMPLETE
+   */
+  await trackEvent({
+
+    assetId,
+
+    sessionId,
+
+    type:
+      "FLOW_COMPLETE",
+
+    meta: {
+
+      steps:
+        sorted.length,
+
+    },
+
   });
+
+
 }
