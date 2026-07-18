@@ -26,6 +26,7 @@
  * =====================================================
  */
 
+
 export type FlowStepRecord = {
 
   id:string;
@@ -51,11 +52,13 @@ export type FlowRecord = {
 
 
 
+
 /**
  * =====================================================
  * ASSET RUNTIME CONTRACT
  * =====================================================
  */
+
 
 export type AssetRecord = {
 
@@ -73,12 +76,19 @@ export type AssetRecord = {
    *        ↓
    * ownerId
    *
-   * Engine never knows Account/Ownership tables.
+   * Engine never knows:
+   *
+   * - Account tables
+   * - Ownership tables
+   * - Prisma relations
    */
+
+
   ownerId:string | null;
 
 
   paid:boolean;
+
 
   category:string | null;
 
@@ -86,6 +96,7 @@ export type AssetRecord = {
   flow:FlowRecord | null;
 
 };
+
 
 
 
@@ -109,6 +120,34 @@ export interface AssetRepository {
 /**
  * =====================================================
  * SESSION CONTRACT
+ * =====================================================
+ *
+ * A Session represents one QRE runtime experience.
+ *
+ * Every scan may create a session.
+ *
+ * Sessions capture:
+ *
+ * - access decision
+ * - generated moments
+ * - cinematic scenes
+ * - completion state
+ * - memory references
+ * - receipts
+ *
+ *
+ * Sessions are NOT permanent memories.
+ *
+ * MemorySnapshot represents the
+ * persistent memory artifact.
+ *
+ * AnalyticsEvent represents raw behavior:
+ *
+ * - scans
+ * - views
+ * - drop-offs
+ * - conversions
+ *
  * =====================================================
  */
 
@@ -134,6 +173,7 @@ export interface SessionRepository {
 
 
 
+
   update(
 
     sessionId:string,
@@ -145,6 +185,10 @@ export interface SessionRepository {
 
 }
 
+
+
+
+
 /**
  * =====================================================
  * ACCESS CONTRACT
@@ -153,15 +197,19 @@ export interface SessionRepository {
  * Provides runtime access truth.
  *
  * Engine does not query:
+ *
  * - Prisma
  * - User table
  * - Asset table
  *
+ *
  * Repository resolves:
  *
  * Asset
- *   +
- * Owner subscription
+ *    +
+ * Ownership
+ *    +
+ * Subscription context
  *
  * before engine execution.
  *
@@ -186,43 +234,48 @@ export interface AccessRepository {
 
 
     /**
-     * Ownership truth.
+     * Ownership identity.
      *
-     * Asset belongs to an Account.
-     *
-     * Engine does not know:
-     * - Ownership table
-     * - Account table
-     * - Prisma relations
-     *
-     * Repository resolves it.
+     * Repository resolves this.
+     * Engine does not know ownership tables.
      */
+
+
     accountId:string | null;
 
 
+
     /**
-     * Current ownership lifecycle state.
+     * Asset lifecycle state.
      */
+
+
     ownershipStatus:string | null;
 
 
+
     /**
-     * Account subscription plan.
+     * Account subscription tier.
      *
-     * Example:
-     * CONSUMER
-     * PRO
-     * BUSINESS
+     * Controls:
+     *
+     * - dashboard
+     * - creation
+     * - analytics
+     * - editing
+     *
+     * NOT asset ownership.
      */
+
+
     ownerTier:string;
 
 
   } | null>;
 
 
+
 }
-
-
 
 
 
@@ -252,24 +305,76 @@ export interface UserRepository {
   } | null>;
 
 
+
 }
+
+
+
+
+
 /**
- * Session represents a persisted experience lifecycle.
+ * =====================================================
+ * STORY DELIVERY CONTRACT
+ * =====================================================
  *
- * NOT every QR scan.
+ * StoryDeliveryEngine uses this contract.
  *
- * Scans are tracked through AnalyticsEvent.
+ * It does NOT know:
  *
- * A Session is created when:
+ * - Prisma
+ * - database models
+ * - storage implementation
  *
- * - access is granted
- * - ownership exists
- * - experience becomes persistent
+ * Adapters handle persistence.
  *
- * Contains:
- * - moments
- * - cinematic scenes
- * - memory snapshot
- * - receipt
+ * =====================================================
  */
-export interface SessionRepository {}
+
+
+export interface StoryDeliveryRepository {
+
+
+  findExistingStory(
+
+    input:{
+
+      assetId:string;
+
+      sessionId:string;
+
+    }
+
+  ):Promise<{
+
+    id:string;
+
+  } | null>;
+
+
+
+
+  createStorySnapshot(
+
+    input:{
+
+      assetId:string;
+
+      sessionId:string;
+
+      moments:unknown;
+
+      geoStory:unknown;
+
+      cinematicScenes:unknown;
+
+    }
+
+  ):Promise<{
+
+    id:string;
+
+  }>;
+
+
+
+}
