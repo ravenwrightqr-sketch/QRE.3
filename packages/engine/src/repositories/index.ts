@@ -253,3 +253,23 @@ export interface UserRepository {
 
 
 }
+/**
+ * Session represents a persisted experience lifecycle.
+ *
+ * NOT every QR scan.
+ *
+ * Scans are tracked through AnalyticsEvent.
+ *
+ * A Session is created when:
+ *
+ * - access is granted
+ * - ownership exists
+ * - experience becomes persistent
+ *
+ * Contains:
+ * - moments
+ * - cinematic scenes
+ * - memory snapshot
+ * - receipt
+ */
+export interface SessionRepository {}

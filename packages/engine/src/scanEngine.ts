@@ -5,30 +5,30 @@ import type {
   FlowStepRecord,
 } from "./repositories/index.js";
 
-import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
-import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 import { resolveAccessEngine } from "./accessEngine.js";
 
 import { flowToMoment } from "./moments/flowToMoments.js";
 import { systemMoments } from "./moments/systemMoments.js";
 import { purchaseMoments } from "./moments/purchaseMoments.js";
 
-import { getScanInsights } from "./analytics/analyticsService.js";
 import { buildGeoStory } from "./geo/geoStoryCompiler.js";
+import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
 
 import { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+
+import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
+
+import { getScanInsights } from "./analytics/analyticsService.js";
+
+import { runFlowActions } from "./flowOrchestrator.js";
+
+import { buildServiceReceipt } from "./receiptBuilder.js";
 
 import type {
   FlowStepType,
   Moment,
   ScanResponse,
 } from "@qre/contracts";
-
-import {
-  runFlowActions,
-} from "./flowOrchestrator.js";
-
-import { buildServiceReceipt } from "./receiptBuilder.js";
 
 
 
@@ -39,12 +39,17 @@ type ScanEngineInput = {
   userId?:string;
 
   geo?:{
+
     lat:number;
+
     lng:number;
+
     accuracy?:number;
+
   };
 
 };
+
 
 
 
@@ -54,13 +59,24 @@ export async function scanEngine(
   input:ScanEngineInput,
 
   repos:{
+
     assetRepository:AssetRepository;
+
     sessionRepository:SessionRepository;
+
     accessRepository:AccessRepository;
+
   }
 
-): Promise<ScanResponse> {
+):Promise<ScanResponse>{
 
+
+
+  /**
+   * =====================================================
+   * 1. RESOLVE ASSET
+   * =====================================================
+   */
 
 
   const asset =
@@ -70,69 +86,83 @@ export async function scanEngine(
 
 
 
-    if(!asset){
+  if(!asset){
 
-  return {
+    return {
 
-    sessionId:null,
+      sessionId:null,
 
-    access:"DEMO",
+      access:"DEMO",
 
-    preview:true,
+      preview:true,
 
-    asset:null,
+      asset:null,
 
-    moments:[],
+      moments:[],
 
-    geoStory:null,
+      geoStory:null,
 
-    cinematicScenes:[],
+      cinematicScenes:[],
 
-    memorySnapshot:null,
+      memorySnapshot:null,
 
-    receipt:null,
+      receipt:null,
 
-    insights:[],
+      insights:[],
 
-    timestamp:new Date().toISOString(),
+      timestamp:new Date().toISOString(),
 
-  };
+    };
 
-}
-    /**
-   * FLOW RESOLUTION
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 2. CREATE SESSION
    *
-   * Repository already resolves:
+   * EVERY SCAN CREATES A SESSION
    *
-   * AssetFlow
-   *      ↓
-   * Active Flow
-   *
-   * Engine receives:
-   *
-   * AssetRecord.flow
+   * Demo and unlocked both matter.
+   * =====================================================
    */
-
-  const flow =
-    asset.flow;
-
 
 
   const session =
     await repos.sessionRepository.create({
 
-      assetId:
-        asset.id,
+      assetId:asset.id,
 
       flowId:
-        flow?.id ?? null,
+        asset.flow?.id ?? null,
 
     });
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 3. ACCESS RESOLUTION
+   *
+   * Determines:
+   *
+   * DEMO
+   * UNLOCKED
+   * =====================================================
+   */
+
 
   const access =
     await resolveAccessEngine(
 
       {
+
         assetId:asset.id,
 
         userId:input.userId,
@@ -143,6 +173,15 @@ export async function scanEngine(
 
     );
 
+
+
+
+
+  /**
+   * =====================================================
+   * 4. BUILD EXPERIENCE MOMENTS
+   * =====================================================
+   */
 
 
   const moments:Moment[] = [];
@@ -161,7 +200,18 @@ export async function scanEngine(
 
 
 
+
+
+  /**
+   * DEMO EXPERIENCE
+   *
+   * Shows the magic.
+   *
+   * Does NOT create memory.
+   */
+
   if(access.state !== "UNLOCKED"){
+
 
     moments.push(
 
@@ -179,21 +229,29 @@ export async function scanEngine(
 
 
 
+
+
+  /**
+   * UNLOCKED EXPERIENCE
+   *
+   * Real customer flow.
+   */
+
+
   if(
 
     access.state === "UNLOCKED" &&
 
-    flow?.steps?.length
+    asset.flow?.steps?.length
 
   ){
-
 
 
     const flowMoments =
 
       flowToMoment(
 
-        flow.steps.map(
+        asset.flow.steps.map(
 
           (step:FlowStepRecord)=>({
 
@@ -214,9 +272,9 @@ export async function scanEngine(
 
               !Array.isArray(step.payload)
 
-              ? step.payload as Record<string,unknown>
+                ? step.payload as Record<string,unknown>
 
-              : {},
+                : {},
 
           })
 
@@ -248,7 +306,10 @@ export async function scanEngine(
 
     );
 
+
   }
+
+
 
 
 
@@ -256,14 +317,27 @@ export async function scanEngine(
 
     (a,b)=>
 
-      a.order - b.order
+      a.order-b.order
 
   );
 
 
 
 
+
+
+
+  /**
+   * =====================================================
+   * 5. RUN ACTIONS
+   *
+   * Allowed for demo/unlocked.
+   * =====================================================
+   */
+
+
   try{
+
 
     await runFlowActions(
 
@@ -279,21 +353,36 @@ export async function scanEngine(
 
     );
 
+
   }
 
   catch(err){
 
+
     console.warn(
 
-      "[FLOW RUNTIME FAILED]",
+      "[FLOW ACTION FAILED]",
 
       err
 
     );
 
+
   }
 
 
+
+
+
+
+
+  /**
+   * =====================================================
+   * 6. GEO STORY
+   *
+   * Experience layer.
+   * =====================================================
+   */
 
 
   let geoStory = null;
@@ -302,22 +391,41 @@ export async function scanEngine(
 
   try{
 
-geoStory =
-  await buildGeoStory(
-    asset.id,
-    input.geo
-      ? [
-          {
-            lat: input.geo.lat,
-            lng: input.geo.lng,
-            createdAt: new Date(),
-          }
-        ]
-      : []
-  );
+
+    geoStory =
+
+      await buildGeoStory(
+
+        asset.id,
+
+        input.geo
+
+          ? [
+
+              {
+
+                lat:
+                  input.geo.lat,
+
+                lng:
+                  input.geo.lng,
+
+                createdAt:
+                  new Date(),
+
+              },
+
+            ]
+
+          : []
+
+      );
+
+
   }
 
   catch(err){
+
 
     console.warn(
 
@@ -330,6 +438,20 @@ geoStory =
   }
 
 
+
+
+
+
+
+  /**
+   * =====================================================
+   * 7. CINEMATIC RUNTIME
+   *
+   * Always generated.
+   *
+   * Demo needs magic.
+   * =====================================================
+   */
 
 
   const cinematicScenes =
@@ -345,58 +467,119 @@ geoStory =
 
 
 
-  const memorySnapshot =
-
-    buildMemorySnapshot({
-
-      assetId:asset.id,
-
-      moments,
-
-      geoStory,
-
-      cinematicScenes,
-
-    });
 
 
 
 
+  /**
+   * =====================================================
+   * 8. PERMANENT MEMORY
+   *
+   * ONLY AFTER UNLOCK
+   * =====================================================
+   */
 
-  try{
 
-    await createStoryDelivery({
+  let memorySnapshot = null;
 
-      assetId:asset.id,
 
-      sessionId:session.id,
 
-      userId:
-        input.userId ?? null,
+  if(access.state === "UNLOCKED"){
 
-      moments,
 
-      geoStory,
+    memorySnapshot =
 
-      cinematicScenes,
+      buildMemorySnapshot({
 
-    });
+        assetId:
 
-  }
+          asset.id,
 
-  catch(err){
+        moments,
 
-    console.warn(
+        geoStory,
 
-      "[STORY DELIVERY FAILED]",
+        cinematicScenes,
 
-      err
+      });
 
-    );
 
   }
 
 
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 9. STORY DELIVERY
+   *
+   * ONLY AFTER UNLOCK
+   * =====================================================
+   */
+
+
+  if(access.state === "UNLOCKED"){
+
+
+    try{
+
+
+      await createStoryDelivery({
+
+        assetId:
+
+          asset.id,
+
+        sessionId:
+
+          session.id,
+
+        userId:
+
+          input.userId ?? null,
+
+        moments,
+
+        geoStory,
+
+        cinematicScenes,
+
+      });
+
+
+    }
+
+    catch(err){
+
+
+      console.warn(
+
+        "[STORY DELIVERY FAILED]",
+
+        err
+
+      );
+
+    }
+
+
+  }
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 10. RECEIPTS
+   * =====================================================
+   */
 
 
   const hasServiceCompletion =
@@ -413,7 +596,6 @@ geoStory =
 
 
 
-
   const isServiceAsset =
 
     asset.category === "service" ||
@@ -422,8 +604,9 @@ geoStory =
 
 
 
-
   const receipt =
+
+    access.state === "UNLOCKED" &&
 
     isServiceAsset &&
 
@@ -444,6 +627,16 @@ geoStory =
 
 
 
+
+
+
+  /**
+   * =====================================================
+   * 11. INSIGHTS
+   * =====================================================
+   */
+
+
   const insights =
 
     await getScanInsights(
@@ -453,6 +646,17 @@ geoStory =
     );
 
 
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 12. PERSIST SESSION RESULT
+   * =====================================================
+   */
 
 
   await repos.sessionRepository.update(
@@ -482,42 +686,85 @@ geoStory =
 
 
 
+
+
+
+
+  /**
+   * =====================================================
+   * FINAL PUBLIC RESPONSE
+   * =====================================================
+   */
+
+
   return {
 
-    sessionId:session.id,
 
-   access: access.state,
+    sessionId:
 
-    timestamp: new Date().toISOString(),
+      session.id,
 
-    moments,
 
-    geoStory,
 
-    cinematicScenes,
+    access:
 
-    insights,
+      access.state,
 
-    memorySnapshot,
 
-    receipt,
 
     preview:
 
       access.state !== "UNLOCKED",
 
 
+
+    timestamp:
+
+      new Date().toISOString(),
+
+
+
+    moments,
+
+
+    geoStory,
+
+
+    cinematicScenes,
+
+
+    memorySnapshot,
+
+
+    receipt,
+
+
+    insights,
+
+
+
     asset:{
 
-      id:asset.id,
 
-      slug:asset.slug,
+      id:
+
+        asset.id,
 
 
-      paid:asset.paid,
+      slug:
+
+        asset.slug,
+
+
+      paid:
+
+        asset.paid,
+
 
     },
 
+
   };
+
 
 }

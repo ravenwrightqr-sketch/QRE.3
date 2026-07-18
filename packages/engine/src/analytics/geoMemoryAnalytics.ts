@@ -69,7 +69,7 @@ export async function buildGeoMemoryAnalytics(
 
       confidence,
 
-      dominantLayer: "geo",
+      dominantLayer: "geo_analytics",
 
       dropOffPoints: {
         totalPoints,
