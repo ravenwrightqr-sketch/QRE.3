@@ -4,7 +4,9 @@ import type {
   AccessRepository,
   FlowStepRecord,
 } from "./repositories/index.js";
-
+import type {
+  StoryDeliveryRepository,AnalyticsRepository,
+} from "./repositories/index.js";
 import { resolveAccessEngine } from "./accessEngine.js";
 
 import { flowToMoment } from "./moments/flowToMoments.js";
@@ -63,9 +65,9 @@ export async function scanEngine(
     assetRepository:AssetRepository;
 
     sessionRepository:SessionRepository;
-
+    analyticsRepository:AnalyticsRepository;
     accessRepository:AccessRepository;
-
+    storyDeliveryRepository:StoryDeliveryRepository;
   }
 
 ):Promise<ScanResponse>{
@@ -339,19 +341,21 @@ export async function scanEngine(
   try{
 
 
-    await runFlowActions(
+   await runFlowActions(
 
-      moments,
+  moments,
 
-      session.id,
+  session.id,
 
-      asset.id,
+  asset.id,
 
-      input.geo,
+  input.geo,
 
-      input.userId
+  input.userId,
 
-    );
+  repos.analyticsRepository
+
+);
 
 
   }
@@ -528,27 +532,28 @@ export async function scanEngine(
     try{
 
 
-      await createStoryDelivery({
+      await createStoryDelivery(
 
-        assetId:
+  {
 
-          asset.id,
+    assetId:asset.id,
 
-        sessionId:
+    sessionId:session.id,
 
-          session.id,
+    userId:
+      input.userId ?? null,
 
-        userId:
+    moments,
 
-          input.userId ?? null,
+    geoStory,
 
-        moments,
+    cinematicScenes,
 
-        geoStory,
+  },
 
-        cinematicScenes,
+  repos.storyDeliveryRepository
 
-      });
+);
 
 
     }
@@ -637,14 +642,15 @@ export async function scanEngine(
    */
 
 
-  const insights =
+    
+   const insights =
+   await getScanInsights(
 
-    await getScanInsights(
+   asset.id,
 
-      asset.id
+    repos.analyticsRepository
 
-    );
-
+   );
 
 
 

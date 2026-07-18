@@ -3,9 +3,10 @@ import {
 } from "../presence/checkIn.js";
 
 
-import {
-  buildMemorySnapshot,
-} from "../geo/buildMemorySnapshot.js";
+import type {
+  PresenceRepository,
+  GeoMemoryRepository,
+} from "../repositories/index.js";
 
 
 import type {
@@ -14,18 +15,35 @@ import type {
 
 
 
+
 export async function runLocationStep(
-  step: FlowStep,
+
+  step:FlowStep,
+
   context:{
+
     assetId:string;
+
     sessionId:string;
+
     userId?:string;
+
     geo?:{
+
       lat:number;
+
       lng:number;
+
       accuracy?:number;
+
     };
+
+    presenceRepository:PresenceRepository;
+
+    geoMemoryRepository?:GeoMemoryRepository;
+
   }
+
 ){
 
 
@@ -39,39 +57,44 @@ export async function runLocationStep(
   ){
 
     return {
-      skipped:true
+
+      skipped:true,
+
     };
 
   }
 
 
 
-  /**
-   * 1.
-   * Create presence proof
-   */
-  await checkIn({
 
-    assetId:
-      context.assetId,
+  await checkIn(
 
-    sessionId:
-      context.sessionId,
+    {
 
-    userId:
-      context.userId,
+      assetId:
+        context.assetId,
 
-    geo:
-      context.geo,
+      sessionId:
+        context.sessionId,
 
-  });
+      userId:
+        context.userId,
+
+      geo:
+        context.geo,
+
+    },
+
+    context.presenceRepository,
+
+    context.geoMemoryRepository
+
+  );
 
 
 
-  /**
-   * 2.
-   * Return runtime result
-   */
+
+
   return {
 
     type:"location",
@@ -83,6 +106,5 @@ export async function runLocationStep(
     snapshot:true,
 
   };
-
 
 }

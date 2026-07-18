@@ -1,11 +1,13 @@
-import { db } from "@qre/db";
-import { nanoid } from "nanoid";
+import type {
+  StoryDeliveryRepository,
+} from "../repositories/index.js";
 
 import type {
   CinematicScene,
   GeoStory,
   Moment,
 } from "@qre/contracts";
+
 
 
 type StoryInput = {
@@ -16,17 +18,7 @@ type StoryInput = {
 
   userId?:string|null;
 
-  /**
-   * Future delivery target.
-   *
-   * Examples:
-   *
-   * customer phone
-   * customer email
-   * guest account
-   *
-   * Kept optional until delivery system exists.
-   */
+
   recipient?:{
 
     email?:string;
@@ -49,40 +41,31 @@ type StoryInput = {
 
 
 export async function createStoryDelivery(
-  input:StoryInput
+
+  input:StoryInput,
+
+  repo:StoryDeliveryRepository
+
 ){
 
 
   /**
    * =====================================================
-   * 1. LOAD ASSET
+   * 1. VERIFY ASSET
    * =====================================================
    *
-   * Delivery only requires asset existence.
+   * Repository owns persistence.
    *
-   * Ownership is handled elsewhere.
+   * Engine only receives truth.
    *
-   * Asset owner != story recipient.
-   *
+   * =====================================================
    */
 
 
   const asset =
-    await db.asset.findUnique({
-
-      where:{
-        id:input.assetId,
-      },
-
-      select:{
-
-        id:true,
-
-        accountId:true,
-
-      },
-
-    });
+    await repo.findAsset(
+      input.assetId
+    );
 
 
 
@@ -100,52 +83,35 @@ export async function createStoryDelivery(
 
   /**
    * =====================================================
-   * 2. DUPLICATE DELIVERY GUARD
+   * 2. DUPLICATE STORY GUARD
    * =====================================================
-   *
-   * Prevent duplicate story creation
-   * for the same scan session.
-   *
    */
 
 
-  const existingSnapshot =
-    await db.memorySnapshot.findFirst({
+  const existing =
+    await repo.findExistingStory({
 
-      where:{
+      assetId:
+        input.assetId,
 
-        assetId:
-          input.assetId,
-
-        sessionId:
-          input.sessionId,
-
-        dominantLayer:
-          "story_delivery",
-
-      },
-
-      orderBy:{
-
-        createdAt:
-          "desc",
-
-      },
+      sessionId:
+        input.sessionId,
 
     });
 
 
 
-  if(existingSnapshot){
+
+  if(existing){
 
     return {
 
       storyId:
-        existingSnapshot.id,
+        existing.id,
 
 
       shareUrl:
-        `/share/${existingSnapshot.id}`,
+        `/share/${existing.id}`,
 
 
       delivered:false,
@@ -164,61 +130,28 @@ export async function createStoryDelivery(
 
   /**
    * =====================================================
-   * 3. NORMALIZE EXPERIENCE DATA
+   * 3. NORMALIZE EXPERIENCE PAYLOAD
    * =====================================================
    */
 
 
   const safeGeoStory =
-    input.geoStory
-      ? JSON.parse(
-          JSON.stringify(
-            input.geoStory
-          )
-        )
-      : null;
-
-
-
-
-  const safeCinematicScenes =
-    JSON.parse(
-
-      JSON.stringify(
-
-        input.cinematicScenes.map(
-          scene => ({
-
-            id:
-              scene.id,
-
-            type:
-              scene.type,
-
-            duration:
-              scene.duration,
-
-            moment:
-              scene.moment,
-
-          })
-
-        )
-
-      )
-
+    structuredClone(
+      input.geoStory
     );
 
 
 
-
   const safeMoments =
-    JSON.parse(
+    structuredClone(
+      input.moments
+    );
 
-      JSON.stringify(
-        input.moments
-      )
 
+
+  const safeScenes =
+    structuredClone(
+      input.cinematicScenes
     );
 
 
@@ -233,76 +166,27 @@ export async function createStoryDelivery(
    */
 
 
-  const storyId =
-    nanoid(12);
-
-
-
   const snapshot =
-    await db.memorySnapshot.create({
+    await repo.createStorySnapshot({
 
-      data:{
-
-        assetId:
-          input.assetId,
+      assetId:
+        input.assetId,
 
 
-        sessionId:
-          input.sessionId,
+      sessionId:
+        input.sessionId,
 
 
-        scanWeight:
-          input.moments.length,
+      moments:
+        safeMoments,
 
 
-        flowEngagementWeight:
-          1,
+      geoStory:
+        safeGeoStory,
 
 
-        completionWeight:
-          1,
-
-
-        ctaClickWeight:
-          0,
-
-
-        rewardScore:
-          0,
-
-
-        confidence:
-          1,
-
-
-        dominantLayer:
-          "story_delivery",
-
-
-
-        dropOffPoints:{
-
-          storyId,
-
-
-          moments:
-            safeMoments,
-
-
-          geoStory:
-            safeGeoStory,
-
-
-          cinematicScenes:
-            safeCinematicScenes,
-
-
-          status:
-            "READY",
-
-        },
-
-      },
+      cinematicScenes:
+        safeScenes,
 
     });
 
@@ -311,32 +195,18 @@ export async function createStoryDelivery(
 
 
 
-
   /**
    * =====================================================
-   * 5. DELIVERY EVENT
+   * 5. FUTURE DELIVERY PIPELINE
    * =====================================================
    *
-   * Future:
+   * Email/SMS/push will attach here.
    *
-   * ExperienceDelivery table
-   * NotificationQueue
-   * SMS provider
-   * Email provider
+   * Snapshot creation is the source of truth.
    *
-   *
-   * Example:
-   *
-   * Dog groomer:
-   * customer gets finished story.
-   *
-   * Realtor:
-   * buyer gets property experience.
-   *
-   * Hotel:
-   * guest gets stay recap.
-   *
+   * =====================================================
    */
+
 
 
   const shareUrl =
@@ -346,8 +216,11 @@ export async function createStoryDelivery(
 
   const delivered =
     Boolean(
+
       input.recipient?.email ||
+
       input.recipient?.phone
+
     );
 
 
@@ -378,13 +251,6 @@ export async function createStoryDelivery(
 
 
 
-  /**
-   * =====================================================
-   * 6. RETURN
-   * =====================================================
-   */
-
-
   return {
 
     storyId:
@@ -412,21 +278,25 @@ export async function createStoryDelivery(
 
 
 
+
+
 /**
  * =====================================================
  * DELIVERY QUEUE PLACEHOLDER
  * =====================================================
  *
- * This becomes:
+ * Future:
  *
  * Resend
  * Twilio
- * Push Notifications
+ * Push
  *
+ * =====================================================
  */
 
 
 async function queueExperienceDelivery(
+
   payload:{
 
     snapshotId:string;
@@ -440,11 +310,15 @@ async function queueExperienceDelivery(
     shareUrl:string;
 
   }
+
 ){
 
   console.log(
+
     "[EXPERIENCE DELIVERY QUEUED]",
+
     payload
+
   );
 
 }

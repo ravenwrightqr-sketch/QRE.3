@@ -1,121 +1,176 @@
-import { db } from "@qre/db";
+import type {
+  GeoMemoryRepository,
+  GeoProofRecord,
+} from "../repositories/index.js";
 
-/**
- * ============================================================
- * GEO MEMORY ANALYTICS
- * ============================================================
- *
- * Reads geo history and stores long-term analytics
- * for dashboards, AI, rewards and engagement.
- *
- * NOT the cinematic Memory Snapshot.
- * ============================================================
- */
 
 export async function buildGeoMemoryAnalytics(
-  assetId: string,
-  sessionId?: string
-) {
-  const geoEvents = await db.geoProof.findMany({
-    where: { assetId },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
 
-  const totalPoints = geoEvents.length;
+  assetId:string,
 
-  const uniqueCities = new Set(
-    geoEvents
-      .map((g: any) => g.city)
-      .filter(Boolean)
-  );
+  repo:GeoMemoryRepository,
 
-  const dominantRegion = mostCommon(
-    geoEvents.map((g: any) => g.region)
-  );
+  sessionId?:string
+
+){
+
+
+  const geoEvents =
+    await repo.findGeoProof(
+      assetId
+    );
+
+
+
+  const totalPoints =
+    geoEvents.length;
+
+
+
+  const uniqueCities =
+    new Set(
+
+     geoEvents
+     .map((g:GeoProofRecord)=>g.city)
+
+    .filter(Boolean)
+
+    );
+
+
+
+  const dominantRegion =
+    mostCommon(
+
+   geoEvents
+   .map((g:GeoProofRecord)=>g.region)
+
+    );
+
+
 
   const confidence =
     totalPoints === 0
-      ? 0
-      : Math.min(totalPoints / 10, 1);
 
-  const rewardScore = totalPoints * 1.2;
+      ? 0
+
+      : Math.min(
+          totalPoints / 10,
+          1
+        );
+
+
+
+  const rewardScore =
+    totalPoints * 1.2;
+
+
 
   const signalStrength =
+
     totalPoints > 10
+
       ? "high"
+
       : totalPoints > 3
-      ? "medium"
-      : "low";
 
-  const lastPoint = geoEvents.at(-1);
+        ? "medium"
 
-  const snapshot = await db.memorySnapshot.create({
-    data: {
-      assetId,
+        : "low";
 
-      sessionId: sessionId ?? null,
 
-      scanWeight: totalPoints,
 
-      flowEngagementWeight: 0,
+  const lastPoint =
+    geoEvents.at(-1);
 
-      completionWeight: 0,
 
-      ctaClickWeight: 0,
 
-      rewardScore,
+  return repo.createMemorySnapshot({
 
-      confidence,
+    assetId,
 
-      dominantLayer: "geo_analytics",
+    sessionId,
 
-      dropOffPoints: {
-        totalPoints,
-        uniquePlaces: uniqueCities.size,
-        dominantRegion,
-        signalStrength,
+    scanWeight:
+      totalPoints,
 
-        lastLocation: lastPoint
+    rewardScore,
+
+    confidence,
+
+    dominantLayer:
+      "geo_analytics",
+
+    data:{
+
+      totalPoints,
+
+      uniquePlaces:
+        uniqueCities.size,
+
+      dominantRegion,
+
+      signalStrength,
+
+
+      lastLocation:
+        lastPoint
           ? {
-              lat: lastPoint.lat,
-              lng: lastPoint.lng,
-              city: lastPoint.city,
-              region: lastPoint.region,
+              lat:lastPoint.lat,
+              lng:lastPoint.lng,
+              city:lastPoint.city,
+              region:lastPoint.region,
             }
+
           : null,
-      },
+
     },
+
   });
 
-  return snapshot;
+
 }
 
-/**
- * ------------------------------------------------------------
- * Helpers
- * ------------------------------------------------------------
- */
 
-function mostCommon(values: (string | null | undefined)[]) {
-  const counts = new Map<string, number>();
 
-  for (const value of values) {
-    if (!value) continue;
+function mostCommon(
+  values:(string|null|undefined)[]
+){
 
-    counts.set(value, (counts.get(value) ?? 0) + 1);
+  const counts =
+    new Map<string,number>();
+
+
+  for(const value of values){
+
+    if(!value) continue;
+
+    counts.set(
+      value,
+      (counts.get(value) ?? 0)+1
+    );
+
   }
 
-  let winner: string | null = null;
+
+  let winner:null|string = null;
+
   let highest = 0;
 
-  for (const [key, value] of counts.entries()) {
-    if (value > highest) {
-      highest = value;
-      winner = key;
+
+  for(const [key,value] of counts){
+
+    if(value > highest){
+
+      highest=value;
+
+      winner=key;
+
     }
+
   }
 
+
   return winner;
+
 }

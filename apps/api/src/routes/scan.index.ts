@@ -4,33 +4,51 @@ import {
   scanEngine,
 } from "@qre/engine";
 
+
 import {
   scanRoute,
 } from "./scan.route.js";
+
 
 import {
   createAssetRepository,
 } from "../repositories/assetRepository.js";
 
+
 import {
   createSessionRepository,
 } from "../repositories/sessionRepository.js";
+
 
 import {
   createAccessRepository,
 } from "../repositories/accessRepository.js";
 
+
+import {
+  createAnalyticsRepository,
+} from "../repositories/analyticsRepository.js";
+
+
+import {
+  createStoryDeliveryRepository,
+} from "../repositories/storyDeliveryRepository.js";
+
+
 import {
   requireAuth,
 } from "../middleware/requireAuth.js";
+
 
 import type {
   AuthRequest,
 } from "../middleware/requireAuth.js";
 
 
+
 const router =
   express.Router();
+
 
 
 
@@ -41,7 +59,9 @@ function getString(
   if (
     typeof value === "string"
   ) {
+
     return value;
+
   }
 
 
@@ -49,13 +69,16 @@ function getString(
     Array.isArray(value) &&
     typeof value[0] === "string"
   ) {
+
     return value[0];
+
   }
 
 
   return null;
 
 }
+
 
 
 
@@ -124,7 +147,7 @@ router.get(
   "/:slug/live",
   requireAuth,
   async (
-    req: AuthRequest,
+    req:AuthRequest,
     res
   ) => {
 
@@ -191,19 +214,6 @@ router.get(
 
 
 
-      console.log(
-        "🔥 LIVE SCAN INPUT",
-        {
-          slug,
-          userId:userId ?? null,
-          geo,
-        }
-      );
-
-
-
-
-
       res.setHeader(
         "Content-Type",
         "text/event-stream"
@@ -219,6 +229,7 @@ router.get(
         "keep-alive"
       );
 
+      res.flushHeaders?.();
 
 
 
@@ -227,14 +238,20 @@ router.get(
         createAssetRepository();
 
 
-
       const sessionRepository =
         createSessionRepository();
 
 
+      const analyticsRepository =
+        createAnalyticsRepository();
+
 
       const accessRepository =
         createAccessRepository();
+
+
+      const storyDeliveryRepository =
+        createStoryDeliveryRepository();
 
 
 
@@ -258,7 +275,11 @@ router.get(
 
             sessionRepository,
 
+            analyticsRepository,
+
             accessRepository,
+
+            storyDeliveryRepository,
 
           }
 
@@ -272,7 +293,6 @@ router.get(
         [...result.moments].sort(
 
           (a,b) =>
-
             a.order - b.order
 
         );
@@ -313,7 +333,6 @@ router.get(
         );
 
 
-
         res.write(
 
           `data: ${JSON.stringify({
@@ -333,7 +352,6 @@ router.get(
 
 
 
-
       res.write(
 
         `data: ${JSON.stringify({
@@ -347,7 +365,6 @@ router.get(
 
 
       res.end();
-
 
 
 

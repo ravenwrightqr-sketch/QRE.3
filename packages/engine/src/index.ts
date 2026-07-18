@@ -55,10 +55,15 @@ export {
   buildFlowSteps,
 } from "./compiler/flowBuilder.js";
 
-
 export type {
   AssetRepository,
   AssetRecord,
   SessionRepository,
   AccessRepository,
+  AnalyticsRepository,
+  PresenceRepository,
+  GeoMemoryRepository,
+  GeoProofRecord,
+  StoryDeliveryRepository,
+  UserRepository,
 } from "./repositories/index.js";

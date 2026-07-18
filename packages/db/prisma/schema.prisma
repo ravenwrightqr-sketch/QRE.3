@@ -624,23 +624,34 @@ model Insight {
 
 model MemorySnapshot {
   id                   String   @id @default(cuid())
+
   assetId              String
   userId               String?
   sessionId            String?
-  scanWeight           Float    @default(0)
-  flowEngagementWeight Float    @default(0)
-  completionWeight     Float    @default(0)
-  ctaClickWeight       Float    @default(0)
-  rewardScore          Float    @default(0)
-  confidence           Float    @default(0)
-  dominantLayer        String?
-  createdAt            DateTime @default(now())
-  dropOffPoints        Json     @default("{}")
-  asset                Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
-  @@index([assetId])
-  @@index([createdAt])
-  @@index([assetId, createdAt])
+  // Existing fields
+  scanWeight           Float @default(0)
+  flowEngagementWeight Float @default(0)
+  completionWeight     Float @default(0)
+  ctaClickWeight       Float @default(0)
+  rewardScore          Float @default(0)
+  confidence           Float @default(0)
+  dominantLayer        String?
+  dropOffPoints        Json @default("{}")
+
+  // New fields
+  title                String?
+  summary              String?
+
+  geoStory             Json?
+  moments              Json?
+  cinematicScenes      Json?
+  insights             Json?
+  receipt              Json?
+
+  createdAt            DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 }
 
 model FlowStep {

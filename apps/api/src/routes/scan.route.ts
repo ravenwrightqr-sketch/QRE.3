@@ -18,6 +18,14 @@ import {
   createAccessRepository,
 } from "../repositories/accessRepository.js";
 
+import {
+  createAnalyticsRepository,
+} from "../repositories/analyticsRepository.js";
+
+import {
+  createStoryDeliveryRepository,
+} from "../repositories/storyDeliveryRepository.js";
+
 import type {
   AuthRequest,
 } from "../middleware/requireAuth.js";
@@ -78,7 +86,6 @@ export async function scanRoute(
 ) {
 
   try {
-
 
     const slug =
       getString(
@@ -162,8 +169,16 @@ export async function scanRoute(
       createSessionRepository();
 
 
+    const analyticsRepository =
+      createAnalyticsRepository();
+
+
     const accessRepository =
       createAccessRepository();
+
+
+    const storyDeliveryRepository =
+      createStoryDeliveryRepository();
 
 
 
@@ -185,7 +200,11 @@ export async function scanRoute(
 
           sessionRepository,
 
+          analyticsRepository,
+
           accessRepository,
+
+          storyDeliveryRepository,
 
         }
 

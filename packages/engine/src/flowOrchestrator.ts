@@ -1,5 +1,11 @@
 import { trackEvent } from "./analytics/trackEvent.js";
 
+import type {
+  AnalyticsRepository,
+  PresenceRepository,
+  GeoMemoryRepository,
+} from "./repositories/index.js";
+
 import {
   checkIn,
 } from "./presence/checkIn.js";
@@ -9,48 +15,13 @@ import type {
 } from "@qre/contracts";
 
 
-/**
- * =====================================================
- * QRE FLOW ACTION RUNTIME
- * =====================================================
- *
- * Runtime execution layer.
- *
- * Flow
- *    ↓
- * Moments
- *    ↓
- * Runtime actions
- *    ↓
- * Analytics
- *    ↓
- * Geo Memory / Presence
- *
- *
- * Responsibilities:
- *
- * - Track flow progression
- * - Trigger runtime side effects
- * - Connect location moments to geo memory
- *
- *
- * NO PRISMA
- * NO DIRECT DATABASE ACCESS
- *
- * =====================================================
- */
-
-
 export type FlowRuntimeGeo = {
 
-  lat:
-    number;
+  lat:number;
 
-  lng:
-    number;
+  lng:number;
 
-  accuracy?:
-    number;
+  accuracy?:number;
 
 };
 
@@ -58,144 +29,123 @@ export type FlowRuntimeGeo = {
 
 export async function runFlowActions(
 
-  moments:
-    Moment[],
+  moments:Moment[],
 
-  sessionId:
-    string,
+  sessionId:string,
 
-  assetId:
-    string,
+  assetId:string,
 
-  geo?:
-    FlowRuntimeGeo,
+  geo?:FlowRuntimeGeo,
 
-  userId?:
-    string
+  userId?:string,
 
-) {
+  analyticsRepository?:AnalyticsRepository,
 
+  presenceRepository?:PresenceRepository,
+
+  geoMemoryRepository?:GeoMemoryRepository
+
+){
 
   const sorted =
     [...moments]
       .sort(
-        (a,b) =>
-          a.order - b.order
+        (a,b)=>
+          a.order-b.order
       );
 
 
 
-  for (
-    let i = 0;
-    i < sorted.length;
+  for(
+    let i=0;
+    i<sorted.length;
     i++
-  ) {
-
+  ){
 
     const moment =
       sorted[i];
 
 
 
-    /**
-     * FLOW ANALYTICS
-     */
-    await trackEvent({
+    if(analyticsRepository){
 
-      assetId,
+      await trackEvent(
 
-      sessionId,
+        analyticsRepository,
 
-      stepIndex:
-        i,
+        {
 
-      type:
-        "FLOW_STEP",
+          assetId,
 
-      meta: {
+          sessionId,
 
-        momentType:
-          moment.type,
+          stepIndex:i,
 
-      },
+          type:"FLOW_STEP",
 
-    });
+          meta:{
 
+            momentType:
+              moment.type,
 
+          },
 
-    /**
-     * =========================
-     * RUNTIME SIDE EFFECTS
-     * =========================
-     */
-    switch (
-      moment.type
-    ) {
+        }
+
+      );
+
+    }
 
 
-      /**
-       * Normal content
-       */
+
+
+    switch(moment.type){
+
+
       case "message":
 
         break;
 
 
 
-      /**
-       * Payment / redirect
-       *
-       * Frontend handles UI.
-       */
       case "action":
 
         break;
 
 
 
-      /**
-       * GEO MEMORY CONNECTION
-       *
-       * Location moments created
-       * by FlowBuilder carry:
-       *
-       * meta.geoMemory=true
-       *
-       * They trigger:
-       *
-       * checkIn()
-       * geoProof
-       * presence timeline
-       * geo analytics
-       */
-      case "location": {
+      case "location":{
 
         const meta =
           moment.meta ?? {};
 
 
 
-        if (
-
+        if(
           meta.geoMemory === true &&
+          geo &&
+          presenceRepository
+        ){
 
-          geo
+          await checkIn(
 
-        ) {
+            {
 
+              assetId,
 
-          await checkIn({
+              sessionId,
 
-            assetId,
+              userId,
 
-            sessionId,
+              geo,
 
-            userId,
+            },
 
-            geo,
+            presenceRepository,
 
-          });
+            geoMemoryRepository
 
+          );
 
         }
 
@@ -206,18 +156,12 @@ export async function runFlowActions(
 
 
 
-      /**
-       * Media events
-       */
       case "media":
 
         break;
 
 
 
-      /**
-       * System events
-       */
       case "system":
 
         break;
@@ -227,22 +171,15 @@ export async function runFlowActions(
 
 
 
-    /**
-     * TIMER SUPPORT
-     */
+
     const duration =
-
       typeof moment.meta?.duration === "number"
-
         ? moment.meta.duration
-
         : 0;
 
 
 
-    if (
-      duration > 0
-    ) {
+    if(duration > 0){
 
       await new Promise(
         resolve =>
@@ -259,26 +196,33 @@ export async function runFlowActions(
 
 
 
-  /**
-   * FLOW COMPLETE
-   */
-  await trackEvent({
 
-    assetId,
+  if(analyticsRepository){
 
-    sessionId,
+    await trackEvent(
 
-    type:
-      "FLOW_COMPLETE",
+      analyticsRepository,
 
-    meta: {
+      {
 
-      steps:
-        sorted.length,
+        assetId,
 
-    },
+        sessionId,
 
-  });
+        type:"FLOW_COMPLETE",
+
+        meta:{
+
+          steps:
+            sorted.length,
+
+        },
+
+      }
+
+    );
+
+  }
 
 
 }

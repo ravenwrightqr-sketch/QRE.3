@@ -308,42 +308,31 @@ export interface UserRepository {
 
 }
 
-
-
-
-
 /**
  * =====================================================
  * STORY DELIVERY CONTRACT
  * =====================================================
- *
- * StoryDeliveryEngine uses this contract.
- *
- * It does NOT know:
- *
- * - Prisma
- * - database models
- * - storage implementation
- *
- * Adapters handle persistence.
- *
- * =====================================================
  */
-
 
 export interface StoryDeliveryRepository {
 
+  findAsset(
+    assetId:string
+  ):Promise<{
+
+    id:string;
+
+    accountId:string | null;
+
+  } | null>;
+
+
 
   findExistingStory(
-
     input:{
-
       assetId:string;
-
       sessionId:string;
-
     }
-
   ):Promise<{
 
     id:string;
@@ -352,11 +341,8 @@ export interface StoryDeliveryRepository {
 
 
 
-
   createStorySnapshot(
-
     input:{
-
       assetId:string;
 
       sessionId:string;
@@ -368,6 +354,146 @@ export interface StoryDeliveryRepository {
       cinematicScenes:unknown;
 
     }
+  ):Promise<{
+
+    id:string;
+
+  }>;
+
+}
+
+
+
+
+/**
+ * =====================================================
+ * ANALYTICS CONTRACT
+ * =====================================================
+ *
+ * Engine analytics abstraction.
+ *
+ * Engine does not know:
+ * - Prisma
+ * - analyticsEvent table
+ * - database implementation
+ *
+ * Adapter handles persistence.
+ *
+ * =====================================================
+ */
+export interface AnalyticsRepository {
+
+
+  trackEvent(
+    input:{
+      assetId:string;
+      sessionId?:string|null;
+      flowId?:string|null;
+      stepIndex?:number|null;
+      type:string;
+      meta?:unknown;
+    }
+  ):Promise<void>;
+
+
+
+  findEvents(
+    input:{
+      assetId:string;
+      limit:number;
+    }
+  ):Promise<unknown[]>;
+
+
+
+  countByType(
+    assetId:string
+  ):Promise<Record<string,number>>;
+
+
+
+  getDashboardMetrics(
+    assetId:string
+  ):Promise<unknown>;
+
+
+}
+
+/**
+ * =====================================================
+ * GEO MEMORY CONTRACT
+ * =====================================================
+ *
+ * Engine does not know Prisma.
+ *
+ * Adapter provides geo history.
+ *
+ * Adapter provides snapshot persistence.
+ *
+ * =====================================================
+ */
+
+
+export type GeoProofRecord = {
+
+  assetId:string;
+
+  sessionId:string | null;
+
+  userId:string | null;
+
+  lat:number;
+
+  lng:number;
+
+  accuracy:number | null;
+
+  source:string;
+
+  label:string | null;
+
+  city:string | null;
+
+  region:string | null;
+
+  country:string | null;
+
+  createdAt:Date;
+
+};
+
+
+
+export interface GeoMemoryRepository {
+
+
+  findGeoProof(
+
+    assetId:string
+
+  ):Promise<GeoProofRecord[]>;
+
+
+
+  createMemorySnapshot(
+
+    input:{
+
+      assetId:string;
+
+      sessionId?:string|null;
+
+      scanWeight:number;
+
+      rewardScore:number;
+
+      confidence:number;
+
+      dominantLayer:string;
+
+      data:unknown;
+
+    }
 
   ):Promise<{
 
@@ -375,6 +501,96 @@ export interface StoryDeliveryRepository {
 
   }>;
 
+
+}
+
+/**
+ * =====================================================
+ * PRESENCE CONTRACT
+ * =====================================================
+ */
+
+export interface PresenceRepository {
+
+
+  upsertSession(
+    input:{
+      id:string;
+
+      assetId:string;
+
+      userId?:string|null;
+
+      status:string;
+
+      enteredAt?:Date;
+
+      geoLat?:number|null;
+
+      geoLng?:number|null;
+
+      accuracy?:number|null;
+    }
+  ):Promise<unknown>;
+
+
+
+  createGeoProof(
+    input:{
+      assetId:string;
+
+      sessionId:string;
+
+      userId?:string|null;
+
+      lat:number;
+
+      lng:number;
+
+      accuracy?:number|null;
+
+      source:string;
+
+      label?:string|null;
+
+      city?:string|null;
+
+      region?:string|null;
+
+      country?:string|null;
+    }
+  ):Promise<void>;
+
+
+
+  checkOut(
+    input:{
+      sessionId:string;
+
+      exitedAt?:Date;
+    }
+  ):Promise<unknown>;
+
+
+
+  getPresenceMap(
+    assetId:string
+  ):Promise<unknown[]>;
+
+
+
+  getPresenceReplay(
+    assetId:string,
+
+    sessionId?:string
+
+  ):Promise<unknown[]>;
+
+
+
+  getPresenceTimeline(
+    assetId:string
+  ):Promise<unknown[]>;
 
 
 }

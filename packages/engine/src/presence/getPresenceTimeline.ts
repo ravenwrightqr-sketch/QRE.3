@@ -1,16 +1,39 @@
-import { db } from "@qre/db";
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
 
-export async function getPresenceTimeline(assetId: string) {
-  const points = await db.geoProof.findMany({
-    where: { assetId },
-    orderBy: { createdAt: "asc" },
-  });
 
-  return points.map((p) => ({
-    sessionId: p.sessionId,
-    lat: p.lat,
-    lng: p.lng,
-    accuracy: p.accuracy ?? null,
-    timestamp: p.createdAt,
+
+export async function getPresenceTimeline(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
+
+
+  const points =
+    await presenceRepo.getPresenceTimeline(
+      assetId
+    );
+
+
+
+  return points.map((p:any) => ({
+
+    sessionId:
+      p.sessionId ?? null,
+
+    lat:
+      p.lat,
+
+    lng:
+      p.lng,
+
+    accuracy:
+      p.accuracy ?? null,
+
+    timestamp:
+      p.createdAt,
+
   }));
+
 }

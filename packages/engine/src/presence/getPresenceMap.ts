@@ -1,20 +1,22 @@
-import { db } from "@qre/db";
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
 
-export async function getPresenceMap(assetId: string) {
-  const points = await db.geoProof.findMany({
-    where: {
-      assetId,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
 
-  return points.map((p) => ({
-    lat: p.lat,
-    lng: p.lng,
-    accuracy: p.accuracy,
-    createdAt: p.createdAt,
-    source: p.source,
-  }));
+
+export async function getPresenceMap(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
+
+
+  const points =
+    await presenceRepo.getPresenceMap(
+      assetId
+    );
+
+
+
+  return points;
+
 }

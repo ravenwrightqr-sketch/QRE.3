@@ -1,27 +1,64 @@
-import { db } from "@qre/db";
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
 
-export async function getPresenceReplay(assetId: string) {
-  const points = await db.geoProof.findMany({
-    where: { assetId },
-    orderBy: { createdAt: "asc" },
-  });
 
-  const sessions: Record<string, any[]> = {};
 
-  for (const p of points) {
-    const sid = p.sessionId ?? "anonymous";
+export async function getPresenceReplay(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
 
-    if (!sessions[sid]) sessions[sid] = [];
+
+  const points =
+    await presenceRepo.getPresenceReplay(
+      assetId
+    );
+
+
+
+  const sessions:Record<string, any[]> = {};
+
+
+
+  for(const p of points as any[]){
+
+
+    const sid =
+      p.sessionId ?? "anonymous";
+
+
+
+    if(!sessions[sid]){
+      sessions[sid] = [];
+    }
+
+
 
     sessions[sid].push({
-      lat: p.lat,
-      lng: p.lng,
-      time: p.createdAt,
+
+      lat:
+        p.lat,
+
+      lng:
+        p.lng,
+
+      time:
+        p.createdAt,
+
     });
+
   }
 
+
+
   return {
+
     sessions,
-    totalSessions: Object.keys(sessions).length,
+
+    totalSessions:
+      Object.keys(sessions).length,
+
   };
+
 }
