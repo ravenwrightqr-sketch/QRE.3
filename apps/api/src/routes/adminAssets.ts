@@ -1,7 +1,33 @@
-import express from "express";
+import express, {
+  Response,
+} from "express";
+
 import { db } from "@qre/db";
+import {
+  requireAuth,
+  AuthRequest,
+} from "../middleware/requireAuth.js";
+
 
 const router = express.Router();
+
+
+
+function resolveParam(
+  value: string | string[] | undefined
+): string | undefined {
+
+  if(typeof value === "string"){
+    return value;
+  }
+
+  if(Array.isArray(value)){
+    return value[0];
+  }
+
+  return undefined;
+}
+
 
 
 
@@ -10,50 +36,63 @@ const router = express.Router();
  * ASSIGN ASSET TO ACCOUNT
  * =====================================================
  *
- * Admin inventory operation.
+ * Ownership model:
  *
- * User resolves to Account.
- * Asset belongs to Account.
+ * User
+ *   |
+ * AccountUser
+ *   |
+ * Account
+ *   |
+ * Asset
+ *   |
+ * Ownership
  *
- * Ownership record mirrors assignment.
+ *
+ * Production rules:
+ *
+ * - Users never own assets
+ * - Accounts own assets
+ * - Ownership mirrors account control
+ * - Transaction is atomic
  *
  * =====================================================
  */
 
+
 router.post(
   "/assets/:assetId/assign",
+  requireAuth,
   async(
-    req,
-    res
+    req: AuthRequest,
+    res: Response
   )=>{
 
     try {
 
 
-      const {
-        assetId,
-      } = req.params;
+      const assetId =
+        resolveParam(
+          req.params.assetId
+        );
 
 
-      const {
-        userId,
-      } = req.body;
+      const userId =
+        req.user?.userId;
 
 
 
-      if(
-        !assetId ||
-        !userId
-      ){
+      if(!assetId || !userId){
 
         return res.status(400).json({
 
           error:
-            "assetId and userId required",
+            "assetId required",
 
         });
 
       }
+
 
 
 
@@ -63,17 +102,17 @@ router.post(
 
 
             /**
-             * Resolve user's account.
-             *
-             * Users do not own assets.
-             * Accounts own assets.
+             * Resolve user's account
              */
-
             const membership =
               await tx.accountUser.findFirst({
 
                 where:{
                   userId,
+                },
+
+                select:{
+                  accountId:true,
                 },
 
               });
@@ -83,7 +122,7 @@ router.post(
             if(!membership){
 
               throw new Error(
-                "User has no account"
+                "ACCOUNT_NOT_FOUND"
               );
 
             }
@@ -95,11 +134,62 @@ router.post(
 
 
 
-            /**
-             * Attach asset to account
-             */
 
+            /**
+             * Load asset
+             */
             const asset =
+              await tx.asset.findUnique({
+
+                where:{
+                  id:assetId,
+                },
+
+                select:{
+
+                  id:true,
+
+                  accountId:true,
+
+                },
+
+              });
+
+
+
+            if(!asset){
+
+              throw new Error(
+                "ASSET_NOT_FOUND"
+              );
+
+            }
+
+
+
+
+            /**
+             * Prevent ownership theft
+             */
+            if(
+              asset.accountId &&
+              asset.accountId !== accountId
+            ){
+
+              throw new Error(
+                "ASSET_ALREADY_ASSIGNED"
+              );
+
+            }
+
+
+
+
+
+            /**
+             * Attach asset
+             */
+            const updated =
               await tx.asset.update({
 
                 where:{
@@ -121,10 +211,11 @@ router.post(
 
 
 
+
+
             /**
              * Ownership mirror
              */
-
             await tx.ownership.upsert({
 
               where:{
@@ -164,8 +255,8 @@ router.post(
 
 
 
-            return asset;
 
+            return updated;
 
           });
 
@@ -173,13 +264,10 @@ router.post(
 
       return res.json({
 
-        success:
-          true,
-
+        success:true,
 
         assetId:
           result.id,
-
 
         accountId:
           result.accountId,
@@ -187,26 +275,65 @@ router.post(
       });
 
 
+
     }
-    catch(error:any){
+    catch(error){
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "UNKNOWN_ERROR";
+
+
 
       console.error(
         "[ADMIN ASSIGN FAILED]",
-        error
+        message
       );
+
+
+
+      if(message === "ASSET_NOT_FOUND"){
+
+        return res.status(404).json({
+
+          error:
+            "Asset not found",
+
+        });
+
+      }
+
+
+
+      if(message === "ASSET_ALREADY_ASSIGNED"){
+
+        return res.status(409).json({
+
+          error:
+            "Asset already assigned",
+
+        });
+
+      }
+
 
 
       return res.status(500).json({
 
         error:
-          error.message,
+          "Assignment failed",
 
       });
 
     }
 
   }
+
 );
+
+
+
 
 
 
@@ -221,26 +348,18 @@ router.post(
  *
  * Source of truth:
  *
- * Neon
  * Prisma Asset
- *
- * Includes:
- *
- * - ownership
- * - template
- * - flows
- * - revenue
- * - scans
- * - unlocks
  *
  * =====================================================
  */
 
+
 router.get(
   "/assets",
+  requireAuth,
   async(
-    _req,
-    res
+    _req: AuthRequest,
+    res: Response
   )=>{
 
     try {
@@ -314,24 +433,17 @@ router.get(
 
             template:{
 
-
               select:{
-
 
                 id:true,
 
-
                 name:true,
-
 
                 slug:true,
 
-
                 category:true,
 
-
               },
-
 
             },
 
@@ -339,42 +451,33 @@ router.get(
 
             flows:{
 
-
               select:{
-
 
                 id:true,
 
-
                 flowId:true,
-
 
                 createdAt:true,
 
-
               },
-
 
             },
 
 
-            ownership:{
 
+            ownership:{
 
               select:{
 
+                id:true,
 
                 status:true,
 
-
                 accountId:true,
-
 
                 claimedAt:true,
 
-
               },
-
 
             },
 
@@ -382,6 +485,7 @@ router.get(
           },
 
         });
+
 
 
 
@@ -400,9 +504,9 @@ router.get(
       });
 
 
-    }
-    catch(error:any){
 
+    }
+    catch(error){
 
       console.error(
         "[ADMIN ASSET LIST FAILED]",
@@ -413,15 +517,15 @@ router.get(
       return res.status(500).json({
 
         error:
-          error.message,
+          "Unable to load assets",
 
       });
 
     }
 
   }
-);
 
+);
 
 
 

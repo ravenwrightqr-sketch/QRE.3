@@ -2,25 +2,37 @@ import Stripe from "stripe";
 import { db } from "@qre/db";
 import { Prisma } from "@prisma/client";
 
-
 /**
  * =====================================================
  * UNLOCK ASSET SERVICE
  * =====================================================
  *
- * SINGLE SOURCE OF TRUTH FOR PAYMENT UNLOCKS
+ * PAYMENT SOURCE OF TRUTH
+ * Stripe
  *
- * Payment truth:
- * Stripe event
+ * OWNERSHIP SOURCE OF TRUTH
+ * Account
  *
- * Asset ownership truth:
- * Asset.accountId
+ * ARCHITECTURE
  *
- * User permission truth:
+ * User
+ *   |
  * AccountUser
+ *   |
+ * Account
+ *   |
+ * Asset
+ *   |
+ * Ownership
  *
- * Ownership history:
- * Ownership table
+ *
+ * RULES
+ *
+ * - Assets belong to Accounts
+ * - Users belong to Accounts
+ * - Ownership tracks Account control
+ * - Stripe retries are idempotent
+ * - No Ownership.userId exists
  *
  * =====================================================
  */
@@ -37,54 +49,66 @@ export async function unlockAsset(
     ) => {
 
 
+      /**
+       * Load asset
+       */
       const asset =
         await tx.asset.findUnique({
-
           where:{
             id: assetId,
           },
-
         });
 
 
-
       if(!asset){
-
         throw new Error(
           "Asset not found"
         );
-
-      }
-
-
-
-      /**
-       * Prevent duplicate Stripe webhook execution
-       */
-      if(asset.paid){
-
-        return asset;
-
       }
 
 
 
       /**
        * Resolve account ownership
-       *
-       * Existing business account:
-       * reuse it.
-       *
-       * New buyer:
-       * create personal account.
        */
-
       let accountId =
         asset.accountId;
 
 
 
+      /**
+       * Find existing user account
+       */
       if(!accountId && userId){
+
+        const membership =
+          await tx.accountUser.findFirst({
+
+            where:{
+              userId,
+            },
+
+            select:{
+              accountId:true,
+            },
+
+          });
+
+
+        if(membership){
+          accountId =
+            membership.accountId;
+        }
+
+      }
+
+
+
+      /**
+       * Create consumer account
+       * only if none exists
+       */
+      if(!accountId){
 
 
         const account =
@@ -93,12 +117,21 @@ export async function unlockAsset(
             data:{
 
               name:
-                "Personal Account",
+                userId
+                  ? "Personal Account"
+                  : "Anonymous Customer",
+
+
+              type:
+                "CONSUMER",
+
+
+              plan:
+                "CONSUMER",
 
             },
 
           });
-
 
 
         accountId =
@@ -106,20 +139,28 @@ export async function unlockAsset(
 
 
 
-        await tx.accountUser.create({
+        /**
+         * Attach user
+         */
+        if(userId){
 
-          data:{
 
-            accountId,
+          await tx.accountUser.create({
 
-            userId,
+            data:{
 
-            role:
-              "OWNER",
+              accountId,
 
-          },
+              userId,
 
-        });
+              role:
+                "OWNER",
+
+            },
+
+          });
+
+        }
 
       }
 
@@ -127,6 +168,8 @@ export async function unlockAsset(
 
       /**
        * Unlock asset
+       *
+       * Safe for Stripe retries.
        */
       const updated =
         await tx.asset.update({
@@ -146,24 +189,18 @@ export async function unlockAsset(
               "active",
 
 
-
-            ...(accountId
-              ? {
-                  accountId,
-                }
-              : {}
-            ),
-
+            accountId,
 
 
             totalUnlocks:{
-              increment:1,
+              increment:
+                asset.paid
+                  ? 0
+                  : 1,
             },
 
 
-
-            ...(session?.amount_total !== null &&
-              session?.amount_total !== undefined
+            ...(session?.amount_total != null
               ? {
 
                   totalRevenueCents:{
@@ -182,86 +219,75 @@ export async function unlockAsset(
 
 
 
-
       /**
-       * Ownership history
+       * Ownership record
        *
-       * Ownership belongs to Account,
-       * not User.
+       * Account is owner.
        */
-      if(accountId){
+      await tx.ownership.upsert({
+
+        where:{
+          assetId,
+        },
 
 
-        await tx.ownership.upsert({
-
-          where:{
-            assetId,
-          },
+        update:{
 
 
-          update:{
+          accountId,
 
 
-            accountId,
+          status:
+            "CLAIMED",
 
 
-            status:
-              "CLAIMED",
+          claimedAt:
+            new Date(),
 
 
-            claimedAt:
-              new Date(),
+          stripeSessionId:
+            session?.id ?? null,
 
 
-
-            stripeSessionId:
-              session?.id ?? null,
-
-
-
-            paymentIntentId:
-              typeof session?.payment_intent === "string"
-                ? session.payment_intent
-                : null,
-
-          },
+          paymentIntentId:
+            typeof session?.payment_intent === "string"
+              ? session.payment_intent
+              : null,
 
 
-
-          create:{
-
-
-            assetId,
+        },
 
 
-            accountId,
+        create:{
 
 
-            status:
-              "CLAIMED",
+          assetId,
 
 
-
-            claimedAt:
-              new Date(),
+          accountId,
 
 
-
-            stripeSessionId:
-              session?.id ?? null,
-
+          status:
+            "CLAIMED",
 
 
-            paymentIntentId:
-              typeof session?.payment_intent === "string"
-                ? session.payment_intent
-                : null,
+          claimedAt:
+            new Date(),
 
-          },
 
-        });
+          stripeSessionId:
+            session?.id ?? null,
 
-      }
+
+          paymentIntentId:
+            typeof session?.payment_intent === "string"
+              ? session.payment_intent
+              : null,
+
+
+        },
+
+      });
 
 
 

@@ -1,66 +1,90 @@
-import express, { Request, Response } from "express";
+import express, {
+  Request,
+  Response,
+} from "express";
+
 import Stripe from "stripe";
+
 import { db } from "@qre/db";
+
 import { unlockAsset } from "../services/unlockAsset.js";
 
 
 const router = express.Router();
 
 
-const stripe = new Stripe(
-  process.env.STRIPE_SECRET_KEY as string,
-  {
-    apiVersion: "2026-06-24.dahlia",
-  }
-);
+const stripe =
+  new Stripe(
+    process.env.STRIPE_SECRET_KEY!,
+    {
+      apiVersion:
+        "2026-06-24.dahlia",
+    }
+  );
+
 
 
 /**
  * =====================================================
- * STRIPE WEBHOOK
+ * STRIPE PRODUCTION WEBHOOK
  * =====================================================
  *
- * POST /api/stripe/webhook
- *
- * Responsibilities:
- *
- * - Verify Stripe signature
- * - Record Stripe event
- * - Prevent duplicate processing
- * - Send successful payment to unlock service
- *
- *
- * Does NOT:
- *
- * - Update assets directly
- * - Create ownership directly
- * - Handle revenue logic
- *
- *
- * Payment truth:
+ * Payment authority:
  * Stripe
  *
- * Unlock truth:
- * services/unlockAsset.ts
+ * Ownership authority:
+ * unlockAsset()
+ *
+ *
+ * Pipeline:
+ *
+ * Stripe
+ *   |
+ *   | verified event
+ *   |
+ * stripeWebhook
+ *   |
+ *   |
+ * unlockAsset()
+ *   |
+ *   |
+ * Asset
+ * Account
+ * Ownership
+ * Revenue
+ *
+ *
+ * Guarantees:
+ *
+ * - Signature verified
+ * - Duplicate safe
+ * - Retry safe
+ * - Ownership centralized
+ * - No direct asset mutation
  *
  * =====================================================
  */
+
+
 router.post(
   "/webhook",
 
   express.raw({
-    type:"application/json",
+    type:
+      "application/json",
   }),
 
 
   async(
-    req:Request,
-    res:Response
-  )=>{
+    req: Request,
+    res: Response
+  ) => {
 
 
     const signature =
-      req.headers["stripe-signature"];
+      req.headers[
+        "stripe-signature"
+      ];
 
 
 
@@ -79,11 +103,17 @@ router.post(
 
 
 
-    let event:Stripe.Event;
+    let event: Stripe.Event;
 
 
 
-    try{
+    /**
+     * =====================================================
+     * VERIFY STRIPE SIGNATURE
+     * =====================================================
+     */
+
+    try {
 
 
       event =
@@ -93,7 +123,8 @@ router.post(
 
           signature,
 
-          process.env.STRIPE_WEBHOOK_SECRET as string
+          process.env
+            .STRIPE_WEBHOOK_SECRET!
 
         );
 
@@ -102,105 +133,91 @@ router.post(
     catch(error){
 
 
+      console.error(
+        "[STRIPE SIGNATURE INVALID]",
+        error
+      );
+
+
       return res.status(400).json({
 
         error:
-          error instanceof Error
-            ? error.message
-            : "Invalid webhook",
+          "Invalid Stripe signature",
 
       });
-
 
     }
 
 
 
+
     /**
      * =====================================================
-     * STRIPE EVENT IDEMPOTENCY
+     * IGNORE DUPLICATES
      * =====================================================
      *
-     * Stripe retries events.
-     * Database remembers what was processed.
+     * Stripe retries aggressively.
+     *
+     * Database unique constraint
+     * is the final protection.
      *
      * =====================================================
      */
-    const existing =
-      await db.stripeEvent.findUnique({
 
-        where:{
-          id:event.id,
+    try {
+
+
+      await db.stripeEvent.create({
+
+        data:{
+
+          id:
+            event.id,
+
+
+          type:
+            event.type,
+
         },
 
       });
 
 
-
-    if(existing){
-
-      return res.json({
-
-        received:true,
-
-        duplicate:true,
-
-      });
-
     }
+    catch(error:any){
 
 
+      if(
+        error.code === "P2002"
+      ){
 
-    await db.stripeEvent.create({
-
-      data:{
-
-        id:event.id,
-
-        type:event.type,
-
-      },
-
-    });
+        console.log(
+          "[STRIPE DUPLICATE EVENT]",
+          event.id
+        );
 
 
+        return res.json({
 
-    /**
-     * =====================================================
-     * PAYMENT SUCCESS ONLY
-     * =====================================================
-     */
-    if(
-      event.type !==
-      "checkout.session.completed"
-    ){
+          received:true,
 
-      return res.json({
+          duplicate:true,
 
-        received:true,
+        });
 
-      });
-
-    }
+      }
 
 
-
-    const session =
-      event.data.object as Stripe.Checkout.Session;
-
-
-
-    const assetId =
-      session.metadata?.assetId;
+      console.error(
+        "[STRIPE EVENT RECORD FAILED]",
+        error
+      );
 
 
-
-    if(!assetId){
-
-      return res.status(400).json({
+      return res.status(500).json({
 
         error:
-          "Missing assetId metadata",
+          "Unable to record event",
 
       });
 
@@ -208,45 +225,215 @@ router.post(
 
 
 
-    const userId =
-      session.metadata?.userId &&
-      session.metadata.userId !== "anonymous"
 
-        ? session.metadata.userId
-
-        : null;
+    try {
 
 
+      /**
+       * =====================================================
+       * ONLY PROCESS COMPLETED CHECKOUTS
+       * =====================================================
+       */
 
-    /**
-     * =====================================================
-     * SINGLE UNLOCK PATH
-     * =====================================================
-     */
-    await unlockAsset(
+      if(
+        event.type !==
+        "checkout.session.completed"
+      ){
 
-      assetId,
+        return res.json({
 
-      userId,
+          received:true,
 
-      session
+        });
 
-    );
+      }
 
 
 
-    return res.json({
 
-      received:true,
+      const session =
+        event.data.object as Stripe.Checkout.Session;
 
-      unlocked:true,
 
-      assetId,
 
-    });
+      /**
+       * =====================================================
+       * PAYMENT VALIDATION
+       * =====================================================
+       */
+
+      if(
+        session.payment_status !==
+        "paid"
+      ){
+
+
+        console.warn(
+          "[STRIPE PAYMENT NOT PAID]",
+          {
+
+            eventId:
+              event.id,
+
+
+            sessionId:
+              session.id,
+
+          }
+        );
+
+
+        return res.json({
+
+          received:true,
+
+          ignored:true,
+
+        });
+
+      }
+
+
+
+
+
+      /**
+       * =====================================================
+       * RESOLVE PURCHASE CONTEXT
+       * =====================================================
+       */
+
+      const assetId =
+        session.metadata?.assetId;
+
+
+
+      if(!assetId){
+
+        throw new Error(
+          "Stripe session missing assetId metadata"
+        );
+
+      }
+
+
+
+      const userId =
+        session.metadata?.userId &&
+        session.metadata.userId !== "anonymous"
+
+          ? session.metadata.userId
+
+          : null;
+
+
+
+
+      /**
+       * =====================================================
+       * SINGLE UNLOCK PIPELINE
+       * =====================================================
+       */
+
+      const asset =
+        await unlockAsset(
+
+          assetId,
+
+          userId,
+
+          session
+
+        );
+
+
+
+
+
+      console.log(
+        "[STRIPE PAYMENT SUCCESS]",
+        {
+
+          eventId:
+            event.id,
+
+
+          sessionId:
+            session.id,
+
+
+          assetId,
+
+
+          accountId:
+            asset.accountId,
+
+
+          paymentIntent:
+            session.payment_intent,
+
+        }
+      );
+
+
+
+
+      return res.json({
+
+        received:true,
+
+        unlocked:true,
+
+        assetId,
+
+      });
+
+
+
+    }
+    catch(error:any){
+
+
+      console.error(
+        "[STRIPE WEBHOOK PROCESSING FAILED]",
+        {
+
+          eventId:
+            event.id,
+
+
+          type:
+            event.type,
+
+
+          error:
+            error.message,
+
+        }
+      );
+
+
+
+      /**
+       * Important:
+       *
+       * 500 tells Stripe:
+       * retry this event.
+       *
+       */
+
+      return res.status(500).json({
+
+        error:
+          "Webhook processing failed",
+
+      });
+
+    }
 
 
   }
+
 );
 
 

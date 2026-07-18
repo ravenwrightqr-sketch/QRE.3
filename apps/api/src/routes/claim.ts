@@ -5,199 +5,242 @@ import { requireAuth, AuthRequest } from "../middleware/requireAuth.js";
 const router = express.Router();
 
 
-router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
+router.post(
+  "/:slug",
+  requireAuth,
+  async(
+    req: AuthRequest,
+    res
+  )=>{
 
-  try {
-
-    const rawSlug = req.params.slug;
-
-    const slug =
-      typeof rawSlug === "string"
-        ? rawSlug
-        : Array.isArray(rawSlug)
-          ? rawSlug[0]
-          : undefined;
+    try {
 
 
-    const userId = req.user?.userId;
+      const slug =
+        Array.isArray(req.params.slug)
+          ? req.params.slug[0]
+          : req.params.slug;
 
 
-    if (!slug || !userId) {
+      const userId =
+        req.user?.userId;
 
-      return res.status(400).json({
-        error:"Invalid request",
+
+
+      if(!slug || !userId){
+
+        return res.status(400).json({
+          error:"slug and auth required"
+        });
+
+      }
+
+
+
+      const membership =
+        await db.accountUser.findFirst({
+
+          where:{
+            userId,
+            role:{
+              in:[
+                "OWNER",
+                "ADMIN",
+              ],
+            },
+          },
+
+          select:{
+            accountId:true,
+          },
+
+        });
+
+
+
+      if(!membership){
+
+        return res.status(403).json({
+
+          error:
+            "No permission to claim assets",
+
+        });
+
+      }
+
+
+
+      const accountId =
+        membership.accountId;
+
+
+
+      const result =
+        await db.$transaction(
+
+          async(tx)=>{
+
+
+            const asset =
+              await tx.asset.findUnique({
+
+                where:{
+                  slug,
+                },
+
+                select:{
+                  id:true,
+                  accountId:true,
+                },
+
+              });
+
+
+
+            if(!asset){
+
+              throw new Error(
+                "Asset not found"
+              );
+
+            }
+
+
+
+            if(asset.accountId){
+
+              throw new Error(
+                "Asset already claimed"
+              );
+
+            }
+
+
+
+            const updated =
+              await tx.asset.update({
+
+                where:{
+                  id:asset.id,
+                },
+
+                data:{
+
+                  accountId,
+
+                  claimedAt:
+                    new Date(),
+
+                },
+
+              });
+
+
+
+            await tx.ownership.upsert({
+
+              where:{
+                assetId:asset.id,
+              },
+
+
+              update:{
+
+                accountId,
+
+                status:
+                  "CLAIMED",
+
+                claimedAt:
+                  new Date(),
+
+              },
+
+
+              create:{
+
+                assetId:
+                  asset.id,
+
+                accountId,
+
+                status:
+                  "CLAIMED",
+
+              },
+
+            });
+
+
+
+            return updated;
+
+          }
+
+        );
+
+
+
+      return res.json({
+
+        success:true,
+
+        assetId:
+          result.id,
+
+        accountId:
+          result.accountId,
+
       });
+
+
 
     }
+    catch(error:any){
 
 
-    /**
-     * USER ACCOUNT
-     *
-     * Ownership is account based.
-     */
-    const membership =
-      await db.accountUser.findFirst({
+      console.error(
+        "[CLAIM FAILED]",
+        error
+      );
 
-        where:{
-          userId,
-          role:"OWNER",
-        },
 
-        include:{
-          account:true,
-        },
+      if(
+        error.message === "Asset not found"
+      ){
+
+        return res.status(404).json({
+          error:error.message,
+        });
+
+      }
+
+
+      if(
+        error.message === "Asset already claimed"
+      ){
+
+        return res.status(409).json({
+          error:error.message,
+        });
+
+      }
+
+
+      return res.status(500).json({
+
+        error:
+          "Claim failed",
 
       });
 
-
-
-    if(!membership){
-
-      return res.status(403).json({
-        error:"No account available",
-      });
 
     }
-
-
-
-    const accountId =
-      membership.accountId;
-
-
-
-    /**
-     * CLAIM ASSET
-     *
-     * Only unassigned assets.
-     */
-    const updated =
-      await db.asset.updateMany({
-
-        where:{
-          slug,
-          accountId:null,
-        },
-
-
-        data:{
-
-          accountId,
-
-          claimedAt:new Date(),
-
-        },
-
-      });
-
-
-
-    if(updated.count === 0){
-
-      return res.status(409).json({
-        error:"Already claimed",
-      });
-
-    }
-
-
-
-    const asset =
-      await db.asset.findUnique({
-
-        where:{
-          slug,
-        },
-
-        select:{
-
-          id:true,
-
-          accountId:true,
-
-        },
-
-      });
-
-
-
-    if(!asset){
-
-      return res.status(404).json({
-        error:"Asset not found",
-      });
-
-    }
-
-
-
-    /**
-     * OWNERSHIP RECORD
-     *
-     * Account owns asset.
-     */
-    await db.ownership.upsert({
-
-      where:{
-        assetId:asset.id,
-      },
-
-
-      update:{
-
-        accountId,
-
-        status:"CLAIMED",
-
-        claimedAt:new Date(),
-
-      },
-
-
-      create:{
-
-        assetId:asset.id,
-
-        accountId,
-
-        status:"CLAIMED",
-
-      },
-
-    });
-
-
-
-    return res.json({
-
-      success:true,
-
-      assetId:asset.id,
-
-      accountId,
-
-    });
-
-
-
-  } catch(e:any){
-
-    console.error(
-      "CLAIM FAILED",
-      e
-    );
-
-
-    return res.status(500).json({
-
-      error:e.message,
-
-    });
 
   }
 
-});
+);
 
 
 export default router;
