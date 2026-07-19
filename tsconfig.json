@@ -17,8 +17,8 @@
     "baseUrl": ".",
 
     "paths": {
-      "@qre/contracts": ["packages/contracts/src/index.ts"],
-      "@qre/contracts/*": ["packages/contracts/src/*"],
+      "@qre/contracts": ["packages/contracts/dist/index.d.ts"],
+       "@qre/contracts/*": ["packages/contracts/dist/*"],
 
       "@qre/db": ["packages/db/src/index.ts"],
       "@qre/db/*": ["packages/db/src/*"],

@@ -1,21 +1,17 @@
 /**
  * =====================================================
- * QRE EXPERIENCE BLUEPRINT COMPOSER
+ * QRE EXPERIENCE INTELLIGENCE CORE
  * =====================================================
  *
- * Creative assembly layer.
+ * Universal Experience Compiler
  *
- * Intent
- *   ↓
- * Industry Template
- *   ↓
- * Goal
- *   ↓
- * Experience DNA
- *   ↓
- * Moments
- *   ↓
- * Experience Blueprint
+ * ANY HUMAN IDEA
+ *        ↓
+ * SEMANTIC INTELLIGENCE
+ *        ↓
+ * WORLD DOM INTELLIGENCE
+ *        ↓
+ * EXPERIENCE BLUEPRINT
  *
  * NO DATABASE
  * NO PRISMA
@@ -24,10 +20,8 @@
  * =====================================================
  */
 
-
 import type {
   ExperienceBlueprint,
-  ExperienceGoal,
   ExperienceMoment,
   ExperienceMomentType,
   ExperienceTone,
@@ -38,8 +32,23 @@ import type {
 
 
 import {
+  resolveSemanticConcepts,
+} from "../../semantic/conceptResolver.js";
+
+
+import {
+  composeWorldMoments
+} from "../../world/worldComposer.js";
+
+
+import {
   generateExperienceTitle,
 } from "../personalization/titleGenerator.js";
+
+
+import type {
+  SemanticAnalysis,
+} from "../../semantic/semanticAnalyzer.js";
 
 
 import {
@@ -48,7 +57,7 @@ import {
 
 
 import {
-  industryTemplates,
+  getIndustryTemplate,
 } from "../templates/index.js";
 
 
@@ -56,38 +65,62 @@ import type {
   DetectedIntent,
 } from "../parser/intentDetector.js";
 
+
 import {
   resolvePattern,
 } from "../patternResolver.js";
- 
-
 
 
 import {
- atomToMomentType,
+  atomToMomentType,
 } from "../atoms/atomMapper.js";
 
 
+import type {
+  ExperienceEnhancement,
+} from "../experienceEnhancer.js";
 
 
 
-// =====================================================
-// GOAL DETECTION
-// =====================================================
-function detectGoal(
- detected:DetectedIntent
-){
-
- return {
-
-   goal:
-     detected.goal,
 
 
-   preferredMoments:
-     [] as readonly ExperienceMomentType[],
+/**
+ * =====================================================
+ * TYPE NORMALIZATION BOUNDARY
+ *
+ * Intelligence systems can produce strings.
+ * Composer compiles them into contracts.
+ *
+ * =====================================================
+ */
 
- };
+function normalizeMomentTypes(
+  values: readonly unknown[]
+): ExperienceMomentType[] {
+
+  return values.filter(
+
+    (value): value is ExperienceMomentType =>
+
+      typeof value === "string"
+
+  );
+
+}
+
+
+
+function normalizeTones(
+  values: readonly unknown[]
+): ExperienceTone[] {
+
+  return values.filter(
+
+    (value): value is ExperienceTone =>
+
+      typeof value === "string"
+
+  );
 
 }
 
@@ -97,61 +130,58 @@ function detectGoal(
 
 
 
-// =====================================================
-// EXPERIENCE TYPE
-// =====================================================
+/**
+ * =====================================================
+ * EXPERIENCE TYPE INTELLIGENCE
+ * =====================================================
+ */
 
 function detectExperienceType(
- detected:DetectedIntent
-):ExperienceType {
+  detected: DetectedIntent
+): ExperienceType {
 
 
- switch(detected.industry){
+  switch(detected.industry) {
 
 
- case "memory":
- case "legacy":
+    case "memory":
+    case "relationship":
+    case "wedding":
 
-   return "time_capsule";
-
-
- case "relationship":
- case "wedding":
-
-   return "story";
+      return "story";
 
 
- case "concert":
- case "event":
- case "festival":
- case "show":
 
-   return "event";
+    case "event":
+    case "concert":
+    case "festival":
+    case "show":
 
-
- case "pet":
-
-   return "tribute";
+      return "event";
 
 
- case "artist":
 
-   return "collection";
+    case "pet":
 
-
- case "business":
- case "restaurant":
- case "cannabis":
- case "retail":
-
-   return "business";
+      return "tribute";
 
 
- default:
 
-   return "journey";
+    case "restaurant":
+    case "business":
+    case "retail":
+    case "cannabis":
 
- }
+      return "business";
+
+
+
+    default:
+
+      return "journey";
+
+
+  }
 
 }
 
@@ -160,210 +190,155 @@ function detectExperienceType(
 
 
 
-
-
-// =====================================================
-// EXPERIENCE DNA
-// =====================================================
-
-function detectDNA(
- detected:DetectedIntent
-):ExperienceTone[] {
-
-
- switch(detected.industry){
-
-
- case "cannabis":
-   return [
-    "premium",
-    "trustworthy"
-   ];
-
-
- case "pet":
-   return [
-    "friendly",
-    "emotional"
-   ];
-
-
- case "wedding":
-   return [
-    "emotional",
-    "cinematic"
-   ];
-
-
- case "event":
-   return [
-    "viral",
-    "cinematic"
-   ];
-
-
- default:
-   return [
-    "friendly"
-   ];
-
- }
-
-}
-
-
-
-
-
-
-
-
-// =====================================================
-// MOMENT → COMPONENT
-// =====================================================
+/**
+ * =====================================================
+ * COMPONENT INTELLIGENCE
+ * =====================================================
+ */
 
 function resolveComponent(
- type:ExperienceMomentType
-):ExperienceComponent {
+  type: ExperienceMomentType
+): ExperienceComponent {
 
 
- switch(type){
+const components:
 
+Partial<
+Record<
+ExperienceMomentType,
+ExperienceComponent
+>
+>
 
- case "welcome":
- case "introduction":
+= {
 
-   return "hero";
 
+welcome:
 
+"hero",
 
- case "story":
- case "memory":
- case "meeting":
- case "legacy":
- case "love_story":
- case "proposal":
- case "ceremony":
- case "adoption_story":
- case "pet_story":
- case "pet_journey":
 
-   return "story";
 
+introduction:
 
+"hero",
 
- case "photos":
- case "wedding_gallery":
 
-   return "gallery";
 
+story:
 
+"story",
 
- case "video":
- case "performance":
- case "artist":
- case "setlist":
- case "crowd":
- case "backstage":
 
-   return "video";
 
+love_story:
 
+"story",
 
- case "timeline":
- case "highlights":
- case "replay":
- case "pet_birthday":
- case "time_capsule":
 
-   return "timeline";
 
+pet_story:
 
+"story",
 
- case "location":
- case "arrival":
- case "lost_pet":
- case "honeymoon":
 
-   return "geo_memory";
 
+memory:
 
+"memory",
 
- case "product":
- case "offer":
- case "merch":
- case "strain_profile":
- case "product_passport":
- case "lab_results":
- case "terpene_profile":
- case "batch_history":
 
-   return "product";
 
+photos:
 
+"gallery",
 
- case "education":
- case "effects_guide":
 
-   return "education";
 
+video:
 
+"video",
 
- case "reward":
 
-   return "reward";
 
+location:
 
+"geo_memory",
 
- case "payment":
- case "booking":
 
-   return "payment";
 
+arrival:
 
+"geo_memory",
 
- case "review":
 
-   return "review";
 
+product:
 
+"product",
 
- case "social":
- case "share":
- case "reaction":
 
-   return "social";
 
+product_passport:
 
+"product",
 
- case "guestbook":
- case "guest_messages":
 
-   return "guestbook";
 
+reward:
 
+"reward",
 
- case "pet_profile":
- case "pet_health":
- case "medical_profile":
- case "emergency_info":
- case "care_instructions":
 
-   return "profile";
 
+followup:
 
+"cta",
 
- case "venue":
 
-   return "map";
 
+share:
 
+"social",
 
- default:
 
-   return "cta";
 
- }
+review:
+
+"review",
+
+
+
+profile:
+
+"profile",
+
+
+
+timeline:
+
+"timeline",
+
+
+
+care_instructions:
+
+"education",
+
+
+};
+
+
+return (
+
+components[type]
+
+??
+
+"cta"
+
+) as ExperienceComponent;
+
 
 }
 
@@ -372,110 +347,248 @@ function resolveComponent(
 
 
 
+/**
+ * =====================================================
+ * SEMANTIC → MOMENTS
+ * =====================================================
+ */
+
+function semanticToMoments(
+ semantic: SemanticAnalysis
+): ExperienceMomentType[] {
 
 
-// =====================================================
-// PAYLOAD
-// =====================================================
+const moments =
+new Set<ExperienceMomentType>();
 
-function buildMomentPayload(
- type:ExperienceMomentType,
- entities:ExperienceEntities
+
+for(
+ const theme of semantic.themes
 ){
 
 
- const component =
-   resolveComponent(type);
+switch(theme){
+
+
+case "memory":
+
+moments.add("memory");
+
+break;
 
 
 
- const narration =
-   narrateMoment(
+case "storytelling":
 
-    type,
+moments.add("story");
 
-    {
-
-      location:
-        entities.places[0],
-
-      person:
-        entities.people[0],
-
-      product:
-        entities.products[0],
-
-    }
-
-   );
+break;
 
 
 
- return {
+case "connection":
 
+moments.add("meeting");
 
-  component,
-
-
-  headline:
-    narration.title,
-
-
-  editable:true,
-
-
-  demo:true,
+break;
 
 
 
-  ...(component==="story" && {
+case "commerce":
 
-    prompt:
-      "Tell the story behind this moment",
+moments.add("product");
 
-    media:true,
-
-  }),
+break;
 
 
 
-  ...(component==="geo_memory" && {
+case "culture":
 
-    captureLocation:true,
+moments.add("performance");
 
-    snapshot:true,
-
-    timeline:true,
-
-  }),
+break;
 
 
 
-  ...(component==="gallery" && {
+case "discovery":
 
-    upload:true,
+moments.add("playful");
 
-  }),
-
-
-
-  ...(component==="video" && {
-
-    media:true,
-
-  }),
+break;
 
 
 
-  ...(component==="product" && {
+case "adventure":
 
-    interactive:true,
+moments.add("playful");
 
-  }),
+break;
 
 
 
- };
+case "companion":
+
+moments.add("pet_story");
+
+break;
+
+
+
+default:
+
+moments.add("introduction");
+
+break;
+
+
+}
+
+}
+
+
+
+for(
+ const dna of semantic.experienceDNA
+){
+
+
+switch(dna){
+
+
+case "cinematic":
+
+moments.add("video");
+
+break;
+
+
+
+case "immersive":
+
+moments.add("soundtrack");
+
+break;
+
+
+
+case "personal":
+
+moments.add("profile");
+
+break;
+
+
+
+case "premium":
+
+moments.add("reward");
+
+break;
+
+
+
+case "emotional":
+
+moments.add("highlights");
+
+break;
+
+
+
+case "interactive":
+
+moments.add("reaction");
+
+break;
+
+
+}
+
+}
+
+
+
+if(
+ moments.size === 0
+){
+
+moments.add("welcome");
+
+moments.add("story");
+
+}
+
+
+return [
+...moments
+];
+
+
+}
+/**
+ * =====================================================
+ * UNIVERSAL FALLBACK MOMENTS
+ * =====================================================
+ */
+
+function generateUniversalMoments(
+  prompt: string
+): ExperienceMomentType[] {
+
+
+const text =
+prompt.toLowerCase();
+
+
+
+const moments =
+new Set<ExperienceMomentType>([
+
+"welcome",
+
+"followup",
+
+]);
+
+
+
+if(
+ /photo|image|picture|gallery/
+ .test(text)
+){
+
+moments.add("photos");
+
+}
+
+
+
+if(
+ /place|location|travel|venue/
+ .test(text)
+){
+
+moments.add("location");
+
+}
+
+
+
+if(
+ /share|community|friend/
+ .test(text)
+){
+
+moments.add("share");
+
+}
+
+
+
+return [
+...moments
+];
+
 
 }
 
@@ -485,221 +598,489 @@ function buildMomentPayload(
 
 
 
-
-
-// =====================================================
-// MOMENTS
-// =====================================================
+/**
+ * =====================================================
+ * MOMENT BUILDER
+ * =====================================================
+ */
 
 function buildMoments(
 
- moments:readonly ExperienceMomentType[],
+  moments: readonly ExperienceMomentType[],
 
- entities:ExperienceEntities
+  entities: ExperienceEntities
 
-):ExperienceMoment[]{
-
-
- return moments.map(
-
- (type,index)=>{
+): ExperienceMoment[] {
 
 
- const component =
-   resolveComponent(type);
+return moments.map(
+
+(type,index)=>{
 
 
+const narration =
+narrateMoment(
 
- const narration =
-   narrateMoment(
+type,
 
-    type,
+{
 
-    {
+location:
+entities.places[0],
 
-     location:
-       entities.places[0],
+person:
+entities.people[0],
 
-     person:
-       entities.people[0],
+product:
+entities.products[0],
 
-     product:
-       entities.products[0],
+}
 
-    }
-
-   );
+);
 
 
 
- return {
+const component =
+resolveComponent(type);
 
 
-  type,
+
+return {
 
 
-  component,
+type,
 
 
-  title:
-    narration.title,
+component,
 
 
-  subtitle:
-    narration.subtitle,
+title:
+
+narration.title,
 
 
-  editable:true,
+
+subtitle:
+
+narration.subtitle,
 
 
-  demo:true,
+
+order:
+
+index,
 
 
-  order:index,
+
+editable:
+
+true,
 
 
-  payload:
-    buildMomentPayload(
 
-      type,
+demo:
 
-      entities
+true,
 
-    ),
 
- };
 
- }
+payload: {
 
- );
+
+component,
+
+
+headline:
+
+narration.title,
+
+
+entities,
+
+
+},
+
+
+};
+
+
+}
+
+);
+
 
 }
 
 
-// =====================================================
-// COMPOSE
-// =====================================================
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * BLUEPRINT COMPOSER
+ *
+ * Semantic world compiler.
+ *
+ * =====================================================
+ */
 
 export function composeBlueprint(
 
-  detected:DetectedIntent,
+detected: DetectedIntent,
 
-  entities:ExperienceEntities,
+entities: ExperienceEntities,
 
-  prompt:string
+prompt: string,
 
-):ExperienceBlueprint {
+enhancement: ExperienceEnhancement,
 
+semantic: SemanticAnalysis
 
- const pattern =
-   resolvePattern({
-
-     prompt,
-
-     industry:
-       detected.industry,
-
-     goal:
-       detected.goal,
-
-   });
+): ExperienceBlueprint {
 
 
 
- const goal =
-   detectGoal(detected);
+const template =
 
+getIndustryTemplate(
 
+detected.industry
 
- const type =
-   detectExperienceType(detected);
-
-
-
- const tone =
-   detectDNA(detected);
-
-console.log(
-  "ATOM TYPES",
-  pattern.atoms.map(atom => atom.type)
 );
 
- const atomMoments =
-   pattern.atoms.map(
-
-     atom =>
-       atomToMomentType(atom)
-
-   );
-
-
-
- const moments =
-   atomMoments.length
-     ? atomMoments
-     : goal.preferredMoments;
 
 
 
 
- return {
 
+/**
+ * =====================================================
+ * PATTERN INTELLIGENCE
+ * =====================================================
+ */
 
- title:
+const pattern =
 
-   generateExperienceTitle({
+resolvePattern({
 
-    type,
+prompt,
 
-    industry:
-      detected.industry,
+industry:
 
-    entities,
+detected.industry,
 
-   }),
+goal:
 
+detected.goal,
 
-
- industry:
-   detected.industry,
-
-
-
- type,
-
-
-
- goal:
-   goal.goal,
+});
 
 
 
- tone:
-   tone.length
-    ? tone
-    : ["friendly"],
+
+
+const patternMoments =
+
+normalizeMomentTypes(
+
+pattern.atoms.map(
+
+atom => atomToMomentType(atom)
+
+)
+
+);
 
 
 
- moments:
-
-   buildMoments(
-
-    moments,
-
-    entities
-
-   ),
 
 
 
- entities,
+/**
+ * =====================================================
+ * SEMANTIC INTELLIGENCE
+ * =====================================================
+ */
+
+const semanticMoments =
+
+semanticToMoments(
+
+semantic
+
+);
 
 
- };
+
+
+
+
+const resolvedSemanticMoments =
+
+normalizeMomentTypes(
+
+resolveSemanticConcepts([
+
+...semantic.themes,
+
+...semantic.experienceDNA,
+
+...semantic.emotions,
+
+])
+
+);
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * WORLD DOM INTELLIGENCE
+ *
+ * Highest level experience decisions.
+ *
+ * =====================================================
+ */
+
+const worldMoments =
+
+normalizeMomentTypes(
+
+composeWorldMoments(
+
+semantic
+
+)
+
+);
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * UNIVERSAL INTELLIGENCE
+ * =====================================================
+ */
+
+const universalMoments =
+
+generateUniversalMoments(
+
+prompt  
+
+);
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * FINAL EXPERIENCE GRAPH
+ *
+ * Priority:
+ *
+ * WORLD DOM
+ * ↓
+ * SEMANTIC
+ * ↓
+ * ENHANCEMENT
+ * ↓
+ * PATTERN
+ * ↓
+ * UNIVERSAL
+ * ↓
+ * TEMPLATE
+ *
+ * =====================================================
+ */
+
+const finalMoments:
+
+ExperienceMomentType[] = [
+
+...new Set<ExperienceMomentType>([
+
+
+...worldMoments,
+
+
+...semanticMoments,
+
+
+...resolvedSemanticMoments,
+
+
+...normalizeMomentTypes(
+
+enhancement.moments
+
+),
+
+
+...patternMoments,
+
+
+...universalMoments,
+
+
+...normalizeMomentTypes(
+
+template.recommendedMoments
+
+),
+
+
+])
+
+];
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE TYPE
+ * =====================================================
+ */
+
+const type =
+
+detectExperienceType(
+
+detected
+
+);
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE TONE
+ * =====================================================
+ */
+
+const tone:
+
+ExperienceTone[] = [
+
+...new Set<ExperienceTone>([
+
+
+...normalizeTones(
+
+template.preferredDNA
+
+),
+
+
+
+...normalizeTones(
+
+enhancement.tone
+
+),
+
+
+])
+
+];
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * FINAL BLUEPRINT
+ * =====================================================
+ */
+
+return {
+
+
+title:
+
+generateExperienceTitle({
+
+type,
+
+
+industry:
+
+detected.industry,
+
+
+entities,
+
+
+}),
+
+
+
+industry:
+
+detected.industry,
+
+
+
+type,
+
+
+
+goal:
+
+detected.goal,
+
+
+
+tone,
+
+
+
+moments:
+
+buildMoments(
+
+finalMoments,
+
+entities
+
+),
+
+
+
+entities,
+
+
+};
+
 
 }
-
-
-
-

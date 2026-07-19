@@ -8,3 +8,6 @@ export * from "./context.js";
 export * from "./blueprint.js";
 export * from "./tier.js";
 export * from "./authoring.js";
+export * from "./model.js";
+
+export * from "./genome.js";

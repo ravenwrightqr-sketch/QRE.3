@@ -15,24 +15,22 @@
  * gifts
  * merchandise
  *
- * Industry question:
- *
- * "What type of business or object is this?"
- *
  * =====================================================
  */
 
+
 import type {
-  ExperienceIndustry,
-  ExperienceGoal,
-  ExperienceMomentType,
-} from "@qre/contracts";
+  IndustryTemplate,
+} from "../templateTypes.js";
 
 
 export const retailIndustry = {
 
+
   industry:
-    "retail" satisfies ExperienceIndustry,
+
+    "retail",
+
 
 
   supportedExperiences: [
@@ -59,7 +57,7 @@ export const retailIndustry = {
 
   defaultGoal:
 
-    "storytelling" satisfies ExperienceGoal,
+    "storytelling",
 
 
 
@@ -93,7 +91,7 @@ export const retailIndustry = {
 
     "share",
 
-  ] satisfies ExperienceMomentType[],
+  ],
 
 
 
@@ -131,4 +129,5 @@ export const retailIndustry = {
 
   ],
 
-} as const;
+
+} satisfies IndustryTemplate;

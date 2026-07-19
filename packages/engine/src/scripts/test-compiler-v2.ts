@@ -3,45 +3,117 @@ import { experienceCompiler } from "../compiler/experienceCompiler.js";
 
 const tests = [
 
-"Dog walker picked up Fido, walked him 2 miles, sent photos and brought him home",
+  // MEMORY / STORY
+  "Create a cinematic memory experience for a childhood home where people unlock forgotten stories",
 
-"Pool service arrived, cleaned the pool, sent before and after photos, customer can tip",
 
-"10pm Apocalypse Rave unforgettable night with friends",
+  // UNDERGROUND / CULTURE
+  "Build an underground cyberpunk nightclub where guests discover secret rooms and hidden performances",
 
-"Cannabis strain passport with terpene information",
 
-"Wedding memory time capsule"
+  // PET
+  "Create a memorial journey for a dog that passed away with photos, videos, and messages from family",
+
+
+  // LUXURY BUSINESS
+  "Create a luxury hotel experience that makes guests feel like they entered another world",
+
+
+  // FOOD
+  "Make a restaurant experience where customers discover the chef story, menu secrets, and rewards",
+
+
+  // PRODUCT
+  "Create a futuristic product passport showing the origin, creator, and journey of an item",
+
+
+  // ART
+  "Create an interactive gothic art museum experience with mystery, music, and exploration",
+
+
+  // GAMING
+  "Create a treasure hunt adventure where players unlock clues around the city",
+
+
+  // MUSIC
+  "Create a festival experience where fans relive performances and share memories",
+
+
+  // RANDOM WORLD TEST
+  "Create something nobody has seen before that mixes technology, emotion, community, and surprise"
 
 ];
 
 
+
 for (const prompt of tests) {
 
- const result =
-   experienceCompiler(prompt);
+
+  try {
 
 
- console.log("\n====================");
- console.log(prompt);
-
- console.log("\nTITLE:");
- console.log(result.title);
+    const result =
+      experienceCompiler(prompt);
 
 
- console.log("\nMOMENTS:");
- console.log(
-   result.blueprint.moments.map(
-     m => m.type
-   )
- );
+
+    console.log("\n================================");
+    console.log("PROMPT:");
+    console.log(prompt);
 
 
- console.log("\nFLOW:");
- console.log(
-   result.flowSteps.map(
-     s => s.type
-   )
- );
+
+    console.log("\nSEMANTIC MOMENTS:");
+
+    console.log(
+      result.blueprint.moments.map(
+        m => m.type
+      )
+    );
+
+
+
+    console.log("\nCOMPONENTS:");
+
+    console.log(
+      result.blueprint.moments.map(
+        m => ({
+          type:m.type,
+          component:m.component,
+          title:m.title
+        })
+      )
+    );
+
+
+
+    console.log("\nFLOW:");
+
+    console.log(
+      result.flowSteps.map(
+        s => s.type
+      )
+    );
+
+
+
+    console.log("\nCINEMATIC SCENES:");
+
+    console.log(
+      result.cinematicScenes.length
+    );
+
+
+  }
+
+  catch(error) {
+
+
+    console.error("\nFAILED:");
+    console.error(prompt);
+
+    console.error(error);
+
+  }
 
 }

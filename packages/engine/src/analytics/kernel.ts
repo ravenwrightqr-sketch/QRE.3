@@ -1,5 +1,7 @@
-import { AnalyticsEventType } from "@qre/contracts";
-import type { AnalyticsEvent } from "@prisma/client";
+import type {
+  AnalyticsEvent,
+  AnalyticsEventType,
+} from "@qre/contracts";
 
 /**
  * =========================
@@ -18,7 +20,7 @@ export function computeFunnel(events: AnalyticsEvent[]) {
   };
 
   for (const e of events) {
-    switch (e.type as AnalyticsEventType) {
+    switch (e.type) {
       case "SCAN":
         funnel.scans++;
         break;
@@ -48,8 +50,13 @@ export function computeFunnel(events: AnalyticsEvent[]) {
   return funnel;
 }
 
-export function computeConversionRate(funnel: ReturnType<typeof computeFunnel>) {
-  if (funnel.scans === 0) return 0;
+export function computeConversionRate(
+  funnel: ReturnType<typeof computeFunnel>,
+) {
+  if (funnel.scans === 0) {
+    return 0;
+  }
+
   return funnel.flowCompletes / funnel.scans;
 }
 
@@ -63,9 +70,15 @@ export function computeBasicMetrics(events: AnalyticsEvent[]) {
   };
 }
 
-export function getRecentActivity(events: AnalyticsEvent[], limit = 20) {
+export function getRecentActivity(
+  events: AnalyticsEvent[],
+  limit = 20,
+) {
   return events
     .slice()
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .sort(
+      (a, b) =>
+        b.createdAt.getTime() - a.createdAt.getTime(),
+    )
     .slice(0, limit);
 }

@@ -55,23 +55,23 @@ router.get(
              * Asset belongs to account.
              * Users access through AccountUser.
              */
-            account:{
+             account:{
 
-              include:{
+  include:{
 
-                users:{
+    AccountUser:{
 
-                  include:{
+      include:{
 
-                    user:true,
+        User:true,
 
-                  },
+      },
 
-                },
+    },
 
-              },
+  },
 
-            },
+},
 
 
 

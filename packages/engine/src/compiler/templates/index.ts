@@ -231,6 +231,28 @@ export type ExperienceTemplateKey =
  * =====================================================
  */
 
+export function getIndustryTemplate(
+  industry:string
+):IndustryTemplate {
+
+  const template =
+    industryTemplates[
+      industry as ExperienceTemplateKey
+    ];
+
+
+  if(template){
+    return template;
+  }
+
+
+  return industryTemplates.personal;
+
+}
+
+
+
+
 
 export {
 

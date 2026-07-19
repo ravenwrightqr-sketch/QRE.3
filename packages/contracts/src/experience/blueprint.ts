@@ -16,7 +16,7 @@ export type ExperienceBlueprint = {
 
   goal: ExperienceGoal;
 
-  tone: ExperienceTone[];
+  tone: readonly ExperienceTone[];
 
   moments: ExperienceMoment[];
 

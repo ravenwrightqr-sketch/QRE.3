@@ -4,7 +4,6 @@ import type {
   AnalyticsEventType,
 } from "@qre/contracts";
 
-
 import type {
   AnalyticsRepository,
 } from "../repositories/index.js";

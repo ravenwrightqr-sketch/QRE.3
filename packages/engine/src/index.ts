@@ -42,10 +42,7 @@ export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 export * from "./compiler/experienceCompiler.js";
 export * from "./experience/blueprintToFlow.js";
-export * from "./experience/momentMapper.js";
-export {
-  experienceCompiler,
-} from "./compiler/experienceCompiler.js";
+export * from "./compiler/momentMapper.js";
 
 export {
   parseExperiencePrompt,
@@ -67,3 +64,70 @@ export type {
   StoryDeliveryRepository,
   UserRepository,
 } from "./repositories/index.js";
+
+export {
+  qreSelfModel,
+  reflectSelf,
+} from "./cognition/selfModel.js";
+
+export {
+  remember,
+  recall,
+  reflectMemory,
+} from "./cognition/memory.js";
+
+export {
+  reflect,
+} from "./cognition/reflection.js";
+
+export type {
+  CognitiveInsight,
+} from "./cognition/reflection.js";
+
+export {
+  adapt,
+} from "./cognition/adaptation.js";
+
+export type {
+  AdaptationProposal,
+} from "./cognition/adaptation.js";
+
+export {
+  makeDecision,
+  chooseBestDecision,
+} from "./cognition/decisionEngine.js";
+
+export type {
+  CognitiveDecision,
+  DecisionRisk,
+} from "./cognition/decisionEngine.js";
+
+export {
+  processCognition,
+} from "./cognition/cognitionKernel.js";
+
+export type {
+  CognitionInput,
+  CognitionResult,
+} from "./cognition/cognitionKernel.js";
+
+export {
+  handleCognitionEvent,
+} from "./cognition/cognitionHandler.js";
+
+export type {
+  CognitionEvent,
+} from "./cognition/cognitionHandler.js";
+
+export {
+  startCognitionListener,
+} from "./spine/cognitionListener.js";
+
+export * from "./cognition/index.js";
+
+export * from "./intelligence/index.js";
+
+export * from "./semantic/index.js";
+
+export * from "./compiler/index.js";
+export * from "./world/index.js";

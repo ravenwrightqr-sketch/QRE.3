@@ -5,203 +5,125 @@
  *
  * Community-driven experiences.
  *
- * Designed for:
- *
- * - Cannabis culture
- * - Creator communities
- * - Underground events
- * - Art collectives
- * - Local scenes
- * - Lifestyle brands
- *
- *
- * Scan
- * ↓
- * Identity
- * ↓
- * Community
- * ↓
- * Story
- * ↓
- * Loyalty
- *
  * =====================================================
  */
 
 
 import type {
- ExperienceIndustry,
- ExperienceGoal,
- ExperienceMomentType,
-} from "@qre/contracts";
-
+  IndustryTemplate,
+} from "../templateTypes.js";
 
 
 export const seshIndustry = {
 
 
- industry:
-   "sesh" satisfies ExperienceIndustry,
+  industry:
+    "sesh",
 
 
+  defaultGoal:
+    "loyalty",
 
- title:
-   "Culture & Community Experiences",
 
+  preferredDNA: [
 
+    "viral",
 
- defaultGoal:
-   "loyalty" satisfies ExperienceGoal,
+    "friendly",
 
+    "premium",
 
+    "emotional",
 
- preferredDNA:[
+  ] as const,
 
 
-   "viral",
+  recommendedMoments: [
 
+    "welcome",
 
-   "friendly",
+    "location",
 
+    "arrival",
 
-   "premium",
+    "friends",
 
+    "story",
 
-   "emotional",
+    "photos",
 
+    "highlights",
 
- ],
+    "share",
 
+    "reward",
 
+    "followup",
 
- recommendedMoments:[
+  ] as const,
 
 
-   "welcome",
+  keywords: [
 
+    "sesh",
 
-   "location",
+    "community",
 
+    "culture",
 
-   "arrival",
+    "creator",
 
+    "collective",
 
-   "friends",
+    "cannabis",
 
+    "art",
 
-   "story",
+    "streetwear",
 
+    "local scene",
 
-   "photos",
+    "underground",
 
+    "lifestyle",
 
-   "highlights",
+  ],
 
 
-   "share",
+  experiences: [
 
+    "community_passport",
 
-   "reward",
+    "creator_drop",
 
+    "culture_archive",
 
-   "followup",
+    "member_identity",
 
+    "local_rewards",
 
- ] satisfies ExperienceMomentType[],
+    "event_memory",
 
+  ],
 
 
- keywords:[
+  recommendedFeatures: [
 
+    "community profiles",
 
-   "sesh",
+    "member rewards",
 
+    "exclusive drops",
 
-   "community",
+    "location memories",
 
+    "creator stories",
 
-   "culture",
+    "social sharing",
 
+    "membership identity",
 
-   "creator",
+  ],
 
 
-   "collective",
-
-
-   "cannabis",
-
-
-   "art",
-
-
-   "streetwear",
-
-
-   "local scene",
-
-
-   "underground",
-
-
-   "lifestyle",
-
-
- ],
-
-
-
- experiences:[
-
-
-   "community_passport",
-
-
-   "creator_drop",
-
-
-   "culture_archive",
-
-
-   "member_identity",
-
-
-   "local_rewards",
-
-
-   "event_memory",
-
-
- ],
-
-
-
- recommendedFeatures:[
-
-
-   "community profiles",
-
-
-   "member rewards",
-
-
-   "exclusive drops",
-
-
-   "location memories",
-
-
-   "creator stories",
-
-
-   "social sharing",
-
-
-   "membership identity",
-
-
- ],
-
-
-
-} as const;
+} satisfies IndustryTemplate;

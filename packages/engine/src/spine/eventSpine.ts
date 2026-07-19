@@ -3,7 +3,7 @@ import type {
 } from "@qre/contracts";
 
 
-type SpineEvent = {
+export type SpineEvent = {
 
   type:EngineEventType;
 

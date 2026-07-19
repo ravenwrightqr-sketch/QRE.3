@@ -22,7 +22,7 @@
     "baseUrl": ".",
      
     "paths": {
-      "@qre/contracts": ["../contracts/src"],
+      "@qre/contracts": ["../contracts/dist"],
       "@qre/db": ["../db/src"],
       "@qre/api": ["../../apps/api/src"]
     },
@@ -32,6 +32,6 @@
     "forceConsistentCasingInFileNames": true
   },
 
-  "include": ["src"],
+  
   "exclude": ["dist", "node_modules"]
 }

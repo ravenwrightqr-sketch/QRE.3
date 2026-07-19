@@ -23,7 +23,13 @@
  *
  * =====================================================
  */
+import {
+  analyzeSemanticPrompt,
+} from "../semantic/semanticAnalyzer.js";
 
+import {
+  enhanceExperience,
+} from "./experienceEnhancer.js";
 
 import {
   buildFlowSteps,
@@ -60,17 +66,21 @@ import {
   cinematicRuntime,
 } from "../runtime/cinematic/cinematicRuntime.js";
 
-
 import type {
   FlowStep,
   ExperienceBlueprint,
+  ExperienceModel,
   Moment,
   CinematicScene,
 } from "@qre/contracts";
 
 
 
+
 export type CompiledExperience = {
+
+  model:
+    ExperienceModel;
 
   title: string;
 
@@ -175,6 +185,64 @@ function estimateDuration(
 
 }
 
+/**
+ * =====================================================
+ * CREATE EXPERIENCE MODEL
+ * =====================================================
+ */
+
+
+function createExperienceModel(
+  intent: ExperienceIntent,
+  detected:any,
+  blueprint:ExperienceBlueprint,
+  prompt:string
+):ExperienceModel {
+
+
+  return {
+
+    title:
+      intent.title,
+
+
+    description:
+      prompt,
+
+
+    industry:
+      detected.industry,
+
+
+    goal:
+      blueprint.goal,
+
+     tone:
+     blueprint.tone,
+
+
+    moments:
+      blueprint.moments ?? [],
+
+
+    metadata:{
+
+      category:
+        detected.industry,
+
+      tags:[
+        "compiled",
+        "qre",
+      ],
+
+    },
+
+
+  };
+
+
+}
+
 
 
 
@@ -203,7 +271,8 @@ export function experienceCompiler(
 
   }
 
-
+const semantic =
+  analyzeSemanticPrompt(prompt);
 
 
 
@@ -257,7 +326,18 @@ export function experienceCompiler(
     );
 
 
+   const enhancement =
+  enhanceExperience({
 
+    prompt,
+
+    industry:
+      detected.industry,
+
+    intent:
+      intent.title,
+
+  });
 
 
 
@@ -268,19 +348,28 @@ export function experienceCompiler(
    * 4.
    * Industry template selection
    */
-
-  const blueprint =
-    composeBlueprint(
+   const blueprint =
+  composeBlueprint(
        
-      detected,
+    detected,
 
-      entities,
+    entities,
 
-      prompt
+    prompt,
 
-    );
+    enhancement,
+
+    semantic
+
+  );
      
-
+    const experienceModel =
+  createExperienceModel(
+    intent,
+    detected,
+    blueprint,
+    prompt
+  );
 
 
 
@@ -352,12 +441,13 @@ console.table(
 
 
 
+ return {
 
-  return {
+  model:
+    experienceModel,
 
-
-    title:
-      intent.title,
+  title:
+    intent.title,
 
 
 

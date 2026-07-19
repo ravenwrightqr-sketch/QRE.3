@@ -18,7 +18,6 @@ import type {
 } from "../templateTypes.js";
 
 
-
 export const serviceIndustry = {
 
 

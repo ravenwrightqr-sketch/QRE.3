@@ -9,6 +9,8 @@ export type ExperienceMomentType =
   | "story"
   | "introduction"
   | "education"
+  | "reveal"
+  | "completion"
 
 
 
@@ -26,6 +28,7 @@ export type ExperienceMomentType =
   | "profile"
   | "menu"
   | "followup"
+  | "interaction"
 
 
 
@@ -35,6 +38,7 @@ export type ExperienceMomentType =
 
   | "arrival"
   | "location"
+  | "venue"
 
 
 
@@ -94,7 +98,6 @@ export type ExperienceMomentType =
   | "crowd"
   | "backstage"
   | "ticket"
-  | "venue"
   | "merch"
 
 
@@ -141,6 +144,8 @@ export type ExperienceMomentType =
 
 
 
+
+
 export type ExperienceMoment = {
 
   type: ExperienceMomentType;
@@ -168,6 +173,9 @@ export type ExperienceMoment = {
 };
 
 
+
+
+
 export type ExperienceComponent =
 
     | "hero"
@@ -188,4 +196,5 @@ export type ExperienceComponent =
     | "education"
     | "countdown"
     | "guestbook"
-    | "cta";
+    | "cta"
+    | "interaction";

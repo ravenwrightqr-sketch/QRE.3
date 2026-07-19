@@ -343,41 +343,41 @@ export function authRoutes(app: Express) {
             },
 
 
-            select:{
+           select:{
 
-              id:true,
+  id:true,
 
-              email:true,
+  email:true,
 
-              accounts:{
+  AccountUser:{
 
-                select:{
+    select:{
 
-                  accountId:true,
+      accountId:true,
 
-                  role:true,
+      role:true,
 
-                  account:{
+      Account:{
 
-                    select:{
+        select:{
 
-                      id:true,
+          id:true,
 
-                      name:true,
+          name:true,
 
-                      type:true,
+          type:true,
 
-                      plan:true,
+          plan:true,
 
-                    },
+        },
 
-                  },
+      },
 
-                },
+    },
 
-              },
+  },
 
-            },
+},
 
           });
 

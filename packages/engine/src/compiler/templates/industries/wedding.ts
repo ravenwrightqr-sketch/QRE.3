@@ -3,29 +3,35 @@
  * QRE WEDDING INDUSTRY TEMPLATE
  * =====================================================
  *
- * Turns a wedding QR/NFC experience into a
- * permanent emotional archive.
+ * Emotional memory architecture.
  *
- * Covers:
+ * Wedding QR/NFC experience compiler DNA.
+ *
+ * Used for:
  *
  * - Weddings
  * - Engagements
+ * - Proposals
  * - Anniversaries
- * - Couples
- * - Family memories
- * - Guest experiences
+ * - Couple archives
+ * - Family memory systems
  *
- * Scan
- * ↓
- * Welcome
- * ↓
- * Love Story
- * ↓
- * Guest Memories
- * ↓
- * Photos
- * ↓
- * Forever Timeline
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   ↓
+ * Wedding Intent
+ *   ↓
+ * Wedding DNA
+ *   ↓
+ * Moments
+ *   ↓
+ * Blueprint
+ *   ↓
+ * Flow
+ *   ↓
+ * Cinematic Runtime
  *
  * =====================================================
  */
@@ -34,6 +40,15 @@
 import type {
   IndustryTemplate,
 } from "../templateTypes.js";
+
+
+
+import type {
+  ExperienceTone,
+  ExperienceMomentType,
+} from "@qre/contracts";
+
+
 
 
 
@@ -50,124 +65,137 @@ export const weddingIndustry = {
 
 
 
-  preferredDNA:[
+  /**
+   * Emotional design language.
+   *
+   * Controls:
+   * - narration
+   * - cinematic style
+   * - player mood
+   * - AI generation behavior
+   */
+  preferredDNA:
+    [
 
+      "cinematic",
 
-    "cinematic",
+      "emotional",
 
+      "premium",
 
-    "emotional",
+      "trustworthy",
 
+    ] satisfies ExperienceTone[],
 
-    "premium",
 
 
-    "trustworthy",
 
 
-  ],
+  /**
+   * Default experience sequence.
+   *
+   * These become atoms/moments.
+   *
+   * Blueprint composer can modify.
+   */
+  recommendedMoments:
+    [
 
+      "welcome",
 
+      "love_story",
 
-  recommendedMoments:[
+      "ceremony",
 
+      "guestbook",
 
-    "welcome",
+      "photos",
 
+      "video",
 
-    "love_story",
+      "location",
 
+      "timeline",
 
-    "ceremony",
+      "anniversary",
 
+      "future",
 
-    "guestbook",
+    ] satisfies ExperienceMomentType[],
 
 
-    "photos",
 
 
-    "video",
 
 
-    "location",
+  /**
+   * Prompt recognition signals.
+   *
+   * Used by intent detector.
+   */
+  keywords:
+    [
 
+      "wedding",
 
-    "timeline",
+      "bride",
 
+      "groom",
 
-    "anniversary",
+      "marriage",
 
+      "engagement",
 
-    "future",
+      "proposal",
 
+      "anniversary",
 
-  ],
+      "ceremony",
 
+      "venue",
 
+      "love story",
 
-  keywords:[
+      "family",
 
+      "couple",
 
-    "wedding",
+      "vows",
 
+      "reception",
 
-    "bride",
+      "honeymoon",
 
+    ],
 
-    "groom",
 
 
-    "marriage",
 
 
-    "engagement",
 
+  /**
+   * Experience products this industry can create.
+   *
+   * Used for generation suggestions.
+   */
+  experiences:
+    [
 
-    "proposal",
+      "love_story",
 
+      "guest_memory",
 
-    "anniversary",
+      "wedding_archive",
 
+      "anniversary_journey",
 
-    "ceremony",
+      "couple_profile",
 
+      "forever_timeline",
 
-    "venue",
+      "digital_guestbook",
 
-
-    "love story",
-
-
-    "family",
-
-
-    "couple",
-
-
-  ],
-
-
-
-  experiences:[
-
-
-    "love_story",
-
-
-    "guest_memory",
-
-
-    "wedding_archive",
-
-
-    "anniversary_journey",
-
-
-    "couple_profile",
-
-
-  ],
+    ],
 
 
 

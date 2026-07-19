@@ -5,7 +5,7 @@ import type {
 
 import {
   mapMomentToFlowType,
-} from "./momentMapper.js";
+} from "../compiler/momentMapper.js";
 
 
 
