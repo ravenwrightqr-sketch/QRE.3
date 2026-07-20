@@ -3,13 +3,22 @@
  * QRE SEMANTIC ANALYZER
  * =====================================================
  *
- * ANY HUMAN IDEA
- *      ↓
- * MEANING SIGNALS
- *      ↓
- * EXPERIENCE GENERATION
+ * Human Language
+ *        ↓
+ * Meaning Signals
+ *        ↓
+ * Experience Genome
  *
- * Universal human intent interpreter.
+ * This layer answers:
+ *
+ * "What is this human trying to create?"
+ *
+ * It does NOT create:
+ *
+ * - worlds
+ * - moments
+ * - flows
+ * - runtime
  *
  * NO DATABASE
  * NO PRISMA
@@ -19,7 +28,18 @@
  */
 
 
+export type SemanticSignal = {
+
+  concept:string;
+
+  confidence:number;
+
+};
+
+
+
 export type SemanticAnalysis = {
+
 
   /**
    * Human intention
@@ -27,236 +47,257 @@ export type SemanticAnalysis = {
   intent:string;
 
 
+
   /**
-   * Meaning categories
-   * Examples:
-   * memory
-   * cyberpunk
-   * underground
-   * luxury
-   * adventure
+   * Detected concepts
    */
   themes:string[];
 
 
+
   /**
-   * Emotional signals
-   * Examples:
-   * nostalgia
-   * curiosity
-   * excitement
+   * Emotional language
    */
   emotions:string[];
 
 
+
   /**
-   * Extracted things
-   * Examples:
-   * person
-   * place
-   * product
-   * media
+   * Things mentioned
    */
   entities:string[];
 
 
+
   /**
-   * What the user wants the experience to do
-   * Examples:
-   * create
-   * explore
-   * share
-   * reveal
-   * unlock
+   * Desired actions
    */
   actions:string[];
 
 
+
   /**
-   * Where it exists
-   * Examples:
-   * event
-   * location
-   * digital
-   * physical
+   * Physical/digital context
    */
   environments:string[];
 
 
+
   /**
-   * Who it is for
+   * Audience signals
    */
   audience:string[];
 
 
+
   /**
-   * Experience DNA
-   *
-   * This is the creative genome.
-   *
-   * Examples:
-   * cinematic
-   * immersive
-   * premium
-   * mysterious
-   * playful
-   * emotional
+   * Creative DNA signals
    */
   experienceDNA:string[];
+
+
+
+  /**
+   * Future intelligence layer
+   *
+   * Allows confidence based reasoning.
+   */
+  signals:SemanticSignal[];
 
 };
 
 
 
 
-/**
- * Semantic vocabulary.
- *
- * This is NOT a template system.
- *
- * These are meaning detectors.
- *
- * Unknown concepts survive.
- */
 
-const semanticSignals = [
+type SemanticRule = {
 
-  {
-    theme:"memory",
-    words:[
-      "memory",
-      "remember",
-      "past",
-      "history",
-      "legacy",
-      "archive",
-      "childhood",
-      "timeline",
-      "journey",
-      "moment"
-    ],
-    emotion:"nostalgia",
-    dna:"emotional"
-  },
+ theme:string;
+
+ words:string[];
+
+ emotion:string;
+
+ dna:string;
+
+};
 
 
-  {
-    theme:"connection",
-    words:[
-      "love",
-      "relationship",
-      "family",
-      "friend",
-      "community",
-      "together",
-      "bond",
-      "people"
-    ],
-    emotion:"connection",
-    dna:"human"
-  },
 
 
-  {
-    theme:"commerce",
-    words:[
-      "business",
-      "brand",
-      "product",
-      "company",
-      "store",
-      "shop",
-      "customer",
-      "client",
-      "sell",
-      "service"
-    ],
-    emotion:"trust",
-    dna:"conversion"
-  },
 
 
-  {
-    theme:"culture",
-    words:[
-      "music",
-      "concert",
-      "festival",
-      "club",
-      "party",
-      "artist",
-      "performance",
-      "dance",
-      "crowd"
-    ],
-    emotion:"energy",
-    dna:"immersive"
-  },
+
+const semanticRules:SemanticRule[] = [
 
 
-  {
-    theme:"discovery",
-    words:[
-      "secret",
-      "hidden",
-      "unknown",
-      "mystery",
-      "exclusive",
-      "rare",
-      "explore",
-      "underground"
-    ],
-    emotion:"curiosity",
-    dna:"mysterious"
-  },
+
+{
+ theme:"memory",
+
+ words:[
+  "memory",
+  "remember",
+  "past",
+  "history",
+  "legacy",
+  "archive",
+  "childhood",
+  "timeline",
+  "moment",
+  "time capsule"
+ ],
+
+ emotion:"nostalgia",
+
+ dna:"emotional"
+
+},
 
 
-  {
-    theme:"adventure",
-    words:[
-      "game",
-      "quest",
-      "mission",
-      "challenge",
-      "hunt",
-      "battle",
-      "puzzle",
-      "competition"
-    ],
-    emotion:"excitement",
-    dna:"interactive"
-  },
+
+{
+ theme:"connection",
+
+ words:[
+  "love",
+  "relationship",
+  "family",
+  "friend",
+  "community",
+  "together",
+  "bond"
+ ],
+
+ emotion:"connection",
+
+ dna:"human"
+
+},
 
 
-  {
-    theme:"identity",
-    words:[
-      "profile",
-      "identity",
-      "who",
-      "person",
-      "creator",
-      "artist",
-      "owner"
-    ],
-    emotion:"recognition",
-    dna:"personal"
-  },
+
+{
+ theme:"commerce",
+
+ words:[
+  "business",
+  "brand",
+  "product",
+  "company",
+  "store",
+  "customer",
+  "client",
+  "sell"
+ ],
+
+ emotion:"trust",
+
+ dna:"conversion"
+
+},
 
 
-  {
-    theme:"companion",
-    words:[
-      "dog",
-      "cat",
-      "pet",
-      "animal",
-      "companion",
-      "rescue"
-    ],
-    emotion:"care",
-    dna:"personal"
-  },
+
+{
+ theme:"culture",
+
+ words:[
+  "music",
+  "concert",
+  "festival",
+  "club",
+  "party",
+  "artist",
+  "performance"
+ ],
+
+ emotion:"energy",
+
+ dna:"immersive"
+
+},
+
+
+
+{
+ theme:"discovery",
+
+ words:[
+  "secret",
+  "hidden",
+  "unknown",
+  "mystery",
+  "exclusive",
+  "rare",
+  "explore",
+  "underground"
+ ],
+
+ emotion:"curiosity",
+
+ dna:"mysterious"
+
+},
+
+
+
+{
+ theme:"adventure",
+
+ words:[
+  "quest",
+  "mission",
+  "challenge",
+  "hunt",
+  "puzzle",
+  "game"
+ ],
+
+ emotion:"excitement",
+
+ dna:"interactive"
+
+},
+
+
+
+{
+ theme:"identity",
+
+ words:[
+  "identity",
+  "profile",
+  "creator",
+  "artist",
+  "owner"
+ ],
+
+ emotion:"recognition",
+
+ dna:"personal"
+
+},
+
+
+
+{
+ theme:"companion",
+
+ words:[
+  "dog",
+  "cat",
+  "pet",
+  "animal",
+  "rescue"
+ ],
+
+ emotion:"care",
+
+ dna:"personal"
+
+}
+
 
 
 ];
@@ -267,56 +308,73 @@ const semanticSignals = [
 
 
 
+
+
 export function analyzeSemanticPrompt(
-  prompt:string
+ prompt:string
 ):SemanticAnalysis {
 
 
 const text =
-  prompt
-    .toLowerCase()
-    .trim();
+ prompt
+ .toLowerCase()
+ .trim();
+
+
+
+if(!text){
+
+ throw new Error(
+  "Semantic prompt cannot be empty"
+ );
+
+}
+
 
 
 
 const themes =
-  new Set<string>();
+new Set<string>();
 
 
 const emotions =
-  new Set<string>();
+new Set<string>();
 
 
 const entities =
-  new Set<string>();
+new Set<string>();
 
 
 const actions =
-  new Set<string>();
+new Set<string>();
 
 
 const environments =
-  new Set<string>();
+new Set<string>();
 
 
 const audience =
-  new Set<string>();
+new Set<string>();
 
 
 const experienceDNA =
-  new Set<string>();
+new Set<string>();
+
+
+const signals:
+SemanticSignal[] = [];
 
 
 
 
-/**
- * BASE HUMAN ACTION
- */
 
-actions.add("create");
+actions.add(
+ "create"
+);
+
 
 experienceDNA.add(
-  "adaptive"
+ "adaptive"
 );
 
 
@@ -324,41 +382,64 @@ experienceDNA.add(
 
 
 
-
-/**
- * CORE SEMANTIC MATCHING
- */
-
 for(
-  const signal of semanticSignals
+ const rule of semanticRules
 ){
 
-  const matched =
-    signal.words.some(
-      word =>
-        text.includes(word)
-    );
+
+const matches =
+rule.words.filter(
+ word =>
+ text.includes(word)
+);
 
 
-  if(matched){
 
-    themes.add(
-      signal.theme
-    );
+if(matches.length){
 
 
-    emotions.add(
-      signal.emotion
-    );
+const confidence =
+Math.min(
+ 1,
+ matches.length /
+ 3
+);
 
 
-    experienceDNA.add(
-      signal.dna
-    );
 
-  }
+themes.add(
+ rule.theme
+);
+
+
+
+emotions.add(
+ rule.emotion
+);
+
+
+
+experienceDNA.add(
+ rule.dna
+);
+
+
+
+signals.push({
+
+ concept:
+ rule.theme,
+
+ confidence
+
+});
+
 
 }
+
+
+}
+
 
 
 
@@ -367,30 +448,55 @@ for(
 
 
 /**
- * MEDIA INTELLIGENCE
+ * MEDIA
  */
 
 if(
- /photo|image|picture|video|film|movie|gallery|audio|music|voice|sound/
+ /photo|image|video|film|audio|music|sound|voice/
  .test(text)
 ){
 
- entities.add(
-  "media"
- );
+entities.add(
+ "media"
+);
 
 
- experienceDNA.add(
-  "cinematic"
- );
+experienceDNA.add(
+ "cinematic"
+);
 
 
- actions.add(
-  "experience"
- );
+actions.add(
+ "experience"
+);
+
 
 }
 
+
+
+
+
+/**
+ * LOCATION
+ */
+
+if(
+ /place|location|city|venue|home|world|map|destination/
+ .test(text)
+){
+
+environments.add(
+ "location"
+);
+
+
+actions.add(
+ "navigate"
+);
+
+
+}
 
 
 
@@ -398,86 +504,65 @@ if(
 
 
 /**
- * GEO INTELLIGENCE
+ * STYLE DNA
  */
 
+
 if(
- /place|location|city|venue|travel|hotel|home|world|map|destination/
+ /dark|gothic|cyber|punk|alternative|rebellious/
  .test(text)
 ){
 
- environments.add(
-  "location"
- );
+experienceDNA.add(
+ "alternative"
+);
 
 
- actions.add(
-  "navigate"
- );
+emotions.add(
+ "intensity"
+);
 
-}
-
-
-
-
-
-
-
-/**
- * STYLE / AESTHETIC DNA
- */
-
-if(
- /dark|gothic|cyber|punk|alternative|rebellious|underground/
- .test(text)
-){
-
- experienceDNA.add(
-  "alternative"
- );
-
-
- emotions.add(
-  "intensity"
- );
 
 }
 
 
 
 if(
- /luxury|premium|elite|exclusive|high end/
+ /luxury|premium|elite|exclusive/
  .test(text)
 ){
 
- experienceDNA.add(
-  "premium"
- );
+experienceDNA.add(
+ "premium"
+);
 
 
- emotions.add(
-  "aspiration"
- );
+emotions.add(
+ "aspiration"
+);
+
 
 }
 
 
 
 if(
- /fun|funny|wild|crazy|playful|chaos/
+ /fun|wild|crazy|playful|chaos/
  .test(text)
 ){
 
- experienceDNA.add(
-  "playful"
- );
+experienceDNA.add(
+ "playful"
+);
 
 
- emotions.add(
-  "joy"
- );
+emotions.add(
+ "joy"
+);
+
 
 }
+
 
 
 
@@ -489,40 +574,44 @@ if(
  * AUDIENCE
  */
 
+
 if(
- /fan|fans|followers|members|community|guest|crowd/
+ /fans|followers|members|community|crowd/
  .test(text)
 ){
 
- audience.add(
-  "community"
- );
+audience.add(
+ "community"
+);
 
 }
 
 
+
 if(
- /customer|buyer|client|visitor|shopper/
+ /customer|buyer|client|shopper/
  .test(text)
 ){
 
- audience.add(
-  "customer"
- );
+audience.add(
+ "customer"
+);
 
 }
 
 
+
 if(
- /\bmy\b|\bmine\b|personal|private|self/
+ /my|mine|personal|private/
  .test(text)
 ){
 
- audience.add(
-  "individual"
- );
+audience.add(
+ "individual"
+);
 
 }
+
 
 
 
@@ -531,21 +620,21 @@ if(
 
 
 /**
- * ENTITY EXTRACTION
- *
- * Keep concepts, don't force categories.
+ * ENTITY SIGNALS
  */
 
+
 if(
- /qr|nfc|code|tag|scan/
+ /qr|nfc|tag|scan|code/
  .test(text)
 ){
 
- entities.add(
-  "digital_identity"
- );
+entities.add(
+ "digital_identity"
+);
 
 }
+
 
 
 if(
@@ -553,11 +642,12 @@ if(
  .test(text)
 ){
 
- entities.add(
-  "experience"
- );
+entities.add(
+ "experience"
+);
 
 }
+
 
 
 if(
@@ -565,9 +655,9 @@ if(
  .test(text)
 ){
 
- entities.add(
-  "environment"
- );
+entities.add(
+ "environment"
+);
 
 }
 
@@ -579,27 +669,37 @@ if(
 
 /**
  * OPEN WORLD FALLBACK
- *
- * Unknown ideas still become experiences.
  */
 
 if(
- themes.size === 0
+ !themes.size
 ){
 
- themes.add(
-  "human_expression"
- );
+themes.add(
+ "human_expression"
+);
 
 
- experienceDNA.add(
-  "open_world"
- );
+experienceDNA.add(
+ "open_world"
+);
 
 
- emotions.add(
-  "curiosity"
- );
+emotions.add(
+ "curiosity"
+);
+
+
+signals.push({
+
+ concept:
+ "human_expression",
+
+ confidence:
+ .2
+
+});
+
 
 }
 
@@ -607,42 +707,42 @@ if(
 
 
 
-/**
- * Remove duplicates naturally
- */
-
 return {
 
- intent:
-  "experience_creation",
+
+intent:
+ "experience_creation",
 
 
- themes:
-  [...themes],
+themes:
+ [...themes],
 
 
- emotions:
-  [...emotions],
+emotions:
+ [...emotions],
 
 
- entities:
-  [...entities],
+entities:
+ [...entities],
 
 
- actions:
-  [...actions],
+actions:
+ [...actions],
 
 
- environments:
-  [...environments],
+environments:
+ [...environments],
 
 
- audience:
-  [...audience],
+audience:
+ [...audience],
 
 
- experienceDNA:
-  [...experienceDNA],
+experienceDNA:
+ [...experienceDNA],
+
+
+signals
 
 };
 

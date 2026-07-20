@@ -681,8 +681,8 @@ flowRouter.post(
 
             actions:{
 
-              category:
-                compiled.industry,
+                category:
+                 compiled.blueprint.type,
 
 
               estimatedDuration:

@@ -1,92 +1,159 @@
 /**
  * =====================================================
- * QRE SEMANTIC GENOME COMPILER
+ * QRE EXPERIENCE GENOME COMPILER
  * =====================================================
  *
+ * Production Experience Compiler
+ *
+ * Pipeline:
+ *
  * Prompt
- *    ↓
- * Semantic Understanding
- *    ↓
+ *   ↓
  * Experience Genome
- *    ↓
- * Blueprint Composer
- *    ↓
- * Flow Builder
- *    ↓
- * Runtime Moments
- *    ↓
+ *   ↓
+ * Experience World
+ *   ↓
+ * Experience Blueprint
+ *   ↓
+ * Runtime Flow
+ *   ↓
+ * Moments
+ *   ↓
  * Cinematic Runtime
+ *
+ *
+ * Genome = creative DNA
+ * World = universe/context
+ * Blueprint = composed experience
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
  *
  * =====================================================
  */
 
 
 import {
-  enhanceExperience,
-} from "./../compiler/experienceEnhancer.js";
 
-import {
-  analyzeSemanticPrompt,
-} from "../semantic/semanticAnalyzer.js";
+  composeWorld
 
+} from "../world/worldComposer.js";
 
 
 import {
-  detectIntent,
-} from "./../compiler/parser/intentDetector.js";
+
+  buildExperienceGenome,
+
+} from "../semantic/genome/genomeBuilder.js";
 
 
 import {
-  extractEntities,
-} from "./../compiler/parser/entityExtractor.js";
 
-
-import {
   composeBlueprint,
-} from "./../compiler/blueprint/composer.js";
+
+} from "./blueprintComposer.js";
 
 
 import {
-  buildFlowSteps,
-} from "./../compiler/flowBuilder.js";
+
+  blueprintToFlow,
+
+} from "./blueprintToFlow.js";
 
 
 import {
+
   flowToMoment,
-} from "./../moments/flowToMoments.js";
+
+} from "../moments/flowToMoments.js";
 
 
 import {
+
   cinematicRuntime,
-} from "./../runtime/cinematic/cinematicRuntime.js";
+
+} from "../runtime/cinematic/cinematicRuntime.js";
+
 
 
 import type {
-  FlowStep,
+
   ExperienceBlueprint,
-  ExperienceModel,
   ExperienceGenome,
+  ExperienceModel,
+  ExperienceWorld,
+  FlowStep,
   Moment,
   CinematicScene,
+
 } from "@qre/contracts";
 
 
 
 
 
+
+
+
+/**
+ * =====================================================
+ * COMPILED EXPERIENCE RESULT
+ * =====================================================
+ */
+
+
 export type CompiledGenomeExperience = {
 
-  genome: ExperienceGenome;
 
-  model: ExperienceModel;
+  genome:
+    ExperienceGenome;
 
-  blueprint: ExperienceBlueprint;
 
-  flowSteps: FlowStep[];
 
-  moments: Moment[];
+  world:
+    ExperienceWorld;
 
-  cinematicScenes: CinematicScene[];
+
+
+  blueprint:
+    ExperienceBlueprint;
+
+
+
+  flowSteps:
+    FlowStep[];
+
+
+
+  moments:
+    Moment[];
+
+
+
+  cinematicScenes:
+    CinematicScene[];
+
+
+
+  model:
+    ExperienceModel;
+
+
+
+  title:
+    string;
+
+
+
+  estimatedDuration:
+    number;
+
+
+
+  momentCount:
+    number;
+
 
 };
 
@@ -96,657 +163,71 @@ export type CompiledGenomeExperience = {
 
 
 
-function createGenome(
-  semantic: ReturnType<typeof analyzeSemanticPrompt>,
-  entities: ReturnType<typeof extractEntities>,
-  prompt: string
-): ExperienceGenome {
 
 
-  const text =
-    prompt.toLowerCase();
-
-
-
-  function score(
-    keywords:string[]
-  ):number {
-
-
-    const matches =
-      keywords.filter(
-        keyword =>
-          text.includes(keyword)
-      ).length;
-
-
-    return Math.min(
-      matches / keywords.length,
-      1
-    );
-
-  }
-
-
-
-
-
-
-  function resolveEnergy()
-  : ExperienceGenome["energy"] {
-
-
-    if(
-      text.includes("luxury") ||
-      text.includes("premium")
-    ){
-
-      return "premium";
-
-    }
-
-
-    if(
-      text.includes("mystery") ||
-      text.includes("dark") ||
-      text.includes("unknown")
-    ){
-
-      return "mysterious";
-
-    }
-
-
-    if(
-      text.includes("fun") ||
-      text.includes("play")
-    ){
-
-      return "playful";
-
-    }
-
-
-    if(
-      text.includes("cinematic") ||
-      text.includes("emotional") ||
-      text.includes("love")
-    ){
-
-      return "emotional";
-
-    }
-
-
-    if(
-      text.includes("intense") ||
-      text.includes("extreme")
-    ){
-
-      return "intense";
-
-    }
-
-
-    return "calm";
-
-  }
-
-
-
-
-
-
-
-  function resolvePacing()
-  : ExperienceGenome["pacing"] {
-
-
-    if(
-      text.includes("fast") ||
-      text.includes("quick")
-    ){
-
-      return "fast";
-
-    }
-
-
-    if(
-      text.includes("slow") ||
-      text.includes("deep")
-    ){
-
-      return "slow";
-
-    }
-
-
-    return "medium";
-
-  }
-
-
-
-
-
-
-
-
-  function resolveSocial()
-  : ExperienceGenome["social"] {
-
-
-    if(
-      text.includes("community") ||
-      text.includes("group") ||
-      text.includes("friends")
-    ){
-
-      return "community";
-
-    }
-
-
-    if(
-      text.includes("couple") ||
-      text.includes("together") ||
-      text.includes("partner")
-    ){
-
-      return "shared";
-
-    }
-
-
-    return "solo";
-
-  }
-
-
-
-
-
-
-
-
-  function resolveJourney()
-  : ExperienceGenome["journey"] {
-
-
-    const journey:
-      ExperienceGenome["journey"] =
-      [
-        "arrival"
-      ];
-
-
-
-    if(
-      score([
-        "discover",
-        "explore",
-        "adventure",
-        "journey"
-      ]) > 0
-    ){
-
-      journey.push(
-        "discovery"
-      );
-
-    }
-
-
-
-    journey.push(
-      "reveal"
-    );
-
-
-
-    if(
-      score([
-        "memory",
-        "story",
-        "remember",
-        "past"
-      ]) > 0
-    ){
-
-      journey.push(
-        "memory"
-      );
-
-    }
-
-
-
-    if(
-      score([
-        "share",
-        "community",
-        "friends"
-      ]) > 0
-    ){
-
-      journey.push(
-        "share"
-      );
-
-    }
-
-
-
-    journey.push(
-      "return"
-    );
-
-
-    return journey;
-
-  }
-
-
-
-
-
-
-
-
-  return {
-
-
-    intent:
-
-      [
-        semantic.intent
-      ],
-
-
-
-    archetypes:
-
-      semantic.themes,
-
-
-
-    themes:
-
-      semantic.themes,
-
-
-
-    emotions:
-
-      semantic.emotions,
-
-
-
-    energy:
-
-      resolveEnergy(),
-
-
-
-    pacing:
-
-      resolvePacing(),
-
-
-
-    social:
-
-      resolveSocial(),
-
-
-
-    journey:
-
-      resolveJourney(),
-
-
-
-    discovery:
-
-      score([
-        "discover",
-        "explore",
-        "adventure",
-        "mystery"
-      ]),
-
-
-
-    memory:
-
-      score([
-        "memory",
-        "remember",
-        "story",
-        "past"
-      ]),
-
-
-
-    commerce:
-
-      score([
-        "buy",
-        "product",
-        "shop",
-        "restaurant",
-        "business"
-      ]),
-
-
-
-    immersion:
-
-      score([
-        "cinematic",
-        "world",
-        "experience",
-        "journey"
-      ]),
-
-
-
-    interaction:
-
-      score([
-        "play",
-        "interactive",
-        "game",
-        "community"
-      ]),
-
-
-
-    replay:
-
-      score([
-        "again",
-        "replay",
-        "return",
-        "share"
-      ]),
-
-
-
-    entities,
-
-
-
-    environments:
-      [],
-
-
-
-    audience:
-
-      semantic.audience,
-
-  };
-
-
-}
-
-
-
-
-
-
-
+/**
+ * =====================================================
+ * MODEL BUILDER
+ * =====================================================
+ */
 
 
 function createExperienceModel(
-  blueprint: ExperienceBlueprint,
+
+  blueprint:ExperienceBlueprint,
+
   prompt:string
+
 ):ExperienceModel {
 
 
-  return {
+return {
+
+  title:
+    blueprint.title,
 
 
-    title:
-
-      blueprint.title,
-
+  description:
+    prompt,
 
 
-    description:
-
-      prompt,
-
+  industry:
+    "generic",
 
 
-    industry:
-
-      blueprint.industry,
-
+  goal:
+    "welcome",
 
 
-    goal:
-
-      blueprint.goal,
-
+  tone:
+    blueprint.tone,
 
 
-    tone:
-
-      blueprint.tone,
-
+  moments:
+    blueprint.moments,
 
 
-    moments:
+  metadata:{
 
-      blueprint.moments,
-
-
-
-    metadata: {
-
-      category:
-
-        blueprint.industry,
+    category:
+      blueprint.type,
 
 
-      tags:[
+    tags:[
 
-        "compiled",
+      "compiled",
 
-        "semantic",
+      "experience-genome",
 
-        "genome"
+      "world-engine",
 
-      ]
+      "cinematic"
 
-    }
-
-
-  };
-
-
-}
-
-
-
-
-
-
-
-
-
-export function compileExperienceGenome(
-  prompt:string
-):CompiledGenomeExperience {
-
-
-  if(!prompt.trim()){
-
-    throw new Error(
-      "Experience prompt cannot be empty"
-    );
+    ]
 
   }
 
-
-
-
-
-  const semantic =
-
-    analyzeSemanticPrompt(
-      prompt
-    );
-
-
-
-
-
-  const detected =
-
-    detectIntent(
-      prompt
-    );
-
-
-
-
-
-  const entities =
-
-    extractEntities(
-      prompt
-    );
-
-
-
-
-
-  const enhancement =
-
-    enhanceExperience({
-
-      prompt,
-
-
-      industry:
-
-        detected.industry,
-
-
-      intent:
-
-        detected.goal,
-
-
-    });
-
-
-
-
-
-  const blueprint =
-
-    composeBlueprint(
-
-      detected,
-
-      entities,
-
-      prompt,
-
-      enhancement,
-
-      semantic
-
-    );
-
-
-
-
-
-  const genome =
-
-    createGenome(
-
-      semantic,
-
-      entities,
-
-      prompt
-
-    );
-
-
-
-
-
-  const flowSteps =
-
-    buildFlowSteps(
-      blueprint
-    );
-
-
-
-
-
-  const moments =
-
-    flowToMoment(
-      flowSteps
-    );
-
-
-
-
-
-  const cinematicScenes =
-
-    cinematicRuntime({
-
-      moments,
-
-      geoStory:null
-
-    });
-
-
-
-
-
-  const model =
-
-    createExperienceModel(
-
-      blueprint,
-
-      prompt
-
-    );
-
-
-
-
-
-  return {
-
-    genome,
-
-    model,
-
-    blueprint,
-
-    flowSteps,
-
-    moments,
-
-    cinematicScenes
-
-  };
+};
 
 
 }
@@ -757,5 +238,272 @@ export function compileExperienceGenome(
 
 
 
+
+
+/**
+ * =====================================================
+ * MAIN COMPILER
+ * =====================================================
+ */
+
+
+export function compileExperienceGenome(
+
+  prompt:string
+
+):CompiledGenomeExperience {
+
+
+
+if(
+ !prompt.trim()
+){
+
+ throw new Error(
+  "Experience prompt required."
+ );
+
+}
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 1. HUMAN UNDERSTANDING
+ *
+ * Prompt → Genome
+ *
+ * =====================================================
+ */
+
+
+const genome =
+
+  buildExperienceGenome(
+    prompt
+  );
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 2. WORLD CREATION
+ *
+ * Genome → World
+ *
+ * =====================================================
+ */
+
+
+const world =
+
+  composeWorld(
+    genome
+  );
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 3. BLUEPRINT CREATION
+ *
+ * Genome + World → Blueprint
+ *
+ * =====================================================
+ */
+
+
+const blueprint =
+
+  composeBlueprint(
+    genome
+  );
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 4. FLOW COMPILATION
+ *
+ * Blueprint → Runtime Steps
+ *
+ * =====================================================
+ */
+
+
+const flowSteps =
+
+  blueprintToFlow(
+    blueprint
+  );
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 5. MOMENT CREATION
+ *
+ * Flow → Moments
+ *
+ * =====================================================
+ */
+
+
+const moments =
+
+  flowToMoment(
+    flowSteps
+  );
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 6. CINEMATIC RUNTIME
+ *
+ * Moments → Scenes
+ *
+ * =====================================================
+ */
+
+
+const cinematicScenes =
+
+  cinematicRuntime({
+
+    moments,
+
+    geoStory:null,
+
+  });
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * 7. EXPERIENCE MODEL
+ *
+ * =====================================================
+ */
+
+
+const model =
+
+  createExperienceModel(
+
+    blueprint,
+
+    prompt
+
+  );
+
+
+
+
+
+
+
+
+return {
+
+
+  genome,
+
+
+  world,
+
+
+  blueprint,
+
+
+  flowSteps,
+
+
+  moments,
+
+
+  cinematicScenes,
+
+
+  model,
+
+
+
+  title:
+
+    blueprint.title,
+
+
+
+  estimatedDuration:
+
+    moments.length * 5,
+
+
+
+  momentCount:
+
+    moments.length,
+
+
+};
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * PUBLIC EXPORT
+ * =====================================================
+ */
+
+
 export const genomeCompiler =
-compileExperienceGenome;
+
+  compileExperienceGenome;

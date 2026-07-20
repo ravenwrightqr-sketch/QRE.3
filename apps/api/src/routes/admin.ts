@@ -162,7 +162,9 @@ router.post(
             actions:{
 
               category:
-                compiled.industry,
+             compiled.blueprint.metadata?.archetypes?.[0]
+             ?? compiled.blueprint.metadata?.themes?.[0]
+             ?? "experience",
 
 
               estimatedDuration:

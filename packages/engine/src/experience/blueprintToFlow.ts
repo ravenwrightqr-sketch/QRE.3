@@ -1,11 +1,9 @@
 import type {
   ExperienceBlueprint,
+  ExperienceMomentType,
   FlowStep,
+  FlowStepType,
 } from "@qre/contracts";
-
-import {
-  mapMomentToFlowType,
-} from "../compiler/momentMapper.js";
 
 
 
@@ -14,30 +12,144 @@ import {
  *
  * BLUEPRINT → FLOW COMPILER
  *
- * Converts creative experience language
- * into runtime execution language.
- *
+ * Creative DNA → Runtime Instructions
  *
  * INPUT:
- *
  * ExperienceBlueprint
  *
- *
  * OUTPUT:
- *
  * FlowStep[]
- *
  *
  * RULES:
  *
- * - Pure function
+ * - Pure
  * - No database
  * - No Prisma
  * - No execution
- * - Preserve creative DNA
  *
  * =====================================================
  */
+
+
+
+function resolveFlowType(
+  momentType: ExperienceMomentType
+): FlowStepType {
+
+
+  const mapping: Partial<
+    Record<
+      ExperienceMomentType,
+      FlowStepType
+    >
+  > = {
+
+
+    welcome:
+      "hero",
+
+
+    introduction:
+      "hero",
+
+
+    story:
+      "story",
+
+
+    memory:
+      "story",
+
+
+    timeline:
+      "timeline",
+
+
+    photos:
+      "gallery",
+
+
+    video:
+      "video",
+
+
+    soundtrack:
+      "soundtrack",
+
+
+    location:
+      "location",
+
+
+
+    product:
+      "product",
+
+
+    menu:
+      "menu",
+
+
+    offer:
+      "offer",
+
+
+    reward:
+      "reward",
+
+
+    payment:
+      "payment",
+
+
+    booking:
+      "booking",
+
+
+    review:
+      "review",
+
+
+    social:
+      "social",
+
+
+    share:
+      "share",
+
+
+    profile:
+      "profile",
+
+
+    guestbook:
+      "guestbook",
+
+
+    interaction:
+      "timer",
+
+
+    completion:
+      "message",
+
+
+    reveal:
+      "story",
+
+  };
+
+
+
+  return (
+    mapping[momentType]
+    ??
+    "message"
+  );
+
+}
+
+
 
 
 
@@ -46,7 +158,6 @@ export function blueprintToFlow(
   blueprint: ExperienceBlueprint
 
 ): FlowStep[] {
-
 
 
   if(
@@ -70,46 +181,28 @@ export function blueprintToFlow(
     ) => ({
 
 
-      /**
-       * Runtime identity
-       */
-
       id:
         `experience-${index}`,
 
 
-
-      /**
-       * Execution order
-       */
 
       order:
         index,
 
 
 
-      /**
-       * Runtime action type
-       */
-
       type:
-        mapMomentToFlowType(
-          moment
+        resolveFlowType(
+          moment.type
         ),
 
 
-
-      /**
-       * Preserve experience DNA
-       *
-       * This becomes the source
-       * for Cinematic Runtime.
-       */
 
       payload:{
 
 
         experience:{
+
 
           component:
             moment.component,
@@ -154,13 +247,7 @@ export function blueprintToFlow(
         },
 
 
-
-        /**
-         * Custom generated data
-         */
-
         ...moment.payload,
-
 
       },
 

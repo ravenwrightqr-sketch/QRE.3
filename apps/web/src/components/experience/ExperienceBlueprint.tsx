@@ -16,7 +16,36 @@ import type {
  ExperienceBlueprint,
  ExperienceMoment
 } from "@qre/contracts";
+type BlockType =
+  | "message"
+  | "location"
+  | "place"
+  | "redirect"
+  | "link"
+  | "payment"
+  | "reward"
+  | "memory"
+  | "media"
+  | "review"
+  | "notification"
+  | "certificate";
 
+
+type ExperienceBlock = {
+
+  id:string;
+
+  type:BlockType;
+
+  title:string;
+
+  text:string;
+
+  duration:number;
+
+  config:Record<string, unknown>;
+
+};
 
 
 

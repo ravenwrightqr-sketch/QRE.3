@@ -40,17 +40,10 @@ export * from "./geo/geoStoryCompiler.js";
 // Moments
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
-export * from "./compiler/experienceCompiler.js";
+
 export * from "./experience/blueprintToFlow.js";
-export * from "./compiler/momentMapper.js";
 
-export {
-  parseExperiencePrompt,
-} from "./compiler/promptParser.js";
 
-export {
-  buildFlowSteps,
-} from "./compiler/flowBuilder.js";
 
 export type {
   AssetRepository,
@@ -129,5 +122,14 @@ export * from "./intelligence/index.js";
 
 export * from "./semantic/index.js";
 
-export * from "./compiler/index.js";
+
 export * from "./world/index.js";
+export {
+  compileExperienceGenome,
+  genomeCompiler,
+} from "./experience/genomeCompiler.js";
+
+
+export {
+  compileExperienceGenome as experienceCompiler,
+} from "./experience/genomeCompiler.js";

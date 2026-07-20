@@ -1,7 +1,8 @@
 export {
- composeWorldMoments
+  composeWorld
 } from "./worldComposer.js";
 
+
 export {
- resolveWorldDomain
+  resolveWorldDomain
 } from "./worldDomain.js";

@@ -1,49 +1,39 @@
 /**
  * =====================================================
- * QRE WORLD DOMAIN INTELLIGENCE
+ * QRE WORLD DOMAIN RESOLVER
  * =====================================================
  *
- * Converts semantic meaning into a world category.
- *
- * NO DATABASE
- * NO EXECUTION
- *
- * HUMAN IDEA
+ * Human Meaning
  *      ↓
- * WORLD TYPE
- *      ↓
- * EXPERIENCE RULES
+ * Experience World
+ *
+ * NOT industry.
+ * NOT templates.
  *
  * =====================================================
  */
 
+
 import type {
-  SemanticAnalysis
-} from "../semantic/semanticAnalyzer.js";
+  ExperienceGenome,
+  WorldDomain,
+} from "@qre/contracts";
 
-
-export type WorldDomain =
-
-  | "memory_world"
-  | "commerce_world"
-  | "culture_world"
-  | "discovery_world"
-  | "journey_world"
-  | "identity_world"
-  | "community_world";
 
 
 
 
 export function resolveWorldDomain(
-  semantic: SemanticAnalysis
-): WorldDomain {
+
+  genome:ExperienceGenome
+
+):WorldDomain {
 
 
 
 if(
- semantic.themes.includes("memory") ||
- semantic.themes.includes("storytelling")
+ genome.meaning.memories.length ||
+ genome.themes.includes("memory")
 ){
 
  return "memory_world";
@@ -52,29 +42,22 @@ if(
 
 
 
+
 if(
- semantic.themes.includes("commerce")
+ genome.themes.includes("connection") ||
+ genome.themes.includes("relationship")
 ){
 
- return "commerce_world";
+ return "relationship_world";
 
 }
 
 
 
-if(
- semantic.themes.includes("culture")
-){
-
- return "culture_world";
-
-}
-
-
 
 if(
- semantic.themes.includes("discovery") ||
- semantic.themes.includes("adventure")
+ genome.discovery >= .7 ||
+ genome.themes.includes("adventure")
 ){
 
  return "discovery_world";
@@ -83,18 +66,33 @@ if(
 
 
 
+
 if(
- semantic.themes.includes("connection")
+ genome.immersion >= .7 ||
+ genome.themes.includes("culture")
 ){
 
- return "community_world";
+ return "culture_world";
 
 }
 
 
 
+
 if(
- semantic.entities.includes("living_being")
+ genome.entities.products.length ||
+ genome.commerce >= .7
+){
+
+ return "commerce_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("identity")
 ){
 
  return "identity_world";
@@ -103,7 +101,18 @@ if(
 
 
 
-return "journey_world";
 
+if(
+ genome.themes.includes("community")
+){
+
+ return "community_world";
+
+}
+
+
+
+
+return "journey_world";
 
 }

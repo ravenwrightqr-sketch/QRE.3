@@ -1,25 +1,139 @@
-import type { ExperienceIndustry } from "./industry.js";
-import type { ExperienceGoal } from "./goal.js";
-import type { ExperienceTone } from "./tone.js";
-import type { ExperienceType } from "./experienceType.js";
-import type { ExperienceMoment } from "./moment.js";
-import type { ExperienceEntities } from "./entityExtractor.js";
+/**
+ * =====================================================
+ * QRE EXPERIENCE BLUEPRINT CONTRACT
+ * =====================================================
+ *
+ * Genome
+ *      ↓
+ * Blueprint
+ *      ↓
+ * Flow
+ *      ↓
+ * Runtime
+ *
+ * Blueprint is the composed experience.
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+
+import type {
+  ExperienceTone,
+} from "./tone.js";
+
+
+import type {
+  ExperienceType,
+} from "./experienceType.js";
+
+
+import type {
+  ExperienceMoment,
+} from "./moment.js";
+
+
+import type {
+  ExperienceEntities,
+} from "./entityExtractor.js";
+
+
+import type {
+  ExperienceMeaning,
+} from "./meaning.js";
+
+
+
 
 
 export type ExperienceBlueprint = {
 
-  title: string;
 
-  industry: ExperienceIndustry;
 
-  type: ExperienceType;
+  /**
+   * Human-facing identity
+   */
+  title:string;
 
-  goal: ExperienceGoal;
 
-  tone: readonly ExperienceTone[];
 
-  moments: ExperienceMoment[];
+  /**
+   * What kind of experience
+   *
+   * NOT industry.
+   *
+   * Examples:
+   * story
+   * journey
+   * memory
+   * discovery
+   */
+  type:
+    ExperienceType;
 
-  entities: ExperienceEntities;
+
+
+
+  /**
+   * Emotional direction
+   */
+  tone:
+    readonly ExperienceTone[];
+
+
+
+
+  /**
+   * Preserved meaning
+   */
+  meaning:
+    ExperienceMeaning;
+
+
+
+
+  /**
+   * Generated moments
+   */
+  moments:
+    ExperienceMoment[];
+
+
+
+
+  /**
+   * Reality extracted
+   */
+  entities:
+    ExperienceEntities;
+
+
+
+  /**
+   * Optional semantic metadata.
+   *
+   * NEVER used as compiler logic.
+   */
+  metadata?: {
+
+
+    archetypes?:
+      string[];
+
+
+    themes?:
+      string[];
+
+
+    dna?:
+      string[];
+
+
+  };
+
 
 };

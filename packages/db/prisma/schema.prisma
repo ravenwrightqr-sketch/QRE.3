@@ -58,6 +58,7 @@ model Asset {
   ownership         Ownership?
   scanEvents        ScanEvent[]
   sessions          ScanSession[]
+  experiences       Experience[]
 
   @@index([slug])
   @@index([ownerId])
@@ -89,7 +90,6 @@ model AccountUser {
   @@index([userId])
 }
 
-
 model Ownership {
   id              String          @id @default(cuid())
   assetId         String          @unique
@@ -113,30 +113,45 @@ model Ownership {
 /// * FLOW ENGINE
 /// * =========================
 model Flow {
-  id              String             @id @default(cuid())
+  id String @id @default(cuid())
+
+  name       String
+  version    Int     @default(1)
+  merchantId String?
+  actions    Json
+
   /// *
   /// * =========================
-  /// * CORE METADATA
+  /// * EXPERIENCE WORLD
   /// * =========================
-  name            String
-  version         Int                @default(1)
-  merchantId      String?
-  actions         Json
+  /// *
+  /// * Compiler output:
+  /// *
+  /// * Genome
+  /// *   ↓
+  /// * World
+  /// *   ↓
+  /// * Flow Runtime
+  /// *
+  experienceDNA Json?
+  worldDomain   String?
+  archetype     String?
+
   /// *
   /// * =========================
   /// * OPTIONAL CONFIG ONLY
   /// * =========================
-  data            Json?
-  /// *
-  /// * =========================
-  /// * LIFECYCLE
-  /// * =========================
-  createdAt       DateTime           @default(now())
+  data Json?
+
+  createdAt DateTime @default(now())
+
   analyticsEvents AnalyticsEvent[]
   assetFlows      AssetFlow[]
   metrics         FlowMetricsDaily[]
   steps           FlowStep[]         @relation("FlowSteps")
   sessions        ScanSession[]
+  experience      Experience?        @relation(fields: [experienceId], references: [id])
+  experienceId    String?
 }
 
 model AssetFlow {
@@ -580,4 +595,53 @@ enum TicketStatus {
   ACTIVE
   REDEEMED
   VOID
+}
+
+/// *
+/// * =========================
+/// * EXPERIENCE SOURCE
+/// * =========================
+/// *
+/// * Creative truth layer.
+/// *
+/// * Stores:
+/// * - Genome
+/// * - World
+/// * - Blueprint
+/// *
+/// * Compiles into Flow.
+/// *
+model Experience {
+  id String @id @default(cuid())
+
+  /// Optional physical identity
+  assetId String?
+
+  name String
+
+  version Int @default(1)
+
+  status String @default("DRAFT")
+
+  /// Creative DNA
+  genome Json
+
+  /// Emotional universe
+  world Json
+
+  /// Editable experience design
+  blueprint Json
+
+  /// Extra compiler metadata
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  asset Asset? @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  flows Flow[]
+
+  @@index([assetId])
 }

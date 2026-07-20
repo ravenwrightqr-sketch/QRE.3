@@ -17,7 +17,7 @@ export type ExperienceEntities = {
   urls: string[];
 
   phones: string[];
-
+  media:string[];
   emails: string[];
 
   keywords: string[];

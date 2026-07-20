@@ -1,4 +1,33 @@
-import type { ExperienceEntities } from "./entityExtractor.js";
+/**
+ * =====================================================
+ * QRE EXPERIENCE GENOME CONTRACT
+ * =====================================================
+ *
+ * Human Prompt
+ *      ↓
+ * Semantic Understanding
+ *      ↓
+ * Experience Genome
+ *
+ * This is the creative DNA.
+ *
+ * NO DATABASE
+ * NO EXECUTION
+ * NO INDUSTRY TEMPLATE LOGIC
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceEntities,
+} from "./entityExtractor.js";
+
+
+import type {
+  ExperienceMeaning,
+} from "./meaning.js";
+
 
 
 export type ExperienceEnergy =
@@ -10,16 +39,19 @@ export type ExperienceEnergy =
   | "premium";
 
 
+
 export type ExperiencePacing =
   | "slow"
   | "medium"
   | "fast";
 
 
+
 export type ExperienceSocial =
   | "solo"
   | "shared"
   | "community";
+
 
 
 export type ExperienceJourney =
@@ -33,40 +65,155 @@ export type ExperienceJourney =
   | "return";
 
 
+
+export type ExperienceRelationship = {
+
+  subject:string;
+
+  predicate:
+    | "met_at"
+    | "belongs_to"
+    | "created_by"
+    | "performed_at"
+    | "favorite"
+    | "celebrates"
+    | "remembered_at"
+    | "visited"
+    | "shared_with"
+    | "located_at";
+
+  object:string;
+
+  confidence:number;
+
+};
+
+
+
+
+
 export interface ExperienceGenome {
 
-  intent: string[];
 
-  archetypes: string[];
+  /**
+   * What the human wants
+   */
+  intent:string[];
 
-  themes: string[];
 
-  emotions: string[];
 
-  energy: ExperienceEnergy;
+  /**
+   * Psychological archetypes
+   *
+   * Example:
+   * discovery
+   * memory
+   * connection
+   */
+  archetypes:string[];
 
-  pacing: ExperiencePacing;
 
-  social: ExperienceSocial;
 
-  journey: ExperienceJourney[];
+  /**
+   * Semantic themes
+   */
+  themes:string[];
 
-  discovery: number;
 
-  memory: number;
 
-  commerce: number;
+  /**
+   * Emotional signals
+   */
+  emotions:string[];
 
-  immersion: number;
 
-  interaction: number;
 
-  replay: number;
+  /**
+   * Deep meaning
+   */
+  meaning:ExperienceMeaning;
 
-  entities: ExperienceEntities;
 
-  environments: string[];
 
-  audience: string[];
+  /**
+   * Extracted relationships
+   */
+  relationships:
+    ExperienceRelationship[];
+
+
+
+  /**
+   * Experience personality
+   */
+  energy:
+    ExperienceEnergy;
+
+
+
+  pacing:
+    ExperiencePacing;
+
+
+
+  social:
+    ExperienceSocial;
+
+
+
+  journey:
+    ExperienceJourney[];
+
+
+
+  /**
+   * Creative dimensions
+   */
+  discovery:number;
+
+  memory:number;
+
+  commerce:number;
+
+  immersion:number;
+
+  interaction:number;
+
+  replay:number;
+
+
+
+  /**
+   * Extracted reality
+   */
+  entities:
+    ExperienceEntities;
+
+
+
+  environments:
+    string[];
+
+
+
+  audience:
+    string[];
+
+
+
+  /**
+   * Creative DNA
+   *
+   * NOT industry.
+   *
+   * Example:
+   * cinematic
+   * premium
+   * mysterious
+   * adaptive
+   */
+  dna:
+    string[];
+
 
 }
