@@ -16,16 +16,9 @@ const router = express.Router();
  * SOURCE OF TRUTH:
  *
  * Asset.accountId
- * Ownership.accountId
- * AccountUser membership
+ * Ownership
+ * AssetFlow
  *
- * Returns:
- * - account owned QR/NFC assets
- * - ownership state
- * - experience bindings
- *
- * User access is resolved
- * through account membership.
  * =========================
  */
 
@@ -33,27 +26,21 @@ const router = express.Router();
 router.get(
   "/assets",
   requireAuth,
-  async(
-    req:AuthRequest,
-    res:Response
-  )=>{
+  async (
+    req: AuthRequest,
+    res: Response
+  ) => {
 
-
-    try{
-
+    try {
 
       const userId =
         req.user?.userId;
 
 
-
-      if(!userId){
+      if (!userId) {
 
         return res.status(401).json({
-
-          error:
-            "Unauthorized",
-
+          error: "Unauthorized",
         });
 
       }
@@ -61,7 +48,7 @@ router.get(
 
 
       /**
-       * Find accounts this user belongs to
+       * Find accounts user belongs to
        */
 
       const memberships =
@@ -81,8 +68,7 @@ router.get(
 
       const accountIds =
         memberships.map(
-          membership =>
-            membership.accountId
+          m => m.accountId
         );
 
 
@@ -101,8 +87,9 @@ router.get(
 
 
 
+
       /**
-       * Load account assets
+       * Load assets
        */
 
       const assets =
@@ -119,8 +106,7 @@ router.get(
 
           orderBy:{
 
-            createdAt:
-              "desc",
+            createdAt:"desc",
 
           },
 
@@ -130,24 +116,17 @@ router.get(
 
             id:true,
 
-
             slug:true,
-
 
             priceCents:true,
 
-
             status:true,
-
 
             paid:true,
 
-
             accountId:true,
 
-
             createdAt:true,
-
 
 
             ownership:{
@@ -163,21 +142,7 @@ router.get(
             },
 
 
-
-            account:{
-
-              select:{
-
-                plan:true,
-
-              },
-
-            },
-
-
-
             flows:{
-
 
               where:{
 
@@ -185,28 +150,22 @@ router.get(
 
               },
 
-
               select:{
-
 
                 id:true,
 
-
                 flowId:true,
-
 
               },
 
 
               orderBy:{
 
-                priority:
-                  "desc",
+                priority:"desc",
 
               },
 
             },
-
 
           },
 
@@ -215,65 +174,58 @@ router.get(
 
 
       const response =
-        assets.map(
-
-          asset => ({
+        assets.map(asset => ({
 
 
-            id:
-              asset.id,
+          id:
+            asset.id,
 
 
-            slug:
-              asset.slug,
+          slug:
+            asset.slug,
 
 
-            priceCents:
-              asset.priceCents,
+          priceCents:
+            asset.priceCents,
 
 
-            status:
-              asset.status,
+          status:
+            asset.status,
 
 
-            paid:
-              asset.paid,
+          paid:
+            asset.paid,
 
 
-            accountId:
-              asset.accountId,
+          accountId:
+            asset.accountId,
 
 
-            ownershipStatus:
-              asset.ownership?.status ?? "UNCLAIMED",
+          ownershipStatus:
+            asset.ownership?.status ??
+            "UNCLAIMED",
 
 
-            tier:
-              asset.account?.plan ?? "CONSUMER",
+          createdAt:
+            asset.createdAt,
 
 
-            createdAt:
-              asset.createdAt,
+          hasExperience:
+            asset.flows.length > 0,
 
 
-
-            hasExperience:
-              asset.flows.length > 0,
-
-
-            flowId:
-              asset.flows[0]?.flowId ?? null,
+          flowId:
+            asset.flows[0]?.flowId ??
+            null,
 
 
-          })
-
-        );
+        }));
 
 
 
       return res.json({
 
-        assets:response,
+        assets: response,
 
         count:
           response.length,
@@ -284,7 +236,6 @@ router.get(
 
     }
     catch(error:any){
-
 
       console.error(
         "GET USER ASSETS FAILED:",
@@ -299,11 +250,10 @@ router.get(
 
       });
 
-
     }
 
-
   }
+
 );
 
 

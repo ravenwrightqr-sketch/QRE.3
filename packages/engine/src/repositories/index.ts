@@ -67,24 +67,21 @@ export type AssetRecord = {
   slug:string;
 
 
-  /**
-   * Runtime ownership identity.
-   *
-   * Database adapters translate:
-   *
-   * Asset.accountId
-   *        ↓
-   * ownerId
-   *
-   * Engine never knows:
-   *
-   * - Account tables
-   * - Ownership tables
-   * - Prisma relations
-   */
+/**
+ * Runtime account identity.
+ *
+ * Database adapters expose:
+ *
+ * Asset.accountId
+ *        ↓
+ * accountId
+ *
+ * Engine does not know Prisma.
+ * Engine does not query Account relations.
+ */
 
 
-  ownerId:string | null;
+  accountId:string | null;
 
 
   paid:boolean;

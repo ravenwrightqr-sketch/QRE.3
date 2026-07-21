@@ -182,7 +182,7 @@ importers:
         version: 22.3.0(@types/node@20.19.43)
     devDependencies:
       '@types/node':
-        specifier: ^20.11.30
+        specifier: ^20.19.43
         version: 20.19.43
       prisma:
         specifier: 6.19.3

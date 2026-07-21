@@ -81,24 +81,24 @@ export function createAssetRepository(): AssetRepository {
         slug:
           asset.slug,
 
-
-        /**
-         * ENGINE OWNERSHIP IDENTITY
+         /**
+         * ENGINE ACCOUNT IDENTITY
          *
          * Prisma:
          *
-         * Asset
+         * Asset.accountId
          *   |
+         * Runtime:
+         *
+         * 
+         *
          * accountId
          *
-         * Engine:
-         *
-         * ownerId
-         *
-         * Translation happens here.
+         * 
          */
-        ownerId:
-          asset.accountId ?? null,
+        
+         accountId:
+         asset.accountId ?? null,
 
 
         paid:

@@ -3,9 +3,7 @@ import Stripe from "stripe";
 import { db } from "@qre/db";
 import { unlockAsset } from "../services/unlockAsset.js";
 
-
 const router = express.Router();
-
 
 /**
  * =========================
@@ -22,8 +20,6 @@ const router = express.Router();
  *        ↓
  * production unlock pipeline
  *
- * This route contains NO ownership logic.
- *
  * unlockAsset is the single source
  * of truth.
  *
@@ -32,188 +28,110 @@ const router = express.Router();
 
 router.post(
   "/test-webhook",
-
-  async(
+  async (
     req: Request,
     res: Response
-  )=>{
-
+  ) => {
     try {
-
-
       const {
         assetId,
         userId,
       } = req.body;
 
-
-
-      if(!assetId){
-
+      if (!assetId) {
         return res.status(400).json({
-
-          error:
-            "Missing assetId",
-
+          error: "Missing assetId",
         });
-
       }
 
+      const asset = await db.asset.findUnique({
+        where: {
+          id: assetId,
+        },
+      });
 
-
-      const asset =
-        await db.asset.findUnique({
-
-          where:{
-            id:assetId,
-          },
-
-        });
-
-
-
-      if(!asset){
-
+      if (!asset) {
         return res.status(404).json({
-
-          error:
-            "Asset not found",
-
+          error: "Asset not found",
         });
-
       }
-
-
 
       /**
        * Fake Stripe session
-       *
-       * Same shape consumed
-       * by unlockAsset()
        */
-      const fakeSession =
-      {
-
-        id:
-          `dev_test_${Date.now()}`,
-
+      const fakeSession = {
+        id: `dev_test_${Date.now()}`,
 
         amount_total:
           asset.priceCents,
 
-
         payment_intent:
           `dev_payment_${Date.now()}`,
-
 
       } as Stripe.Checkout.Session;
 
 
-
-
-      const updated =
-        await unlockAsset(
-
-          asset.id,
-
-          userId ?? null,
-
-          fakeSession
-
-        );
-
-
+      const updated = await unlockAsset(
+        asset.id,
+        userId ?? null,
+        fakeSession
+      );
 
 
       /**
-       * Reload account ownership
-       *
-       * Asset no longer owns users.
+       * Reload updated asset state
        */
       const finalAsset =
         await db.asset.findUnique({
-
-          where:{
-            id:updated.id,
+          where: {
+            id: updated.id,
           },
 
-
-          include:{
-
-            account:true,
-
-            ownership:true,
-
+          include: {
+            ownership: true,
           },
-
         });
 
 
-
-
       return res.json({
-
-        success:true,
-
+        success: true,
 
         message:
           "DEV payment completed",
 
+        unlocked: true,
 
-        unlocked:true,
-
-
-        asset:{
-
+        asset: {
           id:
             finalAsset?.id,
-
 
           slug:
             finalAsset?.slug,
 
-
           paid:
             finalAsset?.paid,
-
 
           accountId:
             finalAsset?.accountId ?? null,
 
-
           ownershipId:
             finalAsset?.ownership?.id ?? null,
-
         },
-
       });
 
-
-    }
-    catch(error:any){
-
-
+    } catch (error: any) {
       console.error(
         "[STRIPE TEST]",
         error
       );
 
-
-
       return res.status(500).json({
-
         error:
           error.message ||
           "DEV payment failed",
-
       });
-
-
     }
-
   }
-
 );
-
 
 export default router;

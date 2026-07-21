@@ -1,6 +1,14 @@
-import express, { Response } from "express";
-import { db } from "@qre/db";
-import { Prisma } from "@prisma/client";
+import express, {
+  Response,
+} from "express";
+
+import {
+  Prisma,
+} from "@prisma/client";
+
+import {
+  db,
+} from "@qre/db";
 
 import {
   requireAuth,
@@ -12,7 +20,8 @@ import {
 } from "@qre/engine";
 
 
-const router = express.Router();
+const router =
+  express.Router();
 
 
 router.use(requireAuth);
@@ -23,22 +32,43 @@ router.use(requireAuth);
  * CREATE ASSET + EXPERIENCE
  * =====================================================
  *
- * Prompt
- *        ↓
- * Experience Compiler
- *        ↓
+ * User
+ *   |
+ *   | AccountUser
+ *   |
+ * Account
+ *   |
+ *   | accountId
+ *   |
+ * Asset
+ *   |
+ *   | Experience Compiler
+ *   |
  * Flow
- *        ↓
+ *   |
  * FlowSteps
- *        ↓
- * AssetFlow Link
- *        ↓
+ *   |
+ * AssetFlow
+ *   |
  * Ready To Scan
  *
- * Ownership is NOT created here.
  *
- * Asset starts unclaimed.
- * Claim flow creates Ownership later.
+ * ARCHITECTURE RULES:
+ *
+ * Account:
+ * - identity boundary
+ * - billing container
+ * - dashboard ownership
+ *
+ * Asset:
+ * - QR/NFC identity
+ * - belongs to Account
+ *
+ * Ownership:
+ * - claim/payment lifecycle
+ * - created later
+ *
+ * Asset.accountId is the source of truth.
  *
  * =====================================================
  */
@@ -48,10 +78,11 @@ router.post(
   "/assets/create-experience",
   async (
     req: AuthRequest,
-    res: Response
+    res: Response,
   ) => {
 
     try {
+
 
       const userId =
         req.user?.userId;
@@ -60,10 +91,12 @@ router.post(
       if(!userId){
 
         return res.status(401).json({
-          error:"Unauthorized",
+          error:
+            "Unauthorized",
         });
 
       }
+
 
 
       const {
@@ -71,15 +104,18 @@ router.post(
         slug,
         prompt,
         priceCents,
-      } = req.body;
+      } =
+        req.body;
 
 
 
       if(!slug || !prompt){
 
         return res.status(400).json({
+
           error:
             "slug and prompt required",
+
         });
 
       }
@@ -87,18 +123,82 @@ router.post(
 
 
       /**
+       * =================================================
+       * RESOLVE ACCOUNT
+       * =================================================
+       *
+       * Assets belong to Accounts.
+       *
+       * Never attach assets directly
+       * to users.
+       *
+       * User membership determines
+       * account context.
+       *
+       * =================================================
+       */
+
+
+      const membership =
+        await db.accountUser.findFirst({
+
+          where:{
+
+            userId,
+
+            role:{
+              in:[
+                "OWNER",
+                "ADMIN",
+              ],
+            },
+
+          },
+
+          select:{
+
+            accountId:true,
+
+          },
+
+        });
+
+
+
+      if(!membership){
+
+        return res.status(403).json({
+
+          error:
+            "No account available",
+
+        });
+
+      }
+
+
+
+      const accountId =
+        membership.accountId;
+
+
+
+
+      /**
+       * =================================================
        * CREATE ASSET
+       * =================================================
        *
-       * No ownerId.
+       * Asset is created attached
+       * to Account immediately.
        *
-       * Ownership is handled through:
+       * Ownership records are NOT
+       * created here.
        *
-       * Asset
-       *   |
-       * Ownership
-       *   |
-       * Account
+       * Claim/payment creates
+       * Ownership later.
        *
+       * =================================================
        */
 
 
@@ -107,21 +207,30 @@ router.post(
 
           data:{
 
+            accountId,
+
+
             displayName,
 
+
             slug,
+
 
             status:
               "active",
 
+
             paid:
               false,
+
 
             saleChannel:
               "ADMIN",
 
+
             priceCents:
               priceCents ?? 999,
+
 
           },
 
@@ -129,20 +238,34 @@ router.post(
 
 
 
+
       /**
+       * =================================================
        * COMPILE EXPERIENCE
+       * =================================================
+       *
+       * Prompt
+       *   ↓
+       * Experience Compiler
+       *   ↓
+       * Blueprint + Flow Steps
+       *
+       * =================================================
        */
 
 
       const compiled =
         await experienceCompiler(
-          prompt
+          prompt,
         );
 
 
 
+
       /**
+       * =================================================
        * CREATE FLOW
+       * =================================================
        */
 
 
@@ -150,6 +273,7 @@ router.post(
         await db.flow.create({
 
           data:{
+
 
             name:
               compiled.title,
@@ -162,13 +286,23 @@ router.post(
             actions:{
 
               category:
-             compiled.blueprint.metadata?.archetypes?.[0]
-             ?? compiled.blueprint.metadata?.themes?.[0]
-             ?? "experience",
+
+                compiled.blueprint.metadata
+                  ?.archetypes?.[0]
+
+                ??
+
+                compiled.blueprint.metadata
+                  ?.themes?.[0]
+
+                ??
+
+                "experience",
 
 
               estimatedDuration:
                 compiled.estimatedDuration,
+
 
             },
 
@@ -191,6 +325,7 @@ router.post(
                     payload:
                       step.payload as Prisma.InputJsonValue,
 
+
                   })
                 ),
 
@@ -200,21 +335,28 @@ router.post(
 
 
           include:{
+
             steps:true,
+
           },
 
         });
 
 
 
+
+
       /**
-       * LINK EXPERIENCE
+       * =================================================
+       * LINK ASSET TO FLOW
+       * =================================================
        */
 
 
       await db.assetFlow.create({
 
         data:{
+
 
           assetId:
             asset.id,
@@ -231,16 +373,28 @@ router.post(
           priority:
             0,
 
+
         },
 
       });
 
 
 
+
+      /**
+       * =================================================
+       * RESPONSE
+       * =================================================
+       */
+
+
       return res.json({
 
         success:
           true,
+
+
+        accountId,
 
 
         assetId:
@@ -258,28 +412,33 @@ router.post(
         scanUrl:
           `/api/scan/${asset.slug}`,
 
+
       });
 
 
-    } catch(e:any){
+
+    } catch(error:any){
+
 
       console.error(
         "CREATE EXPERIENCE ERROR",
-        e
+        error,
       );
 
 
       return res.status(500).json({
 
         error:
-          e.message,
+          error.message,
 
       });
 
+
     }
 
-  }
+  },
 );
+
 
 
 export default router;

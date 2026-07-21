@@ -12,8 +12,8 @@ export type ExperienceAuthoring = {
 
   id:string;
 
-  ownerId:string;
-
+  accountId:string;
+  
   name:string;
 
   category:string;

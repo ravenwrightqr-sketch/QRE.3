@@ -76,8 +76,7 @@ export type AssetSummary = {
   category?:string;
 
 
-
-  ownerId:string|null;
+accountId:string|null;
 
 
 

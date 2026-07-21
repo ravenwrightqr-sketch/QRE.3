@@ -28,7 +28,7 @@ export type ScanRuntimeResponse = {
 
     flowId: string | null;
 
-    ownerId: string | null;
+    accountId: string | null;
 
     paid: boolean;
 

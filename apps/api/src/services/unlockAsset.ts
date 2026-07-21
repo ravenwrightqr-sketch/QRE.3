@@ -11,7 +11,8 @@ import { Prisma } from "@prisma/client";
  * Stripe
  *
  * OWNERSHIP SOURCE OF TRUTH
- * Account
+ * Account ownership
+ * user id retained only for legacy compatability
  *
  * ARCHITECTURE
  *
