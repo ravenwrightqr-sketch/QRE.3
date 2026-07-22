@@ -3,38 +3,21 @@ import {
   useState,
 } from "react";
 
-
 import {
   getUserAssets,
-  apiPost,
 } from "../lib/api";
 
+import {
+  useNavigate,
+} from "react-router-dom";
 
 import {
-  blocksToBlueprint,
-} from "../lib/experienceAdapter";
-
+  compileExperience,
+} from "../lib/experienceCompiler";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
-import GlassCard from "../components/ui/GlassCard";
-
-import NeonButton from "../components/ui/NeonButton";
-
-
-import ExperienceBlueprint from "../components/experience/ExperienceBlueprint";
-
-import type {
-  ExperienceBlock,
-} from "../types/experience";
-
-
-import FlowLibrary from "../components/flow/FlowLibrary";
-
-
-import LiveScanPreview from "../components/scan/LiveScanPreview";
-
-
+import IdeaParticles from "../components/effects/IdeaParticles";
 
 
 type Experience = {
@@ -43,18 +26,29 @@ type Experience = {
 
   slug:string;
 
-  paid:boolean;
-
   status:string;
 
-  flowId:string | null;
-
   tier:string;
+
+  flowId:string|null;
 
 };
 
 
 
+const starPositions = [
+
+  { top:"18%", left:"14%" },
+
+  { top:"30%", left:"78%" },
+
+  { top:"72%", left:"62%" },
+
+  { top:"76%", left:"20%" },
+
+  { top:"45%", left:"88%" },
+
+];
 
 
 
@@ -62,56 +56,47 @@ type Experience = {
 export default function Dashboard(){
 
 
-
 const [
-
-  experiences,
-
-  setExperiences
-
+ objects,
+ setObjects
 ]=useState<Experience[]>([]);
 
 
 
-
 const [
-
-  activeExperience,
-
-  setActiveExperience
-
-]=useState<Experience | null>(null);
-
-
-
-
-const [
-
-  loading,
-
-  setLoading
-
+ loading,
+ setLoading
 ]=useState(true);
 
 
 
+const navigate = useNavigate();
+
+
+
+const [
+ prompt,
+ setPrompt
+]=useState("");
+
+
+
+const [
+ creating,
+ setCreating
+]=useState(false);
 
 
 
 
-
-
-async function loadExperiences(){
-
+async function load(){
 
 
 try{
 
 
 const response =
-
 await getUserAssets();
-
 
 
 const assets:Experience[] =
@@ -128,55 +113,9 @@ response.assets ?? [];
 
 
 
-
-
-setExperiences(
-
- assets
-
+setObjects(
+assets
 );
-
-
-
-
-
-if(
-
- !activeExperience &&
-
- assets.length
-
-){
-
-
-
-const ready =
-
-assets.find(
-
- asset =>
-
- Boolean(
-  asset.flowId
- )
-
-);
-
-
-
-
-
-setActiveExperience(
-
- ready ?? assets[0]
-
-);
-
-
-
-}
-
-
 
 
 
@@ -184,26 +123,16 @@ setActiveExperience(
 
 catch(error){
 
-
-
 console.error(
-
-"Loading assets failed",
-
 error
-
 );
-
-
 
 }
 
 finally{
 
-
 setLoading(false);
 
-
 }
 
 
@@ -213,155 +142,76 @@ setLoading(false);
 
 
 
+async function awaken(){
 
 
-
-
-async function createExperience(
-
- blocks:ExperienceBlock[]
-
-){
-
-
-
-if(!activeExperience){
-
-
-alert(
-
-"Select an asset first."
-
-);
-
-
-return;
-
-
-}
-
-
-
-
+if(!prompt.trim()) return;
 
 
 try{
 
 
+setCreating(true);
 
-const blueprint =
 
-blocksToBlueprint(
 
- blocks
+const compiled =
+
+await compileExperience({
+
+prompt,
+
+});
+
+
+
+sessionStorage.setItem(
+
+"experiencePreview",
+
+JSON.stringify({
+
+title:compiled.title,
+
+description:compiled.description,
+
+category:compiled.category,
+
+moments:compiled.moments,
+
+createdAt:new Date().toISOString(),
+
+})
 
 );
 
 
 
-
-
-
-const result =
-
-await apiPost(
-
-"/api/flow/create-and-attach",
-
-{
-
-
-assetId:
-
-activeExperience.id,
-
-
-
-name:
-
-blueprint.title,
-
-
-
-blueprint,
-
-
-
-actions:{},
+navigate(
+"/experience/preview"
+);
 
 
 
 }
 
-);
-
-
-
-
-
-console.log(
-
-"Experience created",
-
-result
-
-);
-
-
-
-
-
-await loadExperiences();
-
-
-
-
-
-alert(
-
-"Experience launched."
-
-);
-
-
-
-
-
-}
-
-catch(error:any){
-
-
+catch(error){
 
 console.error(
-
+"Creation failed",
 error
-
 );
 
+}
 
+finally{
 
-
-
-alert(
-
-error.message ??
-
-"Experience creation failed"
-
-);
-
+setCreating(false);
 
 }
 
 
-
 }
-
-
-
-
-
 
 
 
@@ -369,15 +219,9 @@ error.message ??
 
 useEffect(()=>{
 
-
-loadExperiences();
-
+load();
 
 },[]);
-
-
-
-
 
 
 
@@ -392,12 +236,31 @@ return (
 
 <DashboardLayout>
 
+<IdeaParticles />
 
-<GlassCard glow>
+<div
 
-Loading command center...
+style={{
 
-</GlassCard>
+minHeight:"100vh",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+color:"rgba(255,255,255,.45)",
+
+letterSpacing:4
+
+}}
+
+>
+
+QRE AWAKENING...
+
+</div>
 
 
 </DashboardLayout>
@@ -412,225 +275,12 @@ Loading command center...
 
 
 
-
-
-
 return (
-
-
 
 <DashboardLayout>
 
 
-
-
-
-<h1
-
-style={{
-
-fontSize:34,
-
-marginBottom:8,
-
-}}
-
->
-
-QRE EXPERIENCE STUDIO
-
-</h1>
-
-
-
-
-
-<p
-
-style={{
-
-opacity:.65,
-
-marginBottom:30,
-
-}}
-
->
-
-Create cinematic QR and NFC journeys.
-
-</p>
-
-
-
-
-
-
-
-
-
-{
-
-activeExperience &&
-
-
-
-<GlassCard glow>
-
-
-
-<h3>
-
-ACTIVE ASSET
-
-</h3>
-
-
-
-
-<h2>
-
-{activeExperience.slug}
-
-</h2>
-
-
-
-
-
-<p>
-
-Experience:
-
-{" "}
-
-
-{
-
-activeExperience.flowId
-
-?
-
-"READY"
-
-:
-
-"EMPTY"
-
-}
-
-
-</p>
-
-
-
-
-
-<p>
-
-Tier:
-
-{" "}
-
-{activeExperience.tier}
-
-</p>
-
-
-
-
-</GlassCard>
-
-
-
-}
-
-
-
-
-
-
-
-
-
-{
-
-activeExperience &&
-
-
-
-<FlowLibrary
-
- assetId={activeExperience.id}
-
- onEdit={(flowId)=>{
-
-   window.location.href =
-   `/flows/${flowId}`;
-
- }}
-
-/>
-
-}
-
-
-
-
-
-
-
-
-
-
-
-<ExperienceBlueprint
-
-
-onSave={
-
-createExperience
-
-}
-
-
-
-onLaunch={
-
-createExperience
-
-}
-
-
-/>
-
-
-
-
-
-
-
-
-
-<h2
-
-style={{
-
-marginTop:50,
-
-}}
-
->
-
-Your Assets
-
-</h2>
-
-
-
-
-
-
+<IdeaParticles />
 
 
 
@@ -638,156 +288,92 @@ Your Assets
 
 style={{
 
-display:"grid",
+position:"relative",
 
-gridTemplateColumns:
+zIndex:2,
 
-"repeat(auto-fit,minmax(300px,1fr))",
+minHeight:"100vh",
 
-gap:20,
+overflow:"hidden",
 
-marginTop:20,
+color:"#f5f5f5"
+
+}}
+
+>
+
+<div
+
+style={{
+
+position:"absolute",
+
+bottom:"max(25px, env(safe-area-inset-bottom))",
+
+left:"25px",
+
+fontSize:12,
+
+letterSpacing:14,
+
+opacity:.45,
+
+zIndex:5
+
+}}
+
+>
+QRE
+</div>
+
+<section
+
+style={{
+
+minHeight:"20vh",
+
+display:"flex",
+
+flexDirection:"column",
+
+alignItems:"center",
+
+justifyContent:"flex-start",
+
+paddingTop:"8vh",
 
 }}
 
 >
 
 
+<h1
 
+className="glow-text"
 
+style={{
 
+fontSize:"clamp(28px,6vw,40px)",
 
+fontWeight:400,
 
-{
+letterSpacing:"-1px",
 
-experiences.map(
+lineHeight:1,
 
-asset=>(
+margin:0,
 
-
-
-<GlassCard
-
-
-      key={asset.id}
-
-
-      glow={Boolean(
-
-        asset.flowId
-
-      )} children={undefined}
-
-/>
-
-
-
-
-
-)
-
-)
-
-}
-
-
-
-
-
-
-
-
-{
-
-experiences.map(
-
-asset=>(
-
-
-
-<GlassCard
-
-key={asset.id}
-
-glow={
-
-Boolean(
-
-asset.flowId
-
-)
-
-}
+}}
 
 >
 
+What do you want
 
+<br/>
 
+to bring alive?
 
-
-<h3>
-
-{asset.slug}
-
-</h3>
-
-
-
-
-
-
-<p>
-
-Status:
-
-{" "}
-
-{asset.status}
-
-</p>
-
-
-
-
-
-
-<p>
-
-Experience:
-
-{" "}
-
-{
-
-asset.flowId
-
-?
-
-"READY"
-
-:
-
-"EMPTY"
-
-}
-
-</p>
-
-
-
-
-
-
-<p>
-
-Tier:
-
-{" "}
-
-{asset.tier}
-
-</p>
-
+</h1>
 
 
 
@@ -799,130 +385,135 @@ style={{
 
 display:"flex",
 
-gap:12,
+alignItems:"flex-end",
 
-marginTop:15,
+marginTop:"38vh",
 
-}}
+gap:10,
 
->
-
-
-
-
-
-<NeonButton
-
-onClick={()=>{
-
-
-setActiveExperience(
-
-asset
-
-);
-
+width:"min(520px,80vw)",
 
 }}
 
 >
 
-CONTROL
 
-</NeonButton>
+<textarea
 
+value={prompt}
 
+onChange={e=>setPrompt(e.target.value)}
 
+onKeyDown={e=>{
 
+if(e.key==="Enter" && !e.shiftKey){
 
+e.preventDefault();
 
-
-
-
-<NeonButton
-
-onClick={()=>{
-
-
-
-if(!asset.flowId){
-
-
-
-alert(
-
-"No experience attached."
-
-);
-
-
-
-return;
-
+awaken();
 
 }
 
-
-
-
-
-window.location.href =
-
-`/scan/${asset.slug}`;
-
-
-
 }}
 
->
-
-PLAY
-
-</NeonButton>
-
-
-
-
-
-
-
-</div>
-
-
-
-
-
-
-
-</GlassCard>
-
-
-
-)
-
-)
-
-}
-
-
-
-
-
-</div>
-
-
-
-
-
-
-
-
-
-<div
+placeholder="Imagine it..."
 
 style={{
 
-marginTop:50,
+flex:1,
+
+height:70,
+
+resize:"none",
+
+background:"transparent",
+
+border:"none",
+
+borderBottom:
+"1px solid rgba(255,255,255,.25)",
+
+outline:"none",
+
+color:"#fff",
+
+fontSize:18,
+
+textAlign:"center",
+
+fontFamily:"inherit",
+
+lineHeight:"70px",
+
+padding:"0",
+
+}}
+
+/>
+
+
+<button
+
+onClick={awaken}
+
+disabled={creating}
+
+style={{
+
+width:42,
+
+height:42,
+
+borderRadius:"50%",
+
+background:"transparent",
+
+border:
+
+"1px solid rgba(255,255,255,.35)",
+
+color:"#fff",
+
+fontSize:10,
+
+letterSpacing:1,
+
+cursor:"pointer",
+
+marginBottom:8,
+
+transform:"translateX(-50px)",
+
+}}
+
+>
+CREATE
+</button>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+
+<section
+
+style={{
+
+position:"absolute",
+
+inset:0,
+
+zIndex:1,
+
+pointerEvents:"none"
 
 }}
 
@@ -934,30 +525,110 @@ marginTop:50,
 
 {
 
-activeExperience
+objects.map((object,index)=>{
 
-?
 
-<LiveScanPreview
+const star =
+starPositions[index % starPositions.length];
 
-slug={
 
-activeExperience.slug
+return (
 
-}
+<div
+
+key={object.id}
+
+onClick={()=>{
+
+window.location.href=
+
+`/scan/${object.slug}`;
+
+}}
+
+style={{
+
+position:"absolute",
+
+top:star.top,
+
+left:star.left,
+
+cursor:"pointer",
+
+animation:
+
+`qreFloat ${8 + index}s ease-in-out infinite`
+
+}}
+
+>
+
+
+
+<div
+
+style={{
+
+width:12,
+
+height:12,
+
+borderRadius:"50%",
+
+background:"#fff",
+
+boxShadow:
+
+"0 0 25px rgba(255,255,255,.9), 0 0 70px rgba(255,255,255,.35)"
+
+}}
 
 />
 
-:
 
-<GlassCard glow>
 
-Select an asset.
 
-</GlassCard>
+
+<div
+
+style={{
+
+marginTop:14,
+
+fontSize:13,
+
+letterSpacing:2,
+
+opacity:.7
+
+}}
+
+>
+
+{object.slug}
+
+</div>
+
+
+
+</div>
+
+);
+
+
+})
 
 
 }
+
+
+
+
+
+</section>
+
+
 
 
 
@@ -966,13 +637,7 @@ Select an asset.
 </div>
 
 
-
-
-
-
-
 </DashboardLayout>
-
 
 );
 
