@@ -1,124 +1,551 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiPost } from "../lib/api";
-import { useAuth } from "../components/auth/authContext";
+import {
+  useState,
+} from "react";
 
-export default function Login() {
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  apiPost,
+} from "../lib/api";
+
+import {
+  useAuth,
+} from "../components/auth/authContext";
+
+import AnimatedBackground from "../components/effects/AnimatedBackground";
+
+import IdeaParticles from "../components/effects/IdeaParticles";
+
+
+
+export default function Login(){
+
+
   const navigate = useNavigate();
-  const { setUser } = useAuth();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "register">("login");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    setUser,
+  } = useAuth();
 
-  async function handleSubmit() {
+
+
+  const [
+    email,
+    setEmail,
+  ] = useState("");
+
+
+
+  const [
+    password,
+    setPassword,
+  ] = useState("");
+
+
+
+  const [
+    mode,
+    setMode,
+  ] = useState<
+    "login" | "register"
+  >("login");
+
+
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+
+
+
+
+  async function handleSubmit(){
+
+
     setError("");
 
-    try {
+
+
+    try{
+
+
       setLoading(true);
 
-      const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
-      const res = await apiPost(endpoint, {
-        email,
-        password,
-      });
 
-      if (res?.token) {
-  localStorage.setItem(
-    "token",
-    res.token
-  );
-}
 
-if (res?.user) {
-  setUser(res.user);
-}
+      const endpoint =
+        mode === "login"
+        ?
+        "/auth/login"
+        :
+        "/auth/register";
 
-navigate("/dashboard");
-    } catch (err: any) {
-      setError(err.message || (mode === "login" ? "Login failed" : "Account creation failed"));
-    } finally {
-      setLoading(false);
+
+
+      const response =
+        await apiPost(
+          endpoint,
+          {
+            email,
+            password,
+          }
+        );
+
+
+
+      if(response?.token){
+
+        localStorage.setItem(
+          "token",
+          response.token
+        );
+
+      }
+
+
+
+      if(response?.user){
+
+        setUser(
+          response.user
+        );
+
+      }
+
+
+
+      navigate(
+        "/dashboard"
+      );
+
+
+
     }
+    catch(err:any){
+
+
+      setError(
+        err.message ??
+        "Connection failed"
+      );
+
+
+    }
+    finally{
+
+
+      setLoading(false);
+
+
+    }
+
+
   }
 
+
+
+
+
   return (
+
     <div
+
       style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#050505",
+
+        minHeight:"100vh",
+
+        position:"relative",
+
+        overflow:"hidden",
+
+        background:"#030303",
+
+        color:"#f5f5f5",
+
+        display:"flex",
+
+        alignItems:"center",
+
+        justifyContent:"center",
+
       }}
+
     >
-      <div
+
+
+      <AnimatedBackground />
+      
+       <IdeaParticles />
+
+
+
+
+
+      <main
+
         style={{
-          width: 420,
-          padding: 40,
-          border: "1px solid #222",
-          borderRadius: 18,
-          background: "#0b0b0b",
+
+          position:"relative",
+
+          zIndex:2,
+
+          width:"100%",
+
+          maxWidth:760,
+
+          padding:"60px 30px",
+
+          textAlign:"left",
+          transform:"translateX(0px)",
+
         }}
+
       >
-        <h1 style={{ textAlign: "center", marginBottom: 30 }}>
-          ⚡ ENTER NODE SYSTEM
-        </h1>
 
-        <input
-          placeholder="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", padding: 14, marginBottom: 12 }}
-        />
 
-        <input
-          placeholder="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 14, marginBottom: 20 }}
-        />
+             <div
+  style={{
+    position: "fixed",
+    top: 42,
+    left: 42,
+    zIndex: 5,
+    fontSize: 12,
+    letterSpacing: "14px",
+    fontWeight: 600,
+    color: "rgba(255,255,255,.32)",
+    textTransform: "uppercase",
+    userSelect: "none",
+             }}
+           >
+             QRE
+           </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{ width: "100%", padding: 14 }}
-        >
-          {loading
-            ? "Connecting..."
-            : mode === "login"
-              ? "LOGIN"
-              : "CREATE ACCOUNT"}
-        </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setMode((current) => (current === "login" ? "register" : "login"));
-            setError("");
-          }}
+        <h1
+
+style={{
+
+  margin:0,
+
+  fontSize:"clamp(38px,8vw,60px)",
+
+  lineHeight:1.08,
+
+  fontWeight:500,
+
+  letterSpacing:"-1.5px",
+
+  color:"#f5f5f2",
+
+  textShadow:
+    "0 30px 100px rgba(255,255,255,.10)",
+
+}}
+
+>
+
+Create
+
+<br/>
+
+something
+
+<br/>
+
+unforgettable.
+
+</h1>
+
+
+        
+
+
+
+
+
+        <p
+
           style={{
-            width: "100%",
-            padding: 12,
-            marginTop: 12,
-            border: "1px solid #333",
-            background: "transparent",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          {mode === "login" ? "Need an account? Create one" : "Already have an account? Log in"}
-        </button>
 
-        {error && (
-          <p style={{ color: "red", marginTop: 20, textAlign: "center" }}>
-            {error}
-          </p>
-        )}
-      </div>
+            marginTop:35,
+
+            fontSize:17,
+           color:"rgba(255,255,255,.45)",
+          letterSpacing:"1px",
+
+            lineHeight:1.5,
+
+          }}
+
+        >
+
+          Ideas become living experiences.
+
+        </p>
+
+
+
+
+
+
+
+        <section
+
+          style={{
+
+            marginTop:80,
+
+            display:"flex",
+
+            flexDirection:"column",
+
+            alignItems:"center",
+
+            gap:25,
+
+          }}
+
+        >
+
+
+
+
+          <input
+
+            value={email}
+
+            onChange={
+              e =>
+              setEmail(
+                e.target.value
+              )
+            }
+
+            placeholder="Email"
+
+            style={{
+
+              width:"100%",
+
+              maxWidth:420,
+
+              padding:"18px 0",
+
+              background:"transparent",
+
+              border:"none",
+
+              borderBottom:
+                "1px solid rgba(255,255,255,.25)",
+
+              color:"#fff",
+
+              outline:"none",
+
+              textAlign:"center",
+
+              fontSize:18,
+
+            }}
+
+          />
+
+
+
+
+
+
+          <input
+
+            type="password"
+
+            value={password}
+
+            onChange={
+              e =>
+              setPassword(
+                e.target.value
+              )
+            }
+
+            placeholder="Password"
+
+            style={{
+
+              width:"100%",
+
+              maxWidth:420,
+
+              padding:"18px 0",
+
+              background:"transparent",
+
+              border:"none",
+
+              borderBottom:
+                "1px solid rgba(255,255,255,.25)",
+
+              color:"#fff",
+
+              outline:"none",
+
+              textAlign:"center",
+
+              fontSize:18,
+
+            }}
+
+          />
+
+
+
+
+
+
+
+          <button
+
+            disabled={loading}
+
+            onClick={handleSubmit}
+
+            style={{
+
+              marginTop:30,
+
+              padding:
+                "18px 70px",
+
+              borderRadius:100,
+
+              border:
+                "1px solid rgba(255,255,255,.35)",
+
+              background:
+                "#f5f5f5",
+
+              color:"#050505",
+
+              fontWeight:900,
+
+              letterSpacing:3,
+
+              cursor:"pointer",
+
+            }}
+
+          >
+
+            {
+              loading
+              ?
+              "ENTERING"
+              :
+              mode==="login"
+              ?
+              "ENTER QRE"
+              :
+              "CREATE ACCOUNT"
+            }
+
+          </button>
+
+
+
+
+
+
+
+          <button
+
+            onClick={()=>{
+
+              setMode(
+                current =>
+                current==="login"
+                ?
+                "register"
+                :
+                "login"
+              );
+
+              setError("");
+
+            }}
+
+            style={{
+
+              marginTop:20,
+
+              background:"transparent",
+
+              border:"none",
+
+              color:"#999",
+
+              cursor:"pointer",
+
+            }}
+
+          >
+
+            {
+              mode==="login"
+              ?
+              "New creator?"
+              :
+              "Already creating?"
+            }
+
+          </button>
+
+
+
+
+
+
+          {
+            error &&
+            <p
+
+              style={{
+
+                color:"#aaa",
+
+              }}
+
+            >
+
+              {error}
+
+            </p>
+          }
+
+
+
+        </section>
+
+
+
+      </main>
+
+
+
     </div>
+
   );
+
+
 }

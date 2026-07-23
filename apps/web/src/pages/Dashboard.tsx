@@ -13,7 +13,7 @@ import {
 
 import {
   compileExperience,
-} from "../lib/experienceCompiler";
+} from "../lib/experienceApi";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
@@ -163,28 +163,10 @@ prompt,
 
 });
 
-
-
 sessionStorage.setItem(
-
-"experiencePreview",
-
-JSON.stringify({
-
-title:compiled.title,
-
-description:compiled.description,
-
-category:compiled.category,
-
-moments:compiled.moments,
-
-createdAt:new Date().toISOString(),
-
-})
-
+  "experiencePreview",
+  JSON.stringify(compiled)
 );
-
 
 
 navigate(
@@ -416,7 +398,7 @@ awaken();
 
 }}
 
-placeholder="Imagine it..."
+placeholder="Describe it..."
 
 style={{
 

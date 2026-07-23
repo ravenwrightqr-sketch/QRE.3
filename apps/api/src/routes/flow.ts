@@ -12,9 +12,12 @@ import {
 } from "../middleware/requireAuth.js";
 
 import {
-  experienceCompiler,
   blueprintToFlow,
 } from "@qre/engine";
+
+import {
+  compileExperience,
+} from "../services/experienceService.js";
 
 
 export const flowRouter = express.Router();
@@ -129,7 +132,7 @@ flowRouter.post(
 
 
       const compiled =
-        await experienceCompiler(
+        await compileExperience(
           input.trim()
         );
 
@@ -639,7 +642,7 @@ flowRouter.post(
 
 
       const compiled =
-        await experienceCompiler(
+       await compileExperience(
           input
         );
 

@@ -1,0 +1,22 @@
+.qre-creation {
+  min-height:70vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+
+
+/* phones */
+@media (max-width:600px){
+
+.qre-creation{
+
+  min-height:auto;
+  padding-top:80px;
+  padding-bottom:120px;
+
+}
+
+}

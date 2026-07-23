@@ -11,7 +11,8 @@ export * from "./authoring.js";
 export * from "./model.js";
 export * from "./archetypes.js";
 
-
 export * from "./genome.js";
 export * from "./meaning.js";
 export * from "./world.js";
+
+export * from "./runtime.js";

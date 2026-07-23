@@ -14,8 +14,8 @@ import ExperiencePreview from "./pages/ExperiencePreview";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateAsset from "./pages/admin/CreateAsset";
+import ExperienceCreator from "./pages/ExperienceCreator";
 
-import FlowEditor from "./components/flow/FlowEditor";
 import Checkout from "./pages/Checkout";
 import Scan from "./pages/scan";
 import Store from "./pages/store";
@@ -133,18 +133,18 @@ if (loading) {
           }
         />
 
+         <Route
+         path="/experience/create"
+         element={
+         isAuthed
+         ?
+        <ExperienceCreator />
+        :
+        <Navigate to="/login" />
+       }
+       />
 
 
-
-
-             <Route
-  path="/experience/builder/:flowId"
-  element={
-    isAuthed
-      ? <FlowEditor />
-      : <Navigate to="/login" />
-  }
-/>
 
         {/* =========================
             ADMIN

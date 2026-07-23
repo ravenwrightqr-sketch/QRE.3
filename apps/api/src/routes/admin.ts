@@ -16,8 +16,8 @@ import {
 } from "../middleware/requireAuth.js";
 
 import {
-  experienceCompiler,
-} from "@qre/engine";
+  compileExperience,
+} from "../services/experienceService.js";
 
 
 const router =
@@ -246,22 +246,18 @@ router.post(
        *
        * Prompt
        *   ↓
-       * Experience Compiler
+       * compiled experience
        *   ↓
        * Blueprint + Flow Steps
        *
        * =================================================
        */
 
-
-      const compiled =
-        await experienceCompiler(
-          prompt,
-        );
-
-
-
-
+       const compiled =
+       await compileExperience(
+       prompt,
+       );
+       
       /**
        * =================================================
        * CREATE FLOW

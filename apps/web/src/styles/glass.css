@@ -1,112 +1,97 @@
-:root {
+/* =====================================
+   QRE IDEA PARTICLE UNIVERSE
+   ===================================== */
+.idea-particle-layer {
 
---glass-bg:
-rgba(255,255,255,0.035);
+  position:fixed;
 
---glass-border:
-rgba(120,220,255,0.18);
+  inset:0;
 
---cyan:
-#00ffee;
+  width:100vw;
 
---purple:
-#9b5cff;
+  height:100vh;
 
---text:
-#eaffff;
+  pointer-events:none;
 
---bg:
-#020308;
+  z-index:1;
 
-}
+  background:none !important;
 
+  border:none !important;
 
-
-/* BODY */
-
-body {
-
-margin:0;
-
-background:
-radial-gradient(
-circle at top,
-#10152b,
-#000
-);
-
-color:var(--text);
-
-font-family:
-monospace;
-
-}
-
-
-
-/* GLASS PANELS */
-
-.glass-card {
-
-background:
-linear-gradient(
-145deg,
-rgba(255,255,255,.06),
-rgba(255,255,255,.015)
-);
-
-
-border:
-
-1px solid
-
-rgba(255,255,255,.12);
-
-
-backdrop-filter:
-
-blur(18px);
-
-
--webkit-backdrop-filter:
-
-blur(18px);
-
-
-border-radius:
-
-24px;
-
-
-padding:
-
-24px;
-
-
-box-shadow:
-
-0 20px 80px rgba(0,0,0,.6);
-
-
-transition:
-
-.25s ease;
+  box-shadow:none !important;
 
 }
 
 
 
 
-.glass-card:hover {
-
-transform:
-
-translateY(-3px);
 
 
-border-color:
 
-rgba(0,255,238,.35);
+.idea-particle {
+
+  position:absolute;
+
+
+  color:
+    rgba(235,235,235,.52);
+
+
+
+  font-family:
+
+    "Inter",
+    "SF Pro Display",
+    system-ui,
+    sans-serif;
+
+
+
+  font-size:15px;
+
+
+
+  font-weight:450;
+
+
+
+  letter-spacing:1px;
+
+
+
+  white-space:nowrap;
+
+
+
+  pointer-events:none;
+
+
+
+  text-shadow:
+
+
+    0 0 20px rgba(255,255,255,.18),
+
+    0 0 70px rgba(255,255,255,.06);
+
+
+
+  animation-name:
+
+    ideaFloat;
+
+
+
+  animation-timing-function:
+
+    ease-in-out;
+
+
+
+  animation-iteration-count:
+
+    infinite;
 
 
 }
@@ -114,109 +99,106 @@ rgba(0,255,238,.35);
 
 
 
-.glass-card-glow {
+@keyframes ideaFloat {
 
 
-box-shadow:
+  0% {
 
-0 0 40px rgba(0,255,238,.12),
 
-0 0 120px rgba(155,92,255,.08);
+    opacity:0;
 
 
-}
+    transform:
 
+      translate3d(0,80px,0)
 
+      scale(.92);
 
-/* BUTTONS */
 
 
-.cyber-button {
+    filter:
 
+      blur(5px);
 
-padding:
 
-12px 24px;
+  }
 
 
-border-radius:
 
-14px;
 
 
-background:
+  20% {
 
-rgba(0,255,238,.05);
 
+    opacity:.75;
 
-border:
 
-1px solid rgba(0,255,238,.45);
 
+    filter:
 
-color:
+      blur(0);
 
-#00ffee;
 
+  }
 
-font-weight:
 
-700;
 
 
-letter-spacing:
 
-2px;
+  50% {
 
 
-cursor:pointer;
+    opacity:.55;
 
 
-box-shadow:
 
-0 0 20px rgba(0,255,238,.15);
+    transform:
 
+      translate3d(35px,-45px,0)
 
-transition:
+      scale(1);
 
-.2s;
 
 
-}
+  }
 
 
 
-.cyber-button:hover {
 
 
-background:
+  75% {
 
-rgba(0,255,238,.15);
 
+    opacity:.35;
 
-box-shadow:
 
-0 0 35px rgba(0,255,238,.4);
+  }
 
 
-}
 
 
 
-/* TITLES */
+  100% {
 
 
-.glow-text {
+    opacity:0;
 
 
-color:
 
-#00ffee;
+    transform:
 
+      translate3d(-25px,-140px,0)
 
-text-shadow:
+      scale(.96);
 
-0 0 20px rgba(0,255,238,.6);
+
+
+    filter:
+
+      blur(5px);
+
+
+  }
 
 
 }

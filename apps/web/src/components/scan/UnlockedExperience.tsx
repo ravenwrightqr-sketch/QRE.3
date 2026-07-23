@@ -16,9 +16,7 @@ export default function UnlockedExperience({
 
     <CinematicScanPlayer
 
-      scenes={
-        data.cinematicScenes ?? []
-      }
+      data={data}
 
     />
 

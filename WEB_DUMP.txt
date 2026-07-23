@@ -1,0 +1,9585 @@
+
+============================================================
+FILE: \apps\web\.env
+============================================================
+
+DEV_MODE=true
+
+VITE_API_URL=http://localhost:3000
+
+============================================================
+FILE: \apps\web\.gitignore
+============================================================
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+============================================================
+FILE: \apps\web\index.html
+============================================================
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>web</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+============================================================
+FILE: \apps\web\package.json
+============================================================
+
+{
+  "name": "@qre/web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@qre/contracts": "workspace:*",
+    "@qre/engine": "workspace:*",
+    "axios": "^1.7.9",
+    "framer-motion": "^12.41.0",
+    "jwt-decode": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.5.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
+
+============================================================
+FILE: \apps\web\README.md
+============================================================
+
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+============================================================
+FILE: \apps\web\src\App.tsx
+============================================================
+
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+
+
+import Login from "./pages/Login";
+
+import Dashboard from "./pages/Dashboard";
+import AssetDashboard from "./pages/AssetDashboard";
+import ExperiencePreview from "./pages/ExperiencePreview";
+
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import CreateAsset from "./pages/admin/CreateAsset";
+import ExperienceCreator from "./pages/ExperienceCreator";
+import FlowEditor from "./components/flow/FlowEditor";
+import Checkout from "./pages/Checkout";
+import Scan from "./pages/scan";
+import Store from "./pages/store";
+import Product from "./pages/product";
+
+import Success from "./pages/Success";
+import Cancel from "./pages/Cancel";
+
+
+import { useAuth } from "./components/auth/authContext";
+
+
+
+export default function App() {
+
+const {
+  isAuthed,
+  loading,
+} = useAuth();
+
+
+if (loading) {
+  return (
+    <div
+      style={{
+        minHeight:"100vh",
+        display:"grid",
+        placeItems:"center",
+        background:"#030509",
+        color:"#00ffcc"
+      }}
+    >
+      LOADING QRE NODE...
+    </div>
+  );
+}
+
+
+
+  return (
+
+    <BrowserRouter>
+
+      <Routes>
+
+
+        {/* =========================
+            AUTH
+        ========================= */}
+
+        <Route
+          path="/login"
+          element={
+            isAuthed
+              ? <Navigate to="/dashboard" replace />
+              : <Login />
+          }
+        />
+
+
+
+        {/* =========================
+            ROOT REDIRECT
+        ========================= */}
+
+        <Route
+          path="/"
+          element={
+            isAuthed
+              ? <Navigate to="/dashboard" />
+              : <Navigate to="/login" />
+          }
+        />
+
+
+
+        {/* =========================
+            CUSTOMER DASHBOARD
+        ========================= */}
+
+
+        <Route
+          path="/dashboard"
+          element={
+            isAuthed
+              ? <Dashboard />
+              : <Navigate to="/login" />
+          }
+        />
+
+
+
+        <Route
+          path="/dashboard/assets/:slug"
+          element={
+            isAuthed
+              ? <AssetDashboard />
+              : <Navigate to="/login" />
+          }
+        />
+
+
+
+        {/* =========================
+            EXPERIENCE COMPILER PREVIEW
+        ========================= */}
+
+
+        <Route
+          path="/experience/preview"
+          element={
+            isAuthed
+              ? <ExperiencePreview />
+              : <Navigate to="/login" />
+          }
+        />
+
+         <Route
+         path="/experience/create"
+         element={
+         isAuthed
+         ?
+        <ExperienceCreator />
+        :
+        <Navigate to="/login" />
+       }
+       />
+
+
+
+             <Route
+  path="/experience/builder/:flowId"
+  element={
+    isAuthed
+      ? <FlowEditor />
+      : <Navigate to="/login" />
+  }
+/>
+
+        {/* =========================
+            ADMIN
+        ========================= */}
+
+
+        <Route
+          path="/admin"
+          element={
+            isAuthed
+              ? <AdminDashboard />
+              : <Navigate to="/login" />
+          }
+        />
+
+
+
+        <Route
+          path="/admin/create"
+          element={
+            isAuthed
+              ? <CreateAsset />
+              : <Navigate to="/login" />
+          }
+        />
+
+
+
+        
+
+
+
+        {/* =========================
+            PUBLIC RUNTIME
+        ========================= */}
+
+
+        <Route
+          path="/checkout/:slug"
+          element={<Checkout />}
+        />
+
+
+
+        <Route
+          path="/scan/:slug"
+          element={<Scan />}
+        />
+
+
+
+        <Route
+          path="/s/:slug"
+          element={<Scan />}
+        />
+
+
+
+        <Route
+          path="/product/:slug"
+          element={<Product />}
+        />
+
+
+
+        <Route
+          path="/store"
+          element={<Store />}
+        />
+
+
+
+        <Route
+          path="/success"
+          element={<Success />}
+        />
+
+
+
+        <Route
+          path="/cancel"
+          element={<Cancel />}
+        />
+
+
+
+        {/* =========================
+            FALLBACK
+        ========================= */}
+
+
+        <Route
+          path="*"
+          element={
+            <Navigate to="/" />
+          }
+        />
+
+
+      </Routes>
+
+    </BrowserRouter>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\assets\AssetControlPanel.tsx
+============================================================
+
+import FlowManager from "../flow/FlowManager";
+
+export default function AssetControlPanel({
+ asset
+}:{
+ asset:any
+}){
+
+
+return (
+
+<div>
+
+<h2>
+{asset.slug}
+</h2>
+
+
+<FlowManager
+
+assetId={
+ asset.id
+}
+
+/>
+
+
+</div>
+
+)
+
+}
+
+============================================================
+FILE: \apps\web\src\components\auth\authContext.tsx
+============================================================
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import { apiGet } from "../../lib/api";
+
+
+type User = {
+  id: string;
+  email?: string;
+  tier?: string;
+  tierActive?: boolean;
+};
+
+
+type AuthContextType = {
+  user: User | null;
+  isAuthed: boolean;
+  loading: boolean;
+  setUser: (user: User | null) => void;
+  logout: () => void;
+};
+
+
+const AuthContext =
+  createContext<AuthContextType | undefined>(undefined);
+
+
+
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+
+
+  const [user, setUserState] =
+    useState<User | null>(null);
+
+
+  const [loading, setLoading] =
+    useState(true);
+
+
+
+  /**
+   * =========================
+   * RESTORE REAL SESSION
+   * =========================
+   */
+  useEffect(() => {
+
+    async function hydrateAuth() {
+
+      const token =
+        localStorage.getItem("token");
+
+
+      if (!token) {
+
+        setUserState(null);
+        setLoading(false);
+
+        return;
+      }
+
+
+
+      try {
+
+        const res =
+          await apiGet("/auth/me");
+
+
+        const nextUser =
+          res?.user as User | undefined;
+
+
+        if (nextUser) {
+
+          setUserState(nextUser);
+
+          localStorage.setItem(
+            "user",
+            JSON.stringify(nextUser)
+          );
+
+        } else {
+
+          logout();
+
+        }
+
+
+      } catch {
+
+        logout();
+
+      } finally {
+
+        setLoading(false);
+
+      }
+
+    }
+
+
+    hydrateAuth();
+
+  }, []);
+
+
+
+  /**
+   * =========================
+   * SET USER AFTER LOGIN
+   * =========================
+   */
+  function setUser(user: User | null) {
+
+    setUserState(user);
+
+
+    if (user) {
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(user)
+      );
+
+    } else {
+
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+
+    }
+
+  }
+
+
+
+  /**
+   * =========================
+   * LOGOUT
+   * =========================
+   */
+  function logout() {
+
+    setUserState(null);
+
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+
+  }
+
+
+
+  const value: AuthContextType = {
+
+    user,
+
+    isAuthed:
+  !!user,
+
+    loading,
+
+    setUser,
+
+    logout,
+
+  };
+
+
+
+  return (
+
+    <AuthContext.Provider value={value}>
+
+      {children}
+
+    </AuthContext.Provider>
+
+  );
+
+}
+
+
+
+export function useAuth() {
+
+  const ctx =
+    useContext(AuthContext);
+
+
+  if (!ctx) {
+
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
+
+  }
+
+
+  return ctx;
+
+}
+
+============================================================
+FILE: \apps\web\src\components\compiler\ExperienceComposer.tsx
+============================================================
+
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import GlassCard from "../ui/GlassCard";
+import NeonButton from "../ui/NeonButton";
+
+import {
+  apiPost,
+} from "../../lib/api";
+
+
+type CompilerResult = {
+
+  id?: string;
+
+  flowId?: string;
+
+  assetId?: string;
+
+  title?: string;
+
+  industry?: string;
+
+  blueprint?: unknown;
+
+  flowSteps?: unknown[];
+
+  moments?: unknown[];
+
+  cinematicScenes?: unknown[];
+
+  estimatedDuration?: number;
+
+  momentCount?: number;
+
+};
+
+
+
+const buildStages = [
+
+  "Understanding your idea",
+
+  "Designing the experience",
+
+  "Creating the moments",
+
+  "Building the sequence",
+
+  "Preparing your builder",
+
+];
+
+
+
+
+
+export default function ExperienceComposer(){
+
+
+  const navigate =
+    useNavigate();
+
+
+
+  const [prompt,setPrompt] =
+    useState("");
+
+
+
+  const [loading,setLoading] =
+    useState(false);
+
+
+
+  const [stage,setStage] =
+    useState(0);
+
+
+
+  const [error,setError] =
+    useState<string | null>(null);
+
+
+
+  const [result,setResult] =
+    useState<CompilerResult | null>(null);
+
+
+
+  const intervalRef =
+    useRef<number | null>(null);
+
+
+
+
+
+  useEffect(()=>{
+
+
+    return ()=>{
+
+
+      if(intervalRef.current){
+
+        clearInterval(
+          intervalRef.current
+        );
+
+      }
+
+
+    };
+
+
+  },[]);
+
+
+
+
+
+
+
+  async function buildExperience(){
+
+
+    if(!prompt.trim()){
+
+
+      setError(
+        "Describe the experience you want to build."
+      );
+
+
+      return;
+
+    }
+
+
+
+
+
+    setLoading(true);
+
+    setError(null);
+
+    setResult(null);
+
+    setStage(0);
+
+
+
+
+
+    intervalRef.current =
+      window.setInterval(()=>{
+
+
+        setStage(current=>{
+
+
+          if(
+            current >= buildStages.length - 1
+          ){
+
+            return current;
+
+          }
+
+
+          return current + 1;
+
+
+        });
+
+
+      },900);
+
+
+
+
+
+
+    try{
+
+
+      const response =
+
+        await apiPost(
+
+          "/experience/compile",
+
+          {
+            input:
+              prompt.trim(),
+          }
+
+        );
+
+
+
+      setResult(response);
+
+
+
+    }
+    catch(error){
+
+
+      setError(
+
+        error instanceof Error
+
+        ? error.message
+
+        : "Experience generation failed."
+
+      );
+
+
+    }
+    finally{
+
+
+      if(intervalRef.current){
+
+        clearInterval(
+          intervalRef.current
+        );
+
+      }
+
+
+      setLoading(false);
+
+
+    }
+
+
+  }
+
+
+
+
+
+
+
+  function openBuilder(){
+
+
+    if(!result){
+
+      return;
+
+    }
+
+
+
+    /**
+     * Temporary editor handoff.
+     *
+     * Builder becomes the owner
+     * of saving.
+     */
+
+    sessionStorage.setItem(
+
+      "experienceDraft",
+
+      JSON.stringify({
+
+        ...result,
+
+        prompt,
+
+      })
+
+    );
+
+
+
+    navigate(
+      "/experience/builder"
+    );
+
+
+  }
+
+
+
+
+
+
+
+  return (
+
+    <GlassCard glow>
+
+
+      <h2>
+        ✨ Build an Experience
+      </h2>
+
+
+
+      <p
+        style={{
+          opacity:.7
+        }}
+      >
+
+        Describe the experience.
+        The engine creates the structure.
+
+      </p>
+
+
+
+
+
+      <textarea
+
+
+        value={prompt}
+
+
+        disabled={loading}
+
+
+        onChange={
+          e =>
+          setPrompt(
+            e.target.value
+          )
+        }
+
+
+
+        placeholder={
+`Example:
+
+Create a luxury Airbnb welcome experience.
+
+Welcome guests.
+Show WiFi instructions.
+Recommend restaurants.
+End with checkout details.`
+        }
+
+
+
+        style={{
+
+          width:"100%",
+
+          minHeight:170,
+
+          marginTop:18,
+
+          padding:18,
+
+          borderRadius:16,
+
+          resize:"vertical",
+
+          background:
+            "rgba(0,0,0,.35)",
+
+          color:"white",
+
+          border:
+            "1px solid rgba(255,255,255,.15)",
+
+          fontSize:15
+
+        }}
+
+
+      />
+
+
+
+
+
+
+      <div
+        style={{
+          marginTop:18
+        }}
+      >
+
+
+        <NeonButton
+
+          disabled={loading}
+
+          onClick={buildExperience}
+
+        >
+
+          {
+
+            loading
+
+            ? "⚡ Creating..."
+
+            : "⚡ Create Experience"
+
+          }
+
+
+        </NeonButton>
+
+
+      </div>
+
+
+
+
+
+
+
+
+      {
+        loading &&
+
+
+        <div
+          style={{
+            marginTop:25
+          }}
+        >
+
+          {
+            buildStages.map(
+
+              (item,index)=>(
+
+
+                <div
+
+                  key={item}
+
+                  style={{
+
+                    marginBottom:8,
+
+                    opacity:
+
+                    index <= stage
+
+                    ? 1
+
+                    : .35
+
+                  }}
+
+                >
+
+                  {
+
+                    index <= stage
+
+                    ? "✓"
+
+                    : "○"
+
+                  }
+
+
+                  {" "}
+
+
+                  {item}
+
+
+                </div>
+
+
+              )
+
+            )
+          }
+
+
+        </div>
+
+      }
+
+
+
+
+
+
+
+
+      {
+        error &&
+
+
+        <div
+
+          style={{
+
+            marginTop:20,
+
+            color:"#ff5555"
+
+          }}
+
+        >
+
+          {error}
+
+        </div>
+
+      }
+
+
+
+
+
+
+
+
+
+      {
+        result &&
+
+
+        <div
+
+          style={{
+
+            marginTop:30
+
+          }}
+
+        >
+
+
+          <h3>
+            🧱 Experience Generated
+          </h3>
+
+
+
+
+          <h2>
+
+            {
+
+              result.title ??
+
+              "Untitled Experience"
+
+            }
+
+          </h2>
+
+
+
+
+
+          <p
+            style={{
+              opacity:.6
+            }}
+          >
+
+            {
+
+              result.momentCount ??
+
+              result.moments?.length ??
+
+              0
+
+            }
+
+            {" "}
+            moments created
+
+
+          </p>
+
+
+
+
+
+
+          <NeonButton
+
+            onClick={openBuilder}
+
+          >
+
+            ▶ OPEN BUILDER & SAVE
+
+          </NeonButton>
+
+
+
+
+
+        </div>
+
+      }
+
+
+
+
+    </GlassCard>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\effects\AnimatedBackground.tsx
+============================================================
+
+export default function AnimatedBackground() {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+        background: "#020202",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: "-20%",
+          background:
+            "radial-gradient(circle at 30% 30%, rgba(255,255,255,.035), transparent 40%)",
+          animation: "qreAtmosphere 25s ease-in-out infinite",
+        }}
+      />
+
+      <style>
+        {`
+          @keyframes qreAtmosphere {
+
+            0% {
+              transform: scale(1);
+            }
+
+            50% {
+              transform: scale(1.08);
+            }
+
+            100% {
+              transform: scale(1);
+            }
+
+          }
+        `}
+      </style>
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\components\effects\IdeaParticles.tsx
+============================================================
+
+import { useMemo } from "react";
+
+
+const ideas = [
+
+  "Create a wedding memory",
+
+  "Create a time capsule",
+
+  "Create a living dog tag",
+
+  "Create a secret message",
+
+  "Create a brand story",
+
+  "Create an event that lives forever",
+
+  "Create a digital legacy",
+
+  "Create a memory from a moment",
+
+  "Create something they never forget",
+
+  "Create a story that survives time",
+
+  "Create a living object",
+
+  "Create a piece of history",
+
+];
+
+
+
+
+export default function IdeaParticles(){
+
+
+const particles = useMemo(()=>{
+
+
+return ideas.map((text,index)=>(
+
+
+{
+
+text,
+
+
+top:
+Math.random()*100,
+
+
+left:
+Math.random()*100,
+
+
+duration:
+18 + Math.random()*15,
+
+
+delay:
+index * 8,
+
+
+size:
+
+14 + Math.random()*5
+
+
+}
+
+
+
+));
+
+
+},[]);
+
+
+
+
+
+return (
+
+
+<div
+
+className="idea-particle-layer"
+
+>
+
+
+{
+
+
+particles.map((particle,index)=>(
+
+
+<div
+
+key={index}
+
+className="idea-particle"
+
+style={{
+
+
+top:`${particle.top}%`,
+
+
+left:`${particle.left}%`,
+
+
+fontSize:`${particle.size}px`,
+
+
+animationDuration:
+`${particle.duration}s`,
+
+
+animationDelay:
+`${particle.delay}s`
+
+
+}}
+
+
+>
+
+
+{particle.text}
+
+
+</div>
+
+
+))
+
+
+}
+
+
+
+</div>
+
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\effects\ParticleField.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\flow\FlowCard.tsx
+============================================================
+
+import GlassCard from "../ui/GlassCard";
+import NeonButton from "../ui/NeonButton";
+
+
+type Flow = {
+
+  id:string;
+
+  name:string;
+
+  version:number;
+
+};
+
+
+type Props = {
+
+  flow:Flow;
+
+  attached?:boolean;
+
+
+  onEdit:(id:string)=>void;
+
+  onPlay:(id:string)=>void;
+
+  onRename:(id:string)=>void;
+
+  onDetach?:(id:string)=>void;
+
+  onAttach?:(id:string)=>void;
+
+};
+
+
+
+export default function FlowCard({
+
+flow,
+
+attached,
+
+onEdit,
+
+onPlay,
+
+onRename,
+
+onDetach,
+
+onAttach,
+
+}:Props){
+
+
+return (
+
+<GlassCard glow>
+
+
+<h3>
+{flow.name}
+</h3>
+
+
+<p>
+Version {flow.version}
+</p>
+
+
+
+<div
+style={{
+display:"flex",
+gap:10,
+flexWrap:"wrap"
+}}
+>
+
+
+
+<NeonButton
+
+onClick={()=>onEdit(flow.id)}
+
+>
+
+EDIT
+
+</NeonButton>
+
+
+
+
+<NeonButton
+
+onClick={()=>onPlay(flow.id)}
+
+>
+
+PLAY
+
+</NeonButton>
+
+
+
+
+<NeonButton
+
+onClick={()=>onRename(flow.id)}
+
+>
+
+RENAME
+
+</NeonButton>
+
+
+
+{
+
+attached &&
+
+<NeonButton
+
+onClick={()=>onDetach?.(flow.id)}
+
+>
+
+DETACH
+
+</NeonButton>
+
+}
+
+
+
+{
+
+!attached &&
+
+<NeonButton
+
+onClick={()=>onAttach?.(flow.id)}
+
+>
+
+ATTACH
+
+</NeonButton>
+
+}
+
+
+
+</div>
+
+
+
+</GlassCard>
+
+);
+
+}
+
+============================================================
+FILE: \apps\web\src\components\flow\FlowEditor.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useParams,
+} from "react-router-dom";
+
+
+import GlassCard from "../ui/GlassCard";
+
+
+
+import {
+  getFlow,
+  saveFlow,
+} from "../../lib/api";
+
+
+
+
+
+
+export default function FlowEditor(){
+
+
+
+const {
+  flowId
+}=useParams();
+
+
+
+
+const [
+  flow,
+  setFlow
+]=useState<any>(null);
+
+
+
+
+const [
+  saving,
+  setSaving
+]=useState(false);
+
+
+
+
+const [
+  error,
+  setError
+]=useState("");
+
+
+
+
+
+
+
+
+async function load(){
+
+
+if(!flowId){
+
+return;
+
+}
+
+
+
+try{
+
+
+setError("");
+
+
+
+const result =
+await getFlow(
+ flowId
+);
+
+
+
+setFlow(
+ result.flow
+);
+
+
+
+}
+catch(error:any){
+
+
+console.error(
+ "Flow load failed",
+ error
+);
+
+
+
+setError(
+ error.message ??
+ "Unable to load flow"
+);
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+useEffect(()=>{
+
+
+load();
+
+
+},[flowId]);
+
+
+
+
+
+
+
+
+
+async function handleSave(
+
+ blocks:ExperienceBlock[]
+
+){
+
+
+
+if(!flowId){
+
+return;
+
+}
+
+
+
+
+try{
+
+
+setSaving(true);
+
+
+
+await saveFlow(
+
+ flowId,
+
+ {
+
+   steps:
+
+    blocks.map(
+      block=>({
+
+        type:
+          block.type,
+
+
+        payload:{
+
+          title:
+            block.title,
+
+
+          text:
+            block.text,
+
+
+          timer:
+            block.timer,
+
+
+          ...block.config,
+
+        }
+
+      })
+
+    )
+
+ }
+
+);
+
+
+
+alert(
+ "Flow saved successfully."
+);
+
+
+
+}
+catch(error:any){
+
+
+console.error(
+ error
+);
+
+
+
+alert(
+
+ error.message ??
+ "Save failed"
+
+);
+
+
+
+}
+finally{
+
+
+setSaving(false);
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+
+if(!flow){
+
+
+return (
+
+<GlassCard glow>
+
+Loading flow...
+
+</GlassCard>
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+return (
+
+<GlassCard glow>
+
+
+
+<h1>
+
+{flow.name}
+
+</h1>
+
+
+
+
+<p>
+
+Version {flow.version}
+
+</p>
+
+
+
+
+
+
+
+{
+error &&
+
+<p
+style={{
+color:"red"
+}}
+>
+
+{error}
+
+</p>
+
+}
+
+
+
+
+
+
+
+
+
+<ExperienceBlueprint
+
+
+
+moments={
+
+flow.steps?.map(
+
+(step:any)=>(
+
+{
+
+type:
+step.type,
+
+
+text:
+step.payload?.text ?? "",
+
+
+title:
+step.payload?.title ?? "Scene",
+
+
+timer:
+step.payload?.timer ?? 5,
+
+
+config:
+step.payload
+
+}
+
+)
+
+)
+
+}
+
+
+
+onSave={handleSave}
+
+
+
+/>
+
+
+
+
+
+
+
+
+
+<GlassCard glow>
+
+
+<small>
+
+{
+saving
+
+?
+
+"Saving flow..."
+
+:
+
+"Flow ready"
+
+}
+
+</small>
+
+
+</GlassCard>
+
+
+
+
+
+
+
+</GlassCard>
+
+);
+
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\flow\FlowLibrary.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+
+import GlassCard from "../ui/GlassCard";
+import NeonButton from "../ui/NeonButton";
+
+
+import {
+  getFlowLibrary,
+  attachFlow,
+  detachFlow,
+} from "../../lib/api";
+
+
+
+
+type Flow = {
+
+  id:string;
+
+  name:string;
+
+  description?:string | null;
+
+  category?:string | null;
+
+  visibility?:string;
+
+  version:number;
+
+  stepCount:number;
+
+  createdAt:string;
+
+};
+
+
+
+
+type Props = {
+
+  assetId:string;
+
+  onEdit?:
+  (
+    flowId:string
+  )=>void;
+
+};
+
+
+
+
+
+export default function FlowLibrary({
+
+  assetId,
+
+  onEdit,
+
+}:Props){
+
+
+
+const [
+
+  flows,
+
+  setFlows
+
+]=useState<Flow[]>([]);
+
+
+
+
+const [
+
+  loading,
+
+  setLoading
+
+]=useState(true);
+
+
+
+
+const [
+
+  error,
+
+  setError
+
+]=useState("");
+
+
+
+
+const [
+
+  message,
+
+  setMessage
+
+]=useState("");
+
+
+
+
+const [
+
+  actionLoading,
+
+  setActionLoading
+
+]=useState<string | null>(null);
+
+
+
+
+
+
+
+
+
+async function load(){
+
+
+try{
+
+
+setError("");
+
+
+
+const result =
+
+await getFlowLibrary();
+
+
+
+setFlows(
+
+ result.flows ?? []
+
+);
+
+
+
+}
+catch(error:any){
+
+
+console.error(
+
+ "Flow library failed",
+
+ error
+
+);
+
+
+
+setError(
+
+ error.message ??
+ "Unable to load flows"
+
+);
+
+
+
+}
+finally{
+
+
+setLoading(false);
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+useEffect(()=>{
+
+
+load();
+
+
+},[]);
+
+
+
+
+
+
+
+
+
+async function handleAttach(
+
+ flowId:string
+
+){
+
+
+
+try{
+
+
+setActionLoading(flowId);
+
+setMessage("");
+
+
+
+await attachFlow(
+
+ assetId,
+
+ flowId
+
+);
+
+
+
+setMessage(
+
+ "Experience attached."
+
+);
+
+
+
+await load();
+
+
+
+}
+catch(error:any){
+
+
+setMessage(
+
+ error.message ??
+ "Attach failed"
+
+);
+
+
+
+}
+finally{
+
+
+setActionLoading(null);
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+
+async function handleDetach(
+
+ flowId:string
+
+){
+
+
+
+try{
+
+
+setActionLoading(flowId);
+
+setMessage("");
+
+
+
+await detachFlow(
+
+ assetId,
+
+ flowId
+
+);
+
+
+
+setMessage(
+
+ "Experience detached."
+
+);
+
+
+
+await load();
+
+
+
+}
+catch(error:any){
+
+
+setMessage(
+
+ error.message ??
+ "Detach failed"
+
+);
+
+
+
+}
+finally{
+
+
+setActionLoading(null);
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+
+if(loading){
+
+
+return (
+
+<GlassCard glow>
+
+Loading experience library...
+
+</GlassCard>
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+return (
+
+<GlassCard glow>
+
+
+
+<h2>
+
+Experience Library
+
+</h2>
+
+
+
+
+
+{
+error &&
+
+<p
+style={{
+color:"red"
+}}
+>
+
+{error}
+
+</p>
+
+}
+
+
+
+
+
+{
+message &&
+
+<p
+style={{
+opacity:.8
+}}
+>
+
+{message}
+
+</p>
+
+}
+
+
+
+
+
+
+
+
+
+{
+flows.length === 0 &&
+
+<p>
+
+No saved experiences yet.
+
+</p>
+
+}
+
+
+
+
+
+
+
+
+
+{
+flows.map(flow=>(
+
+
+<GlassCard
+
+key={flow.id}
+
+glow
+
+>
+
+
+
+
+
+<h3>
+
+{flow.name}
+
+</h3>
+
+
+
+
+
+<p>
+
+Version {flow.version}
+
+</p>
+
+
+
+
+
+<p>
+
+Scenes:
+
+{" "}
+
+{flow.stepCount}
+
+</p>
+
+
+
+
+
+{
+flow.description &&
+
+<p>
+
+{flow.description}
+
+</p>
+
+}
+
+
+
+
+
+{
+flow.category &&
+
+<p>
+
+Category:
+
+{" "}
+
+{flow.category}
+
+</p>
+
+}
+
+
+
+
+
+<p>
+
+Visibility:
+
+{" "}
+
+{flow.visibility ?? "PRIVATE"}
+
+</p>
+
+
+
+
+
+
+
+<p
+style={{
+fontSize:12,
+opacity:.6
+}}
+>
+
+Created:
+
+{" "}
+
+{
+new Date(
+flow.createdAt
+).toLocaleDateString()
+}
+
+</p>
+
+
+
+
+
+
+
+
+
+<div
+
+style={{
+
+display:"flex",
+
+gap:10,
+
+flexWrap:"wrap",
+
+marginTop:15
+
+}}
+
+>
+
+
+
+
+
+<NeonButton
+
+onClick={()=>onEdit?.(flow.id)}
+
+>
+
+EDIT
+
+</NeonButton>
+
+
+
+
+
+
+
+<NeonButton
+
+disabled={
+ actionLoading === flow.id
+}
+
+onClick={()=>handleAttach(flow.id)}
+
+>
+
+{
+actionLoading === flow.id
+?
+"ATTACHING..."
+:
+"ATTACH"
+}
+
+</NeonButton>
+
+
+
+
+
+
+
+<NeonButton
+
+disabled={
+ actionLoading === flow.id
+}
+
+onClick={()=>handleDetach(flow.id)}
+
+>
+
+{
+actionLoading === flow.id
+?
+"WORKING..."
+:
+"DETACH"
+}
+
+</NeonButton>
+
+
+
+
+
+
+
+</div>
+
+
+
+
+
+
+
+</GlassCard>
+
+
+))
+
+}
+
+
+
+
+
+
+
+
+</GlassCard>
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\flow\FlowManager.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import GlassCard from "../ui/GlassCard";
+import NeonButton from "../ui/NeonButton";
+
+import FlowCard from "./FlowCard";
+
+import {
+  apiGet,
+  apiPost,
+} from "../../lib/api";
+
+
+type Flow = {
+
+  id:string;
+
+  name:string;
+
+  version:number;
+
+  createdAt?:string;
+
+};
+
+
+
+type Props = {
+
+  assetId:string;
+
+  onEdit?:(flowId:string)=>void;
+
+  onPlay?:(flowId:string)=>void;
+
+  onRename?:(flowId:string)=>void;
+
+  onCreate?():void;
+
+};
+
+
+
+
+export default function FlowManager({
+
+assetId,
+
+onEdit,
+
+onPlay,
+
+onRename,
+
+onCreate,
+
+}:Props){
+
+
+
+const [
+ attached,
+ setAttached
+] =
+useState<Flow[]>([]);
+
+
+
+const [
+ library,
+ setLibrary
+] =
+useState<Flow[]>([]);
+
+
+
+const [
+ loading,
+ setLoading
+] =
+useState(true);
+
+
+
+
+async function load(){
+
+
+try{
+
+
+setLoading(true);
+
+
+
+const [
+attachedResult,
+libraryResult
+]
+=
+await Promise.all([
+
+
+apiGet(
+`/api/flow/asset/${assetId}`
+),
+
+
+apiGet(
+"/api/flow/library"
+)
+
+
+]);
+
+
+
+setAttached(
+attachedResult.flows ?? []
+);
+
+
+
+setLibrary(
+libraryResult.flows ?? []
+);
+
+
+
+}
+catch(error){
+
+
+console.error(
+"loading flow manager failed",
+error
+);
+
+
+
+}
+finally{
+
+
+setLoading(false);
+
+
+}
+
+
+}
+
+
+
+
+
+
+useEffect(()=>{
+
+load();
+
+},[assetId]);
+
+
+
+
+
+
+
+async function attach(flowId:string){
+
+
+try{
+
+
+await apiPost(
+
+"/api/flow/assign-flow",
+
+{
+
+assetId,
+
+flowId,
+
+}
+
+);
+
+
+
+await load();
+
+
+}
+catch(error){
+
+console.error(
+"attach failed",
+error
+);
+
+}
+
+
+}
+
+
+
+
+
+
+async function detach(flowId:string){
+
+
+try{
+
+
+await apiPost(
+
+"/api/flow/detach-flow",
+
+{
+
+assetId,
+
+flowId,
+
+}
+
+);
+
+
+
+await load();
+
+
+}
+catch(error){
+
+console.error(
+"detach failed",
+error
+);
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+if(loading){
+
+
+return (
+
+<GlassCard glow>
+
+Loading experiences...
+
+</GlassCard>
+
+);
+
+
+}
+
+
+
+
+
+
+
+return (
+
+<GlassCard glow>
+
+
+<h2>
+Experience Manager
+</h2>
+
+
+
+
+
+<h3>
+Attached Experiences
+</h3>
+
+
+
+
+{
+attached.length === 0 &&
+
+<p>
+No experiences attached.
+</p>
+
+}
+
+
+
+
+{
+attached.map(flow=>(
+
+
+<FlowCard
+
+key={flow.id}
+
+flow={flow}
+
+attached={true}
+
+onEdit={
+onEdit ??
+(()=>{})
+}
+
+onPlay={
+onPlay ??
+(()=>{})
+}
+
+onRename={
+onRename ??
+(()=>{})
+}
+
+onDetach={
+detach
+}
+
+/>
+
+
+))
+
+}
+
+
+
+
+
+
+
+<h3
+style={{
+marginTop:40
+}}
+>
+
+Experience Library
+
+</h3>
+
+
+
+
+
+
+{
+library
+
+.filter(
+
+flow=>
+
+!attached.some(
+
+attachedFlow=>
+
+attachedFlow.id === flow.id
+
+)
+
+)
+
+.map(flow=>(
+
+
+<FlowCard
+
+key={flow.id}
+
+flow={flow}
+
+attached={false}
+
+onEdit={
+onEdit ??
+(()=>{})
+}
+
+onPlay={
+onPlay ??
+(()=>{})
+}
+
+onRename={
+onRename ??
+(()=>{})
+}
+
+onAttach={
+attach
+}
+
+/>
+
+
+))
+
+}
+
+
+
+
+
+
+<NeonButton
+
+onClick={onCreate}
+
+>
+
++ CREATE EXPERIENCE
+
+</NeonButton>
+
+
+
+
+
+</GlassCard>
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\flow\FlowNameModal.tsx
+============================================================
+
+import {
+useState
+} from "react";
+
+
+import NeonButton from "../ui/NeonButton";
+
+
+type Props={
+
+initial?:string;
+
+onSave:(name:string)=>void;
+
+onClose:()=>void;
+
+};
+
+
+export default function FlowNameModal({
+
+initial="",
+
+onSave,
+
+onClose,
+
+}:Props){
+
+
+const [name,setName]=
+useState(initial);
+
+
+
+return (
+
+<div>
+
+
+<h2>
+Name this experience
+</h2>
+
+
+<input
+
+value={name}
+
+onChange={
+e=>setName(e.target.value)
+}
+
+placeholder="
+Example:
+Grand Canyon Memory
+"
+
+/>
+
+
+
+<div>
+
+<NeonButton
+
+onClick={()=>{
+
+if(name.trim()){
+
+onSave(name.trim());
+
+}
+
+}}
+
+>
+SAVE
+</NeonButton>
+
+
+
+<NeonButton
+
+onClick={onClose}
+
+>
+CANCEL
+</NeonButton>
+
+
+</div>
+
+
+</div>
+
+
+)
+
+}
+
+============================================================
+FILE: \apps\web\src\components\layout\DashboardLayout.tsx
+============================================================
+
+import React from "react";
+import AnimatedBackground from "../effects/AnimatedBackground";
+
+
+export default function DashboardLayout({
+children,
+}:{
+children:React.ReactNode;
+}){
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+position:"relative",
+
+background:"#030509",
+
+color:"#e8ffff",
+
+overflow:"hidden"
+
+}}
+
+>
+
+
+<AnimatedBackground />
+
+
+<div
+
+style={{
+
+position:"relative",
+
+zIndex:2,
+
+padding:"40px",
+
+maxWidth:1400,
+
+margin:"0 auto",
+
+fontFamily:
+"'Courier New', monospace"
+
+}}
+
+>
+
+
+{children}
+
+
+</div>
+
+
+</div>
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\CinematicScanPlayer.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import MomentRenderer from "./MomentRenderer";
+
+import type {
+  Experience,
+  CinematicScene,
+} from "@qre/contracts";
+
+
+
+
+
+type Props = {
+
+  experience: Experience;
+
+};
+
+
+
+
+
+
+export default function CinematicScanPlayer({
+
+  experience,
+
+}:Props){
+
+
+
+const scenes:
+
+CinematicScene[] =
+
+experience.cinematicScenes ?? [];
+
+
+
+
+const [
+index,
+setIndex
+]=useState(0);
+
+
+
+
+
+
+useEffect(()=>{
+
+setIndex(0);
+
+},[experience]);
+
+
+
+
+
+
+
+const scene =
+
+scenes[index];
+
+
+
+
+
+
+
+
+
+useEffect(()=>{
+
+
+if(!scene)
+return;
+
+
+
+const timer =
+
+window.setTimeout(()=>{
+
+
+setIndex(
+
+current =>
+
+Math.min(
+
+current + 1,
+
+scenes.length
+
+)
+
+);
+
+
+},
+
+
+scene.duration ?? 3000);
+
+
+
+return()=>{
+
+window.clearTimeout(timer);
+
+};
+
+
+},[
+
+scene,
+
+scenes.length
+
+]);
+
+
+
+
+
+
+
+
+function restart(){
+
+setIndex(0);
+
+}
+
+
+
+
+
+
+
+if(!scene){
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+display:"grid",
+
+placeItems:"center",
+
+background:"#030305",
+
+color:"#fff",
+
+textAlign:"center",
+
+padding:40
+
+}}
+
+>
+
+
+<div>
+
+
+<h1>
+
+Memory Sealed
+
+</h1>
+
+
+<p
+
+style={{
+
+opacity:.6
+
+}}
+
+>
+
+This experience has completed.
+
+</p>
+
+
+
+<button
+
+onClick={restart}
+
+style={{
+
+marginTop:25,
+
+padding:"14px 35px",
+
+borderRadius:999,
+
+background:"transparent",
+
+border:"1px solid rgba(255,255,255,.35)",
+
+color:"#fff",
+
+cursor:"pointer"
+
+}}
+
+>
+
+RELIVE
+
+</button>
+
+
+</div>
+
+
+</div>
+
+);
+
+
+}
+
+
+
+
+
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+width:"100%",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+background:"#030305",
+
+color:"#fff",
+
+padding:"40px 20px"
+
+}}
+
+>
+
+
+<div
+
+style={{
+
+width:"min(1200px,100%)",
+
+}}
+
+>
+
+
+<MomentRenderer
+
+moment={scene.moment}
+
+/>
+
+
+
+</div>
+
+
+</div>
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\DemoExperience.tsx
+============================================================
+
+import CinematicScanPlayer from "./CinematicScanPlayer";
+import type { ScanResponse } from "@qre/contracts";
+
+type Props = {
+  data: ScanResponse;
+};
+
+
+export default function DemoExperience({
+  data,
+}: Props) {
+
+  return (
+    <div
+      style={{
+        position:"relative",
+        height:"100vh",
+        width:"100%",
+        background:"#050505",
+      }}
+    >
+
+      <CinematicScanPlayer
+        scenes={
+          data.cinematicScenes ?? []
+        }
+      />
+
+
+      <div
+        style={{
+          position:"absolute",
+          bottom:40,
+          left:"50%",
+          transform:"translateX(-50%)",
+          zIndex:10,
+        }}
+      >
+
+        <button
+          style={{
+            padding:"14px 28px",
+            borderRadius:30,
+            border:"none",
+            cursor:"pointer",
+            fontSize:16,
+          }}
+          onClick={()=>{
+            window.location.href =
+              `/store/${data.asset?.slug}`;
+          }}
+        >
+          Create Your Experience
+        </button>
+
+      </div>
+
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\LiveScanPreview.tsx
+============================================================
+
+import GlassCard from "../ui/GlassCard";
+import NeonButton from "../ui/NeonButton";
+
+
+export default function LiveScanPreview({
+  slug
+}: {
+  slug:string;
+}) {
+
+
+  function launchPlayer(){
+
+    window.open(
+      `/scan/${slug}`,
+      "_blank"
+    );
+
+  }
+
+
+
+  return (
+
+    <GlassCard glow>
+
+
+      <h3>
+        LIVE EXPERIENCE CONTROL
+      </h3>
+
+
+      <div
+        style={{
+          fontSize:12,
+          opacity:.6
+        }}
+      >
+
+        Experience:
+        {" "}
+        {slug}
+
+      </div>
+
+
+
+      <div
+        style={{
+          marginTop:8,
+          fontSize:12,
+          opacity:.7
+        }}
+      >
+
+        Runtime:
+        {" "}
+        Cinematic Engine
+
+      </div>
+
+
+
+      <div
+        style={{
+          marginTop:8,
+          fontSize:12,
+          opacity:.7
+        }}
+      >
+
+        Status:
+        {" "}
+        Ready
+
+      </div>
+
+
+
+      <div
+        style={{
+          marginTop:16
+        }}
+      >
+
+        <NeonButton
+          onClick={launchPlayer}
+        >
+
+          ▶ OPEN EXPERIENCE
+
+        </NeonButton>
+
+
+      </div>
+
+
+
+    </GlassCard>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\MomentRenderer.tsx
+============================================================
+
+import type { Moment } from "@qre/contracts";
+
+type MomentProps = {
+  moment: Moment;
+};
+
+export default function MomentRenderer({
+  moment,
+}: MomentProps) {
+
+  const meta =
+    (moment as any)?.meta ?? {};
+
+  const text =
+    (moment as any)?.text ??
+    meta.text ??
+    "";
+
+  const url =
+    (moment as any)?.url ??
+    meta.url ??
+    null;
+
+
+  switch(moment.type) {
+
+
+    /**
+     * SYSTEM / ENGINE EVENTS
+     */
+    case "system":
+
+      return (
+        <div
+          style={{
+            padding:0,
+            borderRadius:0,
+            background:"transparent",
+            border:"none",
+            textAlign:"center",
+            fontSize:"clamp(14px, 2.2vw, 20px)",
+            opacity:.82,
+            width:"100%",
+            maxWidth:740,
+            letterSpacing:"0.02em",
+          }}
+        >
+
+          {text || "Experience Event"}
+
+        </div>
+      );
+
+
+
+    /**
+     * STORY MESSAGES
+     */
+    case "message":
+
+      return (
+        <div
+          style={{
+            width:"100%",
+            maxWidth:940,
+            minHeight:"62vh",
+            padding:"28px 20px",
+            borderRadius:0,
+            background:"transparent",
+            border:"none",
+            fontSize:"clamp(32px, 7vw, 78px)",
+            lineHeight:1.12,
+            display:"grid",
+            placeItems:"center",
+            textAlign:"center",
+            textShadow:
+              "0 6px 36px rgba(0,0,0,.45)",
+          }}
+        >
+
+          {text}
+
+        </div>
+      );
+
+
+
+    /**
+     * BUTTONS / REDIRECTS / PAYMENTS
+     */
+    case "action":
+
+      return (
+        <button
+
+          onClick={()=>{
+            if(url){
+              window.location.href=url;
+            }
+          }}
+
+          style={{
+            width:"100%",
+            padding:"16px 22px",
+            borderRadius:18,
+            border:
+              "1px solid rgba(0,255,180,.4)",
+            background:
+              "rgba(0,255,180,.12)",
+            color:"white",
+            fontSize:16,
+            cursor:"pointer",
+            backdropFilter:"blur(10px)",
+          }}
+
+        >
+
+          {meta.text ||
+           text ||
+           "Continue →"}
+
+        </button>
+      );
+
+
+
+    /**
+     * MEDIA EXPERIENCE
+     */
+    case "media":
+
+      return (
+
+        url ?
+
+        <img
+
+          src={url}
+
+          alt={
+            meta.text ??
+            "experience media"
+          }
+
+          style={{
+            width:"100%",
+            borderRadius:20,
+          }}
+
+        />
+
+        :
+
+        <div>
+          Media unavailable
+        </div>
+
+      );
+
+
+
+    /**
+     * GEO MEMORY
+     */
+    case "location":
+
+      return (
+
+        <div
+
+          style={{
+            padding:0,
+            borderRadius:0,
+            background:"transparent",
+            width:"100%",
+            maxWidth:940,
+            textAlign:"center",
+          }}
+
+        >
+
+          <h3 style={{ marginBottom: 8 }}>
+            📍 {meta.label ?? "Location"}
+          </h3>
+
+
+          {
+            meta.city &&
+            <div>
+              {meta.city}
+              {meta.region &&
+                `, ${meta.region}`
+              }
+            </div>
+          }
+
+
+        </div>
+
+      );
+
+
+
+    default:
+
+      return (
+
+        <div
+          style={{
+            opacity:.5,
+            fontSize:12
+          }}
+        >
+
+          Unknown experience event
+
+        </div>
+
+      );
+
+  }
+
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\ScanAccessRouter.tsx
+============================================================
+
+import type { ScanResponse } from "@qre/contracts";
+
+import DemoExperience from "./DemoExperience";
+import UnlockedExperience from "./UnlockedExperience";
+
+
+type Props = {
+  data: ScanResponse;
+};
+
+
+export default function ScanAccessRouter({
+  data,
+}: Props) {
+
+
+  if(
+    data.access === "UNLOCKED"
+  ){
+
+    return (
+
+      <UnlockedExperience
+        data={data}
+      />
+
+    );
+
+  }
+
+
+
+  return (
+
+    <DemoExperience
+      data={data}
+    />
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\scan\UnlockedExperience.tsx
+============================================================
+
+import CinematicScanPlayer from "./CinematicScanPlayer";
+import type { ScanResponse } from "@qre/contracts";
+
+
+type Props = {
+  data: ScanResponse;
+};
+
+
+export default function UnlockedExperience({
+  data,
+}: Props) {
+
+
+  return (
+
+    <CinematicScanPlayer
+
+      scenes={
+        data.cinematicScenes ?? []
+      }
+
+    />
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\ui\Glassbutton.tsx
+============================================================
+
+import type { ReactNode } from "react";
+
+export default function GlassButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="glass glow-text"
+      style={{
+        padding: "10px 14px",
+        cursor: "pointer",
+        marginRight: 8,
+        transition: "0.2s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\components\ui\GlassCard.tsx
+============================================================
+
+import type { ReactNode } from "react";
+
+
+export default function GlassCard({
+
+  children,
+
+  glow = false,
+
+  style,
+
+}: {
+
+  children: ReactNode;
+
+  glow?: boolean;
+
+  style?: React.CSSProperties;
+
+}) {
+
+
+return (
+
+
+<div
+
+style={{
+
+
+position:"relative",
+
+
+padding:28,
+
+
+background:
+
+"linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025))",
+
+
+
+border:
+
+glow
+
+?
+
+"1px solid rgba(255,255,255,.25)"
+
+:
+
+"1px solid rgba(255,255,255,.12)",
+
+
+
+
+borderRadius:30,
+
+
+
+
+boxShadow:
+
+glow
+
+?
+
+`
+
+0 40px 120px rgba(0,0,0,.75),
+
+0 0 80px rgba(255,255,255,.08)
+
+`
+
+:
+
+`
+
+0 30px 100px rgba(0,0,0,.65)
+
+`,
+
+
+
+
+
+backdropFilter:
+
+"blur(32px)",
+
+
+
+WebkitBackdropFilter:
+
+"blur(32px)",
+
+
+
+overflow:"hidden",
+
+
+
+transition:
+
+"all .35s ease",
+
+
+
+...style
+
+
+
+}}
+
+
+
+>
+
+
+{/* cinematic glass reflection */}
+
+
+<div
+
+style={{
+
+
+position:"absolute",
+
+
+inset:0,
+
+
+pointerEvents:"none",
+
+
+
+background:
+
+
+`
+
+linear-gradient(
+
+120deg,
+
+transparent 20%,
+
+rgba(255,255,255,.035),
+
+transparent 70%
+
+)
+
+`
+
+
+
+}}
+
+
+/>
+
+
+
+
+
+<div
+
+style={{
+
+
+position:"relative",
+
+
+zIndex:1
+
+
+}}
+
+>
+
+
+{children}
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\components\ui\GlassInput.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\GlassModal.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\GlassPanel.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\GlassSidebar.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\GlowBorder.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\MetricCard.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\NeonButton.tsx
+============================================================
+
+import React from "react";
+
+export default function NeonButton(
+  props: React.ButtonHTMLAttributes<HTMLButtonElement>
+) {
+
+  return (
+
+    <button
+
+      {...props}
+
+      className="cyber-button"
+
+    />
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\components\ui\StatChip.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\ui\StatusPill.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\components\world\ConstellationField.tsx
+============================================================
+
+
+============================================================
+FILE: \apps\web\src\hooks\useLiveAnalytics.ts
+============================================================
+
+import { useEffect, useState } from "react";
+
+type AnalyticsPayload = {
+  metrics: any;
+  funnel: any;
+  activity: any[];
+  timestamp: number;
+};
+
+export function useLiveAnalytics(assetId: string) {
+  const [data, setData] = useState<AnalyticsPayload | null>(null);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    if (!assetId) return;
+
+    const url = `${import.meta.env.VITE_API_URL}/api/analytics/live/${assetId}`;
+    const es = new EventSource(url);
+
+    es.onopen = () => setConnected(true);
+
+    es.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        setData(parsed);
+      } catch (err) {
+        console.error("[SSE PARSE ERROR]", err);
+      }
+    };
+
+    es.onerror = () => {
+      setConnected(false);
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [assetId]);
+
+  return {
+    data,
+    connected,
+  };
+}
+
+============================================================
+FILE: \apps\web\src\hooks\useLiveDashboard.ts
+============================================================
+
+import { useEffect, useRef, useState } from "react";
+
+type LiveMetrics = {
+  scans: number;
+  errors: number;
+  flows: number;
+  completions: number;
+  conversionRate: number;
+};
+
+export function useLiveDashboard(assetId: string) {
+  const [data, setData] = useState<LiveMetrics | null>(null);
+  const [connected, setConnected] = useState(false);
+
+  const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    if (!assetId) return;
+
+    /**
+     * =========================
+     * BUILD SSE CONNECTION
+     * =========================
+     */
+    const es = new EventSource(
+      `/api/dashboard/live/${assetId}`
+    );
+
+    esRef.current = es;
+
+    es.onopen = () => {
+      setConnected(true);
+    };
+
+    es.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        setData(parsed);
+      } catch (err) {
+        console.warn("[LIVE DASHBOARD] parse error", err);
+      }
+    };
+
+    es.onerror = () => {
+      setConnected(false);
+
+      /**
+       * AUTO RECONNECT (simple backoff)
+       */
+      setTimeout(() => {
+        es.close();
+      }, 2000);
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [assetId]);
+
+  return {
+    data,
+    connected,
+  };
+}
+
+============================================================
+FILE: \apps\web\src\lib\api.ts
+============================================================
+
+const API_BASE =
+  import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+
+
+/**
+ * =========================
+ * AUTHENTICATED REQUEST
+ * =========================
+ */
+
+async function request(
+  path: string,
+  options: RequestInit = {}
+){
+
+  const token =
+    localStorage.getItem("token");
+
+
+  const res =
+    await fetch(
+      `${API_BASE}${path}`,
+      {
+
+        method:
+          options.method || "GET",
+
+        headers:{
+
+          "Content-Type":
+            "application/json",
+
+          ...(token
+            ? {
+                Authorization:
+                  `Bearer ${token}`
+              }
+            : {}),
+
+          ...(options.headers || {}),
+
+        },
+
+        body:
+          options.body,
+
+      }
+    );
+
+
+  let data:any = {};
+
+  try{
+
+    data =
+      await res.json();
+
+  }
+  catch{
+
+    data={};
+
+  }
+
+
+  if(res.status === 401){
+
+    throw new Error(
+      data.error || "Unauthorized"
+    );
+
+  }
+
+
+  if(!res.ok){
+
+    throw new Error(
+      data.error ||
+      "Request failed"
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+
+/**
+ * =========================
+ * PUBLIC REQUEST
+ * QR SCANS
+ * =========================
+ */
+
+async function publicRequest(
+  path:string
+){
+
+  const res =
+    await fetch(
+      `${API_BASE}${path}`,
+      {
+
+        method:"GET",
+
+        headers:{
+          "Content-Type":
+            "application/json",
+        },
+
+      }
+    );
+
+
+  let data:any={};
+
+
+  try{
+
+    data =
+      await res.json();
+
+  }
+  catch{
+
+    data={};
+
+  }
+
+
+
+  if(!res.ok){
+
+    throw new Error(
+      data.error ||
+      "Public request failed"
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+
+/**
+ * =========================
+ * CORE API METHODS
+ * =========================
+ */
+
+export const apiGet =
+(path:string)=>
+request(path);
+
+
+
+export const apiPost =
+(
+  path:string,
+  body?:any
+)=>
+request(
+  path,
+  {
+    method:"POST",
+    body:
+      JSON.stringify(body),
+  }
+);
+
+
+
+export const apiPut =
+(
+  path:string,
+  body?:any
+)=>
+request(
+  path,
+  {
+    method:"PUT",
+    body:
+      JSON.stringify(body),
+  }
+);
+
+
+
+export const apiDelete =
+(path:string)=>
+request(
+  path,
+  {
+    method:"DELETE"
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * AUTH / USER
+ * =========================
+ */
+
+export const getUserDashboard =
+() =>
+apiGet(
+  "/api/dashboard"
+);
+
+
+
+export const getUserAssets =
+() =>
+apiGet(
+  "/api/user/assets"
+);
+
+
+
+export const getAssetDashboard =
+(slug:string)=>
+apiGet(
+  `/api/dashboard/assets/${slug}`
+);
+
+
+
+export const getAdminDashboard =
+() =>
+apiGet(
+  "/api/admin/dashboard"
+);
+
+
+
+export const createExperienceAsset =
+(payload:{
+  slug:string;
+  prompt:string;
+  priceCents?:number;
+}) =>
+apiPost(
+  "/api/admin/assets/create-experience",
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * EXPERIENCE COMPILER
+ * =========================
+ *
+ * PREVIEW ONLY
+ *
+ * Prompt
+ * ↓
+ * Compiler
+ * ↓
+ * Experience Blueprint
+ *
+ * No database write
+ *
+ * =========================
+ */
+
+export const compileExperience =
+(payload:{
+  prompt:string;
+}) =>
+apiPost(
+  "/experience/compile",
+  {
+    prompt:
+      payload.prompt,
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * EXPERIENCE CREATION
+ * =========================
+ *
+ * Compiler
+ * ↓
+ * Flow
+ * ↓
+ * AssetFlow
+ *
+ * Permanent save
+ *
+ * =========================
+ */
+
+export const createAndAttachFlow =
+(payload:{
+  assetId:string;
+  name?:string;
+  blueprint:any;
+  actions?:any;
+}) =>
+apiPost(
+  "/api/flow/create-and-attach",
+  payload
+);
+
+
+
+
+
+/**
+ * Update existing flow
+ *
+ * Asset
+ * |
+ * Flow
+ * |
+ * Steps
+ *
+ */
+
+export const compileAndSaveExperience =
+(payload:{
+  assetId:string;
+  flowId:string;
+  input:string;
+}) =>
+apiPost(
+  "/api/flow/compile-and-save",
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * FLOW MANAGEMENT
+ * =========================
+ */
+
+
+
+export const getFlow =
+(flowId:string)=>
+apiGet(
+  `/api/flow/${flowId}`
+);
+
+
+
+export const saveFlow =
+(
+  flowId:string,
+  payload:any
+)=>
+apiPut(
+  `/api/flow/${flowId}`,
+  payload
+);
+
+
+
+
+
+/**
+ * =========================
+ * FLOW LIBRARY
+ * =========================
+ */
+
+
+
+export const getFlowLibrary =
+() =>
+apiGet(
+  "/api/flow/library"
+);
+
+
+
+/**
+ * Get flows attached
+ * to specific asset
+ *
+ * Asset
+ * |
+ * AssetFlow
+ * |
+ * Flow
+ *
+ */
+
+export const getAssetFlows =
+(assetId:string)=>
+apiGet(
+  `/api/flow/asset/${assetId}`
+);
+
+
+
+
+
+/**
+ * Attach existing flow
+ * to asset
+ *
+ */
+
+export const attachFlow =
+(
+  assetId:string,
+  flowId:string,
+  priority:number = 0
+)=>
+apiPost(
+  "/api/flow/assign-flow",
+  {
+    assetId,
+    flowId,
+    priority,
+  }
+);
+
+
+
+
+
+/**
+ * Detach flow
+ *
+ * Removes AssetFlow only
+ * Keeps Flow alive
+ *
+ */
+
+export const detachFlow =
+(
+  assetId:string,
+  flowId:string
+)=>
+apiPost(
+  "/api/flow/detach-flow",
+  {
+    assetId,
+    flowId,
+  }
+);
+
+
+
+
+
+/**
+ * =========================
+ * ANALYTICS
+ * =========================
+ */
+
+export const getAnalytics =
+() =>
+apiGet(
+  "/api/analytics"
+);
+
+
+
+
+
+/**
+ * =========================
+ * SCAN SYSTEM
+ * =========================
+ */
+
+export const getScan =
+(
+  slug:string,
+  geo?:{
+    lat:number;
+    lng:number;
+    accuracy?:number;
+  }
+)=>{
+
+
+  const params =
+    new URLSearchParams();
+
+
+  if(geo){
+
+    params.set(
+      "lat",
+      String(geo.lat)
+    );
+
+
+    params.set(
+      "lng",
+      String(geo.lng)
+    );
+
+
+    if(
+      geo.accuracy !== undefined
+    ){
+
+      params.set(
+        "accuracy",
+        String(geo.accuracy)
+      );
+
+    }
+
+  }
+
+
+
+  const query =
+    params.toString();
+
+
+
+  return publicRequest(
+    `/api/scan/${slug}${query ? `?${query}` : ""}`
+  );
+
+};
+
+
+
+
+
+export const scanLiveUrl =
+(slug:string)=>
+`${API_BASE}/api/scan/${slug}`;
+
+
+
+/**
+ * =========================
+ * CHECKOUT
+ * =========================
+ */
+
+export const checkout =
+(slug:string)=>
+apiPost(
+  "/api/checkout",
+  {
+    slug
+  }
+);
+
+============================================================
+FILE: \apps\web\src\lib\experienceAdapter.ts
+============================================================
+
+import type {
+  ExperienceBlueprint,
+  ExperienceMoment,
+  ExperienceEntities,
+  ExperienceType,
+  ExperienceGoal,
+  ExperienceIndustry,
+} from "@qre/contracts";
+
+import type {
+  ExperienceBlock,
+} from "../components/experience/ExperienceBlueprint";
+
+
+
+/**
+ * =====================================================
+ *
+ * EXPERIENCE ADAPTER
+ *
+ * Dashboard Blocks
+ *        ↓
+ * Experience Blueprint
+ *
+ * Frontend Translation Layer
+ *
+ * Pure transformation only.
+ *
+ * =====================================================
+ */
+
+
+
+const emptyEntities: ExperienceEntities = {
+
+  people: [],
+
+  places: [],
+
+  organizations: [],
+
+  dates: [],
+
+  times: [],
+
+  events: [],
+
+  products: [],
+
+  urls: [],
+
+  phones: [],
+
+  emails: [],
+
+  keywords: [],
+
+};
+
+
+
+
+
+type BlueprintOptions = {
+
+  title?: string;
+
+  industry?: ExperienceIndustry;
+
+  type?: ExperienceType;
+
+  goal?: ExperienceGoal;
+
+};
+
+
+
+
+
+
+
+export function blocksToBlueprint(
+
+  blocks: ExperienceBlock[],
+
+  options?: BlueprintOptions
+
+): ExperienceBlueprint {
+
+
+
+  return {
+
+
+    title:
+      options?.title ??
+      "Untitled Experience",
+
+
+
+    industry:
+      options?.industry ??
+      "generic",
+
+
+
+    type:
+      options?.type ??
+      "journey",
+
+
+
+    goal:
+      options?.goal ??
+      "storytelling",
+
+
+
+    tone:[
+
+      "cinematic",
+
+    ],
+
+
+
+    entities:
+      emptyEntities,
+
+
+
+    moments:
+
+      blocks.map(
+
+        (
+          block,
+          index
+        ): ExperienceMoment => ({
+
+
+
+          type:
+            normalizeMomentType(
+              block.type
+            ),
+
+
+
+          component:
+            resolveComponent(
+              block.type
+            ),
+
+
+
+          title:
+            block.title,
+
+
+
+          subtitle:
+            block.text,
+
+
+
+          description:
+            block.text,
+
+
+
+          editable:
+            true,
+
+
+
+          demo:
+            false,
+
+
+
+          order:
+            index,
+
+
+
+          payload:{
+
+
+            text:
+              block.text,
+
+
+            timer:
+              block.timer,
+
+
+            ...block.config,
+
+
+          },
+
+
+        })
+
+      ),
+
+
+  };
+
+}
+
+
+
+
+
+
+
+function normalizeMomentType(
+
+  type:string
+
+): ExperienceMoment["type"] {
+
+
+
+  switch(type){
+
+
+    case "memory":
+
+    case "location":
+
+    case "reward":
+
+    case "payment":
+
+    case "redirect":
+
+    case "message":
+
+      return type as ExperienceMoment["type"];
+
+
+    default:
+
+      return "story";
+
+
+  }
+
+
+}
+
+
+
+
+
+
+
+
+function resolveComponent(
+
+  type:string
+
+): ExperienceMoment["component"] {
+
+
+  switch(type){
+
+
+
+    case "location":
+
+      return "map";
+
+
+
+    case "place":
+
+      return "geo_memory";
+
+
+
+    case "memory":
+
+      return "memory";
+
+
+
+    case "reward":
+
+      return "reward";
+
+
+
+    case "payment":
+
+      return "payment";
+
+
+
+    case "redirect":
+
+    case "link":
+
+      return "cta";
+
+
+
+    default:
+
+      return "story";
+
+
+  }
+
+}
+
+============================================================
+FILE: \apps\web\src\lib\experienceCompiler.ts
+============================================================
+
+import type {
+  ExperienceIntent,
+  CompiledExperience,
+} from "../types/compiler";
+
+import {
+  apiPost,
+} from "./api";
+
+
+export async function compileExperience(
+  intent: ExperienceIntent
+): Promise<CompiledExperience>{
+
+
+  const result =
+    await apiPost(
+      "/experience/compile",
+      {
+        prompt:intent.prompt,
+      }
+    );
+
+
+  if(!result?.experience){
+
+    throw new Error(
+      "Invalid compiler response"
+    );
+
+  }
+
+
+  return result.experience;
+
+}
+
+============================================================
+FILE: \apps\web\src\lib\flowAdapter.ts
+============================================================
+
+import type {
+ ExperienceBlock
+} from "../components/experience/ExperienceBlueprint";
+
+
+export function flowStepsToBlocks(
+ steps:any[]
+):ExperienceBlock[] {
+
+
+return steps.map(
+(step,index)=>({
+
+id:
+step.id ??
+crypto.randomUUID(),
+
+
+type:
+step.type ?? "message",
+
+
+title:
+step.payload?.title ??
+`Scene ${index+1}`,
+
+
+text:
+step.payload?.text ??
+"",
+
+
+timer:
+step.payload?.timer ??
+5,
+
+
+config:{
+ ...step.payload
+}
+
+})
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\main.tsx
+============================================================
+
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./styles/glass.css";
+import { AuthProvider } from "./components/auth/authContext";
+
+function BootScreen() {
+  return (
+    <div className="boot">
+      <div className="glow">ENTER NODE SYSTEM</div>
+      <div className="sub">initializing quantum qr mesh...</div>
+    </div>
+  );
+}
+
+function Root() {
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setReady(true), 250);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!ready) return <BootScreen />;
+
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}
+
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Root element not found");
+}
+
+ReactDOM.createRoot(rootElement).render(
+  // ⚠️ IMPORTANT: REMOVE STRICT MODE (it duplicates scans + effects)
+  <Root />
+);
+
+============================================================
+FILE: \apps\web\src\pages\admin\AdminDashboard.tsx
+============================================================
+
+import React, { useEffect, useState } from "react";
+import { getAdminDashboard } from "../../lib/api";
+
+export default function Dashboard() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await getAdminDashboard();
+
+        console.log("ADMIN DASHBOARD:", res);
+
+        setData(res);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ color: "white", padding: 40 }}>
+        Loading Empire QR...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div style={{ color: "white", padding: 40 }}>
+        Dashboard unavailable.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        color: "white",
+        padding: 30,
+        maxWidth: 1400,
+        margin: "0 auto",
+      }}
+    >
+      <h1>⚡ Empire QR Control Center</h1>
+
+      <p style={{ opacity: 0.7 }}>
+        Global platform analytics and business health.
+      </p>
+
+      {/* SUMMARY CARDS */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit,minmax(240px,1fr))",
+          gap: 20,
+          marginTop: 30,
+        }}
+      >
+        <Card
+          title="Scans Today"
+          value={data.summary?.scansToday ?? 0}
+        />
+
+        <Card
+          title="Active Sessions"
+          value={data.summary?.activeSessions ?? 0}
+        />
+
+        <Card
+          title="Assets"
+          value={data.summary?.totalAssets ?? 0}
+        />
+
+        <Card
+          title="Flows"
+          value={data.summary?.totalFlows ?? 0}
+        />
+      </div>
+
+      {/* TOP ASSETS */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>🔥 Top Assets</h2>
+
+        <pre>
+          {JSON.stringify(
+            data.topAssets,
+            null,
+            2
+          )}
+        </pre>
+      </section>
+
+      {/* RECENT ACTIVITY */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>📈 Recent Activity</h2>
+
+        <pre>
+          {JSON.stringify(
+            data.recentActivity,
+            null,
+            2
+          )}
+        </pre>
+      </section>
+
+      {/* PLATFORM STATUS */}
+
+      <section style={{ marginTop: 50 }}>
+        <h2>🚀 Platform Status</h2>
+
+        <div>Status: {data.status}</div>
+
+        <div>
+          Revenue Model:
+          {" "}
+          {data.revenue?.model}
+        </div>
+
+        <div>
+          Timestamp:
+          {" "}
+          {data.timestamp}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  value,
+}: {
+  title: string;
+  value: any;
+}) {
+  return (
+    <div
+      style={{
+        padding: 24,
+        borderRadius: 16,
+        background: "#111",
+        border: "1px solid #333",
+      }}
+    >
+      <div
+        style={{
+          opacity: 0.6,
+          marginBottom: 12,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: 40,
+          fontWeight: 800,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\pages\admin\CreateAsset.tsx
+============================================================
+
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiPost } from "../../lib/api";
+
+export default function CreateAsset() {
+  const navigate = useNavigate();
+
+  const [businessName, setBusinessName] = useState("");
+  const [slug, setSlug] = useState("");
+
+  const [prompt, setPrompt] = useState("");
+
+  const [priceCents, setPriceCents] = useState(999);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const makeSlug = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+
+
+  async function create() {
+
+    setError("");
+
+
+    if (!businessName.trim()) {
+      setError("Business name required");
+      return;
+    }
+
+
+    if (!prompt.trim()) {
+      setError("Experience prompt required");
+      return;
+    }
+
+
+    try {
+
+      setLoading(true);
+
+
+      const finalSlug =
+        slug.trim()
+          ? makeSlug(slug)
+          : makeSlug(businessName);
+
+
+
+      const result =
+        await apiPost(
+          "/admin/assets/create-experience",
+          {
+
+            slug: finalSlug,
+
+            priceCents,
+
+            prompt,
+
+          }
+        );
+
+
+      console.log(
+        "CREATED EXPERIENCE:",
+        result
+      );
+
+
+      navigate("/admin");
+
+
+    } catch(err:any){
+
+      console.error(err);
+
+
+      setError(
+        err.message ||
+        "Failed creating experience"
+      );
+
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
+
+
+
+  return (
+
+    <div
+      style={{
+        maxWidth:650,
+        margin:"0 auto",
+        padding:30,
+      }}
+    >
+
+      <h1>
+        ⚡ Create QRE Experience
+      </h1>
+
+
+      <p style={{opacity:.7}}>
+        Create a QR asset and generate the customer experience instantly.
+      </p>
+
+
+
+      <div style={{marginTop:30}}>
+
+
+        <label>
+          Business Name
+        </label>
+
+
+        <input
+
+          placeholder="Bella Airbnb"
+
+          value={businessName}
+
+          onChange={(e)=>
+            setBusinessName(e.target.value)
+          }
+
+
+          style={{
+            width:"100%",
+            padding:12,
+            marginTop:6,
+            marginBottom:20,
+          }}
+
+        />
+
+
+
+
+        <label>
+          Custom Slug (optional)
+        </label>
+
+
+        <input
+
+          placeholder="bella-airbnb"
+
+          value={slug}
+
+          onChange={(e)=>
+            setSlug(e.target.value)
+          }
+
+
+          style={{
+            width:"100%",
+            padding:12,
+            marginTop:6,
+            marginBottom:20,
+          }}
+
+        />
+
+
+
+
+
+        <label>
+          Experience Prompt
+        </label>
+
+
+        <textarea
+
+          placeholder="Create a luxury Airbnb welcome experience with WiFi instructions, local recommendations, and checkout reminders."
+
+          value={prompt}
+
+          onChange={(e)=>
+            setPrompt(e.target.value)
+          }
+
+
+          rows={6}
+
+
+          style={{
+            width:"100%",
+            padding:12,
+            marginTop:6,
+            marginBottom:20,
+          }}
+
+        />
+
+
+
+
+
+
+        <label>
+          Unlock Price (cents)
+        </label>
+
+
+        <input
+
+          type="number"
+
+          value={priceCents}
+
+          onChange={(e)=>
+            setPriceCents(
+              Number(e.target.value)
+            )
+          }
+
+
+          style={{
+            width:"100%",
+            padding:12,
+            marginTop:6,
+            marginBottom:20,
+          }}
+
+        />
+
+
+
+
+
+        {error && (
+
+          <div
+            style={{
+              color:"red",
+              marginBottom:20,
+            }}
+          >
+            {error}
+          </div>
+
+        )}
+
+
+
+
+
+        <button
+
+          onClick={create}
+
+          disabled={loading}
+
+
+          style={{
+            width:"100%",
+            padding:14,
+            fontSize:16,
+          }}
+
+        >
+
+          {loading
+            ? "Creating Experience..."
+            : "⚡ Create QR Experience"}
+
+        </button>
+
+
+
+      </div>
+
+
+    </div>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\AssetDashboard.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useParams,
+} from "react-router-dom";
+
+import {
+  getUserAssets,
+} from "../lib/api";
+
+import DashboardLayout from "../components/layout/DashboardLayout";
+import GlassCard from "../components/ui/GlassCard";
+import NeonButton from "../components/ui/NeonButton";
+
+import FlowManager from "../components/flow/FlowManager";
+
+
+type Asset = {
+  id:string;
+  slug:string;
+  status:string;
+  tier:string;
+  flowId:string|null;
+};
+
+
+export default function AssetDashboard(){
+
+  const {
+    slug
+  } = useParams();
+
+
+  const [
+    asset,
+    setAsset
+  ] = useState<Asset|null>(null);
+
+
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
+
+
+
+  async function load(){
+
+    try{
+
+      const response =
+        await getUserAssets();
+
+
+      const assets =
+        response.assets ?? response;
+
+
+      const found =
+        assets.find(
+          (item:Asset)=>
+            item.slug === slug
+        );
+
+
+      setAsset(found ?? null);
+
+
+    }
+    catch(error){
+
+      console.error(
+        "asset loading failed",
+        error
+      );
+
+    }
+    finally{
+
+      setLoading(false);
+
+    }
+
+  }
+
+
+
+  useEffect(()=>{
+
+    load();
+
+  },[slug]);
+
+
+
+
+
+  if(loading){
+
+    return (
+      <DashboardLayout>
+        <GlassCard glow>
+          Loading object...
+        </GlassCard>
+      </DashboardLayout>
+    );
+
+  }
+
+
+
+  if(!asset){
+
+    return (
+      <DashboardLayout>
+
+        <GlassCard glow>
+
+          <h2>
+            Object not found
+          </h2>
+
+        </GlassCard>
+
+      </DashboardLayout>
+    );
+
+  }
+
+
+
+
+
+  return (
+
+    <DashboardLayout>
+
+
+      <GlassCard glow>
+
+        <h1>
+          {asset.slug}
+        </h1>
+
+
+        <p>
+          Object Status:
+          {" "}
+          {asset.status}
+        </p>
+
+
+        <p>
+          Tier:
+          {" "}
+          {asset.tier}
+        </p>
+
+
+      </GlassCard>
+
+
+
+
+
+      <div
+        style={{
+          marginTop:30
+        }}
+      >
+
+        <FlowManager
+
+          assetId={
+            asset.id
+          }
+
+        />
+
+      </div>
+
+
+
+
+
+    </DashboardLayout>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\Cancel.tsx
+============================================================
+
+export default function Cancel() {
+  return (
+    <div>
+      <h1>Payment Cancelled</h1>
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\pages\Checkout.tsx
+============================================================
+
+import { useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+
+
+export default function Checkout(){
+
+  const { slug } = useParams();
+
+  const [loading,setLoading] =
+    useState(true);
+
+
+  useEffect(()=>{
+
+    async function startCheckout(){
+
+      const res =
+        await fetch(
+          "/api/checkout",
+          {
+            method:"POST",
+            headers:{
+              "Content-Type":"application/json",
+            },
+            body:JSON.stringify({
+              slug,
+            }),
+          }
+        );
+
+
+      const data =
+        await res.json();
+
+
+      if(data.url){
+        window.location.href =
+          data.url;
+        return;
+      }
+
+
+      if(data.dev){
+
+        window.location.href =
+          data.url;
+
+        return;
+      }
+
+
+    }
+
+
+    startCheckout();
+
+  },[slug]);
+
+
+
+  return (
+
+    <div
+      style={{
+        height:"100vh",
+        display:"grid",
+        placeItems:"center",
+        background:"#050505",
+        color:"white",
+      }}
+    >
+
+      <h1>
+        Unlocking Experience...
+      </h1>
+
+    </div>
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\Dashboard.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  getUserAssets,
+} from "../lib/api";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  compileExperience,
+} from "../lib/experienceCompiler";
+
+import DashboardLayout from "../components/layout/DashboardLayout";
+
+import IdeaParticles from "../components/effects/IdeaParticles";
+
+
+type Experience = {
+
+  id:string;
+
+  slug:string;
+
+  status:string;
+
+  tier:string;
+
+  flowId:string|null;
+
+};
+
+
+
+const starPositions = [
+
+  { top:"18%", left:"14%" },
+
+  { top:"30%", left:"78%" },
+
+  { top:"72%", left:"62%" },
+
+  { top:"76%", left:"20%" },
+
+  { top:"45%", left:"88%" },
+
+];
+
+
+
+
+export default function Dashboard(){
+
+
+const [
+ objects,
+ setObjects
+]=useState<Experience[]>([]);
+
+
+
+const [
+ loading,
+ setLoading
+]=useState(true);
+
+
+
+const navigate = useNavigate();
+
+
+
+const [
+ prompt,
+ setPrompt
+]=useState("");
+
+
+
+const [
+ creating,
+ setCreating
+]=useState(false);
+
+
+
+
+async function load(){
+
+
+try{
+
+
+const response =
+await getUserAssets();
+
+
+const assets:Experience[] =
+
+Array.isArray(response)
+
+?
+
+response
+
+:
+
+response.assets ?? [];
+
+
+
+setObjects(
+assets
+);
+
+
+
+}
+
+catch(error){
+
+console.error(
+error
+);
+
+}
+
+finally{
+
+setLoading(false);
+
+}
+
+
+}
+
+
+
+
+
+async function awaken(){
+
+
+if(!prompt.trim()) return;
+
+
+try{
+
+
+setCreating(true);
+
+
+
+const compiled =
+
+await compileExperience({
+
+prompt,
+
+});
+
+sessionStorage.setItem(
+  "experiencePreview",
+  JSON.stringify(compiled)
+);
+
+
+navigate(
+"/experience/preview"
+);
+
+
+
+}
+
+catch(error){
+
+console.error(
+"Creation failed",
+error
+);
+
+}
+
+finally{
+
+setCreating(false);
+
+}
+
+
+}
+
+
+
+
+
+useEffect(()=>{
+
+load();
+
+},[]);
+
+
+
+
+
+
+
+if(loading){
+
+
+return (
+
+<DashboardLayout>
+
+<IdeaParticles />
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+color:"rgba(255,255,255,.45)",
+
+letterSpacing:4
+
+}}
+
+>
+
+QRE AWAKENING...
+
+</div>
+
+
+</DashboardLayout>
+
+);
+
+
+}
+
+
+
+
+
+
+return (
+
+<DashboardLayout>
+
+
+<IdeaParticles />
+
+
+
+<div
+
+style={{
+
+position:"relative",
+
+zIndex:2,
+
+minHeight:"100vh",
+
+overflow:"hidden",
+
+color:"#f5f5f5"
+
+}}
+
+>
+
+<div
+
+style={{
+
+position:"absolute",
+
+bottom:"max(25px, env(safe-area-inset-bottom))",
+
+left:"25px",
+
+fontSize:12,
+
+letterSpacing:14,
+
+opacity:.45,
+
+zIndex:5
+
+}}
+
+>
+QRE
+</div>
+
+<section
+
+style={{
+
+minHeight:"20vh",
+
+display:"flex",
+
+flexDirection:"column",
+
+alignItems:"center",
+
+justifyContent:"flex-start",
+
+paddingTop:"8vh",
+
+}}
+
+>
+
+
+<h1
+
+className="glow-text"
+
+style={{
+
+fontSize:"clamp(28px,6vw,40px)",
+
+fontWeight:400,
+
+letterSpacing:"-1px",
+
+lineHeight:1,
+
+margin:0,
+
+}}
+
+>
+
+What do you want
+
+<br/>
+
+to bring alive?
+
+</h1>
+
+
+
+
+
+<div
+
+style={{
+
+display:"flex",
+
+alignItems:"flex-end",
+
+marginTop:"38vh",
+
+gap:10,
+
+width:"min(520px,80vw)",
+
+}}
+
+>
+
+
+<textarea
+
+value={prompt}
+
+onChange={e=>setPrompt(e.target.value)}
+
+onKeyDown={e=>{
+
+if(e.key==="Enter" && !e.shiftKey){
+
+e.preventDefault();
+
+awaken();
+
+}
+
+}}
+
+placeholder="Describe it..."
+
+style={{
+
+flex:1,
+
+height:70,
+
+resize:"none",
+
+background:"transparent",
+
+border:"none",
+
+borderBottom:
+"1px solid rgba(255,255,255,.25)",
+
+outline:"none",
+
+color:"#fff",
+
+fontSize:18,
+
+textAlign:"center",
+
+fontFamily:"inherit",
+
+lineHeight:"70px",
+
+padding:"0",
+
+}}
+
+/>
+
+
+<button
+
+onClick={awaken}
+
+disabled={creating}
+
+style={{
+
+width:42,
+
+height:42,
+
+borderRadius:"50%",
+
+background:"transparent",
+
+border:
+
+"1px solid rgba(255,255,255,.35)",
+
+color:"#fff",
+
+fontSize:10,
+
+letterSpacing:1,
+
+cursor:"pointer",
+
+marginBottom:8,
+
+transform:"translateX(-50px)",
+
+}}
+
+>
+CREATE
+</button>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+
+<section
+
+style={{
+
+position:"absolute",
+
+inset:0,
+
+zIndex:1,
+
+pointerEvents:"none"
+
+}}
+
+>
+
+
+
+
+
+{
+
+objects.map((object,index)=>{
+
+
+const star =
+starPositions[index % starPositions.length];
+
+
+return (
+
+<div
+
+key={object.id}
+
+onClick={()=>{
+
+window.location.href=
+
+`/scan/${object.slug}`;
+
+}}
+
+style={{
+
+position:"absolute",
+
+top:star.top,
+
+left:star.left,
+
+cursor:"pointer",
+
+animation:
+
+`qreFloat ${8 + index}s ease-in-out infinite`
+
+}}
+
+>
+
+
+
+<div
+
+style={{
+
+width:12,
+
+height:12,
+
+borderRadius:"50%",
+
+background:"#fff",
+
+boxShadow:
+
+"0 0 25px rgba(255,255,255,.9), 0 0 70px rgba(255,255,255,.35)"
+
+}}
+
+/>
+
+
+
+
+
+<div
+
+style={{
+
+marginTop:14,
+
+fontSize:13,
+
+letterSpacing:2,
+
+opacity:.7
+
+}}
+
+>
+
+{object.slug}
+
+</div>
+
+
+
+</div>
+
+);
+
+
+})
+
+
+}
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+</div>
+
+
+</DashboardLayout>
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\ExperienceCreator.tsx
+============================================================
+
+import {
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import AnimatedBackground from "../components/effects/AnimatedBackground";
+
+import IdeaParticles from "../components/effects/IdeaParticles";
+
+import {
+  compileExperience,
+} from "../lib/experienceCompiler";
+
+
+
+
+
+export default function ExperienceCreator(){
+
+
+const navigate =
+useNavigate();
+
+
+
+const [
+prompt,
+setPrompt
+]=useState("");
+
+
+
+const [
+creating,
+setCreating
+]=useState(false);
+
+
+
+const [
+error,
+setError
+]=useState("");
+
+
+
+
+
+
+
+async function createExperience(){
+
+
+if(!prompt.trim())
+return;
+
+
+
+try{
+
+
+setCreating(true);
+
+setError("");
+
+
+
+const compiled =
+
+await compileExperience({
+
+  prompt,
+
+});
+
+console.log(
+  "🔥 COMPILED EXPERIENCE",
+  compiled
+);
+sessionStorage.setItem(
+  "experiencePreview",
+  JSON.stringify(compiled)
+);
+console.log(
+  "SAVED EXPERIENCE",
+  compiled
+);
+
+navigate(
+"/experience/preview"
+);
+
+
+
+}
+
+
+catch(error:any){
+
+
+console.error(
+"Experience creation failed",
+error
+);
+
+
+setError(
+
+error.message ??
+
+"Experience creation failed"
+
+);
+
+
+}
+
+finally{
+
+
+setCreating(false);
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+background:"#030305",
+
+color:"#fff",
+
+position:"relative",
+
+}}
+
+>
+
+
+<AnimatedBackground />
+
+<IdeaParticles />
+
+
+
+
+
+
+<div
+
+style={{
+
+position:"relative",
+
+zIndex:2,
+
+minHeight:"100vh",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+padding:"80px 30px",
+
+textAlign:"center",
+
+}}
+
+>
+
+
+
+
+
+<div
+
+style={{
+
+width:"min(900px,100%)",
+
+}}
+
+>
+
+
+
+
+
+<p
+
+style={{
+
+letterSpacing:8,
+
+fontSize:12,
+
+opacity:.5,
+
+}}
+
+>
+
+QRE EXPERIENCE ENGINE
+
+</p>
+
+
+
+
+
+
+
+<h1
+
+style={{
+
+fontSize:"clamp(42px,6vw,80px)",
+
+fontWeight:800,
+
+lineHeight:1,
+
+marginBottom:30,
+
+}}
+
+>
+
+Bring an
+
+<br/>
+
+experience alive.
+
+</h1>
+
+
+
+
+
+
+
+
+<p
+
+style={{
+
+opacity:.65,
+
+fontSize:18,
+
+maxWidth:700,
+
+margin:"0 auto",
+
+lineHeight:1.6,
+
+}}
+
+>
+
+Describe a memory, place, person, event, brand, or impossible idea.
+
+QRE will compile the living experience.
+
+</p>
+
+
+
+
+
+
+
+
+
+<textarea
+
+
+value={prompt}
+
+
+
+maxLength={25000}
+
+
+
+onChange={event =>
+
+setPrompt(
+
+event.target.value
+
+)
+
+}
+
+
+
+placeholder="Create a cinematic living memory experience for a dog tag that tells someone's story..."
+
+
+
+style={{
+
+display:"block",
+
+margin:"40px auto 0",
+
+width:"min(760px,90vw)",
+
+height:320,
+
+minHeight:320,
+
+padding:25,
+
+
+
+background:
+
+"rgba(255,255,255,.04)",
+
+
+
+border:
+
+"1px solid rgba(255,255,255,.18)",
+
+
+
+borderRadius:20,
+
+
+
+color:"#fff",
+
+
+
+fontSize:18,
+
+
+
+lineHeight:1.7,
+
+
+
+fontFamily:"inherit",
+
+
+
+resize:"vertical",
+
+
+
+overflowY:"auto",
+
+
+
+outline:"none",
+
+
+
+boxSizing:"border-box",
+
+}}
+
+
+/>
+
+
+
+
+
+
+
+
+
+<button
+
+disabled={creating}
+
+onClick={createExperience}
+
+style={{
+
+marginTop:35,
+
+padding:"18px 55px",
+
+borderRadius:100,
+
+background:"transparent",
+
+border:"1px solid rgba(255,255,255,.35)",
+
+color:"#fff",
+
+letterSpacing:4,
+
+cursor:
+
+creating
+
+?
+
+"wait"
+
+:
+
+"pointer",
+
+}}
+
+>
+
+{
+
+creating
+
+?
+
+"COMPILING..."
+
+:
+
+"CREATE EXPERIENCE"
+
+}
+
+
+</button>
+
+
+
+
+
+
+
+
+
+{
+
+error &&
+
+<p
+
+style={{
+
+color:"#ff6677",
+
+marginTop:25,
+
+}}
+
+>
+
+{error}
+
+</p>
+
+}
+
+
+
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\ExperiencePreview.tsx
+============================================================
+
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+
+import DashboardLayout from "../components/layout/DashboardLayout";
+
+import CinematicScanPlayer from "../components/scan/CinematicScanPlayer";
+
+import type {
+  CinematicScene,
+  Experience,
+} from "@qre/contracts";
+
+
+type CompiledExperience = {
+
+  genome: any;
+
+  world: any;
+
+  blueprint: any;
+
+  flowSteps: any[];
+
+  moments: any[];
+
+  cinematicScenes: CinematicScene[];
+
+  model: any;
+
+  title: string;
+
+  estimatedDuration: number;
+
+  momentCount: number;
+
+};
+
+
+
+
+
+
+
+
+
+function compileToRuntimeExperience(
+input:CompiledExperience
+):Experience {
+
+
+return {
+
+  sessionId:
+    crypto.randomUUID(),
+
+
+  access:
+    "PREVIEW",
+
+
+  preview:
+    true,
+
+
+  asset:
+    {
+      id:
+        "preview",
+
+      slug:
+        "preview",
+
+      title:
+        input.title ??
+        "Living Experience",
+
+      category:
+        input.category,
+
+      ownerId:
+        null,
+
+      paid:
+        false,
+
+    },
+
+
+  moments:
+    input.moments ?? [],
+
+
+  geoStory:
+    null,
+
+
+  cinematicScenes:
+    input.cinematicScenes ?? [],
+
+
+  memorySnapshot:
+    null,
+
+
+  receipt:
+    null,
+
+
+  insights:
+    [],
+
+
+  meta:
+    {
+      source:
+        "experience-compiler-preview"
+    }
+
+};
+
+
+}
+
+
+
+
+
+
+
+export default function ExperiencePreview(){
+
+
+const navigate =
+useNavigate();
+
+
+
+const [
+experience,
+setExperience
+]=useState<Experience|null>(null);
+
+
+
+
+
+
+
+useEffect(()=>{
+
+const stored =
+  sessionStorage.getItem(
+    "experiencePreview"
+  );
+
+console.log(
+  "LOADED EXPERIENCE",
+  stored
+);
+
+
+if(!stored)
+return;
+
+
+
+
+
+try{
+
+
+const compiled:
+
+CompiledExperience =
+
+JSON.parse(
+stored
+);
+
+
+
+
+setExperience(
+
+compileToRuntimeExperience(
+
+compiled
+
+)
+
+);
+
+
+
+}
+
+catch(error){
+
+
+console.error(
+
+"Invalid QRE experience",
+
+error
+
+);
+
+
+}
+
+
+
+},[]);
+
+
+
+
+
+
+
+
+
+function back(){
+
+
+navigate(
+
+"/dashboard"
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+if(!experience){
+
+
+return (
+
+<DashboardLayout>
+
+
+<div
+
+style={{
+
+minHeight:"70vh",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+color:"#fff"
+
+}}
+
+>
+
+
+<h2>
+
+No Experience Loaded
+
+</h2>
+
+
+</div>
+
+
+</DashboardLayout>
+
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+return (
+
+<DashboardLayout>
+
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+background:"#030305",
+
+color:"#fff",
+
+padding:"80px 30px"
+
+}}
+
+>
+
+
+
+
+
+
+
+<div
+
+style={{
+
+textAlign:"center",
+
+marginBottom:50
+
+}}
+
+>
+
+
+<p
+
+style={{
+
+letterSpacing:8,
+
+opacity:.5
+
+}}
+
+>
+
+QRE EXPERIENCE RUNTIME
+
+</p>
+
+
+
+
+
+
+<h1
+
+style={{
+
+fontSize:"clamp(40px,6vw,72px)",
+
+fontWeight:900
+
+}}
+
+>
+
+{
+
+experience.asset?.title ??
+
+"Living Experience"
+
+}
+
+</h1>
+
+
+
+
+
+
+<p
+
+style={{
+
+opacity:.65,
+
+maxWidth:700,
+
+margin:"20px auto",
+
+fontSize:18
+
+}}
+
+>
+
+{
+
+experience.meta?.source ===
+
+"experience-compiler-preview"
+
+?
+
+"Preview generated from QRE Experience Compiler."
+
+:
+
+"Experience ready."
+
+}
+
+</p>
+
+
+
+</div>
+
+{
+experience.cinematicScenes.length > 0 &&
+
+<CinematicScanPlayer
+  experience={experience}
+/>
+
+}
+
+
+<div
+
+style={{
+
+textAlign:"center",
+
+marginTop:50
+
+}}
+
+>
+
+
+<button
+
+onClick={back}
+
+style={{
+
+background:"transparent",
+
+border:"1px solid rgba(255,255,255,.3)",
+
+borderRadius:50,
+
+padding:"15px 40px",
+
+color:"#fff",
+
+cursor:"pointer"
+
+}}
+
+>
+
+BACK
+
+</button>
+
+
+</div>
+
+
+
+
+
+
+
+</div>
+
+
+</DashboardLayout>
+
+
+);
+
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\Login.tsx
+============================================================
+
+import {
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  apiPost,
+} from "../lib/api";
+
+import {
+  useAuth,
+} from "../components/auth/authContext";
+
+import AnimatedBackground from "../components/effects/AnimatedBackground";
+
+import IdeaParticles from "../components/effects/IdeaParticles";
+
+
+
+export default function Login(){
+
+
+  const navigate = useNavigate();
+
+
+  const {
+    setUser,
+  } = useAuth();
+
+
+
+  const [
+    email,
+    setEmail,
+  ] = useState("");
+
+
+
+  const [
+    password,
+    setPassword,
+  ] = useState("");
+
+
+
+  const [
+    mode,
+    setMode,
+  ] = useState<
+    "login" | "register"
+  >("login");
+
+
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+
+
+
+
+  async function handleSubmit(){
+
+
+    setError("");
+
+
+
+    try{
+
+
+      setLoading(true);
+
+
+
+      const endpoint =
+        mode === "login"
+        ?
+        "/auth/login"
+        :
+        "/auth/register";
+
+
+
+      const response =
+        await apiPost(
+          endpoint,
+          {
+            email,
+            password,
+          }
+        );
+
+
+
+      if(response?.token){
+
+        localStorage.setItem(
+          "token",
+          response.token
+        );
+
+      }
+
+
+
+      if(response?.user){
+
+        setUser(
+          response.user
+        );
+
+      }
+
+
+
+      navigate(
+        "/dashboard"
+      );
+
+
+
+    }
+    catch(err:any){
+
+
+      setError(
+        err.message ??
+        "Connection failed"
+      );
+
+
+    }
+    finally{
+
+
+      setLoading(false);
+
+
+    }
+
+
+  }
+
+
+
+
+
+  return (
+
+    <div
+
+      style={{
+
+        minHeight:"100vh",
+
+        position:"relative",
+
+        overflow:"hidden",
+
+        background:"#030303",
+
+        color:"#f5f5f5",
+
+        display:"flex",
+
+        alignItems:"center",
+
+        justifyContent:"center",
+
+      }}
+
+    >
+
+
+      <AnimatedBackground />
+      
+       <IdeaParticles />
+
+
+
+
+
+      <main
+
+        style={{
+
+          position:"relative",
+
+          zIndex:2,
+
+          width:"100%",
+
+          maxWidth:760,
+
+          padding:"60px 30px",
+
+          textAlign:"left",
+          transform:"translateX(0px)",
+
+        }}
+
+      >
+
+
+             <div
+  style={{
+    position: "fixed",
+    top: 42,
+    left: 42,
+    zIndex: 5,
+    fontSize: 12,
+    letterSpacing: "14px",
+    fontWeight: 600,
+    color: "rgba(255,255,255,.32)",
+    textTransform: "uppercase",
+    userSelect: "none",
+             }}
+           >
+             QRE
+           </div>
+
+
+        <h1
+
+style={{
+
+  margin:0,
+
+  fontSize:"clamp(38px,8vw,60px)",
+
+  lineHeight:1.08,
+
+  fontWeight:500,
+
+  letterSpacing:"-1.5px",
+
+  color:"#f5f5f2",
+
+  textShadow:
+    "0 30px 100px rgba(255,255,255,.10)",
+
+}}
+
+>
+
+Create
+
+<br/>
+
+something
+
+<br/>
+
+unforgettable.
+
+</h1>
+
+
+        
+
+
+
+
+
+        <p
+
+          style={{
+
+            marginTop:35,
+
+            fontSize:17,
+           color:"rgba(255,255,255,.45)",
+          letterSpacing:"1px",
+
+            lineHeight:1.5,
+
+          }}
+
+        >
+
+          Ideas become living experiences.
+
+        </p>
+
+
+
+
+
+
+
+        <section
+
+          style={{
+
+            marginTop:80,
+
+            display:"flex",
+
+            flexDirection:"column",
+
+            alignItems:"center",
+
+            gap:25,
+
+          }}
+
+        >
+
+
+
+
+          <input
+
+            value={email}
+
+            onChange={
+              e =>
+              setEmail(
+                e.target.value
+              )
+            }
+
+            placeholder="Email"
+
+            style={{
+
+              width:"100%",
+
+              maxWidth:420,
+
+              padding:"18px 0",
+
+              background:"transparent",
+
+              border:"none",
+
+              borderBottom:
+                "1px solid rgba(255,255,255,.25)",
+
+              color:"#fff",
+
+              outline:"none",
+
+              textAlign:"center",
+
+              fontSize:18,
+
+            }}
+
+          />
+
+
+
+
+
+
+          <input
+
+            type="password"
+
+            value={password}
+
+            onChange={
+              e =>
+              setPassword(
+                e.target.value
+              )
+            }
+
+            placeholder="Password"
+
+            style={{
+
+              width:"100%",
+
+              maxWidth:420,
+
+              padding:"18px 0",
+
+              background:"transparent",
+
+              border:"none",
+
+              borderBottom:
+                "1px solid rgba(255,255,255,.25)",
+
+              color:"#fff",
+
+              outline:"none",
+
+              textAlign:"center",
+
+              fontSize:18,
+
+            }}
+
+          />
+
+
+
+
+
+
+
+          <button
+
+            disabled={loading}
+
+            onClick={handleSubmit}
+
+            style={{
+
+              marginTop:30,
+
+              padding:
+                "18px 70px",
+
+              borderRadius:100,
+
+              border:
+                "1px solid rgba(255,255,255,.35)",
+
+              background:
+                "#f5f5f5",
+
+              color:"#050505",
+
+              fontWeight:900,
+
+              letterSpacing:3,
+
+              cursor:"pointer",
+
+            }}
+
+          >
+
+            {
+              loading
+              ?
+              "ENTERING"
+              :
+              mode==="login"
+              ?
+              "ENTER QRE"
+              :
+              "CREATE ACCOUNT"
+            }
+
+          </button>
+
+
+
+
+
+
+
+          <button
+
+            onClick={()=>{
+
+              setMode(
+                current =>
+                current==="login"
+                ?
+                "register"
+                :
+                "login"
+              );
+
+              setError("");
+
+            }}
+
+            style={{
+
+              marginTop:20,
+
+              background:"transparent",
+
+              border:"none",
+
+              color:"#999",
+
+              cursor:"pointer",
+
+            }}
+
+          >
+
+            {
+              mode==="login"
+              ?
+              "New creator?"
+              :
+              "Already creating?"
+            }
+
+          </button>
+
+
+
+
+
+
+          {
+            error &&
+            <p
+
+              style={{
+
+                color:"#aaa",
+
+              }}
+
+            >
+
+              {error}
+
+            </p>
+          }
+
+
+
+        </section>
+
+
+
+      </main>
+
+
+
+    </div>
+
+  );
+
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\product.tsx
+============================================================
+
+import { useParams } from "react-router-dom";
+import { apiPost }from"../lib/api";
+
+export default function Product() {
+  const { slug } = useParams();
+
+  async function buy() {
+    if (!slug) return;
+
+    const data = await apiPost(`/checkout/${slug}`, {
+      plan: "base",
+    });
+
+    window.location.href = data.url;
+  }
+
+  return (
+    <div>
+      <h1>{slug}</h1>
+      <button onClick={buy}>Buy</button>
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\pages\scan.tsx
+============================================================
+
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+
+import type { ScanResponse } from "@qre/contracts";
+
+import ScanAccessRouter from "../components/scan/ScanAccessRouter";
+import { getScan } from "../lib/api";
+
+
+export default function Scan() {
+
+  const { slug } = useParams();
+
+
+  const [
+    data,
+    setData
+  ] = useState<ScanResponse | null>(null);
+
+
+
+  useEffect(() => {
+
+    async function load() {
+
+      if (!slug) return;
+
+
+      try {
+
+
+        let geo:
+          | {
+              lat:number;
+              lng:number;
+              accuracy?:number;
+            }
+          | undefined;
+
+
+
+        if ("geolocation" in navigator) {
+
+
+          geo =
+            await new Promise((resolve) => {
+
+
+              navigator.geolocation.getCurrentPosition(
+
+                (position) => {
+
+                  resolve({
+
+                    lat:
+                      position.coords.latitude,
+
+                    lng:
+                      position.coords.longitude,
+
+                    accuracy:
+                      position.coords.accuracy,
+
+                  });
+
+                },
+
+
+                () => {
+
+                  console.warn(
+                    "GPS unavailable"
+                  );
+
+                  resolve(undefined);
+
+                },
+
+
+                {
+
+                  enableHighAccuracy:true,
+
+                  timeout:5000,
+
+                  maximumAge:0,
+
+                }
+
+              );
+
+
+            });
+
+        }
+
+
+
+        const json =
+          await getScan(
+            slug,
+            geo
+          );
+
+
+
+        console.log(
+          "🔥 FULL EXPERIENCE RESPONSE",
+          {
+
+            access:
+              json.access,
+
+            geo,
+
+            moments:
+              json.moments,
+
+            geoStory:
+              json.geoStory,
+
+            cinematicScenes:
+              json.cinematicScenes,
+
+            memorySnapshot:
+              json.memorySnapshot,
+
+            receipt:
+              json.receipt,
+
+            asset:
+              json.asset,
+
+          }
+        );
+
+
+
+        setData(json);
+
+
+
+      } catch(error) {
+
+
+        console.error(
+          "🔥 SCAN PAGE FAILED",
+          error
+        );
+
+
+      }
+
+    }
+
+
+    load();
+
+
+  },[slug]);
+
+
+
+
+
+  if (!data) {
+
+    return (
+
+      <div
+        style={{
+
+          height:"100vh",
+
+          display:"grid",
+
+          placeItems:"center",
+
+          background:"#050505",
+
+          color:"white",
+
+        }}
+      >
+
+        Loading experience...
+
+      </div>
+
+    );
+
+  }
+
+
+if(
+  !data.cinematicScenes ||
+  data.cinematicScenes.length === 0
+){
+
+  return (
+
+    <div
+      style={{
+        height:"100vh",
+        display:"grid",
+        placeItems:"center",
+        background:"#050505",
+        color:"white",
+      }}
+    >
+      No cinematic experience generated.
+
+    </div>
+
+  );
+
+}
+
+  
+
+
+
+
+  return (
+
+    <ScanAccessRouter
+
+      data={data}
+
+    />
+
+  );
+
+}
+
+============================================================
+FILE: \apps\web\src\pages\store.tsx
+============================================================
+
+import { useEffect, useState } from "react";
+import { apiGet, apiPost } from "../lib/api";
+
+type Product = {
+  id: string;
+  slug: string;
+  priceCents: number;
+};
+
+export default function Store() {
+  const [products, setProducts] = useState<Product[]>([]);
+
+  /**
+   * =========================
+   * LOAD PRODUCTS
+   * =========================
+   */
+useEffect(() => {
+  setProducts([]);
+}, []);
+
+  /**
+   * =========================
+   * CHECKOUT FLOW
+   * =========================
+   */
+  const buy = async (assetId: string) => {
+    try {
+  const data = await apiPost("/api/checkout", {
+  slug: assetId,
+});
+
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error("Checkout failed:", err);
+    }
+  };
+
+  return (
+    <div>
+      <h1>QRE Store</h1>
+
+      {products.map((p) => (
+        <div key={p.id}>
+          <h3>{p.slug}</h3>
+          <p>${(p.priceCents / 100).toFixed(2)}</p>
+
+          <button onClick={() => buy(p.id)}>
+            Buy Unlock
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\pages\Success.tsx
+============================================================
+
+export default function Success() {
+  return (
+    <div>
+      <h1>Payment Successful</h1>
+      <p>You can now scan your keychain to unlock full access.</p>
+    </div>
+  );
+}
+
+============================================================
+FILE: \apps\web\src\runtime\actionExecutor.ts
+============================================================
+
+import type { Moment } from "@qre/contracts";
+
+export function executeAction(moment: Moment) {
+  if (moment.type !== "action") return;
+
+  switch (moment.action) {
+    case "redirect":
+      if (moment.meta?.url) {
+        window.location.href = moment.meta.url;
+      }
+      break;
+
+    case "payment":
+      if (moment.meta?.url) {
+        window.location.href = moment.meta.url;
+      }
+      break;
+
+    case "unlock":
+      // v1: just UI signal (later upgrade to state engine)
+      console.log("UNLOCK:", moment.meta?.text);
+      break;
+  }
+}
+
+============================================================
+FILE: \apps\web\src\runtime\scanRuntime.ts
+============================================================
+
+import type { Moment } from "@qre/contracts";
+import { executeAction } from "./actionExecutor";
+
+export async function runScanRuntime(
+  moments: Moment[],
+  setCurrent: (m: Moment | null) => void
+) {
+  const sorted = [...moments].sort((a, b) => a.order - b.order);
+
+  for (const moment of sorted) {
+    setCurrent(moment);
+
+    // timing layer (simple v1 delay)
+    await new Promise((r) => setTimeout(r, 800));
+
+    // execute actions immediately (no delay)
+    if (moment.type === "action") {
+      executeAction(moment);
+    }
+  }
+}
+
+============================================================
+FILE: \apps\web\src\styles\glass.css
+============================================================
+
+/* =====================================
+   QRE IDEA PARTICLE UNIVERSE
+   ===================================== */
+.idea-particle-layer {
+
+  position:fixed;
+
+  inset:0;
+
+  width:100vw;
+
+  height:100vh;
+
+  pointer-events:none;
+
+  z-index:1;
+
+  background:none !important;
+
+  border:none !important;
+
+  box-shadow:none !important;
+
+}
+
+
+
+
+
+
+
+.idea-particle {
+
+  position:absolute;
+
+
+  color:
+    rgba(235,235,235,.52);
+
+
+
+  font-family:
+
+    "Inter",
+    "SF Pro Display",
+    system-ui,
+    sans-serif;
+
+
+
+  font-size:15px;
+
+
+
+  font-weight:450;
+
+
+
+  letter-spacing:1px;
+
+
+
+  white-space:nowrap;
+
+
+
+  pointer-events:none;
+
+
+
+  text-shadow:
+
+
+    0 0 20px rgba(255,255,255,.18),
+
+    0 0 70px rgba(255,255,255,.06);
+
+
+
+  animation-name:
+
+    ideaFloat;
+
+
+
+  animation-timing-function:
+
+    ease-in-out;
+
+
+
+  animation-iteration-count:
+
+    infinite;
+
+
+}
+
+
+
+
+@keyframes ideaFloat {
+
+
+  0% {
+
+
+    opacity:0;
+
+
+    transform:
+
+      translate3d(0,80px,0)
+
+      scale(.92);
+
+
+
+    filter:
+
+      blur(5px);
+
+
+  }
+
+
+
+
+
+  20% {
+
+
+    opacity:.75;
+
+
+
+    filter:
+
+      blur(0);
+
+
+  }
+
+
+
+
+
+  50% {
+
+
+    opacity:.55;
+
+
+
+    transform:
+
+      translate3d(35px,-45px,0)
+
+      scale(1);
+
+
+
+  }
+
+
+
+
+
+  75% {
+
+
+    opacity:.35;
+
+
+  }
+
+
+
+
+
+  100% {
+
+
+    opacity:0;
+
+
+
+    transform:
+
+      translate3d(-25px,-140px,0)
+
+      scale(.96);
+
+
+
+    filter:
+
+      blur(5px);
+
+
+  }
+
+
+}
+
+============================================================
+FILE: \apps\web\src\styles\qre-responsive.css
+============================================================
+
+.qre-creation {
+  min-height:70vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+
+
+/* phones */
+@media (max-width:600px){
+
+.qre-creation{
+
+  min-height:auto;
+  padding-top:80px;
+  padding-bottom:120px;
+
+}
+
+}
+
+============================================================
+FILE: \apps\web\src\styles\variables.css
+============================================================
+
+:root {
+
+
+/* =====================================
+   QRE OBSIDIAN WORLD
+   ===================================== */
+
+
+/* BACKGROUND */
+
+--bg-0:
+#020202;
+
+
+--bg-1:
+#070707;
+
+
+--bg-2:
+#101010;
+
+
+
+/* SURFACES */
+
+--surface-1:
+rgba(255,255,255,.035);
+
+
+--surface-2:
+rgba(255,255,255,.065);
+
+
+
+/* GLASS */
+
+--glass:
+rgba(255,255,255,.045);
+
+
+
+/* BORDERS */
+
+--border:
+rgba(255,255,255,.12);
+
+
+
+--border-active:
+rgba(255,255,255,.35);
+
+
+
+/* TEXT */
+
+--text:
+#f5f5f5;
+
+
+
+--text-soft:
+rgba(255,255,255,.65);
+
+
+
+--text-muted:
+rgba(255,255,255,.38);
+
+
+
+
+/* METALLIC ACCENTS */
+
+--silver:
+#d8dce3;
+
+
+
+--silver-bright:
+#ffffff;
+
+
+
+--chrome:
+linear-gradient(
+135deg,
+#ffffff,
+#9da3ad
+);
+
+
+
+
+/* STATUS */
+
+--green:
+#7dffb2;
+
+
+
+--orange:
+#ffb86b;
+
+
+
+--red:
+#ff6b6b;
+
+
+
+
+
+/* SHADOWS */
+
+--shadow:
+
+0 30px 120px rgba(0,0,0,.85);
+
+
+
+
+--soft-shadow:
+
+0 10px 60px rgba(0,0,0,.45);
+
+
+
+
+/* LIGHT */
+
+--glow:
+
+0 0 50px rgba(255,255,255,.08);
+
+
+
+
+
+/* RADIUS */
+
+--radius:
+28px;
+
+
+
+}
+
+============================================================
+FILE: \apps\web\src\types\compiler.ts
+============================================================
+
+export type ExperienceIntent = {
+
+prompt:string;
+
+};
+
+
+export type CompiledExperience = {
+
+title:string;
+
+description:string;
+
+category:string;
+
+moments:any[];
+
+};
+
+============================================================
+FILE: \apps\web\tsconfig.app.json
+============================================================
+
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "Bundler",
+
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "jsx": "react-jsx",
+
+    "strict": true,
+
+    "types": ["vite/client"],
+
+    "paths": {
+      "@qre/engine": ["../../packages/engine/src/index.ts"],
+      "@qre/contracts": ["../../packages/contracts/src/index.ts"],
+      "@qre/db": ["../../packages/db/src/index.ts"],
+
+      "@qre/engine/*": ["../../packages/engine/src/*"],
+      "@qre/contracts/*": ["../../packages/contracts/src/*"],
+      "@qre/db/*": ["../../packages/db/src/*"]
+    }
+  },
+  "include": ["src", "src/pages/useLiveScan.ts"]
+}
+
+============================================================
+FILE: \apps\web\tsconfig.json
+============================================================
+
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+
+============================================================
+FILE: \apps\web\tsconfig.node.json
+============================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+============================================================
+FILE: \apps\web\vite.config.ts
+============================================================
+
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [
+    react(),
+  ],
+
+  server: {
+    port: 5173,
+
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+});
+
+============================================================
+FILE: \apps\web\vite-env.d.ts
+============================================================
+
+/// <reference types="vite/client" />

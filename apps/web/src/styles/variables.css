@@ -1,51 +1,146 @@
 :root {
 
-  /* BACKGROUND */
 
-  --bg-0: #040506;
-  --bg-1: #0b0d11;
-  --bg-2: #12151b;
+/* =====================================
+   QRE OBSIDIAN WORLD
+   ===================================== */
 
-  /* SURFACES */
 
-  --surface-1: rgba(18,22,30,.72);
-  --surface-2: rgba(24,30,40,.82);
+/* BACKGROUND */
 
-  /* BORDERS */
+--bg-0:
+#020202;
 
-  --border: rgba(255,255,255,.08);
-  --border-active: rgba(0,220,255,.28);
 
-  /* TEXT */
+--bg-1:
+#070707;
 
-  --text: #edf2ff;
-  --text-soft: #9ea8bc;
-  --text-muted: #6b7285;
 
-  /* ACCENTS */
+--bg-2:
+#101010;
 
-  --cyan: #00d9ff;
-  --purple: #7c4dff;
-  --magenta: #ff2f92;
 
-  /* SUCCESS */
 
-  --green: #32d583;
+/* SURFACES */
 
-  /* WARNING */
+--surface-1:
+rgba(255,255,255,.035);
 
-  --orange: #ff9f43;
 
-  /* SHADOWS */
+--surface-2:
+rgba(255,255,255,.065);
 
-  --shadow:
-      0 12px 60px rgba(0,0,0,.45);
 
-  --glow:
-      0 0 40px rgba(0,217,255,.10);
 
-  /* RADIUS */
+/* GLASS */
 
-  --radius:18px;
+--glass:
+rgba(255,255,255,.045);
+
+
+
+/* BORDERS */
+
+--border:
+rgba(255,255,255,.12);
+
+
+
+--border-active:
+rgba(255,255,255,.35);
+
+
+
+/* TEXT */
+
+--text:
+#f5f5f5;
+
+
+
+--text-soft:
+rgba(255,255,255,.65);
+
+
+
+--text-muted:
+rgba(255,255,255,.38);
+
+
+
+
+/* METALLIC ACCENTS */
+
+--silver:
+#d8dce3;
+
+
+
+--silver-bright:
+#ffffff;
+
+
+
+--chrome:
+linear-gradient(
+135deg,
+#ffffff,
+#9da3ad
+);
+
+
+
+
+/* STATUS */
+
+--green:
+#7dffb2;
+
+
+
+--orange:
+#ffb86b;
+
+
+
+--red:
+#ff6b6b;
+
+
+
+
+
+/* SHADOWS */
+
+--shadow:
+
+0 30px 120px rgba(0,0,0,.85);
+
+
+
+
+--soft-shadow:
+
+0 10px 60px rgba(0,0,0,.45);
+
+
+
+
+/* LIGHT */
+
+--glow:
+
+0 0 50px rgba(255,255,255,.08);
+
+
+
+
+
+/* RADIUS */
+
+--radius:
+28px;
+
+
 
 }

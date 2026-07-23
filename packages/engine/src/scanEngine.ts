@@ -29,10 +29,11 @@ import { buildServiceReceipt } from "./receiptBuilder.js";
 import type {
   FlowStepType,
   Moment,
-  ScanResponse,
 } from "@qre/contracts";
 
-
+import type {
+  Experience
+} from "@qre/contracts";
 
 type ScanEngineInput = {
 
@@ -70,7 +71,7 @@ export async function scanEngine(
     storyDeliveryRepository:StoryDeliveryRepository;
   }
 
-):Promise<ScanResponse>{
+):Promise<Experience>{
 
 
 
@@ -660,7 +661,7 @@ export async function scanEngine(
 
   /**
    * =====================================================
-   * 12. PERSIST SESSION RESULT
+   * 12. PERSIST 
    * =====================================================
    */
 
@@ -751,23 +752,22 @@ export async function scanEngine(
 
     asset:{
 
+  id:
+    asset.id,
 
-      id:
+  slug:
+    asset.slug,
 
-        asset.id,
+  category:
+    asset.category ?? undefined,
 
+  accountId:
+    asset.accountId,
 
-      slug:
+  paid:
+    asset.paid,
 
-        asset.slug,
-
-
-      paid:
-
-        asset.paid,
-
-
-    },
+},
 
 
   };

@@ -1,106 +1,203 @@
+/////legacy no boxes at all anywhere
+
 import type { ReactNode } from "react";
 
+
 export default function GlassCard({
+
   children,
+
   glow = false,
+
   style,
+
 }: {
+
   children: ReactNode;
+
   glow?: boolean;
+
   style?: React.CSSProperties;
+
 }) {
 
-  return (
 
-    <div
-
-      style={{
-
-        position:"relative",
-
-        padding:24,
-
-        background:
-          "linear-gradient(145deg, rgba(20,25,35,.85), rgba(5,8,15,.92))",
-
-        border:
-          glow
-            ? "1px solid rgba(0,255,200,.35)"
-            : "1px solid rgba(255,255,255,.08)",
+return (
 
 
-        borderRadius:14,
+<div
+
+style={{
 
 
-        boxShadow:
-
-          glow
-
-          ?
-
-          `
-          0 0 25px rgba(0,255,200,.12),
-          inset 0 0 40px rgba(0,255,200,.04)
-          `
-
-          :
-
-          `
-          inset 0 0 30px rgba(255,255,255,.02)
-          `,
+position:"relative",
 
 
-        backdropFilter:
-          "blur(18px)",
+padding:28,
 
 
-        overflow:"hidden",
+background:
+
+"linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025))",
 
 
-        ...style
 
-      }}
+border:
 
-    >
+glow
 
+?
 
-      <div
+"1px solid rgba(255,255,255,.25)"
 
-        style={{
+:
 
-          position:"absolute",
-
-          inset:0,
-
-          pointerEvents:"none",
-
-          background:
-            "linear-gradient(120deg, transparent 20%, rgba(0,255,200,.05), transparent 70%)"
-
-        }}
-
-      />
+"1px solid rgba(255,255,255,.12)",
 
 
-      <div
-
-        style={{
-
-          position:"relative",
-
-          zIndex:1
-
-        }}
-
-      >
-
-        {children}
-
-      </div>
 
 
-    </div>
+borderRadius:30,
 
-  );
+
+
+
+boxShadow:
+
+glow
+
+?
+
+`
+
+0 40px 120px rgba(0,0,0,.75),
+
+0 0 80px rgba(255,255,255,.08)
+
+`
+
+:
+
+`
+
+0 30px 100px rgba(0,0,0,.65)
+
+`,
+
+
+
+
+
+backdropFilter:
+
+"blur(32px)",
+
+
+
+WebkitBackdropFilter:
+
+"blur(32px)",
+
+
+
+overflow:"hidden",
+
+
+
+transition:
+
+"all .35s ease",
+
+
+
+...style
+
+
+
+}}
+
+
+
+>
+
+
+{/* cinematic glass reflection */}
+
+
+<div
+
+style={{
+
+
+position:"absolute",
+
+
+inset:0,
+
+
+pointerEvents:"none",
+
+
+
+background:
+
+
+`
+
+linear-gradient(
+
+120deg,
+
+transparent 20%,
+
+rgba(255,255,255,.035),
+
+transparent 70%
+
+)
+
+`
+
+
+
+}}
+
+
+/>
+
+
+
+
+
+<div
+
+style={{
+
+
+position:"relative",
+
+
+zIndex:1
+
+
+}}
+
+>
+
+
+{children}
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+);
+
 
 }

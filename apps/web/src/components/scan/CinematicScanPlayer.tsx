@@ -6,303 +6,288 @@ import {
 import MomentRenderer from "./MomentRenderer";
 
 import type {
+  ScanResponse,
   CinematicScene,
 } from "@qre/contracts";
 
 
+type Props = {
+
+  data: ScanResponse;
+
+};
+
 export default function CinematicScanPlayer({
 
-  scenes,
+  data,
 
-}:{
+}:Props){
 
-  scenes:CinematicScene[];
 
-}){
+const scenes: CinematicScene[] =
+  data.cinematicScenes ?? [];
 
 
-  const [index,setIndex] =
-    useState(0);
 
 
 
-  useEffect(()=>{
 
-    setIndex(0);
 
-  },[scenes]);
 
+const [
+index,
+setIndex
+]=useState(0);
 
 
-  const scene =
-    scenes?.[index];
 
 
 
-  console.log(
-    "🔥 CINEMATIC PLAYER SCENES",
-    scenes
-  );
 
+useEffect(()=>{
 
+setIndex(0);
 
-  console.log(
-    "🔥 CURRENT SCENE",
-    index,
-    scene?.moment?.type,
-    scene
-  );
+},[data]);
 
 
 
-  useEffect(()=>{
 
 
-    if(!scene){
-      return;
-    }
 
 
-    /**
-     * Payment actions pause playback.
-     * Everything else is cinematic autoplay.
-     */
-    if(
-      scene.moment.type === "action" &&
-      scene.moment.action === "payment"
-    ){
-      return;
-    }
+const scene =
 
+scenes[index];
 
 
-    const timer =
-      window.setTimeout(()=>{
 
-        setIndex(
-          current =>
-            Math.min(
-              current + 1,
-              scenes.length
-            )
-        );
 
-      }, scene.duration ?? 1500);
 
 
 
-    return()=>{
 
-      clearTimeout(timer);
 
-    };
+useEffect(()=>{
 
 
-  },[scene, scenes.length]);
+if(!scene)
+return;
 
 
 
+const timer =
 
+window.setTimeout(()=>{
 
-  function next(){
 
-    setIndex(
-      current =>
-        Math.min(
-          current + 1,
-          scenes.length
-        )
-    );
+setIndex(
 
-  }
+current =>
 
+Math.min(
 
+current + 1,
 
+scenes.length
 
-  function restart(){
+)
 
-    setIndex(0);
+);
 
-  }
 
+},
 
 
+scene.duration ?? 3000);
 
-  if(!scene){
 
 
-    return (
+return()=>{
 
-      <div
-        className="cinematic-end"
-        style={{
-          minHeight:"100vh",
-          width:"100vw",
-          display:"grid",
-          placeItems:"center",
-          textAlign:"center",
-          padding:40,
-          background:
-            "radial-gradient(circle at top, rgba(0,255,170,.12), #050505 60%)",
-          color:"white",
-        }}
-      >
+window.clearTimeout(timer);
 
-        <h1>
-          Memory Sealed
-        </h1>
+};
 
 
-        <p
-          style={{
-            opacity:.7
-          }}
-        >
-          This moment now exists forever
-        </p>
+},[
 
+scene,
 
-        <div
-          style={{
-            marginTop:30,
-            display:"flex",
-            justifyContent:"center",
-            gap:15
-          }}
-        >
+scenes.length
 
-          <button
-            onClick={restart}
-          >
-            ↻ Relive
-          </button>
+]);
 
 
-          <button
-            onClick={()=>{
-              window.location.href="/store";
-            }}
-          >
-           Make A Memory
-          </button>
 
-        </div>
 
 
-      </div>
 
-    );
 
-  }
 
+function restart(){
 
+setIndex(0);
 
-
-
-  const isPaymentAction =
-    scene.moment.type === "action" &&
-    scene.moment.action === "payment";
-
-
-
-
-  return (
-
-    <div
-      className="cinematic-stage"
-      style={{
-        minHeight:"100vh",
-        width:"100vw",
-        display:"grid",
-        placeItems:"center",
-        background:"#050505",
-        color:"white",
-        overflow:"hidden",
-      }}
-    >
-
-
-      <div
-        style={{
-          width:"100%",
-          maxWidth:1200,
-          display:"grid",
-          gap:18,
-          placeItems:"center",
-          padding:"24px 20px 40px",
-        }}
-      >
-
-
-        <MomentRenderer
-          moment={
-            scene.moment
-          }
-        />
-
-
-
-        {
-          isPaymentAction &&
-
-          <button
-
-            onClick={()=>{
-
-             const url =
-  typeof scene.moment.meta?.url === "string"
-    ? scene.moment.meta.url
-    : null;
-
-if(url){
-  window.location.href = url;
-}
-
-            }}
-
-            style={{
-
-              marginTop:10,
-
-              padding:
-                "14px 32px",
-
-              borderRadius:
-                "999px",
-
-              background:
-                "rgba(255,255,255,.96)",
-
-              color:"#000",
-
-              border:"none",
-
-              cursor:"pointer",
-
-              fontWeight:800,
-
-              width:"min(420px,100%)",
-
-            }}
-
-          >
-
-           {
-  typeof scene.moment.meta?.text === "string"
-    ? scene.moment.meta.text
-    : "Get this QRE"
 }
 
 
-          </button>
-
-        }
 
 
-      </div>
 
-    </div>
 
-  );
+
+if(!scene){
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+display:"grid",
+
+placeItems:"center",
+
+background:"#030305",
+
+color:"#fff",
+
+textAlign:"center",
+
+padding:40
+
+}}
+
+>
+
+
+<div>
+
+
+<h1>
+
+Memory Sealed
+
+</h1>
+
+
+<p
+
+style={{
+
+opacity:.6
+
+}}
+
+>
+
+This experience has completed.
+
+</p>
+
+
+
+<button
+
+onClick={restart}
+
+style={{
+
+marginTop:25,
+
+padding:"14px 35px",
+
+borderRadius:999,
+
+background:"transparent",
+
+border:"1px solid rgba(255,255,255,.35)",
+
+color:"#fff",
+
+cursor:"pointer"
+
+}}
+
+>
+
+RELIVE
+
+</button>
+
+
+</div>
+
+
+</div>
+
+);
+
+
+}
+
+
+
+
+
+
+
+return (
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+width:"100%",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+background:"#030305",
+
+color:"#fff",
+
+padding:"40px 20px"
+
+}}
+
+>
+
+
+<div
+
+style={{
+
+width:"min(1200px,100%)",
+
+}}
+
+>
+
+
+<MomentRenderer
+
+moment={scene.moment}
+
+/>
+
+
+
+</div>
+
+
+</div>
+
+);
+
 
 }

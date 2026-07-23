@@ -1,0 +1,14464 @@
+
+============================================================
+FILE: \packages\engine\package.json
+============================================================
+
+{
+  "name": "@qre/engine",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@qre/api": "workspace:*",
+    "@qre/contracts": "workspace:*",
+    "@qre/db": "workspace:*",
+    "nanoid": "^5.1.16"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
+
+============================================================
+FILE: \packages\engine\src\accessEngine.ts
+============================================================
+
+import type {
+  AccessState,
+} from "@qre/contracts";
+
+import type {
+  AccessRepository,
+} from "./repositories/index.js";
+
+
+type Input = {
+
+  assetId:string;
+
+  userId?:string;
+
+};
+
+
+
+type AssetState = {
+
+  id:string;
+
+  slug:string;
+
+  paid:boolean;
+
+  accountId:string|null;
+
+  ownershipStatus:string|null;
+
+  ownerTier:string;
+
+};
+
+
+
+export type AccessResult = {
+
+  state:AccessState;
+
+  asset:AssetState;
+
+};
+
+
+
+/**
+ * =====================================================
+ * ACCESS ENGINE
+ * =====================================================
+ *
+ * Determines scan permission.
+ *
+ * Rules:
+ *
+ * 1. Claimed/active ownership
+ *    -> UNLOCKED
+ *
+ * 2. Paid asset
+ *    -> UNLOCKED
+ *
+ * 3. Everyone else
+ *    -> DEMO
+ *
+ *
+ * Subscription does NOT unlock assets.
+ *
+ * Account plans control:
+ *
+ * - dashboard
+ * - experience creation
+ * - editing
+ * - analytics
+ *
+ * Asset access controls:
+ *
+ * - ownership
+ * - payment
+ *
+ * =====================================================
+ */
+
+
+export async function resolveAccessEngine(
+
+  input:Input,
+
+  repo:AccessRepository
+
+):Promise<AccessResult>{
+
+
+
+  const asset =
+    await repo.findAssetAccessState(
+      input.assetId
+    );
+
+
+
+  if(!asset){
+
+    throw new Error(
+      "Asset not found"
+    );
+
+  }
+
+
+
+  console.log(
+
+    "[ACCESS ENGINE]",
+
+    {
+
+      assetId:asset.id,
+
+      slug:asset.slug,
+
+      accountId:asset.accountId,
+
+      ownershipStatus:asset.ownershipStatus,
+
+      userId:input.userId,
+
+      paid:asset.paid,
+
+    }
+
+  );
+
+
+
+  /**
+   * OWNERSHIP ACCESS
+   *
+   * Account owns this QR/NFC asset.
+   */
+  if(
+
+    asset.ownershipStatus === "CLAIMED" ||
+
+    asset.ownershipStatus === "ACTIVE"
+
+  ){
+
+    console.log(
+      "[ACCESS ENGINE] OWNERSHIP UNLOCK"
+    );
+
+
+    return {
+
+      state:"UNLOCKED",
+
+      asset,
+
+    };
+
+  }
+
+
+
+
+  /**
+   * PAID ASSET ACCESS
+   *
+   * Stripe confirmed purchase.
+   */
+  if(asset.paid){
+
+    console.log(
+      "[ACCESS ENGINE] PAID UNLOCK"
+    );
+
+
+    return {
+
+      state:"UNLOCKED",
+
+      asset,
+
+    };
+
+  }
+
+
+
+
+  /**
+   * DEMO MODE
+   *
+   * Visitor can preview.
+   */
+  console.log(
+    "[ACCESS ENGINE] DEMO"
+  );
+
+
+  return {
+
+    state:"DEMO",
+
+    asset,
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\actions.ts
+============================================================
+
+import type {
+  Moment,
+  ActionContext,
+} from "@qre/contracts";
+
+
+export type Action = Moment;
+
+
+export async function runAction(
+  action: Action,
+  ctx: ActionContext
+){
+
+  switch(action.type){
+
+    case "message":
+      return {
+        event:"message",
+        text: action.text,
+      };
+
+
+    case "action":
+      return {
+        event:"action",
+        text: action.text,
+        url: action.meta?.url,
+        label: action.meta?.label,
+      };
+
+
+    case "media":
+      return {
+        event:"media",
+        url: action.meta?.url,
+        meta: action.meta,
+      };
+
+
+    case "location":
+      return {
+        event:"location",
+        text: action.meta?.text,
+        meta: action.meta,
+      };
+
+
+    case "system":
+      return {
+        event:"system",
+        text: action.text,
+      };
+
+default:
+  throw new Error(
+    "Unhandled runtime moment type"
+  );
+  
+
+  }
+
+}
+
+============================================================
+FILE: \packages\engine\src\ai\aiInsightsEngine.ts
+============================================================
+
+import type { AnalyticsEventType } from "@qre/contracts";
+
+export type AnalyticsEvent = {
+  assetId: string;
+  timestamp: Date;
+  sessionId?: string | null;
+  type: AnalyticsEventType | string;
+  meta?: any;
+};
+
+/**
+ * =========================
+ * INSIGHT OUTPUT (LOCAL ONLY TYPE)
+ * =========================
+ */
+export type Insight = {
+  type: "ALERT" | "SUGGESTION" | "ANALYTICS";
+  title: string;
+  message: string;
+  confidence: number;
+};
+
+/**
+ * PURE FUNCTION — NO DB
+ */
+export function aiInsightsEngine(events: AnalyticsEvent[]): Insight[] {
+  const insights: Insight[] = [];
+
+  if (!events.length) return insights;
+
+  const hourMap = new Map<number, number>();
+
+  for (const e of events) {
+    const hour = new Date(e.timestamp).getHours();
+    hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+  }
+
+  const lowActivityHours = [...hourMap.entries()]
+    .filter(([_, count]) => count < 2)
+    .map(([hour]) => hour);
+
+  if (lowActivityHours.includes(19) || lowActivityHours.includes(20)) {
+    insights.push({
+      type: "ALERT",
+      title: "Evening Drop Detected",
+      message: "Scan activity decreases after 7 PM.",
+      confidence: 0.82,
+    });
+
+    insights.push({
+      type: "SUGGESTION",
+      title: "Evening Boost Campaign",
+      message: "Run promotions between 5–8 PM.",
+      confidence: 0.76,
+    });
+  }
+
+  if (events.length > 50) {
+    insights.push({
+      type: "ANALYTICS",
+      title: "High Engagement Asset",
+      message: "Traffic above baseline.",
+      confidence: 0.9,
+    });
+  }
+
+  const sessionMap = new Map<string, number>();
+
+  for (const e of events) {
+    if (!e.sessionId) continue;
+    sessionMap.set(e.sessionId, (sessionMap.get(e.sessionId) || 0) + 1);
+  }
+
+  const repeatSessions = [...sessionMap.values()].filter((v) => v > 2).length;
+
+  if (repeatSessions > 3) {
+    insights.push({
+      type: "SUGGESTION",
+      title: "Retention Opportunity",
+      message: "Add loyalty layer for repeat sessions.",
+      confidence: 0.85,
+    });
+  }
+
+  return insights;
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\analyticsService.ts
+============================================================
+
+import { aiInsightsEngine } from "../ai/aiInsightsEngine.js";
+
+import type {
+  AnalyticsEventType,
+} from "@qre/contracts";
+
+import type {
+  AnalyticsRepository,
+} from "../repositories/index.js";
+
+
+
+type NormalizedAnalyticsEvent = {
+
+  assetId:string;
+
+  timestamp:Date;
+
+  sessionId:string|null;
+
+  type:AnalyticsEventType;
+
+};
+
+
+
+
+
+export async function getScanInsights(
+
+  assetId:string,
+
+  repo:AnalyticsRepository
+
+){
+
+
+  const events =
+
+    await repo.findEvents({
+
+      assetId,
+
+      limit:100,
+
+    });
+
+
+
+
+  const normalized:
+
+    NormalizedAnalyticsEvent[] =
+
+      events.map((e:any)=>({
+
+        assetId:e.assetId,
+
+        timestamp:e.createdAt,
+
+        sessionId:e.sessionId,
+
+        type:e.type as AnalyticsEventType,
+
+      }));
+
+
+
+
+  return aiInsightsEngine(
+
+    normalized
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\dashboardAnalytics.ts
+============================================================
+
+import type {
+  AnalyticsRepository,
+} from "../repositories/index.js";
+
+
+/**
+ * =========================
+ * LIVE DASHBOARD METRICS
+ * =========================
+ */
+
+export async function getAssetLiveMetrics(
+
+  assetId:string,
+
+  repo:AnalyticsRepository
+
+) {
+
+
+  const events =
+
+    await repo.findEvents({
+
+      assetId,
+
+      limit:1000,
+
+    });
+
+
+
+  const scans =
+
+    events.filter(
+      (e:any)=>
+        e.type === "SCAN"
+    ).length;
+
+
+
+  const errors =
+
+    events.filter(
+      (e:any)=>
+        e.type === "ERROR"
+    ).length;
+
+
+
+  const flows =
+
+    events.filter(
+      (e:any)=>
+        e.type === "FLOW_START"
+    ).length;
+
+
+
+  const completions =
+
+    events.filter(
+      (e:any)=>
+        e.type === "FLOW_COMPLETE"
+    ).length;
+
+
+
+
+  return {
+
+    scans,
+
+    errors,
+
+    flows,
+
+    completions,
+
+
+    conversionRate:
+
+      scans > 0
+
+        ? completions / scans
+
+        : 0,
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\eventSchema.ts
+============================================================
+
+import { AnalyticsEventTypes } from "@qre/contracts";
+
+export const ANALYTICS_EVENT_VALUES = Object.values(
+  AnalyticsEventTypes
+) as unknown as string[];
+
+============================================================
+FILE: \packages\engine\src\analytics\geoMemoryAnalytics.ts
+============================================================
+
+import type {
+  GeoMemoryRepository,
+  GeoProofRecord,
+} from "../repositories/index.js";
+
+
+export async function buildGeoMemoryAnalytics(
+
+  assetId:string,
+
+  repo:GeoMemoryRepository,
+
+  sessionId?:string
+
+){
+
+
+  const geoEvents =
+    await repo.findGeoProof(
+      assetId
+    );
+
+
+
+  const totalPoints =
+    geoEvents.length;
+
+
+
+  const uniqueCities =
+    new Set(
+
+     geoEvents
+     .map((g:GeoProofRecord)=>g.city)
+
+    .filter(Boolean)
+
+    );
+
+
+
+  const dominantRegion =
+    mostCommon(
+
+   geoEvents
+   .map((g:GeoProofRecord)=>g.region)
+
+    );
+
+
+
+  const confidence =
+    totalPoints === 0
+
+      ? 0
+
+      : Math.min(
+          totalPoints / 10,
+          1
+        );
+
+
+
+  const rewardScore =
+    totalPoints * 1.2;
+
+
+
+  const signalStrength =
+
+    totalPoints > 10
+
+      ? "high"
+
+      : totalPoints > 3
+
+        ? "medium"
+
+        : "low";
+
+
+
+  const lastPoint =
+    geoEvents.at(-1);
+
+
+
+  return repo.createMemorySnapshot({
+
+    assetId,
+
+    sessionId,
+
+    scanWeight:
+      totalPoints,
+
+    rewardScore,
+
+    confidence,
+
+    dominantLayer:
+      "geo_analytics",
+
+    data:{
+
+      totalPoints,
+
+      uniquePlaces:
+        uniqueCities.size,
+
+      dominantRegion,
+
+      signalStrength,
+
+
+      lastLocation:
+        lastPoint
+          ? {
+              lat:lastPoint.lat,
+              lng:lastPoint.lng,
+              city:lastPoint.city,
+              region:lastPoint.region,
+            }
+
+          : null,
+
+    },
+
+  });
+
+
+}
+
+
+
+function mostCommon(
+  values:(string|null|undefined)[]
+){
+
+  const counts =
+    new Map<string,number>();
+
+
+  for(const value of values){
+
+    if(!value) continue;
+
+    counts.set(
+      value,
+      (counts.get(value) ?? 0)+1
+    );
+
+  }
+
+
+  let winner:null|string = null;
+
+  let highest = 0;
+
+
+  for(const [key,value] of counts){
+
+    if(value > highest){
+
+      highest=value;
+
+      winner=key;
+
+    }
+
+  }
+
+
+  return winner;
+
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\getAnalytics.ts
+============================================================
+
+import type {
+  AnalyticsRepository,
+} from "../repositories/index.js";
+
+
+
+export async function getRecentActivity(
+
+  assetId:string,
+
+  repo:AnalyticsRepository,
+
+  limit = 20
+
+){
+
+
+  return repo.findEvents({
+
+    assetId,
+
+    limit,
+
+  });
+
+
+}
+
+
+
+
+
+export async function getFunnel(
+
+  assetId:string,
+
+  repo:AnalyticsRepository
+
+){
+
+
+  const map =
+
+    await repo.countByType(
+
+      assetId
+
+    );
+
+
+
+  return {
+
+    scan:
+      map.SCAN ?? 0,
+
+
+    flowStart:
+      map.FLOW_START ?? 0,
+
+
+    flowStep:
+      map.FLOW_STEP ?? 0,
+
+
+    flowComplete:
+      map.FLOW_COMPLETE ?? 0,
+
+
+    errors:
+      map.ERROR ?? 0,
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\getDashboardMetrics.ts
+============================================================
+
+import type {
+  AnalyticsRepository,
+} from "../repositories/index.js";
+
+
+export async function getDashboardMetrics(
+
+  assetId:string,
+
+  repo:AnalyticsRepository
+
+){
+
+
+  return repo.getDashboardMetrics(
+    assetId
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\index.ts
+============================================================
+
+
+export { trackEvent } from "./trackEvent.js";
+
+export {
+  getRecentActivity,
+  getFunnel,
+} from "./getAnalytics.js";
+
+export { getDashboardMetrics } from "./getDashboardMetrics.js";
+
+export { getScanInsights } from "./analyticsService.js";
+
+export { getAssetLiveMetrics } from "./dashboardAnalytics.js";
+
+============================================================
+FILE: \packages\engine\src\analytics\kernel.ts
+============================================================
+
+import type {
+  AnalyticsEvent,
+  AnalyticsEventType,
+} from "@qre/contracts";
+
+/**
+ * =========================
+ * ANALYTICS KERNEL (SOURCE OF TRUTH)
+ * =========================
+ */
+
+export function computeFunnel(events: AnalyticsEvent[]) {
+  const funnel = {
+    scans: 0,
+    sessions: 0,
+    flowStarts: 0,
+    flowCompletes: 0,
+    errors: 0,
+    payments: 0,
+  };
+
+  for (const e of events) {
+    switch (e.type) {
+      case "SCAN":
+        funnel.scans++;
+        break;
+
+      case "SESSION_START":
+        funnel.sessions++;
+        break;
+
+      case "FLOW_START":
+        funnel.flowStarts++;
+        break;
+
+      case "FLOW_COMPLETE":
+        funnel.flowCompletes++;
+        break;
+
+      case "ERROR":
+        funnel.errors++;
+        break;
+
+      case "PAYMENT_COMPLETED":
+        funnel.payments++;
+        break;
+    }
+  }
+
+  return funnel;
+}
+
+export function computeConversionRate(
+  funnel: ReturnType<typeof computeFunnel>,
+) {
+  if (funnel.scans === 0) {
+    return 0;
+  }
+
+  return funnel.flowCompletes / funnel.scans;
+}
+
+export function computeBasicMetrics(events: AnalyticsEvent[]) {
+  const funnel = computeFunnel(events);
+
+  return {
+    funnel,
+    conversionRate: computeConversionRate(funnel),
+    totalEvents: events.length,
+  };
+}
+
+export function getRecentActivity(
+  events: AnalyticsEvent[],
+  limit = 20,
+) {
+  return events
+    .slice()
+    .sort(
+      (a, b) =>
+        b.createdAt.getTime() - a.createdAt.getTime(),
+    )
+    .slice(0, limit);
+}
+
+============================================================
+FILE: \packages\engine\src\analytics\trackEvent.ts
+============================================================
+
+import type {
+  AnalyticsEventType,
+} from "@qre/contracts";
+
+import type {
+  AnalyticsRepository,
+} from "../repositories/index.js";
+
+
+
+export function mapAnalyticsEventType(
+
+  type:AnalyticsEventType
+
+):AnalyticsEventType {
+
+
+  switch(type){
+
+
+    case "SCAN":
+
+    case "SESSION_START":
+
+    case "SESSION_END":
+
+
+    case "FLOW_START":
+
+    case "FLOW_STEP":
+
+    case "FLOW_COMPLETE":
+
+    case "FLOW_ABANDON":
+
+    case "FLOW_TRIGGERED":
+
+    case "FLOW_POLICY_APPLIED":
+
+
+    case "AI_MEMORY_USED":
+
+    case "AI_DECISION":
+
+    case "MEMORY_APPLIED":
+
+
+    case "GEO_MARK":
+
+    case "CHECK_IN":
+
+    case "CHECK_OUT":
+
+
+    case "PRESENCE_JOIN":
+
+    case "PRESENCE_LEAVE":
+
+
+    case "CTA_CLICK":
+
+    case "WEBSITE_CLICK":
+
+    case "SOCIAL_CLICK":
+
+    case "REDIRECT":
+
+    case "TEASER_VIEW":
+
+
+    case "PAYMENT_REQUIRED":
+
+    case "PAYMENT_STARTED":
+
+    case "PAYMENT_COMPLETED":
+
+
+    case "CLAIM_STARTED":
+
+    case "CLAIM_COMPLETED":
+
+
+    case "TIP_STARTED":
+
+    case "TIP_COMPLETED":
+
+
+    case "UNLOCK":
+
+    case "ERROR":
+
+      return type;
+
+
+    default:{
+
+      const exhaustiveCheck:never = type;
+
+      throw new Error(
+        `Unsupported analytics event type: ${exhaustiveCheck}`
+      );
+
+    }
+
+  }
+
+}
+
+
+
+
+
+export async function trackEvent(
+
+  repo:AnalyticsRepository,
+
+  input:{
+
+    assetId:string;
+
+    sessionId?:string;
+
+    flowId?:string;
+
+    stepIndex?:number;
+
+    type:AnalyticsEventType;
+
+    meta?:Record<string,unknown>;
+
+  }
+
+){
+
+
+  return repo.trackEvent({
+
+    assetId:
+      input.assetId,
+
+
+    sessionId:
+      input.sessionId ?? null,
+
+
+    flowId:
+      input.flowId ?? null,
+
+
+    stepIndex:
+      input.stepIndex ?? null,
+
+
+    type:
+      mapAnalyticsEventType(
+        input.type
+      ),
+
+
+    meta:
+      input.meta ?? {},
+
+  });
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\beast\Beast.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE BEAST
+ * =====================================================
+ *
+ * Central Cognitive Engine
+ *
+ * Observe
+ * Understand
+ * Reason
+ * Plan
+ * Learn
+ * Evolve
+ *
+ * =====================================================
+ */
+
+export type BeastObservation = {
+
+  prompt: string;
+
+  industry?: string;
+
+  goal?: string;
+
+  userId?: string;
+
+  assetId?: string;
+
+  location?: {
+
+    lat: number;
+
+    lng: number;
+
+  };
+
+  timestamp: Date;
+
+};
+
+export class Beast {
+
+  public readonly version = "0.2";
+
+  observe(
+    observation: BeastObservation
+  ) {
+
+    return {
+
+      observation,
+
+      awareness: {
+
+        hasPrompt:
+          observation.prompt.length > 0,
+
+        hasLocation:
+          !!observation.location,
+
+        hasUser:
+          !!observation.userId,
+
+        hasAsset:
+          !!observation.assetId,
+
+        hasIndustry:
+          !!observation.industry,
+
+        hasGoal:
+          !!observation.goal,
+
+      },
+
+    };
+
+  }
+
+}
+
+============================================================
+FILE: \packages\engine\src\beast\MemoryEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE BEAST MEMORY ENGINE
+ * =====================================================
+ *
+ * Experience
+ *      ↓
+ * Memory
+ *      ↓
+ * Future Intelligence
+ *
+ * No database.
+ * No Prisma.
+ * No execution.
+ *
+ * This is cognition memory structure.
+ *
+ * =====================================================
+ */
+
+
+export type BeastMemoryType =
+
+  | "experience"
+
+  | "decision"
+
+  | "pattern";
+
+
+
+
+export type BeastMemory = {
+
+  id:
+    string;
+
+
+  type:
+    BeastMemoryType;
+
+
+  subject:
+    string;
+
+
+  information:
+    Record<string, unknown>;
+
+
+  confidence:
+    number;
+
+
+  createdAt:
+    Date;
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * CREATE MEMORY
+ * =====================================================
+ */
+
+
+export function createMemory(
+
+  input: {
+
+    type:
+      BeastMemoryType;
+
+
+    subject:
+      string;
+
+
+    information:
+      Record<string, unknown>;
+
+
+    confidence?:
+      number;
+
+  }
+
+): BeastMemory {
+
+
+  return {
+
+
+    id:
+      crypto.randomUUID(),
+
+
+    type:
+      input.type,
+
+
+    subject:
+      input.subject,
+
+
+    information:
+      input.information,
+
+
+    confidence:
+      input.confidence ?? 1,
+
+
+    createdAt:
+      new Date(),
+
+
+  };
+
+}
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MEMORY RELEVANCE
+ * =====================================================
+ *
+ * Determines if memory matters.
+ *
+ * Future:
+ * semantic scoring,
+ * embeddings,
+ * pattern detection.
+ *
+ * =====================================================
+ */
+
+
+export function memoryRelevance(
+
+  memory:
+    BeastMemory,
+
+  context:
+    string
+
+): number {
+
+
+  if(
+
+    memory.subject
+      .toLowerCase()
+      .includes(
+        context.toLowerCase()
+      )
+
+  ){
+
+    return 1;
+
+  }
+
+
+
+  return 0.1;
+
+}
+
+============================================================
+FILE: \packages\engine\src\beast\PatternEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE BEAST PATTERN ENGINE
+ * =====================================================
+ *
+ * Memory
+ *    ↓
+ * Pattern Recognition
+ *    ↓
+ * Intelligence
+ *
+ * No database.
+ * No Prisma.
+ * No execution.
+ *
+ * =====================================================
+ */
+
+
+import type {
+  BeastMemory,
+} from "./MemoryEngine.js";
+
+
+
+export type BeastPattern = {
+
+  id:
+    string;
+
+
+  name:
+    string;
+
+
+  description:
+    string;
+
+
+  occurrences:
+    number;
+
+
+  confidence:
+    number;
+
+
+};
+
+
+
+
+
+
+export function detectPatterns(
+
+  memories:
+    BeastMemory[]
+
+): BeastPattern[] {
+
+
+
+  const patterns:
+    BeastPattern[] = [];
+
+
+
+  const subjects =
+    new Map<string, number>();
+
+
+
+  for(
+    const memory of memories
+  ){
+
+
+    const count =
+      subjects.get(
+        memory.subject
+      ) ?? 0;
+
+
+    subjects.set(
+      memory.subject,
+      count + 1
+    );
+
+
+  }
+
+
+
+  for(
+    const [
+      subject,
+      count
+    ]
+    of subjects
+  ){
+
+
+    if(count >= 2){
+
+
+      patterns.push({
+
+        id:
+          crypto.randomUUID(),
+
+
+        name:
+          `${subject}_pattern`,
+
+
+        description:
+          `Repeated experience pattern detected for ${subject}.`,
+
+
+        occurrences:
+          count,
+
+
+        confidence:
+          Math.min(
+            count / 10,
+            1
+          ),
+
+      });
+
+
+    }
+
+  }
+
+
+
+  return patterns;
+
+}
+
+============================================================
+FILE: \packages\engine\src\beast\ReasoningEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE BEAST REASONING ENGINE
+ * =====================================================
+ *
+ * Understanding
+ *        ↓
+ * Reasoning
+ *        ↓
+ * Decision
+ *
+ * No AI.
+ * No database.
+ * No execution.
+ *
+ * The Beast decides what should happen next.
+ *
+ * =====================================================
+ */
+
+import type {
+  BeastUnderstanding,
+} from "./UnderstandingEngine.js";
+
+
+export type BeastDecision = {
+
+  action:
+    | "continue"
+    | "request_information"
+    | "reject";
+
+
+  reason:
+    string;
+
+
+  confidence:
+    number;
+
+};
+
+
+
+
+export function reason(
+
+  understanding: BeastUnderstanding
+
+): BeastDecision {
+
+
+  /**
+   * Not enough understanding.
+   */
+  if(
+    understanding.confidence < 0.4
+  ){
+
+    return {
+
+      action:
+        "request_information",
+
+      reason:
+        "The Beast lacks enough context to safely create an experience.",
+
+      confidence:
+        understanding.confidence,
+
+    };
+
+  }
+
+
+
+  /**
+   * Enough context.
+   */
+  if(
+    understanding.confidence >= 0.4
+  ){
+
+    return {
+
+      action:
+        "continue",
+
+      reason:
+        "The Beast understands enough context to continue compilation.",
+
+      confidence:
+        understanding.confidence,
+
+    };
+
+  }
+
+
+
+  return {
+
+    action:
+      "reject",
+
+    reason:
+      "Unable to reason from current context.",
+
+    confidence:
+      0,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\beast\UnderstandingEngine.ts
+============================================================
+
+export type BeastAwareness = {
+
+  hasPrompt: boolean;
+
+  hasIndustry: boolean;
+
+  hasGoal: boolean;
+
+  hasUser: boolean;
+
+  hasAsset: boolean;
+
+  hasLocation: boolean;
+
+};
+
+export type BeastUnderstanding = {
+
+  confidence: number;
+
+  completeness: number;
+
+  missing: string[];
+
+};
+
+export function understand(
+  awareness: BeastAwareness
+): BeastUnderstanding {
+
+  const missing: string[] = [];
+
+  if (!awareness.hasIndustry)
+    missing.push("industry");
+
+  if (!awareness.hasGoal)
+    missing.push("goal");
+
+  if (!awareness.hasPrompt)
+    missing.push("prompt");
+
+  const known = 6 - missing.length;
+
+  return {
+
+    confidence:
+      known / 6,
+
+    completeness:
+      known / 6,
+
+    missing,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\adaptation.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION ADAPTATION ENGINE
+ * =====================================================
+ *
+ * Reflection
+ *      ↓
+ * Adaptation
+ *      ↓
+ * Behavior Improvement Proposal
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  CognitiveInsight,
+} from "./reflection.js";
+
+
+
+
+
+export type AdaptationType =
+
+  | "optimization"
+
+  | "attention"
+
+  | "warning"
+
+  | "learning";
+
+
+
+
+
+
+
+export type AdaptationProposal = {
+
+
+  id:
+    string;
+
+
+
+  type:
+    AdaptationType;
+
+
+
+  change:
+    string;
+
+
+
+  reason:
+    string;
+
+
+
+  confidence:
+    number;
+
+
+
+  sourceInsightIds:
+    string[];
+
+
+
+  context?:
+    Record<string, unknown>;
+
+};
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * ADAPT
+ * =====================================================
+ */
+
+
+export function adapt(
+
+  insights:readonly CognitiveInsight[]
+
+):AdaptationProposal[] {
+
+
+
+  const proposals:
+    AdaptationProposal[] = [];
+
+
+
+
+
+
+  for(const insight of insights){
+
+
+
+    if(insight.confidence < 0.5){
+
+      continue;
+
+    }
+
+
+
+
+
+
+    const event =
+
+      insight.context?.event;
+
+
+
+
+
+
+    let type:
+      AdaptationType =
+        "learning";
+
+
+
+    let change =
+      "Continue monitoring this pattern for future improvement.";
+
+
+
+
+
+
+
+    if(typeof event === "string"){
+
+
+      type =
+        "optimization";
+
+
+
+      change =
+        `Optimize behavior around repeated event: ${event}.`;
+
+
+    }
+
+
+
+
+
+
+
+    proposals.push({
+
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+
+      type,
+
+
+
+      change,
+
+
+
+      reason:
+
+        insight.statement,
+
+
+
+      confidence:
+
+        insight.confidence,
+
+
+
+      sourceInsightIds:[
+
+        insight.id
+
+      ],
+
+
+
+      context:
+
+        insight.context,
+
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+  return proposals;
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\cognitionHandler.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION EVENT HANDLER
+ * =====================================================
+ *
+ * Connects the event spine to cognition.
+ *
+ * The spine carries signals.
+ * Cognition interprets them.
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import {
+
+  processCognition,
+
+} from "./cognitionKernel.js";
+
+
+
+import type {
+
+  EngineEventType,
+
+} from "../types/engineEvent.js";
+
+
+
+
+
+export type CognitionEvent = {
+
+  type:EngineEventType;
+
+  [key:string]:unknown;
+
+};
+
+
+
+
+
+
+export async function handleCognitionEvent(
+
+ event:CognitionEvent
+
+){
+
+
+
+  const result =
+
+    processCognition({
+
+
+
+      type:
+
+        "experience",
+
+
+
+      summary:
+
+        `Engine event received: ${event.type}`,
+
+
+
+      confidence:
+
+        0.5,
+
+
+
+    });
+
+
+
+
+  return result;
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\cognitionKernel.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION KERNEL
+ * =====================================================
+ *
+ * Central cognition coordinator.
+ *
+ * Experience
+ *      ↓
+ * Memory
+ *      ↓
+ * Reflection
+ *      ↓
+ * Adaptation
+ *      ↓
+ * Decision
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * The kernel thinks.
+ * Runtime acts.
+ *
+ * =====================================================
+ */
+import {
+  remember,
+  recall,
+} from "./memory.js";
+
+
+import type {
+  MemoryType,
+} from "./memory.js";
+
+
+
+import {
+
+  reflect,
+
+} from "./reflection.js";
+
+
+import {
+
+  adapt,
+
+} from "./adaptation.js";
+
+
+import {
+
+  makeDecision,
+
+  chooseBestDecision,
+
+} from "./decisionEngine.js";
+
+
+
+export type CognitionInput = {
+
+
+  type:
+    MemoryType;
+
+
+  summary:
+    string;
+
+
+  context?:
+    Record<string, unknown>;
+
+
+  confidence:
+    number;
+
+
+};
+
+
+
+
+
+
+export type CognitionResult = {
+
+
+  memories:number;
+
+
+  insights:number;
+
+
+  adaptations:number;
+
+
+  decisions:number;
+
+
+  bestDecision:
+
+
+    ReturnType<typeof chooseBestDecision>;
+
+
+};
+
+
+
+
+
+
+
+
+export function processCognition(
+
+ input:CognitionInput
+
+):CognitionResult {
+
+
+
+  remember({
+
+  type:
+
+    input.type,
+
+
+  summary:
+
+    input.summary,
+
+
+  confidence:
+
+    input.confidence,
+
+
+  context:
+
+    input.context,
+
+
+});
+
+
+
+
+
+  const memories =
+
+    recall();
+
+
+
+
+
+  const insights =
+
+    reflect(
+
+      memories
+
+    );
+
+
+
+
+
+  const adaptations =
+
+    adapt(
+
+      insights
+
+    );
+
+
+
+
+
+  const decisions =
+
+    makeDecision(
+
+      adaptations
+
+    );
+
+
+
+
+
+  const bestDecision =
+
+    chooseBestDecision(
+
+      decisions
+
+    );
+
+
+
+
+
+  return {
+
+
+    memories:
+
+      memories.length,
+
+
+
+    insights:
+
+      insights.length,
+
+
+
+    adaptations:
+
+      adaptations.length,
+
+
+
+    decisions:
+
+      decisions.length,
+
+
+
+    bestDecision,
+
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\decisionEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION DECISION ENGINE
+ * =====================================================
+ *
+ * Adaptation
+ *      ↓
+ * Decision
+ *      ↓
+ * Recommended Action
+ *
+ * Responsibilities:
+ *
+ * - Evaluate possible actions
+ * - Preserve evidence-based decisions
+ * - Track confidence
+ * - Track risk
+ * - Rank recommendations
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * This layer recommends.
+ * Runtime decides.
+ *
+ * =====================================================
+ */
+
+
+import type {
+  AdaptationProposal,
+} from "./adaptation.js";
+
+
+
+
+
+export type DecisionRisk =
+
+  | "low"
+
+  | "medium"
+
+  | "high";
+
+
+
+
+
+export type CognitiveDecision = {
+
+
+  id:
+    string;
+
+
+
+  action:
+    string;
+
+
+
+  reason:
+    string;
+
+
+
+  confidence:
+    number;
+
+
+
+  risk:
+    DecisionRisk;
+
+
+
+  priority:
+    number;
+
+
+
+  expectedOutcome:
+    string;
+
+
+
+  sourceAdaptationIds:
+    string[];
+
+
+
+  context?:
+    Record<string, unknown>;
+
+};
+
+
+
+
+
+
+
+
+function calculateRisk(
+
+ confidence:number
+
+):DecisionRisk {
+
+
+  if(confidence >= .8){
+
+    return "low";
+
+  }
+
+
+  if(confidence >= .5){
+
+    return "medium";
+
+  }
+
+
+  return "high";
+
+}
+
+
+
+
+
+
+
+
+
+function calculatePriority(
+
+ adaptation:AdaptationProposal
+
+):number {
+
+
+  let score =
+    adaptation.confidence;
+
+
+
+  if(adaptation.type === "optimization"){
+
+    score += .2;
+
+  }
+
+
+
+  if(adaptation.type === "warning"){
+
+    score += .3;
+
+  }
+
+
+
+  return Math.min(
+
+    score,
+
+    1
+
+  );
+
+}
+
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * DECISION CREATION
+ * =====================================================
+ */
+
+
+export function makeDecision(
+
+  adaptations:readonly AdaptationProposal[]
+
+):CognitiveDecision[] {
+
+
+
+  return adaptations.map(
+
+    adaptation => ({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      action:
+
+        adaptation.change,
+
+
+
+      reason:
+
+        adaptation.reason,
+
+
+
+      confidence:
+
+        adaptation.confidence,
+
+
+
+      risk:
+
+        calculateRisk(
+
+          adaptation.confidence
+
+        ),
+
+
+
+      priority:
+
+        calculatePriority(
+
+          adaptation
+
+        ),
+
+
+
+      expectedOutcome:
+
+        "Improve future experience decisions through learned patterns.",
+
+
+
+      sourceAdaptationIds:[
+
+        adaptation.id
+
+      ],
+
+
+
+      context:
+
+        adaptation.context,
+
+
+
+    })
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * BEST DECISION
+ * =====================================================
+ *
+ * Selects highest priority recommendation.
+ *
+ * =====================================================
+ */
+
+
+export function chooseBestDecision(
+
+ decisions:readonly CognitiveDecision[]
+
+):CognitiveDecision | null {
+
+
+
+  if(!decisions.length){
+
+    return null;
+
+  }
+
+
+
+  return (
+
+    [...decisions]
+
+      .sort(
+
+        (a,b)=>
+
+          b.priority -
+
+          a.priority
+
+      )[0]
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\evaluation.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION EVALUATION ENGINE
+ * =====================================================
+ *
+ * Decision
+ *      ↓
+ * Outcome
+ *      ↓
+ * Evaluation
+ *      ↓
+ * Learning Signal
+ *
+ * Responsibilities:
+ *
+ * - Measure decision quality
+ * - Compare expectation vs reality
+ * - Produce learning feedback
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  CognitiveDecision,
+} from "./decisionEngine.js";
+
+
+
+export type CognitiveEvaluation = {
+
+
+  id:string;
+
+
+  decisionId:string;
+
+
+  success:boolean;
+
+
+  score:number;
+
+
+  lesson:string;
+
+
+};
+
+
+
+
+
+
+export type EvaluationInput = {
+
+
+  decision:
+    CognitiveDecision;
+
+
+  outcome:
+    string;
+
+
+  success:
+    boolean;
+
+
+};
+
+
+
+
+
+
+
+
+export function evaluateDecision(
+
+  input:EvaluationInput
+
+):CognitiveEvaluation {
+
+
+  return {
+
+
+    id:
+
+      crypto.randomUUID(),
+
+
+
+    decisionId:
+
+      input.decision.id,
+
+
+
+    success:
+
+      input.success,
+
+
+
+    score:
+
+      input.success
+
+        ? input.decision.confidence
+
+        : 1 - input.decision.confidence,
+
+
+
+    lesson:
+
+      input.success
+
+        ? "Decision pattern produced positive results."
+
+        : "Decision pattern requires adjustment.",
+
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\index.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION CORE INDEX
+ * =====================================================
+ *
+ * Public cognition boundary.
+ *
+ * The brain has organs.
+ * This is the nervous system interface.
+ *
+ * =====================================================
+ */
+
+
+// Kernel
+
+export {
+  processCognition,
+} from "./cognitionKernel.js";
+
+
+export type {
+  CognitionInput,
+  CognitionResult,
+} from "./cognitionKernel.js";
+
+
+
+
+// Memory
+
+export {
+  remember,
+  recall,
+  reflectMemory,
+} from "./memory.js";
+
+
+export type {
+  CognitiveMemory,
+  MemoryType,
+} from "./memory.js";
+
+
+
+
+// Reflection
+
+export {
+  reflect,
+} from "./reflection.js";
+
+
+export type {
+  CognitiveInsight,
+} from "./reflection.js";
+
+
+
+
+// Adaptation
+
+export {
+  adapt,
+} from "./adaptation.js";
+
+
+export type {
+  AdaptationProposal,
+  AdaptationType,
+} from "./adaptation.js";
+
+
+
+
+// Decision
+
+export {
+  makeDecision,
+  chooseBestDecision,
+} from "./decisionEngine.js";
+
+
+export type {
+  CognitiveDecision,
+  DecisionRisk,
+} from "./decisionEngine.js";
+
+
+
+// Evaluation
+
+export {
+  evaluateDecision,
+} from "./evaluation.js";
+
+
+export type {
+  CognitiveEvaluation,
+  EvaluationInput,
+} from "./evaluation.js";
+
+
+
+
+// Self Model
+
+export {
+  qreSelfModel,
+  reflectSelf,
+} from "./selfModel.js";
+
+============================================================
+FILE: \packages\engine\src\cognition\memory.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION MEMORY CORE
+ * =====================================================
+ *
+ * The Beast's experience memory layer.
+ *
+ * Responsibilities:
+ *
+ * - Record meaningful observations
+ * - Track discovered patterns
+ * - Track confidence
+ * - Provide reflection history
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * PURE COGNITION
+ *
+ * =====================================================
+ */
+
+
+export type MemoryType =
+
+  | "experience"
+
+  | "pattern"
+
+  | "decision"
+
+  | "failure"
+
+  | "insight";
+
+
+
+
+export type CognitiveMemory = {
+
+  id:string;
+
+  type:MemoryType;
+
+  summary:string;
+
+  confidence:number;
+
+  context?:Record<string,unknown>;
+
+  createdAt:string;
+
+};
+
+
+
+
+
+const memoryStore:CognitiveMemory[] = [];
+
+
+
+
+
+/**
+ * =====================================================
+ * REMEMBER
+ * =====================================================
+ */
+
+export function remember(
+
+ memory:Omit<CognitiveMemory,"id"|"createdAt">
+
+):CognitiveMemory {
+
+
+ const entry:CognitiveMemory = {
+
+
+  id:
+
+    crypto.randomUUID(),
+
+
+
+  createdAt:
+
+    new Date().toISOString(),
+
+
+
+  ...memory,
+
+
+ };
+
+
+
+ memoryStore.push(entry);
+
+
+
+ return entry;
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ * RECALL
+ * =====================================================
+ */
+
+export function recall():
+
+readonly CognitiveMemory[] {
+
+
+ return [
+
+   ...memoryStore
+
+ ];
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ * REFLECT ON EXPERIENCE
+ * =====================================================
+ */
+
+export function reflectMemory(){
+
+
+ return {
+
+
+  total:
+
+    memoryStore.length,
+
+
+  strongestSignals:
+
+    memoryStore
+
+      .filter(
+
+        m => m.confidence >= .8
+
+      ),
+
+
+ };
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\reflection.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION REFLECTION ENGINE
+ * =====================================================
+ *
+ * Converts memory into understanding.
+ *
+ * Memory:
+ *   "Something happened"
+ *
+ * Reflection:
+ *   "What does it mean?"
+ *
+ * Responsibilities:
+ *
+ * - Analyze experiences
+ * - Detect repeated signals
+ * - Find strong patterns
+ * - Produce cognitive insights
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  CognitiveMemory,
+} from "./memory.js";
+
+
+
+
+
+export type CognitiveInsight = {
+
+
+  id:
+    string;
+
+
+
+  statement:
+    string;
+
+
+
+  confidence:
+    number;
+
+
+
+  sourceMemoryIds:
+    string[];
+
+
+
+  context?:
+    Record<string, unknown>;
+
+};
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * REFLECT
+ * =====================================================
+ *
+ * Memory
+ *   ↓
+ * Pattern extraction
+ *   ↓
+ * Insights
+ *
+ * =====================================================
+ */
+
+
+export function reflect(
+
+  memories:readonly CognitiveMemory[]
+
+):CognitiveInsight[] {
+
+
+
+  const insights:CognitiveInsight[] = [];
+
+
+
+  if(!memories.length){
+
+    return insights;
+
+  }
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * EXPERIENCE PATTERN
+   * =====================================================
+   */
+
+
+  const experiences =
+
+    memories.filter(
+
+      memory =>
+
+        memory.type === "experience"
+
+    );
+
+
+
+
+  if(experiences.length > 0){
+
+
+    insights.push({
+
+      id:
+
+        crypto.randomUUID(),
+
+
+      statement:
+
+        "Experience signals are accumulating and can improve future decisions.",
+
+
+      confidence:
+
+        Math.min(
+
+          experiences.length / 10,
+
+          1
+
+        ),
+
+
+      sourceMemoryIds:
+
+        experiences.map(
+
+          memory => memory.id
+
+        ),
+
+
+      context:{
+
+        experienceCount:
+
+          experiences.length,
+
+      },
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * HIGH CONFIDENCE SIGNAL DETECTION
+   * =====================================================
+   */
+
+
+  const strongSignals =
+
+    memories.filter(
+
+      memory =>
+
+        memory.confidence >= 0.8
+
+    );
+
+
+
+
+  if(strongSignals.length > 0){
+
+
+    insights.push({
+
+      id:
+
+        crypto.randomUUID(),
+
+
+      statement:
+
+        "High confidence signals indicate repeatable patterns.",
+
+
+      confidence:
+
+        strongSignals.length /
+
+        Math.max(
+
+          memories.length,
+
+          1
+
+        ),
+
+
+      sourceMemoryIds:
+
+        strongSignals.map(
+
+          memory => memory.id
+
+        ),
+
+
+      context:{
+
+        strongSignalCount:
+
+          strongSignals.length,
+
+      },
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * EVENT PATTERN RECOGNITION
+   * =====================================================
+   *
+   * Looks inside memory context.
+   *
+   * Example:
+   *
+   * FLOW_COMPLETE
+   * FLOW_COMPLETE
+   * FLOW_COMPLETE
+   *
+   * becomes:
+   *
+   * "Repeated completion behavior detected"
+   *
+   * =====================================================
+   */
+
+
+  const eventCounts:
+
+    Record<string, CognitiveMemory[]> = {};
+
+
+
+
+  for(const memory of memories){
+
+
+    const event =
+
+      memory.context?.event;
+
+
+
+    if(typeof event !== "string"){
+
+      continue;
+
+    }
+
+
+
+    if(!eventCounts[event]){
+
+      eventCounts[event] = [];
+
+    }
+
+
+
+    eventCounts[event].push(memory);
+
+
+  }
+
+
+
+
+
+
+  for(const [event, related] of Object.entries(eventCounts)){
+
+
+    if(related.length < 3){
+
+      continue;
+
+    }
+
+
+
+    insights.push({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      statement:
+
+        `Repeated runtime pattern detected: ${event}.`,
+
+
+
+      confidence:
+
+        Math.min(
+
+          related.length / 10,
+
+          1
+
+        ),
+
+
+
+      sourceMemoryIds:
+
+        related.map(
+
+          memory => memory.id
+
+        ),
+
+
+
+      context:{
+
+        event,
+
+        occurrences:
+
+          related.length,
+
+      },
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+  return insights;
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\selfModel.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION SELF MODEL
+ * =====================================================
+ *
+ * The Beast's internal identity layer.
+ *
+ * Responsibilities:
+ *
+ * - Know what systems exist
+ * - Know its operating principles
+ * - Track unknowns
+ * - Track objectives
+ * - Provide reflection context
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * Pure cognition primitive.
+ *
+ * =====================================================
+ */
+
+
+export type SelfModel = {
+
+  identity: string;
+
+  purpose: string;
+
+  principles: readonly string[];
+
+  capabilities: readonly string[];
+
+  limitations: readonly string[];
+
+  objectives: readonly string[];
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * QRE SELF MODEL
+ * =====================================================
+ *
+ * Permanent architectural identity.
+ *
+ * =====================================================
+ */
+
+
+export const qreSelfModel: SelfModel = {
+
+
+  identity:
+    "QRE Cognitive Experience Engine",
+
+
+
+  purpose:
+    "Transform physical interactions into intelligent, adaptive experiences.",
+
+
+
+  principles:[
+
+
+    "Protect the architecture.",
+
+
+    "Avoid random features.",
+
+
+    "Every change must improve intelligence.",
+
+
+    "Memory must create improvement.",
+
+
+    "Evidence beats assumption.",
+
+
+    "Simple systems scale.",
+
+
+  ],
+
+
+
+  capabilities:[
+
+
+    "Compile experiences.",
+
+
+    "Generate moments.",
+
+
+    "Create cinematic runtime scenes.",
+
+
+    "Analyze experience behavior.",
+
+
+    "Learn from feedback.",
+
+
+    "Adapt future experiences.",
+
+
+  ],
+
+
+
+  limitations:[
+
+
+    "Cannot know what it has not observed.",
+
+
+    "Cannot improve without feedback.",
+
+
+    "Cannot change architecture without validation.",
+
+
+    "Cannot replace human judgment.",
+
+
+  ],
+
+
+
+  objectives:[
+
+
+    "Create better experiences over time.",
+
+
+    "Increase user value.",
+
+
+    "Reduce unnecessary complexity.",
+
+
+    "Discover patterns from reality.",
+
+
+  ],
+
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * REFLECTION
+ * =====================================================
+ *
+ * Allows higher systems to ask:
+ *
+ * "What are you?"
+ *
+ * =====================================================
+ */
+
+
+export function reflectSelf(): SelfModel {
+
+  return qreSelfModel;
+
+}
+
+============================================================
+FILE: \packages\engine\src\cognition\tests\adaptation.test.ts
+============================================================
+
+
+============================================================
+FILE: \packages\engine\src\cognition\tests\belief.test.ts
+============================================================
+
+
+============================================================
+FILE: \packages\engine\src\cognition\tests\memory.test.ts
+============================================================
+
+
+============================================================
+FILE: \packages\engine\src\cognition\tests\reflection.test.ts
+============================================================
+
+
+============================================================
+FILE: \packages\engine\src\cognition\tests\selfModel.test.ts
+============================================================
+
+
+============================================================
+FILE: \packages\engine\src\delivery\deliveryPolicy.ts
+============================================================
+
+export type DeliveryPreference = {
+
+ email:boolean;
+
+ sms:boolean;
+
+ push:boolean;
+
+ ownerNotification:boolean;
+
+ customerNotification:boolean;
+
+};
+
+============================================================
+FILE: \packages\engine\src\delivery\StoryDeliveryEngine.ts
+============================================================
+
+import type {
+  StoryDeliveryRepository,
+} from "../repositories/index.js";
+
+import type {
+  CinematicScene,
+  GeoStory,
+  Moment,
+} from "@qre/contracts";
+
+
+
+type StoryInput = {
+
+  assetId:string;
+
+  sessionId:string;
+
+  userId?:string|null;
+
+
+  recipient?:{
+
+    email?:string;
+
+    phone?:string;
+
+  };
+
+
+  moments:Moment[];
+
+  geoStory:GeoStory|null;
+
+  cinematicScenes:CinematicScene[];
+
+};
+
+
+
+
+
+export async function createStoryDelivery(
+
+  input:StoryInput,
+
+  repo:StoryDeliveryRepository
+
+){
+
+
+  /**
+   * =====================================================
+   * 1. VERIFY ASSET
+   * =====================================================
+   *
+   * Repository owns persistence.
+   *
+   * Engine only receives truth.
+   *
+   * =====================================================
+   */
+
+
+  const asset =
+    await repo.findAsset(
+      input.assetId
+    );
+
+
+
+  if(!asset){
+
+    throw new Error(
+      "Asset not found"
+    );
+
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 2. DUPLICATE STORY GUARD
+   * =====================================================
+   */
+
+
+  const existing =
+    await repo.findExistingStory({
+
+      assetId:
+        input.assetId,
+
+      sessionId:
+        input.sessionId,
+
+    });
+
+
+
+
+  if(existing){
+
+    return {
+
+      storyId:
+        existing.id,
+
+
+      shareUrl:
+        `/share/${existing.id}`,
+
+
+      delivered:false,
+
+
+      reason:
+        "ALREADY_DELIVERED",
+
+    };
+
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 3. NORMALIZE EXPERIENCE PAYLOAD
+   * =====================================================
+   */
+
+
+  const safeGeoStory =
+    structuredClone(
+      input.geoStory
+    );
+
+
+
+  const safeMoments =
+    structuredClone(
+      input.moments
+    );
+
+
+
+  const safeScenes =
+    structuredClone(
+      input.cinematicScenes
+    );
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 4. CREATE MEMORY SNAPSHOT
+   * =====================================================
+   */
+
+
+  const snapshot =
+    await repo.createStorySnapshot({
+
+      assetId:
+        input.assetId,
+
+
+      sessionId:
+        input.sessionId,
+
+
+      moments:
+        safeMoments,
+
+
+      geoStory:
+        safeGeoStory,
+
+
+      cinematicScenes:
+        safeScenes,
+
+    });
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 5. FUTURE DELIVERY PIPELINE
+   * =====================================================
+   *
+   * Email/SMS/push will attach here.
+   *
+   * Snapshot creation is the source of truth.
+   *
+   * =====================================================
+   */
+
+
+
+  const shareUrl =
+    `/share/${snapshot.id}`;
+
+
+
+  const delivered =
+    Boolean(
+
+      input.recipient?.email ||
+
+      input.recipient?.phone
+
+    );
+
+
+
+  if(delivered){
+
+    await queueExperienceDelivery({
+
+      snapshotId:
+        snapshot.id,
+
+      assetId:
+        asset.id,
+
+      email:
+        input.recipient?.email,
+
+      phone:
+        input.recipient?.phone,
+
+      shareUrl,
+
+    });
+
+  }
+
+
+
+
+
+  return {
+
+    storyId:
+      snapshot.id,
+
+
+    shareUrl,
+
+
+    delivered,
+
+
+    reason:
+      delivered
+        ? "DELIVERY_QUEUED"
+        : "CREATED",
+
+  };
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * DELIVERY QUEUE PLACEHOLDER
+ * =====================================================
+ *
+ * Future:
+ *
+ * Resend
+ * Twilio
+ * Push
+ *
+ * =====================================================
+ */
+
+
+async function queueExperienceDelivery(
+
+  payload:{
+
+    snapshotId:string;
+
+    assetId:string;
+
+    email?:string;
+
+    phone?:string;
+
+    shareUrl:string;
+
+  }
+
+){
+
+  console.log(
+
+    "[EXPERIENCE DELIVERY QUEUED]",
+
+    payload
+
+  );
+
+}
+
+============================================================
+FILE: \packages\engine\src\experience\blueprintComposer.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE BLUEPRINT COMPOSER
+ * =====================================================
+ *
+ * Experience Genome
+ *        ↓
+ * Experience Blueprint
+ *
+ * Genome is creative source of truth.
+ *
+ * Responsibilities:
+ *
+ * - Resolve industry
+ * - Resolve goal
+ * - Resolve experience type
+ * - Generate moments
+ * - Preserve meaning
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+
+  ExperienceBlueprint,
+  ExperienceGenome,
+  ExperienceMoment,
+  ExperienceMomentType,
+  ExperienceComponent,
+  ExperienceTone,
+  ExperienceGoal,
+  ExperienceType,
+  ExperienceIndustry,
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MOMENT → COMPONENT
+ * =====================================================
+ */
+
+
+function resolveComponent(
+
+  type:ExperienceMomentType
+
+):ExperienceComponent {
+
+
+const components:
+
+Partial<Record<
+ExperienceMomentType,
+ExperienceComponent
+>>
+
+= {
+
+
+welcome:
+"hero",
+
+
+introduction:
+"hero",
+
+
+story:
+"story",
+
+
+memory:
+"memory",
+
+
+photos:
+"gallery",
+
+
+video:
+"video",
+
+
+location:
+"geo_memory",
+
+
+product:
+"product",
+
+
+reward:
+"reward",
+
+
+share:
+"social",
+
+
+profile:
+"profile",
+
+
+timeline:
+"timeline",
+
+
+followup:
+"cta",
+
+
+care_instructions:
+"education",
+
+
+};
+
+
+return (
+
+components[type]
+
+??
+
+"cta"
+
+) as ExperienceComponent;
+
+
+}
+
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * PURPOSE INTELLIGENCE
+ * =====================================================
+ */
+
+
+function resolveGoal(
+
+ genome:ExperienceGenome
+
+):ExperienceGoal {
+
+
+if(
+ genome.commerce >= .7
+){
+ return "conversion";
+}
+
+
+if(
+ genome.memory >= .7
+){
+ return "memory";
+}
+
+
+if(
+ genome.themes.includes(
+   "connection"
+ )
+){
+ return "storytelling";
+}
+
+
+if(
+ genome.themes.includes(
+   "education"
+ )
+){
+ return "educate";
+}
+
+
+if(
+ genome.replay >= .7
+){
+ return "retention";
+}
+
+
+return "welcome";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * INDUSTRY INTELLIGENCE
+ * =====================================================
+ */
+
+
+function resolveIndustry(
+
+ genome:ExperienceGenome
+
+):ExperienceIndustry {
+
+
+if(
+ genome.commerce >= .7
+){
+ return "business";
+}
+
+
+
+if(
+ genome.memory >= .7
+){
+
+ return "personal";
+
+}
+
+
+
+if(
+ genome.themes.includes(
+ "relationship"
+ )
+){
+
+ return "relationship";
+
+}
+
+
+
+if(
+ genome.themes.includes(
+ "culture"
+ )
+){
+
+ return "event";
+
+}
+
+
+
+return "generic";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE SHAPE
+ * =====================================================
+ */
+
+
+function resolveType(
+
+ genome:ExperienceGenome
+
+):ExperienceType {
+
+
+if(
+ genome.memory >= .7
+){
+
+ return "story";
+
+}
+
+
+
+if(
+ genome.commerce >= .7
+){
+
+ return "business";
+
+}
+
+
+
+if(
+ genome.journey.includes(
+ "transformation"
+ )
+){
+
+ return "journey";
+
+}
+
+
+
+return "journey";
+
+
+}
+
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * TITLE ENGINE
+ * =====================================================
+ */
+
+
+function createTitle(
+
+ genome:ExperienceGenome
+
+):string {
+
+
+
+if(
+ genome.meaning.memories.length
+){
+
+ return genome.meaning.memories[0];
+
+}
+
+
+
+if(
+ genome.meaning.desiredFeeling.length
+){
+
+ return `${genome.meaning.desiredFeeling[0]} Experience`;
+
+}
+
+
+
+if(
+ genome.entities.places.length
+){
+
+ return `${genome.entities.places[0]} Experience`;
+
+}
+
+
+
+if(
+ genome.entities.people.length
+){
+
+ return `${genome.entities.people[0]} Story`;
+
+}
+
+
+
+return "QRE Experience";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MOMENT GENERATION
+ * =====================================================
+ */
+
+
+function generateMomentSequence(
+
+ genome:ExperienceGenome
+
+):ExperienceMomentType[] {
+
+
+const moments =
+new Set<ExperienceMomentType>();
+
+
+
+moments.add(
+"welcome"
+);
+
+
+
+if(
+ genome.memory >= .5
+){
+
+ moments.add(
+ "memory"
+ );
+
+}
+
+
+
+if(
+ genome.entities.places.length
+){
+
+ moments.add(
+ "location"
+ );
+
+}
+
+
+
+if(
+ genome.entities.products.length
+){
+
+ moments.add(
+ "product"
+ );
+
+}
+
+
+
+if(
+ genome.immersion >= .5
+){
+
+ moments.add(
+ "video"
+ );
+
+}
+
+
+
+if(
+ genome.interaction >= .5
+){
+
+ moments.add(
+ "story"
+ );
+
+}
+
+
+
+moments.add(
+"followup"
+);
+
+
+
+return [
+ ...moments
+];
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * BUILD MOMENT
+ * =====================================================
+ */
+
+
+function buildMoment(
+
+ type:ExperienceMomentType,
+
+ index:number,
+
+ genome:ExperienceGenome
+
+):ExperienceMoment {
+
+
+return {
+
+
+type,
+
+
+component:
+resolveComponent(type),
+
+
+
+title:
+`${type} moment`,
+
+
+
+subtitle:
+genome.meaning.why,
+
+
+
+order:
+index,
+
+
+
+editable:true,
+
+
+
+demo:true,
+
+
+
+payload:{
+
+
+entities:
+genome.entities,
+
+
+relationships:
+genome.relationships,
+
+
+meaning:
+genome.meaning,
+
+
+genome,
+
+
+
+}
+
+
+};
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * PUBLIC COMPILER
+ *
+ * Genome → Blueprint
+ *
+ * =====================================================
+ */
+
+
+export function composeBlueprint(
+
+ genome:ExperienceGenome
+
+):ExperienceBlueprint {
+
+
+
+const momentTypes =
+generateMomentSequence(
+ genome
+);
+
+
+
+const moments =
+momentTypes.map(
+
+(type,index)=>
+
+buildMoment(
+
+type,
+
+index,
+
+genome
+
+)
+
+);
+
+
+
+
+
+
+const tone:
+
+ExperienceTone[] =
+
+[
+ genome.energy,
+ ...genome.emotions
+]
+
+.filter(
+
+(value):value is ExperienceTone =>
+
+typeof value === "string"
+
+);
+
+
+return {
+
+title:
+createTitle(
+ genome
+),
+
+
+type:
+resolveType(
+ genome
+),
+
+
+tone,
+
+
+meaning:
+genome.meaning,
+
+
+moments,
+
+
+entities:
+genome.entities,
+
+
+};
+
+}
+
+============================================================
+FILE: \packages\engine\src\experience\blueprintToFlow.ts
+============================================================
+
+import type {
+  ExperienceBlueprint,
+  ExperienceMomentType,
+  FlowStep,
+  FlowStepType,
+} from "@qre/contracts";
+
+
+
+/**
+ * =====================================================
+ *
+ * BLUEPRINT → FLOW COMPILER
+ *
+ * Creative DNA → Runtime Instructions
+ *
+ * INPUT:
+ * ExperienceBlueprint
+ *
+ * OUTPUT:
+ * FlowStep[]
+ *
+ * RULES:
+ *
+ * - Pure
+ * - No database
+ * - No Prisma
+ * - No execution
+ *
+ * =====================================================
+ */
+
+
+
+function resolveFlowType(
+  momentType: ExperienceMomentType
+): FlowStepType {
+
+
+  const mapping: Partial<
+    Record<
+      ExperienceMomentType,
+      FlowStepType
+    >
+  > = {
+
+
+    welcome:
+      "hero",
+
+
+    introduction:
+      "hero",
+
+
+    story:
+      "story",
+
+
+    memory:
+      "story",
+
+
+    timeline:
+      "timeline",
+
+
+    photos:
+      "gallery",
+
+
+    video:
+      "video",
+
+
+    soundtrack:
+      "soundtrack",
+
+
+    location:
+      "location",
+
+
+
+    product:
+      "product",
+
+
+    menu:
+      "menu",
+
+
+    offer:
+      "offer",
+
+
+    reward:
+      "reward",
+
+
+    payment:
+      "payment",
+
+
+    booking:
+      "booking",
+
+
+    review:
+      "review",
+
+
+    social:
+      "social",
+
+
+    share:
+      "share",
+
+
+    profile:
+      "profile",
+
+
+    guestbook:
+      "guestbook",
+
+
+    interaction:
+      "timer",
+
+
+    completion:
+      "message",
+
+
+    reveal:
+      "story",
+
+  };
+
+
+
+  return (
+    mapping[momentType]
+    ??
+    "message"
+  );
+
+}
+
+
+
+
+
+export function blueprintToFlow(
+
+  blueprint: ExperienceBlueprint
+
+): FlowStep[] {
+
+
+  if(
+    !blueprint ||
+    !Array.isArray(
+      blueprint.moments
+    )
+  ){
+
+    return [];
+
+  }
+
+
+
+  return blueprint.moments.map(
+
+    (
+      moment,
+      index
+    ) => ({
+
+
+      id:
+        `experience-${index}`,
+
+
+
+      order:
+        index,
+
+
+
+      type:
+        resolveFlowType(
+          moment.type
+        ),
+
+
+
+      payload:{
+
+
+        experience:{
+
+
+          component:
+            moment.component,
+
+
+          momentType:
+            moment.type,
+
+
+          title:
+            moment.title,
+
+
+          subtitle:
+            moment.subtitle,
+
+
+          description:
+            moment.description,
+
+
+          icon:
+            moment.icon,
+
+
+          animation:
+            moment.animation,
+
+
+          editable:
+            moment.editable,
+
+
+          demo:
+            moment.demo,
+
+
+          order:
+            moment.order,
+
+
+        },
+
+
+        ...moment.payload,
+
+      },
+
+
+    })
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\experience\genomeCompiler.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE GENOME COMPILER
+ * =====================================================
+ *
+ * Production Experience Compiler
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   ↓
+ * Experience Genome
+ *   ↓
+ * Experience World
+ *   ↓
+ * Experience Blueprint
+ *   ↓
+ * Runtime Flow
+ *   ↓
+ * Moments
+ *   ↓
+ * Cinematic Runtime
+ *
+ *
+ * Genome = creative DNA
+ * World = universe/context
+ * Blueprint = composed experience
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import {
+
+  composeWorld
+
+} from "../world/worldComposer.js";
+
+
+import {
+
+  buildExperienceGenome,
+
+} from "../semantic/genome/genomeBuilder.js";
+
+
+import {
+
+  composeBlueprint,
+
+} from "./blueprintComposer.js";
+
+
+import {
+
+  blueprintToFlow,
+
+} from "./blueprintToFlow.js";
+
+
+import {
+
+  flowToMoment,
+
+} from "../moments/flowToMoments.js";
+
+
+import {
+
+  cinematicRuntime,
+
+} from "../runtime/cinematic/cinematicRuntime.js";
+
+
+
+import type {
+
+  ExperienceBlueprint,
+  ExperienceGenome,
+  ExperienceModel,
+  ExperienceWorld,
+  FlowStep,
+  Moment,
+  CinematicScene,
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * COMPILED EXPERIENCE RESULT
+ * =====================================================
+ */
+
+
+export type CompiledGenomeExperience = {
+
+
+  genome:
+    ExperienceGenome;
+
+
+
+  world:
+    ExperienceWorld;
+
+
+
+  blueprint:
+    ExperienceBlueprint;
+
+
+
+  flowSteps:
+    FlowStep[];
+
+
+
+  moments:
+    Moment[];
+
+
+
+  cinematicScenes:
+    CinematicScene[];
+
+
+
+  model:
+    ExperienceModel;
+
+
+
+  title:
+    string;
+
+
+
+  estimatedDuration:
+    number;
+
+
+
+  momentCount:
+    number;
+
+
+};
+
+
+
+
+
+
+
+
+
+/**
+/**
+ * =====================================================
+ * PUBLIC COMPILER
+ *
+ * Genome → Blueprint
+ *
+ * =====================================================
+ */
+
+
+export function composeBlueprint(
+
+ genome:ExperienceGenome
+
+):ExperienceBlueprint {
+
+
+
+const momentTypes =
+generateMomentSequence(
+ genome
+);
+
+
+
+const moments =
+momentTypes.map(
+
+(type,index)=>
+
+buildMoment(
+
+type,
+
+index,
+
+genome
+
+)
+
+);
+
+
+
+
+
+
+const tone:
+
+ExperienceTone[] =
+
+[
+ genome.energy,
+ ...genome.emotions
+]
+
+.filter(
+
+(value):value is ExperienceTone =>
+
+typeof value === "string"
+
+);
+
+
+return {
+
+title:
+createTitle(
+ genome
+),
+
+
+type:
+resolveType(
+ genome
+),
+
+
+tone,
+
+
+meaning:
+genome.meaning,
+
+
+moments,
+
+
+entities:
+genome.entities,
+
+
+};
+
+}
+
+============================================================
+FILE: \packages\engine\src\experience\blueprintToFlow.ts
+============================================================
+
+import type {
+  ExperienceBlueprint,
+  ExperienceMomentType,
+  FlowStep,
+  FlowStepType,
+} from "@qre/contracts";
+
+
+
+/**
+ * =====================================================
+ *
+ * BLUEPRINT → FLOW COMPILER
+ *
+ * Creative DNA → Runtime Instructions
+ *
+ * INPUT:
+ * ExperienceBlueprint
+ *
+ * OUTPUT:
+ * FlowStep[]
+ *
+ * RULES:
+ *
+ * - Pure
+ * - No database
+ * - No Prisma
+ * - No execution
+ *
+ * =====================================================
+ */
+
+
+
+function resolveFlowType(
+  momentType: ExperienceMomentType
+): FlowStepType {
+
+
+  const mapping: Partial<
+    Record<
+      ExperienceMomentType,
+      FlowStepType
+    >
+  > = {
+
+
+    welcome:
+      "hero",
+
+
+    introduction:
+      "hero",
+
+
+    story:
+      "story",
+
+
+    memory:
+      "story",
+
+
+    timeline:
+      "timeline",
+
+
+    photos:
+      "gallery",
+
+
+    video:
+      "video",
+
+
+    soundtrack:
+      "soundtrack",
+
+
+    location:
+      "location",
+
+
+
+    product:
+      "product",
+
+
+    menu:
+      "menu",
+
+
+    offer:
+      "offer",
+
+
+    reward:
+      "reward",
+
+
+    payment:
+      "payment",
+
+
+    booking:
+      "booking",
+
+
+    review:
+      "review",
+
+
+    social:
+      "social",
+
+
+    share:
+      "share",
+
+
+    profile:
+      "profile",
+
+
+    guestbook:
+      "guestbook",
+
+
+    interaction:
+      "timer",
+
+
+    completion:
+      "message",
+
+
+    reveal:
+      "story",
+
+  };
+
+
+
+  return (
+    mapping[momentType]
+    ??
+    "message"
+  );
+
+}
+
+
+
+
+
+export function blueprintToFlow(
+
+  blueprint: ExperienceBlueprint
+
+): FlowStep[] {
+
+
+  if(
+    !blueprint ||
+    !Array.isArray(
+      blueprint.moments
+    )
+  ){
+
+    return [];
+
+  }
+
+
+
+  return blueprint.moments.map(
+
+    (
+      moment,
+      index
+    ) => ({
+
+
+      id:
+        `experience-${index}`,
+
+
+
+      order:
+        index,
+
+
+
+      type:
+        resolveFlowType(
+          moment.type
+        ),
+
+
+
+      payload:{
+
+
+        experience:{
+
+
+          component:
+            moment.component,
+
+
+          momentType:
+            moment.type,
+
+
+          title:
+            moment.title,
+
+
+          subtitle:
+            moment.subtitle,
+
+
+          description:
+            moment.description,
+
+
+          icon:
+            moment.icon,
+
+
+          animation:
+            moment.animation,
+
+
+          editable:
+            moment.editable,
+
+
+          demo:
+            moment.demo,
+
+
+          order:
+            moment.order,
+
+
+        },
+
+
+        ...moment.payload,
+
+      },
+
+
+    })
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\experience\genomeCompiler.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE GENOME COMPILER
+ * =====================================================
+ *
+ * Production Experience Compiler
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   ↓
+ * Experience Genome
+ *   ↓
+ * Experience World
+ *   ↓
+ * Experience Blueprint
+ *   ↓
+ * Runtime Flow
+ *   ↓
+ * Moments
+ *   ↓
+ * Cinematic Runtime
+ *
+ *
+ * Genome = creative DNA
+ * World = universe/context
+ * Blueprint = composed experience
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import {
+
+  composeWorld
+
+} from "../world/worldComposer.js";
+
+
+import {
+
+  buildExperienceGenome,
+
+} from "../semantic/genome/genomeBuilder.js";
+
+
+import {
+
+  composeBlueprint,
+
+} from "./blueprintComposer.js";
+
+
+import {
+
+  blueprintToFlow,
+
+} from "./blueprintToFlow.js";
+
+
+import {
+
+  flowToMoment,
+
+} from "../moments/flowToMoments.js";
+
+
+import {
+
+  cinematicRuntime,
+
+} from "../runtime/cinematic/cinematicRuntime.js";
+
+
+
+import type {
+
+  ExperienceBlueprint,
+  ExperienceGenome,
+  ExperienceModel,
+  ExperienceWorld,
+  FlowStep,
+  Moment,
+  CinematicScene,
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * COMPILED EXPERIENCE RESULT
+ * =====================================================
+ */
+
+
+export type CompiledGenomeExperience = {
+
+
+  genome:
+    ExperienceGenome;
+
+
+
+  world:
+    ExperienceWorld;
+
+
+
+  blueprint:
+    ExperienceBlueprint;
+
+
+
+  flowSteps:
+    FlowStep[];
+
+
+
+  moments:
+    Moment[];
+
+
+
+  cinematicScenes:
+    CinematicScene[];
+
+
+
+  model:
+    ExperienceModel;
+
+
+
+  title:
+    string;
+
+
+
+  estimatedDuration:
+    number;
+
+
+
+  momentCount:
+    number;
+
+
+};
+
+
+
+
+
+
+
+
+
+/**
+============================================================
+FILE: \packages\engine\src\geo\buildMemorySnapshot.ts
+============================================================
+
+import { nanoid } from "nanoid";
+
+import type {
+  Moment,
+  GeoStoryScene,
+  CinematicScene,
+  MemorySnapshot,
+} from "@qre/contracts";
+
+
+type SnapshotInput = {
+
+  assetId: string;
+
+  moments: Moment[];
+
+  geoStory:
+    {
+      scenes: GeoStoryScene[];
+      summary?: string;
+    }
+    | null;
+
+  cinematicScenes:
+    CinematicScene[];
+
+};
+
+
+
+
+function hasMomentType(
+  moments: Moment[],
+  types: string[]
+){
+
+  return moments.some(
+    (m)=>
+      types.includes(
+        String(m.type)
+      )
+  );
+
+}
+
+
+
+
+
+export function buildMemorySnapshot(
+  input: SnapshotInput
+): MemorySnapshot {
+
+
+  const id =
+    nanoid(12);
+
+
+
+  const {
+    moments,
+    geoStory,
+    cinematicScenes,
+  } =
+    input;
+
+
+
+  /**
+   * Detect experience characteristics
+   */
+
+  const hasLocation =
+    hasMomentType(
+      moments,
+      [
+        "location",
+        "arrival",
+      ]
+    );
+
+
+
+  const hasMedia =
+    hasMomentType(
+      moments,
+      [
+        "photos",
+        "video",
+        "soundtrack",
+        "replay",
+        "media",
+      ]
+    );
+
+
+
+  const hasStory =
+    hasMomentType(
+      moments,
+      [
+        "story",
+        "memory",
+        "timeline",
+      ]
+    );
+
+
+
+
+  let type:
+    MemorySnapshot["type"] =
+      "generic";
+
+
+
+
+  if (
+    hasLocation &&
+    hasMedia
+  ){
+
+    type =
+      "event";
+
+  }
+  else if(
+    hasLocation
+  ){
+
+    type =
+      "service";
+
+  }
+  else if(
+    hasStory
+  ){
+
+    type = "generic";
+
+  }
+
+
+
+
+
+  const sceneCount =
+    geoStory?.scenes.length ?? 0;
+
+
+
+  if(
+    sceneCount > 3
+  ){
+
+    type =
+      "memorial";
+
+  }
+
+
+
+
+
+  /**
+   * GEO MEMORY TAGS
+   */
+
+
+  const locationTags =
+    moments
+
+    .filter(
+      m =>
+        [
+          "location",
+          "arrival",
+        ]
+        .includes(
+          String(m.type)
+        )
+    )
+
+    .map(
+      m => {
+
+        const label =
+          m.meta?.label;
+
+
+        return typeof label === "string"
+          ? label
+          : "Unknown";
+
+      }
+
+    );
+
+
+
+
+
+
+
+  /**
+   * Timeline generation
+   *
+   * Later this will use
+   * real geoProof timestamps
+   */
+
+  const timeline =
+    moments.map(
+      (
+        m,
+        index
+      )=>{
+
+
+        const raw =
+          m.meta?.text ??
+          m.meta?.label ??
+          m.type;
+
+
+
+        return {
+
+          label:
+            typeof raw === "string"
+            ? raw
+            : String(m.type),
+
+
+          timestamp:
+            new Date(
+              Date.now()
+              +
+              index * 1000
+            )
+            .toISOString(),
+
+        };
+
+      }
+
+    );
+
+
+
+
+
+
+
+  let emotionalTone:
+    MemorySnapshot["emotionalTone"] =
+      "neutral";
+
+
+
+  if(
+    type === "memorial"
+  ){
+
+    emotionalTone =
+      "intense";
+
+  }
+  else if(
+    cinematicScenes.length > 0
+  ){
+
+    emotionalTone =
+      "mixed";
+
+  }
+  else if(
+    hasMedia
+  ){
+
+    emotionalTone =
+      "positive";
+
+  }
+
+
+
+
+
+
+
+  const highlights =
+    moments
+
+    .slice(
+      0,
+      5
+    )
+
+    .map(
+      m => {
+
+        const raw =
+          m.meta?.text ??
+          m.meta?.label ??
+          m.type;
+
+
+        return typeof raw === "string"
+          ? raw
+          : String(m.type);
+
+      }
+
+    );
+
+
+
+
+
+
+
+  let title =
+    "Memory Capsule";
+
+
+
+  switch(type){
+
+
+    case "memorial":
+
+      title =
+        "A Life Remembered";
+
+      break;
+
+
+
+    case "service":
+
+      title =
+        "Experience Record";
+
+      break;
+
+
+
+    case "event":
+
+      title =
+        "Shared Experience";
+
+      break;
+
+
+
+    case "generic":
+  title = "Memory Capsule";
+  break;
+
+
+  }
+
+
+
+
+
+
+
+  if(
+    geoStory?.summary
+  ){
+
+    title =
+      geoStory.summary.slice(
+        0,
+        40
+      );
+
+  }
+
+
+
+
+
+
+
+  return {
+
+    id,
+
+    type,
+
+    title,
+
+
+    summary:
+      geoStory?.summary ??
+      `Captured ${moments.length} moments across experience.`,
+
+
+
+    emotionalTone,
+
+
+    highlights,
+
+
+    locationTags,
+
+
+    timeline,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\geo\geoMemoryLayer.ts
+============================================================
+
+import type {
+  GeoMemoryRepository,
+} from "../repositories/index.js";
+
+
+/**
+ * GEO MEMORY LAYER V1
+ *
+ * Turns raw geoProof into memory objects.
+ *
+ * Engine only consumes repository contracts.
+ */
+
+
+export type GeoMemory = {
+
+  assetId:string;
+
+  sessionId:string | null;
+
+  label:string | null;
+
+  city:string | null;
+
+  region:string | null;
+
+  country:string | null;
+
+  visits:number;
+
+  firstSeen:Date;
+
+  lastSeen:Date;
+
+};
+
+
+
+
+export async function getGeoMemory(
+
+  assetId:string,
+
+  repo:GeoMemoryRepository
+
+):Promise<GeoMemory[]> {
+
+
+  const points =
+    await repo.findGeoProof(assetId);
+
+
+
+  const memoryMap =
+    new Map<string,GeoMemory>();
+
+
+
+  for(const p of points){
+
+
+    const key =
+      `${p.lat.toFixed(3)}:${p.lng.toFixed(3)}`;
+
+
+
+    const existing =
+      memoryMap.get(key);
+
+
+
+    if(!existing){
+
+
+      memoryMap.set(
+
+        key,
+
+        {
+
+          assetId,
+
+          sessionId:
+            p.sessionId ?? null,
+
+          label:
+            p.label ?? null,
+
+          city:
+            p.city ?? null,
+
+          region:
+            p.region ?? null,
+
+          country:
+            p.country ?? null,
+
+
+          visits:1,
+
+
+          firstSeen:
+            p.createdAt,
+
+
+          lastSeen:
+            p.createdAt,
+
+        }
+
+      );
+
+
+    } else {
+
+
+      existing.visits += 1;
+
+      existing.lastSeen =
+        p.createdAt;
+
+
+    }
+
+  }
+
+
+
+  return Array.from(
+    memoryMap.values()
+  );
+
+}
+
+============================================================
+FILE: \packages\engine\src\geo\geoStoryCompiler.ts
+============================================================
+
+import type {
+  GeoStory,
+  GeoStoryScene,
+} from "@qre/contracts";
+
+
+export type GeoPoint = {
+
+  lat:number;
+
+  lng:number;
+
+  createdAt:Date;
+
+  label?:string | null;
+
+  city?:string | null;
+
+  region?:string | null;
+
+  country?:string | null;
+
+};
+
+
+
+
+export function buildGeoStory(
+  assetId:string,
+  points:GeoPoint[]
+):GeoStory {
+
+
+  if(points.length === 0){
+
+    return {
+
+      assetId,
+
+      scenes:[],
+
+      summary:"No movement recorded."
+
+    };
+
+  }
+
+
+
+  const scenes:GeoStoryScene[] = [];
+
+
+
+  const first = points[0];
+
+
+
+  scenes.push({
+
+    id:"intro",
+
+    type:"intro",
+
+    title:"Journey Begins",
+
+    description:
+      "A presence is detected entering the system.",
+
+
+    location:{
+
+      lat:first.lat,
+
+      lng:first.lng,
+
+      label:first.label ?? undefined,
+
+      city:first.city ?? undefined,
+
+      region:first.region ?? undefined,
+
+      country:first.country ?? undefined,
+
+    },
+
+
+    intensity:0.2,
+
+
+    timestamp:
+      first.createdAt.toISOString(),
+
+  });
+
+
+
+
+
+  const grouped =
+    groupByLocation(points);
+
+
+
+
+  for(const group of grouped){
+
+
+    scenes.push({
+
+      id:`presence-${group.key}`,
+
+
+      type:"presence",
+
+
+      title:
+        group.label ??
+        "Unknown Location",
+
+
+      description:
+        `Visited ${group.points.length} times`,
+
+
+
+      location:{
+
+        lat:group.location.lat,
+
+        lng:group.location.lng,
+
+        label:group.label ?? undefined,
+
+        city:
+          group.points[0].city ?? undefined,
+
+        region:
+          group.points[0].region ?? undefined,
+
+        country:
+          group.points[0].country ?? undefined,
+
+      },
+
+
+
+      intensity:
+        Math.min(
+          1,
+          group.points.length / 5
+        ),
+
+
+
+      timestamp:
+        group.points[0]
+        .createdAt
+        .toISOString(),
+
+    });
+
+
+  }
+
+
+
+
+
+  const last =
+    points[points.length - 1];
+
+
+
+
+  scenes.push({
+
+    id:"exit",
+
+    type:"exit",
+
+
+    title:"Session Ends",
+
+
+    description:
+      "Presence leaves tracked environment.",
+
+
+
+    location:{
+
+      lat:last.lat,
+
+      lng:last.lng,
+
+      label:last.label ?? undefined,
+
+      city:last.city ?? undefined,
+
+      region:last.region ?? undefined,
+
+      country:last.country ?? undefined,
+
+    },
+
+
+
+    intensity:0.3,
+
+
+    timestamp:
+      last.createdAt.toISOString(),
+
+  });
+
+
+
+
+
+
+  return {
+
+    assetId,
+
+
+    scenes,
+
+
+    summary:
+      generateSummary(points),
+
+  };
+
+
+}
+
+
+
+
+
+
+
+
+
+function groupByLocation(
+  points:GeoPoint[]
+){
+
+  const map =
+    new Map<string, GeoPoint[]>();
+
+
+
+  for(const point of points){
+
+    const key =
+      `${point.lat.toFixed(2)}:${point.lng.toFixed(2)}`;
+
+
+
+    if(!map.has(key)){
+
+      map.set(
+        key,
+        []
+      );
+
+    }
+
+
+
+    map
+      .get(key)!
+      .push(point);
+
+  }
+
+
+
+
+
+  return Array
+    .from(map.entries())
+    .map(([key, points])=>{
+
+
+      const first =
+        points[0];
+
+
+
+      return {
+
+        key,
+
+
+        points,
+
+
+
+        label:
+          first.label ?? null,
+
+
+
+        location:{
+
+          lat:first.lat,
+
+          lng:first.lng,
+
+        },
+
+      };
+
+    });
+
+}
+
+
+
+
+
+
+
+
+
+function generateSummary(
+  points:GeoPoint[]
+){
+
+
+  const places =
+    new Set(
+      points.map(
+        p =>
+          p.city ?? "unknown"
+      )
+    );
+
+
+
+  return `Tracked ${points.length} interactions across ${places.size} locations.`;
+
+}
+
+============================================================
+FILE: \packages\engine\src\geo\resolveGeoLabel.ts
+============================================================
+
+/**
+ * GEO RESOLVER (PRODUCTION SAFE)
+ * OpenStreetMap reverse geocoding (Nominatim)
+ */
+
+export type GeoLabel = {
+  label: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+};
+
+export async function resolveGeoLabel(
+  lat: number,
+  lng: number
+): Promise<GeoLabel> {
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lng));
+    url.searchParams.set("format", "json");
+    url.searchParams.set("addressdetails", "1");
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "QRE.GeoEngine/1.0",
+        "Accept": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Geo lookup failed: ${res.status}`);
+    }
+
+    const data: any = await res.json();
+
+    const address = data?.address ?? {};
+
+    return {
+      label: data?.display_name ?? null,
+      city:
+        address.city ||
+        address.town ||
+        address.village ||
+        address.hamlet ||
+        null,
+      region: address.state ?? null,
+      country: address.country ?? null,
+    };
+  } catch (err) {
+    console.warn("[GEO][RESOLVE FAILED]", err);
+
+    return {
+      label: null,
+      city: null,
+      region: null,
+      country: null,
+    };
+  }
+}
+
+============================================================
+FILE: \packages\engine\src\index.ts
+============================================================
+
+
+export { runFlowActions } from "./flowOrchestrator.js";
+export type { Moment } from "@qre/contracts";
+
+
+export { scanEngine } from "./scanEngine.js";
+
+/**
+ * =========================
+ * ANALYTICS (SINGLE ENTRY POINT)
+ * =========================
+ */
+export * from "./analytics/index.js";
+
+export {
+  createSessionManager,
+} from "./sessionManager.js";
+
+export { renderTeaser } from "./teaserRenderer.js";
+
+export { createPaymentLink } from "./payments.js";
+
+export {
+  trackEvent,
+  getRecentActivity,
+  getFunnel,
+  getDashboardMetrics,
+  getScanInsights,
+  getAssetLiveMetrics,
+} from "./analytics/index.js";
+
+export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
+export { getPresenceReplay } from "./presence/getPresenceReplay.js";
+export { getPresenceMap } from "./presence/getPresenceMap.js";
+export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+export * from "./geo/geoMemoryLayer.js";
+export * from "./geo/geoStoryCompiler.js";
+
+
+// Moments
+export * from "./moments/flowToMoments.js";
+export * from "./moments/toMoment.js";
+
+export * from "./experience/blueprintToFlow.js";
+
+
+
+export type {
+  AssetRepository,
+  AssetRecord,
+  SessionRepository,
+  AccessRepository,
+  AnalyticsRepository,
+  PresenceRepository,
+  GeoMemoryRepository,
+  GeoProofRecord,
+  StoryDeliveryRepository,
+  UserRepository,
+} from "./repositories/index.js";
+
+export {
+  qreSelfModel,
+  reflectSelf,
+} from "./cognition/selfModel.js";
+
+export {
+  remember,
+  recall,
+  reflectMemory,
+} from "./cognition/memory.js";
+
+export {
+  reflect,
+} from "./cognition/reflection.js";
+
+export type {
+  CognitiveInsight,
+} from "./cognition/reflection.js";
+
+export {
+  adapt,
+} from "./cognition/adaptation.js";
+
+export type {
+  AdaptationProposal,
+} from "./cognition/adaptation.js";
+
+export {
+  makeDecision,
+  chooseBestDecision,
+} from "./cognition/decisionEngine.js";
+
+export type {
+  CognitiveDecision,
+  DecisionRisk,
+} from "./cognition/decisionEngine.js";
+
+export {
+  processCognition,
+} from "./cognition/cognitionKernel.js";
+
+export type {
+  CognitionInput,
+  CognitionResult,
+} from "./cognition/cognitionKernel.js";
+
+export {
+  handleCognitionEvent,
+} from "./cognition/cognitionHandler.js";
+
+export type {
+  CognitionEvent,
+} from "./cognition/cognitionHandler.js";
+
+export {
+  startCognitionListener,
+} from "./spine/cognitionListener.js";
+
+export * from "./cognition/index.js";
+
+export * from "./intelligence/index.js";
+
+export * from "./semantic/index.js";
+
+
+export * from "./world/index.js";
+export {
+  compileExperienceGenome,
+  genomeCompiler,
+} from "./experience/genomeCompiler.js";
+
+
+export {
+  compileExperienceGenome as experienceCompiler,
+} from "./experience/genomeCompiler.js";
+
+============================================================
+FILE: \packages\engine\src\intelligence\customerIntelligence.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE CUSTOMER INTELLIGENCE ENGINE
+ * =====================================================
+ *
+ * Experience
+ *      ↓
+ * Customer Signals
+ *      ↓
+ * Relationship Understanding
+ *      ↓
+ * Loyalty Insight
+ *
+ * Responsibilities:
+ *
+ * - Measure relationship strength
+ * - Detect valuable engagement patterns
+ * - Identify loyalty signals
+ * - Generate recommendations
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * Intelligence recommends.
+ * Runtime decides.
+ *
+ * =====================================================
+ */
+
+
+
+export type CustomerSignal = {
+
+
+  scanCount:number;
+
+
+  completionRate:number;
+
+
+  repeatVisits:number;
+
+
+  rewardClaims:number;
+
+
+  shares:number;
+
+
+};
+
+
+
+
+
+
+
+export type CustomerSegment =
+
+
+  | "new"
+
+  | "engaged"
+
+  | "loyal"
+
+  | "high_value"
+
+  | "unknown";
+
+
+
+
+
+
+
+
+export type CustomerInsight = {
+
+
+  id:string;
+
+
+  loyaltyScore:number;
+
+
+  segment:CustomerSegment;
+
+
+  signals:string[];
+
+
+  recommendations:string[];
+
+
+};
+
+
+
+
+
+
+
+
+
+function clamp(
+
+  value:number
+
+){
+
+  return Math.max(
+
+    0,
+
+    Math.min(
+
+      value,
+
+      1
+
+    )
+
+  );
+
+}
+
+
+
+
+
+
+
+
+
+function resolveSegment(
+
+  score:number
+
+):CustomerSegment {
+
+
+  if(score >= .85){
+
+    return "high_value";
+
+  }
+
+
+  if(score >= .65){
+
+    return "loyal";
+
+  }
+
+
+  if(score >= .35){
+
+    return "engaged";
+
+  }
+
+
+  if(score > 0){
+
+    return "new";
+
+  }
+
+
+  return "unknown";
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * ANALYZE CUSTOMER RELATIONSHIP
+ * =====================================================
+ */
+
+
+export function analyzeCustomerRelationship(
+
+  signals:CustomerSignal
+
+):CustomerInsight {
+
+
+
+  const loyaltyScore =
+
+    clamp(
+
+      (
+
+        signals.scanCount *
+
+        .05
+
+      )
+
+      +
+
+      (
+
+        signals.completionRate *
+
+        .30
+
+      )
+
+      +
+
+      (
+
+        Math.min(
+
+          signals.repeatVisits /
+
+          10,
+
+          1
+
+        ) *
+
+        .35
+
+      )
+
+      +
+
+      (
+
+        Math.min(
+
+          signals.rewardClaims /
+
+          5,
+
+          1
+
+        ) *
+
+        .15
+
+      )
+
+      +
+
+      (
+
+        Math.min(
+
+          signals.shares /
+
+          5,
+
+          1
+
+        ) *
+
+        .15
+
+      )
+
+    );
+
+
+
+
+
+
+
+  const relationshipSignals:string[] = [];
+
+  const recommendations:string[] = [];
+
+
+
+
+
+
+
+  if(signals.repeatVisits >= 3){
+
+
+    relationshipSignals.push(
+
+      "Customer shows repeat engagement."
+
+    );
+
+
+  } else {
+
+
+    recommendations.push(
+
+      "Create reasons for the customer to return."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+  if(signals.completionRate >= .8){
+
+
+    relationshipSignals.push(
+
+      "Customer completes experiences."
+
+    );
+
+
+  } else {
+
+
+    recommendations.push(
+
+      "Improve experience flow completion."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+  if(signals.rewardClaims > 0){
+
+
+    relationshipSignals.push(
+
+      "Customer responds to rewards."
+
+    );
+
+
+    recommendations.push(
+
+      "Consider personalized loyalty incentives."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+  if(signals.shares > 0){
+
+
+    relationshipSignals.push(
+
+      "Customer creates social value."
+
+    );
+
+
+    recommendations.push(
+
+      "Encourage referral or sharing moments."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+
+  return {
+
+
+    id:
+
+      crypto.randomUUID(),
+
+
+
+    loyaltyScore,
+
+
+
+    segment:
+
+      resolveSegment(
+
+        loyaltyScore
+
+      ),
+
+
+
+    signals:
+
+      relationshipSignals,
+
+
+
+    recommendations,
+
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\intelligence\growthIntelligence.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE GROWTH INTELLIGENCE ENGINE
+ * =====================================================
+ *
+ * Value
+ *      ↓
+ * Customer Understanding
+ *      ↓
+ * Growth Analysis
+ *      ↓
+ * Strategic Recommendation
+ *
+ * Responsibilities:
+ *
+ * - Identify growth opportunities
+ * - Rank business improvements
+ * - Convert intelligence into strategy
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * Intelligence recommends.
+ * Runtime decides.
+ *
+ * =====================================================
+ */
+
+
+
+export type GrowthSignal = {
+
+
+  valueScore:number;
+
+
+  loyaltyScore:number;
+
+
+  repeatRate:number;
+
+
+  completionRate:number;
+
+
+  shareRate:number;
+
+
+};
+
+
+
+
+
+
+
+export type GrowthPriority =
+
+
+  | "retention"
+
+  | "engagement"
+
+  | "viral"
+
+  | "conversion"
+
+  | "experience";
+
+
+
+
+
+
+
+export type GrowthRecommendation = {
+
+
+  id:string;
+
+
+  priority:GrowthPriority;
+
+
+  score:number;
+
+
+  recommendation:string;
+
+
+  reason:string;
+
+
+};
+
+
+
+
+
+
+
+
+
+function clamp(
+
+  value:number
+
+){
+
+  return Math.max(
+
+    0,
+
+    Math.min(
+
+      value,
+
+      1
+
+    )
+
+  );
+
+}
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * ANALYZE GROWTH OPPORTUNITIES
+ * =====================================================
+ */
+
+
+export function analyzeGrowth(
+
+  signals:GrowthSignal
+
+):GrowthRecommendation[] {
+
+
+
+  const recommendations:
+    GrowthRecommendation[] = [];
+
+
+
+
+
+
+
+  /**
+   * RETENTION
+   */
+
+
+  if(signals.loyaltyScore < .7){
+
+
+    recommendations.push({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      priority:
+
+        "retention",
+
+
+
+      score:
+
+        clamp(
+
+          1 - signals.loyaltyScore
+
+        ),
+
+
+
+      recommendation:
+
+        "Improve customer return pathways.",
+
+
+
+      reason:
+
+        "Loyalty signals indicate opportunity for stronger relationships.",
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+
+  /**
+   * ENGAGEMENT
+   */
+
+
+  if(signals.completionRate < .8){
+
+
+    recommendations.push({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      priority:
+
+        "engagement",
+
+
+
+      score:
+
+        clamp(
+
+          1 - signals.completionRate
+
+        ),
+
+
+
+      recommendation:
+
+        "Improve the beginning and pacing of the experience.",
+
+
+
+      reason:
+
+        "Customers are not completing the full journey.",
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+
+  /**
+   * VIRALITY
+   */
+
+
+  if(signals.shareRate < .5){
+
+
+    recommendations.push({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      priority:
+
+        "viral",
+
+
+
+      score:
+
+        clamp(
+
+          1 - signals.shareRate
+
+        ),
+
+
+
+      recommendation:
+
+        "Create stronger shareable moments.",
+
+
+
+      reason:
+
+        "Experience value is not translating into social spread.",
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+
+  /**
+   * EXPERIENCE QUALITY
+   */
+
+
+  if(signals.valueScore < .75){
+
+
+    recommendations.push({
+
+
+      id:
+
+        crypto.randomUUID(),
+
+
+
+      priority:
+
+        "experience",
+
+
+
+      score:
+
+        clamp(
+
+          1 - signals.valueScore
+
+        ),
+
+
+
+      recommendation:
+
+        "Improve the core experience design.",
+
+
+
+      reason:
+
+        "Overall experience value requires improvement.",
+
+
+    });
+
+
+  }
+
+
+
+
+
+
+
+  return (
+
+    recommendations
+
+      .sort(
+
+        (a,b)=>
+
+          b.score -
+
+          a.score
+
+      )
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\intelligence\index.ts
+============================================================
+
+export {
+  analyzeExperienceValue,
+} from "./valueEngine.js";
+
+
+export type {
+  ValueSignal,
+  ValueInsight,
+} from "./valueEngine.js";
+
+export {
+  analyzeCustomerRelationship,
+} from "./customerIntelligence.js";
+
+
+export type {
+  CustomerSignal,
+  CustomerInsight,
+  CustomerSegment,
+} from "./customerIntelligence.js";
+
+export {
+  analyzeGrowth,
+} from "./growthIntelligence.js";
+
+
+export type {
+  GrowthSignal,
+  GrowthPriority,
+  GrowthRecommendation,
+} from "./growthIntelligence.js";
+
+============================================================
+FILE: \packages\engine\src\intelligence\valueEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE VALUE INTELLIGENCE ENGINE
+ * =====================================================
+ *
+ * Experience
+ *      ↓
+ * Signals
+ *      ↓
+ * Value Analysis
+ *      ↓
+ * Business Insight
+ *
+ * Responsibilities:
+ *
+ * - Measure experience value
+ * - Identify strengths
+ * - Identify opportunities
+ * - Generate recommendations
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * Intelligence recommends.
+ * Runtime decides.
+ *
+ * =====================================================
+ */
+
+
+
+export type ValueSignal = {
+
+
+  completionRate:number;
+
+
+  engagementRate:number;
+
+
+  repeatRate:number;
+
+
+  rewardRate:number;
+
+
+  shareRate:number;
+
+
+};
+
+
+
+
+
+
+
+export type ValueInsight = {
+
+
+  id:string;
+
+
+  score:number;
+
+
+  strengths:string[];
+
+
+  opportunities:string[];
+
+
+  recommendations:string[];
+
+
+};
+
+
+
+
+
+
+
+
+function clamp(
+
+ value:number
+
+){
+
+  return Math.max(
+
+    0,
+
+    Math.min(
+
+      value,
+
+      1
+
+    )
+
+  );
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * ANALYZE EXPERIENCE VALUE
+ * =====================================================
+ */
+
+
+export function analyzeExperienceValue(
+
+ signals:ValueSignal
+
+):ValueInsight {
+
+
+
+  const score =
+
+    clamp(
+
+      (
+
+        signals.completionRate *
+
+        .30
+
+      )
+
+      +
+
+      (
+
+        signals.engagementRate *
+
+        .25
+
+      )
+
+      +
+
+      (
+
+        signals.repeatRate *
+
+        .30
+
+      )
+
+      +
+
+      (
+
+        signals.rewardRate *
+
+        .10
+
+      )
+
+      +
+
+      (
+
+        signals.shareRate *
+
+        .05
+
+      )
+
+    );
+
+
+
+
+
+
+
+  const strengths:string[] = [];
+
+
+  const opportunities:string[] = [];
+
+
+  const recommendations:string[] = [];
+
+
+
+
+
+
+
+  if(signals.repeatRate >= .7){
+
+
+    strengths.push(
+
+      "Strong repeat engagement detected."
+
+    );
+
+
+  } else {
+
+
+    opportunities.push(
+
+      "Increase reasons for customers to return."
+
+    );
+
+
+    recommendations.push(
+
+      "Add memory, reward, or follow-up moments."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+  if(signals.completionRate >= .8){
+
+
+    strengths.push(
+
+      "Experience flow completion is healthy."
+
+    );
+
+
+  } else {
+
+
+    opportunities.push(
+
+      "Users are leaving before completion."
+
+    );
+
+
+    recommendations.push(
+
+      "Improve opening moments and reduce friction."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+
+  if(signals.shareRate >= .5){
+
+
+    strengths.push(
+
+      "Experience has viral potential."
+
+    );
+
+
+  } else {
+
+
+    recommendations.push(
+
+      "Create more shareable emotional moments."
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+
+  return {
+
+
+    id:
+
+      crypto.randomUUID(),
+
+
+
+    score,
+
+
+
+    strengths,
+
+
+
+    opportunities,
+
+
+
+    recommendations,
+
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\lib\jsonGuard.ts
+============================================================
+
+export function safeJsonObject<T extends object>(value: unknown): T | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as T;
+}
+
+export function safeJsonArray<T = any>(value: unknown): T[] {
+  if (!Array.isArray(value)) return [];
+  return value as T[];
+}
+
+============================================================
+FILE: \packages\engine\src\moments\flowToMoments.ts
+============================================================
+
+import type {
+  FlowStep,
+  Moment,
+} from "@qre/contracts";
+
+
+/**
+ * =====================================================
+ * FLOW → MOMENTS
+ *
+ * Runtime translation layer
+ *
+ * FlowStep
+ *    ↓
+ * Moment
+ *
+ * SINGLE SOURCE OF TRUTH FOR SCAN DELIVERY
+ *
+ * NO DATABASE
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+export function flowToMoment(
+  steps: FlowStep[]
+): Moment[] {
+
+
+  const moments: Moment[] = [];
+
+
+
+  for (const step of steps) {
+
+
+    const payload =
+      (
+        step.payload ?? {}
+      ) as Record<string, any>;
+
+
+
+    switch(step.type) {
+
+
+
+      /**
+       * ==========================
+       * MESSAGE BASED MOMENTS
+       *
+       * Story
+       * Product
+       * Education
+       * Gallery
+       * Reward
+       * Social
+       * Replay
+       *
+       * ==========================
+       */
+
+
+      case "message": {
+
+
+        let semanticType =
+          payload.action ??
+          payload.momentType ??
+          payload.component ??
+          "message";
+
+
+
+        /**
+         * Normalize runtime names
+         */
+
+        switch (semanticType) {
+
+
+          case "commerce":
+
+            semanticType = "product";
+
+            break;
+
+
+          case "gallery":
+
+            semanticType = "photos";
+
+            break;
+
+
+          case "memory":
+
+            semanticType = "story";
+
+            break;
+
+
+          case "cinematic_replay":
+
+            semanticType = "cinematic_replay";
+
+            break;
+
+
+          case "education":
+
+            semanticType = "education";
+
+            break;
+
+
+          case "reward":
+
+            semanticType = "reward";
+
+            break;
+
+
+          case "social":
+
+            semanticType = "social";
+
+            break;
+
+
+          case "profile":
+
+            semanticType = "profile";
+
+            break;
+
+
+          default:
+
+            break;
+
+        }
+
+
+
+        moments.push({
+
+          type:
+            semanticType as any,
+
+          order:
+            step.order,
+
+
+          text:
+            String(
+              payload.text ??
+              payload.title ??
+              payload.description ??
+              "Experience moment"
+            ),
+
+
+          meta:
+            payload,
+
+        });
+
+
+
+        break;
+
+      }
+
+
+
+
+      /**
+       * ==========================
+       * GEO MEMORY
+       *
+       * location
+       * arrival
+       *
+       * ==========================
+       */
+
+
+      case "location": {
+
+
+      moments.push({
+
+  type:"location",
+
+  order:step.order,
+
+
+  location:{
+
+    lat:Number(payload.lat ?? 0),
+
+    lng:Number(payload.lng ?? 0),
+
+    label:
+      payload.label ??
+      payload.title ??
+      "Location",
+
+    city:
+      payload.city,
+
+    region:
+      payload.region,
+
+    country:
+      payload.country,
+
+  },
+
+
+  meta:{
+
+    geoMemory:
+      payload.geoMemory === true,
+
+
+    captureSnapshot:
+      payload.captureSnapshot === true ||
+      payload.snapshot === true,
+
+
+    timeline:
+      payload.timeline === true,
+
+  },
+
+});
+
+
+
+        break;
+
+      }
+
+
+
+
+
+      /**
+       * ==========================
+       * REDIRECT / PAYMENT
+       *
+       * Commerce actions
+       *
+       * ==========================
+       */
+
+
+      case "redirect":
+      case "payment": {
+
+       moments.push({
+
+  type:"action",
+
+  order:
+    step.order,
+
+  action:
+    step.type,
+
+  text:
+    String(
+      payload.text ??
+      payload.label ??
+      (
+        step.type === "payment"
+        ? "Unlock Experience"
+        : "Continue"
+      )
+    ),
+
+  meta:{
+    ...payload,
+
+    url:
+      payload.url,
+
+    label:
+      payload.label,
+  },
+
+});
+
+
+
+        break;
+
+      }
+
+
+
+
+
+      /**
+       * ==========================
+       * TIMER / SYSTEM
+       *
+       * ==========================
+       */
+
+
+      case "timer": {
+
+
+        moments.push({
+
+          type:"system",
+
+          order:
+            step.order,
+
+
+          text:
+            "Pause",
+
+
+          meta:{
+
+
+            event:
+              "DELAY",
+
+
+            duration:
+              Number(
+                payload.duration ?? 0
+              ),
+
+
+          },
+
+
+        });
+
+
+
+        break;
+
+      }
+
+
+
+
+
+      /**
+       * ==========================
+       * FALLBACK
+       *
+       * Unknown future components
+       *
+       * ==========================
+       */
+
+
+      default: {
+
+
+        moments.push({
+
+          type:"message",
+
+          order:
+            step.order,
+
+
+          text:
+            String(
+              payload.text ??
+              payload.title ??
+              payload.component ??
+              "Experience moment"
+            ),
+
+
+          meta:
+            payload,
+
+        });
+
+
+
+        break;
+
+      }
+
+
+
+    }
+
+
+
+  }
+
+
+
+  return moments;
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\moments\purchaseMoments.ts
+============================================================
+
+import type {
+  AccessState,
+  Moment,
+} from "@qre/contracts";
+
+
+export function purchaseMoments(
+  state: AccessState,
+  slug: string
+): Moment[] {
+
+
+  if (
+    state === "UNLOCKED"
+  ) {
+
+    return [];
+
+  }
+
+
+
+  if (
+    state === "DEMO"
+  ) {
+
+    return [
+
+      {
+        type: "action",
+
+        order: 100,
+
+        action: "payment",
+
+        meta: {
+
+          text: "Create your own experience",
+
+          url: `/store/${slug}`,
+
+        },
+
+      },
+
+    ];
+
+  }
+
+
+
+  if (
+    state === "LOCKED"
+  ) {
+
+    return [
+
+      {
+        type: "action",
+
+        order: 100,
+
+        action: "payment",
+
+        meta: {
+
+          text: "Activate this experience",
+
+          url: `/checkout/${slug}`,
+
+        },
+
+      },
+
+    ];
+
+  }
+
+
+
+  return [
+
+    {
+      type: "action",
+
+      order: 100,
+
+      action: "payment",
+
+      meta: {
+
+        text: "Get this experience",
+
+        url: `/checkout/${slug}`,
+
+      },
+
+    },
+
+  ];
+
+}
+
+============================================================
+FILE: \packages\engine\src\moments\systemMoments.ts
+============================================================
+
+import type {
+  AccessState,
+  Moment,
+} from "@qre/contracts";
+
+
+export function systemMoments(
+  state: AccessState
+): Moment[] {
+
+
+  if (state === "UNLOCKED") {
+
+    return [];
+
+  }
+
+
+  return [
+    {
+      type: "system",
+
+      order: 0,
+
+      text: "Demo experience",
+
+      meta: {
+        accessState: state,
+      },
+
+    },
+  ];
+
+}
+
+============================================================
+FILE: \packages\engine\src\moments\toMoment.ts
+============================================================
+
+import type { Moment } from "@qre/contracts";
+
+export function toMessageMoment(input: {
+  order: number;
+  text?: unknown;
+}): Moment | null {
+  if (typeof input.text !== "string") return null;
+
+  return {
+    type: "message",
+    order: input.order,
+    text: input.text,
+  };
+}
+
+export function toActionMoment(input: {
+  order: number;
+  text?: unknown;
+  url?: unknown;
+  label?: unknown;
+  duration?: unknown;
+}): Moment | null {
+  const base: any = {
+    type: "action",
+    order: input.order,
+  };
+
+  if (typeof input.text === "string") base.text = input.text;
+  if (typeof input.url === "string") base.url = input.url;
+  if (typeof input.label === "string") base.label = input.label;
+  if (typeof input.duration === "number") base.duration = input.duration;
+
+  return base;
+}
+
+============================================================
+FILE: \packages\engine\src\payments.ts
+============================================================
+
+import type { Moment } from "@qre/contracts";
+
+export type PaymentResult = {
+  url: string;
+};
+
+export function createPaymentLink(
+  action: Moment
+): PaymentResult {
+
+  if(action.type !== "action"){
+    throw new Error(
+      "Invalid moment type"
+    );
+  }
+
+
+  const url =
+    typeof action.meta?.url === "string"
+      ? action.meta.url
+      : null;
+
+
+  if(!url){
+
+    throw new Error(
+      "Missing payment url in meta"
+    );
+
+  }
+
+
+  return {
+    url,
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\checkIn.ts
+============================================================
+
+import { emitSpineEvent } from "../spine/eventSpine.js";
+import { resolveGeoLabel } from "../geo/resolveGeoLabel.js";
+import { buildGeoMemoryAnalytics } from "../analytics/geoMemoryAnalytics.js";
+
+import type {
+  GeoMemoryRepository,
+  PresenceRepository,
+} from "../repositories/index.js";
+
+
+type CheckInInput = {
+
+  assetId:string;
+
+  sessionId:string;
+
+  userId?:string;
+
+  geo?:{
+
+    lat:number;
+
+    lng:number;
+
+    accuracy?:number;
+
+  };
+
+};
+
+
+
+export async function checkIn(
+  input:CheckInInput,
+  presenceRepo:PresenceRepository,
+  geoRepo?:GeoMemoryRepository
+){
+
+  const now =
+    new Date();
+
+
+
+  /**
+   * =====================================================
+   * 1. PRESENCE SESSION
+   * =====================================================
+   */
+
+  const session =
+    await presenceRepo.upsertSession({
+
+      id:
+        input.sessionId,
+
+      assetId:
+        input.assetId,
+
+      userId:
+        input.userId ?? null,
+
+      status:
+        "ENTERED",
+
+      enteredAt:
+        now,
+
+      geoLat:
+        input.geo?.lat ?? null,
+
+      geoLng:
+        input.geo?.lng ?? null,
+
+      accuracy:
+        input.geo?.accuracy ?? null,
+
+    });
+
+
+
+
+
+  /**
+   * =====================================================
+   * 2. GEO LABEL RESOLUTION
+   * =====================================================
+   */
+
+  let geoLabel:
+    Awaited<
+      ReturnType<typeof resolveGeoLabel>
+    >
+    | null = null;
+
+
+
+  if(input.geo){
+
+    geoLabel =
+      await resolveGeoLabel(
+        input.geo.lat,
+        input.geo.lng
+      );
+
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 3. GEO PROOF
+   * =====================================================
+   */
+
+  if(input.geo){
+
+    await presenceRepo.createGeoProof({
+
+      assetId:
+        input.assetId,
+
+      sessionId:
+        input.sessionId,
+
+      userId:
+        input.userId ?? null,
+
+      lat:
+        input.geo.lat,
+
+      lng:
+        input.geo.lng,
+
+      accuracy:
+        input.geo.accuracy ?? null,
+
+      source:
+        "checkin",
+
+      label:
+        geoLabel?.label ?? null,
+
+      city:
+        geoLabel?.city ?? null,
+
+      region:
+        geoLabel?.region ?? null,
+
+      country:
+        geoLabel?.country ?? null,
+
+    });
+
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 4. EVENT SPINE
+   * =====================================================
+   */
+
+  await emitSpineEvent({
+
+    type:
+      "CHECK_IN",
+
+    assetId:
+      input.assetId,
+
+    sessionId:
+      input.sessionId,
+
+    userId:
+      input.userId,
+
+    meta:{
+
+      geo:
+        input.geo,
+
+      geoLabel,
+
+    },
+
+  });
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 5. GEO MEMORY ANALYTICS
+   * =====================================================
+   */
+
+  if(geoRepo){
+
+    try{
+
+      await buildGeoMemoryAnalytics(
+
+        input.assetId,
+
+        geoRepo,
+
+        input.sessionId
+
+      );
+
+    }
+    catch(err){
+
+      console.warn(
+        "[GEO MEMORY ANALYTICS FAILED]",
+        err
+      );
+
+    }
+
+  }
+
+
+
+
+
+  return session;
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\checkOut.ts
+============================================================
+
+import { emitSpineEvent } from "../spine/eventSpine.js";
+
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
+
+
+
+export async function checkOut(
+  sessionId:string,
+  assetId:string,
+  userId:string | undefined,
+  presenceRepo:PresenceRepository
+){
+
+
+  const session =
+    await presenceRepo.checkOut({
+
+      sessionId,
+
+      exitedAt:
+        new Date(),
+
+    });
+
+
+
+  await emitSpineEvent({
+
+    type:
+      "CHECK_OUT",
+
+
+    assetId,
+
+
+    sessionId,
+
+
+    userId,
+
+
+  });
+
+
+
+  return session;
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\getPresenceMap.ts
+============================================================
+
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
+
+
+
+export async function getPresenceMap(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
+
+
+  const points =
+    await presenceRepo.getPresenceMap(
+      assetId
+    );
+
+
+
+  return points;
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\getPresenceReplay.ts
+============================================================
+
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
+
+
+
+export async function getPresenceReplay(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
+
+
+  const points =
+    await presenceRepo.getPresenceReplay(
+      assetId
+    );
+
+
+
+  const sessions:Record<string, any[]> = {};
+
+
+
+  for(const p of points as any[]){
+
+
+    const sid =
+      p.sessionId ?? "anonymous";
+
+
+
+    if(!sessions[sid]){
+      sessions[sid] = [];
+    }
+
+
+
+    sessions[sid].push({
+
+      lat:
+        p.lat,
+
+      lng:
+        p.lng,
+
+      time:
+        p.createdAt,
+
+    });
+
+  }
+
+
+
+  return {
+
+    sessions,
+
+    totalSessions:
+      Object.keys(sessions).length,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\getPresenceTimeline.ts
+============================================================
+
+import type {
+  PresenceRepository,
+} from "../repositories/index.js";
+
+
+
+export async function getPresenceTimeline(
+  assetId:string,
+  presenceRepo:PresenceRepository
+){
+
+
+  const points =
+    await presenceRepo.getPresenceTimeline(
+      assetId
+    );
+
+
+
+  return points.map((p:any) => ({
+
+    sessionId:
+      p.sessionId ?? null,
+
+    lat:
+      p.lat,
+
+    lng:
+      p.lng,
+
+    accuracy:
+      p.accuracy ?? null,
+
+    timestamp:
+      p.createdAt,
+
+  }));
+
+}
+
+============================================================
+FILE: \packages\engine\src\presence\index.ts
+============================================================
+
+export * from "./checkIn.js";
+export * from "./checkOut.js";
+
+export * from "./getPresenceTimeline.js";
+export * from "./getPresenceReplay.js";
+export * from "./getPresenceMap.js";
+
+============================================================
+FILE: \packages\engine\src\receiptBuilder.ts
+============================================================
+
+import { nanoid } from "nanoid";
+
+import type {
+  ServiceReceipt,
+} from "@qre/contracts";
+
+
+export function buildServiceReceipt(
+  input:{
+    asset:any;
+    sessionId:string;
+    moments:any[];
+  }
+): ServiceReceipt {
+
+
+  const id =
+    nanoid(12);
+
+
+
+  const locationMoment =
+    input.moments.find(
+      (m)=>m.type === "location"
+    );
+
+
+
+  return {
+
+
+    id,
+
+
+    assetId:
+      input.asset.id,
+
+
+    sessionId:
+      input.sessionId,
+
+
+
+    type:
+      "service",
+
+
+
+    title:
+      `${input.asset.slug} Service Receipt`,
+
+
+
+    summary:
+      `Completed ${input.moments.length} service steps.`,
+
+
+
+    completedAt:
+      new Date().toISOString(),
+
+
+
+    location:
+
+      locationMoment?.meta
+
+      ? {
+
+          lat:
+            locationMoment.meta.lat,
+
+          lng:
+            locationMoment.meta.lng,
+
+          label:
+            locationMoment.meta.label,
+
+        }
+
+      : undefined,
+
+
+
+    metadata:{
+
+      steps:
+        input.moments.length,
+
+
+      shareUrl:
+        `/receipt/${id}`,
+
+    },
+
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\repositories\assetRepository.ts
+============================================================
+
+export type {
+  FlowStepRecord,
+  FlowRecord,
+  AssetRecord,
+  AssetRepository,
+} from "./index.js";
+
+============================================================
+FILE: \packages\engine\src\repositories\index.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE ENGINE REPOSITORY CONTRACTS
+ * =====================================================
+ *
+ * The engine NEVER imports Prisma.
+ *
+ * Database adapters translate:
+ *
+ * Prisma Models
+ *        ↓
+ * Repository Contracts
+ *        ↓
+ * Engine Runtime
+ *
+ * AssetFlow relationships are resolved
+ * before entering the engine.
+ *
+ * =====================================================
+ */
+
+
+/**
+ * =====================================================
+ * FLOW RUNTIME CONTRACT
+ * =====================================================
+ */
+
+
+export type FlowStepRecord = {
+
+  id:string;
+
+  order:number;
+
+  type:string;
+
+  payload:unknown;
+
+};
+
+
+
+export type FlowRecord = {
+
+  id:string;
+
+  steps:FlowStepRecord[];
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * ASSET RUNTIME CONTRACT
+ * =====================================================
+ */
+
+
+export type AssetRecord = {
+
+  id:string;
+
+  slug:string;
+
+
+/**
+ * Runtime account identity.
+ *
+ * Database adapters expose:
+ *
+ * Asset.accountId
+ *        ↓
+ * accountId
+ *
+ * Engine does not know Prisma.
+ * Engine does not query Account relations.
+ */
+
+
+  accountId:string | null;
+
+
+  paid:boolean;
+
+
+  category:string | null;
+
+
+  flow:FlowRecord | null;
+
+};
+
+
+
+
+
+export interface AssetRepository {
+
+
+  findBySlug(
+
+    slug:string
+
+  ):Promise<AssetRecord | null>;
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ * SESSION CONTRACT
+ * =====================================================
+ *
+ * A Session represents one QRE runtime experience.
+ *
+ * Every scan may create a session.
+ *
+ * Sessions capture:
+ *
+ * - access decision
+ * - generated moments
+ * - cinematic scenes
+ * - completion state
+ * - memory references
+ * - receipts
+ *
+ *
+ * Sessions are NOT permanent memories.
+ *
+ * MemorySnapshot represents the
+ * persistent memory artifact.
+ *
+ * AnalyticsEvent represents raw behavior:
+ *
+ * - scans
+ * - views
+ * - drop-offs
+ * - conversions
+ *
+ * =====================================================
+ */
+
+
+export interface SessionRepository {
+
+
+  create(
+
+    input:{
+
+      assetId:string;
+
+      flowId?:string | null;
+
+    }
+
+  ):Promise<{
+
+    id:string;
+
+  }>;
+
+
+
+
+  update(
+
+    sessionId:string,
+
+    data:Record<string,unknown>
+
+  ):Promise<void>;
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ * ACCESS CONTRACT
+ * =====================================================
+ *
+ * Provides runtime access truth.
+ *
+ * Engine does not query:
+ *
+ * - Prisma
+ * - User table
+ * - Asset table
+ *
+ *
+ * Repository resolves:
+ *
+ * Asset
+ *    +
+ * Ownership
+ *    +
+ * Subscription context
+ *
+ * before engine execution.
+ *
+ * =====================================================
+ */
+
+
+export interface AccessRepository {
+
+
+  findAssetAccessState(
+
+    assetId:string
+
+  ):Promise<{
+
+    id:string;
+
+    slug:string;
+
+    paid:boolean;
+
+
+    /**
+     * Ownership identity.
+     *
+     * Repository resolves this.
+     * Engine does not know ownership tables.
+     */
+
+
+    accountId:string | null;
+
+
+
+    /**
+     * Asset lifecycle state.
+     */
+
+
+    ownershipStatus:string | null;
+
+
+
+    /**
+     * Account subscription tier.
+     *
+     * Controls:
+     *
+     * - dashboard
+     * - creation
+     * - analytics
+     * - editing
+     *
+     * NOT asset ownership.
+     */
+
+
+    ownerTier:string;
+
+
+  } | null>;
+
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ * USER CONTRACT
+ * =====================================================
+ */
+
+
+export interface UserRepository {
+
+
+  findUserContext(
+
+    userId:string
+
+  ):Promise<{
+
+    id:string;
+
+    tier:string;
+
+
+  } | null>;
+
+
+
+}
+
+/**
+ * =====================================================
+ * STORY DELIVERY CONTRACT
+ * =====================================================
+ */
+
+export interface StoryDeliveryRepository {
+
+  findAsset(
+    assetId:string
+  ):Promise<{
+
+    id:string;
+
+    accountId:string | null;
+
+  } | null>;
+
+
+
+  findExistingStory(
+    input:{
+      assetId:string;
+      sessionId:string;
+    }
+  ):Promise<{
+
+    id:string;
+
+  } | null>;
+
+
+
+  createStorySnapshot(
+    input:{
+      assetId:string;
+
+      sessionId:string;
+
+      moments:unknown;
+
+      geoStory:unknown;
+
+      cinematicScenes:unknown;
+
+    }
+  ):Promise<{
+
+    id:string;
+
+  }>;
+
+}
+
+
+
+
+/**
+ * =====================================================
+ * ANALYTICS CONTRACT
+ * =====================================================
+ *
+ * Engine analytics abstraction.
+ *
+ * Engine does not know:
+ * - Prisma
+ * - analyticsEvent table
+ * - database implementation
+ *
+ * Adapter handles persistence.
+ *
+ * =====================================================
+ */
+export interface AnalyticsRepository {
+
+
+  trackEvent(
+    input:{
+      assetId:string;
+      sessionId?:string|null;
+      flowId?:string|null;
+      stepIndex?:number|null;
+      type:string;
+      meta?:unknown;
+    }
+  ):Promise<void>;
+
+
+
+  findEvents(
+    input:{
+      assetId:string;
+      limit:number;
+    }
+  ):Promise<unknown[]>;
+
+
+
+  countByType(
+    assetId:string
+  ):Promise<Record<string,number>>;
+
+
+
+  getDashboardMetrics(
+    assetId:string
+  ):Promise<unknown>;
+
+
+}
+
+/**
+ * =====================================================
+ * GEO MEMORY CONTRACT
+ * =====================================================
+ *
+ * Engine does not know Prisma.
+ *
+ * Adapter provides geo history.
+ *
+ * Adapter provides snapshot persistence.
+ *
+ * =====================================================
+ */
+
+
+export type GeoProofRecord = {
+
+  assetId:string;
+
+  sessionId:string | null;
+
+  userId:string | null;
+
+  lat:number;
+
+  lng:number;
+
+  accuracy:number | null;
+
+  source:string;
+
+  label:string | null;
+
+  city:string | null;
+
+  region:string | null;
+
+  country:string | null;
+
+  createdAt:Date;
+
+};
+
+
+
+export interface GeoMemoryRepository {
+
+
+  findGeoProof(
+
+    assetId:string
+
+  ):Promise<GeoProofRecord[]>;
+
+
+
+  createMemorySnapshot(
+
+    input:{
+
+      assetId:string;
+
+      sessionId?:string|null;
+
+      scanWeight:number;
+
+      rewardScore:number;
+
+      confidence:number;
+
+      dominantLayer:string;
+
+      data:unknown;
+
+    }
+
+  ):Promise<{
+
+    id:string;
+
+  }>;
+
+
+}
+
+/**
+ * =====================================================
+ * PRESENCE CONTRACT
+ * =====================================================
+ */
+
+export interface PresenceRepository {
+
+
+  upsertSession(
+    input:{
+      id:string;
+
+      assetId:string;
+
+      userId?:string|null;
+
+      status:string;
+
+      enteredAt?:Date;
+
+      geoLat?:number|null;
+
+      geoLng?:number|null;
+
+      accuracy?:number|null;
+    }
+  ):Promise<unknown>;
+
+
+
+  createGeoProof(
+    input:{
+      assetId:string;
+
+      sessionId:string;
+
+      userId?:string|null;
+
+      lat:number;
+
+      lng:number;
+
+      accuracy?:number|null;
+
+      source:string;
+
+      label?:string|null;
+
+      city?:string|null;
+
+      region?:string|null;
+
+      country?:string|null;
+    }
+  ):Promise<void>;
+
+
+
+  checkOut(
+    input:{
+      sessionId:string;
+
+      exitedAt?:Date;
+    }
+  ):Promise<unknown>;
+
+
+
+  getPresenceMap(
+    assetId:string
+  ):Promise<unknown[]>;
+
+
+
+  getPresenceReplay(
+    assetId:string,
+
+    sessionId?:string
+
+  ):Promise<unknown[]>;
+
+
+
+  getPresenceTimeline(
+    assetId:string
+  ):Promise<unknown[]>;
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\repositories\sessionRepository.ts
+============================================================
+
+export type {
+  SessionRepository,
+} from "./index.js";
+
+============================================================
+FILE: \packages\engine\src\resolveContext.ts
+============================================================
+
+import type {
+  ExperienceTier,
+} from "@qre/contracts";
+
+import type {
+  UserRepository,
+} from "./repositories/index.js";
+
+
+export type UserContext = {
+
+  userId: string | null;
+
+  tier: ExperienceTier;
+
+  isGuest: boolean;
+
+};
+
+
+
+function normalizeTier(
+  tier: unknown
+): ExperienceTier {
+
+  switch (tier) {
+
+    case "PRO":
+      return "PRO";
+
+    case "BUSINESS":
+      return "BUSINESS";
+
+    case "BASIC":
+      return "BASIC";
+
+    default:
+      return "BASIC";
+
+  }
+
+}
+
+
+
+export async function resolveContext(
+  input: {
+    userId?: string;
+  },
+  repo: UserRepository
+): Promise<UserContext> {
+
+
+  /**
+   * No authenticated user.
+   *
+   * This is a store/demo visitor.
+   *
+   * Allowed:
+   * - play demo experiences
+   *
+   * Not allowed:
+   * - save flows
+   * - own assets
+   * - dashboard access
+   */
+  if (!input.userId) {
+
+    return {
+
+      userId: null,
+
+      tier: "BASIC",
+
+      isGuest: true,
+
+    };
+
+  }
+
+
+
+  const user =
+    await repo.findUserContext(
+      input.userId
+    );
+
+
+
+  /**
+   * Invalid session/user.
+   *
+   * Treat as guest.
+   */
+  if (!user) {
+
+    return {
+
+      userId: null,
+
+      tier: "BASIC",
+
+      isGuest: true,
+
+    };
+
+  }
+
+
+
+  return {
+
+    userId: user.id,
+
+    tier:
+      normalizeTier(
+        user.tier
+      ),
+
+    isGuest: false,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\runtime\cinematic\cinematicRuntime.ts
+============================================================
+
+import type {
+  CinematicScene,
+  Moment,
+  GeoStory,
+} from "@qre/contracts";
+
+
+type CinematicInput = {
+  moments: Moment[];
+  geoStory: GeoStory | null;
+};
+
+
+
+export function cinematicRuntime(
+  input: CinematicInput
+): CinematicScene[] {
+
+
+  const scenes: CinematicScene[] = [];
+
+
+
+  // =========================================
+  // MOMENTS → CINEMATIC SCENES
+  // =========================================
+
+  for (const m of input.moments) {
+
+    scenes.push({
+
+      id:
+        `scene-${m.order}`,
+
+      type:
+        mapMomentType(m.type),
+
+      duration:
+        getDuration(m),
+
+      moment:m,
+
+    });
+
+  }
+
+
+
+
+  // =========================================
+  // GEO STORY → MEMORY SCENES
+  // =========================================
+
+  if (input.geoStory?.scenes) {
+
+
+    input.geoStory.scenes.forEach(
+      (g,index)=>{
+
+
+        scenes.push({
+
+          id:
+            `geo-${g.id}`,
+
+
+          type:
+            "memory",
+
+
+          duration:
+            3500,
+
+
+          moment:{
+
+            type:
+              "location",
+
+
+            order:
+              1000 + index,
+
+
+            location:{
+
+              lat:
+                g.location?.lat ?? 0,
+
+
+              lng:
+                g.location?.lng ?? 0,
+
+
+              label:
+                g.location?.label,
+
+
+              city:
+                g.location?.city,
+
+
+              region:
+                g.location?.region,
+
+
+              country:
+                g.location?.country,
+
+            },
+
+
+            meta:{
+
+              intensity:
+                g.intensity,
+
+
+              timestamp:
+                g.timestamp,
+
+            },
+
+          }
+
+        });
+
+      }
+
+    );
+
+  }
+
+
+
+
+
+  // =========================================
+  // FINAL CTA SCENE
+  // =========================================
+
+  scenes.push({
+
+    id:
+      "cta",
+
+
+    type:
+      "cta",
+
+
+    duration:
+      3000,
+
+
+    moment:{
+
+      type:
+        "system",
+
+
+      order:
+        9999,
+
+
+      text:
+        "Continue Experience",
+
+
+      meta:{},
+
+    }
+
+  });
+
+
+
+  return scenes;
+
+}
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MOMENT SEMANTIC TYPE
+ *
+ * ->
+ *
+ * CINEMATIC PRESENTATION TYPE
+ *
+ * =====================================================
+ */
+
+
+function mapMomentType(
+  type:string
+): CinematicScene["type"] {
+
+
+  switch(type){
+
+
+    case "system":
+
+      return "system";
+
+
+
+    case "action":
+
+    case "product":
+
+    case "reward":
+
+    case "payment":
+
+    case "booking":
+
+      return "action";
+
+
+
+    case "location":
+
+    case "photos":
+
+    case "video":
+
+    case "media":
+
+    case "replay":
+
+    case "cinematic_replay":
+
+      return "memory";
+
+
+
+    case "story":
+
+    case "message":
+
+    case "education":
+
+    case "social":
+
+    case "profile":
+
+      return "emotion";
+
+
+
+    default:
+
+      return "emotion";
+
+  }
+
+}
+
+
+
+
+
+
+function getDuration(
+  m:Moment
+):number {
+
+
+  switch(m.type){
+
+
+    case "system":
+
+      return 1200;
+
+
+    case "action":
+
+      return 2000;
+
+
+    case "location":
+
+      return 3000;
+
+
+    case "media":
+
+      return 4000;
+
+
+    default:
+
+      return 1500;
+
+  }
+
+}
+
+============================================================
+FILE: \packages\engine\src\runtime\locationRuntime.ts
+============================================================
+
+import {
+  checkIn,
+} from "../presence/checkIn.js";
+
+
+import type {
+  PresenceRepository,
+  GeoMemoryRepository,
+} from "../repositories/index.js";
+
+
+import type {
+  FlowStep,
+} from "@qre/contracts";
+
+
+
+
+export async function runLocationStep(
+
+  step:FlowStep,
+
+  context:{
+
+    assetId:string;
+
+    sessionId:string;
+
+    userId?:string;
+
+    geo?:{
+
+      lat:number;
+
+      lng:number;
+
+      accuracy?:number;
+
+    };
+
+    presenceRepository:PresenceRepository;
+
+    geoMemoryRepository?:GeoMemoryRepository;
+
+  }
+
+){
+
+
+  const payload =
+    step.payload as Record<string,unknown>;
+
+
+
+  if(
+    payload.geoMemory !== true
+  ){
+
+    return {
+
+      skipped:true,
+
+    };
+
+  }
+
+
+
+
+  await checkIn(
+
+    {
+
+      assetId:
+        context.assetId,
+
+      sessionId:
+        context.sessionId,
+
+      userId:
+        context.userId,
+
+      geo:
+        context.geo,
+
+    },
+
+    context.presenceRepository,
+
+    context.geoMemoryRepository
+
+  );
+
+
+
+
+
+  return {
+
+    type:"location",
+
+    captured:true,
+
+    timeline:true,
+
+    snapshot:true,
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\scanEngine.ts
+============================================================
+
+import type {
+  AssetRepository,
+  SessionRepository,
+  AccessRepository,
+  FlowStepRecord,
+} from "./repositories/index.js";
+import type {
+  StoryDeliveryRepository,AnalyticsRepository,
+} from "./repositories/index.js";
+import { resolveAccessEngine } from "./accessEngine.js";
+
+import { flowToMoment } from "./moments/flowToMoments.js";
+import { systemMoments } from "./moments/systemMoments.js";
+import { purchaseMoments } from "./moments/purchaseMoments.js";
+
+import { buildGeoStory } from "./geo/geoStoryCompiler.js";
+import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
+
+import { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+
+import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
+
+import { getScanInsights } from "./analytics/analyticsService.js";
+
+import { runFlowActions } from "./flowOrchestrator.js";
+
+import { buildServiceReceipt } from "./receiptBuilder.js";
+
+import type {
+  FlowStepType,
+  Moment,
+  ScanResponse,
+} from "@qre/contracts";
+
+
+
+type ScanEngineInput = {
+
+  slug:string;
+
+  userId?:string;
+
+  geo?:{
+
+    lat:number;
+
+    lng:number;
+
+    accuracy?:number;
+
+  };
+
+};
+
+
+
+
+
+export async function scanEngine(
+
+  input:ScanEngineInput,
+
+  repos:{
+
+    assetRepository:AssetRepository;
+
+    sessionRepository:SessionRepository;
+    analyticsRepository:AnalyticsRepository;
+    accessRepository:AccessRepository;
+    storyDeliveryRepository:StoryDeliveryRepository;
+  }
+
+):Promise<ScanResponse>{
+
+
+
+  /**
+   * =====================================================
+   * 1. RESOLVE ASSET
+   * =====================================================
+   */
+
+
+  const asset =
+    await repos.assetRepository.findBySlug(
+      input.slug
+    );
+
+
+
+  if(!asset){
+
+    return {
+
+      sessionId:null,
+
+      access:"DEMO",
+
+      preview:true,
+
+      asset:null,
+
+      moments:[],
+
+      geoStory:null,
+
+      cinematicScenes:[],
+
+      memorySnapshot:null,
+
+      receipt:null,
+
+      insights:[],
+
+      timestamp:new Date().toISOString(),
+
+    };
+
+  }
+
+
+
+
+
+  /**
+   * =====================================================
+   * 2. CREATE SESSION
+   *
+   * EVERY SCAN CREATES A SESSION
+   *
+   * Demo and unlocked both matter.
+   * =====================================================
+   */
+
+
+  const session =
+    await repos.sessionRepository.create({
+
+      assetId:asset.id,
+
+      flowId:
+        asset.flow?.id ?? null,
+
+    });
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 3. ACCESS RESOLUTION
+   *
+   * Determines:
+   *
+   * DEMO
+   * UNLOCKED
+   * =====================================================
+   */
+
+
+  const access =
+    await resolveAccessEngine(
+
+      {
+
+        assetId:asset.id,
+
+        userId:input.userId,
+
+      },
+
+      repos.accessRepository
+
+    );
+
+
+
+
+
+  /**
+   * =====================================================
+   * 4. BUILD EXPERIENCE MOMENTS
+   * =====================================================
+   */
+
+
+  const moments:Moment[] = [];
+
+
+
+  moments.push(
+
+    ...systemMoments(
+
+      access.state
+
+    )
+
+  );
+
+
+
+
+
+  /**
+   * DEMO EXPERIENCE
+   *
+   * Shows the magic.
+   *
+   * Does NOT create memory.
+   */
+
+  if(access.state !== "UNLOCKED"){
+
+
+    moments.push(
+
+      ...purchaseMoments(
+
+        access.state,
+
+        asset.slug
+
+      )
+
+    );
+
+  }
+
+
+
+
+
+  /**
+   * UNLOCKED EXPERIENCE
+   *
+   * Real customer flow.
+   */
+
+
+  if(
+
+    access.state === "UNLOCKED" &&
+
+    asset.flow?.steps?.length
+
+  ){
+
+
+    const flowMoments =
+
+      flowToMoment(
+
+        asset.flow.steps.map(
+
+          (step:FlowStepRecord)=>({
+
+            id:
+              step.id,
+
+            order:
+              step.order,
+
+            type:
+              step.type as FlowStepType,
+
+            payload:
+
+              typeof step.payload === "object" &&
+
+              step.payload !== null &&
+
+              !Array.isArray(step.payload)
+
+                ? step.payload as Record<string,unknown>
+
+                : {},
+
+          })
+
+        )
+
+      );
+
+
+
+    const offset =
+      moments.length;
+
+
+
+    moments.push(
+
+      ...flowMoments.map(
+
+        moment => ({
+
+          ...moment,
+
+          order:
+            moment.order + offset,
+
+        })
+
+      )
+
+    );
+
+
+  }
+
+
+
+
+
+  moments.sort(
+
+    (a,b)=>
+
+      a.order-b.order
+
+  );
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 5. RUN ACTIONS
+   *
+   * Allowed for demo/unlocked.
+   * =====================================================
+   */
+
+
+  try{
+
+
+   await runFlowActions(
+
+  moments,
+
+  session.id,
+
+  asset.id,
+
+  input.geo,
+
+  input.userId,
+
+  repos.analyticsRepository
+
+);
+
+
+  }
+
+  catch(err){
+
+
+    console.warn(
+
+      "[FLOW ACTION FAILED]",
+
+      err
+
+    );
+
+
+  }
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 6. GEO STORY
+   *
+   * Experience layer.
+   * =====================================================
+   */
+
+
+  let geoStory = null;
+
+
+
+  try{
+
+
+    geoStory =
+
+      await buildGeoStory(
+
+        asset.id,
+
+        input.geo
+
+          ? [
+
+              {
+
+                lat:
+                  input.geo.lat,
+
+                lng:
+                  input.geo.lng,
+
+                createdAt:
+                  new Date(),
+
+              },
+
+            ]
+
+          : []
+
+      );
+
+
+  }
+
+  catch(err){
+
+
+    console.warn(
+
+      "[GEO STORY FAILED]",
+
+      err
+
+    );
+
+  }
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 7. CINEMATIC RUNTIME
+   *
+   * Always generated.
+   *
+   * Demo needs magic.
+   * =====================================================
+   */
+
+
+  const cinematicScenes =
+
+    cinematicRuntime({
+
+      moments,
+
+      geoStory,
+
+    });
+
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 8. PERMANENT MEMORY
+   *
+   * ONLY AFTER UNLOCK
+   * =====================================================
+   */
+
+
+  let memorySnapshot = null;
+
+
+
+  if(access.state === "UNLOCKED"){
+
+
+    memorySnapshot =
+
+      buildMemorySnapshot({
+
+        assetId:
+
+          asset.id,
+
+        moments,
+
+        geoStory,
+
+        cinematicScenes,
+
+      });
+
+
+  }
+
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 9. STORY DELIVERY
+   *
+   * ONLY AFTER UNLOCK
+   * =====================================================
+   */
+
+
+  if(access.state === "UNLOCKED"){
+
+
+    try{
+
+
+      await createStoryDelivery(
+
+  {
+
+    assetId:asset.id,
+
+    sessionId:session.id,
+
+    userId:
+      input.userId ?? null,
+
+    moments,
+
+    geoStory,
+
+    cinematicScenes,
+
+  },
+
+  repos.storyDeliveryRepository
+
+);
+
+
+    }
+
+    catch(err){
+
+
+      console.warn(
+
+        "[STORY DELIVERY FAILED]",
+
+        err
+
+      );
+
+    }
+
+
+  }
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 10. RECEIPTS
+   * =====================================================
+   */
+
+
+  const hasServiceCompletion =
+
+    moments.some(
+
+      m =>
+
+        m.type === "system" &&
+
+        m.meta?.event === "SERVICE_COMPLETE"
+
+    );
+
+
+
+  const isServiceAsset =
+
+    asset.category === "service" ||
+
+    asset.category === "business";
+
+
+
+  const receipt =
+
+    access.state === "UNLOCKED" &&
+
+    isServiceAsset &&
+
+    hasServiceCompletion
+
+      ? buildServiceReceipt({
+
+          asset,
+
+          sessionId:session.id,
+
+          moments,
+
+        })
+
+      : null;
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 11. INSIGHTS
+   * =====================================================
+   */
+
+
+    
+   const insights =
+   await getScanInsights(
+
+   asset.id,
+
+    repos.analyticsRepository
+
+   );
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * 12. PERSIST SESSION RESULT
+   * =====================================================
+   */
+
+
+  await repos.sessionRepository.update(
+
+    session.id,
+
+    {
+
+      moments,
+
+      geoStory,
+
+      cinematicScenes,
+
+      memorySnapshot,
+
+      receipt,
+
+      endedAt:new Date(),
+
+      status:"completed",
+
+    }
+
+  );
+
+
+
+
+
+
+
+
+  /**
+   * =====================================================
+   * FINAL PUBLIC RESPONSE
+   * =====================================================
+   */
+
+
+  return {
+
+
+    sessionId:
+
+      session.id,
+
+
+
+    access:
+
+      access.state,
+
+
+
+    preview:
+
+      access.state !== "UNLOCKED",
+
+
+
+    timestamp:
+
+      new Date().toISOString(),
+
+
+
+    moments,
+
+
+    geoStory,
+
+
+    cinematicScenes,
+
+
+    memorySnapshot,
+
+
+    receipt,
+
+
+    insights,
+
+
+
+    asset:{
+
+
+      id:
+
+        asset.id,
+
+
+      slug:
+
+        asset.slug,
+
+
+      paid:
+
+        asset.paid,
+
+
+    },
+
+
+  };
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\semantic\conceptResolver.ts
+============================================================
+
+import type {
+  ExperienceMomentType
+} from "@qre/contracts";
+
+
+export function resolveSemanticConcepts(
+  concepts:string[]
+):ExperienceMomentType[] {
+
+
+const moments =
+new Set<ExperienceMomentType>();
+
+
+for(const concept of concepts){
+
+
+switch(true){
+
+
+case /memory|nostalgia|legacy|archive/.test(concept):
+
+moments.add("memory");
+break;
+
+
+case /story|identity|life/.test(concept):
+
+moments.add("story");
+break;
+
+
+case /cinematic|film|visual|movie/.test(concept):
+
+moments.add("video");
+break;
+
+
+case /music|sound|audio|energy/.test(concept):
+
+moments.add("soundtrack");
+break;
+
+
+case /hidden|secret|underground|mystery|rare/.test(concept):
+
+moments.add("reveal");
+break;
+
+
+case /community|people|connection|social/.test(concept):
+
+moments.add("share");
+break;
+
+
+case /premium|luxury|exclusive/.test(concept):
+
+moments.add("reward");
+break;
+
+
+case /interactive|game|quest|challenge/.test(concept):
+
+moments.add("interaction");
+break;
+
+
+default:
+
+moments.add("introduction");
+
+break;
+
+
+}
+
+}
+
+
+return [...moments];
+
+}
+
+============================================================
+FILE: \packages\engine\src\semantic\entityExtractor.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE ENTITY EXTRACTOR
+ * =====================================================
+ *
+ * Extracts meaningful objects from experience prompts.
+ *
+ * Prompt
+ *   ↓
+ * Entity Extraction
+ *   ↓
+ * Blueprint
+ *   ↓
+ * Runtime / Demo / Geo / Memory
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceEntities,
+} from "@qre/contracts";
+
+
+
+
+
+function unique(
+ values:string[]
+):string[] {
+
+ return [
+  ...new Set(
+   values
+    .map(
+     value=>value.trim()
+    )
+    .filter(Boolean)
+  ),
+ ];
+
+}
+
+
+
+
+
+
+
+const placeSignals = [
+
+ "at ",
+ "inside ",
+ "near ",
+ "from ",
+ "located in ",
+ "visited "
+
+];
+
+
+
+
+
+const eventSignals = [
+
+ "concert",
+ "show",
+ "festival",
+ "party",
+ "rave",
+ "sesh",
+ "birthday",
+ "anniversary",
+ "wedding",
+ "celebration"
+
+];
+
+
+
+
+
+const productSignals = [
+
+ "qr",
+ "qr code",
+ "keychain",
+ "tag",
+ "sticker",
+ "card",
+ "poster",
+ "shirt",
+ "painting",
+ "album",
+ "book",
+ "collectible"
+
+];
+
+
+
+
+
+const keywordSignals = [
+
+ "memory",
+ "memories",
+ "story",
+ "photos",
+ "photo",
+ "video",
+ "favorite",
+ "collection",
+ "reward",
+ "loyalty",
+ "unlock",
+ "secret",
+ "exclusive",
+ "experience"
+
+];
+
+
+
+
+
+
+
+function extractAfterSignal(
+ prompt:string,
+ signal:string
+):string|null {
+
+
+ const lower =
+  prompt.toLowerCase();
+
+
+
+ const index =
+  lower.indexOf(signal);
+
+
+
+ if(index === -1){
+
+  return null;
+
+ }
+
+
+
+ const result =
+  prompt
+   .slice(
+    index + signal.length
+   )
+   .split(
+    /[.,!?]/
+   )[0]
+   .trim();
+
+
+
+
+ if(
+  result.length < 2 ||
+  result.split(" ").length > 6
+ ){
+
+  return null;
+
+ }
+
+
+
+ return result;
+
+}
+
+
+
+
+
+
+
+
+/**
+ * Detect likely names.
+ *
+ * Example:
+ *
+ * "Create a concert experience
+ *  for DeathbyRomy at The Wiltern"
+ *
+ * returns:
+ *
+ * people:
+ * [
+ *  "DeathbyRomy"
+ * ]
+ *
+ */
+function extractPeople(
+ prompt:string
+):string[] {
+
+
+ const people:string[] = [];
+
+
+
+ const patterns = [
+
+
+  /for\s+([A-Z][A-Za-z0-9@.'-]+(?:\s+[A-Z][A-Za-z0-9.'-]+)?)/g,
+
+
+  /by\s+([A-Z][A-Za-z0-9@.'-]+(?:\s+[A-Z][A-Za-z0-9.'-]+)?)/g,
+
+
+  /artist\s+([A-Z][A-Za-z0-9.'-]+)/gi,
+
+
+  /creator\s+([A-Z][A-Za-z0-9.'-]+)/gi,
+
+
+ ];
+
+
+
+
+ for(const pattern of patterns){
+
+
+  const matches =
+   prompt.matchAll(pattern);
+
+
+
+  for(const match of matches){
+
+   if(match[1]){
+
+    people.push(
+     match[1]
+    );
+
+   }
+
+  }
+
+ }
+
+
+
+ return unique(
+  people
+ );
+
+}
+
+
+
+
+
+
+
+
+
+function extractUrls(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /https?:\/\/[^\s]+/gi
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractEmails(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractPhones(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /\+?\d[\d\s()-]{7,}\d/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractDates(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+
+export function extractEntities(
+ prompt:string
+):ExperienceEntities {
+
+
+
+ const lower =
+  prompt.toLowerCase();
+
+
+
+
+ const places:string[]=[];
+
+ const events:string[]=[];
+
+ const products:string[]=[];
+
+ const keywords:string[]=[];
+
+ const media:string[] = [];
+
+
+
+
+
+
+ // -------------------------------
+ // PLACES
+ // -------------------------------
+
+ for(const signal of placeSignals){
+
+
+  const place =
+   extractAfterSignal(
+    prompt,
+    signal
+   );
+
+
+
+  if(place){
+
+   places.push(
+    place
+   );
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // EVENTS
+ // -------------------------------
+
+ for(const event of eventSignals){
+
+
+  if(lower.includes(event)){
+
+   events.push(
+    event
+   );
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // PRODUCTS
+ // -------------------------------
+
+ for(const product of productSignals){
+
+
+  if(lower.includes(product)){
+
+
+   products.push(
+    product
+   );
+
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // KEYWORDS
+ // -------------------------------
+
+ for(const keyword of keywordSignals){
+
+
+  if(lower.includes(keyword)){
+
+
+   keywords.push(
+    keyword
+   );
+
+  }
+
+ }
+
+
+return {
+
+
+  people:
+
+   extractPeople(
+    prompt
+   ),
+
+
+
+  places:
+
+   unique(
+    places
+   ),
+
+
+
+  organizations:[],
+
+
+  dates:
+
+   extractDates(
+    prompt
+   ),
+
+
+
+  times:[],
+
+
+
+  events:
+
+   unique(
+    events
+   ),
+
+
+
+  products:
+
+   unique(
+    products
+   ),
+
+
+
+  urls:
+
+   unique(
+    extractUrls(prompt)
+   ),
+
+
+
+  emails:
+
+   unique(
+    extractEmails(prompt)
+   ),
+
+
+
+  phones:
+
+   unique(
+    extractPhones(prompt)
+   ),
+
+
+
+  keywords:
+
+   unique(
+    keywords
+   ),
+
+
+
+  media:
+
+   unique(
+    media
+   ),
+
+
+};
+
+
+
+
+
+ 
+
+}
+
+============================================================
+FILE: \packages\engine\src\semantic\genome\genomeBuilder.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE GENOME BUILDER
+ * =====================================================
+ *
+ * Human Prompt
+ *        ↓
+ * Semantic Understanding
+ *        ↓
+ * Experience Genome
+ *
+ * Genome = Creative DNA
+ *
+ * The Genome understands:
+ *
+ * - intent
+ * - emotion
+ * - meaning
+ * - world
+ * - journey
+ * - experience physics
+ *
+ * It does NOT know:
+ *
+ * - industries
+ * - templates
+ * - products
+ * - database
+ *
+ * =====================================================
+ */
+
+
+import {
+  analyzeSemanticPrompt,
+} from "../semanticAnalyzer.js";
+
+
+import {
+  extractEntities,
+} from "../entityExtractor.js";
+
+
+import type {
+
+  ExperienceGenome,
+  ExperienceMeaning,
+  ExperienceRelationship,
+  ExperienceJourney,
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MEANING EXTRACTION
+ * =====================================================
+ */
+
+
+function buildMeaning(
+
+ semantic:any
+
+):ExperienceMeaning {
+
+
+return {
+
+
+why:
+semantic.intent,
+
+
+emotions:
+semantic.emotions,
+
+
+memories:
+
+semantic.themes.includes("memory")
+
+?
+
+[
+ "personal memory"
+]
+
+:
+
+[],
+
+
+
+desiredFeeling:
+
+semantic.emotions,
+
+
+transformation:
+
+semantic.experienceDNA?.includes(
+ "transformation"
+)
+
+?
+
+"create change"
+
+:
+
+undefined,
+
+
+};
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE DNA
+ *
+ * The creative fingerprint.
+ *
+ * This replaces templates.
+ *
+ * =====================================================
+ */
+
+
+function buildDNA(
+
+ semantic:any
+
+):string[] {
+
+
+const dna = new Set<string>();
+
+
+
+dna.add(
+ "adaptive"
+);
+
+
+
+for(
+ const value of semantic.experienceDNA ?? []
+){
+
+ dna.add(
+  value
+ );
+
+}
+
+
+
+if(
+ semantic.emotions.includes("nostalgia")
+){
+
+ dna.add(
+  "memory_driven"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("discovery")
+){
+
+ dna.add(
+  "exploration"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("connection")
+){
+
+ dna.add(
+  "human_connection"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("culture")
+){
+
+ dna.add(
+  "immersive_culture"
+ );
+
+}
+
+
+
+return [
+ ...dna
+];
+
+}
+
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * RELATIONSHIP GRAPH
+ *
+ * Future semantic graph layer.
+ *
+ * =====================================================
+ */
+
+
+function buildRelationships(
+
+):ExperienceRelationship[] {
+
+
+return [];
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE ENERGY
+ * =====================================================
+ */
+
+
+function resolveEnergy(
+
+ semantic:any
+
+){
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "cinematic"
+ )
+){
+
+return "mysterious";
+
+}
+
+
+
+if(
+ semantic.emotions.includes(
+ "joy"
+ )
+){
+
+return "playful";
+
+}
+
+
+
+if(
+ semantic.emotions.includes(
+ "love"
+ )
+){
+
+return "emotional";
+
+}
+
+
+
+return "emotional";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * PACING
+ * =====================================================
+ */
+
+
+function resolvePacing(
+
+ semantic:any
+
+){
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "cinematic"
+ )
+){
+
+return "slow";
+
+}
+
+
+
+if(
+ semantic.themes.includes(
+ "discovery"
+ )
+){
+
+return "fast";
+
+}
+
+
+
+return "medium";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * UNIVERSAL HUMAN JOURNEY
+ * =====================================================
+ */
+
+
+function buildJourney(
+
+ semantic:any
+
+):ExperienceJourney[] {
+
+
+const journey:ExperienceJourney[]=[
+
+
+"arrival",
+
+
+"discovery",
+
+
+"reveal",
+
+
+"return"
+
+
+];
+
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "transformation"
+ )
+){
+
+journey.splice(
+ 3,
+ 0,
+ "transformation"
+);
+
+}
+
+
+
+return journey;
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * GENOME BUILDER
+ *
+ * Prompt → Experience DNA
+ *
+ * =====================================================
+ */
+
+
+export function buildExperienceGenome(
+
+ prompt:string
+
+):ExperienceGenome {
+
+
+
+if(
+ !prompt.trim()
+
+){
+
+throw new Error(
+ "Experience prompt cannot be empty"
+);
+
+}
+
+
+
+
+
+const semantic =
+
+analyzeSemanticPrompt(
+ prompt
+);
+
+
+
+
+
+const entities =
+
+extractEntities(
+ prompt
+);
+
+
+
+
+
+const meaning =
+
+buildMeaning(
+ semantic
+);
+
+
+
+
+
+const relationships =
+
+buildRelationships();
+
+
+
+
+
+return {
+
+
+
+/**
+ * Core intent
+ */
+
+intent:[
+
+semantic.intent
+
+],
+
+
+
+
+
+/**
+ * Creative DNA
+ */
+
+dna:
+
+buildDNA(
+ semantic
+),
+
+
+
+
+
+/**
+ * Archetypal signals
+ */
+
+archetypes:
+
+semantic.themes,
+
+
+
+
+
+/**
+ * Themes
+
+ */
+
+themes:
+
+semantic.themes,
+
+
+
+
+
+/**
+ * Emotional layer
+ */
+
+emotions:
+
+semantic.emotions,
+
+
+
+
+
+/**
+ * Meaning
+ */
+
+meaning,
+
+
+
+
+
+/**
+ * Semantic graph
+ */
+
+relationships,
+
+
+
+
+
+/**
+ * World entities
+ */
+
+entities,
+
+
+
+
+
+/**
+ * Experience physics
+ */
+
+energy:
+
+resolveEnergy(
+ semantic
+),
+
+
+
+pacing:
+
+resolvePacing(
+ semantic
+),
+
+
+
+social:
+
+semantic.audience.length
+
+?
+
+"community"
+
+:
+
+"solo",
+
+
+
+
+
+/**
+ * Human journey
+ */
+
+journey:
+
+buildJourney(
+ semantic
+),
+
+
+
+
+
+/**
+ * Dimensions
+ */
+
+discovery:
+
+semantic.themes.includes(
+ "discovery"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+memory:
+
+semantic.themes.includes(
+ "memory"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+commerce:
+
+semantic.themes.includes(
+ "commerce"
+)
+
+?
+
+1
+
+:
+
+0,
+
+
+
+
+immersion:
+
+semantic.experienceDNA?.includes(
+ "cinematic"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+interaction:
+
+0.5,
+
+
+
+
+replay:
+
+semantic.themes.includes(
+ "memory"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+
+/**
+ * World context
+ */
+
+environments:
+
+semantic.environments,
+
+
+
+
+audience:
+
+semantic.audience,
+
+
+
+};
+
+
+}
+
+
+
+
+
+
+export const genomeBuilder =
+
+buildExperienceGenome;
+
+============================================================
+FILE: \packages\engine\src\semantic\genome\index.ts
+============================================================
+
+export {
+  buildExperienceGenome,
+} from "./genomeBuilder.js";
+
+
+export type {
+  ExperienceGenome,
+} from "@qre/contracts";
+
+
+============================================================
+FILE: \packages\engine\src\semantic\index.ts
+============================================================
+
+export * from "./semanticAnalyzer.js";
+
+export {
+ resolveSemanticConcepts
+} from "./conceptResolver.js";
+
+export * from "./genome/index.js";
+
+============================================================
+FILE: \packages\engine\src\semantic\semanticAnalyzer.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE SEMANTIC ANALYZER
+ * =====================================================
+ *
+ * Human Language
+ *        ↓
+ * Meaning Signals
+ *        ↓
+ * Experience Genome
+ *
+ * This layer answers:
+ *
+ * "What is this human trying to create?"
+ *
+ * It does NOT create:
+ *
+ * - worlds
+ * - moments
+ * - flows
+ * - runtime
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+export type SemanticSignal = {
+
+  concept:string;
+
+  confidence:number;
+
+};
+
+
+
+export type SemanticAnalysis = {
+
+
+  /**
+   * Human intention
+   */
+  intent:string;
+
+
+
+  /**
+   * Detected concepts
+   */
+  themes:string[];
+
+
+
+  /**
+   * Emotional language
+   */
+  emotions:string[];
+
+
+
+  /**
+   * Things mentioned
+   */
+  entities:string[];
+
+
+
+  /**
+   * Desired actions
+   */
+  actions:string[];
+
+
+
+  /**
+   * Physical/digital context
+   */
+  environments:string[];
+
+
+
+  /**
+   * Audience signals
+   */
+  audience:string[];
+
+
+
+  /**
+   * Creative DNA signals
+   */
+  experienceDNA:string[];
+
+
+
+  /**
+   * Future intelligence layer
+   *
+   * Allows confidence based reasoning.
+   */
+  signals:SemanticSignal[];
+
+};
+
+
+
+
+
+type SemanticRule = {
+
+ theme:string;
+
+ words:string[];
+
+ emotion:string;
+
+ dna:string;
+
+};
+
+
+
+
+
+
+
+const semanticRules:SemanticRule[] = [
+
+
+
+{
+ theme:"memory",
+
+ words:[
+  "memory",
+  "remember",
+  "past",
+  "history",
+  "legacy",
+  "archive",
+  "childhood",
+  "timeline",
+  "moment",
+  "time capsule"
+ ],
+
+ emotion:"nostalgia",
+
+ dna:"emotional"
+
+},
+
+
+
+{
+ theme:"connection",
+
+ words:[
+  "love",
+  "relationship",
+  "family",
+  "friend",
+  "community",
+  "together",
+  "bond"
+ ],
+
+ emotion:"connection",
+
+ dna:"human"
+
+},
+
+
+
+{
+ theme:"commerce",
+
+ words:[
+  "business",
+  "brand",
+  "product",
+  "company",
+  "store",
+  "customer",
+  "client",
+  "sell"
+ ],
+
+ emotion:"trust",
+
+ dna:"conversion"
+
+},
+
+
+
+{
+ theme:"culture",
+
+ words:[
+  "music",
+  "concert",
+  "festival",
+  "club",
+  "party",
+  "artist",
+  "performance"
+ ],
+
+ emotion:"energy",
+
+ dna:"immersive"
+
+},
+
+
+
+{
+ theme:"discovery",
+
+ words:[
+  "secret",
+  "hidden",
+  "unknown",
+  "mystery",
+  "exclusive",
+  "rare",
+  "explore",
+  "underground"
+ ],
+
+ emotion:"curiosity",
+
+ dna:"mysterious"
+
+},
+
+
+
+{
+ theme:"adventure",
+
+ words:[
+  "quest",
+  "mission",
+  "challenge",
+  "hunt",
+  "puzzle",
+  "game"
+ ],
+
+ emotion:"excitement",
+
+ dna:"interactive"
+
+},
+
+
+
+{
+ theme:"identity",
+
+ words:[
+  "identity",
+  "profile",
+  "creator",
+  "artist",
+  "owner"
+ ],
+
+ emotion:"recognition",
+
+ dna:"personal"
+
+},
+
+
+
+{
+ theme:"companion",
+
+ words:[
+  "dog",
+  "cat",
+  "pet",
+  "animal",
+  "rescue"
+ ],
+
+ emotion:"care",
+
+ dna:"personal"
+
+}
+
+
+
+];
+
+
+
+
+
+
+
+
+
+export function analyzeSemanticPrompt(
+ prompt:string
+):SemanticAnalysis {
+
+
+const text =
+ prompt
+ .toLowerCase()
+ .trim();
+
+
+
+if(!text){
+
+ throw new Error(
+  "Semantic prompt cannot be empty"
+ );
+
+}
+
+
+
+
+const themes =
+new Set<string>();
+
+
+const emotions =
+new Set<string>();
+
+
+const entities =
+new Set<string>();
+
+
+const actions =
+new Set<string>();
+
+
+const environments =
+new Set<string>();
+
+
+const audience =
+new Set<string>();
+
+
+const experienceDNA =
+new Set<string>();
+
+
+const signals:
+SemanticSignal[] = [];
+
+
+
+
+
+actions.add(
+ "create"
+);
+
+
+experienceDNA.add(
+ "adaptive"
+);
+
+
+
+
+
+
+for(
+ const rule of semanticRules
+){
+
+
+const matches =
+rule.words.filter(
+ word =>
+ text.includes(word)
+);
+
+
+
+if(matches.length){
+
+
+const confidence =
+Math.min(
+ 1,
+ matches.length /
+ 3
+);
+
+
+
+themes.add(
+ rule.theme
+);
+
+
+
+emotions.add(
+ rule.emotion
+);
+
+
+
+experienceDNA.add(
+ rule.dna
+);
+
+
+
+signals.push({
+
+ concept:
+ rule.theme,
+
+ confidence
+
+});
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * MEDIA
+ */
+
+if(
+ /photo|image|video|film|audio|music|sound|voice/
+ .test(text)
+){
+
+entities.add(
+ "media"
+);
+
+
+experienceDNA.add(
+ "cinematic"
+);
+
+
+actions.add(
+ "experience"
+);
+
+
+}
+
+
+
+
+
+/**
+ * LOCATION
+ */
+
+if(
+ /place|location|city|venue|home|world|map|destination/
+ .test(text)
+){
+
+environments.add(
+ "location"
+);
+
+
+actions.add(
+ "navigate"
+);
+
+
+}
+
+
+
+
+
+
+/**
+ * STYLE DNA
+ */
+
+
+if(
+ /dark|gothic|cyber|punk|alternative|rebellious/
+ .test(text)
+){
+
+experienceDNA.add(
+ "alternative"
+);
+
+
+emotions.add(
+ "intensity"
+);
+
+
+}
+
+
+
+if(
+ /luxury|premium|elite|exclusive/
+ .test(text)
+){
+
+experienceDNA.add(
+ "premium"
+);
+
+
+emotions.add(
+ "aspiration"
+);
+
+
+}
+
+
+
+if(
+ /fun|wild|crazy|playful|chaos/
+ .test(text)
+){
+
+experienceDNA.add(
+ "playful"
+);
+
+
+emotions.add(
+ "joy"
+);
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * AUDIENCE
+ */
+
+
+if(
+ /fans|followers|members|community|crowd/
+ .test(text)
+){
+
+audience.add(
+ "community"
+);
+
+}
+
+
+
+if(
+ /customer|buyer|client|shopper/
+ .test(text)
+){
+
+audience.add(
+ "customer"
+);
+
+}
+
+
+
+if(
+ /my|mine|personal|private/
+ .test(text)
+){
+
+audience.add(
+ "individual"
+);
+
+}
+
+
+
+
+
+
+
+
+/**
+ * ENTITY SIGNALS
+ */
+
+
+if(
+ /qr|nfc|tag|scan|code/
+ .test(text)
+){
+
+entities.add(
+ "digital_identity"
+);
+
+}
+
+
+
+if(
+ /story|experience|world|universe|portal|realm/
+ .test(text)
+){
+
+entities.add(
+ "experience"
+);
+
+}
+
+
+
+if(
+ /club|bar|venue|space|room/
+ .test(text)
+){
+
+entities.add(
+ "environment"
+);
+
+}
+
+
+
+
+
+
+
+/**
+ * OPEN WORLD FALLBACK
+ */
+
+if(
+ !themes.size
+){
+
+themes.add(
+ "human_expression"
+);
+
+
+experienceDNA.add(
+ "open_world"
+);
+
+
+emotions.add(
+ "curiosity"
+);
+
+
+signals.push({
+
+ concept:
+ "human_expression",
+
+ confidence:
+ .2
+
+});
+
+
+}
+
+
+
+
+
+return {
+
+
+intent:
+ "experience_creation",
+
+
+themes:
+ [...themes],
+
+
+emotions:
+ [...emotions],
+
+
+entities:
+ [...entities],
+
+
+actions:
+ [...actions],
+
+
+environments:
+ [...environments],
+
+
+audience:
+ [...audience],
+
+
+experienceDNA:
+ [...experienceDNA],
+
+
+signals
+
+};
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\sessionManager.ts
+============================================================
+
+import type {
+  SessionRepository,
+} from "./repositories/index.js";
+
+
+export function createSessionManager(
+  repo: SessionRepository
+) {
+
+  return {
+
+    async createSession(
+      assetId:string,
+      flowId?:string|null
+    ) {
+
+      return repo.create({
+
+        assetId,
+
+        flowId:
+          flowId ?? null,
+
+      });
+
+    },
+
+
+    async updateSession(
+      sessionId:string,
+      data:Record<string,unknown>
+    ) {
+
+      return repo.update(
+        sessionId,
+        data
+      );
+
+    },
+
+  };
+
+}
+
+============================================================
+FILE: \packages\engine\src\spine\cognitionListener.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE COGNITION SPINE LISTENER
+ * =====================================================
+ *
+ * Connects runtime signals to cognition.
+ *
+ * Spine = signal transport
+ * Cognition = interpretation
+ *
+ * =====================================================
+ */
+
+
+import {
+  subscribeSpine,
+} from "./eventSpine.js";
+
+
+import {
+  processCognition,
+} from "../cognition/cognitionKernel.js";
+
+
+import type {
+  SpineEvent,
+} from "./eventSpine.js";
+
+
+
+
+
+export function startCognitionListener(){
+
+
+  return subscribeSpine(
+
+    async (event:SpineEvent)=>{
+
+
+      processCognition({
+
+
+        type:
+          "experience",
+
+
+
+        summary:
+          `Engine event ${event.type}`,
+
+
+
+        confidence:
+          0.7,
+
+
+
+        context:{
+
+          event:
+            event.type,
+
+
+          assetId:
+            event.assetId,
+
+
+          sessionId:
+            event.sessionId,
+
+
+          flowId:
+            event.flowId,
+
+
+          stepIndex:
+            event.stepIndex,
+
+
+          userId:
+            event.userId,
+
+
+          meta:
+            event.meta,
+
+
+        },
+
+
+      });
+
+
+    }
+
+  );
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\spine\eventSpine.ts
+============================================================
+
+import type {
+  EngineEventType,
+} from "@qre/contracts";
+
+
+export type SpineEvent = {
+
+  type:EngineEventType;
+
+  assetId:string;
+
+  sessionId?:string;
+
+  flowId?:string;
+
+  stepIndex?:number;
+
+  userId?:string;
+
+  meta?:Record<string,unknown>;
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * ENGINE EVENT SPINE
+ * =====================================================
+ *
+ * Central runtime event emitter.
+ *
+ * Responsibilities:
+ *
+ * - broadcast engine lifecycle events
+ * - keep runtime decoupled
+ * - allow analytics/memory/rewards listeners
+ *
+ *
+ * Does NOT:
+ *
+ * - import Prisma
+ * - write database
+ * - know analytics storage
+ *
+ * =====================================================
+ */
+
+
+type EventHandler =
+  (
+    event:SpineEvent
+  )=>Promise<void>;
+
+
+
+const handlers =
+  new Set<EventHandler>();
+
+
+
+
+export function subscribeSpine(
+
+  handler:EventHandler
+
+){
+
+  handlers.add(handler);
+
+
+  return ()=>{
+
+    handlers.delete(handler);
+
+  };
+
+}
+
+
+
+
+
+export async function emitSpineEvent(
+
+  event:SpineEvent
+
+){
+
+
+  for(const handler of handlers){
+
+    try{
+
+      await handler(event);
+
+    }
+
+    catch(error){
+
+      console.error(
+
+        "[SPINE HANDLER FAILED]",
+
+        error
+
+      );
+
+    }
+
+  }
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\spine\handlers.ts
+============================================================
+
+import type { EngineEventType } from "@qre/contracts";
+
+export type SpineHandler = (event: any) => Promise<void> | void;
+
+const handlers: Partial<Record<EngineEventType, SpineHandler[]>> = {};
+
+export function registerHandler(
+  type: EngineEventType,
+  handler: SpineHandler
+) {
+  if (!handlers[type]) handlers[type] = [];
+  handlers[type]!.push(handler);
+}
+
+export async function emitToHandlers(event: {
+  type: EngineEventType;
+  [key: string]: any;
+}) {
+  const list = handlers[event.type];
+  if (!list) return;
+
+  await Promise.all(list.map((h) => h(event)));
+}
+
+============================================================
+FILE: \packages\engine\src\stripe.ts
+============================================================
+
+import Stripe from "stripe";
+
+let stripeInstance: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+
+  if (!key) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(key, {
+     apiVersion: "2026-06-24.dahlia",
+    });
+  }
+
+  return stripeInstance;
+}
+
+============================================================
+FILE: \packages\engine\src\teaserRenderer.ts
+============================================================
+
+import type { AccessState } from "@qre/contracts";
+
+
+export type TeaserBlock = {
+  type: "text" | "action";
+  text: string;
+  url?: string;
+};
+
+
+export function renderTeaser(
+  access: AccessState,
+  slug: string
+): TeaserBlock[] {
+
+
+  if (access === "DEMO") {
+
+    return [
+
+      {
+        type: "text",
+        text:
+          "Demo experience"
+      },
+
+      {
+        type: "text",
+        text:
+          "Play this experience here. Own the physical QRE to save your memories, unlock your dashboard, and create your permanent experience."
+      },
+
+      {
+        type: "action",
+        text:
+          "Get this QRE",
+        url:
+          `/store/${slug}`
+      }
+
+    ];
+
+  }
+
+
+  /**
+   * UNLOCKED
+   *
+   * No teaser.
+   * No button.
+   * No "experience unlocked".
+   *
+   * Cinematic player starts immediately.
+   */
+  return [];
+
+}
+
+============================================================
+FILE: \packages\engine\src\types\engineEvent.ts
+============================================================
+
+export const EngineEventTypes = {
+  SCAN_START: "SCAN_START",
+
+  FLOW_TRIGGERED: "FLOW_TRIGGERED",
+  FLOW_STEP: "FLOW_STEP",
+  FLOW_COMPLETE: "FLOW_COMPLETE",
+
+  MEMORY_APPLIED: "MEMORY_APPLIED",
+
+  CHECK_IN: "CHECK_IN",
+  CHECK_OUT: "CHECK_OUT",
+
+  GEO_MARK: "GEO_MARK",
+} as const;
+
+export type EngineEventType =
+  (typeof EngineEventTypes)[keyof typeof EngineEventTypes];
+
+============================================================
+FILE: \packages\engine\src\utils\safeParam.ts
+============================================================
+
+export function safeStringParam(
+  value: string | string[] | undefined
+): string | null {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return null;
+}
+
+============================================================
+FILE: \packages\engine\src\world\index.ts
+============================================================
+
+export {
+  composeWorld
+} from "./worldComposer.js";
+
+
+export {
+  resolveWorldDomain
+} from "./worldDomain.js";
+
+============================================================
+FILE: \packages\engine\src\world\worldComposer.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE WORLD COMPOSER
+ * =====================================================
+ *
+ * Genome
+ *   ↓
+ * World
+ *
+ * The emotional universe.
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceGenome,
+  ExperienceWorld,
+  ExperienceJourney,
+  ExperienceArchetype,
+} from "@qre/contracts";
+
+
+import {
+  resolveWorldDomain
+} from "./worldDomain.js";
+
+
+
+
+
+
+export function composeWorld(
+
+ genome:ExperienceGenome
+
+):ExperienceWorld {
+
+
+
+const domain =
+
+ resolveWorldDomain(
+  genome
+ );
+
+
+
+
+
+return {
+
+
+domain,
+
+
+
+archetype:
+
+ resolveArchetype(
+  genome
+ ),
+
+
+
+atmosphere:
+
+ resolveAtmosphere(
+  genome
+ ),
+
+
+
+journey:
+
+ resolveJourney(
+  genome
+ ),
+
+
+
+atoms:
+
+ resolveAtoms(
+  genome
+ ),
+
+
+
+themes:
+
+ genome.themes,
+
+
+};
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveArchetype(
+
+ genome:ExperienceGenome
+
+):ExperienceArchetype {
+
+
+if(
+ genome.memory >= .8
+){
+
+ return "memory_replay";
+
+}
+
+
+
+if(
+ genome.immersion >= .8
+){
+
+ return "cinematic_story";
+
+}
+
+
+
+if(
+ genome.discovery >= .8
+){
+
+ return "discovery";
+
+}
+
+
+
+if(
+ genome.commerce >= .8
+){
+
+ return "brand_experience";
+
+}
+
+
+
+if(
+ genome.themes.includes("culture")
+){
+
+ return "event";
+
+}
+
+
+
+if(
+ genome.themes.includes("connection")
+){
+
+ return "relationship";
+
+}
+
+
+
+return "cinematic_story";
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveAtmosphere(
+
+ genome:ExperienceGenome
+
+):string[] {
+
+
+return [
+
+ genome.energy,
+
+ ...genome.emotions,
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveJourney(
+
+ genome:ExperienceGenome
+
+):ExperienceJourney[] {
+
+
+const journey:ExperienceJourney[] = [
+
+
+"arrival",
+
+
+"discovery",
+
+
+"reveal"
+
+
+];
+
+
+
+if(
+ genome.memory >= .5
+){
+
+ journey.push(
+  "memory"
+ );
+
+}
+
+
+
+if(
+ genome.interaction >= .5
+){
+
+ journey.push(
+  "peak"
+ );
+
+}
+
+
+
+journey.push(
+
+"share",
+
+"return"
+
+);
+
+
+
+return journey;
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveAtoms(
+
+ genome:ExperienceGenome
+
+):string[] {
+
+
+const atoms:string[] = [
+
+
+"identity",
+
+
+"story"
+
+
+];
+
+
+
+if(
+
+ genome.entities.people.length ||
+
+ genome.entities.places.length
+
+){
+
+ atoms.push(
+  "location"
+ );
+
+}
+
+
+
+if(
+
+ genome.entities.media.length
+
+){
+
+ atoms.push(
+  "media"
+ );
+
+}
+
+
+
+if(
+
+ genome.immersion >= .5
+
+){
+
+ atoms.push(
+  "audio"
+ );
+
+}
+
+
+
+if(
+
+ genome.discovery >= .5
+
+){
+
+ atoms.push(
+  "interaction"
+ );
+
+}
+
+
+
+if(
+
+ genome.replay >= .5
+
+){
+
+ atoms.push(
+  "replay"
+ );
+
+}
+
+
+
+return [
+
+ ...new Set(atoms)
+
+];
+
+
+}
+
+============================================================
+FILE: \packages\engine\src\world\worldDomain.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE WORLD DOMAIN RESOLVER
+ * =====================================================
+ *
+ * Human Meaning
+ *      ↓
+ * Experience World
+ *
+ * NOT industry.
+ * NOT templates.
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceGenome,
+  WorldDomain,
+} from "@qre/contracts";
+
+
+
+
+
+export function resolveWorldDomain(
+
+  genome:ExperienceGenome
+
+):WorldDomain {
+
+
+
+if(
+ genome.meaning.memories.length ||
+ genome.themes.includes("memory")
+){
+
+ return "memory_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("connection") ||
+ genome.themes.includes("relationship")
+){
+
+ return "relationship_world";
+
+}
+
+
+
+
+if(
+ genome.discovery >= .7 ||
+ genome.themes.includes("adventure")
+){
+
+ return "discovery_world";
+
+}
+
+
+
+
+if(
+ genome.immersion >= .7 ||
+ genome.themes.includes("culture")
+){
+
+ return "culture_world";
+
+}
+
+
+
+
+if(
+ genome.entities.products.length ||
+ genome.commerce >= .7
+){
+
+ return "commerce_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("identity")
+){
+
+ return "identity_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("community")
+){
+
+ return "community_world";
+
+}
+
+
+
+
+return "journey_world";
+
+}
+
+============================================================
+FILE: \packages\engine\tsconfig.json
+============================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "rootDir": "src",
+    "outDir": "dist",
+
+    "strict": true,
+    "skipLibCheck": true,
+
+    "declaration": true,
+    "declarationMap": true,
+
+    "emitDeclarationOnly": false,
+
+    "types": ["node"],
+
+    "baseUrl": ".",
+     
+    "paths": {
+      "@qre/contracts": ["../contracts/dist"],
+      "@qre/db": ["../db/src"],
+      "@qre/api": ["../../apps/api/src"]
+    },
+
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+
+  
+  "exclude": ["dist", "node_modules"]
+}

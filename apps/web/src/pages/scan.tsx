@@ -191,36 +191,6 @@ export default function Scan() {
 
   }
 
-
-if(
-  !data.cinematicScenes ||
-  data.cinematicScenes.length === 0
-){
-
-  return (
-
-    <div
-      style={{
-        height:"100vh",
-        display:"grid",
-        placeItems:"center",
-        background:"#050505",
-        color:"white",
-      }}
-    >
-      No cinematic experience generated.
-
-    </div>
-
-  );
-
-}
-
-  
-
-
-
-
   return (
 
     <ScanAccessRouter

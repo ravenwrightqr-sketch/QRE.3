@@ -20,13 +20,11 @@ export default function DemoExperience({
       }}
     >
 
-      <CinematicScanPlayer
-        scenes={
-          data.cinematicScenes ?? []
-        }
-      />
-
-
+    <CinematicScanPlayer
+    data={data}
+    />
+    
+    
       <div
         style={{
           position:"absolute",

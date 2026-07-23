@@ -12,10 +12,6 @@ import {
 } from "../lib/api";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
-import GlassCard from "../components/ui/GlassCard";
-import NeonButton from "../components/ui/NeonButton";
-
-import FlowManager from "../components/flow/FlowManager";
 
 
 type Asset = {
@@ -27,6 +23,7 @@ type Asset = {
 };
 
 
+
 export default function AssetDashboard(){
 
   const {
@@ -34,16 +31,19 @@ export default function AssetDashboard(){
   } = useParams();
 
 
+
   const [
     asset,
     setAsset
-  ] = useState<Asset|null>(null);
+  ] = useState<Asset | null>(null);
+
 
 
   const [
     loading,
     setLoading
   ] = useState(true);
+
 
 
 
@@ -55,8 +55,10 @@ export default function AssetDashboard(){
         await getUserAssets();
 
 
+
       const assets =
         response.assets ?? response;
+
 
 
       const found =
@@ -66,7 +68,10 @@ export default function AssetDashboard(){
         );
 
 
-      setAsset(found ?? null);
+
+      setAsset(
+        found ?? null
+      );
 
 
     }
@@ -88,6 +93,7 @@ export default function AssetDashboard(){
 
 
 
+
   useEffect(()=>{
 
     load();
@@ -98,34 +104,60 @@ export default function AssetDashboard(){
 
 
 
+
   if(loading){
 
     return (
+
       <DashboardLayout>
-        <GlassCard glow>
-          Loading object...
-        </GlassCard>
+
+        <div
+          style={{
+            minHeight:"60vh",
+            display:"grid",
+            placeItems:"center",
+            color:"rgba(255,255,255,.5)",
+            letterSpacing:3,
+          }}
+        >
+
+          LOADING EXPERIENCE...
+
+        </div>
+
       </DashboardLayout>
+
     );
 
   }
 
 
 
+
+
   if(!asset){
 
     return (
+
       <DashboardLayout>
 
-        <GlassCard glow>
+        <div
+          style={{
+            minHeight:"60vh",
+            display:"grid",
+            placeItems:"center",
+            color:"#fff",
+          }}
+        >
 
           <h2>
             Object not found
           </h2>
 
-        </GlassCard>
+        </div>
 
       </DashboardLayout>
+
     );
 
   }
@@ -139,51 +171,125 @@ export default function AssetDashboard(){
     <DashboardLayout>
 
 
-      <GlassCard glow>
+      <main
 
-        <h1>
-          {asset.slug}
-        </h1>
-
-
-        <p>
-          Object Status:
-          {" "}
-          {asset.status}
-        </p>
-
-
-        <p>
-          Tier:
-          {" "}
-          {asset.tier}
-        </p>
-
-
-      </GlassCard>
-
-
-
-
-
-      <div
         style={{
-          marginTop:30
+
+          minHeight:"100vh",
+
+          color:"#fff",
+
+          padding:"60px 30px",
+
         }}
+
       >
 
-        <FlowManager
 
-          assetId={
-            asset.id
-          }
-
-        />
-
-      </div>
+        <section>
 
 
+          <p
 
+            style={{
+
+              opacity:.45,
+
+              letterSpacing:5,
+
+              fontSize:12,
+
+            }}
+
+          >
+
+            EXPERIENCE OBJECT
+
+          </p>
+
+
+
+          <h1>
+
+            {asset.slug}
+
+          </h1>
+
+
+
+          <p>
+
+            STATUS:
+
+            {" "}
+
+            {asset.status}
+
+          </p>
+
+
+
+          <p>
+
+            TIER:
+
+            {" "}
+
+            {asset.tier}
+
+          </p>
+
+
+
+        </section>
+
+
+
+
+
+        <section
+
+          style={{
+
+            marginTop:60,
+
+          }}
+
+        >
+
+
+          <h2>
+
+            Connected Experiences
+
+          </h2>
+
+
+
+          <p
+
+            style={{
+
+              opacity:.55,
+
+              maxWidth:500,
+
+            }}
+
+          >
+
+            Experiences are created from the QRE compiler and connected to this object automatically.
+
+          </p>
+
+
+
+        </section>
+
+
+
+
+      </main>
 
 
     </DashboardLayout>

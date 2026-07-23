@@ -1,11 +1,9 @@
-import FlowManager from "../flow/FlowManager";
-
+/////legacy 
 export default function AssetControlPanel({
  asset
 }:{
  asset:any
-}){
-
+}) {
 
 return (
 
@@ -15,18 +13,8 @@ return (
 {asset.slug}
 </h2>
 
-
-<FlowManager
-
-assetId={
- asset.id
-}
-
-/>
-
-
 </div>
 
-)
+);
 
 }

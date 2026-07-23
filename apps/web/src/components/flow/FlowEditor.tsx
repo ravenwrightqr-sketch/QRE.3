@@ -1,3 +1,4 @@
+/////legacy 
 import {
   useEffect,
   useState,
@@ -10,16 +11,13 @@ import {
 
 import GlassCard from "../ui/GlassCard";
 
-import ExperienceBlueprint from "../experience/ExperienceBlueprint";
+
 
 import {
   getFlow,
   saveFlow,
 } from "../../lib/api";
 
-import type {
-  ExperienceBlock,
-} from "../../types/experience";
 
 
 

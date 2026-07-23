@@ -1,185 +1,493 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
 
 import DashboardLayout from "../components/layout/DashboardLayout";
-import GlassCard from "../components/ui/GlassCard";
-import NeonButton from "../components/ui/NeonButton";
 
-import ExperienceBlueprint from "../components/experience/ExperienceBlueprint";
+import CinematicScanPlayer from "../components/scan/CinematicScanPlayer";
 
-type PreviewData = {
-  title?: string;
-  moments?: unknown[];
-  momentCount?: number;
+import type {
+  Experience,
+} from "@qre/contracts";
+
+
+import type {
+  CompiledExperience,
+} from "../types/experience";
+
+
+
+
+
+
+
+
+
+
+
+function compileToRuntimeExperience(
+input:CompiledExperience
+):Experience {
+
+
+return {
+
+  sessionId:
+    crypto.randomUUID(),
+
+
+  access:
+    "PREVIEW",
+
+
+  preview:
+    true,
+
+
+  asset:
+    {
+      id:
+        "preview",
+
+      slug:
+        "preview",
+
+      title:
+        input.title ??
+        "Living Experience",
+
+      category:
+      input.model?.metadata?.category,
+
+      ownerId:
+        null,
+
+      paid:
+        false,
+
+    },
+
+
+  moments:
+    input.moments ?? [],
+
+
+  geoStory:
+input.world ?? null,
+
+
+  cinematicScenes:
+    input.cinematicScenes ?? [],
+
+
+  memorySnapshot:
+{
+  id:"preview",
+  title:input.title,
+  moments:input.moments,
+  createdAt:new Date().toISOString()
+},
+
+
+  receipt:
+    null,
+
+
+  insights:
+    [],
+
+
+  meta:
+    {
+      source:
+        "experience-compiler-preview"
+    }
+
 };
+
+
+}
+
+
+
+
 
 
 
 export default function ExperiencePreview(){
 
 
-  const [experience,setExperience] =
-    useState<PreviewData | null>(null);
+const navigate =
+useNavigate();
 
 
 
-  useEffect(()=>{
+const [
+experience,
+setExperience
+]=useState<Experience|null>(null);
 
 
-    const stored =
-      sessionStorage.getItem(
-        "experiencePreview"
-      );
 
 
-    if(!stored){
-      return;
-    }
 
 
-    try{
 
-      setExperience(
-        JSON.parse(stored)
-      );
+useEffect(()=>{
 
+const stored =
+  sessionStorage.getItem(
+    "experiencePreview"
+  );
 
-    }catch{
+console.log(
+  "LOADED EXPERIENCE",
+  stored
+);
 
-      console.error(
-        "Invalid preview data"
-      );
 
-    }
+if(!stored)
+return;
 
 
-  },[]);
 
 
 
+try{
 
-  function returnDashboard(){
 
-    window.location.href =
-      "/dashboard";
+const compiled:
 
-  }
+CompiledExperience =
 
+JSON.parse(
+stored
+);
 
 
 
-  if(!experience){
+console.log(
+  "🎬 CINEMATIC SCENES",
+  compiled.cinematicScenes
+);
 
+console.log(
+  "🎭 MOMENTS",
+  compiled.moments
+);
 
-    return (
+console.log(
+  "🌎 WORLD",
+  compiled.world
+);
+setExperience(
 
-      <DashboardLayout>
+compileToRuntimeExperience(
 
-        <GlassCard glow>
+compiled
 
+)
 
-          <h2>
-            No Experience Loaded
-          </h2>
+);
 
 
-          <NeonButton
-            onClick={returnDashboard}
-          >
-            ← Dashboard
-          </NeonButton>
 
+}
 
-        </GlassCard>
+catch(error){
 
-      </DashboardLayout>
 
-    );
+console.error(
 
-  }
+"Invalid QRE experience",
 
+error
 
+);
 
 
+}
 
-  return (
 
-    <DashboardLayout>
 
+},[]);
 
-      <GlassCard glow>
 
 
-        <div
-          style={{
-            display:"flex",
-            justifyContent:"space-between",
-            alignItems:"center"
-          }}
-        >
 
 
-          <div>
 
 
-            <h1>
-              🧱{" "}
-              {
-                experience.title ??
-                "Experience Builder"
-              }
-            </h1>
 
 
-            <p
-              style={{
-                opacity:.6
-              }}
-            >
-              Design your customer journey.
-            </p>
+function back(){
 
 
-          </div>
+navigate(
 
+"/dashboard"
 
+);
 
-          <NeonButton
-            onClick={returnDashboard}
-          >
-            ← Dashboard
-          </NeonButton>
 
+}
 
-        </div>
 
 
-      </GlassCard>
 
 
 
 
-      <div
-        style={{
-          marginTop:24
-        }}
-      >
 
-       <ExperienceBlueprint
+if(!experience){
 
-  moments={
-    experience.moments as any[]
-  }
 
+return (
+
+<DashboardLayout>
+
+
+<div
+
+style={{
+
+minHeight:"70vh",
+
+display:"flex",
+
+alignItems:"center",
+
+justifyContent:"center",
+
+color:"#fff"
+
+}}
+
+>
+
+
+<h2>
+
+No Experience Loaded
+
+</h2>
+
+
+</div>
+
+
+</DashboardLayout>
+
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+return (
+
+<DashboardLayout>
+
+
+<div
+
+style={{
+
+minHeight:"100vh",
+
+background:"#030305",
+
+color:"#fff",
+
+padding:"80px 30px"
+
+}}
+
+>
+
+
+
+
+
+
+
+<div
+
+style={{
+
+textAlign:"center",
+
+marginBottom:50
+
+}}
+
+>
+
+
+<p
+
+style={{
+
+letterSpacing:8,
+
+opacity:.5
+
+}}
+
+>
+
+QRE EXPERIENCE RUNTIME
+
+</p>
+
+
+
+
+
+
+<h1
+
+style={{
+
+fontSize:"clamp(40px,6vw,72px)",
+
+fontWeight:900
+
+}}
+
+>
+
+{
+
+experience.asset?.title ??
+
+"Living Experience"
+
+}
+
+</h1>
+
+
+
+
+
+
+<p
+
+style={{
+
+opacity:.65,
+
+maxWidth:700,
+
+margin:"20px auto",
+
+fontSize:18
+
+}}
+
+>
+
+{
+
+experience.meta?.source ===
+
+"experience-compiler-preview"
+
+?
+
+"Preview generated from QRE Experience Compiler."
+
+:
+
+"Experience ready."
+
+}
+
+</p>
+
+
+
+</div>
+
+{
+experience.cinematicScenes.length > 0 &&
+
+<CinematicScanPlayer
+  experience={experience}
 />
 
-
-      </div>
-
+}
 
 
+<div
 
-    </DashboardLayout>
+style={{
 
-  );
+textAlign:"center",
+
+marginTop:50
+
+}}
+
+>
+
+
+<button
+
+onClick={back}
+
+style={{
+
+background:"transparent",
+
+border:"1px solid rgba(255,255,255,.3)",
+
+borderRadius:50,
+
+padding:"15px 40px",
+
+color:"#fff",
+
+cursor:"pointer"
+
+}}
+
+>
+
+BACK
+
+</button>
+
+
+</div>
+
+
+
+
+
+
+
+</div>
+
+
+</DashboardLayout>
+
+
+);
+
 
 }

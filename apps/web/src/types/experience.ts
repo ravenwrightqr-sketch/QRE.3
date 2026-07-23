@@ -1,119 +1,28 @@
-export type BlockType =
-  | "message"
-  | "location"
-  | "redirect"
-  | "payment"
-  | "reward"
-  | "link"
-  | "place"
-  | "memory"
-  | "media"
-  | "review"
-  | "notification"
-  | "certificate";
+import type {
+  CinematicScene,
+} from "@qre/contracts";
 
 
-export type ExperienceMedia = {
+export type CompiledExperience = {
 
-  images?: string[];
+  genome:any;
 
-  videos?: string[];
+  world:any;
 
-  audio?: string[];
+  blueprint:any;
 
-};
+  flowSteps:any[];
 
+  moments:any[];
 
+  cinematicScenes:CinematicScene[];
 
-export type ExperienceActions = {
-
-  onStart?: string[];
-
-  onComplete?: string[];
-
-};
-
-
-
-export type ExperienceConditions = {
-
-  requires?: string[];
-
-};
-
-
-
-export type ExperienceConfig = {
-
-  location?: string;
-
-  url?: string;
-
-  mediaUrl?: string;
-
-  musicId?: string;
-
-  mediaId?: string;
-
-  rewardCode?: string;
-
-  paymentMethod?: string;
-
-  paymentAccount?: string;
-
-};
-
-
-
-export type ExperienceBlock = {
-
-
-
-  id:string;
-
-
-  type:BlockType;
-
+  model:any;
 
   title:string;
 
+  estimatedDuration:number;
 
-  text:string;
-
-
-  duration:number;
-
-    
-  media?:ExperienceMedia;
-
-
-
-  actions?:ExperienceActions;
-
- timer:number;
-
-  conditions?:ExperienceConditions;
-
-
-
-  config?:ExperienceConfig;
-
-
-
-};
-
-
-
-export type ExperienceBlueprint = {
-
-
-  title:string;
-
-
-  description?:string;
-
-
-  blocks:ExperienceBlock[];
-
+  momentCount:number;
 
 };

@@ -1,120 +1,68 @@
-/**
- * =====================================================
- * QRE EXPERIENCE CONTRACT
- * =====================================================
- *
- * Complete runtime experience payload.
- *
- * API
- *   ↓
- * Experience
- *   ↓
- * Cinematic Player
- *
- *
- * This is NOT a database model.
- *
- * It is the assembled runtime world.
- *
- * =====================================================
- */
-
-
 import type {
   Moment,
-} from "./moment.js";
-
+} from "../moment.js";
 
 import type {
   GeoStory,
-} from "./geoStory.js";
-
+} from "../geoStory.js";
 
 import type {
   CinematicScene,
-} from "./cinematic.js";
-
+} from "../cinematic.js";
 
 import type {
   MemorySnapshot,
-} from "./memorySnapshot.js";
-
+} from "../memorySnapshot.js";
 
 import type {
   ServiceReceipt,
-} from "./serviceReceipt.js";
+} from "../serviceReceipt.js";
 
 
+/**
+ * =====================================================
+ * EXPERIENCE ACCESS
+ * =====================================================
+ */
+
+export type ExperienceAccess =
+  | "DEMO"
+  | "UNLOCKED"
+ 
 
 
 
 /**
  * =====================================================
- * ASSET SUMMARY
- * =====================================================
+ * PUBLIC ASSET IDENTITY
  *
- * Public runtime identity.
- *
+ * Runtime-safe.
  * No Prisma fields.
- *
+ * Ownership uses account boundary.
  * =====================================================
  */
 
 export type AssetSummary = {
 
-
   id:string;
-
 
   slug:string;
 
-
-
   title?:string;
-
 
   category?:string;
 
-
-accountId:string|null;
-
-
+  accountId:string|null;
 
   paid:boolean;
 
 
-
   status?:
-
     | "ACTIVE"
-
     | "DISABLED"
-
     | "ARCHIVED";
 
 };
-
-
-
-
-
-
-/**
- * =====================================================
- * ACCESS STATE
- * =====================================================
- */
-
-export type ExperienceAccess =
-
-  | "PREVIEW"
-
-  | "LOCKED"
-
-  | "UNLOCKED";
-
-
-
 
 
 
@@ -126,58 +74,42 @@ export type ExperienceAccess =
 
 export type ExperiencePlayerConfig = {
 
-
   autoplay?:boolean;
 
-
   loop?:boolean;
-
 
   showControls?:boolean;
 
 
-
   theme?:
-
     | "dark"
-
     | "light"
-
     | "glass"
-
     | "cinematic";
 
 
-
   transition?:
-
     | "fade"
-
     | "cinematic"
-
     | "slide";
 
 };
 
 
 
-
-
-
 /**
  * =====================================================
- * MEDIA PRELOAD
+ * MEDIA MANIFEST
+ *
+ * Preloaded runtime assets.
  * =====================================================
  */
 
 export type ExperienceMediaManifest = {
 
-
   images:string[];
 
-
   videos:string[];
-
 
   audio:string[];
 
@@ -185,119 +117,128 @@ export type ExperienceMediaManifest = {
 
 
 
-
-
-
 /**
  * =====================================================
- * COMPLETE EXPERIENCE
+ * COMPLETE EXPERIENCE RUNTIME
+ *
+ * Engine output.
+ * API payload.
+ * Player input.
+ *
  * =====================================================
  */
 
 export type Experience = {
 
 
-
   /**
    * Runtime session
    */
+
   sessionId:string|null;
 
 
 
   /**
-   * Access control
+   * Access state
    */
+
   access:ExperienceAccess;
 
 
 
   /**
-   * Preview mode
+   * Preview flag
    */
+
   preview:boolean;
 
 
 
-
   /**
-   * Public asset identity
+   * Asset identity
    */
+
   asset:AssetSummary|null;
 
 
 
-
   /**
-   * Semantic runtime layer
+   * Story atoms
    */
+
   moments:Moment[];
 
 
 
-
   /**
-   * Geographic memory
+   * Location memory
    */
+
   geoStory:GeoStory|null;
 
 
 
-
   /**
-   * Visual runtime
+   * Cinematic playback
    */
+
   cinematicScenes:CinematicScene[];
 
 
 
-
   /**
-   * AI memory layer
+   * Memory preservation
    */
+
   memorySnapshot:MemorySnapshot|null;
 
 
 
-
   /**
-   * Service/completion proof
+   * Completion proof
    */
+
   receipt:ServiceReceipt|null;
 
 
 
-
-
   /**
-   * Frontend optimization
+   * Media optimization
    */
+
   media?:ExperienceMediaManifest;
 
 
 
   /**
-   * Player settings
+   * Player behavior
    */
+
   player?:ExperiencePlayerConfig;
 
 
 
-
-
   /**
-   * Analytics already resolved
+   * Analytics/context
    */
+
   insights:unknown[];
 
 
 
-
   /**
-   * Runtime metadata
+   * Runtime extensions
    */
+
   meta?:Record<string,unknown>;
 
+    /**
+   * Runtime creation timestamp
+   *
+   * Public API metadata.
+   */
 
+  timestamp:string;
 
 };

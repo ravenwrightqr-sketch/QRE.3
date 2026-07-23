@@ -21,9 +21,11 @@
 
 
 import { Router } from "express";
-import { experienceCompiler } from "@qre/engine";
-import { requireAuth } from "../middleware/requireAuth.js";
 
+import { requireAuth } from "../middleware/requireAuth.js";
+import {
+  compileExperience,
+} from "../services/experienceService.js";
 
 const router = Router();
 
@@ -88,12 +90,17 @@ router.post(
 
       }
 
+  
+
+const experience =
+  await compileExperience(
+    prompt.trim()
+  );
 
 
-      const experience =
-        await experienceCompiler(
-          prompt.trim()
-        );
+
+
+   
 
 
 

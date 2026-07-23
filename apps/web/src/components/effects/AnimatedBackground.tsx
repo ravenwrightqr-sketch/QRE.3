@@ -4,14 +4,41 @@ export default function AnimatedBackground() {
       style={{
         position: "fixed",
         inset: 0,
-        background:
-          "radial-gradient(circle at 20% 20%, rgba(0,255,136,0.08), transparent 40%)," +
-          "radial-gradient(circle at 80% 60%, rgba(0,170,255,0.06), transparent 40%)," +
-          "radial-gradient(circle at 40% 90%, rgba(255,0,120,0.04), transparent 50%)," +
-          "#05060a",
         zIndex: 0,
-        animation: "pulse 6s infinite alternate",
+        pointerEvents: "none",
+        overflow: "hidden",
+        background: "#020202",
       }}
-    />
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: "-20%",
+          background:
+            "radial-gradient(circle at 30% 30%, rgba(255,255,255,.035), transparent 40%)",
+          animation: "qreAtmosphere 25s ease-in-out infinite",
+        }}
+      />
+
+      <style>
+        {`
+          @keyframes qreAtmosphere {
+
+            0% {
+              transform: scale(1);
+            }
+
+            50% {
+              transform: scale(1.08);
+            }
+
+            100% {
+              transform: scale(1);
+            }
+
+          }
+        `}
+      </style>
+    </div>
   );
 }
