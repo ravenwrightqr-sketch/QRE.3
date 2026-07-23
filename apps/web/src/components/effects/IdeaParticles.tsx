@@ -31,47 +31,34 @@ const ideas = [
 
 
 
-
 export default function IdeaParticles(){
 
 
 const particles = useMemo(()=>{
 
 
-return ideas.map((text,index)=>(
+return ideas.map((text,index)=>({
 
-
-{
 
 text,
 
 
-top:
-Math.random()*100,
-
-
-left:
-Math.random()*100,
+index,
 
 
 duration:
-18 + Math.random()*15,
+22 + (index * 2),
 
 
 delay:
-index * 8,
+index * 3,
 
 
 size:
-
-14 + Math.random()*5
-
-
-}
+14 + (index % 3),
 
 
-
-));
+}));
 
 
 },[]);
@@ -81,7 +68,6 @@ size:
 
 
 return (
-
 
 <div
 
@@ -93,25 +79,20 @@ className="idea-particle-layer"
 {
 
 
-particles.map((particle,index)=>(
+particles.map((particle)=>(
 
 
 <div
 
-key={index}
+key={particle.index}
 
 className="idea-particle"
 
 style={{
 
 
-top:`${particle.top}%`,
-
-
-left:`${particle.left}%`,
-
-
-fontSize:`${particle.size}px`,
+fontSize:
+`${particle.size}px`,
 
 
 animationDuration:
@@ -119,7 +100,8 @@ animationDuration:
 
 
 animationDelay:
-`${particle.delay}s`
+`${particle.delay}s`,
+
 
 
 }}
@@ -141,8 +123,253 @@ animationDelay:
 
 
 
-</div>
+<style>
 
+{`
+
+.idea-particle-layer{
+
+position:absolute;
+
+inset:0;
+
+overflow:hidden;
+
+pointer-events:none;
+
+}
+
+
+
+.idea-particle{
+
+
+position:absolute;
+
+
+max-width:260px;
+
+
+line-height:1.4;
+
+
+color:rgba(255,255,255,.22);
+
+
+letter-spacing:1px;
+
+
+white-space:normal;
+
+
+animation:
+floatIdea linear infinite;
+
+
+}
+
+
+
+.idea-particle:nth-child(1){
+
+top:12%;
+
+left:8%;
+
+}
+
+
+.idea-particle:nth-child(2){
+
+top:22%;
+
+right:8%;
+
+}
+
+
+.idea-particle:nth-child(3){
+
+top:38%;
+
+left:5%;
+
+}
+
+
+.idea-particle:nth-child(4){
+
+top:55%;
+
+right:12%;
+
+}
+
+
+.idea-particle:nth-child(5){
+
+top:72%;
+
+left:10%;
+
+}
+
+
+.idea-particle:nth-child(6){
+
+top:15%;
+
+left:55%;
+
+}
+
+
+.idea-particle:nth-child(7){
+
+top:80%;
+
+right:8%;
+
+}
+
+
+.idea-particle:nth-child(8){
+
+top:45%;
+
+left:65%;
+
+}
+
+
+
+@media(max-width:768px){
+
+
+.idea-particle{
+
+font-size:12px!important;
+
+max-width:150px;
+
+opacity:.55;
+
+}
+
+
+
+.idea-particle:nth-child(1){
+
+top:10%;
+
+left:5%;
+
+}
+
+
+
+.idea-particle:nth-child(2){
+
+top:18%;
+
+right:5%;
+
+}
+
+
+
+.idea-particle:nth-child(3){
+
+top:78%;
+
+left:8%;
+
+}
+
+
+
+.idea-particle:nth-child(4){
+
+top:85%;
+
+right:8%;
+
+}
+
+
+
+.idea-particle:nth-child(5){
+
+display:none;
+
+}
+
+
+
+.idea-particle:nth-child(6){
+
+display:none;
+
+}
+
+
+
+.idea-particle:nth-child(7){
+
+display:none;
+
+}
+
+
+
+.idea-particle:nth-child(8){
+
+display:none;
+
+}
+
+
+}
+
+
+
+@keyframes floatIdea{
+
+
+0%{
+
+transform:
+translateY(0px);
+
+}
+
+
+50%{
+
+transform:
+translateY(-30px);
+
+}
+
+
+100%{
+
+transform:
+translateY(0px);
+
+}
+
+
+}
+
+
+
+`}
+
+</style>
+
+
+</div>
 
 );
 

@@ -1,8 +1,59 @@
 import express from "express";
 import { db } from "@qre/db";
-import { requireAuth, AuthRequest } from "../middleware/requireAuth.js";
+import {
+  requireAuth,
+  type AuthRequest,
+} from "../middleware/requireAuth.js";
+
 
 const router = express.Router();
+
+
+/**
+ * =====================================================
+ * CLAIM ASSET TO ACCOUNT
+ * =====================================================
+ *
+ * Inventory assignment boundary.
+ *
+ *
+ * DOES:
+ *
+ * ✅ Resolve user's account membership
+ * ✅ Attach unassigned Asset to Account
+ *
+ *
+ * DOES NOT:
+ *
+ * ❌ Unlock payment
+ * ❌ Mark paid
+ * ❌ Create Ownership
+ * ❌ Handle Stripe
+ *
+ *
+ * PAYMENT TRUTH:
+ *
+ * Stripe
+ *    |
+ *    v
+ * unlockAsset()
+ *    |
+ *    v
+ * Ownership
+ *
+ *
+ * Asset control:
+ *
+ * AccountUser
+ *    |
+ *    v
+ * Account
+ *    |
+ *    v
+ * Asset.accountId
+ *
+ * =====================================================
+ */
 
 
 router.post(
@@ -13,7 +64,7 @@ router.post(
     res
   )=>{
 
-    try {
+    try{
 
 
       const slug =
@@ -22,36 +73,56 @@ router.post(
           : req.params.slug;
 
 
+
       const userId =
         req.user?.userId;
 
 
 
-      if(!slug || !userId){
+      if(
+        !slug ||
+        !userId
+      ){
 
         return res.status(400).json({
-          error:"slug and auth required"
+
+          error:
+            "slug and authentication required",
+
         });
 
       }
 
 
 
+      /**
+       * Resolve account access
+       */
+
       const membership =
         await db.accountUser.findFirst({
 
           where:{
+
             userId,
+
             role:{
+
               in:[
+
                 "OWNER",
                 "ADMIN",
+
               ],
+
             },
+
           },
 
           select:{
+
             accountId:true,
+
           },
 
         });
@@ -63,7 +134,7 @@ router.post(
         return res.status(403).json({
 
           error:
-            "No permission to claim assets",
+            "No account permission",
 
         });
 
@@ -76,109 +147,79 @@ router.post(
 
 
 
-      const result =
-        await db.$transaction(
+      /**
+       * Assign asset to account
+       *
+       * No ownership creation.
+       */
 
-          async(tx)=>{
+      const asset =
+        await db.asset.findUnique({
 
+          where:{
 
-            const asset =
-              await tx.asset.findUnique({
+            slug,
 
-                where:{
-                  slug,
-                },
+          },
 
-                select:{
-                  id:true,
-                  accountId:true,
-                },
+          select:{
 
-              });
+            id:true,
 
+            accountId:true,
 
+          },
 
-            if(!asset){
-
-              throw new Error(
-                "Asset not found"
-              );
-
-            }
+        });
 
 
 
-            if(asset.accountId){
+      if(!asset){
 
-              throw new Error(
-                "Asset already claimed"
-              );
+        return res.status(404).json({
 
-            }
+          error:
+            "Asset not found",
 
+        });
 
-
-            const updated =
-              await tx.asset.update({
-
-                where:{
-                  id:asset.id,
-                },
-
-                data:{
-
-                  accountId,
-
-                  claimedAt:
-                    new Date(),
-
-                },
-
-              });
+      }
 
 
 
-            await tx.ownership.upsert({
+      if(asset.accountId){
 
-              where:{
-                assetId:asset.id,
-              },
+        return res.status(409).json({
 
+          error:
+            "Asset already assigned",
 
-              update:{
+        });
 
-                accountId,
-
-                status:
-                  "CLAIMED",
-
-                claimedAt:
-                  new Date(),
-
-              },
-
-
-              create:{
-
-                assetId:
-                  asset.id,
-
-                accountId,
-
-                status:
-                  "CLAIMED",
-
-              },
-
-            });
+      }
 
 
 
-            return updated;
+      const updated =
+        await db.asset.update({
 
-          }
+          where:{
 
-        );
+            id:
+              asset.id,
+
+          },
+
+
+          data:{
+
+            accountId,
+
+
+          },
+
+
+        });
 
 
 
@@ -186,11 +227,14 @@ router.post(
 
         success:true,
 
+
         assetId:
-          result.id,
+          updated.id,
+
 
         accountId:
-          result.accountId,
+          updated.accountId,
+
 
       });
 
@@ -201,31 +245,12 @@ router.post(
 
 
       console.error(
-        "[CLAIM FAILED]",
+
+        "[ASSET CLAIM FAILED]",
+
         error
+
       );
-
-
-      if(
-        error.message === "Asset not found"
-      ){
-
-        return res.status(404).json({
-          error:error.message,
-        });
-
-      }
-
-
-      if(
-        error.message === "Asset already claimed"
-      ){
-
-        return res.status(409).json({
-          error:error.message,
-        });
-
-      }
 
 
       return res.status(500).json({

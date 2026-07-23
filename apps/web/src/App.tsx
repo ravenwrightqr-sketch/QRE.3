@@ -11,7 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import AssetDashboard from "./pages/AssetDashboard";
 import ExperiencePreview from "./pages/ExperiencePreview";
-
+import ExperienceBuilder from "./pages/ExperienceBuilder";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateAsset from "./pages/admin/CreateAsset";
 import ExperienceCreator from "./pages/ExperienceCreator";
@@ -143,6 +143,19 @@ if (loading) {
         <Navigate to="/login" />
        }
        />
+
+          
+        <Route
+  path="/experience/builder"
+  element={
+    isAuthed
+    ?
+    <ExperienceBuilder />
+    :
+    <Navigate to="/login" />
+  }
+   />
+
 
 
 

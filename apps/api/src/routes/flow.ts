@@ -11,14 +11,6 @@ import {
   type AuthRequest,
 } from "../middleware/requireAuth.js";
 
-import {
-  blueprintToFlow,
-} from "@qre/engine";
-
-import {
-  compileExperience,
-} from "../services/experienceService.js";
-
 
 export const flowRouter = express.Router();
 
@@ -26,9 +18,9 @@ export const flowRouter = express.Router();
 /**
  * =====================================================
  *
- * ACCOUNT ASSET ACCESS
+ * ASSET ACCESS
  *
- * Asset ownership model:
+ * Asset ownership:
  *
  * User
  *   |
@@ -43,7 +35,7 @@ export const flowRouter = express.Router();
 
 async function userHasAssetAccess(
   assetId: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
 
   const asset =
@@ -72,9 +64,7 @@ async function userHasAssetAccess(
 
       where:{
         accountId_userId:{
-          accountId:
-            asset.accountId,
-
+          accountId: asset.accountId,
           userId,
         },
       },
@@ -86,686 +76,15 @@ async function userHasAssetAccess(
 
 }
 
-/**
- * =====================================================
- *
- * COMPILE EXPERIENCE PREVIEW
- *
- * Prompt
- *   ↓
- * Experience Compiler
- *   ↓
- * Blueprint
- *
- * No database writes
- *
- * =====================================================
- */
-
-flowRouter.post(
-  "/compile",
-  async(
-    req: Request,
-    res: Response
-  )=>{
-
-    try{
-
-      const {
-        input,
-      } = req.body;
-
-
-      if(
-        typeof input !== "string" ||
-        !input.trim()
-      ){
-
-        return res.status(400).json({
-
-          error:
-            "input required",
-
-        });
-
-      }
-
-
-      const compiled =
-        await compileExperience(
-          input.trim()
-        );
-
-
-      return res.json(
-        compiled
-      );
-
-
-    }catch(error:any){
-
-      console.error(
-        "compile experience failed",
-        error
-      );
-
-
-      return res.status(500).json({
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-);
-
-/**
- * =====================================================
- *
- * CREATE RAW FLOW
- *
- * Internal flow creation
- *
- * =====================================================
- */
-
-flowRouter.post(
-  "/create",
-  async(
-    req:Request,
-    res:Response
-  )=>{
-
-    try{
-
-      const {
-        name,
-        steps,
-        actions,
-        merchantId,
-      } = req.body;
-
-
-
-      if(
-        !name ||
-        !Array.isArray(steps)
-      ){
-
-        return res.status(400).json({
-
-          error:
-            "name and steps required",
-
-        });
-
-      }
-
-
-
-      const flow =
-        await db.flow.create({
-
-          data:{
-
-            name,
-
-            version:1,
-
-            merchantId,
-
-            actions:
-              actions ?? {},
-
-
-            steps:{
-
-              create:
-
-                steps.map(
-                  (
-                    step:any
-                  )=>({
-
-                    order:
-                      step.order ?? 0,
-
-
-                    type:
-                      step.type,
-
-
-                    payload:
-                      step.payload as Prisma.InputJsonValue,
-
-                  })
-
-                ),
-
-            },
-
-          },
-
-
-          include:{
-
-            steps:true,
-
-          },
-
-        });
-
-
-
-      return res.json({
-
-        success:true,
-
-        flow,
-
-      });
-
-
-    }catch(error:any){
-
-      console.error(
-        "create flow failed",
-        error
-      );
-
-
-      return res.status(500).json({
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-);
-
-/**
- * =====================================================
- *
- * CREATE + ATTACH EXPERIENCE
- *
- * Creates a new Flow.
- *
- * Does not overwrite existing flows.
- *
- * Asset
- *   |
- *   AssetFlow
- *   |
- *   Flow
- *
- * =====================================================
- */
-
-flowRouter.post(
-  "/create-and-attach",
-  requireAuth,
-  async(
-    req:AuthRequest,
-    res:Response
-  )=>{
-
-    try{
-
-      const {
-        assetId,
-        name,
-        blueprint,
-        actions,
-      } = req.body;
-
-
-
-      if(
-        !assetId ||
-        !blueprint
-      ){
-
-        return res.status(400).json({
-
-          error:
-            "assetId and blueprint required",
-
-        });
-
-      }
-
-
-
-      const asset =
-        await db.asset.findUnique({
-
-          where:{
-            id:assetId,
-          },
-
-        });
-
-
-
-      if(!asset){
-
-        return res.status(404).json({
-
-          error:
-            "Asset not found",
-
-        });
-
-      }
-
-
-
-      const hasAccess =
-        await userHasAssetAccess(
-          asset.id,
-          req.user!.userId
-        );
-
-
-
-      if(!hasAccess){
-
-        return res.status(403).json({
-
-          error:
-            "Not authorized",
-
-        });
-
-      }
-
-
-
-      const steps =
-        blueprintToFlow(
-          blueprint
-        );
-
-
-
-      if(!steps.length){
-
-        return res.status(400).json({
-
-          error:
-            "Experience contains no moments",
-
-        });
-
-      }
-
-
-
-      const flow =
-        await db.flow.create({
-
-          data:{
-
-            name:
-              name ??
-              "Untitled Experience",
-
-
-            version:1,
-
-
-            merchantId:
-              req.user!.userId,
-
-
-            actions:
-              actions ?? {},
-
-
-            steps:{
-
-              create:
-
-                steps.map(
-                  step=>({
-
-                    order:
-                      step.order,
-
-
-                    type:
-                      step.type,
-
-
-                    payload:
-                      step.payload as Prisma.InputJsonValue,
-
-                  })
-
-                ),
-
-            },
-
-          },
-
-
-          include:{
-
-            steps:true,
-
-          },
-
-        });
-
-
-
-      await db.assetFlow.create({
-
-        data:{
-
-          assetId,
-
-
-          flowId:
-            flow.id,
-
-
-          active:true,
-
-
-          priority:0,
-
-        },
-
-      });
-
-
-
-      return res.json({
-
-        success:true,
-
-        flow,
-
-        assetId,
-
-      });
-
-
-
-    }catch(error:any){
-
-      console.error(
-        "create attach flow failed",
-        error
-      );
-
-      return res.status(500).json({
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-);
-
- 
-/**
- * =====================================================
- *
- * COMPILE → UPDATE EXISTING FLOW
- *
- * Requires:
- * assetId
- * flowId
- * input
- *
- * =====================================================
- */
-
-flowRouter.post(
-  "/compile-and-save",
-  requireAuth,
-  async(
-    req:AuthRequest,
-    res:Response
-  )=>{
-
-    try{
-
-      const {
-        assetId,
-        flowId,
-        input,
-      } = req.body;
-
-
-
-      if(
-        !assetId ||
-        !flowId ||
-        !input
-      ){
-
-        return res.status(400).json({
-
-          error:
-            "assetId, flowId and input required",
-
-        });
-
-      }
-
-
-
-      const asset =
-        await db.asset.findUnique({
-
-          where:{
-            id:assetId,
-          },
-
-        });
-
-
-
-      if(!asset){
-
-        return res.status(404).json({
-
-          error:
-            "Asset not found",
-
-        });
-
-      }
-
-
-
-      if(
-        !(await userHasAssetAccess(
-          asset.id,
-          req.user!.userId
-        ))
-      ){
-
-        return res.status(403).json({
-
-          error:
-            "Not authorized",
-
-        });
-
-      }
-
-
-
-      const connection =
-        await db.assetFlow.findUnique({
-
-          where:{
-
-            assetId_flowId:{
-
-              assetId,
-
-              flowId,
-
-            },
-
-          },
-
-        });
-
-
-
-      if(!connection){
-
-        return res.status(403).json({
-
-          error:
-            "Flow is not attached to asset",
-
-        });
-
-      }
-
-
-
-      const compiled =
-       await compileExperience(
-          input
-        );
-
-
-
-      const steps =
-        compiled.flowSteps.map(
-          step=>({
-
-            order:
-              step.order,
-
-
-            type:
-              step.type,
-
-
-            payload:
-              step.payload as Prisma.InputJsonValue,
-
-          })
-        );
-
-
-
-      const updated =
-        await db.flow.update({
-
-          where:{
-            id:flowId,
-          },
-
-
-          data:{
-
-            name:
-              compiled.title,
-
-
-            actions:{
-
-                category:
-                 compiled.blueprint.type,
-
-
-              estimatedDuration:
-                compiled.estimatedDuration,
-
-
-              momentCount:
-                compiled.momentCount,
-
-            },
-
-
-            steps:{
-
-              deleteMany:{},
-
-
-              create:steps,
-
-            },
-
-          },
-
-
-          include:{
-
-            steps:true,
-
-          },
-
-        });
-
-
-
-      return res.json({
-
-        success:true,
-
-        flowId:
-          updated.id,
-
-        assetId,
-
-        steps,
-
-      });
-
-
-
-    }catch(error:any){
-
-      console.error(
-        "compile save failed",
-        error
-      );
-
-
-      return res.status(500).json({
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-);
-
-
-
-
-
 
 /**
  * =====================================================
  *
  * ASSIGN EXISTING FLOW TO ASSET
  *
- * Flow library → Asset
+ * Runtime library → Asset
+ *
+ * Does not create flows.
  *
  * =====================================================
  */
@@ -775,7 +94,7 @@ flowRouter.post(
   requireAuth,
   async(
     req:AuthRequest,
-    res:Response
+    res:Response,
   )=>{
 
     try{
@@ -785,7 +104,6 @@ flowRouter.post(
         flowId,
         priority,
       } = req.body;
-
 
 
       if(
@@ -831,7 +149,7 @@ flowRouter.post(
       if(
         !(await userHasAssetAccess(
           asset.id,
-          req.user!.userId
+          req.user!.userId,
         ))
       ){
 
@@ -870,17 +188,28 @@ flowRouter.post(
 
 
 
+      await db.assetFlow.updateMany({
+
+        where:{
+          assetId,
+        },
+
+        data:{
+          active:false,
+        },
+
+      });
+
+
+
       const assetFlow =
         await db.assetFlow.upsert({
 
           where:{
 
             assetId_flowId:{
-
               assetId,
-
               flowId,
-
             },
 
           },
@@ -927,7 +256,7 @@ flowRouter.post(
 
       console.error(
         "assign flow failed",
-        error
+        error,
       );
 
 
@@ -940,19 +269,15 @@ flowRouter.post(
 
     }
 
-  }
+  },
 );
-
-
-
-
 
 
 
 /**
  * =====================================================
  *
- * LIST ASSET FLOWS
+ * LIST FLOWS ATTACHED TO ASSET
  *
  * =====================================================
  */
@@ -962,7 +287,7 @@ flowRouter.get(
   requireAuth,
   async(
     req:AuthRequest,
-    res:Response
+    res:Response,
   )=>{
 
     try{
@@ -1019,6 +344,8 @@ flowRouter.get(
 
                     version:true,
 
+                    status:true,
+
                     createdAt:true,
 
                   },
@@ -1051,7 +378,7 @@ flowRouter.get(
       if(
         !(await userHasAssetAccess(
           asset.id,
-          req.user!.userId
+          req.user!.userId,
         ))
       ){
 
@@ -1071,7 +398,7 @@ flowRouter.get(
         flows:
 
           asset.flows.map(
-            link=>link.flow
+            link => link.flow
           ),
 
       });
@@ -1082,7 +409,7 @@ flowRouter.get(
 
       console.error(
         "asset flow lookup failed",
-        error
+        error,
       );
 
 
@@ -1095,31 +422,27 @@ flowRouter.get(
 
     }
 
-  }
+  },
 );
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * UPDATE FLOW FROM EDITOR
- *
- * Replaces steps.
- *
- * =====================================================
- */
+ /**
+  * =====================================================
+  *
+  * UPDATE FLOW RUNTIME
+  *
+  * Replaces runtime steps.
+  *
+  * Does not compile.
+  * Does not create.
+  *
+  * =====================================================
+  */
 
 flowRouter.put(
   "/:flowId",
   requireAuth,
   async(
     req:Request<{flowId:string}> & AuthRequest,
-    res:Response
+    res:Response,
   )=>{
 
     try{
@@ -1158,7 +481,6 @@ flowRouter.put(
             id:flowId,
           },
 
-
         });
 
 
@@ -1169,21 +491,6 @@ flowRouter.put(
 
           error:
             "Flow not found",
-
-        });
-
-      }
-
-
-
-      if(
-        flow.merchantId !== req.user!.userId
-      ){
-
-        return res.status(403).json({
-
-          error:
-            "Not authorized",
 
         });
 
@@ -1218,10 +525,11 @@ flowRouter.put(
                 steps.map(
                   (
                     step:any,
-                    index:number
+                    index:number,
                   )=>({
 
-                    order:index,
+                    order:
+                      index,
 
 
                     type:
@@ -1266,7 +574,7 @@ flowRouter.put(
 
       console.error(
         "update flow failed",
-        error
+        error,
       );
 
 
@@ -1279,14 +587,17 @@ flowRouter.put(
 
     }
 
-  }
+  },
 );
- /**
+
+
+
+/**
  * =====================================================
  *
  * FLOW LIBRARY
  *
- * Returns flows created by current user.
+ * Runtime flows owned by creator.
  *
  * =====================================================
  */
@@ -1296,7 +607,7 @@ flowRouter.get(
   requireAuth,
   async(
     req:AuthRequest,
-    res:Response
+    res:Response,
   )=>{
 
     try{
@@ -1328,6 +639,8 @@ flowRouter.get(
 
             version:true,
 
+            status:true,
+
             createdAt:true,
 
 
@@ -1356,7 +669,7 @@ flowRouter.get(
         flows:
 
           flows.map(
-            flow=>({
+            flow => ({
 
               id:
                 flow.id,
@@ -1370,6 +683,10 @@ flowRouter.get(
                 flow.version,
 
 
+              status:
+                flow.status,
+
+
               stepCount:
                 flow.steps.length,
 
@@ -1378,6 +695,7 @@ flowRouter.get(
                 flow.createdAt,
 
             })
+
           ),
 
       });
@@ -1388,7 +706,7 @@ flowRouter.get(
 
       console.error(
         "flow library failed",
-        error
+        error,
       );
 
 
@@ -1401,14 +719,8 @@ flowRouter.get(
 
     }
 
-  }
+  },
 );
-
-
-
-
-
-
 
 /**
  * =====================================================
@@ -1417,7 +729,7 @@ flowRouter.get(
  *
  * Deletes relationship only.
  *
- * Flow remains in library.
+ * Flow remains.
  *
  * =====================================================
  */
@@ -1427,7 +739,7 @@ flowRouter.post(
   requireAuth,
   async(
     req:AuthRequest,
-    res:Response
+    res:Response,
   )=>{
 
     try{
@@ -1482,7 +794,7 @@ flowRouter.post(
       if(
         !(await userHasAssetAccess(
           asset.id,
-          req.user!.userId
+          req.user!.userId,
         ))
       ){
 
@@ -1527,7 +839,7 @@ flowRouter.post(
 
       console.error(
         "detach flow failed",
-        error
+        error,
       );
 
 
@@ -1540,8 +852,9 @@ flowRouter.post(
 
     }
 
-  }
+  },
 );
+
 
 
 export default flowRouter;

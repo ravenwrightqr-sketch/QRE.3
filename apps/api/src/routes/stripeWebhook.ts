@@ -316,19 +316,6 @@ router.post(
 
       }
 
-
-
-      const userId =
-        session.metadata?.userId &&
-        session.metadata.userId !== "anonymous"
-
-          ? session.metadata.userId
-
-          : null;
-
-
-
-
       /**
        * =====================================================
        * SINGLE UNLOCK PIPELINE
@@ -336,15 +323,13 @@ router.post(
        */
 
       const asset =
-        await unlockAsset(
+      await unlockAsset(
 
-          assetId,
+       assetId,
+ 
+       session
 
-          userId,
-
-          session
-
-        );
+       );
 
 
 

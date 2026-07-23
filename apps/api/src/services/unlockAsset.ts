@@ -2,177 +2,113 @@ import Stripe from "stripe";
 import { db } from "@qre/db";
 import { Prisma } from "@prisma/client";
 
+
 /**
  * =====================================================
  * UNLOCK ASSET SERVICE
  * =====================================================
  *
- * PAYMENT SOURCE OF TRUTH
+ * PAYMENT EXECUTION BOUNDARY
+ *
+ * Stripe payment is truth.
+ *
+ * This service applies payment truth
+ * to the QRE ownership system.
+ *
+ *
+ * RESPONSIBILITIES:
+ *
+ * ✅ Verify asset exists
+ * ✅ Mark asset as paid
+ * ✅ Record revenue
+ * ✅ Create/update Ownership
+ * ✅ Remain idempotent for Stripe retries
+ *
+ *
+ * DOES NOT:
+ *
+ * ❌ Create accounts
+ * ❌ Create users
+ * ❌ Create memberships
+ * ❌ Create claims
+ * ❌ Create flows
+ * ❌ Attach assets
+ *
+ *
+ * Architecture:
+ *
+ *
  * Stripe
- *
- * OWNERSHIP SOURCE OF TRUTH
- * Account ownership
- * user id retained only for legacy compatability
- *
- * ARCHITECTURE
- *
- * User
  *   |
- * AccountUser
  *   |
- * Account
+ * stripeWebhook
  *   |
- * Asset
  *   |
- * Ownership
+ * unlockAsset()
+ *   |
+ *   +---- Asset.paid = true
+ *   |
+ *   +---- Ownership.ACTIVE
  *
- *
- * RULES
- *
- * - Assets belong to Accounts
- * - Users belong to Accounts
- * - Ownership tracks Account control
- * - Stripe retries are idempotent
- * - No Ownership.userId exists
  *
  * =====================================================
  */
 
+
 export async function unlockAsset(
   assetId: string,
-  userId: string | null,
   session?: Stripe.Checkout.Session
 ) {
 
+
   return db.$transaction(
-    async (
+
+    async(
       tx: Prisma.TransactionClient
-    ) => {
+    )=>{
 
 
       /**
-       * Load asset
+       * =================================================
+       * LOAD ASSET
+       * =================================================
        */
+
+
       const asset =
         await tx.asset.findUnique({
+
           where:{
-            id: assetId,
+            id:assetId,
           },
+
         });
 
 
+
       if(!asset){
+
         throw new Error(
           "Asset not found"
         );
-      }
-
-
-
-      /**
-       * Resolve account ownership
-       */
-      let accountId =
-        asset.accountId;
-
-
-
-      /**
-       * Find existing user account
-       */
-      if(!accountId && userId){
-
-        const membership =
-          await tx.accountUser.findFirst({
-
-            where:{
-              userId,
-            },
-
-            select:{
-              accountId:true,
-            },
-
-          });
-
-
-        if(membership){
-          accountId =
-            membership.accountId;
-        }
 
       }
 
 
 
       /**
-       * Create consumer account
-       * only if none exists
-       */
-      if(!accountId){
-
-
-        const account =
-          await tx.account.create({
-
-            data:{
-
-              name:
-                userId
-                  ? "Personal Account"
-                  : "Anonymous Customer",
-
-
-              type:
-                "CONSUMER",
-
-
-              plan:
-                "CONSUMER",
-
-            },
-
-          });
-
-
-        accountId =
-          account.id;
-
-
-
-        /**
-         * Attach user
-         */
-        if(userId){
-
-
-          await tx.accountUser.create({
-
-            data:{
-
-              accountId,
-
-              userId,
-
-              role:
-                "OWNER",
-
-            },
-
-          });
-
-        }
-
-      }
-
-
-
-      /**
-       * Unlock asset
+       * =================================================
+       * UPDATE ASSET PAYMENT STATE
        *
-       * Safe for Stripe retries.
+       * Idempotent:
+       *
+       * Stripe retries are safe.
+       *
+       * =================================================
        */
-      const updated =
+
+
+      const updatedAsset =
         await tx.asset.update({
 
           where:{
@@ -190,29 +126,32 @@ export async function unlockAsset(
               "active",
 
 
-            accountId,
 
+            totalUnlocks:
+              asset.paid
+                ? undefined
+                : {
+                    increment:1,
+                  },
 
-            totalUnlocks:{
-              increment:
-                asset.paid
-                  ? 0
-                  : 1,
-            },
 
 
             ...(session?.amount_total != null
               ? {
 
                   totalRevenueCents:{
+
                     increment:
                       session.amount_total,
+
                   },
 
                 }
 
               : {}
+
             ),
+
 
           },
 
@@ -221,10 +160,27 @@ export async function unlockAsset(
 
 
       /**
-       * Ownership record
+       * =================================================
+       * OWNERSHIP RECORD
        *
-       * Account is owner.
+       * Account already exists.
+       *
+       * Payment activates ownership.
+       *
+       * =================================================
        */
+
+
+      if(!asset.accountId){
+
+        throw new Error(
+          "Asset has no account ownership"
+        );
+
+      }
+
+
+
       await tx.ownership.upsert({
 
         where:{
@@ -235,11 +191,12 @@ export async function unlockAsset(
         update:{
 
 
-          accountId,
+          accountId:
+            asset.accountId,
 
 
           status:
-            "CLAIMED",
+            "ACTIVE",
 
 
           claimedAt:
@@ -247,13 +204,16 @@ export async function unlockAsset(
 
 
           stripeSessionId:
-            session?.id ?? null,
+            session?.id ?? undefined,
 
 
           paymentIntentId:
+
             typeof session?.payment_intent === "string"
+
               ? session.payment_intent
-              : null,
+
+              : undefined,
 
 
         },
@@ -265,11 +225,12 @@ export async function unlockAsset(
           assetId,
 
 
-          accountId,
+          accountId:
+            asset.accountId,
 
 
           status:
-            "CLAIMED",
+            "ACTIVE",
 
 
           claimedAt:
@@ -277,25 +238,38 @@ export async function unlockAsset(
 
 
           stripeSessionId:
-            session?.id ?? null,
+            session?.id ?? undefined,
 
 
           paymentIntentId:
+
             typeof session?.payment_intent === "string"
+
               ? session.payment_intent
-              : null,
+
+              : undefined,
 
 
         },
+
 
       });
 
 
 
-      return updated;
+      /**
+       * =================================================
+       * RETURN PAYMENT RESULT
+       * =================================================
+       */
+
+
+      return updatedAsset;
 
 
     }
+
   );
+
 
 }

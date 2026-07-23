@@ -27,7 +27,7 @@ import stripeTestRouter from "./routes/stripeTest.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import masterDashboardRoutes from "./routes/masterDashboard.js";
 import presenceRoutes from "./routes/presence.js";
-
+import debugRouter from "./routes/debug.js";
 import experienceRouter from "./routes/experience.js";
 import assetGenerateRouter from "./routes/assets.generate.js";
 /**
@@ -106,6 +106,11 @@ app.use("/api/claim", claimRouter);
 app.use("/api/flow", flowRouter);
 
 app.use("/api/presence", presenceRoutes);
+
+app.use(
+  "/api/debug",
+  debugRouter
+);
 
 app.use(
   "/experience",

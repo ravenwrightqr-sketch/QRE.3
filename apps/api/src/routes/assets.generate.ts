@@ -14,10 +14,12 @@ const router = express.Router();
 
 /**
  * =====================================================
- * ASSET FACTORY
+ * ASSET IDENTITY FACTORY
  * =====================================================
  *
- * Production creation pipeline:
+ * Creates the physical/digital identity.
+ *
+ * Responsibility:
  *
  * User
  *   |
@@ -25,28 +27,28 @@ const router = express.Router();
  *   |
  * Account
  *   |
- * Asset Identity
+ * Asset
  *   |
- * Flow
+ * QR / NFC Identity
+ *
+ *
+ * Does NOT create:
+ *
+ * ❌ Experience
+ * ❌ Flow
+ * ❌ AssetFlow
+ * ❌ Ownership
+ *
+ *
+ * Creation boundaries:
+ *
+ * Experience
  *   |
- * AssetFlow Binding
+ *   experienceCreationServices
+ *
+ * Ownership
  *   |
- * QR/NFC Identity
- *
- *
- * Ownership is NOT created here.
- *
- * Ownership is created by:
- *
- * Stripe payment
- *        |
- *        |
- * unlockAsset()
- *
- *
- * Source of truth:
- *
- * Asset.accountId
+ *   Stripe webhook
  *
  * =====================================================
  */
@@ -57,17 +59,10 @@ router.post(
   requireAuth,
   async(
     req:AuthRequest,
-    res
+    res,
   )=>{
 
-
     try{
-
-
-      const {
-        displayName,
-      } = req.body;
-
 
 
       const userId =
@@ -88,8 +83,16 @@ router.post(
 
 
 
+      const {
+        displayName,
+      } = req.body;
+
+
+
       /**
-       * Resolve account membership
+       * Resolve account
+       *
+       * Asset belongs to Account.
        */
 
       const membership =
@@ -126,7 +129,7 @@ router.post(
 
 
       /**
-       * Create QR identity
+       * Create identity token
        */
 
       const slug =
@@ -160,137 +163,54 @@ router.post(
 
             scale:6,
 
-          }
+          },
 
         );
-
 
 
 
       /**
-       * Atomic creation:
+       * Create Asset only.
        *
-       * Asset
-       * Flow
-       * AssetFlow
-       *
+       * No runtime objects.
        */
 
-      const result =
-        await db.$transaction(
+      const asset =
+        await db.asset.create({
 
-          async(tx)=>{
+          data:{
 
+            slug,
 
-            const asset =
-              await tx.asset.create({
+            qrUrl,
 
-                data:{
-
-                  slug,
-
-                  qrUrl,
-
-                  qrSvg,
+            qrSvg,
 
 
-                  displayName:
-                    typeof displayName === "string"
-                      ? displayName
-                      : "Untitled Experience",
+            displayName:
+              typeof displayName === "string" &&
+              displayName.trim().length > 0
+                ? displayName.trim()
+                : "Untitled Asset",
 
 
-                  accountId,
+            accountId,
 
 
-                  status:
-                    "active",
+            status:
+              "active",
 
 
-                  paid:
-                    false,
+            paid:
+              false,
 
 
-                  priceCents:
-                    599,
+            priceCents:
+              599,
 
-                },
+          },
 
-              });
-
-
-
-            const flow =
-              await tx.flow.create({
-
-                data:{
-
-
-                  name:
-                    "Untitled Experience",
-
-
-                  actions:
-                    [],
-
-
-                  data:{
-
-                    blocks:[]
-
-                  },
-
-
-                  merchantId:
-                    accountId,
-
-
-                },
-
-              });
-
-
-
-            await tx.assetFlow.create({
-
-              data:{
-
-
-                assetId:
-                  asset.id,
-
-
-                flowId:
-                  flow.id,
-
-
-                active:
-                  true,
-
-
-                priority:
-                  0,
-
-
-              },
-
-            });
-
-
-
-            return {
-
-              asset,
-
-              flow,
-
-            };
-
-
-          }
-
-        );
-
+        });
 
 
 
@@ -300,27 +220,26 @@ router.post(
 
 
         assetId:
-          result.asset.id,
-
-
-        flowId:
-          result.flow.id,
+          asset.id,
 
 
         accountId,
 
 
         slug:
-          result.asset.slug,
+          asset.slug,
 
 
         qrUrl:
-          result.asset.qrUrl,
+          asset.qrUrl,
 
 
         qrSvg:
-          result.asset.qrSvg,
+          asset.qrSvg,
 
+
+        displayName:
+          asset.displayName,
 
       });
 
@@ -334,9 +253,10 @@ router.post(
 
         "[ASSET GENERATION ERROR]",
 
-        error
+        error,
 
       );
+
 
 
       return res.status(500).json({
@@ -346,12 +266,9 @@ router.post(
 
       });
 
-
     }
 
-
-  }
-
+  },
 );
 
 

@@ -1,0 +1,2245 @@
+﻿===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\conceptResolver.ts
+===============================================================
+
+import type {
+  ExperienceMomentType
+} from "@qre/contracts";
+
+
+export function resolveSemanticConcepts(
+  concepts:string[]
+):ExperienceMomentType[] {
+
+
+const moments =
+new Set<ExperienceMomentType>();
+
+
+for(const concept of concepts){
+
+
+switch(true){
+
+
+case /memory|nostalgia|legacy|archive/.test(concept):
+
+moments.add("memory");
+break;
+
+
+case /story|identity|life/.test(concept):
+
+moments.add("story");
+break;
+
+
+case /cinematic|film|visual|movie/.test(concept):
+
+moments.add("video");
+break;
+
+
+case /music|sound|audio|energy/.test(concept):
+
+moments.add("soundtrack");
+break;
+
+
+case /hidden|secret|underground|mystery|rare/.test(concept):
+
+moments.add("reveal");
+break;
+
+
+case /community|people|connection|social/.test(concept):
+
+moments.add("share");
+break;
+
+
+case /premium|luxury|exclusive/.test(concept):
+
+moments.add("reward");
+break;
+
+
+case /interactive|game|quest|challenge/.test(concept):
+
+moments.add("interaction");
+break;
+
+
+default:
+
+moments.add("introduction");
+
+break;
+
+
+}
+
+}
+
+
+return [...moments];
+
+}
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\entityExtractor.ts
+===============================================================
+
+/**
+ * =====================================================
+ * QRE ENTITY EXTRACTOR
+ * =====================================================
+ *
+ * Extracts meaningful objects from experience prompts.
+ *
+ * Prompt
+ *   â†“
+ * Entity Extraction
+ *   â†“
+ * Blueprint
+ *   â†“
+ * Runtime / Demo / Geo / Memory
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceEntities,
+} from "@qre/contracts";
+
+
+
+
+
+function unique(
+ values:string[]
+):string[] {
+
+ return [
+  ...new Set(
+   values
+    .map(
+     value=>value.trim()
+    )
+    .filter(Boolean)
+  ),
+ ];
+
+}
+
+
+
+
+
+
+
+const placeSignals = [
+
+ "at ",
+ "inside ",
+ "near ",
+ "from ",
+ "located in ",
+ "visited "
+
+];
+
+
+
+
+
+const eventSignals = [
+
+ "concert",
+ "show",
+ "festival",
+ "party",
+ "rave",
+ "sesh",
+ "birthday",
+ "anniversary",
+ "wedding",
+ "celebration"
+
+];
+
+
+
+
+
+const productSignals = [
+
+ "qr",
+ "qr code",
+ "keychain",
+ "tag",
+ "sticker",
+ "card",
+ "poster",
+ "shirt",
+ "painting",
+ "album",
+ "book",
+ "collectible"
+
+];
+
+
+
+
+
+const keywordSignals = [
+
+ "memory",
+ "memories",
+ "story",
+ "photos",
+ "photo",
+ "video",
+ "favorite",
+ "collection",
+ "reward",
+ "loyalty",
+ "unlock",
+ "secret",
+ "exclusive",
+ "experience"
+
+];
+
+
+
+
+
+
+
+function extractAfterSignal(
+ prompt:string,
+ signal:string
+):string|null {
+
+
+ const lower =
+  prompt.toLowerCase();
+
+
+
+ const index =
+  lower.indexOf(signal);
+
+
+
+ if(index === -1){
+
+  return null;
+
+ }
+
+
+
+ const result =
+  prompt
+   .slice(
+    index + signal.length
+   )
+   .split(
+    /[.,!?]/
+   )[0]
+   .trim();
+
+
+
+
+ if(
+  result.length < 2 ||
+  result.split(" ").length > 6
+ ){
+
+  return null;
+
+ }
+
+
+
+ return result;
+
+}
+
+
+
+
+
+
+
+
+/**
+ * Detect likely names.
+ *
+ * Example:
+ *
+ * "Create a concert experience
+ *  for DeathbyRomy at The Wiltern"
+ *
+ * returns:
+ *
+ * people:
+ * [
+ *  "DeathbyRomy"
+ * ]
+ *
+ */
+function extractPeople(
+ prompt:string
+):string[] {
+
+
+ const people:string[] = [];
+
+
+
+ const patterns = [
+
+
+  /for\s+([A-Z][A-Za-z0-9@.'-]+(?:\s+[A-Z][A-Za-z0-9.'-]+)?)/g,
+
+
+  /by\s+([A-Z][A-Za-z0-9@.'-]+(?:\s+[A-Z][A-Za-z0-9.'-]+)?)/g,
+
+
+  /artist\s+([A-Z][A-Za-z0-9.'-]+)/gi,
+
+
+  /creator\s+([A-Z][A-Za-z0-9.'-]+)/gi,
+
+
+ ];
+
+
+
+
+ for(const pattern of patterns){
+
+
+  const matches =
+   prompt.matchAll(pattern);
+
+
+
+  for(const match of matches){
+
+   if(match[1]){
+
+    people.push(
+     match[1]
+    );
+
+   }
+
+  }
+
+ }
+
+
+
+ return unique(
+  people
+ );
+
+}
+
+
+
+
+
+
+
+
+
+function extractUrls(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /https?:\/\/[^\s]+/gi
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractEmails(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractPhones(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /\+?\d[\d\s()-]{7,}\d/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+function extractDates(
+ prompt:string
+):string[] {
+
+
+ return (
+  prompt.match(
+   /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g
+  )
+  ?? []
+ );
+
+}
+
+
+
+
+
+
+
+
+export function extractEntities(
+ prompt:string
+):ExperienceEntities {
+
+
+
+ const lower =
+  prompt.toLowerCase();
+
+
+
+
+ const places:string[]=[];
+
+ const events:string[]=[];
+
+ const products:string[]=[];
+
+ const keywords:string[]=[];
+
+ const media:string[] = [];
+
+
+
+
+
+
+ // -------------------------------
+ // PLACES
+ // -------------------------------
+
+ for(const signal of placeSignals){
+
+
+  const place =
+   extractAfterSignal(
+    prompt,
+    signal
+   );
+
+
+
+  if(place){
+
+   places.push(
+    place
+   );
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // EVENTS
+ // -------------------------------
+
+ for(const event of eventSignals){
+
+
+  if(lower.includes(event)){
+
+   events.push(
+    event
+   );
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // PRODUCTS
+ // -------------------------------
+
+ for(const product of productSignals){
+
+
+  if(lower.includes(product)){
+
+
+   products.push(
+    product
+   );
+
+
+  }
+
+ }
+
+
+
+
+
+ // -------------------------------
+ // KEYWORDS
+ // -------------------------------
+
+ for(const keyword of keywordSignals){
+
+
+  if(lower.includes(keyword)){
+
+
+   keywords.push(
+    keyword
+   );
+
+  }
+
+ }
+
+
+return {
+
+
+  people:
+
+   extractPeople(
+    prompt
+   ),
+
+
+
+  places:
+
+   unique(
+    places
+   ),
+
+
+
+  organizations:[],
+
+
+  dates:
+
+   extractDates(
+    prompt
+   ),
+
+
+
+  times:[],
+
+
+
+  events:
+
+   unique(
+    events
+   ),
+
+
+
+  products:
+
+   unique(
+    products
+   ),
+
+
+
+  urls:
+
+   unique(
+    extractUrls(prompt)
+   ),
+
+
+
+  emails:
+
+   unique(
+    extractEmails(prompt)
+   ),
+
+
+
+  phones:
+
+   unique(
+    extractPhones(prompt)
+   ),
+
+
+
+  keywords:
+
+   unique(
+    keywords
+   ),
+
+
+
+  media:
+
+   unique(
+    media
+   ),
+
+
+};
+
+
+
+
+
+ 
+
+}
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\index.ts
+===============================================================
+
+export * from "./semanticAnalyzer.js";
+
+export {
+ resolveSemanticConcepts
+} from "./conceptResolver.js";
+
+export * from "./genome/index.js";
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\semanticAnalyzer.ts
+===============================================================
+
+/**
+ * =====================================================
+ * QRE SEMANTIC ANALYZER
+ * =====================================================
+ *
+ * Human Language
+ *        â†“
+ * Meaning Signals
+ *        â†“
+ * Experience Genome
+ *
+ * This layer answers:
+ *
+ * "What is this human trying to create?"
+ *
+ * It does NOT create:
+ *
+ * - worlds
+ * - moments
+ * - flows
+ * - runtime
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+export type SemanticSignal = {
+
+  concept:string;
+
+  confidence:number;
+
+};
+
+
+
+export type SemanticAnalysis = {
+
+
+  /**
+   * Human intention
+   */
+  intent:string;
+
+
+
+  /**
+   * Detected concepts
+   */
+  themes:string[];
+
+
+
+  /**
+   * Emotional language
+   */
+  emotions:string[];
+
+
+
+  /**
+   * Things mentioned
+   */
+  entities:string[];
+
+
+
+  /**
+   * Desired actions
+   */
+  actions:string[];
+
+
+
+  /**
+   * Physical/digital context
+   */
+  environments:string[];
+
+
+
+  /**
+   * Audience signals
+   */
+  audience:string[];
+
+
+
+  /**
+   * Creative DNA signals
+   */
+  experienceDNA:string[];
+
+
+
+  /**
+   * Future intelligence layer
+   *
+   * Allows confidence based reasoning.
+   */
+  signals:SemanticSignal[];
+
+};
+
+
+
+
+
+type SemanticRule = {
+
+ theme:string;
+
+ words:string[];
+
+ emotion:string;
+
+ dna:string;
+
+};
+
+
+
+
+
+
+
+const semanticRules:SemanticRule[] = [
+
+
+
+{
+ theme:"memory",
+
+ words:[
+  "memory",
+  "remember",
+  "past",
+  "history",
+  "legacy",
+  "archive",
+  "childhood",
+  "timeline",
+  "moment",
+  "time capsule"
+ ],
+
+ emotion:"nostalgia",
+
+ dna:"emotional"
+
+},
+
+
+
+{
+ theme:"connection",
+
+ words:[
+  "love",
+  "relationship",
+  "family",
+  "friend",
+  "community",
+  "together",
+  "bond"
+ ],
+
+ emotion:"connection",
+
+ dna:"human"
+
+},
+
+
+
+{
+ theme:"commerce",
+
+ words:[
+  "business",
+  "brand",
+  "product",
+  "company",
+  "store",
+  "customer",
+  "client",
+  "sell"
+ ],
+
+ emotion:"trust",
+
+ dna:"conversion"
+
+},
+
+
+
+{
+ theme:"culture",
+
+ words:[
+  "music",
+  "concert",
+  "festival",
+  "club",
+  "party",
+  "artist",
+  "performance"
+ ],
+
+ emotion:"energy",
+
+ dna:"immersive"
+
+},
+
+
+
+{
+ theme:"discovery",
+
+ words:[
+  "secret",
+  "hidden",
+  "unknown",
+  "mystery",
+  "exclusive",
+  "rare",
+  "explore",
+  "underground"
+ ],
+
+ emotion:"curiosity",
+
+ dna:"mysterious"
+
+},
+
+
+
+{
+ theme:"adventure",
+
+ words:[
+  "quest",
+  "mission",
+  "challenge",
+  "hunt",
+  "puzzle",
+  "game"
+ ],
+
+ emotion:"excitement",
+
+ dna:"interactive"
+
+},
+
+
+
+{
+ theme:"identity",
+
+ words:[
+  "identity",
+  "profile",
+  "creator",
+  "artist",
+  "owner"
+ ],
+
+ emotion:"recognition",
+
+ dna:"personal"
+
+},
+
+
+
+{
+ theme:"companion",
+
+ words:[
+  "dog",
+  "cat",
+  "pet",
+  "animal",
+  "rescue"
+ ],
+
+ emotion:"care",
+
+ dna:"personal"
+
+}
+
+
+
+];
+
+
+
+
+
+
+
+
+
+export function analyzeSemanticPrompt(
+ prompt:string
+):SemanticAnalysis {
+
+
+const text =
+ prompt
+ .toLowerCase()
+ .trim();
+
+
+
+if(!text){
+
+ throw new Error(
+  "Semantic prompt cannot be empty"
+ );
+
+}
+
+
+
+
+const themes =
+new Set<string>();
+
+
+const emotions =
+new Set<string>();
+
+
+const entities =
+new Set<string>();
+
+
+const actions =
+new Set<string>();
+
+
+const environments =
+new Set<string>();
+
+
+const audience =
+new Set<string>();
+
+
+const experienceDNA =
+new Set<string>();
+
+
+const signals:
+SemanticSignal[] = [];
+
+
+
+
+
+actions.add(
+ "create"
+);
+
+
+experienceDNA.add(
+ "adaptive"
+);
+
+
+
+
+
+
+for(
+ const rule of semanticRules
+){
+
+
+const matches =
+rule.words.filter(
+ word =>
+ text.includes(word)
+);
+
+
+
+if(matches.length){
+
+
+const confidence =
+Math.min(
+ 1,
+ matches.length /
+ 3
+);
+
+
+
+themes.add(
+ rule.theme
+);
+
+
+
+emotions.add(
+ rule.emotion
+);
+
+
+
+experienceDNA.add(
+ rule.dna
+);
+
+
+
+signals.push({
+
+ concept:
+ rule.theme,
+
+ confidence
+
+});
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * MEDIA
+ */
+
+if(
+ /photo|image|video|film|audio|music|sound|voice/
+ .test(text)
+){
+
+entities.add(
+ "media"
+);
+
+
+experienceDNA.add(
+ "cinematic"
+);
+
+
+actions.add(
+ "experience"
+);
+
+
+}
+
+
+
+
+
+/**
+ * LOCATION
+ */
+
+if(
+ /place|location|city|venue|home|world|map|destination/
+ .test(text)
+){
+
+environments.add(
+ "location"
+);
+
+
+actions.add(
+ "navigate"
+);
+
+
+}
+
+
+
+
+
+
+/**
+ * STYLE DNA
+ */
+
+
+if(
+ /dark|gothic|cyber|punk|alternative|rebellious/
+ .test(text)
+){
+
+experienceDNA.add(
+ "alternative"
+);
+
+
+emotions.add(
+ "intensity"
+);
+
+
+}
+
+
+
+if(
+ /luxury|premium|elite|exclusive/
+ .test(text)
+){
+
+experienceDNA.add(
+ "premium"
+);
+
+
+emotions.add(
+ "aspiration"
+);
+
+
+}
+
+
+
+if(
+ /fun|wild|crazy|playful|chaos/
+ .test(text)
+){
+
+experienceDNA.add(
+ "playful"
+);
+
+
+emotions.add(
+ "joy"
+);
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * AUDIENCE
+ */
+
+
+if(
+ /fans|followers|members|community|crowd/
+ .test(text)
+){
+
+audience.add(
+ "community"
+);
+
+}
+
+
+
+if(
+ /customer|buyer|client|shopper/
+ .test(text)
+){
+
+audience.add(
+ "customer"
+);
+
+}
+
+
+
+if(
+ /my|mine|personal|private/
+ .test(text)
+){
+
+audience.add(
+ "individual"
+);
+
+}
+
+
+
+
+
+
+
+
+/**
+ * ENTITY SIGNALS
+ */
+
+
+if(
+ /qr|nfc|tag|scan|code/
+ .test(text)
+){
+
+entities.add(
+ "digital_identity"
+);
+
+}
+
+
+
+if(
+ /story|experience|world|universe|portal|realm/
+ .test(text)
+){
+
+entities.add(
+ "experience"
+);
+
+}
+
+
+
+if(
+ /club|bar|venue|space|room/
+ .test(text)
+){
+
+entities.add(
+ "environment"
+);
+
+}
+
+
+
+
+
+
+
+/**
+ * OPEN WORLD FALLBACK
+ */
+
+if(
+ !themes.size
+){
+
+themes.add(
+ "human_expression"
+);
+
+
+experienceDNA.add(
+ "open_world"
+);
+
+
+emotions.add(
+ "curiosity"
+);
+
+
+signals.push({
+
+ concept:
+ "human_expression",
+
+ confidence:
+ .2
+
+});
+
+
+}
+
+
+
+
+
+return {
+
+
+intent:
+ "experience_creation",
+
+
+themes:
+ [...themes],
+
+
+emotions:
+ [...emotions],
+
+
+entities:
+ [...entities],
+
+
+actions:
+ [...actions],
+
+
+environments:
+ [...environments],
+
+
+audience:
+ [...audience],
+
+
+experienceDNA:
+ [...experienceDNA],
+
+
+signals
+
+};
+
+
+}
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\genome\genomeBuilder.ts
+===============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE GENOME BUILDER
+ * =====================================================
+ *
+ * Human Prompt
+ *        â†“
+ * Semantic Understanding
+ *        â†“
+ * Experience Genome
+ *
+ * Genome = Creative DNA
+ *
+ * The Genome understands:
+ *
+ * - intent
+ * - emotion
+ * - meaning
+ * - world
+ * - journey
+ * - experience physics
+ *
+ * It does NOT know:
+ *
+ * - industries
+ * - templates
+ * - products
+ * - database
+ *
+ * =====================================================
+ */
+
+
+import {
+  analyzeSemanticPrompt,
+} from "../semanticAnalyzer.js";
+
+
+import {
+  extractEntities,
+} from "../entityExtractor.js";
+
+
+import type {
+
+  ExperienceGenome,
+  ExperienceMeaning,
+  ExperienceRelationship,
+  ExperienceJourney,
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MEANING EXTRACTION
+ * =====================================================
+ */
+
+
+function buildMeaning(
+
+ semantic:any
+
+):ExperienceMeaning {
+
+
+return {
+
+
+why:
+semantic.intent,
+
+
+emotions:
+semantic.emotions,
+
+
+memories:
+
+semantic.themes.includes("memory")
+
+?
+
+[
+ "personal memory"
+]
+
+:
+
+[],
+
+
+
+desiredFeeling:
+
+semantic.emotions,
+
+
+transformation:
+
+semantic.experienceDNA?.includes(
+ "transformation"
+)
+
+?
+
+"create change"
+
+:
+
+undefined,
+
+
+};
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE DNA
+ *
+ * The creative fingerprint.
+ *
+ * This replaces templates.
+ *
+ * =====================================================
+ */
+
+
+function buildDNA(
+
+ semantic:any
+
+):string[] {
+
+
+const dna = new Set<string>();
+
+
+
+dna.add(
+ "adaptive"
+);
+
+
+
+for(
+ const value of semantic.experienceDNA ?? []
+){
+
+ dna.add(
+  value
+ );
+
+}
+
+
+
+if(
+ semantic.emotions.includes("nostalgia")
+){
+
+ dna.add(
+  "memory_driven"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("discovery")
+){
+
+ dna.add(
+  "exploration"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("connection")
+){
+
+ dna.add(
+  "human_connection"
+ );
+
+}
+
+
+
+if(
+ semantic.themes.includes("culture")
+){
+
+ dna.add(
+  "immersive_culture"
+ );
+
+}
+
+
+
+return [
+ ...dna
+];
+
+}
+
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * RELATIONSHIP GRAPH
+ *
+ * Future semantic graph layer.
+ *
+ * =====================================================
+ */
+
+
+function buildRelationships(
+
+):ExperienceRelationship[] {
+
+
+return [];
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE ENERGY
+ * =====================================================
+ */
+
+
+function resolveEnergy(
+
+ semantic:any
+
+){
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "cinematic"
+ )
+){
+
+return "mysterious";
+
+}
+
+
+
+if(
+ semantic.emotions.includes(
+ "joy"
+ )
+){
+
+return "playful";
+
+}
+
+
+
+if(
+ semantic.emotions.includes(
+ "love"
+ )
+){
+
+return "emotional";
+
+}
+
+
+
+return "emotional";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * PACING
+ * =====================================================
+ */
+
+
+function resolvePacing(
+
+ semantic:any
+
+){
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "cinematic"
+ )
+){
+
+return "slow";
+
+}
+
+
+
+if(
+ semantic.themes.includes(
+ "discovery"
+ )
+){
+
+return "fast";
+
+}
+
+
+
+return "medium";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * UNIVERSAL HUMAN JOURNEY
+ * =====================================================
+ */
+
+
+function buildJourney(
+
+ semantic:any
+
+):ExperienceJourney[] {
+
+
+const journey:ExperienceJourney[]=[
+
+
+"arrival",
+
+
+"discovery",
+
+
+"reveal",
+
+
+"return"
+
+
+];
+
+
+
+if(
+ semantic.experienceDNA?.includes(
+ "transformation"
+ )
+){
+
+journey.splice(
+ 3,
+ 0,
+ "transformation"
+);
+
+}
+
+
+
+return journey;
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * GENOME BUILDER
+ *
+ * Prompt â†’ Experience DNA
+ *
+ * =====================================================
+ */
+
+
+export function buildExperienceGenome(
+
+ prompt:string
+
+):ExperienceGenome {
+
+
+
+if(
+ !prompt.trim()
+
+){
+
+throw new Error(
+ "Experience prompt cannot be empty"
+);
+
+}
+
+
+
+
+
+const semantic =
+
+analyzeSemanticPrompt(
+ prompt
+);
+
+
+
+
+
+const entities =
+
+extractEntities(
+ prompt
+);
+
+
+
+
+
+const meaning =
+
+buildMeaning(
+ semantic
+);
+
+
+
+
+
+const relationships =
+
+buildRelationships();
+
+
+
+
+
+return {
+
+
+
+/**
+ * Core intent
+ */
+
+intent:[
+
+semantic.intent
+
+],
+
+
+
+
+
+/**
+ * Creative DNA
+ */
+
+dna:
+
+buildDNA(
+ semantic
+),
+
+
+
+
+
+/**
+ * Archetypal signals
+ */
+
+archetypes:
+
+semantic.themes,
+
+
+
+
+
+/**
+ * Themes
+
+ */
+
+themes:
+
+semantic.themes,
+
+
+
+
+
+/**
+ * Emotional layer
+ */
+
+emotions:
+
+semantic.emotions,
+
+
+
+
+
+/**
+ * Meaning
+ */
+
+meaning,
+
+
+
+
+
+/**
+ * Semantic graph
+ */
+
+relationships,
+
+
+
+
+
+/**
+ * World entities
+ */
+
+entities,
+
+
+
+
+
+/**
+ * Experience physics
+ */
+
+energy:
+
+resolveEnergy(
+ semantic
+),
+
+
+
+pacing:
+
+resolvePacing(
+ semantic
+),
+
+
+
+social:
+
+semantic.audience.length
+
+?
+
+"community"
+
+:
+
+"solo",
+
+
+
+
+
+/**
+ * Human journey
+ */
+
+journey:
+
+buildJourney(
+ semantic
+),
+
+
+
+
+
+/**
+ * Dimensions
+ */
+
+discovery:
+
+semantic.themes.includes(
+ "discovery"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+memory:
+
+semantic.themes.includes(
+ "memory"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+commerce:
+
+semantic.themes.includes(
+ "commerce"
+)
+
+?
+
+1
+
+:
+
+0,
+
+
+
+
+immersion:
+
+semantic.experienceDNA?.includes(
+ "cinematic"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+interaction:
+
+0.5,
+
+
+
+
+replay:
+
+semantic.themes.includes(
+ "memory"
+)
+
+?
+
+1
+
+:
+
+0.5,
+
+
+
+
+
+/**
+ * World context
+ */
+
+environments:
+
+semantic.environments,
+
+
+
+
+audience:
+
+semantic.audience,
+
+
+
+};
+
+
+}
+
+
+
+
+
+
+export const genomeBuilder =
+
+buildExperienceGenome;
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\semantic\genome\index.ts
+===============================================================
+
+export {
+  buildExperienceGenome,
+} from "./genomeBuilder.js";
+
+
+export type {
+  ExperienceGenome,
+} from "@qre/contracts";
+
+
+

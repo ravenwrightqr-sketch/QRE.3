@@ -1,135 +1,229 @@
+/**
+ * =====================================================
+ * QRE ENGINE PUBLIC API
+ * =====================================================
+ *
+ * Enterprise package boundary.
+ *
+ * Public contracts only.
+ *
+ * =====================================================
+ */
 
-export { runFlowActions } from "./flowOrchestrator.js";
-export type { Moment } from "@qre/contracts";
-
-
-export { scanEngine } from "./scanEngine.js";
 
 /**
- * =========================
- * ANALYTICS (SINGLE ENTRY POINT)
- * =========================
+ * =====================================================
+ * CORE RUNTIME
+ * =====================================================
  */
-export * from "./analytics/index.js";
+
+export {
+  scanEngine,
+} from "./scanEngine.js";
+
+
+export {
+  runFlowActions,
+} from "./flowOrchestrator.js";
+
 
 export {
   createSessionManager,
 } from "./sessionManager.js";
 
-export { renderTeaser } from "./teaserRenderer.js";
-
-export { createPaymentLink } from "./payments.js";
 
 export {
-  trackEvent,
-  getRecentActivity,
-  getFunnel,
-  getDashboardMetrics,
-  getScanInsights,
-  getAssetLiveMetrics,
-} from "./analytics/index.js";
+  renderTeaser,
+} from "./teaserRenderer.js";
 
-export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
-export { getPresenceReplay } from "./presence/getPresenceReplay.js";
-export { getPresenceMap } from "./presence/getPresenceMap.js";
-export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+
+export {
+  createPaymentLink,
+} from "./payments.js";
+
+
+export type {
+  Moment,
+} from "@qre/contracts";
+
+
+
+
+/**
+ * =====================================================
+ * ANALYTICS
+ * =====================================================
+ */
+
+export * from "./analytics/index.js";
+
+
+
+
+/**
+ * =====================================================
+ * GEO + MEMORY
+ * =====================================================
+ */
+
 export * from "./geo/geoMemoryLayer.js";
+
 export * from "./geo/geoStoryCompiler.js";
 
 
-// Moments
+
+
+/**
+ * =====================================================
+ * CINEMATIC RUNTIME
+ * =====================================================
+ */
+
+export {
+  cinematicRuntime,
+} from "./runtime/cinematic/cinematicRuntime.js";
+
+
+
+
+/**
+ * =====================================================
+ * MOMENTS
+ * =====================================================
+ */
+
 export * from "./moments/flowToMoments.js";
+
 export * from "./moments/toMoment.js";
+
+
+
+
+/**
+ * =====================================================
+ * EXPERIENCE COMPILER
+ * =====================================================
+ *
+ * Prompt
+ * ↓
+ * Semantic Understanding
+ * ↓
+ * Genome
+ * ↓
+ * Experience
+ *
+ * =====================================================
+ */
+
+export {
+  compileExperienceGenome,
+  genomeCompiler,
+  compileExperienceGenome as experienceCompiler,
+} from "./experience/genomeCompiler.js";
+
 
 export * from "./experience/blueprintToFlow.js";
 
 
 
-export type {
-  AssetRepository,
-  AssetRecord,
-  SessionRepository,
-  AccessRepository,
-  AnalyticsRepository,
-  PresenceRepository,
-  GeoMemoryRepository,
-  GeoProofRecord,
-  StoryDeliveryRepository,
-  UserRepository,
-} from "./repositories/index.js";
 
-export {
-  qreSelfModel,
-  reflectSelf,
-} from "./cognition/selfModel.js";
+/**
+ * =====================================================
+ * SEMANTIC COMPILER
+ * =====================================================
+ */
 
-export {
-  remember,
-  recall,
-  reflectMemory,
-} from "./cognition/memory.js";
+export * from "./compiler/semantic/index.js";
 
-export {
-  reflect,
-} from "./cognition/reflection.js";
 
-export type {
-  CognitiveInsight,
-} from "./cognition/reflection.js";
 
-export {
-  adapt,
-} from "./cognition/adaptation.js";
 
-export type {
-  AdaptationProposal,
-} from "./cognition/adaptation.js";
-
-export {
-  makeDecision,
-  chooseBestDecision,
-} from "./cognition/decisionEngine.js";
-
-export type {
-  CognitiveDecision,
-  DecisionRisk,
-} from "./cognition/decisionEngine.js";
-
-export {
-  processCognition,
-} from "./cognition/cognitionKernel.js";
-
-export type {
-  CognitionInput,
-  CognitionResult,
-} from "./cognition/cognitionKernel.js";
-
-export {
-  handleCognitionEvent,
-} from "./cognition/cognitionHandler.js";
-
-export type {
-  CognitionEvent,
-} from "./cognition/cognitionHandler.js";
-
-export {
-  startCognitionListener,
-} from "./spine/cognitionListener.js";
+/**
+ * =====================================================
+ * COGNITION
+ * =====================================================
+ */
 
 export * from "./cognition/index.js";
 
+
+
+
+/**
+ * =====================================================
+ * INTELLIGENCE
+ * =====================================================
+ */
+
 export * from "./intelligence/index.js";
 
-export * from "./semantic/index.js";
 
+
+
+/**
+ * =====================================================
+ * WORLD ENGINE
+ * =====================================================
+ */
 
 export * from "./world/index.js";
+
+
+
+
+/**
+ * =====================================================
+ * PRESENCE SYSTEM
+ * =====================================================
+ *
+ * Public compatibility exports.
+ *
+ * API consumers depend on these names.
+ *
+ * =====================================================
+ */
+
 export {
-  compileExperienceGenome,
-  genomeCompiler,
-} from "./experience/genomeCompiler.js";
+  getPresenceTimeline,
+} from "./presence/getPresenceTimeline.js";
 
 
 export {
-  compileExperienceGenome as experienceCompiler,
-} from "./experience/genomeCompiler.js";
+  getPresenceReplay,
+} from "./presence/getPresenceReplay.js";
+
+
+export {
+  getPresenceMap,
+} from "./presence/getPresenceMap.js";
+
+
+
+
+/**
+ * =====================================================
+ * REPOSITORY CONTRACTS
+ * =====================================================
+ */
+
+export type {
+  AssetRepository,
+  AssetRecord,
+
+  SessionRepository,
+
+  AccessRepository,
+
+  AnalyticsRepository,
+
+  PresenceRepository,
+
+  GeoMemoryRepository,
+
+  GeoProofRecord,
+
+  StoryDeliveryRepository,
+
+  UserRepository,
+
+} from "./repositories/index.js";

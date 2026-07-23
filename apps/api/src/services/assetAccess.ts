@@ -3,26 +3,47 @@ import { db } from "@qre/db";
 
 /**
  * =====================================================
- * ASSET ACCESS CONTROL
+ * ASSET ACCOUNT ACCESS CONTROL
+ * =====================================================
  *
- * Asset ownership:
+ * Purpose:
  *
- * Asset.accountId
- *        |
- *        |
- * AccountUser
- *        |
- *        |
+ * Verify that a user belongs to the Account
+ * that owns an Asset.
+ *
+ *
+ * Ownership model:
+ *
  * User
+ *   |
+ * AccountUser
+ *   |
+ * Account
+ *   |
+ * Asset.accountId
+ *
+ *
+ * This does NOT check:
+ *
+ * ❌ payment
+ * ❌ ownership claim
+ * ❌ subscription tier
+ * ❌ scan unlock
+ *
+ *
+ * Those belong to:
+ *
+ * Stripe / Ownership / Access Engine
  *
  * =====================================================
  */
 
 
-export async function canAccessAsset(
+export async function userHasAssetAccountAccess(
   assetId: string,
-  userId: string
-) {
+  userId: string,
+): Promise<boolean> {
+
 
   const asset =
     await db.asset.findUnique({
@@ -32,26 +53,21 @@ export async function canAccessAsset(
       },
 
       select:{
-
         accountId:true,
-
       },
 
     });
 
 
-  if(!asset){
+
+  if(
+    !asset?.accountId
+  ){
 
     return false;
 
   }
 
-
-  if(!asset.accountId){
-
-    return false;
-
-  }
 
 
   const membership =
@@ -71,14 +87,15 @@ export async function canAccessAsset(
       },
 
       select:{
-
         id:true,
-
       },
 
     });
 
 
-  return Boolean(membership);
+
+  return Boolean(
+    membership
+  );
 
 }

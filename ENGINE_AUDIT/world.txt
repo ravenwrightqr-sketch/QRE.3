@@ -1,0 +1,542 @@
+﻿===============================================================
+C:\dev\QRE.3\packages\engine\src\world\index.ts
+===============================================================
+
+export {
+  composeWorld
+} from "./worldComposer.js";
+
+
+export {
+  resolveWorldDomain
+} from "./worldDomain.js";
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\world\worldComposer.ts
+===============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE WORLD COMPOSER
+ * =====================================================
+ *
+ * Genome
+ *   â†“
+ * World
+ *
+ * The emotional universe.
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceGenome,
+  ExperienceWorld,
+  ExperienceJourney,
+  ExperienceArchetype,
+} from "@qre/contracts";
+
+
+import {
+  resolveWorldDomain
+} from "./worldDomain.js";
+
+
+
+
+
+
+export function composeWorld(
+
+ genome:ExperienceGenome
+
+):ExperienceWorld {
+
+
+
+const domain =
+
+ resolveWorldDomain(
+  genome
+ );
+
+
+
+
+
+return {
+
+
+domain,
+
+
+
+archetype:
+
+ resolveArchetype(
+  genome
+ ),
+
+
+
+atmosphere:
+
+ resolveAtmosphere(
+  genome
+ ),
+
+
+
+journey:
+
+ resolveJourney(
+  genome
+ ),
+
+
+
+atoms:
+
+ resolveAtoms(
+  genome
+ ),
+
+
+
+themes:
+
+ genome.themes,
+
+
+};
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveArchetype(
+
+ genome:ExperienceGenome
+
+):ExperienceArchetype {
+
+
+if(
+ genome.memory >= .8
+){
+
+ return "memory_replay";
+
+}
+
+
+
+if(
+ genome.immersion >= .8
+){
+
+ return "cinematic_story";
+
+}
+
+
+
+if(
+ genome.discovery >= .8
+){
+
+ return "discovery";
+
+}
+
+
+
+if(
+ genome.commerce >= .8
+){
+
+ return "brand_experience";
+
+}
+
+
+
+if(
+ genome.themes.includes("culture")
+){
+
+ return "event";
+
+}
+
+
+
+if(
+ genome.themes.includes("connection")
+){
+
+ return "relationship";
+
+}
+
+
+
+return "cinematic_story";
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveAtmosphere(
+
+ genome:ExperienceGenome
+
+):string[] {
+
+
+return [
+
+ genome.energy,
+
+ ...genome.emotions,
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveJourney(
+
+ genome:ExperienceGenome
+
+):ExperienceJourney[] {
+
+
+const journey:ExperienceJourney[] = [
+
+
+"arrival",
+
+
+"discovery",
+
+
+"reveal"
+
+
+];
+
+
+
+if(
+ genome.memory >= .5
+){
+
+ journey.push(
+  "memory"
+ );
+
+}
+
+
+
+if(
+ genome.interaction >= .5
+){
+
+ journey.push(
+  "peak"
+ );
+
+}
+
+
+
+journey.push(
+
+"share",
+
+"return"
+
+);
+
+
+
+return journey;
+
+
+}
+
+
+
+
+
+
+
+
+
+function resolveAtoms(
+
+ genome:ExperienceGenome
+
+):string[] {
+
+
+const atoms:string[] = [
+
+
+"identity",
+
+
+"story"
+
+
+];
+
+
+
+if(
+
+ genome.entities.people.length ||
+
+ genome.entities.places.length
+
+){
+
+ atoms.push(
+  "location"
+ );
+
+}
+
+
+
+if(
+
+ genome.entities.media.length
+
+){
+
+ atoms.push(
+  "media"
+ );
+
+}
+
+
+
+if(
+
+ genome.immersion >= .5
+
+){
+
+ atoms.push(
+  "audio"
+ );
+
+}
+
+
+
+if(
+
+ genome.discovery >= .5
+
+){
+
+ atoms.push(
+  "interaction"
+ );
+
+}
+
+
+
+if(
+
+ genome.replay >= .5
+
+){
+
+ atoms.push(
+  "replay"
+ );
+
+}
+
+
+
+return [
+
+ ...new Set(atoms)
+
+];
+
+
+}
+
+
+===============================================================
+C:\dev\QRE.3\packages\engine\src\world\worldDomain.ts
+===============================================================
+
+/**
+ * =====================================================
+ * QRE WORLD DOMAIN RESOLVER
+ * =====================================================
+ *
+ * Human Meaning
+ *      â†“
+ * Experience World
+ *
+ * NOT industry.
+ * NOT templates.
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceGenome,
+  WorldDomain,
+} from "@qre/contracts";
+
+
+
+
+
+export function resolveWorldDomain(
+
+  genome:ExperienceGenome
+
+):WorldDomain {
+
+
+
+if(
+ genome.meaning.memories.length ||
+ genome.themes.includes("memory")
+){
+
+ return "memory_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("connection") ||
+ genome.themes.includes("relationship")
+){
+
+ return "relationship_world";
+
+}
+
+
+
+
+if(
+ genome.discovery >= .7 ||
+ genome.themes.includes("adventure")
+){
+
+ return "discovery_world";
+
+}
+
+
+
+
+if(
+ genome.immersion >= .7 ||
+ genome.themes.includes("culture")
+){
+
+ return "culture_world";
+
+}
+
+
+
+
+if(
+ genome.entities.products.length ||
+ genome.commerce >= .7
+){
+
+ return "commerce_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("identity")
+){
+
+ return "identity_world";
+
+}
+
+
+
+
+if(
+ genome.themes.includes("community")
+){
+
+ return "community_world";
+
+}
+
+
+
+
+return "journey_world";
+
+}
+
+

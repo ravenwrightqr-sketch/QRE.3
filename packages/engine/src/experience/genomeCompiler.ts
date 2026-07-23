@@ -40,12 +40,10 @@ import {
 
 } from "../world/worldComposer.js";
 
-
 import {
-
   buildExperienceGenome,
+} from "../compiler/semantic/genome/genomeBuilder.js";
 
-} from "../semantic/genome/genomeBuilder.js";
 
 
 import {

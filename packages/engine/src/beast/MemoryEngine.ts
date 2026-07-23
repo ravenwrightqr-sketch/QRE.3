@@ -3,174 +3,73 @@
  * QRE BEAST MEMORY ENGINE
  * =====================================================
  *
- * Experience
- *      ↓
- * Memory
- *      ↓
- * Future Intelligence
+ * Cognitive memory primitive.
  *
- * No database.
- * No Prisma.
- * No execution.
- *
- * This is cognition memory structure.
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
  *
  * =====================================================
  */
 
-
 export type BeastMemoryType =
-
   | "experience"
-
   | "decision"
-
   | "pattern";
-
-
 
 
 export type BeastMemory = {
 
-  id:
-    string;
+  id:string;
 
+  type:BeastMemoryType;
 
-  type:
-    BeastMemoryType;
+  subject:string;
 
+  information:Record<string, unknown>;
 
-  subject:
-    string;
+  confidence:number;
 
-
-  information:
-    Record<string, unknown>;
-
-
-  confidence:
-    number;
-
-
-  createdAt:
-    Date;
+  createdAt:Date;
 
 };
 
 
 
-
-
-/**
- * =====================================================
- * CREATE MEMORY
- * =====================================================
- */
-
-
 export function createMemory(
+  input:{
+    type:BeastMemoryType;
 
-  input: {
+    subject:string;
 
-    type:
-      BeastMemoryType;
+    information:Record<string, unknown>;
 
-
-    subject:
-      string;
-
-
-    information:
-      Record<string, unknown>;
-
-
-    confidence?:
-      number;
-
+    confidence?:number;
   }
-
-): BeastMemory {
-
-
-  return {
+):BeastMemory {
 
 
-    id:
-      crypto.randomUUID(),
+return {
 
+ id:
+  crypto.randomUUID(),
 
-    type:
-      input.type,
+ type:
+  input.type,
 
+ subject:
+  input.subject,
 
-    subject:
-      input.subject,
+ information:
+  input.information,
 
+ confidence:
+  input.confidence ?? 1,
 
-    information:
-      input.information,
+ createdAt:
+  new Date(),
 
+};
 
-    confidence:
-      input.confidence ?? 1,
-
-
-    createdAt:
-      new Date(),
-
-
-  };
-
-}
-
-
-
-
-
-
-/**
- * =====================================================
- * MEMORY RELEVANCE
- * =====================================================
- *
- * Determines if memory matters.
- *
- * Future:
- * semantic scoring,
- * embeddings,
- * pattern detection.
- *
- * =====================================================
- */
-
-
-export function memoryRelevance(
-
-  memory:
-    BeastMemory,
-
-  context:
-    string
-
-): number {
-
-
-  if(
-
-    memory.subject
-      .toLowerCase()
-      .includes(
-        context.toLowerCase()
-      )
-
-  ){
-
-    return 1;
-
-  }
-
-
-
-  return 0.1;
 
 }

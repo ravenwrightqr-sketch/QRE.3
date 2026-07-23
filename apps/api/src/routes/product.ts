@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import { db } from "@qre/db";
-import crypto from "crypto";
-
+import { SaleChannel } from "@prisma/client";
+import { createAssetBatch } from "../services/assetFactory.js";
 const router = express.Router();
 
 /**
@@ -60,24 +60,12 @@ router.post("/create", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid price" });
     }
 
-    const assets = [];
-
-    for (let i = 0; i < quantity; i++) {
-      const slug = crypto.randomBytes(6).toString("hex");
-
-      const asset = await db.asset.create({
-        data: {
-          slug,
-          priceCents,
-     
-          paid: false,
-          status: "active",
-        },
-      });
-
-      assets.push(asset);
-    }
-
+   const assets =
+  await createAssetBatch(
+    quantity,
+    priceCents,
+    SaleChannel.RETAIL
+  );
     const baseUrl = process.env.PUBLIC_BASE_URL || "https://qre.ink";
 
     const enriched = assets.map((a) => ({

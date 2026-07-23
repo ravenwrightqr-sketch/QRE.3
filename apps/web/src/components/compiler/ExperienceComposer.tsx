@@ -15,10 +15,17 @@ import {
   apiPost,
 } from "../../lib/api";
 
-
 type CompilerResult = {
 
   id?: string;
+
+  experienceName?: string;
+
+  assetName?: string;
+
+  flowName?: string;
+
+  description?: string;
 
   flowId?: string;
 
@@ -41,6 +48,7 @@ type CompilerResult = {
   momentCount?: number;
 
 };
+
 
 
 
@@ -552,18 +560,13 @@ End with checkout details.`
 
 
 
-
-          <h2>
-
-            {
-
-              result.title ??
-
-              "Untitled Experience"
-
-            }
-
-          </h2>
+         <h2>
+         {
+         result.experienceName ??
+         result.title ??
+         "Unnamed Experience"
+         }
+         </h2>
 
 
 

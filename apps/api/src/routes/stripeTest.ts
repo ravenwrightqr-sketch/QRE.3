@@ -34,8 +34,7 @@ router.post(
   ) => {
     try {
       const {
-        assetId,
-        userId,
+      assetId,
       } = req.body;
 
       if (!assetId) {
@@ -69,15 +68,14 @@ router.post(
           `dev_payment_${Date.now()}`,
 
       } as Stripe.Checkout.Session;
-
-
-      const updated = await unlockAsset(
-        asset.id,
-        userId ?? null,
-        fakeSession
-      );
-
-
+      const updated =
+      await unlockAsset(
+      asset.id,
+      fakeSession
+       );
+      
+      
+      
       /**
        * Reload updated asset state
        */

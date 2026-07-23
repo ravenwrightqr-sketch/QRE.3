@@ -1,56 +1,88 @@
+/**
+ * =====================================================
+ * QRE BEAST UNDERSTANDING ENGINE
+ * =====================================================
+ *
+ * Awareness
+ *      ↓
+ * Understanding
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+
+
 export type BeastAwareness = {
 
-  hasPrompt: boolean;
+ hasPrompt:boolean;
 
-  hasIndustry: boolean;
+ hasIndustry:boolean;
 
-  hasGoal: boolean;
+ hasGoal:boolean;
 
-  hasUser: boolean;
+ hasUser:boolean;
 
-  hasAsset: boolean;
+ hasAsset:boolean;
 
-  hasLocation: boolean;
+ hasLocation:boolean;
 
 };
+
+
 
 export type BeastUnderstanding = {
 
-  confidence: number;
+ confidence:number;
 
-  completeness: number;
+ completeness:number;
 
-  missing: string[];
+ missing:string[];
 
 };
 
+
+
 export function understand(
-  awareness: BeastAwareness
-): BeastUnderstanding {
 
-  const missing: string[] = [];
+ awareness:BeastAwareness
 
-  if (!awareness.hasIndustry)
-    missing.push("industry");
+):BeastUnderstanding {
 
-  if (!awareness.hasGoal)
-    missing.push("goal");
 
-  if (!awareness.hasPrompt)
-    missing.push("prompt");
+const missing:string[]=[];
 
-  const known = 6 - missing.length;
 
-  return {
+if(!awareness.hasIndustry)
+ missing.push("industry");
 
-    confidence:
-      known / 6,
 
-    completeness:
-      known / 6,
+if(!awareness.hasGoal)
+ missing.push("goal");
 
-    missing,
 
-  };
+if(!awareness.hasPrompt)
+ missing.push("prompt");
+
+
+
+const known =
+6 - missing.length;
+
+
+
+return {
+
+ confidence:
+  known / 6,
+
+ completeness:
+  known / 6,
+
+ missing,
+
+};
+
 
 }

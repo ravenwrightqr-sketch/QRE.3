@@ -213,49 +213,6 @@ router.post(
 
 
 
-            /**
-             * Ownership mirror
-             */
-            await tx.ownership.upsert({
-
-              where:{
-                assetId,
-              },
-
-
-              update:{
-
-                accountId,
-
-
-                status:
-                  "CLAIMED",
-
-
-                claimedAt:
-                  new Date(),
-
-              },
-
-
-              create:{
-
-                assetId,
-
-
-                accountId,
-
-
-                status:
-                  "CLAIMED",
-
-              },
-
-            });
-
-
-
-
             return updated;
 
           });
