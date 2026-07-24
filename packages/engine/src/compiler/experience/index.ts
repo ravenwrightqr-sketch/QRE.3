@@ -1,14 +1,35 @@
+/**
+ * =====================================================
+ * QRE EXPERIENCE COMPILER EXPORTS
+ * =====================================================
+ *
+ * Public compiler boundary.
+ *
+ * =====================================================
+ */
+
+
 export {
- compileExperience
+
+  compileExperience,
+  experienceCompiler,
+
 } from "./experienceCompiler.js";
 
 
+
 export {
- compileScenes
+
+  compileScenes,
+
 } from "./sceneCompiler.js";
 
 
+
 export type {
- ExperienceBlueprint,
- ExperienceScene
+
+  ExperienceScene,
+
+  ExperienceSceneType,
+
 } from "./experienceTypes.js";

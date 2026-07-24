@@ -28,7 +28,9 @@ import type {
   ExperienceMeaning,
 } from "./meaning.js";
 
-
+import type {
+  SemanticInterpretation,
+} from "./semantic.js";
 
 export type ExperienceEnergy =
   | "calm"
@@ -100,7 +102,13 @@ export interface ExperienceGenome {
    */
   intent:string[];
 
-
+  /**
+   * Semantic Cortex interpretation
+   *
+   * The meaning extracted before creation.
+   */
+  interpretation:
+    SemanticInterpretation;
 
   /**
    * Psychological archetypes

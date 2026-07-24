@@ -1,22 +1,3 @@
-/**
- * =====================================================
- * EXPERIENCE BLUEPRINT CONTRACT
- * =====================================================
- *
- * Experience Genome
- *        ↓
- * Experience Blueprint
- *
- * This is the bridge between intelligence
- * and runtime creation.
- *
- * NO DATABASE
- * NO EXECUTION
- *
- * =====================================================
- */
-
-
 export type ExperienceSceneType =
   | "arrival"
   | "discovery"
@@ -40,30 +21,5 @@ export interface ExperienceScene {
   emotionalIntent:string;
 
   duration:number;
-
-}
-
-
-
-export interface ExperienceBlueprint {
-
-
-  title:string;
-
-
-  world:string;
-
-
-  dna:string[];
-
-
-  emotions:string[];
-
-
-  pacing:string;
-
-
-  scenes:ExperienceScene[];
-
 
 }
