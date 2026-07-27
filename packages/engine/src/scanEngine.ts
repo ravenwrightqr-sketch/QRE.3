@@ -16,7 +16,7 @@ import { purchaseMoments } from "./moments/purchaseMoments.js";
 import { buildGeoStory } from "./geo/geoStoryCompiler.js";
 import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
 
-import { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+import { cinematicRuntime } from "./runtime/cinematicRuntime.js";
 
 import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 
@@ -28,7 +28,7 @@ import { buildServiceReceipt } from "./receiptBuilder.js";
 
 import type {
   FlowStepType,
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
 
 import type {
@@ -53,10 +53,6 @@ type ScanEngineInput = {
 
 };
 
-
-
-
-
 export async function scanEngine(
 
   input:ScanEngineInput,
@@ -72,8 +68,6 @@ export async function scanEngine(
   }
 
 ):Promise<Experience>{
-
-
 
   /**
    * =====================================================
@@ -101,7 +95,6 @@ export async function scanEngine(
 
       asset:null,
 
-      moments:[],
 
       geoStory:null,
 
@@ -118,10 +111,6 @@ export async function scanEngine(
     };
 
   }
-
-
-
-
 
   /**
    * =====================================================
@@ -143,11 +132,6 @@ export async function scanEngine(
         asset.flow?.id ?? null,
 
     });
-
-
-
-
-
 
   /**
    * =====================================================
@@ -176,19 +160,13 @@ export async function scanEngine(
 
     );
 
-
-
-
-
   /**
    * =====================================================
    * 4. BUILD EXPERIENCE MOMENTS
    * =====================================================
    */
 
-
-  const moments:Moment[] = [];
-
+  const moments:ExperienceMoment[] = [];
 
 
   moments.push(
@@ -200,10 +178,6 @@ export async function scanEngine(
     )
 
   );
-
-
-
-
 
   /**
    * DEMO EXPERIENCE
@@ -230,10 +204,6 @@ export async function scanEngine(
 
   }
 
-
-
-
-
   /**
    * UNLOCKED EXPERIENCE
    *
@@ -249,7 +219,15 @@ export async function scanEngine(
 
   ){
 
-
+     console.log(
+      "🔥 FLOW STEPS BEFORE MOMENT TRANSLATION",
+      JSON.stringify(
+        asset.flow.steps,
+        null,
+        2
+      )
+    );
+   
     const flowMoments =
 
       flowToMoment(
@@ -284,13 +262,21 @@ export async function scanEngine(
         )
 
       );
-
+          console.log(
+       "🔥 EXPERIENCE MOMENTS AFTER TRANSLATION",
+       JSON.stringify(
+        flowMoments,
+        null,
+        2
+       )
+       );
 
 
     const offset =
       moments.length;
+    
 
-
+     
 
     moments.push(
 
@@ -312,10 +298,6 @@ export async function scanEngine(
 
   }
 
-
-
-
-
   moments.sort(
 
     (a,b)=>
@@ -323,12 +305,6 @@ export async function scanEngine(
       a.order-b.order
 
   );
-
-
-
-
-
-
 
   /**
    * =====================================================
@@ -375,12 +351,6 @@ export async function scanEngine(
 
   }
 
-
-
-
-
-
-
   /**
    * =====================================================
    * 6. GEO STORY
@@ -389,13 +359,9 @@ export async function scanEngine(
    * =====================================================
    */
 
-
   let geoStory = null;
 
-
-
   try{
-
 
     geoStory =
 
@@ -441,14 +407,7 @@ export async function scanEngine(
     );
 
   }
-
-
-
-
-
-
-
-  /**
+    /**
    * =====================================================
    * 7. CINEMATIC RUNTIME
    *
@@ -458,6 +417,15 @@ export async function scanEngine(
    * =====================================================
    */
 
+  console.log(
+    "🔥 MOMENTS ENTERING CINEMATIC RUNTIME",
+    JSON.stringify(
+      moments,
+      null,
+      2
+    )
+  );
+
 
   const cinematicScenes =
 
@@ -465,58 +433,53 @@ export async function scanEngine(
 
       moments,
 
-      geoStory,
-
     });
-
-
-
-
-
 
 
 
   /**
    * =====================================================
-   * 8. PERMANENT MEMORY
-   *
-   * ONLY AFTER UNLOCK
-   * =====================================================
-   */
-
+    * EXPERIENCE MEMORY ASSEMBLY
+ *
+ * Combines completed experience layers.
+ *
+ * ExperienceMoment:
+ * semantic truth
+ *
+ * GeoStory:
+ * geographic context
+ *
+ * CinematicScene:
+ * presentation runtime
+ *
+ * MemorySnapshot:
+ * unified memory artifact
+ * =====================================================
+ */
 
   let memorySnapshot = null;
 
 
-
   if(access.state === "UNLOCKED"){
 
+memorySnapshot =
 
-    memorySnapshot =
+buildMemorySnapshot({
 
-      buildMemorySnapshot({
+  assetId:
 
-        assetId:
+    asset.id,
 
-          asset.id,
+  moments,
 
-        moments,
+  geoStory,
 
-        geoStory,
+  cinematicScenes,
 
-        cinematicScenes,
-
-      });
+});
 
 
   }
-
-
-
-
-
-
-
 
   /**
    * =====================================================
@@ -533,24 +496,23 @@ export async function scanEngine(
     try{
 
 
-      await createStoryDelivery(
+     await createStoryDelivery(
 
-  {
+{
+  assetId:asset.id,
 
-    assetId:asset.id,
+  sessionId:session.id,
 
-    sessionId:session.id,
+  userId:
+    input.userId ?? null,
+    
+      moments,
 
-    userId:
-      input.userId ?? null,
+  geoStory,
 
-    moments,
+  cinematicScenes,
 
-    geoStory,
-
-    cinematicScenes,
-
-  },
+},
 
   repos.storyDeliveryRepository
 
@@ -575,33 +537,15 @@ export async function scanEngine(
 
   }
 
-
-
-
-
-
-
   /**
    * =====================================================
    * 10. RECEIPTS
    * =====================================================
    */
+    const hasServiceCompletion = false;
 
 
-  const hasServiceCompletion =
-
-    moments.some(
-
-      m =>
-
-        m.type === "system" &&
-
-        m.meta?.event === "SERVICE_COMPLETE"
-
-    );
-
-
-
+ 
   const isServiceAsset =
 
     asset.category === "service" ||
@@ -630,12 +574,6 @@ export async function scanEngine(
 
       : null;
 
-
-
-
-
-
-
   /**
    * =====================================================
    * 11. INSIGHTS
@@ -652,12 +590,6 @@ export async function scanEngine(
     repos.analyticsRepository
 
    );
-
-
-
-
-
-
 
   /**
    * =====================================================
@@ -690,87 +622,77 @@ export async function scanEngine(
 
   );
 
-
-
-
-
-
-
-
   /**
    * =====================================================
    * FINAL PUBLIC RESPONSE
+   *
+   * Experience layer stays internal.
+   *
+   * Public runtime receives only
+   * runtime-safe Moments.
+   *
    * =====================================================
    */
 
-
   return {
-
 
     sessionId:
 
       session.id,
 
-
-
     access:
 
       access.state,
-
-
 
     preview:
 
       access.state !== "UNLOCKED",
 
-
-
     timestamp:
 
       new Date().toISOString(),
-
-
-
-    moments,
-
+  
 
     geoStory,
 
-
     cinematicScenes,
-
 
     memorySnapshot,
 
-
     receipt,
-
 
     insights,
 
-
-
     asset:{
 
-  id:
-    asset.id,
+      id:
 
-  slug:
-    asset.slug,
+        asset.id,
 
-  category:
-    asset.category ?? undefined,
 
-  accountId:
-    asset.accountId,
+      slug:
 
-  paid:
-    asset.paid,
+        asset.slug,
 
-},
+
+      category:
+
+        asset.category ?? undefined,
+
+
+      accountId:
+
+        asset.accountId,
+
+
+      paid:
+
+        asset.paid,
+
+
+    },
 
 
   };
-
 
 }

@@ -1,260 +1,523 @@
+/**
+ * =====================================================
+ * QRE BLUEPRINT → FLOW COMPILER
+ * =====================================================
+ *
+ * Experience Blueprint
+ *        ↓
+ * Experience Director
+ *        ↓
+ * Creative Direction
+ *        ↓
+ * Runtime Flow Instructions
+ *
+ *
+ * Responsibilities:
+ *
+ * - translate moments into flow steps
+ * - attach creative intent
+ * - preserve emotional direction
+ * - preserve cinematic pacing
+ *
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ * NO PLAYER LOGIC
+ *
+ * =====================================================
+ */
+
+
 import type {
+
   ExperienceBlueprint,
+
   ExperienceMomentType,
+
   FlowStep,
+
   FlowStepType,
+
 } from "@qre/contracts";
+
+
+import {
+
+  experienceDirector,
+
+} from "./director.js";
+
+
 
 
 
 /**
  * =====================================================
  *
- * BLUEPRINT → FLOW COMPILER
+ * MOMENT → FLOW TYPE RESOLUTION
  *
- * Creative DNA → Runtime Instructions
- *
- * INPUT:
- * ExperienceBlueprint
- *
- * OUTPUT:
- * FlowStep[]
- *
- * RULES:
- *
- * - Pure
- * - No database
- * - No Prisma
- * - No execution
+ * Semantic conversion only.
  *
  * =====================================================
  */
 
 
-
 function resolveFlowType(
-  momentType: ExperienceMomentType
-): FlowStepType {
 
+  momentType:ExperienceMomentType
 
-  const mapping: Partial<
-    Record<
-      ExperienceMomentType,
-      FlowStepType
-    >
-  > = {
-
-
-    welcome:
-      "hero",
-
-
-    introduction:
-      "hero",
-
-
-    story:
-      "story",
-
-
-    memory:
-      "story",
-
-
-    timeline:
-      "timeline",
-
-
-    photos:
-      "gallery",
-
-
-    video:
-      "video",
-
-
-    soundtrack:
-      "soundtrack",
-
-
-    location:
-      "location",
+):FlowStepType {
 
 
 
-    product:
-      "product",
+const mapping:
 
+Partial<
 
-    menu:
-      "menu",
+Record<
 
+ExperienceMomentType,
 
-    offer:
-      "offer",
+FlowStepType
 
+>
 
-    reward:
-      "reward",
-
-
-    payment:
-      "payment",
-
-
-    booking:
-      "booking",
-
-
-    review:
-      "review",
-
-
-    social:
-      "social",
-
-
-    share:
-      "share",
-
-
-    profile:
-      "profile",
-
-
-    guestbook:
-      "guestbook",
-
-
-    interaction:
-      "timer",
-
-
-    completion:
-      "message",
-
-
-    reveal:
-      "story",
-
-  };
+> = {
 
 
 
-  return (
-    mapping[momentType]
-    ??
-    "message"
-  );
+welcome:
+"hero",
+
+
+introduction:
+"hero",
+
+
+story:
+"story",
+
+
+memory:
+"story",
+
+
+timeline:
+"timeline",
+
+
+photos:
+"gallery",
+
+
+video:
+"video",
+
+
+soundtrack:
+"soundtrack",
+
+
+location:
+"location",
+
+
+product:
+"product",
+
+
+menu:
+"menu",
+
+
+offer:
+"offer",
+
+
+reward:
+"reward",
+
+
+payment:
+"payment",
+
+
+booking:
+"booking",
+
+
+review:
+"review",
+
+
+social:
+"social",
+
+
+share:
+"share",
+
+
+profile:
+"profile",
+
+
+guestbook:
+"guestbook",
+
+
+interaction:
+"timer",
+
+
+completion:
+"message",
+
+
+reveal:
+"story",
+
+
+legacy:
+"story",
+
+
+future:
+"story",
+
+
+milestone:
+"timeline",
+
+
+};
+
+
+
+
+return (
+
+mapping[momentType]
+
+??
+
+"message"
+
+);
+
 
 }
 
 
 
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * DIRECTOR CONTEXT
+ *
+ * Attaches creative intelligence.
+ *
+ * =====================================================
+ */
+
+
+function buildDirectorContext(
+
+ blueprint:ExperienceBlueprint
+
+){
+
+
+return experienceDirector(
+
+ blueprint
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * FLOW COMPILER
+ *
+ * Blueprint → FlowStep[]
+ *
+ * =====================================================
+ */
 
 
 export function blueprintToFlow(
 
-  blueprint: ExperienceBlueprint
 
-): FlowStep[] {
+  blueprint:ExperienceBlueprint
 
 
-  if(
-    !blueprint ||
-    !Array.isArray(
-      blueprint.moments
-    )
-  ){
-
-    return [];
-
-  }
+):FlowStep[] {
 
 
 
-  return blueprint.moments.map(
+if(
 
-    (
-      moment,
-      index
-    ) => ({
+!blueprint ||
 
+!Array.isArray(
 
-      id:
-        `experience-${index}`,
+blueprint.moments
 
+)
 
+){
 
-      order:
-        index,
+return [];
 
-
-
-      type:
-        resolveFlowType(
-          moment.type
-        ),
+}
 
 
 
-      payload:{
+
+const direction =
+
+buildDirectorContext(
+
+ blueprint
+
+);
 
 
-        experience:{
 
 
-          component:
-            moment.component,
 
 
-          momentType:
-            moment.type,
+return blueprint.moments.map(
 
 
-          title:
-            moment.title,
+(moment,index)=>(
 
 
-          subtitle:
-            moment.subtitle,
+{
 
 
-          description:
-            moment.description,
+/**
+ * Stable readable runtime id
+ */
+
+id:
+
+`experience-${moment.type}-${index}`,
 
 
-          icon:
-            moment.icon,
+/**
+ * Player ordering
+ */
+
+order:
+
+index,
 
 
-          animation:
-            moment.animation,
+
+/**
+ * Runtime action type
+ */
+
+type:
+
+resolveFlowType(
+
+moment.type
+
+),
 
 
-          editable:
-            moment.editable,
 
 
-          demo:
-            moment.demo,
+payload:{
 
 
-          order:
-            moment.order,
+
+/**
+ * =================================================
+ * CREATIVE DIRECTION
+ * =================================================
+ */
 
 
-        },
+direction,
 
 
-        ...moment.payload,
-
-      },
 
 
-    })
 
-  );
+/**
+ * =================================================
+ * EXPERIENCE MOMENT
+ * =================================================
+ */
+
+
+experience:{
+
+
+
+component:
+
+moment.component,
+
+
+
+momentType:
+
+moment.type,
+
+
+
+title:
+
+moment.title,
+
+
+
+subtitle:
+
+moment.subtitle,
+
+
+
+description:
+
+moment.description,
+
+
+
+icon:
+
+moment.icon,
+
+
+
+animation:
+
+moment.animation,
+
+
+
+editable:
+
+moment.editable,
+
+
+
+demo:
+
+moment.demo,
+
+
+
+order:
+
+moment.order,
+
+
+
+},
+
+
+
+
+
+/**
+ * =================================================
+ * SOURCE PAYLOAD
+ *
+ * Preserve original semantic data.
+ *
+ * =================================================
+ */
+
+
+...moment.payload,
+
+
+
+
+
+/**
+ * =================================================
+ * SCENE INTENT
+ *
+ * Future cinematic compiler consumes this.
+ *
+ * =================================================
+ */
+
+
+intent:{
+
+
+
+phase:
+
+direction.emotionalArc[index]?.phase
+
+??
+
+moment.type,
+
+
+
+
+emotion:
+
+direction.emotionalArc[index]?.emotion
+
+??
+
+[],
+
+
+
+
+purpose:
+
+direction.emotionalArc[index]?.intention
+
+??
+
+"continue experience",
+
+
+
+},
+
+}
+
+}
+
+
+)
+
+);
 
 
 }
+
+export const experienceFlowCompiler =
+
+blueprintToFlow;

@@ -9,4 +9,5 @@ export type ExperienceGoal =
   | "memory"
   | "storytelling"
   | "conversion"
+  | "discovery"
   | "retention";

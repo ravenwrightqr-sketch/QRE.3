@@ -28,8 +28,6 @@ const router =
 router.use(requireAuth);
 
 
-
-
 /**
  * =====================================================
  * CREATE ASSET + EXPERIENCE
@@ -134,10 +132,6 @@ router.post(
 
       }
 
-
-
-
-
       /**
        * =================================================
        * RESOLVE ACCOUNT
@@ -183,9 +177,6 @@ router.post(
         });
 
 
-
-
-
       if(!membership){
 
 
@@ -199,20 +190,9 @@ router.post(
 
       }
 
-
-
-
-
       const accountId =
 
         membership.accountId;
-
-
-
-
-
-
-
 
       /**
        * =================================================
@@ -225,53 +205,28 @@ router.post(
        *
        * =================================================
        */
+       const asset =
+
+       await db.asset.findUnique({
+
+       where:{
+       slug,
+       },
+    
+       });
 
 
+       if(!asset){
 
-      const asset =
+        return res.status(404).json({
 
-        await db.asset.create({
+        error:
+      "Asset not found",
 
-          data:{
+       });
 
-
-            accountId,
-
-
-            displayName,
-
-
-            slug,
-
-
-            status:
-              "active",
-
-
-            paid:
-              false,
-
-
-            saleChannel:
-              "ADMIN",
-
-
-            priceCents:
-              priceCents ?? 999,
-
-
-          },
-
-
-        });
-
-
-
-
-
-
-
-
+       }
+       
       /**
        * =================================================
        * CREATE EXPERIENCE
@@ -302,14 +257,6 @@ router.post(
 
 
         });
-
-
-
-
-
-
-
-
 
       /**
        * =================================================

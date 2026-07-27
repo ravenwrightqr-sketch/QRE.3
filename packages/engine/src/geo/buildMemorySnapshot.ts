@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 
 import type {
-  Moment,
+  ExperienceMoment,
   GeoStoryScene,
   CinematicScene,
   MemorySnapshot,
@@ -10,28 +10,26 @@ import type {
 
 type SnapshotInput = {
 
-  assetId: string;
+  assetId:string;
 
-  moments: Moment[];
+  moments:ExperienceMoment[];
 
   geoStory:
     {
-      scenes: GeoStoryScene[];
-      summary?: string;
+      scenes:GeoStoryScene[];
+      summary?:string;
     }
     | null;
 
-  cinematicScenes:
-    CinematicScene[];
+  cinematicScenes:CinematicScene[];
 
 };
 
 
 
-
 function hasMomentType(
-  moments: Moment[],
-  types: string[]
+  moments:ExperienceMoment[],
+  types:string[]
 ){
 
   return moments.some(
@@ -43,13 +41,9 @@ function hasMomentType(
 
 }
 
-
-
-
-
 export function buildMemorySnapshot(
-  input: SnapshotInput
-): MemorySnapshot {
+  input:SnapshotInput
+):MemorySnapshot {
 
 
   const id =
@@ -67,8 +61,11 @@ export function buildMemorySnapshot(
 
 
   /**
-   * Detect experience characteristics
+   * =====================================================
+   * EXPERIENCE CHARACTER DETECTION
+   * =====================================================
    */
+
 
   const hasLocation =
     hasMomentType(
@@ -85,11 +82,10 @@ export function buildMemorySnapshot(
     hasMomentType(
       moments,
       [
-        "photos",
-        "video",
-        "soundtrack",
-        "replay",
         "media",
+        "video",
+        "photos",
+        "soundtrack",
       ]
     );
 
@@ -108,6 +104,7 @@ export function buildMemorySnapshot(
 
 
 
+
   let type:
     MemorySnapshot["type"] =
       "generic";
@@ -115,7 +112,7 @@ export function buildMemorySnapshot(
 
 
 
-  if (
+  if(
     hasLocation &&
     hasMedia
   ){
@@ -136,7 +133,8 @@ export function buildMemorySnapshot(
     hasStory
   ){
 
-    type = "generic";
+    type =
+      "generic";
 
   }
 
@@ -163,53 +161,50 @@ export function buildMemorySnapshot(
 
 
   /**
-   * GEO MEMORY TAGS
+   * =====================================================
+   * LOCATION TAG EXTRACTION
+   * =====================================================
    */
 
 
   const locationTags =
+
     moments
 
-    .filter(
-      m =>
-        [
-          "location",
-          "arrival",
-        ]
-        .includes(
-          String(m.type)
-        )
-    )
+      .filter(
+        (m)=>
+          [
+            "location",
+            "arrival",
+          ]
+          .includes(
+            String(m.type)
+          )
+      )
 
-    .map(
-      m => {
+      .map(
+        (m)=>{
 
-        const label =
-          m.meta?.label;
-
-
-        return typeof label === "string"
-          ? label
-          : "Unknown";
-
-      }
-
-    );
+          const label =
+            m.title
 
 
+          return typeof label === "string"
+            ? label
+            : "Unknown";
 
+        }
 
-
-
+      );
 
   /**
-   * Timeline generation
-   *
-   * Later this will use
-   * real geoProof timestamps
+   * =====================================================
+   * TIMELINE
+   * =====================================================
    */
 
   const timeline =
+
     moments.map(
       (
         m,
@@ -218,9 +213,9 @@ export function buildMemorySnapshot(
 
 
         const raw =
-          m.meta?.text ??
-          m.meta?.label ??
-          m.type;
+        m.title ??
+        m.subtitle ??
+        m.type;
 
 
 
@@ -228,11 +223,12 @@ export function buildMemorySnapshot(
 
           label:
             typeof raw === "string"
-            ? raw
-            : String(m.type),
+              ? raw
+              : String(m.type),
 
 
           timestamp:
+
             new Date(
               Date.now()
               +
@@ -247,9 +243,11 @@ export function buildMemorySnapshot(
     );
 
 
-
-
-
+  /**
+   * =====================================================
+   * EMOTIONAL SIGNAL
+   * =====================================================
+   */
 
 
   let emotionalTone:
@@ -287,37 +285,51 @@ export function buildMemorySnapshot(
 
 
 
+  /**
+   * =====================================================
+   * HIGHLIGHTS
+   * =====================================================
+   */
 
 
   const highlights =
+
     moments
 
-    .slice(
-      0,
-      5
-    )
+      .slice(
+        0,
+        5
+      )
 
-    .map(
-      m => {
-
-        const raw =
-          m.meta?.text ??
-          m.meta?.label ??
-          m.type;
+      .map(
+        (m)=>{
 
 
-        return typeof raw === "string"
-          ? raw
-          : String(m.type);
-
-      }
-
-    );
+         const raw =
+         m.title ??
+         m.subtitle ??
+         m.type;
 
 
+          return typeof raw === "string"
+            ? raw
+            : String(m.type);
+
+
+        }
+
+      );
 
 
 
+
+
+
+  /**
+   * =====================================================
+   * TITLE
+   * =====================================================
+   */
 
 
   let title =
@@ -327,14 +339,12 @@ export function buildMemorySnapshot(
 
   switch(type){
 
-
     case "memorial":
 
       title =
         "A Life Remembered";
 
       break;
-
 
 
     case "service":
@@ -345,7 +355,6 @@ export function buildMemorySnapshot(
       break;
 
 
-
     case "event":
 
       title =
@@ -354,16 +363,14 @@ export function buildMemorySnapshot(
       break;
 
 
+    default:
 
-    case "generic":
-  title = "Memory Capsule";
-  break;
+      title =
+        "Memory Capsule";
 
+      break;
 
   }
-
-
-
 
 
 
@@ -396,9 +403,10 @@ export function buildMemorySnapshot(
 
 
     summary:
-      geoStory?.summary ??
-      `Captured ${moments.length} moments across experience.`,
 
+      geoStory?.summary ??
+
+      `Captured ${moments.length} moments across experience.`,
 
 
     emotionalTone,
@@ -413,5 +421,6 @@ export function buildMemorySnapshot(
     timeline,
 
   };
+
 
 }

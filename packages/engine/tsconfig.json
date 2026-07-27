@@ -27,11 +27,18 @@
       "@qre/api": ["../../apps/api/src"]
     },
 
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+     "resolveJsonModule": true,
+  "esModuleInterop": true,
+  "forceConsistentCasingInFileNames": true
   },
 
-  
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src"
+  ],
+
+  "exclude": [
+    "dist",
+    "node_modules",
+    "tests"
+  ]
 }

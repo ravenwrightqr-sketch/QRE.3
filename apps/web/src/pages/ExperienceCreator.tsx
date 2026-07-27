@@ -222,8 +222,6 @@ QRE EXPERIENCE ENGINE
 
 
 
-
-
 <h1
 
 style={{
@@ -275,7 +273,7 @@ lineHeight:1.6,
 
 Describe a memory, place, person, event, brand, or impossible idea.
 
-QRE will compile the living experience.
+QRE MAKES THE ART/IS/FACT
 
 </p>
 

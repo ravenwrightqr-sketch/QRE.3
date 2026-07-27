@@ -3,291 +3,228 @@ import {
   useState,
 } from "react";
 
-import MomentRenderer from "./MomentRenderer";
-
 import type {
   ScanResponse,
   CinematicScene,
 } from "@qre/contracts";
 
 
+
 type Props = {
-
   data: ScanResponse;
-
 };
+
+
 
 export default function CinematicScanPlayer({
-
   data,
+}: Props) {
 
-}:Props){
 
+  const scenes: CinematicScene[] =
+    data.cinematicScenes ?? [];
 
-const scenes: CinematicScene[] =
-  data.cinematicScenes ?? [];
 
 
+  const [
+    sceneIndex,
+    setSceneIndex
+  ] =
+  useState(0);
 
 
 
+  useEffect(() => {
 
+    setSceneIndex(0);
 
+  }, [data]);
 
-const [
-index,
-setIndex
-]=useState(0);
 
 
+  const scene =
+    scenes[sceneIndex];
 
 
 
 
-useEffect(()=>{
+  useEffect(() => {
 
-setIndex(0);
+    if (!scene) {
+      return;
+    }
 
-},[data]);
 
+    const timer =
+      window.setTimeout(() => {
 
 
+        setSceneIndex(current => {
 
 
+          const next =
+            current + 1;
 
 
-const scene =
+          if (
+            next >= scenes.length
+          ) {
 
-scenes[index];
+            return scenes.length;
 
+          }
 
 
+          return next;
 
 
+        });
 
 
+      }, 5000);
 
 
-useEffect(()=>{
 
+    return () => {
 
-if(!scene)
-return;
+      window.clearTimeout(timer);
 
+    };
 
 
-const timer =
+  }, [
+    scene,
+    scenes.length
+  ]);
 
-window.setTimeout(()=>{
 
 
-setIndex(
 
-current =>
 
-Math.min(
+  function restart() {
 
-current + 1,
+    setSceneIndex(0);
 
-scenes.length
+  }
 
-)
 
-);
 
 
-},
 
+  if (!scene) {
 
-scene.duration ?? 3000);
 
+    return (
 
+      <main
+        style={{
+          minHeight:"100vh",
+          display:"grid",
+          placeItems:"center",
+          background:"#030305",
+          color:"#fff",
+          textAlign:"center",
+        }}
+      >
 
-return()=>{
+        <div>
 
-window.clearTimeout(timer);
+          <h1>
+            Memory Complete
+          </h1>
 
-};
 
+          <button
+            onClick={restart}
+            style={{
+              marginTop:30,
+              padding:"14px 35px",
+              borderRadius:999,
+              background:"transparent",
+              border:"1px solid rgba(255,255,255,.35)",
+              color:"#fff",
+              cursor:"pointer"
+            }}
+          >
+            RELIVE
+          </button>
 
-},[
 
-scene,
+        </div>
 
-scenes.length
+      </main>
 
-]);
+    );
 
+  }
 
 
 
 
 
+  return (
 
+    <main
 
-function restart(){
+      style={{
 
-setIndex(0);
+        minHeight:"100vh",
 
-}
+        width:"100%",
 
+        background:"#030305",
 
+        color:"#fff",
 
+      }}
 
+    >
 
 
+      <section
 
-if(!scene){
+        style={{
 
+          width:"100%",
 
-return (
+          minHeight:"100vh",
 
-<div
+        }}
 
-style={{
+      >
 
-minHeight:"100vh",
 
-display:"grid",
+        <pre
 
-placeItems:"center",
+          style={{
 
-background:"#030305",
+            whiteSpace:"pre-wrap",
 
-color:"#fff",
+            padding:40,
 
-textAlign:"center",
+            fontSize:18,
 
-padding:40
+            opacity:.85,
 
-}}
+          }}
 
->
+        >
 
+          {JSON.stringify(
+            scene,
+            null,
+            2
+          )}
 
-<div>
+        </pre>
 
 
-<h1>
 
-Memory Sealed
+      </section>
 
-</h1>
 
+    </main>
 
-<p
-
-style={{
-
-opacity:.6
-
-}}
-
->
-
-This experience has completed.
-
-</p>
-
-
-
-<button
-
-onClick={restart}
-
-style={{
-
-marginTop:25,
-
-padding:"14px 35px",
-
-borderRadius:999,
-
-background:"transparent",
-
-border:"1px solid rgba(255,255,255,.35)",
-
-color:"#fff",
-
-cursor:"pointer"
-
-}}
-
->
-
-RELIVE
-
-</button>
-
-
-</div>
-
-
-</div>
-
-);
-
-
-}
-
-
-
-
-
-
-
-return (
-
-<div
-
-style={{
-
-minHeight:"100vh",
-
-width:"100%",
-
-display:"flex",
-
-alignItems:"center",
-
-justifyContent:"center",
-
-background:"#030305",
-
-color:"#fff",
-
-padding:"40px 20px"
-
-}}
-
->
-
-
-<div
-
-style={{
-
-width:"min(1200px,100%)",
-
-}}
-
->
-
-
-<MomentRenderer
-
-moment={scene.moment}
-
-/>
-
-
-
-</div>
-
-
-</div>
-
-);
-
+  );
 
 }

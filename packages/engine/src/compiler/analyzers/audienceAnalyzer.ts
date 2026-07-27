@@ -7,18 +7,21 @@
  * Analyzer
  *
  * RESPONSIBILITY:
- * Understands who the experience is created for.
+ * Understands who enters the experience,
+ * why they enter,
+ * how they behave,
+ * and what they expect.
  *
  * INPUT:
- * Human prompt text
+ * Human prompt
  *
  * OUTPUT:
  * AudienceUnderstanding
  *
  * DOES NOT:
  * - build experiences
- * - compile flows
- * - execute runtime
+ * - compile experiences
+ * - execute experiences
  * - manage users
  *
  * =====================================================
@@ -32,69 +35,444 @@ import type {
 
 
 
-const audienceSignals = {
+const audienceSignals: Record<string,string[]> = {
 
 
-fans: [
-  "fan",
-  "follower",
-  "artist",
-  "music",
-  "concert",
-  "album"
-],
+  fans: [
+    "fan",
+    "follower",
+    "artist",
+    "music",
+    "concert",
+    "album",
+    "tour",
+    "community"
+  ],
 
 
-
-family: [
-  "family",
-  "wedding",
-  "relationship",
-  "bride",
-  "groom",
-  "anniversary"
-],
-
-
-
-business_owner: [
-  "business",
-  "customer",
-  "brand",
-  "client",
-  "store",
-  "company"
-],
+  family: [
+    "family",
+    "wedding",
+    "parent",
+    "child",
+    "anniversary",
+    "birthday",
+    "memory"
+  ],
 
 
-
-creator: [
-  "creator",
-  "artist",
-  "designer",
-  "maker"
-],
-
-
-
-community: [
-  "community",
-  "club",
-  "group",
-  "crowd",
-  "members"
-],
+  business_owner: [
+    "business",
+    "brand",
+    "customer",
+    "client",
+    "store",
+    "company",
+    "restaurant"
+  ],
 
 
+  creator: [
+    "creator",
+    "artist",
+    "designer",
+    "maker",
+    "producer"
+  ],
 
-pet_owner: [
-  "pet",
-  "dog",
-  "cat",
-  "animal"
-]
+
+  explorer: [
+    "discover",
+    "explore",
+    "hidden",
+    "unknown",
+    "adventure"
+  ],
+
+
+  community: [
+    "community",
+    "club",
+    "group",
+    "crowd",
+    "strangers",
+    "people",
+    "members"
+  ],
+
+
+  collector: [
+    "collect",
+    "rare",
+    "exclusive",
+    "limited",
+    "artifact"
+  ],
+
+
+  pet_owner: [
+    "pet",
+    "dog",
+    "cat",
+    "animal"
+  ]
+
 
 };
+
+
+
+
+
+function unique(
+ values:string[]
+){
+
+ return [
+  ...new Set(
+    values.filter(Boolean)
+  )
+ ];
+
+}
+
+
+
+
+
+
+function detectTypes(
+ text:string
+){
+
+ const types:string[]=[];
+
+
+ for(
+  const [type,signals]
+  of Object.entries(audienceSignals)
+ ){
+
+  if(
+   signals.some(
+    signal =>
+    text.includes(signal)
+   )
+  ){
+
+   types.push(type);
+
+  }
+
+ }
+
+
+ if(!types.length){
+
+  types.push(
+   "individual"
+  );
+
+ }
+
+
+ return unique(types);
+
+}
+
+
+
+
+
+
+
+function resolveSocial(
+ types:string[]
+):AudienceUnderstanding["social"] {
+
+
+ if(
+  types.includes("community") ||
+  types.includes("fans")
+ ){
+
+  return "community";
+
+ }
+
+
+ if(
+  types.length > 1
+ ){
+
+  return "shared";
+
+ }
+
+
+ return "solo";
+
+}
+
+
+
+
+
+
+
+
+
+function resolveRoles(
+ types:string[]
+){
+
+ const roles:string[]=[];
+
+
+ const map:Record<string,string[]>={
+
+
+ fans:[
+  "fan",
+  "supporter",
+  "participant"
+ ],
+
+
+ family:[
+  "family_member",
+  "witness",
+  "memory_holder"
+ ],
+
+
+ business_owner:[
+  "customer",
+  "brand_owner"
+ ],
+
+
+ creator:[
+  "creator",
+  "maker"
+ ],
+
+
+ explorer:[
+  "explorer",
+  "discoverer"
+ ],
+
+
+ community:[
+  "participant",
+  "member"
+ ],
+
+
+ collector:[
+  "collector",
+  "keeper"
+ ],
+
+
+ pet_owner:[
+  "companion"
+ ]
+
+
+ };
+
+
+ for(
+  const type of types
+ ){
+
+  roles.push(
+   ...(map[type] ?? [])
+  );
+
+ }
+
+
+ return unique(roles);
+
+}
+
+
+
+
+
+
+
+
+
+function resolveRelationship(
+ social:AudienceUnderstanding["social"]
+){
+
+
+ if(
+  social === "community"
+ ){
+
+  return [
+   "shared_identity",
+   "collective_memory",
+   "social_connection"
+  ];
+
+ }
+
+
+ if(
+  social === "shared"
+ ){
+
+  return [
+   "personal_connection",
+   "shared_meaning"
+  ];
+
+ }
+
+
+ return [
+  "individual_journey",
+  "personal_discovery"
+ ];
+
+
+}
+
+function resolveBehaviors(
+ text:string
+):string[] {
+
+
+ const behaviors:string[] = [];
+
+
+
+ const rules: Array<[string, string[]]> = [
+
+  [
+   "exploration",
+   [
+    "discover",
+    "explore",
+    "hidden",
+    "secret"
+   ]
+  ],
+
+
+  [
+   "reflection",
+   [
+    "memory",
+    "remember",
+    "legacy",
+    "past"
+   ]
+  ],
+
+
+  [
+   "interaction",
+   [
+    "play",
+    "game",
+    "challenge",
+    "choose"
+   ]
+  ],
+
+
+  [
+   "creation",
+   [
+    "create",
+    "design",
+    "make"
+   ]
+  ]
+
+ ];
+
+
+
+
+ for(
+  const [
+   behavior,
+   signals
+  ] of rules
+ ){
+
+
+  if(
+   signals.some(
+    (signal:string)=>
+     text.includes(signal)
+   )
+  ){
+
+   behaviors.push(
+    behavior
+   );
+
+  }
+
+
+ }
+
+
+
+ return unique(
+  behaviors
+ );
+
+}
+
+
+
+
+
+
+
+
+
+function resolveExpectations(
+ social:AudienceUnderstanding["social"]
+){
+
+ if(
+  social === "community"
+ ){
+
+  return [
+   "belonging",
+   "participation",
+   "connection"
+  ];
+
+ }
+
+
+ return [
+  "meaning",
+  "value",
+  "personal_result"
+ ];
+
+}
+
+
+
+
+
+
 
 
 
@@ -105,93 +483,58 @@ export function analyzeAudience(
 ):AudienceUnderstanding {
 
 
-const text =
-prompt.toLowerCase();
+ const text =
+ prompt.toLowerCase();
 
 
 
-const types:string[] = [];
+ const types =
+ detectTypes(text);
 
 
 
-
-for(
- const [type, signals]
- of Object.entries(audienceSignals)
-){
-
-
-if(
- signals.some(
-  signal =>
-   text.includes(signal)
- )
-){
-
- types.push(
-  type
- );
-
-}
-
-
-}
+ const social =
+ resolveSocial(types);
 
 
 
-
-if(!types.length){
-
- types.push(
-  "individual"
- );
-
-}
+ return {
 
 
+  types,
 
 
+  social,
 
-let social:
-AudienceUnderstanding["social"] =
-"solo";
+
+  roles:
+   resolveRoles(types),
 
 
 
-if(
- types.includes("community") ||
- types.includes("fans")
-){
-
- social =
- "community";
-
-}
-
-else if(
- types.length > 1
-){
-
- social =
- "shared";
-
-}
+  relationship:
+   resolveRelationship(
+    social
+   ),
 
 
 
-
-
-return {
-
-
- types,
-
-
- social
+  behaviors:
+   resolveBehaviors(text),
 
 
 
-};
+  expectations:
+   resolveExpectations(
+    social
+   ),
+
+
+
+  primary:
+   types[0]
+
+ };
 
 
 }

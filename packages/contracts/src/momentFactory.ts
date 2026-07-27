@@ -1,80 +1,160 @@
-import type { Moment } from "./moment.js";
-
-export const MomentFactory = {
-
-  message(
-    order: number,
-    text: string
-  ): Moment {
-    return {
-      type: "message",
-      order,
-      text,
-      meta: {},
-    };
-  },
-
-
-  action(
-    order: number,
-    action: "payment" | "redirect" | "unlock" | "flow" | "cta",
-    meta: Record<string, unknown> = {}
-  ): Moment {
-    return {
-      type: "action",
-      order,
-      action,
-      meta,
-    };
-  },
-
-
-  system(
-    order: number,
-    text: string,
-    meta: Record<string, unknown> = {}
-  ): Moment {
-    return {
-      type: "system",
-      order,
-      text,
-      meta,
-    };
-  },
+/**
+ * =====================================================
+ * QRE STORY DELIVERY CONTRACT
+ * =====================================================
+ *
+ * Delivery layer contract.
+ *
+ * Purpose:
+ *
+ * Receives a compiled experience and hands it
+ * to delivery systems.
+ *
+ * Pipeline:
+ *
+ * ExperienceMoment[]
+ *        ↓
+ * StoryDelivery
+ *        ↓
+ * Cinematic Player
+ *        ↓
+ * Customer
+ *
+ *
+ * Rules:
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO ENGINE LOGIC
+ * NO LEGACY MOMENT TYPES
+ *
+ * =====================================================
+ */
 
 
-  location(
-    order: number,
-    location: {
-      lat: number;
-      lng: number;
-      label?: string;
-      city?: string;
-      region?: string;
-      country?: string;
-    },
-    meta: Record<string, unknown> = {}
-  ): Moment {
-    return {
-      type: "location",
-      order,
-      location,
-      meta,
-    };
-  },
+import type {
+  GeoStory,
+} from "./geoStory.js";
 
 
-  media(
-    order: number,
-    media: NonNullable<Extract<Moment, { type: "media" }>["media"]>,
-    meta: Record<string, unknown> = {}
-  ): Moment {
-    return {
-      type: "media",
-      order,
-      media,
-      meta,
-    };
-  },
+import type {
+  CinematicScene,
+} from "./cinematic.js";
+
+import type {
+  ExperienceMoment,
+} from "./index.js";
+
+
+
+
+/**
+ * =====================================================
+ * STORY DELIVERY INPUT
+ *
+ * Created by engine.
+ *
+ * Consumed by delivery services.
+ *
+ * =====================================================
+ */
+
+
+export type StoryDeliveryInput = {
+
+
+  /**
+   * Asset identity
+   */
+
+  assetId:string;
+
+
+
+  /**
+   * Scan session identity
+   */
+
+  sessionId:string;
+
+
+
+  /**
+   * Optional recipient/user boundary
+   */
+
+  userId?:string|null;
+
+
+
+  /**
+   * Compiled experience meaning layer.
+   *
+   * This is NOT legacy Moment.
+   *
+   * ExperienceMoment is the canonical
+   * experience construction unit.
+   */
+
+  moments:ExperienceMoment[];
+
+
+
+  /**
+   * Geographic narrative layer.
+   */
+
+  geoStory:GeoStory|null;
+
+
+
+  /**
+   * Final player scenes.
+   */
+
+  cinematicScenes:CinematicScene[];
+
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * STORY DELIVERY RESULT
+ *
+ * Output after successful delivery.
+ *
+ * =====================================================
+ */
+
+
+export type StoryDeliveryResult = {
+
+
+  /**
+   * Delivery identity
+   */
+
+  storyId:string;
+
+
+
+  /**
+   * Public share location
+   */
+
+  shareUrl:string;
+
+
+
+  /**
+   * Delivery completion state
+   */
+
+  delivered:boolean;
+
 
 };

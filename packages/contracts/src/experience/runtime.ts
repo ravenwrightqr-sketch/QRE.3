@@ -1,6 +1,3 @@
-import type {
-  Moment,
-} from "../moment.js";
 
 import type {
   GeoStory,
@@ -18,7 +15,6 @@ import type {
   ServiceReceipt,
 } from "../serviceReceipt.js";
 
-
 /**
  * =====================================================
  * EXPERIENCE ACCESS
@@ -28,8 +24,6 @@ import type {
 export type ExperienceAccess =
   | "DEMO"
   | "UNLOCKED"
- 
-
 
 
 /**
@@ -64,8 +58,6 @@ export type AssetSummary = {
 
 };
 
-
-
 /**
  * =====================================================
  * PLAYER CONFIGURATION
@@ -95,8 +87,6 @@ export type ExperiencePlayerConfig = {
 
 };
 
-
-
 /**
  * =====================================================
  * MEDIA MANIFEST
@@ -115,8 +105,6 @@ export type ExperienceMediaManifest = {
 
 };
 
-
-
 /**
  * =====================================================
  * COMPLETE EXPERIENCE RUNTIME
@@ -130,14 +118,11 @@ export type ExperienceMediaManifest = {
 
 export type Experience = {
 
-
   /**
    * Runtime session
    */
 
   sessionId:string|null;
-
-
 
   /**
    * Access state
@@ -145,15 +130,11 @@ export type Experience = {
 
   access:ExperienceAccess;
 
-
-
   /**
    * Preview flag
    */
 
   preview:boolean;
-
-
 
   /**
    * Asset identity
@@ -161,31 +142,17 @@ export type Experience = {
 
   asset:AssetSummary|null;
 
-
-
-  /**
-   * Story atoms
-   */
-
-  moments:Moment[];
-
-
-
   /**
    * Location memory
    */
 
   geoStory:GeoStory|null;
 
-
-
   /**
-   * Cinematic playback
+   * Final cinematic playback units
    */
 
   cinematicScenes:CinematicScene[];
-
-
 
   /**
    * Memory preservation
@@ -193,15 +160,11 @@ export type Experience = {
 
   memorySnapshot:MemorySnapshot|null;
 
-
-
   /**
    * Completion proof
    */
 
   receipt:ServiceReceipt|null;
-
-
 
   /**
    * Media optimization
@@ -209,15 +172,11 @@ export type Experience = {
 
   media?:ExperienceMediaManifest;
 
-
-
   /**
    * Player behavior
    */
 
   player?:ExperiencePlayerConfig;
-
-
 
   /**
    * Analytics/context
@@ -225,18 +184,14 @@ export type Experience = {
 
   insights:unknown[];
 
-
-
   /**
    * Runtime extensions
    */
 
   meta?:Record<string,unknown>;
 
-    /**
+  /**
    * Runtime creation timestamp
-   *
-   * Public API metadata.
    */
 
   timestamp:string;

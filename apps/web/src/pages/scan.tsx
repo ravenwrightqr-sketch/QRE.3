@@ -1,102 +1,209 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import type { ScanResponse } from "@qre/contracts";
+import {
+  useParams,
+} from "react-router-dom";
+
+import type {
+  ScanResponse,
+} from "@qre/contracts";
 
 import ScanAccessRouter from "../components/scan/ScanAccessRouter";
-import { getScan } from "../lib/api";
+
+import {
+  getScan,
+} from "../lib/api";
 
 
-export default function Scan() {
 
-  const { slug } = useParams();
+/**
+ * =====================================================
+ * QRE SCAN PORTAL
+ * =====================================================
+ *
+ * Frontend responsibility:
+ *
+ * SCAN
+ *  ↓
+ * PRESENCE SIGNAL
+ *  ↓
+ * API
+ *  ↓
+ * SCAN ENGINE
+ *  ↓
+ * EXPERIENCE RUNTIME
+ *  ↓
+ * PLAYER
+ *
+ * NO EXPERIENCE BUILDING
+ * NO STORY COMPILATION
+ * NO BUSINESS LOGIC
+ *
+ * The engine decides meaning.
+ * The frontend reveals it.
+ *
+ * =====================================================
+ */
+
+
+
+type GeoPresence = {
+
+  lat:number;
+
+  lng:number;
+
+  accuracy?:number;
+
+};
+
+
+
+
+async function captureGeoPresence():
+
+Promise<GeoPresence | undefined> {
+
+
+  if(
+    !("geolocation" in navigator)
+  ){
+
+    return undefined;
+
+  }
+
+
+
+  return await new Promise(
+    (resolve)=>{
+
+
+      navigator.geolocation.getCurrentPosition(
+
+        (position)=>{
+
+
+          resolve({
+
+            lat:
+              position.coords.latitude,
+
+
+            lng:
+              position.coords.longitude,
+
+
+            accuracy:
+              position.coords.accuracy,
+
+
+          });
+
+
+        },
+
+
+        ()=>{
+
+
+          console.warn(
+            "QRE geo presence unavailable"
+          );
+
+
+          resolve(undefined);
+
+
+        },
+
+
+        {
+
+          enableHighAccuracy:true,
+
+          timeout:5000,
+
+          maximumAge:0,
+
+        }
+
+      );
+
+
+    }
+
+  );
+
+}
+
+
+
+
+export default function Scan(){
+
+
+  const {
+    slug,
+  } = useParams();
+
 
 
   const [
-    data,
-    setData
+    experience,
+    setExperience,
   ] = useState<ScanResponse | null>(null);
 
 
 
-  useEffect(() => {
-
-    async function load() {
-
-      if (!slug) return;
-
-
-      try {
-
-
-        let geo:
-          | {
-              lat:number;
-              lng:number;
-              accuracy?:number;
-            }
-          | undefined;
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
 
 
-        if ("geolocation" in navigator) {
-
-
-          geo =
-            await new Promise((resolve) => {
-
-
-              navigator.geolocation.getCurrentPosition(
-
-                (position) => {
-
-                  resolve({
-
-                    lat:
-                      position.coords.latitude,
-
-                    lng:
-                      position.coords.longitude,
-
-                    accuracy:
-                      position.coords.accuracy,
-
-                  });
-
-                },
-
-
-                () => {
-
-                  console.warn(
-                    "GPS unavailable"
-                  );
-
-                  resolve(undefined);
-
-                },
-
-
-                {
-
-                  enableHighAccuracy:true,
-
-                  timeout:5000,
-
-                  maximumAge:0,
-
-                }
-
-              );
-
-
-            });
-
-        }
+  const [
+    error,
+    setError,
+  ] = useState<string | null>(null);
 
 
 
-        const json =
+
+
+  useEffect(()=>{
+
+
+    async function bootExperience(){
+
+
+      if(!slug){
+
+        setError(
+          "Missing experience identity"
+        );
+
+        setLoading(false);
+
+        return;
+
+      }
+
+
+
+      try{
+
+
+        const geo =
+          await captureGeoPresence();
+
+
+
+        const response =
           await getScan(
             slug,
             geo
@@ -105,100 +212,207 @@ export default function Scan() {
 
 
         console.log(
-          "🔥 FULL EXPERIENCE RESPONSE",
+          "🔥 QRE EXPERIENCE BOOT",
           {
 
             access:
-              json.access,
+              response.access,
 
-            geo,
-
-            moments:
-              json.moments,
-
-            geoStory:
-              json.geoStory,
-
-            cinematicScenes:
-              json.cinematicScenes,
-
-            memorySnapshot:
-              json.memorySnapshot,
-
-            receipt:
-              json.receipt,
 
             asset:
-              json.asset,
+              response.asset,
+
+
+            geoStory:
+              response.geoStory,
+
+
+            cinematicScenes:
+              response.cinematicScenes,
+
+
+            memorySnapshot:
+              response.memorySnapshot,
+
+
+            receipt:
+              response.receipt,
+
 
           }
         );
 
 
 
-        setData(json);
+        setExperience(
+          response
+        );
 
 
 
-      } catch(error) {
+      }
+
+      catch(error){
 
 
         console.error(
-          "🔥 SCAN PAGE FAILED",
+          "🔥 QRE SCAN FAILED",
           error
+        );
+
+
+
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Experience failed to load"
         );
 
 
       }
 
+      finally{
+
+
+        setLoading(false);
+
+
+      }
+
+
     }
 
 
-    load();
+
+    bootExperience();
 
 
-  },[slug]);
+  },[
+    slug
+  ]);
 
 
 
 
 
-  if (!data) {
+
+  if(loading){
+
 
     return (
 
       <div
+
         style={{
 
-          height:"100vh",
+          minHeight:"100vh",
 
           display:"grid",
 
           placeItems:"center",
 
-          background:"#050505",
+          background:"#030305",
 
-          color:"white",
+          color:"rgba(255,255,255,.7)",
+
+          letterSpacing:4,
+
+          fontSize:14,
 
         }}
+
       >
 
-        Loading experience...
+        AWAKENING EXPERIENCE...
 
       </div>
 
     );
 
+
   }
+
+
+
+
+
+
+  if(error || !experience){
+
+
+    return (
+
+      <div
+
+        style={{
+
+          minHeight:"100vh",
+
+          display:"grid",
+
+          placeItems:"center",
+
+          background:"#030305",
+
+          color:"#fff",
+
+          textAlign:"center",
+
+          padding:40,
+
+        }}
+
+      >
+
+        <div>
+
+          <h2>
+            Experience unavailable
+          </h2>
+
+
+          <p
+
+            style={{
+
+              opacity:.6,
+
+            }}
+
+          >
+
+            {error ?? "Unknown scan error"}
+
+          </p>
+
+
+        </div>
+
+
+      </div>
+
+    );
+
+
+  }
+
+
+
+
+
+
 
   return (
 
     <ScanAccessRouter
 
-      data={data}
+      data={
+        experience
+      }
 
     />
 
   );
+
 
 }

@@ -102,9 +102,3 @@ export * from "./flow.js";
 export * from "./experience/index.js";
 
 
-// Media
-
-export type {
-  MediaAsset,
-  MediaType,
-} from "./media.js";

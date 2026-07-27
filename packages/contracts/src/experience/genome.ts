@@ -11,6 +11,18 @@
  *
  * This is the creative DNA.
  *
+ * Genome understands:
+ *
+ * - intent
+ * - meaning
+ * - emotion
+ * - world
+ * - audience
+ * - relationships
+ * - identity
+ * - transformation
+ * - sensory direction
+ *
  * NO DATABASE
  * NO EXECUTION
  * NO INDUSTRY TEMPLATE LOGIC
@@ -22,41 +34,74 @@
 import type {
   ExperienceEntities,
 } from "./entityExtractor.js";
-
+import type {
+  ObjectGenome,
+} from "./objectGenome.js";
 
 import type {
   ExperienceMeaning,
 } from "./meaning.js";
 
+
 import type {
   SemanticInterpretation,
 } from "./semantic.js";
 
+/**
+ * =====================================================
+ * EXPERIENCE ENERGY
+ * =====================================================
+ */
+
 export type ExperienceEnergy =
+
   | "calm"
   | "intense"
   | "playful"
   | "mysterious"
   | "emotional"
-  | "premium";
+  | "premium"
+  | "cinematic"
+  | "transformative";
 
 
+
+/**
+ * =====================================================
+ * EXPERIENCE PACING
+ * =====================================================
+ */
 
 export type ExperiencePacing =
+
   | "slow"
   | "medium"
   | "fast";
 
 
 
+/**
+ * =====================================================
+ * EXPERIENCE SOCIAL MODE
+ * =====================================================
+ */
+
 export type ExperienceSocial =
+
   | "solo"
   | "shared"
   | "community";
 
 
 
+/**
+ * =====================================================
+ * EXPERIENCE JOURNEY
+ * =====================================================
+ */
+
 export type ExperienceJourney =
+
   | "arrival"
   | "discovery"
   | "reveal"
@@ -68,11 +113,19 @@ export type ExperienceJourney =
 
 
 
+/**
+ * =====================================================
+ * EXPERIENCE RELATIONSHIP
+ * =====================================================
+ */
+
 export type ExperienceRelationship = {
 
   subject:string;
 
+
   predicate:
+
     | "met_at"
     | "belongs_to"
     | "created_by"
@@ -84,7 +137,9 @@ export type ExperienceRelationship = {
     | "shared_with"
     | "located_at";
 
+
   object:string;
+
 
   confidence:number;
 
@@ -93,60 +148,48 @@ export type ExperienceRelationship = {
 
 
 
+/**
+ * =====================================================
+ * EXPERIENCE GENOME
+ *
+ * Creative DNA
+ *
+ * =====================================================
+ */
 
 export interface ExperienceGenome {
-
-
   /**
-   * What the human wants
+   * Human desire / request
    */
-  intent:string[];
+  intent:
 
-  /**
-   * Semantic Cortex interpretation
-   *
-   * The meaning extracted before creation.
-   */
+    string[];
   interpretation:
+
     SemanticInterpretation;
+  archetypes:
 
-  /**
-   * Psychological archetypes
-   *
-   * Example:
-   * discovery
-   * memory
-   * connection
-   */
-  archetypes:string[];
+    string[];
 
+  themes:
 
+    string[];
 
-  /**
-   * Semantic themes
-   */
-  themes:string[];
+  emotions:
+
+    string[];
+
+  meaning:
+
+    ExperienceMeaning;
 
 
 
   /**
-   * Emotional signals
-   */
-  emotions:string[];
-
-
-
-  /**
-   * Deep meaning
-   */
-  meaning:ExperienceMeaning;
-
-
-
-  /**
-   * Extracted relationships
+   * Semantic graph
    */
   relationships:
+
     ExperienceRelationship[];
 
 
@@ -155,72 +198,179 @@ export interface ExperienceGenome {
    * Experience personality
    */
   energy:
+
     ExperienceEnergy;
 
 
 
   pacing:
+
     ExperiencePacing;
 
 
 
   social:
+
     ExperienceSocial;
 
 
 
+  /**
+   * Human journey
+   */
   journey:
+
     ExperienceJourney[];
 
 
 
   /**
-   * Creative dimensions
+   * Experience physics
    */
-  discovery:number;
+  discovery:
 
-  memory:number;
+    number;
 
-  commerce:number;
 
-  immersion:number;
+  memory:
 
-  interaction:number;
+    number;
 
-  replay:number;
+
+  commerce:
+
+    number;
+
+
+  immersion:
+
+    number;
+
+
+  interaction:
+
+    number;
+
+
+  replay:
+
+    number;
+
 
 
 
   /**
-   * Extracted reality
+   * Reality extraction
    */
   entities:
+
     ExperienceEntities;
 
+    /**
+   * =====================================================
+   * OBJECT IDENTITY LAYER
+   *
+   * Everything is an object.
+   *
+   * =====================================================
+   */
 
+  object:
 
+    ObjectGenome;
+
+  /**
+   * World/environment possibilities
+   */
   environments:
-    string[];
 
-
-
-  audience:
     string[];
 
 
 
   /**
-   * Creative DNA
-   *
-   * NOT industry.
+   * Audience categories
+   */
+  audience:
+
+    string[];
+
+
+
+  /**
+   * Creative fingerprint
    *
    * Example:
    * cinematic
-   * premium
    * mysterious
    * adaptive
    */
   dna:
+
+    string[];
+
+
+
+  /**
+   * =====================================================
+   * ADVANCED CREATIVE DIMENSIONS
+   * =====================================================
+   */
+
+
+  /**
+   * Emotional voice
+   *
+   * Example:
+   * dark
+   * hopeful
+   * nostalgic
+   */
+  tone:
+
+    string[];
+
+
+
+  /**
+   * Sensory identity
+   *
+   * Example:
+   * visual
+   * sound
+   * atmosphere
+   */
+  sensory:
+
+    string[];
+
+
+
+  /**
+   * Symbolic language
+   *
+   * Example:
+   * raven
+   * ocean
+   * fire
+   * rebirth
+   */
+  symbols:
+
+    string[];
+
+
+
+  /**
+   * Human change produced
+   *
+   * Example:
+   * inspire
+   * heal
+   * connect
+   */
+  transformation:
+
     string[];
 
 

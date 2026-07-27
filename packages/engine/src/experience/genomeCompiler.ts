@@ -44,6 +44,9 @@ import {
   buildExperienceGenome,
 } from "../compiler/semantic/genome/genomeBuilder.js";
 
+import type {
+  CinematicScene,
+} from "@qre/contracts";
 
 
 import {
@@ -67,14 +70,6 @@ import {
 } from "../moments/flowToMoments.js";
 
 
-import {
-
-  cinematicRuntime,
-
-} from "../runtime/cinematic/cinematicRuntime.js";
-
-
-
 import type {
 
   ExperienceBlueprint,
@@ -82,9 +77,8 @@ import type {
   ExperienceModel,
   ExperienceWorld,
   FlowStep,
-  Moment,
-  CinematicScene,
-
+  ExperienceMoment,
+  
 } from "@qre/contracts";
 
 
@@ -107,47 +101,31 @@ export type CompiledGenomeExperience = {
   genome:
     ExperienceGenome;
 
-
-
+   cinematicScenes: CinematicScene[];
+  
+  
   world:
     ExperienceWorld;
-
-
 
   blueprint:
     ExperienceBlueprint;
 
-
-
   flowSteps:
     FlowStep[];
-
-
+  
+  
 
   moments:
-    Moment[];
-
-
-
-  cinematicScenes:
-    CinematicScene[];
-
-
+    ExperienceMoment[];
 
   model:
     ExperienceModel;
 
-
-
   title:
     string;
 
-
-
   estimatedDuration:
     number;
-
-
 
   momentCount:
     number;
@@ -231,13 +209,6 @@ return {
 }
 
 
-
-
-
-
-
-
-
 /**
  * =====================================================
  * MAIN COMPILER
@@ -263,11 +234,6 @@ if(
 
 }
 
-
-
-
-
-
 /**
  * =====================================================
  *
@@ -278,18 +244,11 @@ if(
  * =====================================================
  */
 
-
 const genome =
 
   buildExperienceGenome(
     prompt
   );
-
-
-
-
-
-
 
 /**
  * =====================================================
@@ -308,12 +267,6 @@ const world =
     genome
   );
 
-
-
-
-
-
-
 /**
  * =====================================================
  *
@@ -330,13 +283,6 @@ const blueprint =
   composeBlueprint(
     genome
   );
-
-
-
-
-
-
-
 
 /**
  * =====================================================
@@ -355,13 +301,6 @@ const flowSteps =
     blueprint
   );
 
-
-
-
-
-
-
-
 /**
  * =====================================================
  *
@@ -379,13 +318,6 @@ const moments =
     flowSteps
   );
 
-
-
-
-
-
-
-
 /**
  * =====================================================
  *
@@ -395,24 +327,7 @@ const moments =
  *
  * =====================================================
  */
-
-
-const cinematicScenes =
-
-  cinematicRuntime({
-
-    moments,
-
-    geoStory:null,
-
-  });
-
-
-
-
-
-
-
+  const cinematicScenes: CinematicScene[] = [];
 
 /**
  * =====================================================
@@ -421,7 +336,6 @@ const cinematicScenes =
  *
  * =====================================================
  */
-
 
 const model =
 
@@ -432,13 +346,6 @@ const model =
     prompt
 
   );
-
-
-
-
-
-
-
 
 return {
 
@@ -457,25 +364,18 @@ return {
 
   moments,
 
-
-  cinematicScenes,
+   cinematicScenes,
 
 
   model,
-
-
 
   title:
 
     blueprint.title,
 
-
-
   estimatedDuration:
 
     moments.length * 5,
-
-
 
   momentCount:
 

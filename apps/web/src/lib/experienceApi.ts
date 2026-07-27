@@ -3,38 +3,38 @@ import {
 } from "./api";
 
 import type {
-  Experience,
+  CompiledExperience
 } from "@qre/contracts";
 
 
 type ExperienceIntent = {
-  prompt: string;
+  prompt:string;
 };
 
 
 export async function compileExperience(
-  intent: ExperienceIntent
-): Promise<Experience> {
+ intent:ExperienceIntent
+):Promise<CompiledExperience>{
 
 
-  const result =
-    await apiPost(
-      "/experience/compile",
-      {
-        prompt:intent.prompt,
-      }
-    );
+ const result =
+ await apiPost(
+   "/experience/compile",
+   {
+     prompt:intent.prompt
+   }
+ );
 
 
-  if(!result?.experience){
+ if(!result?.experience){
 
-    throw new Error(
-      "Invalid compiler response"
-    );
+   throw new Error(
+     "Invalid compiler response"
+   );
 
-  }
+ }
 
 
-  return result.experience as Experience;
+ return result.experience as CompiledExperience;
 
 }

@@ -1,6 +1,9 @@
 import bcrypt from "bcrypt";
 import { db } from "@qre/db";
 
+process.env.DATABASE_URL =
+  "postgresql://neondb_owner:npg_JKwUN2Ofh9xE@ep-soft-darkness-akeoiula-pooler.c-3.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+
 async function main() {
   const password = await bcrypt.hash("test123", 10);
 

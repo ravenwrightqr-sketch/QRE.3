@@ -24,33 +24,56 @@ import type {
   ExperienceMoment,
   ExperienceType,
   ExperienceTone,
+  ExperienceComponent,
 
 } from "@qre/contracts";
 
 
 
-import {
-
-  compileScenes,
-
-} from "./sceneCompiler.js";
 
 
-
-import type {
-
-  ExperienceScene,
-
-} from "./experienceTypes.js";
-
-
-
-
+/**
+ * =====================================================
+ * EXPERIENCE TYPE RESOLUTION
+ * =====================================================
+ */
 
 
 function resolveType(
+ genome:ExperienceGenome
+):ExperienceType {
 
-): ExperienceType {
+
+if(
+ genome.commerce >= .7
+){
+
+return "business" as ExperienceType;
+
+}
+
+
+
+if(
+ genome.memory >= .7 ||
+ genome.replay >= .7
+){
+
+return "story" as ExperienceType;
+
+}
+
+
+
+if(
+ genome.discovery >= .7 ||
+ genome.journey.length > 0
+){
+
+return "journey" as ExperienceType;
+
+}
+
 
 
 return "story" as ExperienceType;
@@ -63,6 +86,13 @@ return "story" as ExperienceType;
 
 
 
+/**
+ * =====================================================
+ * TONE RESOLUTION
+ * =====================================================
+ */
+
+
 function resolveTone(
 
  genome:ExperienceGenome
@@ -70,11 +100,28 @@ function resolveTone(
 ):readonly ExperienceTone[] {
 
 
-return genome.emotions.map(
+return [
 
- emotion => emotion as ExperienceTone
+...new Set(
 
-);
+[
+
+...genome.emotions,
+
+...genome.tone
+
+]
+
+.filter(Boolean)
+
+.map(
+ emotion =>
+ emotion as ExperienceTone
+)
+
+)
+
+];
 
 
 }
@@ -84,13 +131,239 @@ return genome.emotions.map(
 
 
 
-function sceneToMoment(
+/**
+ * =====================================================
+ * COMPONENT RESOLUTION
+ * =====================================================
+ */
 
- scene:ExperienceScene,
 
- index:number
+function resolveComponent(
 
-):ExperienceMoment {
+ type:string
+
+):ExperienceComponent {
+
+
+switch(type){
+
+
+case "memory":
+
+return "memory" as ExperienceComponent;
+
+
+
+case "social":
+
+return "social" as ExperienceComponent;
+
+
+
+case "location":
+
+return "geo_memory" as ExperienceComponent;
+
+
+
+case "discovery":
+
+return "story" as ExperienceComponent;
+
+
+
+case "reward":
+
+return "reward" as ExperienceComponent;
+
+
+
+default:
+
+return "story" as ExperienceComponent;
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MOMENT TYPE INTELLIGENCE
+ * =====================================================
+ */
+
+
+function resolveMomentType(
+
+ moment:any,
+
+ genome:ExperienceGenome
+
+):string {
+
+
+const title =
+
+(moment.title ?? "")
+.toLowerCase();
+
+
+
+const emotions =
+
+moment.emotions ?? [];
+
+
+
+
+
+if(
+ emotions.includes(
+  "nostalgia"
+ )
+ ||
+ emotions.includes(
+  "memory"
+ )
+){
+
+return "memory";
+
+}
+
+
+
+
+if(
+ emotions.includes(
+  "connection"
+ )
+ ||
+ title.includes(
+  "encounter"
+ )
+){
+
+return "social";
+
+}
+
+
+
+
+
+if(
+ title.includes(
+  "adventure"
+ )
+ ||
+ genome.discovery >= .7
+ &&
+ title.includes(
+  "discover"
+ )
+){
+
+return "discovery";
+
+}
+
+
+
+
+
+if(
+ title.includes(
+  "origin"
+ )
+){
+
+return "arrival";
+
+}
+
+
+
+
+
+if(
+ title.includes(
+  "legacy"
+ )
+){
+
+return "legacy";
+
+}
+
+
+
+
+
+return "story";
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ * MOMENT COMPILER
+ * =====================================================
+ */
+ function compileMoments(
+
+  genome:ExperienceGenome
+
+):ExperienceMoment[] {
+
+
+const moments =
+
+  genome.object?.moments
+
+  ??
+
+  [];
+
+
+
+
+
+return moments.map(
+
+(moment,index)=>{
+
+
+const type =
+
+resolveMomentType(
+
+  moment,
+
+  genome
+
+);
+
+
+
 
 
 return {
@@ -98,68 +371,112 @@ return {
 
 type:
 
- scene.type as any,
+  type as ExperienceMoment["type"],
+
+
 
 
 
 component:
 
- "story",
+resolveComponent(
+
+  type
+
+),
 
 
 
 title:
 
- scene.title,
-
-
+  moment.title,
 
 subtitle:
 
- undefined,
-
+  undefined,
 
 
 description:
 
- scene.emotionalIntent,
-
-
+  moment.description,
 
 editable:
 
- true,
-
+  true,
 
 
 demo:
 
- false,
-
+  false,
 
 
 order:
 
- index,
+  index,
+
+
+payload:{
+
+
+  text:
+
+    moment.description,
+
+
+  data:{
+
+
+    /**
+     * Compiler intelligence.
+     *
+     * Not runtime.
+     * Not player-facing.
+     *
+     * Stored for future AI learning.
+     */
+
+    objectMoment:
+
+      moment,
 
 
 
-payload: {
+    emotions:
+
+      moment.emotions ?? [],
 
 
-  sceneId:
 
-    scene.id,
+    significance:
 
-
-  atmosphere:
-
-    scene.atmosphere,
+      moment.significance ?? .5,
 
 
-  duration:
 
-    scene.duration
+    genomeSignals:{
+
+
+      themes:
+
+        genome.themes ?? [],
+
+
+
+      dna:
+
+        genome.dna ?? [],
+
+
+
+      environment:
+
+        genome.environments ?? []
+
+
+    }
+
+
+  }
 
 
 }
@@ -171,30 +488,55 @@ payload: {
 }
 
 
-
-
-
-
-
-function compileMoments(
-
- genome:ExperienceGenome
-
-):ExperienceMoment[] {
-
-
-return compileScenes(
- genome
-).map(
-
-(scene,index)=>
-
-sceneToMoment(
- scene,
- index
-)
-
 );
+
+
+}
+
+
+/**
+ * =====================================================
+ * TITLE GENERATOR
+ * =====================================================
+ */
+
+
+function createTitle(
+
+genome:ExperienceGenome
+
+):string {
+
+
+if(
+
+genome.meaning?.why?.length
+
+){
+
+return genome.meaning.why.join(
+" • "
+);
+
+}
+
+
+
+if(
+
+genome.themes?.length
+
+){
+
+return genome.themes.join(
+" • "
+);
+
+}
+
+
+
+return "QRE Experience";
 
 
 }
@@ -206,6 +548,15 @@ sceneToMoment(
 
 
 
+/**
+ * =====================================================
+ * PUBLIC COMPILER
+ *
+ * Genome → Blueprint
+ *
+ * =====================================================
+ */
+
 
 export function compileExperience(
 
@@ -214,8 +565,9 @@ export function compileExperience(
 ):ExperienceBlueprint {
 
 
+
 if(
- !genome
+!genome
 ){
 
 throw new Error(
@@ -228,66 +580,87 @@ throw new Error(
 
 
 
+
+
+
 return {
 
 
 title:
 
- genome.meaning.why,
+createTitle(
+ genome
+),
+
+
 
 
 
 type:
 
- resolveType(),
+resolveType(
+ genome
+),
+
+
 
 
 
 tone:
 
- resolveTone(
-  genome
- ),
+resolveTone(
+ genome
+),
+
+
 
 
 
 meaning:
 
- genome.meaning,
+genome.meaning,
+
+
 
 
 
 moments:
 
- compileMoments(
-  genome
- ),
+compileMoments(
+ genome
+),
+
+
 
 
 
 entities:
 
- genome.entities,
+genome.entities,
+
+
 
 
 
 metadata:{
 
 
+
 archetypes:
 
- genome.archetypes,
+genome.archetypes ?? [],
+
 
 
 themes:
 
- genome.themes,
+genome.themes ?? [],
+
 
 
 dna:
 
- genome.dna
-
+genome.dna ?? []
 
 }
 

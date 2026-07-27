@@ -9,31 +9,50 @@
  *       ↓
  * Interpretation
  *
- * The Cortex asks:
+ * The Semantic Cortex asks:
  *
  * "What is this experience really about?"
  *
- * NO DATABASE
- * NO RUNTIME
- * NO INDUSTRY LOGIC
+ * RESPONSIBILITIES:
+ *
+ * - extract human meaning
+ * - identify emotional gravity
+ * - classify experience archetype
+ * - create semantic interpretation
+ *
+ * DOES NOT KNOW:
+ *
+ * - database
+ * - products
+ * - industries
+ * - runtime execution
  *
  * =====================================================
  */
 
 
 import type {
+
   ExperienceUnderstanding
+
 } from "../models/understandingTypes.js";
 
+
 import type {
-  SemanticInterpretation,
+
+  SemanticInterpretation
+
 } from "@qre/contracts";
+
+
+
 
 
 export type CortexInterpretation = {
 
+
   /**
-   * The human reason behind
+   * Human reason behind
    * the experience.
    */
   coreNeed:string;
@@ -48,7 +67,7 @@ export type CortexInterpretation = {
 
 
   /**
-   * Emotional journey.
+   * Emotional progression.
    */
   emotionalArc:string[];
 
@@ -62,225 +81,293 @@ export type CortexInterpretation = {
 
 
   /**
-   * Creative gravity.
+   * Dominant meaning force.
    */
   gravity:string;
 
 
 
   /**
-   * Why this should exist.
+   * Why this experience exists.
    */
   purpose:string;
 
 
 };
 
+
+
+
+
+
+
 export function toSemanticInterpretation(
 
- cortex:CortexInterpretation
+  cortex:CortexInterpretation
 
 ):SemanticInterpretation {
 
 
-return {
-
-  intent:[
-    cortex.coreNeed
-  ],
+  return {
 
 
-  concepts:[
-    cortex.archetype,
-    cortex.gravity
-  ],
+    intent:[
+
+      cortex.coreNeed
+
+    ],
 
 
-  emotionalSignals:
-    cortex.emotionalArc,
+
+    concepts:[
+
+      cortex.archetype,
+
+      cortex.gravity
+
+    ],
 
 
-  worldSignals:[
-    cortex.world
-  ],
+
+    emotionalSignals:
+
+      cortex.emotionalArc,
 
 
-  cognitiveSignals:[
-    cortex.purpose
-  ],
+
+    worldSignals:[
+
+      cortex.world
+
+    ],
 
 
-  confidence:
-    1
 
-};
+    cognitiveSignals:[
+
+      cortex.purpose
+
+    ],
+
+
+
+    confidence:
+
+      1
+
+
+  };
 
 
 }
+
+
+
+
+
 
 
 
 
 export function buildSemanticCortex(
 
- understanding:ExperienceUnderstanding
+  understanding:ExperienceUnderstanding
 
 ):CortexInterpretation {
 
 
+  const emotions =
 
-const emotions =
- understanding.emotions.emotions;
+    understanding.emotions.emotions;
 
 
 
-const memory =
- understanding.memory;
+  const memory =
 
+    understanding.memory;
 
 
-const themes =
- understanding.world.domains;
 
+  let archetype =
 
+    "discovery";
 
 
 
-let archetype =
- "discovery";
+  let coreNeed =
 
+    "exploration";
 
 
-let coreNeed =
- "exploration";
 
+  let gravity =
 
+    "experience";
 
-let gravity =
- "experience";
 
 
+  let purpose =
 
-let purpose =
- "create meaningful interaction";
+    "create meaningful interaction";
 
 
 
 
 
-/**
- * MEMORY EXPERIENCES
- */
 
-if(
- memory.timeCapsule ||
- memory.replay ||
- memory.legacy
-){
+  /**
+   * MEMORY EXPERIENCES
+   */
 
- archetype =
- "legacy_memory";
+  if (
 
+    memory.timeCapsule
 
- coreNeed =
- "preserve_connection";
+    ||
 
+    memory.replay
 
- gravity =
- "memory";
+    ||
 
+    memory.legacy
 
- purpose =
- "turn moments into lasting stories";
+  ) {
 
-}
 
+    archetype =
 
+      "legacy_memory";
 
 
 
+    coreNeed =
 
-/**
- * EMOTIONAL EXPERIENCES
- */
+      "preserve_connection";
 
-if(
- emotions.includes("love")
- ||
- emotions.includes("nostalgia")
-){
 
- gravity =
- "human_connection";
 
-}
+    gravity =
 
+      "memory";
 
 
 
+    purpose =
 
-/**
- * SOCIAL EXPERIENCES
- */
+      "turn moments into lasting stories";
 
-if(
- understanding.audience.social === "community"
-){
 
- coreNeed =
- "shared_belonging";
+  }
 
- gravity =
- "collective_experience";
 
-}
 
 
 
 
 
+  /**
+   * EMOTIONAL EXPERIENCES
+   */
 
+  if (
 
-return {
+    emotions.includes("love")
 
+    ||
 
-coreNeed,
+    emotions.includes("nostalgia")
 
+  ) {
 
-archetype,
 
+    gravity =
 
-emotionalArc:
+      "human_connection";
 
 
-[
+  }
 
- "arrival",
 
- "discovery",
 
- "connection",
 
- "reflection"
 
-],
 
 
+  /**
+   * COMMUNITY EXPERIENCES
+   */
 
-world:
+  if (
 
- understanding.world.primary,
+    understanding.audience.social ===
 
+      "community"
 
+  ) {
 
-gravity,
 
+    coreNeed =
 
-purpose
+      "shared_belonging";
 
 
-};
 
+    gravity =
+
+      "collective_experience";
+
+
+  }
+
+
+
+
+
+
+
+  return {
+
+
+    coreNeed,
+
+
+    archetype,
+
+
+
+    emotionalArc:[
+
+
+      "arrival",
+
+
+      "discovery",
+
+
+      "connection",
+
+
+      "reflection"
+
+
+    ],
+
+
+
+    world:
+
+      understanding.world.primary,
+
+
+
+    gravity,
+
+
+
+    purpose
+
+
+  };
 
 
 }

@@ -35,10 +35,6 @@ import {
   compileExperience,
 } from "./experienceService.js";
 
-
-
-
-
 export type CreateExperienceInput = {
 
 
@@ -54,16 +50,11 @@ export type CreateExperienceInput = {
 };
 
 
-
-
-
-
 export async function createExperience(
 
   input:CreateExperienceInput
 
 ){
-
 
 
   if(
@@ -77,10 +68,6 @@ export async function createExperience(
 
   }
 
-
-
-
-
   /**
    * ===================================================
    *
@@ -91,19 +78,20 @@ export async function createExperience(
    * ===================================================
    */
 
-
   const compiled =
 
     await compileExperience(
       input.prompt.trim()
     );
-
-
-
-
-
-
-
+   console.log(
+  "🔥 COMPILER OUTPUT FLOW STEPS",
+  JSON.stringify(
+    compiled.flowSteps,
+    null,
+    2
+  )
+);
+   
   /**
    * ===================================================
    *
@@ -137,12 +125,6 @@ export async function createExperience(
       },
 
     });
-
-
-
-
-
-
 
 
   /**
@@ -234,12 +216,6 @@ export async function createExperience(
     });
 
 
-
-
-
-
-
-
   /**
    * ===================================================
    *
@@ -278,11 +254,31 @@ export async function createExperience(
 
 
   });
+   /**
+ * ===================================================
+ *
+ * 5. LINK ASSET → FLOW
+ *
+ * Runtime ownership bridge.
+ *
+ * AssetFlow is the canonical relationship.
+ *
+ * ===================================================
+ */
 
+  await db.assetFlow.create({
 
+  data:{
 
+    assetId:
+      input.assetId,
 
+    flowId:
+      flow.id,
 
+  },
+
+  });
 
 
 

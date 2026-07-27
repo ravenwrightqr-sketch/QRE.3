@@ -43,7 +43,7 @@ export {
 
 
 export type {
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
 
 
@@ -81,7 +81,7 @@ export * from "./geo/geoStoryCompiler.js";
 
 export {
   cinematicRuntime,
-} from "./runtime/cinematic/cinematicRuntime.js";
+} from "./runtime/cinematicRuntime.js";
 
 
 
@@ -94,7 +94,6 @@ export {
 
 export * from "./moments/flowToMoments.js";
 
-export * from "./moments/toMoment.js";
 
 
 
@@ -227,3 +226,11 @@ export type {
   UserRepository,
 
 } from "./repositories/index.js";
+
+
+export {
+  directExperience,
+  experienceDirector,
+} from "./experience/director.js";
+
+export * from "./cinematic/index.js";

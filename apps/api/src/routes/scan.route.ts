@@ -220,7 +220,7 @@ export async function scanRoute(
           result.sessionId,
 
         moments:
-          result.moments?.length ?? 0,
+          result.cinematicScenes?.length ?? 0,
 
         scenes:
           result.cinematicScenes?.length ?? 0,

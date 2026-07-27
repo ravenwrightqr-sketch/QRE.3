@@ -1,37 +1,54 @@
-import type { Moment } from "@qre/contracts";
+import type {
+  ExperienceMoment,
+} from "@qre/contracts";
+
+
 
 export type PaymentResult = {
-  url: string;
+
+  url:string;
+
 };
 
-export function createPaymentLink(
-  action: Moment
-): PaymentResult {
 
-  if(action.type !== "action"){
+
+
+
+export function createPaymentLink(
+
+  moment:ExperienceMoment
+
+):PaymentResult {
+
+
+
+  if(
+    moment.type !== "payment"
+  ){
+
     throw new Error(
-      "Invalid moment type"
+      "Invalid experience moment type"
     );
+
   }
 
-
-  const url =
-    typeof action.meta?.url === "string"
-      ? action.meta.url
-      : null;
-
+   const url =
+  moment.payload.interaction?.url;
 
   if(!url){
 
     throw new Error(
-      "Missing payment url in meta"
+      "Missing payment url"
     );
 
   }
 
 
   return {
+
     url,
+
   };
+
 
 }

@@ -5,17 +5,11 @@
  *
  * Experience Genome
  *        ↓
+ * Object Moments
+ *        ↓
  * Experience Blueprint
  *
- * Genome is creative source of truth.
- *
- * Responsibilities:
- *
- * - Resolve industry
- * - Resolve goal
- * - Resolve experience type
- * - Generate moments
- * - Preserve meaning
+ * Pure composition layer.
  *
  * NO DATABASE
  * NO PRISMA
@@ -28,17 +22,26 @@
 import type {
 
   ExperienceBlueprint,
+
   ExperienceGenome,
+
   ExperienceMoment,
-  ExperienceMomentType,
+
   ExperienceComponent,
+
   ExperienceTone,
+
   ExperienceGoal,
+
   ExperienceType,
+
   ExperienceIndustry,
 
-} from "@qre/contracts";
+  ExperienceMomentType,
 
+  ObjectMoment,
+
+} from "@qre/contracts";
 
 
 
@@ -55,288 +58,183 @@ import type {
 
 function resolveComponent(
 
-  type:ExperienceMomentType
+  type: ExperienceMomentType
 
-):ExperienceComponent {
-
-
-const components:
-
-Partial<Record<
-ExperienceMomentType,
-ExperienceComponent
->>
-
-= {
+): ExperienceComponent {
 
 
-welcome:
-"hero",
+
+  const components:
+
+  Partial<
+
+    Record<
+
+      ExperienceMomentType,
+
+      ExperienceComponent
+
+    >
+
+  > = {
 
 
-introduction:
-"hero",
+    welcome:
+      "hero",
 
 
-story:
-"story",
+    introduction:
+      "hero",
 
 
-memory:
-"memory",
+    story:
+      "story",
 
 
-photos:
-"gallery",
+    memory:
+      "memory",
 
 
-video:
-"video",
+    timeline:
+      "timeline",
 
 
-location:
-"geo_memory",
+    photos:
+      "gallery",
 
 
-product:
-"product",
+    video:
+      "video",
 
 
-reward:
-"reward",
+    soundtrack:
+      "video",
 
 
-share:
-"social",
+    location:
+      "geo_memory",
 
 
-profile:
-"profile",
+    venue:
+      "geo_memory",
 
 
-timeline:
-"timeline",
+    product:
+      "product",
 
 
-followup:
-"cta",
+    reward:
+      "reward",
 
 
-care_instructions:
-"education",
+    share:
+      "social",
 
 
-};
+    social:
+      "social",
 
 
-return (
+    profile:
+      "profile",
 
-components[type]
 
-??
+    cta:
+      "cta",
 
-"cta"
 
-) as ExperienceComponent;
+    care_instructions:
+      "education",
+
+
+    education:
+      "education",
+
+
+    reveal:
+      "story",
+
+
+    legacy:
+      "timeline",
+
+
+    future:
+      "story",
+
+
+  };
+
+
+
+  return (
+
+    components[type]
+
+    ??
+
+    "story"
+
+  ) as ExperienceComponent;
 
 
 }
-
-
-
-
-
-
-
 
 
 
 /**
  * =====================================================
- * PURPOSE INTELLIGENCE
- * =====================================================
- */
-
-
-function resolveGoal(
-
- genome:ExperienceGenome
-
-):ExperienceGoal {
-
-
-if(
- genome.commerce >= .7
-){
- return "conversion";
-}
-
-
-if(
- genome.memory >= .7
-){
- return "memory";
-}
-
-
-if(
- genome.themes.includes(
-   "connection"
- )
-){
- return "storytelling";
-}
-
-
-if(
- genome.themes.includes(
-   "education"
- )
-){
- return "educate";
-}
-
-
-if(
- genome.replay >= .7
-){
- return "retention";
-}
-
-
-return "welcome";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * INDUSTRY INTELLIGENCE
- * =====================================================
- */
-
-
-function resolveIndustry(
-
- genome:ExperienceGenome
-
-):ExperienceIndustry {
-
-
-if(
- genome.commerce >= .7
-){
- return "business";
-}
-
-
-
-if(
- genome.memory >= .7
-){
-
- return "personal";
-
-}
-
-
-
-if(
- genome.themes.includes(
- "relationship"
- )
-){
-
- return "relationship";
-
-}
-
-
-
-if(
- genome.themes.includes(
- "culture"
- )
-){
-
- return "event";
-
-}
-
-
-
-return "generic";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * EXPERIENCE SHAPE
+ * EXPERIENCE TYPE
  * =====================================================
  */
 
 
 function resolveType(
 
- genome:ExperienceGenome
+ genome: ExperienceGenome
 
 ):ExperienceType {
 
 
-if(
- genome.memory >= .7
-){
 
- return "story";
+  if(
+
+    genome.memory >= .7
+
+  ){
+
+    return "story";
+
+  }
+
+  if(
+
+    genome.discovery >= .7
+
+  ){
+
+    return "journey";
+
+  }
+
+
+
+  if(
+
+    genome.commerce >= .7
+
+  ){
+
+    return "business";
+
+  }
+
+
+
+  return "journey";
+
 
 }
-
-
-
-if(
- genome.commerce >= .7
-){
-
- return "business";
-
-}
-
-
-
-if(
- genome.journey.includes(
- "transformation"
- )
-){
-
- return "journey";
-
-}
-
-
-
-return "journey";
-
-
-}
-
 
 
 
@@ -361,153 +259,55 @@ function createTitle(
 
 
 
-if(
- genome.meaning.memories.length
-){
+  if(
 
- return genome.meaning.memories[0];
+    genome.meaning.memories.length
 
-}
+  ){
 
+    return genome.meaning.memories[0];
 
+  }
 
-if(
- genome.meaning.desiredFeeling.length
-){
 
- return `${genome.meaning.desiredFeeling[0]} Experience`;
 
-}
+  if(
 
+    genome.entities.people.length
 
+  ){
 
-if(
- genome.entities.places.length
-){
+    return `${genome.entities.people[0]} Story`;
 
- return `${genome.entities.places[0]} Experience`;
+  }
 
-}
 
 
+  if(
 
-if(
- genome.entities.people.length
-){
+    genome.entities.places.length
 
- return `${genome.entities.people[0]} Story`;
+  ){
 
-}
+    return `${genome.entities.places[0]} Experience`;
 
+  }
 
 
-return "QRE Experience";
 
+  if(
 
-}
+    genome.meaning.desiredFeeling.length
 
+  ){
 
+    return `${genome.meaning.desiredFeeling[0]} Experience`;
 
+  }
 
 
 
-
-
-
-/**
- * =====================================================
- * MOMENT GENERATION
- * =====================================================
- */
-
-
-function generateMomentSequence(
-
- genome:ExperienceGenome
-
-):ExperienceMomentType[] {
-
-
-const moments =
-new Set<ExperienceMomentType>();
-
-
-
-moments.add(
-"welcome"
-);
-
-
-
-if(
- genome.memory >= .5
-){
-
- moments.add(
- "memory"
- );
-
-}
-
-
-
-if(
- genome.entities.places.length
-){
-
- moments.add(
- "location"
- );
-
-}
-
-
-
-if(
- genome.entities.products.length
-){
-
- moments.add(
- "product"
- );
-
-}
-
-
-
-if(
- genome.immersion >= .5
-){
-
- moments.add(
- "video"
- );
-
-}
-
-
-
-if(
- genome.interaction >= .5
-){
-
- moments.add(
- "story"
- );
-
-}
-
-
-
-moments.add(
-"followup"
-);
-
-
-
-return [
- ...moments
-];
+  return "QRE Experience";
 
 
 }
@@ -522,79 +322,178 @@ return [
 
 /**
  * =====================================================
- * BUILD MOMENT
+ *
+ * OBJECT MOMENT COMPILER
+ *
+ * Object Genome → Experience Moment
+ *
  * =====================================================
  */
 
 
 function buildMoment(
 
- type:ExperienceMomentType,
+  objectMoment:ObjectMoment,
 
- index:number,
+  index:number,
 
- genome:ExperienceGenome
+  genome:ExperienceGenome
 
 ):ExperienceMoment {
 
 
-return {
+
+  const typeMap:
+
+  Record<string,ExperienceMomentType> = {
 
 
-type,
+    Origin:
+      "introduction",
 
 
-component:
-resolveComponent(type),
+    "First Encounter":
+      "story",
 
 
-
-title:
-`${type} moment`,
-
+    "Memory Capture":
+      "memory",
 
 
-subtitle:
-genome.meaning.why,
+    Relationship:
+      "story",
 
 
-
-order:
-index,
-
+    "Place Experience":
+      "location",
 
 
-editable:true,
+    Legacy:
+      "legacy",
 
 
-
-demo:true,
-
-
-
-payload:{
+    Future:
+      "future",
 
 
-entities:
-genome.entities,
-
-
-relationships:
-genome.relationships,
-
-
-meaning:
-genome.meaning,
-
-
-genome,
+  };
 
 
 
-}
 
 
-};
+  const type:
+
+  ExperienceMomentType =
+
+    typeMap[objectMoment.title]
+
+    ??
+
+    "story";
+
+
+
+
+
+
+
+  return {
+
+
+    type,
+
+
+
+    component:
+
+      resolveComponent(type),
+
+
+
+    title:
+
+      objectMoment.title,
+
+
+
+    subtitle:
+
+      objectMoment.description,
+
+
+
+    description:
+
+      objectMoment.description,
+
+
+
+    order:
+
+      index,
+
+
+
+    editable:
+
+      true,
+
+
+
+    demo:
+
+      false,
+
+
+
+    payload:{
+
+
+      text:
+
+        objectMoment.description,
+
+
+
+      data:{
+
+
+        objectMoment,
+
+
+        meaning:
+
+          genome.meaning,
+
+
+        entities:
+
+          genome.entities,
+
+
+        relationships:
+
+          genome.relationships,
+
+
+        semanticDNA:
+
+          genome.dna,
+
+
+        symbols:
+
+          genome.symbols,
+
+
+      }
+
+
+    }
+
+
+  };
 
 
 }
@@ -609,7 +508,66 @@ genome,
 
 /**
  * =====================================================
- * PUBLIC COMPILER
+ *
+ * MOMENT PIPELINE
+ *
+ * =====================================================
+ */
+
+
+function compileMoments(
+
+ genome:ExperienceGenome
+
+):ExperienceMoment[] {
+
+
+
+  const moments:
+
+  ObjectMoment[] =
+
+    genome.object?.moments
+
+    ??
+
+    [];
+
+
+
+
+
+  return moments.map(
+
+    (moment,index)=>
+
+      buildMoment(
+
+        moment,
+
+        index,
+
+        genome
+
+      )
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * PUBLIC BLUEPRINT COMPOSER
  *
  * Genome → Blueprint
  *
@@ -625,81 +583,131 @@ export function composeBlueprint(
 
 
 
-const momentTypes =
-generateMomentSequence(
- genome
-);
+  if(!genome){
 
+    throw new Error(
 
+      "Cannot compose blueprint without genome"
 
-const moments =
-momentTypes.map(
+    );
 
-(type,index)=>
-
-buildMoment(
-
-type,
-
-index,
-
-genome
-
-)
-
-);
+  }
 
 
 
 
 
 
-const tone:
+  const moments =
 
-ExperienceTone[] =
-
-[
- genome.energy,
- ...genome.emotions
-]
-
-.filter(
-
-(value):value is ExperienceTone =>
-
-typeof value === "string"
-
-);
+    compileMoments(genome);
 
 
-return {
-
-title:
-createTitle(
- genome
-),
 
 
-type:
-resolveType(
- genome
-),
 
 
-tone,
+
+  const tone:
+
+  ExperienceTone[] =
+
+  [
+
+    genome.energy,
+
+    ...genome.emotions,
+
+    ...genome.tone
+
+  ]
+
+  .filter(
+
+    (value):value is ExperienceTone =>
+
+      typeof value === "string"
+
+  );
 
 
-meaning:
-genome.meaning,
 
 
-moments,
 
 
-entities:
-genome.entities,
 
 
-};
+
+  return {
+
+
+    title:
+
+      createTitle(genome),
+
+
+
+    type:
+
+      resolveType(genome),
+
+
+
+    tone:
+
+      [
+
+        ...new Set(tone)
+
+      ],
+
+
+
+    meaning:
+
+      genome.meaning,
+
+
+
+    moments,
+
+
+
+    entities:
+
+      genome.entities,
+
+   metadata:{
+
+
+  archetypes:
+
+    genome.archetypes,
+
+
+  themes:
+
+    genome.themes,
+
+
+  dna:
+
+    genome.dna,
+
 
 }
+
+
+  };
+
+
+}
+
+
+
+
+
+
+export const blueprintComposer =
+
+composeBlueprint;

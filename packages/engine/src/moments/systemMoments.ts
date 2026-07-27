@@ -1,12 +1,32 @@
+/**
+ * =====================================================
+ * QRE SYSTEM EXPERIENCE MOMENTS
+ * =====================================================
+ *
+ * Access state → ExperienceMoment
+ *
+ * NO DATABASE
+ * NO PRISMA
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
 import type {
   AccessState,
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
+
+
+
+
 
 
 export function systemMoments(
   state: AccessState
-): Moment[] {
+): ExperienceMoment[] {
+
 
 
   if (state === "UNLOCKED") {
@@ -16,19 +36,80 @@ export function systemMoments(
   }
 
 
+
+
   return [
+
     {
-      type: "system",
 
-      order: 0,
+      type:
+        "welcome",
 
-      text: "Demo experience",
 
-      meta: {
-        accessState: state,
+
+      component:
+        "hero",
+
+
+
+
+
+      title:
+        "Demo Experience",
+
+
+
+
+
+      subtitle:
+        "Preview mode",
+
+
+
+
+
+      description:
+        "Experience preview before unlock.",
+
+
+
+
+
+      editable:
+        false,
+
+
+
+
+
+      demo:
+        true,
+
+      order:
+        0,
+
+      payload:{
+
+        data:{
+
+
+          accessState:
+
+            state,
+
+          source:
+
+            "system_moment",
+
+
+        }
+
+
       },
 
+
     },
+
   ];
 
 }

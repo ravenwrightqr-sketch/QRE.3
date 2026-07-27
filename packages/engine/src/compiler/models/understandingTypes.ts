@@ -3,15 +3,13 @@
  * QRE EXPERIENCE UNDERSTANDING TYPES
  * =====================================================
  *
- * The unified human understanding object.
+ * Semantic brain output.
  *
  * Prompt
  *   ↓
  * Understanding Kernel
  *   ↓
  * Genome / World / Blueprint
- *
- * This is the semantic brain output.
  *
  * NO DATABASE
  * NO RUNTIME
@@ -22,20 +20,11 @@
 
 
 import type {
-
   ExperienceIntent,
-
   ExperienceEntities,
-
   ExperienceRelationship,
-
   WorldDomain,
-
 } from "@qre/contracts";
-
-
-
-
 
 
 
@@ -48,54 +37,17 @@ import type {
  * =====================================================
  */
 
-
 export type EmotionUnderstanding = {
 
+  emotions:string[];
 
-  emotions:
+  atmosphere:string[];
 
-    string[];
+  intensity:number;
 
-
-
-
-  atmosphere:
-
-    string[];
-
-
-
-
-  intensity:
-
-    number;
-
-
-
-
-  /**
-   * Emotional direction
-   *
-   * Example:
-   *
-   * nostalgia
-   * excitement
-   * wonder
-   *
-   */
-
-  primary?:
-
-    string;
-
-
+  primary?:string;
 
 };
-
-
-
-
-
 
 
 
@@ -105,107 +57,34 @@ export type EmotionUnderstanding = {
  * =====================================================
  * MEMORY UNDERSTANDING
  *
- * Time dimension of experience.
+ * Time dimension.
  *
  * =====================================================
  */
 
-
 export type MemoryUnderstanding = {
 
+  past:boolean;
 
-  /**
-   * Past events
-   */
+  present:boolean;
 
-  past:
+  future:boolean;
 
-    boolean;
+  legacy:boolean;
 
+  replay:boolean;
 
-
-
-  /**
-   * Current experience
-   */
-
-  present:
-
-    boolean;
-
-
-
-
-  /**
-   * Future preservation
-   */
-
-  future:
-
-    boolean;
-
-
-
-
-  /**
-   * Legacy / inheritance
-   */
-
-  legacy:
-
-    boolean;
-
-
-
-
-  /**
-   * Replay behavior
-   */
-
-  replay:
-
-    boolean;
-
-
-
-
-  /**
-   * Time capsule behavior
-   */
-
-  timeCapsule:
-
-    boolean;
-
-
-
-
-  /**
-   * Memory category
-   */
+  timeCapsule:boolean;
 
   mode?:
-
     | "archive"
-
     | "replay"
-
     | "timeline"
-
     | "legacy"
-
     | "time_capsule"
-
     | "none";
 
-
-
 };
-
-
-
-
-
 
 
 
@@ -215,57 +94,32 @@ export type MemoryUnderstanding = {
  * =====================================================
  * AUDIENCE UNDERSTANDING
  *
- * Who is this experience for?
+ * Who experiences this?
  *
  * =====================================================
  */
 
-
 export type AudienceUnderstanding = {
 
-
-  types:
-
-    string[];
-
-
-
+  types:string[];
 
   social:
-
     | "solo"
-
     | "shared"
-
     | "community";
 
 
+  roles:string[];
 
+  relationship:string[];
 
-  /**
-   * More specific audience identity.
-   *
-   * Examples:
-   *
-   * creator
-   * fan
-   * family
-   * collector
-   *
-   */
+  behaviors:string[];
 
-  primary?:
+  expectations:string[];
 
-    string;
-
-
+  primary?:string;
 
 };
-
-
-
-
-
 
 
 
@@ -277,54 +131,25 @@ export type AudienceUnderstanding = {
  *
  * Creative fingerprint.
  *
- * Not templates.
- *
  * =====================================================
  */
 
-
 export type DNAUnderstanding = {
 
-
-  traits:
-
-    string[];
+  traits:string[];
 
 
+  style?:{
 
+    atmosphere:string[];
 
-  /**
-   * Visual / emotional style
-   */
+    visual:string[];
 
-  style?: {
-
-
-    atmosphere:
-
-      string[];
-
-
-    visual:
-
-      string[];
-
-
-    interaction:
-
-      string[];
-
+    interaction:string[];
 
   };
 
-
-
 };
-
-
-
-
-
 
 
 
@@ -333,28 +158,14 @@ export type DNAUnderstanding = {
 /**
  * =====================================================
  * WORLD UNDERSTANDING
- *
- * Possible emotional universes.
- *
  * =====================================================
  */
 
-
 export type WorldScore = {
 
+  domain:WorldDomain;
 
-  domain:
-
-    WorldDomain;
-
-
-
-
-  confidence:
-
-    number;
-
-
+  confidence:number;
 
 };
 
@@ -362,21 +173,13 @@ export type WorldScore = {
 
 export type WorldUnderstanding = {
 
- domains:
-    WorldDomain[];
+  domains:WorldDomain[];
 
- primary:
-    WorldDomain;
+  primary:WorldDomain;
 
- confidence:
-    number;
+  confidence:number;
 
 };
-
-
-
-
-
 
 
 
@@ -391,64 +194,23 @@ export type WorldUnderstanding = {
  * =====================================================
  */
 
-
 export type UnderstandingScore = {
 
+  semantic:number;
 
-  semantic:
+  entity:number;
 
-    number;
+  relationship:number;
 
+  emotional:number;
 
+  memory:number;
 
+  world:number;
 
-  entity:
+  dna:number;
 
-    number;
-
-
-
-
-  relationship:
-
-    number;
-
-
-
-
-  emotional:
-
-    number;
-
-
-
-
-  memory:
-
-    number;
-
-
-
-
-  world:
-
-    number;
-
-
-
-
-  dna:
-
-    number;
-
-
-
-
-  overall:
-
-    number;
-
-
+  overall:number;
 
 };
 
@@ -456,6 +218,76 @@ export type UnderstandingScore = {
 
 
 
+/**
+ * =====================================================
+ * HUMAN DESIRE UNDERSTANDING
+ *
+ * What does the human actually want?
+ *
+ * =====================================================
+ */
+
+export type HumanDesireUnderstanding = {
+
+  desires:string[];
+
+  motivations:string[];
+
+  goals:string[];
+
+  fears:string[];
+
+  aspirations:string[];
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * SENSORY UNDERSTANDING
+ *
+ * How should the experience be perceived?
+ *
+ * =====================================================
+ */
+
+export type SensoryUnderstanding = {
+
+  visual:string[];
+
+  audio:string[];
+
+  physical:string[];
+
+  environmental:string[];
+
+};
+
+
+
+
+
+/**
+ * =====================================================
+ * CREATION POTENTIAL UNDERSTANDING
+ *
+ * Possibility space before creation.
+ *
+ * =====================================================
+ */
+
+export type CreationPotentialUnderstanding = {
+
+  possibilities:string[];
+
+  constraints:string[];
+
+  opportunities:string[];
+
+};
 
 
 
@@ -465,11 +297,10 @@ export type UnderstandingScore = {
  * =====================================================
  * EXPERIENCE UNDERSTANDING
  *
- * The complete semantic brain output.
+ * Complete semantic output.
  *
  * =====================================================
  */
-
 
 export type ExperienceUnderstanding = {
 
@@ -477,131 +308,122 @@ export type ExperienceUnderstanding = {
   /**
    * Original human input
    */
-
-  prompt:
-
-    string;
-
-
+  prompt:string;
 
 
 
   /**
-   * Intent layer
+   * Intent intelligence
    */
-
   intent:
 
     ExperienceIntent[];
 
 
 
-
-
   /**
    * Reality extraction
    */
-
   entities:
 
     ExperienceEntities;
 
 
 
-
-
   /**
-   * Semantic graph
+   * Semantic relationships
    */
-
   relationships:
 
     ExperienceRelationship[];
 
 
 
-
-
   /**
    * Emotional intelligence
    */
-
   emotions:
 
     EmotionUnderstanding;
 
 
 
-
-
   /**
-   * Time / memory intelligence
+   * Memory intelligence
    */
-
   memory:
 
     MemoryUnderstanding;
 
 
 
-
-
   /**
    * Audience intelligence
    */
-
   audience:
 
     AudienceUnderstanding;
 
 
 
-
-
   /**
    * World intelligence
    */
-
   world:
 
     WorldUnderstanding;
 
 
 
-
-
   /**
    * Creative fingerprint
    */
-
   dna:
 
     DNAUnderstanding;
 
 
 
+  /**
+   * Human desire intelligence
+   */
+  desire:
+
+    HumanDesireUnderstanding;
+
 
 
   /**
-   * Confidence breakdown
+   * Sensory intelligence
    */
+  sensory:
 
+    SensoryUnderstanding;
+
+
+
+  /**
+   * Creation possibility space
+   */
+  potential:
+
+    CreationPotentialUnderstanding;
+
+
+
+  /**
+   * Confidence scoring
+   */
   scores:
 
     UnderstandingScore;
 
 
 
-
-
   /**
    * Global confidence
    */
-
-  confidence:
-
-    number;
-
+  confidence:number;
 
 
 };

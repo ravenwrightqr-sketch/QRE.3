@@ -5,7 +5,7 @@ import type {
 import type {
   CinematicScene,
   GeoStory,
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
 
 
@@ -18,7 +18,6 @@ type StoryInput = {
 
   userId?:string|null;
 
-
   recipient?:{
 
     email?:string;
@@ -27,8 +26,7 @@ type StoryInput = {
 
   };
 
-
-  moments:Moment[];
+  moments:ExperienceMoment[];
 
   geoStory:GeoStory|null;
 

@@ -15,40 +15,9 @@ import {
   apiPost,
 } from "../../lib/api";
 
-type CompilerResult = {
-
-  id?: string;
-
-  experienceName?: string;
-
-  assetName?: string;
-
-  flowName?: string;
-
-  description?: string;
-
-  flowId?: string;
-
-  assetId?: string;
-
-  title?: string;
-
-  industry?: string;
-
-  blueprint?: unknown;
-
-  flowSteps?: unknown[];
-
-  moments?: unknown[];
-
-  cinematicScenes?: unknown[];
-
-  estimatedDuration?: number;
-
-  momentCount?: number;
-
-};
-
+import type {
+  CompiledExperience,
+} from "@qre/contracts";
 
 
 
@@ -58,11 +27,11 @@ const buildStages = [
 
   "Designing the experience",
 
-  "Creating the moments",
+  "Creating experience structure",
 
-  "Building the sequence",
+  "Compiling cinematic layers",
 
-  "Preparing your builder",
+  "Preparing runtime",
 
 ];
 
@@ -78,28 +47,43 @@ export default function ExperienceComposer(){
 
 
 
-  const [prompt,setPrompt] =
-    useState("");
+  const [
+    prompt,
+    setPrompt
+  ] =
+  useState("");
 
 
 
-  const [loading,setLoading] =
-    useState(false);
+  const [
+    loading,
+    setLoading
+  ] =
+  useState(false);
 
 
 
-  const [stage,setStage] =
-    useState(0);
+  const [
+    stage,
+    setStage
+  ] =
+  useState(0);
 
 
 
-  const [error,setError] =
-    useState<string | null>(null);
+  const [
+    error,
+    setError
+  ] =
+  useState<string | null>(null);
 
 
 
-  const [result,setResult] =
-    useState<CompilerResult | null>(null);
+  const [
+    result,
+    setResult
+  ] =
+  useState<CompiledExperience | null>(null);
 
 
 
@@ -143,15 +127,13 @@ export default function ExperienceComposer(){
 
 
       setError(
-        "Describe the experience you want to build."
+        "Describe the experience you want to create."
       );
 
 
       return;
 
     }
-
-
 
 
 
@@ -206,7 +188,7 @@ export default function ExperienceComposer(){
           "/experience/compile",
 
           {
-            input:
+            prompt:
               prompt.trim(),
           }
 
@@ -214,7 +196,53 @@ export default function ExperienceComposer(){
 
 
 
-      setResult(response);
+
+      if(
+        !response?.experience
+      ){
+
+        throw new Error(
+          "Compiler returned no experience artifact."
+        );
+
+      }
+
+
+
+
+
+      const compiled:
+
+      CompiledExperience =
+
+      response.experience;
+
+
+
+      setResult(
+        compiled
+      );
+
+
+
+
+      sessionStorage.setItem(
+
+        "experienceDraft",
+
+        JSON.stringify({
+
+          compiledExperience:
+
+            compiled,
+
+
+          prompt,
+
+        })
+
+      );
+
 
 
 
@@ -228,7 +256,9 @@ export default function ExperienceComposer(){
 
         ? error.message
 
-        : "Experience generation failed."
+        :
+
+        "Experience compilation failed."
 
       );
 
@@ -260,6 +290,7 @@ export default function ExperienceComposer(){
 
 
 
+
   function openBuilder(){
 
 
@@ -271,35 +302,13 @@ export default function ExperienceComposer(){
 
 
 
-    /**
-     * Temporary editor handoff.
-     *
-     * Builder becomes the owner
-     * of saving.
-     */
-
-    sessionStorage.setItem(
-
-      "experienceDraft",
-
-      JSON.stringify({
-
-        ...result,
-
-        prompt,
-
-      })
-
-    );
-
-
-
     navigate(
       "/experience/builder"
     );
 
 
   }
+
 
 
 
@@ -318,16 +327,19 @@ export default function ExperienceComposer(){
 
 
 
+
       <p
         style={{
           opacity:.7
         }}
       >
 
-        Describe the experience.
-        The engine creates the structure.
+        Describe an idea.
+
+        The QRE engine compiles the living experience.
 
       </p>
+
 
 
 
@@ -342,24 +354,25 @@ export default function ExperienceComposer(){
         disabled={loading}
 
 
-        onChange={
-          e =>
+        onChange={e=>
+
           setPrompt(
             e.target.value
           )
+
         }
 
 
 
         placeholder={
-`Example:
 
-Create a luxury Airbnb welcome experience.
+`Create a cinematic memory experience.
 
-Welcome guests.
-Show WiFi instructions.
-Recommend restaurants.
-End with checkout details.`
+Example:
+
+A wedding guest tag that reveals the couple's story,
+photos, messages, timeline, and future memories.`
+
         }
 
 
@@ -386,12 +399,13 @@ End with checkout details.`
           border:
             "1px solid rgba(255,255,255,.15)",
 
-          fontSize:15
+          fontSize:15,
 
         }}
 
 
       />
+
 
 
 
@@ -404,7 +418,6 @@ End with checkout details.`
         }}
       >
 
-
         <NeonButton
 
           disabled={loading}
@@ -415,11 +428,15 @@ End with checkout details.`
 
           {
 
-            loading
+          loading
 
-            ? "⚡ Creating..."
+          ?
 
-            : "⚡ Create Experience"
+          "⚡ COMPILING..."
+
+          :
+
+          "⚡ CREATE EXPERIENCE"
 
           }
 
@@ -428,7 +445,6 @@ End with checkout details.`
 
 
       </div>
-
 
 
 
@@ -474,17 +490,15 @@ End with checkout details.`
 
                   {
 
-                    index <= stage
+                  index <= stage
 
-                    ? "✓"
+                  ? "✓"
 
-                    : "○"
+                  : "○"
 
                   }
 
-
                   {" "}
-
 
                   {item}
 
@@ -501,7 +515,6 @@ End with checkout details.`
         </div>
 
       }
-
 
 
 
@@ -537,8 +550,6 @@ End with checkout details.`
 
 
 
-
-
       {
         result &&
 
@@ -555,18 +566,20 @@ End with checkout details.`
 
 
           <h3>
-            🧱 Experience Generated
+            🧠 Experience Compiled
           </h3>
 
 
 
-         <h2>
-         {
-         result.experienceName ??
-         result.title ??
-         "Unnamed Experience"
-         }
-         </h2>
+          <h2>
+
+            {
+              result.title
+              ??
+              "Living Experience"
+            }
+
+          </h2>
 
 
 
@@ -579,20 +592,38 @@ End with checkout details.`
           >
 
             {
-
-              result.momentCount ??
-
-              result.moments?.length ??
-
+              result.experienceMoments?.length
+              ??
               0
-
             }
 
             {" "}
-            moments created
-
+            experience moments
 
           </p>
+
+
+
+
+
+          <p
+            style={{
+              opacity:.6
+            }}
+          >
+
+            {
+              result.cinematicScenes?.length
+              ??
+              0
+            }
+
+            {" "}
+            cinematic scenes
+
+          </p>
+
+
 
 
 
@@ -605,17 +636,16 @@ End with checkout details.`
 
           >
 
-            ▶ OPEN BUILDER & SAVE
+            ▶ OPEN EXPERIENCE BUILDER
 
           </NeonButton>
-
-
 
 
 
         </div>
 
       }
+
 
 
 

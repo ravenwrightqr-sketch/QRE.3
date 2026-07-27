@@ -1,4 +1,4 @@
-import type { Moment } from "./moment.js";
+
 import type {
   ExperienceTier,
 } from "./experience/tier.js";

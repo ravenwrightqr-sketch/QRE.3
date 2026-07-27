@@ -16,6 +16,15 @@ export * from "./world.js";
 export * from "./experienceIntent.js";
 export * from "./runtime.js";
 export * from "./genesis.js";
+export * from "./compiled.js";
 export type {
   SemanticInterpretation,
 } from "./semantic.js";
+
+
+export * from "./objectGenome.js";
+export * from "./composition.js";
+export * from "./theme.js";
+
+
+

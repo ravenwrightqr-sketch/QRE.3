@@ -138,14 +138,13 @@ setLoading(false);
 
 }
 
-
-
-
-
 async function awaken(){
 
 
 if(!prompt.trim()) return;
+
+
+console.log("PROMPT SENT TO COMPILER:", prompt);
 
 
 try{
