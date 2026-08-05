@@ -6,16 +6,16 @@ import type {
 
 import type {
  Cognition,
-} from "../cognition/types.js";
+} from "@qre/contracts"
 
 
 import type {
  Inquiry,
-} from "../origin/inquiry/types.js";
+} from "@qre/contracts"
 
 import type {
   ExperienceUnderstanding,
-} from "../models/understandingTypes.js";
+} from "@qre/contracts"
 
 
 

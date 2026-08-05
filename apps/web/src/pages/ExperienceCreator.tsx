@@ -307,7 +307,6 @@ event.target.value
 }
 
 
-
 placeholder="Create a cinematic living memory experience for a dog tag that tells someone's story..."
 
 

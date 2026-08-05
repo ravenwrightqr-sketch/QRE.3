@@ -6,4 +6,7 @@
 
 export * from "./creationTypes.js";
 
-export * from "./creationCompiler.js";
+export {
+  CreationArchitecture,
+  
+} from "./creationCompiler.js";

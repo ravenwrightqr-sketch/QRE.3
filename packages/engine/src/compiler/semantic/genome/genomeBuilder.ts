@@ -17,13 +17,12 @@
  *
  * =====================================================
  */
-
-
 import {
   understandExperience,
 } from "../../understanding/index.js";
-
-
+import {
+ buildMeaningContext,
+} from "../../meaningEngines/meaningContextEngine.js";
 import {
   buildSemanticCortex,
   toSemanticInterpretation,
@@ -45,79 +44,12 @@ import {
 
 import type {
   ExperienceGenome,
-  ExperienceMeaning,
   ExperienceRelationship,
   ExperienceJourney,
 } from "@qre/contracts";
-
-
-
-
-
-function buildMeaning(
- understanding:any
-):ExperienceMeaning {
-
-
- return {
-
-  why:
-[
- ...understanding.intent,
- ...understanding.desire.desires
-],
-
-
-  emotions:
-   understanding.emotions.emotions,
-
-
-  memories:
-   understanding.memory.timeCapsule
-   ?
-   [
-    "personal memory"
-   ]
-   :
-   [],
-
-
-  desiredFeeling:
-[
- ...understanding.emotions.emotions,
- ...understanding.desire.aspirations
-],
-
- transformation:
-
-understanding.desire.goals.length
-
-?
-
-understanding.desire.goals.join(
- ", "
-)
-
-:
-
-understanding.dna.traits?.includes(
- "transformation"
-)
-
-?
-
-"create change"
-
-:
-
-undefined
-
- };
-
-
-}
-
-
+import type {
+  ExperienceMeaningContext,
+} from "@qre/contracts";
 
 
 
@@ -162,8 +94,6 @@ function buildDNA(
   );
 
  }
-
-
 
 
  if(
@@ -211,12 +141,6 @@ function buildDNA(
  ];
 
 }
-
-
-
-
-
-
 
 
 
@@ -343,12 +267,6 @@ function resolveEnergy(
 
 
 
-
-
-
-
-
-
 function resolvePacing(
  understanding:any
 ){
@@ -381,12 +299,6 @@ function resolvePacing(
  return "medium";
 
 }
-
-
-
-
-
-
 
 
 
@@ -795,8 +707,9 @@ function buildTransformation(
 
 export function buildExperienceGenome(
 
- prompt:string
-
+prompt: string,
+understanding: any,
+meaningContext: ExperienceMeaningContext
 ):ExperienceGenome {
 
 
@@ -810,14 +723,6 @@ export function buildExperienceGenome(
   );
 
  }
-
-
-
- const understanding =
- understandExperience(
-  prompt
- );
-
 
 
  const awakenedConcepts =
@@ -885,14 +790,32 @@ export function buildExperienceGenome(
   prompt
  );
 
+const meaning = {
 
+ why:
+  meaningContext.meanings,
 
+ emotions:
+  understanding.emotions.emotions,
 
+ memories:
+  meaningContext.symbolicForces.includes(
+    "legacy"
+  )
+  ?
+  [
+   "preserved meaning"
+  ]
+  :
+  [],
 
- const meaning =
- buildMeaning(
-  understanding
- );
+ desiredFeeling:
+  meaningContext.humanDesires,
+
+ transformation:
+   meaningContext.narrativePotential
+
+};
 
 
 
@@ -940,7 +863,9 @@ export function buildExperienceGenome(
 
  return {
 
-
+     worlds:
+    understanding.world.domains
+    ?? [],
   intent:
    understanding.intent,
 
@@ -996,7 +921,13 @@ export function buildExperienceGenome(
    understanding
   ),
 
-  ...constellation.concepts
+  ...constellation.concepts,
+
+...meaningContext.symbolicForces,
+
+...meaningContext.humanDesires,
+
+...meaningContext.narrativePotential
 
  ])
 ],
@@ -1009,7 +940,7 @@ export function buildExperienceGenome(
 
 
   themes:
-   understanding.world.domains,
+   meaningContext.themes,
 
 
 
@@ -1136,11 +1067,7 @@ export function buildExperienceGenome(
 
  };
 
-
 }
-
-
-
 
 
 export const genomeBuilder =

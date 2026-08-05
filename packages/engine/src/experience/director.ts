@@ -1,51 +1,55 @@
 /**
  * =====================================================
- * QRE EXPERIENCE DIRECTOR
+ * QRE EXPERIENCE DIRECTION EXTRACTOR
  * =====================================================
  *
  * Blueprint
  *      ↓
- * Creative Direction
- *      ↓
- * Cinematic Intent
+ * Experience Direction
  *
- * Decides:
  *
- * - emotional arc
- * - pacing
- * - atmosphere
- * - scene intention
+ * Extracts semantic creative signals.
  *
- * NO DATABASE
- * NO EXECUTION
- * NO PLAYER LOGIC
+ * Does not invent creative decisions.
  *
  * =====================================================
  */
+
+
 import type {
-  ExperienceBlueprint,
+
+ ExperienceBlueprint,
+
 } from "@qre/contracts";
 
 
 export type ExperienceDirection = {
 
-  title:string;
+title:string;
 
-  atmosphere:string[];
+atmosphere:string[];
 
-  pacing:string;
+pacing:string;
 
-  emotionalArc:{
-    phase:string;
-    emotion:string[];
-    intention:string;
-  }[];
+moments:{
+  index:number;
+  purpose:string;
+  meaning:string;
+}[];
 
-  sensory:string[];
+sensory:string[];
 
-  interactions:string[];
+interactions:string[];
+
+themes:string[];
+
+transformation:string[];
 
 };
+
+
+
+
 
 
 
@@ -56,9 +60,50 @@ export function directExperience(
 ):ExperienceDirection {
 
 
+
+const themes =
+
+ blueprint.metadata?.themes
+
+ ??
+
+ [];
+
+
+
+
+const dna =
+
+ blueprint.metadata?.dna
+
+ ??
+
+ [];
+
+
+
+
 const emotions =
+
  blueprint.tone
- ?? [];
+
+ ??
+
+ [];
+
+
+
+
+const transformation =
+
+ blueprint.meaning.desiredFeeling
+
+ ??
+
+ [];
+
+
+
 
 
 
@@ -74,117 +119,64 @@ title:
 atmosphere:
 
  [
+
   ...new Set([
-    ...emotions,
-    ...(blueprint.metadata?.dna ?? [])
+
+   ...themes,
+
+   ...dna,
+
+   ...emotions
+
   ])
+
  ],
+
 
 
 
 pacing:
 
- emotions.includes("cinematic")
+ "",
 
- ?
+moments:
 
- "slow reveal"
+ blueprint.moments.map(
 
- :
+  (moment,index)=>({
 
- "adaptive",
+    index,
 
+    purpose:
+      moment.type,
 
+    meaning:
+      moment.description ?? ""
 
-emotionalArc:
+  })
 
-
-[
-
- {
-  phase:"arrival",
-
-  emotion:[
-   emotions[0] ?? "curiosity"
-  ],
-
-  intention:
-   "introduce the participant into the experience"
- },
-
-
- {
-  phase:"discovery",
-
-  emotion:[
-   emotions[1] ?? "wonder"
-  ],
-
-  intention:
-   "reveal deeper meaning"
- },
-
-
- {
-  phase:"connection",
-
-  emotion:[
-   "connection"
-  ],
-
-  intention:
-   "create human interaction"
- },
-
-
- {
-  phase:"return",
-
-  emotion:[
-   "reflection"
-  ],
-
-  intention:
-   "leave lasting meaning"
- }
-
-],
-
-
+),
 
 sensory:
 
- blueprint.metadata?.dna
- ?.filter(
-  dna =>
-   dna.includes("visual") ||
-   dna.includes("audio") ||
-   dna.includes("cinematic")
- )
- ??
  [],
-
 
 
 interactions:
 
- [
+ [],
 
-  "explore",
 
-  "discover",
+themes,
 
-  "participate"
-
- ]
+transformation,
 
 
 };
 
-
 }
 
 
-
 export const experienceDirector =
+
 directExperience;

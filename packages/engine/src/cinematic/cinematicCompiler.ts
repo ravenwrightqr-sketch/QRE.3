@@ -6,21 +6,26 @@
  * Experience Blueprint
  *        +
  * Experience Direction
+ *        +
+ * Experience World
+ *        +
+ * Experience Moments
  *
  *        ↓
  *
- * Cinematic Scenes
+ * Cinematic Runtime Scenes
  *
  *
- * Converts emotional intent into
+ * Converts:
+ *
+ * meaning
+ * emotion
+ * world intelligence
+ * media references
+ *
+ * into:
+ *
  * player-ready cinematic instructions.
- *
- *
- * RESPONSIBILITIES:
- *
- * ✅ semantic → cinematic translation
- * ✅ player instruction generation
- * ✅ deterministic runtime output
  *
  *
  * DOES NOT:
@@ -37,11 +42,21 @@
 import type {
 
   CinematicScene,
+
   CinematicSceneType,
+
   SceneTransition,
+
   ExperienceBlueprint,
 
+  ExperienceWorld,
+
+  ExperienceMoment,
+
+  SceneMediaAsset,
+
 } from "@qre/contracts";
+
 
 
 import type {
@@ -56,94 +71,118 @@ import type {
 
 /**
  * =====================================================
- * SCENE TYPE RESOLUTION
  *
- * Converts meaning into presentation.
+ * SCENE TYPE RESOLUTION
  *
  * =====================================================
  */
 
 
 function resolveSceneType(
+
   momentType:string
+
 ):CinematicSceneType {
 
 
-  switch(momentType){
+switch(momentType){
 
 
-    case "welcome":
-    case "arrival":
-    case "introduction":
+case "welcome":
 
-      return "intro";
+case "arrival":
 
+case "introduction":
 
-    case "story":
-    case "love_story":
-    case "pet_story":
-    case "family":
-    case "friends":
-       return "emotion";
-    
+  return "intro";
 
 
 
-    case "memory":
-    case "favorite_memories":
-    case "highlights":
-    case "time_capsule":
+case "story":
 
-      return "memory";
+case "love_story":
 
+case "pet_story":
 
+case "family":
 
-    case "reveal":
-    case "milestone":
-    case "future":
+case "friends":
 
-      return "emotion";
+  return "emotion";
 
 
 
-    case "timeline":
-    case "legacy":
+case "memory":
 
-      return "timeline";
+case "favorite_memories":
 
+case "highlights":
 
+case "time_capsule":
 
-    case "completion":
-    case "offer":
-    case "booking":
-    case "payment":
-    case "reward":
-
-      return "cta";
+  return "memory";
 
 
 
-    case "location":
-    case "venue":
+case "timeline":
 
-      return "action";
+case "legacy":
 
-
-
-    case "video":
-    case "photos":
-    case "media":
-
-      return "system";
+  return "timeline";
 
 
 
-    default:
+case "reveal":
 
-      return "intro";
+case "milestone":
+
+case "future":
+
+  return "reveal";
 
 
-  }
+
+case "completion":
+
+case "offer":
+
+case "booking":
+
+case "payment":
+
+case "reward":
+
+case "cta":
+
+  return "cta";
+
+
+
+case "location":
+
+case "venue":
+
+  return "environment";
+
+
+
+case "video":
+
+case "photos":
+
+case "media":
+
+  return "system";
+
+
+
+default:
+
+  return "intro";
+
+
+}
+
 
 }
 
@@ -153,232 +192,428 @@ function resolveSceneType(
 
 /**
  * =====================================================
- * TRANSITION ENGINE
  *
- * Cinematic pacing rules.
+ * TRANSITION ENGINE
  *
  * =====================================================
  */
 
 
 function resolveTransition(
-  direction:ExperienceDirection
+
+  direction:ExperienceDirection,
+
+  world:ExperienceWorld
+
 ):SceneTransition {
 
 
-  if(
-    direction.pacing.includes("slow")
-  ){
+if(
 
-    return "cinematic";
+ world.signature.emotional.includes("nostalgia")
 
-  }
+ ||
 
+ world.signature.emotional.includes("love")
 
+){
 
-  if(
-    direction.atmosphere.includes(
-      "mysterious"
-    )
-  ){
+  return "cinematic";
 
-    return "fade";
-
-  }
+}
 
 
 
-  if(
-    direction.atmosphere.includes(
-      "dramatic"
-    )
-  ){
+if(
 
-    return "flash";
+ direction.pacing.includes("slow")
 
-  }
+){
+
+  return "cinematic";
+
+}
 
 
 
-  return "none";
+if(
+
+ direction.atmosphere.includes("mysterious")
+
+){
+
+  return "dissolve";
+
+}
+
+
+
+if(
+
+ direction.atmosphere.includes("dramatic")
+
+){
+
+  return "flash";
+
+}
+
+
+
+return "fade";
 
 
 }
 
 
+
+
+
 /**
  * =====================================================
- * VISUAL DNA
  *
- * Creates player rendering instructions.
+ * MEDIA BRIDGE
+ *
+ * ExperienceMoment
+ *        ↓
+ * CinematicScene.visual.assets
+ *
+ * Runtime references only.
+ *
+ * =====================================================
+ */
+
+
+function buildSceneAssets(
+
+  moment:ExperienceMoment
+
+):SceneMediaAsset[] {
+
+
+return (
+
+  moment.payload.media ?? []
+
+).map(
+
+media => ({
+
+
+  assetId:
+
+    media.id,
+
+
+  role:
+
+    media.type === "image"
+
+    ?
+
+    "image"
+
+
+    :
+
+
+    media.type === "video"
+
+    ?
+
+    "video"
+
+
+    :
+
+    "audio",
+
+
+})
+
+
+);
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * WORLD VISUAL COMPILER
  *
  * =====================================================
  */
 
 
 function buildVisual(
-  direction:ExperienceDirection
+
+ direction:ExperienceDirection,
+
+ world:ExperienceWorld,
+
+ moment:ExperienceMoment
+
 ){
 
 
-  return {
+return {
 
 
-    theme:
-
-      direction.atmosphere.includes(
-        "dark"
-      )
-
-      ? "dark" as const
-
-      :
-
-      direction.atmosphere.includes(
-        "glass"
-      )
-
-      ? "glass" as const
-
-      :
-
-      "cinematic" as const,
+theme:
 
 
+world.domain === "memory_world"
+
+?
+
+"memory" as const
 
 
-    animation:
+:
 
-      direction.pacing.includes(
-        "slow"
-      )
 
-      ?
+direction.atmosphere.includes("dark")
 
-      "cinematic_camera" as const
+?
 
-      :
+"dark" as const
 
-      direction.pacing.includes(
-        "journey"
-      )
 
-      ?
+:
 
-      "parallax" as const
 
-      :
+direction.atmosphere.includes("glass")
 
-      "none" as const,
+?
+
+"glass" as const
+
+
+:
+
+"cinematic" as const,
 
 
 
 
-    effects:
 
-      direction.atmosphere,
+animation:
 
 
-  };
+direction.pacing.includes("slow")
+
+?
+
+"cinematic_camera" as const
+
+
+:
+
+
+direction.pacing.includes("journey")
+
+?
+
+"parallax" as const
+
+
+:
+
+"none" as const,
+
+
+
+
+
+assets:
+
+buildSceneAssets(
+
+ moment
+
+),
+
+
+
+
+
+effects:
+
+[
+
+...world.signature.semantic,
+
+...world.signature.emotional,
+
+...world.signature.visual,
+
+...world.signature.sensory,
+
+...direction.atmosphere,
+
+moment.type,
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+),
+
+
+};
 
 
 }
 
 
 
+
+
+
+
 /**
  * =====================================================
- * AUDIO DNA
  *
- * Intent only.
- *
- * Media Engine resolves assets.
+ * AUDIO COMPILER
  *
  * =====================================================
  */
 
 
-function buildAudio(){
+function buildAudio(
+
+ world:ExperienceWorld
+
+){
 
 
-  return {
+return {
 
 
-    assetId:
-      "ambient-default",
+assetId:
 
-
-
-    type:
-      "ambient" as const,
-
-
-
-    volume:
-      0.7,
+"ambient-default",
 
 
 
-    autoplay:
-      true,
+type:
+
+"ambient" as const,
 
 
-  };
+
+volume:
+
+world.signature.emotional.includes("cinematic")
+
+?
+
+0.8
+
+:
+
+0.7,
+
+
+
+autoplay:
+
+true,
+
+
+
+mood:
+
+world.sensoryLanguage.join(", "),
+
+
+};
 
 
 }
 
+
+
+
+
+
+
 /**
  * =====================================================
- * PLAYBACK DNA
  *
- * Player optimization.
+ * PLAYBACK
  *
  * =====================================================
  */
 
 
-function buildPlayback(){
+function buildPlayback(
+
+ world:ExperienceWorld
+
+){
 
 
-  return {
+return {
 
 
-    duration:
-      8000,
+duration:
+
+world.signature.emotional.includes("nostalgia")
+
+?
+
+10000
+
+:
+
+8000,
 
 
 
-    preload:
-      true,
+preload:
+
+true,
 
 
 
-    autoplay:
-      true,
+autoplay:
+
+true,
 
 
 
-    skippable:
-      false,
+skippable:
+
+false,
 
 
-  };
+};
 
 
 }
 
+
+
+
+
+
+
 /**
  * =====================================================
- * BLUEPRINT
  *
- *        +
- *
- * DIRECTOR
- *
- *        ↓
- *
- * CINEMATIC RUNTIME
+ * CINEMATIC COMPILER
  *
  * =====================================================
  */
@@ -386,142 +621,201 @@ function buildPlayback(){
 
 export function compileCinematicScenes(
 
-  blueprint:ExperienceBlueprint,
+ blueprint:ExperienceBlueprint,
 
-  direction:ExperienceDirection
+ direction:ExperienceDirection,
+
+ world:ExperienceWorld
+
 
 ):CinematicScene[] {
 
 
-  return blueprint.moments.map(
 
-    (moment,index)=>{
+return blueprint.moments.map(
 
-
-      return {
-
-  /**
-   * Stable deterministic identity.
-   */
-  id:
-
-     `scene-${index}-${moment.order}`,
+(moment,index)=>{
 
 
-  /**
-   * Rendering category.
-   */
-  type:
-
-    resolveSceneType(
-      moment.type
-    ),
+return {
 
 
-   /**
-   * Resolved semantic layer.
-   *
-   * Complete ExperienceMoment.
-   *
-   * Compiler output is self-contained.
-   */
-     moment:
+id:
 
-    moment,
-
-
-  /**
-   * Playback ordering.
-   */
-  order:
-
-    index,
-
-
-
-        /**
-         * Transition.
-         */
-        transition:
-
-          resolveTransition(
-            direction
-          ),
-
-
-
-        /**
-         * Visual instructions.
-         */
-        visual:
-
-          buildVisual(
-            direction
-          ),
-
-
-
-        /**
-         * Audio instructions.
-         */
-        audio:
-
-          buildAudio(),
-
-
-
-        /**
-         * Runtime controls.
-         */
-        playback:
-
-          buildPlayback(),
+`scene-${index}-${moment.order}`,
 
 
 
 
-        /**
-         * Controlled runtime metadata.
-         */
-        meta:{
 
+type:
 
-          version:
-            "1.0",
+resolveSceneType(
 
+ moment.type
 
-
-          generated:
-            true,
+),
 
 
 
-          source:
-            "experience_compiler",
+
+
+moment,
 
 
 
-          tags:[
-
-            ...direction.atmosphere,
-
-            ...direction.pacing,
-
-          ],
 
 
-        },
+intent:{
+
+emotion:
+
+moment.payload.data?.["emotions"] as string[] | undefined,
 
 
-      };
+purpose:
+
+moment.description,
 
 
-    }
+},
 
-  );
+
+
+
+
+order:
+
+index,
+
+
+
+
+
+transition:
+
+resolveTransition(
+
+ direction,
+
+ world
+
+),
+
+
+
+
+
+visual:
+
+buildVisual(
+
+ direction,
+
+ world,
+
+ moment
+
+),
+
+
+
+
+
+audio:
+
+buildAudio(
+
+ world
+
+),
+
+
+
+
+
+playback:
+
+buildPlayback(
+
+ world
+
+),
+
+
+
+
+
+meta:{
+
+
+version:
+
+"2.0",
+
+
+generated:
+
+true,
+
+
+source:
+
+"experience_compiler",
+
+
+
+tags:
+
+[
+
+...world.signature.semantic,
+
+...world.signature.emotional,
+
+...direction.atmosphere,
+
+...(Array.isArray(direction.pacing)
+
+?
+
+direction.pacing
+
+:
+
+[direction.pacing]
+
+)
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+),
+
+
+
+},
+
+
+
+};
 
 
 }
+
+);
+
+
+}
+
+
 
 
 

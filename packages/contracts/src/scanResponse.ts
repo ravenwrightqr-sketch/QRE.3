@@ -14,8 +14,11 @@
 
 export type {
   Experience as ScanResponse,
-  ExperienceAccess as ScanAccess,
-  AssetSummary as ScanAsset,
+  RuntimeAsset as ScanAsset,
   ExperiencePlayerConfig as ScanPlayerConfig,
-  ExperienceMediaManifest as ScanMedia,
 } from "./experience/runtime.js";
+
+
+export type {
+  AccessState as ScanAccess,
+} from "./scan.js";

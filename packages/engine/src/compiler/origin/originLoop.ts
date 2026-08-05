@@ -20,9 +20,9 @@
 
 import {
 
-  buildWorldModel
+  buildBeginningModel
 
-} from "./worldModel.js";
+} from "./beginningModel.js";
 
 
 import {
@@ -81,7 +81,7 @@ export function runOriginLoop(
 
  const world =
 
- buildWorldModel(
+ buildBeginningModel(
   origin
  );
 

@@ -116,7 +116,34 @@ const intentRules: IntentRule[] = [
 
   },
 
+{
+  intent:"serve",
 
+  weight:1,
+
+  signals:[
+
+    "service",
+    "appointment",
+    "booking",
+    "repair",
+    "groom",
+    "grooming",
+    "clean",
+    "cleaning",
+    "care",
+    "consultation",
+    "therapy",
+    "treatment",
+    "maintenance",
+    "inspection",
+    "service receipt",
+    "invoice",
+    "customer"
+
+  ]
+
+},
 
 
   {

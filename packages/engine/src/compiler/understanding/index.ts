@@ -20,4 +20,4 @@ export {
 
 export type {
   ExperienceUnderstanding,
-} from "../models/understandingTypes.js";
+} from "@qre/contracts"

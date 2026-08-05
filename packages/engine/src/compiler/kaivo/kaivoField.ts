@@ -3,74 +3,136 @@
  * QRE KAIVO FIELD
  * =====================================================
  *
- * Meaning relationship lattice.
+ * Meaning Relationship Intelligence.
  *
- * REVIK discovers movement.
+ * REVIK:
+ * "How does something evolve?"
  *
- * KAIVO discovers resonance.
+ * KAIVO:
+ * "What gives it meaning?"
+ *
+ * Discovers:
+ *
+ * - relationship networks
+ * - emotional resonance
+ * - identity connections
+ * - memory bonds
+ * - symbolic meaning
+ * - meaning gravity
  *
  * NO DATABASE.
  * NO EXECUTION.
  *
  * =====================================================
  */
-
 import type {
+  CompilerMind,
   RevikField,
-} from "../revik/index.js";
+  KaivoField,
+  KaivoConnection,
+  KaivoMeaningCluster,
+  KaivoResonance,
+  MoverArc,
+  MoverTopology,
+} from "@qre/contracts";
 
-
-export interface KaivoConnection {
-
-  from:string;
-
-  to:string;
-
-  force:
-    | "bond"
-    | "memory"
-    | "growth"
-    | "identity"
-    | "legacy";
-
-  strength:number;
-
-}
+export type {
+  KaivoField,
+  KaivoConnection,
+  KaivoMeaningCluster,
+  KaivoResonance,
+} from "@qre/contracts";
 
 
 
-export interface KaivoField {
+function unique(
+ values:string[]
+){
 
+ return [
 
-  connections:
-    KaivoConnection[];
+  ...new Set(
 
+   values.filter(Boolean)
 
-  resonanceNodes:
-    string[];
+  )
 
-
-  coherence:
-    number;
+ ];
 
 }
 
 
+function determineForce(
 
-export function awakenKaivo(
+ value:string
 
- revik:RevikField
-
-):KaivoField {
-
+):KaivoConnection["force"] {
 
 
-const connections:KaivoConnection[] = [];
+if(
+ value.includes("memory")
+){
+
+ return "memory";
+
+}
+
+
+if(
+ value.includes("legacy")
+){
+
+ return "legacy";
+
+}
+
+
+if(
+ value.includes("identity")
+){
+
+ return "identity";
+
+}
+
+
+if(
+ value.includes("emotion")
+){
+
+ return "emotion";
+
+}
+
+
+if(
+ value.includes("symbol")
+){
+
+ return "symbol";
+
+}
+
+
+return "growth";
+
+
+}
+
+
+function buildConnections(
+
+ chains:string[][]
+
+):KaivoConnection[]{
+
+
+const connections:KaivoConnection[]=[];
 
 
 
 for(
- const chain of revik.evolutionChains
+ const chain of chains
 ){
 
 
@@ -83,31 +145,39 @@ for(
 
 connections.push({
 
- from:
-  chain[i],
 
- to:
-  chain[i + 1],
-
- force:
-
- chain[i + 1] === "legacy"
-
- ? "legacy"
-
- :
-
- chain[i + 1] === "memory"
-
- ? "memory"
-
- :
-
- "growth",
+from:
+ chain[i],
 
 
- strength:
- 1
+
+to:
+ chain[i + 1],
+
+
+
+force:
+
+ determineForce(
+
+  chain[i + 1]
+
+ ),
+
+
+
+strength:
+
+ Math.min(
+
+ 1,
+
+ (i + 1) /
+
+ chain.length
+
+ )
+
 
 });
 
@@ -119,33 +189,307 @@ connections.push({
 
 
 
+return connections;
+
+
+}
+
+
+function buildResonance(
+
+ connections:KaivoConnection[]
+
+):KaivoResonance[]{
+
+
+
+return connections.map(
+
+ connection => ({
+
+
+ node:
+
+  connection.to,
+
+
+
+ influence:
+
+  `${connection.from} influences ${connection.to}`,
+
+
+
+ weight:
+
+  connection.strength
+
+
+
+ })
+
+
+);
+
+
+}
+
+function buildMeaningClusters(
+
+ revik:RevikField
+
+):KaivoMeaningCluster[]{
+
+
+const clusters:KaivoMeaningCluster[]=[];
+
+
+
+if(
+ revik.identityShifts.length
+){
+
+clusters.push({
+
+ name:
+  "identity_transformation",
+
+
+ nodes:
+  revik.identityShifts,
+
+
+ intensity:
+  .9
+
+
+});
+
+
+}
+
+
+
+
+if(
+ revik.emotionalMovements.length
+){
+
+clusters.push({
+
+ name:
+  "emotional_journey",
+
+
+ nodes:
+  revik.emotionalMovements,
+
+
+ intensity:
+  .85
+
+
+});
+
+
+}
+
+
+if(
+ revik.futureStates.length
+){
+
+clusters.push({
+
+ name:
+  "future_reality",
+
+
+ nodes:
+  revik.futureStates,
+
+
+ intensity:
+  .8
+
+
+});
+
+
+}
+
+
+return clusters;
+
+}
+function buildMoverInfluence(
+
+ moverArc:MoverArc,
+
+ moverTopology:MoverTopology
+
+):string[] {
+
+
+return unique([
+
+ ...moverArc.identityShifts.map(
+
+  shift =>
+
+   `${shift.before} → ${shift.after}`
+
+ ),
+
+
+ ...moverTopology.dominantPath.map(
+
+  node =>
+
+   `transformation gravity: ${node}`
+
+ )
+
+]);
+
+
+}
+
+export function awakenKaivo(
+  mind: CompilerMind
+): KaivoField {
+
+  const revik = mind.revik;
+
+  if (!revik) {
+    throw new Error(
+      "CompilerMind.revik must exist before awakenKaivo()."
+    );
+  }
+
+
+  const moverArc = mind.moverArc;
+
+  if (!moverArc) {
+    throw new Error(
+      "CompilerMind.moverArc must exist before awakenKaivo()."
+    );
+  }
+
+
+  const moverTopology = mind.moverTopology;
+
+  if (!moverTopology) {
+    throw new Error(
+      "CompilerMind.moverTopology must exist before awakenKaivo()."
+    );
+  }
+
+const connections =
+
+ buildConnections(
+
+  revik.evolutionChains
+
+ );
+
+
 const resonanceNodes = [
 
  ...new Set(
 
- connections.flatMap(
+  connections.flatMap(
 
- c =>
+   connection => [
 
- [
-  c.from,
-  c.to
- ]
+    connection.from,
 
- )
+    connection.to
+
+   ]
+
+  )
 
  )
 
 ];
 
 
+const resonances =
+
+ buildResonance(
+
+  connections
+
+ );
+
+
+const meaningClusters =
+
+ buildMeaningClusters(
+
+  revik
+
+ );
+
+const dominantForce =
+
+
+connections.length
+
+
+?
+
+
+connections
+
+ .sort(
+
+  (a,b)=>
+
+   b.strength -
+
+   a.strength
+
+ )[0].force
+
+
+:
+
+
+"growth";
+
+const moverInfluence =
+
+ buildMoverInfluence(
+
+  moverArc,
+
+  moverTopology
+
+);
+
 
 return {
+
 
  connections,
 
 
  resonanceNodes,
+
+
+ resonances,
+
+
+ meaningClusters,
+
+
+ moverInfluence,
+
+
+ dominantForce,
+
 
 
  coherence:
@@ -154,11 +498,23 @@ return {
 
  1,
 
-  connections.length / 5
+ (
+
+  connections.length +
+
+  meaningClusters.length +
+
+  moverInfluence.length
 
  )
 
+ / 10
+
+ )
+
+
 };
+
 
 
 }

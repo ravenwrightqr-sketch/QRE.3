@@ -36,13 +36,13 @@ export type {
 
 
 export {
-  buildWorldModel,
-} from "./worldModel.js";
+  buildBeginningModel,
+} from "./beginningModel.js";
 
 
 export type {
-  WorldModel,
-} from "./worldModel.js";
+  BeginningModel,
+} from "./beginningModel.js";
 
 
 export {

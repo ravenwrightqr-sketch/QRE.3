@@ -5,8 +5,3 @@ export {
 } from "./cognition.js";
 
 
-export type {
-
-    Cognition
-
-} from "./types.js";

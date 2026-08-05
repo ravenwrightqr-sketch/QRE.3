@@ -1,29 +1,29 @@
 /**
  * =====================================================
- * QRE BLUEPRINT → FLOW COMPILER
+ * QRE BLUEPRINT → EXPERIENCE FLOW COMPILER
  * =====================================================
  *
  * Experience Blueprint
- *        ↓
- * Experience Director
- *        ↓
- * Creative Direction
  *        ↓
  * Runtime Flow Instructions
  *
  *
  * Responsibilities:
  *
- * - translate moments into flow steps
- * - attach creative intent
- * - preserve emotional direction
- * - preserve cinematic pacing
+ * - translate experience moments into runtime steps
+ * - preserve semantic meaning
+ * - preserve experience intent
+ * - preserve source payload
  *
  *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
- * NO PLAYER LOGIC
+ * Does NOT:
+ *
+ * ❌ create stories
+ * ❌ create emotional arcs
+ * ❌ invent creative direction
+ * ❌ access database
+ * ❌ execute runtime
+ * ❌ control player behavior
  *
  * =====================================================
  */
@@ -42,22 +42,15 @@ import type {
 } from "@qre/contracts";
 
 
-import {
-
-  experienceDirector,
-
-} from "./director.js";
-
-
-
-
 
 /**
  * =====================================================
  *
- * MOMENT → FLOW TYPE RESOLUTION
+ * MOMENT TYPE → FLOW TYPE
  *
- * Semantic conversion only.
+ * Minimal semantic translation.
+ *
+ * Runtime decides behavior.
  *
  * =====================================================
  */
@@ -65,26 +58,14 @@ import {
 
 function resolveFlowType(
 
-  momentType:ExperienceMomentType
+  momentType: ExperienceMomentType
 
-):FlowStepType {
-
+): FlowStepType {
 
 
 const mapping:
 
-Partial<
-
-Record<
-
-ExperienceMomentType,
-
-FlowStepType
-
->
-
-> = {
-
+Partial<Record<ExperienceMomentType, FlowStepType>> = {
 
 
 welcome:
@@ -93,10 +74,6 @@ welcome:
 
 introduction:
 "hero",
-
-
-story:
-"story",
 
 
 memory:
@@ -175,25 +152,27 @@ completion:
 "message",
 
 
-reveal:
-"story",
+milestone:
+"timeline",
 
 
 legacy:
-"story",
+"timeline",
 
 
 future:
 "story",
 
 
-milestone:
-"timeline",
+reveal:
+"story",
+
+
+story:
+"story",
 
 
 };
-
-
 
 
 return (
@@ -210,54 +189,12 @@ mapping[momentType]
 }
 
 
-
-
-
-
-
-
-
 /**
  * =====================================================
  *
- * DIRECTOR CONTEXT
+ * BLUEPRINT → FLOW
  *
- * Attaches creative intelligence.
- *
- * =====================================================
- */
-
-
-function buildDirectorContext(
-
- blueprint:ExperienceBlueprint
-
-){
-
-
-return experienceDirector(
-
- blueprint
-
-);
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * FLOW COMPILER
- *
- * Blueprint → FlowStep[]
+ * Pure semantic compilation.
  *
  * =====================================================
  */
@@ -265,48 +202,28 @@ return experienceDirector(
 
 export function blueprintToFlow(
 
+  blueprint: ExperienceBlueprint
 
-  blueprint:ExperienceBlueprint
-
-
-):FlowStep[] {
+): FlowStep[] {
 
 
 
 if(
 
-!blueprint ||
+  !blueprint ||
 
-!Array.isArray(
-
-blueprint.moments
-
-)
+  !Array.isArray(blueprint.moments)
 
 ){
 
-return [];
+  return [];
 
 }
 
 
 
 
-const direction =
-
-buildDirectorContext(
-
- blueprint
-
-);
-
-
-
-
-
-
 return blueprint.moments.map(
-
 
 (moment,index)=>(
 
@@ -314,28 +231,17 @@ return blueprint.moments.map(
 {
 
 
-/**
- * Stable readable runtime id
- */
-
 id:
 
-`experience-${moment.type}-${index}`,
+`experience-${index}-${moment.type}`,
 
 
-/**
- * Player ordering
- */
 
 order:
 
 index,
 
 
-
-/**
- * Runtime action type
- */
 
 type:
 
@@ -347,33 +253,11 @@ moment.type
 
 
 
-
 payload:{
 
 
 
-/**
- * =================================================
- * CREATIVE DIRECTION
- * =================================================
- */
-
-
-direction,
-
-
-
-
-
-/**
- * =================================================
- * EXPERIENCE MOMENT
- * =================================================
- */
-
-
 experience:{
-
 
 
 component:
@@ -381,11 +265,9 @@ component:
 moment.component,
 
 
-
 momentType:
 
 moment.type,
-
 
 
 title:
@@ -393,11 +275,9 @@ title:
 moment.title,
 
 
-
 subtitle:
 
 moment.subtitle,
-
 
 
 description:
@@ -405,11 +285,9 @@ description:
 moment.description,
 
 
-
 icon:
 
 moment.icon,
-
 
 
 animation:
@@ -417,11 +295,9 @@ animation:
 moment.animation,
 
 
-
 editable:
 
 moment.editable,
-
 
 
 demo:
@@ -429,84 +305,67 @@ demo:
 moment.demo,
 
 
-
 order:
 
 moment.order,
 
 
+},
+
+
+
+
+meaning:{
+
+
+purpose:
+
+moment.description
+
+??
+
+"",
+
+
+type:
+
+moment.type,
+
 
 },
 
 
 
 
+source:
 
-/**
- * =================================================
- * SOURCE PAYLOAD
- *
- * Preserve original semantic data.
- *
- * =================================================
- */
+moment.payload,
 
-
-...moment.payload,
-
-
-
-
-
-/**
- * =================================================
- * SCENE INTENT
- *
- * Future cinematic compiler consumes this.
- *
- * =================================================
- */
 
 
 intent:{
 
 
-
-phase:
-
-direction.emotionalArc[index]?.phase
-
-??
+type:
 
 moment.type,
 
 
+meaning:
 
-
-emotion:
-
-direction.emotionalArc[index]?.emotion
+moment.description
 
 ??
 
-[],
+"",
 
-
-
-
-purpose:
-
-direction.emotionalArc[index]?.intention
-
-??
-
-"continue experience",
-
-
-
-},
 
 }
+
+
+}
+
+
 
 }
 
@@ -517,6 +376,8 @@ direction.emotionalArc[index]?.intention
 
 
 }
+
+
 
 export const experienceFlowCompiler =
 

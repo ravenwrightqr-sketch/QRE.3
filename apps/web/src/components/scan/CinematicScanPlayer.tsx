@@ -3,26 +3,54 @@ import {
   useState,
 } from "react";
 
+
 import type {
-  ScanResponse,
+  Experience,
   CinematicScene,
 } from "@qre/contracts";
 
 
+import SceneRenderer from "./SceneRenderer";
+
+
 
 type Props = {
-  data: ScanResponse;
+  experience: Experience;
 };
 
 
 
+
+/**
+ * =====================================================
+ * QRE CINEMATIC SCAN PLAYER
+ * =====================================================
+ *
+ * Runtime renderer only.
+ *
+ * Receives:
+ *
+ * Experience
+ *      ↓
+ * CinematicScene[]
+ *      ↓
+ * SceneRenderer
+ *
+ * No compiler logic.
+ * No generation logic.
+ *
+ * =====================================================
+ */
+
+
 export default function CinematicScanPlayer({
-  data,
-}: Props) {
+  experience,
+}: Props){
 
 
-  const scenes: CinematicScene[] =
-    data.cinematicScenes ?? [];
+
+  const scenes:CinematicScene[] =
+    experience.cinematicScenes ?? [];
 
 
 
@@ -34,11 +62,19 @@ export default function CinematicScanPlayer({
 
 
 
-  useEffect(() => {
+
+
+  useEffect(()=>{
+
 
     setSceneIndex(0);
 
-  }, [data]);
+
+  },[experience.sessionId]);
+
+
+
+
 
 
 
@@ -48,31 +84,48 @@ export default function CinematicScanPlayer({
 
 
 
-  useEffect(() => {
 
-    if (!scene) {
+
+
+  useEffect(()=>{
+
+
+    if(!scene){
+
       return;
+
     }
 
 
+
+    const duration =
+
+      scene.playback?.duration ??
+
+      5000;
+
+
+
+
     const timer =
-      window.setTimeout(() => {
+
+      window.setTimeout(()=>{
 
 
-        setSceneIndex(current => {
+        setSceneIndex(current=>{
 
 
           const next =
             current + 1;
 
 
-          if (
-            next >= scenes.length
-          ) {
 
-            return scenes.length;
+          if(next >= scenes.length){
+
+            return current;
 
           }
+
 
 
           return next;
@@ -81,18 +134,25 @@ export default function CinematicScanPlayer({
         });
 
 
-      }, 5000);
+      }, duration);
 
 
 
-    return () => {
 
-      window.clearTimeout(timer);
+
+    return ()=>{
+
+
+      window.clearTimeout(
+        timer
+      );
+
 
     };
 
 
-  }, [
+
+  },[
     scene,
     scenes.length
   ]);
@@ -101,62 +161,44 @@ export default function CinematicScanPlayer({
 
 
 
-  function restart() {
-
-    setSceneIndex(0);
-
-  }
 
 
-
-
-
-  if (!scene) {
+  if(!scene){
 
 
     return (
 
-      <main
+      <div
+
         style={{
-          minHeight:"100vh",
-          display:"grid",
-          placeItems:"center",
-          background:"#030305",
-          color:"#fff",
-          textAlign:"center",
+
+          width:"100%",
+
+          minHeight:300,
+
+          display:"flex",
+
+          alignItems:"center",
+
+          justifyContent:"center",
+
+          color:"#fff"
+
         }}
+
       >
 
-        <div>
+        No cinematic scenes available
 
-          <h1>
-            Memory Complete
-          </h1>
-
-
-          <button
-            onClick={restart}
-            style={{
-              marginTop:30,
-              padding:"14px 35px",
-              borderRadius:999,
-              background:"transparent",
-              border:"1px solid rgba(255,255,255,.35)",
-              color:"#fff",
-              cursor:"pointer"
-            }}
-          >
-            RELIVE
-          </button>
-
-
-        </div>
-
-      </main>
+      </div>
 
     );
 
+
   }
+
+
+
 
 
 
@@ -164,67 +206,13 @@ export default function CinematicScanPlayer({
 
   return (
 
-    <main
+    <SceneRenderer
 
-      style={{
+      scene={scene}
 
-        minHeight:"100vh",
-
-        width:"100%",
-
-        background:"#030305",
-
-        color:"#fff",
-
-      }}
-
-    >
-
-
-      <section
-
-        style={{
-
-          width:"100%",
-
-          minHeight:"100vh",
-
-        }}
-
-      >
-
-
-        <pre
-
-          style={{
-
-            whiteSpace:"pre-wrap",
-
-            padding:40,
-
-            fontSize:18,
-
-            opacity:.85,
-
-          }}
-
-        >
-
-          {JSON.stringify(
-            scene,
-            null,
-            2
-          )}
-
-        </pre>
-
-
-
-      </section>
-
-
-    </main>
+    />
 
   );
+
 
 }

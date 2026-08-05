@@ -47,13 +47,9 @@
  * =====================================================
  */
 
-
-
 import type {
-
   EmotionUnderstanding
-
-} from "../models/understandingTypes.js";
+} from "@qre/contracts";
 
 
 

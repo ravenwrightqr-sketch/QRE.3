@@ -1,246 +1,104 @@
 /**
  * =====================================================
- * QRE CREATION ARCHITECTURE COMPILER
+ * QRE CREATION ARCHITECTURE CONTRACT
  * =====================================================
  *
  * Experience Genome
  *        ↓
  * Creation Architecture
+ *        ↓
+ * Experience Blueprint
  *
- * The system deciding:
+ * Semantic possibility layer.
  *
- * "How should meaning become structure?"
+ * Defines what the experience can become.
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO INDUSTRY LOGIC
+ * NO TEMPLATES
  *
  * =====================================================
  */
 
 
-import type {
+/**
+ * Creation Architecture
+ *
+ * The semantic bridge between:
+ *
+ * human meaning
+ *        ↓
+ * experience structure
+ *
+ * This is possibility intelligence.
+ */
+export interface CreationArchitecture {
 
-  ExperienceGenome,
 
-} from "@qre/contracts";
+  /**
+   * Why this experience exists.
+   *
+   * Extracted from meaning.
+   */
+  intention:
 
+    string[];
 
-import type {
 
-  CreationArchitecture,
 
-} from "./creationTypes.js";
+  /**
+   * Emotional intelligence discovered
+   * inside the genome.
+   */
+  experienceTrajectory:
 
+    string[];
 
 
 
+  /**
+   * Natural progression discovered
+   * from the experience genome.
+   */
+  structuralPhases:
 
-export function compileCreationArchitecture(
+    string[];
 
-  genome:ExperienceGenome
 
-):CreationArchitecture {
 
+  /**
+   * Symbols, concepts, identities,
+   * and semantic anchors.
+   *
+   * Not physical assets.
+   */
+  symbolicElements:
 
+    string[];
 
-const emotionalArc = [
 
-  ...genome.emotions
 
-];
+  /**
+   * Ways humans may participate.
+   *
+   * Derived from relationships,
+   * context, and meaning.
+   */
+  interactionPatterns:
 
+    string[];
 
 
 
+  /**
+   * How the experience preserves
+   * meaning beyond the moment.
+   */
+  preservationMechanisms:
 
-const structuralPhases = [
-
-  ...genome.journey
-
-];
-
-
-
-
-
-const symbolicElements:string[] = [];
-
-
-
-
-
-if(
-
-  genome.memory === 1
-
-){
-
-  symbolicElements.push(
-
-    "preserved moment"
-
-  );
-
-}
-
-
-
-
-
-if(
-
-  genome.discovery === 1
-
-){
-
-  symbolicElements.push(
-
-    "revealed unknown"
-
-  );
-
-}
-
-
-
-
-
-if(
-
-  genome.social === "community"
-
-){
-
-  symbolicElements.push(
-
-    "shared experience"
-
-  );
-
-}
-
-
-
-
-
-const interactionPatterns:string[] = [];
-
-
-
-
-
-if(
-
- genome.social === "community"
-
-){
-
- interactionPatterns.push(
-
-  "collective participation"
-
- );
-
-}
-
-else
-
-{
-
- interactionPatterns.push(
-
-  "personal reflection"
-
- );
-
-}
-
-
-
-
-
-const preservationMechanisms:string[] = [];
-
-
-
-
-
-if(
-
- genome.memory === 1
-
-)
-
-{
-
- preservationMechanisms.push(
-
-  "memory capsule"
-
- );
-
-}
-
-
-
-
-
-if(
-
- genome.replay === 1
-
-)
-
-{
-
- preservationMechanisms.push(
-
-  "revisitable journey"
-
- );
-
-}
-
-
-
-
-
-return {
-
-
- intention:
-
-     genome.meaning.why,
-
-
-
- emotionalArc,
-
-
-
- structuralPhases,
-
-
-
- symbolicElements,
-
-
-
- interactionPatterns,
-
-
-
- preservationMechanisms
-
-
-
-};
+    string[];
 
 
 
 }
-
-
-
-
-
-export const creationCompiler =
-
-compileCreationArchitecture;

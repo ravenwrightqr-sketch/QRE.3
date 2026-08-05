@@ -5,705 +5,567 @@
  *
  * Experience Genome
  *        ↓
- * Object Moments
+ * Experience World
  *        ↓
  * Experience Blueprint
  *
- * Pure composition layer.
  *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
+ * Enterprise Composition Layer
+ *
+ * RESPONSIBILITIES:
+ *
+ * ✅ compose canonical blueprint
+ * ✅ preserve semantic DNA
+ * ✅ attach world intelligence
+ * ✅ translate cognitive outputs into experience structure
+ *
+ *
+ * DOES NOT:
+ *
+ * ❌ detect intent
+ * ❌ create meaning
+ * ❌ resolve worlds
+ * ❌ execute runtime
+ * ❌ access database
  *
  * =====================================================
  */
 
-
 import type {
 
   ExperienceBlueprint,
-
   ExperienceGenome,
-
   ExperienceMoment,
-
   ExperienceComponent,
-
   ExperienceTone,
-
-  ExperienceGoal,
-
   ExperienceType,
-
-  ExperienceIndustry,
-
   ExperienceMomentType,
-
-  ObjectMoment,
+  ExperienceWorld,
+  WorldDomain,
 
 } from "@qre/contracts";
 
 
 
-
-
-
-
-/**
- * =====================================================
- * MOMENT → COMPONENT
- * =====================================================
- */
-
-
 function resolveComponent(
-
-  type: ExperienceMomentType
-
-): ExperienceComponent {
+ type:ExperienceMomentType
+):ExperienceComponent {
 
 
+const components:
 
-  const components:
+Partial<Record<
+ ExperienceMomentType,
+ ExperienceComponent
+>>
 
-  Partial<
+= {
 
-    Record<
+ welcome:"hero",
+ introduction:"hero",
+ story:"story",
+ memory:"memory",
+ timeline:"timeline",
+ photos:"gallery",
+ video:"video",
+ soundtrack:"video",
+ location:"geo_memory",
+ venue:"geo_memory",
+ product:"product",
+ reward:"reward",
+ share:"social",
+ social:"social",
+ profile:"profile",
+ cta:"cta",
+ care_instructions:"education",
+ education:"education",
+ reveal:"story",
+ legacy:"timeline",
+ future:"story"
 
-      ExperienceMomentType,
-
-      ExperienceComponent
-
-    >
-
-  > = {
-
-
-    welcome:
-      "hero",
-
-
-    introduction:
-      "hero",
-
-
-    story:
-      "story",
-
-
-    memory:
-      "memory",
-
-
-    timeline:
-      "timeline",
+};
 
 
-    photos:
-      "gallery",
+return (
 
+ components[type]
 
-    video:
-      "video",
+ ??
 
+ "story"
 
-    soundtrack:
-      "video",
-
-
-    location:
-      "geo_memory",
-
-
-    venue:
-      "geo_memory",
-
-
-    product:
-      "product",
-
-
-    reward:
-      "reward",
-
-
-    share:
-      "social",
-
-
-    social:
-      "social",
-
-
-    profile:
-      "profile",
-
-
-    cta:
-      "cta",
-
-
-    care_instructions:
-      "education",
-
-
-    education:
-      "education",
-
-
-    reveal:
-      "story",
-
-
-    legacy:
-      "timeline",
-
-
-    future:
-      "story",
-
-
-  };
-
-
-
-  return (
-
-    components[type]
-
-    ??
-
-    "story"
-
-  ) as ExperienceComponent;
-
+) as ExperienceComponent;
 
 }
-
-
-
-/**
- * =====================================================
- * EXPERIENCE TYPE
- * =====================================================
- */
-
-
-function resolveType(
-
- genome: ExperienceGenome
-
-):ExperienceType {
-
-
-
-  if(
-
-    genome.memory >= .7
-
-  ){
-
-    return "story";
-
-  }
-
-  if(
-
-    genome.discovery >= .7
-
-  ){
-
-    return "journey";
-
-  }
-
-
-
-  if(
-
-    genome.commerce >= .7
-
-  ){
-
-    return "business";
-
-  }
-
-
-
-  return "journey";
-
-
-}
-
-
-
-
-
 
 
 
 
 /**
  * =====================================================
- * TITLE ENGINE
+ *
+ * WORLD INTELLIGENCE
+ *
+ * ExperienceWorld is canonical.
+ *
  * =====================================================
  */
+
+
+/**
+ * =====================================================
+ *
+ * WORLD INTELLIGENCE
+ *
+ * ExperienceWorld is canonical.
+ *
+ * =====================================================
+ */
+
+
+function resolveWorlds(
+
+ world:ExperienceWorld
+
+):WorldDomain[] {
+
+
+const worlds = new Set<WorldDomain>();
+
+
+if(world.domain){
+
+ worlds.add(
+  world.domain
+ );
+
+}
+
+
+for(
+
+ const connected of world.connectedWorlds ?? []
+
+){
+
+ worlds.add(
+  connected
+ );
+
+}
+
+
+
+return [
+
+ ...worlds
+
+];
+
+}
+
 
 
 function createTitle(
 
- genome:ExperienceGenome
+ genome:ExperienceGenome,
+
+ world:ExperienceWorld
 
 ):string {
 
 
+if(
+ genome.meaning.memories.length
+){
 
-  if(
+ return genome.meaning.memories[0];
 
-    genome.meaning.memories.length
-
-  ){
-
-    return genome.meaning.memories[0];
-
-  }
+}
 
 
 
-  if(
+if(
+ genome.entities.people.length
+){
 
-    genome.entities.people.length
+ return `${genome.entities.people[0]} Experience`;
 
-  ){
-
-    return `${genome.entities.people[0]} Story`;
-
-  }
+}
 
 
 
-  if(
+if(
+world.worldIdentity?.name
+){
 
-    genome.entities.places.length
+ return world.worldIdentity.name;
 
-  ){
-
-    return `${genome.entities.places[0]} Experience`;
-
-  }
+}
 
 
 
-  if(
+if(
+ genome.meaning.desiredFeeling.length
+){
 
-    genome.meaning.desiredFeeling.length
+ return `${genome.meaning.desiredFeeling[0]} Experience`;
 
-  ){
-
-    return `${genome.meaning.desiredFeeling[0]} Experience`;
-
-  }
+}
 
 
 
-  return "QRE Experience";
-
+return "QRE Experience";
 
 }
 
 
 
 
-
-
-
-
-
-/**
- * =====================================================
- *
- * OBJECT MOMENT COMPILER
- *
- * Object Genome → Experience Moment
- *
- * =====================================================
- */
-
-
-function buildMoment(
-
-  objectMoment:ObjectMoment,
-
-  index:number,
-
-  genome:ExperienceGenome
-
-):ExperienceMoment {
-
-
-
-  const typeMap:
-
-  Record<string,ExperienceMomentType> = {
-
-
-    Origin:
-      "introduction",
-
-
-    "First Encounter":
-      "story",
-
-
-    "Memory Capture":
-      "memory",
-
-
-    Relationship:
-      "story",
-
-
-    "Place Experience":
-      "location",
-
-
-    Legacy:
-      "legacy",
-
-
-    Future:
-      "future",
-
-
-  };
-
-
-
-
-
-  const type:
-
-  ExperienceMomentType =
-
-    typeMap[objectMoment.title]
-
-    ??
-
-    "story";
-
-
-
-
-
-
-
-  return {
-
-
-    type,
-
-
-
-    component:
-
-      resolveComponent(type),
-
-
-
-    title:
-
-      objectMoment.title,
-
-
-
-    subtitle:
-
-      objectMoment.description,
-
-
-
-    description:
-
-      objectMoment.description,
-
-
-
-    order:
-
-      index,
-
-
-
-    editable:
-
-      true,
-
-
-
-    demo:
-
-      false,
-
-
-
-    payload:{
-
-
-      text:
-
-        objectMoment.description,
-
-
-
-      data:{
-
-
-        objectMoment,
-
-
-        meaning:
-
-          genome.meaning,
-
-
-        entities:
-
-          genome.entities,
-
-
-        relationships:
-
-          genome.relationships,
-
-
-        semanticDNA:
-
-          genome.dna,
-
-
-        symbols:
-
-          genome.symbols,
-
-
-      }
-
-
-    }
-
-
-  };
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * MOMENT PIPELINE
- *
- * =====================================================
- */
-
-
-function compileMoments(
+function buildObjectMoments(
 
  genome:ExperienceGenome
 
-):ExperienceMoment[] {
+):ExperienceMoment[]{
+
+
+return (
+
+ genome.object?.moments ?? []
+
+)
+
+.map(
+
+(moment,index)=>{
+
+
+const type =
+
+resolveMomentType(
+
+ moment.title
+
+);
 
 
 
-  const moments:
+return {
 
-  ObjectMoment[] =
+ type,
 
-    genome.object?.moments
+ component:
 
-    ??
+ resolveComponent(type),
 
-    [];
+ title:
+
+ moment.title,
 
 
+ subtitle:
+
+ moment.description,
 
 
+ description:
 
-  return moments.map(
+ moment.description,
 
-    (moment,index)=>
 
-      buildMoment(
+ order:index,
 
-        moment,
 
-        index,
+ editable:true,
 
-        genome
 
-      )
+ demo:false,
 
-  );
 
+ payload:{
+
+  text:
+
+  moment.description,
+
+
+  data:{
+
+   objectMoment:moment,
+
+   meaning:genome.meaning,
+
+   entities:genome.entities,
+
+   relationships:genome.relationships,
+
+   semanticDNA:genome.dna,
+
+   symbols:genome.symbols,
+
+   worlds:genome.worlds
+
+  }
+
+ }
+
+};
+
+
+}
+
+);
 
 }
 
 
 
 
+function resolveMomentType(
+
+title:string
+
+):ExperienceMomentType {
+
+
+const map:
+
+Record<string,ExperienceMomentType> = {
+
+
+Origin:
+"introduction",
+
+"First Encounter":
+"story",
+
+"Memory Capture":
+"memory",
+
+Relationship:
+"story",
+
+"Place Experience":
+"location",
+
+Legacy:
+"legacy",
+
+Future:
+"future"
+
+};
 
 
 
+return map[title] ?? "story";
+
+}
 
 
-/**
- * =====================================================
- *
- * PUBLIC BLUEPRINT COMPOSER
- *
- * Genome → Blueprint
- *
- * =====================================================
- */
+
 
 
 export function composeBlueprint(
 
- genome:ExperienceGenome
+ genome:ExperienceGenome,
+
+ world:ExperienceWorld
 
 ):ExperienceBlueprint {
 
 
 
-  if(!genome){
-
-    throw new Error(
-
-      "Cannot compose blueprint without genome"
-
-    );
-
-  }
-
-
-
-
-
-
-  const moments =
-
-    compileMoments(genome);
-
-
-
-
-
-
-
-  const tone:
-
-  ExperienceTone[] =
-
-  [
-
-    genome.energy,
-
-    ...genome.emotions,
-
-    ...genome.tone
-
-  ]
-
-  .filter(
-
-    (value):value is ExperienceTone =>
-
-      typeof value === "string"
-
-  );
-
-
-
-
-
-
-
-
-
-  return {
-
-
-    title:
-
-      createTitle(genome),
-
-
-
-    type:
-
-      resolveType(genome),
-
-
-
-    tone:
-
-      [
-
-        ...new Set(tone)
-
-      ],
-
-
-
-    meaning:
-
-      genome.meaning,
-
-
-
-    moments,
-
-
-
-    entities:
-
-      genome.entities,
-
-   metadata:{
-
-
-  archetypes:
-
-    genome.archetypes,
-
-
-  themes:
-
-    genome.themes,
-
-
-  dna:
-
-    genome.dna,
-
+if(!genome){
+
+ throw new Error(
+  "Genome required"
+ );
 
 }
 
 
-  };
 
+if(!world){
+
+ throw new Error(
+  "ExperienceWorld required"
+ );
 
 }
 
 
+
+const worlds =
+
+resolveWorlds(
+
+ world
+
+);
+
+
+
+const moments =
+
+buildObjectMoments(
+
+ genome
+
+);
+
+
+
+const tone:
+
+ExperienceTone[] =
+
+[
+
+ genome.energy,
+
+ ...genome.emotions,
+
+ ...genome.tone
+
+]
+
+.filter(
+
+(value):value is ExperienceTone =>
+
+typeof value==="string"
+
+);
+
+
+
+
+
+return {
+
+
+title:
+
+createTitle(
+
+ genome,
+
+ world
+
+),
+
+
+
+type:
+
+resolveExperienceType(
+
+ worlds,
+
+ genome
+
+),
+
+
+
+tone:
+
+[...new Set(tone)],
+
+
+
+meaning:
+
+genome.meaning,
+
+
+
+moments,
+
+
+
+entities:
+
+genome.entities,
+
+
+metadata:{
+
+
+ archetypes:
+
+  genome.archetypes,
+
+
+ themes:
+
+  genome.themes,
+
+
+ dna:
+
+  genome.dna,
+
+
+ worlds,
+
+
+ artifacts:
+
+  world.artifacts
+
+}
+
+
+
+};
+
+}
+
+
+
+
+
+function resolveExperienceType(
+
+ worlds:string[],
+
+ genome:ExperienceGenome
+
+):ExperienceType {
+
+
+
+if(
+
+ worlds.includes(
+  "commerce_world"
+ )
+
+){
+
+ return "business";
+
+}
+
+
+
+if(
+
+ genome.memory >= .7
+
+){
+
+ return "story";
+
+}
+
+
+
+return "journey";
+
+}
 
 
 

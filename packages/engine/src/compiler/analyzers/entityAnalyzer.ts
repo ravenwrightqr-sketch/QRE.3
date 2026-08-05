@@ -3,23 +3,20 @@
  * QRE EXPERIENCE ENTITY ANALYZER
  * =====================================================
  *
- * Responsibility:
- *
- * Extract real-world entities from human language.
- *
- *
- * Input:
+ * Entity Intelligence Boundary.
  *
  * Human Prompt
- *
- *
- * Output:
- *
- * ExperienceEntities
+ *      ↓
+ * Entity Analysis
+ *      ↓
+ * World Primitives
+ *      ↓
+ * Understanding Kernel
  *
  *
  * Detects:
  *
+ * CORE:
  * - people
  * - places
  * - organizations
@@ -33,22 +30,14 @@
  * - keywords
  * - media
  *
+ * CREATIVE INTELLIGENCE:
  *
- * This analyzer does NOT:
- *
- * - interpret meaning
- * - create relationships
- * - build worlds
- * - execute experiences
- *
- *
- * Pipeline:
- *
- * Prompt
- *    ↓
- * EntityAnalyzer
- *    ↓
- * Understanding Kernel
+ * - objects
+ * - creatures
+ * - concepts
+ * - symbols
+ * - worlds
+ * - archetypes
  *
  *
  * NO DATABASE
@@ -58,44 +47,56 @@
  */
 
 
-
 import type {
-
   ExperienceEntities
-
 } from "@qre/contracts";
 
 
 
 
 
-
-
-
-
 function unique(
+ values:string[]
+){
 
-values:string[]
+ return [
+
+  ...new Set(
+
+   values
+
+    .map(
+     value =>
+      value.trim()
+    )
+
+    .filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+
+function detectWords(
+
+ text:string,
+
+ words:string[]
 
 ){
 
-return [
+ return words.filter(
 
-...new Set(
+  word =>
+   text.includes(word)
 
-values
-
-.map(
-
-value => value.trim()
-
-)
-
-.filter(Boolean)
-
-)
-
-];
+ );
 
 }
 
@@ -106,20 +107,15 @@ value => value.trim()
 
 
 
-
 export function analyzeEntities(
 
-prompt:string
+ prompt:string
 
 ):ExperienceEntities {
 
 
-
 const lower =
-
-prompt.toLowerCase();
-
-
+ prompt.toLowerCase();
 
 
 
@@ -151,6 +147,24 @@ const media:string[]=[];
 
 
 
+/**
+ * CREATIVE INTELLIGENCE
+ */
+
+
+const objects:string[]=[];
+
+const creatures:string[]=[];
+
+const concepts:string[]=[];
+
+const symbols:string[]=[];
+
+const worlds:string[]=[];
+
+const archetypes:string[]=[];
+
+
 
 
 
@@ -162,23 +176,22 @@ const media:string[]=[];
 //
 
 for(
+ const match of prompt.matchAll(
 
-const match of prompt.matchAll(
+ /(?:for|by|with|from)\s+([A-Z][A-Za-z0-9.'@-]*(?:\s[A-Z][A-Za-z0-9.'-]*)?)/g
 
-/(?:for|by|with|from)\s+([A-Z][A-Za-z0-9.'@-]*(?:\s[A-Z][A-Za-z0-9.'-]*)?)/g
-
-)
-
+ )
 ){
 
-people.push(
+ if(match[1]){
 
-match[1]
+  people.push(
+   match[1]
+  );
 
-);
+ }
 
 }
-
 
 
 
@@ -192,23 +205,22 @@ match[1]
 //
 
 for(
+ const match of prompt.matchAll(
 
-const match of prompt.matchAll(
+ /(?:at|in|near|inside)\s+([A-Z][A-Za-z\s]+)/g
 
-/(?:at|in|near|inside)\s+([A-Z][A-Za-z\s]+)/g
-
-)
-
+ )
 ){
 
-places.push(
+ if(match[1]){
 
-match[1].trim()
+  places.push(
+   match[1]
+  );
 
-);
+ }
 
 }
-
 
 
 
@@ -221,71 +233,26 @@ match[1].trim()
 // EVENTS
 //
 
-const eventWords = [
+events.push(
 
-"wedding",
+ ...detectWords(
 
-"concert",
+  lower,
 
-"festival",
+  [
+   "wedding",
+   "concert",
+   "festival",
+   "birthday",
+   "anniversary",
+   "party",
+   "rave",
+   "show"
+  ]
 
-"birthday",
-
-"anniversary",
-
-"party",
-
-"rave",
-
-"show"
-
-];
-
-
-
-
-
-for(const word of eventWords){
-
-
-if(lower.includes(word)){
-
-
-events.push(word);
-
-
-}
-
-
-}
-
-
-
-
-
-
-
-
-
-//
-// MEDIA
-//
-
-if(
-
-/photo|image|video|film|audio|music|voice|gallery/i
-
-.test(prompt)
-
-){
-
-media.push(
-
-"media"
+ )
 
 );
-
-}
 
 
 
@@ -299,51 +266,64 @@ media.push(
 // PRODUCTS
 //
 
-const productWords = [
+products.push(
 
-"qr",
+ ...detectWords(
 
-"qr code",
+  lower,
 
-"tag",
+  [
+   "qr",
+   "qr code",
+   "tag",
+   "keychain",
+   "sticker",
+   "card",
+   "poster",
+   "shirt",
+   "painting",
+   "album",
+   "book",
+   "collectible"
+  ]
 
-"keychain",
+ )
 
-"sticker",
-
-"card",
-
-"poster",
-
-"shirt",
-
-"painting",
-
-"album",
-
-"book",
-
-"collectible"
-
-];
+);
 
 
 
 
 
-for(const word of productWords){
 
 
-if(lower.includes(word)){
 
 
-products.push(word);
+//
+// MEDIA
+//
 
+media.push(
 
-}
+ ...detectWords(
 
+  lower,
 
-}
+  [
+   "photo",
+   "image",
+   "video",
+   "film",
+   "audio",
+   "music",
+   "voice",
+   "gallery"
+  ]
+
+ )
+
+);
+
 
 
 
@@ -359,11 +339,11 @@ products.push(word);
 
 dates.push(
 
-...(prompt.match(
+ ...(prompt.match(
 
-/\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g
+ /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g
 
-) ?? [])
+ ) ?? [])
 
 );
 
@@ -375,17 +355,18 @@ dates.push(
 
 
 
+
 //
-// URLS
+// URL
 //
 
 urls.push(
 
-...(prompt.match(
+ ...(prompt.match(
 
-/https?:\/\/[^\s]+/gi
+ /https?:\/\/[^\s]+/gi
 
-) ?? [])
+ ) ?? [])
 
 );
 
@@ -397,17 +378,18 @@ urls.push(
 
 
 
+
 //
-// EMAILS
+// EMAIL
 //
 
 emails.push(
 
-...(prompt.match(
+ ...(prompt.match(
 
-/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+ /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
 
-) ?? [])
+ ) ?? [])
 
 );
 
@@ -419,17 +401,18 @@ emails.push(
 
 
 
+
 //
-// PHONES
+// PHONE
 //
 
 phones.push(
 
-...(prompt.match(
+ ...(prompt.match(
 
-/\+?\d[\d\s()-]{7,}\d/g
+ /\+?\d[\d\s()-]{7,}\d/g
 
-) ?? [])
+ ) ?? [])
 
 );
 
@@ -447,15 +430,16 @@ phones.push(
 
 keywords.push(
 
-...lower
+ ...lower
 
-.split(/\s+/)
+ .split(/\s+/)
 
-.filter(
+ .filter(
 
-word => word.length > 5
+  word =>
+   word.length > 5
 
-)
+ )
 
 );
 
@@ -467,36 +451,247 @@ word => word.length > 5
 
 
 
+//
+// CREATIVE OBJECTS
+//
+
+objects.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "car",
+   "house",
+   "book",
+   "ring",
+   "camera",
+   "garden",
+   "artifact",
+   "key",
+   "painting"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// CREATURES
+//
+
+creatures.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "dog",
+   "cat",
+   "pet",
+   "animal",
+   "wolf",
+   "bird",
+   "dragon"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// CONCEPTS
+//
+
+concepts.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "memory",
+   "love",
+   "legacy",
+   "identity",
+   "freedom",
+   "dream",
+   "hope",
+   "family",
+   "connection"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// SYMBOLS
+//
+
+symbols.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "fire",
+   "moon",
+   "star",
+   "phoenix",
+   "lightning",
+   "crown",
+   "flower"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// WORLDS
+//
+
+worlds.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "fantasy",
+   "cyberpunk",
+   "gothic",
+   "future",
+   "dream",
+   "universe",
+   "realm"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// ARCHETYPES
+//
+
+archetypes.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "hero",
+   "creator",
+   "guardian",
+   "explorer",
+   "artist",
+   "warrior",
+   "guide",
+   "companion"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
 return {
 
 
-people:unique(people),
+people:
+ unique(people),
+places:
+ unique(places),
+organizations:
+ unique(organizations),
+dates:
+ unique(dates),
+times:
+ unique(times),
+events:
+ unique(events),
+products:
+ unique(products),
+urls:
+ unique(urls),
+emails:
+ unique(emails),
+phones:
+ unique(phones),
+keywords:
+ unique(keywords),
+media:
+ unique(media),
 
-places:unique(places),
-
-organizations:unique(organizations),
-
-dates:unique(dates),
-
-times:unique(times),
-
-events:unique(events),
-
-products:unique(products),
-
-urls:unique(urls),
-
-emails:unique(emails),
-
-phones:unique(phones),
-
-keywords:unique(keywords),
-
-media:unique(media)
-
+/**
+ * Creative intelligence fields
+ */
+objects:
+ unique(objects),
+creatures:
+ unique(creatures),
+concepts:
+ unique(concepts),
+symbols:
+ unique(symbols),
+worlds:
+ unique(worlds),
+archetypes:
+ unique(archetypes)
 
 };
-
 
 
 }

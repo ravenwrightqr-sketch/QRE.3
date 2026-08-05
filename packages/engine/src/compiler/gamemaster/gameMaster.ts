@@ -2,14 +2,10 @@ import type {
   GameMasterResult,
 } from "./types.js";
 
-
-import {
-  think,
-} from "../cognition/cognition.js";
-
 import type {
-  ExperienceUnderstanding,
-} from "../models/understandingTypes.js";
+  Cognition
+} from "@qre/contracts";
+
 import {
   createInquiry,
 } from "../origin/inquiry/inquiry.js";
@@ -19,16 +15,13 @@ import {
   understandExperience,
 } from "../understanding/ExperienceUnderstandingKernel.js";
 
+import {
+  runCompilerBrain,
+} from "../compilerBrain.js";
 
 import {
-  buildExperienceGenome,
-} from "../semantic/genome/genomeBuilder.js";
-
-
-import {
-  compileExperience,
-} from "../experience/experienceCompiler.js";
-
+  think
+} from "../cognition/cognition.js";
 
 
 
@@ -66,28 +59,16 @@ export function gameMaster(
       input
     );
 
-
-
-  /*
-   * CREATIVE DNA
-   */
-
-  const genome =
-  buildExperienceGenome(
-    input
-  );
-
-
-
   /*
    * EXPERIENCE STRUCTURE
    */
+   const brain =
+  runCompilerBrain(
+    input
+  );
 
-  const blueprint =
-    compileExperience(
-      genome
-    );
-
+   const compiled =
+  brain.compiled;
 
 
   return {
@@ -104,11 +85,12 @@ export function gameMaster(
 
     understanding,
 
+   genome:
+  compiled.genome,
+    
 
-    genome,
-
-
-    blueprint,
+    blueprint:
+  compiled.blueprint,
 
 
     confidence:

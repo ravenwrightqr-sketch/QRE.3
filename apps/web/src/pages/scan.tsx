@@ -4,14 +4,15 @@ import {
 } from "react";
 
 import {
+  useNavigate,
   useParams,
 } from "react-router-dom";
 
+
 import type {
-  ScanResponse,
+  RuntimeExperience,
 } from "@qre/contracts";
 
-import ScanAccessRouter from "../components/scan/ScanAccessRouter";
 
 import {
   getScan,
@@ -19,31 +20,35 @@ import {
 
 
 
+
 /**
  * =====================================================
- * QRE SCAN PORTAL
+ * QRE SCAN ENTRY
  * =====================================================
  *
  * Frontend responsibility:
  *
- * SCAN
- *  ↓
- * PRESENCE SIGNAL
- *  ↓
- * API
- *  ↓
- * SCAN ENGINE
- *  ↓
- * EXPERIENCE RUNTIME
- *  ↓
- * PLAYER
+ * QR / NFC identity
+ *        ↓
+ * Presence signal
+ *        ↓
+ * Runtime API
+ *        ↓
+ * RuntimeExperience
+ *        ↓
+ * Experience Player
  *
- * NO EXPERIENCE BUILDING
- * NO STORY COMPILATION
- * NO BUSINESS LOGIC
  *
- * The engine decides meaning.
- * The frontend reveals it.
+ * Frontend does NOT:
+ *
+ * - compile experiences
+ * - decide access
+ * - render demos
+ * - render unlocked states
+ * - understand cognition
+ *
+ * The engine decides.
+ * The frontend reveals.
  *
  * =====================================================
  */
@@ -63,12 +68,13 @@ type GeoPresence = {
 
 
 
+
 async function captureGeoPresence():
 
 Promise<GeoPresence | undefined> {
 
 
-  if(
+  if (
     !("geolocation" in navigator)
   ){
 
@@ -99,7 +105,6 @@ Promise<GeoPresence | undefined> {
 
             accuracy:
               position.coords.accuracy,
-
 
           });
 
@@ -138,7 +143,9 @@ Promise<GeoPresence | undefined> {
 
   );
 
+
 }
+
 
 
 
@@ -148,28 +155,30 @@ export default function Scan(){
 
   const {
     slug,
-  } = useParams();
+  } =
+  useParams();
 
 
 
-  const [
-    experience,
-    setExperience,
-  ] = useState<ScanResponse | null>(null);
+  const navigate =
+    useNavigate();
+
 
 
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+  useState(true);
 
 
 
   const [
     error,
     setError,
-  ] = useState<string | null>(null);
+  ] =
+  useState<string | null>(null);
 
 
 
@@ -178,20 +187,27 @@ export default function Scan(){
   useEffect(()=>{
 
 
-    async function bootExperience(){
+    async function boot(){
+
 
 
       if(!slug){
+
 
         setError(
           "Missing experience identity"
         );
 
+
         setLoading(false);
+
 
         return;
 
       }
+
+
+
 
 
 
@@ -203,73 +219,127 @@ export default function Scan(){
 
 
 
-        const response =
-          await getScan(
-            slug,
-            geo
-          );
-
 
 
         console.log(
-          "🔥 QRE EXPERIENCE BOOT",
+          "🔥 QRE SCAN SIGNAL",
           {
 
-            access:
-              response.access,
+            slug,
 
-
-            asset:
-              response.asset,
-
-
-            geoStory:
-              response.geoStory,
-
-
-            cinematicScenes:
-              response.cinematicScenes,
-
-
-            memorySnapshot:
-              response.memorySnapshot,
-
-
-            receipt:
-              response.receipt,
-
+            geo,
 
           }
         );
 
 
 
-        setExperience(
-          response
+
+
+
+        const runtime:
+
+        RuntimeExperience =
+
+          await getScan(
+
+            slug,
+
+            geo
+
+          );
+
+
+
+
+
+
+
+        console.log(
+
+          "🔥 RUNTIME EXPERIENCE RECEIVED",
+
+          {
+
+            sessionId:
+              runtime.sessionId,
+
+
+            access:
+              runtime.accessState,
+
+
+            scenes:
+              runtime.cinematicScenes?.length ?? 0,
+
+
+            moments:
+              runtime.moments?.length ?? 0,
+
+
+            asset:
+              runtime.asset,
+
+          }
+
+        );
+
+
+
+
+
+
+
+        sessionStorage.setItem(
+
+          "runtimeExperience",
+
+          JSON.stringify(
+            runtime
+          )
+
+        );
+
+
+
+
+
+        navigate(
+          "/experience"
         );
 
 
 
       }
 
+
       catch(error){
 
 
+
         console.error(
-          "🔥 QRE SCAN FAILED",
+
+          "🔥 QRE EXPERIENCE FAILED",
+
           error
+
         );
 
 
 
         setError(
+
           error instanceof Error
-            ? error.message
-            : "Experience failed to load"
+
+          ? error.message
+
+          : "Experience failed to load"
+
         );
 
 
       }
+
 
       finally{
 
@@ -284,12 +354,19 @@ export default function Scan(){
 
 
 
-    bootExperience();
+
+    boot();
+
 
 
   },[
-    slug
+
+    slug,
+
+    navigate,
+
   ]);
+
 
 
 
@@ -337,7 +414,8 @@ export default function Scan(){
 
 
 
-  if(error || !experience){
+
+  if(error){
 
 
     return (
@@ -364,26 +442,30 @@ export default function Scan(){
 
       >
 
+
         <div>
+
 
           <h2>
             Experience unavailable
           </h2>
 
 
+
           <p
 
             style={{
 
-              opacity:.6,
+              opacity:.65,
 
             }}
 
           >
 
-            {error ?? "Unknown scan error"}
+            {error}
 
           </p>
+
 
 
         </div>
@@ -400,19 +482,7 @@ export default function Scan(){
 
 
 
-
-
-  return (
-
-    <ScanAccessRouter
-
-      data={
-        experience
-      }
-
-    />
-
-  );
+  return null;
 
 
 }

@@ -1,49 +1,48 @@
 import {
-  experienceCompiler,
+  runCompilerBrain,
 } from "@qre/engine";
+
+
+import type {
+  CompiledExperience,
+} from "@qre/contracts";
 
 
 
 /**
  * =====================================================
  *
- * EXPERIENCE SERVICE
+ * QRE EXPERIENCE SERVICE
  *
- * API application boundary
+ * API APPLICATION BOUNDARY
  *
  * Route
  *   ↓
  * Experience Service
  *   ↓
- * Engine Compiler
+ * Compiler Brain
+ *   ↓
+ * Compiled Experience Contract
  *
- * Routes do not directly own
- * experience generation.
+ *
+ * Responsibilities:
+ *
+ * ✅ Validate human input
+ * ✅ Invoke engine compiler
+ * ✅ Return production contract
+ *
+ *
+ * Does NOT:
+ *
+ * ❌ Database writes
+ * ❌ Prisma ownership
+ * ❌ Flow creation
+ * ❌ Runtime execution
+ * ❌ Player rendering
+ *
  *
  * =====================================================
  */
-
-
-export type CompiledExperienceResult = {
-
-  title:string;
-
-  blueprint:any;
-
-  flowSteps:any[];
-
-  moments:any[];
-
-  cinematicScenes:any[];
-
-  estimatedDuration:number;
-
-  momentCount:number;
-
-  [key:string]:unknown;
-
-};
-
 
 
 
@@ -52,30 +51,47 @@ export type CompiledExperienceResult = {
  *
  * COMPILE EXPERIENCE
  *
- * Human prompt
- *       ↓
- * Experience Compiler
- *       ↓
- * Runtime-ready experience data
+ * Human Prompt
  *
- * No database writes.
+ *        ↓
+ *
+ * Compiler Brain
+ *
+ *        ↓
+ *
+ * Production Experience Object
+ *
+ *
+ * Pure operation.
+ *
+ * No persistence.
  *
  * =====================================================
  */
 
 
 export async function compileExperience(
-  prompt:string
-):Promise<CompiledExperienceResult>{
+
+  prompt: string
+
+): Promise<CompiledExperience> {
 
 
-  if(
-    typeof prompt !== "string" ||
+
+  if (
+
+    typeof prompt !== "string"
+
+    ||
+
     prompt.trim().length === 0
-  ){
+
+  ) {
 
     throw new Error(
-      "Experience prompt required"
+
+      "Experience prompt required."
+
     );
 
   }
@@ -83,12 +99,15 @@ export async function compileExperience(
 
 
   const result =
-    await experienceCompiler(
+
+    runCompilerBrain(
+
       prompt.trim()
+
     );
 
 
 
-  return result as CompiledExperienceResult;
+  return result.compiled;
 
 }

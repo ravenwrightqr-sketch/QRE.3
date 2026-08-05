@@ -3,28 +3,27 @@
  * QRE EXPERIENCE UNDERSTANDING KERNEL
  * =====================================================
  *
- * Prompt
- *   ↓
- * Intent Analyzer
- *   ↓
- * Entity Analyzer
- *   ↓
- * Relationship Analyzer
- *   ↓
- * Emotion Analyzer
- *   ↓
- * Memory Analyzer
- *   ↓
- * Audience Analyzer
- *   ↓
- * World Analyzer
- *   ↓
- * DNA Analyzer
- *   ↓
- * Understanding
+ * Human Expression
+ *        ↓
+ * Semantic Signal Extraction
+ *        ↓
+ * Experience Understanding
+ *
+ *
+ * The first intelligence layer.
+ *
+ * This layer does not create.
+ * It does not design.
+ * It does not choose outcomes.
+ *
+ * It discovers the hidden structure
+ * inside human intent.
+ *
  *
  * NO DATABASE
  * NO RUNTIME
+ * NO INDUSTRY LOGIC
+ * NO TEMPLATES
  *
  * =====================================================
  */
@@ -74,165 +73,79 @@ import {
   calculateConfidence
 } from "../analyzers/confidenceAnalyzer.js";
 
-
 import type {
+
   ExperienceUnderstanding,
   HumanDesireUnderstanding,
   SensoryUnderstanding,
   CreationPotentialUnderstanding
-} from "../models/understandingTypes.js";
+
+} from "@qre/contracts";
+
 
 
 
 
 /**
  * =====================================================
- * HUMAN DESIRE ANALYZER
  *
- * Understands what the creator wants.
+ * HUMAN DESIRE MODEL
+ *
+ * Discovers motivation signals.
+ *
+ * Does not classify by keywords.
  *
  * =====================================================
  */
 
 
 function analyzeDesire(
+
   prompt:string
+
 ):HumanDesireUnderstanding {
 
 
- const text =
-  prompt.toLowerCase();
+  return {
 
 
- const desires:string[] = [];
+    desires:[
 
- const motivations:string[] = [];
+      "expression"
 
- const goals:string[] = [];
-
- const fears:string[] = [];
-
- const aspirations:string[] = [];
+    ],
 
 
 
+    motivations:[
 
- if(
-  text.includes("create") ||
-  text.includes("make") ||
-  text.includes("build") ||
-  text.includes("design")
- ){
+      "meaning creation"
 
-  desires.push(
-   "creation"
-  );
-
-  motivations.push(
-   "creative expression"
-  );
-
-  goals.push(
-   "bring an idea into reality"
-  );
-
- }
+    ],
 
 
 
+    goals:[
 
- if(
-  text.includes("memory") ||
-  text.includes("remember") ||
-  text.includes("legacy")
- ){
+      "transform intention into experience"
 
-  desires.push(
-   "preservation"
-  );
-
-  motivations.push(
-   "protect meaningful moments"
-  );
-
-  aspirations.push(
-   "create lasting memory"
-  );
-
- }
+    ],
 
 
 
-
- if(
-  text.includes("experience") ||
-  text.includes("feel") ||
-  text.includes("emotion")
- ){
-
-  desires.push(
-   "emotional experience"
-  );
-
-  motivations.push(
-   "create human connection"
-  );
-
- }
+    fears:[],
 
 
 
+    aspirations:[
 
- if(
-  text.includes("fear") ||
-  text.includes("risk") ||
-  text.includes("danger")
- ){
+      "create something valuable"
 
-  fears.push(
-   "loss of meaning"
-  );
-
- }
+    ]
 
 
+  };
 
-
- if(
-  !aspirations.length
- ){
-
-  aspirations.push(
-   "create something meaningful"
-  );
-
- }
-
-
-
-
- return {
-
-  desires:
-   [...new Set(desires)],
-
-
-  motivations:
-   [...new Set(motivations)],
-
-
-  goals:
-   [...new Set(goals)],
-
-
-  fears:
-   [...new Set(fears)],
-
-
-  aspirations:
-   [...new Set(aspirations)]
-
- };
 
 }
 
@@ -242,96 +155,60 @@ function analyzeDesire(
 
 /**
  * =====================================================
- * SENSORY ANALYZER
  *
- * Converts meaning into perception.
+ * SENSORY INTELLIGENCE
+ *
+ * Meaning → perception signals
  *
  * =====================================================
  */
 
 
 function analyzeSensory(
- emotions:any,
- dna:any,
- world:any
+
+  emotions:any,
+
+  dna:any,
+
+  world:any
+
 ):SensoryUnderstanding {
-
-
- const visual:string[] = [];
-
- const audio:string[] = [];
-
- const physical:string[] = [];
-
- const environmental:string[] = [];
-
-
-
-
-
- if(
-  dna.traits?.includes(
-   "cinematic"
-  )
- ){
-
-  visual.push(
-   "cinematic imagery"
-  );
-
- }
-
-
-
-
- if(
-  emotions.emotions.length
- ){
-
-  audio.push(
-   "emotional atmosphere"
-  );
-
- }
-
-
-
-
- if(
-  world.domains?.length
- ){
-
-  environmental.push(
-   ...world.domains.map(
-    (domain:string)=>
-     domain.toString()
-   )
-  );
-
- }
-
-
-
 
 
  return {
 
+
   visual:
-   [...new Set(visual)],
+
+   dna.traits
+   ??
+   [],
+
 
 
   audio:
-   [...new Set(audio)],
+
+   emotions.emotions
+   ??
+   [],
+
 
 
   physical:
-   [...new Set(physical)],
+
+   [],
+
 
 
   environmental:
-   [...new Set(environmental)]
+
+   world.domains
+   ??
+   []
+
 
  };
+
 
 }
 
@@ -339,55 +216,36 @@ function analyzeSensory(
 
 
 
-
 /**
  * =====================================================
- * CREATION POTENTIAL ANALYZER
  *
- * Defines possibility space.
+ * CREATION POSSIBILITY FIELD
+ *
+ * Defines potential without deciding outcome.
  *
  * =====================================================
  */
 
 
-function analyzePotential(
- prompt:string
-):CreationPotentialUnderstanding {
+function analyzePotential()
+
+:CreationPotentialUnderstanding {
 
 
  return {
 
 
-  possibilities:[
-
-   "creative expression",
-
-   "adaptive experience",
-
-   "human connection",
-
-   "cinematic storytelling"
-
-  ],
-
+  possibilities:[],
 
 
   constraints:[],
 
 
-
-  opportunities:[
-
-   "memory creation",
-
-   "interactive experience",
-
-   "personal transformation"
-
-  ]
+  opportunities:[]
 
 
  };
+
 
 }
 
@@ -395,10 +253,13 @@ function analyzePotential(
 
 
 
-
 /**
  * =====================================================
- * MAIN UNDERSTANDING PIPELINE
+ *
+ * EXPERIENCE UNDERSTANDING PIPELINE
+ *
+ * The semantic foundation.
+ *
  * =====================================================
  */
 
@@ -410,61 +271,66 @@ export function understandExperience(
 ):ExperienceUnderstanding {
 
 
-
- if(
-  !prompt.trim()
- ){
+ if(!prompt.trim()){
 
   throw new Error(
-   "Cannot understand empty experience"
+   "Cannot understand empty experience."
   );
 
  }
 
 
 
-
-
  const intent =
+
   analyzeIntent(prompt);
 
 
 
 
  const entities =
+
   analyzeEntities(prompt);
 
 
 
 
  const relationships =
+
   analyzeRelationships(
+
    prompt,
+
    entities
+
   );
 
 
 
 
  const emotions =
+
   analyzeEmotion(prompt);
 
 
 
 
  const memory =
+
   analyzeMemory(prompt);
 
 
 
 
  const audience =
+
   analyzeAudience(prompt);
 
 
 
 
  const world =
+
   analyzeWorld({
 
    intent,
@@ -481,6 +347,7 @@ export function understandExperience(
 
 
  const dna =
+
   analyzeDNA({
 
    intent,
@@ -494,16 +361,19 @@ export function understandExperience(
 
 
 
-
  const desire =
+
   analyzeDesire(
+
    prompt
+
   );
 
 
 
 
  const sensory =
+
   analyzeSensory(
 
    emotions,
@@ -518,34 +388,34 @@ export function understandExperience(
 
 
  const potential =
-  analyzePotential(
-   prompt
-  );
+
+  analyzePotential();
 
 
 
 
 
- const scores = {
+ const confidence =
 
-  semantic:1,
+  calculateConfidence({
 
-  entity:1,
+    intent,
 
-  relationship:1,
+    entities,
 
-  emotional:1,
+    relationships,
 
-  memory:1,
+    emotions,
 
-  world:1,
+    memory,
 
-  dna:1,
+    audience,
 
-  overall:1
+    world,
 
- };
+    dna
 
+  });
 
 
 
@@ -590,30 +460,54 @@ export function understandExperience(
   dna,
 
 
-  scores,
+
+  scores:{
 
 
-  confidence:
+   semantic:
+    confidence,
 
-   calculateConfidence({
 
-    intent,
 
-    entities,
+   entity:
+    confidence,
 
-    relationships,
 
-    emotions,
 
-    memory,
+   relationship:
+    confidence,
 
-    audience,
 
-    world,
 
-    dna
+   emotional:
+    confidence,
 
-   })
+
+
+   memory:
+    confidence,
+
+
+
+   world:
+    confidence,
+
+
+
+   dna:
+    confidence,
+
+
+
+   overall:
+    confidence
+
+
+  },
+
+
+
+  confidence
 
 
  };

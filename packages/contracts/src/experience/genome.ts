@@ -34,6 +34,7 @@
 import type {
   ExperienceEntities,
 } from "./entityExtractor.js";
+
 import type {
   ObjectGenome,
 } from "./objectGenome.js";
@@ -42,10 +43,15 @@ import type {
   ExperienceMeaning,
 } from "./meaning.js";
 
+import type {
+  WorldDomain
+} from "./world.js";
 
 import type {
   SemanticInterpretation,
 } from "./semantic.js";
+
+
 
 /**
  * =====================================================
@@ -66,6 +72,7 @@ export type ExperienceEnergy =
 
 
 
+
 /**
  * =====================================================
  * EXPERIENCE PACING
@@ -80,6 +87,7 @@ export type ExperiencePacing =
 
 
 
+
 /**
  * =====================================================
  * EXPERIENCE SOCIAL MODE
@@ -91,6 +99,7 @@ export type ExperienceSocial =
   | "solo"
   | "shared"
   | "community";
+
 
 
 
@@ -110,6 +119,7 @@ export type ExperienceJourney =
   | "memory"
   | "share"
   | "return";
+
 
 
 
@@ -148,6 +158,7 @@ export type ExperienceRelationship = {
 
 
 
+
 /**
  * =====================================================
  * EXPERIENCE GENOME
@@ -158,26 +169,39 @@ export type ExperienceRelationship = {
  */
 
 export interface ExperienceGenome {
+
+
   /**
    * Human desire / request
    */
   intent:
 
     string[];
+
+
   interpretation:
 
     SemanticInterpretation;
+
+
+
   archetypes:
 
     string[];
+
+
 
   themes:
 
     string[];
 
+
+
   emotions:
 
     string[];
+
+
 
   meaning:
 
@@ -191,6 +215,32 @@ export interface ExperienceGenome {
   relationships:
 
     ExperienceRelationship[];
+
+
+
+
+  /**
+   * =====================================================
+   * WORLD INTELLIGENCE
+   *
+   * Universe/domain this experience belongs to.
+   *
+   * NOT industry.
+   * NOT template.
+   *
+   * Example:
+   * memory_world
+   * commerce_world
+   * service_world
+   * journey_world
+   *
+   * =====================================================
+   */
+
+  worlds:
+
+    WorldDomain[];
+
 
 
 
@@ -259,6 +309,7 @@ export interface ExperienceGenome {
 
 
 
+
   /**
    * Reality extraction
    */
@@ -266,7 +317,10 @@ export interface ExperienceGenome {
 
     ExperienceEntities;
 
-    /**
+
+
+
+  /**
    * =====================================================
    * OBJECT IDENTITY LAYER
    *
@@ -279,6 +333,9 @@ export interface ExperienceGenome {
 
     ObjectGenome;
 
+
+
+
   /**
    * World/environment possibilities
    */
@@ -288,12 +345,16 @@ export interface ExperienceGenome {
 
 
 
+
+
   /**
    * Audience categories
    */
   audience:
 
     string[];
+
+
 
 
 
@@ -308,6 +369,8 @@ export interface ExperienceGenome {
   dna:
 
     string[];
+
+
 
 
 
@@ -332,6 +395,8 @@ export interface ExperienceGenome {
 
 
 
+
+
   /**
    * Sensory identity
    *
@@ -343,6 +408,8 @@ export interface ExperienceGenome {
   sensory:
 
     string[];
+
+
 
 
 
@@ -361,6 +428,8 @@ export interface ExperienceGenome {
 
 
 
+
+
   /**
    * Human change produced
    *
@@ -372,6 +441,5 @@ export interface ExperienceGenome {
   transformation:
 
     string[];
-
 
 }

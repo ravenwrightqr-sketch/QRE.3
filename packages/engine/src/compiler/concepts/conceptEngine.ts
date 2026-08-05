@@ -18,19 +18,11 @@
  */
 
 
-import {
-
-  CONCEPT_LEXICON,
-
-} from "./lexicon.js";
-
-
 import type {
-
   ExperienceConcept,
+} from "@qre/contracts";
 
-} from "./lexicon.js";
-
+import { CONCEPT_LEXICON } from "./index.js";
 
 
 

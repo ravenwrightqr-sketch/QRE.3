@@ -52,13 +52,9 @@
  *
  * =====================================================
  */
-
-
 import type {
-
   MemoryUnderstanding
-
-} from "../models/understandingTypes.js";
+} from "@qre/contracts";
 
 
 

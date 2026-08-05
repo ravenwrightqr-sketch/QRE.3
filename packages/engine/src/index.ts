@@ -57,19 +57,20 @@ export type {
 
 export * from "./analytics/index.js";
 
-
-
-
 /**
  * =====================================================
- * GEO + MEMORY
+ * RUNTIME PROJECTION
+ *
+ * Public runtime assembly boundary.
+ *
+ * Compiler output
+ *        ↓
+ * Runtime Experience
+ *
  * =====================================================
  */
 
-export * from "./geo/geoMemoryLayer.js";
-
-export * from "./geo/geoStoryCompiler.js";
-
+export * from "./runtimeProjection/index.js";
 
 
 
@@ -114,11 +115,7 @@ export * from "./moments/flowToMoments.js";
  * =====================================================
  */
 
-export {
-  compileExperienceGenome,
-  genomeCompiler,
-  compileExperienceGenome as experienceCompiler,
-} from "./experience/genomeCompiler.js";
+ export * from "./experience/index.js";
 
 
 export * from "./experience/blueprintToFlow.js";
@@ -132,20 +129,7 @@ export * from "./experience/blueprintToFlow.js";
  * =====================================================
  */
 
-export * from "./compiler/semantic/index.js";
-
-
-
-
-/**
- * =====================================================
- * COGNITION
- * =====================================================
- */
-
-export * from "./cognition/index.js";
-
-
+ export * from "./compiler/index.js";
 
 
 /**
@@ -234,3 +218,36 @@ export {
 } from "./experience/director.js";
 
 export * from "./cinematic/index.js";
+
+
+
+/**
+ * =====================================================
+ * COMPILER BRAIN
+ * =====================================================
+ *
+ * Creative Intelligence Core
+ *
+ * =====================================================
+ */
+
+export {
+  runCompilerBrain,
+} from "./compiler/compilerBrain.js";
+
+export type {
+  CompilerBrainResult,
+
+} from "./compiler/compilerBrain.js";
+
+
+
+
+
+ /**
+ * =====================================================
+ * RUNTIME PROJECTION
+ * =====================================================
+ */
+
+export * from "./runtimeProjection/index.js";

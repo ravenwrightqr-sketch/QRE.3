@@ -3,15 +3,23 @@
  * ORIGIN EVOLUTION ENGINE
  * =====================================================
  *
- * Detects meaningful change between states.
+ * Semantic State Evolution.
  *
- * Past Meaning
- *       +
- * Reflection
- *       +
- * New Meaning
- *       =
- * Evolution Path
+ * Previous Meaning
+ *        ↓
+ * Current Meaning
+ *        ↓
+ * Evolution Analysis
+ *
+ * Detects:
+ *
+ * - emergence
+ * - persistence
+ * - disappearance
+ * - transformation
+ *
+ * NO TEMPLATES
+ * NO FIXED PATHS
  *
  * =====================================================
  */
@@ -19,59 +27,248 @@
 
 export interface EvolutionState {
 
+
   previous:string[];
+
 
   current:string[];
 
-  changes:string[];
+
+  emerged:string[];
+
+
+  preserved:string[];
+
+
+  disappeared:string[];
+
+
+  transformed:string[];
+
 
   evolutionStrength:number;
+
 
 }
 
 
 
+
+
+function unique(
+
+ values:string[]
+
+):string[]{
+
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+function similarity(
+
+ a:string[],
+
+ b:string[]
+
+):number{
+
+
+ if(!a.length && !b.length){
+
+  return 1;
+
+ }
+
+
+ const shared =
+
+  a.filter(
+
+   value => b.includes(value)
+
+  ).length;
+
+
+
+ return shared /
+
+ Math.max(
+
+  a.length,
+
+  b.length
+
+ );
+
+}
+
+
+
+
+
 export function evolve(
+
 
  previous:string[],
 
+
  current:string[]
+
 
 ):EvolutionState {
 
 
- const changes =
 
- current.filter(
+ const before =
 
-  item =>
+  unique(previous);
 
-   !previous.includes(item)
 
- );
+
+ const after =
+
+  unique(current);
+
+
+
+
+
+ const emerged =
+
+  after.filter(
+
+   item =>
+
+    !before.includes(item)
+
+  );
+
+
+
+
+
+ const preserved =
+
+  after.filter(
+
+   item =>
+
+    before.includes(item)
+
+  );
+
+
+
+
+
+ const disappeared =
+
+  before.filter(
+
+   item =>
+
+    !after.includes(item)
+
+  );
+
+
+
+
+
+ const transformed =
+
+  emerged.filter(
+
+   item =>
+
+    disappeared.length > 0
+
+  );
+
+
+
+
+
+ const similarityScore =
+
+  similarity(
+
+   before,
+
+   after
+
+  );
+
+
+
+
+
+ const novelty =
+
+  emerged.length /
+
+  Math.max(
+
+   after.length,
+
+   1
+
+  );
+
+
+
 
 
  return {
 
 
-  previous,
+  previous:before,
 
 
-  current,
+  current:after,
 
 
-  changes,
+  emerged,
+
+
+  preserved,
+
+
+  disappeared,
+
+
+  transformed,
 
 
   evolutionStrength:
 
-   current.length === 0
+   Math.min(
 
-   ? 0
+    1,
 
-   :
+    (
 
-   changes.length / current.length
+     novelty +
+
+     (1 - similarityScore)
+
+    ) / 2
+
+   )
 
 
  };

@@ -51,7 +51,7 @@ export type UnderstandingScoreInput = {
 
 
 
-export type UnderstandingScores = {
+export type CalculatedUnderstandingScores = {
 
  semantic:number;
 
@@ -115,7 +115,7 @@ export function calculateUnderstandingScores(
 
 input:UnderstandingScoreInput
 
-):UnderstandingScores {
+):CalculatedUnderstandingScores {
 
 
 

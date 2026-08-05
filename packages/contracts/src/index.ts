@@ -26,6 +26,7 @@ export type {
 
 export type {
   CinematicScene,
+  SceneMediaAsset,
   CinematicSceneType,
   SceneAudio,
   SceneVisual,
@@ -101,4 +102,6 @@ export * from "./flow.js";
 
 export * from "./experience/index.js";
 
+// Cognition compiler folder 
 
+export * from "./cognition/index.js";

@@ -1,25 +1,22 @@
 /**
  * =====================================================
- * QRE COGNITION SPINE LISTENER
+ * QRE EXPERIENCE OBSERVATION LISTENER
  * =====================================================
  *
- * Connects runtime signals to cognition.
- *
  * Spine = signal transport
- * Cognition = interpretation
+ *
+ * Converts runtime signals into observations.
+ *
+ * Does NOT think.
+ * Does NOT compile.
+ * Does NOT execute.
  *
  * =====================================================
  */
 
-
 import {
   subscribeSpine,
 } from "./eventSpine.js";
-
-
-import {
-  processCognition,
-} from "../cognition/cognitionKernel.js";
 
 
 import type {
@@ -27,10 +24,7 @@ import type {
 } from "./eventSpine.js";
 
 
-
-
-
-export function startCognitionListener(){
+export function startExperienceObserver(){
 
 
   return subscribeSpine(
@@ -38,58 +32,34 @@ export function startCognitionListener(){
     async (event:SpineEvent)=>{
 
 
-      processCognition({
+      const observation = {
 
 
-        type:
-          "experience",
+        type:"experience_event",
 
 
-
-        summary:
-          `Engine event ${event.type}`,
+        event:event.type,
 
 
-
-        confidence:
-          0.7,
+        assetId:event.assetId,
 
 
-
-        context:{
-
-          event:
-            event.type,
+        sessionId:event.sessionId,
 
 
-          assetId:
-            event.assetId,
+        flowId:event.flowId,
 
 
-          sessionId:
-            event.sessionId,
+        metadata:event.meta,
 
 
-          flowId:
-            event.flowId,
+      };
 
 
-          stepIndex:
-            event.stepIndex,
-
-
-          userId:
-            event.userId,
-
-
-          meta:
-            event.meta,
-
-
-        },
-
-
-      });
+      console.log(
+        "Experience observation:",
+        observation
+      );
 
 
     }

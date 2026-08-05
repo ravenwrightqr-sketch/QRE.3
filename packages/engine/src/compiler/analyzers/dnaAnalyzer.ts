@@ -42,7 +42,7 @@ import type {
   DNAUnderstanding,
   EmotionUnderstanding,
   WorldUnderstanding
-} from "../models/understandingTypes.js";
+} from "@qre/contracts";
 
 import type {
   ExperienceIntent

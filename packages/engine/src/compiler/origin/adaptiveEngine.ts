@@ -3,34 +3,52 @@
  * ORIGIN ADAPTIVE EVOLUTION ENGINE
  * =====================================================
  *
- * Converts resonance into future adaptation.
- *
- * Experience
- *    ↓
- * Memory
- *    ↓
  * Resonance
- *    ↓
- * Evolution
+ *      ↓
+ * Semantic Evolution
+ *
+ * Determines how meaning naturally evolves
+ * from accumulated resonance.
+ *
+ * NO TEMPLATES
+ * NO RULE TREES
  *
  * =====================================================
  */
 
+export interface AdaptiveEvolution{
 
-export interface AdaptiveEvolution {
+  previousTrajectory:string[];
 
+  emergingTrajectory:string[];
 
-  previousDirection:string;
+  adaptationDrivers:string[];
 
-
-  newDirection:string;
-
-
-  adaptationReason:string;
-
+  evolutionNarrative:string;
 
   evolutionForce:number;
 
+}
+
+
+
+
+
+function unique(
+
+ values:string[]=[]
+
+):string[]{
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
 
 }
 
@@ -40,45 +58,80 @@ export interface AdaptiveEvolution {
 
 export function evolveMeaning(
 
- resonance:any
+ resonance:{
 
-):AdaptiveEvolution {
+  connectedPatterns?:string[];
+
+  futureSignal?:string;
+
+  resonanceStrength:number;
+
+ }
+
+):AdaptiveEvolution{
+
+
+ const drivers =
+
+  unique([
+
+   ...(resonance.connectedPatterns ?? []),
+
+   resonance.futureSignal ?? ""
+
+  ]);
 
 
 
- const signal =
+ const previousTrajectory =
 
- resonance.futureSignal;
+  resonance.connectedPatterns?.length
 
+  ? [...resonance.connectedPatterns]
+
+  : ["initial meaning"];
+
+
+
+ const emergingTrajectory =
+
+  unique([
+
+   ...previousTrajectory,
+
+   resonance.futureSignal ?? "semantic emergence"
+
+  ]);
+
+
+
+ const evolutionNarrative =
+
+  emergingTrajectory.length > 1
+
+  ? `Meaning evolves through ${emergingTrajectory.join(" → ")}.`
+
+  : `Meaning stabilizes around ${emergingTrajectory[0]}.`;
 
 
 
  return {
 
-
-  previousDirection:
-
-   "preserve existing meaning",
+  previousTrajectory,
 
 
 
-  newDirection:
-
-   signal === "increase meaning preservation"
-
-   ?
-
-   "deepen human connection through preserved meaning"
-
-   :
-
-   "continue current trajectory",
+  emergingTrajectory,
 
 
 
-  adaptationReason:
+  adaptationDrivers:
 
-   `Adapted because ${resonance.connectedPatterns.join(", ")} created resonance.`,
+   drivers,
+
+
+
+  evolutionNarrative,
 
 
 
@@ -86,7 +139,7 @@ export function evolveMeaning(
 
    resonance.resonanceStrength
 
-
  };
+
 
 }

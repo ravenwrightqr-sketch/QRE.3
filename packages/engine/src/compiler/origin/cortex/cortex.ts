@@ -1,59 +1,168 @@
 import type {
+    OriginCognitiveState,
+} from "@qre/contracts";
 
-    CognitiveState
+import { createInquiry } from "../inquiry/index.js";
 
-} from "../state/index.js";
 
-import {
 
-    createInquiry
+function unique(
+ values:string[]=[]
+):string[]{
 
-} from "../inquiry/index.js";
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+function extractSignals(
+
+ input:string
+
+):string[]{
+
+ return input
+  .toLowerCase()
+  .split(/[^a-z0-9]+/)
+  .filter(
+
+   word => word.length > 3
+
+  );
+
+}
+
+
 
 export function tick(
 
-state:CognitiveState
+ state:OriginCognitiveState
 
-):CognitiveState {
-
-
-
-state.history.push(
-
-    "cortex tick executed"
-
-);
+):OriginCognitiveState{
 
 
+ const signals =
 
-state.observations.push(
+  extractSignals(
 
-    `Observed: ${state.input}`
+   state.input
 
-);
+  );
 
 
-state.questions.push(
 
-    createInquiry(
+ const observations =
 
-        `What deeper structure exists inside ${state.input}?`
+  unique([
+
+   ...state.observations,
+
+   ...signals.map(
+
+    signal =>
+
+     `semantic signal: ${signal}`
+
+   )
+
+  ]);
+
+
+
+ const inquiry =
+
+  createInquiry(
+
+   `What relationships emerge between ${signals.join(", ")}?`
+
+  );
+
+
+
+ const confidenceGain =
+
+  Math.min(
+
+   0.05,
+
+   signals.length * 0.01
+
+  );
+
+
+
+ return {
+
+  ...state,
+
+
+
+  history:[
+
+   ...state.history,
+
+   `semantic evolution (${signals.length} signals)`,
+
+  ],
+
+
+
+  observations,
+
+
+
+  questions:[
+
+   ...state.questions,
+
+   inquiry
+
+  ],
+
+
+
+  curiosity:
+
+   Math.min(
+
+    1,
+
+    state.curiosity +
+
+    Math.max(
+
+     0.02,
+
+     signals.length * 0.005
 
     )
 
-);
+   ),
 
 
 
-state.curiosity += .1;
+  confidence:
 
+   Math.min(
 
+    1,
 
-state.confidence += .05;
+    state.confidence +
 
+    confidenceGain
 
+   )
 
-return state;
+ };
 
 
 }

@@ -1,82 +1,197 @@
 import type {
+    OriginCognitiveState
+} from "@qre/contracts"
 
-    CognitiveState
+function semanticComplexity(
 
-} from "./types.js";
+ input:string
+
+):number{
+
+ const words =
+
+  input
+   .trim()
+   .split(/\s+/)
+   .filter(Boolean);
+
+
+ return Math.min(
+
+  1,
+
+  words.length / 40
+
+ );
+
+
+}
+
+
+
+function initialCuriosity(
+
+ complexity:number
+
+):number{
+
+
+ return Math.min(
+
+  1,
+
+  0.35 + complexity * 0.5
+
+ );
+
+
+}
+
+
+
+function initialConfidence(
+
+ complexity:number
+
+):number{
+
+
+ return Math.max(
+
+  0.2,
+
+  0.8 - complexity * 0.35
+
+ );
+
+
+}
 
 
 
 export function createState(
 
-    input:string
+ input:string
 
-):CognitiveState {
-
-
-
-return {
+):OriginCognitiveState{
 
 
-id:
+ if(!input.trim()){
 
-    crypto.randomUUID(),
+  throw new Error(
 
+   "Cannot initialize cognition without input."
 
-input,
+  );
 
-
-focus:[],
-
-
-observations:[],
+ }
 
 
-thoughts:[],
+ const complexity =
+
+  semanticComplexity(
+
+   input
+
+  );
 
 
-questions:[],
+ return {
+
+  id:
+
+   crypto.randomUUID(),
 
 
-hypotheses:[],
+  input,
 
 
-simulations:[],
+  focus:
+
+   [],
 
 
-beliefs:[],
+  observations:
+
+   [],
 
 
-memories:[],
+  thoughts:
+
+   [],
 
 
-discoveries:[],
+  questions:
+
+   [],
 
 
-goals:[],
+  hypotheses:
+
+   [],
 
 
-history:[
+  simulations:
 
-    "origin initialized"
-
-],
+   [],
 
 
-confidence:.5,
+  beliefs:
+
+   [],
 
 
-curiosity:.5,
+  memories:
+
+   [],
 
 
-energy:1,
+  discoveries:
+
+   [],
 
 
-timestamp:
+  goals:
 
-    Date.now()
+   [],
 
 
-};
+  history:[
 
+   `cognition initialized (${input.length} characters)`,
+
+   `semantic complexity ${complexity.toFixed(2)}`
+
+  ],
+
+
+  confidence:
+
+   initialConfidence(
+
+    complexity
+
+   ),
+
+
+  curiosity:
+
+   initialCuriosity(
+
+    complexity
+
+   ),
+
+
+  energy:
+
+   1,
+
+
+  timestamp:
+
+   Date.now()
+
+ };
 
 }

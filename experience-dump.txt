@@ -1,0 +1,1848 @@
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\blueprintComposer.ts
+==================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE BLUEPRINT COMPOSER
+ * =====================================================
+ *
+ * Experience Genome
+ *        ↓
+ * Experience World
+ *        ↓
+ * Experience Blueprint
+ *
+ *
+ * Enterprise Composition Layer
+ *
+ * RESPONSIBILITIES:
+ *
+ * ✅ compose canonical blueprint
+ * ✅ preserve semantic DNA
+ * ✅ attach world intelligence
+ * ✅ translate cognitive outputs into experience structure
+ *
+ *
+ * DOES NOT:
+ *
+ * ❌ detect intent
+ * ❌ create meaning
+ * ❌ resolve worlds
+ * ❌ execute runtime
+ * ❌ access database
+ *
+ * =====================================================
+ */
+
+import type {
+
+  ExperienceBlueprint,
+  ExperienceGenome,
+  ExperienceMoment,
+  ExperienceComponent,
+  ExperienceTone,
+  ExperienceType,
+  ExperienceMomentType,
+  ExperienceWorld,
+  WorldDomain,
+
+} from "@qre/contracts";
+
+
+
+function resolveComponent(
+ type:ExperienceMomentType
+):ExperienceComponent {
+
+
+const components:
+
+Partial<Record<
+ ExperienceMomentType,
+ ExperienceComponent
+>>
+
+= {
+
+ welcome:"hero",
+ introduction:"hero",
+ story:"story",
+ memory:"memory",
+ timeline:"timeline",
+ photos:"gallery",
+ video:"video",
+ soundtrack:"video",
+ location:"geo_memory",
+ venue:"geo_memory",
+ product:"product",
+ reward:"reward",
+ share:"social",
+ social:"social",
+ profile:"profile",
+ cta:"cta",
+ care_instructions:"education",
+ education:"education",
+ reveal:"story",
+ legacy:"timeline",
+ future:"story"
+
+};
+
+
+return (
+
+ components[type]
+
+ ??
+
+ "story"
+
+) as ExperienceComponent;
+
+}
+
+
+
+
+/**
+ * =====================================================
+ *
+ * WORLD INTELLIGENCE
+ *
+ * ExperienceWorld is canonical.
+ *
+ * =====================================================
+ */
+
+
+/**
+ * =====================================================
+ *
+ * WORLD INTELLIGENCE
+ *
+ * ExperienceWorld is canonical.
+ *
+ * =====================================================
+ */
+
+
+function resolveWorlds(
+
+ world:ExperienceWorld
+
+):WorldDomain[] {
+
+
+const worlds = new Set<WorldDomain>();
+
+
+if(world.domain){
+
+ worlds.add(
+  world.domain
+ );
+
+}
+
+
+for(
+
+ const connected of world.connectedWorlds ?? []
+
+){
+
+ worlds.add(
+  connected
+ );
+
+}
+
+
+
+return [
+
+ ...worlds
+
+];
+
+}
+
+
+
+function createTitle(
+
+ genome:ExperienceGenome,
+
+ world:ExperienceWorld
+
+):string {
+
+
+if(
+ genome.meaning.memories.length
+){
+
+ return genome.meaning.memories[0];
+
+}
+
+
+
+if(
+ genome.entities.people.length
+){
+
+ return `${genome.entities.people[0]} Experience`;
+
+}
+
+
+
+if(
+world.worldIdentity?.name
+){
+
+ return world.worldIdentity.name;
+
+}
+
+
+
+if(
+ genome.meaning.desiredFeeling.length
+){
+
+ return `${genome.meaning.desiredFeeling[0]} Experience`;
+
+}
+
+
+
+return "QRE Experience";
+
+}
+
+
+
+
+function buildObjectMoments(
+
+ genome:ExperienceGenome
+
+):ExperienceMoment[]{
+
+
+return (
+
+ genome.object?.moments ?? []
+
+)
+
+.map(
+
+(moment,index)=>{
+
+
+const type =
+
+resolveMomentType(
+
+ moment.title
+
+);
+
+
+
+return {
+
+ type,
+
+ component:
+
+ resolveComponent(type),
+
+ title:
+
+ moment.title,
+
+
+ subtitle:
+
+ moment.description,
+
+
+ description:
+
+ moment.description,
+
+
+ order:index,
+
+
+ editable:true,
+
+
+ demo:false,
+
+
+ payload:{
+
+  text:
+
+  moment.description,
+
+
+  data:{
+
+   objectMoment:moment,
+
+   meaning:genome.meaning,
+
+   entities:genome.entities,
+
+   relationships:genome.relationships,
+
+   semanticDNA:genome.dna,
+
+   symbols:genome.symbols,
+
+   worlds:genome.worlds
+
+  }
+
+ }
+
+};
+
+
+}
+
+);
+
+}
+
+
+
+
+function resolveMomentType(
+
+title:string
+
+):ExperienceMomentType {
+
+
+const map:
+
+Record<string,ExperienceMomentType> = {
+
+
+Origin:
+"introduction",
+
+"First Encounter":
+"story",
+
+"Memory Capture":
+"memory",
+
+Relationship:
+"story",
+
+"Place Experience":
+"location",
+
+Legacy:
+"legacy",
+
+Future:
+"future"
+
+};
+
+
+
+return map[title] ?? "story";
+
+}
+
+
+
+
+
+export function composeBlueprint(
+
+ genome:ExperienceGenome,
+
+ world:ExperienceWorld
+
+):ExperienceBlueprint {
+
+
+
+if(!genome){
+
+ throw new Error(
+  "Genome required"
+ );
+
+}
+
+
+
+if(!world){
+
+ throw new Error(
+  "ExperienceWorld required"
+ );
+
+}
+
+
+
+const worlds =
+
+resolveWorlds(
+
+ world
+
+);
+
+
+
+const moments =
+
+buildObjectMoments(
+
+ genome
+
+);
+
+
+
+const tone:
+
+ExperienceTone[] =
+
+[
+
+ genome.energy,
+
+ ...genome.emotions,
+
+ ...genome.tone
+
+]
+
+.filter(
+
+(value):value is ExperienceTone =>
+
+typeof value==="string"
+
+);
+
+
+
+
+
+return {
+
+
+title:
+
+createTitle(
+
+ genome,
+
+ world
+
+),
+
+
+
+type:
+
+resolveExperienceType(
+
+ worlds,
+
+ genome
+
+),
+
+
+
+tone:
+
+[...new Set(tone)],
+
+
+
+meaning:
+
+genome.meaning,
+
+
+
+moments,
+
+
+
+entities:
+
+genome.entities,
+
+
+metadata:{
+
+
+ archetypes:
+
+  genome.archetypes,
+
+
+ themes:
+
+  genome.themes,
+
+
+ dna:
+
+  genome.dna,
+
+
+ worlds,
+
+
+ artifacts:
+
+  world.artifacts
+
+}
+
+
+
+};
+
+}
+
+
+
+
+
+function resolveExperienceType(
+
+ worlds:string[],
+
+ genome:ExperienceGenome
+
+):ExperienceType {
+
+
+
+if(
+
+ worlds.includes(
+  "commerce_world"
+ )
+
+){
+
+ return "business";
+
+}
+
+
+
+if(
+
+ genome.memory >= .7
+
+){
+
+ return "story";
+
+}
+
+
+
+return "journey";
+
+}
+
+
+
+
+export const blueprintComposer =
+
+composeBlueprint;
+
+
+
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\blueprintToFlow.ts
+==================================================
+/**
+ * =====================================================
+ * QRE BLUEPRINT → EXPERIENCE FLOW COMPILER
+ * =====================================================
+ *
+ * Experience Blueprint
+ *        ↓
+ * Runtime Flow Instructions
+ *
+ *
+ * Responsibilities:
+ *
+ * - translate experience moments into runtime steps
+ * - preserve semantic meaning
+ * - preserve experience intent
+ * - preserve source payload
+ *
+ *
+ * Does NOT:
+ *
+ * ❌ create stories
+ * ❌ create emotional arcs
+ * ❌ invent creative direction
+ * ❌ access database
+ * ❌ execute runtime
+ * ❌ control player behavior
+ *
+ * =====================================================
+ */
+
+
+import type {
+
+  ExperienceBlueprint,
+
+  ExperienceMomentType,
+
+  FlowStep,
+
+  FlowStepType,
+
+} from "@qre/contracts";
+
+
+
+/**
+ * =====================================================
+ *
+ * MOMENT TYPE → FLOW TYPE
+ *
+ * Minimal semantic translation.
+ *
+ * Runtime decides behavior.
+ *
+ * =====================================================
+ */
+
+
+function resolveFlowType(
+
+  momentType: ExperienceMomentType
+
+): FlowStepType {
+
+
+const mapping:
+
+Partial<Record<ExperienceMomentType, FlowStepType>> = {
+
+
+welcome:
+"hero",
+
+
+introduction:
+"hero",
+
+
+memory:
+"story",
+
+
+timeline:
+"timeline",
+
+
+photos:
+"gallery",
+
+
+video:
+"video",
+
+
+soundtrack:
+"soundtrack",
+
+
+location:
+"location",
+
+
+product:
+"product",
+
+
+menu:
+"menu",
+
+
+offer:
+"offer",
+
+
+reward:
+"reward",
+
+
+payment:
+"payment",
+
+
+booking:
+"booking",
+
+
+review:
+"review",
+
+
+social:
+"social",
+
+
+share:
+"share",
+
+
+profile:
+"profile",
+
+
+guestbook:
+"guestbook",
+
+
+interaction:
+"timer",
+
+
+completion:
+"message",
+
+
+milestone:
+"timeline",
+
+
+legacy:
+"timeline",
+
+
+future:
+"story",
+
+
+reveal:
+"story",
+
+
+story:
+"story",
+
+
+};
+
+
+return (
+
+mapping[momentType]
+
+??
+
+"message"
+
+);
+
+
+}
+
+
+/**
+ * =====================================================
+ *
+ * BLUEPRINT → FLOW
+ *
+ * Pure semantic compilation.
+ *
+ * =====================================================
+ */
+
+
+export function blueprintToFlow(
+
+  blueprint: ExperienceBlueprint
+
+): FlowStep[] {
+
+
+
+if(
+
+  !blueprint ||
+
+  !Array.isArray(blueprint.moments)
+
+){
+
+  return [];
+
+}
+
+
+
+
+return blueprint.moments.map(
+
+(moment,index)=>(
+
+
+{
+
+
+id:
+
+`experience-${index}-${moment.type}`,
+
+
+
+order:
+
+index,
+
+
+
+type:
+
+resolveFlowType(
+
+moment.type
+
+),
+
+
+
+payload:{
+
+
+
+experience:{
+
+
+component:
+
+moment.component,
+
+
+momentType:
+
+moment.type,
+
+
+title:
+
+moment.title,
+
+
+subtitle:
+
+moment.subtitle,
+
+
+description:
+
+moment.description,
+
+
+icon:
+
+moment.icon,
+
+
+animation:
+
+moment.animation,
+
+
+editable:
+
+moment.editable,
+
+
+demo:
+
+moment.demo,
+
+
+order:
+
+moment.order,
+
+
+},
+
+
+
+
+meaning:{
+
+
+purpose:
+
+moment.description
+
+??
+
+"",
+
+
+type:
+
+moment.type,
+
+
+},
+
+
+
+
+source:
+
+moment.payload,
+
+
+
+intent:{
+
+
+type:
+
+moment.type,
+
+
+meaning:
+
+moment.description
+
+??
+
+"",
+
+
+}
+
+
+}
+
+
+
+}
+
+
+)
+
+);
+
+
+}
+
+
+
+export const experienceFlowCompiler =
+
+blueprintToFlow;
+
+
+
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\director.ts
+==================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE DIRECTION EXTRACTOR
+ * =====================================================
+ *
+ * Blueprint
+ *      ↓
+ * Experience Direction
+ *
+ *
+ * Extracts semantic creative signals.
+ *
+ * Does not invent creative decisions.
+ *
+ * =====================================================
+ */
+
+
+import type {
+
+ ExperienceBlueprint,
+
+} from "@qre/contracts";
+
+
+export type ExperienceDirection = {
+
+title:string;
+
+atmosphere:string[];
+
+pacing:string;
+
+moments:{
+  index:number;
+  purpose:string;
+  meaning:string;
+}[];
+
+sensory:string[];
+
+interactions:string[];
+
+themes:string[];
+
+transformation:string[];
+
+};
+
+
+
+
+
+
+
+export function directExperience(
+
+ blueprint:ExperienceBlueprint
+
+):ExperienceDirection {
+
+
+
+const themes =
+
+ blueprint.metadata?.themes
+
+ ??
+
+ [];
+
+
+
+
+const dna =
+
+ blueprint.metadata?.dna
+
+ ??
+
+ [];
+
+
+
+
+const emotions =
+
+ blueprint.tone
+
+ ??
+
+ [];
+
+
+
+
+const transformation =
+
+ blueprint.meaning.desiredFeeling
+
+ ??
+
+ [];
+
+
+
+
+
+
+return {
+
+
+title:
+
+ blueprint.title,
+
+
+
+atmosphere:
+
+ [
+
+  ...new Set([
+
+   ...themes,
+
+   ...dna,
+
+   ...emotions
+
+  ])
+
+ ],
+
+
+
+
+pacing:
+
+ "",
+
+moments:
+
+ blueprint.moments.map(
+
+  (moment,index)=>({
+
+    index,
+
+    purpose:
+      moment.type,
+
+    meaning:
+      moment.description ?? ""
+
+  })
+
+),
+
+sensory:
+
+ [],
+
+
+interactions:
+
+ [],
+
+
+themes,
+
+transformation,
+
+
+};
+
+}
+
+
+export const experienceDirector =
+
+directExperience;
+
+
+
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\genomeCompiler.ts
+==================================================
+import {
+  composeWorld,
+} from "../world/worldComposer.js";
+
+import {
+  buildExperienceGenome,
+} from "../compiler/semantic/genome/genomeBuilder.js";
+
+import {
+  composeBlueprint,
+} from "./blueprintComposer.js";
+
+import {
+  experienceDirector,
+} from "./director.js";
+
+import {
+  blueprintToFlow,
+} from "./blueprintToFlow.js";
+
+
+import {
+  flowToMoment,
+} from "../moments/flowToMoments.js";
+
+import {
+  compileCinematicScenes,
+} from "../cinematic/cinematicCompiler.js";
+
+import {
+  synthesizeCognitiveExperience,
+} from "../compiler/cognitiveSynthesis.js";
+
+import {
+  understandExperience,
+} from "../compiler/understanding/index.js";
+
+import {
+  buildMeaningContext,
+} from "../compiler/meaningEngines/meaningContextEngine.js";
+
+
+/**
+ * =====================================================
+ *
+ * CONTRACT TYPES
+ *
+ * =====================================================
+ */
+
+import type {
+
+  CompilerMind,
+  CompiledExperience,
+  ExperienceBlueprint,
+  ExperienceCompilerIntelligence,
+  ExperienceGenome,
+  ExperienceMeaningContext,
+  ExperienceModel,
+  ExperienceUnderstanding,
+  ExperienceWorld,
+  FlowStep,
+  ExperienceMoment,
+  ExperienceCompileContext,
+
+} from "@qre/contracts";
+
+
+/**
+ * =====================================================
+ *
+ * MODEL BUILDER
+ *
+ * =====================================================
+ */
+
+
+function createExperienceModel(
+
+ blueprint:ExperienceBlueprint,
+
+ prompt:string
+
+):ExperienceModel {
+
+
+return {
+
+ title:
+
+  blueprint.title,
+
+
+ description:
+
+  prompt,
+
+
+ industry:
+
+  "generic",
+
+
+ goal:
+
+  "discovery",
+
+
+ tone:
+
+  blueprint.tone,
+
+
+ moments:
+
+  blueprint.moments,
+
+
+ metadata:{
+
+  category:
+
+   blueprint.type,
+
+
+  tags:[
+
+   "cognitive-synthesis",
+
+   "semantic-compiler",
+
+   "experience-genome",
+
+   "cinematic-runtime"
+
+  ]
+
+ }
+
+};
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * ID GENERATOR
+ *
+ * =====================================================
+ */
+
+
+function createCompilerId():string {
+
+
+return (
+
+ globalThis.crypto?.randomUUID?.()
+
+ ??
+
+ `experience-${Date.now()}-${Math.random()
+ .toString(36)
+ .slice(2)}`
+
+);
+
+
+}
+
+function isExperienceUnderstanding(
+  value:unknown
+):value is ExperienceUnderstanding {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "intent" in value
+    && "emotions" in value
+    && "world" in value
+  );
+
+}
+
+function isExperienceMeaningContext(
+  value:unknown
+):value is ExperienceMeaningContext {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "meanings" in value
+    && "humanDesires" in value
+    && "narrativePotential" in value
+  );
+
+}
+
+function isExperienceGenome(
+  value:unknown
+):value is ExperienceGenome {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "meaning" in value
+    && "entities" in value
+    && "themes" in value
+  );
+
+}
+
+/**
+ * =====================================================
+ *
+ * MAIN COGNITIVE COMPILER
+ *
+ * =====================================================
+ */
+
+export function compileExperienceGenome(
+
+ prompt:string,
+
+ context?:ExperienceCompileContext
+
+):CompiledExperience {
+
+
+
+if(!prompt.trim()){
+
+ throw new Error(
+  "Experience prompt required."
+ );
+
+}
+/**
+ * =====================================================
+ *
+ * FOUNDATION COGNITION INPUT
+ *
+ * Understanding + Meaning Context
+ *
+ * These are required CompilerMind inputs.
+ *
+ * Cognitive synthesis owns all downstream intelligence.
+ *
+ * =====================================================
+ */
+
+
+/**
+ * =====================================================
+ *
+ * 2. EXPERIENCE GENOME
+ *
+ * Creative DNA.
+ *
+ * =====================================================
+ */
+ /**
+ * =====================================================
+ *
+ * EXPERIENCE GENOME
+ *
+ * Creative DNA Substrate
+ *
+ * =====================================================
+ */
+/**
+ * =====================================================
+ *
+ * FOUNDATION COGNITION
+ *
+ * Prompt
+ * ↓
+ * Understanding
+ * ↓
+ * Meaning Context
+ * ↓
+ * Genome
+ *
+ * =====================================================
+ */
+
+const understanding: ExperienceUnderstanding =
+
+  (context?.metadata?.understanding as ExperienceUnderstanding | undefined)
+
+  ??
+
+  understandExperience(
+    prompt
+  );
+
+
+
+const meaningContext: ExperienceMeaningContext =
+
+  (context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
+
+  ??
+
+  buildMeaningContext(
+    understanding
+  );
+
+
+
+const genome: ExperienceGenome =
+
+  (context?.metadata?.genome as ExperienceGenome | undefined)
+
+  ??
+
+  buildExperienceGenome(
+    prompt,
+    understanding,
+    meaningContext
+  );
+
+
+
+/**
+ * =====================================================
+ *
+ * COMPILER MIND
+ *
+ * Canonical cognitive state
+ *
+ * =====================================================
+ */
+
+
+const mind: CompilerMind = {
+
+  prompt,
+
+  understanding,
+
+  meaningContext,
+
+  genome,
+
+};
+
+
+
+/**
+ * =====================================================
+ *
+ * COGNITIVE SYNTHESIS
+ *
+ * =====================================================
+ */
+
+
+const cognitiveSynthesis =
+
+  synthesizeCognitiveExperience(
+    mind
+  );
+
+
+const {
+
+  semanticIR,
+
+  nuvo,
+
+  revik,
+
+  moverArc,
+
+  moverTopology,
+
+  kaivo,
+
+  orion,
+
+  cognitiveTrace,
+
+} = cognitiveSynthesis;
+
+/**
+ * =====================================================
+ *
+ * WORLD SYNTHESIS
+ *
+ * Cognitive Intelligence
+ * ↓
+ * Experience World
+ *
+ * =====================================================
+ */
+
+const world: ExperienceWorld =
+
+  composeWorld(
+    genome
+  );
+
+
+
+/**
+ * =====================================================
+ *
+ * BLUEPRINT
+ *
+ * World
+ * ↓
+ * Blueprint
+ *
+ * =====================================================
+ */
+ const blueprint: ExperienceBlueprint =
+
+  composeBlueprint(
+    genome,
+    world
+  );
+
+
+/**
+ * =====================================================
+ *
+ * EXPERIENCE DIRECTION
+ *
+ * =====================================================
+ */
+
+const direction =
+
+  experienceDirector(
+    blueprint
+  );
+/**
+ * =====================================================
+ *
+ * 14. FLOW
+ *
+ * =====================================================
+ */
+
+const flowSteps:FlowStep[] =
+
+ blueprintToFlow(
+
+  blueprint
+
+ );
+
+/**
+ * =====================================================
+ *
+ * 15. MOMENTS
+ *
+ * =====================================================
+ */
+
+const experienceMoments:ExperienceMoment[] =
+
+ flowToMoment(
+
+  flowSteps
+
+ );
+/**
+ * =====================================================
+ *
+ * 16. CINEMATIC
+ *
+ * =====================================================
+ */
+
+const cinematicScenes =
+
+ compileCinematicScenes(
+
+  blueprint,
+
+  direction,
+
+  world
+
+ );
+
+
+/**
+ * =====================================================
+ *
+ * 17. MODEL
+ *
+ * =====================================================
+ */
+
+const model =
+
+ createExperienceModel(
+
+  blueprint,
+
+  prompt
+
+ );
+
+/**
+ * =====================================================
+ *
+ * FINAL COMPILED EXPERIENCE
+ *
+ * =====================================================
+ */
+
+
+return {
+
+
+ id:
+
+  createCompilerId(),
+
+
+
+ intelligence:{
+
+  understanding,
+
+  meaningContext,
+
+  semanticIR,
+
+  nuvo,
+
+  revik,
+
+  moverArc,
+
+  moverTopology,
+
+  kaivo,
+
+  orion
+
+ },
+
+
+
+ cognitiveTrace,
+
+
+
+ genome,
+
+
+ world,
+
+
+ blueprint,
+
+
+ direction,
+
+
+ flowSteps,
+
+
+ experienceMoments,
+
+
+ cinematicScenes,
+
+
+ model,
+
+
+
+ context,
+
+
+
+ title:
+
+  blueprint.title,
+
+
+
+ estimatedDuration:
+
+  experienceMoments.length * 5,
+
+
+
+ momentCount:
+
+  experienceMoments.length,
+
+
+
+ metadata:{
+
+  compilerVersion:
+
+   "5.0-cognitive-synthesis",
+
+
+  generatedAt:
+
+   new Date().toISOString(),
+
+
+  source:
+
+   "qre-cognitive-experience-compiler",
+
+
+  tags:[
+
+   "semantic",
+
+   "cognitive",
+
+   "world-aware",
+
+   "cinematic",
+
+   "compiler-brain"
+
+  ]
+
+ }
+
+
+};
+
+
+}
+
+
+export const genomeCompiler =
+
+ compileExperienceGenome;
+
+
+
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\index.ts
+==================================================
+
+export * from "./director.js";
+export * from "./genomeCompiler.js";
+export * from "./blueprintComposer.js";
+export * from "./blueprintToFlow.js";
+
+
+
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\experience\intelligence\ExperienceIntent.ts
+==================================================
+import { ExperienceGoal, ExperienceIndustry } from "@qre/contracts";
+
+export type ExperienceIntent = {
+
+  industry: ExperienceIndustry;
+
+  purpose:
+    ExperienceGoal;
+
+  emotionalNeed:
+    string[];
+
+  audience:
+    string[];
+
+  desiredFeeling:
+    string[];
+
+  behavior:
+    string[];
+
+};
+
+
+

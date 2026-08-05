@@ -20,12 +20,12 @@
  * =====================================================
  */
 
-
-
 import type {
   ExperienceTone,
 } from "./tone.js";
-
+import type {
+  WorldDomain
+} from "./world.js";
 
 import type {
   ExperienceType,
@@ -46,20 +46,13 @@ import type {
   ExperienceMeaning,
 } from "./meaning.js";
 
-
-
-
-
 export type ExperienceBlueprint = {
-
 
 
   /**
    * Human-facing identity
    */
   title:string;
-
-
 
   /**
    * What kind of experience
@@ -74,18 +67,11 @@ export type ExperienceBlueprint = {
    */
   type:
     ExperienceType;
-
-
-
-
   /**
    * Emotional direction
    */
   tone:
     readonly ExperienceTone[];
-
-
-
 
   /**
    * Preserved meaning
@@ -93,17 +79,11 @@ export type ExperienceBlueprint = {
   meaning:
     ExperienceMeaning;
 
-
-
-
   /**
    * Generated moments
    */
   moments:
     ExperienceMoment[];
-
-
-
 
   /**
    * Reality extracted
@@ -111,9 +91,7 @@ export type ExperienceBlueprint = {
   entities:
     ExperienceEntities;
 
-
-
-  /**
+   /**
    * Optional semantic metadata.
    *
    * NEVER used as compiler logic.
@@ -131,6 +109,30 @@ export type ExperienceBlueprint = {
 
     dna?:
       string[];
+    /**
+     * Experience universes detected
+     *
+     * Examples:
+     *
+     * memory_world
+     * service_world
+     * commerce_world
+     * journey_world
+     */
+    worlds?:
+    WorldDomain[];
+
+
+    /**
+     * Outputs produced by
+     * specialized world compilers.
+     *
+     * Example:
+     *
+     * ServiceExperience
+     */
+    artifacts?:
+      unknown[];
 
 
   };

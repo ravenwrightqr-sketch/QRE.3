@@ -3,11 +3,14 @@
  * ORIGIN MEMORY FIELD
  * =====================================================
  *
- * Stores significance, not data.
+ * Semantic Memory Structure.
  *
- * The question:
+ * Stores significance patterns,
+ * not raw information.
  *
- * "What should remain meaningful?"
+ * Question:
+ *
+ * "What meaning survives?"
  *
  * =====================================================
  */
@@ -15,26 +18,141 @@
 
 export interface MemoryField {
 
+
   moments:string[];
+
 
   significance:number[];
 
+
   emotionalThreads:string[];
 
+
   futureEchoes:string[];
+
 
 }
 
 
 
 
-export function buildMemoryField(
+
+function unique(
+
+ values:string[]=[]
+
+):string[] {
+
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+
+
+function calculateSignificance(
+
+ concept:string,
+
+ emotions:string[]
+
+):number {
+
+
+ const emotionalConnection =
+
+  emotions.filter(
+
+   emotion =>
+
+    concept.includes(emotion)
+
+  ).length;
+
+
+
+ return Math.min(
+
+  1,
+
+  .3 +
+
+  emotionalConnection * .2
+
+ );
+
+}
+
+
+
+
+
+
+
+
+function discoverFutureEchoes(
 
  concepts:string[],
 
  emotions:string[]
 
+):string[] {
+
+
+ return unique([
+
+  ...concepts,
+
+  ...emotions
+
+ ]);
+
+}
+
+
+
+
+
+
+
+
+export function buildMemoryField(
+
+
+ concepts:string[],
+
+
+ emotions:string[]
+
+
 ):MemoryField {
+
+
+
+ const meaningfulConcepts =
+
+  unique(concepts);
+
+
+
+ const emotionalThreads =
+
+  unique(emotions);
+
+
+
 
 
  return {
@@ -42,27 +160,43 @@ export function buildMemoryField(
 
   moments:
 
-   concepts,
+   meaningfulConcepts,
+
 
 
   significance:
 
-   concepts.map(
-    () => 0.8
+
+   meaningfulConcepts.map(
+
+    concept =>
+
+     calculateSignificance(
+
+      concept,
+
+      emotionalThreads
+
+     )
+
    ),
 
 
-  emotionalThreads:
 
-   emotions,
+  emotionalThreads,
+
 
 
   futureEchoes:
 
-   [
-    "meaning preservation",
-    "future reflection"
-   ]
+
+   discoverFutureEchoes(
+
+    meaningfulConcepts,
+
+    emotionalThreads
+
+   )
 
 
  };

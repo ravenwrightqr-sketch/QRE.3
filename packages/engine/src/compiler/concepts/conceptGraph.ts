@@ -16,75 +16,11 @@
  * =====================================================
  */
 
-
 import type {
-
   ExperienceConcept,
-
-} from "./lexicon.js";
-
-
-
-
-export type ConceptRelationship =
-
-  | "supports"
-  | "creates"
-  | "transforms"
-  | "reveals"
-  | "preserves";
-
-
-
-
-
-export interface ConceptConnection {
-
-
-  from:
-
-    ExperienceConcept;
-
-
-
-  to:
-
-    ExperienceConcept;
-
-
-
-  relationship:
-
-    ConceptRelationship;
-
-
-
-}
-
-
-
-
-
-
-export interface ConceptConstellation {
-
-
-  concepts:
-
-    ExperienceConcept[];
-
-
-
-  connections:
-
-    ConceptConnection[];
-
-
-
-}
-
-
-
+  ConceptConstellation,
+  ConceptConnection,
+} from "@qre/contracts";
 
 
 

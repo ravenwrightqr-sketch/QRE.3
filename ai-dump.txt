@@ -1,0 +1,92 @@
+==================================================
+FILE: C:\dev\QRE.3\packages\engine\src\ai\aiInsightsEngine.ts
+==================================================
+import type { AnalyticsEventType } from "@qre/contracts";
+
+export type AnalyticsEvent = {
+  assetId: string;
+  timestamp: Date;
+  sessionId?: string | null;
+  type: AnalyticsEventType | string;
+  meta?: any;
+};
+
+/**
+ * =========================
+ * INSIGHT OUTPUT (LOCAL ONLY TYPE)
+ * =========================
+ */
+export type Insight = {
+  type: "ALERT" | "SUGGESTION" | "ANALYTICS";
+  title: string;
+  message: string;
+  confidence: number;
+};
+
+/**
+ * PURE FUNCTION — NO DB
+ */
+export function aiInsightsEngine(events: AnalyticsEvent[]): Insight[] {
+  const insights: Insight[] = [];
+
+  if (!events.length) return insights;
+
+  const hourMap = new Map<number, number>();
+
+  for (const e of events) {
+    const hour = new Date(e.timestamp).getHours();
+    hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+  }
+
+  const lowActivityHours = [...hourMap.entries()]
+    .filter(([_, count]) => count < 2)
+    .map(([hour]) => hour);
+
+  if (lowActivityHours.includes(19) || lowActivityHours.includes(20)) {
+    insights.push({
+      type: "ALERT",
+      title: "Evening Drop Detected",
+      message: "Scan activity decreases after 7 PM.",
+      confidence: 0.82,
+    });
+
+    insights.push({
+      type: "SUGGESTION",
+      title: "Evening Boost Campaign",
+      message: "Run promotions between 5–8 PM.",
+      confidence: 0.76,
+    });
+  }
+
+  if (events.length > 50) {
+    insights.push({
+      type: "ANALYTICS",
+      title: "High Engagement Asset",
+      message: "Traffic above baseline.",
+      confidence: 0.9,
+    });
+  }
+
+  const sessionMap = new Map<string, number>();
+
+  for (const e of events) {
+    if (!e.sessionId) continue;
+    sessionMap.set(e.sessionId, (sessionMap.get(e.sessionId) || 0) + 1);
+  }
+
+  const repeatSessions = [...sessionMap.values()].filter((v) => v > 2).length;
+
+  if (repeatSessions > 3) {
+    insights.push({
+      type: "SUGGESTION",
+      title: "Retention Opportunity",
+      message: "Add loyalty layer for repeat sessions.",
+      confidence: 0.85,
+    });
+  }
+
+  return insights;
+}
+
+
+

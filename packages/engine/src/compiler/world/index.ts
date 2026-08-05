@@ -5,9 +5,16 @@ export {
 } from "./worldModel.js";
 
 
+export {
+
+ synthesizeWorld
+
+} from "./worldSynthesis.js";
+
+
 export type {
 
  WorldModel,
  WorldObservation
 
-} from "./worldTypes.js";
+} from "@qre/contracts"

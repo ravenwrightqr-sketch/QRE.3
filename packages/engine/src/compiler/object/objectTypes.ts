@@ -3,42 +3,195 @@
  * QRE OBJECT COMPILER TYPES
  * =====================================================
  *
- * Semantic Understanding
+ * Semantic Signals
+ *        ↓
+ * Object Identity
  *        ↓
  * Object Genome
  *
- * Everything becomes an object.
+ * Everything can become meaningful.
+ *
+ * NO DATABASE
+ * NO RUNTIME
  *
  * =====================================================
  */
 
+
 import type {
+
   ObjectGenome,
   ObjectMoment,
   ObjectRelationship,
+
 } from "@qre/contracts";
 
 
+
+
+
+/**
+ * Semantic input entering
+ * the object intelligence layer.
+ */
 export type ObjectCompilationInput = {
 
+
+  /**
+   * Original human expression.
+   */
   prompt:string;
 
-  entities:any;
 
-  meaning:any;
 
-  emotions:any;
 
-  memory:any;
+  /**
+   * Recognized entities.
+   *
+   * Produced by entity intelligence.
+   */
+  entities?: {
 
-  relationships:any;
+
+    people?:string[];
+
+
+    places?:string[];
+
+
+    objects?:string[];
+
+
+    creatures?:string[];
+
+
+    products?:string[];
+
+
+    media?:string[];
+
+  };
+
+
+
+
+
+  /**
+   * Meaning signals.
+   */
+  meaning?: {
+
+
+    desiredFeeling?:string[];
+
+
+    symbols?:string[];
+
+
+    themes?:string[];
+
+
+  };
+
+
+
+
+
+  /**
+   * Emotional intelligence.
+   */
+  emotions?: {
+
+
+    emotions?:string[];
+
+
+    intensity?:number;
+
+
+  };
+
+
+
+
+
+  /**
+   * Memory signals.
+   */
+  memory?: {
+
+
+    replay?:boolean;
+
+
+    timeCapsule?:boolean;
+
+
+    memories?:string[];
+
+
+    markers?:string[];
+
+  };
+
+
+
+
+
+  /**
+   * Existing semantic relationships.
+   */
+  relationships?: {
+
+
+    subject?:string;
+
+
+    predicate?:string;
+
+
+    object?:string;
+
+
+    confidence?:number;
+
+
+  }[];
+
+
+
+
+
+  /**
+   * Creative DNA signals.
+   */
+  dna?: {
+
+
+    traits?:string[];
+
+
+  };
+
 
 };
 
 
 
+
+
+
+
 export type {
+
+
   ObjectGenome,
+
+
   ObjectMoment,
+
+
   ObjectRelationship,
+
+
 };

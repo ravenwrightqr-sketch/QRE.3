@@ -14,65 +14,10 @@
  *
  * =====================================================
  */
-
-
-
-export type ExperienceConcept =
-
-  | "connection"
-  | "belonging"
-  | "discovery"
-  | "memory"
-  | "legacy"
-  | "identity"
-  | "transformation"
-  | "celebration"
-  | "curiosity"
-  | "trust"
-  | "adventure"
-  | "ritual"
-  | "reflection"
-  | "achievement"
-  | "expression";
-
-
-
-
-
-export interface ConceptDefinition {
-
-
-  name:
-    ExperienceConcept;
-
-
-
-  /**
-   * Human meaning.
-   */
-  essence:
-    string;
-
-
-
-  /**
-   * Emotional gravity.
-   */
-  emotions:
-    string[];
-
-
-
-  /**
-   * Natural journey direction.
-   */
-  movement:
-    string[];
-
-
-}
-
-
+import type {
+  ExperienceConcept,
+  ConceptDefinition,
+} from "@qre/contracts";
 
 
 

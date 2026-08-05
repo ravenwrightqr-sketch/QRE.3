@@ -3,19 +3,124 @@
  * CONTEXT VOICE ENGINE
  * =====================================================
  *
- * Meaning adapts to context.
+ * Semantic Context
+ *        ↓
+ * Voice Adaptation
+ *
+ * Determines how meaning should be expressed
+ * within the current context.
+ *
+ * NO TEMPLATES
+ * NO FIXED TONES
+ * NO SCRIPTED PHRASES
  *
  * =====================================================
  */
 
-
-export interface ContextVoice {
+export interface ContextVoice{
 
  audience:string;
 
  tone:string;
 
  expression:string;
+
+ characteristics:string[];
+
+}
+
+
+
+
+
+function unique(
+
+ values:string[]=[]
+
+):string[]{
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+function resolveTone(
+
+ context:{
+
+  audience:string;
+
+  emotion:string;
+
+ },
+
+ synthesis:any
+
+):string{
+
+
+ const signals = unique([
+
+  context.emotion,
+
+  ...(synthesis.connectedPatterns ?? []),
+
+  synthesis.futureSignal,
+
+  synthesis.dominantMeaning
+
+ ]);
+
+
+ if(signals.length===0){
+
+  return "neutral";
+
+ }
+
+
+ return signals.join(" • ");
+
+
+}
+
+
+
+
+
+function buildExpression(
+
+ synthesis:any,
+
+ context:any
+
+):string{
+
+
+ const ideas = unique([
+
+  synthesis.dominantMeaning,
+
+  synthesis.futureDirection,
+
+  ...(synthesis.connectedPatterns ?? [])
+
+ ]);
+
+
+ return ideas.join(" → ");
+
 
 }
 
@@ -35,55 +140,54 @@ export function createContextVoice(
 
  }
 
-):ContextVoice {
+):ContextVoice{
 
 
+ const characteristics = unique([
 
- let tone =
- "reflective";
+  context.audience,
 
+  context.emotion,
 
+  synthesis.futureSignal,
 
- if(
-  context.emotion === "wonder"
- ){
+  ...(synthesis.connectedPatterns ?? [])
 
-  tone = "cinematic";
-
- }
-
-
-
- if(
-  context.emotion === "love"
- ){
-
-  tone = "intimate";
-
- }
-
-
-
- const expression =
-
- `${synthesis.dominantMeaning} becomes ${synthesis.futureDirection} through ${context.audience}.`;
-
+ ]);
 
 
  return {
-
 
   audience:
 
    context.audience,
 
 
-  tone,
+  tone:
+
+   resolveTone(
+
+    context,
+
+    synthesis
+
+   ),
 
 
-  expression
+  expression:
 
+   buildExpression(
+
+    synthesis,
+
+    context
+
+   ),
+
+
+  characteristics
 
  };
+
 
 }

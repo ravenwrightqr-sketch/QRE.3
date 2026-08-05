@@ -10,7 +10,7 @@ import Login from "./pages/Login";
 
 import Dashboard from "./pages/Dashboard";
 import AssetDashboard from "./pages/AssetDashboard";
-import ExperiencePreview from "./pages/ExperiencePreview";
+import Experience from "./pages/Experience";
 import ExperienceBuilder from "./pages/ExperienceBuilder";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateAsset from "./pages/admin/CreateAsset";
@@ -19,7 +19,7 @@ import ExperienceCreator from "./pages/ExperienceCreator";
 import Checkout from "./pages/Checkout";
 import Scan from "./pages/scan";
 import Store from "./pages/store";
-import Product from "./pages/product";
+
 
 import Success from "./pages/Success";
 import Cancel from "./pages/Cancel";
@@ -118,17 +118,16 @@ if (loading) {
         />
 
 
-
         {/* =========================
-            EXPERIENCE COMPILER PREVIEW
+            EXPERIENCe
         ========================= */}
 
 
         <Route
-          path="/experience/preview"
+          path="/experience"
           element={
             isAuthed
-              ? <ExperiencePreview />
+              ? <Experience />
               : <Navigate to="/login" />
           }
         />
@@ -216,10 +215,6 @@ if (loading) {
 
 
 
-        <Route
-          path="/product/:slug"
-          element={<Product />}
-        />
 
 
 

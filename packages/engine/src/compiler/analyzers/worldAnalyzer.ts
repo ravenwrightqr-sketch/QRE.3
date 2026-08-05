@@ -64,7 +64,7 @@ import type {
 
   MemoryUnderstanding
 
-} from "../models/understandingTypes.js";
+} from "@qre/contracts"
 
 
 
@@ -241,14 +241,6 @@ if(
 
 }
 
-
-
-
-
-
-
-
-
 //
 // INTENT SIGNALS
 //
@@ -266,9 +258,7 @@ switch(intent){
 case "connect":
 
 domains.add(
-
 "relationship_world"
-
 );
 
 break;
@@ -278,9 +268,7 @@ break;
 case "discover":
 
 domains.add(
-
 "discovery_world"
-
 );
 
 break;
@@ -290,9 +278,7 @@ break;
 case "remember":
 
 domains.add(
-
 "memory_world"
-
 );
 
 break;
@@ -302,27 +288,66 @@ break;
 case "sell":
 
 domains.add(
-
 "commerce_world"
-
 );
 
 break;
 
 
 
+case "serve":
+
+domains.add(
+"service_world"
+);
+
+break;
+
+
+
+case "celebrate":
+
+domains.add(
+"community_world"
+);
+
+break;
+
+
+
+case "teach":
+
+domains.add(
+"culture_world"
+);
+
+break;
+
+
+
+case "reward":
+
+domains.add(
+"commerce_world"
+);
+
+break;
+
+
+
+case "protect":
+
+domains.add(
+"community_world"
+);
+
+break;
+
+
 }
 
 
-
 }
-
-
-
-
-
-
-
 
 
 const resolved =
@@ -332,12 +357,6 @@ const resolved =
 ...domains
 
 ];
-
-
-
-
-
-
 
 
 

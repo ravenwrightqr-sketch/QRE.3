@@ -3,34 +3,108 @@
  * QRE VERSE FIELD
  * =====================================================
  *
- * MYTHOS
+ * Mythos
  *    ↓
- * VERSE
+ * Semantic Expression
+ *    ↓
+ * Verse
  *
- * Narrative language realization.
+ * Converts symbolic meaning into
+ * adaptive narrative language.
  *
- * No runtime.
- * No database.
+ * NO TEMPLATES
+ * NO RUNTIME
+ * NO DATABASE
  *
  * =====================================================
  */
 
+
 import type {
-  MythosField,
+
+ MythosField,
+
 } from "../mythos/index.js";
+
 
 
 export interface VerseField {
 
-  opening:string;
 
-  body:string[];
+ opening:string;
 
-  closing:string;
 
-  complete:string;
+ body:string[];
+
+
+ closing:string;
+
+
+ complete:string;
+
 
 }
+
+
+
+
+function createOpening(
+
+ mythos:MythosField
+
+):string {
+
+
+ return [
+
+   mythos.title,
+
+   mythos.emotionalIntent
+
+ ].filter(Boolean)
+
+ .join(". ");
+
+}
+
+
+
+
+
+function createBody(
+
+ mythos:MythosField
+
+):string[] {
+
+
+ return mythos.sceneSeeds.map(
+
+  seed =>
+
+   seed
+
+ );
+
+
+}
+
+
+
+
+
+function createClosing(
+
+ mythos:MythosField
+
+):string {
+
+
+ return mythos.emotionalIntent;
+
+}
+
+
 
 
 
@@ -41,53 +115,76 @@ export function awakenVerse(
 ):VerseField {
 
 
-const opening =
+ if(!mythos){
 
-`${mythos.title} begins with a moment that matters.`;
+  throw new Error(
+   "Mythos required."
+  );
 
-
-
-const body =
-
-mythos.sceneSeeds.map(
-
- seed =>
-
- `${seed} becomes part of a story that carries meaning.`
-
-);
+ }
 
 
 
-const closing =
+ const opening =
 
-`${mythos.emotionalIntent}`;
+  createOpening(
 
+   mythos
 
-
-return {
-
-
-opening,
+  );
 
 
-body,
+
+ const body =
+
+  createBody(
+
+   mythos
+
+  );
 
 
-closing,
+
+ const closing =
+
+  createClosing(
+
+   mythos
+
+  );
 
 
-complete:
 
-[
- opening,
- ...body,
- closing
-
-].join("\n\n")
+ return {
 
 
-};
+  opening,
+
+
+  body,
+
+
+  closing,
+
+
+  complete:
+
+   [
+
+    opening,
+
+    ...body,
+
+    closing
+
+   ]
+
+   .filter(Boolean)
+
+   .join("\n\n")
+
+
+ };
 
 
 }
@@ -96,4 +193,4 @@ complete:
 
 export const verseField =
 
-awakenVerse;
+ awakenVerse;

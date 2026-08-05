@@ -41,18 +41,12 @@ import type {
 } from "@qre/contracts";
 
 
-
-
-
 type CinematicInput = {
 
   moments:
     ExperienceMoment[];
 
 };
-
-
-
 
 
 /**

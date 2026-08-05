@@ -5,40 +5,77 @@
  *
  * Creative ignition layer.
  *
- * ORION discovers meaning gravity.
+ * ORION discovers semantic gravity.
  *
- * NOVA converts meaning into
+ * NOVA amplifies that gravity into
  * creative direction.
  *
- * NO DATABASE.
- * NO EXECUTION.
+ * NO DATABASE
+ * NO EXECUTION
+ * NO RUNTIME
  *
  * =====================================================
  */
 
-
 import type {
- OrionField
+  OrionField
 } from "../orion/index.js";
 
 
 
 export interface NovaField {
 
-
- experienceForce:string;
-
-
- requiredMoments:string[];
-
-
- creativeDirection:string;
+  /**
+   * Dominant creative force
+   * emerging from semantic gravity.
+   */
+  creativeGravity:string;
 
 
- intensity:number;
+  /**
+   * Creative tensions that should
+   * naturally exist inside the experience.
+   */
+  creativeTensions:string[];
 
+
+  /**
+   * Creative vectors available to
+   * downstream compilers.
+   */
+  vectors:string[];
+
+
+  /**
+   * Overall semantic intensity.
+   */
+  intensity:number;
 
 }
+
+
+
+
+
+function unique(
+
+ values:string[] = []
+
+):string[]{
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
 
 
 
@@ -49,69 +86,53 @@ export function awakenNova(
 ):NovaField {
 
 
+ const vectors = unique([
 
-let experienceForce =
-"human connection";
+  ...(orion.coreVector ?? [])
 
-let requiredMoments =
-[
- "arrival",
- "discovery",
- "reflection"
-];
-
-
-let creativeDirection =
-"create meaningful experience";
+ ]);
 
 
 
-if(
- orion.coreVector.includes(
-  "preservation"
- )
-){
+ const creativeGravity =
 
- experienceForce =
- "legacy preservation";
+  vectors.length
 
+   ? vectors.join(" → ")
 
- requiredMoments =
- [
-  "arrival",
-  "recognition",
-  "reveal",
-  "reflection",
-  "inheritance"
- ];
-
-
- creativeDirection =
- "transform temporary moments into permanent meaning";
-
-}
+   : "emergent meaning";
 
 
 
-return {
+ const creativeTensions = unique([
 
+  ...vectors,
 
-experienceForce,
+  creativeGravity
 
-
-requiredMoments,
-
-
-creativeDirection,
-
-
-intensity:
-
- orion.gravity
+ ]);
 
 
 
-};
+ return {
+
+  creativeGravity,
+
+  creativeTensions,
+
+  vectors,
+
+  intensity:
+
+   orion.gravity
+
+ };
 
 
 }
+
+
+
+export const novaField =
+
+awakenNova;

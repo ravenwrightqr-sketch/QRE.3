@@ -1,3 +1,27 @@
+/**
+ * =====================================================
+ * QRE EXPERIENCE RUNTIME CONTRACT
+ * =====================================================
+ *
+ * Enterprise Runtime Boundary.
+ *
+ * Compiler World
+ *        ↓
+ * Runtime Projection
+ *        ↓
+ * Human Experience
+ *
+ * The frontend consumes this layer.
+ *
+ * The frontend does NOT consume:
+ *
+ * - compiler cognition
+ * - semantic genome
+ * - intelligence systems
+ * - world synthesis internals
+ *
+ * =====================================================
+ */
 
 import type {
   GeoStory,
@@ -15,52 +39,71 @@ import type {
   ServiceReceipt,
 } from "../serviceReceipt.js";
 
-/**
- * =====================================================
- * EXPERIENCE ACCESS
- * =====================================================
- */
+import type {
+  ExperienceMoment,
+} from "./moment.js";
 
-export type ExperienceAccess =
-  | "DEMO"
-  | "UNLOCKED"
+import type {
+  AccessState,
+} from "../scan.js";
 
 
 /**
  * =====================================================
- * PUBLIC ASSET IDENTITY
+ * RUNTIME ASSET IDENTITY
  *
- * Runtime-safe.
- * No Prisma fields.
- * Ownership uses account boundary.
+ * Physical identity projected into runtime.
+ *
+ * No database models.
+ * No persistence concerns.
+ *
  * =====================================================
  */
 
-export type AssetSummary = {
+export type RuntimeAsset = {
 
   id:string;
 
   slug:string;
 
-  title?:string;
+  title:string;
 
   category?:string;
 
-  accountId:string|null;
+  accountId?:string;
 
-  paid:boolean;
-
-
-  status?:
-    | "ACTIVE"
-    | "DISABLED"
-    | "ARCHIVED";
+  paid?:boolean;
 
 };
+/**
+ * =====================================================
+ * EXPERIENCE ACCESS MODE
+ *
+ * Controls runtime delivery.
+ *
+ * DEMO:
+ * User can experience the surface layer.
+ *
+ * UNLOCKED:
+ * User receives complete experience.
+ *
+ * =====================================================
+ */
+
+export type ExperienceAccessMode =
+  | "DEMO"
+  | "UNLOCKED";
+
 
 /**
  * =====================================================
  * PLAYER CONFIGURATION
+ *
+ * Presentation instructions only.
+ *
+ * Does not affect compilation.
+ * Does not affect business logic.
+ *
  * =====================================================
  */
 
@@ -87,113 +130,209 @@ export type ExperiencePlayerConfig = {
 
 };
 
-/**
- * =====================================================
- * MEDIA MANIFEST
- *
- * Preloaded runtime assets.
- * =====================================================
- */
 
-export type ExperienceMediaManifest = {
-
-  images:string[];
-
-  videos:string[];
-
-  audio:string[];
-
-};
 
 /**
  * =====================================================
- * COMPLETE EXPERIENCE RUNTIME
+ * RUNTIME EXPERIENCE
  *
- * Engine output.
- * API payload.
- * Player input.
+ * Canonical execution artifact.
+ *
+ * Produced by:
+ *
+ * scanEngine
+ *
+ * Consumed by:
+ *
+ * Cinematic Player
+ * API layer
+ * Delivery systems
  *
  * =====================================================
  */
 
-export type Experience = {
+export type RuntimeExperience = {
+
 
   /**
-   * Runtime session
+   * Runtime session identity
    */
+  sessionId:string | null;
 
-  sessionId:string|null;
 
-  /**
-   * Access state
-   */
-
-  access:ExperienceAccess;
-
-  /**
-   * Preview flag
-   */
-
-  preview:boolean;
 
   /**
    * Asset identity
    */
+  asset:RuntimeAsset | null;
 
-  asset:AssetSummary|null;
 
-  /**
-   * Location memory
-   */
-
-  geoStory:GeoStory|null;
 
   /**
-   * Final cinematic playback units
+   * Access decision.
+   *
+   * DEMO
+   * UNLOCKED
+   * etc.
    */
+  accessState:ExperienceAccessMode;
+   unlock?:ExperienceUnlockState;
+  /**
+   * Ordered human experience moments.
+   */
+  moments:ExperienceMoment[];
 
+
+
+  /**
+   * Cinematic execution layer.
+   */
   cinematicScenes:CinematicScene[];
 
-  /**
-   * Memory preservation
-   */
 
-  memorySnapshot:MemorySnapshot|null;
 
   /**
-   * Completion proof
+   * Geographic narrative layer.
    */
+  geoStory?:GeoStory | null;
 
-  receipt:ServiceReceipt|null;
+
 
   /**
-   * Media optimization
+   * Memory artifact.
+   *
+   * Created after completion/unlock.
    */
+  memorySnapshot?:MemorySnapshot | null;
 
-  media?:ExperienceMediaManifest;
+
 
   /**
-   * Player behavior
+   * Service completion proof.
    */
+  receipt?:ServiceReceipt | null;
 
+
+
+  /**
+   * Player execution instructions.
+   */
   player?:ExperiencePlayerConfig;
 
-  /**
-   * Analytics/context
-   */
 
-  insights:unknown[];
 
   /**
-   * Runtime extensions
+   * Runtime generated insights.
+   *
+   * Analytics intelligence projection.
    */
+  insights?:unknown[];
 
-  meta?:Record<string,unknown>;
+
 
   /**
-   * Runtime creation timestamp
+   * Contract evolution version.
    */
+  runtimeVersion:string;
+   
+
+
+  /**
+   * Creation timestamp.
+   */
+  timestamp:string;
+     /**
+   * Runtime provenance.
+   *
+   * Tracks how this experience was produced.
+   */
+  source?:{
+    compiler?:string;
+    version?:string;
+    generatedAt?:string;
+  };
+};
+/**
+ * =====================================================
+ * UNLOCK INFORMATION
+ *
+ * Commerce → Runtime bridge
+ *
+ * =====================================================
+ */
+
+export type ExperienceUnlockState = {
+
+  required:boolean;
+
+  unlocked:boolean;
+
+  productId?:string;
+
+};
+
+
+/**
+ * =====================================================
+ * RUNTIME FAILURE CONTRACT
+ *
+ * Used when a scan cannot produce
+ * a RuntimeExperience.
+ *
+ * Keeps RuntimeExperience pure.
+ *
+ * =====================================================
+ */
+
+export type RuntimeExperienceFailure = {
+
+
+  success:false;
+
+
+  reason:
+    | "ASSET_NOT_FOUND"
+    | "ACCESS_DENIED"
+    | "INVALID_SCAN"
+    | "RUNTIME_ERROR";
+
+
+  message:string;
+
 
   timestamp:string;
 
 };
+
+
+
+/**
+ * =====================================================
+ * RUNTIME RESULT UNION
+ *
+ * Enterprise API boundary.
+ *
+ * =====================================================
+ */
+
+export type RuntimeExperienceResult =
+
+  | RuntimeExperience
+  | RuntimeExperienceFailure;
+
+
+
+/**
+ * =====================================================
+ * LEGACY COMPATIBILITY ALIAS
+ *
+ * Migration:
+ *
+ * Experience
+ *       ↓
+ * RuntimeExperience
+ *
+ * =====================================================
+ */
+
+export type Experience = RuntimeExperience;

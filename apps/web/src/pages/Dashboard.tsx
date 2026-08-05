@@ -20,7 +20,7 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import IdeaParticles from "../components/effects/IdeaParticles";
 
 
-type Experience = {
+type Portal = {
 
   id:string;
 
@@ -59,7 +59,7 @@ export default function Dashboard(){
 const [
  objects,
  setObjects
-]=useState<Experience[]>([]);
+]=useState<Portal[]>([]);
 
 
 
@@ -99,7 +99,7 @@ const response =
 await getUserAssets();
 
 
-const assets:Experience[] =
+const assets:Portal[] =
 
 Array.isArray(response)
 
@@ -163,13 +163,15 @@ prompt,
 });
 
 sessionStorage.setItem(
-  "experiencePreview",
+  "compiledExperience",
   JSON.stringify(compiled)
 );
 
+navigate("/experience");
+
 
 navigate(
-"/experience/preview"
+"/experience"
 );
 
 
@@ -521,9 +523,9 @@ key={object.id}
 
 onClick={()=>{
 
-window.location.href=
-
-`/scan/${object.slug}`;
+navigate(
+`/dashboard/assets/${object.slug}`
+);
 
 }}
 
@@ -602,8 +604,6 @@ opacity:.7
 
 
 }
-
-
 
 
 

@@ -7,8 +7,18 @@
  *   ↓
  * MYTHOS
  *
- * Converts creative force into
- * narrative reality.
+ * Converts creative intelligence into
+ * narrative possibility.
+ *
+ * No templates.
+ * No industry logic.
+ *
+ * Discovers:
+ *
+ * - story identity
+ * - narrative movement
+ * - scene potential
+ * - emotional direction
  *
  * No database.
  * No runtime.
@@ -23,157 +33,214 @@ import type {
 
 
 
+
+
 export interface MythosField {
 
 
-  title:
-
-    string;
+  title:string;
 
 
-
-  premise:
-
-    string;
+  premise:string;
 
 
-
-  narrativeArc:
-
-    string[];
+  meaningTrajectory:string[];
 
 
-
-  emotionalIntent:
-
-    string;
+  emotionalIntent:string;
 
 
-
-  sceneSeeds:
-
-    string[];
-
+  sceneSeeds:string[];
 
 
 }
+
+
+
+
+
+
+
+function createTitle(
+
+ nova:NovaField
+
+):string {
+
+
+ const gravity =
+
+  nova.creativeGravity;
+
+
+ if(gravity){
+
+  return gravity
+   .replaceAll("→"," ")
+   .trim();
+
+ }
+
+
+ return "Emergent Experience";
+
+
+}
+
+
+
+
+
+
+
+
+function createPremise(
+
+ nova:NovaField
+
+):string {
+
+
+ return (
+
+  `An experience emerges from ${nova.creativeGravity}.`
+
+ );
+
+
+}
+
+
+
+
+
+
+
+function createNarrativeArc(
+
+ nova:NovaField
+
+):string[]{
+
+
+ return [
+
+  "initial resonance",
+
+  "meaning discovery",
+
+  "creative transformation",
+
+  "lasting significance",
+
+  ...nova.creativeTensions
+
+ ];
+
+
+}
+
+
+
+
+
+
+
+function createSceneSeeds(
+
+ nova:NovaField
+
+):string[]{
+
+
+ return [
+
+  "the first encounter with meaning",
+
+  "the hidden pattern becoming visible",
+
+  "the moment of transformation",
+
+  "the reflection after experience",
+
+  ...nova.vectors
+
+ ];
+
+
+}
+
+
+
 
 
 
 
 export function awakenMythos(
 
-  nova:NovaField
+ nova:NovaField
 
 ):MythosField {
 
 
+ if(!nova){
 
-let title =
-"The Moment That Remains";
+  throw new Error(
+   "Nova field required."
+  );
 
-
-let premise =
-"Transform a temporary moment into permanent meaning.";
-
-
-let emotionalIntent =
-"Create a memory that survives time.";
+ }
 
 
 
-let narrativeArc =
+ return {
 
-nova.requiredMoments.map(
 
- moment =>
+  title:
 
- moment.replace(
-  "_",
-  " "
- )
-
-);
+   createTitle(
+    nova
+   ),
 
 
 
-let sceneSeeds = [
+  premise:
 
- "the beginning",
-
- "the hidden significance",
-
- "the emotional reveal",
-
- "the lasting reflection"
-
-];
+   createPremise(
+    nova
+   ),
 
 
 
+  meaningTrajectory:
 
-if(
-
- nova.experienceForce.includes(
-  "legacy"
- )
-
-){
-
-
-title =
-"Legacy Of The Moment";
-
-
-premise =
-"A meaningful experience becomes a story carried beyond the present.";
-
-
-emotionalIntent =
-"Preserve human significance through time.";
+   createNarrativeArc(
+    nova
+   ),
 
 
 
-sceneSeeds = [
+  emotionalIntent:
 
- "arrival into the moment",
+   nova.creativeGravity,
 
- "recognition of connection",
 
- "reveal of meaning",
 
- "reflection across generations"
+  sceneSeeds:
 
-];
+   createSceneSeeds(
+    nova
+   )
+
+
+ };
 
 
 }
 
 
 
-return {
 
-
-title,
-
-
-premise,
-
-
-narrativeArc,
-
-
-emotionalIntent,
-
-
-sceneSeeds
-
-
-
-};
-
-
-}
 
 
 

@@ -22,19 +22,12 @@
  * =====================================================
  */
 import {
-
     attention
-
 } from "../attention/index.js";
 
 import type {
-
-    Cognition
-
-} from "./types.js";
-
-
-
+  Cognition
+} from "@qre/contracts";
 
 
 function observe(
@@ -51,8 +44,6 @@ function observe(
     ];
 
 }
-
-
 
 
 

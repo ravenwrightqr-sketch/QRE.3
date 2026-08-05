@@ -9,6 +9,8 @@
  * =====================================================
  */
 
+import { OriginSynthesis } from "./synthesisEngine.js";
+
 
 export interface OriginVoice {
 
@@ -25,7 +27,7 @@ export interface OriginVoice {
 
 export function generateVoice(
 
- synthesis:any
+ synthesis:OriginSynthesis
 
 ):OriginVoice {
 

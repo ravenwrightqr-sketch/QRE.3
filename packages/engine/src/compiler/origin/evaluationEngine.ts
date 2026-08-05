@@ -3,28 +3,96 @@
  * ORIGIN EVALUATION ENGINE
  * =====================================================
  *
- * Measures experiential improvement.
+ * Compares semantic evolution rather than
+ * fixed experience states.
  *
+ * Previous Meaning
+ *        ↓
+ * Current Meaning
+ *        ↓
+ * Semantic Improvement
+ *
+ * NO TEMPLATES
+ * NO FIXED SCORES
  * =====================================================
  */
 
-
-export interface ExperienceEvaluation {
-
+export interface ExperienceEvaluation{
 
  coherence:number;
 
+ semanticGrowth:number;
 
- emotionalDepth:number;
+ conceptualNovelty:number;
 
-
- transformation:number;
-
+ stability:number;
 
  overall:number;
 
+ findings:string[];
 
- improvement:string;
+}
+
+
+
+
+
+function unique(
+
+ values:string[]=[]
+
+):string[]{
+
+ return [
+
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+function overlap(
+
+ a:string[]=[],
+
+ b:string[]=[]
+
+):number{
+
+
+ if(!a.length || !b.length){
+
+  return 0;
+
+ }
+
+
+ const shared =
+
+  a.filter(
+
+   value=>b.includes(value)
+
+  ).length;
+
+
+ return shared/
+
+ Math.max(
+
+  a.length,
+
+  b.length
+
+ );
 
 
 }
@@ -35,78 +103,144 @@ export interface ExperienceEvaluation {
 
 export function evaluateExperience(
 
- future:any,
+ current:{
 
- previous:any
+  concepts?:string[];
 
-):ExperienceEvaluation {
+  patterns?:string[];
 
+ },
+
+ previous:{
+
+  concepts?:string[];
+
+  patterns?:string[];
+
+ }
+
+):ExperienceEvaluation{
+
+
+ const currentConcepts =
+
+  unique(current.concepts);
+
+
+ const previousConcepts =
+
+  unique(previous.concepts);
 
 
  const coherence =
 
- future.direction
+  overlap(
 
- ? 0.9
+   currentConcepts,
 
- : 0.3;
+   previousConcepts
 
-
-
- const emotionalDepth =
-
- future.purpose.includes(
- "human"
- )
-
- ? 0.9
-
- : 0.5;
+  );
 
 
+ const novelConcepts =
 
- const transformation =
+  currentConcepts.filter(
 
- future.direction.includes(
- "deepen"
- )
+   concept=>
 
- ? 0.8
+   !previousConcepts.includes(concept)
 
- : 0.4;
-
+  );
 
 
- return {
+ const conceptualNovelty =
 
+  currentConcepts.length
+
+  ? novelConcepts.length/
+
+    currentConcepts.length
+
+  : 0;
+
+
+ const semanticGrowth =
+
+  Math.min(
+
+   1,
+
+   coherence +
+
+   conceptualNovelty
+
+  );
+
+
+ const stability =
+
+  coherence;
+
+
+ const findings:string[]=[];
+
+
+ if(novelConcepts.length){
+
+  findings.push(
+
+   `Emerged concepts: ${novelConcepts.join(", ")}`
+
+  );
+
+ }
+
+
+ if(coherence<0.3){
+
+  findings.push(
+
+   "Meaning shifted significantly."
+
+  );
+
+ }else if(coherence>0.8){
+
+  findings.push(
+
+   "Core meaning remained stable."
+
+  );
+
+ }
+
+
+ return{
 
   coherence,
 
+  semanticGrowth,
 
-  emotionalDepth,
+  conceptualNovelty,
 
-
-  transformation,
-
+  stability,
 
   overall:
 
    (
 
-    coherence +
+    coherence+
 
-    emotionalDepth +
+    semanticGrowth+
 
-    transformation
+    conceptualNovelty+
 
-   ) / 3,
+    stability
 
+   )/4,
 
-
-  improvement:
-
-   "Experience evolved toward deeper human significance."
-
+  findings
 
  };
 

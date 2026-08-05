@@ -3,12 +3,16 @@
  * ORIGIN NARRATIVE ENGINE
  * =====================================================
  *
- * Converts synthesized meaning into narrative motion.
+ * Semantic Evolution
+ *        ↓
+ * Narrative Structure
  *
- * Not templates.
- * Not industry content.
+ * Converts meaning relationships
+ * into narrative motion.
  *
- * A transformation model.
+ * NO TEMPLATES
+ * NO INDUSTRY ASSUMPTIONS
+ * NO FIXED STORY ARC
  *
  * =====================================================
  */
@@ -38,6 +42,137 @@ export interface OriginNarrative {
 
 
 
+function joinMeaning(
+
+ values:string[]=[]
+
+):string {
+
+
+ return values
+
+  .filter(Boolean)
+
+  .join(" → ");
+
+}
+
+
+
+
+
+function resolveOpening(
+
+ synthesis:any
+
+):string {
+
+
+ const origins = [
+
+  synthesis.originMeaning,
+
+  synthesis.dominantMeaning,
+
+  ...(synthesis.connectedPatterns ?? [])
+
+ ];
+
+
+
+ return joinMeaning(origins)
+
+ || "An undefined meaning signal emerges.";
+
+}
+
+
+
+
+
+function resolveTension(
+
+ synthesis:any
+
+):string {
+
+
+ const conflicts = [
+
+  ...(synthesis.unresolvedPatterns ?? []),
+
+  ...(synthesis.disappearingConcepts ?? [])
+
+ ];
+
+
+
+ return conflicts.length
+
+  ? conflicts.join(" ↔ ")
+
+  : "Meaning continues evolving through new relationships.";
+
+}
+
+
+
+
+
+function resolveTransformation(
+
+ synthesis:any
+
+):string {
+
+
+ const evolution = [
+
+  ...(synthesis.emergingPatterns ?? []),
+
+  synthesis.futureDirection
+
+ ];
+
+
+
+ return joinMeaning(evolution)
+
+ || "Meaning expands through continued discovery.";
+
+}
+
+
+
+
+
+function resolveResolution(
+
+ synthesis:any
+
+):string {
+
+
+ const stable = [
+
+  ...(synthesis.preservedPatterns ?? []),
+
+  synthesis.dominantMeaning
+
+ ];
+
+
+
+ return joinMeaning(stable)
+
+ || "Meaning reaches temporary coherence.";
+
+}
+
+
+
+
+
 export function createNarrative(
 
  synthesis:any,
@@ -47,53 +182,60 @@ export function createNarrative(
 ):OriginNarrative {
 
 
-
- const meaning =
-
- synthesis.dominantMeaning;
-
-
-
- const patterns =
-
- synthesis.emergingPatterns
- .join(", ");
-
-
-
-
  return {
 
 
   opening:
 
-   `A ${meaning} begins as a moment waiting to be understood.`,
+   resolveOpening(
+
+    synthesis
+
+   ),
 
 
 
   tension:
 
-   `Time creates uncertainty around whether the meaning will remain.`,
+   resolveTension(
+
+    synthesis
+
+   ),
 
 
 
   transformation:
 
-   `${meaning} evolves through ${patterns} and becomes something greater than the original moment.`,
+   resolveTransformation(
+
+    synthesis
+
+   ),
 
 
 
   resolution:
 
-   `What existed briefly becomes preserved through human significance.`,
+   resolveResolution(
+
+    synthesis
+
+   ),
 
 
 
   closing:
 
-   voice?.expression ??
+   voice?.expression
+
+   ??
 
    synthesis.futureDirection
+
+   ??
+
+   "Open semantic continuation."
 
 
  };

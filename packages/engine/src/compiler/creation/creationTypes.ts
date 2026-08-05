@@ -48,18 +48,20 @@ export interface CreationArchitecture {
 
     string[];
 
+   /**
+ * Experience progression signals.
+ *
+ * Example:
+ * wonder → discovery → connection
+ *
+ * Describes how the experience evolves,
+ * not a narrative structure.
+ */
+experienceTrajectory:
 
+  string[];
 
-  /**
-   * Emotional movement.
-   *
-   * Example:
-   * wonder → discovery → connection
-   */
-  emotionalArc:
-
-    string[];
-
+  
 
 
   /**

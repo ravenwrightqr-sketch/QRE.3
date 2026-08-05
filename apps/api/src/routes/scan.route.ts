@@ -213,23 +213,26 @@ export async function scanRoute(
 
 
     console.log(
-      "🔥 ENGINE OUTPUT",
-      {
+  "🔥 ENGINE OUTPUT",
+  {
 
-        sessionId:
-          result.sessionId,
+    sessionId:
+      result.sessionId,
 
-        moments:
-          result.cinematicScenes?.length ?? 0,
+    accessState:
+      result.accessState,
 
-        scenes:
-          result.cinematicScenes?.length ?? 0,
+    moments:
+      result.moments?.length ?? 0,
 
-        preview:
-          result.preview,
+    scenes:
+      result.cinematicScenes?.length ?? 0,
 
-      }
-    );
+    preview:
+      result.accessState !== "UNLOCKED",
+
+  }
+);
 
 
 

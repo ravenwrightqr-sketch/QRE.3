@@ -11,11 +11,9 @@ type ExperienceIntent = {
   prompt:string;
 };
 
-
 export async function compileExperience(
  intent:ExperienceIntent
 ):Promise<CompiledExperience>{
-
 
  const result =
  await apiPost(
@@ -24,7 +22,6 @@ export async function compileExperience(
      prompt:intent.prompt
    }
  );
-
 
  if(!result?.experience){
 

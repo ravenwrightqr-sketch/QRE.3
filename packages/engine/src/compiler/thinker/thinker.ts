@@ -1,8 +1,128 @@
+/**
+ * =====================================================
+ * QRE THOUGHT ENGINE
+ * =====================================================
+ *
+ * Signal
+ *   ↓
+ * Interpretation
+ *   ↓
+ * Hypothesis
+ *
+ * A semantic reasoning artifact.
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO TEMPLATES
+ *
+ * =====================================================
+ */
+
+
 import type {
 
  Thought
 
 } from "./types.js";
+
+
+
+
+function extractSignals(
+
+ input:string
+
+):string[] {
+
+
+ const signals:string[] = [];
+
+
+ const words =
+
+  input
+
+   .toLowerCase()
+
+   .split(/\s+/)
+
+   .filter(Boolean);
+
+
+
+ for(const word of words){
+
+
+  if(word.length > 5){
+
+   signals.push(word);
+
+  }
+
+
+ }
+
+
+ return [
+
+  ...new Set(signals)
+
+ ];
+
+}
+
+
+
+
+
+function generateQuestions(
+
+ signals:string[]
+
+):string[] {
+
+
+ return signals.map(
+
+  signal =>
+
+   `What role does ${signal} play in the larger system?`
+
+ );
+
+
+}
+
+
+
+
+
+function estimateConfidence(
+
+ signals:string[]
+
+):number {
+
+
+ if(signals.length === 0){
+
+  return .1;
+
+ }
+
+
+ if(signals.length < 3){
+
+  return .4;
+
+ }
+
+
+ return .7;
+
+}
+
+
 
 
 
@@ -13,42 +133,81 @@ export function think(
 ):Thought {
 
 
+ if(!input.trim()){
+
+  throw new Error(
+
+   "Thought requires input."
+
+  );
+
+ }
+
+
+
+ const signals =
+
+  extractSignals(
+
+   input
+
+  );
+
+
+
 
  const observations = [
 
-  `Observed pattern: ${input}`
+  ...signals.map(
+
+   signal =>
+
+    `Detected meaningful signal: ${signal}`
+
+  )
 
  ];
+
 
 
 
  const connections = [
 
-  "Searching across existing knowledge"
+  "Signals may represent interacting meaning structures."
 
  ];
 
 
 
- const questions = [
 
-  `What hidden structure exists inside ${input}?`
+ const questions =
 
- ];
+  generateQuestions(
+
+   signals
+
+  );
+
 
 
 
  const possibilities = [
 
-  `A deeper relationship may exist around ${input}`
+  "The input may contain deeper relationships requiring semantic expansion."
 
  ];
 
 
 
- const reflection =
 
- "The idea requires validation through additional patterns.";
+ const confidence =
+
+  estimateConfidence(
+
+   signals
+
+  );
+
 
 
 
@@ -70,10 +229,13 @@ export function think(
   possibilities,
 
 
-  reflection,
+  reflection:
+
+   "Interpretation remains open until additional context reveals stronger relationships.",
 
 
-  confidence:.6
+
+  confidence
 
 
  };

@@ -7,11 +7,13 @@
  *
  * =====================================================
  */
+
 import {
 
  createInquiry
 
 } from "./inquiry/index.js";
+
 
 import {
 
@@ -36,7 +38,6 @@ export function runOrigin(
 ){
 
 
-
  const scenes =
 
  createScenes(
@@ -44,6 +45,7 @@ export function runOrigin(
   input.narrative
 
  );
+
 
 
 
@@ -59,6 +61,7 @@ export function runOrigin(
 
 
 
+
  const memories =
 
  states.map(
@@ -66,6 +69,7 @@ export function runOrigin(
   createMemory
 
  );
+
 
 
 
@@ -83,6 +87,7 @@ export function runOrigin(
 
 
 
+
  const evolution =
 
  evolveMeaning(
@@ -90,11 +95,20 @@ export function runOrigin(
   resonance
 
  );
-const inquiry = createInquiry(
 
- `What deeper relationship exists inside ${input.narrative}?`
 
-);
+
+
+
+ const inquiry =
+
+ createInquiry(
+
+  `What deeper relationship exists inside ${input.narrative}?`
+
+ );
+
+
 
 
 
@@ -106,16 +120,43 @@ const inquiry = createInquiry(
 
  );
 
-
-
-
- const evaluation =
+const evaluation =
 
  evaluateExperience(
 
-  future,
+  {
+   concepts:[
 
-  evolution
+    ...future.intent,
+
+    ...future.purpose
+
+   ],
+
+   patterns:[
+
+    ...future.direction,
+
+    ...future.emergingPossibilities
+
+   ]
+
+  },
+
+  {
+   concepts:[
+
+    ...evolution.previousTrajectory
+
+   ],
+
+   patterns:[
+
+    ...evolution.adaptationDrivers
+
+   ]
+
+  }
 
  );
 
@@ -129,15 +170,58 @@ return {
 
  resonance,
 
- evolution,
 
- future,
+ evolution: {
+
+  emerged:
+
+   evolution.emergingTrajectory,
+
+
+  preserved:
+
+   evolution.previousTrajectory,
+
+
+  transformed:
+
+   evolution.adaptationDrivers,
+
+
+  evolutionStrength:
+
+   evolution.evolutionForce
+
+ },
+
+
+ future: {
+
+ concepts:[
+
+  ...future.intent,
+
+  ...future.purpose
+
+ ],
+
+ patterns:[
+
+  ...future.direction,
+
+  ...future.emergingPossibilities
+
+ ]
+
+},
 
  evaluation,
+
 
  inquiry
 
 };
+
 
 
 }

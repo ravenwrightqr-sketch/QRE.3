@@ -5,7 +5,9 @@
  *
  * Genome
  *   ↓
- * World
+ * World Intelligence
+ *   ↓
+ * Experience World
  *
  * The emotional universe.
  *
@@ -22,16 +24,17 @@ import type {
   ExperienceWorld,
   ExperienceJourney,
   ExperienceArchetype,
+  WorldRole,
+  WorldSignature,
+  WorldTransformation,
+  WorldIdentity,
+  WorldLaw,
 } from "@qre/contracts";
 
 
 import {
   resolveWorldDomain
 } from "./worldDomain.js";
-
-
-
-
 
 
 export function composeWorld(
@@ -50,6 +53,108 @@ const domain =
 
 
 
+const archetype =
+
+resolveArchetype(
+ genome
+ );
+
+
+
+const role =
+
+resolveWorldRole(
+ genome
+ );
+
+
+const signature =
+
+resolveSignature(
+ genome
+ );
+
+
+const purpose =
+
+resolvePurpose(
+ genome
+ );
+
+
+const worldIdentity =
+
+resolveWorldIdentity(
+ genome
+ );
+ const worldLaws =
+
+resolveWorldLaws(
+  genome
+);
+
+
+const emotionalPhysics =
+
+resolveEmotionalPhysics(
+  genome
+);
+
+
+const sensoryLanguage =
+
+resolveSensoryLanguage(
+  genome
+);
+
+
+const transformation =
+
+resolveTransformation(
+  genome
+);
+
+
+const journey =
+
+resolveJourney(
+  genome,
+  domain
+);
+
+
+const atoms =
+
+resolveAtoms(
+  genome,
+  domain
+);
+
+
+const themes =
+
+[
+ ...new Set([
+
+  ...genome.themes,
+
+  domain
+
+ ])
+
+];
+
+
+const connectedWorlds =
+
+genome.worlds.filter(
+
+ world =>
+
+ world !== domain
+
+);
+
 
 
 return {
@@ -58,56 +163,95 @@ return {
 domain,
 
 
-
-archetype:
-
- resolveArchetype(
-  genome
- ),
+archetype,
 
 
-
-atmosphere:
-
- resolveAtmosphere(
-  genome
- ),
+role,
 
 
-
-journey:
-
- resolveJourney(
-  genome
- ),
+purpose,
 
 
-
-atoms:
-
- resolveAtoms(
-  genome
- ),
+worldIdentity,
 
 
+worldLaws,
 
-themes:
 
- genome.themes,
+signature,
 
+
+emotionalPhysics,
+
+
+sensoryLanguage,
+
+
+transformation,
+
+
+journey,
+
+
+atoms,
+
+
+themes,
+
+
+connectedWorlds,
+
+
+
+artifacts:[
+
+ {
+
+  world:domain,
+
+  moments:[],
+
+
+  metadata:{
+
+   archetype,
+
+   role,
+
+   signature,
+
+   purpose,
+
+   worldIdentity,
+
+   worldLaws,
+
+   emotionalPhysics,
+
+   sensoryLanguage,
+
+   transformation
+
+  }
+
+
+ }
+
+]
 
 };
-
 
 
 }
 
 
-
-
-
-
-
+/**
+ * =====================================================
+ *
+ * ARCHETYPE INTELLIGENCE
+ *
+ * =====================================================
+ */
 
 
 function resolveArchetype(
@@ -117,64 +261,82 @@ function resolveArchetype(
 ):ExperienceArchetype {
 
 
+
 if(
  genome.memory >= .8
 ){
 
- return "memory_replay";
+return "ancestral_legacy";
 
 }
 
 
-
 if(
- genome.immersion >= .8
+ genome.replay >= .7
 ){
 
- return "cinematic_story";
+return "memory_archive";
 
 }
 
 
-
 if(
- genome.discovery >= .8
+
+ genome.interaction >= .8 &&
+
+ genome.memory >= .5
+
 ){
 
- return "discovery";
+return "personal_transformation";
 
 }
 
 
-
 if(
- genome.commerce >= .8
-){
 
- return "brand_experience";
+ genome.themes.includes("relationship") ||
 
-}
-
-
-
-if(
- genome.themes.includes("culture")
-){
-
- return "event";
-
-}
-
-
-
-if(
  genome.themes.includes("connection")
+
 ){
 
- return "relationship";
+return "relationship_journey";
 
 }
 
+
+if(
+
+ genome.discovery >= .8
+
+){
+
+return "discovery_adventure";
+
+}
+
+
+if(
+
+ genome.commerce >= .8
+
+){
+
+return "premium_brand_world";
+
+}
+
+
+if(
+
+ genome.themes.includes("community")
+
+){
+
+return "community_movement";
+
+}
 
 
 return "cinematic_story";
@@ -183,14 +345,637 @@ return "cinematic_story";
 }
 
 
+/**
+ * =====================================================
+ *
+ * WORLD ROLE
+ *
+ * =====================================================
+ */
+
+
+function resolveWorldRole(
+
+ genome:ExperienceGenome
+
+):WorldRole {
 
 
 
+if(
+
+ genome.memory >= .7
+
+){
+
+return "preserve";
+
+}
 
 
 
+if(
 
-function resolveAtmosphere(
+ genome.interaction >= .7 ||
+
+ genome.themes.includes("connection")
+
+){
+
+return "connect";
+
+}
+
+
+
+if(
+
+ genome.discovery >= .7
+
+){
+
+return "discover";
+
+}
+
+
+
+if(
+
+ genome.commerce >= .7
+
+){
+
+return "sell";
+
+}
+
+
+
+if(
+
+ genome.themes.includes("education")
+
+){
+
+return "teach";
+
+}
+
+
+
+return "transform";
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * PURPOSE
+ *
+ * =====================================================
+ */
+
+
+function resolvePurpose(
+
+ genome:ExperienceGenome
+
+):string {
+
+
+
+if(
+
+ genome.memory >= .7
+
+){
+
+return "Preserve meaningful human moments across generations";
+
+}
+
+
+
+if(
+
+ genome.relationships.length
+
+){
+
+return "Create deeper human connection and belonging";
+
+}
+
+
+
+if(
+
+ genome.discovery >= .7
+
+){
+
+return "Guide people through discovery and exploration";
+
+}
+
+
+
+if(
+
+ genome.commerce >= .7
+
+){
+
+return "Create meaningful interaction between people and brands";
+
+}
+
+
+
+return "Create a memorable human experience";
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * WORLD IDENTITY
+ *
+ * =====================================================
+ */
+ function resolveWorldIdentity(
+
+ genome:ExperienceGenome
+
+):WorldIdentity {
+
+
+const purpose = resolvePurpose(genome);
+
+
+return {
+
+
+name:
+
+`${genome.emotions[0] ?? "human"} universe`,
+
+
+
+description:
+
+purpose,
+
+
+
+philosophy:
+
+genome.memory >= .7
+
+?
+
+"Every object carries a story. Every moment can become legacy."
+
+:
+
+"Every experience transforms the person who enters it.",
+
+
+
+origin:
+
+"Created from human meaning, emotion, and experience.",
+
+
+
+promise:
+
+purpose,
+
+
+
+emotionalCore:
+
+genome.emotions.join(", ") || "human connection",
+
+
+
+symbol:
+
+genome.symbols[0] ?? "memory"
+
+};
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * WORLD LAWS
+ *
+ * Rules of reality.
+ *
+ * These are not tags.
+ * These are physics.
+ *
+ * =====================================================
+ */
+ function resolveWorldLaws(
+
+ genome:ExperienceGenome
+
+):WorldLaw[] {
+
+
+const laws:WorldLaw[] = [];
+
+
+
+if(
+ genome.memory >= .5
+){
+
+laws.push(
+
+{
+ principle:"objects preserve human history",
+
+ reason:"Meaning accumulates through ownership and time.",
+
+ effect:"Objects become emotional anchors and legacy carriers."
+},
+
+
+{
+ principle:"time increases emotional value",
+
+ reason:"Repeated human experiences strengthen attachment.",
+
+ effect:"Past moments gain deeper significance."
+},
+
+
+{
+ principle:"memories become stronger through replay",
+
+ reason:"Revisiting experiences reinforces emotional connection.",
+
+ effect:"Stories evolve across generations."
+}
+
+);
+
+}
+
+
+
+if(
+ genome.relationships.length
+){
+
+laws.push(
+
+{
+ principle:"connection creates meaning",
+
+ reason:"Human relationships give experiences purpose.",
+
+ effect:"People feel belonging through shared moments."
+},
+
+
+{
+ principle:"people complete the experience",
+
+ reason:"The participant is part of the story.",
+
+ effect:"Experiences become personal rather than passive."
+}
+
+);
+
+}
+
+
+
+if(
+ genome.discovery >= .5
+){
+
+laws.push(
+
+{
+ principle:"curiosity unlocks progression",
+
+ reason:"Exploration drives engagement.",
+
+ effect:"Discovery reveals new layers of meaning."
+},
+
+
+{
+ principle:"discovery rewards exploration",
+
+ reason:"Hidden value encourages participation.",
+
+ effect:"The world expands as users explore."
+}
+
+);
+
+}
+
+
+
+if(
+ genome.interaction >= .5
+){
+
+laws.push(
+
+{
+ principle:"participation changes the world",
+
+ reason:"Actions influence the experience state.",
+
+ effect:"The universe becomes adaptive."
+}
+
+);
+
+}
+
+
+
+if(
+ genome.replay >= .5
+){
+
+laws.push(
+
+{
+ principle:"experiences evolve through replay",
+
+ reason:"Each interaction adds history.",
+
+ effect:"The world becomes richer over time."
+}
+
+);
+
+}
+
+
+
+return laws;
+
+}
+
+/**
+ * =====================================================
+ *
+ * SIGNATURE
+ *
+ * =====================================================
+ */
+
+
+function resolveSignature(
+
+ genome:ExperienceGenome
+
+):WorldSignature {
+
+
+return {
+
+
+semantic:
+
+[
+ ...genome.dna,
+ ...genome.themes,
+ ...genome.symbols
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+),
+
+
+
+emotional:
+
+[
+ ...genome.emotions,
+ ...genome.tone
+
+]
+
+.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+),
+
+
+
+visual:
+
+genome.sensory.filter(
+
+value =>
+
+value.includes("visual") ||
+
+value.includes("cinematic") ||
+
+value.includes("image")
+
+),
+
+
+
+sensory:
+
+genome.sensory.filter(Boolean)
+
+.filter(
+
+(value,index,array)=>
+
+array.indexOf(value)===index
+
+)
+
+
+};
+
+
+}
+
+
+/**
+ * =====================================================
+ *
+ * TRANSFORMATION
+ *
+ * =====================================================
+ */
+
+
+function resolveTransformation(
+
+ genome:ExperienceGenome
+
+):WorldTransformation {
+
+
+return {
+
+
+before:
+
+"An ordinary moment waiting for meaning",
+
+
+
+journey:
+
+genome.transformation[0]
+
+??
+
+"Discover deeper human meaning",
+
+
+
+after:
+
+"An unforgettable human experience"
+
+
+};
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * EMOTIONAL PHYSICS
+ *
+ * =====================================================
+ */
+
+
+function resolveEmotionalPhysics(
+
+ genome:ExperienceGenome
+
+):string[] {
+
+
+const physics:string[] = [];
+
+
+
+if(
+
+ genome.memory >= .5
+
+){
+
+physics.push(
+
+"objects carry human history",
+
+"time increases emotional value"
+
+);
+
+}
+
+
+
+if(
+
+ genome.relationships.length
+
+){
+
+physics.push(
+
+"connection creates meaning"
+
+);
+
+}
+
+
+
+if(
+
+ genome.discovery >= .5
+
+){
+
+physics.push(
+
+"curiosity drives progression"
+
+);
+
+}
+
+
+
+if(
+
+ genome.transformation.length
+
+){
+
+physics.push(
+
+"experiences create human change"
+
+);
+
+}
+
+
+
+return physics;
+
+
+}
+
+/**
+ * =====================================================
+ *
+ * SENSORY LANGUAGE
+ *
+ * =====================================================
+ */
+
+
+function resolveSensoryLanguage(
 
  genome:ExperienceGenome
 
@@ -199,9 +984,20 @@ function resolveAtmosphere(
 
 return [
 
- genome.energy,
+ ...genome.sensory,
 
- ...genome.emotions,
+
+ ...genome.dna.filter(
+
+ value =>
+
+ value.includes("visual") ||
+
+ value.includes("audio") ||
+
+ value.includes("cinematic")
+
+ )
 
 ]
 
@@ -219,55 +1015,80 @@ array.indexOf(value)===index
 }
 
 
-
-
-
-
-
+/**
+ * =====================================================
+ *
+ * JOURNEY
+ *
+ * =====================================================
+ */
 
 
 function resolveJourney(
 
- genome:ExperienceGenome
+ genome:ExperienceGenome,
+
+ domain:string
 
 ):ExperienceJourney[] {
 
 
-const journey:ExperienceJourney[] = [
 
+const journey:ExperienceJourney[] = [
 
 "arrival",
 
-
 "discovery",
 
-
 "reveal"
-
 
 ];
 
 
 
 if(
- genome.memory >= .5
+
+domain === "memory_world"
+
 ){
 
- journey.push(
-  "memory"
- );
+journey.push(
+
+"memory"
+
+);
 
 }
 
 
 
 if(
- genome.interaction >= .5
+
+genome.relationships.length
+
 ){
 
- journey.push(
-  "peak"
- );
+journey.push(
+
+"peak"
+
+);
+
+}
+
+
+
+if(
+
+genome.interaction >= .5
+
+){
+
+journey.push(
+
+"transformation"
+
+);
 
 }
 
@@ -283,106 +1104,122 @@ journey.push(
 
 
 
-return journey;
+return [
+
+...new Set(journey)
+
+];
 
 
 }
 
-
-
-
-
-
-
+/**
+ * =====================================================
+ *
+ * EXPERIENCE ATOMS
+ *
+ * =====================================================
+ */
 
 
 function resolveAtoms(
 
- genome:ExperienceGenome
+ genome:ExperienceGenome,
+
+ domain:string
 
 ):string[] {
 
 
 const atoms:string[] = [
 
-
 "identity",
 
-
 "story"
-
 
 ];
 
 
 
-if(
+if(genome.object){
 
- genome.entities.people.length ||
-
- genome.entities.places.length
-
-){
-
- atoms.push(
-  "location"
- );
+atoms.push("object");
 
 }
 
 
 
-if(
+if(genome.entities.people.length){
 
- genome.entities.media.length
-
-){
-
- atoms.push(
-  "media"
- );
+atoms.push("person");
 
 }
 
 
 
-if(
+if(genome.entities.places.length){
 
- genome.immersion >= .5
-
-){
-
- atoms.push(
-  "audio"
- );
+atoms.push("place");
 
 }
 
 
 
-if(
+if(genome.entities.media.length){
 
- genome.discovery >= .5
-
-){
-
- atoms.push(
-  "interaction"
- );
+atoms.push("media");
 
 }
 
 
 
-if(
+if(domain === "memory_world"){
 
- genome.replay >= .5
+atoms.push(
 
-){
+"legacy",
 
- atoms.push(
-  "replay"
- );
+"memory"
+
+);
+
+}
+
+
+
+if(genome.immersion >= .5){
+
+atoms.push(
+
+"audio",
+
+"visual"
+
+);
+
+}
+
+
+
+if(genome.discovery >= .5){
+
+atoms.push(
+
+"interaction"
+
+);
+
+}
+
+
+
+if(genome.replay >= .5){
+
+atoms.push(
+
+"replay"
+
+);
 
 }
 
@@ -390,7 +1227,7 @@ if(
 
 return [
 
- ...new Set(atoms)
+...new Set(atoms)
 
 ];
 

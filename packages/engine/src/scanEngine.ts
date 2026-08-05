@@ -13,8 +13,9 @@ import { flowToMoment } from "./moments/flowToMoments.js";
 import { systemMoments } from "./moments/systemMoments.js";
 import { purchaseMoments } from "./moments/purchaseMoments.js";
 
-import { buildGeoStory } from "./geo/geoStoryCompiler.js";
-import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
+import {
+  projectRuntime,
+} from "./runtimeProjection/index.js";
 
 import { cinematicRuntime } from "./runtime/cinematicRuntime.js";
 
@@ -85,30 +86,31 @@ export async function scanEngine(
 
   if(!asset){
 
-    return {
+   return {
 
-      sessionId:null,
+  sessionId:null,
 
-      access:"DEMO",
+  accessState:"DEMO",
 
-      preview:true,
+  asset:null,
 
-      asset:null,
+  moments:[],
 
+  cinematicScenes:[],
 
-      geoStory:null,
+  geoStory:null,
 
-      cinematicScenes:[],
+  memorySnapshot:null,
 
-      memorySnapshot:null,
+  receipt:null,
 
-      receipt:null,
+  insights:[],
 
-      insights:[],
+  runtimeVersion:"1.0",
 
-      timestamp:new Date().toISOString(),
+  timestamp:new Date().toISOString(),
 
-    };
+};
 
   }
 
@@ -350,63 +352,7 @@ export async function scanEngine(
 
 
   }
-
-  /**
-   * =====================================================
-   * 6. GEO STORY
-   *
-   * Experience layer.
-   * =====================================================
-   */
-
-  let geoStory = null;
-
-  try{
-
-    geoStory =
-
-      await buildGeoStory(
-
-        asset.id,
-
-        input.geo
-
-          ? [
-
-              {
-
-                lat:
-                  input.geo.lat,
-
-                lng:
-                  input.geo.lng,
-
-                createdAt:
-                  new Date(),
-
-              },
-
-            ]
-
-          : []
-
-      );
-
-
-  }
-
-  catch(err){
-
-
-    console.warn(
-
-      "[GEO STORY FAILED]",
-
-      err
-
-    );
-
-  }
+     
     /**
    * =====================================================
    * 7. CINEMATIC RUNTIME
@@ -439,7 +385,7 @@ export async function scanEngine(
 
   /**
    * =====================================================
-    * EXPERIENCE MEMORY ASSEMBLY
+    * EXPERIENCE MEMORY ASSEMBLY and GEO STORY
  *
  * Combines completed experience layers.
  *
@@ -456,30 +402,36 @@ export async function scanEngine(
  * unified memory artifact
  * =====================================================
  */
-
-  let memorySnapshot = null;
-
-
-  if(access.state === "UNLOCKED"){
-
-memorySnapshot =
-
-buildMemorySnapshot({
-
-  assetId:
-
-    asset.id,
-
-  moments,
+  const {
 
   geoStory,
 
+  memorySnapshot,
+
+} = projectRuntime({
+
+  assetId: asset.id,
+
+  geoPoints: input.geo
+    ? [
+        {
+          lat: input.geo.lat,
+          lng: input.geo.lng,
+          createdAt: new Date(),
+        },
+      ]
+    : [],
+
+  moments,
+
   cinematicScenes,
 
+  createMemory:
+
+    access.state === "UNLOCKED",
+
 });
-
-
-  }
+  
 
   /**
    * =====================================================
@@ -634,65 +586,72 @@ buildMemorySnapshot({
    * =====================================================
    */
 
-  return {
+return {
 
-    sessionId:
+  sessionId:
 
-      session.id,
-
-    access:
-
-      access.state,
-
-    preview:
-
-      access.state !== "UNLOCKED",
-
-    timestamp:
-
-      new Date().toISOString(),
-  
-
-    geoStory,
-
-    cinematicScenes,
-
-    memorySnapshot,
-
-    receipt,
-
-    insights,
-
-    asset:{
-
-      id:
-
-        asset.id,
+    session.id,
 
 
-      slug:
+  accessState:
 
-        asset.slug,
-
-
-      category:
-
-        asset.category ?? undefined,
+    access.state,
 
 
-      accountId:
-
-        asset.accountId,
+  moments,
 
 
-      paid:
-
-        asset.paid,
+  geoStory,
 
 
-    },
+  cinematicScenes,
 
 
-  };
+  memorySnapshot,
+
+
+  receipt,
+
+
+  insights,
+
+
+  runtimeVersion:
+
+    "1.0",
+
+
+  timestamp:
+
+    new Date().toISOString(),
+
+  asset: {
+
+  id:
+    asset.id,
+
+
+  slug:
+    asset.slug,
+
+
+  title:
+    asset.slug,
+
+
+  category:
+    asset.category ?? undefined,
+
+
+  accountId:
+    asset.accountId ?? undefined,
+
+
+  paid:
+    asset.paid,
+
+},
+
+};
 
 }

@@ -3,9 +3,19 @@
  * QRE OBJECT GENOME COMPILER
  * =====================================================
  *
- * Understanding
+ * Semantic Object Intelligence Layer.
+ *
+ * Meaning Signals
  *        ↓
- * Object Genome
+ * Object Identity
+ *        ↓
+ * Relationships
+ *        ↓
+ * Moments
+ *        ↓
+ * Memory
+ *        ↓
+ * Legacy
  *
  * NO DATABASE
  * NO RUNTIME
@@ -15,309 +25,338 @@
 
 
 import type {
-  ObjectGenome,
-  ObjectMoment,
-  ObjectRelationship,
+
+  ObjectCompilationInput
+
+} from "./objectTypes.js";
+
+
+import type {
+
+ ObjectGenome,
+ ObjectMoment,
+ ObjectRelationship
+
 } from "@qre/contracts";
 
 
 
-function buildIdentity(
- input:any
-){
-
-return {
-
- name:
-  input.entities?.people?.[0]
-  ??
-  input.entities?.places?.[0]
-  ??
-  "Unknown Object",
 
 
- type:
-  resolveObjectType(input.prompt),
 
 
- category:
-  [],
+function unique(
+
+ values:string[] = []
+
+):string[] {
 
 
- attributes:
-  input.emotions?.emotions
-  ??
-  []
+ return [
 
-};
+  ...new Set(
+
+   values.filter(Boolean)
+
+  )
+
+ ];
 
 }
+
+
+
+
+
+
+
+
+function inferObjectNature(
+
+ input:ObjectCompilationInput
+
+):string[] {
+
+
+ return unique([
+
+
+  ...(input.meaning?.desiredFeeling ?? []),
+
+
+  ...(input.meaning?.symbols ?? []),
+
+
+  ...(input.meaning?.themes ?? []),
+
+
+  ...(input.emotions?.emotions ?? []),
+
+
+  ...(input.dna?.traits ?? [])
+
+
+ ]);
+
+}
+
+
+
+
 
 
 
 
 function resolveObjectType(
- prompt:string
+
+ input:ObjectCompilationInput
+
 ):string {
 
 
-const text =
- prompt.toLowerCase();
+ const text =
+
+  input.prompt.toLowerCase();
 
 
 
-if(
- text.includes("dog") ||
- text.includes("cat") ||
- text.includes("pet") ||
- text.includes("animal")
-){
+ if(
 
- return "living_being";
+  text.includes("dog") ||
+
+  text.includes("cat") ||
+
+  text.includes("pet")
+
+ ){
+
+  return "living_being";
+
+ }
+
+
+
+ if(
+
+  text.includes("brand") ||
+
+  text.includes("business") ||
+
+  text.includes("product")
+
+ ){
+
+  return "identity_object";
+
+ }
+
+
+
+ if(
+
+  text.includes("memory") ||
+
+  text.includes("gift") ||
+
+  text.includes("heirloom")
+
+ ){
+
+  return "symbolic_object";
+
+ }
+
+
+
+ return "experience_object";
+
 
 }
 
 
 
-if(
- text.includes("concert") ||
- text.includes("music") ||
- text.includes("festival")
-){
-
- return "event_memory";
-
-}
 
 
 
-if(
- text.includes("child") ||
- text.includes("baby") ||
- text.includes("birth")
-){
 
- return "life_story";
-
-}
-
-
-
-if(
- text.includes("trip") ||
- text.includes("travel") ||
- text.includes("visit")
-){
-
- return "journey";
-
-}
-
-
-
-return "experience_object";
-
-}
 
 function buildMoments(
- input:any
-):ObjectMoment[] {
+
+ input:ObjectCompilationInput
+
+):ObjectMoment[]{
 
 
-const moments:ObjectMoment[] = [];
+ const moments:ObjectMoment[] = [];
 
 
-function addMoment(
- title:string,
- description:string,
- emotions:string[] = [],
- significance:number = .5
-){
 
-moments.push({
+ const emotions =
 
- id:
-  crypto.randomUUID(),
+  input.emotions?.emotions ?? [];
 
- title,
 
- description,
 
- participants:
-  input.entities?.people ?? [],
 
- emotions,
 
- significance
+ if(emotions.length){
 
-});
+
+  moments.push({
+
+   id:
+
+    crypto.randomUUID(),
+
+
+   title:
+
+    "Emotional significance",
+
+
+   description:
+
+    "An object carrying emotional meaning.",
+
+
+   participants:
+
+    input.entities?.people ?? [],
+
+
+   emotions,
+
+
+   significance:
+
+    .8
+
+  });
+
+
+ }
+
+
+
+
+
+ if(
+
+  input.memory?.memories?.length
+
+ ){
+
+
+  moments.push({
+
+   id:
+
+    crypto.randomUUID(),
+
+
+   title:
+
+    "Memory connection",
+
+
+   description:
+
+    "A preserved relationship between object and experience.",
+
+
+   participants:
+
+    input.entities?.people ?? [],
+
+
+   emotions:
+
+    emotions.length
+    ?
+    emotions
+    :
+    ["reflection"],
+
+
+   significance:
+
+    .9
+
+  });
+
+
+ }
+
+
+
+ return moments;
+
 
 }
 
 
 
-/**
- * UNIVERSAL OBJECT LIFE CYCLE
- */
-
-
-addMoment(
-
- "Origin",
-
- `The beginning of ${input.prompt} `,
-
- input.emotions?.emotions ?? [],
-
- .6
-
-);
-
-
-
-addMoment(
-
- "First Encounter",
-
- "The first meaningful interaction with this object.",
-
- [
-  "curiosity",
-  "connection"
- ],
-
- .7
-
-);
-
-
-
-if(
- input.relationships?.length
-){
-
-addMoment(
-
- "Relationship",
-
- "A connection formed between people and this object.",
-
- [
-  "connection"
- ],
-
- .8
-
-);
-
-}
 
 
 
 
-if(
- input.memory?.replay ||
- input.memory?.timeCapsule
-){
-
-addMoment(
-
- "Memory Capture",
-
- "A meaningful moment preserved for future replay.",
-
- [
-  "nostalgia"
- ],
-
- .9
-
-);
-
-}
-
-
-
-
-if(
- input.entities?.places?.length
-){
-
-addMoment(
-
- "Place Experience",
-
- "A moment connected to a meaningful location.",
-
- [
-  "discovery"
- ],
-
- .7
-
-);
-
-}
-
-/**
- * FUTURE
- */
-
-addMoment(
-
- "Legacy",
-
- "The meaning this object carries into the future.",
-
- [
-  "continuity"
- ],
-
- .8
-
-);
-
-
-
-return moments;
-
-
-}
 
 function buildRelationships(
- input:any
-):ObjectRelationship[] {
+
+ input:ObjectCompilationInput
+
+):ObjectRelationship[]{
 
 
-return (
+ return (
 
-input.relationships
-?
-input.relationships.map(
-(r:any)=>({
+  input.relationships ?? []
 
- subject:
-  r.subject,
+ )
 
- relationship:
-  r.predicate,
+ .map(
 
- object:
-  r.object,
+  relation => ({
 
- confidence:
-  r.confidence ?? .5
 
-})
-)
+   subject:
 
-:
-[]
+    relation.subject
+    ??
+    "unknown",
 
-);
+
+
+   relationship:
+
+    "connected_to",
+
+
+
+   object:
+
+    relation.object
+    ??
+    "unknown",
+
+
+
+   confidence:
+
+    relation.confidence
+    ??
+    .5
+
+
+  })
+
+ );
 
 
 }
+
+
+
 
 
 
@@ -325,132 +364,205 @@ input.relationships.map(
 
 export function compileObjectGenome(
 
- input:any
+ input:ObjectCompilationInput
 
 ):ObjectGenome {
 
 
-return {
 
+ if(!input){
 
-identity:
+  throw new Error(
+   "Object genome input required."
+  );
 
- buildIdentity(
-  input
- ),
-
-
-
-history:{
-
- origin:
-  input.prompt,
-
-
- timeline:
-  [],
-
-
- importantMoments:
-  []
-
-},
+ }
 
 
 
-relationships:
+ const attributes =
 
- buildRelationships(
-  input
- ),
-
-
-
-moments:
-
- buildMoments(
-  input
- ),
+  inferObjectNature(
+   input
+  );
 
 
 
-memory:{
-
- memories:
-  input.memory?.replay
-  ?
-  ["replayable_memory"]
-  :
-  [],
 
 
- emotionalMarkers:
-  input.emotions?.emotions
-  ??
-  [],
+ return {
 
 
- locations:
-  [],
+  identity:{
 
 
- dates:
-  []
+   name:
 
-},
+    input.entities?.objects?.[0]
+    ??
+    input.entities?.products?.[0],
 
 
 
-legacy:{
+   type:
 
- meaning:
-  input.meaning?.desiredFeeling
-  ??
-  [],
-
-
- impact:
-  [],
-
-
- preservation:
-  []
-
-},
+    resolveObjectType(
+     input
+    ),
 
 
 
-emotionalSignature:
+   category:
 
- input.emotions?.emotions
- ??
- [],
+    attributes,
 
 
+   attributes
 
-symbolicMeaning:
 
- input.meaning?.symbols
- ??
- [],
+  },
 
 
 
-futurePossibilities:[
-
- "future_memory",
-
- "continued_story"
-
-]
+  history:{
 
 
-};
+   origin:
+
+    input.prompt,
+
+
+   timeline:[],
+
+
+   importantMoments:
+
+    input.memory?.memories
+    ??
+    []
+
+
+  },
+
+
+
+  relationships:
+
+   buildRelationships(
+    input
+   ),
+
+
+
+  moments:
+
+   buildMoments(
+    input
+   ),
+
+
+
+  memory:{
+
+
+   memories:
+
+    input.memory?.memories
+    ??
+    [],
+
+
+
+   emotionalMarkers:
+
+    input.emotions?.emotions
+    ??
+    [],
+
+
+
+   locations:[],
+
+
+   dates:[]
+
+
+  },
+
+
+
+  legacy:{
+
+
+   meaning:
+
+    input.meaning?.symbols
+    ??
+    [],
+
+
+
+   impact:
+
+    input.dna?.traits
+    ??
+    [],
+
+
+
+   preservation:
+
+    input.memory?.timeCapsule
+
+    ?
+
+    ["preserved_memory"]
+
+    :
+
+    []
+
+
+  },
+
+
+
+  emotionalSignature:
+
+   input.emotions?.emotions
+   ??
+   [],
+
+
+
+  symbolicMeaning:
+
+   input.meaning?.symbols
+   ??
+   [],
+
+
+
+  futurePossibilities:[
+
+   "future meaning evolution",
+
+   "continued relationship development"
+
+  ]
+
+
+ };
 
 
 }
 
 
 
+
+
+
+
 export const objectCompiler =
+
 compileObjectGenome;

@@ -1,385 +1,636 @@
-/**
- * =====================================================
- * QRE EXPERIENCE GENOME COMPILER
- * =====================================================
- *
- * Production Experience Compiler
- *
- * Pipeline:
- *
- * Prompt
- *   ↓
- * Experience Genome
- *   ↓
- * Experience World
- *   ↓
- * Experience Blueprint
- *   ↓
- * Runtime Flow
- *   ↓
- * Moments
- *   ↓
- * Cinematic Runtime
- *
- *
- * Genome = creative DNA
- * World = universe/context
- * Blueprint = composed experience
- *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
- *
- * =====================================================
- */
-
-
 import {
-
-  composeWorld
-
+  composeWorld,
 } from "../world/worldComposer.js";
 
 import {
   buildExperienceGenome,
 } from "../compiler/semantic/genome/genomeBuilder.js";
 
-import type {
-  CinematicScene,
-} from "@qre/contracts";
-
-
 import {
-
   composeBlueprint,
-
 } from "./blueprintComposer.js";
 
+import {
+  experienceDirector,
+} from "./director.js";
 
 import {
-
   blueprintToFlow,
-
 } from "./blueprintToFlow.js";
 
 
 import {
-
   flowToMoment,
-
 } from "../moments/flowToMoments.js";
 
+import {
+  compileCinematicScenes,
+} from "../cinematic/cinematicCompiler.js";
 
-import type {
+import {
+  synthesizeCognitiveExperience,
+} from "../compiler/cognitiveSynthesis.js";
 
-  ExperienceBlueprint,
-  ExperienceGenome,
-  ExperienceModel,
-  ExperienceWorld,
-  FlowStep,
-  ExperienceMoment,
-  
-} from "@qre/contracts";
+import {
+  understandExperience,
+} from "../compiler/understanding/index.js";
 
-
-
-
-
-
+import {
+  buildMeaningContext,
+} from "../compiler/meaningEngines/meaningContextEngine.js";
 
 
 /**
  * =====================================================
- * COMPILED EXPERIENCE RESULT
+ *
+ * CONTRACT TYPES
+ *
  * =====================================================
  */
 
+import type {
 
-export type CompiledGenomeExperience = {
+  CompilerMind,
+  CompiledExperience,
+  ExperienceBlueprint,
+  ExperienceCompilerIntelligence,
+  ExperienceGenome,
+  ExperienceMeaningContext,
+  ExperienceModel,
+  ExperienceUnderstanding,
+  ExperienceWorld,
+  FlowStep,
+  ExperienceMoment,
+  ExperienceCompileContext,
 
-
-  genome:
-    ExperienceGenome;
-
-   cinematicScenes: CinematicScene[];
-  
-  
-  world:
-    ExperienceWorld;
-
-  blueprint:
-    ExperienceBlueprint;
-
-  flowSteps:
-    FlowStep[];
-  
-  
-
-  moments:
-    ExperienceMoment[];
-
-  model:
-    ExperienceModel;
-
-  title:
-    string;
-
-  estimatedDuration:
-    number;
-
-  momentCount:
-    number;
-
-
-};
-
-
-
-
-
-
-
+} from "@qre/contracts";
 
 
 /**
  * =====================================================
+ *
  * MODEL BUILDER
+ *
  * =====================================================
  */
 
 
 function createExperienceModel(
 
-  blueprint:ExperienceBlueprint,
+ blueprint:ExperienceBlueprint,
 
-  prompt:string
+ prompt:string
 
 ):ExperienceModel {
 
 
 return {
 
-  title:
-    blueprint.title,
+ title:
+
+  blueprint.title,
 
 
-  description:
-    prompt,
+ description:
+
+  prompt,
 
 
-  industry:
-    "generic",
+ industry:
+
+  "generic",
 
 
-  goal:
-    "welcome",
+ goal:
+
+  "discovery",
 
 
-  tone:
-    blueprint.tone,
+ tone:
+
+  blueprint.tone,
 
 
-  moments:
-    blueprint.moments,
+ moments:
+
+  blueprint.moments,
 
 
-  metadata:{
+ metadata:{
 
-    category:
-      blueprint.type,
+  category:
+
+   blueprint.type,
 
 
-    tags:[
+  tags:[
 
-      "compiled",
+   "cognitive-synthesis",
 
-      "experience-genome",
+   "semantic-compiler",
 
-      "world-engine",
+   "experience-genome",
 
-      "cinematic"
+   "cinematic-runtime"
 
-    ]
+  ]
 
-  }
+ }
 
 };
 
 
 }
 
-
 /**
  * =====================================================
- * MAIN COMPILER
+ *
+ * ID GENERATOR
+ *
  * =====================================================
  */
 
 
+function createCompilerId():string {
+
+
+return (
+
+ globalThis.crypto?.randomUUID?.()
+
+ ??
+
+ `experience-${Date.now()}-${Math.random()
+ .toString(36)
+ .slice(2)}`
+
+);
+
+
+}
+
+function isExperienceUnderstanding(
+  value:unknown
+):value is ExperienceUnderstanding {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "intent" in value
+    && "emotions" in value
+    && "world" in value
+  );
+
+}
+
+function isExperienceMeaningContext(
+  value:unknown
+):value is ExperienceMeaningContext {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "meanings" in value
+    && "humanDesires" in value
+    && "narrativePotential" in value
+  );
+
+}
+
+function isExperienceGenome(
+  value:unknown
+):value is ExperienceGenome {
+
+  return (
+    typeof value === "object"
+    && value !== null
+    && "meaning" in value
+    && "entities" in value
+    && "themes" in value
+  );
+
+}
+
+/**
+ * =====================================================
+ *
+ * MAIN COGNITIVE COMPILER
+ *
+ * =====================================================
+ */
+
 export function compileExperienceGenome(
 
-  prompt:string
+ prompt:string,
 
-):CompiledGenomeExperience {
+ context?:ExperienceCompileContext
+
+):CompiledExperience {
 
 
 
-if(
- !prompt.trim()
-){
+if(!prompt.trim()){
 
  throw new Error(
   "Experience prompt required."
  );
 
 }
-
 /**
  * =====================================================
  *
- * 1. HUMAN UNDERSTANDING
+ * FOUNDATION COGNITION INPUT
  *
- * Prompt → Genome
+ * Understanding + Meaning Context
+ *
+ * These are required CompilerMind inputs.
+ *
+ * Cognitive synthesis owns all downstream intelligence.
  *
  * =====================================================
  */
 
-const genome =
 
-  buildExperienceGenome(
+/**
+ * =====================================================
+ *
+ * 2. EXPERIENCE GENOME
+ *
+ * Creative DNA.
+ *
+ * =====================================================
+ */
+ /**
+ * =====================================================
+ *
+ * EXPERIENCE GENOME
+ *
+ * Creative DNA Substrate
+ *
+ * =====================================================
+ */
+/**
+ * =====================================================
+ *
+ * FOUNDATION COGNITION
+ *
+ * Prompt
+ * ↓
+ * Understanding
+ * ↓
+ * Meaning Context
+ * ↓
+ * Genome
+ *
+ * =====================================================
+ */
+
+const understanding: ExperienceUnderstanding =
+
+  (context?.metadata?.understanding as ExperienceUnderstanding | undefined)
+
+  ??
+
+  understandExperience(
     prompt
   );
 
+
+
+const meaningContext: ExperienceMeaningContext =
+
+  (context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
+
+  ??
+
+  buildMeaningContext(
+    understanding
+  );
+
+
+
+const genome: ExperienceGenome =
+
+  (context?.metadata?.genome as ExperienceGenome | undefined)
+
+  ??
+
+  buildExperienceGenome(
+    prompt,
+    understanding,
+    meaningContext
+  );
+
+
+
 /**
  * =====================================================
  *
- * 2. WORLD CREATION
+ * COMPILER MIND
  *
- * Genome → World
+ * Canonical cognitive state
  *
  * =====================================================
  */
 
 
-const world =
+const mind: CompilerMind = {
+
+  prompt,
+
+  understanding,
+
+  meaningContext,
+
+  genome,
+
+};
+
+
+
+/**
+ * =====================================================
+ *
+ * COGNITIVE SYNTHESIS
+ *
+ * =====================================================
+ */
+
+
+const cognitiveSynthesis =
+
+  synthesizeCognitiveExperience(
+    mind
+  );
+
+
+const {
+
+  semanticIR,
+
+  nuvo,
+
+  revik,
+
+  moverArc,
+
+  moverTopology,
+
+  kaivo,
+
+  orion,
+
+  cognitiveTrace,
+
+} = cognitiveSynthesis;
+
+/**
+ * =====================================================
+ *
+ * WORLD SYNTHESIS
+ *
+ * Cognitive Intelligence
+ * ↓
+ * Experience World
+ *
+ * =====================================================
+ */
+
+const world: ExperienceWorld =
 
   composeWorld(
     genome
   );
 
+
+
 /**
  * =====================================================
  *
- * 3. BLUEPRINT CREATION
+ * BLUEPRINT
  *
- * Genome + World → Blueprint
+ * World
+ * ↓
+ * Blueprint
  *
  * =====================================================
  */
-
-
-const blueprint =
+ const blueprint: ExperienceBlueprint =
 
   composeBlueprint(
-    genome
+    genome,
+    world
   );
+
 
 /**
  * =====================================================
  *
- * 4. FLOW COMPILATION
- *
- * Blueprint → Runtime Steps
+ * EXPERIENCE DIRECTION
  *
  * =====================================================
  */
 
+const direction =
 
-const flowSteps =
-
-  blueprintToFlow(
+  experienceDirector(
     blueprint
   );
-
 /**
  * =====================================================
  *
- * 5. MOMENT CREATION
- *
- * Flow → Moments
+ * 14. FLOW
  *
  * =====================================================
  */
 
+const flowSteps:FlowStep[] =
 
-const moments =
+ blueprintToFlow(
 
-  flowToMoment(
-    flowSteps
-  );
+  blueprint
+
+ );
 
 /**
  * =====================================================
  *
- * 6. CINEMATIC RUNTIME
- *
- * Moments → Scenes
+ * 15. MOMENTS
  *
  * =====================================================
  */
-  const cinematicScenes: CinematicScene[] = [];
+
+const experienceMoments:ExperienceMoment[] =
+
+ flowToMoment(
+
+  flowSteps
+
+ );
+/**
+ * =====================================================
+ *
+ * 16. CINEMATIC
+ *
+ * =====================================================
+ */
+
+const cinematicScenes =
+
+ compileCinematicScenes(
+
+  blueprint,
+
+  direction,
+
+  world
+
+ );
+
 
 /**
  * =====================================================
  *
- * 7. EXPERIENCE MODEL
+ * 17. MODEL
  *
  * =====================================================
  */
 
 const model =
 
-  createExperienceModel(
+ createExperienceModel(
 
-    blueprint,
+  blueprint,
 
-    prompt
+  prompt
 
-  );
+ );
+
+/**
+ * =====================================================
+ *
+ * FINAL COMPILED EXPERIENCE
+ *
+ * =====================================================
+ */
+
 
 return {
 
 
-  genome,
+ id:
+
+  createCompilerId(),
 
 
-  world,
+
+ intelligence:{
+
+  understanding,
+
+  meaningContext,
+
+  semanticIR,
+
+  nuvo,
+
+  revik,
+
+  moverArc,
+
+  moverTopology,
+
+  kaivo,
+
+  orion
+
+ },
 
 
-  blueprint,
+
+ cognitiveTrace,
 
 
-  flowSteps,
+
+ genome,
 
 
-  moments,
-
-   cinematicScenes,
+ world,
 
 
-  model,
+ blueprint,
 
-  title:
 
-    blueprint.title,
+ direction,
 
-  estimatedDuration:
 
-    moments.length * 5,
+ flowSteps,
 
-  momentCount:
 
-    moments.length,
+ experienceMoments,
+
+
+ cinematicScenes,
+
+
+ model,
+
+
+
+ context,
+
+
+
+ title:
+
+  blueprint.title,
+
+
+
+ estimatedDuration:
+
+  experienceMoments.length * 5,
+
+
+
+ momentCount:
+
+  experienceMoments.length,
+
+
+
+ metadata:{
+
+  compilerVersion:
+
+   "5.0-cognitive-synthesis",
+
+
+  generatedAt:
+
+   new Date().toISOString(),
+
+
+  source:
+
+   "qre-cognitive-experience-compiler",
+
+
+  tags:[
+
+   "semantic",
+
+   "cognitive",
+
+   "world-aware",
+
+   "cinematic",
+
+   "compiler-brain"
+
+  ]
+
+ }
 
 
 };
@@ -388,20 +639,6 @@ return {
 }
 
 
-
-
-
-
-
-
-
-/**
- * =====================================================
- * PUBLIC EXPORT
- * =====================================================
- */
-
-
 export const genomeCompiler =
 
-  compileExperienceGenome;
+ compileExperienceGenome;

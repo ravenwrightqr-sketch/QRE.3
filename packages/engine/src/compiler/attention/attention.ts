@@ -1,8 +1,6 @@
 import type {
-
  Attention
-
-} from "./types.js";
+} from "@qre/contracts";
 
 
 

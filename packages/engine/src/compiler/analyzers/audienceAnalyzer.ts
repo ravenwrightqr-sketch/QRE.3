@@ -26,11 +26,9 @@
  *
  * =====================================================
  */
-
-
 import type {
   AudienceUnderstanding
-} from "../models/understandingTypes.js";
+} from "@qre/contracts";
 
 
 
