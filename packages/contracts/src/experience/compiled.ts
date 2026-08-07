@@ -102,7 +102,9 @@ import type {
   ExperienceMeaning,
 } from "./meaning.js";
 
-
+import type {
+ CognitiveEvolutionState
+} from "../cognition/cognitionLoop.js";
 import type {
   ExperienceBlueprint,
 } from "./blueprint.js";
@@ -110,6 +112,9 @@ import type {
   ExperienceMoment,
 } from "./moment.js";
 
+import type {
+  ExperienceNarrative,
+} from "../cognition/ExperienceNarrative.js";
 
 import type {
   ExperienceModel,
@@ -175,6 +180,8 @@ import type {
 import type {
   OrionField,
 } from "../cognition/OrionField.js";
+import { MemoryReveal } from "./memoryReveal.js";
+import { ExperienceArc } from "../cognition/arc.js";
 
 /**
  * =====================================================
@@ -289,57 +296,54 @@ export type ExperienceLoop = {
 
 export type ExperienceCompilerIntelligence = {
 
-  understanding?:
+  understanding:
     ExperienceUnderstanding;
 
-  meaningContext?:
+  meaningContext:
     ExperienceMeaningContext;
 
-     meaning?:
-      ExperienceMeaning;
+  meaning:
+    ExperienceMeaning;
 
-  semanticIR?:
+  genome:
+    ExperienceGenome;
+
+  cognitiveTrace:
+    ExperienceCognitiveTrace;
+
+  semanticIR:
     SemanticIR;
-
-
-  nuvo?:
+    
+    cognitionLoop?:
+    CognitiveEvolutionState;
+  nuvo:
     NuvoField;
 
-
-  revik?:
+  revik:
     RevikField;
 
-
-  moverArc?:
+  moverArc:
     MoverArc;
 
-
-  moverTopology?:
+  moverTopology:
     MoverTopology;
 
-
-  kaivo?:
+  kaivo:
     KaivoField;
 
-
-  orion?:
+  orion:
     OrionField;
 
-
   memoryReveal?:
-    unknown;
-
+    MemoryReveal;
 
   experienceArc?:
-    unknown;
-
+    ExperienceArc;
 
   worldObservations?:
     unknown;
 
 };
-
-
 
 
 export type ExperienceCompileContext = {
@@ -457,21 +461,14 @@ export type CompiledExperience = {
     ExperienceCompilerIntelligence;
 
 
-
-  cognitiveTrace:
-    ExperienceCognitiveTrace;
-
-
-
-  genome:
-    ExperienceGenome;
-
-
+   genome:
+  ExperienceGenome;
 
   world:
     ExperienceWorld;
 
-
+    narrative:
+    ExperienceNarrative;
 
   blueprint:
     ExperienceBlueprint;
@@ -546,7 +543,7 @@ export type CompiledExperience = {
   estimatedDuration:
     number;
 
-
+   cognitionLoop?: CognitiveEvolutionState;
 
   momentCount:
     number;

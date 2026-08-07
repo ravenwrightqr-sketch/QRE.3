@@ -1,14 +1,21 @@
 import {
   runCompilerBrain,
+  compileExperienceNarrative
 } from "@qre/engine";
 
 
 import type {
-  CompiledExperience,
+  ExperienceBlueprint,
+  ExperienceNarrative
 } from "@qre/contracts";
 
 
+import type {
+  CompiledExperience,
 
+  ExperienceCompilerIntelligence,
+  ExperienceGenome,
+} from "@qre/contracts";
 /**
  * =====================================================
  *
@@ -22,27 +29,39 @@ import type {
  *   ↓
  * Compiler Brain
  *   ↓
- * Compiled Experience Contract
- *
- *
- * Responsibilities:
- *
- * ✅ Validate human input
- * ✅ Invoke engine compiler
- * ✅ Return production contract
- *
- *
- * Does NOT:
- *
- * ❌ Database writes
- * ❌ Prisma ownership
- * ❌ Flow creation
- * ❌ Runtime execution
- * ❌ Player rendering
- *
+ * Narrative Intelligence
+ *   ↓
+ * Experience Response
  *
  * =====================================================
  */
+
+
+
+
+export interface CompiledExperienceResult {
+
+  compiled:
+    CompiledExperience;
+
+
+  intelligence:
+    ExperienceCompilerIntelligence;
+
+
+  genome:
+    ExperienceGenome;
+
+
+  blueprint:
+    ExperienceBlueprint;
+
+
+  narrative:
+    ExperienceNarrative;
+
+}
+
 
 
 
@@ -59,26 +78,26 @@ import type {
  *
  *        ↓
  *
- * Production Experience Object
+ * Experience Intelligence
  *
+ *        ↓
  *
- * Pure operation.
- *
- * No persistence.
+ * Narrative Compiler
  *
  * =====================================================
  */
 
 
+
 export async function compileExperience(
 
-  prompt: string
+  prompt:string
 
-): Promise<CompiledExperience> {
+):Promise<CompiledExperienceResult>{
 
 
 
-  if (
+  if(
 
     typeof prompt !== "string"
 
@@ -86,7 +105,7 @@ export async function compileExperience(
 
     prompt.trim().length === 0
 
-  ) {
+  ){
 
     throw new Error(
 
@@ -95,6 +114,7 @@ export async function compileExperience(
     );
 
   }
+
 
 
 
@@ -108,6 +128,92 @@ export async function compileExperience(
 
 
 
-  return result.compiled;
+
+
+  if(
+
+    !result.compiled?.blueprint
+
+  ){
+
+    throw new Error(
+
+      "Compiler did not produce experience blueprint."
+
+    );
+
+  }
+
+
+
+
+
+  const blueprint =
+
+    result.compiled.blueprint;
+
+
+
+
+
+
+  if(
+
+    !result.compiled.genome
+
+    ||
+
+    !result.compiled.world
+
+  ){
+
+    throw new Error(
+
+      "Compiler did not produce experience intelligence."
+
+    );
+
+  }
+
+
+
+
+
+
+  const narrative =
+
+    compileExperienceNarrative(
+
+      result.compiled.genome,
+
+      result.compiled.world,
+
+      blueprint
+
+    );
+
+
+
+  return {
+
+  compiled:
+    result.compiled,
+
+
+  intelligence:
+    result.compiled.intelligence,
+
+
+  genome:
+    result.compiled.genome!,
+
+
+  blueprint,
+
+
+  narrative
+
+};
+
 
 }

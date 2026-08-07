@@ -22,16 +22,12 @@
  * This is the creative mind.
  *
  * =====================================================
- */
+ */ 
 
-
-/**
- * Understanding
- */
-
-export * from "./understanding/index.js";
-export * from "./meaningEngines/meaningContextEngine.js";
-
+export {
+  understandExperience,
+  buildMeaningContext,
+} from "@qre/cognition";
 /**
  * Semantic Intelligence
  */
@@ -98,11 +94,6 @@ export {
 
 
 
-
-export {
-  buildSemanticIR
-} from "./semantic/index.js";
-
 export * from "./moverArc/index.js";
 
 
@@ -114,3 +105,34 @@ export {
 export {
   buildCognitiveTrace
 } from "./cognitiveTrace/index.js";
+
+/**
+ * Experience Genome Intelligence
+ */
+
+export * from "./semantic/genome/index.js";
+
+
+/**
+ * Object Intelligence
+ */
+
+export * from "./object/index.js";
+
+
+/**
+ * Lifecycle Intelligence
+ */
+
+export * from "./lifecycle/index.js";
+
+export * from "./narrative/index.js";
+
+export * from "./executive/index.js";
+
+export * from "./domain/index.js";
+
+export * from "./cognitionLoop/index.js";
+
+
+export * from "./experienceRenderer/index.js";

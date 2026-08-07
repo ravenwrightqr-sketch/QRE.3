@@ -1,4 +1,27 @@
+/**
+ * =====================================================
+ * QRE NUVO FIELD
+ * =====================================================
+ *
+ * Possibility Intelligence Contract.
+ *
+ * Genome:
+ * "What exists"
+ *
+ * NUVO:
+ * "What could become"
+ *
+ * Responsibility:
+ *
+ * Convert existence into possibility space.
+ *
+ * =====================================================
+ */
+
+
 export interface NuvoFuture {
+
+  id:string;
 
   name:string;
 
@@ -8,50 +31,168 @@ export interface NuvoFuture {
 
   confidence:number;
 
+
+  /**
+   * Evidence that created this possibility.
+   */
+  originSignals:string[];
+
+
+  /**
+   * Conditions needed for emergence.
+   */
+  emergenceConditions:string[];
+
+
+  /**
+   * Human meaning transition.
+   */
+  meaningShift:string;
+
+
+  /**
+   * Emotional direction.
+   */
+  emotionalDirection:string;
+
 }
+
 
 
 export interface NuvoMutation {
 
+
   source:string;
+
 
   evolution:string;
 
+
   potential:string;
+
+
+  /**
+   * Strength of mutation pressure.
+   */
+  force:number;
+
+
+  /**
+   * Actual transformation.
+   */
+  transformation:string;
 
 }
 
 
+
 export interface NuvoField {
 
- originPatterns:string[];
 
- emergencePatterns:string[];
+  /**
+   * Existing reality signals.
+   */
+  originPatterns:string[];
 
- hiddenForces:string[];
 
- transformationPaths:string[];
+  /**
+   * Emerging structures.
+   */
+  emergencePatterns:string[];
 
- futureRealities:NuvoFuture[];
 
- creativeOpportunities:string[];
+  /**
+   * Forces causing evolution.
+   */
+  hiddenForces:string[];
 
- mutations:NuvoMutation[];
 
- latentWorlds:string[];
+  /**
+   * Directions reality can move.
+   */
+  transformationPaths:string[];
 
- semanticPotential:string[];
 
- graphInsights:string[];
 
- hiddenRelationships:string[];
+  /**
+   * Possible future states.
+   */
+  futureRealities:NuvoFuture[];
 
- possibilityVectors:string[];
 
- emergentArchetypes:string[];
 
- futureQuestions:string[];
+  /**
+   * Discovered possibility opportunities.
+   */
+  creativeOpportunities:string[];
 
- resonance:number;
+
+
+  /**
+   * Creative mutations.
+   */
+  mutations:NuvoMutation[];
+
+
+
+  /**
+   * Potential worlds.
+   */
+  latentWorlds:string[];
+
+
+
+  /**
+   * Semantic possibility space.
+   */
+  semanticPotential:string[];
+
+
+  graphInsights:string[];
+
+
+  hiddenRelationships:string[];
+
+
+
+  /**
+   * Movement vectors.
+   */
+  possibilityVectors:string[];
+
+
+
+  emergentArchetypes:string[];
+
+
+  futureQuestions:string[];
+
+
+
+  /**
+   * Cognitive metrics.
+   */
+  resonance:number;
+
+
+  possibilityDensity:number;
+
+
+  emergenceStrength:number;
+
+
+  noveltyScore:number;
+
+
+  dominantPotential:string;
+
+
+  emergentSurprises:string[];
+
+
+  unknownPotential:string[];
+
+
+  confidence:number;
 
 }

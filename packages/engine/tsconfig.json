@@ -34,7 +34,7 @@
 
   "include": [
     "src"
-  ],
+, "src/compiler/.ts", "src/compiler/story/.ts"  ],
 
   "exclude": [
     "dist",

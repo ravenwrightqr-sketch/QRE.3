@@ -193,7 +193,60 @@ return text
 
 
 
+function detectNamedEntities(
+text:string
+){
 
+const words =
+text
+.split(/\s+/)
+.map(word =>
+word.replace(/[.,!?]/g,"")
+);
+
+
+const ignored = [
+
+"Make",
+"Create",
+"Build",
+"Generate",
+"Design",
+"Create"
+
+];
+
+
+return words.filter(
+
+(word,index)=>{
+
+const clean =
+word.replace("'s","");
+
+
+return (
+
+!ignored.includes(clean) &&
+
+(
+/^[A-Z][a-z]+$/.test(word)
+||
+word.endsWith("'s")
+)
+
+);
+
+}
+
+)
+
+.map(word =>
+word.replace("'s","")
+
+);
+
+}
 
 
 
@@ -206,16 +259,19 @@ export function extractEntities(
 ):ExperienceEntities {
 
 
+const original =
+prompt;
+
+
 const text =
- prompt.toLowerCase();
-
-
+prompt.toLowerCase();
 
 
 return {
 
 
-people:[],
+people:
+detectNamedEntities(original),
 
 
 places:[],
@@ -314,23 +370,21 @@ detect(
  dictionaries.objects
 ),
 
-
-
 creatures:
-detect(
+[
+...detect(
  text,
  dictionaries.creatures
 ),
 
-
+...detectNamedEntities(original)
+],
 
 concepts:
 detect(
  text,
  dictionaries.concepts
 ),
-
-
 
 symbols:
 detect(

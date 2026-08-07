@@ -7,7 +7,9 @@
  *
  * Object
  *   ↓
- * Meaning
+ * Identity
+ *   ↓
+ * State
  *   ↓
  * Relationships
  *   ↓
@@ -24,17 +26,79 @@
  */
 
 
+import type {
+ ExperienceLifecycle
+} from "./lifecycle.js";
+
+
+
+
+
 export type ObjectIdentity = {
 
   name?: string;
-
-  type:string;
 
   category?:string[];
 
   attributes:string[];
 
+  type:
+ | "person"
+ | "animal"
+ | "place"
+ | "object"
+ | "artifact"
+ | "vehicle"
+ | "home"
+ | "product"
+ | "brand"
+ | "organization"
+ | "unknown";
+
 };
+
+
+
+
+
+
+/**
+ * Current condition of anything.
+ *
+ * Examples:
+ *
+ * Bella:
+ * arrived → cared_for → ready_for_pickup
+ *
+ * Pallet:
+ * received → stored → shipped
+ *
+ * Vehicle:
+ * purchased → traveled → inherited
+ */
+export type ObjectState = {
+
+  current:string;
+
+  previous:string[];
+
+  transitions:string[];
+
+};
+
+
+export type ObjectExperienceSignal = {
+
+  phase:string;
+
+  action:string;
+
+  description:string;
+
+  outcome?:string;
+
+};
+
 
 
 
@@ -47,9 +111,17 @@ export type ObjectHistory = {
   importantMoments:string[];
 
 };
+
+
+
+
+
+
+
 export type ObjectRelationship = {
 
   subject:string;
+
 
   relationship:
     | "owned_by"
@@ -66,11 +138,17 @@ export type ObjectRelationship = {
     | "witnessed_by"
     | "transformed_by";
 
+
   object:string;
+
 
   confidence:number;
 
 };
+
+
+
+
 
 
 
@@ -84,7 +162,15 @@ export type ObjectMemory = {
 
   dates:string[];
 
+  associatedPeople:string[];
+
+  triggers:string[];
+
 };
+
+
+
+
 
 
 
@@ -97,63 +183,137 @@ export type ObjectLegacy = {
   preservation:string[];
 
 };
+
+
+
+
+
+
+
+
+
 export type ObjectMoment = {
+
 
   id:string;
 
+
   title:string;
+
 
   description:string;
 
+
   location?:string;
 
-  timestamp?:string;
+
+  timeline:string[];
+
 
   participants:string[];
 
+
   emotions:string[];
+
+
+  actions:string[];
+
+
+  objects:string[];
+
 
   significance:number;
 
+
+
   sensory?:{
+
 
     visual:string[];
 
+
     audio:string[];
+
 
     atmosphere:string[];
 
+
   };
+
+
+
+  outcome?:string;
+
 
 };
 
+
+
+
+
+
+
+
+
 export interface ObjectGenome {
+
 
 identity:
 ObjectIdentity;
 
+
+
+/**
+ * Universal changing state.
+ */
+state:
+ObjectState;
+
+
+
 history:
 ObjectHistory;
+
+experienceSignals:
+ObjectExperienceSignal[];
+
+lifecycle:
+ExperienceLifecycle;
+
+
 
 relationships:
 ObjectRelationship[];
 
+
+
 moments:
 ObjectMoment[];
+
+
 
 memory:
 ObjectMemory;
 
+
+
 legacy:
 ObjectLegacy;
+
+
 
 emotionalSignature:
 string[];
 
+
+
 symbolicMeaning:
 string[];
 
+
+
 futurePossibilities:
 string[];
+
 
 }

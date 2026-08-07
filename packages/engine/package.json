@@ -12,12 +12,13 @@
     }
   },
   "dependencies": {
-    "@qre/api": "workspace:*",
     "@qre/contracts": "workspace:*",
     "@qre/db": "workspace:*",
+    "@qre/cognition": "workspace:*",
     "nanoid": "^5.1.16"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "preview": "tsx src/compiler/playground/testPreview.ts"
   }
 }

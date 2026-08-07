@@ -11,23 +11,17 @@
  * REVIK:
  * "How does it evolve"
  *
- * Discovers:
+ * Responsibility:
  *
- * - transformation chains
- * - evolution paths
- * - future states
- * - identity shifts
- * - emotional movement
- * - narrative progression
- * - human transformation
+ * Convert possibility space
+ * into transformation intelligence.
  *
  * NO DATABASE.
- * NO EXECUTION.
- * NO INDUSTRY.
+ * NO RUNTIME.
+ * NO INDUSTRY LOGIC.
  *
  * =====================================================
  */
-
 
 import type {
   CompilerMind,
@@ -36,300 +30,207 @@ import type {
   RevikTransformation,
 } from "@qre/contracts";
 
+
 export type {
   RevikField,
   RevikTransformation,
 } from "@qre/contracts";
 
+
+
 function unique(
- values:string[]
-){
+  values:string[]
+):string[] {
 
- return [
-
-  ...new Set(
-
-   values.filter(Boolean)
-
-  )
-
- ];
+  return [
+    ...new Set(
+      values.filter(Boolean)
+    )
+  ];
 
 }
+
+
+
+/**
+ * =====================================================
+ *
+ * POSSIBILITY → TRANSFORMATION
+ *
+ * =====================================================
+ */
 
 function discoverTransformations(
-
- nuvo:NuvoField
-
-):RevikTransformation[]{
+  nuvo:NuvoField
+):RevikTransformation[] {
 
 
-
-const transformations:RevikTransformation[]=[];
-
-
-
-for(
- const future of nuvo.futureRealities
-){
+return nuvo.futureRealities.map(
+future => {
 
 
-transformations.push({
-
- source:
-
-  future.transformation
-
-   .split("→")[0]
-
-   .trim(),
+const path =
+future.transformation
+.split("→")
+.map(
+item =>
+item.trim()
+)
+.filter(Boolean);
 
 
 
- destination:
+return {
 
-  future.name,
-
-
-
- path:
-
-  future.transformation
-
-   .split("→")
-
-   .map(
-
-    item =>
-
-     item.trim()
-
-   ),
+source:
+path[0] ?? "origin",
 
 
-
- meaning:
-
-  future.description,
+destination:
+future.name,
 
 
-
- strength:
-
-  future.confidence
+path,
 
 
-});
+meaning:
+future.description,
+
+
+strength:
+future.confidence,
+
+
+originSignals:
+future.originSignals
+?? "semantic emergence",
+
+
+meaningShift:
+future.meaningShift
+?? future.description,
+
+
+emotionalDirection:
+future.emotionalDirection
+?? "expanded meaning"
+
+};
+
+
+}
+);
 
 
 }
 
 
 
+/**
+ * =====================================================
+ *
+ * SEMANTIC EVOLUTION
+ *
+ * =====================================================
+ */
 
-return transformations;
-
-
-}
 function discoverSemanticTransitions(
- nuvo:NuvoField
+nuvo:NuvoField
 ):string[] {
 
 
 return unique([
 
- ...nuvo.semanticPotential,
+...nuvo.semanticPotential,
 
- ...nuvo.possibilityVectors
+...nuvo.possibilityVectors,
+
+...nuvo.emergentArchetypes
 
 ]);
 
-
 }
+
 
 
 
 function discoverRelationshipEvolutions(
- nuvo:NuvoField
+nuvo:NuvoField
 ):string[] {
 
 
-return unique(
+return unique([
 
- nuvo.hiddenRelationships ?? []
+...nuvo.hiddenRelationships,
 
-);
+...nuvo.graphInsights
 
+]);
 
 }
 
 
 
-function discoverArchetypeEvolutions(
- nuvo:NuvoField
-):string[] {
+/**
+ * =====================================================
+ *
+ * EVOLUTION CHAINS
+ *
+ * =====================================================
+ */
 
-
-return unique(
-
- nuvo.emergentArchetypes ?? []
-
-);
-
-}
-
-function discoverUnansweredPaths(
- nuvo:NuvoField
-):string[] {
-
-
-return unique(
-
- nuvo.futureQuestions ?? []
-
-);
-
-
-}
 function discoverEvolutionChains(
-
- nuvo:NuvoField
-
+nuvo:NuvoField
 ):string[][] {
 
 
 const chains:string[][]=[];
 
 
-
-
-if(
-
- nuvo.transformationPaths.includes(
-
-  "moment_to_story"
-
- )
-
+for(
+const future of nuvo.futureRealities
 ){
 
 
-chains.push([
+const path =
+future.transformation
+.split("→")
+.map(
+item =>
+item.trim()
+)
+.filter(Boolean);
 
 
- "moment",
 
+if(path.length > 1){
 
- "story",
+chains.push(path);
 
-
- "memory",
-
-
- "legacy"
-
-
-]);
+}
 
 
 }
 
 
 
-
-
-if(
-
- nuvo.latentWorlds.includes(
-
-  "memory_world"
-
- )
-
+for(
+const mutation of nuvo.mutations
 ){
 
 
 chains.push([
 
+mutation.source,
 
- "memory",
+mutation.evolution,
 
-
- "experience",
-
-
- "world"
-
+mutation.potential
 
 ]);
 
 
 }
-
-
-
-
-
-
-if(
-
- nuvo.latentWorlds.includes(
-
-  "cinematic_world"
-
- )
-
-){
-
-
-chains.push([
-
-
- "idea",
-
-
- "atmosphere",
-
-
- "cinematic_reality"
-
-
-]);
-
-
-}
-
-
-if(
-
- nuvo.transformationPaths.includes(
-
-  "individual_to_collective"
-
- )
-
-){
-
-
-chains.push([
-
-
- "person",
-
-
- "community",
-
-
- "culture"
-
-
-]);
-
-
-}
-
-
-
 
 
 return chains;
@@ -338,30 +239,44 @@ return chains;
 }
 
 
+
+/**
+ * =====================================================
+ *
+ * IDENTITY EVOLUTION
+ *
+ * =====================================================
+ */
+
 function discoverIdentityShifts(
-
- nuvo:NuvoField
-
-):string[]{
+nuvo:NuvoField
+):string[] {
 
 
 const shifts:string[]=[];
 
 
-if(
-
- nuvo.transformationPaths.includes(
-
-  "moment_to_story"
-
- )
-
+for(
+const future of nuvo.futureRealities
 ){
 
 
+const path =
+future.transformation
+.split("→")
+.map(
+x =>
+x.trim()
+)
+.filter(Boolean);
+
+
+
+if(path.length >= 2){
+
 shifts.push(
 
- "memory_holder → storyteller"
+`${path[0]} → ${path[path.length-1]}`
 
 );
 
@@ -369,81 +284,7 @@ shifts.push(
 }
 
 
-
-
-
-if(
-
- nuvo.transformationPaths.includes(
-
-  "individual_to_collective"
-
- )
-
-){
-
-
-shifts.push(
-
- "person → community_member"
-
-);
-
-
 }
-
-
-
-
-
-if(
-
- nuvo.latentWorlds.includes(
-
-  "cinematic_world"
-
- )
-
-){
-
-
-shifts.push(
-
- "observer → participant"
-
-);
-
-
-}
-
-
-
-
-
-if(
-
- nuvo.futureRealities.some(
-
-  future =>
-
-   future.name === "adaptive_experience"
-
- )
-
-){
-
-
-shifts.push(
-
- "visitor → creator"
-
-);
-
-
-}
-
-
-
 
 
 return unique(shifts);
@@ -452,31 +293,29 @@ return unique(shifts);
 }
 
 
+
+/**
+ * =====================================================
+ *
+ * EMOTIONAL MOVEMENT
+ *
+ * =====================================================
+ */
+
 function discoverEmotionalMovements(
-
- nuvo:NuvoField
-
-):string[]{
+nuvo:NuvoField
+):string[] {
 
 
-const movements:string[]=[];
+return unique(
 
+nuvo.hiddenForces.map(
 
+force =>
 
-if(
+`${force} → expanded meaning`
 
- nuvo.hiddenForces.includes(
-
-  "love"
-
- )
-
-){
-
-
-movements.push(
-
- "connection → belonging"
+)
 
 );
 
@@ -485,248 +324,175 @@ movements.push(
 
 
 
-
-
-if(
-
- nuvo.hiddenForces.includes(
-
-  "legacy"
-
- )
-
-){
-
-
-movements.push(
-
- "memory → significance"
-
-);
-
-
-}
-
-
-
-
-
-if(
-
- nuvo.hiddenForces.includes(
-
-  "discovery"
-
- )
-
-){
-
-
-movements.push(
-
- "curiosity → revelation"
-
-);
-
-
-}
-
-
-
-
-
-if(
-
- nuvo.hiddenForces.includes(
-
-  "identity"
-
- )
-
-){
-
-
-movements.push(
-
- "self → transformation"
-
-);
-
-
-}
-
-
-return unique(movements);
-
-
-}
+/**
+ * =====================================================
+ *
+ * AWAKEN REVIK
+ *
+ * =====================================================
+ */
 
 export function awakenRevik(
-  mind:CompilerMind
+mind:CompilerMind
 ):RevikField {
 
-if (!mind.nuvo) {
-  throw new Error("CompilerMind.nuvo must exist before awakenRevik()");
+
+if(!mind.nuvo){
+
+throw new Error(
+"CompilerMind.nuvo required before awakenRevik"
+);
+
 }
 
-const nuvo = mind.nuvo;
 
-const evolutionChains =
 
- discoverEvolutionChains(
+const nuvo =
+mind.nuvo;
 
-  nuvo
 
- );
 
 const transformations =
-
- discoverTransformations(
-
-  nuvo
-
- );
+discoverTransformations(
+nuvo
+);
 
 
 
+const evolutionChains =
+discoverEvolutionChains(
+nuvo
+);
 
 
 
-const futureStates = unique([
+const futureStates =
+unique([
 
+...nuvo.latentWorlds,
 
-
- ...nuvo.latentWorlds,
-
-
-
-
- ...nuvo.futureRealities.map(
-
-  future =>
-
-   future.name
-
- )
-
-
+...nuvo.futureRealities.map(
+future =>
+future.name
+)
 
 ]);
 
 
+
 const identityShifts =
+discoverIdentityShifts(
+nuvo
+);
 
- discoverIdentityShifts(
-
-  nuvo
-
- );
 
 
 const emotionalMovements =
+discoverEmotionalMovements(
+nuvo
+);
 
- discoverEmotionalMovements(
 
-  nuvo
 
- );
- const semanticTransitions =
- discoverSemanticTransitions(
-  nuvo
- );
+const semanticTransitions =
+discoverSemanticTransitions(
+nuvo
+);
+
 
 
 const relationshipEvolutions =
- discoverRelationshipEvolutions(
-  nuvo
- );
+discoverRelationshipEvolutions(
+nuvo
+);
 
 
-const archetypeEvolutions =
- discoverArchetypeEvolutions(
-  nuvo
- );
+
+const evolutionStrength =
+
+transformations.length
+
+?
+
+Math.min(
+
+1,
+
+transformations.reduce(
+
+(total,item)=>
+
+total + item.strength,
+
+0
+
+)
+
+/
+
+transformations.length
+
+)
+
+:
+
+0;
 
 
-const unansweredPaths =
- discoverUnansweredPaths(
-  nuvo
- );
 
- return {
-
- evolutionChains,
-
- transformations,
-
- identityShifts,
-
- emotionalMovements,
+return {
 
 
- dominantMotion:
-
-  transformations.length
-
-   ?
-
-   "evolution"
-
-   :
-
-   "observation",
+evolutionChains,
 
 
- futureStates,
+transformations,
 
 
- semanticTransitions,
+identityShifts,
 
 
- relationshipEvolutions,
+emotionalMovements,
 
 
- unansweredPaths,
+dominantMotion:
+
+evolutionStrength > .5
+
+?
+
+"transformation"
+
+:
+
+"emergence",
 
 
- archetypeEvolutions,
+
+futureStates,
 
 
- evolutionStrength:
+semanticTransitions,
 
-  Math.min(
 
-   1,
+relationshipEvolutions,
 
-   (
 
-    transformations.reduce(
+unansweredPaths:
 
-     (sum,item) =>
+nuvo.futureQuestions,
 
-      sum + item.strength,
 
-     0
+archetypeEvolutions:
 
-    )
+unique(
+nuvo.emergentArchetypes
+),
 
-    /
 
-    Math.max(
-
-     transformations.length,
-
-     1
-
-    )
-
-   )
-
-  )
+evolutionStrength
 
 };
-
-
 
 
 }

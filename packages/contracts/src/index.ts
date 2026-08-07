@@ -105,3 +105,11 @@ export * from "./experience/index.js";
 // Cognition compiler folder 
 
 export * from "./cognition/index.js";
+
+// Domain folder
+
+export * from "./domain/index.js";
+
+// MEMORY FOLDER
+
+export * from "./memory/index.js";

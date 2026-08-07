@@ -63,3 +63,8 @@ export type {
   CognitiveTraceStep,
   CognitiveReasoningEdge,
 } from "./cognitiveTrace.js";
+
+export * from "./lifecycle.js";
+
+export * from "./humanStory.js";
+export * from "./humanExpression.js";

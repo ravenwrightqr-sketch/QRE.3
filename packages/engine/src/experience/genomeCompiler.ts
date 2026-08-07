@@ -1,7 +1,9 @@
 import {
   composeWorld,
 } from "../world/worldComposer.js";
-
+import {
+ compileExperienceNarrative
+} from "../compiler/narrative/narrativeCompiler.js";
 import {
   buildExperienceGenome,
 } from "../compiler/semantic/genome/genomeBuilder.js";
@@ -32,12 +34,9 @@ import {
 } from "../compiler/cognitiveSynthesis.js";
 
 import {
-  understandExperience,
-} from "../compiler/understanding/index.js";
-
-import {
-  buildMeaningContext,
-} from "../compiler/meaningEngines/meaningContextEngine.js";
+understandExperience,
+buildMeaningContext,
+} from "@qre/cognition";
 
 
 /**
@@ -53,7 +52,6 @@ import type {
   CompilerMind,
   CompiledExperience,
   ExperienceBlueprint,
-  ExperienceCompilerIntelligence,
   ExperienceGenome,
   ExperienceMeaningContext,
   ExperienceModel,
@@ -287,39 +285,39 @@ if(!prompt.trim()){
 
 const understanding: ExperienceUnderstanding =
 
-  (context?.metadata?.understanding as ExperienceUnderstanding | undefined)
+(context?.metadata?.understanding as ExperienceUnderstanding | undefined)
 
-  ??
+??
 
-  understandExperience(
-    prompt
-  );
+understandExperience(
+  prompt
+);
 
 
 
 const meaningContext: ExperienceMeaningContext =
 
-  (context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
+(context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
 
-  ??
+??
 
-  buildMeaningContext(
-    understanding
-  );
+buildMeaningContext(
+  understanding
+);
 
 
 
 const genome: ExperienceGenome =
 
-  (context?.metadata?.genome as ExperienceGenome | undefined)
+(context?.metadata?.genome as ExperienceGenome | undefined)
 
-  ??
+??
 
-  buildExperienceGenome(
-    prompt,
-    understanding,
-    meaningContext
-  );
+buildExperienceGenome(
+  prompt,
+  understanding,
+  meaningContext
+);
 
 
 
@@ -362,6 +360,26 @@ const cognitiveSynthesis =
   synthesizeCognitiveExperience(
     mind
   );
+mind.semanticIR =
+cognitiveSynthesis.semanticIR;
+
+mind.nuvo =
+cognitiveSynthesis.nuvo;
+
+mind.revik =
+cognitiveSynthesis.revik;
+
+mind.moverArc =
+cognitiveSynthesis.moverArc;
+
+mind.moverTopology =
+cognitiveSynthesis.moverTopology;
+
+mind.kaivo =
+cognitiveSynthesis.kaivo;
+
+mind.orion =
+cognitiveSynthesis.orion;
 
 
 const {
@@ -422,7 +440,6 @@ const world: ExperienceWorld =
     world
   );
 
-
 /**
  * =====================================================
  *
@@ -436,6 +453,35 @@ const direction =
   experienceDirector(
     blueprint
   );
+
+ /**
+ * =====================================================
+ *
+ * NARRATIVE INTELLIGENCE
+ *
+ * Genome
+ * ↓
+ * World
+ * ↓
+ * Blueprint
+ * ↓
+ * Narrative
+ *
+ * =====================================================
+ */
+
+const narrative =
+
+  compileExperienceNarrative(
+
+    genome,
+
+    world,
+
+    blueprint
+
+  );
+
 /**
  * =====================================================
  *
@@ -505,7 +551,6 @@ const model =
   prompt
 
  );
-
 /**
  * =====================================================
  *
@@ -514,21 +559,19 @@ const model =
  * =====================================================
  */
 
-
 return {
 
-
  id:
-
   createCompilerId(),
-
-
 
  intelligence:{
 
   understanding,
 
   meaningContext,
+
+  meaning:
+   genome.meaning,
 
   semanticIR,
 
@@ -542,79 +585,49 @@ return {
 
   kaivo,
 
-  orion
+  orion,
+
+  genome,
+
+  cognitiveTrace,
 
  },
-
-
-
- cognitiveTrace,
-
-
-
- genome,
-
-
+  genome,
  world,
 
-
  blueprint,
-
-
+ narrative,
  direction,
-
 
  flowSteps,
 
-
  experienceMoments,
-
 
  cinematicScenes,
 
-
  model,
-
-
 
  context,
 
-
-
  title:
-
   blueprint.title,
 
-
-
  estimatedDuration:
-
   experienceMoments.length * 5,
 
-
-
  momentCount:
-
   experienceMoments.length,
-
-
 
  metadata:{
 
   compilerVersion:
-
    "5.0-cognitive-synthesis",
 
-
   generatedAt:
-
    new Date().toISOString(),
 
-
   source:
-
    "qre-cognitive-experience-compiler",
-
 
   tags:[
 
@@ -632,13 +645,9 @@ return {
 
  }
 
-
 };
-
 
 }
 
-
 export const genomeCompiler =
-
  compileExperienceGenome;

@@ -1,197 +1,197 @@
 import type {
-    OriginCognitiveState
-} from "@qre/contracts"
+  OriginCognitiveState,
+  Inquiry
+} from "@qre/contracts";
+
+import {
+  createInquiry
+} from "../inquiry/inquiry.js";
+
 
 function semanticComplexity(
+  input:string
+):number {
 
- input:string
+  const words =
+    input
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
 
-):number{
-
- const words =
-
-  input
-   .trim()
-   .split(/\s+/)
-   .filter(Boolean);
-
-
- return Math.min(
-
-  1,
-
-  words.length / 40
-
- );
-
+  return Math.min(
+    1,
+    words.length / 40
+  );
 
 }
-
 
 
 function initialCuriosity(
+  complexity:number
+):number {
 
- complexity:number
-
-):number{
-
-
- return Math.min(
-
-  1,
-
-  0.35 + complexity * 0.5
-
- );
-
+  return Math.min(
+    1,
+    0.35 + complexity * 0.5
+  );
 
 }
-
 
 
 function initialConfidence(
+  complexity:number
+):number {
 
- complexity:number
-
-):number{
-
-
- return Math.max(
-
-  0.2,
-
-  0.8 - complexity * 0.35
-
- );
-
+  return Math.max(
+    0.2,
+    0.8 - complexity * 0.35
+  );
 
 }
 
 
+function extractFocus(
+  input:string
+):string[] {
+
+  return input
+    .split(/\s+/)
+    .map(word =>
+      word
+        .replace(/[^\w']/g,"")
+        .trim()
+    )
+    .filter(word =>
+      word.length > 3
+    )
+    .slice(0,5);
+
+}
+
+
+function generateInitialQuestions(
+  input:string,
+  focus:string[]
+):Inquiry[] {
+
+
+  const subject =
+    focus.join(" ");
+
+
+  return [
+
+    createInquiry(
+      `What makes ${subject} meaningful?`
+    ),
+
+    createInquiry(
+      `What transformation could happen through ${subject}?`
+    ),
+
+    createInquiry(
+      `What memory, relationship, or emotion is hidden inside ${subject}?`
+    )
+
+  ];
+
+}
+
 
 export function createState(
+  input:string
+):OriginCognitiveState {
 
- input:string
 
-):OriginCognitiveState{
+  if(!input.trim()){
 
+    throw new Error(
+      "Cannot initialize cognition without input."
+    );
 
- if(!input.trim()){
+  }
 
-  throw new Error(
 
-   "Cannot initialize cognition without input."
+  const complexity =
+    semanticComplexity(input);
 
-  );
 
- }
+  const focus =
+    extractFocus(input);
 
 
- const complexity =
+  return {
 
-  semanticComplexity(
+    id:
+      crypto.randomUUID(),
 
-   input
+    input,
 
-  );
 
+    focus,
 
- return {
 
-  id:
+    observations:[],
 
-   crypto.randomUUID(),
+    thoughts:[],
 
 
-  input,
+    questions:
+      generateInitialQuestions(
+        input,
+        focus
+      ),
 
 
-  focus:
+    hypotheses:[],
 
-   [],
 
+    simulations:[],
 
-  observations:
 
-   [],
+    beliefs:[],
 
 
-  thoughts:
+    memories:[],
 
-   [],
 
+    discoveries:[],
 
-  questions:
 
-   [],
+    goals:[],
 
 
-  hypotheses:
+    history:[
 
-   [],
+      `cognition initialized (${input.length} characters)`,
 
+      `semantic complexity ${complexity.toFixed(2)}`,
 
-  simulations:
+      `focus extracted: ${focus.join(", ")}`,
 
-   [],
+      "initial inquiries generated"
 
+    ],
 
-  beliefs:
 
-   [],
+    confidence:
+      initialConfidence(
+        complexity
+      ),
 
 
-  memories:
+    curiosity:
+      initialCuriosity(
+        complexity
+      ),
 
-   [],
 
+    energy:1,
 
-  discoveries:
 
-   [],
+    timestamp:
+      Date.now()
 
-
-  goals:
-
-   [],
-
-
-  history:[
-
-   `cognition initialized (${input.length} characters)`,
-
-   `semantic complexity ${complexity.toFixed(2)}`
-
-  ],
-
-
-  confidence:
-
-   initialConfidence(
-
-    complexity
-
-   ),
-
-
-  curiosity:
-
-   initialCuriosity(
-
-    complexity
-
-   ),
-
-
-  energy:
-
-   1,
-
-
-  timestamp:
-
-   Date.now()
-
- };
+  };
 
 }

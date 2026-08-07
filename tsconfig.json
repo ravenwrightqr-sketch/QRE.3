@@ -35,8 +35,9 @@
   "files": [],
 
   "references": [
-    { "path": "./packages/contracts" },
-    { "path": "./packages/db" },
-    { "path": "./packages/engine" }
-  ]
+  { "path": "./packages/contracts" },
+  { "path": "./packages/db" },
+  { "path": "./packages/engine" },
+  { "path": "./packages/cognition" }
+]
 }

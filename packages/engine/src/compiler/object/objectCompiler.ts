@@ -3,20 +3,22 @@
  * QRE OBJECT GENOME COMPILER
  * =====================================================
  *
- * Semantic Object Intelligence Layer.
+ * Universal Experience Compiler
  *
- * Meaning Signals
- *        ↓
- * Object Identity
- *        ↓
- * Relationships
- *        ↓
+ * Human Reality
+ *      ↓
+ * Signals
+ *      ↓
+ * Events
+ *      ↓
  * Moments
- *        ↓
+ *      ↓
  * Memory
- *        ↓
+ *      ↓
  * Legacy
  *
+ * NO TEMPLATES
+ * NO INDUSTRY LOGIC
  * NO DATABASE
  * NO RUNTIME
  *
@@ -26,7 +28,7 @@
 
 import type {
 
-  ObjectCompilationInput
+ ObjectCompilationInput
 
 } from "./objectTypes.js";
 
@@ -40,7 +42,11 @@ import type {
 } from "@qre/contracts";
 
 
+import {
 
+ compileLifecycle
+
+} from "../lifecycle/lifecycleCompiler.js";
 
 
 
@@ -49,7 +55,7 @@ function unique(
 
  values:string[] = []
 
-):string[] {
+):string[]{
 
 
  return [
@@ -68,14 +74,66 @@ function unique(
 
 
 
+function normalizeText(
+
+ text:string
+
+):string{
+
+
+ return text
+
+ .replace(/\n/g," ")
+
+ .trim();
+
+}
 
 
 
-function inferObjectNature(
+
+
+
+
+function extractIdentity(
 
  input:ObjectCompilationInput
 
-):string[] {
+):string | undefined {
+
+
+ return (
+
+  input.entities?.objects?.[0]
+
+  ??
+
+  input.entities?.products?.[0]
+
+  ??
+
+  input.entities?.creatures?.[0]
+
+  ??
+
+  input.entities?.people?.[0]
+
+ );
+
+
+}
+
+
+
+
+
+
+
+function extractAttributes(
+
+ input:ObjectCompilationInput
+
+):string[]{
 
 
  return unique([
@@ -107,71 +165,121 @@ function inferObjectNature(
 
 
 
-function resolveObjectType(
+function extractSentences(
 
- input:ObjectCompilationInput
+ text:string
 
-):string {
-
-
- const text =
-
-  input.prompt.toLowerCase();
+):string[]{
 
 
+ return normalizeText(text)
 
- if(
+ .split(/[.!?]/)
 
-  text.includes("dog") ||
+ .map(
 
-  text.includes("cat") ||
+  value => value.trim()
 
-  text.includes("pet")
+ )
 
- ){
+ .filter(
 
-  return "living_being";
+  value => value.length > 0
 
- }
-
-
-
- if(
-
-  text.includes("brand") ||
-
-  text.includes("business") ||
-
-  text.includes("product")
-
- ){
-
-  return "identity_object";
-
- }
-
-
-
- if(
-
-  text.includes("memory") ||
-
-  text.includes("gift") ||
-
-  text.includes("heirloom")
-
- ){
-
-  return "symbolic_object";
-
- }
-
-
-
- return "experience_object";
+ );
 
 
 }
+
+
+
+
+
+
+
+function inferStateChange(
+
+ text:string
+
+):{
+
+ before:string;
+
+ after:string;
+
+}
+
+
+{
+
+
+ const lower = text.toLowerCase();
+
+
+
+ if(
+
+ lower.includes("from")
+
+ &&
+
+ lower.includes("to")
+
+ ){
+
+
+  return {
+
+   before:"previous_state",
+
+   after:"changed_state"
+
+  };
+
+ }
+
+
+
+ return {
+
+  before:"initial_condition",
+
+  after:"new_condition"
+
+ };
+
+
+}
+
+
+
+
+
+
+
+
+
+function extractMomentTitle(
+
+ text:string
+
+):string{
+
+
+ const words =
+
+ text
+
+ .split(" ")
+
+ .slice(0,7);
+
+
+
+ return words.join(" ");
+
+}
+
 
 
 
@@ -187,100 +295,139 @@ function buildMoments(
 ):ObjectMoment[]{
 
 
- const moments:ObjectMoment[] = [];
+ const moments:ObjectMoment[]=[];
 
 
 
- const emotions =
+ const sentences =
 
-  input.emotions?.emotions ?? [];
+ extractSentences(
 
+  input.prompt
 
-
-
-
- if(emotions.length){
-
-
-  moments.push({
-
-   id:
-
-    crypto.randomUUID(),
-
-
-   title:
-
-    "Emotional significance",
-
-
-   description:
-
-    "An object carrying emotional meaning.",
-
-
-   participants:
-
-    input.entities?.people ?? [],
-
-
-   emotions,
-
-
-   significance:
-
-    .8
-
-  });
-
-
- }
+ );
 
 
 
+ for(
 
-
- if(
-
-  input.memory?.memories?.length
+  const sentence of sentences
 
  ){
 
 
+
+  const change =
+
+  inferStateChange(sentence);
+
+
+
   moments.push({
+
+
 
    id:
 
     crypto.randomUUID(),
 
 
+
    title:
 
-    "Memory connection",
+    extractMomentTitle(sentence),
+
 
 
    description:
 
-    "A preserved relationship between object and experience.",
+    sentence,
+
+
+
+   timeline:[
+
+    "human_described_event"
+
+   ],
+
 
 
    participants:
 
-    input.entities?.people ?? [],
+    input.entities?.people
+
+    ??
+
+    [],
+
 
 
    emotions:
 
-    emotions.length
-    ?
-    emotions
-    :
-    ["reflection"],
+    input.emotions?.emotions
+
+    ??
+
+    [],
+
+
+
+   actions:
+
+    [],
+
+
+
+   objects:
+
+    [
+
+     ...(input.entities?.objects ?? []),
+
+     ...(input.entities?.products ?? []),
+
+     ...(input.entities?.creatures ?? [])
+
+    ],
+
 
 
    significance:
 
-    .9
+    input.emotions?.intensity
+
+    ??
+
+    .5,
+
+
+
+   sensory:{
+
+
+    visual:[],
+
+
+    audio:[],
+
+
+    atmosphere:
+
+     input.meaning?.themes
+
+     ??
+
+     []
+
+   },
+
+
+
+   outcome:
+
+    `${change.before} → ${change.after}`
+
 
   });
 
@@ -301,6 +448,7 @@ function buildMoments(
 
 
 
+
 function buildRelationships(
 
  input:ObjectCompilationInput
@@ -310,50 +458,140 @@ function buildRelationships(
 
  return (
 
-  input.relationships ?? []
+ input.relationships
+
+ ??
+
+ []
 
  )
 
  .map(
 
-  relation => ({
+ relation => ({
 
 
-   subject:
+  subject:
 
-    relation.subject
-    ??
-    "unknown",
+   relation.subject
 
+   ??
 
-
-   relationship:
-
-    "connected_to",
+   "unknown",
 
 
 
-   object:
+  relationship:
 
-    relation.object
-    ??
-    "unknown",
+   "connected_to",
 
 
 
-   confidence:
+  object:
 
-    relation.confidence
-    ??
-    .5
+   relation.object
+
+   ??
+
+   "unknown",
 
 
-  })
+
+  confidence:
+
+   relation.confidence
+
+   ??
+
+   .5
+
+
+ })
 
  );
 
 
 }
+function buildExperienceSignals(
+
+ moments:ObjectMoment[]
+
+):{
+ phase:string;
+ action:string;
+ description:string;
+ outcome?:string;
+
+}[]{
+
+
+return moments.map(
+
+(moment,index)=>({
+
+
+phase:
+
+ `moment_${index + 1}`,
+
+
+action:
+
+ moment.actions.length
+
+ ?
+
+ moment.actions.join(", ")
+
+ :
+
+ "observed",
+
+
+
+description:
+
+ moment.description,
+
+
+
+outcome:
+
+ moment.outcome
+
+
+})
+
+
+);
+
+
+}
+
+
+
+
+
+
+
+
+
+
+function buildFuturePossibilities():string[]{
+
+
+ return [
+
+  "future interactions",
+
+  "continued memory development",
+
+  "new experiences"
+
+ ];
+
+}
+
 
 
 
@@ -373,18 +611,49 @@ export function compileObjectGenome(
  if(!input){
 
   throw new Error(
-   "Object genome input required."
+
+   "Object compilation input required."
+
   );
 
  }
 
 
 
- const attributes =
+ const moments =
 
-  inferObjectNature(
-   input
-  );
+ buildMoments(input);
+
+
+
+
+ const lifecycle =
+
+ compileLifecycle({
+
+
+  prompt:
+
+   input.prompt,
+
+
+  memory:
+
+   input.memory,
+
+
+  entities:
+
+   input.entities,
+
+
+  relationships:
+
+   input.relationships
+
+
+ });
+
 
 
 
@@ -393,163 +662,253 @@ export function compileObjectGenome(
  return {
 
 
-  identity:{
+ identity:{
 
 
-   name:
+  name:
 
-    input.entities?.objects?.[0]
-    ??
-    input.entities?.products?.[0],
+   extractIdentity(input),
 
 
+  type:
 
-   type:
+   "unknown",
 
-    resolveObjectType(
-     input
-    ),
 
+  category:
 
+   extractAttributes(input),
 
-   category:
 
-    attributes,
+  attributes:
 
+   extractAttributes(input)
 
-   attributes
 
+ },
 
-  },
 
 
 
-  history:{
 
+ state:{
 
-   origin:
 
-    input.prompt,
+  current:
 
+   "observed",
 
-   timeline:[],
 
+  previous:[],
 
-   importantMoments:
 
-    input.memory?.memories
-    ??
-    []
+  transitions:[]
 
+ },
 
-  },
 
 
 
-  relationships:
 
-   buildRelationships(
-    input
-   ),
+ history:{
 
 
+  origin:
 
-  moments:
+   input.prompt,
 
-   buildMoments(
-    input
-   ),
 
+  timeline:[],
 
 
-  memory:{
+  importantMoments:
 
+   moments.map(
 
-   memories:
+    moment => moment.description
 
-    input.memory?.memories
-    ??
-    [],
+   )
 
 
+ },
 
-   emotionalMarkers:
 
-    input.emotions?.emotions
-    ??
-    [],
 
 
+ lifecycle,
 
-   locations:[],
 
 
-   dates:[]
 
 
-  },
+ relationships:
 
+  buildRelationships(input),
 
 
-  legacy:{
 
 
-   meaning:
 
-    input.meaning?.symbols
-    ??
-    [],
 
+ moments,
 
 
-   impact:
 
-    input.dna?.traits
-    ??
-    [],
 
 
 
-   preservation:
+ experienceSignals:
 
-    input.memory?.timeCapsule
+  buildExperienceSignals(moments),
 
-    ?
 
-    ["preserved_memory"]
 
-    :
 
-    []
 
 
-  },
+ memory:{
 
 
+  memories:
 
-  emotionalSignature:
+   input.memory?.memories
+
+   ??
+
+   [],
+
+
+
+  emotionalMarkers:
+
+   input.memory?.markers
+
+   ??
 
    input.emotions?.emotions
+
    ??
+
    [],
 
 
 
-  symbolicMeaning:
+  locations:
+
+   input.entities?.places
+
+   ??
+
+   [],
+
+
+
+  dates:[],
+
+
+
+  associatedPeople:
+
+   input.entities?.people
+
+   ??
+
+   [],
+
+
+
+  triggers:
+
+   input.meaning?.themes
+
+   ??
+
+   []
+
+ },
+
+
+
+
+
+
+
+ legacy:{
+
+
+  meaning:
 
    input.meaning?.symbols
+
    ??
+
    [],
 
 
 
-  futurePossibilities:[
+  impact:
 
-   "future meaning evolution",
+   input.dna?.traits
 
-   "continued relationship development"
+   ??
 
-  ]
+   [],
+
+
+
+  preservation:
+
+   input.memory?.timeCapsule
+
+   ?
+
+   [
+
+    "preserved"
+
+   ]
+
+   :
+
+   []
+
+ },
+
+
+
+
+
+
+ emotionalSignature:
+
+  input.emotions?.emotions
+
+  ??
+
+  [],
+
+
+
+
+
+
+ symbolicMeaning:
+
+  input.meaning?.symbols
+
+  ??
+
+  [],
+
+
+
+
+
+
+ futurePossibilities:
+
+  buildFuturePossibilities()
+
 
 
  };

@@ -7,22 +7,25 @@
  *
  * Prompt
  *   ↓
- * Experience Compiler (ENGINE)
+ * Experience Compiler
  *   ↓
- * Experience Record
+ * Experience Blueprint
  *   ↓
- * Flow Runtime
+ * Blueprint → Flow Compiler
+ *   ↓
+ * Runtime Flow
+ *
  *
  * Responsibilities:
  *
- * - Compile experience
- * - Create Experience
- * - Create Flow
- * - Link runtime to experience
+ * ✅ Compile experience
+ * ✅ Persist experience
+ * ✅ Generate runtime flow
+ * ✅ Link asset ownership
+ *
  *
  * NO FRONTEND LOGIC
- * NO EXECUTION
- * NO ENGINE OWNERSHIP
+ * NO PLAYER EXECUTION
  *
  * =====================================================
  */
@@ -39,8 +42,15 @@ import {
 
 
 import {
+  blueprintToFlow,
+} from "@qre/engine";
+
+
+import {
   compileExperience,
 } from "./experienceService.js";
+
+
 
 
 
@@ -57,6 +67,10 @@ export type CreateExperienceInput = {
 
 
 
+
+
+
+
 export async function createExperience(
 
   input:CreateExperienceInput
@@ -64,28 +78,45 @@ export async function createExperience(
 ){
 
 
+
   if(
+
     !input.assetId ||
+
     !input.prompt.trim()
+
   ){
 
     throw new Error(
+
       "Asset and prompt required."
+
     );
 
   }
 
 
 
+
+
+
   return db.$transaction(async(tx)=>{
+
+
+
 
 
     /**
      * ===================================================
      *
-     * 1. COMPILE
+     * 1. COMPILE BLUEPRINT
      *
      * API → ENGINE
+     *
+     * IMPORTANT:
+     *
+     * compileExperience returns
+     * ExperienceBlueprint directly.
      *
      * ===================================================
      */
@@ -93,23 +124,26 @@ export async function createExperience(
 
     const compiled =
 
-      await compileExperience(
-        input.prompt.trim()
-      );
+  await compileExperience(
+
+    input.prompt.trim()
+
+  );
+
+
+const blueprint =
+
+  compiled.blueprint;
+
+
+const narrative =
+
+  compiled.narrative;
 
 
 
-    console.log(
 
-      "🔥 COMPILER OUTPUT FLOW STEPS",
 
-      JSON.stringify(
-        compiled.flowSteps,
-        null,
-        2
-      )
-
-    );
 
 
 
@@ -117,7 +151,54 @@ export async function createExperience(
     /**
      * ===================================================
      *
-     * 2. CREATE EXPERIENCE
+     * 2. BLUEPRINT → RUNTIME FLOW
+     *
+     * ===================================================
+     */
+
+
+    const flowSteps =
+
+      blueprintToFlow(
+
+        blueprint
+
+      );
+
+
+
+
+
+
+
+    console.log(
+
+      "🔥 BLUEPRINT GENERATED FLOW STEPS",
+
+      JSON.stringify(
+
+        flowSteps,
+
+        null,
+
+        2
+
+      )
+
+    );
+
+
+
+
+
+
+
+
+
+    /**
+     * ===================================================
+     *
+     * 3. CREATE EXPERIENCE
      *
      * Human creative object
      *
@@ -133,19 +214,23 @@ export async function createExperience(
 
 
           assetId:
+
             input.assetId,
+
 
 
           title:
 
             input.title ??
-            compiled.title,
+
+            blueprint.title,
 
 
 
           blueprint:
 
-            compiled.blueprint as Prisma.InputJsonValue,
+            blueprint as unknown as Prisma.InputJsonValue,
+
 
         },
 
@@ -156,10 +241,13 @@ export async function createExperience(
 
 
 
+
+
+
     /**
      * ===================================================
      *
-     * 3. CREATE FLOW
+     * 4. CREATE FLOW
      *
      * Runtime representation
      *
@@ -177,26 +265,27 @@ export async function createExperience(
           name:
 
             experience.title ??
+
             "Experience",
 
 
 
-          version:
-
-            1,
+          version:1,
 
 
 
           actions:
 
-            {
+          {
 
-              category:
+            category:
 
-                compiled.blueprint.type ??
-                "experience",
+              blueprint.type ?? "experience",
 
-            } as Prisma.InputJsonValue,
+
+          } as Prisma.InputJsonValue,
+
+
 
 
 
@@ -205,9 +294,9 @@ export async function createExperience(
 
             create:
 
-              compiled.flowSteps.map(
+              flowSteps.map(
 
-                step => ({
+                step=>({
 
 
                   order:
@@ -215,11 +304,9 @@ export async function createExperience(
                     step.order,
 
 
-
                   type:
 
                     step.type,
-
 
 
                   payload:
@@ -238,6 +325,7 @@ export async function createExperience(
         },
 
 
+
         include:{
 
 
@@ -254,10 +342,13 @@ export async function createExperience(
 
 
 
+
+
+
     /**
      * ===================================================
      *
-     * 4. LINK EXPERIENCE → FLOW
+     * 5. LINK EXPERIENCE → FLOW
      *
      * ===================================================
      */
@@ -267,10 +358,9 @@ export async function createExperience(
 
       where:{
 
-
         id:
-          experience.id,
 
+          experience.id,
 
       },
 
@@ -280,16 +370,13 @@ export async function createExperience(
 
         flow:{
 
-
           connect:{
 
-
             id:
+
               flow.id,
 
-
           },
-
 
         },
 
@@ -305,14 +392,12 @@ export async function createExperience(
 
 
 
+
+
     /**
      * ===================================================
      *
-     * 5. LINK ASSET → FLOW
-     *
-     * Runtime ownership bridge.
-     *
-     * AssetFlow is canonical.
+     * 6. LINK ASSET → FLOW
      *
      * ===================================================
      */
@@ -327,10 +412,12 @@ export async function createExperience(
 
 
           assetId:
+
             input.assetId,
 
 
           flowId:
+
             flow.id,
 
 
@@ -340,17 +427,21 @@ export async function createExperience(
       },
 
 
+
       update:{},
+
 
 
       create:{
 
 
         assetId:
+
           input.assetId,
 
 
         flowId:
+
           flow.id,
 
 
@@ -358,6 +449,10 @@ export async function createExperience(
 
 
     });
+
+
+
+
 
 
 
@@ -372,10 +467,11 @@ export async function createExperience(
       flow,
 
 
-      compiled,
+      blueprint,
 
 
     };
+
 
 
   });

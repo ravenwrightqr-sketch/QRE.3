@@ -13,7 +13,7 @@ import {
 
 import {
   understandExperience,
-} from "../understanding/ExperienceUnderstandingKernel.js";
+} from "@qre/cognition"
 
 import {
   runCompilerBrain,
@@ -86,7 +86,7 @@ export function gameMaster(
     understanding,
 
    genome:
-  compiled.genome,
+    compiled.intelligence.genome,
     
 
     blueprint:

@@ -30,10 +30,13 @@
  * =====================================================
  */
 
-
 import type {
   ExperienceEntities,
 } from "./entityExtractor.js";
+
+import type {
+  ExperienceLifecycle,
+} from "./lifecycle.js";
 
 import type {
   ObjectGenome,
@@ -50,7 +53,6 @@ import type {
 import type {
   SemanticInterpretation,
 } from "./semantic.js";
-
 
 
 /**
@@ -154,8 +156,6 @@ export type ExperienceRelationship = {
   confidence:number;
 
 };
-
-
 
 
 
@@ -318,8 +318,6 @@ export interface ExperienceGenome {
     ExperienceEntities;
 
 
-
-
   /**
    * =====================================================
    * OBJECT IDENTITY LAYER
@@ -333,9 +331,17 @@ export interface ExperienceGenome {
 
     ObjectGenome;
 
+   /**
+ * =====================================================
+ * LIFE CYCLE INTELLIGENCE
+ *
+ * How this entity changes through time.
+ *
+ * =====================================================
+ */
 
-
-
+lifecycle:
+ExperienceLifecycle;
   /**
    * World/environment possibilities
    */

@@ -30,10 +30,10 @@
  *
  * =====================================================
  */
-
 import {
   buildCognitiveTrace,
-} from "./index.js";
+} from "./cognitiveTrace/index.js";
+
 
 import {
   buildSemanticIR,
@@ -71,10 +71,11 @@ export type CognitiveSynthesisOutput =
     cognitiveTrace:
       ExperienceCognitiveTrace;
   };
-
 export function synthesizeCognitiveExperience(
-  mind: CompilerMind
+initialMind: CompilerMind
 ): CognitiveSynthesisOutput {
+
+  const mind: CompilerMind = structuredClone(initialMind);
   const semanticIR =
     buildSemanticIR(
       mind
@@ -82,18 +83,17 @@ export function synthesizeCognitiveExperience(
 
   mind.semanticIR = semanticIR;
 
-  const nuvo =
-    awakenNuvo(
-      mind
-    );
+const nuvo =
+awakenNuvo(
+  mind
+);
 
   mind.nuvo = nuvo;
 
-  const revik =
-    awakenRevik(
-      mind
-    );
-
+ const revik =
+awakenRevik(
+  mind
+);
   mind.revik = revik;
 
   const moverArc =
@@ -140,20 +140,37 @@ export function synthesizeCognitiveExperience(
       orion,
     });
 
-  return {
-    understanding:
-      mind.understanding,
-    meaningContext:
-      mind.meaningContext,
-    meaning:
-      mind.genome.meaning,
-    semanticIR,
-    nuvo,
-    revik,
-    moverArc,
-    moverTopology,
-    kaivo,
-    orion,
-    cognitiveTrace,
-  };
+ return {
+  understanding: mind.understanding,
+
+  meaningContext: mind.meaningContext,
+
+  meaning: mind.genome.meaning,
+
+  genome: mind.genome,
+
+  semanticIR,
+
+  nuvo,
+
+  revik,
+
+  moverArc,
+
+  moverTopology,
+
+  kaivo,
+
+  orion,
+
+  cognitiveTrace,
+
+  memoryReveal: mind.memoryReveal,
+
+  experienceArc: mind.experienceArc,
+
+  worldObservations: mind.worldObservations,
+
+  cognitionLoop: mind.cognitionLoop,
+};
 }

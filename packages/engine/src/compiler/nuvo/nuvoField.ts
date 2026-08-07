@@ -3,7 +3,7 @@
  * QRE NUVO FIELD
  * =====================================================
  *
- * Possibility Intelligence Layer.
+ * Possibility Intelligence Contract.
  *
  * Genome:
  * "What exists"
@@ -11,665 +11,231 @@
  * NUVO:
  * "What could become"
  *
- * Discovers:
+ * Responsibility:
  *
- * - latent potential
- * - future realities
- * - transformation arcs
- * - emotional evolution
- * - creative mutations
- * - unexplored possibilities
- * - semantic graph opportunities
- *
- * NO DATABASE.
- * NO RUNTIME.
- * NO INDUSTRY LOGIC.
+ * Convert existence into possibility space.
  *
  * =====================================================
  */
-import type {
-  CompilerMind,
-  ExperienceGenome,
-  SemanticIR
-} from "@qre/contracts";
-
-import type {
-  NuvoField,
-  NuvoFuture,
-  NuvoMutation,
-} from "@qre/contracts";
-
-export type {
-  NuvoField,
-  NuvoFuture,
-  NuvoMutation,
-} from "@qre/contracts";
-
-function unique(
- values:string[]
-):string[] {
-
- return [
-
-  ...new Set(
-
-   values.filter(Boolean)
-
-  )
-
- ];
-
-}
 
 
-function flattenEntities(
- genome:ExperienceGenome
-):string[] {
+export interface NuvoFuture {
+
+  id:string;
+
+  name:string;
+
+  description:string;
+
+  transformation:string;
 
 
- return Object
+  /**
+   * Confidence that this future can emerge.
+   */
+  confidence:number;
 
-  .values(
-    genome.entities
-  )
 
-  .flat()
+  /**
+   * Why this possibility exists.
+   */
+  originSignals:string[];
 
-  .filter(
-    (value):value is string =>
-      typeof value === "string"
-  );
+
+  /**
+   * Conditions required for emergence.
+   */
+  emergenceConditions:string[];
+
+
+  /**
+   * Human meaning produced.
+   */
+  meaningShift:string;
+
+
+  /**
+   * Emotional direction.
+   */
+  emotionalDirection:string;
 
 }
 
 
 
+export interface NuvoMutation {
 
 
-function discoverSemanticPotential(
- semanticIR:SemanticIR
-):string[] {
+  source:string;
 
 
-return unique([
-
- ...semanticIR.nodes
-
- .filter(
-  node =>
-   node.type !== "entity"
- )
-
- .map(
-  node =>
-   node.label
- )
-
-]);
+  evolution:string;
 
 
-}
+  potential:string;
 
 
+  /**
+   * Mutation pressure.
+   */
+  force:number;
 
 
-
-function discoverGraphInsights(
- semanticIR:SemanticIR
-):string[] {
-
-
-return unique(
-
- semanticIR.edges.map(
-
- edge =>
-
- `${edge.from} ${edge.relation} ${edge.to}`
-
- )
-
-);
-
+  /**
+   * What changes.
+   */
+  transformation:string;
 
 }
 
 
 
+export interface NuvoField {
 
 
-function discoverHiddenRelationships(
- semanticIR:SemanticIR
-):string[] {
+  /**
+   * Existing reality signals.
+   */
+  originPatterns:string[];
 
 
-return unique(
 
- semanticIR.edges.map(
+  /**
+   * Emerging structures.
+   */
+  emergencePatterns:string[];
 
- edge =>
 
- `${edge.from}_${edge.to}`
 
- )
+  /**
+   * Forces causing change.
+   */
+  hiddenForces:string[];
 
-);
 
 
-}
+  /**
+   * Possible movement directions.
+   */
+  transformationPaths:string[];
 
 
 
+  /**
+   * Discovered future realities.
+   */
+  futureRealities:NuvoFuture[];
 
 
-function discoverFutureQuestions(
- semanticIR:SemanticIR
-):string[] {
 
+  /**
+   * Potential expansions.
+   */
+  creativeOpportunities:string[];
 
-return [
 
- semanticIR.unansweredQuestion ||
 
- "What deeper meaning is waiting to emerge?"
+  /**
+   * Creative mutations.
+   */
+  mutations:NuvoMutation[];
 
- ];
 
-}
 
+  /**
+   * Possible worlds.
+   */
+  latentWorlds:string[];
 
 
 
+  /**
+   * Semantic possibility signals.
+   */
+  semanticPotential:string[];
 
 
 
-function discoverFutureRealities(
- genome:ExperienceGenome
-):NuvoFuture[]{
+  /**
+   * Graph-derived intelligence.
+   */
+  graphInsights:string[];
 
 
-const futures:NuvoFuture[]=[];
 
+  /**
+   * Hidden relational structures.
+   */
+  hiddenRelationships:string[];
 
 
-if(
- genome.memory === 1
-){
 
- futures.push({
+  /**
+   * Directional possibility vectors.
+   */
+  possibilityVectors:string[];
 
-  name:"living_memory_world",
 
-  description:
-   "A meaningful experience evolves into an interactive emotional memory space.",
 
-  transformation:
-   "experience → memory → story → legacy",
+  /**
+   * Emerging archetypes.
+   */
+  emergentArchetypes:string[];
 
-  confidence:.92
 
- });
 
-}
+  /**
+   * Unresolved future questions.
+   */
+  futureQuestions:string[];
 
 
 
-if(
- genome.immersion === 1
-){
+  /**
+   * Intelligence metrics.
+   */
+  resonance:number;
 
- futures.push({
 
-  name:"cinematic_reality",
+  /**
+   * Density of possible futures.
+   */
+  possibilityDensity:number;
 
-  description:
-   "The concept becomes an environment people emotionally enter.",
 
-  transformation:
-   "idea → atmosphere → world",
+  /**
+   * Strength of emergence.
+   */
+  emergenceStrength:number;
 
-  confidence:.90
 
- });
+  /**
+   * Novelty discovered.
+   */
+  noveltyScore:number;
 
-}
 
+  /**
+   * Dominant possibility direction.
+   */
+  dominantPotential:string;
 
 
-if(
- genome.interaction === 1
-){
+  /**
+   * Unexpected discoveries.
+   */
+  emergentSurprises:string[];
 
- futures.push({
 
-  name:"adaptive_experience",
+  /**
+   * Unknown possibility space.
+   */
+  unknownPotential:string[];
 
-  description:
-   "The experience responds and changes with participation.",
 
-  transformation:
-   "observer → participant → creator",
-
-  confidence:.88
-
- });
-
-}
-
-
-
-if(
- genome.social === "community"
-){
-
- futures.push({
-
-  name:"collective_universe",
-
-  description:
-   "Individual experiences combine into shared meaning.",
-
-  transformation:
-   "person → community → culture",
-
-  confidence:.86
-
- });
-
-}
-
-
-
-if(
- genome.discovery > .7
-){
-
- futures.push({
-
-  name:"exploration_realm",
-
-  description:
-   "The experience becomes a place of discovery.",
-
-  transformation:
-   "unknown → exploration → revelation",
-
-  confidence:.82
-
- });
-
-}
-
-
-
-if(!futures.length){
-
- futures.push({
-
-  name:"emergent_creation",
-
-  description:
-   "The concept contains unknown creative potential.",
-
-  transformation:
-   "idea → possibility → discovery",
-
-  confidence:.35
-
- });
-
-}
-
-
-
-return futures;
-
-}
-
-
-
-
-
-function discoverMutations(
- genome:ExperienceGenome
-):NuvoMutation[]{
-
-
-const mutations:NuvoMutation[]=[];
-
-
-
-if(
- genome.meaning.memories.length
-){
-
- mutations.push({
-
- source:"memory",
-
- evolution:
-  "transform history into narrative",
-
- potential:
-  "emotional_archive"
-
- });
-
-}
-
-
-
-if(
- genome.relationships.length
-){
-
- mutations.push({
-
- source:"relationship",
-
- evolution:
-  "connect hidden human meanings",
-
- potential:
-  "living_network"
-
- });
-
-}
-
-
-
-if(
- genome.symbols.length
-){
-
- mutations.push({
-
- source:"symbol",
-
- evolution:
-  "turn symbols into world language",
-
- potential:
-  "mythology_system"
-
- });
-
-}
-
-
-
-return mutations;
-
-}
-
-
-
-
-
-
-
-function discoverOpportunities(
- genome:ExperienceGenome
-):string[]{
-
-
-const opportunities:string[]=[];
-
-
-if(
- flattenEntities(genome).length
-){
-
- opportunities.push(
-  "expand entities into living systems"
- );
-
-}
-
-
-if(
- genome.meaning.memories.length
-){
-
- opportunities.push(
-  "preserve emotional history"
- );
-
-}
-
-
-if(
- genome.relationships.length
-){
-
- opportunities.push(
-  "reveal invisible meaning connections"
- );
-
-}
-
-
-return unique(opportunities);
-
-}
-
-
-
-
-
-
-
-
-function discoverLatentWorlds(
- genome:ExperienceGenome
-):string[]{
-
-
-const worlds:string[]=[];
-
-
-if(genome.memory===1)
- worlds.push("memory_world");
-
-
-if(genome.discovery>.5)
- worlds.push("exploration_world");
-
-
-if(genome.immersion===1)
- worlds.push("cinematic_world");
-
-
-if(genome.social==="community")
- worlds.push("collective_world");
-
-
-return worlds;
-
-}
-
-
-export function awakenNuvo(
-
- mind:CompilerMind
-
-):NuvoField {
-
-const genome = mind.genome;
-
-const semanticIR = mind.semanticIR!;
-const entities =
- flattenEntities(genome);
-
-
-
-return {
-
-
-originPatterns:
-
- unique([
-
-  ...genome.archetypes,
-
-  ...genome.emotions,
-
-  ...entities
-
- ]),
-
-
-
-emergencePatterns:
-
- unique([
-
-  ...genome.dna,
-
-  ...genome.themes,
-
-  ...genome.symbols
-
- ]),
-
-
-
-hiddenForces:
-
- unique([
-
-  ...genome.meaning.desiredFeeling,
-
-  ...genome.meaning.memories,
-
-  ...genome.meaning.why
-
- ]),
-
-
-
-transformationPaths:
-
- unique([
-
-  ...genome.transformation,
-
-  genome.memory===1
-   ? "experience_to_story"
-   : "",
-
-  genome.replay===1
-   ? "story_to_return"
-   : "",
-
-  genome.social==="community"
-   ? "individual_to_collective"
-   : "",
-
-  genome.immersion===1
-   ? "idea_to_world"
-   : ""
-
- ]),
-
-
-
-futureRealities:
- discoverFutureRealities(genome),
-
-
-creativeOpportunities:
- discoverOpportunities(genome),
-
-
-mutations:
- discoverMutations(genome),
-
-
-latentWorlds:
- discoverLatentWorlds(genome),
-
-
-
-semanticPotential:
- discoverSemanticPotential(semanticIR),
-
-
-
-graphInsights:
- discoverGraphInsights(semanticIR),
-
-
-
-hiddenRelationships:
- discoverHiddenRelationships(semanticIR),
-
-
-
-possibilityVectors:
-
- unique([
-
-  ...genome.transformation,
-
-  semanticIR.transformation,
-
-  semanticIR.emotionalGravity
-
- ]),
-
-
-
-emergentArchetypes:
-
- unique([
-
-  ...genome.archetypes,
-
-  ...semanticIR.nodes
-
-   .filter(
-    node=>node.type==="symbol"
-   )
-
-   .map(
-    node=>node.label
-   )
-
- ]),
-
-
-
-futureQuestions:
- discoverFutureQuestions(semanticIR),
-
-
-
-resonance:
-
- Math.min(
-
-  1,
-
-  (
-
-   genome.discovery +
-
-   genome.memory +
-
-   genome.immersion +
-
-   genome.interaction +
-
-   genome.replay
-
-  ) / 5
-
- )
-
-
-};
-
+  /**
+   * Overall confidence.
+   */
+  confidence:number;
 
 }

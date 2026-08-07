@@ -35,6 +35,9 @@ import type {
   ExperienceMeaningContext,
 } from "./MeaningContext.js";
 
+import type {
+ CognitiveEvolutionState
+} from "../cognition/cognitionLoop.js";
 
 import type {
   ExperienceGenome,
@@ -135,7 +138,14 @@ export interface CompilerMind {
   semanticIR?:
     SemanticIR;
 
-
+   /**
+ * Recursive cognition state.
+ *
+ * Evolves the experience
+ * before compilation.
+ */
+cognitionLoop?:
+ CognitiveEvolutionState;
 
   /**
    * Layer 5
@@ -221,6 +231,16 @@ export interface CompilerMind {
 
   worldObservations?:
     unknown;
+  
+
+/**
+ * =====================================================
+ * METACOGNITIVE EVOLUTION STATE
+ *
+ * The compiler evaluating and improving itself.
+ *
+ * =====================================================
+ */
 
 
 }

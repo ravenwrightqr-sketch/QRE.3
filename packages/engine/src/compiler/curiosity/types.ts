@@ -1,11 +1,16 @@
+export interface CuriositySignal {
+
+  discovery:string;
+
+  strength:number;
+
+  reason:string;
+
+}
+
+
 export interface Curiosity {
 
-    trigger:string;
-
-    importance:number;
-
-    question:string;
-
-    exploration:string;
+  signals:CuriositySignal[];
 
 }

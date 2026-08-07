@@ -5,10 +5,6 @@ export {
 } from "./executive.js";
 
 
+export type * from "./executiveTypes.js";
 
-export type {
 
-    ExecutiveInput,
-    ExecutiveDecision
-
-} from "./types.js";

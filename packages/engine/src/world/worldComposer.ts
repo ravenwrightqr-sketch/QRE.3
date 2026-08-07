@@ -496,9 +496,56 @@ return "Create meaningful interaction between people and brands";
 
 return "Create a memorable human experience";
 
+}
+
+function resolveEntityWorldName(
+
+entity:string,
+
+genome:ExperienceGenome
+
+):string {
+
+
+if(
+genome.entities.creatures?.includes(entity)
+){
+
+return `${entity}'s Journey`;
 
 }
 
+
+if(
+genome.entities.people?.includes(entity)
+){
+
+return `${entity}'s Story`;
+
+}
+
+
+if(
+genome.entities.objects?.includes(entity)
+){
+
+return `${entity} Legacy`;
+
+}
+
+
+if(
+genome.entities.places?.includes(entity)
+){
+
+return `${entity} World`;
+
+}
+
+
+return `${entity}'s Experience`;
+
+}
 /**
  * =====================================================
  *
@@ -508,20 +555,47 @@ return "Create a memorable human experience";
  */
  function resolveWorldIdentity(
 
- genome:ExperienceGenome
+genome:ExperienceGenome
 
 ):WorldIdentity {
 
 
-const purpose = resolvePurpose(genome);
+const purpose =
+resolvePurpose(genome);
 
+
+
+const primaryEntity =
+
+genome.entities.creatures?.[0]
+??
+genome.entities.people?.[0]
+??
+genome.entities.objects?.[0]
+??
+genome.entities.places?.[0];
+
+const worldName =
+
+primaryEntity
+
+?
+
+resolveEntityWorldName(
+primaryEntity,
+genome
+)
+
+:
+
+`${genome.emotions[0] ?? "Human"} Experience`;
 
 return {
 
 
 name:
 
-`${genome.emotions[0] ?? "human"} universe`,
+worldName,
 
 
 
@@ -533,11 +607,12 @@ purpose,
 
 philosophy:
 
+
 genome.memory >= .7
 
 ?
 
-"Every object carries a story. Every moment can become legacy."
+"Every moment becomes history. Every story deserves preservation."
 
 :
 
@@ -546,6 +621,14 @@ genome.memory >= .7
 
 
 origin:
+
+primaryEntity
+
+?
+
+`Created from the meaning surrounding ${primaryEntity}.`
+
+:
 
 "Created from human meaning, emotion, and experience.",
 
@@ -559,16 +642,25 @@ purpose,
 
 emotionalCore:
 
-genome.emotions.join(", ") || "human connection",
+genome.emotions.join(", ")
+
+|| 
+
+"human connection",
 
 
 
 symbol:
 
-genome.symbols[0] ?? "memory"
+genome.symbols[0]
+
+??
+
+"memory"
+
+
 
 };
-
 
 }
 

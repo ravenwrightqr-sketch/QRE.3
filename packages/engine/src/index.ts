@@ -251,3 +251,13 @@ export type {
  */
 
 export * from "./runtimeProjection/index.js";
+
+
+
+ /**
+ * =====================================================
+ * narrative compiler
+ * =====================================================
+ */
+
+export * from "./compiler/narrative/narrativeCompiler.js";

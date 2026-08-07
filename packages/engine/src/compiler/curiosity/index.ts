@@ -1,12 +1,9 @@
 export {
-
- curiosity
-
+ generateCuriosity
 } from "./curiosity.js";
 
 
 export type {
-
- Curiosity
-
+ Curiosity,
+ CuriositySignal
 } from "./types.js";

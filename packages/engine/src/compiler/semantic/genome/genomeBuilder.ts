@@ -17,12 +17,7 @@
  *
  * =====================================================
  */
-import {
-  understandExperience,
-} from "../../understanding/index.js";
-import {
- buildMeaningContext,
-} from "../../meaningEngines/meaningContextEngine.js";
+
 import {
   buildSemanticCortex,
   toSemanticInterpretation,
@@ -51,7 +46,14 @@ import type {
   ExperienceMeaningContext,
 } from "@qre/contracts";
 
+import {
+  understandExperience,
+  buildMeaningContext,
+} from "@qre/cognition";
 
+import {
+ compileLifecycle
+} from "../../lifecycle/lifecycleCompiler.js";
 
 
 
@@ -133,7 +135,6 @@ function buildDNA(
   );
 
  }
-
 
 
  return [
@@ -858,7 +859,24 @@ const meaning = {
 
 });
 
+const lifecycle =
+ compileLifecycle({
 
+  prompt,
+
+  memory:
+   understanding.memory,
+
+  entities:
+   understanding.entities,
+
+  relationships:
+   understanding.relationships,
+
+  world:
+   understanding.world
+
+});
 
 
  return {
@@ -877,6 +895,8 @@ const meaning = {
 
    object:
   objectGenome,
+
+   lifecycle,
 
   sensory:
 
