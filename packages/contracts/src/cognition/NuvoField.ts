@@ -29,17 +29,21 @@ export interface NuvoFuture {
 
   transformation:string;
 
+
+  /**
+   * Confidence this future can emerge.
+   */
   confidence:number;
 
 
   /**
-   * Evidence that created this possibility.
+   * Evidence creating this possibility.
    */
   originSignals:string[];
 
 
   /**
-   * Conditions needed for emergence.
+   * Conditions required for emergence.
    */
   emergenceConditions:string[];
 
@@ -61,24 +65,21 @@ export interface NuvoFuture {
 
 export interface NuvoMutation {
 
-
   source:string;
 
-
   evolution:string;
-
 
   potential:string;
 
 
   /**
-   * Strength of mutation pressure.
+   * Mutation pressure.
    */
   force:number;
 
 
   /**
-   * Actual transformation.
+   * Transformation produced.
    */
   transformation:string;
 
@@ -95,16 +96,19 @@ export interface NuvoField {
   originPatterns:string[];
 
 
+
   /**
    * Emerging structures.
    */
   emergencePatterns:string[];
 
 
+
   /**
    * Forces causing evolution.
    */
   hiddenForces:string[];
+
 
 
   /**
@@ -148,9 +152,17 @@ export interface NuvoField {
   semanticPotential:string[];
 
 
+
+  /**
+   * Graph-derived intelligence.
+   */
   graphInsights:string[];
 
 
+
+  /**
+   * Hidden relational structures.
+   */
   hiddenRelationships:string[];
 
 
@@ -162,9 +174,16 @@ export interface NuvoField {
 
 
 
+  /**
+   * Emerging archetypes.
+   */
   emergentArchetypes:string[];
 
 
+
+  /**
+   * Questions not yet resolved.
+   */
   futureQuestions:string[];
 
 
@@ -174,25 +193,34 @@ export interface NuvoField {
    */
   resonance:number;
 
-
   possibilityDensity:number;
 
-
   emergenceStrength:number;
-
 
   noveltyScore:number;
 
 
+  /**
+   * Dominant possibility direction.
+   */
   dominantPotential:string;
 
 
+  /**
+   * Unexpected discoveries.
+   */
   emergentSurprises:string[];
 
 
+  /**
+   * Unknown possibility space.
+   */
   unknownPotential:string[];
 
 
+  /**
+   * Overall confidence.
+   */
   confidence:number;
 
 }

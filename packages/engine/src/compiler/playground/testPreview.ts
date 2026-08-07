@@ -1,20 +1,23 @@
 import {
- generateCompilerPreview
+  generateCompilerPreview
 } from "./compilerPreview.js";
+
 
 const result = generateCompilerPreview(`
 
-Make me an unforgettable journey
-for Bella's grooming experience.
+Create an unforgettable grooming experience
+for Bella the dog.
+
+Make it emotional, magical,
+and something the owner remembers forever.
 
 `);
 
 
 console.log(
- JSON.stringify(
-  result.humanStory,
-  null,
-  2
- )
+  JSON.stringify(
+    result.humanStory,
+    null,
+    2
+  )
 );
-

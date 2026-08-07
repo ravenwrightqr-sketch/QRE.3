@@ -1,229 +1,366 @@
 import type {
-HumanStoryContext
+  HumanStoryContext
 } from "./humanStoryArchetypeResolver.js";
 
 import type {
-HumanStoryArc
+  HumanStoryArc
 } from "./humanStoryArcResolver.js";
 
 import type {
-HumanStory
+  HumanStory
 } from "@qre/contracts";
 
 
 interface ExpressionContext {
 
-entity:string;
+  entity:string;
 
-stage:string;
+  stage:string;
 
-emotion:string;
+  emotion:string;
 
-index:number;
-
-archetype:string;
+  archetype:string;
 
 }
 
 
 export function createHumanExpressions(
-context:HumanStoryContext,
-arc:HumanStoryArc
+
+  context:HumanStoryContext,
+
+  arc:HumanStoryArc
+
 ):HumanStory[] {
 
 
-return arc.stages.map(
-(stage,index)=>
+  return arc.stages.map(
 
-createExpression({
+    (stage,index)=>
 
-entity:
-context.entity,
+      createExpression({
 
-stage,
+        entity:
+          context.entity,
 
-emotion:
-arc.emotionalMovement[index]
-??
-"meaning",
+        stage,
 
-index,
+        emotion:
+          arc.emotionalMovement[index]
+          ??
+          "meaning",
 
-archetype:
-context.archetype
+        archetype:
+          context.archetype
 
-})
+      })
 
-);
-
+  );
 
 }
 
 
 
 function createExpression(
-context:ExpressionContext
+
+  context:ExpressionContext
+
 ):HumanStory {
 
 
-const emotionalMovement =
-resolveMovement(
-context.stage,
-context.emotion
-);
+  const text =
+    resolveHumanSentence(
+      context
+    );
 
 
-const meaning =
-resolveMeaning(
-context.entity,
-context.stage,
-context.archetype
-);
+  return {
 
+    text,
 
+    emotion:[
+      context.emotion
+    ]
 
-return {
-
-
-text:
-
-`${context.entity} ${emotionalMovement}, revealing ${meaning}.`,
-
-
-
-emotion:[
-
-context.emotion
-
-]
-
-};
+  };
 
 }
 
 
 
-function resolveMovement(
-stage:string,
-emotion:string
+
+function resolveHumanSentence(
+
+  context:ExpressionContext
+
 ):string {
 
 
-const movements:Record<string,string>={
+switch(context.archetype){
+
+
+case "companion_journey":
+
+return companionStory(
+  context.entity,
+  context.stage
+);
+
+
+
+case "place_story":
+
+return placeStory(
+  context.entity,
+  context.stage
+);
+
+
+
+case "artifact_story":
+
+return artifactStory(
+  context.entity,
+  context.stage
+);
+
+
+
+case "brand_story":
+
+return brandStory(
+  context.entity,
+  context.stage
+);
+
+
+
+case "human_journey":
+
+return humanStory(
+  context.entity,
+  context.stage
+);
+
+
+
+default:
+
+return discoveryStory(
+  context.entity,
+  context.stage
+);
+
+
+}
+
+
+}
+
+
+
+
+function companionStory(
+entity:string,
+stage:string
+):string {
+
+
+const moments:Record<string,string> = {
 
 
 arrival:
-"entered a moment that carried unexpected possibility",
+`${entity} entered a moment that would reveal the bond already forming around them.`,
 
 
 care:
-"discovered that attention could become connection",
+`${entity} became part of a story shaped by attention, presence, and understanding.`,
 
 
-connection:
-"found a bond forming through shared experience",
-
-
-trust:
-"began transforming a simple interaction into something meaningful",
-
-
-memory:
-"carried forward a moment that refused to disappear",
+bond:
+`${entity}'s connection grew through the small moments that are often remembered most.`,
 
 
 return:
-"returned changed by what the experience revealed",
+`${entity} carried forward a feeling that lasted beyond the experience itself.`
 
-
-discovery:
-"uncovered meaning hidden beneath the surface",
-
-
-belonging:
-"recognized a place where identity and connection could grow",
-
-
-legacy:
-"became part of a story larger than the moment itself"
 
 };
 
 
-
-return (
-
-movements[stage]
-
+return moments[stage]
 ??
+`${entity} discovered a moment that became meaningful.`;
 
-`moved through ${emotion} toward deeper understanding`
-
-);
 
 }
 
 
 
-function resolveMeaning(
+
+
+function placeStory(
 entity:string,
-stage:string,
-archetype:string
+stage:string
 ):string {
 
 
-if(archetype==="companion_journey"){
-
-return (
-
-`the relationship between ${entity} and those who cared for them`
-
-);
-
-}
+const moments:Record<string,string>={
 
 
-
-if(archetype==="place_story"){
-
-return (
-
-`the memories created within that place`
-
-);
-
-}
+arrival:
+`${entity} became the beginning of a memory waiting to unfold.`,
 
 
+discovery:
+`${entity} revealed stories hidden inside ordinary surroundings.`,
 
-if(archetype==="artifact_story"){
 
-return (
+belonging:
+`${entity} became connected to the people and moments that shaped it.`,
 
-`the human meaning carried beyond its physical form`
 
-);
+legacy:
+`${entity} remained because meaningful experiences leave traces behind.`
+
+
+};
+
+
+return moments[stage]
+??
+`${entity} became part of a larger human story.`;
 
 }
 
 
 
-if(archetype==="brand_story"){
 
-return (
 
-`the connection created between people and purpose`
+function artifactStory(
+entity:string,
+stage:string
+):string {
 
-);
+
+const moments:Record<string,string>={
+
+
+creation:
+`${entity} began as something created with intention.`,
+
+
+meaning:
+`${entity} gained significance through the people and moments connected to it.`,
+
+
+ownership:
+`${entity} became more than an object; it became part of someone's history.`,
+
+
+preservation:
+`${entity} carried a story forward through time.`
+
+
+};
+
+
+return moments[stage]
+??
+`${entity} carried meaning beyond itself.`;
 
 }
 
 
 
+
+
+function brandStory(
+entity:string,
+stage:string
+):string {
+
+
+const moments:Record<string,string>={
+
+
+discovery:
+`${entity} began with a reason for people to notice and connect.`,
+
+
+interaction:
+`${entity} created a moment where people felt recognized.`,
+
+
+relationship:
+`${entity} became associated with shared experiences and trust.`,
+
+
+return:
+`${entity} remained part of the stories people chose to remember.`
+
+
+};
+
+
+return moments[stage]
+??
+`${entity} created a meaningful human connection.`;
+
+}
+
+
+
+
+
+function humanStory(
+entity:string,
+stage:string
+):string {
+
+
+const moments:Record<string,string>={
+
+
+beginning:
+`${entity} entered a chapter that would shape what came next.`,
+
+
+challenge:
+`${entity} moved through uncertainty toward understanding.`,
+
+
+growth:
+`${entity} discovered change through experience.`,
+
+
+reflection:
+`${entity} carried the meaning of the journey forward.`
+
+
+};
+
+
+return moments[stage]
+??
+`${entity} experienced a meaningful transformation.`;
+
+}
+
+
+
+
+
+function discoveryStory(
+entity:string,
+stage:string
+):string {
+
+
 return (
 
-`a transformation created through ${stage}`
+`${entity} moved through ${stage}, revealing a deeper possibility within the moment.`
 
 );
+
 
 }

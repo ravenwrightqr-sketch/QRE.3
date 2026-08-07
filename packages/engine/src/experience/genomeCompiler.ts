@@ -1,9 +1,11 @@
 import {
   composeWorld,
 } from "../world/worldComposer.js";
+
 import {
- compileExperienceNarrative
+  compileExperienceNarrative,
 } from "../compiler/narrative/narrativeCompiler.js";
+
 import {
   buildExperienceGenome,
 } from "../compiler/semantic/genome/genomeBuilder.js";
@@ -20,7 +22,6 @@ import {
   blueprintToFlow,
 } from "./blueprintToFlow.js";
 
-
 import {
   flowToMoment,
 } from "../moments/flowToMoments.js";
@@ -34,21 +35,11 @@ import {
 } from "../compiler/cognitiveSynthesis.js";
 
 import {
-understandExperience,
-buildMeaningContext,
+  understandExperience,
+  buildMeaningContext,
 } from "@qre/cognition";
 
-
-/**
- * =====================================================
- *
- * CONTRACT TYPES
- *
- * =====================================================
- */
-
 import type {
-
   CompilerMind,
   CompiledExperience,
   ExperienceBlueprint,
@@ -60,594 +51,469 @@ import type {
   FlowStep,
   ExperienceMoment,
   ExperienceCompileContext,
-
 } from "@qre/contracts";
 
-
 /**
  * =====================================================
+ * EXPERIENCE MODEL
+ * =====================================================
  *
- * MODEL BUILDER
+ * Final model representation derived from the blueprint.
  *
+ * This is an output representation.
+ * It does not perform cognition.
  * =====================================================
  */
-
 
 function createExperienceModel(
+  blueprint: ExperienceBlueprint,
+  prompt: string,
+): ExperienceModel {
+  return {
+    title: blueprint.title,
 
- blueprint:ExperienceBlueprint,
+    description: prompt,
 
- prompt:string
+    industry: "generic",
 
-):ExperienceModel {
+    goal: "discovery",
 
+    tone: blueprint.tone,
 
-return {
+    moments: blueprint.moments,
 
- title:
+    metadata: {
+      category: blueprint.type,
 
-  blueprint.title,
-
-
- description:
-
-  prompt,
-
-
- industry:
-
-  "generic",
-
-
- goal:
-
-  "discovery",
-
-
- tone:
-
-  blueprint.tone,
-
-
- moments:
-
-  blueprint.moments,
-
-
- metadata:{
-
-  category:
-
-   blueprint.type,
-
-
-  tags:[
-
-   "cognitive-synthesis",
-
-   "semantic-compiler",
-
-   "experience-genome",
-
-   "cinematic-runtime"
-
-  ]
-
- }
-
-};
-
-
+      tags: [
+        "cognitive-synthesis",
+        "semantic-compiler",
+        "experience-genome",
+        "cinematic-runtime",
+      ],
+    },
+  };
 }
 
 /**
  * =====================================================
- *
- * ID GENERATOR
- *
+ * COMPILER ID
  * =====================================================
  */
 
-
-function createCompilerId():string {
-
-
-return (
-
- globalThis.crypto?.randomUUID?.()
-
- ??
-
- `experience-${Date.now()}-${Math.random()
- .toString(36)
- .slice(2)}`
-
-);
-
-
-}
-
-function isExperienceUnderstanding(
-  value:unknown
-):value is ExperienceUnderstanding {
-
+function createCompilerId(): string {
   return (
-    typeof value === "object"
-    && value !== null
-    && "intent" in value
-    && "emotions" in value
-    && "world" in value
+    globalThis.crypto?.randomUUID?.() ??
+    `experience-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}`
   );
-
-}
-
-function isExperienceMeaningContext(
-  value:unknown
-):value is ExperienceMeaningContext {
-
-  return (
-    typeof value === "object"
-    && value !== null
-    && "meanings" in value
-    && "humanDesires" in value
-    && "narrativePotential" in value
-  );
-
-}
-
-function isExperienceGenome(
-  value:unknown
-):value is ExperienceGenome {
-
-  return (
-    typeof value === "object"
-    && value !== null
-    && "meaning" in value
-    && "entities" in value
-    && "themes" in value
-  );
-
 }
 
 /**
  * =====================================================
+ * MAIN EXPERIENCE COMPILER
+ * =====================================================
  *
- * MAIN COGNITIVE COMPILER
+ * Canonical pipeline:
  *
+ * Prompt
+ *   ↓
+ * Understanding
+ *   ↓
+ * Meaning Context
+ *   ↓
+ * Experience Genome
+ *   ↓
+ * Compiler Mind
+ *   ↓
+ * Cognitive Synthesis
+ *   ↓
+ * World
+ *   ↓
+ * Blueprint
+ *   ↓
+ * Direction
+ *   ↓
+ * Narrative
+ *   ↓
+ * Flow
+ *   ↓
+ * Moments
+ *   ↓
+ * Cinematic Scenes
+ *   ↓
+ * CompiledExperience
+ *
+ * IMPORTANT:
+ *
+ * Cognitive synthesis is authoritative.
+ *
+ * This compiler does not recreate cognition downstream.
+ * It passes the resulting cognitive artifacts forward.
  * =====================================================
  */
 
 export function compileExperienceGenome(
-
- prompt:string,
-
- context?:ExperienceCompileContext
-
-):CompiledExperience {
-
-
-
-if(!prompt.trim()){
-
- throw new Error(
-  "Experience prompt required."
- );
-
-}
-/**
- * =====================================================
- *
- * FOUNDATION COGNITION INPUT
- *
- * Understanding + Meaning Context
- *
- * These are required CompilerMind inputs.
- *
- * Cognitive synthesis owns all downstream intelligence.
- *
- * =====================================================
- */
-
-
-/**
- * =====================================================
- *
- * 2. EXPERIENCE GENOME
- *
- * Creative DNA.
- *
- * =====================================================
- */
- /**
- * =====================================================
- *
- * EXPERIENCE GENOME
- *
- * Creative DNA Substrate
- *
- * =====================================================
- */
-/**
- * =====================================================
- *
- * FOUNDATION COGNITION
- *
- * Prompt
- * ↓
- * Understanding
- * ↓
- * Meaning Context
- * ↓
- * Genome
- *
- * =====================================================
- */
-
-const understanding: ExperienceUnderstanding =
-
-(context?.metadata?.understanding as ExperienceUnderstanding | undefined)
-
-??
-
-understandExperience(
-  prompt
-);
-
-
-
-const meaningContext: ExperienceMeaningContext =
-
-(context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
-
-??
-
-buildMeaningContext(
-  understanding
-);
-
-
-
-const genome: ExperienceGenome =
-
-(context?.metadata?.genome as ExperienceGenome | undefined)
-
-??
-
-buildExperienceGenome(
-  prompt,
-  understanding,
-  meaningContext
-);
-
-
-
-/**
- * =====================================================
- *
- * COMPILER MIND
- *
- * Canonical cognitive state
- *
- * =====================================================
- */
-
-
-const mind: CompilerMind = {
-
-  prompt,
-
-  understanding,
-
-  meaningContext,
-
-  genome,
-
-};
-
-
-
-/**
- * =====================================================
- *
- * COGNITIVE SYNTHESIS
- *
- * =====================================================
- */
-
-
-const cognitiveSynthesis =
-
-  synthesizeCognitiveExperience(
-    mind
-  );
-mind.semanticIR =
-cognitiveSynthesis.semanticIR;
-
-mind.nuvo =
-cognitiveSynthesis.nuvo;
-
-mind.revik =
-cognitiveSynthesis.revik;
-
-mind.moverArc =
-cognitiveSynthesis.moverArc;
-
-mind.moverTopology =
-cognitiveSynthesis.moverTopology;
-
-mind.kaivo =
-cognitiveSynthesis.kaivo;
-
-mind.orion =
-cognitiveSynthesis.orion;
-
-
-const {
-
-  semanticIR,
-
-  nuvo,
-
-  revik,
-
-  moverArc,
-
-  moverTopology,
-
-  kaivo,
-
-  orion,
-
-  cognitiveTrace,
-
-} = cognitiveSynthesis;
-
-/**
- * =====================================================
- *
- * WORLD SYNTHESIS
- *
- * Cognitive Intelligence
- * ↓
- * Experience World
- *
- * =====================================================
- */
-
-const world: ExperienceWorld =
-
-  composeWorld(
-    genome
-  );
-
-
-
-/**
- * =====================================================
- *
- * BLUEPRINT
- *
- * World
- * ↓
- * Blueprint
- *
- * =====================================================
- */
- const blueprint: ExperienceBlueprint =
-
-  composeBlueprint(
+  prompt: string,
+  context?: ExperienceCompileContext,
+): CompiledExperience {
+  if (!prompt.trim()) {
+    throw new Error("Experience prompt required.");
+  }
+
+  /**
+   * ===================================================
+   * 1. FOUNDATION UNDERSTANDING
+   * ===================================================
+   *
+   * Human prompt
+   *      ↓
+   * ExperienceUnderstanding
+   *
+   * Understanding establishes the raw interpreted
+   * signals used by the rest of the compiler.
+   */
+
+  const understanding: ExperienceUnderstanding =
+    (context?.metadata?.understanding as
+      | ExperienceUnderstanding
+      | undefined) ??
+    understandExperience(prompt);
+
+  /**
+   * ===================================================
+   * 2. MEANING CONTEXT
+   * ===================================================
+   *
+   * Understanding
+   *      ↓
+   * ExperienceMeaningContext
+   *
+   * Meaning context establishes higher-order semantic
+   * signals before creative synthesis begins.
+   */
+
+  const meaningContext: ExperienceMeaningContext =
+    (context?.metadata?.meaningContext as
+      | ExperienceMeaningContext
+      | undefined) ??
+    buildMeaningContext(understanding);
+
+  /**
+   * ===================================================
+   * 3. EXPERIENCE GENOME
+   * ===================================================
+   *
+   * Understanding
+   * +
+   * Meaning Context
+   *      ↓
+   * ExperienceGenome
+   *
+   * Genome is the creative identity substrate.
+   */
+
+  const genome: ExperienceGenome =
+    (context?.metadata?.genome as
+      | ExperienceGenome
+      | undefined) ??
+    buildExperienceGenome(
+      prompt,
+      understanding,
+      meaningContext,
+    );
+
+  /**
+   * ===================================================
+   * 4. COMPILER MIND
+   * ===================================================
+   *
+   * The CompilerMind is the canonical cognitive input
+   * state.
+   *
+   * No database.
+   * No runtime.
+   * No persistence.
+   */
+
+  const mind: CompilerMind = {
+    prompt,
+    understanding,
+    meaningContext,
     genome,
-    world
+  };
+
+  /**
+   * ===================================================
+   * 5. COGNITIVE SYNTHESIS
+   * ===================================================
+   *
+   * This is the actual intelligence assembly stage.
+   *
+   * CompilerMind
+   *      ↓
+   * Semantic IR
+   *      ↓
+   * NUVO
+   *      ↓
+   * REVIK
+   *      ↓
+   * MOVER
+   *      ↓
+   * KAIVO
+   *      ↓
+   * ORION
+   *      ↓
+   * Cognitive Trace
+   *
+   * IMPORTANT:
+   *
+   * The returned synthesis is authoritative.
+   *
+   * We do NOT copy the results back into mind.
+   * We do NOT reconstruct them later.
+   */
+
+  const cognitiveSynthesis =
+    synthesizeCognitiveExperience(mind);
+
+  const {
+    semanticIR,
+    nuvo,
+    revik,
+    moverArc,
+    moverTopology,
+    kaivo,
+    orion,
+    cognitiveTrace,
+  } = cognitiveSynthesis;
+
+  /**
+   * ===================================================
+   * 6. WORLD SYNTHESIS
+   * ===================================================
+   *
+   * Cognitive intelligence
+   *      ↓
+   * Experience World
+   *
+   * NOTE:
+   *
+   * The current worldComposer contract still accepts
+   * genome only.
+   *
+   * We intentionally do NOT invent a new API here.
+   *
+   * The next architectural wiring step is worldComposer.
+   */
+
+  const world: ExperienceWorld =
+  composeWorld(
+    genome,
+    cognitiveSynthesis,
   );
+  /**
+   * ===================================================
+   * 7. BLUEPRINT
+   * ===================================================
+   *
+   * World
+   *      ↓
+   * Experience Blueprint
+   */
 
-/**
- * =====================================================
- *
- * EXPERIENCE DIRECTION
- *
- * =====================================================
- */
+  const blueprint: ExperienceBlueprint =
+    composeBlueprint(
+      genome,
+      world,
+    );
 
-const direction =
+  /**
+   * ===================================================
+   * 8. EXPERIENCE DIRECTION
+   * ===================================================
+   *
+   * Blueprint
+   *      ↓
+   * Experience Direction
+   */
 
-  experienceDirector(
+  const direction =
+    experienceDirector(blueprint);
+
+  /**
+   * ===================================================
+   * 9. NARRATIVE INTELLIGENCE
+   * ===================================================
+   *
+   * Genome
+   * +
+   * World
+   * +
+   * Blueprint
+   *      ↓
+   * Narrative
+   */
+
+  const narrative =
+    compileExperienceNarrative(
+      genome,
+      world,
+      blueprint,
+    );
+
+  /**
+   * ===================================================
+   * 10. FLOW
+   * ===================================================
+   *
+   * Blueprint
+   *      ↓
+   * Executable Flow
+   */
+    const flowSteps: FlowStep[] =
+  blueprintToFlow(
     blueprint
   );
 
- /**
- * =====================================================
- *
- * NARRATIVE INTELLIGENCE
- *
- * Genome
- * ↓
- * World
- * ↓
- * Blueprint
- * ↓
- * Narrative
- *
- * =====================================================
- */
+  /**
+   * ===================================================
+   * 11. EXPERIENCE MOMENTS
+   * ===================================================
+   *
+   * Flow
+   *      ↓
+   * Experience Moments
+   */
+   const experienceMoments: ExperienceMoment[] =
+  flowToMoment(
+    flowSteps
+  );
 
-const narrative =
+  /**
+   * ===================================================
+   * 12. CINEMATIC RUNTIME COMPILATION
+   * ===================================================
+   *
+   * Blueprint
+   * +
+   * Direction
+   * +
+   * World
+   *      ↓
+   * Cinematic Scenes
+   */
 
-  compileExperienceNarrative(
+  const cinematicScenes =
+    compileCinematicScenes(
+      blueprint,
+      direction,
+      world,
+    );
+
+  /**
+   * ===================================================
+   * 13. EXPERIENCE MODEL
+   * ===================================================
+   */
+
+  const model =
+    createExperienceModel(
+      blueprint,
+      prompt,
+    );
+
+  /**
+   * ===================================================
+   * 14. FINAL COMPILED EXPERIENCE
+   * ===================================================
+   *
+   * This is the complete compiler artifact.
+   *
+   * Intelligence remains available as a first-class
+   * substrate rather than being discarded after
+   * synthesis.
+   */
+
+  return {
+    id: createCompilerId(),
+
+    intelligence: {
+      understanding,
+
+      meaningContext,
+
+      meaning: genome.meaning,
+
+      semanticIR,
+
+      nuvo,
+
+      revik,
+
+      moverArc,
+
+      moverTopology,
+
+      kaivo,
+
+      orion,
+
+      genome,
+
+      cognitiveTrace,
+    },
 
     genome,
 
     world,
 
-    blueprint
+    blueprint,
 
-  );
+    narrative,
 
-/**
- * =====================================================
- *
- * 14. FLOW
- *
- * =====================================================
- */
+    direction,
 
-const flowSteps:FlowStep[] =
+    flowSteps,
 
- blueprintToFlow(
+    experienceMoments,
 
-  blueprint
+    cinematicScenes,
 
- );
+    model,
 
-/**
- * =====================================================
- *
- * 15. MOMENTS
- *
- * =====================================================
- */
+    context,
 
-const experienceMoments:ExperienceMoment[] =
+    title:
+      blueprint.title,
 
- flowToMoment(
+    estimatedDuration:
+      experienceMoments.length * 5,
 
-  flowSteps
+    momentCount:
+      experienceMoments.length,
 
- );
-/**
- * =====================================================
- *
- * 16. CINEMATIC
- *
- * =====================================================
- */
+    metadata: {
+      compilerVersion:
+        "5.0-cognitive-synthesis",
 
-const cinematicScenes =
+      generatedAt:
+        new Date().toISOString(),
 
- compileCinematicScenes(
+      source:
+        "qre-cognitive-experience-compiler",
 
-  blueprint,
-
-  direction,
-
-  world
-
- );
-
-
-/**
- * =====================================================
- *
- * 17. MODEL
- *
- * =====================================================
- */
-
-const model =
-
- createExperienceModel(
-
-  blueprint,
-
-  prompt
-
- );
-/**
- * =====================================================
- *
- * FINAL COMPILED EXPERIENCE
- *
- * =====================================================
- */
-
-return {
-
- id:
-  createCompilerId(),
-
- intelligence:{
-
-  understanding,
-
-  meaningContext,
-
-  meaning:
-   genome.meaning,
-
-  semanticIR,
-
-  nuvo,
-
-  revik,
-
-  moverArc,
-
-  moverTopology,
-
-  kaivo,
-
-  orion,
-
-  genome,
-
-  cognitiveTrace,
-
- },
-  genome,
- world,
-
- blueprint,
- narrative,
- direction,
-
- flowSteps,
-
- experienceMoments,
-
- cinematicScenes,
-
- model,
-
- context,
-
- title:
-  blueprint.title,
-
- estimatedDuration:
-  experienceMoments.length * 5,
-
- momentCount:
-  experienceMoments.length,
-
- metadata:{
-
-  compilerVersion:
-   "5.0-cognitive-synthesis",
-
-  generatedAt:
-   new Date().toISOString(),
-
-  source:
-   "qre-cognitive-experience-compiler",
-
-  tags:[
-
-   "semantic",
-
-   "cognitive",
-
-   "world-aware",
-
-   "cinematic",
-
-   "compiler-brain"
-
-  ]
-
- }
-
-};
-
+      tags: [
+        "semantic",
+        "cognitive",
+        "world-aware",
+        "cinematic",
+        "compiler-brain",
+      ],
+    },
+  };
 }
 
 export const genomeCompiler =
- compileExperienceGenome;
+  compileExperienceGenome;

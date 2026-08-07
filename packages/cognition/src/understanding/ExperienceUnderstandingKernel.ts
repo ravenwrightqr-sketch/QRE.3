@@ -30,7 +30,8 @@
 
 
 import {
-  analyzeIntent
+  analyzeIntent,
+  analyzeHumanIntent,
 } from "../analyzers/intentAnalyzer.js";
 
 
@@ -280,10 +281,11 @@ export function understandExperience(
  }
 
 
-
- const intent =
-
+const intent =
   analyzeIntent(prompt);
+
+const humanIntent =
+  analyzeHumanIntent(prompt);
 
 
 
@@ -428,7 +430,8 @@ export function understandExperience(
 
 
   intent,
-
+   
+  humanIntent,
 
   desire,
 

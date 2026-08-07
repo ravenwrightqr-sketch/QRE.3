@@ -47,6 +47,16 @@ function unique(
 
 
 
+/**
+ * =====================================================
+ *
+ * FUTURE POSSIBILITY DISCOVERY
+ *
+ * Converts semantic reality into possible futures.
+ *
+ * =====================================================
+ */
+
 function discoverFutureRealities(
   mind:CompilerMind
 ):NuvoFuture[] {
@@ -60,7 +70,8 @@ function discoverFutureRealities(
     mind.semanticIR;
 
 
-  const futures:NuvoFuture[]=[];
+  const futures:NuvoFuture[] = [];
+
 
 
   if(
@@ -75,21 +86,26 @@ function discoverFutureRealities(
       `${meaning.themes[0]}_evolution`,
 
       description:
-      "A possible future emerges from the current meaning structure.",
+      "A possible future emerges from current meaning structures.",
 
       transformation:
       "existing meaning → expanded possibility",
 
       confidence:.7,
 
-      originSignals:
-      meaning.themes.join(","),
 
-      emergenceConditions:
-      "semantic coherence",
+      originSignals:
+      meaning.themes,
+
+
+      emergenceConditions:[
+        "semantic coherence"
+      ],
+
 
       meaningShift:
-      "current state becomes expanded experience",
+      "Current state becomes expanded experience.",
+
 
       emotionalDirection:
       "deeper meaning"
@@ -101,7 +117,8 @@ function discoverFutureRealities(
 
 
   if(
-    semantic?.nodes?.length > 0
+    semantic?.nodes &&
+    semantic.nodes.length > 0
   ){
 
     futures.push({
@@ -112,21 +129,27 @@ function discoverFutureRealities(
       "semantic_world_expansion",
 
       description:
-      "Connected concepts evolve into a larger possibility space.",
+      "Connected concepts evolve into larger possibility structures.",
 
       transformation:
       "concepts → relationships → world",
 
       confidence:.65,
 
-      originSignals:
-      "semantic graph",
 
-      emergenceConditions:
-      "relationship density",
+      originSignals:[
+        "semantic graph"
+      ],
+
+
+      emergenceConditions:[
+        "relationship density"
+      ],
+
 
       meaningShift:
-      "isolated concepts become systems",
+      "Isolated concepts become connected systems.",
+
 
       emotionalDirection:
       "discovery"
@@ -142,12 +165,23 @@ function discoverFutureRealities(
 
 
 
+/**
+ * =====================================================
+ *
+ * MUTATION DISCOVERY
+ *
+ * Finds structures capable of transformation.
+ *
+ * =====================================================
+ */
+
 function discoverMutations(
   mind:CompilerMind
 ):NuvoMutation[] {
 
 
-  const mutations:NuvoMutation[]=[];
+  const mutations:NuvoMutation[] = [];
+
 
 
   if(
@@ -156,15 +190,20 @@ function discoverMutations(
 
     mutations.push({
 
-      source:"relationship",
+      source:
+      "relationship",
+
 
       evolution:
       "connection becomes evolving network",
 
+
       potential:
       "human_connection_system",
 
+
       force:.6,
+
 
       transformation:
       "relationship → living structure"
@@ -179,6 +218,14 @@ function discoverMutations(
 }
 
 
+
+/**
+ * =====================================================
+ *
+ * AWAKEN NUVO
+ *
+ * =====================================================
+ */
 
 export function awakenNuvo(
   mind:CompilerMind
@@ -200,11 +247,14 @@ export function awakenNuvo(
 
   return {
 
+
     originPatterns:
     unique([
       ...mind.genome.archetypes,
       ...mind.genome.emotions
     ]),
+
+
 
     emergencePatterns:
     unique([
@@ -212,11 +262,15 @@ export function awakenNuvo(
       ...mind.genome.symbols
     ]),
 
+
+
     hiddenForces:
     unique([
       ...mind.genome.meaning.why,
       ...mind.genome.meaning.desiredFeeling
     ]),
+
+
 
     transformationPaths:
     unique([
@@ -224,48 +278,52 @@ export function awakenNuvo(
     ]),
 
 
+
     futureRealities:
     futures,
 
+
+
     creativeOpportunities:
-    unique([
-      "expand discovered possibility space"
-    ]),
+    [
+      ...mind.genome.themes
+    ],
+
 
 
     mutations,
 
 
+
     latentWorlds:
     unique([
-      "emergent_world"
+      ...futures.map(
+        future =>
+        future.name
+      )
     ]),
+
 
 
     semanticPotential:
     unique(
-      mind.semanticIR?.nodes.map(
-        node => node.label
-      ) ?? []
+      semanticNodes(mind)
     ),
+
 
 
     graphInsights:
     unique(
-      mind.semanticIR?.edges.map(
-        edge =>
-        `${edge.from}_${edge.to}`
-      ) ?? []
+      semanticEdges(mind)
     ),
+
 
 
     hiddenRelationships:
     unique(
-      mind.semanticIR?.edges.map(
-        edge =>
-        edge.relation
-      ) ?? []
+      semanticRelations(mind)
     ),
+
 
 
     possibilityVectors:
@@ -274,15 +332,18 @@ export function awakenNuvo(
     ]),
 
 
+
     emergentArchetypes:
     unique([
       ...mind.genome.archetypes
     ]),
 
 
+
     futureQuestions:[
       "What unexplored possibility exists?"
     ],
+
 
 
     resonance:
@@ -292,11 +353,13 @@ export function awakenNuvo(
     ),
 
 
+
     possibilityDensity:
     Math.min(
       1,
       futures.length / 10
     ),
+
 
 
     emergenceStrength:
@@ -306,6 +369,7 @@ export function awakenNuvo(
     ),
 
 
+
     noveltyScore:
     Math.min(
       1,
@@ -313,21 +377,96 @@ export function awakenNuvo(
     ),
 
 
+
     dominantPotential:
+    futures.length > 1
+    ?
+    "expansion"
+    :
     "emergence",
 
 
+
     emergentSurprises:
-    "semantic discoveries",
+    [
+      ...mind.genome.symbols
+    ],
+
 
 
     unknownPotential:
-    "unexplored transformations",
+    [
+      "unresolved transformation space"
+    ],
+
 
 
     confidence:
+    futures.length
+    ?
     .65
+    :
+    .2
 
   };
+
+}
+
+
+
+/**
+ * =====================================================
+ *
+ * SEMANTIC EXTRACTION HELPERS
+ *
+ * =====================================================
+ */
+
+function semanticNodes(
+  mind:CompilerMind
+):string[] {
+
+  return (
+    mind.semanticIR?.nodes?.map(
+      node =>
+      node.label
+    )
+    ??
+    []
+  );
+
+}
+
+
+
+function semanticEdges(
+  mind:CompilerMind
+):string[] {
+
+  return (
+    mind.semanticIR?.edges?.map(
+      edge =>
+      `${edge.from}_${edge.to}`
+    )
+    ??
+    []
+  );
+
+}
+
+
+
+function semanticRelations(
+  mind:CompilerMind
+):string[] {
+
+  return (
+    mind.semanticIR?.edges?.map(
+      edge =>
+      edge.relation
+    )
+    ??
+    []
+  );
 
 }

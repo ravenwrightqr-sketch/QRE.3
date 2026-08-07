@@ -1,0 +1,442 @@
+﻿Folder PATH listing for volume Windows
+Volume serial number is 00000244 245A:7EBE
+C:\DEV\QRE.3\PACKAGES\COGNITION
+|   package.json
+|   tsconfig.json
+|   tsconfig.tsbuildinfo
+|   
++---dist
+|   |   cognition.d.ts
+|   |   cognition.d.ts.map
+|   |   cognition.js
+|   |   compilerMind.d.ts
+|   |   compilerMind.d.ts.map
+|   |   compilerMind.js
+|   |   index.d.ts
+|   |   index.d.ts.map
+|   |   index.js
+|   |   meaning.d.ts
+|   |   meaning.d.ts.map
+|   |   meaning.js
+|   |   understanding.d.ts
+|   |   understanding.d.ts.map
+|   |   understanding.js
+|   |   
+|   +---analyzers
+|   |       audienceAnalyzer.d.ts
+|   |       audienceAnalyzer.d.ts.map
+|   |       audienceAnalyzer.js
+|   |       confidenceAnalyzer.d.ts
+|   |       confidenceAnalyzer.d.ts.map
+|   |       confidenceAnalyzer.js
+|   |       dnaAnalyzer.d.ts
+|   |       dnaAnalyzer.d.ts.map
+|   |       dnaAnalyzer.js
+|   |       emotionAnalyzer.d.ts
+|   |       emotionAnalyzer.d.ts.map
+|   |       emotionAnalyzer.js
+|   |       entityAnalyzer.d.ts
+|   |       entityAnalyzer.d.ts.map
+|   |       entityAnalyzer.js
+|   |       intentAnalyzer.d.ts
+|   |       intentAnalyzer.d.ts.map
+|   |       intentAnalyzer.js
+|   |       memoryAnalyzer.d.ts
+|   |       memoryAnalyzer.d.ts.map
+|   |       memoryAnalyzer.js
+|   |       relationshipAnalyzer.d.ts
+|   |       relationshipAnalyzer.d.ts.map
+|   |       relationshipAnalyzer.js
+|   |       worldAnalyzer.d.ts
+|   |       worldAnalyzer.d.ts.map
+|   |       worldAnalyzer.js
+|   |       
+|   +---meaningEngines
+|   |       meaningContextEngine.d.ts
+|   |       meaningContextEngine.d.ts.map
+|   |       meaningContextEngine.js
+|   |       scoreEngine.d.ts
+|   |       scoreEngine.d.ts.map
+|   |       scoreEngine.js
+|   |       
+|   \---understanding
+|           ExperienceUnderstandingKernel.d.ts
+|           ExperienceUnderstandingKernel.d.ts.map
+|           ExperienceUnderstandingKernel.js
+|           index.d.ts
+|           index.d.ts.map
+|           index.js
+|           
++---node_modules
+|   \---@qre
+|       \---contracts
+|           |   package.json
+|           |   tsconfig.json
+|           |   tsconfig.tsbuildinfo
+|           |   
+|           +---dist
+|           |   |   analytics.d.ts
+|           |   |   analytics.d.ts.map
+|           |   |   analytics.js
+|           |   |   cinematic.d.ts
+|           |   |   cinematic.d.ts.map
+|           |   |   cinematic.js
+|           |   |   entitlementRules.d.ts
+|           |   |   entitlementRules.d.ts.map
+|           |   |   entitlementRules.js
+|           |   |   entitlements.d.ts
+|           |   |   entitlements.d.ts.map
+|           |   |   entitlements.js
+|           |   |   events.d.ts
+|           |   |   events.d.ts.map
+|           |   |   events.js
+|           |   |   flow.d.ts
+|           |   |   flow.d.ts.map
+|           |   |   flow.js
+|           |   |   geoStory.d.ts
+|           |   |   geoStory.d.ts.map
+|           |   |   geoStory.js
+|           |   |   index.d.ts
+|           |   |   index.d.ts.map
+|           |   |   index.js
+|           |   |   media.d.ts
+|           |   |   media.d.ts.map
+|           |   |   media.js
+|           |   |   memorySnapshot.d.ts
+|           |   |   memorySnapshot.d.ts.map
+|           |   |   memorySnapshot.js
+|           |   |   moment.d.ts
+|           |   |   moment.d.ts.map
+|           |   |   moment.js
+|           |   |   momentFactory.d.ts
+|           |   |   momentFactory.d.ts.map
+|           |   |   momentFactory.js
+|           |   |   scan.d.ts
+|           |   |   scan.d.ts.map
+|           |   |   scan.js
+|           |   |   scanEvent.d.ts
+|           |   |   scanEvent.d.ts.map
+|           |   |   scanEvent.js
+|           |   |   scanResponse.d.ts
+|           |   |   scanResponse.d.ts.map
+|           |   |   scanResponse.js
+|           |   |   serviceReceipt.d.ts
+|           |   |   serviceReceipt.d.ts.map
+|           |   |   serviceReceipt.js
+|           |   |   story.d.ts
+|           |   |   story.d.ts.map
+|           |   |   story.js
+|           |   |   
+|           |   +---cognition
+|           |   |       arc.d.ts
+|           |   |       arc.d.ts.map
+|           |   |       arc.js
+|           |   |       attention.d.ts
+|           |   |       attention.d.ts.map
+|           |   |       attention.js
+|           |   |       cognition.d.ts
+|           |   |       cognition.d.ts.map
+|           |   |       cognition.js
+|           |   |       cognitionLoop.d.ts
+|           |   |       cognitionLoop.d.ts.map
+|           |   |       cognitionLoop.js
+|           |   |       cognitiveGoal.d.ts
+|           |   |       cognitiveGoal.d.ts.map
+|           |   |       cognitiveGoal.js
+|           |   |       compilerBrain.d.ts
+|           |   |       compilerBrain.d.ts.map
+|           |   |       compilerBrain.js
+|           |   |       compilerMind.d.ts
+|           |   |       compilerMind.d.ts.map
+|           |   |       compilerMind.js
+|           |   |       concepts.d.ts
+|           |   |       concepts.d.ts.map
+|           |   |       concepts.js
+|           |   |       executiveAction.d.ts
+|           |   |       executiveAction.d.ts.map
+|           |   |       executiveAction.js
+|           |   |       executiveMemory.d.ts
+|           |   |       executiveMemory.d.ts.map
+|           |   |       executiveMemory.js
+|           |   |       ExperienceNarrative.d.ts
+|           |   |       ExperienceNarrative.d.ts.map
+|           |   |       ExperienceNarrative.js
+|           |   |       index.d.ts
+|           |   |       index.d.ts.map
+|           |   |       index.js
+|           |   |       inquiry.d.ts
+|           |   |       inquiry.d.ts.map
+|           |   |       inquiry.js
+|           |   |       KaivoField.d.ts
+|           |   |       KaivoField.d.ts.map
+|           |   |       KaivoField.js
+|           |   |       MeaningContext.d.ts
+|           |   |       MeaningContext.d.ts.map
+|           |   |       MeaningContext.js
+|           |   |       NuvoField.d.ts
+|           |   |       NuvoField.d.ts.map
+|           |   |       NuvoField.js
+|           |   |       originCortex.d.ts
+|           |   |       originCortex.d.ts.map
+|           |   |       originCortex.js
+|           |   |       OriginState.d.ts
+|           |   |       OriginState.d.ts.map
+|           |   |       OriginState.js
+|           |   |       OrionField.d.ts
+|           |   |       OrionField.d.ts.map
+|           |   |       OrionField.js
+|           |   |       RevikField.d.ts
+|           |   |       RevikField.d.ts.map
+|           |   |       RevikField.js
+|           |   |       Rewrite.d.ts
+|           |   |       Rewrite.d.ts.map
+|           |   |       Rewrite.js
+|           |   |       worldModel.d.ts
+|           |   |       worldModel.d.ts.map
+|           |   |       worldModel.js
+|           |   |       
+|           |   +---domain
+|           |   |       domainContract.d.ts
+|           |   |       domainContract.d.ts.map
+|           |   |       domainContract.js
+|           |   |       domainDiscovery.d.ts
+|           |   |       domainDiscovery.d.ts.map
+|           |   |       domainDiscovery.js
+|           |   |       index.d.ts
+|           |   |       index.d.ts.map
+|           |   |       index.js
+|           |   |       
+|           |   +---experience
+|           |   |       archetypes.d.ts
+|           |   |       archetypes.d.ts.map
+|           |   |       archetypes.js
+|           |   |       authoring.d.ts
+|           |   |       authoring.d.ts.map
+|           |   |       authoring.js
+|           |   |       blueprint.d.ts
+|           |   |       blueprint.d.ts.map
+|           |   |       blueprint.js
+|           |   |       cognitiveTrace.d.ts
+|           |   |       cognitiveTrace.d.ts.map
+|           |   |       cognitiveTrace.js
+|           |   |       compiled.d.ts
+|           |   |       compiled.d.ts.map
+|           |   |       compiled.js
+|           |   |       composition.d.ts
+|           |   |       composition.d.ts.map
+|           |   |       composition.js
+|           |   |       context.d.ts
+|           |   |       context.d.ts.map
+|           |   |       context.js
+|           |   |       entityExtractor.d.ts
+|           |   |       entityExtractor.d.ts.map
+|           |   |       entityExtractor.js
+|           |   |       experienceIntent.d.ts
+|           |   |       experienceIntent.d.ts.map
+|           |   |       experienceIntent.js
+|           |   |       experienceType.d.ts
+|           |   |       experienceType.d.ts.map
+|           |   |       experienceType.js
+|           |   |       experienceUnderstanding.d.ts
+|           |   |       experienceUnderstanding.d.ts.map
+|           |   |       experienceUnderstanding.js
+|           |   |       genesis.d.ts
+|           |   |       genesis.d.ts.map
+|           |   |       genesis.js
+|           |   |       genome.d.ts
+|           |   |       genome.d.ts.map
+|           |   |       genome.js
+|           |   |       goal.d.ts
+|           |   |       goal.d.ts.map
+|           |   |       goal.js
+|           |   |       humanExpression.d.ts
+|           |   |       humanExpression.d.ts.map
+|           |   |       humanExpression.js
+|           |   |       humanStory.d.ts
+|           |   |       humanStory.d.ts.map
+|           |   |       humanStory.js
+|           |   |       index.d.ts
+|           |   |       index.d.ts.map
+|           |   |       index.js
+|           |   |       industry.d.ts
+|           |   |       industry.d.ts.map
+|           |   |       industry.js
+|           |   |       lifecycle.d.ts
+|           |   |       lifecycle.d.ts.map
+|           |   |       lifecycle.js
+|           |   |       meaning.d.ts
+|           |   |       meaning.d.ts.map
+|           |   |       meaning.js
+|           |   |       memoryReveal.d.ts
+|           |   |       memoryReveal.d.ts.map
+|           |   |       memoryReveal.js
+|           |   |       model.d.ts
+|           |   |       model.d.ts.map
+|           |   |       model.js
+|           |   |       moment.d.ts
+|           |   |       moment.d.ts.map
+|           |   |       moment.js
+|           |   |       moverArc.d.ts
+|           |   |       moverArc.d.ts.map
+|           |   |       moverArc.js
+|           |   |       objectGenome.d.ts
+|           |   |       objectGenome.d.ts.map
+|           |   |       objectGenome.js
+|           |   |       runtime.d.ts
+|           |   |       runtime.d.ts.map
+|           |   |       runtime.js
+|           |   |       scene.d.ts
+|           |   |       scene.d.ts.map
+|           |   |       scene.js
+|           |   |       semantic.d.ts
+|           |   |       semantic.d.ts.map
+|           |   |       semantic.js
+|           |   |       semanticIR.d.ts
+|           |   |       semanticIR.d.ts.map
+|           |   |       semanticIR.js
+|           |   |       theme.d.ts
+|           |   |       theme.d.ts.map
+|           |   |       theme.js
+|           |   |       tier.d.ts
+|           |   |       tier.d.ts.map
+|           |   |       tier.js
+|           |   |       tone.d.ts
+|           |   |       tone.d.ts.map
+|           |   |       tone.js
+|           |   |       world.d.ts
+|           |   |       world.d.ts.map
+|           |   |       world.js
+|           |   |       worldArtifact.d.ts
+|           |   |       worldArtifact.d.ts.map
+|           |   |       worldArtifact.js
+|           |   |       
+|           |   +---memory
+|           |   |       index.d.ts
+|           |   |       index.d.ts.map
+|           |   |       index.js
+|           |   |       memoryIntelligence.d.ts
+|           |   |       memoryIntelligence.d.ts.map
+|           |   |       memoryIntelligence.js
+|           |   |       
+|           |   \---runtime
+|           |           index.d.ts
+|           |           index.d.ts.map
+|           |           index.js
+|           |           
+|           \---src
+|               |   analytics.ts
+|               |   cinematic.ts
+|               |   entitlementRules.ts
+|               |   entitlements.ts
+|               |   events.ts
+|               |   flow.ts
+|               |   geoStory.ts
+|               |   index.ts
+|               |   media.ts
+|               |   memorySnapshot.ts
+|               |   moment.ts
+|               |   momentFactory.ts
+|               |   scan.ts
+|               |   scanEvent.ts
+|               |   scanResponse.ts
+|               |   serviceReceipt.ts
+|               |   story.ts
+|               |   
+|               +---cognition
+|               |       arc.ts
+|               |       attention.ts
+|               |       cognition.ts
+|               |       cognitionLoop.ts
+|               |       cognitiveGoal.ts
+|               |       compilerBrain.ts
+|               |       compilerMind.ts
+|               |       concepts.ts
+|               |       executiveAction.ts
+|               |       executiveMemory.ts
+|               |       ExperienceNarrative.ts
+|               |       index.ts
+|               |       inquiry.ts
+|               |       KaivoField.ts
+|               |       MeaningContext.ts
+|               |       NuvoField.ts
+|               |       originCortex.ts
+|               |       OriginState.ts
+|               |       OrionField.ts
+|               |       RevikField.ts
+|               |       Rewrite.ts
+|               |       worldModel.ts
+|               |       
+|               +---domain
+|               |       domainContract.ts
+|               |       domainDiscovery.ts
+|               |       index.ts
+|               |       
+|               +---experience
+|               |       archetypes.ts
+|               |       authoring.ts
+|               |       blueprint.ts
+|               |       cognitiveTrace.ts
+|               |       compiled.ts
+|               |       composition.ts
+|               |       context.ts
+|               |       entityExtractor.ts
+|               |       experienceIntent.ts
+|               |       experienceType.ts
+|               |       experienceUnderstanding.ts
+|               |       genesis.ts
+|               |       genome.ts
+|               |       goal.ts
+|               |       humanExpression.ts
+|               |       humanStory.ts
+|               |       index.ts
+|               |       industry.ts
+|               |       lifecycle.ts
+|               |       meaning.ts
+|               |       memoryReveal.ts
+|               |       model.ts
+|               |       moment.ts
+|               |       moverArc.ts
+|               |       objectGenome.ts
+|               |       runtime.ts
+|               |       scene.ts
+|               |       semantic.ts
+|               |       semanticIR.ts
+|               |       theme.ts
+|               |       tier.ts
+|               |       tone.ts
+|               |       world.ts
+|               |       worldArtifact.ts
+|               |       
+|               +---memory
+|               |       index.ts
+|               |       memoryIntelligence.ts
+|               |       
+|               \---runtime
+|                       index.ts
+|                       
+\---src
+    |   cognition.ts
+    |   compilerMind.ts
+    |   index.ts
+    |   meaning.ts
+    |   understanding.ts
+    |   
+    +---analyzers
+    |       audienceAnalyzer.ts
+    |       confidenceAnalyzer.ts
+    |       dnaAnalyzer.ts
+    |       emotionAnalyzer.ts
+    |       entityAnalyzer.ts
+    |       intentAnalyzer.ts
+    |       memoryAnalyzer.ts
+    |       relationshipAnalyzer.ts
+    |       worldAnalyzer.ts
+    |       
+    +---meaningEngines
+    |       meaningContextEngine.ts
+    |       scoreEngine.ts
+    |       
+    \---understanding
+            ExperienceUnderstandingKernel.ts
+            index.ts
+            

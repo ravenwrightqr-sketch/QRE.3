@@ -30,17 +30,15 @@ import type {
   RevikTransformation,
 } from "@qre/contracts";
 
-
 export type {
   RevikField,
   RevikTransformation,
 } from "@qre/contracts";
 
 
-
 function unique(
-  values:string[]
-):string[] {
+  values: string[]
+): string[] {
 
   return [
     ...new Set(
@@ -49,7 +47,6 @@ function unique(
   ];
 
 }
-
 
 
 /**
@@ -61,69 +58,53 @@ function unique(
  */
 
 function discoverTransformations(
-  nuvo:NuvoField
-):RevikTransformation[] {
+  nuvo: NuvoField
+): RevikTransformation[] {
+
+  return nuvo.futureRealities.map(
+    future => {
+
+      const path =
+        future.transformation
+          .split("→")
+          .map(
+            item =>
+              item.trim()
+          )
+          .filter(Boolean);
 
 
-return nuvo.futureRealities.map(
-future => {
+      return {
 
+        source:
+          path[0] ?? "origin",
 
-const path =
-future.transformation
-.split("→")
-.map(
-item =>
-item.trim()
-)
-.filter(Boolean);
+        destination:
+          future.name,
 
+        path,
 
+        meaning:
+          future.description,
 
-return {
+        strength:
+          future.confidence,
 
-source:
-path[0] ?? "origin",
+        originSignals:
+          future.originSignals,
 
+        meaningShift:
+          future.meaningShift,
 
-destination:
-future.name,
+        emotionalDirection:
+          future.emotionalDirection
 
+      };
 
-path,
-
-
-meaning:
-future.description,
-
-
-strength:
-future.confidence,
-
-
-originSignals:
-future.originSignals
-?? "semantic emergence",
-
-
-meaningShift:
-future.meaningShift
-?? future.description,
-
-
-emotionalDirection:
-future.emotionalDirection
-?? "expanded meaning"
-
-};
-
+    }
+  );
 
 }
-);
-
-
-}
-
 
 
 /**
@@ -135,40 +116,36 @@ future.emotionalDirection
  */
 
 function discoverSemanticTransitions(
-nuvo:NuvoField
-):string[] {
+  nuvo: NuvoField
+): string[] {
 
+  return unique([
 
-return unique([
+    ...nuvo.semanticPotential,
 
-...nuvo.semanticPotential,
+    ...nuvo.possibilityVectors,
 
-...nuvo.possibilityVectors,
+    ...nuvo.emergentArchetypes
 
-...nuvo.emergentArchetypes
-
-]);
+  ]);
 
 }
-
 
 
 
 function discoverRelationshipEvolutions(
-nuvo:NuvoField
-):string[] {
+  nuvo: NuvoField
+): string[] {
 
+  return unique([
 
-return unique([
+    ...nuvo.hiddenRelationships,
 
-...nuvo.hiddenRelationships,
+    ...nuvo.graphInsights
 
-...nuvo.graphInsights
-
-]);
+  ]);
 
 }
-
 
 
 /**
@@ -180,64 +157,56 @@ return unique([
  */
 
 function discoverEvolutionChains(
-nuvo:NuvoField
-):string[][] {
+  nuvo: NuvoField
+): string[][] {
+
+  const chains: string[][] = [];
 
 
-const chains:string[][]=[];
+  for(
+    const future of nuvo.futureRealities
+  ){
+
+    const path =
+      future.transformation
+        .split("→")
+        .map(
+          item =>
+            item.trim()
+        )
+        .filter(Boolean);
 
 
-for(
-const future of nuvo.futureRealities
-){
+    if(path.length > 1){
 
+      chains.push(path);
 
-const path =
-future.transformation
-.split("→")
-.map(
-item =>
-item.trim()
-)
-.filter(Boolean);
+    }
 
-
-
-if(path.length > 1){
-
-chains.push(path);
-
-}
-
-
-}
+  }
 
 
 
-for(
-const mutation of nuvo.mutations
-){
+  for(
+    const mutation of nuvo.mutations
+  ){
+
+    chains.push([
+
+      mutation.source,
+
+      mutation.evolution,
+
+      mutation.potential
+
+    ]);
+
+  }
 
 
-chains.push([
-
-mutation.source,
-
-mutation.evolution,
-
-mutation.potential
-
-]);
-
-
-}
-
-
-return chains;
-
+  return chains;
 
 }
-
 
 
 /**
@@ -249,49 +218,40 @@ return chains;
  */
 
 function discoverIdentityShifts(
-nuvo:NuvoField
-):string[] {
+  nuvo: NuvoField
+): string[] {
+
+  const shifts: string[] = [];
 
 
-const shifts:string[]=[];
+  for(
+    const future of nuvo.futureRealities
+  ){
+
+    const path =
+      future.transformation
+        .split("→")
+        .map(
+          x =>
+            x.trim()
+        )
+        .filter(Boolean);
 
 
-for(
-const future of nuvo.futureRealities
-){
+    if(path.length >= 2){
+
+      shifts.push(
+        `${path[0]} → ${path[path.length - 1]}`
+      );
+
+    }
+
+  }
 
 
-const path =
-future.transformation
-.split("→")
-.map(
-x =>
-x.trim()
-)
-.filter(Boolean);
-
-
-
-if(path.length >= 2){
-
-shifts.push(
-
-`${path[0]} → ${path[path.length-1]}`
-
-);
-
-
-}
-
+  return unique(shifts);
 
 }
-
-
-return unique(shifts);
-
-
-}
-
 
 
 /**
@@ -303,25 +263,21 @@ return unique(shifts);
  */
 
 function discoverEmotionalMovements(
-nuvo:NuvoField
-):string[] {
+  nuvo: NuvoField
+): string[] {
 
+  return unique(
 
-return unique(
+    nuvo.hiddenForces.map(
 
-nuvo.hiddenForces.map(
+      force =>
+        `${force} → expanded meaning`
 
-force =>
+    )
 
-`${force} → expanded meaning`
-
-)
-
-);
-
+  );
 
 }
-
 
 
 /**
@@ -333,166 +289,198 @@ force =>
  */
 
 export function awakenRevik(
-mind:CompilerMind
-):RevikField {
+  mind: CompilerMind
+): RevikField {
 
 
-if(!mind.nuvo){
+  if(!mind.nuvo){
 
-throw new Error(
-"CompilerMind.nuvo required before awakenRevik"
-);
+    throw new Error(
+      "CompilerMind.nuvo required before awakenRevik"
+    );
 
-}
+  }
 
 
+  const nuvo =
+    mind.nuvo;
 
-const nuvo =
-mind.nuvo;
 
+  const transformations =
+    discoverTransformations(
+      nuvo
+    );
 
 
-const transformations =
-discoverTransformations(
-nuvo
-);
+  const evolutionChains =
+    discoverEvolutionChains(
+      nuvo
+    );
 
 
+  const identityShifts =
+    discoverIdentityShifts(
+      nuvo
+    );
 
-const evolutionChains =
-discoverEvolutionChains(
-nuvo
-);
 
+  const emotionalMovements =
+    discoverEmotionalMovements(
+      nuvo
+    );
 
 
-const futureStates =
-unique([
+  const semanticTransitions =
+    discoverSemanticTransitions(
+      nuvo
+    );
 
-...nuvo.latentWorlds,
 
-...nuvo.futureRealities.map(
-future =>
-future.name
-)
+  const relationshipEvolutions =
+    discoverRelationshipEvolutions(
+      nuvo
+    );
 
-]);
 
+  const evolutionStrength =
+    transformations.length
 
+      ?
 
-const identityShifts =
-discoverIdentityShifts(
-nuvo
-);
+      Math.min(
 
+        1,
 
+        transformations.reduce(
 
-const emotionalMovements =
-discoverEmotionalMovements(
-nuvo
-);
+          (
+            total,
+            item
+          ) =>
+          total + item.strength,
 
+          0
 
+        )
+        /
+        transformations.length
 
-const semanticTransitions =
-discoverSemanticTransitions(
-nuvo
-);
+      )
 
+      :
 
+      0;
 
-const relationshipEvolutions =
-discoverRelationshipEvolutions(
-nuvo
-);
 
 
+  return {
 
-const evolutionStrength =
+    evolutionChains,
 
-transformations.length
+    transformations,
 
-?
+    identityShifts,
 
-Math.min(
+    emotionalMovements,
 
-1,
+    dominantMotion:
 
-transformations.reduce(
+      evolutionStrength > .5
 
-(total,item)=>
+        ?
 
-total + item.strength,
+        "transformation"
 
-0
+        :
 
-)
+        "emergence",
 
-/
 
-transformations.length
+    futureStates:
 
-)
+      unique([
 
-:
+        ...nuvo.latentWorlds,
 
-0;
+        ...nuvo.futureRealities.map(
+          future =>
+            future.name
+        )
 
+      ]),
 
 
-return {
+    semanticTransitions,
 
+    relationshipEvolutions,
 
-evolutionChains,
 
+    unansweredPaths:
 
-transformations,
+      nuvo.futureQuestions,
 
 
-identityShifts,
+    archetypeEvolutions:
 
+      unique(
+        nuvo.emergentArchetypes
+      ),
 
-emotionalMovements,
 
 
-dominantMotion:
+    evolutionStrength,
 
-evolutionStrength > .5
 
-?
 
-"transformation"
+    transformationDensity:
 
-:
+      Math.min(
+        1,
+        transformations.length / 10
+      ),
 
-"emergence",
 
 
+    transformationForce:
 
-futureStates,
+      nuvo.hiddenForces.join(", "),
 
 
-semanticTransitions,
 
+    movementVector:
 
-relationshipEvolutions,
+      nuvo.transformationPaths.join(" → "),
 
 
-unansweredPaths:
 
-nuvo.futureQuestions,
+    narrativeMomentum:
 
+      evolutionStrength,
 
-archetypeEvolutions:
 
-unique(
-nuvo.emergentArchetypes
-),
 
+    identityGravity:
 
-evolutionStrength
+      Math.min(
+        1,
+        identityShifts.length / 10
+      ),
 
-};
 
+
+    emotionalGravity:
+
+      Math.min(
+        1,
+        emotionalMovements.length / 10
+      ),
+
+
+
+    confidence:
+
+      evolutionStrength
+
+  };
 
 }

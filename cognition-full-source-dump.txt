@@ -1,0 +1,7839 @@
+﻿
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\audienceAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE AUDIENCE ANALYZER
+ * =====================================================
+ *
+ * TYPE:
+ * Analyzer
+ *
+ * RESPONSIBILITY:
+ * Understands who enters the experience,
+ * why they enter,
+ * how they behave,
+ * and what they expect.
+ *
+ * INPUT:
+ * Human prompt
+ *
+ * OUTPUT:
+ * AudienceUnderstanding
+ *
+ * DOES NOT:
+ * - build experiences
+ * - compile experiences
+ * - execute experiences
+ * - manage users
+ *
+ * =====================================================
+ */
+import type { AudienceUnderstanding } from "@qre/contracts";
+export declare function analyzeAudience(prompt: string): AudienceUnderstanding;
+//# sourceMappingURL=audienceAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\audienceAnalyzer.js
+============================================================
+const audienceSignals = {
+    fans: [
+        "fan",
+        "follower",
+        "artist",
+        "music",
+        "concert",
+        "album",
+        "tour",
+        "community"
+    ],
+    family: [
+        "family",
+        "wedding",
+        "parent",
+        "child",
+        "anniversary",
+        "birthday",
+        "memory"
+    ],
+    business_owner: [
+        "business",
+        "brand",
+        "customer",
+        "client",
+        "store",
+        "company",
+        "restaurant"
+    ],
+    creator: [
+        "creator",
+        "artist",
+        "designer",
+        "maker",
+        "producer"
+    ],
+    explorer: [
+        "discover",
+        "explore",
+        "hidden",
+        "unknown",
+        "adventure"
+    ],
+    community: [
+        "community",
+        "club",
+        "group",
+        "crowd",
+        "strangers",
+        "people",
+        "members"
+    ],
+    collector: [
+        "collect",
+        "rare",
+        "exclusive",
+        "limited",
+        "artifact"
+    ],
+    pet_owner: [
+        "pet",
+        "dog",
+        "cat",
+        "animal"
+    ]
+};
+function unique(values) {
+    return [
+        ...new Set(values.filter(Boolean))
+    ];
+}
+function detectTypes(text) {
+    const types = [];
+    for (const [type, signals] of Object.entries(audienceSignals)) {
+        if (signals.some(signal => text.includes(signal))) {
+            types.push(type);
+        }
+    }
+    if (!types.length) {
+        types.push("individual");
+    }
+    return unique(types);
+}
+function resolveSocial(types) {
+    if (types.includes("community") ||
+        types.includes("fans")) {
+        return "community";
+    }
+    if (types.length > 1) {
+        return "shared";
+    }
+    return "solo";
+}
+function resolveRoles(types) {
+    const roles = [];
+    const map = {
+        fans: [
+            "fan",
+            "supporter",
+            "participant"
+        ],
+        family: [
+            "family_member",
+            "witness",
+            "memory_holder"
+        ],
+        business_owner: [
+            "customer",
+            "brand_owner"
+        ],
+        creator: [
+            "creator",
+            "maker"
+        ],
+        explorer: [
+            "explorer",
+            "discoverer"
+        ],
+        community: [
+            "participant",
+            "member"
+        ],
+        collector: [
+            "collector",
+            "keeper"
+        ],
+        pet_owner: [
+            "companion"
+        ]
+    };
+    for (const type of types) {
+        roles.push(...(map[type] ?? []));
+    }
+    return unique(roles);
+}
+function resolveRelationship(social) {
+    if (social === "community") {
+        return [
+            "shared_identity",
+            "collective_memory",
+            "social_connection"
+        ];
+    }
+    if (social === "shared") {
+        return [
+            "personal_connection",
+            "shared_meaning"
+        ];
+    }
+    return [
+        "individual_journey",
+        "personal_discovery"
+    ];
+}
+function resolveBehaviors(text) {
+    const behaviors = [];
+    const rules = [
+        [
+            "exploration",
+            [
+                "discover",
+                "explore",
+                "hidden",
+                "secret"
+            ]
+        ],
+        [
+            "reflection",
+            [
+                "memory",
+                "remember",
+                "legacy",
+                "past"
+            ]
+        ],
+        [
+            "interaction",
+            [
+                "play",
+                "game",
+                "challenge",
+                "choose"
+            ]
+        ],
+        [
+            "creation",
+            [
+                "create",
+                "design",
+                "make"
+            ]
+        ]
+    ];
+    for (const [behavior, signals] of rules) {
+        if (signals.some((signal) => text.includes(signal))) {
+            behaviors.push(behavior);
+        }
+    }
+    return unique(behaviors);
+}
+function resolveExpectations(social) {
+    if (social === "community") {
+        return [
+            "belonging",
+            "participation",
+            "connection"
+        ];
+    }
+    return [
+        "meaning",
+        "value",
+        "personal_result"
+    ];
+}
+export function analyzeAudience(prompt) {
+    const text = prompt.toLowerCase();
+    const types = detectTypes(text);
+    const social = resolveSocial(types);
+    return {
+        types,
+        social,
+        roles: resolveRoles(types),
+        relationship: resolveRelationship(social),
+        behaviors: resolveBehaviors(text),
+        expectations: resolveExpectations(social),
+        primary: types[0]
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\confidenceAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE CONFIDENCE ANALYZER
+ * =====================================================
+ *
+ * TYPE:
+ * Analyzer
+ *
+ * RESPONSIBILITY:
+ * Calculates confidence score for semantic understanding.
+ *
+ * INPUT:
+ * Understanding layer outputs
+ *
+ * OUTPUT:
+ * Confidence value (0 - 1)
+ *
+ * DOES NOT:
+ * - create experiences
+ * - compile genomes
+ * - execute runtime
+ * - access database
+ *
+ * =====================================================
+ */
+type ConfidenceInput = {
+    intent: unknown;
+    entities: unknown;
+    relationships: unknown;
+    emotions: unknown;
+    memory: unknown;
+    audience: unknown;
+    world: unknown;
+    dna: unknown;
+};
+export declare function calculateConfidence(input: ConfidenceInput): number;
+export {};
+//# sourceMappingURL=confidenceAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\confidenceAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE CONFIDENCE ANALYZER
+ * =====================================================
+ *
+ * TYPE:
+ * Analyzer
+ *
+ * RESPONSIBILITY:
+ * Calculates confidence score for semantic understanding.
+ *
+ * INPUT:
+ * Understanding layer outputs
+ *
+ * OUTPUT:
+ * Confidence value (0 - 1)
+ *
+ * DOES NOT:
+ * - create experiences
+ * - compile genomes
+ * - execute runtime
+ * - access database
+ *
+ * =====================================================
+ */
+function hasSignal(value) {
+    if (value === null ||
+        value === undefined) {
+        return false;
+    }
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+    if (typeof value === "object") {
+        return Object.keys(value).length > 0;
+    }
+    return true;
+}
+export function calculateConfidence(input) {
+    const layers = Object.values(input);
+    const activeLayers = layers.filter(hasSignal).length;
+    const totalLayers = layers.length;
+    if (!totalLayers) {
+        return 0;
+    }
+    const coverage = activeLayers /
+        totalLayers;
+    /**
+     * Confidence starts low.
+     * Each validated understanding layer increases certainty.
+     */
+    const confidence = 0.25 +
+        (coverage * 0.75);
+    return Number(Math.min(1, confidence).toFixed(3));
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\dnaAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE DNA ANALYZER
+ * =====================================================
+ *
+ * ROLE:
+ * Analyzer
+ *
+ * LAYER:
+ * Experience Understanding
+ *
+ * RESPONSIBILITY:
+ * Analyze human meaning signals and convert them
+ * into a creative experience fingerprint.
+ *
+ * INPUT:
+ * - Intent Understanding
+ * - Emotion Understanding
+ * - World Understanding
+ * - Human prompt signals
+ *
+ * OUTPUT:
+ * DNAUnderstanding
+ *
+ * THIS FILE DOES:
+ * âœ“ Detect creative traits
+ * âœ“ Detect emotional style patterns
+ * âœ“ Detect narrative qualities
+ * âœ“ Produce experience DNA traits
+ *
+ * THIS FILE DOES NOT:
+ * âœ— Execute experiences
+ * âœ— Build flows
+ * âœ— Control runtime
+ * âœ— Access database
+ * âœ— Generate assets
+ *
+ * =====================================================
+ */
+import type { DNAUnderstanding, EmotionUnderstanding, WorldUnderstanding } from "@qre/contracts";
+import type { ExperienceIntent } from "@qre/contracts";
+type DNAAnalyzerInput = {
+    prompt?: string;
+    intent: ExperienceIntent[];
+    emotions: EmotionUnderstanding;
+    world: WorldUnderstanding;
+};
+export declare function analyzeDNA(input: DNAAnalyzerInput): DNAUnderstanding;
+export {};
+//# sourceMappingURL=dnaAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\dnaAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE DNA ANALYZER
+ * =====================================================
+ *
+ * ROLE:
+ * Analyzer
+ *
+ * LAYER:
+ * Experience Understanding
+ *
+ * RESPONSIBILITY:
+ * Analyze human meaning signals and convert them
+ * into a creative experience fingerprint.
+ *
+ * INPUT:
+ * - Intent Understanding
+ * - Emotion Understanding
+ * - World Understanding
+ * - Human prompt signals
+ *
+ * OUTPUT:
+ * DNAUnderstanding
+ *
+ * THIS FILE DOES:
+ * âœ“ Detect creative traits
+ * âœ“ Detect emotional style patterns
+ * âœ“ Detect narrative qualities
+ * âœ“ Produce experience DNA traits
+ *
+ * THIS FILE DOES NOT:
+ * âœ— Execute experiences
+ * âœ— Build flows
+ * âœ— Control runtime
+ * âœ— Access database
+ * âœ— Generate assets
+ *
+ * =====================================================
+ */
+const dnaSignals = {
+    cinematic: [
+        "wonder",
+        "memory",
+        "story",
+        "film",
+        "photo",
+        "scene",
+        "moment"
+    ],
+    reflection: [
+        "memory_world",
+        "nostalgia",
+        "legacy",
+        "tribute"
+    ],
+    exploration: [
+        "discover",
+        "explore",
+        "quest",
+        "adventure"
+    ],
+    ritual: [
+        "celebrate",
+        "ceremony",
+        "milestone"
+    ],
+    rebellious: [
+        "dark",
+        "gothic",
+        "cyber",
+        "punk",
+        "underground"
+    ]
+};
+export function analyzeDNA(input) {
+    const traits = new Set();
+    //
+    // EVERY EXPERIENCE HAS ADAPTIVE DNA
+    //
+    traits.add("adaptive");
+    const combinedContext = JSON.stringify(input)
+        .toLowerCase();
+    //
+    // SIGNAL ANALYSIS
+    //
+    for (const [trait, signals] of Object.entries(dnaSignals)) {
+        if (signals.some(signal => combinedContext.includes(signal))) {
+            traits.add(trait);
+        }
+    }
+    //
+    // WORLD-BASED CREATIVE DNA
+    //
+    for (const domain of input.world.domains) {
+        switch (domain) {
+            case "memory_world":
+                traits.add("emotional");
+                traits.add("reflection");
+                break;
+            case "relationship_world":
+                traits.add("human_connection");
+                break;
+            case "discovery_world":
+                traits.add("exploration");
+                break;
+            case "commerce_world":
+                traits.add("trust");
+                break;
+            case "culture_world":
+                traits.add("expressive");
+                break;
+        }
+    }
+    //
+    // EMOTION-BASED DNA
+    //
+    for (const emotion of input.emotions.emotions) {
+        switch (emotion) {
+            case "wonder":
+                traits.add("mysterious");
+                break;
+            case "nostalgia":
+                traits.add("reflective");
+                break;
+            case "love":
+                traits.add("human_connection");
+                break;
+            case "joy":
+                traits.add("playful");
+                break;
+        }
+    }
+    //
+    // INTENT-BASED DNA
+    //
+    for (const intent of input.intent) {
+        switch (intent) {
+            case "discover":
+                traits.add("exploration");
+                break;
+            case "celebrate":
+                traits.add("ritual");
+                break;
+            case "remember":
+                traits.add("memory_driven");
+                break;
+            case "connect":
+                traits.add("social");
+                break;
+        }
+    }
+    //
+    // DIRECT CREATIVE STYLE SIGNALS
+    //
+    if (input.prompt &&
+        /dark|gothic|cyber/i.test(input.prompt)) {
+        traits.add("rebellious");
+    }
+    return {
+        traits: [
+            ...traits
+        ]
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\emotionAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE EMOTION ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Extract emotional signals from human language.
+ *
+ *
+ * Input:
+ *
+ * Human Prompt
+ *
+ *
+ * Output:
+ *
+ * EmotionUnderstanding
+ *
+ *
+ * Determines:
+ *
+ * - emotional states
+ * - atmosphere
+ * - intensity
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - generate creative direction
+ * - build runtime states
+ * - access database
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * EmotionAnalyzer
+ *   â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * =====================================================
+ */
+import type { EmotionUnderstanding } from "@qre/contracts";
+export declare function analyzeEmotion(prompt: string): EmotionUnderstanding;
+//# sourceMappingURL=emotionAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\emotionAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE EMOTION ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Extract emotional signals from human language.
+ *
+ *
+ * Input:
+ *
+ * Human Prompt
+ *
+ *
+ * Output:
+ *
+ * EmotionUnderstanding
+ *
+ *
+ * Determines:
+ *
+ * - emotional states
+ * - atmosphere
+ * - intensity
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - generate creative direction
+ * - build runtime states
+ * - access database
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * EmotionAnalyzer
+ *   â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * =====================================================
+ */
+const emotionSignals = [
+    {
+        emotion: "nostalgia",
+        signals: [
+            "memory",
+            "past",
+            "childhood",
+            "legacy",
+            "remember",
+            "history",
+            "old"
+        ]
+    },
+    {
+        emotion: "wonder",
+        signals: [
+            "magic",
+            "amazing",
+            "universe",
+            "dream",
+            "discover",
+            "secret",
+            "mystery",
+            "unknown"
+        ]
+    },
+    {
+        emotion: "love",
+        signals: [
+            "love",
+            "wedding",
+            "family",
+            "relationship",
+            "together"
+        ]
+    },
+    {
+        emotion: "joy",
+        signals: [
+            "party",
+            "birthday",
+            "celebrate",
+            "fun",
+            "happy"
+        ]
+    },
+    {
+        emotion: "trust",
+        signals: [
+            "brand",
+            "business",
+            "customer",
+            "safe",
+            "professional"
+        ]
+    },
+    {
+        emotion: "excitement",
+        signals: [
+            "vip",
+            "exclusive",
+            "event",
+            "concert",
+            "festival",
+            "launch"
+        ]
+    },
+    {
+        emotion: "fear",
+        signals: [
+            "danger",
+            "lost",
+            "emergency",
+            "dark",
+            "warning"
+        ]
+    }
+];
+export function analyzeEmotion(prompt) {
+    const text = prompt.toLowerCase();
+    const emotions = new Set();
+    for (const rule of emotionSignals) {
+        const matched = rule.signals.some(signal => text.includes(signal));
+        if (matched) {
+            emotions.add(rule.emotion);
+        }
+    }
+    if (!emotions.size) {
+        emotions.add("curiosity");
+    }
+    const resolved = [
+        ...emotions
+    ];
+    return {
+        emotions: resolved,
+        atmosphere: [
+            ...resolved,
+            "immersive"
+        ],
+        intensity: Math.min(1, resolved.length / 5)
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\entityAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE ENTITY ANALYZER
+ * =====================================================
+ *
+ * Entity Intelligence Boundary.
+ *
+ * Human Prompt
+ *      â†“
+ * Entity Analysis
+ *      â†“
+ * World Primitives
+ *      â†“
+ * Understanding Kernel
+ *
+ *
+ * Detects:
+ *
+ * CORE:
+ * - people
+ * - places
+ * - organizations
+ * - dates
+ * - times
+ * - events
+ * - products
+ * - urls
+ * - emails
+ * - phones
+ * - keywords
+ * - media
+ *
+ * CREATIVE INTELLIGENCE:
+ *
+ * - objects
+ * - creatures
+ * - concepts
+ * - symbols
+ * - worlds
+ * - archetypes
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+import type { ExperienceEntities } from "@qre/contracts";
+export declare function analyzeEntities(prompt: string): ExperienceEntities;
+//# sourceMappingURL=entityAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\entityAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE ENTITY ANALYZER
+ * =====================================================
+ *
+ * Entity Intelligence Boundary.
+ *
+ * Human Prompt
+ *      â†“
+ * Entity Analysis
+ *      â†“
+ * World Primitives
+ *      â†“
+ * Understanding Kernel
+ *
+ *
+ * Detects:
+ *
+ * CORE:
+ * - people
+ * - places
+ * - organizations
+ * - dates
+ * - times
+ * - events
+ * - products
+ * - urls
+ * - emails
+ * - phones
+ * - keywords
+ * - media
+ *
+ * CREATIVE INTELLIGENCE:
+ *
+ * - objects
+ * - creatures
+ * - concepts
+ * - symbols
+ * - worlds
+ * - archetypes
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+function unique(values) {
+    return [
+        ...new Set(values
+            .map(value => value.trim())
+            .filter(Boolean))
+    ];
+}
+function detectWords(text, words) {
+    return words.filter(word => text.includes(word));
+}
+export function analyzeEntities(prompt) {
+    const lower = prompt.toLowerCase();
+    const people = [];
+    const places = [];
+    const organizations = [];
+    const dates = [];
+    const times = [];
+    const events = [];
+    const products = [];
+    const urls = [];
+    const phones = [];
+    const emails = [];
+    const keywords = [];
+    const media = [];
+    /**
+     * CREATIVE INTELLIGENCE
+     */
+    const objects = [];
+    const creatures = [];
+    const concepts = [];
+    const symbols = [];
+    const worlds = [];
+    const archetypes = [];
+    //
+    // PEOPLE
+    //
+    for (const match of prompt.matchAll(/(?:for|by|with|from)\s+([A-Z][A-Za-z0-9.'@-]*(?:\s[A-Z][A-Za-z0-9.'-]*)?)/g)) {
+        if (match[1]) {
+            people.push(match[1]);
+        }
+    }
+    //
+    // PLACES
+    //
+    for (const match of prompt.matchAll(/(?:at|in|near|inside)\s+([A-Z][A-Za-z\s]+)/g)) {
+        if (match[1]) {
+            places.push(match[1]);
+        }
+    }
+    //
+    // EVENTS
+    //
+    events.push(...detectWords(lower, [
+        "wedding",
+        "concert",
+        "festival",
+        "birthday",
+        "anniversary",
+        "party",
+        "rave",
+        "show"
+    ]));
+    //
+    // PRODUCTS
+    //
+    products.push(...detectWords(lower, [
+        "qr",
+        "qr code",
+        "tag",
+        "keychain",
+        "sticker",
+        "card",
+        "poster",
+        "shirt",
+        "painting",
+        "album",
+        "book",
+        "collectible"
+    ]));
+    //
+    // MEDIA
+    //
+    media.push(...detectWords(lower, [
+        "photo",
+        "image",
+        "video",
+        "film",
+        "audio",
+        "music",
+        "voice",
+        "gallery"
+    ]));
+    //
+    // DATES
+    //
+    dates.push(...(prompt.match(/\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g) ?? []));
+    //
+    // URL
+    //
+    urls.push(...(prompt.match(/https?:\/\/[^\s]+/gi) ?? []));
+    //
+    // EMAIL
+    //
+    emails.push(...(prompt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? []));
+    //
+    // PHONE
+    //
+    phones.push(...(prompt.match(/\+?\d[\d\s()-]{7,}\d/g) ?? []));
+    //
+    // KEYWORDS
+    //
+    keywords.push(...lower
+        .split(/\s+/)
+        .filter(word => word.length > 5));
+    //
+    // CREATIVE OBJECTS
+    //
+    objects.push(...detectWords(lower, [
+        "car",
+        "house",
+        "book",
+        "ring",
+        "camera",
+        "garden",
+        "artifact",
+        "key",
+        "painting"
+    ]));
+    //
+    // CREATURES
+    //
+    creatures.push(...detectWords(lower, [
+        "dog",
+        "cat",
+        "pet",
+        "animal",
+        "wolf",
+        "bird",
+        "dragon"
+    ]));
+    //
+    // CONCEPTS
+    //
+    concepts.push(...detectWords(lower, [
+        "memory",
+        "love",
+        "legacy",
+        "identity",
+        "freedom",
+        "dream",
+        "hope",
+        "family",
+        "connection"
+    ]));
+    //
+    // SYMBOLS
+    //
+    symbols.push(...detectWords(lower, [
+        "fire",
+        "moon",
+        "star",
+        "phoenix",
+        "lightning",
+        "crown",
+        "flower"
+    ]));
+    //
+    // WORLDS
+    //
+    worlds.push(...detectWords(lower, [
+        "fantasy",
+        "cyberpunk",
+        "gothic",
+        "future",
+        "dream",
+        "universe",
+        "realm"
+    ]));
+    //
+    // ARCHETYPES
+    //
+    archetypes.push(...detectWords(lower, [
+        "hero",
+        "creator",
+        "guardian",
+        "explorer",
+        "artist",
+        "warrior",
+        "guide",
+        "companion"
+    ]));
+    return {
+        people: unique(people),
+        places: unique(places),
+        organizations: unique(organizations),
+        dates: unique(dates),
+        times: unique(times),
+        events: unique(events),
+        products: unique(products),
+        urls: unique(urls),
+        emails: unique(emails),
+        phones: unique(phones),
+        keywords: unique(keywords),
+        media: unique(media),
+        /**
+         * Creative intelligence fields
+         */
+        objects: unique(objects),
+        creatures: unique(creatures),
+        concepts: unique(concepts),
+        symbols: unique(symbols),
+        worlds: unique(worlds),
+        archetypes: unique(archetypes)
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\intentAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE INTENT ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Discover canonical semantic intent primitives
+ * from arbitrary human creative expression.
+ *
+ * Input:
+ *   Human creative prompt
+ *
+ * Output:
+ *   ExperienceIntent[]
+ *
+ * Important:
+ *
+ * ExperienceIntent is a canonical semantic vocabulary.
+ * It is NOT the complete representation of human intent.
+ *
+ * Unknown intent is valid.
+ *
+ * The analyzer must NEVER invent "discover" simply
+ * because it failed to recognize the prompt.
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+import type { ExperienceIntent } from "@qre/contracts";
+/**
+ * Discover canonical semantic primitives.
+ *
+ * This function intentionally returns [] when there
+ * is insufficient evidence.
+ *
+ * It does NOT manufacture a fallback intent.
+ */
+export declare function analyzeIntent(prompt: string): ExperienceIntent[];
+/**
+ * Preserve the human's actual intention rather than
+ * collapsing it into the canonical vocabulary.
+ */
+export declare function analyzeHumanIntent(prompt: string): {
+    expression: string;
+    /**
+     * These remain open until later cognitive layers
+     * have enough evidence to derive them.
+     */
+    motivations: never[];
+    desiredOutcome: never[];
+    /**
+     * The prompt itself is the primary evidence.
+     */
+    evidence: string[];
+    unresolved: never[];
+};
+//# sourceMappingURL=intentAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\intentAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE INTENT ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Discover canonical semantic intent primitives
+ * from arbitrary human creative expression.
+ *
+ * Input:
+ *   Human creative prompt
+ *
+ * Output:
+ *   ExperienceIntent[]
+ *
+ * Important:
+ *
+ * ExperienceIntent is a canonical semantic vocabulary.
+ * It is NOT the complete representation of human intent.
+ *
+ * Unknown intent is valid.
+ *
+ * The analyzer must NEVER invent "discover" simply
+ * because it failed to recognize the prompt.
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+const intentRules = [
+    {
+        intent: "remember",
+        weight: 1,
+        signals: [
+            "memory",
+            "remember",
+            "memories",
+            "past",
+            "history",
+            "archive",
+            "legacy",
+            "childhood",
+            "old photo",
+            "old photographs",
+            "timeline",
+            "nostalgia",
+            "nostalgic",
+            "tribute",
+            "remembrance",
+            "preserve",
+            "preservation",
+            "heritage",
+            "passed down",
+            "generations",
+        ],
+    },
+    {
+        intent: "celebrate",
+        weight: 1,
+        signals: [
+            "birthday",
+            "wedding",
+            "anniversary",
+            "celebrate",
+            "celebration",
+            "party",
+            "milestone",
+            "ceremony",
+            "event",
+            "commemorate",
+            "honor",
+        ],
+    },
+    {
+        intent: "serve",
+        weight: 1,
+        signals: [
+            "service",
+            "appointment",
+            "booking",
+            "repair",
+            "groom",
+            "grooming",
+            "clean",
+            "cleaning",
+            "care",
+            "consultation",
+            "therapy",
+            "treatment",
+            "maintenance",
+            "inspection",
+            "service receipt",
+            "invoice",
+            "customer service",
+        ],
+    },
+    {
+        intent: "teach",
+        weight: 1,
+        signals: [
+            "learn",
+            "teach",
+            "guide",
+            "education",
+            "educational",
+            "explain",
+            "tutorial",
+            "course",
+            "lesson",
+            "training",
+            "understand",
+            "understanding",
+            "show someone how",
+        ],
+    },
+    {
+        intent: "sell",
+        weight: 1,
+        signals: [
+            "buy",
+            "sell",
+            "shop",
+            "product",
+            "offer",
+            "customer",
+            "brand",
+            "business",
+            "store",
+            "purchase",
+            "promotion",
+            "marketing",
+        ],
+    },
+    {
+        intent: "discover",
+        weight: 1,
+        signals: [
+            "explore",
+            "discover",
+            "secret",
+            "hidden",
+            "unknown",
+            "quest",
+            "adventure",
+            "journey",
+            "reveal",
+            "uncover",
+            "find out",
+            "curious",
+            "curiosity",
+        ],
+    },
+    {
+        intent: "reward",
+        weight: 1,
+        signals: [
+            "reward",
+            "loyalty",
+            "exclusive",
+            "unlock",
+            "vip",
+            "member",
+            "membership",
+            "bonus",
+            "prize",
+            "perk",
+        ],
+    },
+    {
+        intent: "protect",
+        weight: 1,
+        signals: [
+            "protect",
+            "protection",
+            "safety",
+            "emergency",
+            "lost",
+            "medical",
+            "secure",
+            "security",
+            "warning",
+            "alert",
+        ],
+    },
+    {
+        intent: "connect",
+        weight: 1,
+        signals: [
+            "family",
+            "friend",
+            "friends",
+            "community",
+            "relationship",
+            "together",
+            "share",
+            "sharing",
+            "people",
+            "belong",
+            "belonging",
+            "connection",
+            "connect",
+        ],
+    },
+];
+/**
+ * Normalize prompt text without destroying the
+ * original human expression.
+ */
+function normalizePrompt(prompt) {
+    return prompt
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+}
+/**
+ * Discover canonical semantic primitives.
+ *
+ * This function intentionally returns [] when there
+ * is insufficient evidence.
+ *
+ * It does NOT manufacture a fallback intent.
+ */
+export function analyzeIntent(prompt) {
+    const text = normalizePrompt(prompt);
+    if (!text) {
+        return [];
+    }
+    const scores = new Map();
+    for (const rule of intentRules) {
+        let score = 0;
+        for (const signal of rule.signals) {
+            if (text.includes(signal)) {
+                score += rule.weight;
+            }
+        }
+        if (score > 0) {
+            scores.set(rule.intent, score);
+        }
+    }
+    return [
+        ...scores.entries(),
+    ]
+        .sort((a, b) => b[1] - a[1])
+        .map(([intent]) => intent);
+}
+/**
+ * Preserve the human's actual intention rather than
+ * collapsing it into the canonical vocabulary.
+ */
+export function analyzeHumanIntent(prompt) {
+    const expression = prompt.trim();
+    if (!expression) {
+        return {
+            expression: "",
+            motivations: [],
+            desiredOutcome: [],
+            evidence: [],
+            unresolved: [],
+        };
+    }
+    return {
+        expression,
+        /**
+         * These remain open until later cognitive layers
+         * have enough evidence to derive them.
+         */
+        motivations: [],
+        desiredOutcome: [],
+        /**
+         * The prompt itself is the primary evidence.
+         */
+        evidence: [expression],
+        unresolved: [],
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\memoryAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE MEMORY ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Detect temporal and preservation signals
+ * inside human experience requests.
+ *
+ *
+ * Input:
+ *
+ * Human Prompt
+ *
+ *
+ * Output:
+ *
+ * MemoryUnderstanding
+ *
+ *
+ * Detects:
+ *
+ * - past memories
+ * - present moments
+ * - future intentions
+ * - legacy
+ * - replay
+ * - preservation
+ * - time capsules
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - build timelines
+ * - store memories
+ * - create experiences
+ * - execute runtime
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *    â†“
+ * MemoryAnalyzer
+ *    â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+import type { MemoryUnderstanding } from "@qre/contracts";
+export declare function analyzeMemory(prompt: string): MemoryUnderstanding;
+//# sourceMappingURL=memoryAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\memoryAnalyzer.js
+============================================================
+export function analyzeMemory(prompt) {
+    const text = prompt.toLowerCase();
+    const past = /past|history|childhood|memory|remember|old|nostalgia/
+        .test(text);
+    const present = /moment|today|now|live|current/
+        .test(text);
+    const future = /future|goal|dream|wish|plan|vision/
+        .test(text);
+    const legacy = /legacy|tribute|family|ancestor|inherit/
+        .test(text);
+    const replay = /replay|again|timeline|archive|restore/
+        .test(text);
+    const preservation = /archive|save|preserve|keep|record|capture/
+        .test(text);
+    const timeCapsule = /time capsule|forever|future generations/
+        .test(text);
+    let mode = "none";
+    if (timeCapsule) {
+        mode = "time_capsule";
+    }
+    else if (legacy) {
+        mode = "legacy";
+    }
+    else if (replay) {
+        mode = "replay";
+    }
+    else if (preservation) {
+        mode = "archive";
+    }
+    else if (past) {
+        mode = "timeline";
+    }
+    return {
+        past,
+        present,
+        future,
+        legacy,
+        replay,
+        timeCapsule,
+        mode
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\relationshipAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE RELATIONSHIP ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ * Build semantic relationships between
+ * extracted experience entities.
+ *
+ *
+ * Input:
+ *
+ * Prompt context
+ * +
+ * ExperienceEntities
+ *
+ *
+ * Output:
+ *
+ * ExperienceRelationship[]
+ *
+ *
+ * Determines:
+ *
+ * - person relationships
+ * - location relationships
+ * - time relationships
+ * - media relationships
+ * - product relationships
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - store data
+ * - access database
+ * - control runtime
+ *
+ *
+ * Pipeline:
+ *
+ * EntityAnalyzer
+ *       â†“
+ * RelationshipAnalyzer
+ *       â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+import type { ExperienceRelationship, ExperienceEntities } from "@qre/contracts";
+export declare function analyzeRelationships(prompt: string, entities: ExperienceEntities): ExperienceRelationship[];
+//# sourceMappingURL=relationshipAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\relationshipAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE RELATIONSHIP ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ * Build semantic relationships between
+ * extracted experience entities.
+ *
+ *
+ * Input:
+ *
+ * Prompt context
+ * +
+ * ExperienceEntities
+ *
+ *
+ * Output:
+ *
+ * ExperienceRelationship[]
+ *
+ *
+ * Determines:
+ *
+ * - person relationships
+ * - location relationships
+ * - time relationships
+ * - media relationships
+ * - product relationships
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - store data
+ * - access database
+ * - control runtime
+ *
+ *
+ * Pipeline:
+ *
+ * EntityAnalyzer
+ *       â†“
+ * RelationshipAnalyzer
+ *       â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+export function analyzeRelationships(prompt, entities) {
+    const relationships = [];
+    const subject = entities.events[0]
+        ??
+            "experience";
+    /**
+     * PEOPLE
+     *
+     * Existing contract:
+     * celebrates
+     * created_by
+     * shared_with
+     */
+    for (const person of entities.people) {
+        relationships.push({
+            subject: person,
+            predicate: "shared_with",
+            object: subject,
+            confidence: .75
+        });
+    }
+    /**
+     * LOCATIONS
+     */
+    for (const place of entities.places) {
+        relationships.push({
+            subject,
+            predicate: "located_at",
+            object: place,
+            confidence: .85
+        });
+    }
+    /**
+     * TIME
+     *
+     * Existing contract:
+     * performed_at
+     * remembered_at
+     */
+    for (const date of entities.dates) {
+        relationships.push({
+            subject,
+            predicate: "performed_at",
+            object: date,
+            confidence: .8
+        });
+    }
+    /**
+     * MEDIA
+     *
+     * Existing contract:
+     * belongs_to
+     */
+    if (entities.media.length) {
+        relationships.push({
+            subject: "media",
+            predicate: "belongs_to",
+            object: subject,
+            confidence: .7
+        });
+    }
+    /**
+     * PRODUCTS / OBJECTS
+     */
+    for (const product of entities.products) {
+        relationships.push({
+            subject,
+            predicate: "belongs_to",
+            object: product,
+            confidence: .7
+        });
+    }
+    return relationships;
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\worldAnalyzer.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE WORLD ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Determine which human experience
+ * domain(s) a prompt belongs to.
+ *
+ *
+ * Input:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ *
+ *
+ * Output:
+ *
+ * WorldUnderstanding
+ *
+ *
+ * Detects:
+ *
+ * - memory_world
+ * - relationship_world
+ * - commerce_world
+ * - discovery_world
+ * - journey_world
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - select templates
+ * - run runtime systems
+ *
+ *
+ * Pipeline:
+ *
+ * Understanding Layers
+ *        â†“
+ * WorldAnalyzer
+ *        â†“
+ * ExperienceUnderstanding
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+import type { WorldUnderstanding, EmotionUnderstanding, MemoryUnderstanding } from "@qre/contracts";
+import type { ExperienceIntent, ExperienceEntities } from "@qre/contracts";
+export declare function analyzeWorld(input: {
+    intent: ExperienceIntent[];
+    entities: ExperienceEntities;
+    emotions: EmotionUnderstanding;
+    memory: MemoryUnderstanding;
+}): WorldUnderstanding;
+//# sourceMappingURL=worldAnalyzer.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\analyzers\worldAnalyzer.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE WORLD ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Determine which human experience
+ * domain(s) a prompt belongs to.
+ *
+ *
+ * Input:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ *
+ *
+ * Output:
+ *
+ * WorldUnderstanding
+ *
+ *
+ * Detects:
+ *
+ * - memory_world
+ * - relationship_world
+ * - commerce_world
+ * - discovery_world
+ * - journey_world
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - select templates
+ * - run runtime systems
+ *
+ *
+ * Pipeline:
+ *
+ * Understanding Layers
+ *        â†“
+ * WorldAnalyzer
+ *        â†“
+ * ExperienceUnderstanding
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+export function analyzeWorld(input) {
+    const domains = new Set();
+    //
+    // DEFAULT HUMAN EXPERIENCE
+    //
+    domains.add("journey_world");
+    //
+    // MEMORY WORLD
+    //
+    if (input.memory.past ||
+        input.memory.legacy ||
+        input.memory.replay ||
+        input.memory.timeCapsule) {
+        domains.add("memory_world");
+    }
+    //
+    // RELATIONSHIP WORLD
+    //
+    if (input.emotions.emotions.includes("love")) {
+        domains.add("relationship_world");
+    }
+    //
+    // DISCOVERY WORLD
+    //
+    if (input.emotions.emotions.includes("wonder")) {
+        domains.add("discovery_world");
+    }
+    //
+    // COMMERCE WORLD
+    //
+    if (input.entities.products.length) {
+        domains.add("commerce_world");
+    }
+    //
+    // INTENT SIGNALS
+    //
+    for (const intent of input.intent) {
+        switch (intent) {
+            case "connect":
+                domains.add("relationship_world");
+                break;
+            case "discover":
+                domains.add("discovery_world");
+                break;
+            case "remember":
+                domains.add("memory_world");
+                break;
+            case "sell":
+                domains.add("commerce_world");
+                break;
+            case "serve":
+                domains.add("service_world");
+                break;
+            case "celebrate":
+                domains.add("community_world");
+                break;
+            case "teach":
+                domains.add("culture_world");
+                break;
+            case "reward":
+                domains.add("commerce_world");
+                break;
+            case "protect":
+                domains.add("community_world");
+                break;
+        }
+    }
+    const resolved = [
+        ...domains
+    ];
+    return {
+        domains: resolved,
+        primary: resolved[0],
+        confidence: Math.min(1, 0.5 + resolved.length * 0.1)
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\cognition.d.ts
+============================================================
+import type { ExperienceMeaningContext, ExperienceUnderstanding } from "@qre/contracts";
+export interface CognitionResult {
+    understanding: ExperienceUnderstanding;
+    meaningContext: ExperienceMeaningContext;
+}
+export declare function understand(prompt: string): CognitionResult;
+//# sourceMappingURL=cognition.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\cognition.js
+============================================================
+import { understandExperience, } from "./understanding/index.js";
+import { buildMeaningContext, } from "./meaningEngines/meaningContextEngine.js";
+export function understand(prompt) {
+    const understanding = understandExperience(prompt);
+    const meaningContext = buildMeaningContext(understanding);
+    return {
+        understanding,
+        meaningContext,
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\compilerMind.d.ts
+============================================================
+import type { CompilerMind as CompilerMindState } from "@qre/contracts";
+export interface CompilerMindInput {
+    state: CompilerMindState;
+}
+export declare class CompilerMindEngine {
+    evolve(input: CompilerMindInput): CompilerMindState;
+}
+//# sourceMappingURL=compilerMind.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\compilerMind.js
+============================================================
+export class CompilerMindEngine {
+    evolve(input) {
+        return {
+            ...input.state,
+            prompt: input.state.prompt
+        };
+    }
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\index.d.ts
+============================================================
+export * from "./cognition.js";
+export * from "./compilerMind.js";
+export * from "./understanding.js";
+export * from "./meaning.js";
+export { understandExperience } from "./understanding/index.js";
+export { buildMeaningContext } from "./meaningEngines/meaningContextEngine.js";
+//# sourceMappingURL=index.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\index.js
+============================================================
+export * from "./cognition.js";
+export * from "./compilerMind.js";
+export * from "./understanding.js";
+export * from "./meaning.js";
+export { understandExperience } from "./understanding/index.js";
+export { buildMeaningContext } from "./meaningEngines/meaningContextEngine.js";
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaning.d.ts
+============================================================
+import type { CompilerMind } from "@qre/contracts";
+export declare function buildMeaningContext(mind: CompilerMind): CompilerMind;
+//# sourceMappingURL=meaning.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaning.js
+============================================================
+export function buildMeaningContext(mind) {
+    return {
+        ...mind,
+        meaningContext: {
+            ...mind.meaningContext
+        }
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaningEngines\meaningContextEngine.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE MEANING CONTEXT ENGINE
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Convert analyzed signals into higher-level
+ * human creative meaning.
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * Analyzers
+ *   â†“
+ * Meaning Context Engine
+ *   â†“
+ * ExperienceMeaningContext
+ *   â†“
+ * Experience Genome
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+import type { ExperienceMeaningContext, ExperienceUnderstanding } from "@qre/contracts";
+export declare function buildMeaningContext(understanding: ExperienceUnderstanding): ExperienceMeaningContext;
+//# sourceMappingURL=meaningContextEngine.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaningEngines\meaningContextEngine.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE MEANING CONTEXT ENGINE
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Convert analyzed signals into higher-level
+ * human creative meaning.
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * Analyzers
+ *   â†“
+ * Meaning Context Engine
+ *   â†“
+ * ExperienceMeaningContext
+ *   â†“
+ * Experience Genome
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+const intentMeanings = {
+    remember: {
+        theme: "memory_preservation",
+        meaning: "human_history_matters"
+    },
+    celebrate: {
+        theme: "milestone",
+        meaning: "shared_human_moment"
+    },
+    discover: {
+        theme: "exploration",
+        meaning: "curiosity_driven_experience"
+    },
+    connect: {
+        theme: "human_connection",
+        meaning: "relationship_strengthening"
+    },
+    sell: {
+        theme: "value_exchange",
+        meaning: "commercial_relationship"
+    },
+    reward: {
+        theme: "recognition",
+        meaning: "exclusive_participation"
+    },
+    teach: {
+        theme: "knowledge_transfer",
+        meaning: "understanding_growth"
+    },
+    protect: {
+        theme: "security",
+        meaning: "care_and_trust"
+    }
+};
+const emotionDirections = {
+    nostalgia: "cinematic_memory",
+    wonder: "mystery_and_discovery",
+    love: "emotional_intimacy",
+    joy: "playful_energy",
+    fear: "dark_atmosphere",
+    trust: "confidence_and_safety",
+    excitement: "high_energy_engagement"
+};
+function resolveEmotions(understanding) {
+    const emotions = understanding.emotions;
+    if (!emotions) {
+        return [];
+    }
+    if (Array.isArray(emotions)) {
+        return emotions;
+    }
+    return [
+        ...(emotions.primary ?? []),
+        ...(emotions.secondary ?? [])
+    ];
+}
+function resolveWorld(understanding) {
+    const world = understanding.world;
+    if (!world) {
+        return "";
+    }
+    if (typeof world === "string") {
+        return world;
+    }
+    return (world.name ??
+        world.type ??
+        world.domain ??
+        "");
+}
+export function buildMeaningContext(understanding) {
+    const themes = new Set();
+    const meanings = new Set();
+    const creativeDirection = new Set();
+    const emotionalGravity = new Set();
+    const humanDesires = new Set();
+    const symbolicForces = new Set();
+    const narrativePotential = new Set();
+    //
+    // INTENT â†’ HUMAN MEANING
+    //
+    for (const intent of understanding.intent) {
+        const mapping = intentMeanings[intent];
+        if (mapping) {
+            themes.add(mapping.theme);
+            meanings.add(mapping.meaning);
+        }
+        switch (intent) {
+            case "remember":
+                humanDesires.add("preserve_meaning");
+                symbolicForces.add("legacy");
+                narrativePotential.add("memory_journey");
+                break;
+            case "discover":
+                humanDesires.add("understand_the_unknown");
+                symbolicForces.add("exploration");
+                narrativePotential.add("revelation_story");
+                break;
+            case "connect":
+                humanDesires.add("strengthen_relationships");
+                symbolicForces.add("connection");
+                break;
+            case "celebrate":
+                humanDesires.add("honor_milestones");
+                symbolicForces.add("achievement");
+                break;
+            case "protect":
+                humanDesires.add("create_security");
+                symbolicForces.add("trust");
+                break;
+        }
+    }
+    //
+    // EMOTION â†’ CREATIVE LANGUAGE
+    //
+    for (const emotion of resolveEmotions(understanding)) {
+        const direction = emotionDirections[emotion];
+        if (direction) {
+            creativeDirection.add(direction);
+        }
+        switch (emotion) {
+            case "nostalgia":
+                emotionalGravity.add("memory_and_time");
+                narrativePotential.add("reflection");
+                break;
+            case "wonder":
+                emotionalGravity.add("unknown_and_discovery");
+                narrativePotential.add("exploration");
+                break;
+            case "love":
+                emotionalGravity.add("human_connection");
+                humanDesires.add("belonging");
+                break;
+            case "joy":
+                emotionalGravity.add("celebration_energy");
+                humanDesires.add("shared_experience");
+                break;
+            case "trust":
+                emotionalGravity.add("safety_and_confidence");
+                humanDesires.add("reliability");
+                break;
+            case "excitement":
+                emotionalGravity.add("energy_and_momentum");
+                break;
+        }
+    }
+    //
+    // WORLD â†’ CREATIVE CONTEXT
+    //
+    switch (resolveWorld(understanding)) {
+        case "memory_world":
+            creativeDirection.add("heritage_storytelling");
+            symbolicForces.add("legacy");
+            break;
+        case "discovery_world":
+            creativeDirection.add("exploration_journey");
+            symbolicForces.add("curiosity");
+            break;
+        case "relationship_world":
+            creativeDirection.add("human_centered_design");
+            symbolicForces.add("belonging");
+            break;
+        case "commerce_world":
+            creativeDirection.add("trust_driven_experience");
+            symbolicForces.add("value_exchange");
+            break;
+    }
+    return {
+        themes: [...themes],
+        meanings: [...meanings],
+        creativeDirection: [...creativeDirection],
+        emotionalGravity: [...emotionalGravity],
+        humanDesires: [...humanDesires],
+        symbolicForces: [...symbolicForces],
+        narrativePotential: [...narrativePotential]
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaningEngines\scoreEngine.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING SCORE ENGINE
+ * =====================================================
+ *
+ * Measures confidence of understanding layers.
+ *
+ * This does NOT discover meaning.
+ *
+ * It evaluates:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ * Audience
+ * World
+ * DNA
+ *
+ * Future:
+ * adaptive learning weights
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+export type UnderstandingScoreInput = {
+    intent: unknown[];
+    entities: unknown;
+    relationships: unknown[];
+    emotions: unknown;
+    memory: unknown;
+    audience: unknown;
+    world: unknown;
+    dna: unknown;
+};
+export type CalculatedUnderstandingScores = {
+    semantic: number;
+    entity: number;
+    relationship: number;
+    emotional: number;
+    memory: number;
+    world: number;
+    dna: number;
+    overall: number;
+};
+export declare function calculateUnderstandingScores(input: UnderstandingScoreInput): CalculatedUnderstandingScores;
+//# sourceMappingURL=scoreEngine.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\meaningEngines\scoreEngine.js
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING SCORE ENGINE
+ * =====================================================
+ *
+ * Measures confidence of understanding layers.
+ *
+ * This does NOT discover meaning.
+ *
+ * It evaluates:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ * Audience
+ * World
+ * DNA
+ *
+ * Future:
+ * adaptive learning weights
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+function signalScore(value) {
+    if (!value) {
+        return 0;
+    }
+    if (Array.isArray(value)) {
+        return Math.min(1, value.length / 5);
+    }
+    return .8;
+}
+export function calculateUnderstandingScores(input) {
+    const semantic = signalScore(input.intent);
+    const entity = signalScore(input.entities);
+    const relationship = signalScore(input.relationships);
+    const emotional = signalScore(input.emotions);
+    const memory = signalScore(input.memory);
+    const world = signalScore(input.world);
+    const dna = signalScore(input.dna);
+    const overall = (semantic +
+        entity +
+        relationship +
+        emotional +
+        memory +
+        world +
+        dna)
+        / 7;
+    return {
+        semantic,
+        entity,
+        relationship,
+        emotional,
+        memory,
+        world,
+        dna,
+        overall
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding.d.ts
+============================================================
+import type { CompilerMind } from "@qre/contracts";
+export declare function understandPrompt(mind: CompilerMind): CompilerMind;
+//# sourceMappingURL=understanding.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding.js
+============================================================
+export function understandPrompt(mind) {
+    return {
+        ...mind,
+        understanding: {
+            ...mind.understanding
+        }
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding\ExperienceUnderstandingKernel.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE UNDERSTANDING KERNEL
+ * =====================================================
+ *
+ * Human Expression
+ *        â†“
+ * Semantic Signal Extraction
+ *        â†“
+ * Experience Understanding
+ *
+ *
+ * The first intelligence layer.
+ *
+ * This layer does not create.
+ * It does not design.
+ * It does not choose outcomes.
+ *
+ * It discovers the hidden structure
+ * inside human intent.
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO INDUSTRY LOGIC
+ * NO TEMPLATES
+ *
+ * =====================================================
+ */
+import type { ExperienceUnderstanding } from "@qre/contracts";
+/**
+ * =====================================================
+ *
+ * EXPERIENCE UNDERSTANDING PIPELINE
+ *
+ * The semantic foundation.
+ *
+ * =====================================================
+ */
+export declare function understandExperience(prompt: string): ExperienceUnderstanding;
+//# sourceMappingURL=ExperienceUnderstandingKernel.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding\ExperienceUnderstandingKernel.js
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE UNDERSTANDING KERNEL
+ * =====================================================
+ *
+ * Human Expression
+ *        â†“
+ * Semantic Signal Extraction
+ *        â†“
+ * Experience Understanding
+ *
+ *
+ * The first intelligence layer.
+ *
+ * This layer does not create.
+ * It does not design.
+ * It does not choose outcomes.
+ *
+ * It discovers the hidden structure
+ * inside human intent.
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO INDUSTRY LOGIC
+ * NO TEMPLATES
+ *
+ * =====================================================
+ */
+import { analyzeIntent, analyzeHumanIntent, } from "../analyzers/intentAnalyzer.js";
+import { analyzeEntities } from "../analyzers/entityAnalyzer.js";
+import { analyzeRelationships } from "../analyzers/relationshipAnalyzer.js";
+import { analyzeEmotion } from "../analyzers/emotionAnalyzer.js";
+import { analyzeMemory } from "../analyzers/memoryAnalyzer.js";
+import { analyzeAudience } from "../analyzers/audienceAnalyzer.js";
+import { analyzeWorld } from "../analyzers/worldAnalyzer.js";
+import { analyzeDNA } from "../analyzers/dnaAnalyzer.js";
+import { calculateConfidence } from "../analyzers/confidenceAnalyzer.js";
+/**
+ * =====================================================
+ *
+ * HUMAN DESIRE MODEL
+ *
+ * Discovers motivation signals.
+ *
+ * Does not classify by keywords.
+ *
+ * =====================================================
+ */
+function analyzeDesire(prompt) {
+    return {
+        desires: [
+            "expression"
+        ],
+        motivations: [
+            "meaning creation"
+        ],
+        goals: [
+            "transform intention into experience"
+        ],
+        fears: [],
+        aspirations: [
+            "create something valuable"
+        ]
+    };
+}
+/**
+ * =====================================================
+ *
+ * SENSORY INTELLIGENCE
+ *
+ * Meaning â†’ perception signals
+ *
+ * =====================================================
+ */
+function analyzeSensory(emotions, dna, world) {
+    return {
+        visual: dna.traits
+            ??
+                [],
+        audio: emotions.emotions
+            ??
+                [],
+        physical: [],
+        environmental: world.domains
+            ??
+                []
+    };
+}
+/**
+ * =====================================================
+ *
+ * CREATION POSSIBILITY FIELD
+ *
+ * Defines potential without deciding outcome.
+ *
+ * =====================================================
+ */
+function analyzePotential() {
+    return {
+        possibilities: [],
+        constraints: [],
+        opportunities: []
+    };
+}
+/**
+ * =====================================================
+ *
+ * EXPERIENCE UNDERSTANDING PIPELINE
+ *
+ * The semantic foundation.
+ *
+ * =====================================================
+ */
+export function understandExperience(prompt) {
+    if (!prompt.trim()) {
+        throw new Error("Cannot understand empty experience.");
+    }
+    const intent = analyzeIntent(prompt);
+    const humanIntent = analyzeHumanIntent(prompt);
+    const entities = analyzeEntities(prompt);
+    const relationships = analyzeRelationships(prompt, entities);
+    const emotions = analyzeEmotion(prompt);
+    const memory = analyzeMemory(prompt);
+    const audience = analyzeAudience(prompt);
+    const world = analyzeWorld({
+        intent,
+        entities,
+        emotions,
+        memory
+    });
+    const dna = analyzeDNA({
+        intent,
+        emotions,
+        world
+    });
+    const desire = analyzeDesire(prompt);
+    const sensory = analyzeSensory(emotions, dna, world);
+    const potential = analyzePotential();
+    const confidence = calculateConfidence({
+        intent,
+        entities,
+        relationships,
+        emotions,
+        memory,
+        audience,
+        world,
+        dna
+    });
+    return {
+        prompt,
+        intent,
+        humanIntent,
+        desire,
+        sensory,
+        potential,
+        entities,
+        relationships,
+        emotions,
+        memory,
+        audience,
+        world,
+        dna,
+        scores: {
+            semantic: confidence,
+            entity: confidence,
+            relationship: confidence,
+            emotional: confidence,
+            memory: confidence,
+            world: confidence,
+            dna: confidence,
+            overall: confidence
+        },
+        confidence
+    };
+}
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding\index.d.ts
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ *
+ * Public exports only.
+ *
+ * =====================================================
+ */
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ */
+export { understandExperience, } from "./ExperienceUnderstandingKernel.js";
+export type { ExperienceUnderstanding, } from "@qre/contracts";
+//# sourceMappingURL=index.d.ts.map
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\dist\understanding\index.js
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ *
+ * Public exports only.
+ *
+ * =====================================================
+ */
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ */
+export { understandExperience, } from "./ExperienceUnderstandingKernel.js";
+
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\package.json
+============================================================
+{
+  "name": "@qre/cognition",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@qre/contracts": "workspace:*"
+  }
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\audienceAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE AUDIENCE ANALYZER
+ * =====================================================
+ *
+ * TYPE:
+ * Analyzer
+ *
+ * RESPONSIBILITY:
+ * Understands who enters the experience,
+ * why they enter,
+ * how they behave,
+ * and what they expect.
+ *
+ * INPUT:
+ * Human prompt
+ *
+ * OUTPUT:
+ * AudienceUnderstanding
+ *
+ * DOES NOT:
+ * - build experiences
+ * - compile experiences
+ * - execute experiences
+ * - manage users
+ *
+ * =====================================================
+ */
+import type {
+  AudienceUnderstanding
+} from "@qre/contracts";
+
+
+
+
+const audienceSignals: Record<string,string[]> = {
+
+
+  fans: [
+    "fan",
+    "follower",
+    "artist",
+    "music",
+    "concert",
+    "album",
+    "tour",
+    "community"
+  ],
+
+
+  family: [
+    "family",
+    "wedding",
+    "parent",
+    "child",
+    "anniversary",
+    "birthday",
+    "memory"
+  ],
+
+
+  business_owner: [
+    "business",
+    "brand",
+    "customer",
+    "client",
+    "store",
+    "company",
+    "restaurant"
+  ],
+
+
+  creator: [
+    "creator",
+    "artist",
+    "designer",
+    "maker",
+    "producer"
+  ],
+
+
+  explorer: [
+    "discover",
+    "explore",
+    "hidden",
+    "unknown",
+    "adventure"
+  ],
+
+
+  community: [
+    "community",
+    "club",
+    "group",
+    "crowd",
+    "strangers",
+    "people",
+    "members"
+  ],
+
+
+  collector: [
+    "collect",
+    "rare",
+    "exclusive",
+    "limited",
+    "artifact"
+  ],
+
+
+  pet_owner: [
+    "pet",
+    "dog",
+    "cat",
+    "animal"
+  ]
+
+
+};
+
+
+
+
+
+function unique(
+ values:string[]
+){
+
+ return [
+  ...new Set(
+    values.filter(Boolean)
+  )
+ ];
+
+}
+
+
+
+
+
+
+function detectTypes(
+ text:string
+){
+
+ const types:string[]=[];
+
+
+ for(
+  const [type,signals]
+  of Object.entries(audienceSignals)
+ ){
+
+  if(
+   signals.some(
+    signal =>
+    text.includes(signal)
+   )
+  ){
+
+   types.push(type);
+
+  }
+
+ }
+
+
+ if(!types.length){
+
+  types.push(
+   "individual"
+  );
+
+ }
+
+
+ return unique(types);
+
+}
+
+
+
+
+
+
+
+function resolveSocial(
+ types:string[]
+):AudienceUnderstanding["social"] {
+
+
+ if(
+  types.includes("community") ||
+  types.includes("fans")
+ ){
+
+  return "community";
+
+ }
+
+
+ if(
+  types.length > 1
+ ){
+
+  return "shared";
+
+ }
+
+
+ return "solo";
+
+}
+
+
+
+
+
+
+
+
+
+function resolveRoles(
+ types:string[]
+){
+
+ const roles:string[]=[];
+
+
+ const map:Record<string,string[]>={
+
+
+ fans:[
+  "fan",
+  "supporter",
+  "participant"
+ ],
+
+
+ family:[
+  "family_member",
+  "witness",
+  "memory_holder"
+ ],
+
+
+ business_owner:[
+  "customer",
+  "brand_owner"
+ ],
+
+
+ creator:[
+  "creator",
+  "maker"
+ ],
+
+
+ explorer:[
+  "explorer",
+  "discoverer"
+ ],
+
+
+ community:[
+  "participant",
+  "member"
+ ],
+
+
+ collector:[
+  "collector",
+  "keeper"
+ ],
+
+
+ pet_owner:[
+  "companion"
+ ]
+
+
+ };
+
+
+ for(
+  const type of types
+ ){
+
+  roles.push(
+   ...(map[type] ?? [])
+  );
+
+ }
+
+
+ return unique(roles);
+
+}
+
+
+
+
+
+
+
+
+
+function resolveRelationship(
+ social:AudienceUnderstanding["social"]
+){
+
+
+ if(
+  social === "community"
+ ){
+
+  return [
+   "shared_identity",
+   "collective_memory",
+   "social_connection"
+  ];
+
+ }
+
+
+ if(
+  social === "shared"
+ ){
+
+  return [
+   "personal_connection",
+   "shared_meaning"
+  ];
+
+ }
+
+
+ return [
+  "individual_journey",
+  "personal_discovery"
+ ];
+
+
+}
+
+function resolveBehaviors(
+ text:string
+):string[] {
+
+
+ const behaviors:string[] = [];
+
+
+
+ const rules: Array<[string, string[]]> = [
+
+  [
+   "exploration",
+   [
+    "discover",
+    "explore",
+    "hidden",
+    "secret"
+   ]
+  ],
+
+
+  [
+   "reflection",
+   [
+    "memory",
+    "remember",
+    "legacy",
+    "past"
+   ]
+  ],
+
+
+  [
+   "interaction",
+   [
+    "play",
+    "game",
+    "challenge",
+    "choose"
+   ]
+  ],
+
+
+  [
+   "creation",
+   [
+    "create",
+    "design",
+    "make"
+   ]
+  ]
+
+ ];
+
+
+
+
+ for(
+  const [
+   behavior,
+   signals
+  ] of rules
+ ){
+
+
+  if(
+   signals.some(
+    (signal:string)=>
+     text.includes(signal)
+   )
+  ){
+
+   behaviors.push(
+    behavior
+   );
+
+  }
+
+
+ }
+
+
+
+ return unique(
+  behaviors
+ );
+
+}
+
+
+
+
+
+
+
+
+
+function resolveExpectations(
+ social:AudienceUnderstanding["social"]
+){
+
+ if(
+  social === "community"
+ ){
+
+  return [
+   "belonging",
+   "participation",
+   "connection"
+  ];
+
+ }
+
+
+ return [
+  "meaning",
+  "value",
+  "personal_result"
+ ];
+
+}
+
+
+
+
+
+
+
+
+
+export function analyzeAudience(
+
+ prompt:string
+
+):AudienceUnderstanding {
+
+
+ const text =
+ prompt.toLowerCase();
+
+
+
+ const types =
+ detectTypes(text);
+
+
+
+ const social =
+ resolveSocial(types);
+
+
+
+ return {
+
+
+  types,
+
+
+  social,
+
+
+  roles:
+   resolveRoles(types),
+
+
+
+  relationship:
+   resolveRelationship(
+    social
+   ),
+
+
+
+  behaviors:
+   resolveBehaviors(text),
+
+
+
+  expectations:
+   resolveExpectations(
+    social
+   ),
+
+
+
+  primary:
+   types[0]
+
+ };
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\confidenceAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE CONFIDENCE ANALYZER
+ * =====================================================
+ *
+ * TYPE:
+ * Analyzer
+ *
+ * RESPONSIBILITY:
+ * Calculates confidence score for semantic understanding.
+ *
+ * INPUT:
+ * Understanding layer outputs
+ *
+ * OUTPUT:
+ * Confidence value (0 - 1)
+ *
+ * DOES NOT:
+ * - create experiences
+ * - compile genomes
+ * - execute runtime
+ * - access database
+ *
+ * =====================================================
+ */
+
+
+
+type ConfidenceInput = {
+
+  intent: unknown;
+
+  entities: unknown;
+
+  relationships: unknown;
+
+  emotions: unknown;
+
+  memory: unknown;
+
+  audience: unknown;
+
+  world: unknown;
+
+  dna: unknown;
+
+};
+
+
+
+
+function hasSignal(
+ value:unknown
+):boolean {
+
+
+if(
+ value === null ||
+ value === undefined
+){
+
+ return false;
+
+}
+
+
+
+if(
+ Array.isArray(value)
+){
+
+ return value.length > 0;
+
+}
+
+
+
+if(
+ typeof value === "object"
+){
+
+ return Object.keys(value as object).length > 0;
+
+}
+
+
+
+return true;
+
+
+}
+
+
+
+
+
+export function calculateConfidence(
+
+ input:ConfidenceInput
+
+):number {
+
+
+
+const layers =
+Object.values(input);
+
+
+
+const activeLayers =
+layers.filter(
+ hasSignal
+).length;
+
+
+
+
+const totalLayers =
+layers.length;
+
+
+
+
+if(
+ !totalLayers
+){
+
+ return 0;
+
+}
+
+
+
+
+const coverage =
+activeLayers /
+totalLayers;
+
+
+
+
+/**
+ * Confidence starts low.
+ * Each validated understanding layer increases certainty.
+ */
+
+const confidence =
+0.25 +
+(
+ coverage * 0.75
+);
+
+
+
+
+return Number(
+ Math.min(
+  1,
+  confidence
+ ).toFixed(3)
+);
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\dnaAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE DNA ANALYZER
+ * =====================================================
+ *
+ * ROLE:
+ * Analyzer
+ *
+ * LAYER:
+ * Experience Understanding
+ *
+ * RESPONSIBILITY:
+ * Analyze human meaning signals and convert them
+ * into a creative experience fingerprint.
+ *
+ * INPUT:
+ * - Intent Understanding
+ * - Emotion Understanding
+ * - World Understanding
+ * - Human prompt signals
+ *
+ * OUTPUT:
+ * DNAUnderstanding
+ *
+ * THIS FILE DOES:
+ * âœ“ Detect creative traits
+ * âœ“ Detect emotional style patterns
+ * âœ“ Detect narrative qualities
+ * âœ“ Produce experience DNA traits
+ *
+ * THIS FILE DOES NOT:
+ * âœ— Execute experiences
+ * âœ— Build flows
+ * âœ— Control runtime
+ * âœ— Access database
+ * âœ— Generate assets
+ *
+ * =====================================================
+ */
+
+import type {
+  DNAUnderstanding,
+  EmotionUnderstanding,
+  WorldUnderstanding
+} from "@qre/contracts";
+
+import type {
+  ExperienceIntent
+} from "@qre/contracts";
+
+
+
+type DNAAnalyzerInput = {
+
+  prompt?: string;
+
+  intent: ExperienceIntent[];
+
+  emotions: EmotionUnderstanding;
+
+  world: WorldUnderstanding;
+
+};
+
+
+
+
+
+const dnaSignals: Record<string, string[]> = {
+
+
+  cinematic: [
+    "wonder",
+    "memory",
+    "story",
+    "film",
+    "photo",
+    "scene",
+    "moment"
+  ],
+
+
+  reflection: [
+    "memory_world",
+    "nostalgia",
+    "legacy",
+    "tribute"
+  ],
+
+
+  exploration: [
+    "discover",
+    "explore",
+    "quest",
+    "adventure"
+  ],
+
+
+  ritual: [
+    "celebrate",
+    "ceremony",
+    "milestone"
+  ],
+
+
+  rebellious: [
+    "dark",
+    "gothic",
+    "cyber",
+    "punk",
+    "underground"
+  ]
+
+};
+
+
+
+
+
+
+export function analyzeDNA(
+
+ input: DNAAnalyzerInput
+
+): DNAUnderstanding {
+
+
+
+const traits =
+new Set<string>();
+
+
+
+//
+// EVERY EXPERIENCE HAS ADAPTIVE DNA
+//
+
+traits.add(
+  "adaptive"
+);
+
+
+
+
+
+const combinedContext =
+JSON.stringify(input)
+.toLowerCase();
+
+
+
+
+
+//
+// SIGNAL ANALYSIS
+//
+
+for(
+ const [
+  trait,
+  signals
+ ] of Object.entries(dnaSignals)
+){
+
+
+if(
+ signals.some(
+  signal =>
+   combinedContext.includes(signal)
+ )
+){
+
+ traits.add(
+  trait
+ );
+
+}
+
+
+}
+
+
+
+
+
+
+
+//
+// WORLD-BASED CREATIVE DNA
+//
+
+for(
+ const domain of input.world.domains
+){
+
+
+switch(domain){
+
+
+case "memory_world":
+
+ traits.add(
+  "emotional"
+ );
+
+ traits.add(
+  "reflection"
+ );
+
+ break;
+
+
+
+case "relationship_world":
+
+ traits.add(
+  "human_connection"
+ );
+
+ break;
+
+
+
+case "discovery_world":
+
+ traits.add(
+  "exploration"
+ );
+
+ break;
+
+
+
+case "commerce_world":
+
+ traits.add(
+  "trust"
+ );
+
+ break;
+
+
+
+case "culture_world":
+
+ traits.add(
+  "expressive"
+ );
+
+ break;
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+//
+// EMOTION-BASED DNA
+//
+
+for(
+ const emotion of input.emotions.emotions
+){
+
+
+switch(emotion){
+
+
+case "wonder":
+
+ traits.add(
+  "mysterious"
+ );
+
+ break;
+
+
+
+case "nostalgia":
+
+ traits.add(
+  "reflective"
+ );
+
+ break;
+
+
+
+case "love":
+
+ traits.add(
+  "human_connection"
+ );
+
+ break;
+
+
+
+case "joy":
+
+ traits.add(
+  "playful"
+ );
+
+ break;
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+//
+// INTENT-BASED DNA
+//
+
+for(
+ const intent of input.intent
+){
+
+
+switch(intent){
+
+
+case "discover":
+
+ traits.add(
+  "exploration"
+ );
+
+ break;
+
+
+
+case "celebrate":
+
+ traits.add(
+  "ritual"
+ );
+
+ break;
+
+
+
+case "remember":
+
+ traits.add(
+  "memory_driven"
+ );
+
+ break;
+
+
+
+case "connect":
+
+ traits.add(
+  "social"
+ );
+
+ break;
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+//
+// DIRECT CREATIVE STYLE SIGNALS
+//
+
+if(
+ input.prompt &&
+ /dark|gothic|cyber/i.test(
+  input.prompt
+ )
+){
+
+traits.add(
+ "rebellious"
+);
+
+}
+
+
+
+
+
+
+return {
+
+
+ traits:[
+  ...traits
+ ]
+
+
+};
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\emotionAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE EMOTION ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Extract emotional signals from human language.
+ *
+ *
+ * Input:
+ *
+ * Human Prompt
+ *
+ *
+ * Output:
+ *
+ * EmotionUnderstanding
+ *
+ *
+ * Determines:
+ *
+ * - emotional states
+ * - atmosphere
+ * - intensity
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - generate creative direction
+ * - build runtime states
+ * - access database
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * EmotionAnalyzer
+ *   â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * =====================================================
+ */
+
+import type {
+  EmotionUnderstanding
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+
+type EmotionRule = {
+
+  emotion:string;
+
+  signals:string[];
+
+};
+
+
+
+
+
+
+
+
+
+const emotionSignals:EmotionRule[] = [
+
+
+
+{
+
+emotion:"nostalgia",
+
+signals:[
+
+"memory",
+
+"past",
+
+"childhood",
+
+"legacy",
+
+"remember",
+
+"history",
+
+"old"
+
+]
+
+},
+
+
+
+{
+
+emotion:"wonder",
+
+signals:[
+
+"magic",
+
+"amazing",
+
+"universe",
+
+"dream",
+
+"discover",
+
+"secret",
+
+"mystery",
+
+"unknown"
+
+]
+
+},
+
+
+
+{
+
+emotion:"love",
+
+signals:[
+
+"love",
+
+"wedding",
+
+"family",
+
+"relationship",
+
+"together"
+
+]
+
+},
+
+
+
+{
+
+emotion:"joy",
+
+signals:[
+
+"party",
+
+"birthday",
+
+"celebrate",
+
+"fun",
+
+"happy"
+
+]
+
+},
+
+
+
+{
+
+emotion:"trust",
+
+signals:[
+
+"brand",
+
+"business",
+
+"customer",
+
+"safe",
+
+"professional"
+
+]
+
+},
+
+
+
+{
+
+emotion:"excitement",
+
+signals:[
+
+"vip",
+
+"exclusive",
+
+"event",
+
+"concert",
+
+"festival",
+
+"launch"
+
+]
+
+},
+
+
+
+{
+
+emotion:"fear",
+
+signals:[
+
+"danger",
+
+"lost",
+
+"emergency",
+
+"dark",
+
+"warning"
+
+]
+
+}
+
+
+
+];
+
+
+
+
+
+
+
+
+
+export function analyzeEmotion(
+
+prompt:string
+
+):EmotionUnderstanding {
+
+
+
+const text =
+
+prompt.toLowerCase();
+
+
+
+
+
+const emotions = new Set<string>();
+
+
+
+
+
+
+
+
+
+for(const rule of emotionSignals){
+
+
+const matched =
+
+rule.signals.some(
+
+signal =>
+
+text.includes(signal)
+
+);
+
+
+
+if(matched){
+
+emotions.add(
+
+rule.emotion
+
+);
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+
+if(!emotions.size){
+
+emotions.add(
+
+"curiosity"
+
+);
+
+}
+
+
+
+
+
+
+
+
+
+const resolved =
+
+[
+
+...emotions
+
+];
+
+
+
+
+
+
+
+
+
+return {
+
+
+emotions:
+
+resolved,
+
+
+
+atmosphere:
+
+[
+
+...resolved,
+
+"immersive"
+
+],
+
+
+
+intensity:
+
+Math.min(
+
+1,
+
+resolved.length / 5
+
+)
+
+
+
+};
+
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\entityAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE ENTITY ANALYZER
+ * =====================================================
+ *
+ * Entity Intelligence Boundary.
+ *
+ * Human Prompt
+ *      â†“
+ * Entity Analysis
+ *      â†“
+ * World Primitives
+ *      â†“
+ * Understanding Kernel
+ *
+ *
+ * Detects:
+ *
+ * CORE:
+ * - people
+ * - places
+ * - organizations
+ * - dates
+ * - times
+ * - events
+ * - products
+ * - urls
+ * - emails
+ * - phones
+ * - keywords
+ * - media
+ *
+ * CREATIVE INTELLIGENCE:
+ *
+ * - objects
+ * - creatures
+ * - concepts
+ * - symbols
+ * - worlds
+ * - archetypes
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceEntities
+} from "@qre/contracts";
+
+
+
+
+
+function unique(
+ values:string[]
+){
+
+ return [
+
+  ...new Set(
+
+   values
+
+    .map(
+     value =>
+      value.trim()
+    )
+
+    .filter(Boolean)
+
+  )
+
+ ];
+
+}
+
+
+
+
+
+
+function detectWords(
+
+ text:string,
+
+ words:string[]
+
+){
+
+ return words.filter(
+
+  word =>
+   text.includes(word)
+
+ );
+
+}
+
+
+
+
+
+
+
+
+export function analyzeEntities(
+
+ prompt:string
+
+):ExperienceEntities {
+
+
+const lower =
+ prompt.toLowerCase();
+
+
+
+
+
+const people:string[]=[];
+
+const places:string[]=[];
+
+const organizations:string[]=[];
+
+const dates:string[]=[];
+
+const times:string[]=[];
+
+const events:string[]=[];
+
+const products:string[]=[];
+
+const urls:string[]=[];
+
+const phones:string[]=[];
+
+const emails:string[]=[];
+
+const keywords:string[]=[];
+
+const media:string[]=[];
+
+
+
+/**
+ * CREATIVE INTELLIGENCE
+ */
+
+
+const objects:string[]=[];
+
+const creatures:string[]=[];
+
+const concepts:string[]=[];
+
+const symbols:string[]=[];
+
+const worlds:string[]=[];
+
+const archetypes:string[]=[];
+
+
+
+
+
+
+
+
+//
+// PEOPLE
+//
+
+for(
+ const match of prompt.matchAll(
+
+ /(?:for|by|with|from)\s+([A-Z][A-Za-z0-9.'@-]*(?:\s[A-Z][A-Za-z0-9.'-]*)?)/g
+
+ )
+){
+
+ if(match[1]){
+
+  people.push(
+   match[1]
+  );
+
+ }
+
+}
+
+
+
+
+
+
+
+
+//
+// PLACES
+//
+
+for(
+ const match of prompt.matchAll(
+
+ /(?:at|in|near|inside)\s+([A-Z][A-Za-z\s]+)/g
+
+ )
+){
+
+ if(match[1]){
+
+  places.push(
+   match[1]
+  );
+
+ }
+
+}
+
+
+
+
+
+
+
+
+//
+// EVENTS
+//
+
+events.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "wedding",
+   "concert",
+   "festival",
+   "birthday",
+   "anniversary",
+   "party",
+   "rave",
+   "show"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// PRODUCTS
+//
+
+products.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "qr",
+   "qr code",
+   "tag",
+   "keychain",
+   "sticker",
+   "card",
+   "poster",
+   "shirt",
+   "painting",
+   "album",
+   "book",
+   "collectible"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// MEDIA
+//
+
+media.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "photo",
+   "image",
+   "video",
+   "film",
+   "audio",
+   "music",
+   "voice",
+   "gallery"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+
+//
+// DATES
+//
+
+dates.push(
+
+ ...(prompt.match(
+
+ /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g
+
+ ) ?? [])
+
+);
+
+
+
+
+
+
+
+
+
+
+//
+// URL
+//
+
+urls.push(
+
+ ...(prompt.match(
+
+ /https?:\/\/[^\s]+/gi
+
+ ) ?? [])
+
+);
+
+
+
+
+
+
+
+
+
+
+//
+// EMAIL
+//
+
+emails.push(
+
+ ...(prompt.match(
+
+ /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+
+ ) ?? [])
+
+);
+
+
+
+
+
+
+
+
+
+
+//
+// PHONE
+//
+
+phones.push(
+
+ ...(prompt.match(
+
+ /\+?\d[\d\s()-]{7,}\d/g
+
+ ) ?? [])
+
+);
+
+
+
+
+
+
+
+
+
+//
+// KEYWORDS
+//
+
+keywords.push(
+
+ ...lower
+
+ .split(/\s+/)
+
+ .filter(
+
+  word =>
+   word.length > 5
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// CREATIVE OBJECTS
+//
+
+objects.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "car",
+   "house",
+   "book",
+   "ring",
+   "camera",
+   "garden",
+   "artifact",
+   "key",
+   "painting"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// CREATURES
+//
+
+creatures.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "dog",
+   "cat",
+   "pet",
+   "animal",
+   "wolf",
+   "bird",
+   "dragon"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// CONCEPTS
+//
+
+concepts.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "memory",
+   "love",
+   "legacy",
+   "identity",
+   "freedom",
+   "dream",
+   "hope",
+   "family",
+   "connection"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// SYMBOLS
+//
+
+symbols.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "fire",
+   "moon",
+   "star",
+   "phoenix",
+   "lightning",
+   "crown",
+   "flower"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// WORLDS
+//
+
+worlds.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "fantasy",
+   "cyberpunk",
+   "gothic",
+   "future",
+   "dream",
+   "universe",
+   "realm"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+
+//
+// ARCHETYPES
+//
+
+archetypes.push(
+
+ ...detectWords(
+
+  lower,
+
+  [
+   "hero",
+   "creator",
+   "guardian",
+   "explorer",
+   "artist",
+   "warrior",
+   "guide",
+   "companion"
+  ]
+
+ )
+
+);
+
+
+
+
+
+
+
+
+return {
+
+
+people:
+ unique(people),
+places:
+ unique(places),
+organizations:
+ unique(organizations),
+dates:
+ unique(dates),
+times:
+ unique(times),
+events:
+ unique(events),
+products:
+ unique(products),
+urls:
+ unique(urls),
+emails:
+ unique(emails),
+phones:
+ unique(phones),
+keywords:
+ unique(keywords),
+media:
+ unique(media),
+
+/**
+ * Creative intelligence fields
+ */
+objects:
+ unique(objects),
+creatures:
+ unique(creatures),
+concepts:
+ unique(concepts),
+symbols:
+ unique(symbols),
+worlds:
+ unique(worlds),
+archetypes:
+ unique(archetypes)
+
+};
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\intentAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE INTENT ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Discover canonical semantic intent primitives
+ * from arbitrary human creative expression.
+ *
+ * Input:
+ *   Human creative prompt
+ *
+ * Output:
+ *   ExperienceIntent[]
+ *
+ * Important:
+ *
+ * ExperienceIntent is a canonical semantic vocabulary.
+ * It is NOT the complete representation of human intent.
+ *
+ * Unknown intent is valid.
+ *
+ * The analyzer must NEVER invent "discover" simply
+ * because it failed to recognize the prompt.
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+import type {
+  ExperienceIntent,
+} from "@qre/contracts";
+
+type IntentRule = {
+  intent: ExperienceIntent;
+  signals: string[];
+  weight: number;
+};
+
+const intentRules: IntentRule[] = [
+  {
+    intent: "remember",
+    weight: 1,
+    signals: [
+      "memory",
+      "remember",
+      "memories",
+      "past",
+      "history",
+      "archive",
+      "legacy",
+      "childhood",
+      "old photo",
+      "old photographs",
+      "timeline",
+      "nostalgia",
+      "nostalgic",
+      "tribute",
+      "remembrance",
+      "preserve",
+      "preservation",
+      "heritage",
+      "passed down",
+      "generations",
+    ],
+  },
+
+  {
+    intent: "celebrate",
+    weight: 1,
+    signals: [
+      "birthday",
+      "wedding",
+      "anniversary",
+      "celebrate",
+      "celebration",
+      "party",
+      "milestone",
+      "ceremony",
+      "event",
+      "commemorate",
+      "honor",
+    ],
+  },
+
+  {
+    intent: "serve",
+    weight: 1,
+    signals: [
+      "service",
+      "appointment",
+      "booking",
+      "repair",
+      "groom",
+      "grooming",
+      "clean",
+      "cleaning",
+      "care",
+      "consultation",
+      "therapy",
+      "treatment",
+      "maintenance",
+      "inspection",
+      "service receipt",
+      "invoice",
+      "customer service",
+    ],
+  },
+
+  {
+    intent: "teach",
+    weight: 1,
+    signals: [
+      "learn",
+      "teach",
+      "guide",
+      "education",
+      "educational",
+      "explain",
+      "tutorial",
+      "course",
+      "lesson",
+      "training",
+      "understand",
+      "understanding",
+      "show someone how",
+    ],
+  },
+
+  {
+    intent: "sell",
+    weight: 1,
+    signals: [
+      "buy",
+      "sell",
+      "shop",
+      "product",
+      "offer",
+      "customer",
+      "brand",
+      "business",
+      "store",
+      "purchase",
+      "promotion",
+      "marketing",
+    ],
+  },
+
+  {
+    intent: "discover",
+    weight: 1,
+    signals: [
+      "explore",
+      "discover",
+      "secret",
+      "hidden",
+      "unknown",
+      "quest",
+      "adventure",
+      "journey",
+      "reveal",
+      "uncover",
+      "find out",
+      "curious",
+      "curiosity",
+    ],
+  },
+
+  {
+    intent: "reward",
+    weight: 1,
+    signals: [
+      "reward",
+      "loyalty",
+      "exclusive",
+      "unlock",
+      "vip",
+      "member",
+      "membership",
+      "bonus",
+      "prize",
+      "perk",
+    ],
+  },
+
+  {
+    intent: "protect",
+    weight: 1,
+    signals: [
+      "protect",
+      "protection",
+      "safety",
+      "emergency",
+      "lost",
+      "medical",
+      "secure",
+      "security",
+      "warning",
+      "alert",
+    ],
+  },
+
+  {
+    intent: "connect",
+    weight: 1,
+    signals: [
+      "family",
+      "friend",
+      "friends",
+      "community",
+      "relationship",
+      "together",
+      "share",
+      "sharing",
+      "people",
+      "belong",
+      "belonging",
+      "connection",
+      "connect",
+    ],
+  },
+];
+
+/**
+ * Normalize prompt text without destroying the
+ * original human expression.
+ */
+function normalizePrompt(
+  prompt: string,
+): string {
+  return prompt
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Discover canonical semantic primitives.
+ *
+ * This function intentionally returns [] when there
+ * is insufficient evidence.
+ *
+ * It does NOT manufacture a fallback intent.
+ */
+export function analyzeIntent(
+  prompt: string,
+): ExperienceIntent[] {
+  const text =
+    normalizePrompt(prompt);
+
+  if (!text) {
+    return [];
+  }
+
+  const scores =
+    new Map<
+      ExperienceIntent,
+      number
+    >();
+
+  for (const rule of intentRules) {
+    let score = 0;
+
+    for (const signal of rule.signals) {
+      if (text.includes(signal)) {
+        score += rule.weight;
+      }
+    }
+
+    if (score > 0) {
+      scores.set(
+        rule.intent,
+        score,
+      );
+    }
+  }
+
+  return [
+    ...scores.entries(),
+  ]
+    .sort(
+      (a, b) =>
+        b[1] - a[1],
+    )
+    .map(
+      ([intent]) =>
+        intent,
+    );
+}
+
+/**
+ * Preserve the human's actual intention rather than
+ * collapsing it into the canonical vocabulary.
+ */
+export function analyzeHumanIntent(
+  prompt: string,
+) {
+  const expression =
+    prompt.trim();
+
+  if (!expression) {
+    return {
+      expression: "",
+      motivations: [],
+      desiredOutcome: [],
+      evidence: [],
+      unresolved: [],
+    };
+  }
+
+  return {
+    expression,
+
+    /**
+     * These remain open until later cognitive layers
+     * have enough evidence to derive them.
+     */
+    motivations: [],
+
+    desiredOutcome: [],
+
+    /**
+     * The prompt itself is the primary evidence.
+     */
+    evidence: [expression],
+
+    unresolved: [],
+  };
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\memoryAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE MEMORY ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Detect temporal and preservation signals
+ * inside human experience requests.
+ *
+ *
+ * Input:
+ *
+ * Human Prompt
+ *
+ *
+ * Output:
+ *
+ * MemoryUnderstanding
+ *
+ *
+ * Detects:
+ *
+ * - past memories
+ * - present moments
+ * - future intentions
+ * - legacy
+ * - replay
+ * - preservation
+ * - time capsules
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - build timelines
+ * - store memories
+ * - create experiences
+ * - execute runtime
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *    â†“
+ * MemoryAnalyzer
+ *    â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+import type {
+  MemoryUnderstanding
+} from "@qre/contracts";
+
+
+
+
+
+
+
+export function analyzeMemory(
+
+prompt:string
+
+):MemoryUnderstanding {
+
+
+
+const text =
+
+prompt.toLowerCase();
+
+
+
+
+
+
+
+const past =
+
+/past|history|childhood|memory|remember|old|nostalgia/
+
+.test(text);
+
+
+
+
+
+
+
+const present =
+
+/moment|today|now|live|current/
+
+.test(text);
+
+
+
+
+
+
+
+const future =
+
+/future|goal|dream|wish|plan|vision/
+
+.test(text);
+
+
+
+
+
+
+
+const legacy =
+
+/legacy|tribute|family|ancestor|inherit/
+
+.test(text);
+
+
+
+
+
+
+
+const replay =
+
+/replay|again|timeline|archive|restore/
+
+.test(text);
+
+
+
+
+
+
+
+const preservation =
+
+/archive|save|preserve|keep|record|capture/
+
+.test(text);
+
+
+
+
+
+
+
+const timeCapsule =
+
+/time capsule|forever|future generations/
+
+.test(text);
+
+
+
+
+
+
+
+
+let mode:
+
+MemoryUnderstanding["mode"] =
+
+"none";
+
+
+
+
+
+
+
+if(timeCapsule){
+
+ mode = "time_capsule";
+
+}
+
+else if(legacy){
+
+ mode = "legacy";
+
+}
+
+else if(replay){
+
+ mode = "replay";
+
+}
+
+else if(preservation){
+
+ mode = "archive";
+
+}
+
+else if(past){
+
+ mode = "timeline";
+
+}
+
+
+
+
+
+
+
+return {
+
+
+past,
+
+
+present,
+
+
+future,
+
+
+legacy,
+
+
+replay,
+
+
+timeCapsule,
+
+
+mode
+
+
+};
+
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\relationshipAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE RELATIONSHIP ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ * Build semantic relationships between
+ * extracted experience entities.
+ *
+ *
+ * Input:
+ *
+ * Prompt context
+ * +
+ * ExperienceEntities
+ *
+ *
+ * Output:
+ *
+ * ExperienceRelationship[]
+ *
+ *
+ * Determines:
+ *
+ * - person relationships
+ * - location relationships
+ * - time relationships
+ * - media relationships
+ * - product relationships
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - store data
+ * - access database
+ * - control runtime
+ *
+ *
+ * Pipeline:
+ *
+ * EntityAnalyzer
+ *       â†“
+ * RelationshipAnalyzer
+ *       â†“
+ * Understanding Kernel
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+
+  ExperienceRelationship,
+
+  ExperienceEntities
+
+} from "@qre/contracts";
+
+
+
+
+
+
+export function analyzeRelationships(
+
+  prompt:string,
+
+  entities:ExperienceEntities
+
+):ExperienceRelationship[] {
+
+
+
+const relationships:
+
+ExperienceRelationship[] = [];
+
+
+
+
+
+
+const subject =
+
+entities.events[0]
+
+??
+
+"experience";
+
+
+
+
+
+
+
+/**
+ * PEOPLE
+ *
+ * Existing contract:
+ * celebrates
+ * created_by
+ * shared_with
+ */
+
+for(const person of entities.people){
+
+
+relationships.push({
+
+subject:person,
+
+predicate:"shared_with",
+
+object:subject,
+
+confidence:.75
+
+});
+
+
+}
+
+
+
+
+
+
+
+
+/**
+ * LOCATIONS
+ */
+
+for(const place of entities.places){
+
+
+relationships.push({
+
+subject,
+
+predicate:"located_at",
+
+object:place,
+
+confidence:.85
+
+});
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * TIME
+ *
+ * Existing contract:
+ * performed_at
+ * remembered_at
+ */
+
+for(const date of entities.dates){
+
+
+relationships.push({
+
+subject,
+
+predicate:"performed_at",
+
+object:date,
+
+confidence:.8
+
+});
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * MEDIA
+ *
+ * Existing contract:
+ * belongs_to
+ */
+
+if(
+
+entities.media.length
+
+){
+
+
+relationships.push({
+
+subject:"media",
+
+predicate:"belongs_to",
+
+object:subject,
+
+confidence:.7
+
+});
+
+
+}
+
+
+
+
+
+
+
+
+
+/**
+ * PRODUCTS / OBJECTS
+ */
+
+for(const product of entities.products){
+
+
+relationships.push({
+
+subject,
+
+predicate:"belongs_to",
+
+object:product,
+
+confidence:.7
+
+});
+
+
+}
+
+
+
+
+
+
+
+
+return relationships;
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\analyzers\worldAnalyzer.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE WORLD ANALYZER
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Determine which human experience
+ * domain(s) a prompt belongs to.
+ *
+ *
+ * Input:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ *
+ *
+ * Output:
+ *
+ * WorldUnderstanding
+ *
+ *
+ * Detects:
+ *
+ * - memory_world
+ * - relationship_world
+ * - commerce_world
+ * - discovery_world
+ * - journey_world
+ *
+ *
+ * This analyzer does NOT:
+ *
+ * - create experiences
+ * - execute flows
+ * - select templates
+ * - run runtime systems
+ *
+ *
+ * Pipeline:
+ *
+ * Understanding Layers
+ *        â†“
+ * WorldAnalyzer
+ *        â†“
+ * ExperienceUnderstanding
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+
+
+
+import type {
+
+  WorldUnderstanding,
+
+  EmotionUnderstanding,
+
+  MemoryUnderstanding
+
+} from "@qre/contracts"
+
+
+
+import type {
+
+  ExperienceIntent,
+
+  ExperienceEntities
+
+} from "@qre/contracts";
+
+
+
+
+
+
+
+
+
+export function analyzeWorld(
+
+input:{
+
+ intent:ExperienceIntent[];
+
+ entities:ExperienceEntities;
+
+ emotions:EmotionUnderstanding;
+
+ memory:MemoryUnderstanding;
+
+}
+
+):WorldUnderstanding {
+
+
+
+const domains =
+
+new Set<string>();
+
+
+
+
+
+
+
+
+//
+// DEFAULT HUMAN EXPERIENCE
+//
+
+domains.add(
+
+"journey_world"
+
+);
+
+
+
+
+
+
+
+
+
+//
+// MEMORY WORLD
+//
+
+if(
+
+ input.memory.past ||
+
+ input.memory.legacy ||
+
+ input.memory.replay ||
+
+ input.memory.timeCapsule
+
+){
+
+ domains.add(
+
+ "memory_world"
+
+ );
+
+}
+
+
+
+
+
+
+
+
+
+//
+// RELATIONSHIP WORLD
+//
+
+if(
+
+ input.emotions.emotions.includes(
+
+ "love"
+
+ )
+
+){
+
+ domains.add(
+
+ "relationship_world"
+
+ );
+
+}
+
+
+
+
+
+
+
+
+
+//
+// DISCOVERY WORLD
+//
+
+if(
+
+ input.emotions.emotions.includes(
+
+ "wonder"
+
+ )
+
+){
+
+ domains.add(
+
+ "discovery_world"
+
+ );
+
+}
+
+
+
+
+
+
+
+
+
+//
+// COMMERCE WORLD
+//
+
+if(
+
+ input.entities.products.length
+
+){
+
+ domains.add(
+
+ "commerce_world"
+
+ );
+
+}
+
+//
+// INTENT SIGNALS
+//
+
+for(
+
+const intent of input.intent
+
+){
+
+
+switch(intent){
+
+
+case "connect":
+
+domains.add(
+"relationship_world"
+);
+
+break;
+
+
+
+case "discover":
+
+domains.add(
+"discovery_world"
+);
+
+break;
+
+
+
+case "remember":
+
+domains.add(
+"memory_world"
+);
+
+break;
+
+
+
+case "sell":
+
+domains.add(
+"commerce_world"
+);
+
+break;
+
+
+
+case "serve":
+
+domains.add(
+"service_world"
+);
+
+break;
+
+
+
+case "celebrate":
+
+domains.add(
+"community_world"
+);
+
+break;
+
+
+
+case "teach":
+
+domains.add(
+"culture_world"
+);
+
+break;
+
+
+
+case "reward":
+
+domains.add(
+"commerce_world"
+);
+
+break;
+
+
+
+case "protect":
+
+domains.add(
+"community_world"
+);
+
+break;
+
+
+}
+
+
+}
+
+
+const resolved =
+
+[
+
+...domains
+
+];
+
+
+
+return {
+
+
+domains:
+
+resolved as WorldUnderstanding["domains"],
+
+
+
+primary:
+
+resolved[0] as WorldUnderstanding["primary"],
+
+
+
+confidence:
+
+Math.min(
+
+1,
+
+0.5 + resolved.length * 0.1
+
+)
+
+
+
+};
+
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\cognition.ts
+============================================================
+
+import {
+  understandExperience,
+} from "./understanding/index.js";
+
+import {
+  buildMeaningContext,
+} from "./meaningEngines/meaningContextEngine.js";
+
+import type {
+  ExperienceMeaningContext,
+  ExperienceUnderstanding,
+} from "@qre/contracts";
+
+
+export interface CognitionResult {
+  understanding: ExperienceUnderstanding;
+  meaningContext: ExperienceMeaningContext;
+}
+
+
+export function understand(
+  prompt: string
+): CognitionResult {
+
+  const understanding =
+    understandExperience(prompt);
+
+
+  const meaningContext =
+    buildMeaningContext(
+      understanding
+    );
+
+
+  return {
+    understanding,
+    meaningContext,
+  };
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\compilerMind.ts
+============================================================
+import type {
+  CompilerMind as CompilerMindState
+} from "@qre/contracts";
+
+
+export interface CompilerMindInput {
+  state: CompilerMindState;
+}
+
+
+export class CompilerMindEngine {
+
+  evolve(
+    input: CompilerMindInput
+  ): CompilerMindState {
+
+  return {
+  ...input.state,
+  prompt: input.state.prompt
+};
+
+  }
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\index.ts
+============================================================
+export * from "./cognition.js";
+export * from "./compilerMind.js";
+export * from "./understanding.js";
+export * from "./meaning.js";
+
+export {
+  understandExperience
+} from "./understanding/index.js";
+
+export {
+  buildMeaningContext
+} from "./meaningEngines/meaningContextEngine.js";
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\meaning.ts
+============================================================
+import type {
+  CompilerMind
+} from "@qre/contracts";
+
+
+export function buildMeaningContext(
+  mind: CompilerMind
+): CompilerMind {
+
+  return {
+    ...mind,
+    meaningContext: {
+      ...mind.meaningContext
+    }
+  };
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\meaningEngines\meaningContextEngine.ts
+============================================================
+
+/**
+ * =====================================================
+ * QRE EXPERIENCE MEANING CONTEXT ENGINE
+ * =====================================================
+ *
+ * Responsibility:
+ *
+ * Convert analyzed signals into higher-level
+ * human creative meaning.
+ *
+ *
+ * Pipeline:
+ *
+ * Prompt
+ *   â†“
+ * Analyzers
+ *   â†“
+ * Meaning Context Engine
+ *   â†“
+ * ExperienceMeaningContext
+ *   â†“
+ * Experience Genome
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
+
+import type {
+  ExperienceMeaningContext,
+  ExperienceUnderstanding,
+} from "@qre/contracts";
+
+
+
+
+
+const intentMeanings:
+
+Record<string, {
+
+  theme:string;
+
+  meaning:string;
+
+}> = {
+
+
+ remember:{
+  theme:"memory_preservation",
+  meaning:"human_history_matters"
+ },
+
+
+ celebrate:{
+  theme:"milestone",
+  meaning:"shared_human_moment"
+ },
+
+
+ discover:{
+  theme:"exploration",
+  meaning:"curiosity_driven_experience"
+ },
+
+
+ connect:{
+  theme:"human_connection",
+  meaning:"relationship_strengthening"
+ },
+
+
+ sell:{
+  theme:"value_exchange",
+  meaning:"commercial_relationship"
+ },
+
+
+ reward:{
+  theme:"recognition",
+  meaning:"exclusive_participation"
+ },
+
+
+ teach:{
+  theme:"knowledge_transfer",
+  meaning:"understanding_growth"
+ },
+
+
+ protect:{
+  theme:"security",
+  meaning:"care_and_trust"
+ }
+
+
+};
+
+
+
+
+
+
+const emotionDirections:
+
+Record<string,string> = {
+
+
+ nostalgia:
+ "cinematic_memory",
+
+
+ wonder:
+ "mystery_and_discovery",
+
+
+ love:
+ "emotional_intimacy",
+
+
+ joy:
+ "playful_energy",
+
+
+ fear:
+ "dark_atmosphere",
+
+
+ trust:
+ "confidence_and_safety",
+
+
+ excitement:
+ "high_energy_engagement"
+
+};
+
+function resolveEmotions(
+  understanding: ExperienceUnderstanding
+): string[] {
+
+  const emotions:any =
+    understanding.emotions;
+
+
+  if(!emotions){
+
+    return [];
+
+  }
+
+
+  if(Array.isArray(emotions)){
+
+    return emotions;
+
+  }
+
+
+  return [
+
+    ...(emotions.primary ?? []),
+
+    ...(emotions.secondary ?? [])
+
+  ];
+
+}
+
+
+
+
+
+
+function resolveWorld(
+
+ understanding:ExperienceUnderstanding
+
+):string {
+
+
+ const world:any =
+   understanding.world;
+
+
+ if(!world){
+
+  return "";
+
+ }
+
+
+ if(typeof world === "string"){
+
+  return world;
+
+ }
+
+
+ return (
+
+  world.name ??
+
+  world.type ??
+
+  world.domain ??
+
+  ""
+
+ );
+
+}
+
+
+
+
+
+
+
+
+export function buildMeaningContext(
+
+ understanding:ExperienceUnderstanding
+
+):ExperienceMeaningContext {
+
+
+
+const themes = new Set<string>();
+
+const meanings = new Set<string>();
+
+const creativeDirection = new Set<string>();
+
+const emotionalGravity = new Set<string>();
+
+const humanDesires = new Set<string>();
+
+const symbolicForces = new Set<string>();
+
+const narrativePotential = new Set<string>();
+
+
+
+
+
+//
+// INTENT â†’ HUMAN MEANING
+//
+
+for(
+
+ const intent of understanding.intent
+
+){
+
+
+ const mapping =
+
+ intentMeanings[intent];
+
+
+ if(mapping){
+
+
+  themes.add(
+   mapping.theme
+  );
+
+
+  meanings.add(
+   mapping.meaning
+  );
+
+
+ }
+
+
+
+ switch(intent){
+
+
+  case "remember":
+
+   humanDesires.add(
+    "preserve_meaning"
+   );
+
+   symbolicForces.add(
+    "legacy"
+   );
+
+   narrativePotential.add(
+    "memory_journey"
+   );
+
+  break;
+
+
+
+  case "discover":
+
+   humanDesires.add(
+    "understand_the_unknown"
+   );
+
+   symbolicForces.add(
+    "exploration"
+   );
+
+   narrativePotential.add(
+    "revelation_story"
+   );
+
+  break;
+
+
+
+  case "connect":
+
+   humanDesires.add(
+    "strengthen_relationships"
+   );
+
+   symbolicForces.add(
+    "connection"
+   );
+
+  break;
+
+
+
+  case "celebrate":
+
+   humanDesires.add(
+    "honor_milestones"
+   );
+
+   symbolicForces.add(
+    "achievement"
+   );
+
+  break;
+
+
+
+  case "protect":
+
+   humanDesires.add(
+    "create_security"
+   );
+
+   symbolicForces.add(
+    "trust"
+   );
+
+  break;
+
+
+ }
+
+
+}
+
+
+
+
+
+
+//
+// EMOTION â†’ CREATIVE LANGUAGE
+//
+
+for(
+
+ const emotion of resolveEmotions(
+  understanding
+ )
+
+){
+
+
+ const direction =
+
+ emotionDirections[emotion];
+
+
+ if(direction){
+
+  creativeDirection.add(
+   direction
+  );
+
+ }
+
+
+
+ switch(emotion){
+
+
+  case "nostalgia":
+
+   emotionalGravity.add(
+    "memory_and_time"
+   );
+
+   narrativePotential.add(
+    "reflection"
+   );
+
+  break;
+
+
+
+  case "wonder":
+
+   emotionalGravity.add(
+    "unknown_and_discovery"
+   );
+
+   narrativePotential.add(
+    "exploration"
+   );
+
+  break;
+
+
+
+  case "love":
+
+   emotionalGravity.add(
+    "human_connection"
+   );
+
+   humanDesires.add(
+    "belonging"
+   );
+
+  break;
+
+
+
+  case "joy":
+
+   emotionalGravity.add(
+    "celebration_energy"
+   );
+
+   humanDesires.add(
+    "shared_experience"
+   );
+
+  break;
+
+
+
+  case "trust":
+
+   emotionalGravity.add(
+    "safety_and_confidence"
+   );
+
+   humanDesires.add(
+    "reliability"
+   );
+
+  break;
+
+
+
+  case "excitement":
+
+   emotionalGravity.add(
+    "energy_and_momentum"
+   );
+
+  break;
+
+
+ }
+
+
+}
+
+
+
+
+
+
+
+
+//
+// WORLD â†’ CREATIVE CONTEXT
+//
+
+switch(
+
+ resolveWorld(
+  understanding
+ )
+
+){
+
+
+ case "memory_world":
+
+  creativeDirection.add(
+   "heritage_storytelling"
+  );
+
+  symbolicForces.add(
+   "legacy"
+  );
+
+ break;
+
+
+
+ case "discovery_world":
+
+  creativeDirection.add(
+   "exploration_journey"
+  );
+
+  symbolicForces.add(
+   "curiosity"
+  );
+
+ break;
+
+
+
+ case "relationship_world":
+
+  creativeDirection.add(
+   "human_centered_design"
+  );
+
+  symbolicForces.add(
+   "belonging"
+  );
+
+ break;
+
+
+
+ case "commerce_world":
+
+  creativeDirection.add(
+   "trust_driven_experience"
+  );
+
+  symbolicForces.add(
+   "value_exchange"
+  );
+
+ break;
+
+
+}
+
+
+
+
+
+
+
+
+return {
+
+
+ themes:
+
+ [...themes],
+
+
+ meanings:
+
+ [...meanings],
+
+
+ creativeDirection:
+
+ [...creativeDirection],
+
+
+ emotionalGravity:
+
+ [...emotionalGravity],
+
+
+ humanDesires:
+
+ [...humanDesires],
+
+
+ symbolicForces:
+
+ [...symbolicForces],
+
+
+ narrativePotential:
+
+ [...narrativePotential]
+
+
+};
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\meaningEngines\scoreEngine.ts
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING SCORE ENGINE
+ * =====================================================
+ *
+ * Measures confidence of understanding layers.
+ *
+ * This does NOT discover meaning.
+ *
+ * It evaluates:
+ *
+ * Intent
+ * Entities
+ * Emotion
+ * Memory
+ * Audience
+ * World
+ * DNA
+ *
+ * Future:
+ * adaptive learning weights
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ *
+ * =====================================================
+ */
+
+
+export type UnderstandingScoreInput = {
+
+ intent: unknown[];
+
+ entities: unknown;
+
+ relationships: unknown[];
+
+ emotions: unknown;
+
+ memory: unknown;
+
+ audience: unknown;
+
+ world: unknown;
+
+ dna: unknown;
+
+};
+
+
+
+
+
+export type CalculatedUnderstandingScores = {
+
+ semantic:number;
+
+ entity:number;
+
+ relationship:number;
+
+ emotional:number;
+
+ memory:number;
+
+ world:number;
+
+ dna:number;
+
+ overall:number;
+
+};
+
+
+
+
+
+
+function signalScore(
+ value:unknown
+):number {
+
+
+if(!value){
+ return 0;
+}
+
+
+
+if(
+Array.isArray(value)
+){
+
+ return Math.min(
+ 1,
+ value.length / 5
+ );
+
+}
+
+
+
+return .8;
+
+}
+
+
+
+
+
+
+
+
+export function calculateUnderstandingScores(
+
+input:UnderstandingScoreInput
+
+):CalculatedUnderstandingScores {
+
+
+
+const semantic =
+ signalScore(input.intent);
+
+
+
+const entity =
+ signalScore(input.entities);
+
+
+
+const relationship =
+ signalScore(input.relationships);
+
+
+
+const emotional =
+ signalScore(input.emotions);
+
+
+
+const memory =
+ signalScore(input.memory);
+
+
+
+const world =
+ signalScore(input.world);
+
+
+
+const dna =
+ signalScore(input.dna);
+
+
+
+
+
+const overall =
+(
+ semantic +
+ entity +
+ relationship +
+ emotional +
+ memory +
+ world +
+ dna
+)
+/7;
+
+
+
+
+
+
+return {
+
+ semantic,
+
+ entity,
+
+ relationship,
+
+ emotional,
+
+ memory,
+
+ world,
+
+ dna,
+
+ overall
+
+};
+
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\understanding.ts
+============================================================
+import type {
+  CompilerMind
+} from "@qre/contracts";
+
+
+export function understandPrompt(
+  mind: CompilerMind
+): CompilerMind {
+
+  return {
+    ...mind,
+    understanding: {
+      ...mind.understanding
+    }
+  };
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\understanding\ExperienceUnderstandingKernel.ts
+============================================================
+/**
+ * =====================================================
+ * QRE EXPERIENCE UNDERSTANDING KERNEL
+ * =====================================================
+ *
+ * Human Expression
+ *        â†“
+ * Semantic Signal Extraction
+ *        â†“
+ * Experience Understanding
+ *
+ *
+ * The first intelligence layer.
+ *
+ * This layer does not create.
+ * It does not design.
+ * It does not choose outcomes.
+ *
+ * It discovers the hidden structure
+ * inside human intent.
+ *
+ *
+ * NO DATABASE
+ * NO RUNTIME
+ * NO INDUSTRY LOGIC
+ * NO TEMPLATES
+ *
+ * =====================================================
+ */
+
+
+import {
+  analyzeIntent,
+  analyzeHumanIntent,
+} from "../analyzers/intentAnalyzer.js";
+
+
+import {
+  analyzeEntities
+} from "../analyzers/entityAnalyzer.js";
+
+
+import {
+  analyzeRelationships
+} from "../analyzers/relationshipAnalyzer.js";
+
+
+import {
+  analyzeEmotion
+} from "../analyzers/emotionAnalyzer.js";
+
+
+import {
+  analyzeMemory
+} from "../analyzers/memoryAnalyzer.js";
+
+
+import {
+  analyzeAudience
+} from "../analyzers/audienceAnalyzer.js";
+
+
+import {
+  analyzeWorld
+} from "../analyzers/worldAnalyzer.js";
+
+
+import {
+  analyzeDNA
+} from "../analyzers/dnaAnalyzer.js";
+
+
+import {
+  calculateConfidence
+} from "../analyzers/confidenceAnalyzer.js";
+
+import type {
+
+  ExperienceUnderstanding,
+  HumanDesireUnderstanding,
+  SensoryUnderstanding,
+  CreationPotentialUnderstanding
+
+} from "@qre/contracts";
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * HUMAN DESIRE MODEL
+ *
+ * Discovers motivation signals.
+ *
+ * Does not classify by keywords.
+ *
+ * =====================================================
+ */
+
+
+function analyzeDesire(
+
+  prompt:string
+
+):HumanDesireUnderstanding {
+
+
+  return {
+
+
+    desires:[
+
+      "expression"
+
+    ],
+
+
+
+    motivations:[
+
+      "meaning creation"
+
+    ],
+
+
+
+    goals:[
+
+      "transform intention into experience"
+
+    ],
+
+
+
+    fears:[],
+
+
+
+    aspirations:[
+
+      "create something valuable"
+
+    ]
+
+
+  };
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * SENSORY INTELLIGENCE
+ *
+ * Meaning â†’ perception signals
+ *
+ * =====================================================
+ */
+
+
+function analyzeSensory(
+
+  emotions:any,
+
+  dna:any,
+
+  world:any
+
+):SensoryUnderstanding {
+
+
+ return {
+
+
+  visual:
+
+   dna.traits
+   ??
+   [],
+
+
+
+  audio:
+
+   emotions.emotions
+   ??
+   [],
+
+
+
+  physical:
+
+   [],
+
+
+
+  environmental:
+
+   world.domains
+   ??
+   []
+
+
+ };
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * CREATION POSSIBILITY FIELD
+ *
+ * Defines potential without deciding outcome.
+ *
+ * =====================================================
+ */
+
+
+function analyzePotential()
+
+:CreationPotentialUnderstanding {
+
+
+ return {
+
+
+  possibilities:[],
+
+
+  constraints:[],
+
+
+  opportunities:[]
+
+
+ };
+
+
+}
+
+
+
+
+
+/**
+ * =====================================================
+ *
+ * EXPERIENCE UNDERSTANDING PIPELINE
+ *
+ * The semantic foundation.
+ *
+ * =====================================================
+ */
+
+
+export function understandExperience(
+
+ prompt:string
+
+):ExperienceUnderstanding {
+
+
+ if(!prompt.trim()){
+
+  throw new Error(
+   "Cannot understand empty experience."
+  );
+
+ }
+
+
+const intent =
+  analyzeIntent(prompt);
+
+const humanIntent =
+  analyzeHumanIntent(prompt);
+
+
+
+
+ const entities =
+
+  analyzeEntities(prompt);
+
+
+
+
+ const relationships =
+
+  analyzeRelationships(
+
+   prompt,
+
+   entities
+
+  );
+
+
+
+
+ const emotions =
+
+  analyzeEmotion(prompt);
+
+
+
+
+ const memory =
+
+  analyzeMemory(prompt);
+
+
+
+
+ const audience =
+
+  analyzeAudience(prompt);
+
+
+
+
+ const world =
+
+  analyzeWorld({
+
+   intent,
+
+   entities,
+
+   emotions,
+
+   memory
+
+  });
+
+
+
+
+ const dna =
+
+  analyzeDNA({
+
+   intent,
+
+   emotions,
+
+   world
+
+  });
+
+
+
+
+ const desire =
+
+  analyzeDesire(
+
+   prompt
+
+  );
+
+
+
+
+ const sensory =
+
+  analyzeSensory(
+
+   emotions,
+
+   dna,
+
+   world
+
+  );
+
+
+
+
+ const potential =
+
+  analyzePotential();
+
+
+
+
+
+ const confidence =
+
+  calculateConfidence({
+
+    intent,
+
+    entities,
+
+    relationships,
+
+    emotions,
+
+    memory,
+
+    audience,
+
+    world,
+
+    dna
+
+  });
+
+
+
+
+
+ return {
+
+
+  prompt,
+
+
+  intent,
+   
+  humanIntent,
+
+  desire,
+
+
+  sensory,
+
+
+  potential,
+
+
+  entities,
+
+
+  relationships,
+
+
+  emotions,
+
+
+  memory,
+
+
+  audience,
+
+
+  world,
+
+
+  dna,
+
+
+
+  scores:{
+
+
+   semantic:
+    confidence,
+
+
+
+   entity:
+    confidence,
+
+
+
+   relationship:
+    confidence,
+
+
+
+   emotional:
+    confidence,
+
+
+
+   memory:
+    confidence,
+
+
+
+   world:
+    confidence,
+
+
+
+   dna:
+    confidence,
+
+
+
+   overall:
+    confidence
+
+
+  },
+
+
+
+  confidence
+
+
+ };
+
+
+}
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\src\understanding\index.ts
+============================================================
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ *
+ * Public exports only.
+ *
+ * =====================================================
+ */
+/**
+ * =====================================================
+ * QRE UNDERSTANDING BOUNDARY
+ * =====================================================
+ */
+
+export {
+  understandExperience,
+} from "./ExperienceUnderstandingKernel.js";
+
+
+export type {
+  ExperienceUnderstanding,
+} from "@qre/contracts"
+
+
+============================================================
+FILE: C:\dev\QRE.3\packages\cognition\tsconfig.json
+============================================================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "rootDir": "src",
+    "outDir": "dist",
+
+    "declaration": true,
+    "declarationMap": true,
+
+    "composite": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+
+  "include": [
+    "src"
+  ],
+
+  "exclude": [
+    "dist",
+    "node_modules"
+  ],
+
+  "references": [
+    {
+      "path": "../contracts"
+    }
+  ]
+}

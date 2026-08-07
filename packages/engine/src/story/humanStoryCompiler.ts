@@ -2,180 +2,279 @@ import type {
   ExperienceNarrative,
   ExperienceGenome,
   HumanExperienceStory,
-  ExperienceWorld
+  ExperienceWorld,
 } from "@qre/contracts";
 
 import {
-  resolveHumanStoryArchetype
-} from "./humanStoryArchetypeResolver.js";
-
-import {
-  resolveHumanStoryArc
-} from "./humanStoryArcResolver.js";
-
-import {
-  createHumanExpressions
-} from "./humanStoryExpressionEngine.js";
-
-import {
-  resolveHumanMeaning
+  resolveHumanMeaning,
 } from "./humanMeaning.js";
 
 
-function resolveHumanEmotion(
-  genome: ExperienceGenome
-): string[] {
-
-  return [
-    ...genome.emotions,
-    ...genome.tone,
-    ...genome.themes
-  ]
-  .filter(Boolean)
-  .filter(
-    (value,index,array)=>
-      array.indexOf(value) === index
-  );
-
-}
-
-
-
-function createHumanTitle(
-  entity:string
-):string {
-
-  return `${entity}'s Journey`;
-
-}
-
-
-
-function createDramaticOpening(
-  entity:string,
-  meaning:string
-):string {
-
-  return (
-    `${entity} arrived expecting an ordinary moment, ` +
-    `but something deeper was waiting to unfold. ` +
-    `${meaning}.`
-  );
-
-}
-
-
-
-function createDramaticClosing(
-  entity:string,
-  meaning:string
-):string {
-
-  return (
-    `${entity} left with more than a memory. ` +
-    `The moment became part of a story about ${meaning}.`
-  );
-
-}
-
+/**
+ * =====================================================
+ *
+ * HUMAN STORY COMPILER
+ *
+ * Converts cognitive experience intelligence
+ * into human narrative.
+ *
+ * This layer does not invent.
+ * It reveals meaning already discovered
+ * by the compiler.
+ *
+ * No templates.
+ * No archetype selection.
+ * No fixed journeys.
+ *
+ * =====================================================
+ */
 
 
 export function compileHumanStory(
 
+  narrative: ExperienceNarrative,
+
+  genome: ExperienceGenome,
+
+  world: ExperienceWorld
+
+): HumanExperienceStory {
+
+
+  const meaning =
+    resolveHumanMeaning(
+      genome,
+      world
+    );
+
+
+
+  const moments =
+    createNarrativeMoments(
+      meaning,
+      narrative,
+      genome
+    );
+
+
+
+  return {
+
+    title:
+      createTitle(
+        meaning.subject
+      ),
+
+
+    opening:
+      createOpening(
+        meaning
+      ),
+
+
+    moments,
+
+
+  };
+
+}
+
+
+
+
+
+function createTitle(
+
+  subject:string
+
+):string {
+
+
+  return (
+
+    `${subject}: A Story Still Becoming`
+
+  );
+
+}
+
+
+
+
+
+function createOpening(
+
+  meaning:ReturnType<typeof resolveHumanMeaning>
+
+):string {
+
+
+  return (
+
+    `${meaning.subject} began inside ${meaning.ordinaryReality}. ` +
+
+    `Beneath the surface was a deeper desire for ${meaning.hiddenDesire}. ` +
+
+    `The experience revealed ${meaning.transformation}.`
+
+  );
+
+}
+
+
+
+
+
+function createNarrativeMoments(
+
+  meaning:ReturnType<typeof resolveHumanMeaning>,
+
   narrative:ExperienceNarrative,
 
-  genome:ExperienceGenome,
+  genome:ExperienceGenome
 
-  world:ExperienceWorld
-
-):HumanExperienceStory {
+){
 
 
-const storyContext =
-resolveHumanStoryArchetype(
-  genome
-);
+  const moments = [
+
+    {
+
+      phase:
+        "Beginning",
 
 
-
-const meaning =
-resolveHumanMeaning(
-  genome,
-  world
-);
+      purpose:
+        "establish reality",
 
 
+      text:
 
-const storyArc =
-resolveHumanStoryArc(
-  storyContext
-);
+        `${meaning.subject} started from ${meaning.ordinaryReality}, ` +
 
+        `carrying the possibility of something more.`
 
-
-const entity =
-storyContext.entity;
+    },
 
 
+    {
 
-const emotion =
-resolveHumanEmotion(
-  genome
-);
-
+      phase:
+        "Discovery",
 
 
-const moments =
-createHumanExpressions(
-  storyContext,
-  storyArc
-)
-.map(
-  moment => ({
-
-    text:
-      moment.text,
-
-    emotion,
-
-    meaning:
-      meaning.hiddenMeaning,
-
-    movement:
-      meaning.emotionalMovement,
-
-    truth:
-      meaning.storyTruth
-
-  })
-);
+      purpose:
+        "reveal meaning",
 
 
+      text:
 
-return {
+        `Through the experience, ${meaning.subject} encountered ` +
 
+      meaning.emotionalTension
 
-title:
-  createHumanTitle(
-    entity
-  ),
-
+    },
 
 
-opening:
+    {
 
-  createDramaticOpening(
-    entity,
-    meaning.hiddenMeaning
-  ),
+      phase:
+        "Transformation",
+
+
+      purpose:
+        "show change",
+
+
+      text:
+
+        `What began as a simple moment became ${meaning.transformation}.`
+
+    },
+
+
+    {
+
+      phase:
+        "Memory",
+
+
+      purpose:
+        "create lasting meaning",
+
+
+      text:
+
+        `${meaning.memoryReason}.`
+
+    }
+
+
+  ];
 
 
 
-moments,
+  return moments.map(
+
+    moment => ({
+
+      text:
+        moment.text,
+
+
+      emotion:
+        discoverEmotion(
+          genome
+        ),
+
+
+      meaning:
+        meaning.hiddenMeaning,
+
+
+      movement:
+        meaning.emotionalMovement,
+
+
+      truth:
+        meaning.storyTruth,
+
+
+    })
+
+  );
+
+}
 
 
 
-};
 
+
+function discoverEmotion(
+
+  genome:ExperienceGenome
+
+):string[]{
+
+
+  return [
+
+    ...genome.emotions,
+
+    ...genome.tone,
+
+    ...genome.themes,
+
+  ]
+
+  .filter(Boolean)
+
+  .filter(
+
+    (value,index,array)=>
+
+      array.indexOf(value)===index
+
+  );
 
 }

@@ -4,38 +4,25 @@
  * =====================================================
  *
  * Responsibility:
- * Understand WHY a human wants an experience.
+ *
+ * Discover canonical semantic intent primitives
+ * from arbitrary human creative expression.
  *
  * Input:
- * Human creative prompt
+ *   Human creative prompt
  *
  * Output:
- * ExperienceIntent[]
+ *   ExperienceIntent[]
  *
- * Answers:
+ * Important:
  *
- * "What does the human want?"
+ * ExperienceIntent is a canonical semantic vocabulary.
+ * It is NOT the complete representation of human intent.
  *
+ * Unknown intent is valid.
  *
- * This analyzer does NOT:
- *
- * - extract entities
- * - analyze emotions
- * - classify worlds
- * - create DNA
- * - build flows
- * - execute runtime
- * - access database
- *
- *
- * Pipeline:
- *
- * Prompt
- *   ↓
- * IntentAnalyzer
- *   ↓
- * Understanding Kernel
- *
+ * The analyzer must NEVER invent "discover" simply
+ * because it failed to recognize the prompt.
  *
  * NO DATABASE
  * NO RUNTIME
@@ -44,138 +31,110 @@
  * =====================================================
  */
 
-
 import type {
-  ExperienceIntent
+  ExperienceIntent,
 } from "@qre/contracts";
 
-
-
-
 type IntentRule = {
-
   intent: ExperienceIntent;
-
   signals: string[];
-
   weight: number;
-
 };
 
-
-
-
-
-
 const intentRules: IntentRule[] = [
-
-
   {
-    intent:"remember",
-
-    weight:1,
-
-    signals:[
-
+    intent: "remember",
+    weight: 1,
+    signals: [
       "memory",
       "remember",
+      "memories",
       "past",
       "history",
       "archive",
       "legacy",
       "childhood",
       "old photo",
+      "old photographs",
       "timeline",
       "nostalgia",
-      "tribute"
-
-    ]
-
+      "nostalgic",
+      "tribute",
+      "remembrance",
+      "preserve",
+      "preservation",
+      "heritage",
+      "passed down",
+      "generations",
+    ],
   },
 
-
-
-
   {
-    intent:"celebrate",
-
-    weight:1,
-
-    signals:[
-
+    intent: "celebrate",
+    weight: 1,
+    signals: [
       "birthday",
       "wedding",
       "anniversary",
       "celebrate",
+      "celebration",
       "party",
       "milestone",
       "ceremony",
-      "event"
-
-    ]
-
+      "event",
+      "commemorate",
+      "honor",
+    ],
   },
 
-{
-  intent:"serve",
-
-  weight:1,
-
-  signals:[
-
-    "service",
-    "appointment",
-    "booking",
-    "repair",
-    "groom",
-    "grooming",
-    "clean",
-    "cleaning",
-    "care",
-    "consultation",
-    "therapy",
-    "treatment",
-    "maintenance",
-    "inspection",
-    "service receipt",
-    "invoice",
-    "customer"
-
-  ]
-
-},
-
+  {
+    intent: "serve",
+    weight: 1,
+    signals: [
+      "service",
+      "appointment",
+      "booking",
+      "repair",
+      "groom",
+      "grooming",
+      "clean",
+      "cleaning",
+      "care",
+      "consultation",
+      "therapy",
+      "treatment",
+      "maintenance",
+      "inspection",
+      "service receipt",
+      "invoice",
+      "customer service",
+    ],
+  },
 
   {
-    intent:"teach",
-
-    weight:1,
-
-    signals:[
-
+    intent: "teach",
+    weight: 1,
+    signals: [
       "learn",
       "teach",
       "guide",
       "education",
+      "educational",
       "explain",
       "tutorial",
       "course",
-      "lesson"
-
-    ]
-
+      "lesson",
+      "training",
+      "understand",
+      "understanding",
+      "show someone how",
+    ],
   },
 
-
-
-
   {
-    intent:"sell",
-
-    weight:1,
-
-    signals:[
-
+    intent: "sell",
+    weight: 1,
+    signals: [
       "buy",
       "sell",
       "shop",
@@ -184,22 +143,17 @@ const intentRules: IntentRule[] = [
       "customer",
       "brand",
       "business",
-      "store"
-
-    ]
-
+      "store",
+      "purchase",
+      "promotion",
+      "marketing",
+    ],
   },
 
-
-
-
   {
-    intent:"discover",
-
-    weight:1,
-
-    signals:[
-
+    intent: "discover",
+    weight: 1,
+    signals: [
       "explore",
       "discover",
       "secret",
@@ -207,233 +161,173 @@ const intentRules: IntentRule[] = [
       "unknown",
       "quest",
       "adventure",
-      "journey"
-
-    ]
-
+      "journey",
+      "reveal",
+      "uncover",
+      "find out",
+      "curious",
+      "curiosity",
+    ],
   },
 
-
-
-
   {
-    intent:"reward",
-
-    weight:1,
-
-    signals:[
-
+    intent: "reward",
+    weight: 1,
+    signals: [
       "reward",
       "loyalty",
       "exclusive",
       "unlock",
       "vip",
-      "member"
-
-    ]
-
+      "member",
+      "membership",
+      "bonus",
+      "prize",
+      "perk",
+    ],
   },
 
-
-
-
   {
-    intent:"protect",
-
-    weight:1,
-
-    signals:[
-
+    intent: "protect",
+    weight: 1,
+    signals: [
       "protect",
+      "protection",
       "safety",
       "emergency",
       "lost",
       "medical",
-      "secure"
-
-    ]
-
+      "secure",
+      "security",
+      "warning",
+      "alert",
+    ],
   },
 
-
-
-
   {
-    intent:"connect",
-
-    weight:1,
-
-    signals:[
-
+    intent: "connect",
+    weight: 1,
+    signals: [
       "family",
       "friend",
+      "friends",
       "community",
       "relationship",
       "together",
       "share",
-      "people"
-
-    ]
-
-  }
-
-
+      "sharing",
+      "people",
+      "belong",
+      "belonging",
+      "connection",
+      "connect",
+    ],
+  },
 ];
-
-
-
-
-
-
-
-
-
-export function analyzeIntent(
-
-  prompt:string
-
-):ExperienceIntent[] {
-
-
-
-const text =
-prompt
-.toLowerCase()
-.trim();
-
-
-
-
-
-if(!text){
-
- return [];
-
-}
-
-
-
-
-
-
-const scores =
-new Map<ExperienceIntent,number>();
-
-
-
-
-
-
-
-for(const rule of intentRules){
-
-
-
-let score = 0;
-
-
-
-for(const signal of rule.signals){
-
-
-
-if(text.includes(signal)){
-
- score += rule.weight;
-
-}
-
-
-}
-
-
-
-
-
-if(score){
-
-
-scores.set(
-
- rule.intent,
-
- score
-
-);
-
-
-}
-
-
-}
-
-
-
-
-
-
-
-
-
-const ranked =
-
-[
- ...scores.entries()
-
-]
-
-.sort(
-
-(a,b)=>
-
- b[1] - a[1]
-
-)
-
-.map(
-
-([intent])=>
-
- intent
-
-);
-
-
-
-
-
-
-
-
 
 /**
- * Unknown human intent.
- *
- * Default to discovery because
- * creative prompts without explicit
- * intent usually represent exploration.
- *
+ * Normalize prompt text without destroying the
+ * original human expression.
  */
-
-if(!ranked.length){
-
-
-return [
-
- "discover"
-
-];
-
-
+function normalizePrompt(
+  prompt: string,
+): string {
+  return prompt
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
+/**
+ * Discover canonical semantic primitives.
+ *
+ * This function intentionally returns [] when there
+ * is insufficient evidence.
+ *
+ * It does NOT manufacture a fallback intent.
+ */
+export function analyzeIntent(
+  prompt: string,
+): ExperienceIntent[] {
+  const text =
+    normalizePrompt(prompt);
 
+  if (!text) {
+    return [];
+  }
 
+  const scores =
+    new Map<
+      ExperienceIntent,
+      number
+    >();
 
+  for (const rule of intentRules) {
+    let score = 0;
 
+    for (const signal of rule.signals) {
+      if (text.includes(signal)) {
+        score += rule.weight;
+      }
+    }
 
+    if (score > 0) {
+      scores.set(
+        rule.intent,
+        score,
+      );
+    }
+  }
 
-return ranked;
+  return [
+    ...scores.entries(),
+  ]
+    .sort(
+      (a, b) =>
+        b[1] - a[1],
+    )
+    .map(
+      ([intent]) =>
+        intent,
+    );
+}
 
+/**
+ * Preserve the human's actual intention rather than
+ * collapsing it into the canonical vocabulary.
+ */
+export function analyzeHumanIntent(
+  prompt: string,
+) {
+  const expression =
+    prompt.trim();
 
+  if (!expression) {
+    return {
+      expression: "",
+      motivations: [],
+      desiredOutcome: [],
+      evidence: [],
+      unresolved: [],
+    };
+  }
+
+  return {
+    expression,
+
+    /**
+     * These remain open until later cognitive layers
+     * have enough evidence to derive them.
+     */
+    motivations: [],
+
+    desiredOutcome: [],
+
+    /**
+     * The prompt itself is the primary evidence.
+     */
+    evidence: [expression],
+
+    unresolved: [],
+  };
 }

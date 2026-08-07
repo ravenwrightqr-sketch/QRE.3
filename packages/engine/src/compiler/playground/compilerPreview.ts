@@ -12,46 +12,63 @@ import {
 
 
 export function generateCompilerPreview(
-  prompt:string
-){
+  prompt: string
+) {
 
   const compiled =
     compileExperienceGenome(
       prompt
     );
-console.log(
-  "GENOME ENTITIES",
-  JSON.stringify(
-    compiled.genome.entities,
-    null,
-    2
-  )
-);
+
+
+  console.log(
+    "GENOME ENTITIES",
+    JSON.stringify(
+      compiled.genome.entities,
+      null,
+      2
+    )
+  );
+
 
   const experience =
     renderExperience(
       compiled.blueprint
     );
 
+
   const humanStory =
-compileHumanStory(
-  compiled.narrative,
-  compiled.genome,
-  compiled.world
-);
+    compileHumanStory(
+      compiled.narrative,
+      compiled.genome,
+      compiled.world
+    );
 
 
   return {
 
-    input: prompt,
+    input:
+      prompt,
+
 
     genome:
       compiled.genome,
 
+
     blueprint:
       compiled.blueprint,
 
+
+    world:
+      compiled.world,
+
+
+    narrative:
+      compiled.narrative,
+
+
     experience,
+
 
     humanStory
 
