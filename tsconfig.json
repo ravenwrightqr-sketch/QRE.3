@@ -3,41 +3,30 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-   
     "strict": true,
     "skipLibCheck": true,
-
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-
     "forceConsistentCasingInFileNames": true,
-
     "noEmit": true,
-
     "baseUrl": ".",
-
     "paths": {
       "@qre/contracts": ["packages/contracts/dist/index.d.ts"],
-       "@qre/contracts/*": ["packages/contracts/dist/*"],
-
+      "@qre/contracts/*": ["packages/contracts/dist/*"],
       "@qre/db": ["packages/db/src/index.ts"],
       "@qre/db/*": ["packages/db/src/*"],
-
       "@qre/engine": ["packages/engine/src/index.ts"],
       "@qre/engine/*": ["packages/engine/src/*"]
     }
   },
-
   "ts-node": {
     "esm": true
   },
-
   "files": [],
-
   "references": [
-  { "path": "./packages/contracts" },
-  { "path": "./packages/db" },
-  { "path": "./packages/engine" },
-  { "path": "./packages/cognition" }
-]
+    { "path": "./packages/contracts" },
+    { "path": "./packages/db" },
+    { "path": "./packages/cognition-v2" },
+    { "path": "./packages/engine" }
+  ]
 }
