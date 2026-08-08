@@ -17,4 +17,5 @@ export * from "./experienceIntent.js";
 export * from "./runtime.js";
 export * from "./genesis.js";
 export * from "./story.js";
+export * from "./cognition.js";
 export type { SemanticInterpretation } from "./semantic.js";
