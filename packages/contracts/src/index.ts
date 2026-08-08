@@ -5,25 +5,13 @@
  *
  * SINGLE EXPORT SURFACE
  *
- * Consumers:
- * - engine
- * - api
- * - web
- *
- * NO DATABASE TYPES
+ * ExperienceMoment is the canonical experience unit.
+ * The legacy Moment contract is intentionally not exported.
  *
  * =====================================================
  */
 
-
-// Core runtime
-
-export type {
-  Moment,
-  MomentMeta,
-} from "./moment.js";
-
-
+// Cinematic runtime
 export type {
   CinematicScene,
   SceneMediaAsset,
@@ -33,43 +21,19 @@ export type {
   SceneTransition,
 } from "./cinematic.js";
 
-
-
 // Scan contracts
-
 export * from "./scan.js";
-
-export type {
-  ScanResponse,
-} from "./scanResponse.js";
-
-
-export type {
-  ScanEvent,
-} from "./scanEvent.js";
-
-
-
+export type { ScanResponse } from "./scanResponse.js";
+export type { ScanEvent } from "./scanEvent.js";
 
 // Memory / story
-
-export type {
-  MemorySnapshot,
-} from "./memorySnapshot.js";
-
-
-export type {
-  ServiceReceipt,
-} from "./serviceReceipt.js";
-
-
+export type { MemorySnapshot } from "./memorySnapshot.js";
+export type { ServiceReceipt } from "./serviceReceipt.js";
 export * from "./story.js";
-
 export * from "./entitlements.js";
-
 export * from "./entitlementRules.js";
-// Geo
 
+// Geo
 export type {
   GeoStory,
   GeoStoryScene,
@@ -77,39 +41,21 @@ export type {
   GeoLocation,
 } from "./geoStory.js";
 
-
-
-
 // Analytics / events
-
 export * from "./analytics.js";
-
 export * from "./events.js";
 
-
-
-
 // Flow runtime
-
 export * from "./flow.js";
 
-
-
-
-// Experience compiler
-
-
-
+// Experience compiler contracts
 export * from "./experience/index.js";
 
-// Cognition compiler folder 
-
+// Cognition contracts
 export * from "./cognition/index.js";
 
-// Domain folder
-
+// Domain contracts
 export * from "./domain/index.js";
 
-// MEMORY FOLDER
-
+// Memory contracts
 export * from "./memory/index.js";
