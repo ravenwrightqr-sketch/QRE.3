@@ -1,19 +1,11 @@
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 
+type OpportunityKey = "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial";
 type Expected = {
   prompt: string;
   subjectIncludes: string;
   hypothesis: string;
-  opportunity?: keyof Pick<typeof opportunityKeys, "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial">;
-};
-
-const opportunityKeys = {
-  memory: true,
-  geographic: true,
-  social: true,
-  discovery: true,
-  temporal: true,
-  commercial: true,
+  opportunity?: OpportunityKey;
 };
 
 const cases: Expected[] = [
@@ -32,6 +24,17 @@ const cases: Expected[] = [
   { prompt: "My dog just turned ten and I want her story to keep growing after I'm gone", subjectIncludes: "dog", hypothesis: "memory", opportunity: "memory" },
 ];
 
+function opportunityValues(cognition: ReturnType<typeof compileCognitiveExperience>["cognition"], key: OpportunityKey): string[] {
+  switch (key) {
+    case "memory": return cognition.memoryOpportunities;
+    case "geographic": return cognition.geographicOpportunities;
+    case "social": return cognition.socialOpportunities;
+    case "discovery": return cognition.discoveryOpportunities;
+    case "temporal": return cognition.temporalOpportunities;
+    case "commercial": return cognition.commercialOpportunities;
+  }
+}
+
 let passed = 0;
 
 for (const test of cases) {
@@ -48,7 +51,7 @@ for (const test of cases) {
     cognition.plan.storyStructure.length &&
     cognition.plan.futureEvolution.length,
   );
-  const opportunityPass = test.opportunity ? cognition[`${test.opportunity}Opportunities`].length > 0 : true;
+  const opportunityPass = test.opportunity ? opportunityValues(cognition, test.opportunity).length > 0 : true;
   const runtimePass = Boolean(
     result.blueprint.cognitivePlan &&
     result.flowSteps.length === result.moments.length &&
