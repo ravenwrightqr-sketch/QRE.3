@@ -1,3 +1,5 @@
+import type { CognitiveWorldModel } from "./worldModel.js";
+
 export type CognitiveIntent =
   | "remember"
   | "celebrate"
@@ -40,4 +42,6 @@ export interface CognitiveUnderstanding {
     domains: string[];
     primary: string;
   };
+
+  cognitiveWorld: CognitiveWorldModel;
 }
