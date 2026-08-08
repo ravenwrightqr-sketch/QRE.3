@@ -34,8 +34,10 @@ The behavioral contract lives in `@qre/cognition-v2` as `COGNITION_V2_MASTER_PRO
 - Flow and Cinematic are projections; they do not redefine meaning.
 - Geo Story and Memory Snapshot remain separate runtime artifacts.
 - Evidence, temporal memory, connection graphs, and analytics are supporting cognition infrastructure, not additional compiler brains.
-- Do not create another compiler orchestrator.
+- `compileExperience` resolves to the Cognition V2 compiler.
+- `runCompilerBrain` is only a compatibility facade over that same compiler.
+- There is no second compiler orchestrator.
 - Do not add industry-specific compiler branches merely to make a new use case work.
 - New intelligence must enrich the canonical cognitive understanding/plan or become a projection after the semantic boundary.
 
-The previous compiler brain exports are no longer part of the public compiler boundary. The old implementation can now be removed in controlled batches after build/test verification rather than becoming another active path.
+The retired legacy compiler core has been removed. The compatibility module under `experience/genomeCompiler.ts` now forwards legacy names to the canonical V2 compiler so existing callers do not create a second execution path.
