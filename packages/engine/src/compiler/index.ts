@@ -1,10 +1,7 @@
 /**
- * QRE CANONICAL COMPILER PUBLIC BOUNDARY
+ * QRE COMPILER PUBLIC BOUNDARY
  *
- * One authoring path. One semantic boundary. Projections only.
- *
- * Prompt -> Cognition V2 -> Meaning -> Genome -> World -> Blueprint
- *        -> ExperienceMoment[] -> Flow / Cinematic projections
+ * Cognition creates meaning. Runtime-facing layers only project it.
  */
 
 export {
@@ -15,7 +12,6 @@ export {
 
 export type {
   CognitiveUnderstanding,
-  CognitiveExperiencePlan,
 } from "@qre/cognition-v2";
 
 export * from "./semantic/index.js";
