@@ -3,9 +3,6 @@
  *
  * One authoring path. Cognition interprets the prompt; the compiler projects
  * that interpretation into runtime artifacts.
- *
- * Prompt → Cognition → Meaning → Genome → World → Blueprint
- *        → Story → Flow / Cinematic projections
  */
 
 import { buildMeaningContext } from "@qre/cognition";
@@ -24,7 +21,7 @@ import type {
   CompilerMind,
 } from "@qre/contracts";
 import { buildExperienceGenome } from "./semantic/genome/genomeBuilder.js";
-import { synthesizeCognitiveExperience } from "./cognitiveSynthesis.js";
+import { buildSemanticIR } from "./semantic/index.js";
 import { composeWorld } from "../world/worldComposer.js";
 import { composeBlueprint } from "../experience/blueprintComposer.js";
 import { directExperience } from "../experience/director.js";
@@ -56,12 +53,9 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
   if (!expression) throw new Error("Experience prompt required.");
 
   const cognitive = understandPrompt(expression);
-  const understanding: ExperienceUnderstanding =
-    context?.metadata?.understanding ?? buildExperienceUnderstanding(cognitive);
-  const meaningContext: ExperienceMeaningContext =
-    context?.metadata?.meaningContext ?? buildMeaningContext(understanding);
-  const genome: ExperienceGenome =
-    context?.metadata?.genome ?? buildExperienceGenome(expression, understanding, meaningContext);
+  const understanding: ExperienceUnderstanding = context?.metadata?.understanding ?? buildExperienceUnderstanding(cognitive);
+  const meaningContext: ExperienceMeaningContext = context?.metadata?.meaningContext ?? buildMeaningContext(understanding);
+  const genome: ExperienceGenome = context?.metadata?.genome ?? buildExperienceGenome(expression, understanding, meaningContext);
 
   const mind: CompilerMind = {
     prompt: expression,
@@ -70,8 +64,8 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
     genome,
     semanticIR: context?.metadata?.semanticIR,
   };
+  const semanticIR = mind.semanticIR ?? buildSemanticIR(mind);
 
-  const synthesis = synthesizeCognitiveExperience(mind);
   const world: ExperienceWorld = composeWorld(genome);
   const blueprint: ExperienceBlueprint = composeBlueprint(genome, world);
   const direction = directExperience(blueprint);
@@ -87,7 +81,7 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
       meaningContext,
       meaning: genome.meaning,
       genome,
-      semanticIR: synthesis.semanticIR,
+      semanticIR,
     },
     genome,
     world,
