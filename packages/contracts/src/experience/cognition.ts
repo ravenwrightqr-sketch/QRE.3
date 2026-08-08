@@ -83,12 +83,14 @@ export type ExperienceHypothesis = {
 };
 
 /**
- * The selected experience direction is deliberately semantic rather than
- * domain-specific. The universal compiler consumes it as guidance; it does
- * not become a second compiler or a template registry.
+ * Cognitive direction selected before universal compilation.
+ *
+ * `direction` is optional only so existing cognitive-state construction can
+ * remain source-compatible during this migration. Canonical compiler output
+ * always fills it from selectedHypothesis.kind before universal compilation.
  */
 export type CognitiveExperiencePlan = {
-  direction: ExperienceHypothesisKind;
+  direction?: ExperienceHypothesisKind;
   centralSubject: string;
   audience: string[];
   whyInteract: string[];
