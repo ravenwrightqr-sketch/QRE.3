@@ -1,35 +1,26 @@
-/**
- * QRE EXPERIENCE COMPILER — compatibility boundary.
- *
- * The old genome/world/blueprint chain is intentionally no longer the
- * creative authority. Story generation lives in storyCompiler.ts.
- *
- * Prompt → observation → affordances → narrative candidates → beats → story
- * → runtime projection.
- */
-
-import type {
-  ExperienceWorld,
-} from "@qre/contracts";
-
+import type { ExperienceWorld } from "@qre/contracts";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
-} from "./storyCompiler.js";
+  type StoryCompilerContext,
+} from "./universalStoryCompiler.js";
 
-export type CompiledGenomeExperience = CompiledStoryExperience & {
-  world: ExperienceWorld;
-};
+/**
+ * Compatibility boundary for legacy callers.
+ *
+ * This file does not create meaning. The universal story compiler is the
+ * creative authority; this adapter only exposes the legacy `world` shape.
+ */
+export type CompiledGenomeExperience = CompiledStoryExperience & { world: ExperienceWorld };
 
 function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
   const { observation, story } = result;
-
-  const domain = observation.context.includes("memory")
+  const domain: ExperienceWorld["domain"] = observation.context.includes("memory")
     ? "memory_world"
-    : observation.context.includes("event")
+    : observation.audience.includes("shared")
       ? "community_world"
-      : observation.context.includes("work")
-        ? "identity_world"
+      : observation.activity === "commerce"
+        ? "commerce_world"
         : "discovery_world";
 
   return {
@@ -42,12 +33,12 @@ function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
   };
 }
 
-export function compileExperienceGenome(prompt: string): CompiledGenomeExperience {
-  const result = compileStoryExperience(prompt);
-  return {
-    ...result,
-    world: compatibilityWorld(result),
-  };
+export function compileExperienceGenome(
+  prompt: string,
+  context: StoryCompilerContext = {},
+): CompiledGenomeExperience {
+  const result = compileStoryExperience(prompt, context);
+  return { ...result, world: compatibilityWorld(result) };
 }
 
 export const genomeCompiler = compileExperienceGenome;
