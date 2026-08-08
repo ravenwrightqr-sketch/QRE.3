@@ -36,6 +36,23 @@ function inferIntent(result: CompiledStoryExperience): ExperienceIntent[] {
   return [...intents];
 }
 
+function resolveAudience(result: CompiledStoryExperience): string[] {
+  const text = result.observation.prompt.toLowerCase();
+  const audience = new Set(result.observation.audience);
+
+  if (/\b(kids?|children|child|toddlers?|students?|classroom)\b/.test(text)) {
+    audience.add("children");
+  }
+  if (/\b(customers?|shoppers?|buyers?|clients?)\b/.test(text)) {
+    audience.add("customers");
+  }
+  if (/\b(couples?|partners?|bride|groom|newlyweds?)\b/.test(text)) {
+    audience.add("couples");
+  }
+
+  return [...audience];
+}
+
 function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
   const { observation, story } = result;
 
@@ -59,6 +76,7 @@ export function compileExperienceGenome(
 ): CompiledGenomeExperience {
   const result = compileStoryExperience(prompt, context);
   const intent = inferIntent(result);
+  const audience = resolveAudience(result);
 
   return {
     ...result,
@@ -75,10 +93,11 @@ export function compileExperienceGenome(
         ])],
         confidence: result.genome.interpretation.confidence,
       },
-      audience: result.observation.audience,
+      audience,
       dna: [...new Set([
         ...result.genome.dna,
         ...result.observation.affordances,
+        ...audience.map((value) => `audience:${value}`),
       ])],
     },
     model: {
