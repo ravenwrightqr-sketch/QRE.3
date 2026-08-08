@@ -1,152 +1,25 @@
-/**
- * =====================================================
- * EXPERIENCE COMPILER INTEGRATION TEST
- * =====================================================
- *
- * Prompt
- *    ↓
- * Understanding
- *    ↓
- * Genome
- *    ↓
- * Experience Compiler
- *    ↓
- * Blueprint
- *
- * =====================================================
- */
+import { compileStoryExperience } from "../../experience/storyCompiler.js";
 
-import {
-  buildExperienceGenome,
-} from "../semantic/genome/genomeBuilder.js";
+const cases = [
+  "Create a dog groomer story for Max the poodle about the experience.",
+  "Make something fun for everyone at my wedding tonight.",
+  "Turn this concert QR into something people will remember.",
+  "My grandmother gave me this watch.",
+  "Make this boring product launch fun.",
+  "Surprise me.",
+  "asdf 123",
+];
 
+for (const prompt of cases) {
+  const result = compileStoryExperience(prompt);
 
-import {
-  compileExperience,
-} from "../experience/experienceCompiler.js";
+  if (!result.story.title) throw new Error(`Missing title for: ${prompt}`);
+  if (!result.story.beats.length) throw new Error(`Missing beats for: ${prompt}`);
+  if (!result.cinematicScenes.length) throw new Error(`Missing scenes for: ${prompt}`);
 
-
-
-
-function runTest(
-
- name:string,
-
- prompt:string
-
-){
-
-
-console.log("\n====================================");
-console.log(name);
-console.log("====================================");
-
-
-
-const genome =
-
-  buildExperienceGenome(
-    prompt
-  );
-
-
-
-console.log("\nGENOME:");
-console.dir(
-  genome,
-  {
-    depth: null
-  }
-);
-
-
-
-
-const blueprint =
-
-  compileExperience(
-    genome
-  );
-
-
-
-console.log("\nBLUEPRINT:");
-console.dir(
-  blueprint,
-  {
-    depth: null
-  }
-);
-
-
-
-if(!blueprint){
-
- throw new Error(
-  "Blueprint was not created"
- );
-
+  console.log(`✓ ${prompt}`);
+  console.log(`  title: ${result.story.title}`);
+  console.log(`  beats: ${result.story.beats.length}`);
 }
 
-
-
-console.log(
- "\n✓ EXPERIENCE COMPILED"
-);
-
-
-
-}
-
-
-
-
-
-
-runTest(
-
-"DISNEY MEMORY EXPERIENCE",
-
-`
-Create a magical birthday memory experience
-for my daughter at Disneyland.
-Capture this moment forever.
-`
-
-);
-
-
-
-
-
-runTest(
-
-"UNDERGROUND CINEMATIC WORLD",
-
-`
-Create an underground cinematic music experience
-where people discover hidden worlds and connect.
-`
-
-);
-
-
-
-
-
-runTest(
-
-"LUXURY MEMORY CAPSULE",
-
-`
-Create a luxury travel memory capsule
-that preserves a couple's journey forever.
-`
-
-);
-
-
-
-console.log("\n====================================");
-console.log("EXPERIENCE COMPILER TESTS PASSED");
-console.log("====================================");
+console.log("✓ any-prompt story compiler smoke tests passed");
