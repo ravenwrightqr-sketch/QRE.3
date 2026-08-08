@@ -1,21 +1,8 @@
-import type {
-  ExperienceUnderstanding,
-  ExperienceEntities,
-  ExperienceIntent,
-  WorldDomain,
-} from "@qre/contracts";
+import type { ExperienceUnderstanding, ExperienceEntities, ExperienceIntent, WorldDomain } from "@qre/contracts";
 import type { CognitiveUnderstanding } from "./types.js";
 
 const supportedIntents = new Set<ExperienceIntent>([
-  "remember",
-  "celebrate",
-  "serve",
-  "teach",
-  "sell",
-  "discover",
-  "reward",
-  "protect",
-  "connect",
+  "remember", "celebrate", "serve", "teach", "sell", "discover", "reward", "protect", "connect",
 ]);
 
 function domainFor(value: string): WorldDomain | null {
@@ -26,6 +13,8 @@ function domainFor(value: string): WorldDomain | null {
     commerce: "commerce_world",
     discovery: "discovery_world",
     community: "community_world",
+    service: "service_world",
+    culture: "culture_world",
   };
   return domains[value] ?? null;
 }
@@ -54,35 +43,19 @@ function entitiesFrom(input: CognitiveUnderstanding): ExperienceEntities {
     keywords: [...new Set([...input.intent, ...input.emotions, ...input.objects])],
     objects: input.objects,
     creatures: input.objects.filter(value => /dog|cat|pet|horse|bird/i.test(value)),
-    concepts: input.emotions,
+    concepts: [],
     symbols: [],
     worlds: [],
     archetypes: [],
   };
 }
 
-export function buildExperienceUnderstanding(
-  input: CognitiveUnderstanding,
-): ExperienceUnderstanding {
-  const worldDomains = input.world.domains
-    .map(domainFor)
-    .filter((value): value is WorldDomain => value !== null);
-
-  const canonicalIntent = input.intent.filter(
-    (value): value is ExperienceIntent => supportedIntents.has(value as ExperienceIntent),
-  );
-
-  const evidence = [
-    ...input.people,
-    ...input.places,
-    ...input.objects,
-    ...input.dates,
-    ...input.times,
-    ...input.events,
-  ];
-
+export function buildExperienceUnderstanding(input: CognitiveUnderstanding): ExperienceUnderstanding {
+  const worldDomains = input.world.domains.map(domainFor).filter((value): value is WorldDomain => value !== null);
+  const canonicalIntent = input.intent.filter((value): value is ExperienceIntent => supportedIntents.has(value as ExperienceIntent));
+  const evidence = [...input.people, ...input.places, ...input.objects, ...input.dates, ...input.times, ...input.events];
   const semanticScore = evidence.length || canonicalIntent.length ? 0.8 : 0.4;
-  const world = worldDomains[0] ?? "discovery_world";
+  const worldConfidence = worldDomains.length ? 0.8 : 0;
 
   return {
     prompt: input.prompt,
@@ -92,7 +65,7 @@ export function buildExperienceUnderstanding(
       motivations: [],
       desiredOutcome: [],
       evidence,
-      unresolved: [],
+      unresolved: canonicalIntent.length ? [] : [input.prompt],
     },
     entities: entitiesFrom(input),
     relationships: [],
@@ -118,43 +91,24 @@ export function buildExperienceUnderstanding(
       primary: input.audience.types[0],
     },
     world: {
-      domains: worldDomains.length ? worldDomains : [world],
-      primary: world,
-      confidence: worldDomains.length ? 0.8 : 0,
+      domains: worldDomains,
+      primary: worldDomains[0] ?? "journey_world",
+      confidence: worldConfidence,
     },
     dna: {
       traits: [],
-      style: {
-        atmosphere: input.emotions,
-        visual: input.objects,
-        interaction: [],
-      },
+      style: { atmosphere: input.emotions, visual: input.objects, interaction: [] },
     },
-    desire: {
-      desires: [],
-      motivations: [],
-      goals: [],
-      fears: [],
-      aspirations: [],
-    },
-    sensory: {
-      visual: input.objects,
-      audio: [],
-      physical: [],
-      environmental: input.places,
-    },
-    potential: {
-      possibilities: [],
-      constraints: [],
-      opportunities: [],
-    },
+    desire: { desires: [], motivations: [], goals: [], fears: [], aspirations: [] },
+    sensory: { visual: input.objects, audio: [], physical: [], environmental: input.places },
+    potential: { possibilities: [], constraints: [], opportunities: [] },
     scores: {
       semantic: semanticScore,
       entity: evidence.length ? 0.8 : 0,
       relationship: input.people.length > 1 ? 0.8 : 0,
       emotional: input.emotions.length ? 0.8 : 0,
       memory: input.memory.past || input.memory.legacy ? 0.9 : 0,
-      world: worldDomains.length ? 0.8 : 0,
+      world: worldConfidence,
       dna: 0,
       overall: semanticScore,
     },
