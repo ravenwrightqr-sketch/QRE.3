@@ -93,9 +93,7 @@ export {
 } from "./memoryRevealCompiler.js";
 
 
-
 export * from "./moverArc/index.js";
-
 
 export {
   buildMoverArc,
@@ -136,3 +134,22 @@ export * from "./cognitionLoop/index.js";
 
 
 export * from "./experienceRenderer/index.js";
+
+/**
+ * Canonical compiler entry and analytics context.
+ */
+export {
+  compileExperience,
+  compileExperienceGenome,
+  genomeCompiler,
+} from "./coreCompiler.js";
+
+export {
+  createCompilerAnalyticsContext,
+  mergeCompilerAnalytics,
+} from "../analytics/compilerAnalytics.js";
+
+export type {
+  CompilerAnalyticsEvent,
+  CompilerAnalyticsContext,
+} from "../analytics/compilerAnalytics.js";
