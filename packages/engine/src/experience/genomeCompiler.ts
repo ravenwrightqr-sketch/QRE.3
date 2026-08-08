@@ -1,59 +1,66 @@
 import type { ExperienceIntent, ExperienceWorld } from "@qre/contracts";
 import {
-  compileStoryExperience,
-  type CompiledStoryExperience,
-  type StoryCompilerContext,
-} from "./universalStoryCompiler.js";
+  compileCognitiveExperience,
+  type CognitiveCompiledExperience,
+} from "./cognitiveExperienceCompiler.js";
+import type { StoryCompilerContext } from "./universalStoryCompiler.js";
 
 /**
- * Canonical prompt compiler boundary.
+ * ============================================================
+ * QRE GENOME COMPILER — COMPATIBILITY BOUNDARY
+ * ============================================================
  *
- * Prompt interpretation belongs to universalStoryCompiler. This file is only
- * the compatibility/export boundary for callers that still request a genome
- * and world-shaped result.
+ * PURPOSE:
+ *   Preserve the historical genome/world-shaped API while routing all
+ *   prompt intelligence through the canonical cognitive compiler.
+ *
+ * CANONICAL PIPELINE:
+ *   PROMPT → COGNITION → PLAN → UNIVERSAL COMPILATION → GENOME / WORLD
+ *
+ * ARCHITECTURE RULE:
+ *   THE COMPILER BECOMES SMARTER.
+ *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
+ *
+ * CONTRACT RULE:
+ *   ExperienceIntent comes only from @qre/contracts. This compatibility
+ *   boundary must not create a second intent type.
+ *
+ * CONTINUITY RULE:
+ *   This file is an adapter for old callers, not a competing compiler brain.
+ *
+ * ============================================================
  */
-export type CompiledGenomeExperience = CompiledStoryExperience & { world: ExperienceWorld };
 
-function inferIntent(result: CompiledStoryExperience): ExperienceIntent[] {
-  const text = result.observation.prompt.toLowerCase();
-  const affordances = new Set(result.observation.affordances);
+export type CompiledGenomeExperience = CognitiveCompiledExperience & {
+  world: ExperienceWorld;
+};
+
+function inferIntent(result: CognitiveCompiledExperience): ExperienceIntent[] {
+  const selected = result.cognition.selectedHypothesis.kind;
+  const affordances = new Set(result.cognition.affordances);
   const intents = new Set<ExperienceIntent>();
 
-  if (affordances.has("play") || affordances.has("challenge")) intents.add("play" as ExperienceIntent);
-  if (affordances.has("reveal") || result.observation.activity === "discovery") intents.add("discover" as ExperienceIntent);
-  if (affordances.has("preservation") || result.observation.context.includes("memory")) intents.add("remember" as ExperienceIntent);
-  if (result.observation.activity === "learning") intents.add("teach" as ExperienceIntent);
-  if (result.observation.activity === "commerce") intents.add("sell" as ExperienceIntent);
-  if (result.observation.activity === "celebration" || /\b(wedding|birthday|anniversary|celebration)\b/.test(text)) {
-    intents.add("celebrate" as ExperienceIntent);
-  }
-  if (affordances.has("connection") || result.observation.context.includes("relationship")) {
-    intents.add("connect" as ExperienceIntent);
-  }
-  if (affordances.has("replay")) intents.add("replay" as ExperienceIntent);
+  if (selected === "memory" || affordances.has("continuity")) intents.add("remember");
+  if (selected === "ritual") intents.add("celebrate");
+  if (selected === "commerce" || affordances.has("commerce")) intents.add("sell");
+  if (selected === "utility") intents.add("protect");
+  if (selected === "discovery" || affordances.has("reveal")) intents.add("discover");
+  if (selected === "social" || affordances.has("participation")) intents.add("connect");
+  if (selected === "game") intents.add("reward");
 
-  if (!intents.size) intents.add("experience_creation" as ExperienceIntent);
+  if (!intents.size) intents.add("discover");
   return [...intents];
 }
 
-function resolveAudience(result: CompiledStoryExperience): string[] {
-  const text = result.observation.prompt.toLowerCase();
-  const audience = new Set(result.observation.audience);
-
-  if (/\b(kids?|children|child|toddlers?|students?|classroom)\b/.test(text)) {
-    audience.add("children");
-  }
-  if (/\b(customers?|shoppers?|buyers?|clients?)\b/.test(text)) {
-    audience.add("customers");
-  }
-  if (/\b(couples?|partners?|bride|groom|newlyweds?)\b/.test(text)) {
-    audience.add("couples");
-  }
-
-  return [...audience];
+function resolveAudience(result: CognitiveCompiledExperience): string[] {
+  return [...new Set([
+    ...result.observation.audience,
+    ...result.cognition.participants.value,
+    ...result.cognition.plan.audience,
+  ])];
 }
 
-function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
+function compatibilityWorld(result: CognitiveCompiledExperience): ExperienceWorld {
   const { observation, story } = result;
 
   return {
@@ -65,8 +72,13 @@ function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
       observation.subject,
       observation.activity,
       ...observation.affordances,
+      ...result.cognition.plan.dynamicBehavior,
     ])],
-    themes: observation.context,
+    themes: [...new Set([
+      ...observation.context,
+      ...result.cognition.plan.emotionalIntent,
+      ...result.cognition.plan.futureEvolution,
+    ])],
   };
 }
 
@@ -74,7 +86,7 @@ export function compileExperienceGenome(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CompiledGenomeExperience {
-  const result = compileStoryExperience(prompt, context);
+  const result = compileCognitiveExperience(prompt, context);
   const intent = inferIntent(result);
   const audience = resolveAudience(result);
 
@@ -90,13 +102,16 @@ export function compileExperienceGenome(
           ...result.genome.interpretation.concepts,
           ...result.observation.context,
           ...result.observation.affordances,
+          ...result.cognition.plan.direction ? result.cognition.plan.direction : [],
         ])],
         confidence: result.genome.interpretation.confidence,
       },
       audience,
       dna: [...new Set([
         ...result.genome.dna,
-        ...result.observation.affordances,
+        "canonical-cognitive-compiler",
+        "universal-compiler-substrate",
+        ...result.cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
         ...audience.map((value) => `audience:${value}`),
       ])],
     },
@@ -106,8 +121,8 @@ export function compileExperienceGenome(
         ...result.model.metadata,
         tags: [
           ...((result.model.metadata?.tags ?? []) as string[]),
-          "canonical-prompt-brain",
-          "universal-story-compiler",
+          "canonical-cognitive-compiler",
+          "universal-compiler-substrate",
         ],
       },
     },
