@@ -45,7 +45,8 @@ import {
  *
  * COGNITIVE RULE:
  *   Cognition decides what the experience could become.
- *   The universal compiler remains the runtime-shape substrate.
+ *   The universal compiler remains the runtime-shape substrate and receives
+ *   the selected cognitive plan before it compiles the experience.
  *   No inferred possibility is promoted to observed fact.
  *
  * CONTINUITY RULE:
@@ -77,11 +78,7 @@ function mergeGenome(
 
   return {
     ...genome,
-    intent: [...new Set([
-      ...genome.intent,
-      selected.kind,
-      ...cognition.motivations.value,
-    ])],
+    intent: [...new Set([...genome.intent, selected.kind, ...cognition.motivations.value])],
     archetypes: [...new Set([
       ...genome.archetypes,
       selected.kind,
@@ -94,10 +91,7 @@ function mergeGenome(
       ...cognition.plan.interactionModel,
       ...cognition.plan.futureEvolution,
     ])],
-    emotions: [...new Set([
-      ...genome.emotions,
-      ...cognition.emotionalIntent,
-    ])],
+    emotions: [...new Set([...genome.emotions, ...cognition.emotionalIntent])],
     memory: Math.max(genome.memory, selected.dimensions.memoryPotential),
     discovery: Math.max(genome.discovery, selected.dimensions.discoveryPotential),
     commerce: Math.max(genome.commerce, selected.dimensions.commercialPotential),
@@ -115,6 +109,7 @@ function mergeGenome(
       "evidence-aware",
       "hypothesis-driven",
       "cognitive-plan-directed",
+      "universal-compiler-substrate",
       `hypothesis:${selected.kind}`,
       ...cognition.affordances.map((value) => `affordance:${value}`),
       ...cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
@@ -181,20 +176,18 @@ function directModel(
 /**
  * Canonical public compiler entry point.
  *
- * The universal compiler remains responsible for turning semantic material
- * into runtime-shaped output. Cognition supplies the meaning, opportunities,
- * direction, and plan that make that compilation subject-native.
+ * Cognition runs first. The selected plan is then supplied directly to the
+ * universal compiler, which remains the only runtime-shape compilation path.
  */
 export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
   const cognition = canonicalizeCognition(understandExperience(prompt, context));
-
-  // Keep the universal compiler as the substrate. Its output is then enriched
-  // with the already-selected cognitive direction rather than replaced by a
-  // second compiler.
-  const compiled = compileStoryExperience(prompt, context);
+  const compiled = compileStoryExperience(prompt, {
+    ...context,
+    cognitivePlan: cognition.plan,
+  });
 
   return {
     ...compiled,
