@@ -21,6 +21,7 @@ export type {
 export * from "./semantic/index.js";
 
 export {
+  compileExperience,
   compileExperienceV2,
   compileExperienceGenomeV2,
 } from "./coreCompilerV2.js";
