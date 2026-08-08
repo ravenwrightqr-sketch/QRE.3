@@ -1,304 +1,84 @@
-import type {
-  CinematicScene,
-  Moment,
-  GeoStory,
-} from "@qre/contracts";
-
+import type { CinematicScene, Moment, GeoStory } from "@qre/contracts";
 
 type CinematicInput = {
   moments: Moment[];
-  geoStory: GeoStory | null;
+  geoStory?: GeoStory | null;
 };
 
-
-
-export function cinematicRuntime(
-  input: CinematicInput
-): CinematicScene[] {
-
-
-  const scenes: CinematicScene[] = [];
-
-
-
-  // =========================================
-  // MOMENTS → CINEMATIC SCENES
-  // =========================================
-
-  for (const m of input.moments) {
-
-    scenes.push({
-
-      id:
-        `scene-${m.order}`,
-
-      type:
-        mapMomentType(m.type),
-
-      duration:
-        getDuration(m),
-
-      moment:m,
-
-    });
-
-  }
-
-
-
-
-  // =========================================
-  // GEO STORY → MEMORY SCENES
-  // =========================================
-
-  if (input.geoStory?.scenes) {
-
-
-    input.geoStory.scenes.forEach(
-      (g,index)=>{
-
-
-        scenes.push({
-
-          id:
-            `geo-${g.id}`,
-
-
-          type:
-            "memory",
-
-
-          duration:
-            3500,
-
-
-          moment:{
-
-            type:
-              "location",
-
-
-            order:
-              1000 + index,
-
-
-            location:{
-
-              lat:
-                g.location?.lat ?? 0,
-
-
-              lng:
-                g.location?.lng ?? 0,
-
-
-              label:
-                g.location?.label,
-
-
-              city:
-                g.location?.city,
-
-
-              region:
-                g.location?.region,
-
-
-              country:
-                g.location?.country,
-
-            },
-
-
-            meta:{
-
-              intensity:
-                g.intensity,
-
-
-              timestamp:
-                g.timestamp,
-
-            },
-
-          }
-
-        });
-
-      }
-
-    );
-
-  }
-
-
-
-
-
-  // =========================================
-  // FINAL CTA SCENE
-  // =========================================
-
-  scenes.push({
-
-    id:
-      "cta",
-
-
-    type:
-      "cta",
-
-
-    duration:
-      3000,
-
-
-    moment:{
-
-      type:
-        "system",
-
-
-      order:
-        9999,
-
-
-      text:
-        "Continue Experience",
-
-
-      meta:{},
-
+/** Pure presentation projection. It never invents narrative meaning. */
+export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
+  const scenes: CinematicScene[] = input.moments.map((moment, index) => ({
+    id: `scene-${index}`,
+    type: sceneTypeFor(moment),
+    duration: moment.meta?.duration ?? 2200,
+    moment,
+    order: index,
+    transition: transitionFor(moment, index),
+    visual: {
+      theme: "cinematic",
+      animation: index === 0 ? "slow_zoom" : "none",
+    },
+    preload: index < input.moments.length - 1,
+    meta: { source: "compiled_moment" },
+  }));
+
+  if (input.geoStory?.scenes?.length) {
+    for (const [index, geo] of input.geoStory.scenes.entries()) {
+      const order = scenes.length + index;
+      scenes.push({
+        id: `geo-${geo.id}`,
+        type: "memory",
+        duration: 2600,
+        order,
+        transition: "fade",
+        moment: {
+          type: "location",
+          order,
+          location: {
+            lat: geo.location?.lat ?? 0,
+            lng: geo.location?.lng ?? 0,
+            label: geo.location?.label,
+            city: geo.location?.city,
+            region: geo.location?.region,
+            country: geo.location?.country,
+          },
+          meta: {
+            intensity: geo.intensity,
+            timestamp: geo.timestamp,
+            source: "geo_context",
+          },
+        },
+        visual: {
+          theme: "cinematic",
+          animation: "parallax",
+        },
+        preload: false,
+        meta: { source: "geo_context" },
+      });
     }
-
-  });
-
-
+  }
 
   return scenes;
-
 }
 
-
-
-
-
-
-/**
- * =====================================================
- * MOMENT SEMANTIC TYPE
- *
- * ->
- *
- * CINEMATIC PRESENTATION TYPE
- *
- * =====================================================
- */
-
-
-function mapMomentType(
-  type:string
-): CinematicScene["type"] {
-
-
-  switch(type){
-
-
+function sceneTypeFor(moment: Moment): CinematicScene["type"] {
+  switch (moment.type) {
     case "system":
-
       return "system";
-
-
-
     case "action":
-
-    case "product":
-
-    case "reward":
-
-    case "payment":
-
-    case "booking":
-
       return "action";
-
-
-
     case "location":
-
-    case "photos":
-
-    case "video":
-
     case "media":
-
-    case "replay":
-
-    case "cinematic_replay":
-
       return "memory";
-
-
-
-    case "story":
-
     case "message":
-
-    case "education":
-
-    case "social":
-
-    case "profile":
-
-      return "emotion";
-
-
-
     default:
-
       return "emotion";
-
   }
-
 }
 
-
-
-
-
-
-function getDuration(
-  m:Moment
-):number {
-
-
-  switch(m.type){
-
-
-    case "system":
-
-      return 1200;
-
-
-    case "action":
-
-      return 2000;
-
-
-    case "location":
-
-      return 3000;
-
-
-    case "media":
-
-      return 4000;
-
-
-    default:
-
-      return 1500;
-
-  }
-
+function transitionFor(moment: Moment, index: number): CinematicScene["transition"] {
+  if (moment.type === "system") return "none";
+  if (index === 0) return "zoom";
+  if (moment.type === "action") return "slide";
+  return "fade";
 }
