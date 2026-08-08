@@ -14,15 +14,15 @@ export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
-/** Universal prompt → evidence → story compiler. */
+/** Compatibility prompt compiler boundary. */
 export {
   compileExperienceGenome,
   genomeCompiler,
   experienceCompiler,
 } from "./experience/genomeCompiler.js";
-export {
-  compileStoryExperience,
-} from "./experience/universalStoryCompiler.js";
+
+/** Universal creative compiler. */
+export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
 export type {
   StoryCompilerContext,
   StoryCompilerMemory,
@@ -31,6 +31,10 @@ export type {
   ExperienceObservation,
   CompiledStoryExperience,
 } from "./experience/universalStoryCompiler.js";
+
+/** Canonical cognition → experience compiler. */
+export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
+export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
 
 export * from "./cognition/index.js";
 export * from "./intelligence/index.js";
