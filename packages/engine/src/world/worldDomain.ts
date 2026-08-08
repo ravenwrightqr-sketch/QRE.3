@@ -1,118 +1,22 @@
 /**
  * =====================================================
- * QRE WORLD DOMAIN RESOLVER
+ * QRE WORLD DOMAIN PROJECTION
  * =====================================================
  *
- * Human Meaning
- *      ↓
- * Experience World
+ * World domains are downstream presentation labels.
+ * They are deliberately NOT used as the semantic authority for
+ * universal prompt understanding.
  *
- * NOT industry.
- * NOT templates.
+ * The universal compiler can describe memory, commerce, culture,
+ * relationships, discovery, identity, or community through its
+ * evidence and affordances without forcing the entire experience
+ * into one domain.
  *
  * =====================================================
  */
 
+import type { ExperienceGenome, WorldDomain } from "@qre/contracts";
 
-import type {
-  ExperienceGenome,
-  WorldDomain,
-} from "@qre/contracts";
-
-
-
-
-
-export function resolveWorldDomain(
-
-  genome:ExperienceGenome
-
-):WorldDomain {
-
-
-
-if(
- genome.meaning.memories.length ||
- genome.themes.includes("memory")
-){
-
- return "memory_world";
-
-}
-
-
-
-
-if(
- genome.themes.includes("connection") ||
- genome.themes.includes("relationship")
-){
-
- return "relationship_world";
-
-}
-
-
-
-
-if(
- genome.discovery >= .7 ||
- genome.themes.includes("adventure")
-){
-
- return "discovery_world";
-
-}
-
-
-
-
-if(
- genome.immersion >= .7 ||
- genome.themes.includes("culture")
-){
-
- return "culture_world";
-
-}
-
-
-
-
-if(
- genome.entities.products.length ||
- genome.commerce >= .7
-){
-
- return "commerce_world";
-
-}
-
-
-
-
-if(
- genome.themes.includes("identity")
-){
-
- return "identity_world";
-
-}
-
-
-
-
-if(
- genome.themes.includes("community")
-){
-
- return "community_world";
-
-}
-
-
-
-
-return "journey_world";
-
+export function resolveWorldDomain(_genome: ExperienceGenome): WorldDomain {
+  return "experience_world";
 }

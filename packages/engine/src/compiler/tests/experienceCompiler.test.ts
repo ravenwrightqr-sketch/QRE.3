@@ -1,152 +1,78 @@
-/**
- * =====================================================
- * EXPERIENCE COMPILER INTEGRATION TEST
- * =====================================================
- *
- * Prompt
- *    ↓
- * Understanding
- *    ↓
- * Genome
- *    ↓
- * Experience Compiler
- *    ↓
- * Blueprint
- *
- * =====================================================
- */
+import { compileStoryExperience } from "../../experience/universalStoryCompiler.js";
 
-import {
-  buildExperienceGenome,
-} from "../semantic/genome/genomeBuilder.js";
+type Case = {
+  prompt: string;
+  mustContain?: string[];
+  mustNotContain?: string[];
+  context?: Parameters<typeof compileStoryExperience>[1];
+};
 
-
-import {
-  compileExperience,
-} from "../experience/experienceCompiler.js";
-
-
-
-
-function runTest(
-
- name:string,
-
- prompt:string
-
-){
-
-
-console.log("\n====================================");
-console.log(name);
-console.log("====================================");
-
-
-
-const genome =
-
-  buildExperienceGenome(
-    prompt
-  );
-
-
-
-console.log("\nGENOME:");
-console.dir(
-  genome,
+const cases: Case[] = [
   {
-    depth: null
-  }
-);
-
-
-
-
-const blueprint =
-
-  compileExperience(
-    genome
-  );
-
-
-
-console.log("\nBLUEPRINT:");
-console.dir(
-  blueprint,
+    prompt: "Create a dog groomer story for Max the poodle about the experience.",
+    mustContain: ["care"],
+    mustNotContain: ["dog's Journey", "journey_world"],
+  },
   {
-    depth: null
+    prompt: "Make something fun for everyone at my wedding tonight.",
+    mustContain: ["shared"],
+  },
+  {
+    prompt: "Turn this concert QR into something people will remember.",
+    mustContain: ["event", "media"],
+  },
+  {
+    prompt: "My grandmother gave me this watch.",
+    mustContain: ["memory", "watch"],
+  },
+  {
+    prompt: "Make this boring product launch fun.",
+    mustContain: ["work", "play"],
+  },
+  {
+    prompt: "Surprise me.",
+    mustContain: ["play"],
+  },
+  {
+    prompt: "asdf 123",
+    mustContain: [],
+    mustNotContain: ["memory_world", "relationship_world", "dog's Journey"],
+  },
+  {
+    prompt: "Max came back to the same groomer and was even more excited this time.",
+    context: { memories: [{ summary: "Max's earlier grooming visit", entities: ["Max", "groomer"] }] },
+    mustContain: ["memory"],
+  },
+];
+
+for (const testCase of cases) {
+  const result = compileStoryExperience(testCase.prompt, testCase.context);
+  const observable = JSON.stringify({
+    title: result.title,
+    story: result.story,
+    observation: result.observation,
+    situation: result.situation,
+  });
+
+  if (!result.story.title) throw new Error(`Missing title for: ${testCase.prompt}`);
+  if (result.story.beats.length < 2) throw new Error(`Story is too short for: ${testCase.prompt}`);
+  if (result.cinematicScenes.length !== result.story.beats.length) throw new Error(`Scene/beat mismatch for: ${testCase.prompt}`);
+  if (!result.candidates.length) throw new Error(`No narrative candidates for: ${testCase.prompt}`);
+  if (result.candidates[0].score < result.candidates.at(-1)!.score) throw new Error(`Candidates are not ranked for: ${testCase.prompt}`);
+
+  for (const value of testCase.mustContain ?? []) {
+    if (!observable.toLowerCase().includes(value.toLowerCase())) {
+      throw new Error(`Expected '${value}' in compiler result for: ${testCase.prompt}`);
+    }
   }
-);
+  for (const value of testCase.mustNotContain ?? []) {
+    if (observable.toLowerCase().includes(value.toLowerCase())) {
+      throw new Error(`Unexpected '${value}' in compiler result for: ${testCase.prompt}`);
+    }
+  }
 
-
-
-if(!blueprint){
-
- throw new Error(
-  "Blueprint was not created"
- );
-
+  console.log(`✓ ${testCase.prompt}`);
+  console.log(`  ${result.story.title} — ${result.story.beats.map((beat) => beat.kind).join(" → ")}`);
 }
 
-
-
-console.log(
- "\n✓ EXPERIENCE COMPILED"
-);
-
-
-
-}
-
-
-
-
-
-
-runTest(
-
-"DISNEY MEMORY EXPERIENCE",
-
-`
-Create a magical birthday memory experience
-for my daughter at Disneyland.
-Capture this moment forever.
-`
-
-);
-
-
-
-
-
-runTest(
-
-"UNDERGROUND CINEMATIC WORLD",
-
-`
-Create an underground cinematic music experience
-where people discover hidden worlds and connect.
-`
-
-);
-
-
-
-
-
-runTest(
-
-"LUXURY MEMORY CAPSULE",
-
-`
-Create a luxury travel memory capsule
-that preserves a couple's journey forever.
-`
-
-);
-
-
-
-console.log("\n====================================");
-console.log("EXPERIENCE COMPILER TESTS PASSED");
-console.log("====================================");
+console.log("✓ universal any-prompt story compiler acceptance suite passed");
