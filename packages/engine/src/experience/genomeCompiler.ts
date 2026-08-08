@@ -1,507 +1,54 @@
 /**
- * =====================================================
- * QRE EXPERIENCE GENOME COMPILER
- * =====================================================
+ * QRE EXPERIENCE COMPILER — compatibility boundary.
  *
- * Production Experience Compiler
+ * The old genome/world/blueprint chain is intentionally no longer the
+ * creative authority. Story generation lives in storyCompiler.ts.
  *
- * Pipeline:
- *
- * Prompt
- *   ↓
- * Experience Genome
- *   ↓
- * Experience World
- *   ↓
- * Experience Blueprint
- *   ↓
- * Runtime Flow
- *   ↓
- * Moments
- *   ↓
- * Cinematic Runtime
- *
- *
- * Genome = creative DNA
- * World = universe/context
- * Blueprint = composed experience
- *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
- *
- * =====================================================
+ * Prompt → observation → affordances → narrative candidates → beats → story
+ * → runtime projection.
  */
-
-
-import {
-
-  composeWorld
-
-} from "../world/worldComposer.js";
-
-import {
-  buildExperienceGenome,
-} from "../compiler/semantic/genome/genomeBuilder.js";
-
-
-
-import {
-
-  composeBlueprint,
-
-} from "./blueprintComposer.js";
-
-
-import {
-
-  blueprintToFlow,
-
-} from "./blueprintToFlow.js";
-
-
-import {
-
-  flowToMoment,
-
-} from "../moments/flowToMoments.js";
-
-
-import {
-
-  cinematicRuntime,
-
-} from "../runtime/cinematic/cinematicRuntime.js";
-
-
 
 import type {
-
-  ExperienceBlueprint,
-  ExperienceGenome,
-  ExperienceModel,
   ExperienceWorld,
-  FlowStep,
-  Moment,
-  CinematicScene,
-
 } from "@qre/contracts";
 
+import {
+  compileStoryExperience,
+  type CompiledStoryExperience,
+} from "./storyCompiler.js";
 
-
-
-
-
-
-
-/**
- * =====================================================
- * COMPILED EXPERIENCE RESULT
- * =====================================================
- */
-
-
-export type CompiledGenomeExperience = {
-
-
-  genome:
-    ExperienceGenome;
-
-
-
-  world:
-    ExperienceWorld;
-
-
-
-  blueprint:
-    ExperienceBlueprint;
-
-
-
-  flowSteps:
-    FlowStep[];
-
-
-
-  moments:
-    Moment[];
-
-
-
-  cinematicScenes:
-    CinematicScene[];
-
-
-
-  model:
-    ExperienceModel;
-
-
-
-  title:
-    string;
-
-
-
-  estimatedDuration:
-    number;
-
-
-
-  momentCount:
-    number;
-
-
+export type CompiledGenomeExperience = CompiledStoryExperience & {
+  world: ExperienceWorld;
 };
 
+function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
+  const { observation, story } = result;
 
+  const domain = observation.context.includes("memory")
+    ? "memory_world"
+    : observation.context.includes("event")
+      ? "community_world"
+      : observation.context.includes("work")
+        ? "identity_world"
+        : "discovery_world";
 
-
-
-
-
-
-
-/**
- * =====================================================
- * MODEL BUILDER
- * =====================================================
- */
-
-
-function createExperienceModel(
-
-  blueprint:ExperienceBlueprint,
-
-  prompt:string
-
-):ExperienceModel {
-
-
-return {
-
-  title:
-    blueprint.title,
-
-
-  description:
-    prompt,
-
-
-  industry:
-    "generic",
-
-
-  goal:
-    "welcome",
-
-
-  tone:
-    blueprint.tone,
-
-
-  moments:
-    blueprint.moments,
-
-
-  metadata:{
-
-    category:
-      blueprint.type,
-
-
-    tags:[
-
-      "compiled",
-
-      "experience-genome",
-
-      "world-engine",
-
-      "cinematic"
-
-    ]
-
-  }
-
-};
-
-
+  return {
+    domain,
+    archetype: "evidence_driven_story",
+    atmosphere: story.tone,
+    journey: story.beats.map((beat) => beat.kind),
+    atoms: [...new Set([observation.subject, observation.activity, ...observation.affordances])],
+    themes: observation.context,
+  };
 }
 
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * MAIN COMPILER
- * =====================================================
- */
-
-
-export function compileExperienceGenome(
-
-  prompt:string
-
-):CompiledGenomeExperience {
-
-
-
-if(
- !prompt.trim()
-){
-
- throw new Error(
-  "Experience prompt required."
- );
-
+export function compileExperienceGenome(prompt: string): CompiledGenomeExperience {
+  const result = compileStoryExperience(prompt);
+  return {
+    ...result,
+    world: compatibilityWorld(result),
+  };
 }
 
-
-
-
-
-
-/**
- * =====================================================
- *
- * 1. HUMAN UNDERSTANDING
- *
- * Prompt → Genome
- *
- * =====================================================
- */
-
-
-const genome =
-
-  buildExperienceGenome(
-    prompt
-  );
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 2. WORLD CREATION
- *
- * Genome → World
- *
- * =====================================================
- */
-
-
-const world =
-
-  composeWorld(
-    genome
-  );
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 3. BLUEPRINT CREATION
- *
- * Genome + World → Blueprint
- *
- * =====================================================
- */
-
-
-const blueprint =
-
-  composeBlueprint(
-    genome
-  );
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 4. FLOW COMPILATION
- *
- * Blueprint → Runtime Steps
- *
- * =====================================================
- */
-
-
-const flowSteps =
-
-  blueprintToFlow(
-    blueprint
-  );
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 5. MOMENT CREATION
- *
- * Flow → Moments
- *
- * =====================================================
- */
-
-
-const moments =
-
-  flowToMoment(
-    flowSteps
-  );
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 6. CINEMATIC RUNTIME
- *
- * Moments → Scenes
- *
- * =====================================================
- */
-
-
-const cinematicScenes =
-
-  cinematicRuntime({
-
-    moments,
-
-    geoStory:null,
-
-  });
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- *
- * 7. EXPERIENCE MODEL
- *
- * =====================================================
- */
-
-
-const model =
-
-  createExperienceModel(
-
-    blueprint,
-
-    prompt
-
-  );
-
-
-
-
-
-
-
-
-return {
-
-
-  genome,
-
-
-  world,
-
-
-  blueprint,
-
-
-  flowSteps,
-
-
-  moments,
-
-
-  cinematicScenes,
-
-
-  model,
-
-
-
-  title:
-
-    blueprint.title,
-
-
-
-  estimatedDuration:
-
-    moments.length * 5,
-
-
-
-  momentCount:
-
-    moments.length,
-
-
-};
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * PUBLIC EXPORT
- * =====================================================
- */
-
-
-export const genomeCompiler =
-
-  compileExperienceGenome;
+export const genomeCompiler = compileExperienceGenome;
+export const experienceCompiler = compileExperienceGenome;
