@@ -3,38 +3,49 @@ import {
 } from "./api";
 
 import type {
-  Experience,
+  ExperienceBlueprint
 } from "@qre/contracts";
 
-
 type ExperienceIntent = {
-  prompt: string;
+  prompt:string;
 };
 
-
 export async function compileExperience(
-  intent: ExperienceIntent
-): Promise<Experience> {
+  intent:ExperienceIntent
+):Promise<ExperienceBlueprint>{
 
 
   const result =
+
     await apiPost(
+
       "/experience/compile",
+
       {
-        prompt:intent.prompt,
+        prompt:intent.prompt
       }
+
     );
 
 
-  if(!result?.experience){
+
+  if(!result?.blueprint){
+
 
     throw new Error(
+
       "Invalid compiler response"
+
     );
+
 
   }
 
 
-  return result.experience as Experience;
+
+  return result.blueprint as ExperienceBlueprint;
+
+
+
 
 }

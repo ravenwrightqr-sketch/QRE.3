@@ -1,124 +1,103 @@
+/**
+ * =====================================================
+ *
+ * EXPERIENCE MOMENT
+ *
+ * The atomic unit of a QRE living experience.
+ *
+ * Compiler creates Moments.
+ * Runtime plays Moments.
+ * Frontend renders Moments.
+ *
+ * =====================================================
+ */
+
+
+// =====================================================
+// EXPERIENCE MEANING
+// =====================================================
+
 export type ExperienceMomentType =
 
-  // =================================
-  // CORE FLOW
-  // =================================
-
+  // Core experience
   | "welcome"
-  | "message"
-  | "story"
   | "introduction"
-  | "education"
+  | "story"
+  | "message"
   | "reveal"
+  | "education"
   | "completion"
 
 
-
-  // =================================
-  // BUSINESS
-  // =================================
-
-  | "offer"
-  | "product"
-  | "booking"
-  | "payment"
-  | "reward"
-  | "review"
-  | "social"
-  | "profile"
-  | "menu"
-  | "followup"
-  | "interaction"
-
-
-
-  // =================================
-  // LOCATION / PRESENCE
-  // =================================
-
-  | "arrival"
-  | "location"
-  | "venue"
-
-
-
-  // =================================
-  // MEDIA
-  // =================================
-
-  | "photos"
-  | "video"
-  | "soundtrack"
-  | "replay"
-
-
-
-  // =================================
-  // MEMORY / STORYTELLING
-  // =================================
-
+  // Memory
   | "memory"
   | "meeting"
   | "family"
   | "friends"
   | "favorite_memories"
   | "highlights"
-  | "future"
-  | "milestone"
   | "timeline"
+  | "milestone"
   | "legacy"
-
-
-
-  // =================================
-  // WEDDING
-  // =================================
-
-  | "love_story"
-  | "proposal"
-  | "ceremony"
-  | "vows"
-  | "first_dance"
-  | "guestbook"
-  | "guest_messages"
-  | "wedding_gallery"
-  | "honeymoon"
-  | "anniversary"
+  | "future"
   | "time_capsule"
 
 
+  // People / identity
+  | "profile"
+  | "social"
+  | "guestbook"
+  | "guest_messages"
 
-  // =================================
-  // EVENTS / CULTURE
-  // =================================
 
+  // Location
+  | "arrival"
+  | "location"
+  | "venue"
+
+
+  // Media
+  | "photo"
+  | "photos"
+  | "video"
+  | "audio"
+  | "soundtrack"
+  | "media"
+  | "replay"
+
+
+  // Commerce
+  | "product"
+  | "offer"
+  | "booking"
+  | "payment"
+  | "reward"
+  | "review"
+  | "menu"
+  | "ticket"
+  | "merch"
+
+
+  // Events
   | "performance"
   | "artist"
   | "setlist"
   | "crowd"
   | "backstage"
-  | "ticket"
-  | "merch"
 
 
-
-  // =================================
-  // ENGAGEMENT
-  // =================================
-
+  // Engagement
   | "playful"
-  | "share"
+  | "interaction"
   | "reaction"
+  | "share"
   | "excited"
+  | "cta"
 
 
-
-  // =================================
-  // CANNABIS / PRODUCT PASSPORT
-  // =================================
-
-  | "strain_profile"
+  // Product passports
   | "product_passport"
+  | "strain_profile"
   | "lab_results"
   | "terpene_profile"
   | "cultivation_story"
@@ -126,49 +105,114 @@ export type ExperienceMomentType =
   | "effects_guide"
 
 
-
-  // =================================
-  // PET / SAFETY / IDENTITY
-  // =================================
-
+  // Pets / safety
   | "pet_profile"
+  | "pet_story"
+  | "pet_journey"
+  | "pet_health"
+  | "pet_birthday"
   | "lost_pet"
   | "emergency_info"
   | "medical_profile"
   | "care_instructions"
   | "adoption_story"
-  | "pet_story"
-  | "pet_journey"
-  | "pet_health"
-  | "pet_birthday";
 
 
 
 
 
-export type ExperienceMoment = {
+// =====================================================
+// PLAYER RENDERING SYSTEM
+// =====================================================
 
-  type: ExperienceMomentType;
+export type ExperienceComponent =
 
-  component: ExperienceComponent;
+  | "hero"
 
-  title: string;
+  | "story"
 
-  subtitle?: string;
+  | "memory"
 
-  description?: string;
+  | "gallery"
 
-  icon?: string;
+  | "video"
 
-  animation?: string;
+  | "audio"
 
-  editable: boolean;
+  | "media"
 
-  demo: boolean;
+  | "timeline"
 
-  order: number;
+  | "geo_memory"
 
-  payload: Record<string, unknown>;
+  | "map"
+
+  | "profile"
+
+  | "social"
+
+  | "product"
+
+  | "payment"
+
+  | "reward"
+
+  | "review"
+
+  | "menu"
+
+  | "education"
+
+  | "guestbook"
+
+  | "countdown"
+
+  | "cta"
+
+  | "interaction";
+
+
+
+
+
+// =====================================================
+// MEDIA LAYER
+// =====================================================
+
+export type ExperienceMediaType =
+
+  | "image"
+
+  | "video"
+
+  | "audio";
+
+
+
+export type ExperienceMedia = {
+
+  id:string;
+
+
+  type:ExperienceMediaType;
+
+
+  url:string;
+
+
+  thumbnail?:string;
+
+
+  duration?:number;
+
+
+  title?:string;
+
+
+  description?:string;
+
+
+  metadata?:Record<string,unknown>;
 
 };
 
@@ -176,25 +220,184 @@ export type ExperienceMoment = {
 
 
 
-export type ExperienceComponent =
+// =====================================================
+// AUDIO EXPERIENCE
+// =====================================================
 
-    | "hero"
-    | "story"
-    | "memory"
-    | "gallery"
-    | "video"
-    | "timeline"
-    | "geo_memory"
-    | "reward"
-    | "payment"
-    | "review"
-    | "profile"
-    | "social"
-    | "map"
-    | "menu"
-    | "product"
-    | "education"
-    | "countdown"
-    | "guestbook"
-    | "cta"
-    | "interaction";
+export type ExperienceAudio = {
+
+  url:string;
+
+
+  volume?:number;
+
+
+  autoplay?:boolean;
+
+
+  loop?:boolean;
+
+
+  fadeIn?:number;
+
+
+  fadeOut?:number;
+
+
+  metadata?:Record<string,unknown>;
+
+};
+
+
+
+
+
+// =====================================================
+// GEO / MEMORY CONTEXT
+// =====================================================
+
+export type ExperienceLocation = {
+
+  latitude:number;
+
+  longitude:number;
+
+  accuracy?:number;
+
+  name?:string;
+
+  city?:string;
+
+  region?:string;
+
+};
+
+
+
+
+
+// =====================================================
+// USER INTERACTION
+// =====================================================
+
+export type ExperienceInteraction = {
+
+  action:
+
+    | "open"
+
+    | "share"
+
+    | "purchase"
+
+    | "unlock"
+
+    | "continue"
+
+    | "submit";
+
+
+  label?:string;
+
+
+  url?:string;
+
+
+  metadata?:Record<string,unknown>;
+
+};
+
+
+
+
+
+// =====================================================
+// EXPERIENCE MOMENT
+// =====================================================
+
+export type ExperienceMoment = {
+
+
+  /**
+   * Meaning layer.
+   */
+  type:
+    ExperienceMomentType;
+
+
+
+  /**
+   * Runtime renderer.
+   */
+  component:
+    ExperienceComponent;
+
+
+
+  title:
+    string;
+
+
+
+  subtitle?:string;
+
+
+
+  description?:string;
+
+
+
+  icon?:string;
+
+
+
+  animation?:string;
+
+
+
+  editable:
+    boolean;
+
+
+
+  demo:
+    boolean;
+
+
+
+  order:
+    number;
+
+
+
+  /**
+   * Everything needed by runtime.
+   */
+  payload: {
+
+
+    text?:string;
+
+
+    media?:ExperienceMedia[];
+
+
+    audio?:ExperienceAudio;
+
+
+
+    location?:ExperienceLocation;
+
+
+
+    interaction?:ExperienceInteraction;
+
+
+
+    data?:Record<string,unknown>;
+
+
+  };
+
+
+};

@@ -170,6 +170,18 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@25.9.4)
 
+  packages/cognition:
+    dependencies:
+      '@qre/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/cognition-v2:
+    dependencies:
+      '@qre/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/contracts: {}
 
   packages/db:
@@ -177,6 +189,9 @@ importers:
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.5.4))(typescript@5.5.4)
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       stripe:
         specifier: ^22.2.1
         version: 22.3.0(@types/node@20.19.43)
@@ -196,9 +211,12 @@ importers:
 
   packages/engine:
     dependencies:
-      '@qre/api':
+      '@qre/cognition':
         specifier: workspace:*
-        version: link:../../apps/api
+        version: link:../cognition
+      '@qre/cognition-v2':
+        specifier: workspace:*
+        version: link:../cognition-v2
       '@qre/contracts':
         specifier: workspace:*
         version: link:../contracts

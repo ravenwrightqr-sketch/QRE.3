@@ -2,16 +2,82 @@ import { nanoid } from "nanoid";
 
 import type {
   ServiceReceipt,
+  ExperienceMoment,
 } from "@qre/contracts";
 
 
+type ServiceReceiptAsset = {
+
+  id:string;
+
+  slug:string;
+
+};
+
+
+
+type ServiceReceiptInput = {
+
+  asset:ServiceReceiptAsset;
+
+  sessionId:string;
+
+  moments:ExperienceMoment[];
+
+};
+
+
+
+function resolveLocationPayload(
+  payload:Record<string, unknown>
+){
+
+  return {
+
+    lat:
+      typeof payload.lat === "number"
+        ? payload.lat
+        : undefined,
+
+
+    lng:
+      typeof payload.lng === "number"
+        ? payload.lng
+        : undefined,
+
+
+    label:
+      typeof payload.label === "string"
+        ? payload.label
+        : undefined,
+
+  };
+
+}
+
+
+
+function findLocationMoment(
+  moments:ExperienceMoment[]
+){
+
+  return moments.find(
+    (moment)=>
+
+      moment.type === "location" ||
+
+      moment.type === "arrival"
+
+  );
+
+}
+
+
+
+
 export function buildServiceReceipt(
-  input:{
-    asset:any;
-    sessionId:string;
-    moments:any[];
-  }
-): ServiceReceipt {
+  input:ServiceReceiptInput
+):ServiceReceipt {
 
 
   const id =
@@ -20,8 +86,8 @@ export function buildServiceReceipt(
 
 
   const locationMoment =
-    input.moments.find(
-      (m)=>m.type === "location"
+    findLocationMoment(
+      input.moments
     );
 
 
@@ -40,60 +106,55 @@ export function buildServiceReceipt(
       input.sessionId,
 
 
-
     type:
       "service",
 
 
-
     title:
+
       `${input.asset.slug} Service Receipt`,
 
 
 
     summary:
+
       `Completed ${input.moments.length} service steps.`,
 
 
 
     completedAt:
+
       new Date().toISOString(),
 
 
 
     location:
 
-      locationMoment?.meta
+      locationMoment
 
-      ? {
+        ? resolveLocationPayload(
+            locationMoment.payload
+          )
 
-          lat:
-            locationMoment.meta.lat,
-
-          lng:
-            locationMoment.meta.lng,
-
-          label:
-            locationMoment.meta.label,
-
-        }
-
-      : undefined,
+        : undefined,
 
 
 
     metadata:{
+
 
       steps:
         input.moments.length,
 
 
       shareUrl:
+
         `/receipt/${id}`,
 
     },
 
 
   };
+
 
 }

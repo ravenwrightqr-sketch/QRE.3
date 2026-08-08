@@ -1,204 +1,488 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import type { ScanResponse } from "@qre/contracts";
-
-import ScanAccessRouter from "../components/scan/ScanAccessRouter";
-import { getScan } from "../lib/api";
-
-
-export default function Scan() {
-
-  const { slug } = useParams();
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 
-  const [
-    data,
-    setData
-  ] = useState<ScanResponse | null>(null);
+import type {
+  RuntimeExperience,
+} from "@qre/contracts";
 
 
-
-  useEffect(() => {
-
-    async function load() {
-
-      if (!slug) return;
-
-
-      try {
-
-
-        let geo:
-          | {
-              lat:number;
-              lng:number;
-              accuracy?:number;
-            }
-          | undefined;
+import {
+  getScan,
+} from "../lib/api";
 
 
 
-        if ("geolocation" in navigator) {
+
+/**
+ * =====================================================
+ * QRE SCAN ENTRY
+ * =====================================================
+ *
+ * Frontend responsibility:
+ *
+ * QR / NFC identity
+ *        ↓
+ * Presence signal
+ *        ↓
+ * Runtime API
+ *        ↓
+ * RuntimeExperience
+ *        ↓
+ * Experience Player
+ *
+ *
+ * Frontend does NOT:
+ *
+ * - compile experiences
+ * - decide access
+ * - render demos
+ * - render unlocked states
+ * - understand cognition
+ *
+ * The engine decides.
+ * The frontend reveals.
+ *
+ * =====================================================
+ */
 
 
-          geo =
-            await new Promise((resolve) => {
+
+type GeoPresence = {
+
+  lat:number;
+
+  lng:number;
+
+  accuracy?:number;
+
+};
 
 
-              navigator.geolocation.getCurrentPosition(
-
-                (position) => {
-
-                  resolve({
-
-                    lat:
-                      position.coords.latitude,
-
-                    lng:
-                      position.coords.longitude,
-
-                    accuracy:
-                      position.coords.accuracy,
-
-                  });
-
-                },
 
 
-                () => {
 
-                  console.warn(
-                    "GPS unavailable"
-                  );
+async function captureGeoPresence():
 
-                  resolve(undefined);
-
-                },
+Promise<GeoPresence | undefined> {
 
 
-                {
+  if (
+    !("geolocation" in navigator)
+  ){
 
-                  enableHighAccuracy:true,
+    return undefined;
 
-                  timeout:5000,
-
-                  maximumAge:0,
-
-                }
-
-              );
+  }
 
 
-            });
+
+  return await new Promise(
+    (resolve)=>{
+
+
+      navigator.geolocation.getCurrentPosition(
+
+        (position)=>{
+
+
+          resolve({
+
+            lat:
+              position.coords.latitude,
+
+
+            lng:
+              position.coords.longitude,
+
+
+            accuracy:
+              position.coords.accuracy,
+
+          });
+
+
+        },
+
+
+        ()=>{
+
+
+          console.warn(
+            "QRE geo presence unavailable"
+          );
+
+
+          resolve(undefined);
+
+
+        },
+
+
+        {
+
+          enableHighAccuracy:true,
+
+          timeout:5000,
+
+          maximumAge:0,
 
         }
 
+      );
 
 
-        const json =
-          await getScan(
-            slug,
-            geo
-          );
+    }
+
+  );
+
+
+}
+
+
+
+
+
+export default function Scan(){
+
+
+  const {
+    slug,
+  } =
+  useParams();
+
+
+
+  const navigate =
+    useNavigate();
+
+
+
+
+  const [
+    loading,
+    setLoading,
+  ] =
+  useState(true);
+
+
+
+  const [
+    error,
+    setError,
+  ] =
+  useState<string | null>(null);
+
+
+
+
+
+  useEffect(()=>{
+
+
+    async function boot(){
+
+
+
+      if(!slug){
+
+
+        setError(
+          "Missing experience identity"
+        );
+
+
+        setLoading(false);
+
+
+        return;
+
+      }
+
+
+
+
+
+
+      try{
+
+
+        const geo =
+          await captureGeoPresence();
+
+
 
 
 
         console.log(
-          "🔥 FULL EXPERIENCE RESPONSE",
+          "🔥 QRE SCAN SIGNAL",
           {
 
-            access:
-              json.access,
+            slug,
 
             geo,
-
-            moments:
-              json.moments,
-
-            geoStory:
-              json.geoStory,
-
-            cinematicScenes:
-              json.cinematicScenes,
-
-            memorySnapshot:
-              json.memorySnapshot,
-
-            receipt:
-              json.receipt,
-
-            asset:
-              json.asset,
 
           }
         );
 
 
 
-        setData(json);
 
 
 
-      } catch(error) {
+        const runtime:
+
+        RuntimeExperience =
+
+          await getScan(
+
+            slug,
+
+            geo
+
+          );
+
+
+
+
+
+
+
+        console.log(
+
+          "🔥 RUNTIME EXPERIENCE RECEIVED",
+
+          {
+
+            sessionId:
+              runtime.sessionId,
+
+
+            access:
+              runtime.accessState,
+
+
+            scenes:
+              runtime.cinematicScenes?.length ?? 0,
+
+
+            moments:
+              runtime.moments?.length ?? 0,
+
+
+            asset:
+              runtime.asset,
+
+          }
+
+        );
+
+
+
+
+
+
+
+        sessionStorage.setItem(
+
+          "runtimeExperience",
+
+          JSON.stringify(
+            runtime
+          )
+
+        );
+
+
+
+
+
+        navigate(
+          "/experience"
+        );
+
+
+
+      }
+
+
+      catch(error){
+
 
 
         console.error(
-          "🔥 SCAN PAGE FAILED",
+
+          "🔥 QRE EXPERIENCE FAILED",
+
           error
+
+        );
+
+
+
+        setError(
+
+          error instanceof Error
+
+          ? error.message
+
+          : "Experience failed to load"
+
         );
 
 
       }
 
+
+      finally{
+
+
+        setLoading(false);
+
+
+      }
+
+
     }
 
 
-    load();
 
 
-  },[slug]);
-
-
+    boot();
 
 
 
-  if (!data) {
+  },[
+
+    slug,
+
+    navigate,
+
+  ]);
+
+
+
+
+
+
+
+  if(loading){
+
 
     return (
 
       <div
+
         style={{
 
-          height:"100vh",
+          minHeight:"100vh",
 
           display:"grid",
 
           placeItems:"center",
 
-          background:"#050505",
+          background:"#030305",
 
-          color:"white",
+          color:"rgba(255,255,255,.7)",
+
+          letterSpacing:4,
+
+          fontSize:14,
 
         }}
+
       >
 
-        Loading experience...
+        AWAKENING EXPERIENCE...
 
       </div>
 
     );
 
+
   }
 
-  return (
 
-    <ScanAccessRouter
 
-      data={data}
 
-    />
 
-  );
+
+
+  if(error){
+
+
+    return (
+
+      <div
+
+        style={{
+
+          minHeight:"100vh",
+
+          display:"grid",
+
+          placeItems:"center",
+
+          background:"#030305",
+
+          color:"#fff",
+
+          textAlign:"center",
+
+          padding:40,
+
+        }}
+
+      >
+
+
+        <div>
+
+
+          <h2>
+            Experience unavailable
+          </h2>
+
+
+
+          <p
+
+            style={{
+
+              opacity:.65,
+
+            }}
+
+          >
+
+            {error}
+
+          </p>
+
+
+
+        </div>
+
+
+      </div>
+
+    );
+
+
+  }
+
+
+
+
+
+  return null;
+
 
 }

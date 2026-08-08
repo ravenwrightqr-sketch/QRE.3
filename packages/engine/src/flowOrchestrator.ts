@@ -11,7 +11,7 @@ import {
 } from "./presence/checkIn.js";
 
 import type {
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
 
 
@@ -27,9 +27,11 @@ export type FlowRuntimeGeo = {
 
 
 
+
+
 export async function runFlowActions(
 
-  moments:Moment[],
+  moments:ExperienceMoment[],
 
   sessionId:string,
 
@@ -47,12 +49,15 @@ export async function runFlowActions(
 
 ){
 
+
   const sorted =
     [...moments]
       .sort(
         (a,b)=>
           a.order-b.order
       );
+
+
 
 
 
@@ -64,6 +69,8 @@ export async function runFlowActions(
 
     const moment =
       sorted[i];
+
+
 
 
 
@@ -99,7 +106,11 @@ export async function runFlowActions(
 
 
 
+
+
+
     switch(moment.type){
+
 
 
       case "message":
@@ -108,23 +119,24 @@ export async function runFlowActions(
 
 
 
-      case "action":
-
-        break;
-
 
 
       case "location":{
 
-        const meta =
-          moment.meta ?? {};
+
+        const data =
+          moment.payload.data ?? {};
 
 
 
         if(
-          meta.geoMemory === true &&
+
+          data.geoMemory === true &&
+
           geo &&
+
           presenceRepository
+
         ){
 
           await checkIn(
@@ -156,13 +168,9 @@ export async function runFlowActions(
 
 
 
+
+
       case "media":
-
-        break;
-
-
-
-      case "system":
 
         break;
 
@@ -172,22 +180,38 @@ export async function runFlowActions(
 
 
 
+
+
     const duration =
-      typeof moment.meta?.duration === "number"
-        ? moment.meta.duration
-        : 0;
+
+      typeof moment.payload.data?.duration === "number"
+
+      ? moment.payload.data.duration
+
+      : 0;
+
+
+
 
 
 
     if(duration > 0){
 
+
       await new Promise(
+
         resolve =>
+
           setTimeout(
+
             resolve,
+
             duration
+
           )
+
       );
+
 
     }
 
@@ -197,13 +221,20 @@ export async function runFlowActions(
 
 
 
+
+
+
+
   if(analyticsRepository){
+
 
     await trackEvent(
 
       analyticsRepository,
 
+
       {
+
 
         assetId,
 
@@ -211,18 +242,26 @@ export async function runFlowActions(
 
         type:"FLOW_COMPLETE",
 
+
         meta:{
 
+
           steps:
+
             sorted.length,
+
 
         },
 
+
       }
+
 
     );
 
+
   }
+
 
 
 }

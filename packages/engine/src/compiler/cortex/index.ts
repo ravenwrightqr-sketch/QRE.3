@@ -1,14 +1,13 @@
+/**
+ * =====================================================
+ * SEMANTIC CORTEX EXPORT
+ * =====================================================
+ */
+
 export {
+
   buildSemanticCortex,
-  toSemanticInterpretation,
-} from "./SemanticCortex.js";
 
+  toSemanticInterpretation
 
-export type {
-  CortexInterpretation,
-} from "./SemanticCortex.js";
-
-
-export type {
- SemanticModel
-} from "./CortexTypes.js";
+} from "./semanticCortex.js";

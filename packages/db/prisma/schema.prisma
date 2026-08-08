@@ -108,26 +108,22 @@ model Ownership {
 /// * FLOW ENGINE
 /// * =========================
 model Flow {
-  id         String  @id @default(cuid())
-  name       String
-  version    Int     @default(1)
-  merchantId String?
-  actions    Json
-
-  data Json?
-
-  createdAt       DateTime           @default(now())
-  status          String             @default("DRAFT")
-  publishedAt     DateTime?
-  analyticsEvents AnalyticsEvent[]
-  assetFlows      AssetFlow[]
-  metrics         FlowMetricsDaily[]
-  steps           FlowStep[]         @relation("FlowSteps")
-  sessions        ScanSession[]
-
-  experiences Experience[] @relation("ExperienceFlow")
-
-  publishedExperiences Experience[] @relation("PublishedExperienceFlow")
+  id                   String             @id @default(cuid())
+  name                 String
+  version              Int                @default(1)
+  merchantId           String?
+  actions              Json
+  data                 Json?
+  createdAt            DateTime           @default(now())
+  publishedAt          DateTime?
+  status               String             @default("DRAFT")
+  analyticsEvents      AnalyticsEvent[]
+  assetFlows           AssetFlow[]
+  experiences          Experience[]       @relation("ExperienceFlow")
+  publishedExperiences Experience[]       @relation("PublishedExperienceFlow")
+  metrics              FlowMetricsDaily[]
+  steps                FlowStep[]         @relation("FlowSteps")
+  sessions             ScanSession[]
 }
 
 model AssetFlow {
@@ -493,22 +489,17 @@ model MerchantSignal {
 /// * Compiles into Flow.
 /// *
 model Experience {
-  id        String  @id @default(cuid())
-  assetId   String
-  title     String?
-  blueprint Json
-
+  id              String   @id @default(cuid())
+  assetId         String
+  title           String?
+  blueprint       Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   flowId          String?
   publishedFlowId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  asset Asset @relation(fields: [assetId], references: [id])
-
-  flow Flow? @relation("ExperienceFlow", fields: [flowId], references: [id])
-
-  publishedFlow Flow? @relation("PublishedExperienceFlow", fields: [publishedFlowId], references: [id])
+  asset           Asset    @relation(fields: [assetId], references: [id])
+  flow            Flow?    @relation("ExperienceFlow", fields: [flowId], references: [id])
+  publishedFlow   Flow?    @relation("PublishedExperienceFlow", fields: [publishedFlowId], references: [id])
 
   @@index([assetId])
   @@index([flowId])
@@ -609,4 +600,3 @@ enum TicketStatus {
   REDEEMED
   VOID
 }
-

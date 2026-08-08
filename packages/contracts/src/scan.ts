@@ -1,72 +1,155 @@
+/**
+ * =====================================================
+ * QRE SCAN CONTRACT
+ *
+ * Runtime migration layer.
+ *
+ * The canonical runtime contract is:
+ *
+ * RuntimeExperience
+ *
+ * Scan no longer owns:
+ *
+ * - preview
+ * - teaser rendering
+ * - checkout decisions
+ * - cinematic state
+ *
+ * Those belong to runtime/player layers.
+ *
+ * =====================================================
+ */
+
+
 export type AccessState =
   | "DEMO"
   | "UNLOCKED";
 
 
+
+/**
+ * =====================================================
+ * LEGACY TEASER COMPATIBILITY
+ *
+ * Temporary bridge for old consumers.
+ *
+ * =====================================================
+ */
+
 export type TeaserBlock = {
-  type: "text" | "action";
-  text: string;
-  url?: string;
+
+  type:
+    | "text"
+    | "action";
+
+  text:string;
+
+  url?:string;
+
 };
 
 
+
+/**
+ * =====================================================
+ * LEGACY SCAN RUNTIME RESPONSE
+ *
+ * Deprecated.
+ *
+ * Use RuntimeExperience.
+ *
+ * =====================================================
+ */
+
 export type ScanRuntimeResponse = {
-  access: AccessState;
 
-  sessionId: string;
+  /**
+   * Compatibility access field.
+   *
+   * Replace with:
+   *
+   * RuntimeExperience.accessState
+   */
+  access:AccessState;
 
 
-  asset: {
 
-    id: string;
+  /**
+   * Compatibility identity.
+   */
+  sessionId:string;
 
-    slug: string;
 
-    status: string;
 
-    priceCents: number;
+  /**
+   * Compatibility asset.
+   */
+  asset:{
 
-    flowId: string | null;
+    id:string;
 
-    accountId: string | null;
+    slug:string;
 
-    paid: boolean;
+    status:string;
+
+    priceCents:number;
+
+    flowId:string | null;
+
+    accountId:string | null;
+
+    paid:boolean;
 
   };
 
 
-  teaser: TeaserBlock[];
+
+  /**
+   * Deprecated.
+   *
+   * RuntimeExperience.moments
+   * replaces this.
+   */
+  teaser:TeaserBlock[];
 
 
+
+  /**
+   * Deprecated state machine.
+   */
   state:
     | "initial"
     | "scanning"
     | "completed";
 
 
+
   /**
-   * True when runtime is showing
-   * a non-owned demo experience.
+   * Deprecated.
+   *
+   * DEMO is represented by:
+   *
+   * accessState:"DEMO"
    */
-  preview: boolean;
+  preview:boolean;
+
 
 
   /**
-   * Next runtime decision.
+   * Deprecated.
    *
-   * DEMO:
-   * CHECKOUT or STORE
-   *
-   * UNLOCKED:
-   * RUN_FLOW
+   * Player decides this.
    */
   nextAction?:
     | "CHECKOUT"
     | "RUN_FLOW";
 
 
-  actionUrl?: string | null;
+
+  actionUrl?:string | null;
 
 
-  timestamp: string;
+
+  timestamp:string;
+
 };

@@ -5,701 +5,344 @@
  *
  * Experience Genome
  *        ↓
+ * Experience World
+ *        ↓
  * Experience Blueprint
  *
- * Genome is creative source of truth.
+ * Composition only.
  *
- * Responsibilities:
- *
- * - Resolve industry
- * - Resolve goal
- * - Resolve experience type
- * - Generate moments
- * - Preserve meaning
- *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
+ * The composer does not detect intent, create meaning, or execute
+ * anything. It turns evidence already present in the genome/world into
+ * the canonical blueprint consumed by the rest of the compiler.
  *
  * =====================================================
  */
 
-
 import type {
-
   ExperienceBlueprint,
+  ExperienceComponent,
   ExperienceGenome,
   ExperienceMoment,
   ExperienceMomentType,
-  ExperienceComponent,
   ExperienceTone,
-  ExperienceGoal,
   ExperienceType,
-  ExperienceIndustry,
-
+  ExperienceWorld,
+  WorldDomain,
 } from "@qre/contracts";
 
+function resolveComponent(type: ExperienceMomentType): ExperienceComponent {
+  const components: Partial<
+    Record<ExperienceMomentType, ExperienceComponent>
+  > = {
+    welcome: "hero",
+    introduction: "hero",
+    story: "story",
+    message: "story",
+    reveal: "story",
+    memory: "memory",
+    meeting: "memory",
+    family: "memory",
+    friends: "memory",
+    favorite_memories: "memory",
+    highlights: "timeline",
+    timeline: "timeline",
+    milestone: "timeline",
+    legacy: "timeline",
+    future: "story",
+    time_capsule: "timeline",
+    photo: "gallery",
+    photos: "gallery",
+    video: "video",
+    audio: "audio",
+    soundtrack: "audio",
+    media: "media",
+    replay: "media",
+    profile: "profile",
+    social: "social",
+    guestbook: "guestbook",
+    guest_messages: "guestbook",
+    arrival: "geo_memory",
+    location: "geo_memory",
+    venue: "geo_memory",
+    product: "product",
+    offer: "product",
+    booking: "cta",
+    payment: "payment",
+    reward: "reward",
+    review: "review",
+    menu: "menu",
+    ticket: "cta",
+    merch: "product",
+    education: "education",
+    care_instructions: "education",
+    interaction: "interaction",
+    reaction: "interaction",
+    share: "social",
+    cta: "cta",
+  };
 
+  return components[type] ?? "story";
+}
 
+function unique(values: readonly unknown[]): string[] {
+  return [
+    ...new Set(
+      values.filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      ),
+    ),
+  ];
+}
 
+function resolveMomentType(value: string): ExperienceMomentType {
+  const text = value.toLowerCase();
 
+  if (/memory|remember|nostalg|past|history|legacy/.test(text)) {
+    return "memory";
+  }
 
+  if (/people|person|friend|family|relationship|partner|together/.test(text)) {
+    return "meeting";
+  }
 
+  if (/place|location|home|city|venue|travel|visit/.test(text)) {
+    return "location";
+  }
+
+  if (/photo|image|picture/.test(text)) {
+    return "photos";
+  }
+
+  if (/video|film|movie/.test(text)) {
+    return "video";
+  }
+
+  if (/sound|song|music|audio/.test(text)) {
+    return "audio";
+  }
+
+  if (/product|item|object|thing|purchase|buy|sell/.test(text)) {
+    return "product";
+  }
+
+  if (/reward|gift|prize/.test(text)) {
+    return "reward";
+  }
+
+  if (/learn|teach|instruction|guide|how to|education/.test(text)) {
+    return "education";
+  }
+
+  if (/share|social|community|together/.test(text)) {
+    return "share";
+  }
+
+  return "story";
+}
+
+function moment(
+  type: ExperienceMomentType,
+  title: string,
+  description: string,
+  order: number,
+  genome: ExperienceGenome,
+): ExperienceMoment {
+  return {
+    type,
+    component: resolveComponent(type),
+    title,
+    subtitle: description,
+    description,
+    order,
+    editable: true,
+    demo: false,
+    payload: {
+      text: description,
+      data: {
+        source: "experience_genome",
+        meaning: genome.meaning,
+        entities: genome.entities,
+        relationships: genome.relationships,
+        semanticDNA: genome.dna,
+        symbols: genome.symbols,
+        worlds: genome.worlds,
+      },
+    },
+  };
+}
 
 /**
- * =====================================================
- * MOMENT → COMPONENT
- * =====================================================
+ * Build runtime-facing moments directly from evidence in the genome.
+ *
+ * This intentionally does not depend on the removed object compiler.
+ * It also avoids manufacturing a fixed narrative sequence for every prompt.
  */
+function buildEvidenceMoments(
+  genome: ExperienceGenome,
+): ExperienceMoment[] {
+  const moments: ExperienceMoment[] = [];
 
+  const add = (
+    type: ExperienceMomentType,
+    title: string,
+    description: string,
+  ) => {
+    if (!title.trim() || !description.trim()) return;
+    moments.push(moment(type, title, description, moments.length, genome));
+  };
 
-function resolveComponent(
+  const intent = unique(genome.intent)[0];
+  const why = unique(genome.meaning.why)[0];
 
-  type:ExperienceMomentType
+  if (intent || why) {
+    const title = intent ?? "Experience intent";
+    add(
+      resolveMomentType(title),
+      title,
+      why ?? `Built from the intent: ${title}.`,
+    );
+  }
 
-):ExperienceComponent {
+  for (const person of unique(genome.entities.people).slice(0, 4)) {
+    add("profile", person, `A person identified in the experience: ${person}.`);
+  }
 
+  for (const place of unique(genome.entities.places).slice(0, 3)) {
+    add("location", place, `A place identified in the experience: ${place}.`);
+  }
 
-const components:
+  for (const event of unique(genome.entities.events).slice(0, 4)) {
+    add("story", event, `An event identified in the experience: ${event}.`);
+  }
 
-Partial<Record<
-ExperienceMomentType,
-ExperienceComponent
->>
+  for (const product of unique(genome.entities.products).slice(0, 4)) {
+    add("product", product, `A product or offering identified in the experience: ${product}.`);
+  }
 
-= {
+  for (const memory of unique(genome.meaning.memories).slice(0, 3)) {
+    add("memory", "Memory", memory);
+  }
 
+  for (const feeling of unique(genome.meaning.desiredFeeling).slice(0, 2)) {
+    add("reveal", feeling, `Desired experience quality: ${feeling}.`);
+  }
 
-welcome:
-"hero",
+  if (!moments.length) {
+    const fallback = unique([
+      ...genome.themes,
+      ...genome.symbols,
+      ...genome.sensory,
+      ...genome.tone,
+    ])[0];
 
+    if (fallback) {
+      add("story", fallback, `A creative signal found in the experience: ${fallback}.`);
+    }
+  }
 
-introduction:
-"hero",
+  if (!moments.length) {
+    add(
+      "welcome",
+      "Experience",
+      "An experience composed from the available semantic evidence.",
+    );
+  }
 
-
-story:
-"story",
-
-
-memory:
-"memory",
-
-
-photos:
-"gallery",
-
-
-video:
-"video",
-
-
-location:
-"geo_memory",
-
-
-product:
-"product",
-
-
-reward:
-"reward",
-
-
-share:
-"social",
-
-
-profile:
-"profile",
-
-
-timeline:
-"timeline",
-
-
-followup:
-"cta",
-
-
-care_instructions:
-"education",
-
-
-};
-
-
-return (
-
-components[type]
-
-??
-
-"cta"
-
-) as ExperienceComponent;
-
-
+  return moments.map((item, index) => ({
+    ...item,
+    order: index,
+  }));
 }
 
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * PURPOSE INTELLIGENCE
- * =====================================================
- */
-
-
-function resolveGoal(
-
- genome:ExperienceGenome
-
-):ExperienceGoal {
-
-
-if(
- genome.commerce >= .7
-){
- return "conversion";
+function resolveWorlds(world: ExperienceWorld): WorldDomain[] {
+  return unique([
+    world.domain,
+    ...(world.connectedWorlds ?? []),
+  ]) as WorldDomain[];
 }
-
-
-if(
- genome.memory >= .7
-){
- return "memory";
-}
-
-
-if(
- genome.themes.includes(
-   "connection"
- )
-){
- return "storytelling";
-}
-
-
-if(
- genome.themes.includes(
-   "education"
- )
-){
- return "educate";
-}
-
-
-if(
- genome.replay >= .7
-){
- return "retention";
-}
-
-
-return "welcome";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * INDUSTRY INTELLIGENCE
- * =====================================================
- */
-
-
-function resolveIndustry(
-
- genome:ExperienceGenome
-
-):ExperienceIndustry {
-
-
-if(
- genome.commerce >= .7
-){
- return "business";
-}
-
-
-
-if(
- genome.memory >= .7
-){
-
- return "personal";
-
-}
-
-
-
-if(
- genome.themes.includes(
- "relationship"
- )
-){
-
- return "relationship";
-
-}
-
-
-
-if(
- genome.themes.includes(
- "culture"
- )
-){
-
- return "event";
-
-}
-
-
-
-return "generic";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * EXPERIENCE SHAPE
- * =====================================================
- */
-
-
-function resolveType(
-
- genome:ExperienceGenome
-
-):ExperienceType {
-
-
-if(
- genome.memory >= .7
-){
-
- return "story";
-
-}
-
-
-
-if(
- genome.commerce >= .7
-){
-
- return "business";
-
-}
-
-
-
-if(
- genome.journey.includes(
- "transformation"
- )
-){
-
- return "journey";
-
-}
-
-
-
-return "journey";
-
-
-}
-
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * TITLE ENGINE
- * =====================================================
- */
-
 
 function createTitle(
-
- genome:ExperienceGenome
-
-):string {
-
-
-
-if(
- genome.meaning.memories.length
-){
-
- return genome.meaning.memories[0];
-
+  genome: ExperienceGenome,
+  world: ExperienceWorld,
+): string {
+  return (
+    unique([
+      world.worldIdentity?.name,
+      genome.entities.people[0]
+        ? `${genome.entities.people[0]} Experience`
+        : undefined,
+      genome.entities.places[0]
+        ? `${genome.entities.places[0]} Experience`
+        : undefined,
+      genome.meaning.memories[0],
+      genome.meaning.desiredFeeling[0]
+        ? `${genome.meaning.desiredFeeling[0]} Experience`
+        : undefined,
+      genome.intent[0],
+    ])[0] ?? "QRE Experience"
+  );
 }
 
+function resolveExperienceType(
+  worlds: WorldDomain[],
+  genome: ExperienceGenome,
+): ExperienceType {
+  if (worlds.includes("commerce_world") || genome.commerce > 0.5) {
+    return "business";
+  }
 
+  if (worlds.includes("memory_world") || genome.memory > 0.5) {
+    return "story";
+  }
 
-if(
- genome.meaning.desiredFeeling.length
-){
+  if (
+    worlds.includes("discovery_world") ||
+    worlds.includes("journey_world") ||
+    genome.discovery > 0.5
+  ) {
+    return "journey";
+  }
 
- return `${genome.meaning.desiredFeeling[0]} Experience`;
-
+  return "journey";
 }
-
-
-
-if(
- genome.entities.places.length
-){
-
- return `${genome.entities.places[0]} Experience`;
-
-}
-
-
-
-if(
- genome.entities.people.length
-){
-
- return `${genome.entities.people[0]} Story`;
-
-}
-
-
-
-return "QRE Experience";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * MOMENT GENERATION
- * =====================================================
- */
-
-
-function generateMomentSequence(
-
- genome:ExperienceGenome
-
-):ExperienceMomentType[] {
-
-
-const moments =
-new Set<ExperienceMomentType>();
-
-
-
-moments.add(
-"welcome"
-);
-
-
-
-if(
- genome.memory >= .5
-){
-
- moments.add(
- "memory"
- );
-
-}
-
-
-
-if(
- genome.entities.places.length
-){
-
- moments.add(
- "location"
- );
-
-}
-
-
-
-if(
- genome.entities.products.length
-){
-
- moments.add(
- "product"
- );
-
-}
-
-
-
-if(
- genome.immersion >= .5
-){
-
- moments.add(
- "video"
- );
-
-}
-
-
-
-if(
- genome.interaction >= .5
-){
-
- moments.add(
- "story"
- );
-
-}
-
-
-
-moments.add(
-"followup"
-);
-
-
-
-return [
- ...moments
-];
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * BUILD MOMENT
- * =====================================================
- */
-
-
-function buildMoment(
-
- type:ExperienceMomentType,
-
- index:number,
-
- genome:ExperienceGenome
-
-):ExperienceMoment {
-
-
-return {
-
-
-type,
-
-
-component:
-resolveComponent(type),
-
-
-
-title:
-`${type} moment`,
-
-
-
-subtitle:
-genome.meaning.why,
-
-
-
-order:
-index,
-
-
-
-editable:true,
-
-
-
-demo:true,
-
-
-
-payload:{
-
-
-entities:
-genome.entities,
-
-
-relationships:
-genome.relationships,
-
-
-meaning:
-genome.meaning,
-
-
-genome,
-
-
-
-}
-
-
-};
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * PUBLIC COMPILER
- *
- * Genome → Blueprint
- *
- * =====================================================
- */
-
 
 export function composeBlueprint(
+  genome: ExperienceGenome,
+  world: ExperienceWorld,
+): ExperienceBlueprint {
+  if (!genome) {
+    throw new Error("Genome required");
+  }
 
- genome:ExperienceGenome
+  if (!world) {
+    throw new Error("ExperienceWorld required");
+  }
 
-):ExperienceBlueprint {
+  const worlds = resolveWorlds(world);
+  const moments = buildEvidenceMoments(genome);
 
+  const tone = unique([
+    genome.energy,
+    ...genome.emotions,
+    ...genome.tone,
+  ]) as ExperienceTone[];
 
-
-const momentTypes =
-generateMomentSequence(
- genome
-);
-
-
-
-const moments =
-momentTypes.map(
-
-(type,index)=>
-
-buildMoment(
-
-type,
-
-index,
-
-genome
-
-)
-
-);
-
-
-
-
-
-
-const tone:
-
-ExperienceTone[] =
-
-[
- genome.energy,
- ...genome.emotions
-]
-
-.filter(
-
-(value):value is ExperienceTone =>
-
-typeof value === "string"
-
-);
-
-
-return {
-
-title:
-createTitle(
- genome
-),
-
-
-type:
-resolveType(
- genome
-),
-
-
-tone,
-
-
-meaning:
-genome.meaning,
-
-
-moments,
-
-
-entities:
-genome.entities,
-
-
-};
-
+  return {
+    title: createTitle(genome, world),
+    type: resolveExperienceType(worlds, genome),
+    tone: [...new Set(tone)],
+    meaning: genome.meaning,
+    moments,
+    entities: genome.entities,
+    metadata: {
+      archetypes: genome.archetypes,
+      themes: genome.themes,
+      dna: genome.dna,
+      worlds,
+      artifacts: world.artifacts,
+    },
+  };
 }
+
+export const blueprintComposer = composeBlueprint;

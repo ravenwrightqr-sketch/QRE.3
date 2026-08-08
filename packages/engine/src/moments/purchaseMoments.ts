@@ -1,13 +1,32 @@
+/**
+ * =====================================================
+ * QRE PURCHASE EXPERIENCE MOMENTS
+ * =====================================================
+ *
+ * Access State
+ *      ↓
+ * ExperienceMoment
+ *      ↓
+ * CinematicRuntime
+ *
+ * NO DATABASE
+ * NO EXECUTION
+ *
+ * =====================================================
+ */
+
 import type {
   AccessState,
-  Moment,
+  ExperienceMoment,
 } from "@qre/contracts";
+
 
 
 export function purchaseMoments(
   state: AccessState,
   slug: string
-): Moment[] {
+): ExperienceMoment[] {
+
 
 
   if (
@@ -20,78 +39,125 @@ export function purchaseMoments(
 
 
 
-  if (
+
+  const url =
+
     state === "DEMO"
-  ) {
 
-    return [
+      ? `/store/${slug}`
 
-      {
-        type: "action",
-
-        order: 100,
-
-        action: "payment",
-
-        meta: {
-
-          text: "Create your own experience",
-
-          url: `/store/${slug}`,
-
-        },
-
-      },
-
-    ];
-
-  }
+      : `/checkout/${slug}`;
 
 
 
-  if (
-    state === "LOCKED"
-  ) {
 
-    return [
-
-      {
-        type: "action",
-
-        order: 100,
-
-        action: "payment",
-
-        meta: {
-
-          text: "Activate this experience",
-
-          url: `/checkout/${slug}`,
-
-        },
-
-      },
-
-    ];
-
-  }
 
 
 
   return [
 
     {
-      type: "action",
 
-      order: 100,
+      type:
+        "payment",
 
-      action: "payment",
 
-      meta: {
 
-        text: "Get this experience",
+      component:
+        "payment",
 
-        url: `/checkout/${slug}`,
+
+
+      title:
+
+        state === "DEMO"
+
+          ? "Create Your Own Experience"
+
+          : state === "LOCKED"
+
+            ? "Activate This Experience"
+
+            : "Get This Experience",
+
+
+
+
+
+      subtitle:
+
+        "Unlock the complete experience.",
+
+
+
+
+
+      description:
+
+        "Continue to access the full cinematic experience.",
+
+
+
+
+
+      editable:
+
+        false,
+
+
+
+
+
+      demo:
+
+        state === "DEMO",
+
+
+
+
+
+      order:
+
+        100,
+
+
+
+
+
+      payload:{
+
+
+        interaction:{
+
+          action:"purchase",
+
+          url,
+
+          label:
+
+            state === "DEMO"
+
+              ? "Create Experience"
+
+              : "Unlock Experience"
+
+
+        },
+
+
+        data:{
+
+
+          accessState:
+
+            state,
+
+
+          slug,
+
+
+        }
+
 
       },
 

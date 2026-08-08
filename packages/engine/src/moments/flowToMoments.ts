@@ -1,412 +1,505 @@
-import type {
-  FlowStep,
-  Moment,
-} from "@qre/contracts";
-
-
 /**
  * =====================================================
- * FLOW → MOMENTS
- *
- * Runtime translation layer
+ * QRE FLOW → EXPERIENCE MOMENTS
+ * =====================================================
  *
  * FlowStep
- *    ↓
- * Moment
+ *     ↓
+ * ExperienceMoment
+ *     ↓
+ * CinematicRuntime
+ *     ↓
+ * CinematicScene
  *
- * SINGLE SOURCE OF TRUTH FOR SCAN DELIVERY
+ *
+ * Semantic translation layer.
  *
  * NO DATABASE
+ * NO PRISMA
  * NO EXECUTION
  *
  * =====================================================
  */
 
 
-export function flowToMoment(
-  steps: FlowStep[]
-): Moment[] {
+import type {
+  FlowStep,
+  ExperienceMoment,
+  ExperienceMomentType,
+  ExperienceComponent,
+} from "@qre/contracts";
 
 
-  const moments: Moment[] = [];
 
 
 
-  for (const step of steps) {
+function resolveMomentType(
+  step: FlowStep,
+  payload: Record<string, any>
+): ExperienceMomentType {
 
 
-    const payload =
-      (
-        step.payload ?? {}
-      ) as Record<string, any>;
+  switch(step.type){
 
 
+    case "location":
 
-    switch(step.type) {
+      return "location";
 
 
 
-      /**
-       * ==========================
-       * MESSAGE BASED MOMENTS
-       *
-       * Story
-       * Product
-       * Education
-       * Gallery
-       * Reward
-       * Social
-       * Replay
-       *
-       * ==========================
-       */
+    case "payment":
 
+      return "payment";
 
-      case "message": {
 
 
-        let semanticType =
-          payload.action ??
-          payload.momentType ??
-          payload.component ??
-          "message";
+    case "redirect":
 
+      return "interaction";
 
 
-        /**
-         * Normalize runtime names
-         */
 
-        switch (semanticType) {
+    case "timer":
 
+      return "completion";
 
-          case "commerce":
 
-            semanticType = "product";
 
-            break;
+    case "message": {
 
 
-          case "gallery":
+      const semantic =
+        payload.momentType ??
+        payload.component ??
+        payload.action;
 
-            semanticType = "photos";
 
-            break;
 
+      switch(semantic){
 
-          case "memory":
 
-            semanticType = "story";
+        case "memory":
 
-            break;
+          return "memory";
 
 
-          case "cinematic_replay":
+        case "gallery":
+        case "photos":
 
-            semanticType = "cinematic_replay";
+          return "photos";
 
-            break;
 
+        case "video":
 
-          case "education":
+          return "video";
 
-            semanticType = "education";
 
-            break;
+        case "audio":
+        case "soundtrack":
 
+          return "audio";
 
-          case "reward":
 
-            semanticType = "reward";
+        case "reward":
 
-            break;
+          return "reward";
 
 
-          case "social":
+        case "social":
 
-            semanticType = "social";
+          return "social";
 
-            break;
 
+        case "profile":
 
-          case "profile":
+          return "profile";
 
-            semanticType = "profile";
 
-            break;
+        case "education":
 
+          return "education";
 
-          default:
 
-            break;
+        case "product":
 
-        }
+          return "product";
 
 
+        case "location":
 
-        moments.push({
+          return "location";
 
-          type:
-            semanticType as any,
 
-          order:
-            step.order,
+        case "discovery":
 
+          return "story";
 
-          text:
-            String(
-              payload.text ??
-              payload.title ??
-              payload.description ??
-              "Experience moment"
-            ),
 
+        default:
 
-          meta:
-            payload,
+          return "message";
 
-        });
-
-
-
-        break;
 
       }
-
-
-
-
-      /**
-       * ==========================
-       * GEO MEMORY
-       *
-       * location
-       * arrival
-       *
-       * ==========================
-       */
-
-
-      case "location": {
-
-
-      moments.push({
-
-  type:"location",
-
-  order:step.order,
-
-
-  location:{
-
-    lat:Number(payload.lat ?? 0),
-
-    lng:Number(payload.lng ?? 0),
-
-    label:
-      payload.label ??
-      payload.title ??
-      "Location",
-
-    city:
-      payload.city,
-
-    region:
-      payload.region,
-
-    country:
-      payload.country,
-
-  },
-
-
-  meta:{
-
-    geoMemory:
-      payload.geoMemory === true,
-
-
-    captureSnapshot:
-      payload.captureSnapshot === true ||
-      payload.snapshot === true,
-
-
-    timeline:
-      payload.timeline === true,
-
-  },
-
-});
-
-
-
-        break;
-
-      }
-
-
-
-
-
-      /**
-       * ==========================
-       * REDIRECT / PAYMENT
-       *
-       * Commerce actions
-       *
-       * ==========================
-       */
-
-
-      case "redirect":
-      case "payment": {
-
-       moments.push({
-
-  type:"action",
-
-  order:
-    step.order,
-
-  action:
-    step.type,
-
-  text:
-    String(
-      payload.text ??
-      payload.label ??
-      (
-        step.type === "payment"
-        ? "Unlock Experience"
-        : "Continue"
-      )
-    ),
-
-  meta:{
-    ...payload,
-
-    url:
-      payload.url,
-
-    label:
-      payload.label,
-  },
-
-});
-
-
-
-        break;
-
-      }
-
-
-
-
-
-      /**
-       * ==========================
-       * TIMER / SYSTEM
-       *
-       * ==========================
-       */
-
-
-      case "timer": {
-
-
-        moments.push({
-
-          type:"system",
-
-          order:
-            step.order,
-
-
-          text:
-            "Pause",
-
-
-          meta:{
-
-
-            event:
-              "DELAY",
-
-
-            duration:
-              Number(
-                payload.duration ?? 0
-              ),
-
-
-          },
-
-
-        });
-
-
-
-        break;
-
-      }
-
-
-
-
-
-      /**
-       * ==========================
-       * FALLBACK
-       *
-       * Unknown future components
-       *
-       * ==========================
-       */
-
-
-      default: {
-
-
-        moments.push({
-
-          type:"message",
-
-          order:
-            step.order,
-
-
-          text:
-            String(
-              payload.text ??
-              payload.title ??
-              payload.component ??
-              "Experience moment"
-            ),
-
-
-          meta:
-            payload,
-
-        });
-
-
-
-        break;
-
-      }
-
-
 
     }
 
 
 
+    default:
+
+      return "message";
+
+
   }
 
+}
 
 
-  return moments;
+
+
+
+
+
+
+
+function resolveComponent(
+ type: ExperienceMomentType
+): ExperienceComponent {
+
+
+ switch(type){
+
+
+  case "location":
+
+  case "arrival":
+
+  case "venue":
+
+    return "geo_memory";
+
+
+
+  case "photos":
+
+  case "photo":
+
+    return "gallery";
+
+
+
+  case "video":
+
+    return "video";
+
+
+
+  case "audio":
+
+  case "soundtrack":
+
+    return "audio";
+
+
+
+  case "reward":
+
+    return "reward";
+
+
+
+  case "payment":
+
+    return "payment";
+
+
+
+  case "profile":
+
+    return "profile";
+
+
+
+  case "social":
+
+    return "social";
+
+
+
+  case "product":
+
+  case "product_passport":
+
+    return "product";
+
+
+
+  case "interaction":
+
+  case "share":
+
+    return "interaction";
+
+
+
+  default:
+
+    return "story";
+
+
+ }
+
+}
+
+
+
+
+
+
+
+
+
+export function flowToMoment(
+ steps: FlowStep[]
+): ExperienceMoment[] {
+
+
+ const moments: ExperienceMoment[] = [];
+
+
+
+
+
+ for(const step of steps){
+
+
+  const source =
+    (
+      step.payload ?? {}
+    ) as Record<string, any>;
+
+
+
+
+
+  const type =
+    resolveMomentType(
+      step,
+      source
+    );
+
+
+
+
+
+
+  const moment: ExperienceMoment = {
+
+
+    type,
+
+
+
+    component:
+      resolveComponent(type),
+
+
+
+
+    title:
+
+      String(
+
+        source.title ??
+
+        source.label ??
+
+        source.text ??
+
+        "Experience Moment"
+
+      ),
+
+
+
+
+
+    subtitle:
+
+      source.subtitle
+
+      ? String(source.subtitle)
+
+      : undefined,
+
+
+
+
+
+    description:
+
+      source.description
+
+      ? String(source.description)
+
+      : undefined,
+
+
+
+
+
+    editable:
+
+      true,
+
+
+
+
+
+    demo:
+
+      false,
+
+
+
+
+
+    order:
+
+      step.order,
+
+
+
+
+
+
+    payload:{
+
+
+
+      text:
+
+        source.text
+
+        ? String(source.text)
+
+        : undefined,
+
+
+
+
+
+      media:
+
+        source.media ?? undefined,
+
+
+
+
+
+      audio:
+
+        source.audio ?? undefined,
+
+
+
+
+
+      location:
+
+        source.location ?? undefined,
+
+
+
+
+
+      interaction:
+
+        source.interaction ??
+
+        (
+          source.url
+
+          ? {
+
+              action:"open",
+
+              url:String(source.url),
+
+              label:
+
+                source.label
+
+                ? String(source.label)
+
+                : undefined
+
+            }
+
+          : undefined
+
+        ),
+
+
+
+
+
+      data:{
+
+
+        flowStepId:
+
+          step.id,
+
+
+
+        originalStep:
+
+          step,
+
+
+
+        accessState:
+
+          source.accessState,
+
+
+
+        duration:
+
+          source.duration,
+
+
+
+        geoMemory:
+
+          source.geoMemory,
+
+
+      },
+
+
+    }
+
+
+  };
+
+
+
+
+
+  moments.push(moment);
+
+
+ }
+
+
+
+
+
+ return moments;
 
 
 }

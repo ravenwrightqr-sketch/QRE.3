@@ -13,27 +13,83 @@ export function requireAuth(
   next: NextFunction
 ) {
   try {
+
+    // =====================================================
+    // AUTH HEADER CHECK
+    // =====================================================
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({
+        error: "Unauthorized",
+      });
     }
 
+
+    // =====================================================
+    // TEMP DEBUG SECTION
+    // REMOVE THIS ENTIRE SECTION AFTER AUTH IS FIXED
+    // =====================================================
+
+    console.log(
+      "[AUTH DEBUG] Authorization:",
+      req.headers.authorization
+    );
+
+    // =====================================================
+    // END TEMP DEBUG SECTION
+    // =====================================================
+
+
     const token = authHeader.slice(7);
-console.log("AUTH HEADER:", req.headers.authorization);
+
+
+    // =====================================================
+    // JWT VERIFY
+    // =====================================================
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET!
     ) as {
       userId: string;
+      email?: string;
     };
+
+
+    // =====================================================
+    // ATTACH USER TO REQUEST
+    // =====================================================
 
     req.user = {
       userId: decoded.userId,
     };
 
+
     next();
-  } catch {
-    return res.status(401).json({ error: "Invalid token" });
+
+
+  } catch (error) {
+
+
+    // =====================================================
+    // TEMP ERROR DEBUG SECTION
+    // REMOVE AFTER AUTH IS STABLE
+    // =====================================================
+
+    console.error(
+      "[AUTH ERROR]",
+      error
+    );
+
+    // =====================================================
+    // END TEMP ERROR DEBUG SECTION
+    // =====================================================
+
+
+    return res.status(401).json({
+      error: "Invalid token",
+    });
   }
 }

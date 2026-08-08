@@ -1,8 +1,44 @@
+/**
+ * =====================================================
+ * QRE BLUEPRINT → EXPERIENCE FLOW COMPILER
+ * =====================================================
+ *
+ * Experience Blueprint
+ *        ↓
+ * Runtime Flow Instructions
+ *
+ *
+ * Responsibilities:
+ *
+ * - translate experience moments into runtime steps
+ * - preserve semantic meaning
+ * - preserve experience intent
+ * - preserve source payload
+ *
+ *
+ * Does NOT:
+ *
+ * ❌ create stories
+ * ❌ create emotional arcs
+ * ❌ invent creative direction
+ * ❌ access database
+ * ❌ execute runtime
+ * ❌ control player behavior
+ *
+ * =====================================================
+ */
+
+
 import type {
+
   ExperienceBlueprint,
+
   ExperienceMomentType,
+
   FlowStep,
+
   FlowStepType,
+
 } from "@qre/contracts";
 
 
@@ -10,147 +46,158 @@ import type {
 /**
  * =====================================================
  *
- * BLUEPRINT → FLOW COMPILER
+ * MOMENT TYPE → FLOW TYPE
  *
- * Creative DNA → Runtime Instructions
+ * Minimal semantic translation.
  *
- * INPUT:
- * ExperienceBlueprint
- *
- * OUTPUT:
- * FlowStep[]
- *
- * RULES:
- *
- * - Pure
- * - No database
- * - No Prisma
- * - No execution
+ * Runtime decides behavior.
  *
  * =====================================================
  */
 
 
-
 function resolveFlowType(
+
   momentType: ExperienceMomentType
+
 ): FlowStepType {
 
 
-  const mapping: Partial<
-    Record<
-      ExperienceMomentType,
-      FlowStepType
-    >
-  > = {
+const mapping:
+
+Partial<Record<ExperienceMomentType, FlowStepType>> = {
 
 
-    welcome:
-      "hero",
+welcome:
+"hero",
 
 
-    introduction:
-      "hero",
+introduction:
+"hero",
 
 
-    story:
-      "story",
+memory:
+"story",
 
 
-    memory:
-      "story",
+timeline:
+"timeline",
 
 
-    timeline:
-      "timeline",
+photos:
+"gallery",
 
 
-    photos:
-      "gallery",
+video:
+"video",
 
 
-    video:
-      "video",
+soundtrack:
+"soundtrack",
 
 
-    soundtrack:
-      "soundtrack",
+location:
+"location",
 
 
-    location:
-      "location",
+product:
+"product",
 
 
-
-    product:
-      "product",
-
-
-    menu:
-      "menu",
+menu:
+"menu",
 
 
-    offer:
-      "offer",
+offer:
+"offer",
 
 
-    reward:
-      "reward",
+reward:
+"reward",
 
 
-    payment:
-      "payment",
+payment:
+"payment",
 
 
-    booking:
-      "booking",
+booking:
+"booking",
 
 
-    review:
-      "review",
+review:
+"review",
 
 
-    social:
-      "social",
+social:
+"social",
 
 
-    share:
-      "share",
+share:
+"share",
 
 
-    profile:
-      "profile",
+profile:
+"profile",
 
 
-    guestbook:
-      "guestbook",
+guestbook:
+"guestbook",
 
 
-    interaction:
-      "timer",
+interaction:
+"timer",
 
 
-    completion:
-      "message",
+completion:
+"message",
 
 
-    reveal:
-      "story",
-
-  };
+milestone:
+"timeline",
 
 
+legacy:
+"timeline",
 
-  return (
-    mapping[momentType]
-    ??
-    "message"
-  );
+
+future:
+"story",
+
+
+reveal:
+"story",
+
+
+story:
+"story",
+
+
+};
+
+
+return (
+
+mapping[momentType]
+
+??
+
+"message"
+
+);
+
 
 }
 
 
-
+/**
+ * =====================================================
+ *
+ * BLUEPRINT → FLOW
+ *
+ * Pure semantic compilation.
+ *
+ * =====================================================
+ */
 
 
 export function blueprintToFlow(
@@ -160,101 +207,178 @@ export function blueprintToFlow(
 ): FlowStep[] {
 
 
-  if(
-    !blueprint ||
-    !Array.isArray(
-      blueprint.moments
-    )
-  ){
 
-    return [];
+if(
 
-  }
+  !blueprint ||
 
+  !Array.isArray(blueprint.moments)
 
+){
 
-  return blueprint.moments.map(
+  return [];
 
-    (
-      moment,
-      index
-    ) => ({
-
-
-      id:
-        `experience-${index}`,
+}
 
 
 
-      order:
-        index,
+
+return blueprint.moments.map(
+
+(moment,index)=>(
+
+
+{
+
+
+id:
+
+`experience-${index}-${moment.type}`,
 
 
 
-      type:
-        resolveFlowType(
-          moment.type
-        ),
+order:
+
+index,
 
 
 
-      payload:{
+type:
+
+resolveFlowType(
+
+moment.type
+
+),
 
 
-        experience:{
+
+payload:{
 
 
-          component:
-            moment.component,
+
+experience:{
 
 
-          momentType:
-            moment.type,
+component:
+
+moment.component,
 
 
-          title:
-            moment.title,
+momentType:
+
+moment.type,
 
 
-          subtitle:
-            moment.subtitle,
+title:
+
+moment.title,
 
 
-          description:
-            moment.description,
+subtitle:
+
+moment.subtitle,
 
 
-          icon:
-            moment.icon,
+description:
+
+moment.description,
 
 
-          animation:
-            moment.animation,
+icon:
+
+moment.icon,
 
 
-          editable:
-            moment.editable,
+animation:
+
+moment.animation,
 
 
-          demo:
-            moment.demo,
+editable:
+
+moment.editable,
 
 
-          order:
-            moment.order,
+demo:
+
+moment.demo,
 
 
-        },
+order:
+
+moment.order,
 
 
-        ...moment.payload,
-
-      },
+},
 
 
-    })
 
-  );
+
+meaning:{
+
+
+purpose:
+
+moment.description
+
+??
+
+"",
+
+
+type:
+
+moment.type,
+
+
+},
+
+
+
+
+source:
+
+moment.payload,
+
+
+
+intent:{
+
+
+type:
+
+moment.type,
+
+
+meaning:
+
+moment.description
+
+??
+
+"",
 
 
 }
+
+
+}
+
+
+
+}
+
+
+)
+
+);
+
+
+}
+
+
+
+export const experienceFlowCompiler =
+
+blueprintToFlow;

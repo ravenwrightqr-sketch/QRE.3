@@ -52,6 +52,7 @@ const router =
 
 
 
+
 function getString(
   value: unknown
 ): string | null {
@@ -82,6 +83,7 @@ function getString(
 
 
 
+
 function getNumber(
   value: unknown
 ): number | undefined {
@@ -90,6 +92,7 @@ function getNumber(
     typeof value === "string"
       ? Number(value)
       : value;
+
 
 
   if (
@@ -108,10 +111,12 @@ function getNumber(
 
 
 
+
+
 /**
- * =========================
+ * =====================================================
  * STATIC SCAN
- * =========================
+ * =====================================================
  */
 
 router.get(
@@ -122,12 +127,15 @@ router.get(
     next
   ) => {
 
+
     console.log(
       "🔥 SCAN ROUTE HIT",
       req.params.slug
     );
 
+
     next();
+
 
   },
   scanRoute
@@ -137,17 +145,44 @@ router.get(
 
 
 
+
+
 /**
- * =========================
- * LIVE SCAN (SSE)
- * =========================
+ * =====================================================
+ * LIVE SCAN SSE
+ *
+ * Runtime transport boundary.
+ *
+ * SCAN
+ *   ↓
+ * scanEngine
+ *   ↓
+ * Experience
+ *   ↓
+ * CinematicScene[]
+ *   ↓
+ * SSE
+ *   ↓
+ * CinematicScanPlayer
+ *
+ * API does:
+ * - auth
+ * - transport
+ * - normalization
+ *
+ * API does NOT:
+ * - execute flows
+ * - create experiences
+ * - own business logic
+ *
+ * =====================================================
  */
 
 router.get(
   "/:slug/live",
   requireAuth,
   async (
-    req:AuthRequest,
+    req: AuthRequest,
     res
   ) => {
 
@@ -161,7 +196,9 @@ router.get(
         );
 
 
+
       if (!slug) {
+
 
         res.status(400).json({
 
@@ -170,9 +207,13 @@ router.get(
 
         });
 
+
         return;
 
+
       }
+
+
 
 
 
@@ -195,17 +236,26 @@ router.get(
 
 
 
+
+
       const geo =
+
         lat !== undefined &&
         lng !== undefined
 
           ? {
+
               lat,
+
               lng,
+
               accuracy,
+
             }
 
           : undefined;
+
+
 
 
 
@@ -214,53 +264,39 @@ router.get(
 
 
 
+
+
       res.setHeader(
         "Content-Type",
         "text/event-stream"
       );
+
 
       res.setHeader(
         "Cache-Control",
         "no-cache"
       );
 
+
       res.setHeader(
         "Connection",
         "keep-alive"
       );
+
 
       res.flushHeaders?.();
 
 
 
 
-      const assetRepository =
-        createAssetRepository();
-
-
-      const sessionRepository =
-        createSessionRepository();
-
-
-      const analyticsRepository =
-        createAnalyticsRepository();
-
-
-      const accessRepository =
-        createAccessRepository();
-
-
-      const storyDeliveryRepository =
-        createStoryDeliveryRepository();
-
-
-
 
 
       const result =
+
         await scanEngine(
 
           {
+
             slug,
 
             userId,
@@ -271,15 +307,34 @@ router.get(
 
           {
 
-            assetRepository,
+            assetRepository:
 
-            sessionRepository,
+              createAssetRepository(),
 
-            analyticsRepository,
 
-            accessRepository,
 
-            storyDeliveryRepository,
+            sessionRepository:
+
+              createSessionRepository(),
+
+
+
+            analyticsRepository:
+
+              createAnalyticsRepository(),
+
+
+
+            accessRepository:
+
+              createAccessRepository(),
+
+
+
+            storyDeliveryRepository:
+
+              createStoryDeliveryRepository(),
+
 
           }
 
@@ -289,10 +344,40 @@ router.get(
 
 
 
-      const moments =
-        [...result.moments].sort(
 
-          (a,b) =>
+
+
+      /**
+       * =====================================================
+       * RUNTIME BOUNDARY
+       *
+       * Never expose undefined runtime arrays.
+       *
+       * Engine/contracts evolve.
+       * API stabilizes transport.
+       *
+       * =====================================================
+       */
+
+
+      const scenes =
+
+        [
+
+          ...(result.cinematicScenes ?? [])
+
+        ]
+
+        .sort(
+
+          (
+
+            a,
+
+            b
+
+          ) =>
+
             a.order - b.order
 
         );
@@ -301,15 +386,22 @@ router.get(
 
 
 
+
+
+
       res.write(
 
         `data: ${JSON.stringify({
 
           type:
+
             "session",
 
+
           id:
+
             result.sessionId,
+
 
         })}\n\n`
 
@@ -319,18 +411,44 @@ router.get(
 
 
 
+
+
+
+      /**
+       * =====================================================
+       * CINEMATIC SCENE STREAM
+       *
+       * Frontend receives scenes.
+       * Scenes contain runtime moments.
+       *
+       * =====================================================
+       */
+
+
       for (
-        const moment of moments
+
+        const scene of scenes
+
       ) {
 
 
+
         await new Promise(
+
           resolve =>
+
             setTimeout(
+
               resolve,
+
               400
+
             )
+
         );
+
+
+
 
 
         res.write(
@@ -338,43 +456,67 @@ router.get(
           `data: ${JSON.stringify({
 
             type:
-              "moment",
+
+              "scene",
+
 
             payload:
-              moment,
+
+              scene,
+
 
           })}\n\n`
 
         );
+
 
       }
 
 
 
 
+
+
+
+
       res.write(
 
         `data: ${JSON.stringify({
 
           type:
+
             "end",
+
 
         })}\n\n`
 
       );
+
+
+
 
 
       res.end();
 
 
 
-    } catch(error:any) {
+
+
+
+    } catch(error: any) {
+
 
 
       console.error(
+
         "🔥 LIVE SCAN ERROR",
+
         error
+
       );
+
+
+
 
 
       res.write(
@@ -382,14 +524,21 @@ router.get(
         `data: ${JSON.stringify({
 
           type:
+
             "error",
 
+
           message:
+
             error.message,
+
 
         })}\n\n`
 
       );
+
+
+
 
 
       res.end();
@@ -398,9 +547,14 @@ router.get(
     }
 
 
+
   }
 
 );
+
+
+
+
 
 
 

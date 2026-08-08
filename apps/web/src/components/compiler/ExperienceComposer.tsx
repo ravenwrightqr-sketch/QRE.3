@@ -15,54 +15,63 @@ import {
   apiPost,
 } from "../../lib/api";
 
-type CompilerResult = {
 
-  id?: string;
+import type {
+  ExperienceBlueprint,
+} from "@qre/contracts";
 
-  experienceName?: string;
 
-  assetName?: string;
 
-  flowName?: string;
-
-  description?: string;
-
-  flowId?: string;
-
-  assetId?: string;
-
-  title?: string;
-
-  industry?: string;
-
-  blueprint?: unknown;
-
-  flowSteps?: unknown[];
-
-  moments?: unknown[];
-
-  cinematicScenes?: unknown[];
-
-  estimatedDuration?: number;
-
-  momentCount?: number;
-
-};
-
+/**
+ * =====================================================
+ * QRE EXPERIENCE COMPOSER
+ * =====================================================
+ *
+ * AUTHORING LAYER ONLY
+ *
+ * User Intent
+ *      ↓
+ * Compiler
+ *      ↓
+ * ExperienceBlueprint
+ *      ↓
+ * ExperienceBuilder
+ *      ↓
+ * RuntimeExperience
+ *
+ *
+ * Composer responsibilities:
+ *
+ * ✅ Capture creative intent
+ * ✅ Request compilation
+ * ✅ Preview blueprint existence
+ * ✅ Hand off to Builder
+ *
+ *
+ * Composer does NOT:
+ *
+ * ❌ Save
+ * ❌ Create flows
+ * ❌ Create runtime
+ * ❌ Execute experiences
+ * ❌ Own database state
+ *
+ * =====================================================
+ */
 
 
 
 const buildStages = [
 
-  "Understanding your idea",
+  "Understanding intent",
 
-  "Designing the experience",
+  "Extracting experience meaning",
 
-  "Creating the moments",
+  "Designing experience structure",
 
-  "Building the sequence",
+  "Creating experience blueprint",
 
-  "Preparing your builder",
+  "Preparing builder workspace",
 
 ];
 
@@ -78,33 +87,51 @@ export default function ExperienceComposer(){
 
 
 
-  const [prompt,setPrompt] =
-    useState("");
+  const [
+    prompt,
+    setPrompt
+  ] =
+  useState("");
 
 
 
-  const [loading,setLoading] =
-    useState(false);
+  const [
+    loading,
+    setLoading
+  ] =
+  useState(false);
 
 
 
-  const [stage,setStage] =
-    useState(0);
+  const [
+    stage,
+    setStage
+  ] =
+  useState(0);
 
 
 
-  const [error,setError] =
-    useState<string | null>(null);
+  const [
+    error,
+    setError
+  ] =
+  useState<string | null>(null);
 
 
 
-  const [result,setResult] =
-    useState<CompilerResult | null>(null);
+  const [
+    blueprint,
+    setBlueprint
+  ] =
+  useState<ExperienceBlueprint | null>(null);
+
 
 
 
   const intervalRef =
     useRef<number | null>(null);
+
+
 
 
 
@@ -118,7 +145,7 @@ export default function ExperienceComposer(){
 
       if(intervalRef.current){
 
-        clearInterval(
+        window.clearInterval(
           intervalRef.current
         );
 
@@ -136,21 +163,24 @@ export default function ExperienceComposer(){
 
 
 
-  async function buildExperience(){
+
+
+  async function createExperience(){
+
 
 
     if(!prompt.trim()){
 
 
       setError(
-        "Describe the experience you want to build."
+        "Describe the experience you want to create."
       );
 
 
       return;
 
-    }
 
+    }
 
 
 
@@ -159,7 +189,7 @@ export default function ExperienceComposer(){
 
     setError(null);
 
-    setResult(null);
+    setBlueprint(null);
 
     setStage(0);
 
@@ -167,7 +197,10 @@ export default function ExperienceComposer(){
 
 
 
+
+
     intervalRef.current =
+
       window.setInterval(()=>{
 
 
@@ -196,6 +229,9 @@ export default function ExperienceComposer(){
 
 
 
+
+
+
     try{
 
 
@@ -206,19 +242,83 @@ export default function ExperienceComposer(){
           "/experience/compile",
 
           {
-            input:
+
+            prompt:
               prompt.trim(),
+
           }
 
         );
 
 
 
-      setResult(response);
+
+
+
+       if(
+  !response?.experience
+){
+
+  throw new Error(
+    "Compiler did not return an experience blueprint."
+  );
+
+}
+
+const generatedBlueprint:
+ExperienceBlueprint =
+
+response.experience;
+
+
+
+
+
+
+
+      setBlueprint(
+
+        generatedBlueprint
+
+      );
+
+
+
+
+
+
+
+      /**
+       * Temporary handoff state.
+       *
+       * Builder owns persistence.
+       *
+       */
+
+      sessionStorage.setItem(
+
+        "experienceDraft",
+
+        JSON.stringify({
+
+          blueprint:
+            generatedBlueprint,
+
+
+          prompt:
+            prompt.trim(),
+
+
+        })
+
+      );
+
 
 
 
     }
+
+
     catch(error){
 
 
@@ -226,22 +326,32 @@ export default function ExperienceComposer(){
 
         error instanceof Error
 
-        ? error.message
+        ?
 
-        : "Experience generation failed."
+        error.message
+
+        :
+
+        "Experience compilation failed."
 
       );
 
 
     }
+
+
     finally{
 
 
       if(intervalRef.current){
 
-        clearInterval(
+
+        window.clearInterval(
+
           intervalRef.current
+
         );
+
 
       }
 
@@ -260,10 +370,12 @@ export default function ExperienceComposer(){
 
 
 
+
+
   function openBuilder(){
 
 
-    if(!result){
+    if(!blueprint){
 
       return;
 
@@ -271,35 +383,16 @@ export default function ExperienceComposer(){
 
 
 
-    /**
-     * Temporary editor handoff.
-     *
-     * Builder becomes the owner
-     * of saving.
-     */
-
-    sessionStorage.setItem(
-
-      "experienceDraft",
-
-      JSON.stringify({
-
-        ...result,
-
-        prompt,
-
-      })
-
-    );
-
-
-
     navigate(
+
       "/experience/builder"
+
     );
 
 
   }
+
+
 
 
 
@@ -313,21 +406,31 @@ export default function ExperienceComposer(){
 
 
       <h2>
-        ✨ Build an Experience
+
+        ✨ Create Experience
+
       </h2>
 
 
 
+
       <p
+
         style={{
+
           opacity:.7
+
         }}
+
       >
 
-        Describe the experience.
-        The engine creates the structure.
+        Describe a world, memory, story, or interaction.
+
+        The QRE compiler creates the experience blueprint.
 
       </p>
+
+
 
 
 
@@ -342,24 +445,26 @@ export default function ExperienceComposer(){
         disabled={loading}
 
 
-        onChange={
-          e =>
+        onChange={event=>
+
           setPrompt(
-            e.target.value
+
+            event.target.value
+
           )
+
         }
 
 
-
         placeholder={
-`Example:
 
-Create a luxury Airbnb welcome experience.
+`Create a cinematic memory experience.
 
-Welcome guests.
-Show WiFi instructions.
-Recommend restaurants.
-End with checkout details.`
+Example:
+
+A wedding keepsake that reveals the couple's journey,
+photos, messages, timeline, and future memories.`
+
         }
 
 
@@ -379,14 +484,19 @@ End with checkout details.`
           resize:"vertical",
 
           background:
+
             "rgba(0,0,0,.35)",
+
 
           color:"white",
 
+
           border:
+
             "1px solid rgba(255,255,255,.15)",
 
-          fontSize:15
+
+          fontSize:15,
 
         }}
 
@@ -398,28 +508,40 @@ End with checkout details.`
 
 
 
-      <div
-        style={{
-          marginTop:18
-        }}
-      >
 
+
+      <div
+
+        style={{
+
+          marginTop:20
+
+        }}
+
+      >
 
         <NeonButton
 
+
           disabled={loading}
 
-          onClick={buildExperience}
+
+          onClick={createExperience}
+
 
         >
 
           {
 
-            loading
+          loading
 
-            ? "⚡ Creating..."
+          ?
 
-            : "⚡ Create Experience"
+          "⚡ COMPILING BLUEPRINT..."
+
+          :
+
+          "⚡ CREATE EXPERIENCE"
 
           }
 
@@ -436,192 +558,234 @@ End with checkout details.`
 
 
 
+
       {
-        loading &&
+
+      loading &&
 
 
-        <div
-          style={{
-            marginTop:25
-          }}
-        >
+      <div
 
-          {
-            buildStages.map(
+        style={{
 
-              (item,index)=>(
+          marginTop:25
 
+        }}
 
-                <div
-
-                  key={item}
-
-                  style={{
-
-                    marginBottom:8,
-
-                    opacity:
-
-                    index <= stage
-
-                    ? 1
-
-                    : .35
-
-                  }}
-
-                >
-
-                  {
-
-                    index <= stage
-
-                    ? "✓"
-
-                    : "○"
-
-                  }
-
-
-                  {" "}
-
-
-                  {item}
-
-
-                </div>
-
-
-              )
-
-            )
-          }
-
-
-        </div>
-
-      }
-
-
-
-
-
-
+      >
 
 
       {
-        error &&
+
+      buildStages.map(
+
+        (item,index)=>(
 
 
-        <div
+          <div
 
-          style={{
-
-            marginTop:20,
-
-            color:"#ff5555"
-
-          }}
-
-        >
-
-          {error}
-
-        </div>
-
-      }
+            key={item}
 
 
-
-
-
-
-
-
-
-      {
-        result &&
-
-
-        <div
-
-          style={{
-
-            marginTop:30
-
-          }}
-
-        >
-
-
-          <h3>
-            🧱 Experience Generated
-          </h3>
-
-
-
-         <h2>
-         {
-         result.experienceName ??
-         result.title ??
-         "Unnamed Experience"
-         }
-         </h2>
-
-
-
-
-
-          <p
             style={{
-              opacity:.6
+
+
+              marginBottom:8,
+
+
+              opacity:
+
+              index <= stage
+
+              ?
+
+              1
+
+              :
+
+              .35
+
+
             }}
+
           >
+
 
             {
 
-              result.momentCount ??
+            index <= stage
 
-              result.moments?.length ??
+            ?
 
-              0
+            "✓"
+
+            :
+
+            "○"
 
             }
 
+
             {" "}
-            moments created
+
+            {item}
 
 
-          </p>
+          </div>
 
 
+        )
 
 
+      )
 
-
-          <NeonButton
-
-            onClick={openBuilder}
-
-          >
-
-            ▶ OPEN BUILDER & SAVE
-
-          </NeonButton>
-
-
-
-
-
-        </div>
 
       }
+
+
+      </div>
+
+
+      }
+
+
+
+
+
+
+
+
+
+      {
+
+      error &&
+
+
+      <div
+
+        style={{
+
+
+          marginTop:20,
+
+
+          color:"#ff5555"
+
+
+        }}
+
+      >
+
+        {error}
+
+
+      </div>
+
+
+      }
+
+
+
+
+
+
+
+
+
+      {
+
+      blueprint &&
+
+
+      <div
+
+        style={{
+
+          marginTop:35
+
+        }}
+
+      >
+
+
+        <h3>
+
+          Experience Blueprint Created
+
+        </h3>
+
+
+
+
+        <h2>
+
+          {
+
+          blueprint.title
+
+          ??
+
+          "Untitled Experience"
+
+          }
+
+
+        </h2>
+
+
+
+
+        <p
+
+          style={{
+
+            opacity:.6
+
+          }}
+
+        >
+
+          {
+
+          blueprint.moments?.length ?? 0
+
+          }
+
+          {" "}
+
+          experience moments
+
+        </p>
+
+
+
+
+
+        <NeonButton
+
+          onClick={openBuilder}
+
+        >
+
+          ▶ OPEN EXPERIENCE BUILDER
+
+        </NeonButton>
+
+
+
+      </div>
+
+
+      }
+
 
 
 
 
     </GlassCard>
 
+
   );
+
 
 }

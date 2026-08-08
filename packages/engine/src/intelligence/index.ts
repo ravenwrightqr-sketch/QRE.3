@@ -1,12 +1,4 @@
-export {
-  analyzeExperienceValue,
-} from "./valueEngine.js";
 
-
-export type {
-  ValueSignal,
-  ValueInsight,
-} from "./valueEngine.js";
 
 export {
   analyzeCustomerRelationship,

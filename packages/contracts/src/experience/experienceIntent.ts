@@ -1,10 +1,22 @@
-export type ExperienceIntent =
+/**
+ * =====================================================
+ * QRE EXPERIENCE INTENT
+ * =====================================================
+ *
+ * The fundamental purpose behind an experience.
+ *
+ * Semantic primitive.
+ *
+ * =====================================================
+ */
 
-| "remember"
-| "celebrate"
-| "sell"
-| "teach"
-| "connect"
-| "discover"
-| "reward"
-| "protect";
+export type ExperienceIntent =
+  | "remember"
+  | "celebrate"
+  | "serve"
+  | "teach"
+  | "sell"
+  | "discover"
+  | "reward"
+  | "protect"
+  | "connect";

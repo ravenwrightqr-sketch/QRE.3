@@ -1,24 +1,77 @@
-import type { Moment } from "@qre/contracts";
+import type {
+  ExperienceMoment,
+} from "@qre/contracts";
 
-export function executeAction(moment: Moment) {
-  if (moment.type !== "action") return;
 
-  switch (moment.action) {
+export function executeAction(
+  moment: ExperienceMoment
+) {
+
+  if(
+    moment.component !== "cta" &&
+    moment.component !== "payment"
+  ){
+    return;
+  }
+
+
+  const action =
+    moment.payload.action;
+
+
+  const url =
+    moment.payload.url;
+
+
+
+  switch(action){
+
+
     case "redirect":
-      if (moment.meta?.url) {
-        window.location.href = moment.meta.url;
+
+      if(
+        typeof url === "string"
+      ){
+        window.location.href = url;
       }
+
       break;
+
+
 
     case "payment":
-      if (moment.meta?.url) {
-        window.location.href = moment.meta.url;
+
+      if(
+        typeof url === "string"
+      ){
+        window.location.href = url;
       }
+
       break;
 
+
+
     case "unlock":
-      // v1: just UI signal (later upgrade to state engine)
-      console.log("UNLOCK:", moment.meta?.text);
+
+      console.log(
+        "UNLOCK",
+        moment.payload
+      );
+
       break;
+
+
+
+    default:
+
+      console.warn(
+        "Unhandled experience action",
+        {
+          action,
+          moment,
+        }
+      );
+
   }
+
 }

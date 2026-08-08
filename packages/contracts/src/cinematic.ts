@@ -7,33 +7,40 @@
  *
  * Pipeline:
  *
- * Flow
- *   ↓
- * Moment
- *   ↓
+ * Experience Flow
+ *        ↓
+ * Experience Moment
+ *        ↓
+ * Cinematic Compiler
+ *        ↓
  * CinematicScene
- *   ↓
+ *        ↓
+ * Cinematic Runtime
+ *        ↓
  * Cinematic Player
  *
  *
- * Moment:
- *   semantic meaning
+ * ExperienceMoment:
+ *   semantic truth
  *
  * CinematicScene:
- *   visual execution instructions
+ *   player execution instructions
  *
+ *
+ * CONTRACT ONLY
  *
  * NO DATABASE
- * NO STORAGE
  * NO PRISMA
+ * NO STORAGE
+ * NO URL OWNERSHIP
+ * NO BUSINESS LOGIC
  *
  * =====================================================
  */
 
-
 import type {
-  Moment,
-} from "./moment.js";
+  ExperienceMoment,
+} from "./experience/moment.js";
 
 
 
@@ -46,16 +53,179 @@ import type {
 export type CinematicSceneType =
 
   | "intro"
-
   | "system"
-
   | "emotion"
-
   | "action"
-
   | "memory"
+  | "reveal"
+  | "timeline"
+  | "environment"
+  | "transition"
+  | "cta"
+  | "credits";
 
-  | "cta";
+
+
+
+/**
+ * =====================================================
+ * NARRATIVE INTENT
+ * =====================================================
+ */
+
+export type SceneIntent = {
+
+  emotion?:string[];
+
+  purpose?:string;
+
+  arc?:
+    | "arrival"
+    | "discovery"
+    | "connection"
+    | "reflection"
+    | "completion";
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * CAMERA DIRECTION
+ * =====================================================
+ */
+
+export type CameraInstruction = {
+
+  movement?:
+    | "static"
+    | "zoom"
+    | "pan"
+    | "orbit"
+    | "dolly"
+    | "follow";
+
+
+  intensity?:
+    | "subtle"
+    | "medium"
+    | "dramatic";
+
+
+  focus?:string;
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * MEDIA REFERENCES
+ *
+ * Runtime never owns storage.
+ *
+ * Media Engine resolves:
+ *
+ * assetId
+ *    ↓
+ * CDN
+ *    ↓
+ * Player
+ *
+ * =====================================================
+ */
+
+export type SceneMediaAsset = {
+
+  assetId:string;
+
+
+  role:
+    | "background"
+    | "image"
+    | "video"
+    | "audio";
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * AUDIO LAYER
+ * =====================================================
+ */
+
+export type SceneAudio = {
+
+  assetId?:string;
+
+  url?:string;
+
+
+  type:
+    | "music"
+    | "voice"
+    | "ambient"
+    | "sound_effect";
+
+
+  mood?:string;
+
+  volume?:number;
+
+  autoplay?:boolean;
+
+  loop?:boolean;
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * VISUAL ENGINE
+ * =====================================================
+ */
+
+export type SceneVisual = {
+
+  theme:
+    | "dark"
+    | "light"
+    | "cinematic"
+    | "glass"
+    | "dream"
+    | "memory"
+    | "immersive";
+
+
+  animation:
+    | "none"
+    | "slow_zoom"
+    | "parallax"
+    | "particles"
+    | "glitch"
+    | "film"
+    | "cinematic_camera";
+
+
+  environmentId?:string;
+
+  background?:string;
+
+  assets?:SceneMediaAsset[];
+
+  effects?:string[];
+
+  camera?:CameraInstruction;
+
+};
 
 
 
@@ -69,78 +239,105 @@ export type CinematicSceneType =
 export type SceneTransition =
 
   | "fade"
-
   | "slide"
-
   | "zoom"
-
   | "cinematic"
-
   | "flash"
-
+  | "dissolve"
   | "none";
 
 
 
 
-
 /**
  * =====================================================
- * AUDIO LAYER
+ * PLAYER CONTROL
  * =====================================================
  */
 
-export type SceneAudio = {
+export type ScenePlayback = {
 
-  url:string;
+  duration:number;
 
+  preload:boolean;
 
-  type:
-    | "music"
-    | "voice"
-    | "ambient";
-
-
-  volume?:number;
-
+  skippable?:boolean;
 
   autoplay?:boolean;
 
-};
+  interactionRequired?:boolean;
 
+};
 
 
 
 
 /**
  * =====================================================
- * VISUAL EFFECTS
+ * PLAYER INTERACTION
  * =====================================================
  */
 
-export type SceneVisual = {
+export type SceneInteraction = {
 
+  enabled:boolean;
 
-  background?:
-    | string;
-
-
-  animation?:
-    | "none"
-    | "slow_zoom"
-    | "parallax"
-    | "particles"
-    | "glitch";
-
-
-  theme?:
-    | "dark"
-    | "light"
-    | "cinematic"
-    | "glass";
+  actions?:
+    | "tap"
+    | "swipe"
+    | "scan"
+    | "choose"
+    | "continue";
 
 };
 
+
+
+
+/**
+ * =====================================================
+ * ANALYTICS
+ * =====================================================
+ */
+
+export type SceneTelemetry = {
+
+  eventName?:string;
+
+
+  category?:
+    | "story"
+    | "memory"
+    | "conversion"
+    | "interaction";
+
+};
+
+
+
+
+/**
+ * =====================================================
+ * AI / GENERATION TRACE
+ * =====================================================
+ */
+
+export type CinematicSceneMeta = {
+
+  version:string;
+
+  generated:boolean;
+
+
+  source:
+    | "experience_compiler"
+    | "memory_engine"
+    | "system";
+
+
+  tags?:string[];
+
+};
 
 
 
@@ -148,87 +345,47 @@ export type SceneVisual = {
 /**
  * =====================================================
  * CINEMATIC SCENE
+ *
+ * THE PLAYER CONTRACT
+ *
  * =====================================================
  */
 
 export type CinematicScene = {
 
-
-  /**
-   * Unique runtime scene id
-   */
   id:string;
 
 
-
-  /**
-   * Presentation category.
-   *
-   * NOT business meaning.
-   */
   type:CinematicSceneType;
 
 
-
-  /**
-   * Playback duration ms
-   */
-  duration:number;
+  moment:ExperienceMoment;
 
 
-
-  /**
-   * Source semantic moment.
-   *
-   * SINGLE SOURCE OF TRUTH.
-   */
-  moment:Moment;
+  intent?:SceneIntent;
 
 
-
-  /**
-   * Player ordering.
-   */
-  order?:number;
+  order:number;
 
 
-
-  /**
-   * Scene transition.
-   */
-  transition?:SceneTransition;
+  transition:SceneTransition;
 
 
+  visual:SceneVisual;
 
-  /**
-   * Audio attached to scene.
-   */
+
   audio?:SceneAudio;
 
 
-
-  /**
-   * Visual runtime instructions.
-   */
-  visual?:SceneVisual;
+  playback:ScenePlayback;
 
 
-
-  /**
-   * Player optimization.
-   *
-   * Example:
-   *
-   * preload next video
-   * preload images
-   */
-  preload?:boolean;
+  interaction?:SceneInteraction;
 
 
+  telemetry?:SceneTelemetry;
 
-  /**
-   * Future AI/runtime metadata.
-   */
-  meta?:Record<string,unknown>;
+
+  meta:CinematicSceneMeta;
 
 };

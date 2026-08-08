@@ -3,291 +3,216 @@ import {
   useState,
 } from "react";
 
-import MomentRenderer from "./MomentRenderer";
 
 import type {
-  ScanResponse,
+  Experience,
   CinematicScene,
 } from "@qre/contracts";
 
 
+import SceneRenderer from "./SceneRenderer";
+
+
+
 type Props = {
-
-  data: ScanResponse;
-
+  experience: Experience;
 };
+
+
+
+
+/**
+ * =====================================================
+ * QRE CINEMATIC SCAN PLAYER
+ * =====================================================
+ *
+ * Runtime renderer only.
+ *
+ * Receives:
+ *
+ * Experience
+ *      ↓
+ * CinematicScene[]
+ *      ↓
+ * SceneRenderer
+ *
+ * No compiler logic.
+ * No generation logic.
+ *
+ * =====================================================
+ */
+
 
 export default function CinematicScanPlayer({
+  experience,
+}: Props){
 
-  data,
 
-}:Props){
 
+  const scenes:CinematicScene[] =
+    experience.cinematicScenes ?? [];
 
-const scenes: CinematicScene[] =
-  data.cinematicScenes ?? [];
 
 
+  const [
+    sceneIndex,
+    setSceneIndex
+  ] =
+  useState(0);
 
 
 
 
 
+  useEffect(()=>{
 
-const [
-index,
-setIndex
-]=useState(0);
 
+    setSceneIndex(0);
 
 
+  },[experience.sessionId]);
 
 
 
-useEffect(()=>{
 
-setIndex(0);
 
-},[data]);
 
 
+  const scene =
+    scenes[sceneIndex];
 
 
 
 
 
-const scene =
 
-scenes[index];
 
+  useEffect(()=>{
 
 
+    if(!scene){
 
+      return;
 
+    }
 
 
 
+    const duration =
 
-useEffect(()=>{
+      scene.playback?.duration ??
 
+      5000;
 
-if(!scene)
-return;
 
 
 
-const timer =
+    const timer =
 
-window.setTimeout(()=>{
+      window.setTimeout(()=>{
 
 
-setIndex(
+        setSceneIndex(current=>{
 
-current =>
 
-Math.min(
+          const next =
+            current + 1;
 
-current + 1,
 
-scenes.length
 
-)
+          if(next >= scenes.length){
 
-);
+            return current;
 
+          }
 
-},
 
 
-scene.duration ?? 3000);
+          return next;
 
 
+        });
 
-return()=>{
 
-window.clearTimeout(timer);
+      }, duration);
 
-};
 
 
-},[
 
-scene,
 
-scenes.length
+    return ()=>{
 
-]);
 
+      window.clearTimeout(
+        timer
+      );
 
 
+    };
 
 
 
+  },[
+    scene,
+    scenes.length
+  ]);
 
 
-function restart(){
 
-setIndex(0);
 
-}
 
 
 
+  if(!scene){
 
 
+    return (
 
+      <div
 
-if(!scene){
+        style={{
 
+          width:"100%",
 
-return (
+          minHeight:300,
 
-<div
+          display:"flex",
 
-style={{
+          alignItems:"center",
 
-minHeight:"100vh",
+          justifyContent:"center",
 
-display:"grid",
+          color:"#fff"
 
-placeItems:"center",
+        }}
 
-background:"#030305",
+      >
 
-color:"#fff",
+        No cinematic scenes available
 
-textAlign:"center",
+      </div>
 
-padding:40
+    );
 
-}}
 
->
+  }
 
 
-<div>
 
 
-<h1>
 
-Memory Sealed
 
-</h1>
 
 
-<p
+  return (
 
-style={{
+    <SceneRenderer
 
-opacity:.6
+      scene={scene}
 
-}}
+    />
 
->
-
-This experience has completed.
-
-</p>
-
-
-
-<button
-
-onClick={restart}
-
-style={{
-
-marginTop:25,
-
-padding:"14px 35px",
-
-borderRadius:999,
-
-background:"transparent",
-
-border:"1px solid rgba(255,255,255,.35)",
-
-color:"#fff",
-
-cursor:"pointer"
-
-}}
-
->
-
-RELIVE
-
-</button>
-
-
-</div>
-
-
-</div>
-
-);
-
-
-}
-
-
-
-
-
-
-
-return (
-
-<div
-
-style={{
-
-minHeight:"100vh",
-
-width:"100%",
-
-display:"flex",
-
-alignItems:"center",
-
-justifyContent:"center",
-
-background:"#030305",
-
-color:"#fff",
-
-padding:"40px 20px"
-
-}}
-
->
-
-
-<div
-
-style={{
-
-width:"min(1200px,100%)",
-
-}}
-
->
-
-
-<MomentRenderer
-
-moment={scene.moment}
-
-/>
-
-
-
-</div>
-
-
-</div>
-
-);
+  );
 
 
 }

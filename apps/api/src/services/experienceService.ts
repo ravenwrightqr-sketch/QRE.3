@@ -1,48 +1,66 @@
 import {
-  experienceCompiler,
+  compileExperience as compileExperienceEngine,
+  compileExperienceNarrative
 } from "@qre/engine";
 
 
+import type {
+  ExperienceBlueprint,
+  ExperienceNarrative
+} from "@qre/contracts";
 
+
+import type {
+  CompiledExperience,
+
+  ExperienceCompilerIntelligence,
+  ExperienceGenome,
+} from "@qre/contracts";
 /**
  * =====================================================
  *
- * EXPERIENCE SERVICE
+ * QRE EXPERIENCE SERVICE
  *
- * API application boundary
+ * API APPLICATION BOUNDARY
  *
  * Route
  *   ↓
  * Experience Service
  *   ↓
- * Engine Compiler
- *
- * Routes do not directly own
- * experience generation.
+ * Canonical Compiler
+ *   ↓
+ * Narrative Intelligence
+ *   ↓
+ * Experience Response
  *
  * =====================================================
  */
 
 
-export type CompiledExperienceResult = {
 
-  title:string;
 
-  blueprint:any;
+export interface CompiledExperienceResult {
 
-  flowSteps:any[];
+  compiled:
+    CompiledExperience;
 
-  moments:any[];
 
-  cinematicScenes:any[];
+  intelligence:
+    ExperienceCompilerIntelligence;
 
-  estimatedDuration:number;
 
-  momentCount:number;
+  genome:
+    ExperienceGenome;
 
-  [key:string]:unknown;
 
-};
+  blueprint:
+    ExperienceBlueprint;
+
+
+  narrative:
+    ExperienceNarrative;
+
+}
 
 
 
@@ -52,43 +70,149 @@ export type CompiledExperienceResult = {
  *
  * COMPILE EXPERIENCE
  *
- * Human prompt
- *       ↓
- * Experience Compiler
- *       ↓
- * Runtime-ready experience data
+ * Human Prompt
  *
- * No database writes.
+ *        ↓
+ *
+ * Canonical Compiler
+ *
+ *        ↓
+ *
+ * Experience Intelligence
+ *
+ *        ↓
+ *
+ * Narrative Compiler
  *
  * =====================================================
  */
 
 
+
 export async function compileExperience(
+
   prompt:string
+
 ):Promise<CompiledExperienceResult>{
 
 
+
   if(
-    typeof prompt !== "string" ||
+
+    typeof prompt !== "string"
+
+    ||
+
     prompt.trim().length === 0
+
   ){
 
     throw new Error(
-      "Experience prompt required"
+
+      "Experience prompt required."
+
     );
 
   }
 
 
 
-  const result =
-    await experienceCompiler(
+
+  const compiled =
+
+    compileExperienceEngine(
+
       prompt.trim()
+
     );
 
 
 
-  return result as CompiledExperienceResult;
+
+
+  if(
+
+    !compiled?.blueprint
+
+  ){
+
+    throw new Error(
+
+      "Compiler did not produce experience blueprint."
+
+    );
+
+  }
+
+
+
+
+
+  const blueprint =
+
+    compiled.blueprint;
+
+
+
+
+
+
+  if(
+
+    !compiled.genome
+
+    ||
+
+    !compiled.world
+
+  ){
+
+    throw new Error(
+
+      "Compiler did not produce experience intelligence."
+
+    );
+
+  }
+
+
+
+
+
+
+  const narrative =
+
+    compileExperienceNarrative(
+
+      compiled.genome,
+
+      compiled.world,
+
+      blueprint
+
+    );
+
+
+
+  return {
+
+  compiled,
+
+
+  intelligence:
+    compiled.intelligence,
+
+
+  genome:
+    compiled.genome!,
+
+
+  blueprint,
+
+
+  narrative
+
+};
+
 
 }

@@ -9,117 +9,146 @@
  *       ↓
  * Interpretation
  *
- * The Cortex asks:
  *
- * "What is this experience really about?"
+ * The Semantic Cortex extracts meaning signals.
+ *
+ * It does not invent experience categories.
+ *
  *
  * NO DATABASE
+ * NO PRODUCTS
+ * NO INDUSTRIES
  * NO RUNTIME
- * NO INDUSTRY LOGIC
  *
  * =====================================================
  */
 
-
 import type {
+
   ExperienceUnderstanding
-} from "../models/understandingTypes.js";
+
+} from "@qre/contracts"
+
 
 import type {
-  SemanticInterpretation,
+
+  SemanticInterpretation
+
 } from "@qre/contracts";
+
 
 
 export type CortexInterpretation = {
 
+
   /**
-   * The human reason behind
-   * the experience.
+   * Primary human motivation signal.
    */
   coreNeed:string;
 
 
 
   /**
-   * Experience archetype.
+   * Confidence of interpretation.
+   */
+  confidence:number;
+
+
+
+  /**
+   * Semantic archetype signal.
    */
   archetype:string;
 
 
 
   /**
-   * Emotional journey.
+   * Existing emotional signals.
    */
-  emotionalArc:string[];
+  
 
-
+  experienceTrajectory:string[];
 
   /**
-   * World classification.
+   * Experience world.
    */
   world:string;
 
 
 
   /**
-   * Creative gravity.
+   * Dominant semantic gravity.
    */
   gravity:string;
 
 
 
   /**
-   * Why this should exist.
+   * Human purpose signal.
    */
   purpose:string;
 
 
 };
 
+
 export function toSemanticInterpretation(
 
- cortex:CortexInterpretation
+  cortex:CortexInterpretation
 
 ):SemanticInterpretation {
 
 
 return {
 
+
   intent:[
+
     cortex.coreNeed
+
   ],
+
 
 
   concepts:[
+
     cortex.archetype,
+
     cortex.gravity
+
   ],
+
 
 
   emotionalSignals:
-    cortex.emotionalArc,
+
+    cortex.experienceTrajectory,
+
 
 
   worldSignals:[
+
     cortex.world
+
   ],
+
 
 
   cognitiveSignals:[
+
     cortex.purpose
+
   ],
 
 
+
   confidence:
-    1
+
+    cortex.confidence
 
 };
 
-
 }
-
-
-
 
 export function buildSemanticCortex(
 
@@ -128,118 +157,165 @@ export function buildSemanticCortex(
 ):CortexInterpretation {
 
 
+if(!understanding){
+
+ throw new Error(
+
+  "Experience understanding required."
+
+ );
+
+}
 
 const emotions =
- understanding.emotions.emotions;
 
-
-
-const memory =
- understanding.memory;
-
-
-
-const themes =
- understanding.world.domains;
+  understanding.emotions.emotions
+  ??
+  [];
 
 
 
 
 
 let archetype =
- "discovery";
+
+  "experience";
+
+
 
 
 
 let coreNeed =
- "exploration";
+
+  "create meaning";
+
+
 
 
 
 let gravity =
- "experience";
+
+  "human significance";
+
+
 
 
 
 let purpose =
- "create meaningful interaction";
+
+  "express discovered meaning";
+
+
+
 
 
 
 
 
 /**
- * MEMORY EXPERIENCES
+ * =====================================================
+ *
+ * MEMORY SIGNAL
+ *
+ * Uses discovered memory information.
+ *
+ * =====================================================
  */
 
+
 if(
- memory.timeCapsule ||
- memory.replay ||
- memory.legacy
+
+ understanding.memory.timeCapsule
+
+ ||
+
+ understanding.memory.replay
+
+ ||
+
+ understanding.memory.legacy
+
 ){
 
+
  archetype =
- "legacy_memory";
+
+  "memory";
+
 
 
  coreNeed =
- "preserve_connection";
+
+  "preserve meaning";
+
 
 
  gravity =
- "memory";
+
+  "memory significance";
+
 
 
  purpose =
- "turn moments into lasting stories";
+
+  "extend meaning beyond the original moment";
+
 
 }
 
-
-
-
-
-
 /**
- * EMOTIONAL EXPERIENCES
+ * =====================================================
+ *
+ * SOCIAL SIGNAL
+ *
+ * =====================================================
  */
 
-if(
- emotions.includes("love")
- ||
- emotions.includes("nostalgia")
-){
-
- gravity =
- "human_connection";
-
-}
-
-
-
-
-
-/**
- * SOCIAL EXPERIENCES
- */
 
 if(
+
  understanding.audience.social === "community"
+
 ){
+
 
  coreNeed =
- "shared_belonging";
+
+  "shared meaning";
+
+
 
  gravity =
- "collective_experience";
+
+  "collective significance";
+
 
 }
 
+/**
+ * =====================================================
+ *
+ * EMOTION SIGNAL
+ *
+ * Adds weight without replacing meaning.
+ *
+ * =====================================================
+ */
 
 
+if(
+
+ emotions.length
+
+){
 
 
+ gravity =
 
+  emotions.join(",");
+
+
+}
 
 return {
 
@@ -247,40 +323,45 @@ return {
 coreNeed,
 
 
+confidence:
+
+  emotions.length
+
+  ?
+
+  0.7
+
+  :
+
+  0.5,
+
+
+
 archetype,
 
 
-emotionalArc:
 
+experienceTrajectory:
 
-[
-
- "arrival",
-
- "discovery",
-
- "connection",
-
- "reflection"
-
-],
+  emotions,
 
 
 
 world:
 
- understanding.world.primary,
+  understanding.world.primary,
 
 
 
 gravity,
 
 
+
 purpose
 
 
-};
 
+};
 
 
 }

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-
+     
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
@@ -27,11 +27,18 @@
       "@qre/api": ["../../apps/api/src"]
     },
 
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+     "resolveJsonModule": true,
+  "esModuleInterop": true,
+  "forceConsistentCasingInFileNames": true
   },
 
-  
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src"
+, "src/compiler/.ts", "src/compiler/story/.ts"  ],
+
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/tests"
+  ]
 }

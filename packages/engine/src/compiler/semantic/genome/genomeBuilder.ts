@@ -1,787 +1,181 @@
 /**
- * =====================================================
  * QRE EXPERIENCE GENOME BUILDER
- * =====================================================
  *
- * Human Prompt
- *        ↓
- * Semantic Understanding
- *        ↓
- * Experience Genome
+ * Evidence-derived creative substrate.
  *
- * Genome = Creative DNA
- *
- * The Genome understands:
- *
- * - intent
- * - emotion
- * - meaning
- * - world
- * - journey
- * - experience physics
- *
- * It does NOT know:
- *
- * - industries
- * - templates
- * - products
- * - database
- *
- * =====================================================
+ * The genome records what cognition actually found.
+ * It does not manufacture themes, worlds, emotions, journeys,
+ * symbols, future states, or narrative conclusions.
  */
-
-
-import {
-  analyzeSemanticPrompt,
-} from "../semanticAnalyzer.js";
-
-
-import {
-  extractEntities,
-} from "../entityExtractor.js";
-
 
 import type {
-
   ExperienceGenome,
-  ExperienceMeaning,
+  ExperienceMeaningContext,
   ExperienceRelationship,
-  ExperienceJourney,
-
+  SemanticInterpretation,
 } from "@qre/contracts";
+import { compileObjectGenome } from "../../object/index.js";
+import { compileLifecycle } from "../../lifecycle/lifecycleCompiler.js";
 
-
-
-
-
-
-
-
-/**
- * =====================================================
- * MEANING EXTRACTION
- * =====================================================
- */
-
-
-function buildMeaning(
-
- semantic:any
-
-):ExperienceMeaning {
-
-
-return {
-
-
-why:
-semantic.intent,
-
-
-emotions:
-semantic.emotions,
-
-
-memories:
-
-semantic.themes.includes("memory")
-
-?
-
-[
- "personal memory"
-]
-
-:
-
-[],
-
-
-
-desiredFeeling:
-
-semantic.emotions,
-
-
-transformation:
-
-semantic.experienceDNA?.includes(
- "transformation"
-)
-
-?
-
-"create change"
-
-:
-
-undefined,
-
-
-};
-
-
+function unique(values: unknown[]): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
 }
 
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * EXPERIENCE DNA
- *
- * The creative fingerprint.
- *
- * This replaces templates.
- *
- * =====================================================
- */
-
-
-function buildDNA(
-
- semantic:any
-
-):string[] {
-
-
-const dna = new Set<string>();
-
-
-
-dna.add(
- "adaptive"
-);
-
-
-
-for(
- const value of semantic.experienceDNA ?? []
-){
-
- dna.add(
-  value
- );
-
+function interpretationFrom(understanding: any): SemanticInterpretation {
+  const entities = understanding.entities ?? {};
+  return {
+    intent: unique(understanding.intent),
+    concepts: unique([
+      ...(entities.concepts ?? []),
+      ...(entities.events ?? []),
+    ]),
+    emotionalSignals: unique(understanding.emotions?.emotions),
+    worldSignals: unique(understanding.world?.domains),
+    cognitiveSignals: [],
+    confidence: typeof understanding.confidence === "number" ? understanding.confidence : 0,
+  };
 }
 
-
-
-if(
- semantic.emotions.includes("nostalgia")
-){
-
- dna.add(
-  "memory_driven"
- );
-
+function relationshipsFrom(understanding: any): ExperienceRelationship[] {
+  return (understanding.relationships ?? [])
+    .filter((value: any) => value?.subject && value?.object && value?.predicate)
+    .map((value: any) => ({
+      subject: value.subject,
+      predicate: value.predicate,
+      object: value.object,
+      confidence: typeof value.confidence === "number" ? value.confidence : 0.5,
+    }));
 }
 
+function meaningFrom(understanding: any, context: ExperienceMeaningContext) {
+  const humanIntent = understanding.humanIntent ?? {};
+  const desire = understanding.desire ?? {};
+  const memory = understanding.memory ?? {};
 
-
-if(
- semantic.themes.includes("discovery")
-){
-
- dna.add(
-  "exploration"
- );
-
+  return {
+    why: unique([
+      ...(humanIntent.motivations ?? []),
+      ...(context.meanings ?? []),
+    ]),
+    emotions: unique(understanding.emotions?.emotions),
+    memories: unique([
+      ...(memory.memories ?? []),
+      ...(memory.past ? [memory.past] : []),
+      ...(memory.legacy ? [memory.legacy] : []),
+    ]),
+    desiredFeeling: unique([
+      ...(humanIntent.desiredOutcome ?? []),
+      ...(desire.desires ?? []),
+    ]),
+    transformation: unique([
+      ...(desire.goals ?? []),
+    ]),
+  };
 }
 
-
-
-if(
- semantic.themes.includes("connection")
-){
-
- dna.add(
-  "human_connection"
- );
-
+function journeyFrom(understanding: any): string[] {
+  const journey: string[] = [];
+  const memory = understanding.memory ?? {};
+  if (memory.past || memory.replay) journey.push("memory");
+  return journey;
 }
-
-
-
-if(
- semantic.themes.includes("culture")
-){
-
- dna.add(
-  "immersive_culture"
- );
-
-}
-
-
-
-return [
- ...dna
-];
-
-}
-
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * RELATIONSHIP GRAPH
- *
- * Future semantic graph layer.
- *
- * =====================================================
- */
-
-
-function buildRelationships(
-
-):ExperienceRelationship[] {
-
-
-return [];
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * EXPERIENCE ENERGY
- * =====================================================
- */
-
-
-function resolveEnergy(
-
- semantic:any
-
-){
-
-
-if(
- semantic.experienceDNA?.includes(
- "cinematic"
- )
-){
-
-return "mysterious";
-
-}
-
-
-
-if(
- semantic.emotions.includes(
- "joy"
- )
-){
-
-return "playful";
-
-}
-
-
-
-if(
- semantic.emotions.includes(
- "love"
- )
-){
-
-return "emotional";
-
-}
-
-
-
-return "emotional";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * PACING
- * =====================================================
- */
-
-
-function resolvePacing(
-
- semantic:any
-
-){
-
-
-if(
- semantic.experienceDNA?.includes(
- "cinematic"
- )
-){
-
-return "slow";
-
-}
-
-
-
-if(
- semantic.themes.includes(
- "discovery"
- )
-){
-
-return "fast";
-
-}
-
-
-
-return "medium";
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * UNIVERSAL HUMAN JOURNEY
- * =====================================================
- */
-
-
-function buildJourney(
-
- semantic:any
-
-):ExperienceJourney[] {
-
-
-const journey:ExperienceJourney[]=[
-
-
-"arrival",
-
-
-"discovery",
-
-
-"reveal",
-
-
-"return"
-
-
-];
-
-
-
-if(
- semantic.experienceDNA?.includes(
- "transformation"
- )
-){
-
-journey.splice(
- 3,
- 0,
- "transformation"
-);
-
-}
-
-
-
-return journey;
-
-
-}
-
-
-
-
-
-
-
-
-
-/**
- * =====================================================
- * GENOME BUILDER
- *
- * Prompt → Experience DNA
- *
- * =====================================================
- */
-
 
 export function buildExperienceGenome(
+  prompt: string,
+  understanding: any,
+  meaningContext: ExperienceMeaningContext,
+): ExperienceGenome {
+  if (!prompt.trim()) throw new Error("Experience prompt cannot be empty");
 
- prompt:string
+  const entities = understanding.entities ?? {
+    people: [], places: [], organizations: [], dates: [], times: [], events: [],
+    products: [], urls: [], phones: [], emails: [], media: [], keywords: [],
+    objects: [], creatures: [], concepts: [], symbols: [], worlds: [], archetypes: [],
+  };
 
-):ExperienceGenome {
+  const emotions = unique(understanding.emotions?.emotions);
+  const sensory = understanding.sensory ?? {};
+  const dna = unique([
+    ...(understanding.dna?.traits ?? []),
+    ...(sensory.visual ?? []).map((value: string) => `visual_${value}`),
+    ...(sensory.audio ?? []).map((value: string) => `audio_${value}`),
+    ...(sensory.physical ?? []).map((value: string) => `physical_${value}`),
+    ...(sensory.environmental ?? []).map((value: string) => `environment_${value}`),
+  ]);
+  const relationships = relationshipsFrom(understanding);
+  const meaning = meaningFrom(understanding, meaningContext);
 
+  const objectGenome = compileObjectGenome({
+    prompt,
+    entities,
+    meaning: {
+      desiredFeeling: meaning.desiredFeeling,
+      symbols: unique(entities.symbols),
+      themes: unique(meaningContext.themes),
+    },
+    emotions: {
+      emotions,
+      intensity: understanding.emotions?.intensity ?? 0,
+    },
+    dna: { traits: dna },
+    memory: understanding.memory,
+    relationships,
+  });
 
+  const lifecycle = compileLifecycle({
+    prompt,
+    memory: understanding.memory,
+    entities,
+    relationships,
+    world: understanding.world,
+  });
 
-if(
- !prompt.trim()
+  const worldDomains = unique(understanding.world?.domains);
+  const audience = unique([
+    ...(understanding.audience?.types ?? []),
+    ...(understanding.audience?.roles ?? []),
+  ]);
+  const interpretation = interpretationFrom(understanding);
 
-){
-
-throw new Error(
- "Experience prompt cannot be empty"
-);
-
+  return {
+    intent: unique(understanding.intent),
+    interpretation,
+    archetypes: [],
+    themes: unique([
+      ...worldDomains,
+      ...(meaningContext.themes ?? []),
+    ]),
+    emotions,
+    meaning,
+    relationships,
+    worlds: worldDomains,
+    energy: emotions.includes("joy") || emotions.includes("excitement") ? "playful" : "emotional",
+    pacing: "medium",
+    social: understanding.audience?.social ?? "solo",
+    journey: journeyFrom(understanding) as any,
+    discovery: worldDomains.includes("discovery_world") ? 1 : 0,
+    memory: understanding.memory?.past || understanding.memory?.legacy || understanding.memory?.replay ? 1 : 0,
+    commerce: worldDomains.includes("commerce_world") ? 1 : 0,
+    immersion: 0,
+    interaction: understanding.audience?.behaviors?.includes("interaction") ? 1 : 0,
+    replay: understanding.memory?.replay ? 1 : 0,
+    entities,
+    object: objectGenome,
+    lifecycle,
+    environments: unique([
+      ...(understanding.sensory?.environmental ?? []),
+      ...(entities.places ?? []),
+    ]),
+    audience,
+    dna,
+    tone: unique(emotions),
+    sensory: unique([
+      ...(sensory.visual ?? []).map((value: string) => `visual_${value}`),
+      ...(sensory.audio ?? []).map((value: string) => `audio_${value}`),
+      ...(sensory.physical ?? []).map((value: string) => `physical_${value}`),
+      ...(sensory.environmental ?? []).map((value: string) => `environment_${value}`),
+    ]),
+    symbols: unique(entities.symbols),
+    transformation: unique(meaning.transformation),
+  };
 }
-
-
-
-
-
-const semantic =
-
-analyzeSemanticPrompt(
- prompt
-);
-
-
-
-
-
-const entities =
-
-extractEntities(
- prompt
-);
-
-
-
-
-
-const meaning =
-
-buildMeaning(
- semantic
-);
-
-
-
-
-
-const relationships =
-
-buildRelationships();
-
-
-
-
-
-return {
-
-
-
-/**
- * Core intent
- */
-
-intent:[
-
-semantic.intent
-
-],
-
-
-
-
-
-/**
- * Creative DNA
- */
-
-dna:
-
-buildDNA(
- semantic
-),
-
-
-
-
-
-/**
- * Archetypal signals
- */
-
-archetypes:
-
-semantic.themes,
-
-
-
-
-
-/**
- * Themes
-
- */
-
-themes:
-
-semantic.themes,
-
-
-
-
-
-/**
- * Emotional layer
- */
-
-emotions:
-
-semantic.emotions,
-
-
-
-
-
-/**
- * Meaning
- */
-
-meaning,
-
-
-
-
-
-/**
- * Semantic graph
- */
-
-relationships,
-
-
-
-
-
-/**
- * World entities
- */
-
-entities,
-
-
-
-
-
-/**
- * Experience physics
- */
-
-energy:
-
-resolveEnergy(
- semantic
-),
-
-
-
-pacing:
-
-resolvePacing(
- semantic
-),
-
-
-
-social:
-
-semantic.audience.length
-
-?
-
-"community"
-
-:
-
-"solo",
-
-
-
-
-
-/**
- * Human journey
- */
-
-journey:
-
-buildJourney(
- semantic
-),
-
-
-
-
-
-/**
- * Dimensions
- */
-
-discovery:
-
-semantic.themes.includes(
- "discovery"
-)
-
-?
-
-1
-
-:
-
-0.5,
-
-
-
-
-memory:
-
-semantic.themes.includes(
- "memory"
-)
-
-?
-
-1
-
-:
-
-0.5,
-
-
-
-
-commerce:
-
-semantic.themes.includes(
- "commerce"
-)
-
-?
-
-1
-
-:
-
-0,
-
-
-
-
-immersion:
-
-semantic.experienceDNA?.includes(
- "cinematic"
-)
-
-?
-
-1
-
-:
-
-0.5,
-
-
-
-
-interaction:
-
-0.5,
-
-
-
-
-replay:
-
-semantic.themes.includes(
- "memory"
-)
-
-?
-
-1
-
-:
-
-0.5,
-
-
-
-
-
-/**
- * World context
- */
-
-environments:
-
-semantic.environments,
-
-
-
-
-audience:
-
-semantic.audience,
-
-
-
-};
-
-
-}
-
-
-
-
-
-
-export const genomeBuilder =
-
-buildExperienceGenome;

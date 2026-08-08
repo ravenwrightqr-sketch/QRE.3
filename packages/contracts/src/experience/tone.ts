@@ -13,4 +13,5 @@ export type ExperienceTone =
   | "dark"
   | "trustworthy"
   | "mysterious"
-  | "educational";
+  | "educational"
+  | "intense";

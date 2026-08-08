@@ -1,222 +1,482 @@
-import type { Moment } from "@qre/contracts";
+import type {
+  ExperienceMoment,
+} from "@qre/contracts";
 
-type MomentProps = {
-  moment: Moment;
+
+type Props = {
+
+  moment: ExperienceMoment;
+
 };
 
+
+
+function getPayloadValue(
+  moment: ExperienceMoment,
+  key:string
+){
+
+  return moment.payload?.[key];
+
+}
+
+
+
+
+
 export default function MomentRenderer({
+
   moment,
-}: MomentProps) {
 
-  const meta =
-    (moment as any)?.meta ?? {};
-
-  const text =
-    (moment as any)?.text ??
-    meta.text ??
-    "";
-
-  const url =
-    (moment as any)?.url ??
-    meta.url ??
-    null;
+}: Props){
 
 
-  switch(moment.type) {
+
+  const payload =
+    moment.payload ?? {};
 
 
-    /**
-     * SYSTEM / ENGINE EVENTS
-     */
-    case "system":
+
+  const title =
+    moment.title ?? "";
+
+
+
+  const description =
+    moment.description ??
+    String(payload.text ?? "");
+
+
+
+
+
+  const mediaUrl =
+    typeof payload.mediaUrl === "string"
+      ? payload.mediaUrl
+      : null;
+
+
+
+
+  const audioUrl =
+    typeof payload.audioUrl === "string"
+      ? payload.audioUrl
+      : null;
+
+
+
+
+
+
+  switch(moment.component){
+
+
+
+    // =========================
+    // CINEMATIC STORY
+    // =========================
+
+    case "hero":
+
+    case "story":
+
+    case "memory":
+
+    case "timeline":
+
+    case "legacy":
 
       return (
-        <div
+
+        <section
+
           style={{
-            padding:0,
-            borderRadius:0,
-            background:"transparent",
-            border:"none",
-            textAlign:"center",
-            fontSize:"clamp(14px, 2.2vw, 20px)",
-            opacity:.82,
-            width:"100%",
-            maxWidth:740,
-            letterSpacing:"0.02em",
-          }}
-        >
 
-          {text || "Experience Event"}
+            minHeight:"70vh",
 
-        </div>
-      );
-
-
-
-    /**
-     * STORY MESSAGES
-     */
-    case "message":
-
-      return (
-        <div
-          style={{
-            width:"100%",
-            maxWidth:940,
-            minHeight:"62vh",
-            padding:"28px 20px",
-            borderRadius:0,
-            background:"transparent",
-            border:"none",
-            fontSize:"clamp(32px, 7vw, 78px)",
-            lineHeight:1.12,
             display:"grid",
+
             placeItems:"center",
+
             textAlign:"center",
-            textShadow:
-              "0 6px 36px rgba(0,0,0,.45)",
+
+            padding:40,
+
           }}
+
         >
 
-          {text}
-
-        </div>
-      );
+          <div>
 
 
+            <h1
 
-    /**
-     * BUTTONS / REDIRECTS / PAYMENTS
-     */
-    case "action":
+              style={{
 
-      return (
-        <button
+                fontSize:
+                "clamp(40px,8vw,100px)",
 
-          onClick={()=>{
-            if(url){
-              window.location.href=url;
+                fontWeight:900,
+
+                lineHeight:1,
+
+              }}
+
+            >
+
+              {title}
+
+            </h1>
+
+
+
+            {
+              description &&
+
+              <p
+
+                style={{
+
+                  marginTop:30,
+
+                  fontSize:22,
+
+                  opacity:.75,
+
+                  maxWidth:800,
+
+                }}
+
+              >
+
+                {description}
+
+              </p>
+
             }
-          }}
 
-          style={{
-            width:"100%",
-            padding:"16px 22px",
-            borderRadius:18,
-            border:
-              "1px solid rgba(0,255,180,.4)",
-            background:
-              "rgba(0,255,180,.12)",
-            color:"white",
-            fontSize:16,
-            cursor:"pointer",
-            backdropFilter:"blur(10px)",
-          }}
 
-        >
 
-          {meta.text ||
-           text ||
-           "Continue →"}
+          </div>
 
-        </button>
+
+        </section>
+
       );
 
 
 
-    /**
-     * MEDIA EXPERIENCE
-     */
-    case "media":
+
+
+    // =========================
+    // MEDIA EXPERIENCE
+    // =========================
+
+    case "video":
 
       return (
 
-        url ?
+        <video
 
-        <img
+          src={mediaUrl ?? undefined}
 
-          src={url}
+          controls
 
-          alt={
-            meta.text ??
-            "experience media"
-          }
+          autoPlay
 
           style={{
+
             width:"100%",
-            borderRadius:20,
+
+            borderRadius:30,
+
           }}
 
         />
 
-        :
-
-        <div>
-          Media unavailable
-        </div>
-
       );
 
 
 
-    /**
-     * GEO MEMORY
-     */
-    case "location":
+
+
+
+    case "gallery":
+
+    case "media":
 
       return (
 
         <div
 
           style={{
-            padding:0,
-            borderRadius:0,
-            background:"transparent",
-            width:"100%",
-            maxWidth:940,
-            textAlign:"center",
+
+            display:"grid",
+
+            gap:20,
+
           }}
 
         >
 
-          <h3 style={{ marginBottom: 8 }}>
-            📍 {meta.label ?? "Location"}
-          </h3>
-
 
           {
-            meta.city &&
-            <div>
-              {meta.city}
-              {meta.region &&
-                `, ${meta.region}`
-              }
-            </div>
+            mediaUrl &&
+
+            <img
+
+              src={mediaUrl}
+
+              alt={title}
+
+              style={{
+
+                width:"100%",
+
+                borderRadius:30,
+
+              }}
+
+            />
+
           }
 
 
         </div>
 
       );
+
+
+
+
+
+
+    // =========================
+    // AUDIO EXPERIENCE
+    // =========================
+
+    case "soundtrack":
+
+      return (
+
+        <audio
+
+          src={audioUrl ?? undefined}
+
+          controls
+
+          autoPlay
+
+          style={{
+
+            width:"100%",
+
+          }}
+
+        />
+
+      );
+
+
+
+
+
+
+    // =========================
+    // GEO MEMORY
+    // =========================
+
+    case "geo_memory":
+
+    case "map":
+
+    case "location":
+
+
+      return (
+
+        <section
+
+          style={{
+
+            textAlign:"center",
+
+            padding:40,
+
+          }}
+
+        >
+
+          <h2>
+
+            📍 {title}
+
+          </h2>
+
+
+          {
+            description &&
+
+            <p>
+
+              {description}
+
+            </p>
+
+          }
+
+
+        </section>
+
+      );
+
+
+
+
+
+
+
+
+    // =========================
+    // BUSINESS / ACTION
+    // =========================
+
+    case "cta":
+
+    case "payment":
+
+    case "reward":
+
+
+      const actionUrl =
+        getPayloadValue(
+          moment,
+          "url"
+        );
+
+
+      return (
+
+        <button
+
+          onClick={()=>{
+
+
+            if(
+              typeof actionUrl === "string"
+            ){
+
+              window.location.href =
+                actionUrl;
+
+            }
+
+
+          }}
+
+
+          style={{
+
+            padding:"18px 45px",
+
+            borderRadius:999,
+
+            background:
+            "rgba(0,255,180,.15)",
+
+            border:
+            "1px solid rgba(0,255,180,.5)",
+
+            color:"#fff",
+
+            fontSize:18,
+
+          }}
+
+        >
+
+          {title || "Continue"}
+
+        </button>
+
+      );
+
+
+
+
+
+
+    // =========================
+    // PROFILE / SOCIAL
+    // =========================
+
+    case "profile":
+
+    case "social":
+
+
+      return (
+
+        <section
+
+          style={{
+
+            textAlign:"center",
+
+            padding:40,
+
+          }}
+
+        >
+
+          <h2>
+
+            {title}
+
+          </h2>
+
+
+          <p>
+
+            {description}
+
+          </p>
+
+
+        </section>
+
+      );
+
+
+
 
 
 
     default:
 
+
       return (
 
-        <div
+        <section
+
           style={{
+
+            padding:40,
+
+            textAlign:"center",
+
             opacity:.5,
-            fontSize:12
+
           }}
+
         >
 
-          Unknown experience event
+          {title}
 
-        </div>
+        </section>
 
       );
+
 
   }
 
