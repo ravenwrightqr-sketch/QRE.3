@@ -1,9 +1,5 @@
-import type {
-  CognitiveIntent,
-  CognitiveUnderstanding
-} from "../types.js";
+import type { CognitiveIntent, CognitiveUnderstanding } from "../types.js";
 import type { CognitiveWorldModel } from "../worldModel.js";
-import { buildCognitiveExperiencePlan } from "../experiencePlan.js";
 
 const intentSignals: Record<CognitiveIntent, string[]> = {
   remember: ["memory", "remember", "memories", "past", "history", "legacy", "childhood", "nostalgia", "tribute", "preserve"],
@@ -86,7 +82,6 @@ function resolveMemory(text: string) {
 
 function resolveAudience(text: string): CognitiveUnderstanding["audience"] {
   const types: string[] = [];
-
   if (matches(text, ["family", "wedding", "parent", "child", "anniversary"])) types.push("family");
   if (matches(text, ["customer", "business", "brand", "store", "restaurant", "dispensary"])) types.push("customer");
   if (matches(text, ["couple", "partner", "relationship", "wedding"])) types.push("couple");
@@ -95,7 +90,6 @@ function resolveAudience(text: string): CognitiveUnderstanding["audience"] {
 
   const social: "solo" | "shared" | "community" =
     types.includes("community") ? "community" : types.length > 1 ? "shared" : "solo";
-
   return { types, social };
 }
 
@@ -170,7 +164,7 @@ export function understandPrompt(prompt: string): CognitiveUnderstanding {
   const times = extractTimes(expression);
   const cognitiveWorld = buildCognitiveWorld(expression, intent, people, places, objects, dates, times, emotions, memory, audience, domains);
 
-  const understanding: CognitiveUnderstanding = {
+  return {
     prompt: expression,
     intent,
     people,
@@ -185,7 +179,4 @@ export function understandPrompt(prompt: string): CognitiveUnderstanding {
     world: { domains, primary: domains[0] ?? "general" },
     cognitiveWorld
   };
-
-  understanding.experiencePlan = buildCognitiveExperiencePlan(understanding);
-  return understanding;
 }
