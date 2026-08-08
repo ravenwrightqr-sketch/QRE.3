@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@qre/cognition-v2",
   "version": "0.0.1",
   "private": true,
@@ -7,5 +7,8 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b"
+  },
+  "dependencies": {
+    "@qre/contracts": "workspace:*"
   }
 }
