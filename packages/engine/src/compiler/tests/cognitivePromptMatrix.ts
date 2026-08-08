@@ -1,3 +1,31 @@
+/**
+ * ============================================================
+ * QRE COGNITIVE PROMPT MATRIX — ARCHITECTURE LOCK
+ * ============================================================
+ *
+ * PURPOSE:
+ *   Exercise the cognitive compiler against radically different human
+ *   prompts and verify that cognition produces a coherent direction before
+ *   runtime compilation.
+ *
+ * CANONICAL PIPELINE UNDER TEST:
+ *   PROMPT → UNDERSTANDING → EVIDENCE → MEANING → HYPOTHESES
+ *   → OPPORTUNITY SPACE → EXPERIENCE DIRECTION → COGNITIVE PLAN
+ *   → UNIVERSAL COMPILATION → BLUEPRINT → FLOW → MOMENTS → SCENES
+ *
+ * TEST RULE:
+ *   These are intelligence invariants, not template snapshots.
+ *   The matrix checks subject fit, hypothesis quality, opportunity discovery,
+ *   plan completeness, and runtime continuity without requiring one fixed
+ *   story shape for every domain.
+ *
+ * ARCHITECTURE RULE:
+ *   THE COMPILER BECOMES SMARTER.
+ *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
+ *
+ * ============================================================
+ */
+
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 
 type OpportunityKey = "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial";
@@ -44,6 +72,7 @@ for (const test of cases) {
   const expectedSubject = test.subjectIncludes.toLowerCase();
   const subjectPass = subject.includes(expectedSubject) || expectedSubject.includes(subject);
   const hypothesisPass = cognition.selectedHypothesis.kind === test.hypothesis;
+  const directionPass = cognition.plan.direction === cognition.selectedHypothesis.kind;
   const planPass = Boolean(
     cognition.plan.centralSubject &&
     cognition.plan.whyInteract.length &&
@@ -58,12 +87,13 @@ for (const test of cases) {
     result.cinematicScenes.length === result.moments.length,
   );
 
-  const ok = subjectPass && hypothesisPass && planPass && opportunityPass && runtimePass;
+  const ok = subjectPass && hypothesisPass && directionPass && planPass && opportunityPass && runtimePass;
   if (ok) passed += 1;
 
   console.log(`\n${ok ? "PASS" : "FAIL"}: ${test.prompt}`);
   console.log("  subject:", cognition.subject);
   console.log("  hypothesis:", cognition.selectedHypothesis.kind, cognition.selectedHypothesis.score);
+  console.log("  direction:", cognition.plan.direction);
   console.log("  dimensions:", cognition.selectedHypothesis.dimensions);
   console.log("  emotional:", cognition.emotionalIntent);
   console.log("  affordances:", cognition.affordances);
@@ -86,6 +116,7 @@ for (const test of cases) {
 
   if (!subjectPass) throw new Error(`Subject inference failed: expected ${test.subjectIncludes}, got ${cognition.subject.value}`);
   if (!hypothesisPass) throw new Error(`Hypothesis inference failed: expected ${test.hypothesis}, got ${cognition.selectedHypothesis.kind}`);
+  if (!directionPass) throw new Error("Cognitive plan direction drifted from the selected hypothesis.");
   if (!planPass) throw new Error("Cognitive plan is incomplete.");
   if (!opportunityPass) throw new Error(`Expected ${test.opportunity} opportunity but none was inferred.`);
   if (!runtimePass) throw new Error("Cognitive result did not compile into a complete runtime shape.");
