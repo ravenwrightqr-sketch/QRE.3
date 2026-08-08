@@ -1,34 +1,39 @@
-import {
-  composeWorld,
-} from "../world/worldComposer.js";
-
-import {
-  compileExperienceNarrative,
-} from "../compiler/narrative/narrativeCompiler.js";
-
-import {
-  buildExperienceGenome,
-} from "../compiler/semantic/genome/genomeBuilder.js";
-
-import {
-  composeBlueprint,
-} from "./blueprintComposer.js";
-
-import {
-  experienceDirector,
-} from "./director.js";
-
-import {
-  blueprintToFlow,
-} from "./blueprintToFlow.js";
-
-import {
-  compileCinematicScenes,
-} from "../cinematic/cinematicCompiler.js";
-
-import {
-  synthesizeCognitiveExperience,
-} from "../compiler/cognitiveSynthesis.js";
+/**
+ * =====================================================
+ * QRE EXPERIENCE COMPILER
+ * =====================================================
+ *
+ * ONE compiler path.
+ *
+ * Prompt
+ *   ↓
+ * Understanding
+ *   ↓
+ * Meaning Context
+ *   ↓
+ * Genome
+ *   ↓
+ * Cognitive Synthesis
+ *   ↓
+ * World
+ *   ↓
+ * Blueprint
+ *   ↓
+ * Narrative / Flow / Moments
+ *   ↓
+ * Cinematic Scenes
+ *   ↓
+ * CompiledExperience
+ *
+ * The compiler creates semantic artifacts.
+ * It does not execute them, persist them, or own runtime state.
+ *
+ * ExperienceMoment is canonical at the Blueprint boundary.
+ * FlowSteps are an executable projection of the Blueprint.
+ * CinematicScene is a presentation projection of the same Moments.
+ *
+ * =====================================================
+ */
 
 import {
   understandExperience,
@@ -36,9 +41,9 @@ import {
 } from "@qre/cognition";
 
 import type {
-  CompilerMind,
   CompiledExperience,
   ExperienceBlueprint,
+  ExperienceCompileContext,
   ExperienceGenome,
   ExperienceMeaningContext,
   ExperienceModel,
@@ -46,10 +51,26 @@ import type {
   ExperienceWorld,
   FlowStep,
   ExperienceMoment,
-  ExperienceCompileContext,
+  CompilerMind,
 } from "@qre/contracts";
 
-function createExperienceModel(
+import { buildExperienceGenome } from "../compiler/semantic/genome/genomeBuilder.js";
+import { synthesizeCognitiveExperience } from "../compiler/cognitiveSynthesis.js";
+import { composeWorld } from "../world/worldComposer.js";
+import { composeBlueprint } from "./blueprintComposer.js";
+import { directExperience } from "./director.js";
+import { blueprintToFlow } from "./blueprintToFlow.js";
+import { compileExperienceNarrative } from "../compiler/narrative/narrativeCompiler.js";
+import { compileCinematicScenes } from "../cinematic/cinematicCompiler.js";
+
+function createId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+}
+
+function createModel(
   blueprint: ExperienceBlueprint,
   prompt: string,
 ): ExperienceModel {
@@ -63,44 +84,15 @@ function createExperienceModel(
     metadata: {
       category: blueprint.type,
       tags: [
-        "cognitive-synthesis",
-        "semantic-compiler",
-        "experience-genome",
+        "qre-experience-compiler",
+        "experience-moment-canonical",
         "cinematic-runtime",
       ],
     },
   };
 }
 
-function createCompilerId(): string {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
-}
-
-/**
- * Canonical experience compiler.
- *
- * Prompt
- * → Understanding
- * → MeaningContext
- * → ExperienceGenome
- * → CompilerMind
- * → CognitiveSynthesis
- * → ExperienceWorld
- * → ExperienceBlueprint
- * → Direction
- * → Narrative
- * → FlowSteps
- * → ExperienceMoments
- * → CinematicScenes
- * → CompiledExperience
- *
- * ExperienceMoment is a canonical contract artifact. It is created by
- * blueprint composition and is NOT reconstructed from FlowSteps.
- */
-export function compileExperienceGenome(
+function compile(
   prompt: string,
   context?: ExperienceCompileContext,
 ): CompiledExperience {
@@ -108,28 +100,27 @@ export function compileExperienceGenome(
     throw new Error("Experience prompt required.");
   }
 
+  // -----------------------------------------------------
+  // 1. Understand the current prompt.
+  // -----------------------------------------------------
   const understanding: ExperienceUnderstanding =
-    (context?.metadata?.understanding as
-      | ExperienceUnderstanding
-      | undefined) ??
+    (context?.metadata?.understanding as ExperienceUnderstanding | undefined) ??
     understandExperience(prompt);
 
   const meaningContext: ExperienceMeaningContext =
-    (context?.metadata?.meaningContext as
-      | ExperienceMeaningContext
-      | undefined) ??
+    (context?.metadata?.meaningContext as ExperienceMeaningContext | undefined) ??
     buildMeaningContext(understanding);
 
+  // -----------------------------------------------------
+  // 2. Build one canonical genome.
+  // -----------------------------------------------------
   const genome: ExperienceGenome =
-    (context?.metadata?.genome as
-      | ExperienceGenome
-      | undefined) ??
-    buildExperienceGenome(
-      prompt,
-      understanding,
-      meaningContext,
-    );
+    (context?.metadata?.genome as ExperienceGenome | undefined) ??
+    buildExperienceGenome(prompt, understanding, meaningContext);
 
+  // -----------------------------------------------------
+  // 3. Cognitive synthesis is the intelligence substrate.
+  // -----------------------------------------------------
   const mind: CompilerMind = {
     prompt,
     understanding,
@@ -137,70 +128,48 @@ export function compileExperienceGenome(
     genome,
   };
 
-  const cognitiveSynthesis = synthesizeCognitiveExperience(mind);
+  const synthesis = synthesizeCognitiveExperience(mind);
 
-  const {
-    semanticIR,
-    nuvo,
-    revik,
-    moverArc,
-    moverTopology,
-    kaivo,
-    orion,
-    cognitiveTrace,
-  } = cognitiveSynthesis;
+  // -----------------------------------------------------
+  // 4. Compose the semantic world and blueprint.
+  // -----------------------------------------------------
+  const world: ExperienceWorld = composeWorld(genome, synthesis);
+  const blueprint: ExperienceBlueprint = composeBlueprint(genome, world);
 
-  const world: ExperienceWorld = composeWorld(
-    genome,
-    cognitiveSynthesis,
-  );
-
-  const blueprint: ExperienceBlueprint = composeBlueprint(
-    genome,
-    world,
-  );
-
-  const direction = experienceDirector(blueprint);
-
+  // -----------------------------------------------------
+  // 5. Create the three projections from the same Moments.
+  // -----------------------------------------------------
+  const direction = directExperience(blueprint);
   const narrative = compileExperienceNarrative(
     genome,
     world,
     blueprint,
   );
-
   const flowSteps: FlowStep[] = blueprintToFlow(blueprint);
-
-  // IMPORTANT:
-  // ExperienceBlueprint is the canonical source of ExperienceMoment[] /
-  // ExperienceMoment is no longer derived from FlowSteps. Flow is an
-  // executable projection; Moments are the semantic/runtime presentation
-  // contract owned by the blueprint.
   const experienceMoments: ExperienceMoment[] = blueprint.moments;
-
   const cinematicScenes = compileCinematicScenes(
     blueprint,
     direction,
     world,
   );
-
-  const model = createExperienceModel(blueprint, prompt);
+  const model = createModel(blueprint, prompt);
 
   return {
-    id: createCompilerId(),
+    id: createId(),
 
     intelligence: {
       understanding,
       meaningContext,
       meaning: genome.meaning,
-      semanticIR,
-      nuvo,
-      revik,
-      moverArc,
-      moverTopology,
-      kaivo,
-      orion,
+      semanticIR: synthesis.semanticIR,
+      nuvo: synthesis.nuvo,
+      revik: synthesis.revik,
+      moverArc: synthesis.moverArc,
+      moverTopology: synthesis.moverTopology,
+      kaivo: synthesis.kaivo,
+      orion: synthesis.orion,
       genome,
-      cognitiveTrace,
+      cognitiveTrace: synthesis.cognitiveTrace,
     },
 
     genome,
@@ -218,18 +187,25 @@ export function compileExperienceGenome(
     momentCount: experienceMoments.length,
 
     metadata: {
-      compilerVersion: "5.0-cognitive-synthesis",
+      compilerVersion: "6.0-experience-core",
       generatedAt: new Date().toISOString(),
-      source: "qre-cognitive-experience-compiler",
+      source: "qre-experience-compiler",
       tags: [
         "semantic",
-        "cognitive",
         "world-aware",
-        "cinematic",
-        "compiler-brain",
+        "experience-moment",
+        "flow-projection",
+        "cinematic-projection",
       ],
     },
   };
+}
+
+export function compileExperienceGenome(
+  prompt: string,
+  context?: ExperienceCompileContext,
+): CompiledExperience {
+  return compile(prompt, context);
 }
 
 export const genomeCompiler = compileExperienceGenome;
