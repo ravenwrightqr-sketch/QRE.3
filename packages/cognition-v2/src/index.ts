@@ -1,11 +1,15 @@
-﻿export {
-  understandPrompt
-} from "./mind/understandPrompt.js";
+export { understandPrompt } from "./mind/understandPrompt.js";
+export { COGNITION_V2_MASTER_PROMPT } from "./masterPrompt.js";
+export { buildCognitiveExperiencePlan } from "./experiencePlan.js";
 
 export type {
   CognitiveIntent,
   CognitiveUnderstanding
 } from "./types.js";
+
+export type {
+  CognitiveExperiencePlan
+} from "./experiencePlan.js";
 
 export type {
   CognitiveEntity,
