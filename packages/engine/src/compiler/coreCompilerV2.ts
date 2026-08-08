@@ -1,9 +1,11 @@
 /**
- * QRE CANONICAL EXPERIENCE COMPILER V2
+ * QRE CANONICAL EXPERIENCE COMPILER
  *
- * One front door for turning an open-ended human idea into runtime-ready
- * semantic artifacts. The compiler itself remains deterministic and free of
- * persistence/runtime concerns; cognition supplies the interpretation.
+ * One authoring path. Cognition interprets the prompt; the compiler projects
+ * that interpretation into runtime artifacts.
+ *
+ * Prompt → Cognition → Meaning → Genome → World → Blueprint
+ *        → Story → Flow / Cinematic projections
  */
 
 import { buildMeaningContext } from "@qre/cognition";
@@ -42,7 +44,7 @@ function createModel(blueprint: ExperienceBlueprint, prompt: string): Experience
     title: blueprint.title,
     description: prompt,
     industry: "generic",
-    goal: "discovery",
+    goal: "experience",
     tone: blueprint.tone,
     moments: blueprint.moments,
     metadata: {
@@ -56,9 +58,10 @@ export function compileExperienceV2(
   prompt: string,
   context?: ExperienceCompileContext,
 ): CompiledExperience {
-  if (!prompt.trim()) throw new Error("Experience prompt required.");
+  const expression = prompt.trim();
+  if (!expression) throw new Error("Experience prompt required.");
 
-  const cognitive = understandPrompt(prompt);
+  const cognitive = understandPrompt(expression);
   const understanding: ExperienceUnderstanding =
     (context?.metadata?.understanding as ExperienceUnderstanding | undefined)
     ?? buildExperienceUnderstanding(cognitive);
@@ -69,9 +72,16 @@ export function compileExperienceV2(
 
   const genome: ExperienceGenome =
     (context?.metadata?.genome as ExperienceGenome | undefined)
-    ?? buildExperienceGenome(prompt, understanding, meaningContext);
+    ?? buildExperienceGenome(expression, understanding, meaningContext);
 
-  const mind: CompilerMind = { prompt, understanding, meaningContext, genome };
+  const mind: CompilerMind = {
+    prompt: expression,
+    understanding,
+    meaningContext,
+    genome,
+    semanticIR: context?.metadata?.semanticIR,
+  };
+
   const synthesis = synthesizeCognitiveExperience(mind);
   const world: ExperienceWorld = composeWorld(genome, synthesis);
   const blueprint: ExperienceBlueprint = composeBlueprint(genome, world);
@@ -87,15 +97,8 @@ export function compileExperienceV2(
       understanding,
       meaningContext,
       meaning: genome.meaning,
-      semanticIR: synthesis.semanticIR,
-      nuvo: synthesis.nuvo,
-      revik: synthesis.revik,
-      moverArc: synthesis.moverArc,
-      moverTopology: synthesis.moverTopology,
-      kaivo: synthesis.kaivo,
-      orion: synthesis.orion,
       genome,
-      cognitiveTrace: synthesis.cognitiveTrace,
+      semanticIR: synthesis.semanticIR,
     },
     genome,
     world,
@@ -105,20 +108,19 @@ export function compileExperienceV2(
     flowSteps,
     experienceMoments,
     cinematicScenes,
-    model: createModel(blueprint, prompt),
+    model: createModel(blueprint, expression),
     context,
     title: blueprint.title,
     estimatedDuration: experienceMoments.length * 5,
     momentCount: experienceMoments.length,
     metadata: {
-      compilerVersion: "8.0-cognition-v2",
+      compilerVersion: "9.0-cognition-first",
       generatedAt: new Date().toISOString(),
       source: "qre-experience-compiler",
-      tags: ["cognition-v2", "experience-moment", "flow-projection", "cinematic-projection"],
+      tags: ["cognition-first", "experience-moment", "flow-projection", "cinematic-projection"],
     },
   };
 }
 
-/** Canonical public name. */
 export const compileExperience = compileExperienceV2;
 export const compileExperienceGenomeV2 = compileExperienceV2;
