@@ -10,7 +10,6 @@
 
 import { buildMeaningContext } from "@qre/cognition";
 import { understandPrompt, buildExperienceUnderstanding } from "@qre/cognition-v2";
-
 import type {
   CompiledExperience,
   ExperienceBlueprint,
@@ -24,7 +23,6 @@ import type {
   ExperienceMoment,
   CompilerMind,
 } from "@qre/contracts";
-
 import { buildExperienceGenome } from "./semantic/genome/genomeBuilder.js";
 import { synthesizeCognitiveExperience } from "./cognitiveSynthesis.js";
 import { composeWorld } from "../world/worldComposer.js";
@@ -35,8 +33,7 @@ import { compileExperienceNarrative } from "./narrative/narrativeCompiler.js";
 import { compileCinematicScenes } from "../cinematic/cinematicCompiler.js";
 
 function createId(): string {
-  return globalThis.crypto?.randomUUID?.()
-    ?? `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return globalThis.crypto?.randomUUID?.() ?? `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function createModel(blueprint: ExperienceBlueprint, prompt: string): ExperienceModel {
@@ -54,25 +51,17 @@ function createModel(blueprint: ExperienceBlueprint, prompt: string): Experience
   };
 }
 
-export function compileExperienceV2(
-  prompt: string,
-  context?: ExperienceCompileContext,
-): CompiledExperience {
+export function compileExperienceV2(prompt: string, context?: ExperienceCompileContext): CompiledExperience {
   const expression = prompt.trim();
   if (!expression) throw new Error("Experience prompt required.");
 
   const cognitive = understandPrompt(expression);
   const understanding: ExperienceUnderstanding =
-    (context?.metadata?.understanding as ExperienceUnderstanding | undefined)
-    ?? buildExperienceUnderstanding(cognitive);
-
+    context?.metadata?.understanding ?? buildExperienceUnderstanding(cognitive);
   const meaningContext: ExperienceMeaningContext =
-    (context?.metadata?.meaningContext as ExperienceMeaningContext | undefined)
-    ?? buildMeaningContext(understanding);
-
+    context?.metadata?.meaningContext ?? buildMeaningContext(understanding);
   const genome: ExperienceGenome =
-    (context?.metadata?.genome as ExperienceGenome | undefined)
-    ?? buildExperienceGenome(expression, understanding, meaningContext);
+    context?.metadata?.genome ?? buildExperienceGenome(expression, understanding, meaningContext);
 
   const mind: CompilerMind = {
     prompt: expression,
@@ -83,7 +72,7 @@ export function compileExperienceV2(
   };
 
   const synthesis = synthesizeCognitiveExperience(mind);
-  const world: ExperienceWorld = composeWorld(genome, synthesis);
+  const world: ExperienceWorld = composeWorld(genome);
   const blueprint: ExperienceBlueprint = composeBlueprint(genome, world);
   const direction = directExperience(blueprint);
   const narrative = compileExperienceNarrative(genome, world, blueprint);
