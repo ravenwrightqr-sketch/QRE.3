@@ -1,25 +1,78 @@
-import { compileStoryExperience } from "../../experience/storyCompiler.js";
+import { compileStoryExperience } from "../../experience/universalStoryCompiler.js";
 
-const cases = [
-  "Create a dog groomer story for Max the poodle about the experience.",
-  "Make something fun for everyone at my wedding tonight.",
-  "Turn this concert QR into something people will remember.",
-  "My grandmother gave me this watch.",
-  "Make this boring product launch fun.",
-  "Surprise me.",
-  "asdf 123",
+type Case = {
+  prompt: string;
+  mustContain?: string[];
+  mustNotContain?: string[];
+  context?: Parameters<typeof compileStoryExperience>[1];
+};
+
+const cases: Case[] = [
+  {
+    prompt: "Create a dog groomer story for Max the poodle about the experience.",
+    mustContain: ["care"],
+    mustNotContain: ["dog's Journey", "journey_world"],
+  },
+  {
+    prompt: "Make something fun for everyone at my wedding tonight.",
+    mustContain: ["shared"],
+  },
+  {
+    prompt: "Turn this concert QR into something people will remember.",
+    mustContain: ["event", "media"],
+  },
+  {
+    prompt: "My grandmother gave me this watch.",
+    mustContain: ["memory", "watch"],
+  },
+  {
+    prompt: "Make this boring product launch fun.",
+    mustContain: ["work", "play"],
+  },
+  {
+    prompt: "Surprise me.",
+    mustContain: ["play"],
+  },
+  {
+    prompt: "asdf 123",
+    mustContain: [],
+    mustNotContain: ["memory_world", "relationship_world", "dog's Journey"],
+  },
+  {
+    prompt: "Max came back to the same groomer and was even more excited this time.",
+    context: { memories: [{ summary: "Max's earlier grooming visit", entities: ["Max", "groomer"] }] },
+    mustContain: ["memory"],
+  },
 ];
 
-for (const prompt of cases) {
-  const result = compileStoryExperience(prompt);
+for (const testCase of cases) {
+  const result = compileStoryExperience(testCase.prompt, testCase.context);
+  const observable = JSON.stringify({
+    title: result.title,
+    story: result.story,
+    observation: result.observation,
+    situation: result.situation,
+  });
 
-  if (!result.story.title) throw new Error(`Missing title for: ${prompt}`);
-  if (!result.story.beats.length) throw new Error(`Missing beats for: ${prompt}`);
-  if (!result.cinematicScenes.length) throw new Error(`Missing scenes for: ${prompt}`);
+  if (!result.story.title) throw new Error(`Missing title for: ${testCase.prompt}`);
+  if (result.story.beats.length < 2) throw new Error(`Story is too short for: ${testCase.prompt}`);
+  if (result.cinematicScenes.length !== result.story.beats.length) throw new Error(`Scene/beat mismatch for: ${testCase.prompt}`);
+  if (!result.candidates.length) throw new Error(`No narrative candidates for: ${testCase.prompt}`);
+  if (result.candidates[0].score < result.candidates.at(-1)!.score) throw new Error(`Candidates are not ranked for: ${testCase.prompt}`);
 
-  console.log(`✓ ${prompt}`);
-  console.log(`  title: ${result.story.title}`);
-  console.log(`  beats: ${result.story.beats.length}`);
+  for (const value of testCase.mustContain ?? []) {
+    if (!observable.toLowerCase().includes(value.toLowerCase())) {
+      throw new Error(`Expected '${value}' in compiler result for: ${testCase.prompt}`);
+    }
+  }
+  for (const value of testCase.mustNotContain ?? []) {
+    if (observable.toLowerCase().includes(value.toLowerCase())) {
+      throw new Error(`Unexpected '${value}' in compiler result for: ${testCase.prompt}`);
+    }
+  }
+
+  console.log(`✓ ${testCase.prompt}`);
+  console.log(`  ${result.story.title} — ${result.story.beats.map((beat) => beat.kind).join(" → ")}`);
 }
 
-console.log("✓ any-prompt story compiler smoke tests passed");
+console.log("✓ universal any-prompt story compiler acceptance suite passed");
