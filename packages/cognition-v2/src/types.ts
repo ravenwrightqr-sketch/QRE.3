@@ -1,5 +1,4 @@
 import type { CognitiveWorldModel } from "./worldModel.js";
-import type { CognitiveExperiencePlan } from "./experiencePlan.js";
 
 export type CognitiveIntent =
   | "remember"
@@ -38,5 +37,4 @@ export interface CognitiveUnderstanding {
     primary: string;
   };
   cognitiveWorld: CognitiveWorldModel;
-  experiencePlan?: CognitiveExperiencePlan;
 }
