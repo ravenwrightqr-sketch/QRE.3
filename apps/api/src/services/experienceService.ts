@@ -1,5 +1,5 @@
 import {
-  runCompilerBrain,
+  compileExperience as compileExperienceEngine,
   compileExperienceNarrative
 } from "@qre/engine";
 
@@ -27,7 +27,7 @@ import type {
  *   ↓
  * Experience Service
  *   ↓
- * Compiler Brain
+ * Canonical Compiler
  *   ↓
  * Narrative Intelligence
  *   ↓
@@ -74,7 +74,7 @@ export interface CompiledExperienceResult {
  *
  *        ↓
  *
- * Compiler Brain
+ * Canonical Compiler
  *
  *        ↓
  *
@@ -118,9 +118,9 @@ export async function compileExperience(
 
 
 
-  const result =
+  const compiled =
 
-    runCompilerBrain(
+    compileExperienceEngine(
 
       prompt.trim()
 
@@ -132,7 +132,7 @@ export async function compileExperience(
 
   if(
 
-    !result.compiled?.blueprint
+    !compiled?.blueprint
 
   ){
 
@@ -150,7 +150,7 @@ export async function compileExperience(
 
   const blueprint =
 
-    result.compiled.blueprint;
+    compiled.blueprint;
 
 
 
@@ -159,11 +159,11 @@ export async function compileExperience(
 
   if(
 
-    !result.compiled.genome
+    !compiled.genome
 
     ||
 
-    !result.compiled.world
+    !compiled.world
 
   ){
 
@@ -184,9 +184,9 @@ export async function compileExperience(
 
     compileExperienceNarrative(
 
-      result.compiled.genome,
+      compiled.genome,
 
-      result.compiled.world,
+      compiled.world,
 
       blueprint
 
@@ -196,16 +196,15 @@ export async function compileExperience(
 
   return {
 
-  compiled:
-    result.compiled,
+  compiled,
 
 
   intelligence:
-    result.compiled.intelligence,
+    compiled.intelligence,
 
 
   genome:
-    result.compiled.genome!,
+    compiled.genome!,
 
 
   blueprint,
