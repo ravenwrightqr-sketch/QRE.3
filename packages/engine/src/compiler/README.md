@@ -35,7 +35,6 @@ The behavioral contract lives in `@qre/cognition-v2` as `COGNITION_V2_MASTER_PRO
 - Geo Story and Memory Snapshot remain separate runtime artifacts.
 - Evidence, temporal memory, connection graphs, and analytics are supporting cognition infrastructure, not additional compiler brains.
 - `compileExperience` resolves to the Cognition V2 compiler.
-- `runCompilerBrain` is only a compatibility facade over that same compiler.
 - There is no second compiler orchestrator.
 - Do not add industry-specific compiler branches merely to make a new use case work.
 - New intelligence must enrich the canonical cognitive understanding/plan or become a projection after the semantic boundary.
