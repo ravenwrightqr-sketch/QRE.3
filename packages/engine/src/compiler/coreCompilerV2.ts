@@ -1,8 +1,8 @@
 /**
  * QRE CANONICAL EXPERIENCE COMPILER
  *
- * One authoring path. Cognition interprets the prompt; the compiler projects
- * that interpretation into runtime artifacts.
+ * Cognition interprets the prompt; the compiler projects that interpretation
+ * into world, blueprint, story, flow, and cinematic artifacts.
  */
 
 import { buildMeaningContext } from "@qre/cognition";
@@ -38,7 +38,7 @@ function createModel(blueprint: ExperienceBlueprint, prompt: string): Experience
     title: blueprint.title,
     description: prompt,
     industry: "generic",
-    goal: "experience",
+    goal: "storytelling",
     tone: blueprint.tone,
     moments: blueprint.moments,
     metadata: {
@@ -76,13 +76,7 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
 
   return {
     id: createId(),
-    intelligence: {
-      understanding,
-      meaningContext,
-      meaning: genome.meaning,
-      genome,
-      semanticIR,
-    },
+    intelligence: { understanding, meaningContext, meaning: genome.meaning, genome, semanticIR },
     genome,
     world,
     blueprint,
