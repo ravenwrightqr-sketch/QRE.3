@@ -1,3 +1,28 @@
+/**
+ * ============================================================
+ * QRE UNIVERSAL STORY COMPILER — SUBSTRATE ACCEPTANCE
+ * ============================================================
+ *
+ * PURPOSE:
+ *   Protect the universal compiler substrate independently from the
+ *   cognitive layer.
+ *
+ * ARCHITECTURE ROLE:
+ *   The universal compiler does NOT decide what an experience should
+ *   become. Cognition supplies that direction. This suite verifies that
+ *   the substrate can reliably turn a prompt/context into a coherent
+ *   story, candidates, moments, and cinematic scenes.
+ *
+ * CANONICAL POSITION:
+ *   COGNITIVE PLAN → UNIVERSAL COMPILER → BLUEPRINT → FLOW → MOMENTS → SCENES
+ *
+ * TEST RULE:
+ *   These are runtime/substrate invariants, not cognitive intelligence
+ *   assertions. Do not turn this file into a template snapshot suite.
+ *
+ * ============================================================
+ */
+
 import { compileStoryExperience } from "../../experience/universalStoryCompiler.js";
 
 type Case = {
@@ -75,4 +100,4 @@ for (const testCase of cases) {
   console.log(`  ${result.story.title} — ${result.story.beats.map((beat) => beat.kind).join(" → ")}`);
 }
 
-console.log("✓ universal any-prompt story compiler acceptance suite passed");
+console.log("✓ universal any-prompt story compiler substrate acceptance suite passed");
