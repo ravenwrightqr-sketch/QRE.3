@@ -89,6 +89,9 @@ export function compileExperienceGenome(
   const result = compileCognitiveExperience(prompt, context);
   const intent = inferIntent(result);
   const audience = resolveAudience(result);
+  const directionConcept = result.cognition.plan.direction
+    ? [result.cognition.plan.direction]
+    : [];
 
   return {
     ...result,
@@ -102,7 +105,7 @@ export function compileExperienceGenome(
           ...result.genome.interpretation.concepts,
           ...result.observation.context,
           ...result.observation.affordances,
-          ...result.cognition.plan.direction ? result.cognition.plan.direction : [],
+          ...directionConcept,
         ])],
         confidence: result.genome.interpretation.confidence,
       },
