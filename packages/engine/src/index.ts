@@ -45,6 +45,4 @@ export type {
 export { directExperience, experienceDirector } from "./experience/director.js";
 export * from "./cinematic/index.js";
 
-export { runCompilerBrain } from "./compiler/compilerBrain.js";
-export type { CompilerBrainResult } from "./compiler/compilerBrain.js";
 export * from "./compiler/narrative/narrativeCompiler.js";
