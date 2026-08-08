@@ -29,7 +29,7 @@ function subjectOf(understanding: CognitiveUnderstanding): string {
     understanding.objects[0] ??
     understanding.places[0] ??
     understanding.people[0] ??
-    understanding.cognitiveWorld.objects[0]?.text ??
+    understanding.cognitiveWorld.objects[0] ??
     understanding.cognitiveWorld.entities[0]?.text ??
     "the thing being created"
   );
