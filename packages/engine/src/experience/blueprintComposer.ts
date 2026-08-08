@@ -5,9 +5,7 @@ import type {
   ExperienceMomentType,
   ExperienceComponent,
   ExperienceTone,
-  ExperienceGoal,
   ExperienceType,
-  ExperienceIndustry,
 } from "@qre/contracts";
 
 const components: Partial<Record<ExperienceMomentType, ExperienceComponent>> = {
@@ -29,23 +27,6 @@ const components: Partial<Record<ExperienceMomentType, ExperienceComponent>> = {
 
 function resolveComponent(type: ExperienceMomentType): ExperienceComponent {
   return components[type] ?? "cta";
-}
-
-function resolveGoal(genome: ExperienceGenome): ExperienceGoal {
-  if (genome.commerce >= 0.7) return "conversion";
-  if (genome.memory >= 0.7) return "memory";
-  if (genome.intent.includes("teach")) return "educate";
-  if (genome.intent.includes("connect")) return "storytelling";
-  if (genome.replay >= 0.7) return "retention";
-  return "welcome";
-}
-
-function resolveIndustry(genome: ExperienceGenome): ExperienceIndustry {
-  if (genome.commerce >= 0.7) return "business";
-  if (genome.memory >= 0.7) return "personal";
-  if (genome.intent.includes("connect")) return "relationship";
-  if (genome.themes.some((value) => /event|culture|performance/i.test(value))) return "event";
-  return "generic";
 }
 
 function resolveType(genome: ExperienceGenome): ExperienceType {
@@ -142,7 +123,10 @@ export function composeBlueprint(genome: ExperienceGenome): ExperienceBlueprint 
     meaning: genome.meaning,
     moments,
     entities: genome.entities,
-    industry: resolveIndustry(genome),
-    goal: resolveGoal(genome),
+    metadata: {
+      archetypes: genome.archetypes,
+      themes: genome.themes,
+      dna: genome.dna,
+    },
   };
 }
