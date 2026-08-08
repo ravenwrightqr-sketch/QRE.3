@@ -14,7 +14,6 @@
   "dependencies": {
     "@qre/contracts": "workspace:*",
     "@qre/db": "workspace:*",
-    "@qre/cognition": "workspace:*",
     "@qre/cognition-v2": "workspace:*",
     "nanoid": "^5.1.16"
   },
