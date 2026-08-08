@@ -1,5 +1,7 @@
 /** QRE story compiler contract. Story is generated from evidence and affordances, not templates. */
 
+import type { ExperienceTone } from "./tone.js";
+
 export type StoryEvidenceKind = "observed" | "inferred" | "playful";
 
 export type StoryBeatKind =
@@ -37,7 +39,7 @@ export type ExperienceStory = {
   beats: StoryBeat[];
   ending: string;
   continuation?: string;
-  tone: string[];
+  tone: ExperienceTone[];
   provenance: StoryProvenance[];
 };
 
