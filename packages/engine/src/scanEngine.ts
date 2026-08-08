@@ -3,655 +3,360 @@ import type {
   SessionRepository,
   AccessRepository,
   FlowStepRecord,
+  StoryDeliveryRepository,
+  AnalyticsRepository,
 } from "./repositories/index.js";
-import type {
-  StoryDeliveryRepository,AnalyticsRepository,
-} from "./repositories/index.js";
-import { resolveAccessEngine } from "./accessEngine.js";
 
+import { resolveAccessEngine } from "./accessEngine.js";
 import { flowToMoment } from "./moments/flowToMoments.js";
 import { systemMoments } from "./moments/systemMoments.js";
 import { purchaseMoments } from "./moments/purchaseMoments.js";
-
-import {
-  projectRuntime,
-} from "./runtimeProjection/index.js";
-
+import { projectGeoStory, projectMemorySnapshot } from "./runtimeProjection/index.js";
 import { cinematicRuntime } from "./runtime/cinematicRuntime.js";
-
 import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
-
 import { getScanInsights } from "./analytics/analyticsService.js";
-
+import { trackEvent } from "./analytics/trackEvent.js";
 import { runFlowActions } from "./flowOrchestrator.js";
-
 import { buildServiceReceipt } from "./receiptBuilder.js";
 
 import type {
-  FlowStepType,
+  Experience,
   ExperienceMoment,
-} from "@qre/contracts";
-
-import type {
-  Experience
+  FlowStepType,
 } from "@qre/contracts";
 
 type ScanEngineInput = {
-
-  slug:string;
-
-  userId?:string;
-
-  geo?:{
-
-    lat:number;
-
-    lng:number;
-
-    accuracy?:number;
-
+  slug: string;
+  userId?: string;
+  geo?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
   };
-
 };
 
 export async function scanEngine(
+  input: ScanEngineInput,
+  repos: {
+    assetRepository: AssetRepository;
+    sessionRepository: SessionRepository;
+    analyticsRepository: AnalyticsRepository;
+    accessRepository: AccessRepository;
+    storyDeliveryRepository: StoryDeliveryRepository;
+  },
+): Promise<Experience> {
+  const now = new Date();
 
-  input:ScanEngineInput,
+  // -----------------------------------------------------
+  // 1. Resolve the QR/NFC asset.
+  // -----------------------------------------------------
+  const asset = await repos.assetRepository.findBySlug(input.slug);
 
-  repos:{
-
-    assetRepository:AssetRepository;
-
-    sessionRepository:SessionRepository;
-    analyticsRepository:AnalyticsRepository;
-    accessRepository:AccessRepository;
-    storyDeliveryRepository:StoryDeliveryRepository;
+  if (!asset) {
+    return {
+      sessionId: null,
+      accessState: "DEMO",
+      asset: null,
+      moments: [],
+      cinematicScenes: [],
+      geoStory: null,
+      memorySnapshot: null,
+      receipt: null,
+      insights: [],
+      runtimeVersion: "1.0",
+      timestamp: now.toISOString(),
+    };
   }
 
-):Promise<Experience>{
+  // -----------------------------------------------------
+  // 2. Session + access state.
+  // -----------------------------------------------------
+  const session = await repos.sessionRepository.create({
+    assetId: asset.id,
+    flowId: asset.flow?.id ?? null,
+  });
 
-  /**
-   * =====================================================
-   * 1. RESOLVE ASSET
-   * =====================================================
-   */
+  await trackEvent(repos.analyticsRepository, {
+    assetId: asset.id,
+    sessionId: session.id,
+    flowId: asset.flow?.id ?? undefined,
+    type: "SCAN",
+    meta: {
+      slug: asset.slug,
+      hasGeo: Boolean(input.geo),
+    },
+  });
 
+  await trackEvent(repos.analyticsRepository, {
+    assetId: asset.id,
+    sessionId: session.id,
+    flowId: asset.flow?.id ?? undefined,
+    type: "SESSION_START",
+  });
 
-  const asset =
-    await repos.assetRepository.findBySlug(
-      input.slug
-    );
-
-
-
-  if(!asset){
-
-   return {
-
-  sessionId:null,
-
-  accessState:"DEMO",
-
-  asset:null,
-
-  moments:[],
-
-  cinematicScenes:[],
-
-  geoStory:null,
-
-  memorySnapshot:null,
-
-  receipt:null,
-
-  insights:[],
-
-  runtimeVersion:"1.0",
-
-  timestamp:new Date().toISOString(),
-
-};
-
-  }
-
-  /**
-   * =====================================================
-   * 2. CREATE SESSION
-   *
-   * EVERY SCAN CREATES A SESSION
-   *
-   * Demo and unlocked both matter.
-   * =====================================================
-   */
-
-
-  const session =
-    await repos.sessionRepository.create({
-
-      assetId:asset.id,
-
-      flowId:
-        asset.flow?.id ?? null,
-
-    });
-
-  /**
-   * =====================================================
-   * 3. ACCESS RESOLUTION
-   *
-   * Determines:
-   *
-   * DEMO
-   * UNLOCKED
-   * =====================================================
-   */
-
-
-  const access =
-    await resolveAccessEngine(
-
-      {
-
-        assetId:asset.id,
-
-        userId:input.userId,
-
-      },
-
-      repos.accessRepository
-
-    );
-
-  /**
-   * =====================================================
-   * 4. BUILD EXPERIENCE MOMENTS
-   * =====================================================
-   */
-
-  const moments:ExperienceMoment[] = [];
-
-
-  moments.push(
-
-    ...systemMoments(
-
-      access.state
-
-    )
-
+  const access = await resolveAccessEngine(
+    {
+      assetId: asset.id,
+      userId: input.userId,
+    },
+    repos.accessRepository,
   );
 
-  /**
-   * DEMO EXPERIENCE
-   *
-   * Shows the magic.
-   *
-   * Does NOT create memory.
-   */
+  // -----------------------------------------------------
+  // 3. Semantic experience moments.
+  // -----------------------------------------------------
+  const moments: ExperienceMoment[] = [
+    ...systemMoments(access.state),
+  ];
 
-  if(access.state !== "UNLOCKED"){
-
-
+  if (access.state !== "UNLOCKED") {
     moments.push(
-
-      ...purchaseMoments(
-
-        access.state,
-
-        asset.slug
-
-      )
-
+      ...purchaseMoments(access.state, asset.slug),
     );
 
+    await trackEvent(repos.analyticsRepository, {
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow?.id ?? undefined,
+      type: "TEASER_VIEW",
+      meta: { accessState: access.state },
+    });
   }
 
-  /**
-   * UNLOCKED EXPERIENCE
-   *
-   * Real customer flow.
-   */
-
-
-  if(
-
+  if (
     access.state === "UNLOCKED" &&
-
     asset.flow?.steps?.length
-
-  ){
-
-     console.log(
-      "🔥 FLOW STEPS BEFORE MOMENT TRANSLATION",
-      JSON.stringify(
-        asset.flow.steps,
-        null,
-        2
-      )
+  ) {
+    const flowMoments = flowToMoment(
+      asset.flow.steps.map((step: FlowStepRecord) => ({
+        id: step.id,
+        order: step.order,
+        type: step.type as FlowStepType,
+        payload:
+          typeof step.payload === "object" &&
+          step.payload !== null &&
+          !Array.isArray(step.payload)
+            ? (step.payload as Record<string, unknown>)
+            : {},
+      })),
     );
-   
-    const flowMoments =
 
-      flowToMoment(
-
-        asset.flow.steps.map(
-
-          (step:FlowStepRecord)=>({
-
-            id:
-              step.id,
-
-            order:
-              step.order,
-
-            type:
-              step.type as FlowStepType,
-
-            payload:
-
-              typeof step.payload === "object" &&
-
-              step.payload !== null &&
-
-              !Array.isArray(step.payload)
-
-                ? step.payload as Record<string,unknown>
-
-                : {},
-
-          })
-
-        )
-
-      );
-          console.log(
-       "🔥 EXPERIENCE MOMENTS AFTER TRANSLATION",
-       JSON.stringify(
-        flowMoments,
-        null,
-        2
-       )
-       );
-
-
-    const offset =
-      moments.length;
-    
-
-     
+    const offset = moments.length;
 
     moments.push(
-
-      ...flowMoments.map(
-
-        moment => ({
-
-          ...moment,
-
-          order:
-            moment.order + offset,
-
-        })
-
-      )
-
+      ...flowMoments.map(moment => ({
+        ...moment,
+        order: moment.order + offset,
+      })),
     );
 
-
-  }
-
-  moments.sort(
-
-    (a,b)=>
-
-      a.order-b.order
-
-  );
-
-  /**
-   * =====================================================
-   * 5. RUN ACTIONS
-   *
-   * Allowed for demo/unlocked.
-   * =====================================================
-   */
-
-
-  try{
-
-
-   await runFlowActions(
-
-  moments,
-
-  session.id,
-
-  asset.id,
-
-  input.geo,
-
-  input.userId,
-
-  repos.analyticsRepository
-
-);
-
-
-  }
-
-  catch(err){
-
-
-    console.warn(
-
-      "[FLOW ACTION FAILED]",
-
-      err
-
-    );
-
-
-  }
-     
-    /**
-   * =====================================================
-   * 7. CINEMATIC RUNTIME
-   *
-   * Always generated.
-   *
-   * Demo needs magic.
-   * =====================================================
-   */
-
-  console.log(
-    "🔥 MOMENTS ENTERING CINEMATIC RUNTIME",
-    JSON.stringify(
-      moments,
-      null,
-      2
-    )
-  );
-
-
-  const cinematicScenes =
-
-    cinematicRuntime({
-
-      moments,
-
+    await trackEvent(repos.analyticsRepository, {
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow.id,
+      type: "FLOW_START",
+      meta: {
+        stepCount: asset.flow.steps.length,
+        momentCount: flowMoments.length,
+      },
     });
-
-
-
-  /**
-   * =====================================================
-    * EXPERIENCE MEMORY ASSEMBLY and GEO STORY
- *
- * Combines completed experience layers.
- *
- * ExperienceMoment:
- * semantic truth
- *
- * GeoStory:
- * geographic context
- *
- * CinematicScene:
- * presentation runtime
- *
- * MemorySnapshot:
- * unified memory artifact
- * =====================================================
- */
-  const {
-
-  geoStory,
-
-  memorySnapshot,
-
-} = projectRuntime({
-
-  assetId: asset.id,
-
-  geoPoints: input.geo
-    ? [
-        {
-          lat: input.geo.lat,
-          lng: input.geo.lng,
-          createdAt: new Date(),
-        },
-      ]
-    : [],
-
-  moments,
-
-  cinematicScenes,
-
-  createMemory:
-
-    access.state === "UNLOCKED",
-
-});
-  
-
-  /**
-   * =====================================================
-   * 9. STORY DELIVERY
-   *
-   * ONLY AFTER UNLOCK
-   * =====================================================
-   */
-
-
-  if(access.state === "UNLOCKED"){
-
-
-    try{
-
-
-     await createStoryDelivery(
-
-{
-  assetId:asset.id,
-
-  sessionId:session.id,
-
-  userId:
-    input.userId ?? null,
-    
-      moments,
-
-  geoStory,
-
-  cinematicScenes,
-
-},
-
-  repos.storyDeliveryRepository
-
-);
-
-
-    }
-
-    catch(err){
-
-
-      console.warn(
-
-        "[STORY DELIVERY FAILED]",
-
-        err
-
-      );
-
-    }
-
-
   }
 
-  /**
-   * =====================================================
-   * 10. RECEIPTS
-   * =====================================================
-   */
-    const hasServiceCompletion = false;
+  moments.sort((a, b) => a.order - b.order);
 
+  // -----------------------------------------------------
+  // 4. Execute flow actions. Execution remains separate from
+  //    semantic Moments and from presentation Scenes.
+  // -----------------------------------------------------
+  try {
+    await runFlowActions(
+      moments,
+      session.id,
+      asset.id,
+      input.geo,
+      input.userId,
+      repos.analyticsRepository,
+    );
+  } catch (error) {
+    await trackEvent(repos.analyticsRepository, {
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow?.id ?? undefined,
+      type: "ERROR",
+      meta: {
+        phase: "flow_actions",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 
- 
-  const isServiceAsset =
+  // -----------------------------------------------------
+  // 5. Presentation runtime.
+  // -----------------------------------------------------
+  const cinematicScenes = cinematicRuntime({ moments });
 
-    asset.category === "service" ||
+  // -----------------------------------------------------
+  // 6. Geo is its own artifact.
+  //    It can exist without memory and without persistence.
+  // -----------------------------------------------------
+  const geoStory = projectGeoStory({
+    assetId: asset.id,
+    geoPoints: input.geo
+      ? [
+          {
+            lat: input.geo.lat,
+            lng: input.geo.lng,
+            createdAt: now,
+          },
+        ]
+      : [],
+  });
 
-    asset.category === "business";
+  if (input.geo) {
+    await trackEvent(repos.analyticsRepository, {
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow?.id ?? undefined,
+      type: "GEO_MARK",
+      meta: {
+        lat: input.geo.lat,
+        lng: input.geo.lng,
+        accuracy: input.geo.accuracy,
+      },
+    });
+  }
 
-
-
-  const receipt =
-
-    access.state === "UNLOCKED" &&
-
-    isServiceAsset &&
-
-    hasServiceCompletion
-
-      ? buildServiceReceipt({
-
-          asset,
-
-          sessionId:session.id,
-
+  // -----------------------------------------------------
+  // 7. Memory is a separate, explicit projection.
+  //    Geo may be supplied as context, but memory creation is
+  //    controlled independently by access state.
+  // -----------------------------------------------------
+  const memorySnapshot =
+    access.state === "UNLOCKED"
+      ? projectMemorySnapshot({
+          assetId: asset.id,
           moments,
-
+          geoStory,
+          cinematicScenes,
         })
-
       : null;
 
-  /**
-   * =====================================================
-   * 11. INSIGHTS
-   * =====================================================
-   */
+  if (memorySnapshot) {
+    await trackEvent(repos.analyticsRepository, {
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow?.id ?? undefined,
+      type: "MEMORY_APPLIED",
+      meta: {
+        momentCount: moments.length,
+        cinematicSceneCount: cinematicScenes.length,
+      },
+    });
+  }
 
-
-    
-   const insights =
-   await getScanInsights(
-
-   asset.id,
-
-    repos.analyticsRepository
-
-   );
-
-  /**
-   * =====================================================
-   * 12. PERSIST 
-   * =====================================================
-   */
-
-
-  await repos.sessionRepository.update(
-
-    session.id,
-
-    {
-
-      moments,
-
-      geoStory,
-
-      cinematicScenes,
-
-      memorySnapshot,
-
-      receipt,
-
-      endedAt:new Date(),
-
-      status:"completed",
-
+  // -----------------------------------------------------
+  // 8. Story delivery is downstream of the artifacts.
+  // -----------------------------------------------------
+  if (access.state === "UNLOCKED") {
+    try {
+      await createStoryDelivery(
+        {
+          assetId: asset.id,
+          sessionId: session.id,
+          userId: input.userId ?? null,
+          moments,
+          geoStory,
+          cinematicScenes,
+        },
+        repos.storyDeliveryRepository,
+      );
+    } catch (error) {
+      await trackEvent(repos.analyticsRepository, {
+        assetId: asset.id,
+        sessionId: session.id,
+        flowId: asset.flow?.id ?? undefined,
+        type: "ERROR",
+        meta: {
+          phase: "story_delivery",
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
+  }
 
+  // -----------------------------------------------------
+  // 9. Service receipt remains a domain-specific projection.
+  // -----------------------------------------------------
+  const hasServiceCompletion = false;
+  const isServiceAsset =
+    asset.category === "service" ||
+    asset.category === "business";
+
+  const receipt =
+    access.state === "UNLOCKED" &&
+    isServiceAsset &&
+    hasServiceCompletion
+      ? buildServiceReceipt({
+          asset,
+          sessionId: session.id,
+          moments,
+        })
+      : null;
+
+  // -----------------------------------------------------
+  // 10. Analytics is a first-class runtime output, not compiler state.
+  // -----------------------------------------------------
+  const insights = await getScanInsights(
+    asset.id,
+    repos.analyticsRepository,
   );
 
-  /**
-   * =====================================================
-   * FINAL PUBLIC RESPONSE
-   *
-   * Experience layer stays internal.
-   *
-   * Public runtime receives only
-   * runtime-safe Moments.
-   *
-   * =====================================================
-   */
+  await trackEvent(repos.analyticsRepository, {
+    assetId: asset.id,
+    sessionId: session.id,
+    flowId: asset.flow?.id ?? undefined,
+    type: "SESSION_END",
+    meta: {
+      accessState: access.state,
+      momentCount: moments.length,
+      sceneCount: cinematicScenes.length,
+      memoryCreated: Boolean(memorySnapshot),
+      geoAvailable: Boolean(input.geo),
+    },
+  });
 
-return {
+  // -----------------------------------------------------
+  // 11. Persist the session envelope only.
+  //     Geo, memory, scenes and moments remain distinct artifacts.
+  // -----------------------------------------------------
+  await repos.sessionRepository.update(session.id, {
+    moments,
+    geoStory,
+    cinematicScenes,
+    memorySnapshot,
+    receipt,
+    endedAt: new Date(),
+    status: "completed",
+  });
 
-  sessionId:
-
-    session.id,
-
-
-  accessState:
-
-    access.state,
-
-
-  moments,
-
-
-  geoStory,
-
-
-  cinematicScenes,
-
-
-  memorySnapshot,
-
-
-  receipt,
-
-
-  insights,
-
-
-  runtimeVersion:
-
-    "1.0",
-
-
-  timestamp:
-
-    new Date().toISOString(),
-
-  asset: {
-
-  id:
-    asset.id,
-
-
-  slug:
-    asset.slug,
-
-
-  title:
-    asset.slug,
-
-
-  category:
-    asset.category ?? undefined,
-
-
-  accountId:
-    asset.accountId ?? undefined,
-
-
-  paid:
-    asset.paid,
-
-},
-
-};
-
+  return {
+    sessionId: session.id,
+    accessState: access.state,
+    moments,
+    geoStory,
+    cinematicScenes,
+    memorySnapshot,
+    receipt,
+    insights,
+    runtimeVersion: "1.0",
+    timestamp: new Date().toISOString(),
+    asset: {
+      id: asset.id,
+      slug: asset.slug,
+      title: asset.slug,
+      category: asset.category ?? undefined,
+      accountId: asset.accountId ?? undefined,
+      paid: asset.paid,
+    },
+  };
 }
