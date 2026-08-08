@@ -1,13 +1,13 @@
 /**
- * Compatibility boundary.
+ * Compatibility boundary for legacy imports.
  *
- * The canonical compiler now lives in ../compiler/coreCompiler.ts.
- * Keep this module temporarily so existing imports continue to resolve while
- * the legacy compiler tree is retired incrementally.
+ * The old compiler implementation is retired. These names now resolve to the
+ * canonical Cognition V2 compiler so there is only one authoring pipeline.
  */
 
 export {
   compileExperience,
-  compileExperienceGenome,
-  genomeCompiler,
-} from "../compiler/coreCompiler.js";
+  compileExperienceV2,
+  compileExperienceGenomeV2 as compileExperienceGenome,
+  compileExperienceGenomeV2 as genomeCompiler,
+} from "../compiler/coreCompilerV2.js";
