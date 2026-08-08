@@ -6,29 +6,26 @@ import {
 } from "./universalStoryCompiler.js";
 
 /**
- * Compatibility boundary for legacy callers.
+ * Compatibility boundary for callers that still request a `world` field.
  *
- * This file does not create meaning. The universal story compiler is the
- * creative authority; this adapter only exposes the legacy `world` shape.
+ * The universal story compiler is the creative authority.
+ * `world` is now a neutral projection and never decides what a prompt means.
  */
 export type CompiledGenomeExperience = CompiledStoryExperience & { world: ExperienceWorld };
 
 function compatibilityWorld(result: CompiledStoryExperience): ExperienceWorld {
   const { observation, story } = result;
-  const domain: ExperienceWorld["domain"] = observation.context.includes("memory")
-    ? "memory_world"
-    : observation.audience.includes("shared")
-      ? "community_world"
-      : observation.activity === "commerce"
-        ? "commerce_world"
-        : "discovery_world";
 
   return {
-    domain,
-    archetype: "evidence_driven_story",
+    domain: "experience_world",
+    archetype: "adaptive_story",
     atmosphere: story.tone,
     journey: story.beats.map((beat) => beat.kind),
-    atoms: [...new Set([observation.subject, observation.activity, ...observation.affordances])],
+    atoms: [...new Set([
+      observation.subject,
+      observation.activity,
+      ...observation.affordances,
+    ])],
     themes: observation.context,
   };
 }
