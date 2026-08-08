@@ -1,4 +1,5 @@
 import type { CognitiveWorldModel } from "./worldModel.js";
+import type { CognitiveExperiencePlan } from "./experiencePlan.js";
 
 export type CognitiveIntent =
   | "remember"
@@ -14,34 +15,28 @@ export type CognitiveIntent =
 
 export interface CognitiveUnderstanding {
   prompt: string;
-
   intent: CognitiveIntent[];
-
   people: string[];
   places: string[];
   objects: string[];
   events: string[];
   dates: string[];
   times: string[];
-
   emotions: string[];
-
   memory: {
     past: boolean;
     present: boolean;
     future: boolean;
     legacy: boolean;
   };
-
   audience: {
     types: string[];
     social: "solo" | "shared" | "community";
   };
-
   world: {
     domains: string[];
     primary: string;
   };
-
   cognitiveWorld: CognitiveWorldModel;
+  experiencePlan?: CognitiveExperiencePlan;
 }
