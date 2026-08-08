@@ -54,6 +54,31 @@ export type ExperienceHypothesis = {
   score: number;
 };
 
+/**
+ * Cognitive design discovered before runtime compilation.
+ * These are possibilities and design directions, never observations.
+ */
+export type CognitiveExperiencePlan = {
+  centralSubject: string;
+  audience: string[];
+  whyInteract: string[];
+  emotionalIntent: string[];
+  purpose: string;
+  interactionModel: string[];
+  storyStructure: string[];
+  memoryModel: string[];
+  geographicModel: string[];
+  socialModel: string[];
+  discoveryModel: string[];
+  rewardModel: string[];
+  commerceModel: string[];
+  progressionModel: string[];
+  contentModel: string[];
+  dynamicBehavior: string[];
+  futureEvolution: string[];
+  creativePossibilities: string[];
+};
+
 export type CognitiveExperienceState = {
   prompt: string;
   subject: CognitiveClaim<string>;
@@ -70,5 +95,6 @@ export type CognitiveExperienceState = {
   commercialOpportunities: string[];
   hypotheses: ExperienceHypothesis[];
   selectedHypothesis: ExperienceHypothesis;
+  plan: CognitiveExperiencePlan;
   assumptions: CognitiveAssumption[];
 };
