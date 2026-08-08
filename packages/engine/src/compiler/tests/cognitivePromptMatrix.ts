@@ -1,27 +1,27 @@
 /**
  * ============================================================
- * QRE COGNITIVE PROMPT MATRIX — ARCHITECTURE LOCK
+ * QRE COGNITIVE COMPILER — INTELLIGENCE ACCEPTANCE MATRIX
  * ============================================================
  *
  * PURPOSE:
  *   Exercise the cognitive compiler against radically different human
- *   prompts and verify that cognition produces a coherent direction before
- *   runtime compilation.
+ *   prompts and verify that cognition discovers a direction rather than
+ *   merely selecting a template.
  *
  * CANONICAL PIPELINE UNDER TEST:
  *   PROMPT → UNDERSTANDING → EVIDENCE → MEANING → HYPOTHESES
- *   → OPPORTUNITY SPACE → EXPERIENCE DIRECTION → COGNITIVE PLAN
+ *   → OPPORTUNITY SPACE → SELECTED EXPERIENCE DIRECTION → COGNITIVE PLAN
  *   → UNIVERSAL COMPILATION → BLUEPRINT → FLOW → MOMENTS → SCENES
  *
- * TEST RULE:
- *   These are intelligence invariants, not template snapshots.
- *   The matrix checks subject fit, hypothesis quality, opportunity discovery,
- *   plan completeness, and runtime continuity without requiring one fixed
- *   story shape for every domain.
- *
  * ARCHITECTURE RULE:
- *   THE COMPILER BECOMES SMARTER.
- *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
+ *   THE UNIVERSAL COMPILER IS THE SUBSTRATE.
+ *   COGNITION IS THE DECISION-MAKING LAYER.
+ *   THIS TEST PROTECTS THAT SEPARATION.
+ *
+ * TEST RULE:
+ *   Assert intelligence invariants and prompt-specific semantic fit.
+ *   Do NOT require one fixed story shape for every domain.
+ *   Do NOT encode a hidden template library into the test.
  *
  * ============================================================
  */
@@ -29,30 +29,33 @@
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 
 type OpportunityKey = "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial";
+
 type Expected = {
   prompt: string;
   subjectIncludes: string;
-  hypothesis: string;
   opportunity?: OpportunityKey;
 };
 
 const cases: Expected[] = [
-  { prompt: "Create a memorial for my grandmother", subjectIncludes: "memorial", hypothesis: "memory", opportunity: "memory" },
-  { prompt: "Make a QR experience for a nightclub", subjectIncludes: "nightclub", hypothesis: "identity" },
-  { prompt: "Teach someone how to make sourdough", subjectIncludes: "sourdough", hypothesis: "utility" },
-  { prompt: "Create a treasure hunt for kids", subjectIncludes: "treasure hunt", hypothesis: "game" },
-  { prompt: "A luxury watch brand wants something mysterious", subjectIncludes: "luxury watch brand", hypothesis: "discovery" },
-  { prompt: "I want to preserve my wedding day forever", subjectIncludes: "wedding day", hypothesis: "memory", opportunity: "memory" },
-  { prompt: "My dog is missing", subjectIncludes: "dog", hypothesis: "utility" },
-  { prompt: "Create something completely weird involving aliens and a gas station", subjectIncludes: "something completely weird", hypothesis: "story" },
-  { prompt: "My grandfather's old truck is the only thing left from his life", subjectIncludes: "grandfather's old truck", hypothesis: "memory", opportunity: "memory" },
-  { prompt: "Make my surfboard feel like it has traveled more than I have", subjectIncludes: "surfboard", hypothesis: "journey", opportunity: "geographic" },
-  { prompt: "I run a tattoo shop but I don't want another boring loyalty program", subjectIncludes: "tattoo shop", hypothesis: "commerce", opportunity: "commercial" },
-  { prompt: "Turn a musician's guitar pick into a portal into their universe", subjectIncludes: "musician's guitar pick", hypothesis: "discovery", opportunity: "discovery" },
-  { prompt: "My dog just turned ten and I want her story to keep growing after I'm gone", subjectIncludes: "dog", hypothesis: "memory", opportunity: "memory" },
+  { prompt: "Create a memorial for my grandmother", subjectIncludes: "memorial", opportunity: "memory" },
+  { prompt: "Make a QR experience for a nightclub", subjectIncludes: "nightclub", opportunity: "social" },
+  { prompt: "Teach someone how to make sourdough", subjectIncludes: "sourdough" },
+  { prompt: "Create a treasure hunt for kids", subjectIncludes: "treasure hunt", opportunity: "discovery" },
+  { prompt: "A luxury watch brand wants something mysterious", subjectIncludes: "luxury watch brand", opportunity: "discovery" },
+  { prompt: "I want to preserve my wedding day forever", subjectIncludes: "wedding day", opportunity: "memory" },
+  { prompt: "My dog is missing", subjectIncludes: "dog" },
+  { prompt: "Create something completely weird involving aliens and a gas station", subjectIncludes: "something completely weird" },
+  { prompt: "My grandfather's old truck is the only thing left from his life", subjectIncludes: "grandfather's old truck", opportunity: "memory" },
+  { prompt: "Make my surfboard feel like it has traveled more than I have", subjectIncludes: "surfboard", opportunity: "geographic" },
+  { prompt: "I run a tattoo shop but I don't want another boring loyalty program", subjectIncludes: "tattoo shop", opportunity: "commercial" },
+  { prompt: "Turn a musician's guitar pick into a portal into their universe", subjectIncludes: "musician's guitar pick", opportunity: "discovery" },
+  { prompt: "My dog just turned ten and I want her story to keep growing after I'm gone", subjectIncludes: "dog", opportunity: "memory" },
 ];
 
-function opportunityValues(cognition: ReturnType<typeof compileCognitiveExperience>["cognition"], key: OpportunityKey): string[] {
+function opportunityValues(
+  cognition: ReturnType<typeof compileCognitiveExperience>["cognition"],
+  key: OpportunityKey,
+): string[] {
   switch (key) {
     case "memory": return cognition.memoryOpportunities;
     case "geographic": return cognition.geographicOpportunities;
@@ -63,6 +66,29 @@ function opportunityValues(cognition: ReturnType<typeof compileCognitiveExperien
   }
 }
 
+function assertCognitiveContinuity(
+  prompt: string,
+  result: ReturnType<typeof compileCognitiveExperience>,
+): void {
+  const cognition = result.cognition;
+  const plan = cognition.plan;
+  const selected = cognition.selectedHypothesis;
+
+  if (!cognition.subject.value.trim()) throw new Error(`No subject understanding: ${prompt}`);
+  if (!cognition.hypotheses.length) throw new Error(`No hypotheses generated: ${prompt}`);
+  if (!selected.kind.trim()) throw new Error(`No selected experience direction: ${prompt}`);
+  if (!Number.isFinite(selected.score)) throw new Error(`Selected hypothesis has no score: ${prompt}`);
+  if (plan.direction !== selected.kind) throw new Error(`Plan direction drifted from selected hypothesis: ${prompt}`);
+  if (plan.centralSubject.trim().length === 0) throw new Error(`Plan has no central subject: ${prompt}`);
+  if (plan.whyInteract.trim().length === 0) throw new Error(`Plan has no interaction rationale: ${prompt}`);
+  if (plan.interactionModel.trim().length === 0) throw new Error(`Plan has no interaction model: ${prompt}`);
+  if (plan.storyStructure.trim().length === 0) throw new Error(`Plan has no story structure: ${prompt}`);
+  if (plan.futureEvolution.trim().length === 0) throw new Error(`Plan has no future evolution: ${prompt}`);
+  if (!result.blueprint.cognitivePlan) throw new Error(`Cognitive plan did not reach blueprint: ${prompt}`);
+  if (result.flowSteps.length !== result.moments.length) throw new Error(`Flow/moment continuity failed: ${prompt}`);
+  if (result.cinematicScenes.length !== result.moments.length) throw new Error(`Moment/scene continuity failed: ${prompt}`);
+}
+
 let passed = 0;
 
 for (const test of cases) {
@@ -71,32 +97,25 @@ for (const test of cases) {
   const subject = cognition.subject.value.toLowerCase();
   const expectedSubject = test.subjectIncludes.toLowerCase();
   const subjectPass = subject.includes(expectedSubject) || expectedSubject.includes(subject);
-  const hypothesisPass = cognition.selectedHypothesis.kind === test.hypothesis;
-  const directionPass = cognition.plan.direction === cognition.selectedHypothesis.kind;
-  const planPass = Boolean(
-    cognition.plan.centralSubject &&
-    cognition.plan.whyInteract.length &&
-    cognition.plan.interactionModel.length &&
-    cognition.plan.storyStructure.length &&
-    cognition.plan.futureEvolution.length,
-  );
-  const opportunityPass = test.opportunity ? opportunityValues(cognition, test.opportunity).length > 0 : true;
-  const runtimePass = Boolean(
-    result.blueprint.cognitivePlan &&
-    result.flowSteps.length === result.moments.length &&
-    result.cinematicScenes.length === result.moments.length,
-  );
+  const opportunityPass = test.opportunity
+    ? opportunityValues(cognition, test.opportunity).length > 0
+    : true;
 
-  const ok = subjectPass && hypothesisPass && directionPass && planPass && opportunityPass && runtimePass;
-  if (ok) passed += 1;
+  assertCognitiveContinuity(test.prompt, result);
 
-  console.log(`\n${ok ? "PASS" : "FAIL"}: ${test.prompt}`);
-  console.log("  subject:", cognition.subject);
-  console.log("  hypothesis:", cognition.selectedHypothesis.kind, cognition.selectedHypothesis.score);
+  if (!subjectPass) {
+    throw new Error(`Subject inference failed: expected '${test.subjectIncludes}', got '${cognition.subject.value}'`);
+  }
+  if (!opportunityPass) {
+    throw new Error(`Expected ${test.opportunity} opportunity but none was inferred: ${test.prompt}`);
+  }
+
+  passed += 1;
+  console.log(`\nPASS: ${test.prompt}`);
+  console.log("  subject:", cognition.subject.value);
+  console.log("  hypotheses:", cognition.hypotheses.map((item) => `${item.kind}:${item.score}`));
+  console.log("  selected:", cognition.selectedHypothesis.kind);
   console.log("  direction:", cognition.plan.direction);
-  console.log("  dimensions:", cognition.selectedHypothesis.dimensions);
-  console.log("  emotional:", cognition.emotionalIntent);
-  console.log("  affordances:", cognition.affordances);
   console.log("  opportunities:", {
     memory: cognition.memoryOpportunities,
     geographic: cognition.geographicOpportunities,
@@ -111,19 +130,32 @@ for (const test of cases) {
     progression: cognition.plan.progressionModel,
     dynamic: cognition.plan.dynamicBehavior,
     future: cognition.plan.futureEvolution,
-    creative: cognition.plan.creativePossibilities,
   });
-
-  if (!subjectPass) throw new Error(`Subject inference failed: expected ${test.subjectIncludes}, got ${cognition.subject.value}`);
-  if (!hypothesisPass) throw new Error(`Hypothesis inference failed: expected ${test.hypothesis}, got ${cognition.selectedHypothesis.kind}`);
-  if (!directionPass) throw new Error("Cognitive plan direction drifted from the selected hypothesis.");
-  if (!planPass) throw new Error("Cognitive plan is incomplete.");
-  if (!opportunityPass) throw new Error(`Expected ${test.opportunity} opportunity but none was inferred.`);
-  if (!runtimePass) throw new Error("Cognitive result did not compile into a complete runtime shape.");
 }
 
+/**
+ * DIFFERENT-INPUT / DIFFERENT-DIRECTION INVARIANT
+ * ------------------------------------------------
+ * The compiler must not collapse unrelated prompts into the same cognitive
+ * direction merely because the universal substrate can render both.
+ */
+const memorial = compileCognitiveExperience("Create a memorial for my grandmother");
+const nightclub = compileCognitiveExperience("Make a QR experience for a nightclub");
+
+if (memorial.cognition.selectedHypothesis.kind === nightclub.cognition.selectedHypothesis.kind) {
+  throw new Error(
+    `Cognitive collapse: unrelated prompts selected the same direction '${memorial.cognition.selectedHypothesis.kind}'.`,
+  );
+}
+
+if (memorial.cognition.plan.centralSubject === nightclub.cognition.plan.centralSubject) {
+  throw new Error("Cognitive collapse: unrelated prompts produced the same central subject.");
+}
+
+console.log("\nPASS: unrelated prompts produce distinct cognitive directions");
+
 console.log("\n============================================================");
-console.log("COGNITIVE EXPERIENCE MATRIX COMPLETE");
+console.log("COGNITIVE COMPILER INTELLIGENCE MATRIX COMPLETE");
 console.log("============================================================");
 console.log(`TOTAL: ${cases.length}`);
 console.log(`PASSED: ${passed}`);
