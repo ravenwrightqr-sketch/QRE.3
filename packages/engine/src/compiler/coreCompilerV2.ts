@@ -1,11 +1,10 @@
 /**
  * QRE CANONICAL EXPERIENCE COMPILER
  *
- * Cognition interprets the prompt; the compiler projects that interpretation
- * into world, blueprint, story, flow, and cinematic artifacts.
+ * Cognition interprets the prompt; the compiler projects only what cognition
+ * actually discovered into the runtime-facing experience artifacts.
  */
 
-import { buildMeaningContext } from "@qre/cognition";
 import { understandPrompt, buildExperienceUnderstanding } from "@qre/cognition-v2";
 import type {
   CompiledExperience,
@@ -33,6 +32,28 @@ function createId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function unique(values: unknown[]): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
+}
+
+function deriveMeaningContext(understanding: ExperienceUnderstanding): ExperienceMeaningContext {
+  const humanIntent = understanding.humanIntent ?? { motivations: [], desiredOutcome: [] };
+  const emotions = understanding.emotions?.emotions ?? [];
+  const memory = understanding.memory ?? {};
+
+  return {
+    themes: unique(understanding.world?.domains),
+    meanings: unique(humanIntent.motivations),
+    creativeDirection: [],
+    emotionalGravity: unique(emotions),
+    humanDesires: unique(humanIntent.desiredOutcome),
+    symbolicForces: unique(understanding.entities?.concepts),
+    narrativePotential: unique([
+      ...(memory.memories ?? []),
+    ]),
+  };
+}
+
 function createModel(blueprint: ExperienceBlueprint, prompt: string): ExperienceModel {
   return {
     title: blueprint.title,
@@ -43,7 +64,7 @@ function createModel(blueprint: ExperienceBlueprint, prompt: string): Experience
     moments: blueprint.moments,
     metadata: {
       category: blueprint.type,
-      tags: ["qre-experience-compiler", "cognition-v2", "experience-moment-canonical"],
+      tags: ["cognition-first"],
     },
   };
 }
@@ -54,7 +75,7 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
 
   const cognitive = understandPrompt(expression);
   const understanding: ExperienceUnderstanding = context?.metadata?.understanding ?? buildExperienceUnderstanding(cognitive);
-  const meaningContext: ExperienceMeaningContext = context?.metadata?.meaningContext ?? buildMeaningContext(understanding);
+  const meaningContext: ExperienceMeaningContext = context?.metadata?.meaningContext ?? deriveMeaningContext(understanding);
   const genome: ExperienceGenome = context?.metadata?.genome ?? buildExperienceGenome(expression, understanding, meaningContext);
 
   const mind: CompilerMind = {
@@ -91,10 +112,10 @@ export function compileExperienceV2(prompt: string, context?: ExperienceCompileC
     estimatedDuration: experienceMoments.length * 5,
     momentCount: experienceMoments.length,
     metadata: {
-      compilerVersion: "9.0-cognition-first",
+      compilerVersion: "10.0-cognition-first",
       generatedAt: new Date().toISOString(),
       source: "qre-experience-compiler",
-      tags: ["cognition-first", "experience-moment", "flow-projection", "cinematic-projection"],
+      tags: ["cognition-first"],
     },
   };
 }
