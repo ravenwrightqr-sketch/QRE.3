@@ -119,4 +119,6 @@ export function compileExperienceV2(
   };
 }
 
+/** Canonical public name. */
+export const compileExperience = compileExperienceV2;
 export const compileExperienceGenomeV2 = compileExperienceV2;
