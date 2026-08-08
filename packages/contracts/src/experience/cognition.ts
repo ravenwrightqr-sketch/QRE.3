@@ -54,6 +54,47 @@ export type ExperienceHypothesis = {
   score: number;
 };
 
+export type CognitiveMeaning = {
+  coreIntent: string;
+  humanNeed: string;
+  desiredTransformation: string;
+  symbolicRole?: string;
+  tension?: string;
+  emotionalIntent: string[];
+  inferred: boolean;
+  evidence: CognitiveEvidence[];
+};
+
+export type CognitiveInteractionModel = {
+  reasonToInteract: string;
+  entryAction: string;
+  reveal: string;
+  participation: string[];
+  returnBehavior: string;
+  interactionType: "reveal" | "contribute" | "explore" | "progress" | "utility" | "social" | "commerce";
+};
+
+export type CognitiveProgression = {
+  stages: string[];
+  milestoneSignals: string[];
+  completionMeaning: string;
+  replayReason: string;
+};
+
+export type CognitiveOpportunities = {
+  memory: string[];
+  geographic: string[];
+  social: string[];
+  discovery: string[];
+  temporal: string[];
+  commercial: string[];
+  rewards: string[];
+  progression: string[];
+  content: string[];
+  dynamicBehavior: string[];
+  futureEvolution: string[];
+};
+
 export type CognitiveExperienceState = {
   prompt: string;
   subject: CognitiveClaim<string>;
@@ -71,4 +112,10 @@ export type CognitiveExperienceState = {
   hypotheses: ExperienceHypothesis[];
   selectedHypothesis: ExperienceHypothesis;
   assumptions: CognitiveAssumption[];
+  meaning: CognitiveMeaning;
+  interactionModel: CognitiveInteractionModel;
+  opportunities: CognitiveOpportunities;
+  progression: CognitiveProgression;
+  metaphors: string[];
+  constraints: string[];
 };
