@@ -1,5 +1,33 @@
 import type { ExperienceEntities } from "./entityExtractor.js";
 
+/**
+ * ============================================================
+ * QRE COGNITIVE CONTRACT — ARCHITECTURE LOCK
+ * ============================================================
+ *
+ * PURPOSE:
+ *   Canonical semantic contract for the cognitive compiler.
+ *
+ * CANONICAL PIPELINE:
+ *   PROMPT → COGNITION → MEANING → HYPOTHESES → OPPORTUNITY SPACE
+ *   → EXPERIENCE DIRECTION → COGNITIVE PLAN → UNIVERSAL COMPILATION
+ *   → BLUEPRINT → FLOW → MOMENTS → CINEMATIC SCENES
+ *
+ * ARCHITECTURE RULE:
+ *   THE COMPILER BECOMES SMARTER.
+ *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
+ *
+ * CONTRACT RULE:
+ *   This file is the shared semantic source of truth. Engine-local
+ *   duplicates of these shapes are not permitted.
+ *
+ * COGNITIVE RULE:
+ *   Claims distinguish observed input from derived or hypothesized meaning.
+ *   Plans describe possibilities; they do not manufacture facts.
+ *
+ * ============================================================
+ */
+
 export type CognitiveClaimStatus = "observed" | "derived" | "hypothesized" | "unknown";
 
 export type CognitiveEvidence = {
@@ -55,10 +83,12 @@ export type ExperienceHypothesis = {
 };
 
 /**
- * Cognitive design discovered before runtime compilation.
- * These are possibilities and design directions, never observations.
+ * The selected experience direction is deliberately semantic rather than
+ * domain-specific. The universal compiler consumes it as guidance; it does
+ * not become a second compiler or a template registry.
  */
 export type CognitiveExperiencePlan = {
+  direction: ExperienceHypothesisKind;
   centralSubject: string;
   audience: string[];
   whyInteract: string[];
