@@ -20,120 +20,28 @@
  * =====================================================
  */
 
-
-
-import type {
-  ExperienceTone,
-} from "./tone.js";
-
-
-import type {
-  ExperienceType,
-} from "./experienceType.js";
-
-
-import type {
-  ExperienceMoment,
-} from "./moment.js";
-
-
-import type {
-  ExperienceEntities,
-} from "./entityExtractor.js";
-
-
-import type {
-  ExperienceMeaning,
-} from "./meaning.js";
-
-
-
-
+import type { ExperienceTone } from "./tone.js";
+import type { ExperienceType } from "./experienceType.js";
+import type { ExperienceMoment } from "./moment.js";
+import type { ExperienceEntities } from "./entityExtractor.js";
+import type { ExperienceMeaning } from "./meaning.js";
+import type { CognitiveExperiencePlan } from "./cognition.js";
 
 export type ExperienceBlueprint = {
+  title: string;
+  type: ExperienceType;
+  tone: readonly ExperienceTone[];
+  meaning: ExperienceMeaning;
+  moments: ExperienceMoment[];
+  entities: ExperienceEntities;
 
+  /** Cognitive design discovered before runtime compilation. */
+  cognitivePlan?: CognitiveExperiencePlan;
 
-
-  /**
-   * Human-facing identity
-   */
-  title:string;
-
-
-
-  /**
-   * What kind of experience
-   *
-   * NOT industry.
-   *
-   * Examples:
-   * story
-   * journey
-   * memory
-   * discovery
-   */
-  type:
-    ExperienceType;
-
-
-
-
-  /**
-   * Emotional direction
-   */
-  tone:
-    readonly ExperienceTone[];
-
-
-
-
-  /**
-   * Preserved meaning
-   */
-  meaning:
-    ExperienceMeaning;
-
-
-
-
-  /**
-   * Generated moments
-   */
-  moments:
-    ExperienceMoment[];
-
-
-
-
-  /**
-   * Reality extracted
-   */
-  entities:
-    ExperienceEntities;
-
-
-
-  /**
-   * Optional semantic metadata.
-   *
-   * NEVER used as compiler logic.
-   */
+  /** Optional semantic metadata. NEVER used as compiler logic. */
   metadata?: {
-
-
-    archetypes?:
-      string[];
-
-
-    themes?:
-      string[];
-
-
-    dna?:
-      string[];
-
-
+    archetypes?: string[];
+    themes?: string[];
+    dna?: string[];
   };
-
-
 };
