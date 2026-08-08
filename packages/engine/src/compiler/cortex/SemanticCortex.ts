@@ -146,19 +146,9 @@ return {
 
     cortex.confidence
 
-
 };
 
-
 }
-
-
-
-
-
-
-
-
 
 export function buildSemanticCortex(
 
@@ -176,10 +166,6 @@ if(!understanding){
  );
 
 }
-
-
-
-
 
 const emotions =
 

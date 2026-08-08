@@ -77,14 +77,7 @@ export function synthesizeWorld(
 ):WorldObservation[] {
 
 
-
 const observations:WorldObservation[] = [];
-
-
-
-
-
-
 
 observations.push({
 
@@ -113,12 +106,6 @@ observations.push({
   nuvo.resonance
 
 });
-
-
-
-
-
-
 
 observations.push({
 
@@ -150,12 +137,6 @@ observations.push({
 
 });
 
-
-
-
-
-
-
 observations.push({
 
  concept:
@@ -186,12 +167,6 @@ observations.push({
 
 });
 
-
-
-
-
-
-
 observations.push({
 
  concept:
@@ -221,13 +196,6 @@ observations.push({
 
 });
 
-
-
-
-
-
-
 return observations;
-
 
 }

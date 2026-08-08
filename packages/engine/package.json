@@ -20,6 +20,6 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "preview": "tsx src/compiler/playground/cognitionPreview.ts"
+    "preview": "tsx src/compiler/playground/testPreview.ts"
   }
 }

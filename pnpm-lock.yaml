@@ -176,6 +176,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/cognition-v2:
+    dependencies:
+      '@qre/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/contracts: {}
 
   packages/db:
@@ -208,6 +214,9 @@ importers:
       '@qre/cognition':
         specifier: workspace:*
         version: link:../cognition
+      '@qre/cognition-v2':
+        specifier: workspace:*
+        version: link:../cognition-v2
       '@qre/contracts':
         specifier: workspace:*
         version: link:../contracts
