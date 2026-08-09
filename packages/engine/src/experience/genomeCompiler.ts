@@ -1,9 +1,6 @@
-/**
- * Compatibility entrypoint for the universal experience compiler.
- * Super Cog owns semantic decisions; this alias preserves existing API names.
- */
+/** Compatibility entrypoint. Super Cog is the canonical compiler. */
 
-import { compileSuperCogExperience } from "./superCog.js";
+import { compileSuperCogExperience } from "./superCogCanonical.js";
 import type { CompiledCognitiveExperience } from "@qre/contracts";
 
 export type CompiledGenomeExperience = CompiledCognitiveExperience;
