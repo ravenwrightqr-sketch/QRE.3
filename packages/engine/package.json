@@ -21,6 +21,7 @@
     "build": "tsc -p tsconfig.json",
     "test:cognition": "tsx src/compiler/tests/cognitivePromptMatrix.ts",
     "test:universal": "tsx src/compiler/tests/experienceCompiler.test.ts",
-    "test:realization": "tsx src/compiler/tests/premiseRealizerAcceptance.ts"
+    "test:realization": "tsx src/compiler/tests/premiseRealizerAcceptance.ts",
+    "test:super-cog": "tsx src/compiler/tests/superCogPremiseAcceptance.ts"
   }
 }
