@@ -83,11 +83,11 @@ const cognitiveResult = compileCognitiveExperience(
   "Create something playful around this old photograph of the ocean.",
 );
 
-if (!cognitiveResult.cognition.plan.centralSubject.trim()) {
+if (!cognitiveResult.cognition.plan.centralSubject?.trim()) {
   failures.push("cognitive realization lost its central subject");
 }
 
-if (!cognitiveResult.cognition.plan.direction.trim()) {
+if (!cognitiveResult.cognition.plan.direction?.trim()) {
   failures.push("cognitive realization lost its selected direction");
 }
 
@@ -111,8 +111,9 @@ for (const moment of cognitiveResult.moments) {
     (moment.meta as { beatId?: unknown } | undefined)?.beatId ?? "",
   );
   const beatText = cognitiveBeatTexts.get(beatId);
+  const messageText = moment.type === "message" ? moment.text : undefined;
 
-  if (beatText && moment.text !== beatText) {
+  if (beatText && messageText !== beatText) {
     failures.push(`moment language drift: ${beatId}`);
   }
 }
