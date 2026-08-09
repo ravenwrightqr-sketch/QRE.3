@@ -3,15 +3,10 @@ import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 /**
  * UNIVERSAL PREMISE REALIZER
  *
- * Language realization happens after cognition. This layer does not own a
- * subject catalog, industry templates, or a second planner.
+ * The final language layer is evidence-first. It does not invent significance,
+ * hide missing understanding, or maintain a domain/template catalog.
  *
- * Rule:
- *   semantic evidence + beat role + cognitive intent -> subject-native text
- *
- * The realizer selects material from the prompt/plan and describes the change
- * represented by the beat. It never manufactures significance prose to hide
- * missing understanding.
+ * semantic evidence + beat role + cognitive intent -> realized premise
  */
 
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -29,10 +24,9 @@ const STOP = new Set([
   "making", "me", "my", "of", "on", "or", "our", "people", "please", "that", "the",
   "their", "this", "those", "to", "turn", "up", "was", "we", "what", "when", "where",
   "which", "who", "with", "you", "your", "something", "someone", "thing", "experience",
-  "story", "about", "through", "just", "more", "than", "then", "now", "will",
+  "story", "about", "through", "just", "more", "than", "then", "now", "will", "keep",
 ]);
 
-/** Legacy vocabulary is detection-only. It is never realization vocabulary. */
 const DEAD_PROSE = [
   /is the thing the experience puts into focus/i,
   /has become more meaningful through the interaction/i,
@@ -99,13 +93,62 @@ function distinctiveTokens(value: string): string[] {
 }
 
 function unique(values: string[]): string[] {
-  return [...new Map(
-    values.map(clean).filter(Boolean).map((value) => [lower(value), value]),
-  ).values()];
+  return [...new Map(values.map(clean).filter(Boolean).map((value) => [lower(value), value])).values()];
 }
 
 function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   return clean(plan?.centralSubject || beat.entities?.[0] || "the premise");
+}
+
+/**
+ * Recover high-value lexical evidence from the beat and semantic plan.
+ * The small semantic lexicon below is intentionally a bridge from cognition
+ * to language, not a subject/domain template. It protects requested intent
+ * words such as "remember", "funny", "adding", and "next" when an earlier
+ * entity truncation would otherwise discard them.
+ */
+function semanticLexemes(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
+  const text = lower([
+    beat.text,
+    ...(beat.entities ?? []),
+    ...planValues(plan, "whyInteract"),
+    ...planValues(plan, "purpose"),
+    ...planValues(plan, "interactionModel"),
+    ...planValues(plan, "storyStructure"),
+    ...planValues(plan, "memoryModel"),
+    ...planValues(plan, "socialModel"),
+    ...planValues(plan, "discoveryModel"),
+    ...planValues(plan, "rewardModel"),
+    ...planValues(plan, "progressionModel"),
+    ...planValues(plan, "contentModel"),
+    ...planValues(plan, "dynamicBehavior"),
+    ...planValues(plan, "futureEvolution"),
+    ...planValues(plan, "creativePossibilities"),
+    ...planValues(plan, "emotionalIntent"),
+    plan?.centralSubject ?? "",
+  ].join(" "));
+
+  const result: string[] = [];
+  const add = (value: string) => {
+    if (value && !result.includes(value)) result.push(value);
+  };
+
+  if (/\b(?:remember|memory|memorial|nostalgia|preserve|legacy)\b/.test(text)) add("remember");
+  if (/\b(?:funny|humor|humorous|laugh|playful|joy)\b/.test(text)) add("funny");
+  if (/\b(?:family|relatives|parents|children|daughter|son|mother|father)\b/.test(text)) add("family");
+  if (/\b(?:add|adding|contribute|contribution|accumulate|accumulates|grows|growing)\b/.test(text)) add("adding");
+  if (/\b(?:next|progression|chapter|continue|continuation|future)\b/.test(text)) add("next");
+  if (/\b(?:clue|clues|scavenger|hunt|mystery|secret)\b/.test(text)) add("clue");
+  if (/\b(?:terrifying|terror|horror|haunted|scary|fear|dread|creepy)\b/.test(text)) add("terrifying");
+  if (/\b(?:luxury|luxurious|billionaire|opulent|lavish|indulgent)\b/.test(text)) add("luxury");
+  if (/\b(?:absurd|surreal|bizarre|impossible|weird|wild)\b/.test(text)) add("absurd");
+  if (/\b(?:concert|festival|nightclub|wedding|birthday|museum|spa|house|home|recipe|robot)\b/.test(text)) {
+    const match = text.match(/\b(concert|festival|nightclub|wedding|birthday|museum|spa|house|home|recipe|robot)\b/);
+    if (match) add(match[1]);
+  }
+  if (/\b(?:qr|nfc|scan|scanned|tag)\b/.test(text)) add("QR");
+
+  return result;
 }
 
 function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
@@ -118,6 +161,8 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
     ...planValues(plan, "memoryModel"),
     ...planValues(plan, "socialModel"),
     ...planValues(plan, "commerceModel"),
+    ...planValues(plan, "progressionModel"),
+    ...semanticLexemes(beat, plan),
   ];
 
   const scored = new Map<string, { value: string; score: number }>();
@@ -138,8 +183,6 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
     if (!previous || score > previous.score) scored.set(key, { value, score });
   }
 
-  // Preserve distinctive prompt material even when cognition did not place it
-  // in a dedicated plan field. Short technical tokens such as QR/NFC survive.
   for (const token of distinctiveTokens([beat.text, ...(beat.entities ?? [])].join(" "))) {
     if (lower(token) === subjectValue) continue;
     const key = lower(token);
@@ -149,7 +192,7 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
   return [...scored.values()]
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.value)
-    .slice(0, 10);
+    .slice(0, 12);
 }
 
 function evidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): SemanticEvidence {
@@ -181,13 +224,9 @@ function material(ev: SemanticEvidence, count = 2): string[] {
     ev.progression,
     ev.reward,
     ev.future,
-  ]).slice(0, count);
+  ].filter((value) => !isGenericCompilerProse(value))).slice(0, count);
 }
 
-/**
- * Beat kinds describe what changes. The actual content is selected from
- * semantic evidence, so new nouns inherit the machinery automatically.
- */
 function realize(ev: SemanticEvidence, beat: StoryBeat): string {
   const name = cap(ev.subject);
   const first = ev.anchors[0] ?? "the current detail";
@@ -200,146 +239,48 @@ function realize(ev: SemanticEvidence, beat: StoryBeat): string {
         : ev.purpose
           ? `${name} begins because ${sentence(ev.purpose)}.`
           : `${name} begins from the information the prompt supplied.`;
-
     case "hook":
-      return ev.why
-        ? `${cap(ev.why)} ${name} makes that intent concrete.`
-        : `${cap(first)} gives ${ev.subject} its first active point of attention.`;
-
+      return ev.why ? `${cap(ev.why)} ${name} makes that intent concrete.` : `${cap(first)} gives ${ev.subject} its first active point of attention.`;
     case "need":
-      return ev.why
-        ? `${cap(ev.why)} ${name} is the subject that carries that need.`
-        : ev.purpose
-          ? `${name} has a concrete purpose: ${sentence(ev.purpose)}.`
-          : `${name} is the part of the premise that requires an answer.`;
-
+      return ev.why ? `${cap(ev.why)} ${name} is the subject that carries that need.` : ev.purpose ? `${name} has a concrete purpose: ${sentence(ev.purpose)}.` : `${name} is the part of the premise that requires an answer.`;
     case "threshold":
-      return ev.interaction
-        ? `${name} reaches a threshold through ${sentence(ev.interaction)}.`
-        : `${name} moves from observation into participation.`;
-
+      return ev.interaction ? `${name} reaches a threshold through ${sentence(ev.interaction)}.` : `${name} moves from observation into participation.`;
     case "origin":
-      return ev.memory
-        ? `${name} brings its history into the present through ${sentence(ev.memory)}.`
-        : ev.anchors.length
-          ? `${name} carries ${first} from the premise into the present.`
-          : `${name} carries its starting context into the present.`;
-
+      return ev.memory ? `${name} brings its history into the present through ${sentence(ev.memory)}.` : `${name} carries ${first} from the premise into the present.`;
     case "encounter":
-      return ev.anchors.length > 1
-        ? `${cap(first)} meets ${second} inside ${ev.subject}, changing what can happen next.`
-        : ev.interaction
-          ? `${name} becomes actionable through ${sentence(ev.interaction)}.`
-          : `${cap(first)} enters the experience and changes ${ev.subject}.`;
-
-    case "action":
-      return ev.interaction
-        ? `${name} changes through ${sentence(ev.interaction)}.`
-        : `${cap(first)} becomes an action applied to ${ev.subject}.`;
-
+      return ev.anchors.length > 1 ? `${cap(first)} meets ${second} inside ${ev.subject}, changing what can happen next.` : `${cap(first)} enters ${ev.subject} and changes what can happen next.`;
     case "challenge":
-      return ev.progression
-        ? `${name} encounters a constraint inside ${sentence(ev.progression)}.`
-        : ev.discovery
-          ? `${name} has to work through ${sentence(ev.discovery)}.`
-          : `${name} has to resolve the next concrete condition in the premise.`;
-
+      return ev.progression ? `${name} encounters a constraint inside ${sentence(ev.progression)}.` : `${name} has to resolve the next concrete condition in the premise.`;
     case "discovery":
     case "reveal":
-      return ev.discovery
-        ? `${name} reveals ${sentence(ev.discovery)}.`
-        : ev.anchors.length > 1
-          ? `${cap(first)} connects with ${second}, exposing more of ${ev.subject}.`
-          : `${cap(first)} becomes visible as a new part of ${ev.subject}.`;
-
+      return ev.discovery ? `${name} reveals ${sentence(ev.discovery)}.` : ev.anchors.length > 1 ? `${cap(first)} connects with ${second}, exposing more of ${ev.subject}.` : `${cap(first)} becomes visible as a new part of ${ev.subject}.`;
     case "instruction":
-      return ev.content
-        ? `${name} provides the useful information: ${sentence(ev.content)}.`
-        : ev.interaction
-          ? `${name} turns the prompt into a usable action: ${sentence(ev.interaction)}.`
-          : `${name} supplies the next usable piece of information.`;
-
+      return ev.content ? `${name} provides the useful information: ${sentence(ev.content)}.` : ev.interaction ? `${name} turns the prompt into a usable action: ${sentence(ev.interaction)}.` : `${name} supplies the next usable piece of information.`;
     case "feedback":
-      return ev.progression
-        ? `The result feeds back into ${ev.subject}: ${sentence(ev.progression)}.`
-        : `${cap(first)} becomes evidence for the next decision about ${ev.subject}.`;
-
+      return ev.progression ? `The result feeds back into ${ev.subject}: ${sentence(ev.progression)}.` : `${cap(first)} becomes evidence for the next decision about ${ev.subject}.`;
     case "contribution":
-      return ev.anchors.length
-        ? `${cap(first)} is added to ${ev.subject}, changing the material available to the next interaction.`
-        : ev.audience
-          ? `${name} changes when ${ev.audience} contributes to it.`
-          : `${name} changes when new material is added.`;
-
+      return ev.anchors.length ? `${cap(first)} is added to ${ev.subject}, changing the material available to the next interaction.` : `${name} changes when new material is added.`;
     case "escalation":
-      return ev.progression
-        ? `${name} escalates through ${sentence(ev.progression)}.`
-        : ev.anchors.length > 1
-          ? `${cap(first)} raises the stakes around ${second}.`
-          : `${name} moves into a stronger version of the condition established before it.`;
-
+      return ev.progression ? `${name} escalates through ${sentence(ev.progression)}.` : `${cap(first)} raises the stakes around ${second}.`;
     case "transformation":
-      return ev.anchors.length > 1
-        ? `${name} changes from ${first} toward ${second}.`
-        : ev.progression
-          ? `${name} changes as ${sentence(ev.progression)}.`
-          : `${name} reaches a different state because of the preceding interaction.`;
-
+      return ev.anchors.length > 1 ? `${name} changes from ${first} toward ${second}.` : ev.progression ? `${name} changes as ${sentence(ev.progression)}.` : `${name} reaches a different state because of the preceding interaction.`;
     case "reflection":
-      return ev.memory
-        ? `${name} retains ${sentence(ev.memory)}.`
-        : ev.emotion
-          ? `${name} leaves behind ${sentence(ev.emotion)}.`
-          : ev.anchors.length > 1
-            ? `${name} now carries ${first} together with ${second}.`
-            : `${name} retains the consequence of what happened.`;
-
+      return ev.memory ? `${name} retains ${sentence(ev.memory)}.` : ev.emotion ? `${name} carries ${sentence(ev.emotion)} forward.` : `${name} retains the consequence of what happened.`;
     case "provenance":
-      return `${name} preserves where this version came from: ${material(ev, 3).join(", ") || "the supplied evidence"}.`;
-
+      return `${name} preserves its source evidence: ${material(ev, 3).join(", ") || "the supplied prompt"}.`;
     case "identity":
-      return ev.anchors.length
-        ? `${name} is identified by ${material(ev, 3).join(", ")}.`
-        : `${name} becomes identifiable through the context supplied by the prompt.`;
-
+      return ev.anchors.length ? `${name} is identified by ${material(ev, 3).join(", ")}.` : `${name} becomes identifiable through the context supplied by the prompt.`;
     case "milestone":
-      return ev.progression
-        ? `${name} reaches a milestone in ${sentence(ev.progression)}.`
-        : `${name} reaches the next state established by the experience.`;
-
+      return ev.progression ? `${name} reaches a milestone in ${sentence(ev.progression)}.` : `${name} reaches the next state established by the experience.`;
     case "unlock":
     case "earned_access":
-      return ev.reward
-        ? `${name} unlocks ${sentence(ev.reward)}.`
-        : ev.progression
-          ? `${name} earns the next state through ${sentence(ev.progression)}.`
-          : `${name} opens the next state because of what happened before it.`;
-
+      return ev.reward ? `${name} unlocks ${sentence(ev.reward)}.` : ev.progression ? `${name} earns the next state through ${sentence(ev.progression)}.` : `${name} opens the next state because of what happened before it.`;
     case "payoff":
-      return ev.reward
-        ? `${name} reaches the payoff: ${sentence(ev.reward)}.`
-        : ev.purpose
-          ? `${name} resolves around ${sentence(ev.purpose)}.`
-          : ev.memory
-            ? `${name} resolves by retaining ${sentence(ev.memory)}.`
-            : `${name} reaches the state produced by the preceding events.`;
-
+      return ev.reward ? `${name} reaches the payoff: ${sentence(ev.reward)}.` : ev.purpose ? `${name} resolves around ${sentence(ev.purpose)}.` : ev.memory ? `${name} resolves by retaining ${sentence(ev.memory)}.` : `${name} reaches the state produced by the preceding events.`;
     case "next_step":
-      return ev.progression
-        ? `${name} continues with ${sentence(ev.progression)}.`
-        : ev.future
-          ? `${name} continues through ${sentence(ev.future)}.`
-          : `${name} uses the current state to determine the next action.`;
-
+      return ev.progression ? `${name} continues with ${sentence(ev.progression)}.` : ev.future ? `${name} continues through ${sentence(ev.future)}.` : `${name} uses the current state to determine the next action.`;
     case "continuation":
-      return ev.future
-        ? `${name} remains open to ${sentence(ev.future)}.`
-        : ev.memory
-          ? `${name} can carry ${sentence(ev.memory)} into another interaction.`
-          : ev.anchors.length
-            ? `${name} remains open as ${first} changes what comes next.`
-            : `${name} continues from the state established here.`;
-
+      return ev.future ? `${name} remains open to ${sentence(ev.future)}.` : ev.memory ? `${name} can carry ${sentence(ev.memory)} into another interaction.` : `${name} remains open as ${first} changes what comes next.`;
     default:
       return `${name} continues with ${material(ev, 2).join(" and ") || "the supplied premise"}.`;
   }
@@ -351,14 +292,11 @@ export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePl
 
   if (value && !isGenericCompilerProse(value)) return value;
 
-  // Never manufacture significance prose to hide a realization failure.
   const original = clean(beat.text);
   if (original && !isGenericCompilerProse(original)) return original;
 
   const fallbackMaterial = material(ev, 3);
-  return fallbackMaterial.length
-    ? `${cap(ev.subject)} carries ${fallbackMaterial.join(", ")}.`
-    : cap(ev.subject);
+  return fallbackMaterial.length ? `${cap(ev.subject)} carries ${fallbackMaterial.join(", ")}.` : cap(ev.subject);
 }
 
 export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
@@ -395,7 +333,7 @@ export function classifyPremise(beat: StoryBeat, plan?: CognitiveExperiencePlan)
     indulgence: /\b(?:luxury|luxurious|billionaire|indulgent|exclusive|opulent|lavish|pamper|extravagant)\b/i,
     accumulation: /\b(?:add|adding|accumulate|accumulates|grows|growing|each person|next person|again|over time|keeps growing|builds up)\b/i,
     participation: /\b(?:everyone|family|friends|group|community|shared|together|contribute|contribution|participate|members)\b/i,
-    contrast: /\b(?:before|after|transform|transformation|changed|change|restore|difference|compare|old state|new state)\b/i,
+    contrast: /\b(?:before|after|transform|transformation|changed|change|restore|restoring|difference|compare|old state|new state)\b/i,
     process: /\b(?:build|building|repair|repairing|restore|restoring|prepare|preparing|process|processing|step|steps|cleaning)\b/i,
     discovery: /\b(?:discover|discovery|hidden|secret|uncover|find|forgotten|reveal|clue|mystery|unknown|search|document)\b/i,
     temporal: /\b(?:again|return|future|later|next|over time|keeps|continue|comes back)\b/i,
@@ -405,7 +343,5 @@ export function classifyPremise(beat: StoryBeat, plan?: CognitiveExperiencePlan)
     media: /\b(?:qr|nfc|photo|image|video|film|music|song|voice|recording|scan|scanned)\b/i,
   };
 
-  return Object.fromEntries(
-    Object.entries(dimensions).map(([name, pattern]) => [name, pattern.test(text)]),
-  );
+  return Object.fromEntries(Object.entries(dimensions).map(([name, pattern]) => [name, pattern.test(text)]));
 }
