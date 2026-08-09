@@ -32,41 +32,71 @@ type Case = {
   context?: Parameters<typeof compileStoryExperience>[1];
 };
 
+const GENERIC_REALIZATION_LANGUAGE = [
+  "the thing the experience puts into focus",
+  "what the experience has revealed",
+  "has become more meaningful through the interaction",
+  "turns observed detail into an evidence-aware experience",
+  "make the moment matter",
+];
+
 const cases: Case[] = [
   {
     prompt: "Create a dog groomer story for Max the poodle about the experience.",
-    mustContain: ["care"],
-    mustNotContain: ["dog's Journey", "journey_world"],
+    mustContain: ["max", "poodle"],
+    mustNotContain: [
+      "dog's journey",
+      "journey_world",
+      ...GENERIC_REALIZATION_LANGUAGE,
+    ],
   },
   {
     prompt: "Make something fun for everyone at my wedding tonight.",
     mustContain: ["shared"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
   {
     prompt: "Turn this concert QR into something people will remember.",
     mustContain: ["event", "media"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
   {
     prompt: "My grandmother gave me this watch.",
     mustContain: ["memory", "watch"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
   {
     prompt: "Make this boring product launch fun.",
     mustContain: ["work", "play"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
   {
     prompt: "Surprise me.",
     mustContain: ["play"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
   {
     prompt: "asdf 123",
     mustContain: [],
-    mustNotContain: ["memory_world", "relationship_world", "dog's Journey"],
+    mustNotContain: [
+      "memory_world",
+      "relationship_world",
+      "dog's Journey",
+      ...GENERIC_REALIZATION_LANGUAGE,
+    ],
   },
   {
     prompt: "Max came back to the same groomer and was even more excited this time.",
-    context: { memories: [{ summary: "Max's earlier grooming visit", entities: ["Max", "groomer"] }] },
+    context: {
+      memories: [
+        {
+          summary: "Max's earlier grooming visit",
+          entities: ["Max", "groomer"],
+        },
+      ],
+    },
     mustContain: ["memory"],
+    mustNotContain: GENERIC_REALIZATION_LANGUAGE,
   },
 ];
 
