@@ -1,5 +1,8 @@
 name: Super Cog current-branch alignment
 
+# One-time alignment pass for the current cognitive-experience-engine branch.
+# The job deletes this workflow after a verified commit.
+
 on:
   push:
     branches:
@@ -37,7 +40,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           root = Path.cwd()
 
           def patch(path, replacements):
@@ -46,20 +48,20 @@ jobs:
               original = text
               for old, new in replacements:
                   if old not in text:
-                      raise SystemExit(f'PATCH GUARD FAILED: exact source block not found in {path}: {old[:120]!r}')
+                      raise SystemExit(f'PATCH GUARD FAILED: {path}: {old[:120]!r}')
                   text = text.replace(old, new, 1)
               if text == original:
-                  raise SystemExit(f'PATCH GUARD FAILED: no change made to {path}')
+                  raise SystemExit(f'PATCH GUARD FAILED: no change in {path}')
               p.write_text(text, encoding='utf-8')
 
           patch('packages/engine/src/experience/universalStoryCompiler.ts', [
               (
                   '''  const cognitiveSubject = clean(plan?.centralSubject ?? "");\n\n  if (cognitiveSubject) {\n    return cognitiveSubject;\n  }\n\n\n  const text = clean(prompt);''',
-                  '''  const cognitiveSubject = clean(plan?.centralSubject ?? "");\n  const text = clean(prompt);\n\n  // A machine-readable medium is not automatically the semantic subject.\n  // QR/NFC/scan/tag are interfaces; the experience belongs to the concrete\n  // event/object/place the person actually described.\n  const mediumOnlySubject = /^(?:qr|nfc|scan|scannable|tag|code|barcode)$/i.test(\n    cognitiveSubject,\n  );\n\n  if (cognitiveSubject && !mediumOnlySubject) {\n    return cognitiveSubject;\n  }'''
+                  '''  const cognitiveSubject = clean(plan?.centralSubject ?? "");\n  const text = clean(prompt);\n\n  // QR/NFC/scan/tag are interfaces, not automatically the semantic subject.\n  const mediumOnlySubject = /^(?:qr|nfc|scan|scannable|tag|code|barcode)$/i.test(\n    cognitiveSubject,\n  );\n\n  if (cognitiveSubject && !mediumOnlySubject) {\n    return cognitiveSubject;\n  }'''
               ),
               (
                   '''  const events = unique(\n    lo.match(\n      /\\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|rave|nightclub|anniversary|memorial)\\b/g,\n    ) ?? [],\n  );''',
-                  '''  const events = unique(\n    lo.match(\n      /\\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|conference|convention\\s+center)\\b/g,\n    ) ?? [],\n  );'''
+                  '''  const events = unique(\n    lo.match(\n      /\\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|convention\\s+center)\\b/g,\n    ) ?? [],\n  );'''
               ),
               (
                   '''  const products = unique(\n    lo.match(\n      /\\b(qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|pick|jewelry|tattoo)\\b/g,\n    ) ?? [],\n  );''',
