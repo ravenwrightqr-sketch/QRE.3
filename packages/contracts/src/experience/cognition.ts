@@ -13,6 +13,13 @@
  */
 
 import type { ExperienceEntities } from "./entityExtractor.js";
+import type { ExperienceBlueprint } from "./blueprint.js";
+import type { ExperienceGenome } from "./genome.js";
+import type { ExperienceModel } from "./model.js";
+import type { ExperienceWorld } from "./world.js";
+import type { Moment } from "../moment.js";
+import type { CinematicScene } from "../cinematic.js";
+import type { FlowStep } from "../flow.js";
 
 export type CognitiveDirection =
   | "utility"
@@ -189,4 +196,20 @@ export type CognitiveCompilation = {
   observation: ExperienceObservation;
   situation: StorySituation;
   story: ExperienceStory;
+};
+
+export type CompiledCognitiveExperience = {
+  cognition: CognitiveCompilation;
+  genome: ExperienceGenome;
+  world: ExperienceWorld;
+  blueprint: ExperienceBlueprint;
+  flowSteps: FlowStep[];
+  moments: Moment[];
+  cinematicScenes: CinematicScene[];
+  scenePlan: StoryScenePlan[];
+  story: ExperienceStory;
+  model: ExperienceModel;
+  title: string;
+  estimatedDuration: number;
+  momentCount: number;
 };
