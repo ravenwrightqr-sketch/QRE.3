@@ -35,6 +35,13 @@ const GENERIC_ENTITIES = new Set([
   "something",
 ]);
 
+const GENERIC_PLAN_SIGNALS = [
+  /^make .+ matter through /i,
+  /^make the physical subject feel more alive/i,
+  /^make .+ matter through /i,
+  /^the experience can evolve through /i,
+];
+
 function subjectFromBeat(beat: StoryBeat): string {
   return clean(beat.entities?.[0] ?? "the moment");
 }
@@ -72,8 +79,13 @@ function planSignal(
     | "creativePossibilities",
 ): string {
   if (!plan) return "";
-  if (field === "purpose") return clean(plan.purpose ?? "");
-  return clean(plan[field]?.[0] ?? "");
+  const value =
+    field === "purpose" ? clean(plan.purpose ?? "") : clean(plan[field]?.[0] ?? "");
+
+  if (!value) return "";
+  if (GENERIC_PLAN_SIGNALS.some((pattern) => pattern.test(value))) return "";
+
+  return value;
 }
 
 function sentence(value: string): string {
@@ -198,9 +210,7 @@ export function elevateStoryBeat(
           ? `The deeper discovery is what ${subject} can become in context: ${sentence(creative)}.`
           : `The deeper layer changes how ${subject} can be understood.`;
       case "payoff":
-        return purpose
-          ? `${cap(sentence(purpose))}. The discovery now has a reason to matter.`
-          : `What was hidden now has context and consequence.`;
+        return `The reveal earns its place by changing what ${subject} lets you see.`;
       case "continuation":
         return future
           ? `There is more beyond this reveal: ${sentence(future)}.`
@@ -227,9 +237,9 @@ export function elevateStoryBeat(
             ? `What remains is ${emotionalIntent}; that feeling gives the memory its weight.`
             : `What remains is the meaning the memory still carries now.`;
       case "payoff":
-        return purpose
-          ? `${cap(sentence(purpose))}. The past becomes something the present can carry forward.`
-          : `The memory becomes part of the present rather than staying behind it.`;
+        return detail
+          ? `The history shared with ${detail} is still reachable through ${subject}.`
+          : `The history held by ${subject} can be revisited instead of disappearing into the past.`;
       case "continuation":
         return future
           ? `The story can keep growing as new memories arrive: ${sentence(future)}.`
@@ -248,9 +258,7 @@ export function elevateStoryBeat(
       case "contribution":
         return `What one person adds changes what the next person encounters.`;
       case "payoff":
-        return purpose
-          ? `${cap(sentence(purpose))}. The value comes from what people create together.`
-          : `The shared experience becomes richer because people have shaped it together.`;
+        return `What people add to ${subject} becomes part of what the next person inherits.`;
       case "continuation":
         return future
           ? `The shared experience stays open: ${sentence(future)}.`
@@ -315,9 +323,7 @@ export function elevateStoryBeat(
       case "reflection":
         return `What you recognize in ${subject} says something about the person encountering it.`;
       case "payoff":
-        return purpose
-          ? `${cap(sentence(purpose))}. ${subjectName} becomes part of the participant's own story.`
-          : `${subjectName} becomes something the participant can identify with.`;
+        return `${subjectName} becomes part of the participant's own story through what they recognize, choose, and return to.`;
       case "continuation":
         return future
           ? `That identity can keep evolving: ${sentence(future)}.`
@@ -354,9 +360,7 @@ export function elevateStoryBeat(
     case "transformation":
       return `${subjectName} is no longer quite the same after what has happened.`;
     case "payoff":
-      return purpose
-        ? `${cap(sentence(purpose))}. What happened gives ${subject} a reason to matter.`
-        : `${subjectName} lands differently now because the story changed what it means.`;
+      return `${subjectName} lands differently now because the story changed what it lets you notice.`;
     case "reflection":
       return emotionalIntent
         ? `What remains is ${emotionalIntent}, carried forward from this moment.`
