@@ -14,6 +14,7 @@
  *   - create actual progression when the premise supports it
  *   - preserve distinctive forces such as humor, suspense, absurdity,
  *     participation, accumulation, process, discovery, and transformation
+ *   - preserve coupled premise evidence instead of collapsing it to one noun
  *   - remain useful for arbitrary input
  *   - never depend on a noun-specific story branch
  *
@@ -54,7 +55,8 @@ const cases: Case[] = [
   },
   {
     prompt: "Turn this concert QR into something people will remember.",
-    anchors: ["concert"],
+    // This is intentionally a coupled premise: event + medium + human outcome.
+    anchors: ["concert", "QR", "remember"],
   },
   {
     prompt: "My grandmother gave me this watch.",
@@ -163,7 +165,7 @@ for (const testCase of cases) {
   for (const phrase of GENERIC_REALIZATION_PHRASES) {
     if (normalized.includes(phrase.toLowerCase())) {
       throw new Error(
-        `Generic realization leaked into compiler result for "${testCase.prompt}": "${phrase}"`,
+        `Generic realization leaked into compiler result for \"${testCase.prompt}\": \"${phrase}\"`,
       );
     }
   }
@@ -176,6 +178,20 @@ for (const testCase of cases) {
     throw new Error(
       `Prompt substance was not realized inside story beats for: ${testCase.prompt}`,
     );
+  }
+
+  // Coupled prompts must carry more than one independent premise dimension
+  // into the actual beats. This prevents a branch from passing by mentioning
+  // only the easiest noun while dropping the rest of the user's intent.
+  if (testCase.prompt.startsWith("Turn this concert QR")) {
+    const realizedDimensions = ["concert", "qr", "remember"].filter((anchor) =>
+      beatText.includes(anchor),
+    );
+    if (realizedDimensions.length < 3) {
+      throw new Error(
+        `Coupled premise collapsed inside story beats for: ${testCase.prompt}. Realized: ${realizedDimensions.join(", ")}`,
+      );
+    }
   }
 
   console.log(`✓ ${testCase.prompt}`);
