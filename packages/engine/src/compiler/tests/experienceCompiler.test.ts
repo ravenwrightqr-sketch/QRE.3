@@ -1,6 +1,6 @@
 /** QRE SUPER COG — SUBJECT-NATIVE REALIZATION TEST */
 
-import { compileSuperCogExperience } from "../../experience/superCogCanonical.js";
+import { compileSuperCogExperience } from "../../experience/superCogContext.js";
 
 const prompts = [
   "Create a memorial for my grandmother",
