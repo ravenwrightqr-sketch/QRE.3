@@ -1,0 +1,25 @@
+name: Super Cog
+
+on:
+  push:
+    branches: ["super-cog-rebuild"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  super-cog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @qre/contracts build
+      - run: pnpm --filter @qre/engine build
+      - run: pnpm exec tsx packages/engine/src/compiler/tests/genome.test.ts
+      - run: pnpm exec tsx packages/engine/src/compiler/tests/experienceCompiler.test.ts
