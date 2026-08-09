@@ -3,20 +3,16 @@ import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 /**
  * UNIVERSAL PREMISE REALIZER
  *
- * This is the realization brain, not a catalog of subjects.
+ * The realization layer turns cognition into observable events.
+ * It is deliberately noun-agnostic: no subject gets a hard-coded story.
  *
- * Input:
+ * Core invariant:
  *   semantic forces + concrete evidence + beat stage
+ *   -> observable realization that still belongs to the user's premise.
  *
- * Output:
- *   an observable event that still belongs to the user's premise.
- *
- * Hard rules:
- *   - no noun-specific story branches
- *   - no significance-only filler
- *   - preserve concrete prompt evidence
- *   - let combinations of semantic forces create the behavior
- *   - use cognitive-plan signals before heuristic prose
+ * The important upgrade here is PREMISE BUNDLING. A prompt can contain
+ * several coupled facts (for example event + medium + human outcome).
+ * Realization must carry the bundle, not merely mention one convenient noun.
  */
 
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -33,6 +29,7 @@ const STOP = new Set([
   "our", "people", "please", "that", "the", "their", "this", "those", "to",
   "turn", "up", "was", "we", "what", "when", "where", "which", "who", "with",
   "you", "your", "something", "someone", "thing", "experience", "story",
+  "about", "through", "into", "just", "more", "than", "then", "now", "will",
 ]);
 
 const DEAD_PROSE = [
@@ -64,13 +61,13 @@ const FORCE_WORDS = {
   absurdity: ["absurd", "surreal", "bizarre", "impossible", "wild", "ridiculous", "unreasonable", "excessive"],
   indulgence: ["luxury", "luxurious", "billionaire", "indulgent", "exclusive", "opulent", "lavish", "pamper", "extravagant"],
   accumulation: ["keep adding", "add to", "adds", "adding", "accumulate", "accumulates", "grows", "growing", "each person", "next person", "again", "over time", "builds up", "keeps growing"],
-  participation: ["everyone", "family", "friends", "group", "community", "shared", "together", "contribute", "contribution", "participate", "people can", "members"],
+  participation: ["everyone", "family", "friends", "group", "community", "shared", "together", "contribute", "contribution", "participate", "members"],
   contrast: ["before", "after", "transform", "transformation", "changed", "change", "restore", "difference", "compare", "compared", "old state", "new state"],
-  process: ["build", "building", "repair", "repairing", "restore", "restoring", "prepare", "preparing", "process", "processing", "step", "steps", "work through", "one by one", "room by room"],
-  discovery: ["discover", "discovery", "hidden", "secret", "uncover", "find", "forgotten", "reveal", "clue", "mystery", "unknown", "look for", "search"],
+  process: ["build", "building", "repair", "repairing", "restore", "restoring", "prepare", "preparing", "process", "processing", "step", "steps", "work through", "one by one", "room by room", "cleaning"],
+  discovery: ["discover", "discovery", "hidden", "secret", "uncover", "find", "forgotten", "reveal", "clue", "mystery", "unknown", "look for", "search", "document", "documents"],
   temporal: ["again", "return", "future", "later", "next", "over time", "keeps", "continue", "continuation", "comes back", "keeps going"],
-  memory: ["memory", "remember", "remembered", "past", "history", "keepsake", "folklore", "legacy", "preserve", "preserved", "rememberable"],
-  social: ["everyone", "family", "friends", "group", "community", "together", "shared", "people", "relationship", "collective"],
+  memory: ["memory", "remember", "remembered", "past", "history", "keepsake", "folklore", "legacy", "preserve", "preserved", "rememberable", "remembering"],
+  social: ["everyone", "family", "friends", "group", "community", "together", "shared", "people", "relationship", "collective", "members"],
   utility: ["useful", "help", "solve", "answer", "instruction", "guide", "fix", "need", "practical", "task", "how to"],
   media: ["qr", "nfc", "photo", "image", "video", "film", "music", "song", "voice", "recording", "scan", "scanned"],
 } as const;
@@ -80,7 +77,6 @@ type PremiseForces = Record<ForceName, boolean>;
 
 function planText(plan?: CognitiveExperiencePlan): string {
   if (!plan) return "";
-
   return lower([
     plan.direction ?? "",
     plan.centralSubject ?? "",
@@ -93,7 +89,6 @@ function planText(plan?: CognitiveExperiencePlan): string {
     ...(plan.socialModel ?? []),
     ...(plan.discoveryModel ?? []),
     ...(plan.rewardModel ?? []),
-    ...(plan.commerceModel ?? []),
     ...(plan.progressionModel ?? []),
     ...(plan.contentModel ?? []),
     ...(plan.dynamicBehavior ?? []),
@@ -103,10 +98,7 @@ function planText(plan?: CognitiveExperiencePlan): string {
   ].join(" "));
 }
 
-function signal(
-  plan: CognitiveExperiencePlan | undefined,
-  field: keyof CognitiveExperiencePlan,
-): string {
+function signal(plan: CognitiveExperiencePlan | undefined, field: keyof CognitiveExperiencePlan): string {
   const value = plan?.[field];
   if (typeof value === "string") return sentence(value);
   if (Array.isArray(value)) return sentence(String(value[0] ?? ""));
@@ -124,7 +116,6 @@ function sourceText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
 
 function classifyForces(beat: StoryBeat, plan?: CognitiveExperiencePlan): PremiseForces {
   const text = sourceText(beat, plan);
-
   return Object.fromEntries(
     (Object.keys(FORCE_WORDS) as ForceName[]).map((name) => [
       name,
@@ -145,24 +136,31 @@ function tokens(value: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Concrete evidence is deliberately gathered before prose is selected.
+ * This prevents a semantic branch from winning while dropping the prompt's
+ * distinctive nouns.
+ */
 function anchorWords(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   const subjectTokens = new Set(tokens(lower(subject(beat, plan))));
   const raw = [
     ...(beat.entities ?? []),
     beat.text,
     plan?.centralSubject ?? "",
+    plan?.purpose ?? "",
+    ...(plan?.whyInteract ?? []),
     ...(plan?.creativePossibilities ?? []),
     ...(plan?.contentModel ?? []),
     ...(plan?.discoveryModel ?? []),
     ...(plan?.memoryModel ?? []),
-  ].join(" ");
+  ].join(" "));
 
   const words = tokens(raw)
     .filter((word) => word.length > 2)
     .filter((word) => !STOP.has(lower(word)))
     .filter((word) => !subjectTokens.has(lower(word)));
 
-  return [...new Map(words.map((word) => [lower(word), word])).values()].slice(0, 8);
+  return [...new Map(words.map((word) => [lower(word), word])).values()].slice(0, 10);
 }
 
 function anchor(anchors: string[], index = 0): string {
@@ -171,7 +169,7 @@ function anchor(anchors: string[], index = 0): string {
 
 function evidencePhrase(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const anchors = anchorWords(beat, plan);
-  if (anchors.length === 0) return "the current state";
+  if (!anchors.length) return "the current state";
   if (anchors.length === 1) return anchors[0];
   return anchors.slice(0, 2).join(" and ");
 }
@@ -181,28 +179,70 @@ function evidencePair(beat: StoryBeat, plan?: CognitiveExperiencePlan): [string,
   return anchors.length >= 2 ? [anchors[0], anchors[1]] : undefined;
 }
 
-function forceRealization(
+function hasForce(anchors: string[], force: ForceName): boolean {
+  return anchors.some((anchorValue) =>
+    FORCE_WORDS[force].some((word) => lower(anchorValue).includes(word)),
+  );
+}
+
+function firstForceAnchor(anchors: string[], force: ForceName): string | undefined {
+  return anchors.find((anchorValue) =>
+    FORCE_WORDS[force].some((word) => lower(anchorValue).includes(word)),
+  );
+}
+
+/**
+ * Composite realization is where the universal compiler gets its "brain".
+ * The combinations are semantic, not subject-specific. New nouns inherit
+ * the same behavior automatically.
+ */
+function compositeRealization(
   beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
+  plan: CognitiveExperiencePlan | undefined,
+  anchors: string[],
+  forces: PremiseForces,
 ): string | undefined {
   const subjectValue = subject(beat, plan);
   const name = cap(subjectValue);
-  const anchors = anchorWords(beat, plan);
-  const pair = evidencePair(beat, plan);
-  const forces = classifyForces(beat, plan);
-
-  const why = signal(plan, "whyInteract");
+  const media = firstForceAnchor(anchors, "media");
+  const memory = firstForceAnchor(anchors, "memory");
+  const social = firstForceAnchor(anchors, "social");
+  const future = signal(plan, "futureEvolution");
   const purpose = signal(plan, "purpose");
   const interaction = signal(plan, "interactionModel");
-  const content = signal(plan, "contentModel");
-  const discovery = signal(plan, "discoveryModel");
   const reward = signal(plan, "rewardModel");
-  const progression = signal(plan, "progressionModel");
-  const future = signal(plan, "futureEvolution");
-  const emotional = signal(plan, "emotionalIntent");
-  const memory = signal(plan, "memoryModel");
 
+  // Event/context + medium + memory/social outcome.
+  // This is the important QR/concert class, but it is deliberately generic.
+  if (forces.media && (forces.memory || forces.social)) {
+    const context = anchors.find(
+      (value) => lower(value) !== lower(media ?? "") &&
+        lower(value) !== lower(memory ?? "") &&
+        lower(value) !== lower(social ?? ""),
+    ) ?? anchor(anchors);
+
+    switch (beat.kind) {
+      case "orientation":
+        return `${cap(context)} gives ${subjectValue} a live moment to capture through ${media ?? "the medium"}.`;
+      case "hook":
+      case "encounter":
+      case "action":
+        return `${cap(media ?? "The interaction")} turns ${context} into something people can participate in and carry forward.`;
+      case "discovery":
+      case "reveal":
+        return `${cap(media ?? "The captured moment")} surfaces ${context} with ${memory ?? social ?? "a human trace"} attached.`;
+      case "reflection":
+        return `${cap(context)} now carries a record of what people shared, crossed, or remembered through ${media ?? "the experience"}.`;
+      case "payoff":
+        return reward || `${name} becomes a concrete record of ${context}, not just a moment that disappeared when the event ended.`;
+      case "continuation":
+        return future || `The next interaction can add another person, crossing, detail, or memory to the record.`;
+    }
+  }
+
+  // Accumulation + participation is the general shared-memory engine.
   if (forces.accumulation && (forces.participation || forces.social)) {
+    const pair = evidencePair(beat, plan);
     switch (beat.kind) {
       case "orientation":
         return `${name} begins with one version already in circulation, and another person can change it.`;
@@ -222,53 +262,71 @@ function forceRealization(
     }
   }
 
+  // Process + transformation keeps concrete work from becoming generic meaning.
   if (forces.contrast && forces.process) {
     switch (beat.kind) {
       case "orientation": return `${name} starts in its before-state, with the work still ahead.`;
       case "hook":
-      case "encounter":
-        return anchors.length
-          ? `The first pass works on ${subjectValue}, exposing ${anchor(anchors)}.`
-          : `The first pass makes the starting state concrete.`;
-      case "escalation": return progression || `Each completed part makes the remaining difference more visible.`;
+      case "encounter": return anchors.length ? `The first pass works on ${subjectValue}, exposing ${anchor(anchors)}.` : `The first pass makes the starting state concrete.`;
+      case "escalation": return signal(plan, "progressionModel") || `Each completed part makes the remaining difference more visible.`;
       case "transformation": return `${name} crosses from its starting state into the state the work created.`;
       case "payoff": return `${name} can now be compared with the version that existed before the work began.`;
       case "continuation": return future || `The changed state becomes the starting point for the next pass.`;
     }
   }
 
+  // Suspense + discovery makes evidence drive the escalation.
   if (forces.suspense) {
+    const discovery = signal(plan, "discoveryModel");
     switch (beat.kind) {
       case "orientation": return `${name} appears ordinary just long enough for one detail to feel wrong.`;
       case "hook": return anchors.length ? `${cap(anchor(anchors))} is the first evidence that the harmless explanation is failing.` : `${name} supplies the first evidence that the harmless explanation is failing.`;
       case "encounter":
       case "discovery":
-      case "reveal":
-        return discovery
-          ? `The evidence turns darker: ${discovery}.`
-          : anchors.length
-            ? `${cap(anchor(anchors))} makes the safe explanation harder to believe.`
-            : `Another concrete detail makes the safe explanation harder to believe.`;
+      case "reveal": return discovery ? `The evidence turns darker: ${discovery}.` : `${cap(anchor(anchors))} makes the safe explanation harder to believe.`;
       case "escalation":
-      case "challenge": return progression ? `The danger tightens through ${progression}.` : `The safe explanation loses another piece of ground.`;
+      case "challenge": return signal(plan, "progressionModel") || `The safe explanation loses another piece of ground.`;
       case "transformation":
       case "payoff": return reward ? `The reveal pays off with ${reward}.` : `The final evidence makes the earlier warning impossible to dismiss.`;
       case "continuation": return future || `One unresolved detail keeps the danger active.`;
     }
   }
 
+  // Absurdity and indulgence are forces that change scale, not subjects.
   if (forces.absurdity || forces.indulgence) {
     switch (beat.kind) {
       case "orientation": return forces.indulgence ? `${name} begins at an unreasonable level of indulgence.` : `${name} begins normally, then takes a turn that ignores ordinary limits.`;
       case "hook": return anchors.length ? `${cap(anchor(anchors))} pushes ${subjectValue} past ordinary limits.` : `The first move pushes ${subjectValue} past ordinary logic.`;
       case "encounter":
-      case "discovery": return anchors.length ? `${cap(anchor(anchors, 1))} raises the scale again.` : `The next detail makes the situation more excessive.`;
-      case "escalation": return progression ? `Then it escalates through ${progression}.` : `Each new step has to outdo the last one.`;
+      case "discovery": return anchors.length > 1 ? `${cap(anchor(anchors, 1))} raises the scale again.` : `The next detail makes the situation more excessive.`;
+      case "escalation": return signal(plan, "progressionModel") ? `Then it escalates through ${signal(plan, "progressionModel")}.` : `Each new step has to outdo the last one.`;
       case "transformation": return `${name} is now operating beyond the scale it started with.`;
       case "payoff": return reward ? `The payoff goes all the way: ${reward}.` : `The premise reaches the excessive state it kept building toward.`;
       case "continuation": return future || `There is still room to push the premise farther.`;
     }
   }
+
+  return undefined;
+}
+
+function forceRealization(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
+  const subjectValue = subject(beat, plan);
+  const name = cap(subjectValue);
+  const anchors = anchorWords(beat, plan);
+  const forces = classifyForces(beat, plan);
+  const why = signal(plan, "whyInteract");
+  const purpose = signal(plan, "purpose");
+  const interaction = signal(plan, "interactionModel");
+  const content = signal(plan, "contentModel");
+  const discovery = signal(plan, "discoveryModel");
+  const reward = signal(plan, "rewardModel");
+  const progression = signal(plan, "progressionModel");
+  const future = signal(plan, "futureEvolution");
+  const emotional = signal(plan, "emotionalIntent");
+  const memory = signal(plan, "memoryModel");
+
+  const composite = compositeRealization(beat, plan, anchors, forces);
+  if (composite) return composite;
 
   if (forces.humor) {
     switch (beat.kind) {
@@ -288,7 +346,7 @@ function forceRealization(
       case "origin": return memory ? `${name} carries ${memory} into the present.` : `${name} brings an earlier version into the present.`;
       case "hook": return anchors.length ? `Start with ${cap(anchor(anchors))}; it is the first concrete thread worth following.` : `One concrete thread becomes worth following.`;
       case "discovery":
-      case "reveal": return discovery ? `The evidence opens: ${discovery}.` : anchors.length ? `${cap(anchor(anchors))} points to another piece of evidence.` : `One discovered detail points to another.`;
+      case "reveal": return discovery ? `The evidence opens: ${discovery}.` : `${cap(anchor(anchors))} points to another piece of evidence.`;
       case "reflection": return emotional ? `What remains carries ${emotional}.` : `The discovered details change the account that can now be told about ${subjectValue}.`;
       case "payoff": return reward || purpose || `The pieces now line up around ${subjectValue}.`;
       case "continuation": return future || `Enough remains unresolved to keep looking.`;
@@ -359,28 +417,33 @@ function genericStage(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   }
 }
 
+/**
+ * Preserve a bundle, not merely one noun. If the prompt exposes several
+ * concrete anchors, at least two should survive in the beat text whenever
+ * the realization branch itself did not already carry them.
+ */
 function preserveEvidence(value: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const anchors = anchorWords(beat, plan);
   if (!anchors.length) return value;
 
   const normalized = lower(value);
-  if (anchors.some((word) => normalized.includes(lower(word)))) {
-    return value;
-  }
+  const missing = anchors.filter((word) => !normalized.includes(lower(word)));
+  if (missing.length === 0) return value;
 
   const subjectValue = subject(beat, plan);
-  const primary = anchor(anchors);
+  const keep = missing.slice(0, anchors.length >= 3 ? 2 : 1);
+  const evidence = keep.join(" and ");
 
   switch (beat.kind) {
-    case "orientation": return `${value} The premise begins with ${subjectValue} and ${primary} concretely present.`;
+    case "orientation": return `${value} ${cap(subjectValue)} is grounded in ${evidence}.`;
     case "hook":
-    case "encounter": return `${value} The next event is tied to ${primary}.`;
+    case "encounter": return `${value} The event is tied directly to ${evidence}.`;
     case "discovery":
-    case "reveal": return `${value} The evidence is ${primary}.`;
-    case "reflection": return `${value} What remains is tied to ${primary}.`;
-    case "payoff": return `${value} The result is grounded in ${primary}.`;
-    case "continuation": return `${value} The next version still carries ${primary}.`;
-    default: return `${value} The concrete premise still includes ${primary}.`;
+    case "reveal": return `${value} The evidence is ${evidence}.`;
+    case "reflection": return `${value} What remains is tied to ${evidence}.`;
+    case "payoff": return `${value} The result is grounded in ${evidence}.`;
+    case "continuation": return `${value} The next version still carries ${evidence}.`;
+    default: return `${value} The concrete premise still includes ${evidence}.`;
   }
 }
 
@@ -392,16 +455,13 @@ export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePl
   const semantic = forceRealization(beat, plan) ?? genericStage(beat, plan);
   const evidenceBearing = preserveEvidence(clean(semantic), beat, plan);
 
-  if (evidenceBearing && !isDeadProse(evidenceBearing)) {
-    return evidenceBearing;
-  }
+  if (evidenceBearing && !isDeadProse(evidenceBearing)) return evidenceBearing;
 
   const raw = clean(beat.text);
   if (raw && !isDeadProse(raw)) return raw;
 
-  const subjectValue = subject(beat, plan);
-  const primary = anchor(anchorWords(beat, plan));
-  return `${cap(subjectValue)} stays grounded in ${primary}.`;
+  const anchors = anchorWords(beat, plan);
+  return `${cap(subject(beat, plan))} stays grounded in ${anchor(anchors)}.`;
 }
 
 export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
