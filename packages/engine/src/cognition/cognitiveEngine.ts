@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   CognitiveAssumption,
   CognitiveClaim,
   CognitiveEvidence,
@@ -187,13 +187,13 @@ function extractEntities(
 
     events: unique(
       lo.match(
-        /\b(?:wedding|concert|festival|birthday|party|ceremony|event|show|conference|rave|club|anniversary|memorial)\b/g,
+        /\b(?:wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|convention\s+center)\b/g,
       ) ?? [],
     ),
 
     products: unique(
       lo.match(
-        /\b(?:qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|guitar pick|pick|jewelry|artwork|tattoo)\b/g,
+        /\b(?:qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|guitar pick|pick|jewelry|artwork|artifact|portal|token|totem|emblem|installation|tattoo)\b/g,
       ) ?? [],
     ),
 

@@ -1,3 +1,5 @@
+﻿import { realizePremiseBeat } from "./premiseRealizer.js";
+
 import type {
   CognitiveExperiencePlan,
   ExperienceEntities,
@@ -324,13 +326,13 @@ function entities(
 
   const events = unique(
     lo.match(
-      /\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|rave|nightclub|anniversary|memorial)\b/g,
+      /\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|convention\s+center)\b/g,
     ) ?? [],
   );
 
   const products = unique(
     lo.match(
-      /\b(qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|pick|jewelry|tattoo)\b/g,
+      /\b(qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|pick|jewelry|artwork|artifact|portal|token|totem|emblem|installation|tattoo)\b/g,
     ) ?? [],
   );
 
@@ -396,13 +398,17 @@ function entities(
   plan?: CognitiveExperiencePlan,
 ): string {
   const cognitiveSubject = clean(plan?.centralSubject ?? "");
+  const text = clean(prompt);
 
-  if (cognitiveSubject) {
+  // QR/NFC/scan/tag are interfaces, not automatically the semantic subject.
+  // The experience belongs to the concrete event/object/place the person described.
+  const mediumOnlySubject = /^(?:qr|nfc|scan|scannable|tag|code|barcode)$/i.test(
+    cognitiveSubject,
+  );
+
+  if (cognitiveSubject && !mediumOnlySubject) {
     return cognitiveSubject;
   }
-
-
-  const text = clean(prompt);
 
   /*
    * Audience is contextual, not automatically the subject.
@@ -2267,6 +2273,10 @@ function makeBeat(
     ),
     entities: unique([
       observation.subject,
+      ...observation.entities.events,
+      ...observation.entities.products,
+      ...observation.entities.places,
+      ...observation.entities.media,
       ...observation.entities.keywords,
       ...situationValue.actors.slice(0, 2),
     ]),
