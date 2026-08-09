@@ -2256,7 +2256,7 @@ function makeBeat(
       ? 0.96
       : 0.72;
 
-  return {
+  const rawBeat: StoryBeat = {
     id: `beat-${index}-${kind}`,
     kind,
     order: index,
@@ -2313,8 +2313,15 @@ function makeBeat(
             ),
           ],
   };
-}
 
+  return {
+    ...rawBeat,
+    text: realizePremiseBeat(
+      rawBeat,
+      plan,
+    ),
+  };
+}
 function title(
   subjectValue: string,
   candidate: Candidate,
@@ -3073,3 +3080,4 @@ export function compileStoryExperience(
       momentList.length,
   };
 }
+
