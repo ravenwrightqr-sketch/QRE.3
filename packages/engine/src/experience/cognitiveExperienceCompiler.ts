@@ -5,6 +5,7 @@ import type {
 } from "@qre/contracts";
 
 import { understandExperience } from "../cognition/cognitiveEngine.js";
+import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
@@ -24,6 +25,7 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  * CANONICAL PIPELINE:
  *   PROMPT
  *     → COGNITIVE UNDERSTANDING
+ *     → CONSERVED PREMISE / EVIDENCE RELATIONSHIPS
  *     → EVIDENCE
  *     → MEANING
  *     → HYPOTHESES
@@ -31,7 +33,7 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *     → SELECTED EXPERIENCE DIRECTION
  *     → COGNITIVE PLAN
  *     → UNIVERSAL COMPILATION
- *     → ELOQUENT LANGUAGE REALIZATION
+ *     → PREMISE LANGUAGE REALIZATION
  *     → BLUEPRINT
  *     → FLOW
  *     → MOMENTS
@@ -148,6 +150,7 @@ function mergeGenome(
         "evidence-aware",
         "hypothesis-driven",
         "cognitive-plan-directed",
+        "premise-conserved",
         "universal-compiler-substrate",
         `hypothesis:${selected.kind}`,
         ...cognition.affordances.map((value) => `affordance:${value}`),
@@ -188,6 +191,7 @@ function mergeBlueprint(
           "evidence-aware",
           "hypothesis-driven",
           "cognitive-plan",
+          "premise-conserved",
           "adaptive-experience",
           "universal-compiler-substrate",
           ...cognition.assumptions.map(() => "assumption-explicit"),
@@ -211,6 +215,7 @@ function directModel(
         ...((compiled.model.metadata?.tags ?? []) as string[]),
         "cognitive-experience-intelligence",
         "cognitive-plan-directed",
+        "premise-conserved",
         "universal-compiler-substrate",
         "eloquent-language-realization",
         `selected:${cognition.selectedHypothesis.kind}`,
@@ -335,14 +340,34 @@ function realizeLanguage(
  *
  * Cognition runs first. The selected plan is then supplied directly to the
  * universal compiler, which remains the only runtime-shape compilation path.
+ * The role-based premise is constructed once here and travels with that plan.
  */
 export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
-  const cognition = canonicalizeCognition(
+  const cognitionBase = canonicalizeCognition(
     understandExperience(prompt, context),
   );
+
+  const premise = buildCognitivePremise({
+    prompt,
+    subject: cognitionBase.subject,
+    participants: cognitionBase.participants,
+    entities: cognitionBase.entities,
+    affordances: cognitionBase.affordances,
+    emotionalIntent: cognitionBase.emotionalIntent,
+    plan: cognitionBase.plan,
+    context,
+  });
+
+  const cognition: CognitiveExperienceState = {
+    ...cognitionBase,
+    plan: {
+      ...cognitionBase.plan,
+      premise,
+    },
+  };
 
   const compiled = compileStoryExperience(prompt, {
     ...context,
