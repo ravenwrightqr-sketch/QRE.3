@@ -3,10 +3,13 @@ import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 /**
  * UNIVERSAL PREMISE REALIZER
  *
- * The final language layer is evidence-first. It does not invent significance,
- * hide missing understanding, or maintain a domain/template catalog.
+ * Evidence-first language realization.
  *
- * semantic evidence + beat role + cognitive intent -> realized premise
+ * Cognition chooses direction. The universal compiler chooses structure.
+ * This layer only turns the selected structure into readable language while
+ * preserving the concrete evidence carried by the prompt and beat.
+ *
+ * It must never replace prompt evidence with generic significance prose.
  */
 
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -100,13 +103,6 @@ function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   return clean(plan?.centralSubject || beat.entities?.[0] || "the premise");
 }
 
-/**
- * Recover high-value lexical evidence from the beat and semantic plan.
- * The small semantic lexicon below is intentionally a bridge from cognition
- * to language, not a subject/domain template. It protects requested intent
- * words such as "remember", "funny", "adding", and "next" when an earlier
- * entity truncation would otherwise discard them.
- */
 function semanticLexemes(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   const text = lower([
     beat.text,
@@ -130,23 +126,32 @@ function semanticLexemes(beat: StoryBeat, plan?: CognitiveExperiencePlan): strin
 
   const result: string[] = [];
   const add = (value: string) => {
-    if (value && !result.includes(value)) result.push(value);
+    if (value && !result.some((item) => lower(item) === lower(value))) result.push(value);
   };
 
-  if (/\b(?:remember|memory|memorial|nostalgia|preserve|legacy)\b/.test(text)) add("remember");
-  if (/\b(?:funny|humor|humorous|laugh|playful|joy)\b/.test(text)) add("funny");
-  if (/\b(?:family|relatives|parents|children|daughter|son|mother|father)\b/.test(text)) add("family");
-  if (/\b(?:add|adding|contribute|contribution|accumulate|accumulates|grows|growing)\b/.test(text)) add("adding");
-  if (/\b(?:next|progression|chapter|continue|continuation|future)\b/.test(text)) add("next");
-  if (/\b(?:clue|clues|scavenger|hunt|mystery|secret)\b/.test(text)) add("clue");
-  if (/\b(?:terrifying|terror|horror|haunted|scary|fear|dread|creepy)\b/.test(text)) add("terrifying");
-  if (/\b(?:luxury|luxurious|billionaire|opulent|lavish|indulgent)\b/.test(text)) add("luxury");
-  if (/\b(?:absurd|surreal|bizarre|impossible|weird|wild)\b/.test(text)) add("absurd");
-  if (/\b(?:concert|festival|nightclub|wedding|birthday|museum|spa|house|home|recipe|robot)\b/.test(text)) {
-    const match = text.match(/\b(concert|festival|nightclub|wedding|birthday|museum|spa|house|home|recipe|robot)\b/);
-    if (match) add(match[1]);
+  const patterns: Array<[RegExp, string]> = [
+    [/\b(?:remember|memory|memorial|nostalgia|preserve|legacy|remembering)\b/, "remember"],
+    [/\b(?:fun|funny|humor|humorous|laugh|playful|joy)\b/, "fun"],
+    [/\b(?:family|relatives|parents|children|daughter|son|mother|father)\b/, "family"],
+    [/\b(?:add|adding|contribute|contribution|accumulate|accumulates|grows|growing)\b/, "adding"],
+    [/\b(?:next|progression|chapter|continue|continuation|future)\b/, "next"],
+    [/\b(?:clue|clues|scavenger|hunt|mystery|secret)\b/, "clue"],
+    [/\b(?:terrifying|terror|horror|haunted|scary|fear|dread|creepy)\b/, "terrifying"],
+    [/\b(?:luxury|luxurious|billionaire|opulent|lavish|indulgent)\b/, "luxury"],
+    [/\b(?:absurd|surreal|bizarre|impossible|weird|wild)\b/, "absurd"],
+    [/\b(?:concert|festival|nightclub|wedding|birthday|museum|spa|house|home|recipe|robot)\b/, "context"],
+    [/\b(?:qr|nfc|scan|scanned|tag)\b/, "QR"],
+  ];
+
+  for (const [pattern, value] of patterns) {
+    if (!pattern.test(text)) continue;
+    if (value === "context") {
+      const match = text.match(pattern);
+      if (match?.[0]) add(match[0]);
+    } else {
+      add(value);
+    }
   }
-  if (/\b(?:qr|nfc|scan|scanned|tag)\b/.test(text)) add("QR");
 
   return result;
 }
@@ -155,6 +160,7 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
   const subjectValue = lower(subject(beat, plan));
   const candidates = [
     ...(beat.entities ?? []),
+    ...semanticLexemes(beat, plan),
     ...planValues(plan, "creativePossibilities"),
     ...planValues(plan, "contentModel"),
     ...planValues(plan, "discoveryModel"),
@@ -162,7 +168,7 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
     ...planValues(plan, "socialModel"),
     ...planValues(plan, "commerceModel"),
     ...planValues(plan, "progressionModel"),
-    ...semanticLexemes(beat, plan),
+    ...distinctiveTokens(beat.text),
   ];
 
   const scored = new Map<string, { value: string; score: number }>();
@@ -183,16 +189,10 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
     if (!previous || score > previous.score) scored.set(key, { value, score });
   }
 
-  for (const token of distinctiveTokens([beat.text, ...(beat.entities ?? [])].join(" "))) {
-    if (lower(token) === subjectValue) continue;
-    const key = lower(token);
-    if (!scored.has(key)) scored.set(key, { value: token, score: 2 });
-  }
-
   return [...scored.values()]
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.value)
-    .slice(0, 12);
+    .slice(0, 16);
 }
 
 function evidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): SemanticEvidence {
@@ -229,20 +229,18 @@ function material(ev: SemanticEvidence, count = 2): string[] {
 
 function realize(ev: SemanticEvidence, beat: StoryBeat): string {
   const name = cap(ev.subject);
-  const first = ev.anchors[0] ?? "the current detail";
+  const first = ev.anchors[0] ?? "the supplied detail";
   const second = ev.anchors[1] ?? "the next detail";
 
   switch (beat.kind) {
     case "orientation":
-      return ev.anchors.length
+      return ev.anchors.length > 0
         ? `${name} begins with ${first}${ev.anchors.length > 1 ? `, alongside ${second}` : ""}.`
-        : ev.purpose
-          ? `${name} begins because ${sentence(ev.purpose)}.`
-          : `${name} begins from the information the prompt supplied.`;
+        : `${name} begins from the evidence supplied by the prompt.`;
     case "hook":
-      return ev.why ? `${cap(ev.why)} ${name} makes that intent concrete.` : `${cap(first)} gives ${ev.subject} its first active point of attention.`;
+      return ev.why ? `${cap(ev.why)} ${name} makes that intent concrete.` : `${cap(first)} gives ${ev.subject} its first active point.`;
     case "need":
-      return ev.why ? `${cap(ev.why)} ${name} is the subject that carries that need.` : ev.purpose ? `${name} has a concrete purpose: ${sentence(ev.purpose)}.` : `${name} is the part of the premise that requires an answer.`;
+      return ev.why ? `${cap(ev.why)} ${name} carries that need.` : ev.purpose ? `${name} has a concrete purpose: ${sentence(ev.purpose)}.` : `${name} starts with the concrete need in the premise.`;
     case "threshold":
       return ev.interaction ? `${name} reaches a threshold through ${sentence(ev.interaction)}.` : `${name} moves from observation into participation.`;
     case "origin":
@@ -256,6 +254,8 @@ function realize(ev: SemanticEvidence, beat: StoryBeat): string {
       return ev.discovery ? `${name} reveals ${sentence(ev.discovery)}.` : ev.anchors.length > 1 ? `${cap(first)} connects with ${second}, exposing more of ${ev.subject}.` : `${cap(first)} becomes visible as a new part of ${ev.subject}.`;
     case "instruction":
       return ev.content ? `${name} provides the useful information: ${sentence(ev.content)}.` : ev.interaction ? `${name} turns the prompt into a usable action: ${sentence(ev.interaction)}.` : `${name} supplies the next usable piece of information.`;
+    case "action":
+      return ev.interaction ? `Act on ${ev.subject}: ${sentence(ev.interaction)}.` : `${name} turns the premise into the next concrete action.`;
     case "feedback":
       return ev.progression ? `The result feeds back into ${ev.subject}: ${sentence(ev.progression)}.` : `${cap(first)} becomes evidence for the next decision about ${ev.subject}.`;
     case "contribution":
@@ -263,20 +263,20 @@ function realize(ev: SemanticEvidence, beat: StoryBeat): string {
     case "escalation":
       return ev.progression ? `${name} escalates through ${sentence(ev.progression)}.` : `${cap(first)} raises the stakes around ${second}.`;
     case "transformation":
-      return ev.anchors.length > 1 ? `${name} changes from ${first} toward ${second}.` : ev.progression ? `${name} changes as ${sentence(ev.progression)}.` : `${name} reaches a different state because of the preceding interaction.`;
+      return ev.anchors.length > 1 ? `${name} changes from ${first} toward ${second}.` : ev.progression ? `${name} changes as ${sentence(ev.progression)}.` : `${name} changes because of the preceding interaction.`;
     case "reflection":
       return ev.memory ? `${name} retains ${sentence(ev.memory)}.` : ev.emotion ? `${name} carries ${sentence(ev.emotion)} forward.` : `${name} retains the consequence of what happened.`;
     case "provenance":
-      return `${name} preserves its source evidence: ${material(ev, 3).join(", ") || "the supplied prompt"}.`;
+      return `${name} preserves source evidence: ${material(ev, 4).join(", ") || "the supplied prompt"}.`;
     case "identity":
-      return ev.anchors.length ? `${name} is identified by ${material(ev, 3).join(", ")}.` : `${name} becomes identifiable through the context supplied by the prompt.`;
+      return ev.anchors.length ? `${name} is identified by ${material(ev, 3).join(", ")}.` : `${name} becomes identifiable through the supplied context.`;
     case "milestone":
       return ev.progression ? `${name} reaches a milestone in ${sentence(ev.progression)}.` : `${name} reaches the next state established by the experience.`;
     case "unlock":
     case "earned_access":
       return ev.reward ? `${name} unlocks ${sentence(ev.reward)}.` : ev.progression ? `${name} earns the next state through ${sentence(ev.progression)}.` : `${name} opens the next state because of what happened before it.`;
     case "payoff":
-      return ev.reward ? `${name} reaches the payoff: ${sentence(ev.reward)}.` : ev.purpose ? `${name} resolves around ${sentence(ev.purpose)}.` : ev.memory ? `${name} resolves by retaining ${sentence(ev.memory)}.` : `${name} reaches the state produced by the preceding events.`;
+      return ev.reward ? `${name} reaches the payoff: ${sentence(ev.reward)}.` : ev.purpose ? `${name} resolves around ${sentence(ev.purpose)}.` : ev.memory ? `${name} resolves by retaining ${sentence(ev.memory)}.` : `${name} reaches the result established by the premise.`;
     case "next_step":
       return ev.progression ? `${name} continues with ${sentence(ev.progression)}.` : ev.future ? `${name} continues through ${sentence(ev.future)}.` : `${name} uses the current state to determine the next action.`;
     case "continuation":
@@ -286,17 +286,31 @@ function realize(ev: SemanticEvidence, beat: StoryBeat): string {
   }
 }
 
+function preserveEvidence(text: string, ev: SemanticEvidence): string {
+  const normalized = lower(text);
+  const anchors = ev.anchors
+    .filter((anchor) => distinctiveTokens(anchor).length > 0)
+    .filter((anchor) => !isGenericCompilerProse(anchor))
+    .filter((anchor) => !normalized.includes(lower(anchor)))
+    .slice(0, 3);
+
+  if (!anchors.length) return text;
+
+  return `${clean(text).replace(/[.!?]+$/, "")}. Evidence carried forward: ${anchors.join(", ")}.`;
+}
+
 export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const ev = evidence(beat, plan);
-  const value = clean(realize(ev, beat));
+  let value = clean(realize(ev, beat));
 
-  if (value && !isGenericCompilerProse(value)) return value;
+  if (isGenericCompilerProse(value)) {
+    const original = clean(beat.text);
+    value = original && !isGenericCompilerProse(original)
+      ? original
+      : `${cap(ev.subject)} carries ${material(ev, 3).join(", ") || "the supplied premise"}.`;
+  }
 
-  const original = clean(beat.text);
-  if (original && !isGenericCompilerProse(original)) return original;
-
-  const fallbackMaterial = material(ev, 3);
-  return fallbackMaterial.length ? `${cap(ev.subject)} carries ${fallbackMaterial.join(", ")}.` : cap(ev.subject);
+  return preserveEvidence(value, ev);
 }
 
 export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
