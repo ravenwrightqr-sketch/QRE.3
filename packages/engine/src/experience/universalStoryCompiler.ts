@@ -1364,37 +1364,44 @@ function choose(
    *
    * This is intentionally stronger than generic score-based selection.
    */
-  if (plan?.direction) {
-    const cognitiveCandidate = candidateList.find(
-      (candidate) =>
-        candidate.id ===
-        `cognitive-${lower(plan.direction)}`,
-    );
+   /*
+ * If cognition supplied a direction, prefer the candidate explicitly
+ * compiled from that direction.
+ *
+ * This is intentionally stronger than generic score-based selection.
+ */
+if (plan?.direction) {
+  const direction = plan.direction;
 
-    if (cognitiveCandidate) {
-      return cognitiveCandidate;
-    }
-  }
-
-  if (!plan) {
-    return candidateList[0];
-  }
-
-  const planTextValue = planText(plan).join(" ");
-
-  return (
-    [...candidateList].sort((a, b) => {
-      const aFit =
-        wordOverlap(a.rationale, planTextValue) +
-        a.score * 0.08;
-
-      const bFit =
-        wordOverlap(b.rationale, planTextValue) +
-        b.score * 0.08;
-
-      return bFit - aFit;
-    })[0] ?? candidateList[0]
+  const cognitiveCandidate = candidateList.find(
+    (candidate) =>
+      candidate.id === `cognitive-${lower(direction)}`,
   );
+
+  if (cognitiveCandidate) {
+    return cognitiveCandidate;
+  }
+}
+
+if (!plan) {
+  return candidateList[0];
+}
+
+const planTextValue = planText(plan).join(" ");
+
+return (
+  [...candidateList].sort((a, b) => {
+    const aFit =
+      wordOverlap(a.rationale, planTextValue) +
+      a.score * 0.08;
+
+    const bFit =
+      wordOverlap(b.rationale, planTextValue) +
+      b.score * 0.08;
+
+    return bFit - aFit;
+  })[0] ?? candidateList[0]
+);
 }
 
 function primaryPlanSignal(
@@ -2286,8 +2293,12 @@ function genome(
 
     meaning,
 
-    relationships:
-      observation.entities.people,
+    relationships: observation.entities.people.map((person) => ({
+  subject: observation.subject,
+  predicate: "shared_with",
+  object: person,
+  confidence: 0.8,
+})),
 
     energy: storyValue.tone.includes(
       "playful",
