@@ -1,4 +1,4 @@
-import type { CognitiveExperiencePlan, StoryBeat, StoryBeatKind } from "@qre/contracts";
+import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 
 /**
  * Universal premise realization.
@@ -92,19 +92,14 @@ function planText(plan?: CognitiveExperiencePlan): string {
 }
 
 function sourceText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  return lower(
-    [beat.text, ...(beat.entities ?? []), planText(plan)].join(" "),
-  );
+  return lower([beat.text, ...(beat.entities ?? []), planText(plan)].join(" "));
 }
 
 function classifyForces(beat: StoryBeat, plan?: CognitiveExperiencePlan): PremiseForces {
   const text = sourceText(beat, plan);
 
   return Object.fromEntries(
-    (Object.keys(FORCE_WORDS) as ForceName[]).map((name) => [
-      name,
-      hasAny(text, FORCE_WORDS[name]),
-    ]),
+    (Object.keys(FORCE_WORDS) as ForceName[]).map((name) => [name, hasAny(text, FORCE_WORDS[name])]),
   ) as PremiseForces;
 }
 
@@ -128,10 +123,7 @@ function evidence(beat: StoryBeat, subjectValue: string): string[] {
     .slice(0, 8);
 }
 
-function signal(
-  plan: CognitiveExperiencePlan | undefined,
-  field: keyof CognitiveExperiencePlan,
-): string {
+function signal(plan: CognitiveExperiencePlan | undefined, field: keyof CognitiveExperiencePlan): string {
   const value = plan?.[field];
   if (typeof value === "string") return sentence(value);
   if (Array.isArray(value)) return sentence(String(value[0] ?? ""));
@@ -150,52 +142,30 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
   const interaction = signal(plan, "interactionModel");
 
   switch (beat.kind) {
-    case "orientation":
-      return ev.length ? `${cap(subjectValue)} starts with ${ev.slice(0, 2).join(" and ")}.` : `${cap(subjectValue)} starts here.`;
-    case "hook":
-      return ev.length ? `${cap(ev[0])} is the first thing that changes what happens next.` : `The first move creates a reason to keep going.`;
-    case "encounter":
-      return ev.length ? `${cap(ev[0])} changes what happens around ${subjectValue}.` : `${cap(subjectValue)} meets the next complication.`;
-    case "escalation":
-      return progression || `The next beat raises the stakes instead of repeating the last one.`;
+    case "orientation": return ev.length ? `${cap(subjectValue)} starts with ${ev.slice(0, 2).join(" and ")}.` : `${cap(subjectValue)} starts here.`;
+    case "hook": return ev.length ? `${cap(ev[0])} is the first thing that changes what happens next.` : `The first move creates a reason to keep going.`;
+    case "encounter": return ev.length ? `${cap(ev[0])} changes what happens around ${subjectValue}.` : `${cap(subjectValue)} meets the next complication.`;
+    case "escalation": return progression || `The next beat raises the stakes instead of repeating the last one.`;
     case "discovery":
-    case "reveal":
-      return ev.length ? `${cap(ev[0])} turns out to matter more than expected.` : `A new piece of evidence appears.`;
-    case "transformation":
-      return `The state of ${subjectValue} changes because of what happened.`;
-    case "reflection":
-      return plan?.emotionalIntent?.[0] ? `What remains is ${sentence(plan.emotionalIntent[0])}.` : `What happened leaves a concrete consequence behind.`;
-    case "payoff":
-      return planPurpose(plan) || `${cap(subjectValue)} reaches the consequence earned by the events before it.`;
-    case "continuation":
-      return future || `${cap(subjectValue)} leaves a live thread for what happens next.`;
-    case "need":
-      return signal(plan, "whyInteract") || `${cap(subjectValue)} has a concrete problem to solve.`;
-    case "threshold":
-      return `The ordinary version of ${subjectValue} ends here.`;
-    case "origin":
-      return signal(plan, "memoryModel") ? `${cap(subjectValue)} carries forward ${signal(plan, "memoryModel")}.` : `${cap(subjectValue)} brings something from before into the present.`;
-    case "challenge":
-      return progression || `Something has to be overcome before ${subjectValue} can advance.`;
-    case "instruction":
-      return interaction || `The next concrete move is clear.`;
-    case "action":
-      return interaction || `Make the move that changes ${subjectValue}.`;
-    case "feedback":
-      return `The result determines the next move.`;
-    case "contribution":
-      return `Someone adds something that changes the next version of ${subjectValue}.`;
-    case "identity":
-      return `${cap(subjectValue)} becomes more specific through what people actually do with it.`;
-    case "milestone":
-      return progression || `The process has crossed a point that changes the next stage.`;
+    case "reveal": return ev.length ? `${cap(ev[0])} turns out to matter more than expected.` : `A new piece of evidence appears.`;
+    case "transformation": return `The state of ${subjectValue} changes because of what happened.`;
+    case "reflection": return plan?.emotionalIntent?.[0] ? `What remains is ${sentence(plan.emotionalIntent[0])}.` : `What happened leaves a concrete consequence behind.`;
+    case "payoff": return planPurpose(plan) || `${cap(subjectValue)} reaches the consequence earned by the events before it.`;
+    case "continuation": return future || `${cap(subjectValue)} leaves a live thread for what happens next.`;
+    case "need": return signal(plan, "whyInteract") || `${cap(subjectValue)} has a concrete problem to solve.`;
+    case "threshold": return `The ordinary version of ${subjectValue} ends here.`;
+    case "origin": return signal(plan, "memoryModel") ? `${cap(subjectValue)} carries forward ${signal(plan, "memoryModel")}.` : `${cap(subjectValue)} brings something from before into the present.`;
+    case "challenge": return progression || `Something has to be overcome before ${subjectValue} can advance.`;
+    case "instruction": return interaction || `The next concrete move is clear.`;
+    case "action": return interaction || `Make the move that changes ${subjectValue}.`;
+    case "feedback": return `The result determines the next move.`;
+    case "contribution": return `Someone adds something that changes the next version of ${subjectValue}.`;
+    case "identity": return `${cap(subjectValue)} becomes more specific through what people actually do with it.`;
+    case "milestone": return progression || `The process has crossed a point that changes the next stage.`;
     case "unlock":
-    case "earned_access":
-      return signal(plan, "rewardModel") || `Something previously unavailable is now open.`;
-    case "next_step":
-      return progression || `The next move follows directly from what just happened.`;
-    default:
-      return clean(beat.text);
+    case "earned_access": return signal(plan, "rewardModel") || `Something previously unavailable is now open.`;
+    case "next_step": return progression || `The next move follows directly from what just happened.`;
+    default: return clean(beat.text);
   }
 }
 
@@ -210,7 +180,6 @@ function realizeByForces(beat: StoryBeat, plan?: CognitiveExperiencePlan): strin
   const progression = signal(plan, "progressionModel");
   const reward = signal(plan, "rewardModel");
   const future = signal(plan, "futureEvolution");
-  const creative = signal(plan, "creativePossibilities");
 
   if (forces.accumulating && forces.participatory) {
     if (beat.kind === "orientation") return `${subjectName} starts with one version, and the next person gets to change it.`;
@@ -270,9 +239,7 @@ function realizeByForces(beat: StoryBeat, plan?: CognitiveExperiencePlan): strin
     if (beat.kind === "continuation") return future || `Enough remains unresolved to keep looking.`;
   }
 
-  if (forces.temporal && beat.kind === "continuation") {
-    return future || `The next return starts with everything that happened before.`;
-  }
+  if (forces.temporal && beat.kind === "continuation") return future || `The next return starts with everything that happened before.`;
 
   return concreteFallback(beat, plan);
 }
