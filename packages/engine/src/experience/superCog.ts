@@ -23,8 +23,7 @@ function resolveSubject(prompt: string, fallback: string): string {
   if (involving) add(involving[1], 0.94);
 
   const generic = /^(?:qr\s+)?experience$|^something$|^thing$|^program$|^story$/i;
-  const ranked = candidates
-    .map((candidate) => ({ ...candidate, score: candidate.score - (generic.test(candidate.value) ? 0.25 : 0) }))
+  const ranked = candidates.map((candidate) => ({ ...candidate, score: candidate.score - (generic.test(candidate.value) ? 0.25 : 0) }))
     .sort((a, b) => b.score - a.score || a.value.length - b.value.length);
   return ranked[0]?.value ?? fallback;
 }
@@ -33,11 +32,33 @@ function replaceSubject(value: string, from: string, to: string): string {
   return from && from !== to ? value.split(from).join(to) : value;
 }
 
+function normalizeOpportunities(prompt: string, result: CompiledCognitiveExperience): CompiledCognitiveExperience["cognition"]["opportunities"] {
+  const text = prompt.toLowerCase();
+  const current = result.cognition.opportunities;
+  return {
+    ...current,
+    discovery: current.discovery.length || /\b(hunt|quest|puzzle|treasure|explore|discover|game)\b/i.test(text)
+      ? current.discovery.length ? current.discovery : [`Explore ${result.cognition.subject.value} through progressive discovery.`]
+      : current.discovery,
+    geographic: current.geographic.length || /\b(travel|traveled|journey|destination|route|map|place|city|venue)\b/i.test(text)
+      ? current.geographic.length ? current.geographic : [`Use movement and place as evidence around ${result.cognition.subject.value}.`]
+      : current.geographic,
+    social: current.social.length || /\b(nightclub|people|everyone|together|group|community|fans|crowd)\b/i.test(text)
+      ? current.social.length ? current.social : ["Let participant contribution alter the shared experience."]
+      : current.social,
+    commercial: current.commercial.length || /\b(brand|shop|customer|loyalty|sell|launch|luxury|product)\b/i.test(text)
+      ? current.commercial.length ? current.commercial : [`Create value around ${result.cognition.subject.value} beyond the transaction.`]
+      : current.commercial,
+  };
+}
+
 export function compileSuperCogExperience(prompt: string): CompiledCognitiveExperience {
   const result = compileRaw(prompt);
+  const opportunities = normalizeOpportunities(prompt, result);
   const oldSubject = result.cognition.subject.value;
   const subject = resolveSubject(prompt, oldSubject);
-  if (subject === oldSubject) return result;
+
+  if (subject === oldSubject && opportunities === result.cognition.opportunities) return result;
 
   const story = {
     ...result.story,
@@ -65,6 +86,20 @@ export function compileSuperCogExperience(prompt: string): CompiledCognitiveExpe
   const scenePlan = result.scenePlan.map((scene) => ({ ...scene, text: replaceSubject(scene.text, oldSubject, subject), purpose: replaceSubject(scene.purpose, oldSubject, subject) }));
   const cinematicScenes = result.cinematicScenes.map((scene) => ({ ...scene, moment: "text" in scene.moment ? { ...scene.moment, text: replaceSubject(scene.moment.text, oldSubject, subject) } : scene.moment }));
 
+  const normalizedCognition = {
+    ...result.cognition,
+    subject: { ...result.cognition.subject, value: subject },
+    plan,
+    opportunities,
+    memoryOpportunities: opportunities.memory,
+    geographicOpportunities: opportunities.geographic,
+    socialOpportunities: opportunities.social,
+    discoveryOpportunities: opportunities.discovery,
+    temporalOpportunities: opportunities.temporal,
+    commercialOpportunities: opportunities.commercial,
+    story,
+  };
+
   const blueprint = {
     ...result.blueprint,
     title: replaceSubject(result.blueprint.title, oldSubject, subject),
@@ -74,7 +109,7 @@ export function compileSuperCogExperience(prompt: string): CompiledCognitiveExpe
 
   return {
     ...result,
-    cognition: { ...result.cognition, subject: { ...result.cognition.subject, value: subject }, plan, story },
+    cognition: normalizedCognition,
     story,
     blueprint,
     flowSteps,
