@@ -2,14 +2,6 @@
  * =============================================================
  * QRE COGNITIVE COMPILER CONTRACTS
  * =============================================================
- *
- * Cognition is the decision layer between human language and the
- * universal experience substrate.
- *
- * These contracts describe evidence, hypotheses, plans, and story
- * realization. They contain no database or runtime concerns.
- *
- * =============================================================
  */
 
 import type { ExperienceEntities } from "./entityExtractor.js";
@@ -22,15 +14,8 @@ import type { CinematicScene } from "../cinematic.js";
 import type { FlowStep } from "../flow.js";
 
 export type CognitiveDirection =
-  | "utility"
-  | "game"
-  | "discovery"
-  | "memory"
-  | "social"
-  | "commerce"
-  | "journey"
-  | "identity"
-  | "story";
+  | "utility" | "game" | "discovery" | "memory" | "social"
+  | "commerce" | "journey" | "identity" | "story";
 
 export type CognitiveEvidence = {
   signal: string;
@@ -98,29 +83,11 @@ export type StorySituation = {
 };
 
 export type StoryBeatKind =
-  | "orientation"
-  | "hook"
-  | "encounter"
-  | "escalation"
-  | "discovery"
-  | "transformation"
-  | "payoff"
-  | "reflection"
-  | "continuation"
-  | "need"
-  | "threshold"
-  | "origin"
-  | "challenge"
-  | "reveal"
-  | "instruction"
-  | "action"
-  | "feedback"
-  | "contribution"
-  | "identity"
-  | "milestone"
-  | "unlock"
-  | "earned_access"
-  | "next_step";
+  | "orientation" | "hook" | "encounter" | "escalation" | "discovery"
+  | "transformation" | "payoff" | "reflection" | "continuation"
+  | "need" | "threshold" | "origin" | "challenge" | "reveal"
+  | "instruction" | "action" | "feedback" | "contribution" | "identity"
+  | "milestone" | "unlock" | "earned_access" | "next_step";
 
 export type StoryBeat = {
   id: string;
@@ -147,10 +114,7 @@ export type StoryScenePlan = {
     theme: "cinematic" | "dark" | "light" | "glass";
     animation: "none" | "slow_zoom" | "parallax" | "particles" | "glitch";
   };
-  audio: {
-    type: "ambient" | "music" | "voice";
-    mood: string;
-  };
+  audio: { type: "ambient" | "music" | "voice"; mood: string };
   provenance: CognitiveEvidence[];
 };
 
@@ -177,6 +141,18 @@ export type CognitiveUnderstanding = {
   worldSignals: string[];
   affordances: string[];
   confidence: number;
+};
+
+/** Compatibility scene shape for pre-Super-Cog consumers. */
+export type ExperienceSceneType = StoryBeatKind;
+
+export type ExperienceScene = {
+  id: string;
+  type: ExperienceSceneType;
+  title: string;
+  atmosphere: string;
+  emotionalIntent: string;
+  duration: number;
 };
 
 export type CognitiveCompilation = {
