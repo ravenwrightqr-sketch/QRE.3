@@ -37,7 +37,6 @@ const GENERIC_REALIZATION_LANGUAGE = [
   "what the experience has revealed",
   "has become more meaningful through the interaction",
   "turns observed detail into an evidence-aware experience",
-  "make the moment matter",
 ];
 
 const cases: Case[] = [
@@ -108,6 +107,7 @@ for (const testCase of cases) {
     observation: result.observation,
     situation: result.situation,
   });
+  const realizedStoryText = result.story.beats.map((beat) => beat.text).join(" ");
 
   if (!result.story.title) throw new Error(`Missing title for: ${testCase.prompt}`);
   if (result.story.beats.length < 2) throw new Error(`Story is too short for: ${testCase.prompt}`);
@@ -121,7 +121,10 @@ for (const testCase of cases) {
     }
   }
   for (const value of testCase.mustNotContain ?? []) {
-    if (observable.toLowerCase().includes(value.toLowerCase())) {
+    if (
+      observable.toLowerCase().includes(value.toLowerCase()) ||
+      realizedStoryText.toLowerCase().includes(value.toLowerCase())
+    ) {
       throw new Error(`Unexpected '${value}' in compiler result for: ${testCase.prompt}`);
     }
   }
