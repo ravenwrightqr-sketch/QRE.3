@@ -13,6 +13,7 @@ $replacements = @{
 '`The next interaction can change what ${subjectValue} means.`' = '`${subjectName} remains open to the next interaction.`'
 '`${subjectName} continues to develop through the interaction.`' = '`${subjectName} continues from the current state.`'
 '`The hidden relationship around ${subjectValue} becomes visible.`' = '`${subjectName} exposes the concrete relationship carried by the premise.`'
+'...observation.entities.keywords.slice(0, 4),' = '...observation.entities.keywords,'
 }
 
 foreach ($pair in $replacements.GetEnumerator()) {
@@ -23,4 +24,4 @@ foreach ($pair in $replacements.GetEnumerator()) {
 }
 
 Set-Content -Path $path -Value $text -NoNewline
-Write-Host 'Universal realization replacements applied.' -ForegroundColor Green
+Write-Host 'Universal realization cleanup applied.' -ForegroundColor Green
