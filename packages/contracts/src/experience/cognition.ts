@@ -13,7 +13,6 @@
  */
 
 import type { ExperienceEntities } from "./entityExtractor.js";
-import type { ExperienceUnderstanding } from "./understanding.js";
 
 export type CognitiveDirection =
   | "utility"
@@ -159,14 +158,34 @@ export type ExperienceStory = {
   provenance: CognitiveEvidence[];
 };
 
+export type CognitiveUnderstanding = {
+  prompt: string;
+  intent: string[];
+  themes: string[];
+  entities: ExperienceEntities;
+  relationships: string[];
+  emotions: string[];
+  memorySignals: string[];
+  audience: string[];
+  worldSignals: string[];
+  affordances: string[];
+  confidence: number;
+};
+
 export type CognitiveCompilation = {
   prompt: string;
-  understanding: ExperienceUnderstanding;
+  understanding: CognitiveUnderstanding;
   subject: CognitiveSubject;
   hypotheses: CognitiveHypothesis[];
   selectedHypothesis: CognitiveHypothesis;
   plan: CognitiveExperiencePlan;
   opportunities: CognitiveOpportunitySet;
+  memoryOpportunities: string[];
+  geographicOpportunities: string[];
+  socialOpportunities: string[];
+  discoveryOpportunities: string[];
+  temporalOpportunities: string[];
+  commercialOpportunities: string[];
   observation: ExperienceObservation;
   situation: StorySituation;
   story: ExperienceStory;
