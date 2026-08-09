@@ -1,6 +1,6 @@
 /** QRE SUPER COG — INTELLIGENCE ACCEPTANCE MATRIX */
 
-import { compileSuperCogExperience } from "../../experience/superCogCanonical.js";
+import { compileSuperCogExperience } from "../../experience/superCogContext.js";
 
 type OpportunityKey = "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial";
 type Expected = { prompt: string; subjectIncludes: string; opportunity?: OpportunityKey };
@@ -62,4 +62,10 @@ const nightclub = compileSuperCogExperience("Make a QR experience for a nightclu
 if (memorial.cognition.selectedHypothesis.kind === nightclub.cognition.selectedHypothesis.kind) throw new Error("Cognitive collapse between memorial and nightclub.");
 if (memorial.cognition.plan.centralSubject === nightclub.cognition.plan.centralSubject) throw new Error("Subject collapse between unrelated prompts.");
 
-console.log(`SUPER COG ACCEPTANCE: ${passed}/${cases.length} passed`);
+const remembered = compileSuperCogExperience("Max came back to the same groomer", {
+  memories: [{ summary: "Max's earlier grooming visit", entities: ["Max", "groomer"] }],
+});
+if (!remembered.cognition.plan.memoryModel.length) throw new Error("Accumulated memory did not reach the cognitive plan.");
+if (remembered.genome.memory < 0.9) throw new Error("Accumulated memory did not reach the genome.");
+
+console.log(`SUPER COG ACCEPTANCE: ${passed}/${cases.length} passed + memory context`);
