@@ -1,3 +1,4 @@
+import type { CognitivePremiseRole } from "@qre/contracts";
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 import { premiseValues } from "../../cognition/premiseBuilder.js";
 
@@ -45,7 +46,7 @@ for (const testCase of cases) {
   }
 
   for (const [role, expected] of Object.entries(testCase.required)) {
-    const actual = premiseValues(premise, role as never);
+    const actual = premiseValues(premise, role as CognitivePremiseRole);
     if (!actual.some((value) => value.toLowerCase().includes(expected.toLowerCase()))) {
       throw new Error(
         `Premise role ${role} lost ${expected} for: ${testCase.prompt}. Actual: ${actual.join(", ")}`,
