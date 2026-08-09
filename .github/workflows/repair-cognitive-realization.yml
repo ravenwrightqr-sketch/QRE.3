@@ -8,8 +8,6 @@ on:
 permissions:
   contents: write
 
-auto_cancel: false
-
 jobs:
   repair:
     if: ${{ !contains(github.event.head_commit.message, '[cognitive-repair]') }}
@@ -32,14 +30,11 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           root = Path('.')
           universal = root / 'packages/engine/src/experience/universalStoryCompiler.ts'
           text = universal.read_text(encoding='utf-8')
 
-          # Make premise realization the single language-realization authority.
-          marker = 'import type {\n'
           if 'from "./eloquentStoryRealizer.js"' not in text:
               idx = text.find('} from "@qre/contracts";')
               if idx < 0:
@@ -47,35 +42,26 @@ jobs:
               end = idx + len('} from "@qre/contracts";')
               text = text[:end] + '\nimport { elevateStoryBeats } from "./eloquentStoryRealizer.js";' + text[end:]
 
-          # Preserve the complete prompt-derived evidence set. The old first-four
-          # truncation silently discarded coupled evidence such as "remember".
           old_entities = '''entities: unique([\n      observation.subject,\n      ...observation.entities.keywords.slice(0, 4),\n      ...situationValue.actors.slice(0, 2),\n    ]),'''
           new_entities = '''entities: unique([\n      observation.subject,\n      ...observation.entities.keywords,\n      ...situationValue.actors,\n    ]),'''
           if old_entities in text:
               text = text.replace(old_entities, new_entities, 1)
 
-          # Replace raw beat output with evidence-first realization.
           old_story = '''  const beats = candidate.beats.map(\n    (kind, index) =>\n      makeBeat(\n        kind,\n        index,\n        observation,\n        situationValue,\n        toneValue,\n        context.cognitivePlan,\n      ),\n  );'''
           new_story = '''  const rawBeats = candidate.beats.map(\n    (kind, index) =>\n      makeBeat(\n        kind,\n        index,\n        observation,\n        situationValue,\n        toneValue,\n        context.cognitivePlan,\n      ),\n  );\n\n  // Cognition chooses what the experience means; the premise realizer is the\n  // only layer allowed to turn that meaning into user-facing language.\n  const beats = elevateStoryBeats(\n    rawBeats,\n    context.cognitivePlan,\n  );'''
           if old_story not in text:
               raise SystemExit('story beat construction block not found')
           text = text.replace(old_story, new_story, 1)
 
-          # Universal substrate needs a small semantic bridge for underspecified
-          # creative prompts. "Surprise me" means play/discovery, not a noun.
           old_keywords = '''  const keywords = unique(\n    tokens(text)\n      .map((value) => value.toLowerCase())\n      .filter(\n        (value) => value.length > 2 && !STOP.has(value),\n      ),\n  );'''
-          new_keywords = '''  const keywords = unique([\n    ...tokens(text)\n      .map((value) => value.toLowerCase())\n      .filter(\n        (value) => value.length > 2 && !STOP.has(value),\n      ),\n    ...( /\\b(surprise|surprise me)\\b/i.test(text) ? ["play"] : [] ),\n  ]);'''
+          new_keywords = '''  const keywords = unique([\n    ...tokens(text)\n      .map((value) => value.toLowerCase())\n      .filter(\n        (value) => value.length > 2 && !STOP.has(value),\n      ),\n    ...(/\\b(surprise|surprise me)\\b/i.test(text) ? ["play"] : []),\n  ]);'''
           if old_keywords not in text:
               raise SystemExit('keyword block not found')
           text = text.replace(old_keywords, new_keywords, 1)
 
-          # Remove grammatical filler that should never become evidence.
           text = text.replace('  "then",\n]);', '  "then",\n  "will",\n  "people",\n]);', 1)
           universal.write_text(text, encoding='utf-8')
 
-          # Strengthen cognition with explicit prompt evidence without creating
-          # a second planner: creativePossibilities carries only high-salience
-          # prompt anchors that realization may use when useful.
           cognition = root / 'packages/engine/src/cognition/cognitiveEngine.ts'
           ctext = cognition.read_text(encoding='utf-8')
           anchor_marker = '''  const plan: CognitiveExperiencePlan = {\n    centralSubject:\n      subject.value,'''
@@ -91,7 +77,6 @@ jobs:
           ctext = ctext.replace(old_creative, new_creative, 1)
           cognition.write_text(ctext, encoding='utf-8')
 
-          # Expand the acceptance suite with deliberately adversarial prompts.
           tests = root / 'packages/engine/src/compiler/tests/experienceCompiler.test.ts'
           t = tests.read_text(encoding='utf-8')
           insertion = '''  {\n    prompt: "Surprise me with a weird little ritual involving a vending machine.",\n    anchors: ["surprise", "ritual", "vending", "machine"],\n  },\n  {\n    prompt: "Make a QR for a concert that gets funnier every time someone scans it.",\n    anchors: ["qr", "concert", "funnier", "scans"],\n  },\n  {\n    prompt: "Teach my sister how to repair a vintage camera without boring her.",\n    anchors: ["sister", "repair", "vintage", "camera"],\n  },\n'''
