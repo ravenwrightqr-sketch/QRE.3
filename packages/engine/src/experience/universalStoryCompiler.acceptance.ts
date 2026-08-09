@@ -1,4 +1,5 @@
 import { compileStoryExperience } from "./universalStoryCompiler.js";
+import { compileCognitiveExperience } from "./cognitiveExperienceCompiler.js";
 
 /**
  * Executable acceptance corpus for the universal compiler.
@@ -71,8 +72,70 @@ if (memoryResult.genome.memory < 0.8) {
   failures.push("memory context was not incorporated as context");
 }
 
+/**
+ * Cognitive realization acceptance checks.
+ *
+ * The language layer is downstream of cognition: it may improve expression,
+ * but it must not replace the selected subject/direction or desynchronize the
+ * runtime representations that carry the story copy.
+ */
+const cognitiveResult = compileCognitiveExperience(
+  "Create something playful around this old photograph of the ocean.",
+);
+
+if (!cognitiveResult.cognition.plan.centralSubject.trim()) {
+  failures.push("cognitive realization lost its central subject");
+}
+
+if (!cognitiveResult.cognition.plan.direction.trim()) {
+  failures.push("cognitive realization lost its selected direction");
+}
+
+const cognitiveBeatTexts = new Map(
+  cognitiveResult.story.beats.map((beat) => [beat.id, beat.text]),
+);
+
+for (const moment of cognitiveResult.blueprint.moments) {
+  const beatId = String(
+    (moment.payload as { beatId?: unknown } | undefined)?.beatId ?? "",
+  );
+  const beatText = cognitiveBeatTexts.get(beatId);
+
+  if (beatText && moment.description !== beatText) {
+    failures.push(`blueprint language drift: ${beatId}`);
+  }
+}
+
+for (const moment of cognitiveResult.moments) {
+  const beatId = String(
+    (moment.meta as { beatId?: unknown } | undefined)?.beatId ?? "",
+  );
+  const beatText = cognitiveBeatTexts.get(beatId);
+
+  if (beatText && moment.text !== beatText) {
+    failures.push(`moment language drift: ${beatId}`);
+  }
+}
+
+for (const scene of cognitiveResult.scenePlan) {
+  const beatText = cognitiveBeatTexts.get(scene.beatId);
+
+  if (beatText && scene.text !== beatText) {
+    failures.push(`scene-plan language drift: ${scene.beatId}`);
+  }
+}
+
+if (
+  cognitiveResult.model.metadata?.tags &&
+  !cognitiveResult.model.metadata.tags.includes("eloquent-language-realization")
+) {
+  failures.push("cognitive model did not record language realization");
+}
+
 if (failures.length) {
   throw new Error(`Universal story compiler acceptance failures:\n${failures.join("\n")}`);
 }
 
-console.log(`Universal story compiler acceptance passed: ${prompts.length} adversarial prompts + event + memory contexts.`);
+console.log(
+  `Universal story compiler acceptance passed: ${prompts.length} adversarial prompts + event + memory + cognitive language synchronization.`,
+);
