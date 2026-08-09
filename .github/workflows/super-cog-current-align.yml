@@ -1,0 +1,109 @@
+name: Super Cog current-branch alignment
+
+on:
+  push:
+    branches:
+      - cognitive-experience-engine
+
+permissions:
+  contents: write
+
+jobs:
+  align-and-verify:
+    if: ${{ !contains(github.event.head_commit.message, '[super-cog-align]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply exact Super Cog semantic alignment
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path.cwd()
+
+          def patch(path, replacements):
+              p = root / path
+              text = p.read_text(encoding='utf-8')
+              original = text
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f'PATCH GUARD FAILED: exact source block not found in {path}: {old[:120]!r}')
+                  text = text.replace(old, new, 1)
+              if text == original:
+                  raise SystemExit(f'PATCH GUARD FAILED: no change made to {path}')
+              p.write_text(text, encoding='utf-8')
+
+          patch('packages/engine/src/experience/universalStoryCompiler.ts', [
+              (
+                  '''  const cognitiveSubject = clean(plan?.centralSubject ?? "");\n\n  if (cognitiveSubject) {\n    return cognitiveSubject;\n  }\n\n\n  const text = clean(prompt);''',
+                  '''  const cognitiveSubject = clean(plan?.centralSubject ?? "");\n  const text = clean(prompt);\n\n  // A machine-readable medium is not automatically the semantic subject.\n  // QR/NFC/scan/tag are interfaces; the experience belongs to the concrete\n  // event/object/place the person actually described.\n  const mediumOnlySubject = /^(?:qr|nfc|scan|scannable|tag|code|barcode)$/i.test(\n    cognitiveSubject,\n  );\n\n  if (cognitiveSubject && !mediumOnlySubject) {\n    return cognitiveSubject;\n  }'''
+              ),
+              (
+                  '''  const events = unique(\n    lo.match(\n      /\\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|rave|nightclub|anniversary|memorial)\\b/g,\n    ) ?? [],\n  );''',
+                  '''  const events = unique(\n    lo.match(\n      /\\b(wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|conference|convention\\s+center)\\b/g,\n    ) ?? [],\n  );'''
+              ),
+              (
+                  '''  const products = unique(\n    lo.match(\n      /\\b(qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|pick|jewelry|tattoo)\\b/g,\n    ) ?? [],\n  );''',
+                  '''  const products = unique(\n    lo.match(\n      /\\b(qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|pick|jewelry|artwork|artifact|portal|token|totem|emblem|installation|tattoo)\\b/g,\n    ) ?? [],\n  );'''
+              ),
+              (
+                  '''    entities: unique([\n      observation.subject,\n      ...observation.entities.keywords,\n      ...situationValue.actors.slice(0, 2),\n    ]),''',
+                  '''    entities: unique([\n      observation.subject,\n      ...observation.entities.events,\n      ...observation.entities.products,\n      ...observation.entities.places,\n      ...observation.entities.media,\n      ...observation.entities.keywords,\n      ...situationValue.actors.slice(0, 2),\n    ]),'''
+              ),
+          ])
+
+          patch('packages/engine/src/cognition/cognitiveEngine.ts', [
+              (
+                  '''    events: unique(\n      lo.match(\n        /\\b(?:wedding|concert|festival|birthday|party|ceremony|event|show|conference|rave|club|anniversary|memorial)\\b/g,\n      ) ?? [],\n    ),''',
+                  '''    events: unique(\n      lo.match(\n        /\\b(?:wedding|concert|festival|birthday|party|ceremony|event|show|conference|convention|expo|exposition|rave|nightclub|club|anniversary|memorial|gathering|meetup|fair|tournament|showcase|opening|launch|premiere|parade|carnival|retreat|summit|convention\\s+center)\\b/g,\n      ) ?? [],\n    ),'''
+              ),
+              (
+                  '''      /\\b(?:qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|guitar pick|pick|jewelry|artwork|tattoo)\\b/g,''',
+                  '''      /\\b(?:qr|nfc|tag|keychain|sticker|card|poster|shirt|book|product|watch|gift|surfboard|truck|vehicle|guitar|guitar pick|pick|jewelry|artwork|artifact|portal|token|totem|emblem|installation|tattoo)\\b/g,'''
+              ),
+          ])
+
+          agents = root / 'AGENTS.md'
+          if not agents.exists():
+              agents.write_text('''# Super Cog Engineering Rules\n\n## Mission\nBuild a domain-neutral cognitive experience compiler that can turn arbitrary prompts into concrete, fun, coherent experiences without subject-specific story templates or generic significance prose.\n\n## Locked architecture\n`PROMPT -> UNDERSTANDING -> MEANING -> EXPERIENCE GENOME -> COMPILER MIND -> WORLD/BLUEPRINT -> DIRECTION -> FLOW -> MOMENTS -> SCENES`\n\nThe brain gets smarter; the architecture does not get replaced.\n\n## Semantic rules\n- Preserve distinctive prompt evidence in actual beats, not only metadata.\n- Treat coupled premises as bundles: event + artifact/medium + audience + human outcome must survive realization.\n- Treat QR/NFC/scan/tag as media/interfaces unless the prompt explicitly makes them the subject.\n- The physical art object is an artifact/portal concept and may be non-square, DIY-shaped, physical, wearable, installed, or not visibly QR-like.\n- Do not create branches for individual nouns or industries.\n- Generalize event context rather than building a concert-only branch.\n- Keep semantic/runtime contracts in `@qre/contracts`.\n\n## Validation\n- `pnpm --filter @qre/contracts build`\n- `pnpm --filter @qre/engine build`\n- `pnpm --filter @qre/engine test:universal`\n- `pnpm --filter @qre/engine test:realization`\n''', encoding='utf-8')
+
+      - name: Build contracts
+        run: pnpm --filter @qre/contracts build
+
+      - name: Build engine
+        run: pnpm --filter @qre/engine build
+
+      - name: Universal acceptance
+        run: pnpm --filter @qre/engine run test:universal
+
+      - name: Premise realization acceptance
+        run: pnpm --filter @qre/engine run test:realization
+
+      - name: Commit verified alignment
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/super-cog-current-align.yml
+          git add AGENTS.md packages/engine/src/experience/universalStoryCompiler.ts packages/engine/src/cognition/cognitiveEngine.ts
+          git commit -m "fix: preserve coupled semantic evidence [super-cog-align]"
+          git push origin HEAD:cognitive-experience-engine
