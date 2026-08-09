@@ -1,7 +1,4 @@
-/**
- * QRE SUPER COG — canonical semantic normalization boundary.
- * No template selection occurs here.
- */
+/** QRE SUPER COG — canonical semantic normalization boundary. */
 
 import { compileCognitiveExperience as compileRaw } from "./cognitiveExperienceCompiler.js";
 import type { CompiledCognitiveExperience } from "@qre/contracts";
@@ -14,17 +11,20 @@ function resolveSubject(prompt: string, fallback: string): string {
     if (cleaned.length > 1 && cleaned.length < 80) candidates.push({ value: cleaned, score });
   };
 
-  const action = /\b(?:create|make|build|design|turn|preserve|teach|transform|run|want)\s+(?:a|an|the|my|our|this)?\s*([^,.!?;\n]+?)(?=\s+(?:for|about|involving|so|that|to|feel|into|but|is|wants|needs)\b|[,.!?;]|$)/gi;
+  const action = /\b(?:create|make|build|design|turn|preserve|teach|transform|run)\s+(?:a|an|the|my|our|this)?\s*([^,.!?;\n]+?)(?=\s+(?:for|about|involving|so|that|to|feel|into|but|is|wants|needs)\b|[,.!?;]|$)/gi;
   for (const match of prompt.matchAll(action)) add(match[1], 0.86);
   const target = prompt.match(/\bfor\s+(?:my|the|a|an)?\s*([^,.!?;\n]+)/i);
   if (target) add(target[1], 0.76);
-  const declarative = prompt.match(/^(?:a|an|the|my|our|this)?\s*([^,.!?;\n]+?)\s+(?:is|are|was|were|wants|needs|has|have|just|can|should|must)\b/i);
-  if (declarative) add(declarative[1], 0.9);
+  if (!/^(?:create|make|build|design|turn|preserve|teach|transform|run)\b/i.test(prompt)) {
+    const declarative = prompt.match(/^(?:a|an|the|my|our|this)?\s*([^,.!?;\n]+?)\s+(?:is|are|was|were|wants|needs|has|have|just|can|should|must)\b/i);
+    if (declarative) add(declarative[1], 0.9);
+  }
   const involving = prompt.match(/\b(?:create|make|build)\s+([^,.!?;\n]+?)\s+involving\b/i);
   if (involving) add(involving[1], 0.94);
 
   const generic = /^(?:qr\s+)?experience$|^something$|^thing$|^program$|^story$/i;
-  const ranked = candidates.map((candidate) => ({ ...candidate, score: candidate.score - (generic.test(candidate.value) ? 0.25 : 0) }))
+  const ranked = candidates
+    .map((candidate) => ({ ...candidate, score: candidate.score - (generic.test(candidate.value) ? 0.25 : 0) }))
     .sort((a, b) => b.score - a.score || a.value.length - b.value.length);
   return ranked[0]?.value ?? fallback;
 }
@@ -61,7 +61,7 @@ export function compileSuperCogExperience(prompt: string): CompiledCognitiveExpe
   };
 
   const moments = result.moments.map((moment) => "text" in moment ? { ...moment, text: replaceSubject(moment.text, oldSubject, subject) } : moment);
-  const flowSteps = result.flowSteps.map((step) => ({ ...step, payload: { ...step.payload, beat: step.payload.beat ? { ...step.payload.beat, text: replaceSubject((step.payload.beat as { text: string }).text, oldSubject, subject) } : step.payload.beat } }));
+  const flowSteps = result.flowSteps.map((step) => ({ ...step, payload: { ...step.payload, beat: step.payload.beat ? { ...(step.payload.beat as Record<string, unknown>), text: replaceSubject(String((step.payload.beat as Record<string, unknown>).text ?? ""), oldSubject, subject) } : step.payload.beat } }));
   const scenePlan = result.scenePlan.map((scene) => ({ ...scene, text: replaceSubject(scene.text, oldSubject, subject), purpose: replaceSubject(scene.purpose, oldSubject, subject) }));
   const cinematicScenes = result.cinematicScenes.map((scene) => ({ ...scene, moment: "text" in scene.moment ? { ...scene.moment, text: replaceSubject(scene.moment.text, oldSubject, subject) } : scene.moment }));
 
