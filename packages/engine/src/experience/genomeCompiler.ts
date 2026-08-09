@@ -3,9 +3,9 @@
 import { compileSuperCogExperience } from "./superCogCanonical.js";
 import type { CompiledCognitiveExperience } from "@qre/contracts";
 
-export type CompiledGenomeExperience = CompiledCognitiveExperience;
+export type { CompiledCognitiveExperience as CompiledGenomeExperience } from "@qre/contracts";
 
-export function compileExperienceGenome(prompt: string): CompiledGenomeExperience {
+export function compileExperienceGenome(prompt: string): CompiledCognitiveExperience {
   return compileSuperCogExperience(prompt);
 }
 
