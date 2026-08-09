@@ -1,13 +1,6 @@
-/**
- * Compatibility semantic facade.
- *
- * Super Cog is the semantic authority. This adapter preserves the old
- * analyzeSemanticPrompt API for callers that have not migrated yet.
- */
+/** Compatibility semantic facade. Super Cog is the semantic authority. */
 
-import {
-  compileCognitiveExperience,
-} from "../../experience/cognitiveExperienceCompiler.js";
+import { compileSuperCogExperience } from "../../experience/superCog.js";
 
 export type SemanticSignal = {
   concept: string;
@@ -27,10 +20,8 @@ export type SemanticAnalysis = {
 };
 
 export function analyzeSemanticPrompt(prompt: string): SemanticAnalysis {
-  const result = compileCognitiveExperience(prompt);
+  const result = compileSuperCogExperience(prompt);
   const understanding = result.cognition.understanding;
-  const plan = result.cognition.plan;
-
   return {
     intent: understanding.intent[0] ?? "experience_creation",
     themes: understanding.themes,
@@ -48,14 +39,8 @@ export function analyzeSemanticPrompt(prompt: string): SemanticAnalysis {
     audience: understanding.audience,
     experienceDNA: result.genome.dna,
     signals: [
-      ...result.cognition.hypotheses.map((hypothesis) => ({
-        concept: hypothesis.kind,
-        confidence: hypothesis.score,
-      })),
-      {
-        concept: plan.centralSubject,
-        confidence: result.cognition.subject.confidence,
-      },
+      ...result.cognition.hypotheses.map((hypothesis) => ({ concept: hypothesis.kind, confidence: hypothesis.score })),
+      { concept: result.cognition.subject.value, confidence: result.cognition.subject.confidence },
     ],
   };
 }
