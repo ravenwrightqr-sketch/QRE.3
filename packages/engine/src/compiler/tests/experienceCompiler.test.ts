@@ -1,12 +1,6 @@
-/**
- * =============================================================
- * QRE SUPER COG — SUBJECT-NATIVE REALIZATION TEST
- * =============================================================
- */
+/** QRE SUPER COG — SUBJECT-NATIVE REALIZATION TEST */
 
-import {
-  compileCognitiveExperience,
-} from "../../experience/cognitiveExperienceCompiler.js";
+import { compileSuperCogExperience } from "../../experience/superCog.js";
 
 const prompts = [
   "Create a memorial for my grandmother",
@@ -19,7 +13,7 @@ const prompts = [
   "I run a tattoo shop but I don't want another boring loyalty program",
 ];
 
-const FORBIDDEN_REALIZATION_PATTERNS = [
+const FORBIDDEN = [
   /\bCompletely enters the frame\b/i,
   /\bmake .+ matter through\b/i,
   /\bthe experience puts? into focus\b/i,
@@ -29,24 +23,10 @@ const FORBIDDEN_REALIZATION_PATTERNS = [
 ];
 
 for (const prompt of prompts) {
-  const result = compileCognitiveExperience(prompt);
-  const direction = result.cognition.selectedHypothesis.kind;
-
-  if (result.cognition.plan.direction !== direction) {
-    throw new Error(`Cognitive direction drift for '${prompt}'.`);
-  }
-
-  if (result.moments.length !== result.story.beats.length) {
-    throw new Error(`Moment/beat count drift for '${prompt}'.`);
-  }
-
-  for (const beat of result.story.beats) {
-    for (const pattern of FORBIDDEN_REALIZATION_PATTERNS) {
-      if (pattern.test(beat.text)) {
-        throw new Error(`Legacy/generic realization leaked into '${prompt}': ${beat.text}`);
-      }
-    }
-  }
+  const result = compileSuperCogExperience(prompt);
+  if (result.cognition.plan.direction !== result.cognition.selectedHypothesis.kind) throw new Error(`Direction drift: ${prompt}`);
+  if (result.moments.length !== result.story.beats.length) throw new Error(`Moment/beat mismatch: ${prompt}`);
+  for (const beat of result.story.beats) for (const pattern of FORBIDDEN) if (pattern.test(beat.text)) throw new Error(`Legacy realization leaked: ${prompt}: ${beat.text}`);
 }
 
 console.log("SUPER COG SUBJECT-NATIVE REALIZATION: PASS");
