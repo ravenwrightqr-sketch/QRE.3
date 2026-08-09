@@ -5,11 +5,14 @@ $path = [System.IO.Path]::GetFullPath($path)
 
 $content = Get-Content -Raw -LiteralPath $path
 
-$importAnchor = 'import type {\n'
-$realizerImport = 'import { realizePremiseBeat } from "./premiseRealizer.js";\n\n'
+$realizerImport = 'import { realizePremiseBeat } from "./premiseRealizer.js";' + [Environment]::NewLine + [Environment]::NewLine
 
 if ($content -notmatch 'import \{ realizePremiseBeat \} from "\./premiseRealizer\.js";') {
-  $content = $content -replace [regex]::Escape('} from "@qre/contracts";\n\n'), '} from "@qre/contracts";\n\n' + $realizerImport
+  $anchor = '} from "@qre/contracts";'
+  if (-not $content.Contains($anchor)) {
+    throw 'Contracts import anchor was not found; refusing to edit an unexpected compiler version.'
+  }
+  $content = $content.Replace($anchor, $anchor + [Environment]::NewLine + [Environment]::NewLine + $realizerImport.TrimEnd())
 }
 
 $old = @'
