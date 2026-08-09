@@ -50,7 +50,7 @@ export function cinematicRuntime(
     });
   }
 
-  if (input.includeCta !== false) {
+  if (input.includeCta === true) {
     scenes.push({
       id: "cta",
       type: "cta",
