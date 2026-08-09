@@ -390,7 +390,7 @@ function entities(
  * The critical rule is that the cognitive brain's interpretation wins
  * over the old regex extraction.
  */
-function subject(
+   function subject(
   prompt: string,
   value: ExperienceEntities,
   plan?: CognitiveExperiencePlan,
@@ -401,33 +401,139 @@ function subject(
     return cognitiveSubject;
   }
 
-  const direct = prompt.match(
-    /\b(?:for|about|with)\s+([^,.!?]+?)(?:\s+(?:about|at|in|on|tonight|today|now)\b|[,.!?]|$)/i,
-  )?.[1];
 
-  const possessive = prompt.match(
+  const text = clean(prompt);
+
+  /*
+   * Audience is contextual, not automatically the subject.
+   * These words frequently occur before the actual semantic object:
+   *
+   *   "for everyone at my wedding"
+   *   "for customers at my tattoo shop"
+   *   "for guests at the party"
+   *
+   * Never let them win simply because they appear early.
+   */
+  const audienceWords = new Set([
+    "everyone",
+    "everybody",
+    "people",
+    "someone",
+    "users",
+    "customers",
+    "guests",
+    "visitors",
+    "friends",
+    "family",
+    "families",
+    "children",
+    "kids",
+    "participants",
+    "members",
+    "players",
+    "fans",
+    "attendees",
+  ]);
+
+  /*
+   * Prefer an explicitly introduced semantic object:
+   *
+   *   for/about/with <subject>
+   *
+   * but remove audience-only phrases when they are followed by
+   * a meaningful event/place/object introduced by "at/in/on".
+   */
+  const directMatch = text.match(
+    /\b(?:for|about|with)\s+([^,.!?]+?)(?=\s+(?:at|in|on|during|tonight|today|now)\b|[,.!?]|$)/i,
+  );
+
+  const directCandidate = clean(directMatch?.[1] ?? "");
+
+  if (
+    directCandidate &&
+    directCandidate.length <= 80 &&
+    !audienceWords.has(directCandidate.toLowerCase())
+  ) {
+    return directCandidate;
+  }
+
+  /*
+   * "for everyone at my wedding"
+   * "for customers at my tattoo shop"
+   *
+   * If the direct phrase is an audience, recover the semantic
+   * object/event that follows the audience phrase.
+   */
+  const audienceContextMatch = text.match(
+    /\b(?:for|with)\s+(?:all\s+the\s+|the\s+)?([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*)*)\s+(?:at|in|on|during)\s+(?:my|our|the|this|that)?\s*([^,.!?]+?)(?:\s+(?:tonight|today|now)\b|[,.!?]|$)/i,
+  );
+
+  if (audienceContextMatch) {
+    const audienceCandidate = clean(audienceContextMatch[1] ?? "");
+    const contextCandidate = clean(audienceContextMatch[2] ?? "");
+
+    if (
+      audienceWords.has(audienceCandidate.toLowerCase()) &&
+      contextCandidate.length > 0 &&
+      contextCandidate.length <= 80
+    ) {
+      return contextCandidate;
+    }
+  }
+
+  /*
+   * Possessive subjects remain useful:
+   *
+   *   my grandfather's truck
+   *   my tattoo shop
+   *   my wedding
+   */
+  const possessive = text.match(
     /\bmy\s+([^,.!?]+?)(?:[,.!?]|$)/i,
   )?.[1];
 
-  if (direct && clean(direct).length <= 80) {
-    return clean(direct);
+  const possessiveCandidate = clean(possessive ?? "");
+
+  if (
+    possessiveCandidate &&
+    possessiveCandidate.length <= 80 &&
+    !audienceWords.has(possessiveCandidate.toLowerCase())
+  ) {
+    return possessiveCandidate;
   }
 
-  if (possessive && clean(possessive).length <= 80) {
-    return clean(possessive);
+  /*
+   * Structured semantic entities outrank arbitrary prompt tokens.
+   */
+  if (value.products[0]) {
+    return value.products[0];
   }
 
-  return (
-    value.products[0] ??
-    value.events[0] ??
-    value.people[0] ??
-    (
-      tokens(prompt)
-        .filter((x) => !STOP.has(x.toLowerCase()))
-        .slice(0, 5)
-        .join(" ") || "this moment"
-    )
-  );
+  if (value.events[0]) {
+    return value.events[0];
+  }
+
+  if (value.places[0]) {
+    return value.places[0];
+  }
+
+  if (value.people[0]) {
+    return value.people[0];
+  }
+
+  /*
+   * Last-resort lexical fallback.
+   *
+   * Explicitly exclude audience words so an audience cannot become
+   * the subject merely because it happens to be early in the prompt.
+   */
+  const lexicalSubject = tokens(prompt)
+    .filter((x) => !STOP.has(x.toLowerCase()))
+    .filter((x) => !audienceWords.has(x.toLowerCase()))
+    .slice(0, 5)
+    .join(" ");
+
+  return lexicalSubject || "this moment";
 }
 
 /**
@@ -1495,6 +1601,97 @@ function interactionVerb(
  *   progression
  *   future evolution
  */
+function semanticOutcome(
+  observation: ExperienceObservation,
+  plan?: CognitiveExperiencePlan,
+): string {
+  const direction = lower(plan?.direction ?? "");
+
+  if (
+    direction === "memory" ||
+    observation.affordances.includes("preservation") ||
+    observation.context.includes("memory")
+  ) {
+    return "remember";
+  }
+
+  if (
+    observation.affordances.includes("reveal") ||
+    observation.affordances.includes("discovery") ||
+    direction === "discovery"
+  ) {
+    return "discover";
+  }
+
+  if (
+    observation.affordances.includes("connection") ||
+    direction === "social"
+  ) {
+    return "connect";
+  }
+
+  if (
+    observation.affordances.includes("play") ||
+    observation.affordances.includes("challenge") ||
+    direction === "game"
+  ) {
+    return "play";
+  }
+
+  if (
+    observation.affordances.includes("reward") ||
+    observation.affordances.includes("commerce") ||
+    direction === "commerce"
+  ) {
+    return "return";
+  }
+
+  if (
+    observation.affordances.includes("change") ||
+    direction === "transformation"
+  ) {
+    return "change";
+  }
+
+  return "";
+}
+ function premiseQuality(
+  observation: ExperienceObservation,
+): string {
+  if (observation.explicitEmotions.includes("joy")) {
+    return "fun";
+  }
+
+  if (observation.explicitEmotions.includes("excitement")) {
+    return "exciting";
+  }
+
+  if (observation.explicitEmotions.includes("love")) {
+    return "loving";
+  }
+
+  if (observation.explicitEmotions.includes("nostalgia")) {
+    return "nostalgic";
+  }
+
+  if (observation.explicitEmotions.includes("curiosity")) {
+    return "mysterious";
+  }
+
+  if (observation.explicitEmotions.includes("intensity")) {
+    return "intense";
+  }
+
+  if (observation.explicitEmotions.includes("calm")) {
+    return "calm";
+  }
+
+  if (observation.affordances.includes("play")) {
+    return "playful";
+  }
+
+  return "";
+}
 function beatText(
   kind: StoryBeatKind,
   observation: ExperienceObservation,
@@ -1541,6 +1738,11 @@ function beatText(
     plan,
     "creativePossibilities",
   );
+  const quality = premiseQuality(observation);
+  const outcome = semanticOutcome(
+  observation,
+  plan,
+);
 
   const actor =
     situationValue.actors[0] ??
@@ -1792,27 +1994,41 @@ function beatText(
    */
   switch (kind) {
     case "orientation":
-      return situationValue.setting.length
-        ? `${subjectName} is here, in ${situationValue.setting.join(", ")}.`
-        : `${subjectName} is the thing the experience puts into focus.`;
+  return situationValue.setting.length
+    ? outcome === "remember"
+      ? `${subjectName} is here, in ${situationValue.setting.join(", ")}, with the present moment becoming something worth remembering.`
+      : `${subjectName} is here, in ${situationValue.setting.join(", ")}.`
+    : outcome === "remember"
+      ? `${subjectName} is the present moment, captured so it can be remembered later.`
+      : `${subjectName} is the subject named by the prompt.`;
 
     case "hook":
-      return why
-        ? `${cap(why)}. ${subjectName} gives that idea something concrete to act on.`
-        : detail
-          ? `Something about ${subjectValue} deserves a closer look: ${detail}.`
-          : `${subjectName} contains more than the first glance reveals.`;
+  return why
+    ? `${cap(why)}. ${subjectName} gives that idea something concrete to act on.`
+    : outcome === "remember"
+      ? `${subjectName} becomes something worth remembering, not just something to scan.`
+      : outcome === "discover"
+        ? `${subjectName} gives you something worth discovering beyond the obvious.`
+        : outcome === "connect"
+          ? `${subjectName} becomes a reason for people to connect.`
+          : outcome === "play"
+            ? `${subjectName} becomes something people can play with.`
+            : outcome === "return"
+              ? `${subjectName} gives people a reason to come back.`
+              : detail
+                ? `${subjectName} gives the prompt a concrete detail: ${detail}.`
+                : `${subjectName} contains more than the first glance reveals.`;
 
     case "encounter":
       return actor
         ? `${actor} enters the experience and changes the relationship with ${subjectValue}.`
         : detail
-          ? `${subjectName} connects to ${detail}, giving the moment a direction.`
-          : `${subjectName} encounters something that gives the moment a direction.`;
+          ? `${subjectName} connects to ${detail}, changing what can happen next.`
+          : `${subjectName} encounters another concrete part of the premise.`;
 
     case "escalation":
       return interaction
-        ? `The experience moves forward through ${interaction}.`
+        ? `${subjectName} moves forward through ${interaction}.`
         : `What began with ${subjectValue} now has consequences for what happens next.`;
 
     case "discovery":
@@ -1820,25 +2036,47 @@ function beatText(
         ? `${subjectName} reveals another layer: ${discovery}.`
         : detail
           ? `Look again at ${subjectValue}. The important detail is ${detail}.`
-          : `A second layer of ${subjectValue} comes into view.`;
+          : `${subjectName} exposes another concrete layer of the premise.`;
 
-    case "transformation":
-      return `${subjectName} is changed by what the experience has revealed.`;
+      case "transformation":
+  return purpose
+    ? `${subjectName} changes through ${cap(purpose)}.`
+    : progression
+      ? `${subjectName} changes as ${progression}.`
+      : future
+        ? `${subjectName} changes as the story continues: ${future}.`
+        : interaction
+          ? `${subjectName} changes through ${interaction}.`
+          : detail
+            ? `${subjectName} changes through what becomes possible around ${detail}.`
+            : `${subjectName} takes on a different meaning through the interaction.`;
 
     case "payoff":
-      return purpose
-        ? `${cap(purpose)}. The subject now means more because of what happened around it.`
-        : `${subjectName} has become more meaningful through the interaction.`;
+  return purpose
+    ? `${cap(purpose)}. ${subjectName} carries the result of what happened.`
+    : outcome === "remember"
+      ? `${subjectName} leaves something behind that can be remembered after the moment is gone.`
+      : outcome === "discover"
+        ? `${subjectName} leaves you with something newly understood.`
+        : outcome === "connect"
+          ? `${subjectName} leaves the people involved with something they shared.`
+          : outcome === "play"
+            ? `${subjectName} turns participation into something worth repeating.`
+            : outcome === "return"
+              ? `${subjectName} leaves a reason to come back.`
+              : `${subjectName} carries the result of the interaction.`;
 
     case "reflection":
       return observation.explicitEmotions.length
         ? `The experience leaves behind ${observation.explicitEmotions.join(" and ")} as part of what remains.`
-        : `The experience leaves a meaning behind, attached to ${subjectValue}.`;
+        : `${subjectName} retains the consequence of the interaction.`;
 
     case "continuation":
-      return future
-        ? `The story stays open: ${future}.`
-        : `The next interaction can change what ${subjectValue} means.`;
+  return future
+    ? `The story stays open: ${future}.`
+    : outcome === "remember"
+      ? `The moment can keep gaining meaning as new memories are attached to ${subjectValue}.`
+      : `${subjectName} remains open to the next interaction.`;
 
     case "need":
       return why
@@ -1858,7 +2096,7 @@ function beatText(
       return `There is something to solve before ${subjectValue} can reveal what comes next.`;
 
     case "reveal":
-      return `The hidden relationship around ${subjectValue} becomes visible.`;
+      return `${subjectName} exposes the concrete relationship carried by the premise.`;
 
     case "instruction":
       return content
@@ -1900,7 +2138,7 @@ function beatText(
         : `Use what you learned here to choose the next step.`;
 
     default:
-      return `${subjectName} continues to develop through the interaction.`;
+      return `${subjectName} continues from the current state.`;
   }
 }
 
@@ -2029,7 +2267,7 @@ function makeBeat(
     ),
     entities: unique([
       observation.subject,
-      ...observation.entities.keywords.slice(0, 4),
+      ...observation.entities.keywords,
       ...situationValue.actors.slice(0, 2),
     ]),
     emotionalTarget:
@@ -2121,6 +2359,7 @@ function story(
   toneValue: ExperienceTone[],
   context: StoryCompilerContext,
 ): ExperienceStory {
+
   const beats = candidate.beats.map(
     (kind, index) =>
       makeBeat(
