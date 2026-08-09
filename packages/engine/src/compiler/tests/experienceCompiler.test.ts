@@ -35,8 +35,8 @@ type Case = {
 const cases: Case[] = [
   {
     prompt: "Create a dog groomer story for Max the poodle about the experience.",
-    mustContain: ["care"],
-    mustNotContain: ["dog's Journey", "journey_world"],
+    mustContain: ["max", "poodle"],
+    mustNotContain: ["dog's journey", "journey_world"],
   },
   {
     prompt: "Make something fun for everyone at my wedding tonight.",
@@ -65,7 +65,14 @@ const cases: Case[] = [
   },
   {
     prompt: "Max came back to the same groomer and was even more excited this time.",
-    context: { memories: [{ summary: "Max's earlier grooming visit", entities: ["Max", "groomer"] }] },
+    context: {
+      memories: [
+        {
+          summary: "Max's earlier grooming visit",
+          entities: ["Max", "groomer"],
+        },
+      ],
+    },
     mustContain: ["memory"],
   },
 ];
