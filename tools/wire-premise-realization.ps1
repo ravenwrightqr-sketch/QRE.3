@@ -6,15 +6,8 @@ $path = [IO.Path]::GetFullPath($path)
 $text = Get-Content -Raw -Encoding UTF8 $path
 
 if ($text -notmatch 'premiseRealizer\.js') {
-  $anchor = 'import type {`r`n  CognitiveExperiencePlan,'
-  if ($text.Contains($anchor)) {
-    $text = $text.Replace(
-      $anchor,
-      'import { realizePremiseBeat } from "./premiseRealizer.js";`r`n`r`n' + $anchor
-    )
-  } else {
-    $text = $text -replace '(from "@qre/contracts";)', '$1`r`nimport { realizePremiseBeat } from "./premiseRealizer.js";'
-  }
+  $newline = [Environment]::NewLine
+  $text = $text -replace '(from "@qre/contracts";)', ('$1' + $newline + 'import { realizePremiseBeat } from "./premiseRealizer.js";')
 }
 
 $start = $text.IndexOf('function makeBeat(')
@@ -95,4 +88,3 @@ function makeBeat(
 $text = $text.Substring(0, $start) + $replacement + $text.Substring($end)
 Set-Content -Path $path -Value $text -Encoding UTF8
 Write-Host "Premise realization wired into $path"
-'
