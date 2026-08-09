@@ -1,18 +1,52 @@
-/** QRE story compiler contract. Story is generated from evidence and affordances, not templates. */
+/**
+ * ============================================================
+ * QRE UNIVERSAL STORY CONTRACT
+ * ============================================================
+ *
+ * Story beats are semantic narrative operations, not industry templates.
+ * The cognitive compiler may select any of these operations when realizing
+ * a prompt. Contracts therefore describe the complete universal vocabulary
+ * used by cognition -> realization -> runtime.
+ *
+ * ============================================================
+ */
 
 import type { ExperienceTone } from "./tone.js";
 
 export type StoryEvidenceKind = "observed" | "inferred" | "playful";
 
+/**
+ * Universal narrative / experiential operations.
+ *
+ * The original runtime vocabulary remains intact. Additional operations are
+ * first-class because the cognitive plan can legitimately produce utility,
+ * game, discovery, memory, social, commerce, identity, progression, access,
+ * and continuation structures without forcing them through generic beats.
+ */
 export type StoryBeatKind =
   | "orientation"
   | "hook"
+  | "need"
+  | "threshold"
+  | "origin"
   | "encounter"
-  | "escalation"
+  | "challenge"
   | "discovery"
+  | "reveal"
+  | "instruction"
+  | "action"
+  | "feedback"
+  | "contribution"
+  | "escalation"
   | "transformation"
-  | "payoff"
   | "reflection"
+  | "provenance"
+  | "identity"
+  | "milestone"
+  | "unlock"
+  | "payoff"
+  | "earned_access"
+  | "next_step"
   | "continuation";
 
 export type StoryProvenance = {
