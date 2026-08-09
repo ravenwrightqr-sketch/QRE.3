@@ -1,8 +1,4 @@
-/**
- * =============================================================
- * QRE ENGINE PUBLIC API
- * =============================================================
- */
+/** QRE ENGINE PUBLIC API */
 
 export { scanEngine } from "./scanEngine.js";
 export { runFlowActions } from "./flowOrchestrator.js";
@@ -18,21 +14,13 @@ export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
-/**
- * Super Cog is the semantic decision layer and the universal compiler
- * is its downstream realization substrate.
- */
+/** Super Cog is the canonical semantic compiler boundary. */
 export {
   compileSuperCogExperience,
   compileSuperCogExperience as compileCognitiveExperience,
-} from "./experience/superCog.js";
+} from "./experience/superCogCanonical.js";
 
-export {
-  compileExperienceGenome,
-  genomeCompiler,
-  experienceCompiler,
-} from "./experience/genomeCompiler.js";
-
+export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
 export * from "./cognition/index.js";
 export * from "./intelligence/index.js";
 
