@@ -3,23 +3,15 @@ import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 /**
  * UNIVERSAL PREMISE REALIZER
  *
- * This is the language boundary after cognition has already selected meaning.
- * It does not own a subject catalog, industry templates, or a second planner.
+ * Language realization happens after cognition. This layer does not own a
+ * subject catalog, industry templates, or a second planner.
  *
- * The realization rule is:
+ * Rule:
+ *   semantic evidence + beat role + cognitive intent -> subject-native text
  *
- *   semantic evidence + beat role + cognitive intent
- *     -> subject-native language
- *
- * The important change is that realization no longer asks:
- *   "Which generic story sentence fits this beat?"
- *
- * It asks:
- *   "Which pieces of the user's premise are most useful here, and how does
- *    this beat change their relationship?"
- *
- * This keeps arbitrary prompts extensible because new nouns inherit the same
- * evidence-selection machinery instead of requiring a new narrative branch.
+ * The realizer selects material from the prompt/plan and describes the change
+ * represented by the beat. It never manufactures significance prose to hide
+ * missing understanding.
  */
 
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -37,13 +29,10 @@ const STOP = new Set([
   "making", "me", "my", "of", "on", "or", "our", "people", "please", "that", "the",
   "their", "this", "those", "to", "turn", "up", "was", "we", "what", "when", "where",
   "which", "who", "with", "you", "your", "something", "someone", "thing", "experience",
-  "story", "about", "through", "just", "more", "than", "then", "now", "will", "into",
+  "story", "about", "through", "just", "more", "than", "then", "now", "will",
 ]);
 
-/**
- * Legacy phrases are retained only as an integrity detector. They are never
- * used as realization vocabulary.
- */
+/** Legacy vocabulary is detection-only. It is never realization vocabulary. */
 const DEAD_PROSE = [
   /is the thing the experience puts into focus/i,
   /has become more meaningful through the interaction/i,
@@ -74,7 +63,6 @@ type SemanticEvidence = {
   why: string;
   purpose: string;
   interaction: string;
-  structure: string;
   memory: string;
   discovery: string;
   reward: string;
@@ -85,52 +73,14 @@ type SemanticEvidence = {
   audience: string;
 };
 
-const PLAN_FIELDS: SignalField[] = [
-  "direction",
-  "centralSubject",
-  "purpose",
-  "whyInteract",
-  "storyStructure",
-  "interactionModel",
-  "memoryModel",
-  "geographicModel",
-  "socialModel",
-  "discoveryModel",
-  "rewardModel",
-  "commerceModel",
-  "progressionModel",
-  "contentModel",
-  "dynamicBehavior",
-  "futureEvolution",
-  "creativePossibilities",
-  "emotionalIntent",
-];
-
-function planValues(
-  plan: CognitiveExperiencePlan | undefined,
-  field: SignalField,
-): string[] {
+function planValues(plan: CognitiveExperiencePlan | undefined, field: SignalField): string[] {
   const value = plan?.[field];
-
-  if (typeof value === "string") {
-    const result = sentence(value);
-    return result ? [result] : [];
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map(String)
-      .map(sentence)
-      .filter(Boolean);
-  }
-
+  if (typeof value === "string") return value.trim() ? [sentence(value)] : [];
+  if (Array.isArray(value)) return value.map(String).map(sentence).filter(Boolean);
   return [];
 }
 
-function firstPlanValue(
-  plan: CognitiveExperiencePlan | undefined,
-  field: SignalField,
-): string {
+function firstPlanValue(plan: CognitiveExperiencePlan | undefined, field: SignalField): string {
   return planValues(plan, field)[0] ?? "";
 }
 
@@ -149,22 +99,13 @@ function distinctiveTokens(value: string): string[] {
 }
 
 function unique(values: string[]): string[] {
-  return [
-    ...new Map(
-      values
-        .map(clean)
-        .filter(Boolean)
-        .map((value) => [lower(value), value]),
-    ).values(),
-  ];
+  return [...new Map(
+    values.map(clean).filter(Boolean).map((value) => [lower(value), value]),
+  ).values()];
 }
 
 function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  return clean(
-    plan?.centralSubject ||
-      beat.entities?.[0] ||
-      "the premise",
-  );
+  return clean(plan?.centralSubject || beat.entities?.[0] || "the premise");
 }
 
 function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
@@ -184,7 +125,6 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
   for (const candidate of candidates) {
     const value = sentence(candidate);
     if (!value || lower(value) === subjectValue) continue;
-
     const words = distinctiveTokens(value);
     if (!words.length) continue;
 
@@ -195,25 +135,15 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
 
     const key = lower(value);
     const previous = scored.get(key);
-    if (!previous || score > previous.score) {
-      scored.set(key, { value, score });
-    }
+    if (!previous || score > previous.score) scored.set(key, { value, score });
   }
 
-  // Preserve distinctive prompt vocabulary even when cognition did not place
-  // it into a dedicated field. This is particularly important for arbitrary
-  // nouns, names, media, products, and short technical tokens such as QR/NFC.
-  const rawPromptMaterial = [
-    beat.text,
-    ...(beat.entities ?? []),
-  ].join(" ");
-
-  for (const token of distinctiveTokens(rawPromptMaterial)) {
+  // Preserve distinctive prompt material even when cognition did not place it
+  // in a dedicated plan field. Short technical tokens such as QR/NFC survive.
+  for (const token of distinctiveTokens([beat.text, ...(beat.entities ?? [])].join(" "))) {
     if (lower(token) === subjectValue) continue;
     const key = lower(token);
-    if (!scored.has(key)) {
-      scored.set(key, { value: token, score: 2 });
-    }
+    if (!scored.has(key)) scored.set(key, { value: token, score: 2 });
   }
 
   return [...scored.values()]
@@ -222,19 +152,13 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
     .slice(0, 10);
 }
 
-function evidence(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): SemanticEvidence {
-  const anchors = buildAnchors(beat, plan);
-
+function evidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): SemanticEvidence {
   return {
     subject: subject(beat, plan),
-    anchors,
+    anchors: buildAnchors(beat, plan),
     why: firstPlanValue(plan, "whyInteract"),
     purpose: firstPlanValue(plan, "purpose"),
     interaction: firstPlanValue(plan, "interactionModel"),
-    structure: firstPlanValue(plan, "storyStructure"),
     memory: firstPlanValue(plan, "memoryModel"),
     discovery: firstPlanValue(plan, "discoveryModel"),
     reward: firstPlanValue(plan, "rewardModel"),
@@ -242,8 +166,7 @@ function evidence(
     content: firstPlanValue(plan, "contentModel"),
     future: firstPlanValue(plan, "futureEvolution"),
     emotion: firstPlanValue(plan, "emotionalIntent"),
-    audience: firstPlanValue(plan, "socialModel") ||
-      (plan?.audience?.length ? plan.audience.join(", ") : ""),
+    audience: firstPlanValue(plan, "socialModel") || (plan?.audience?.length ? plan.audience.join(", ") : ""),
   };
 }
 
@@ -261,28 +184,14 @@ function material(ev: SemanticEvidence, count = 2): string[] {
   ]).slice(0, count);
 }
 
-function subjectWithMaterial(ev: SemanticEvidence, count = 2): string {
-  const values = material(ev, count);
-  return values.length
-    ? `${ev.subject} — ${values.join("; ")}`
-    : ev.subject;
-}
-
-function direction(ev: SemanticEvidence, plan?: CognitiveExperiencePlan): string {
-  return lower(firstPlanValue(plan, "direction"));
-}
-
 /**
- * Realize a beat from evidence rather than from a sentence catalog.
- *
- * Beat kinds describe the transformation occurring at this point. The actual
- * nouns, people, media, motives, memories, and actions come from cognition.
+ * Beat kinds describe what changes. The actual content is selected from
+ * semantic evidence, so new nouns inherit the machinery automatically.
  */
-function realize(ev: SemanticEvidence, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
+function realize(ev: SemanticEvidence, beat: StoryBeat): string {
   const name = cap(ev.subject);
   const first = ev.anchors[0] ?? "the current detail";
   const second = ev.anchors[1] ?? "the next detail";
-  const dir = direction(ev, plan);
 
   switch (beat.kind) {
     case "orientation":
@@ -358,8 +267,8 @@ function realize(ev: SemanticEvidence, beat: StoryBeat, plan?: CognitiveExperien
     case "contribution":
       return ev.anchors.length
         ? `${cap(first)} is added to ${ev.subject}, changing the material available to the next interaction.`
-        : ev.social
-          ? `${name} changes when another participant contributes to it.`
+        : ev.audience
+          ? `${name} changes when ${ev.audience} contributes to it.`
           : `${name} changes when new material is added.`;
 
     case "escalation":
@@ -386,9 +295,7 @@ function realize(ev: SemanticEvidence, beat: StoryBeat, plan?: CognitiveExperien
             : `${name} retains the consequence of what happened.`;
 
     case "provenance":
-      return ev.anchors.length
-        ? `${name} preserves where this version came from: ${material(ev, 3).join(", ")}.`
-        : `${name} preserves the evidence that produced this version.`;
+      return `${name} preserves where this version came from: ${material(ev, 3).join(", ") || "the supplied evidence"}.`;
 
     case "identity":
       return ev.anchors.length
@@ -434,32 +341,19 @@ function realize(ev: SemanticEvidence, beat: StoryBeat, plan?: CognitiveExperien
             : `${name} continues from the state established here.`;
 
     default:
-      // This is intentionally evidence-bearing rather than a generic story
-      // sentence. If cognition knows a direction, expose it; otherwise keep
-      // the subject and the strongest material visible.
-      return dir
-        ? `${name} continues under ${dir} with ${material(ev, 2).join(" and ") || "the supplied premise"}.`
-        : `${name} continues with ${material(ev, 2).join(" and ") || "the supplied premise"}.`;
+      return `${name} continues with ${material(ev, 2).join(" and ") || "the supplied premise"}.`;
   }
 }
 
-export function realizePremiseBeat(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const ev = evidence(beat, plan);
-  const value = clean(realize(ev, beat, plan));
+  const value = clean(realize(ev, beat));
 
-  if (value && !isGenericCompilerProse(value)) {
-    return value;
-  }
+  if (value && !isGenericCompilerProse(value)) return value;
 
   // Never manufacture significance prose to hide a realization failure.
-  // Preserve the existing beat text if it contains actual prompt material.
   const original = clean(beat.text);
-  if (original && !isGenericCompilerProse(original)) {
-    return original;
-  }
+  if (original && !isGenericCompilerProse(original)) return original;
 
   const fallbackMaterial = material(ev, 3);
   return fallbackMaterial.length
@@ -467,30 +361,16 @@ export function realizePremiseBeat(
     : cap(ev.subject);
 }
 
-export function realizePremiseBeats(
-  beats: StoryBeat[],
-  plan?: CognitiveExperiencePlan,
-): StoryBeat[] {
-  return beats.map((beat) => ({
-    ...beat,
-    text: realizePremiseBeat(beat, plan),
-  }));
+export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
+  return beats.map((beat) => ({ ...beat, text: realizePremiseBeat(beat, plan) }));
 }
 
 export function isGenericCompilerProse(value: string): boolean {
   return DEAD_PROSE.some((pattern) => pattern.test(value));
 }
 
-/**
- * Compatibility export retained for diagnostics/tests. The old implementation
- * exposed force categories; the cognitive plan is now the authoritative
- * semantic source, so this reports whether each dimension has evidence rather
- * than driving realization with a fixed branch catalog.
- */
-export function classifyPremise(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): Record<string, boolean> {
+/** Diagnostic compatibility export. These dimensions never drive realization. */
+export function classifyPremise(beat: StoryBeat, plan?: CognitiveExperiencePlan): Record<string, boolean> {
   const ev = evidence(beat, plan);
   const text = lower([
     beat.text,
