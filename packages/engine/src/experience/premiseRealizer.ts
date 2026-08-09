@@ -53,7 +53,7 @@ const FORCE_WORDS = {
   accumulating: ["keep adding", "add to", "adds", "accumulate", "accumulates", "grows", "growing", "each person", "next person", "again", "over time", "builds up"],
   participatory: ["everyone", "family", "friends", "group", "community", "shared", "together", "contribute", "contribution", "participate", "people can"],
   contrast: ["before", "after", "transform", "transformation", "changed", "change", "restore", "cleaning", "chaos", "difference", "compare"],
-  process: ["clean", "cleaning", "groom", "build", "repair", "restore", "prepare", "launch", "document", "process", "step", "room by room"],
+  process: ["clean", "cleaning", "groom", "groomer", "build", "repair", "restore", "prepare", "launch", "document", "process", "step", "room by room"],
   discovery: ["discover", "discovery", "hidden", "secret", "uncover", "find", "forgotten", "reveal", "clue", "mystery", "unknown"],
   temporal: ["again", "return", "future", "later", "next", "over time", "keeps", "continue", "continuation"],
 };
@@ -93,11 +93,7 @@ function planText(plan?: CognitiveExperiencePlan): string {
 
 function sourceText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   return lower(
-    [
-      beat.text,
-      ...(beat.entities ?? []),
-      planText(plan),
-    ].join(" "),
+    [beat.text, ...(beat.entities ?? []), planText(plan)].join(" "),
   );
 }
 
@@ -155,30 +151,20 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
 
   switch (beat.kind) {
     case "orientation":
-      return ev.length
-        ? `${cap(subjectValue)} starts with ${ev.slice(0, 2).join(" and ")}.`
-        : `${cap(subjectValue)} starts here.`;
+      return ev.length ? `${cap(subjectValue)} starts with ${ev.slice(0, 2).join(" and ")}.` : `${cap(subjectValue)} starts here.`;
     case "hook":
-      return ev.length
-        ? `${cap(ev[0])} is the first thing that changes what happens next.`
-        : `The first move creates a reason to keep going.`;
+      return ev.length ? `${cap(ev[0])} is the first thing that changes what happens next.` : `The first move creates a reason to keep going.`;
     case "encounter":
-      return ev.length
-        ? `${cap(ev[0])} changes what happens around ${subjectValue}.`
-        : `${cap(subjectValue)} meets the next complication.`;
+      return ev.length ? `${cap(ev[0])} changes what happens around ${subjectValue}.` : `${cap(subjectValue)} meets the next complication.`;
     case "escalation":
       return progression || `The next beat raises the stakes instead of repeating the last one.`;
     case "discovery":
     case "reveal":
-      return ev.length
-        ? `${cap(ev[0])} turns out to matter more than expected.`
-        : `A new piece of evidence appears.`;
+      return ev.length ? `${cap(ev[0])} turns out to matter more than expected.` : `A new piece of evidence appears.`;
     case "transformation":
       return `The state of ${subjectValue} changes because of what happened.`;
     case "reflection":
-      return plan?.emotionalIntent?.[0]
-        ? `What remains is ${sentence(plan.emotionalIntent[0])}.`
-        : `What happened leaves a concrete consequence behind.`;
+      return plan?.emotionalIntent?.[0] ? `What remains is ${sentence(plan.emotionalIntent[0])}.` : `What happened leaves a concrete consequence behind.`;
     case "payoff":
       return planPurpose(plan) || `${cap(subjectValue)} reaches the consequence earned by the events before it.`;
     case "continuation":
@@ -188,9 +174,7 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
     case "threshold":
       return `The ordinary version of ${subjectValue} ends here.`;
     case "origin":
-      return signal(plan, "memoryModel")
-        ? `${cap(subjectValue)} carries forward ${signal(plan, "memoryModel")}.`
-        : `${cap(subjectValue)} brings something from before into the present.`;
+      return signal(plan, "memoryModel") ? `${cap(subjectValue)} carries forward ${signal(plan, "memoryModel")}.` : `${cap(subjectValue)} brings something from before into the present.`;
     case "challenge":
       return progression || `Something has to be overcome before ${subjectValue} can advance.`;
     case "instruction":
@@ -215,10 +199,7 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
   }
 }
 
-function realizeByForces(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function realizeByForces(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const subjectValue = subject(beat, plan);
   const subjectName = cap(subjectValue);
   const ev = evidence(beat, subjectValue);
@@ -231,8 +212,6 @@ function realizeByForces(
   const future = signal(plan, "futureEvolution");
   const creative = signal(plan, "creativePossibilities");
 
-  // Strongest experiential forces first. These are semantic operations,
-  // never subject/domain branches.
   if (forces.accumulating && forces.participatory) {
     if (beat.kind === "orientation") return `${subjectName} starts with one version, and the next person gets to change it.`;
     if (beat.kind === "encounter" || beat.kind === "contribution") return `Someone adds to ${subjectValue}, creating material for the next person to react to.`;
@@ -249,6 +228,15 @@ function realizeByForces(
     if (beat.kind === "payoff") return `${subjectName} can finally be compared with the version that existed before the work began.`;
   }
 
+  if (forces.process) {
+    if (beat.kind === "orientation") return `${subjectName} starts with the work ready to begin.`;
+    if (beat.kind === "hook" || beat.kind === "encounter") return ev.length ? `The first pass works directly on ${subjectValue}, exposing ${ev[0]}.` : `The first pass changes something concrete about ${subjectValue}.`;
+    if (beat.kind === "escalation") return progression || `Each pass creates the condition for the next one.`;
+    if (beat.kind === "transformation") return `${subjectName} changes as the work moves through it.`;
+    if (beat.kind === "payoff") return `${subjectName} reaches the state the work was trying to create.`;
+    if (beat.kind === "continuation") return future || `The work leaves a clear starting point for whatever comes next.`;
+  }
+
   if (forces.frightening) {
     if (beat.kind === "orientation" || beat.kind === "hook") return `${subjectName} looks ordinary just long enough for something to feel wrong.`;
     if (beat.kind === "encounter" || beat.kind === "discovery" || beat.kind === "reveal") return discovery ? `The first sign is ${discovery}. It is worse than it should be.` : `Something is wrong with ${subjectValue}, and the evidence keeps getting harder to explain.`;
@@ -258,16 +246,8 @@ function realizeByForces(
   }
 
   if (forces.absurd || forces.luxurious) {
-    if (beat.kind === "orientation" || beat.kind === "hook") {
-      return forces.luxurious
-        ? `${subjectName} begins at an unreasonable level of indulgence.`
-        : `${subjectName} starts normally, then takes a turn nobody sensible would have approved.`;
-    }
-    if (beat.kind === "encounter" || beat.kind === "discovery") {
-      return ev.length
-        ? `${cap(ev[0])} enters the scene and pushes the scale of ${subjectValue} further.`
-        : `The next detail pushes ${subjectValue} past ordinary logic.`;
-    }
+    if (beat.kind === "orientation" || beat.kind === "hook") return forces.luxurious ? `${subjectName} begins at an unreasonable level of indulgence.` : `${subjectName} starts normally, then takes a turn nobody sensible would have approved.`;
+    if (beat.kind === "encounter" || beat.kind === "discovery") return ev.length ? `${cap(ev[0])} enters the scene and pushes the scale of ${subjectValue} further.` : `The next detail pushes ${subjectValue} past ordinary logic.`;
     if (beat.kind === "escalation") return progression ? `Then it escalates: ${progression}.` : `Each new step has to outdo the last one.`;
     if (beat.kind === "payoff") return reward ? `The payoff goes all the way: ${reward}.` : `By the end, the premise has become gloriously excessive.`;
     if (beat.kind === "continuation") return future ? `There is another escalation waiting: ${future}.` : `There is still room to make it bigger.`;
@@ -290,8 +270,8 @@ function realizeByForces(
     if (beat.kind === "continuation") return future || `Enough remains unresolved to keep looking.`;
   }
 
-  if (forces.temporal) {
-    if (beat.kind === "continuation") return future || `The next return starts with everything that happened before.`;
+  if (forces.temporal && beat.kind === "continuation") {
+    return future || `The next return starts with everything that happened before.`;
   }
 
   return concreteFallback(beat, plan);
@@ -301,28 +281,13 @@ function isDeadProse(value: string): boolean {
   return DEAD.some((pattern) => pattern.test(value));
 }
 
-export function realizePremiseBeat(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const value = clean(realizeByForces(beat, plan));
-
-  if (!value || isDeadProse(value)) {
-    return clean(concreteFallback(beat, plan));
-  }
-
-  return value;
+  return !value || isDeadProse(value) ? clean(concreteFallback(beat, plan)) : value;
 }
 
-export function realizePremiseBeats(
-  beats: StoryBeat[],
-  plan?: CognitiveExperiencePlan,
-): StoryBeat[] {
-  return beats.map((beat, index) => ({
-    ...beat,
-    order: index,
-    text: realizePremiseBeat(beat, plan),
-  }));
+export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
+  return beats.map((beat, index) => ({ ...beat, order: index, text: realizePremiseBeat(beat, plan) }));
 }
 
 export function isGenericCompilerProse(value: string): boolean {
@@ -331,9 +296,6 @@ export function isGenericCompilerProse(value: string): boolean {
 
 export type PremiseRealizationMode = PremiseForces;
 
-export function classifyPremise(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): PremiseRealizationMode {
+export function classifyPremise(beat: StoryBeat, plan?: CognitiveExperiencePlan): PremiseRealizationMode {
   return classifyForces(beat, plan);
 }
