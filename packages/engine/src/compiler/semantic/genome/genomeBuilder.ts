@@ -1,6 +1,6 @@
 /** Compatibility facade: Super Cog is the canonical genome authority. */
 
-import { compileSuperCogExperience } from "../../../experience/superCog.js";
+import { compileSuperCogExperience } from "../../../experience/superCogCanonical.js";
 import type { ExperienceGenome } from "@qre/contracts";
 
 export function buildExperienceGenome(prompt: string): ExperienceGenome {
