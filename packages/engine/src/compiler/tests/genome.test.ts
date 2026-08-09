@@ -1,8 +1,6 @@
-/**
- * QRE SUPER COG — INTELLIGENCE ACCEPTANCE MATRIX
- */
+/** QRE SUPER COG — INTELLIGENCE ACCEPTANCE MATRIX */
 
-import { compileSuperCogExperience } from "../../experience/superCog.js";
+import { compileSuperCogExperience } from "../../experience/superCogCanonical.js";
 
 type OpportunityKey = "memory" | "geographic" | "social" | "discovery" | "temporal" | "commercial";
 type Expected = { prompt: string; subjectIncludes: string; opportunity?: OpportunityKey };
