@@ -1,4 +1,5 @@
 import type { ExperienceEntities } from "./entityExtractor.js";
+import type { CognitivePremise } from "./premise.js";
 
 /**
  * ============================================================
@@ -24,6 +25,10 @@ import type { ExperienceEntities } from "./entityExtractor.js";
  * COGNITIVE RULE:
  *   Claims distinguish observed input from derived or hypothesized meaning.
  *   Plans describe possibilities; they do not manufacture facts.
+ *
+ * CONSERVATION RULE:
+ *   The selected plan carries a role-based premise so realization can
+ *   preserve relationships among facts instead of relying on noun lists.
  *
  * ============================================================
  */
@@ -109,6 +114,12 @@ export type CognitiveExperiencePlan = {
   dynamicBehavior: string[];
   futureEvolution: string[];
   creativePossibilities: string[];
+
+  /**
+   * Conserved semantic premise. Optional during migration so historical
+   * callers remain source-compatible while new cognitive paths populate it.
+   */
+  premise?: CognitivePremise;
 };
 
 export type CognitiveExperienceState = {
