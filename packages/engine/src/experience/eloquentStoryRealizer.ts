@@ -42,6 +42,19 @@ const GENERIC_PLAN_SIGNALS = [
   /^the experience can evolve through /i,
 ];
 
+const GENERIC_REALIZATION_PATTERNS = [
+  /\bmake .+ matter through\b/i,
+  /\bmake the physical subject feel more alive\b/i,
+  /\bthe past becomes something the present can carry forward\b/i,
+  /\bthe experience puts? into focus\b/i,
+  /\bthe subject now means more\b/i,
+  /\bthe thing the experience\b/i,
+  /\bthe moment has unrealized potential\b/i,
+  /\bthe reveal changes what .+ means\b/i,
+  /\bwhat remains is the meaning carried forward from what happened\b/i,
+  /\bthe memory becomes part of the present instead of staying behind it\b/i,
+];
+
 function subjectFromBeat(beat: StoryBeat): string {
   return clean(beat.entities?.[0] ?? "the moment");
 }
@@ -134,13 +147,17 @@ export function elevateStoryBeat(
 
   // Preserve prose that is already concrete and does not expose compiler
   // vocabulary. This keeps realization from becoming a thesaurus pass.
-  if (
-    original.length >= 90 &&
-    !/\b(the experience|the subject|the moment)\b/gi.test(original)
-  ) {
-    return original;
-  }
+  const isGenericRealization = GENERIC_REALIZATION_PATTERNS.some(
+  (pattern) => pattern.test(original),
+);
 
+if (
+  original.length >= 90 &&
+  !isGenericRealization &&
+  !/\b(the experience|the subject|the moment)\b/gi.test(original)
+) {
+  return original;
+}
   if (direction === "utility") {
     switch (beat.kind) {
       case "need":
