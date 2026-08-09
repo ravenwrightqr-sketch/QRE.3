@@ -1,21 +1,10 @@
-/**
- * Compatibility facade for the retired semantic genome builder.
- *
- * Super Cog now owns semantic decisions and produces the canonical genome.
- */
+/** Compatibility facade: Super Cog is the canonical genome authority. */
 
-import {
-  compileCognitiveExperience,
-} from "../../../experience/cognitiveExperienceCompiler.js";
+import { compileSuperCogExperience } from "../../../experience/superCog.js";
+import type { ExperienceGenome } from "@qre/contracts";
 
-import type {
-  ExperienceGenome,
-} from "@qre/contracts";
-
-export function buildExperienceGenome(
-  prompt: string,
-): ExperienceGenome {
-  return compileCognitiveExperience(prompt).genome;
+export function buildExperienceGenome(prompt: string): ExperienceGenome {
+  return compileSuperCogExperience(prompt).genome;
 }
 
 export const genomeBuilder = buildExperienceGenome;
