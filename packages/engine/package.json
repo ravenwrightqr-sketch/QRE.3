@@ -24,6 +24,7 @@
     "test:realization": "tsx src/compiler/tests/premiseRealizerAcceptance.ts",
     "test:semantic-realization": "tsx src/compiler/tests/cognitiveRealizationAcceptance.ts",
     "test:super-cog": "tsx src/compiler/tests/superCogPremiseAcceptance.ts",
-    "test:mechanics": "tsx src/compiler/tests/cognitiveMechanicsAcceptance.ts"
+    "test:mechanics": "tsx src/compiler/tests/cognitiveMechanicsAcceptance.ts",
+    "test:trajectory": "tsx src/compiler/tests/cognitiveTrajectoryAcceptance.ts"
   }
 }
