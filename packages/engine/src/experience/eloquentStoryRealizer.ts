@@ -104,11 +104,11 @@ function promptEvidence(prompt: string): string[] {
   return unique(candidates);
 }
 
-function activeMechanics(plan?: CognitiveExperiencePlan): string[] {
-  if (!plan) return [];
+function activeMechanics(plan?: CognitiveExperiencePlan, prompt?: string): string[] {
+  if (!plan && !prompt) return [];
 
   return unique(
-    composeCognitiveTrajectory({ plan })
+    composeCognitiveTrajectory({ plan, prompt })
       .mechanics
       .filter((signal) => signal.confidence >= 0.7)
       .sort((a, b) => b.confidence - a.confidence)
@@ -162,8 +162,8 @@ function preserveConcreteSubject(text: string, beat: StoryBeat, plan?: Cognitive
     : text;
 }
 
-function addMechanicTexture(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const opener = openerFor(beat, activeMechanics(plan));
+function addMechanicTexture(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan, prompt?: string): string {
+  const opener = openerFor(beat, activeMechanics(plan, prompt));
   if (!opener || lower(text).includes(lower(opener))) return text;
   return `${opener} ${sentence(text)}`;
 }
@@ -222,7 +222,7 @@ export function elevateStoryBeat(
   beat: StoryBeat,
   _index: number,
   plan?: CognitiveExperiencePlan,
-  _prompt?: string,
+  prompt?: string,
 ): string {
   const resolved = plan?.realization?.directives?.length
     ? {
@@ -232,7 +232,7 @@ export function elevateStoryBeat(
     : beat;
 
   let realized = realizePremiseBeatV3(resolved, plan);
-  realized = addMechanicTexture(realized, resolved, plan);
+  realized = addMechanicTexture(realized, resolved, plan, prompt);
   realized = preserveConcreteSubject(realized, resolved, plan);
   realized = removeDeadProse(realized);
 
@@ -253,8 +253,22 @@ export function elevateStoryBeats(
 
   if (!evidence.length) return output;
 
-  const required = Math.min(3, evidence.length);
-  let preserved = evidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
+  // Preserve more than the first few lexical tokens. The final language layer
+  // must not satisfy conservation by spending all its evidence budget on generic
+  // adjectives while dropping the nouns and danger-bearing details that make the
+  // experience legible.
+  const concretePriority = [
+    /\b(?:haunted-house|haunted|house|threat|dangerous|danger|artifact|spa|groomer|groom|poodle|billionaire|birthday|family|version|legacy|concert|recipe|watch|cleaning|housekeeper)\b/i,
+    /\b(?:choose|choice|participants?|clue|room|path|treatment|luxury|celebration|mastery|surprise)\b/i,
+  ];
+  const prioritizedEvidence = [...evidence].sort((a, b) => {
+    const score = (value: string) => concretePriority.reduce((total, pattern, index) =>
+      total + (pattern.test(value) ? (concretePriority.length - index) : 0), 0);
+    return score(b) - score(a);
+  });
+
+  const required = Math.min(4, prioritizedEvidence.length);
+  let preserved = prioritizedEvidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
   if (preserved >= required) return output;
 
   const preferredKinds: StoryBeat["kind"][] = [
@@ -266,7 +280,7 @@ export function elevateStoryBeats(
     const index = output.findIndex((beat) => beat.kind === kind);
     if (index < 0) continue;
 
-    const remainingEvidence = evidence.filter(
+    const remainingEvidence = prioritizedEvidence.filter(
       (value) => !output.some((beat) => lower(beat.text).includes(lower(value))),
     );
     if (!remainingEvidence.length) break;
@@ -276,7 +290,7 @@ export function elevateStoryBeats(
     if (next === before) continue;
 
     output[index] = { ...output[index], text: `${sentence(next)}.` };
-    const nextPreserved = evidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
+    const nextPreserved = prioritizedEvidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
     if (nextPreserved > preserved) preserved = nextPreserved;
   }
 
