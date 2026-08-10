@@ -1,5 +1,5 @@
 import { inferExperienceMechanics, mechanicBrief } from "../../experience/cognitiveMechanics.js";
-import { runCognitiveEngine } from "../../cognition/cognitiveEngine.js";
+import { understandExperience } from "../../cognition/cognitiveEngine.js";
 
 type Probe = {
   name: string;
@@ -36,12 +36,11 @@ const probes: Probe[] = [
 ];
 
 for (const probe of probes) {
-  const state = runCognitiveEngine(probe.prompt, {});
+  const state = understandExperience(probe.prompt, {});
   const mechanics = mechanicBrief(
     inferExperienceMechanics({
-      plan: state.selectedPlan,
-      premise: state.selectedPlan?.premise,
-      tone: state.selectedPlan?.emotionalIntent as never,
+      plan: state.plan,
+      premise: state.plan.premise,
     }),
   );
 
