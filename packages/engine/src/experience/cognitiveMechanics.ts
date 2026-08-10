@@ -1,0 +1,303 @@
+import type {
+  CognitiveExperiencePlan,
+  CognitivePremise,
+  CognitivePremiseRole,
+  ExperienceTone,
+} from "@qre/contracts";
+
+/**
+ * COGNITIVE EXPERIENCE MECHANICS
+ *
+ * This module is deliberately domain-neutral.
+ *
+ * A mechanic describes how an experience behaves, not what industry or noun it
+ * belongs to. New prompts should be explainable through combinations of these
+ * operations rather than by adding a new dog/concert/spa/birthday branch.
+ */
+
+export type ExperienceMechanic =
+  | "accumulation"
+  | "escalation"
+  | "transformation"
+  | "reveal"
+  | "discovery"
+  | "contrast"
+  | "participation"
+  | "competition"
+  | "contribution"
+  | "uncertainty"
+  | "excess"
+  | "pampering"
+  | "memory"
+  | "continuation"
+  | "adaptation";
+
+export type MechanicSignal = {
+  mechanic: ExperienceMechanic;
+  confidence: number;
+  evidence: string[];
+};
+
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+const lower = (value: unknown) => clean(value).toLowerCase();
+
+function unique(values: readonly unknown[]): string[] {
+  return [...new Set(values.map(clean).filter(Boolean))];
+}
+
+function planValues(plan: CognitiveExperiencePlan | undefined): string[] {
+  if (!plan) return [];
+
+  return unique([
+    plan.centralSubject,
+    plan.purpose,
+    plan.direction,
+    ...(plan.audience ?? []),
+    ...(plan.emotionalIntent ?? []),
+    ...(plan.interactionModel ?? []),
+    ...(plan.storyStructure ?? []),
+    ...(plan.memoryModel ?? []),
+    ...(plan.socialModel ?? []),
+    ...(plan.discoveryModel ?? []),
+    ...(plan.rewardModel ?? []),
+    ...(plan.progressionModel ?? []),
+    ...(plan.contentModel ?? []),
+    ...(plan.dynamicBehavior ?? []),
+    ...(plan.futureEvolution ?? []),
+    ...(plan.creativePossibilities ?? []),
+  ]);
+}
+
+function premiseValues(
+  premise: CognitivePremise | undefined,
+  role?: CognitivePremiseRole,
+): string[] {
+  return unique(
+    premise?.slots
+      .filter((slot) => !role || slot.role === role)
+      .flatMap((slot) => slot.values) ?? [],
+  );
+}
+
+function has(text: string, pattern: RegExp): boolean {
+  return pattern.test(text);
+}
+
+function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
+  const result: ExperienceMechanic[] = [];
+
+  if (tone.includes("playful")) {
+    result.push("contrast", "escalation", "participation");
+  }
+
+  if (tone.includes("energetic")) {
+    result.push("escalation", "participation");
+  }
+
+  if (tone.includes("mysterious")) {
+    result.push("uncertainty", "discovery", "reveal");
+  }
+
+  if (tone.includes("emotional")) {
+    result.push("memory", "continuation");
+  }
+
+  return result;
+}
+
+/**
+ * Derive reusable experiential operations from conserved semantics.
+ * The result is ranked and evidence-backed so downstream trajectory selection
+ * can inspect why a mechanic was selected.
+ */
+export function inferExperienceMechanics(args: {
+  plan?: CognitiveExperiencePlan;
+  premise?: CognitivePremise;
+  tone?: ExperienceTone[];
+}): MechanicSignal[] {
+  const { plan, premise = plan?.premise, tone = [] } = args;
+
+  const corpus = lower([
+    ...planValues(plan),
+    ...premiseValues(premise),
+    ...tone,
+  ].join(" "));
+
+  const roleCorpus = lower([
+    ...premiseValues(premise, "transformation"),
+    ...premiseValues(premise, "outcome"),
+    ...premiseValues(premise, "emotion"),
+    ...premiseValues(premise, "affordance"),
+    ...premiseValues(premise, "temporal"),
+    ...premiseValues(premise, "social"),
+  ].join(" "));
+
+  const scores = new Map<ExperienceMechanic, { score: number; evidence: string[] }>();
+
+  const add = (
+    mechanic: ExperienceMechanic,
+    score: number,
+    evidence: string,
+  ) => {
+    const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
+    current.score += score;
+    current.evidence.push(evidence);
+    scores.set(mechanic, current);
+  };
+
+  if (has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|versions?|folklore|mythology)\b/)) {
+    add("accumulation", 0.95, "material compounds or competing versions can grow");
+    add("contribution", 0.8, "participants can add material");
+  }
+
+  if (has(corpus, /\b(?:escalat|increasingly|more and more|wild|ridiculous|bigger|worse|extreme|over the top)\b/)) {
+    add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
+  }
+
+  // Compounding material is not automatically escalation. It becomes escalation
+  // when the accumulated contributions compete, mutate, or build toward a larger
+  // shared legend. This preserves prompts such as family folklore even when a
+  // wording cue is normalized away.
+  if (
+    has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
+    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing)?)\b/)
+  ) {
+    add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
+  }
+
+  if (has(corpus, /\b(?:transform|change|before and after|becomes?|turn(?:s|ed)? .* into|groom|clean|restore|makeover|pamper)\b/)) {
+    add("transformation", 0.95, "a state change is central to the premise");
+  }
+
+  if (has(corpus, /\b(?:reveal|hidden|secret|uncover|unknown|expose|forgotten)\b/)) {
+    add("reveal", 0.94, "information is intentionally withheld then exposed");
+    add("discovery", 0.82, "the participant must encounter something not initially visible");
+  }
+
+  if (has(corpus, /\b(?:discover|explore|find|hunt|clue|mystery|portal|encounter)\b/)) {
+    add("discovery", 0.94, "the premise asks for exploration or finding");
+  }
+
+  if (has(corpus, /\b(?:boring|ordinary|routine|mundane|before|after|unexpected|surprise)\b/)) {
+    add("contrast", 0.84, "the experience gains force from a baseline or reversal");
+  }
+
+  if (has(corpus, /\b(?:scan|participate|join|play|interact|touch|choose|vote|share)\b/)) {
+    add("participation", 0.9, "the participant performs an action that changes the experience");
+  }
+
+  if (has(corpus, /\b(?:compete|competition|race|versus|vs\.?|winner|challenge|score)\b/)) {
+    add("competition", 0.95, "participants are compared against a challenge or one another");
+  }
+
+  if (has(corpus, /\b(?:terror|terrifying|haunted|horror|dread|fear|threat|danger|creepy|unknown)\b/)) {
+    add("uncertainty", 0.96, "threat or uncertainty should intensify over time");
+    add("escalation", 0.72, "horror gains force from increasing threat");
+  }
+
+  if (has(corpus, /\b(?:absurd|billionaire|luxury|lavish|opulent|ridiculous|excess|indulgent|over the top)\b/)) {
+    add("excess", 0.97, "the premise rewards disproportion and indulgence");
+  }
+
+  if (has(corpus, /\b(?:spa|groom|groomer|pamper|poodle|princess|royal|treatments?)\b/)) {
+    add("pampering", 0.92, "care is part of the premise and should become an experiential behavior");
+  }
+
+  // Excess + care is itself an escalation signal. A pampering experience is
+  // not merely luxurious when the treatment is deliberately disproportionate:
+  // each stage should outdo the previous one. This is evaluated after excess
+  // and pampering are derived so normalized plans cannot lose the mechanic.
+  if (
+    scores.has("excess") &&
+    (scores.has("pampering") || has(corpus, /\b(?:care|indulgence|indulgent|pamper|pampering|treatment|treatments)\b/))
+  ) {
+    add(
+      "escalation",
+      0.86,
+      "excessive care should intensify through progressively more disproportionate treatment",
+    );
+  }
+
+  // Treat inflected forms as memory evidence. A premise such as
+  // "she remembers the absurd treatment" is just as semantically explicit as
+  // the noun "memory" and must not lose the mechanic during normalization.
+  if (has(corpus, /\b(?:memor(?:y|ies)|remember(?:s|ed|ing)?|reminisc|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
+    add("memory", 0.96, "past experience should affect present meaning");
+  }
+
+  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit|over time)\b/)) {
+    add("continuation", 0.95, "the experience has an explicit future state");
+  }
+
+  if (has(corpus, /\b(?:adaptive|adapt|preference|prefers?|history|previous|remembered|changes based|learns?|personalize|personalized)\b/)) {
+    add("adaptation", 0.96, "prior state should change the next realization");
+  }
+
+  if (
+    has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
+    has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
+  ) {
+    add("memory", 0.84, "returning interaction is explicitly shaped by prior experience");
+  }
+
+  if (plan?.direction === "memory") {
+    add("memory", 0.88, "selected cognitive direction is memory");
+
+    if ((plan.memoryModel?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("continuation", 0.82, "memory direction carries future continuity");
+    }
+
+    if ((plan.dynamicBehavior?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("adaptation", 0.78, "memory direction exposes accumulated state to later interactions");
+    }
+  }
+
+  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
+    const dynamic = lower(plan.dynamicBehavior.join(" "));
+    if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
+      add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
+    }
+  }
+
+  if ((plan?.futureEvolution?.length ?? 0) > 0) {
+    const future = lower(plan.futureEvolution.join(" "));
+    if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
+      add("continuation", 0.88, "future evolution explicitly preserves a next state");
+    }
+  }
+
+  if (
+    scores.has("accumulation") &&
+    scores.has("contribution") &&
+    (scores.has("memory") || scores.has("continuation"))
+  ) {
+    add("escalation", 0.82, "repeated contributions compound accumulated state into increasing experiential intensity");
+  }
+
+  if (roleCorpus.includes("transformation")) {
+    add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
+  }
+
+  for (const mechanic of toneMechanics(tone)) {
+    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
+  }
+
+  return [...scores.entries()]
+    .map(([mechanic, value]) => ({
+      mechanic,
+      confidence: Math.min(1, value.score),
+      evidence: unique(value.evidence),
+    }))
+    .sort((a, b) => b.confidence - a.confidence || a.mechanic.localeCompare(b.mechanic));
+}
+
+/**
+ * Produce a compact behavioral brief for trajectory generation.
+ */
+export function mechanicBrief(signals: MechanicSignal[]): string[] {
+  return signals
+    .filter((signal) => signal.confidence >= 0.7)
+    .map((signal) => signal.mechanic);
+}
