@@ -50,11 +50,11 @@ function attachCognitiveDirectives(
 
 /**
  * The subject used by language realization is not allowed to regress to the
- * compiler's heuristic subject. The strongest available source is the
- * directive, followed by the conserved premise, then the plan's central
- * subject. This matters for prompts such as "Max the poodle": the cognitive
- * premise may preserve the proper name even when the normalized plan subject
- * has become a broader noun phrase.
+ * compiler's heuristic subject. The strongest available source is the most
+ * specific directive/premise subject, followed by the plan's central subject.
+ * This matters for prompts such as "Max the poodle": the cognitive premise
+ * may preserve the proper name even when the normalized plan subject has
+ * become a broader noun phrase.
  */
 function authoritativeSubjects(
   beat: StoryBeat,
@@ -73,7 +73,12 @@ function authoritativeSubjects(
   ]
     .map((value) => value?.replace(/\s+/g, " ").trim() ?? "")
     .filter(Boolean)
-    .filter((value, index, values) => values.indexOf(value) === index);
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .sort((left, right) => {
+      const leftWords = left.split(/\s+/).filter(Boolean).length;
+      const rightWords = right.split(/\s+/).filter(Boolean).length;
+      return rightWords - leftWords;
+    });
 }
 
 function ensureDirectiveSubject(
@@ -84,29 +89,29 @@ function ensureDirectiveSubject(
   const subjects = authoritativeSubjects(beat, plan);
   if (!subjects.length) return text;
 
-  let result = text;
-  const normalized = () => result.toLocaleLowerCase();
+  const normalized = text.toLocaleLowerCase();
 
-  for (const subject of subjects) {
-    const subjectWords = subject
-      .split(/\s+/)
-      .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
-      .filter(Boolean);
+  // The most specific conserved subject is authoritative. Do not accept a
+  // generic subject such as "the dog" merely because it happens to survive;
+  // that would allow a proper name such as "Max" to disappear downstream.
+  const subject = subjects[0];
+  const subjectWords = subject
+    .split(/\s+/)
+    .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
+    .filter(Boolean);
 
-    const missing = subjectWords.filter((word) =>
-      word.length > 1 && !normalized().includes(word.toLocaleLowerCase()),
-    );
+  const missing = subjectWords.filter((word) =>
+    word.length > 1 && !normalized.includes(word.toLocaleLowerCase()),
+  );
 
-    if (!missing.length) {
-      return result;
-    }
+  if (!missing.length) {
+    return text;
   }
 
-  // No authoritative subject representation survived. Restore the most
-  // specific conserved subject, rather than allowing language realization to
-  // silently erase cognition's observed subject.
-  const subject = subjects.find((candidate) => candidate.split(/\s+/).length > 1) ?? subjects[0];
-  return `${result.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
+  // No authoritative subject representation survived. Restore the complete
+  // conserved subject, rather than allowing language realization to silently
+  // erase cognition's observed subject.
+  return `${text.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
 }
 
 export function elevateStoryBeat(
