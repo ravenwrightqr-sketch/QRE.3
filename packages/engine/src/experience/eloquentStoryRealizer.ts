@@ -116,8 +116,26 @@ function activeMechanics(plan?: CognitiveExperiencePlan): string[] {
   );
 }
 
+const BEAT_MECHANIC_PRIORITY: Partial<Record<StoryBeat["kind"], string[]>> = {
+  action: ["agency", "curation", "mastery", "participation", "embodiment"],
+  feedback: ["agency", "consequence", "surprise", "embodiment"],
+  next_step: ["agency", "momentum", "surprise", "consequence"],
+  challenge: ["mastery", "competition", "uncertainty", "suspense"],
+  reveal: ["surprise", "reversal", "suspense", "discovery"],
+  transformation: ["reversal", "surprise", "consequence", "excess", "indulgence"],
+  escalation: ["excess", "momentum", "suspense", "escalation"],
+  payoff: ["ownership", "celebration", "spectacle", "euphoria", "excess", "awe"],
+  identity: ["ownership", "prestige", "recognition", "agency"],
+  milestone: ["mastery", "recognition", "celebration", "prestige"],
+  continuation: ["legacy", "continuation", "memory"],
+};
+
 function openerFor(beat: StoryBeat, mechanics: string[]): string | undefined {
-  for (const mechanic of mechanics) {
+  const priority = BEAT_MECHANIC_PRIORITY[beat.kind] ?? [];
+  const ordered = unique([...priority, ...mechanics]);
+
+  for (const mechanic of ordered) {
+    if (!mechanics.includes(mechanic)) continue;
     const entry = EXPRESSION_MECHANICS.find((candidate) => candidate.mechanic === mechanic);
     const options = entry?.beatOpeners?.[beat.kind];
     if (options?.length) return options[beat.order % options.length];
@@ -171,44 +189,32 @@ function appendPromptEvidence(text: string, beat: StoryBeat, evidence: string[])
   const missing = evidence.filter((value) => !normalized.includes(lower(value)));
   if (!missing.length) return text;
 
-  const details = missing.slice(0, 2);
-  const first = details[0];
-  const second = details[1];
+  const details = missing.slice(0, 3);
+  const formatted = details.map((value) => capPrompt(value));
+  const joined = details.length === 1
+    ? formatted[0]
+    : details.length === 2
+      ? `${formatted[0]} and ${details[1]}`
+      : `${formatted[0]}, ${details[1]}, and ${details[2]}`;
 
   switch (beat.kind) {
     case "encounter":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} stay present in the scene.`
-        : `${sentence(text)} ${capPrompt(first)} stays present in the scene.`;
+      return `${sentence(text)} ${joined} stay present in the scene.`;
     case "discovery":
     case "reveal":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} become part of what is discovered.`
-        : `${sentence(text)} ${capPrompt(first)} becomes part of what is discovered.`;
+      return `${sentence(text)} ${joined} become part of what is discovered.`;
     case "action":
-      return second
-        ? `${sentence(text)} The action stays grounded in ${first} and ${second}.`
-        : `${sentence(text)} The action stays grounded in ${first}.`;
+      return `${sentence(text)} The action stays grounded in ${details.join(", ")}.`;
     case "escalation":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} raise the intensity.`
-        : `${sentence(text)} ${capPrompt(first)} raises the intensity.`;
+      return `${sentence(text)} ${joined} raise the intensity.`;
     case "transformation":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} mark the change.`
-        : `${sentence(text)} ${capPrompt(first)} marks the change.`;
+      return `${sentence(text)} ${joined} mark the change.`;
     case "payoff":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain attached to the result.`
-        : `${sentence(text)} ${capPrompt(first)} remains attached to the result.`;
+      return `${sentence(text)} ${joined} remain attached to the result.`;
     case "reflection":
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain part of what is remembered.`
-        : `${sentence(text)} ${capPrompt(first)} remains part of what is remembered.`;
+      return `${sentence(text)} ${joined} remain part of what is remembered.`;
     default:
-      return second
-        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain part of the moment.`
-        : `${sentence(text)} ${capPrompt(first)} remains part of the moment.`;
+      return `${sentence(text)} ${joined} remain part of the moment.`;
   }
 }
 
