@@ -38,10 +38,12 @@ export type MechanicSignal = {
   evidence: string[];
 };
 
-const clean = (value: string) => value.replace(/\s+/g, " ").trim();
-const lower = (value: string) => clean(value).toLowerCase();
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-function unique(values: string[]): string[] {
+const lower = (value: unknown) => clean(value).toLowerCase();
+
+function unique(values: readonly unknown[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
 }
 
@@ -51,6 +53,7 @@ function planValues(plan: CognitiveExperiencePlan | undefined): string[] {
   return unique([
     plan.centralSubject,
     plan.purpose,
+    plan.direction,
     ...(plan.audience ?? []),
     ...(plan.emotionalIntent ?? []),
     ...(plan.interactionModel ?? []),
@@ -195,20 +198,53 @@ export function inferExperienceMechanics(args: {
     add("memory", 0.96, "past experience should affect present meaning");
   }
 
-  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit)\b/)) {
+  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit|over time)\b/)) {
     add("continuation", 0.95, "the experience has an explicit future state");
   }
 
-  if (has(corpus, /\b(?:adaptive|preference|prefers?|history|previous|remembered|changes based|learns?)\b/)) {
+  if (has(corpus, /\b(?:adaptive|adapt|preference|prefers?|history|previous|remembered|changes based|learns?|personalize|personalized)\b/)) {
     add("adaptation", 0.96, "prior state should change the next realization");
   }
 
-  for (const mechanic of toneMechanics(tone)) {
-    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
+  /**
+   * Directional semantics are not domain templates. They are the cognitive
+   * commitments already selected upstream. Use them only as a conservative
+   * floor when the plan explicitly contains the corresponding temporal or
+   * memory model, so mechanics do not disappear merely because a wording cue
+   * was normalized away by the planner.
+   */
+  if (plan?.direction === "memory") {
+    add("memory", 0.88, "selected cognitive direction is memory");
+
+    if ((plan.memoryModel?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("continuation", 0.82, "memory direction carries future continuity");
+    }
+
+    if ((plan.dynamicBehavior?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("adaptation", 0.78, "memory direction exposes accumulated state to later interactions");
+    }
+  }
+
+  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
+    const dynamic = lower(plan?.dynamicBehavior?.join(" "));
+    if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
+      add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
+    }
+  }
+
+  if ((plan?.futureEvolution?.length ?? 0) > 0) {
+    const future = lower(plan?.futureEvolution?.join(" "));
+    if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
+      add("continuation", 0.88, "future evolution explicitly preserves a next state");
+    }
   }
 
   if (roleCorpus.includes("transformation")) {
     add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
+  }
+
+  for (const mechanic of toneMechanics(tone)) {
+    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
   }
 
   return [...scores.entries()]
