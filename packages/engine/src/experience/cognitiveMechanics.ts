@@ -264,6 +264,19 @@ export function inferExperienceMechanics(args: {
     }
   }
 
+  // Some upstream normalization removes the original adjectives that expressed
+  // intensity (for example "more ridiculous") while preserving the underlying
+  // mechanics as accumulation + contribution + continuity. When all three are
+  // present, the experience is not merely collecting material: each new action
+  // compounds the prior state, so escalation must survive as a derived mechanic.
+  if (
+    scores.has("accumulation") &&
+    scores.has("contribution") &&
+    (scores.has("memory") || scores.has("continuation"))
+  ) {
+    add("escalation", 0.82, "repeated contributions compound accumulated state into increasing experiential intensity");
+  }
+
   if (roleCorpus.includes("transformation")) {
     add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
   }
