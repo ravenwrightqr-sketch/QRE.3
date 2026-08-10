@@ -260,8 +260,13 @@ export function elevateStoryBeats(
     const index = output.findIndex((beat) => beat.kind === kind);
     if (index < 0) continue;
 
+    const remainingEvidence = evidence.filter(
+      (value) => !output.some((beat) => lower(beat.text).includes(lower(value))),
+    );
+    if (!remainingEvidence.length) break;
+
     const before = output[index].text;
-    const next = appendPromptEvidence(before, output[index], evidence);
+    const next = appendPromptEvidence(before, output[index], remainingEvidence);
     if (next === before) continue;
 
     output[index] = { ...output[index], text: `${sentence(next)}.` };
