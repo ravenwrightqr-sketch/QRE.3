@@ -29,10 +29,18 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
   ritual: ["orientation", "threshold", "encounter", "reflection", "payoff", "continuation"],
 };
 
-const clean = (value: string) => value.replace(/\s+/g, " ").trim();
-const first = (values?: string[]) => clean(values?.[0] ?? "");
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-function unique(values: string[]): string[] {
+const first = (values?: readonly unknown[]) => clean(values?.[0]);
+
+/**
+ * Runtime boundary for semantic collections. Several contract fields are
+ * typed as strings, but older/migrating callers can still surface undefined
+ * array entries at runtime. Realization must not crash the entire compiler
+ * because an optional semantic slot is absent.
+ */
+function unique(values: readonly unknown[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
 }
 
@@ -199,7 +207,7 @@ export function realizeCognitiveExperience(args: {
   const direction = plan.direction ?? "story";
   const x = inputs(plan, premise);
   const kinds = STRUCTURES[direction];
-  const conservedRoles = unique((premise?.slots ?? []).map((slot) => slot.role)) as CognitivePremiseRole[];
+  const conservedRoles = unique((premise?.slots ?? []).map((slot) => slot.role));
 
   const directives = kinds.map((kind) => {
     const roleSet = new Set<CognitivePremiseRole>(["subject"]);
