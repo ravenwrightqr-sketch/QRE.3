@@ -1,8 +1,16 @@
-import type { CognitivePremiseRole } from "@qre/contracts";
+import type { CognitivePremiseRole, CognitiveBeatKind } from "@qre/contracts";
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 import { premiseValues } from "../../cognition/premiseBuilder.js";
 
-const cases = [
+const cases: Array<{
+  prompt: string;
+  required: Partial<Record<CognitivePremiseRole, string>>;
+  output: RegExp;
+  observable?: RegExp;
+  transformation?: RegExp;
+  requiredKinds?: CognitiveBeatKind[];
+  forbidden?: RegExp;
+}> = [
   {
     prompt: "Turn this concert QR into something people will remember.",
     required: { event: "concert", medium: "qr" },
@@ -30,15 +38,18 @@ const cases = [
   },
   {
     /**
-     * The dog test is intentionally concrete. A valid result must not merely
-     * say that Max receives "care" or that the experience is "meaningful".
-     * It must retain the subject, the grooming/spa context, and an observable
-     * action or state change in the actual story beats.
+     * THE DOG TEST
+     *
+     * A real experience needs an entity, context, observable action, and
+     * change. "Max receives care" is not enough. The beats must actually
+     * carry the grooming/spa situation and a transformation.
      */
     prompt: "Create a dog groomer story for Max the poodle about the experience.",
     required: {},
     output: /max|poodle|groomer|grooming|bath|spa|pamper|clean/i,
     observable: /groom|bath|wash|brush|dry|trim|pamper|spa|clean/i,
+    transformation: /transform|change|pamper|groom|bath|clean|fresh|relax/i,
+    requiredKinds: ["transformation"],
     forbidden: /the operative move is|meaningful experience|deserves a closer look/i,
   },
 ];
@@ -67,13 +78,32 @@ for (const testCase of cases) {
     );
   }
 
-  if ("observable" in testCase && testCase.observable && !testCase.observable.test(beatText)) {
+  if (testCase.observable && !testCase.observable.test(beatText)) {
     throw new Error(
       `Concrete action/context was not realized in beats for: ${testCase.prompt}. Realized: ${beatText}`,
     );
   }
 
-  if ("forbidden" in testCase && testCase.forbidden && testCase.forbidden.test(beatText)) {
+  if (testCase.transformation) {
+    const transformationBeat = result.story.beats.find((beat) => beat.kind === "transformation");
+    if (!transformationBeat) {
+      throw new Error(`No transformation beat was compiled for: ${testCase.prompt}`);
+    }
+    if (!testCase.transformation.test(transformationBeat.text)) {
+      throw new Error(
+        `Transformation beat did not contain concrete change for: ${testCase.prompt}. ` +
+          `Realized: ${transformationBeat.text}`,
+      );
+    }
+  }
+
+  for (const kind of testCase.requiredKinds ?? []) {
+    if (!result.story.beats.some((beat) => beat.kind === kind)) {
+      throw new Error(`Missing required story beat ${kind} for: ${testCase.prompt}`);
+    }
+  }
+
+  if (testCase.forbidden && testCase.forbidden.test(beatText)) {
     throw new Error(
       `Generic realization leaked into subject-native beats for: ${testCase.prompt}. Realized: ${beatText}`,
     );
