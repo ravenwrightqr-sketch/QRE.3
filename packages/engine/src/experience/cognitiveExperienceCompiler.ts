@@ -6,6 +6,7 @@ import type {
 
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
+import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
@@ -32,6 +33,7 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *     → OPPORTUNITY SPACE
  *     → SELECTED EXPERIENCE DIRECTION
  *     → COGNITIVE PLAN
+ *     → SEMANTIC REALIZATION
  *     → UNIVERSAL COMPILATION
  *     → PREMISE LANGUAGE REALIZATION
  *     → BLUEPRINT
@@ -49,9 +51,8 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *
  * COGNITIVE RULE:
  *   Cognition decides what the experience could become.
- *   The universal compiler remains the runtime-shape substrate and receives
- *   the selected cognitive plan before it compiles the experience.
- *   No inferred possibility is promoted to observed fact.
+ *   Semantic realization records how each operation should change the
+ *   experiential state. It does not manufacture facts.
  *
  * LANGUAGE RULE:
  *   Language realization happens after cognition and story structure are
@@ -60,7 +61,7 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *
  * CONTINUITY RULE:
  *   This file composes the existing compiler layers; it does not create
- *   a parallel compiler, template registry, or second runtime pipeline.
+ *   a parallel runtime pipeline.
  *
  * ============================================================
  */
@@ -151,10 +152,12 @@ function mergeGenome(
         "hypothesis-driven",
         "cognitive-plan-directed",
         "premise-conserved",
+        "semantic-realization",
         "universal-compiler-substrate",
         `hypothesis:${selected.kind}`,
         ...cognition.affordances.map((value) => `affordance:${value}`),
         ...cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
+        ...(cognition.plan.realization?.semanticArc.map((value) => `arc:${value}`) ?? []),
       ]),
     ],
   };
@@ -192,6 +195,7 @@ function mergeBlueprint(
           "hypothesis-driven",
           "cognitive-plan",
           "premise-conserved",
+          "semantic-realization",
           "adaptive-experience",
           "universal-compiler-substrate",
           ...cognition.assumptions.map(() => "assumption-explicit"),
@@ -216,6 +220,7 @@ function directModel(
         "cognitive-experience-intelligence",
         "cognitive-plan-directed",
         "premise-conserved",
+        "semantic-realization",
         "universal-compiler-substrate",
         "eloquent-language-realization",
         `selected:${cognition.selectedHypothesis.kind}`,
@@ -338,9 +343,9 @@ function realizeLanguage(
 /**
  * Canonical public compiler entry point.
  *
- * Cognition runs first. The selected plan is then supplied directly to the
- * universal compiler, which remains the only runtime-shape compilation path.
- * The role-based premise is constructed once here and travels with that plan.
+ * Cognition runs first. The conserved premise and semantic realization are
+ * then supplied directly to the universal compiler, which remains the only
+ * runtime-shape compilation path.
  */
 export function compileCognitiveExperience(
   prompt: string,
@@ -361,11 +366,19 @@ export function compileCognitiveExperience(
     context,
   });
 
+  const realization = realizeCognitiveExperience({
+    plan: cognitionBase.plan,
+    premise,
+    evidence: cognitionBase.subject.evidence,
+    hypothesisEvidence: cognitionBase.selectedHypothesis.evidence,
+  });
+
   const cognition: CognitiveExperienceState = {
     ...cognitionBase,
     plan: {
       ...cognitionBase.plan,
       premise,
+      realization,
     },
   };
 
