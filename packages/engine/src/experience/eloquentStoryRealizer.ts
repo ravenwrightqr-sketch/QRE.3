@@ -48,29 +48,65 @@ function attachCognitiveDirectives(
   });
 }
 
+/**
+ * The subject used by language realization is not allowed to regress to the
+ * compiler's heuristic subject. The strongest available source is the
+ * directive, followed by the conserved premise, then the plan's central
+ * subject. This matters for prompts such as "Max the poodle": the cognitive
+ * premise may preserve the proper name even when the normalized plan subject
+ * has become a broader noun phrase.
+ */
+function authoritativeSubjects(
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): string[] {
+  const premiseSubjects =
+    plan?.premise?.slots
+      .filter((slot) => slot.role === "subject")
+      .flatMap((slot) => slot.values)
+      .filter((value): value is string => typeof value === "string") ?? [];
+
+  return [
+    beat.directive?.subject,
+    ...premiseSubjects,
+    plan?.centralSubject,
+  ]
+    .map((value) => value?.replace(/\s+/g, " ").trim() ?? "")
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+
 function ensureDirectiveSubject(
   text: string,
   beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
 ): string {
-  const subject = beat.directive?.subject?.trim();
-  if (!subject) return text;
+  const subjects = authoritativeSubjects(beat, plan);
+  if (!subjects.length) return text;
 
-  const normalized = text.toLocaleLowerCase();
-  const subjectWords = subject
-    .split(/\s+/)
-    .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
-    .filter(Boolean);
+  let result = text;
+  const normalized = () => result.toLocaleLowerCase();
 
-  // The language layer may inflect or abbreviate surrounding prose, but it
-  // must never erase the authoritative cognitive subject. For multi-word
-  // subjects, require every distinctive token to survive.
-  const missing = subjectWords.filter((word) =>
-    word.length > 1 && !normalized.includes(word.toLocaleLowerCase()),
-  );
+  for (const subject of subjects) {
+    const subjectWords = subject
+      .split(/\s+/)
+      .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
+      .filter(Boolean);
 
-  if (!missing.length) return text;
+    const missing = subjectWords.filter((word) =>
+      word.length > 1 && !normalized().includes(word.toLocaleLowerCase()),
+    );
 
-  return `${text.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
+    if (!missing.length) {
+      return result;
+    }
+  }
+
+  // No authoritative subject representation survived. Restore the most
+  // specific conserved subject, rather than allowing language realization to
+  // silently erase cognition's observed subject.
+  const subject = subjects.find((candidate) => candidate.split(/\s+/).length > 1) ?? subjects[0];
+  return `${result.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
 }
 
 export function elevateStoryBeat(
@@ -80,7 +116,7 @@ export function elevateStoryBeat(
 ): string {
   const [resolved] = attachCognitiveDirectives([beat], plan);
   const realized = realizePremiseBeatV3(resolved ?? beat, plan);
-  return ensureDirectiveSubject(realized, resolved ?? beat);
+  return ensureDirectiveSubject(realized, resolved ?? beat, plan);
 }
 
 export function elevateStoryBeats(
@@ -94,6 +130,7 @@ export function elevateStoryBeats(
     text: ensureDirectiveSubject(
       realizePremiseBeatV3(beat, plan),
       beat,
+      plan,
     ),
   }));
 }
