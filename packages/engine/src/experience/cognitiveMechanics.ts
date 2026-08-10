@@ -194,7 +194,10 @@ export function inferExperienceMechanics(args: {
     add("pampering", 0.92, "care is part of the premise and should become an experiential behavior");
   }
 
-  if (has(corpus, /\b(?:memory|remember|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
+  // Treat inflected forms as memory evidence. A premise such as
+  // "she remembers the absurd treatment" is just as semantically explicit as
+  // the noun "memory" and must not lose the mechanic during normalization.
+  if (has(corpus, /\b(?:memor(?:y|ies)|remember(?:s|ed|ing)?|reminisc|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
     add("memory", 0.96, "past experience should affect present meaning");
   }
 
