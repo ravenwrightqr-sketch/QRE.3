@@ -190,7 +190,7 @@ function buildAnchors(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[]
   }
 
   return [...scored.values()]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || b.value.length - a.value.length)
     .map((entry) => entry.value)
     .slice(0, 16);
 }
@@ -292,7 +292,7 @@ function preserveEvidence(text: string, ev: SemanticEvidence): string {
     .filter((anchor) => distinctiveTokens(anchor).length > 0)
     .filter((anchor) => !isGenericCompilerProse(anchor))
     .filter((anchor) => !normalized.includes(lower(anchor)))
-    .slice(0, 3);
+    .slice(0, 6);
 
   if (!anchors.length) return text;
 
