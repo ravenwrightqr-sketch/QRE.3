@@ -147,7 +147,7 @@ export function inferExperienceMechanics(args: {
     scores.set(mechanic, current);
   };
 
-  if (has(corpus, /\b(?:add|adding|contribute|contribution|accumulate|accumulating|grows?|versions?|folklore|mythology)\b/)) {
+  if (has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|versions?|folklore|mythology)\b/)) {
     add("accumulation", 0.95, "material compounds or competing versions can grow");
     add("contribution", 0.8, "participants can add material");
   }
@@ -162,7 +162,7 @@ export function inferExperienceMechanics(args: {
   // planner normalizes away surface words like "more ridiculous".
   if (
     has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
-    has(corpus, /\b(?:add|adding|contribute|contribution|accumulate|accumulating|grows?|compounds?|competing)\b/)
+    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing|ing))\b/)
   ) {
     add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
   }
