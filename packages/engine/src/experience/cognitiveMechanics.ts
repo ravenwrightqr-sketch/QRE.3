@@ -134,6 +134,7 @@ export function inferExperienceMechanics(args: {
     ...premiseValues(premise, "affordance"),
     ...premiseValues(premise, "temporal"),
     ...premiseValues(premise, "social"),
+    ...premiseValues(premise, "detail"),
   ].join(" "));
 
   const scores = new Map<ExperienceMechanic, { score: number; evidence: string[] }>();
@@ -222,8 +223,14 @@ export function inferExperienceMechanics(args: {
     add("memory", 0.96, "past experience should affect present meaning");
   }
 
-  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit)\b/)) {
-    add("continuation", 0.95, "the experience has an explicit future state");
+  if (has(corpus, /\b(?:again|return|returns?|returned|comes? back|came back|revisit|revisits|same|previous|prior|every visit|each visit|this time|before)\b/)) {
+    add("continuation", 0.95, "the premise explicitly returns to an earlier state or visit");
+    add("memory", 0.86, "a return implies prior experience is relevant to the present");
+    add("adaptation", 0.82, "the present visit can change because of what happened before");
+  }
+
+  if (has(corpus, /\b(?:again|return|returns?|revisit|revisits|same|previous|prior|remember(?:s|ed)?|preference(?:s)?|loved before|this time|more excited|even more)\b/)) {
+    add("adaptation", 0.9, "prior experience or preference can alter the next realization");
   }
 
   if (has(corpus, /\b(?:adaptive|preference|prefers?|history|previous|remembered|changes based|learns?)\b/)) {
