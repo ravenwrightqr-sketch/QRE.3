@@ -1,138 +1,171 @@
+/**
+ * =============================================================================
+ * QRE ELOQUENT COGNITIVE EXPERIENCE REALIZER
+ * =============================================================================
+ *
+ * GOAL
+ * ----
+ * Turn the trajectory's discovered cognitive forces into concrete, energetic
+ * experience language without falling back to subject-specific templates.
+ *
+ * PURPOSE
+ * -------
+ * This is the final language boundary between:
+ *
+ *   MEGA COGNITION -> MEGA TRAJECTORY -> CONCRETE EXPERIENCE
+ *
+ * The layer does not invent facts. It preserves authoritative subjects,
+ * directives, premise evidence, and beat structure while adding expressive
+ * grammatical force appropriate to the mechanics cognition actually selected.
+ *
+ * DESIGN RULES
+ * ------------
+ * 1. Cognition owns meaning.
+ * 2. Trajectory owns causal structure.
+ * 3. This layer owns expression only.
+ * 4. Mechanics may change the way a beat lands, never the facts it contains.
+ * 5. No domain branches. No dog branch. No spa branch. No horror branch.
+ * 6. "Feel good" means experiential intensity, not mandatory wholesomeness.
+ * 7. Concrete evidence must remain visible all the way to presentation.
+ *
+ * =============================================================================
+ */
+
 import type {
   CognitiveExperiencePlan,
   StoryBeat,
 } from "@qre/contracts";
+import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
 import { isGenericCompilerProse } from "./premiseRealizer.js";
-import {
-  realizePremiseBeatV3,
-  realizePremiseBeatsV3,
-} from "./premiseRealizerV3.js";
+import { realizePremiseBeatV3 } from "./premiseRealizerV3.js";
 
-/**
- * Compatibility facade for the story realization entry point.
- *
- * Cognition owns semantic meaning. The universal compiler owns narrative
- * structure. This boundary is where the authoritative cognitive directive is
- * attached to each structural StoryBeat before language realization.
- *
- * The language layer therefore consumes:
- *   directive + conserved premise + concrete evidence
- *
- * rather than trusting presentation text produced by an earlier compiler
- * realization pass.
- */
+type ExpressionMechanic = {
+  mechanic: string;
+  beatOpeners?: Partial<Record<StoryBeat["kind"], string[]>>;
+};
 
-function attachCognitiveDirectives(
-  beats: StoryBeat[],
-  plan?: CognitiveExperiencePlan,
-): StoryBeat[] {
-  if (!plan?.realization?.directives?.length) {
-    return beats;
+const EXPRESSION_MECHANICS: readonly ExpressionMechanic[] = [
+  { mechanic: "anticipation", beatOpeners: { hook: ["The next move is already pulling forward.", "The moment starts leaning toward what comes next."], threshold: ["The waiting ends here."] } },
+  { mechanic: "suspense", beatOpeners: { threshold: ["The answer stays just out of reach."], reveal: ["Then the withheld piece comes into view."] } },
+  { mechanic: "surprise", beatOpeners: { reveal: ["Then the expectation breaks."], transformation: ["The direction suddenly changes."] } },
+  { mechanic: "reversal", beatOpeners: { reveal: ["Then the reading flips."], transformation: ["What looked settled turns another way."] } },
+  { mechanic: "agency", beatOpeners: { action: ["Now the participant gets the move."], feedback: ["The choice answers back."], next_step: ["That choice now determines the next move."] } },
+  { mechanic: "consequence", beatOpeners: { feedback: ["The action leaves a mark on what happens next."], transformation: ["The earlier move now changes the state."] } },
+  { mechanic: "mastery", beatOpeners: { challenge: ["The next move demands more control."], milestone: ["The new capability is now visible."] } },
+  { mechanic: "discovery", beatOpeners: { discovery: ["Another layer comes into view."], reveal: ["Something that was hidden is now available to see."] } },
+  { mechanic: "spectacle", beatOpeners: { encounter: ["The experience opens wider."], payoff: ["The result arrives at full scale."] } },
+  { mechanic: "wonder", beatOpeners: { threshold: ["The ordinary boundary gives way to something stranger."], discovery: ["The next detail rewards a closer look."] } },
+  { mechanic: "awe", beatOpeners: { encounter: ["The moment takes on a larger scale."], payoff: ["The result lands with weight."] } },
+  { mechanic: "indulgence", beatOpeners: { encounter: ["The experience refuses to stop at ordinary."], transformation: ["Ordinary proportionality is no longer the rule."] } },
+  { mechanic: "excess", beatOpeners: { escalation: ["And then it goes further."], payoff: ["The result is allowed to be excessive."] } },
+  { mechanic: "euphoria", beatOpeners: { payoff: ["The accumulated momentum finally breaks into payoff."] } },
+  { mechanic: "celebration", beatOpeners: { milestone: ["The moment becomes something to celebrate."], payoff: ["The result gets its full celebration."] } },
+  { mechanic: "prestige", beatOpeners: { threshold: ["Access becomes part of the experience."], identity: ["The distinction becomes visible."] } },
+  { mechanic: "scarcity", beatOpeners: { threshold: ["The window is deliberately narrow."], unlock: ["The limited state opens."] } },
+  { mechanic: "curation", beatOpeners: { discovery: ["The selected detail is the one that matters here."], action: ["The experience narrows to the chosen move."] } },
+  { mechanic: "ownership", beatOpeners: { identity: ["The experience becomes theirs."], payoff: ["The result now belongs to the participant's story."] } },
+  { mechanic: "legacy", beatOpeners: { provenance: ["The origin stays attached to what was made."], continuation: ["What happened here remains available to the next chapter."] } },
+  { mechanic: "intimacy", beatOpeners: { encounter: ["The moment narrows to the relationship itself."], reflection: ["The quieter part of the moment comes forward."] } },
+  { mechanic: "catharsis", beatOpeners: { payoff: ["The pressure finally has somewhere to go."], transformation: ["The accumulated pressure breaks into change."] } },
+  { mechanic: "relief", beatOpeners: { payoff: ["The pressure releases."] } },
+  { mechanic: "momentum", beatOpeners: { escalation: ["The previous move gives the next one its speed."], next_step: ["The current state creates the next move."] } },
+  { mechanic: "embodiment", beatOpeners: { action: ["The experience becomes something the participant can actually do."], feedback: ["The result can be felt in the interaction."] } },
+  { mechanic: "immersion", beatOpeners: { encounter: ["The surrounding experience takes over."], transformation: ["The state changes from inside the experience."] } },
+  { mechanic: "recognition", beatOpeners: { milestone: ["The contribution becomes visible."], identity: ["The participant is no longer anonymous inside the moment."] } },
+];
+
+const unique = <T>(values: T[]): T[] => [...new Set(values)];
+const clean = (value: string): string => value.replace(/\s+/g, " ").trim();
+const sentence = (value: string): string => clean(value).replace(/[.!?]+$/, "");
+const lower = (value: string): string => clean(value).toLowerCase();
+
+function activeMechanics(plan?: CognitiveExperiencePlan): string[] {
+  if (!plan) return [];
+
+  return unique(
+    composeCognitiveTrajectory({ plan })
+      .mechanics
+      .filter((signal) => signal.confidence >= 0.7)
+      .sort((a, b) => b.confidence - a.confidence)
+      .map((signal) => signal.mechanic),
+  );
+}
+
+function openerFor(
+  beat: StoryBeat,
+  mechanics: string[],
+): string | undefined {
+  for (const mechanic of mechanics) {
+    const entry = EXPRESSION_MECHANICS.find(
+      (candidate) => candidate.mechanic === mechanic,
+    );
+
+    const options = entry?.beatOpeners?.[beat.kind];
+    if (options?.length) {
+      return options[beat.order % options.length];
+    }
   }
 
-  const directives = new Map(
-    plan.realization.directives.map((directive) => [directive.kind, directive]),
-  );
-
-  return beats.map((beat) => {
-    const directive = directives.get(beat.kind);
-
-    if (!directive) {
-      return beat;
-    }
-
-    return {
-      ...beat,
-      directive,
-    };
-  });
+  return undefined;
 }
 
-/**
- * The subject used by language realization is not allowed to regress to the
- * compiler's heuristic subject. The strongest available source is the most
- * specific directive/premise subject, followed by the plan's central subject.
- * This matters for prompts such as "Max the poodle": the cognitive premise
- * may preserve the proper name even when the normalized plan subject has
- * become a broader noun phrase.
- */
-function authoritativeSubjects(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string[] {
-  const premiseSubjects =
-    plan?.premise?.slots
-      .filter((slot) => slot.role === "subject")
-      .flatMap((slot) => slot.values)
-      .filter((value): value is string => typeof value === "string") ?? [];
-
-  return [
-    beat.directive?.subject,
-    ...premiseSubjects,
-    plan?.centralSubject,
-  ]
-    .map((value) => value?.replace(/\s+/g, " ").trim() ?? "")
-    .filter(Boolean)
-    .filter((value, index, values) => values.indexOf(value) === index)
-    .sort((left, right) => {
-      const leftWords = left.split(/\s+/).filter(Boolean).length;
-      const rightWords = right.split(/\s+/).filter(Boolean).length;
-      return rightWords - leftWords;
-    });
-}
-
-function ensureDirectiveSubject(
+function preserveConcreteSubject(
   text: string,
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
-  const subjects = authoritativeSubjects(beat, plan);
+  const subjects = unique([
+    beat.directive?.subject,
+    ...(plan?.premise?.slots
+      .filter((slot) => slot.role === "subject")
+      .flatMap((slot) => slot.values) ?? []),
+    plan?.centralSubject,
+  ].filter((value): value is string => Boolean(value?.trim())));
+
   if (!subjects.length) return text;
 
-  // The most specific conserved subject is authoritative. Do not accept a
-  // generic subject merely because it happens to survive downstream.
-  const strongestSubject =
-    subjects
-      .slice()
-      .sort(
-        (a, b) =>
-          b.split(/\s+/).filter(Boolean).length -
-            a.split(/\s+/).filter(Boolean).length ||
-          b.length - a.length,
-      )[0] ?? subjects[0];
+  const normalized = lower(text);
+  const strongest = subjects.sort(
+    (a, b) =>
+      b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length,
+  )[0];
 
-  const normalizeToken = (value: string) =>
-    value
-      .replace(/[^\p{L}\p{N}'’-]/gu, "")
-      .toLocaleLowerCase();
+  const missing = strongest
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !normalized.includes(lower(token)));
 
-  // Preserve concrete evidence carried by every authoritative subject.
-  // This prevents language realization from silently erasing details such as
-  // "Max", "poodle", "billionaire", "spa", or other prompt-grounded facts.
-  const evidenceTokens = [
-    ...new Set(
-      subjects
-        .flatMap((subject) => subject.split(/\s+/))
-        .map(normalizeToken)
-        .filter((token) => token.length > 1),
-    ),
+  return missing.length
+    ? `${sentence(text)} ${strongest} remains at the center of this moment.`
+    : text;
+}
+
+function addMechanicTexture(
+  text: string,
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): string {
+  const opener = openerFor(beat, activeMechanics(plan));
+
+  if (!opener || lower(text).includes(lower(opener))) return text;
+
+  return `${opener} ${sentence(text)}`;
+}
+
+function removeDeadProse(text: string): string {
+  const blocked = [
+    /the experience puts into focus/gi,
+    /deserves a closer look/gi,
+    /gives the story somewhere concrete to begin/gi,
+    /the next layer/gi,
+    /the operative move is/gi,
   ];
 
-  if (!evidenceTokens.length) return text;
-
-  const normalizedText = text.toLocaleLowerCase();
-
-  const missing = evidenceTokens.filter(
-    (token) => !normalizedText.includes(token),
+  return sentence(
+    blocked.reduce(
+      (current, pattern) => current.replace(pattern, ""),
+      text,
+    ).replace(/\s{2,}/g, " "),
   );
-
-  if (!missing.length) {
-    return text;
-  }
-
-  // Restore the strongest conserved representation rather than isolated
-  // missing words so concrete relationships remain intact.
-  return `${text.replace(/[.!?]+$/, "")}. ${strongestSubject} remains at the center of this beat.`;
 }
 
 export function elevateStoryBeat(
@@ -140,24 +173,34 @@ export function elevateStoryBeat(
   _index: number,
   plan?: CognitiveExperiencePlan,
 ): string {
-  const [resolved] = attachCognitiveDirectives([beat], plan);
-  const realized = realizePremiseBeatV3(resolved ?? beat, plan);
-  return ensureDirectiveSubject(realized, resolved ?? beat, plan);
+  const resolved = plan?.realization?.directives?.length
+    ? {
+        ...beat,
+        directive:
+          plan.realization.directives.find((directive) => directive.kind === beat.kind) ??
+          beat.directive,
+      }
+    : beat;
+
+  let realized = realizePremiseBeatV3(resolved, plan);
+  realized = addMechanicTexture(realized, resolved, plan);
+  realized = preserveConcreteSubject(realized, resolved, plan);
+  realized = removeDeadProse(realized);
+
+  if (isGenericCompilerProse(realized)) {
+    realized = realizePremiseBeatV3(resolved, plan);
+  }
+
+  return `${sentence(realized)}.`;
 }
 
 export function elevateStoryBeats(
   beats: StoryBeat[],
   plan?: CognitiveExperiencePlan,
 ): StoryBeat[] {
-  const authoritativeBeats = attachCognitiveDirectives(beats, plan);
-
-  return authoritativeBeats.map((beat) => ({
+  return beats.map((beat) => ({
     ...beat,
-    text: ensureDirectiveSubject(
-      realizePremiseBeatV3(beat, plan),
-      beat,
-      plan,
-    ),
+    text: elevateStoryBeat(beat, beat.order, plan),
   }));
 }
 
