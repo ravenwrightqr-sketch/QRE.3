@@ -241,8 +241,40 @@ export function inferExperienceMechanics(args: {
     add("escalation", 0.72, "horror gains force from increasing threat");
   }
 
+  /*
+   * Suspense is a higher-order relationship, not merely a synonym for fear.
+   * When uncertainty is explicitly sustained around a threat, the experience
+   * must preserve the unresolved pull toward the next state.
+   */
+  if (
+    scores.has("uncertainty") &&
+    has(corpus, /\b(?:threat|danger|terror|terrifying|haunted|horror|dread|fear|unknown|uncertain|uncertainty)\b/)
+  ) {
+    add(
+      "suspense",
+      0.9,
+      "uncertainty is sustained around an active threat, creating unresolved anticipation",
+    );
+  }
+
   if (has(corpus, /\b(?:absurd|billionaire|luxury|lavish|opulent|ridiculous|excess|indulgent|over the top)\b/)) {
     add("excess", 0.97, "the premise rewards disproportion and indulgence");
+  }
+
+  /*
+   * Excess and luxury are not merely synonyms. Together they establish
+   * indulgence as a behavioral force: the experience should actively indulge
+   * the participant rather than merely contain an expensive setting.
+   */
+  if (
+    scores.has("excess") &&
+    has(corpus, /\b(?:luxury|lavish|opulent|indulgent|indulgence|extravagant|decadent|billionaire|no expense spared)\b/)
+  ) {
+    add(
+      "indulgence",
+      0.9,
+      "luxury is framed as active disproportionate indulgence rather than background setting",
+    );
   }
 
   if (has(corpus, /\b(?:spa|groom|groomer|pamper|poodle|princess|royal|treatments?)\b/)) {
@@ -299,14 +331,14 @@ export function inferExperienceMechanics(args: {
   }
 
   if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower((plan.dynamicBehavior ?? []).join(" "));
+    const dynamic = lower(plan?.dynamicBehavior?.join(" ") ?? "");
     if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
       add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
     }
   }
 
   if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower((plan.futureEvolution ?? []).join(" "));
+    const future = lower(plan?.futureEvolution?.join(" ") ?? "");
     if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
       add("continuation", 0.88, "future evolution explicitly preserves a next state");
     }
