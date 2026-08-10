@@ -1,3 +1,24 @@
+/**
+ * =============================================================================
+ * COGNITIVE TRAJECTORY ACCEPTANCE
+ * =============================================================================
+ *
+ * GOAL
+ * ----
+ * Prove that expressive cognitive structure survives from prompt understanding
+ * into mechanics and then into concrete causal story beats.
+ *
+ * PURPOSE
+ * -------
+ * This suite protects the universal substrate from semantic collapse. A prompt
+ * may normalize into a generic cognitive plan, but high-value experiential
+ * commitments such as agency, prestige, suspense, surprise, mastery, scarcity,
+ * and legacy must remain available to trajectory composition.
+ *
+ * The suite is intentionally domain-diverse and does not authorize subject
+ * specific templates.
+ */
+
 import { understandExperience } from "../../cognition/cognitiveEngine.js";
 import { composeCognitiveTrajectory } from "../../experience/cognitiveTrajectory.js";
 
@@ -48,7 +69,10 @@ const probes: Probe[] = [
 
 for (const probe of probes) {
   const state = understandExperience(probe.prompt, {});
-  const trajectory = composeCognitiveTrajectory({ plan: state.plan });
+  const trajectory = composeCognitiveTrajectory({
+    plan: state.plan,
+    prompt: state.prompt,
+  });
   const mechanics = trajectory.mechanics
     .filter((signal) => signal.confidence >= 0.7)
     .map((signal) => signal.mechanic);
