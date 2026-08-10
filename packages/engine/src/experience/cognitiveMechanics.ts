@@ -157,17 +157,24 @@ function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
  * Derive reusable experiential operations from conserved semantics.
  *
  * The original semantic detectors remain deliberately explicit because they
- * encode higher-order relationships. The vocabulary pass below supplies a
- * broad, extensible lexical layer without creating subject-specific branches.
+ * encode higher-order relationships. The vocabulary pass supplies a broad,
+ * extensible lexical layer without creating subject-specific branches.
+ *
+ * Prompt evidence is accepted separately from the plan because cognition may
+ * normalize away adjectives or phrases that still carry important experiential
+ * commitments. Preserving that evidence here prevents semantic loss between
+ * understanding and concrete trajectory generation.
  */
 export function inferExperienceMechanics(args: {
   plan?: CognitiveExperiencePlan;
   premise?: CognitivePremise;
+  prompt?: string;
   tone?: ExperienceTone[];
 }): MechanicSignal[] {
-  const { plan, premise = plan?.premise, tone = [] } = args;
+  const { plan, premise = plan?.premise, prompt = "", tone = [] } = args;
 
   const corpus = lower([
+    prompt,
     ...planValues(plan),
     ...premiseValues(premise),
     ...tone,
@@ -241,11 +248,6 @@ export function inferExperienceMechanics(args: {
     add("escalation", 0.72, "horror gains force from increasing threat");
   }
 
-  /*
-   * Suspense is a higher-order relationship, not merely a synonym for fear.
-   * When uncertainty is explicitly sustained around a threat, the experience
-   * must preserve the unresolved pull toward the next state.
-   */
   if (
     scores.has("uncertainty") &&
     has(corpus, /\b(?:threat|danger|terror|terrifying|haunted|horror|dread|fear|unknown|uncertain|uncertainty)\b/)
@@ -261,11 +263,6 @@ export function inferExperienceMechanics(args: {
     add("excess", 0.97, "the premise rewards disproportion and indulgence");
   }
 
-  /*
-   * Excess and luxury are not merely synonyms. Together they establish
-   * indulgence as a behavioral force: the experience should actively indulge
-   * the participant rather than merely contain an expensive setting.
-   */
   if (
     scores.has("excess") &&
     has(corpus, /\b(?:luxury|lavish|opulent|indulgent|indulgence|extravagant|decadent|billionaire|no expense spared)\b/)
@@ -311,13 +308,6 @@ export function inferExperienceMechanics(args: {
     add("memory", 0.84, "returning interaction is explicitly shaped by prior experience");
   }
 
-  /**
-   * Directional semantics are not domain templates. They are the cognitive
-   * commitments already selected upstream. Use them only as a conservative
-   * floor when the plan explicitly contains the corresponding temporal or
-   * memory model, so mechanics do not disappear merely because a wording cue
-   * was normalized away by the planner.
-   */
   if (plan?.direction === "memory") {
     add("memory", 0.88, "selected cognitive direction is memory");
 
@@ -356,12 +346,6 @@ export function inferExperienceMechanics(args: {
     add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
   }
 
-  /*
-   * Broad expressive vocabulary pass.
-   *
-   * This happens after structural detectors so lexical evidence can enrich a
-   * mechanically understood prompt without overriding stronger relationships.
-   */
   for (const entry of COGNITIVE_VOCABULARY) {
     if (entry.patterns.some((pattern) => pattern.test(corpus))) {
       add(
@@ -389,9 +373,6 @@ export function inferExperienceMechanics(args: {
     );
 }
 
-/**
- * Produce a compact behavioral brief for trajectory generation.
- */
 export function mechanicBrief(
   signals: MechanicSignal[],
 ): string[] {
