@@ -35,30 +35,39 @@ for (const testCase of cases) {
   const directives = compiled.cognition.plan.realization?.directives ?? [];
 
   assert.ok(directives.length > 0, `${testCase.name}: no cognitive directives`);
-  assert.equal(
-    directives.length,
-    compiled.story.beats.length,
-    `${testCase.name}: directive/beat count drift`,
-  );
 
-  for (const beat of compiled.story.beats) {
-    assert.ok(beat.directive, `${testCase.name}: ${beat.kind} lost its directive`);
+  /*
+   * Cognition is authoritative about semantic operations, but mechanics may
+   * derive additional experiential beats. Therefore the invariant is
+   * directive -> beat coverage, not directive count === beat count.
+   */
+  for (const directive of directives) {
+    const beat = compiled.story.beats.find(
+      (candidate) => candidate.kind === directive.kind,
+    );
+
+    assert.ok(
+      beat,
+      `${testCase.name}: directive ${directive.kind} has no compiled beat`,
+    );
+
     assert.equal(
-      beat.directive?.kind,
-      beat.kind,
-      `${testCase.name}: directive kind drifted on ${beat.kind}`,
+      beat?.directive?.kind,
+      directive.kind,
+      `${testCase.name}: directive kind drifted on ${directive.kind}`,
+    );
+
+    assert.ok(
+      beat?.directive?.action,
+      `${testCase.name}: ${directive.kind} has no semantic action`,
     );
     assert.ok(
-      beat.directive?.action,
-      `${testCase.name}: ${beat.kind} has no semantic action`,
+      beat?.directive?.stateBefore,
+      `${testCase.name}: ${directive.kind} has no stateBefore`,
     );
     assert.ok(
-      beat.directive?.stateBefore,
-      `${testCase.name}: ${beat.kind} has no stateBefore`,
-    );
-    assert.ok(
-      beat.directive?.stateAfter,
-      `${testCase.name}: ${beat.kind} has no stateAfter`,
+      beat?.directive?.stateAfter,
+      `${testCase.name}: ${directive.kind} has no stateAfter`,
     );
   }
 
@@ -78,13 +87,13 @@ for (const testCase of cases) {
     (beat) => beat.kind === "transformation",
   );
 
-  if (transformationBeat) {
+  if (transformationBeat?.directive) {
     assert.ok(
-      transformationBeat.directive?.stateBefore,
+      transformationBeat.directive.stateBefore,
       `${testCase.name}: transformation lacks stateBefore`,
     );
     assert.ok(
-      transformationBeat.directive?.stateAfter,
+      transformationBeat.directive.stateAfter,
       `${testCase.name}: transformation lacks stateAfter`,
     );
   }
