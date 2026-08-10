@@ -21,9 +21,9 @@ import {
  *
  * PURPOSE
  * -------
- * Keep cognition upstream of language. Mechanics establish what behavioral
- * forces exist; vocabulary explains how those forces can feel and intensify;
- * trajectory decides which observable operations must occur and in what phase.
+ * Keep cognition upstream of language. Mechanics establish behavioral forces;
+ * vocabulary describes how those forces can feel and intensify; trajectory
+ * selects observable operations and their causal phase.
  *
  * ARCHITECTURAL POSITION
  * ----------------------
@@ -126,9 +126,9 @@ function deriveOperations(
   );
 
   /*
-   * Vocabulary is allowed to enrich genuinely sparse trajectories. Complex
-   * trajectories already have enough mechanical structure and should not be
-   * inflated into a beat pile merely because the vocabulary is expressive.
+   * Vocabulary enriches genuinely sparse trajectories. Complex trajectories
+   * already have mechanical structure and should not become beat piles merely
+   * because the vocabulary is expressive.
    */
   if (operations.length < 6) {
     for (const signal of vocabulary.slice(0, 5)) {
@@ -159,9 +159,7 @@ function deriveOperations(
     operations.push("encounter");
   }
 
-  if (!operations.includes("payoff")) {
-    operations.push("payoff");
-  }
+  if (!operations.includes("payoff")) operations.push("payoff");
 
   return unique(operations).sort((a, b) => PHASE[a] - PHASE[b]);
 }
@@ -171,10 +169,9 @@ function scoreTrajectory(
   signals: MechanicSignal[],
   vocabulary: CognitiveVocabularySignal[],
 ): number {
-  const active = activeSignals(signals);
   let score = 0;
 
-  for (const signal of active) {
+  for (const signal of activeSignals(signals)) {
     const rule = RULES.find((candidate) => candidate.mechanic === signal.mechanic);
     if (!rule) continue;
 
@@ -182,13 +179,12 @@ function scoreTrajectory(
     score += signal.confidence * rule.weight * (coverage / rule.operations.length);
   }
 
-  /*
-   * Reward vocabulary whose observable operations survive into the trajectory.
-   * This measures semantic conservation rather than stylistic richness.
-   */
+  /* Reward vocabulary whose observable operations survive into the trajectory. */
   for (const signal of vocabulary.slice(0, 12)) {
     const coverage = signal.operations.filter((operation) => beats.includes(operation)).length;
-    if (coverage > 0) score += signal.confidence * 0.12 * (coverage / signal.operations.length);
+    if (coverage > 0) {
+      score += signal.confidence * 0.12 * (coverage / signal.operations.length);
+    }
   }
 
   if (beats.includes("payoff")) score += 0.75;
@@ -205,24 +201,24 @@ function rationale(
   signals: MechanicSignal[],
   vocabulary: CognitiveVocabularySignal[],
 ): string[] {
-  const mechanicRationale = activeSignals(signals).map(
+  const mechanics = activeSignals(signals).map(
     (signal) => `${signal.mechanic}: ${signal.evidence.join("; ")}`,
   );
 
-  const vocabularyRationale = vocabulary.slice(0, 12).map(
+  const expressive = vocabulary.slice(0, 12).map(
     (signal) => `vocabulary ${signal.vocabulary}: ${signal.evidence.join("; ")}`,
   );
 
-  return [...mechanicRationale, ...vocabularyRationale];
+  return [...mechanics, ...expressive];
 }
 
 /**
  * Derive narrative structure from experiential mechanics and expressive
  * vocabulary. This is downstream of cognition and upstream of language.
  *
- * The compiler does NOT ask "What industry is this?". It asks what behavioral
- * forces exist, how those forces can be experienced, and what observable
- * sequence lets them causally unfold.
+ * The compiler does not ask "What industry is this?". It asks what behavioral
+ * forces exist, how they can be experienced, and what observable sequence lets
+ * those forces causally unfold.
  */
 export function composeCognitiveTrajectory(args: {
   plan?: CognitiveExperiencePlan;
@@ -237,7 +233,7 @@ export function composeCognitiveTrajectory(args: {
     mechanics,
   });
 
-  const beats = deriveOperations(vocabulary.length ? mechanics : mechanics, vocabulary, args.plan);
+  const beats = deriveOperations(mechanics, vocabulary, args.plan);
 
   return {
     beats,
