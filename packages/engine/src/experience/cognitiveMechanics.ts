@@ -156,13 +156,29 @@ export function inferExperienceMechanics(args: {
     add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
   }
 
+  // Excess + care is itself an escalation signal. A pampering experience is
+  // not merely luxurious when the treatment is deliberately disproportionate:
+  // the defining behavior is that each stage should outdo the previous one.
+  // This survives upstream normalization even when words such as
+  // "increasingly" or "over the top" disappear from the cognitive plan.
+  if (
+    scores.has("excess") &&
+    (scores.has("pampering") || has(corpus, /\b(?:care|indulgence|indulgent|pamper|pampering|treatment|treatments)\b/))
+  ) {
+    add(
+      "escalation",
+      0.86,
+      "excessive care should intensify through progressively more disproportionate treatment",
+    );
+  }
+
   // Compounding material is not automatically escalation. It becomes escalation
   // when the accumulated contributions compete, mutate, or build toward a larger
-  // shared legend. This preserves prompts such as family folklore even when the
-  // planner normalizes away surface words like "more ridiculous".
+  // shared legend. This preserves prompts such as family folklore even when a
+  // wording cue is normalized away.
   if (
     has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
-    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing|ing))\b/)
+    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing)?)\b/)
   ) {
     add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
   }
@@ -222,8 +238,7 @@ export function inferExperienceMechanics(args: {
 
   // A return is not automatically memory. It becomes memory when the premise
   // also carries prior-state semantics such as preferences, previous outcomes,
-  // remembered experience, or adaptation. This keeps the mechanic universal
-  // without turning every "return" prompt into a memory story.
+  // remembered experience, or adaptation.
   if (
     has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
     has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
@@ -251,14 +266,14 @@ export function inferExperienceMechanics(args: {
   }
 
   if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower(plan?.dynamicBehavior?.join(" "));
+    const dynamic = lower(plan.dynamicBehavior.join(" "));
     if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
       add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
     }
   }
 
   if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower(plan?.futureEvolution?.join(" "));
+    const future = lower(plan.futureEvolution.join(" "));
     if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
       add("continuation", 0.88, "future evolution explicitly preserves a next state");
     }
