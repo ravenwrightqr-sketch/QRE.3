@@ -70,7 +70,15 @@ function payload(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function assertRuntimeContinuity(name: string, result: ReturnType<typeof compileCognitiveExperience>): void {
+function momentText(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  return text((value as { text?: unknown }).text);
+}
+
+function assertRuntimeContinuity(
+  name: string,
+  result: ReturnType<typeof compileCognitiveExperience>,
+): void {
   const beats = result.story.beats;
   const byId = new Map(beats.map((beat) => [beat.id, beat.text]));
 
@@ -78,7 +86,10 @@ function assertRuntimeContinuity(name: string, result: ReturnType<typeof compile
     throw new Error(`No story beats produced for ${name}`);
   }
 
-  if (new Set(beats.map((beat) => beat.text.trim().toLowerCase())).size < Math.min(3, beats.length)) {
+  if (
+    new Set(beats.map((beat) => beat.text.trim().toLowerCase())).size <
+    Math.min(3, beats.length)
+  ) {
     throw new Error(`Story prose collapsed into repeated beats for ${name}`);
   }
 
@@ -111,7 +122,7 @@ function assertRuntimeContinuity(name: string, result: ReturnType<typeof compile
     if (!id || !byId.has(id)) {
       throw new Error(`Moment lost its source beat for ${name}`);
     }
-    if (moment.text !== byId.get(id)) {
+    if (momentText(moment) !== byId.get(id)) {
       throw new Error(`Moment text drifted from story beat for ${name}`);
     }
   }
@@ -130,7 +141,9 @@ function assertRuntimeContinuity(name: string, result: ReturnType<typeof compile
   for (const [index, scene] of result.cinematicScenes.entries()) {
     const moment = result.moments[index];
     if (!moment || JSON.stringify(scene.moment) !== JSON.stringify(moment)) {
-      throw new Error(`Cinematic scene ${index} drifted from its semantic moment for ${name}`);
+      throw new Error(
+        `Cinematic scene ${index} drifted from its semantic moment for ${name}`,
+      );
     }
   }
 }
@@ -151,10 +164,17 @@ const results = cases.map((testCase) => {
     throw new Error(`Conserved premise missing for ${testCase.name}`);
   }
 
-  const storyText = result.story.beats.map((beat) => beat.text).join(" ").toLowerCase();
-  const realizedAnchor = testCase.anchors.some((anchor) => storyText.includes(anchor.toLowerCase()));
+  const storyText = result.story.beats
+    .map((beat) => beat.text)
+    .join(" ")
+    .toLowerCase();
+  const realizedAnchor = testCase.anchors.some((anchor) =>
+    storyText.includes(anchor.toLowerCase()),
+  );
   if (!realizedAnchor) {
-    throw new Error(`No salient prompt anchor reached story prose for ${testCase.name}`);
+    throw new Error(
+      `No salient prompt anchor reached story prose for ${testCase.name}`,
+    );
   }
 
   assertRuntimeContinuity(testCase.name, result);
@@ -162,47 +182,80 @@ const results = cases.map((testCase) => {
   return result;
 });
 
-const directions = new Set(results.map((result) => result.cognition.plan.direction));
+const directions = new Set(
+  results.map((result) => result.cognition.plan.direction),
+);
 if (directions.size < 6) {
-  throw new Error(`Cognitive/runtime collapse: expected at least 6 directions, got ${directions.size}`);
+  throw new Error(
+    `Cognitive/runtime collapse: expected at least 6 directions, got ${directions.size}`,
+  );
 }
 
 const arbitrary = compileCognitiveExperience("asdf 123");
-if (!arbitrary.story.beats.length || !arbitrary.moments.length || !arbitrary.cinematicScenes.length) {
-  throw new Error("Arbitrary input did not survive the complete runtime compilation path");
+if (
+  !arbitrary.story.beats.length ||
+  !arbitrary.moments.length ||
+  !arbitrary.cinematicScenes.length
+) {
+  throw new Error(
+    "Arbitrary input did not survive the complete runtime compilation path",
+  );
 }
 assertRuntimeContinuity("arbitrary input", arbitrary);
 
-const memory = results.find((result) => result.cognition.plan.direction === "memory");
-const utility = results.find((result) => result.cognition.plan.direction === "utility");
+const memory = results.find(
+  (result) => result.cognition.plan.direction === "memory",
+);
+const utility = results.find(
+  (result) => result.cognition.plan.direction === "utility",
+);
 if (!memory || !utility) {
   throw new Error("Required memory/utility probes were not produced");
 }
 
-if (memory.story.beats.map((beat) => beat.kind).join("→") === utility.story.beats.map((beat) => beat.kind).join("→")) {
-  throw new Error("Distinct cognitive directions collapsed into the same runtime trajectory");
+if (
+  memory.story.beats.map((beat) => beat.kind).join("→") ===
+  utility.story.beats.map((beat) => beat.kind).join("→")
+) {
+  throw new Error(
+    "Distinct cognitive directions collapsed into the same runtime trajectory",
+  );
 }
 
 const accumulating = compileCognitiveExperience(
   "Create a funny birthday memory that family members can keep adding to until it becomes folklore.",
 );
-const accumulatingText = accumulating.story.beats.map((beat) => beat.text).join(" ").toLowerCase();
+const accumulatingText = accumulating.story.beats
+  .map((beat) => beat.text)
+  .join(" ")
+  .toLowerCase();
 
 if (!/(add|adding|accumulat|grows?|folklore|contribut)/i.test(accumulatingText)) {
-  throw new Error("Accumulation/contribution semantics were inferred but did not reach realized story prose");
+  throw new Error(
+    "Accumulation/contribution semantics were inferred but did not reach realized story prose",
+  );
 }
 
 const adaptive = compileCognitiveExperience(
   "Princess the poodle returns to the groomer. She remembers the absurd treatment, has preferences now, and every visit should adapt to what she loved before.",
 );
-const adaptiveText = adaptive.story.beats.map((beat) => beat.text).join(" ").toLowerCase();
+const adaptiveText = adaptive.story.beats
+  .map((beat) => beat.text)
+  .join(" ")
+  .toLowerCase();
 
 if (!/(adapt|prefer|remember|history|previous|return|loved)/i.test(adaptiveText)) {
-  throw new Error("Adaptive/history semantics were inferred but did not reach realized story prose");
+  throw new Error(
+    "Adaptive/history semantics were inferred but did not reach realized story prose",
+  );
 }
 
 console.log("✓ cognitive runtime continuity acceptance passed");
 console.log(`  cases: ${cases.length}`);
 console.log(`  directions: ${[...directions].join(", ")}`);
-console.log("  runtime chain: cognition → premise → story → blueprint → flow → moments → scenes");
-console.log("  semantic mechanics: accumulation + adaptation reached realized prose");
+console.log(
+  "  runtime chain: cognition → premise → story → blueprint → flow → moments → scenes",
+);
+console.log(
+  "  semantic mechanics: accumulation + adaptation reached realized prose",
+);
