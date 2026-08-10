@@ -243,6 +243,10 @@ export function inferExperienceMechanics(args: {
     add("competition", 0.95, "participants are compared against a challenge or one another");
   }
 
+  if (has(corpus, /\b(?:every|each)\s+\w+\s+(?:changes?|alters?|reshapes?|determines?)\s+(?:the\s+)?(?:next|following)\b/)) {
+    add("surprise", 0.92, "each state changes the next state, making the outcome intentionally unpredictable");
+  }
+
   if (has(corpus, /\b(?:terror|terrifying|haunted|horror|dread|fear|threat|danger|creepy|unknown)\b/)) {
     add("uncertainty", 0.96, "threat or uncertainty should intensify over time");
     add("escalation", 0.72, "horror gains force from increasing threat");
