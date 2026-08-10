@@ -12,6 +12,7 @@
  */
 
 import type { ExperienceTone } from "./tone.js";
+import type { CognitiveBeatDirective } from "./cognition.js";
 
 export type StoryEvidenceKind = "observed" | "inferred" | "playful";
 
@@ -64,6 +65,14 @@ export type StoryBeat = {
   emotionalTarget?: string;
   entities: string[];
   provenance: StoryProvenance[];
+
+  /**
+   * Authoritative semantic instruction selected by cognition.
+   *
+   * Runtime/story structure may carry this directive forward, but downstream
+   * language realization must not reinterpret the experience independently.
+   */
+  directive?: CognitiveBeatDirective;
 };
 
 export type ExperienceStory = {
