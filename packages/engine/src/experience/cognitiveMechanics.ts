@@ -156,6 +156,17 @@ export function inferExperienceMechanics(args: {
     add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
   }
 
+  // Compounding material is not automatically escalation. It becomes escalation
+  // when the accumulated contributions compete, mutate, or build toward a larger
+  // shared legend. This preserves prompts such as family folklore even when the
+  // planner normalizes away surface words like "more ridiculous".
+  if (
+    has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
+    has(corpus, /\b(?:add|adding|contribute|contribution|accumulate|accumulating|grows?|compounds?|competing)\b/)
+  ) {
+    add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
+  }
+
   if (has(corpus, /\b(?:transform|change|before and after|becomes?|turn(?:s|ed)? .* into|groom|clean|restore|makeover|pamper)\b/)) {
     add("transformation", 0.95, "a state change is central to the premise");
   }
