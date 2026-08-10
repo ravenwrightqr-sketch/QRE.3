@@ -121,6 +121,12 @@ export {
   compileExperienceGenome as experienceCompiler,
 } from "./experience/genomeCompiler.js";
 
+export {
+  buildExperienceEvent,
+  buildExperienceEventWorld,
+  eventRealizationHint,
+} from "./experience/eventWorld.js";
+
 
 export * from "./experience/blueprintToFlow.js";
 
