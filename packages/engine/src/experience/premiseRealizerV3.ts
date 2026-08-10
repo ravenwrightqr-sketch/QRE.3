@@ -13,18 +13,13 @@ import type {
  *   2. conserved premise roles and relations,
  *   3. lexical evidence already carried by the compiled beat.
  *
- * The important distinction is that this is a semantic grammar, not a catalog
- * of subject-specific templates. Any noun can occupy the same role.
+ * This is a semantic grammar, not a subject-specific template catalog.
  */
 
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-
 const lower = (value: unknown): string => clean(value).toLowerCase();
-
-const sentence = (value: unknown): string =>
-  clean(value).replace(/[.!?]+$/, "");
-
+const sentence = (value: unknown): string => clean(value).replace(/[.!?]+$/, "");
 const cap = (value: unknown): string => {
   const text = clean(value);
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "The subject";
@@ -102,28 +97,18 @@ function evidence(plan?: CognitiveExperiencePlan, beat?: StoryBeat): string[] {
     ...(plan?.futureEvolution ?? []),
     ...(plan?.rewardModel ?? []),
   ];
-  const beatValues = beat?.entities ?? [];
-
-  return [...new Set([...slotValues, ...beatValues, ...planValues].map(clean).filter(Boolean))];
+  return [...new Set([...slotValues, ...(beat?.entities ?? []), ...planValues].map(clean).filter(Boolean))];
 }
 
-function promptDetails(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string[] {
+function promptDetails(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   const subject = lower(first(plan, "subject") || plan?.centralSubject || beat.entities?.[0] || "");
-  const candidates = evidence(plan, beat);
   const result: string[] = [];
 
-  for (const candidate of candidates) {
+  for (const candidate of evidence(plan, beat)) {
     const value = clean(candidate);
     const normalized = lower(value);
-    if (!value || generic(value) || normalized === subject) continue;
-    if (!distinctive(value).length) continue;
-
-    const duplicate = result.some((item) => lower(item) === normalized);
-    if (duplicate) continue;
-
+    if (!value || generic(value) || normalized === subject || !distinctive(value).length) continue;
+    if (result.some((item) => lower(item) === normalized)) continue;
     result.push(value);
     if (result.length >= 16) break;
   }
@@ -131,21 +116,16 @@ function promptDetails(
   return result;
 }
 
-function detailForBeat(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function detailForBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const details = promptDetails(beat, plan);
-  const preferredRoles: Array<keyof Record<string, string>> = [];
-  void preferredRoles;
-
-  const roleOrder = (() => {
+  const roleOrder: string[] = (() => {
     switch (beat.kind) {
       case "origin":
       case "reflection":
         return ["temporal", "artifact", "memory", "event"];
       case "encounter":
-      case "contribution":n        return ["participants", "social", "artifact", "event"];
+      case "contribution":
+        return ["participants", "social", "artifact", "event"];
       case "threshold":
         return ["medium", "place", "event", "artifact"];
       case "discovery":
@@ -153,41 +133,35 @@ function detailForBeat(
         return ["artifact", "event", "affordance", "place"];
       case "challenge":
       case "escalation":
-        return ["constraint", "progression", "affordance", "event"];
+        return ["constraint", "affordance", "event", "artifact"];
       case "transformation":
         return ["transformation", "outcome", "artifact", "event"];
       case "payoff":
-        return ["outcome", "reward", "transformation", "emotion"];
+        return ["outcome", "transformation", "artifact", "emotion"];
       default:
         return ["event", "artifact", "place", "affordance", "emotion", "social"];
     }
   })();
 
+  const subject = lower(first(plan, "subject") || plan?.centralSubject || "");
   for (const role of roleOrder) {
     const value = first(plan, role);
-    if (value && !lower(value).includes(lower(first(plan, "subject") || plan?.centralSubject || ""))) {
-      return value;
-    }
+    if (value && !lower(value).includes(subject)) return value;
   }
 
   return details[0] ?? "";
 }
 
 function directiveFor(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
-  return plan?.realization?.directives.find(
-    (candidate) => candidate.kind === beat.kind,
-  );
+  return plan?.realization?.directives.find((candidate) => candidate.kind === beat.kind);
 }
 
 /**
- * Realize the semantic operation itself. The action remains verbatim so the
- * acceptance boundary can prove that cognition survived presentation. The
- * surrounding grammar is deliberately compact and evidence-led.
+ * Keep the directive action verbatim. This makes cognition auditable at the
+ * presentation boundary while the surrounding grammar remains natural enough
+ * to read as story rather than as compiler diagnostics.
  */
-function directiveText(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string | undefined {
+function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
   const directive = directiveFor(beat, plan);
   if (!directive || directive.confidence < 0.72) return undefined;
 
@@ -195,11 +169,10 @@ function directiveText(
   const action = sentence(directive.action);
   const detail = detailForBeat(beat, plan);
   const outcome = first(plan, "outcome");
-  const future = first(plan, "future") || plan?.futureEvolution?.[0] || "";
-  const relation = premise(plan)?.relations.find((candidate) =>
-    candidate.from === "subject" || candidate.to === "subject",
+  const future = plan?.futureEvolution?.[0] ?? "";
+  const relation = premise(plan)?.relations.find(
+    (candidate) => candidate.from === "subject" || candidate.to === "subject",
   );
-
   const related = relation
     ? first(plan, relation.from === "subject" ? relation.to : relation.from)
     : detail;
@@ -208,107 +181,58 @@ function directiveText(
 
   switch (beat.kind) {
     case "orientation":
-      return related
-        ? `${cap(subject)} starts with ${related}: ${action}.`
-        : `${cap(subject)} starts here: ${action}.`;
+      return related ? `${cap(subject)} starts with ${related}: ${action}.` : `${cap(subject)} starts here: ${action}.`;
     case "hook":
-      return detail
-        ? `${cap(detail)} gives ${subject} a reason to continue: ${action}.`
-        : `${cap(subject)} has a reason to continue: ${action}.`;
+      return detail ? `${cap(detail)} gives ${subject} a reason to continue: ${action}.` : `${cap(subject)} has a reason to continue: ${action}.`;
     case "need":
-      return outcome
-        ? `${cap(subject)} begins with ${outcome}: ${action}.`
-        : `${cap(subject)} begins with the immediate need: ${action}.`;
+      return outcome ? `${cap(subject)} begins with ${outcome}: ${action}.` : `${cap(subject)} begins with the immediate need: ${action}.`;
     case "threshold":
-      return detail
-        ? `${cap(subject)} crosses into the next stage through ${detail}: ${action}.`
-        : `${cap(subject)} crosses into the next stage: ${action}.`;
+      return detail ? `${cap(subject)} crosses into the next stage through ${detail}: ${action}.` : `${cap(subject)} crosses into the next stage: ${action}.`;
     case "origin":
-      return detail
-        ? `${cap(subject)} brings ${detail} into the present: ${action}.`
-        : `${cap(subject)} brings the available history into the present: ${action}.`;
+      return detail ? `${cap(subject)} brings ${detail} into the present: ${action}.` : `${cap(subject)} brings the available history into the present: ${action}.`;
     case "encounter":
-      return detail
-        ? `${cap(subject)} meets ${detail} as the experience moves forward: ${action}.`
-        : `${cap(subject)} meets the next relationship: ${action}.`;
+      return detail ? `${cap(subject)} meets ${detail} as the experience moves forward: ${action}.` : `${cap(subject)} meets the next relationship: ${action}.`;
     case "challenge":
-      return detail
-        ? `${cap(subject)} has to deal with ${detail}: ${action}.`
-        : `${cap(subject)} faces the next condition: ${action}.`;
+      return detail ? `${cap(subject)} has to deal with ${detail}: ${action}.` : `${cap(subject)} faces the next condition: ${action}.`;
     case "discovery":
-      return detail
-        ? `${cap(subject)} discovers ${detail}: ${action}.`
-        : `${cap(subject)} discovers what the experience makes available: ${action}.`;
+      return detail ? `${cap(subject)} discovers ${detail}: ${action}.` : `${cap(subject)} discovers what the experience makes available: ${action}.`;
     case "reveal":
-      return detail
-        ? `${cap(subject)} reveals ${detail}: ${action}.`
-        : `${cap(subject)} reveals what the evidence supports: ${action}.`;
+      return detail ? `${cap(subject)} reveals ${detail}: ${action}.` : `${cap(subject)} reveals what the evidence supports: ${action}.`;
     case "instruction":
-      return detail
-        ? `${cap(subject)} puts ${detail} into usable form: ${action}.`
-        : `${cap(subject)} provides the next usable move: ${action}.`;
+      return detail ? `${cap(subject)} puts ${detail} into usable form: ${action}.` : `${cap(subject)} provides the next usable move: ${action}.`;
     case "action":
-      return detail
-        ? `${cap(subject)} acts through ${detail}: ${action}.`
-        : `Act on ${subject}: ${action}.`;
+      return detail ? `${cap(subject)} acts through ${detail}: ${action}.` : `Act on ${subject}: ${action}.`;
     case "feedback":
-      return detail
-        ? `${cap(detail)} becomes evidence for ${subject}: ${action}.`
-        : `The result becomes evidence for ${subject}: ${action}.`;
+      return detail ? `${cap(detail)} becomes evidence for ${subject}: ${action}.` : `The result becomes evidence for ${subject}: ${action}.`;
     case "contribution":
-      return detail
-        ? `${cap(subject)} changes when ${detail} enters the shared state: ${action}.`
-        : `${cap(subject)} changes when participation becomes contribution: ${action}.`;
+      return detail ? `${cap(subject)} changes when ${detail} enters the shared state: ${action}.` : `${cap(subject)} changes when participation becomes contribution: ${action}.`;
     case "escalation":
-      return detail
-        ? `${cap(subject)} raises the stakes around ${detail}: ${action}.`
-        : `${cap(subject)} raises the stakes from what happened before: ${action}.`;
+      return detail ? `${cap(subject)} raises the stakes around ${detail}: ${action}.` : `${cap(subject)} raises the stakes from what happened before: ${action}.`;
     case "transformation":
-      return detail
-        ? `${cap(subject)} changes through ${detail}: ${action}.`
-        : `${cap(subject)} changes through the accumulated interaction: ${action}.`;
+      return detail ? `${cap(subject)} changes through ${detail}: ${action}.` : `${cap(subject)} changes through the accumulated interaction: ${action}.`;
     case "reflection":
-      return detail
-        ? `${cap(subject)} looks back through ${detail}: ${action}.`
-        : `${cap(subject)} carries the consequence forward: ${action}.`;
+      return detail ? `${cap(subject)} looks back through ${detail}: ${action}.` : `${cap(subject)} carries the consequence forward: ${action}.`;
     case "provenance":
-      return detail
-        ? `${cap(subject)} carries the evidence of ${detail}: ${action}.`
-        : `${cap(subject)} carries the available evidence: ${action}.`;
+      return detail ? `${cap(subject)} carries the evidence of ${detail}: ${action}.` : `${cap(subject)} carries the available evidence: ${action}.`;
     case "identity":
-      return detail
-        ? `${cap(subject)} becomes recognizable through ${detail}: ${action}.`
-        : `${cap(subject)} becomes recognizable through its supplied context: ${action}.`;
+      return detail ? `${cap(subject)} becomes recognizable through ${detail}: ${action}.` : `${cap(subject)} becomes recognizable through its supplied context: ${action}.`;
     case "milestone":
-      return outcome
-        ? `${cap(subject)} reaches ${outcome}: ${action}.`
-        : `${cap(subject)} reaches the next meaningful state: ${action}.`;
+      return outcome ? `${cap(subject)} reaches ${outcome}: ${action}.` : `${cap(subject)} reaches the next meaningful state: ${action}.`;
     case "unlock":
     case "earned_access":
-      return outcome
-        ? `${cap(subject)} opens access tied to ${outcome}: ${action}.`
-        : `${cap(subject)} opens the next state because of what happened: ${action}.`;
+      return outcome ? `${cap(subject)} opens access tied to ${outcome}: ${action}.` : `${cap(subject)} opens the next state because of what happened: ${action}.`;
     case "payoff":
-      return outcome
-        ? `${cap(subject)} reaches ${outcome}: ${action}.`
-        : `${cap(subject)} reaches the result: ${action}.`;
+      return outcome ? `${cap(subject)} reaches ${outcome}: ${action}.` : `${cap(subject)} reaches the result: ${action}.`;
     case "next_step":
-      return future
-        ? `${cap(subject)} carries the current state into ${future}: ${action}.`
-        : `${cap(subject)} uses the current state to continue: ${action}.`;
+      return future ? `${cap(subject)} carries the current state into ${future}: ${action}.` : `${cap(subject)} uses the current state to continue: ${action}.`;
     case "continuation":
-      return future
-        ? `${cap(subject)} remains open to ${future}: ${action}.`
-        : `${cap(subject)} remains open to what comes next: ${action}.`;
+      return future ? `${cap(subject)} remains open to ${future}: ${action}.` : `${cap(subject)} remains open to what comes next: ${action}.`;
     default:
       return `${cap(subject)} advances from what is already true: ${action}.`;
   }
 }
 
-function fallbackText(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const subject = first(plan, "subject") || plan?.centralSubject || beat.entities?.[0] || "the subject";
   const detail = detailForBeat(beat, plan);
   const outcome = first(plan, "outcome");
@@ -365,16 +289,9 @@ function fallbackText(
   }
 }
 
-function preserveConcreteEvidence(
-  text: string,
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function preserveConcreteEvidence(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const normalized = lower(text);
-  const details = promptDetails(beat, plan).filter(
-    (detail) => !normalized.includes(lower(detail)),
-  );
-
+  const details = promptDetails(beat, plan).filter((detail) => !normalized.includes(lower(detail)));
   const detail = details[0];
   if (!detail) return text;
 
@@ -392,25 +309,12 @@ function preserveConcreteEvidence(
   }
 }
 
-export function realizePremiseBeatV3(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+export function realizePremiseBeatV3(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   let text = clean(directiveText(beat, plan) ?? fallbackText(beat, plan));
-
-  if (generic(text)) {
-    text = clean(fallbackText(beat, plan));
-  }
-
+  if (generic(text)) text = clean(fallbackText(beat, plan));
   return preserveConcreteEvidence(text, beat, plan);
 }
 
-export function realizePremiseBeatsV3(
-  beats: StoryBeat[],
-  plan?: CognitiveExperiencePlan,
-): StoryBeat[] {
-  return beats.map((beat) => ({
-    ...beat,
-    text: realizePremiseBeatV3(beat, plan),
-  }));
+export function realizePremiseBeatsV3(beats: StoryBeat[], plan?: CognitiveExperiencePlan): StoryBeat[] {
+  return beats.map((beat) => ({ ...beat, text: realizePremiseBeatV3(beat, plan) }));
 }
