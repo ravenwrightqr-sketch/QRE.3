@@ -209,6 +209,17 @@ export function inferExperienceMechanics(args: {
     add("adaptation", 0.96, "prior state should change the next realization");
   }
 
+  // A return is not automatically memory. It becomes memory when the premise
+  // also carries prior-state semantics such as preferences, previous outcomes,
+  // remembered experience, or adaptation. This keeps the mechanic universal
+  // without turning every "return" prompt into a memory story.
+  if (
+    has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
+    has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
+  ) {
+    add("memory", 0.84, "returning interaction is explicitly shaped by prior experience");
+  }
+
   /**
    * Directional semantics are not domain templates. They are the cognitive
    * commitments already selected upstream. Use them only as a conservative
