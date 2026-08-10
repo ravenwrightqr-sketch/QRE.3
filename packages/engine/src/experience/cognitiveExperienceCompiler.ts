@@ -20,49 +20,54 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  * QRE COGNITIVE EXPERIENCE COMPILER — ARCHITECTURE LOCK
  * ============================================================
  *
- * PURPOSE:
- *   Canonical composition boundary for turning a raw human prompt into
- *   a cognitively directed experience.
+ * GOAL
+ * ----
+ * Canonically compose cognition, trajectory, semantic realization, universal
+ * compilation, and final concrete experience language.
  *
- * CANONICAL PIPELINE:
+ * PURPOSE
+ * -------
+ * The compiler is the composition boundary for:
+ *
  *   PROMPT
- *     → COGNITIVE UNDERSTANDING
- *     → CONSERVED PREMISE / EVIDENCE RELATIONSHIPS
- *     → EVIDENCE
- *     → MEANING
- *     → HYPOTHESES
- *     → OPPORTUNITY SPACE
- *     → SELECTED EXPERIENCE DIRECTION
- *     → COGNITIVE PLAN
+ *     → COGNITION
+ *     → CONSERVED PREMISE / EVIDENCE
+ *     → MECHANICS / TRAJECTORY
  *     → SEMANTIC REALIZATION
  *     → UNIVERSAL COMPILATION
- *     → PREMISE LANGUAGE REALIZATION
- *     → BLUEPRINT
- *     → FLOW
- *     → MOMENTS
- *     → CINEMATIC SCENES
+ *     → CONCRETE EXPERIENCE
  *
- * ARCHITECTURE RULE:
- *   THE COMPILER BECOMES SMARTER.
- *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
+ * ARCHITECTURE RULE
+ * -----------------
+ * The compiler becomes smarter. It does not invent another architecture.
  *
- * CONTRACT RULE:
- *   Shared semantic shapes come from @qre/contracts.
- *   Engine-local duplicate semantic contracts are not authoritative.
+ * CONTRACT RULE
+ * -------------
+ * Shared semantic shapes come from @qre/contracts. Engine-local duplicate
+ * semantic contracts are not authoritative.
  *
- * COGNITIVE RULE:
- *   Cognition decides what the experience could become.
- *   Semantic realization records how each operation should change the
- *   experiential state. It does not manufacture facts.
+ * COGNITIVE RULE
+ * --------------
+ * Cognition decides what the experience could become. Semantic realization
+ * records how each operation should change the experiential state. It does not
+ * manufacture facts.
  *
- * LANGUAGE RULE:
- *   Language realization happens after cognition and story structure are
- *   selected. It may improve cadence and clarity, but it may not invent
- *   facts, alter the selected direction, or create a parallel planner.
+ * LANGUAGE RULE
+ * ------------
+ * Language realization happens after cognition and story structure are
+ * selected. It may improve cadence and clarity, but it may not invent facts,
+ * alter the selected direction, or create a parallel planner.
  *
- * CONTINUITY RULE:
- *   This file composes the existing compiler layers; it does not create
- *   a parallel runtime pipeline.
+ * EVIDENCE RULE
+ * ------------
+ * The raw prompt remains an authoritative lexical evidence channel through
+ * the final language boundary. It may preserve concrete details that upstream
+ * normalization intentionally does not promote into a premise role.
+ *
+ * CONTINUITY RULE
+ * ---------------
+ * This file composes the existing compiler layers; it does not create a
+ * parallel runtime pipeline.
  *
  * ============================================================
  */
@@ -77,24 +82,12 @@ function explicitNarrativeIntent(prompt: string): boolean {
   );
 }
 
-/**
- * The hypothesis scorer intentionally compares several experiential modes.
- * An explicit narrative request is stronger evidence than a near-tie between
- * abstract dimensions (for example identity vs. story differing by 0.0001).
- * Preserve the existing hypothesis set, but make the user's declared
- * narrative intent authoritative at the composition boundary.
- */
 function respectExplicitNarrativeIntent(
   prompt: string,
   cognition: CognitiveExperienceState,
 ): CognitiveExperienceState {
-  if (!explicitNarrativeIntent(prompt)) {
-    return cognition;
-  }
-
-  if (cognition.selectedHypothesis.kind === "story") {
-    return cognition;
-  }
+  if (!explicitNarrativeIntent(prompt)) return cognition;
+  if (cognition.selectedHypothesis.kind === "story") return cognition;
 
   const evidence: CognitiveEvidence = {
     source: "prompt",
@@ -173,26 +166,11 @@ function mergeGenome(
     emotions: [
       ...new Set([...genome.emotions, ...cognition.emotionalIntent]),
     ],
-    memory: Math.max(
-      genome.memory,
-      selected.dimensions.memoryPotential,
-    ),
-    discovery: Math.max(
-      genome.discovery,
-      selected.dimensions.discoveryPotential,
-    ),
-    commerce: Math.max(
-      genome.commerce,
-      selected.dimensions.commercialPotential,
-    ),
-    interaction: Math.max(
-      genome.interaction,
-      selected.dimensions.interactionNaturalness,
-    ),
-    replay: Math.max(
-      genome.replay,
-      selected.dimensions.temporalPotential,
-    ),
+    memory: Math.max(genome.memory, selected.dimensions.memoryPotential),
+    discovery: Math.max(genome.discovery, selected.dimensions.discoveryPotential),
+    commerce: Math.max(genome.commerce, selected.dimensions.commercialPotential),
+    interaction: Math.max(genome.interaction, selected.dimensions.interactionNaturalness),
+    replay: Math.max(genome.replay, selected.dimensions.temporalPotential),
     entities: cognition.entities,
     audience: [
       ...new Set([
@@ -296,17 +274,17 @@ function directModel(
  * the blueprint, flow, moment, scene-plan, and cinematic scene cannot drift.
  */
 function realizeLanguage(
+  prompt: string,
   compiled: CompiledStoryExperience,
   cognition: CognitiveExperienceState,
 ): CompiledStoryExperience {
   const beats = elevateStoryBeats(
     compiled.story.beats,
     cognition.plan,
+    prompt,
   );
 
-  const beatById = new Map(
-    beats.map((beat) => [beat.id, beat]),
-  );
+  const beatById = new Map(beats.map((beat) => [beat.id, beat]));
 
   const story = {
     ...compiled.story,
@@ -318,6 +296,7 @@ function realizeLanguage(
       compiled.story.ending,
     continuation:
       beats.find((beat) => beat.kind === "continuation")?.text ??
+      beats.at(-1)?.text ??
       compiled.story.continuation,
   };
 
@@ -328,30 +307,17 @@ function realizeLanguage(
         (moment.payload as { beatId?: unknown } | undefined)?.beatId ?? "",
       );
       const beat = beatById.get(beatId);
-      return beat
-        ? {
-            ...moment,
-            description: beat.text,
-          }
-        : moment;
+      return beat ? { ...moment, description: beat.text } : moment;
     }),
   };
 
   const flowSteps = compiled.flowSteps.map((step) => {
-    const payload = step.payload as
-      | { beat?: { id?: string } }
-      | undefined;
+    const payload = step.payload as { beat?: { id?: string } } | undefined;
     const beatId = payload?.beat?.id;
     const beat = beatId ? beatById.get(beatId) : undefined;
 
     return beat
-      ? {
-          ...step,
-          payload: {
-            ...step.payload,
-            beat,
-          },
-        }
+      ? { ...step, payload: { ...step.payload, beat } }
       : step;
   });
 
@@ -361,30 +327,18 @@ function realizeLanguage(
     );
     const beat = beatById.get(beatId);
 
-    return beat
-      ? {
-          ...moment,
-          text: beat.text,
-        }
-      : moment;
+    return beat ? { ...moment, text: beat.text } : moment;
   });
 
   const scenePlan = compiled.scenePlan.map((scene) => {
     const beat = beatById.get(scene.beatId);
-    return beat
-      ? {
-          ...scene,
-          text: beat.text,
-        }
-      : scene;
+    return beat ? { ...scene, text: beat.text } : scene;
   });
 
-  const cinematicScenes = compiled.cinematicScenes.map(
-    (scene, index) => ({
-      ...scene,
-      moment: moments[index] ?? scene.moment,
-    }),
-  );
+  const cinematicScenes = compiled.cinematicScenes.map((scene, index) => ({
+    ...scene,
+    moment: moments[index] ?? scene.moment,
+  }));
 
   return {
     ...compiled,
@@ -408,12 +362,9 @@ function enrichConcreteSubjectEvidence(
       ?.replace(/\s+/g, " ")
       .trim();
 
-  if (!concrete) {
-    return cognition;
-  }
+  if (!concrete) return cognition;
 
   const existingEvidence = cognition.subject.evidence ?? [];
-
   const alreadyObserved = existingEvidence.some(
     (evidence) =>
       evidence.source === "prompt" &&
@@ -444,26 +395,23 @@ function enrichConcreteSubjectEvidence(
     },
   };
 }
+
 /**
  * Canonical public compiler entry point.
- *
- * Cognition runs first. The conserved premise and semantic realization are
- * then supplied directly to the universal compiler, which remains the only
- * runtime-shape compilation path.
  */
 export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
-   const cognitionBase = canonicalizeCognition(
-  enrichConcreteSubjectEvidence(
-    prompt,
-    respectExplicitNarrativeIntent(
+  const cognitionBase = canonicalizeCognition(
+    enrichConcreteSubjectEvidence(
       prompt,
-      understandExperience(prompt, context),
+      respectExplicitNarrativeIntent(
+        prompt,
+        understandExperience(prompt, context),
+      ),
     ),
-  ),
-);
+  );
 
   const premise = buildCognitivePremise({
     prompt,
@@ -497,7 +445,7 @@ export function compileCognitiveExperience(
     cognitivePlan: cognition.plan,
   });
 
-  const realized = realizeLanguage(compiled, cognition);
+  const realized = realizeLanguage(prompt, compiled, cognition);
 
   return {
     ...realized,
