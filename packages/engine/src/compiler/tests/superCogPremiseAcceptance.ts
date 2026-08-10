@@ -5,17 +5,12 @@ import { premiseValues } from "../../cognition/premiseBuilder.js";
 const cases = [
   {
     prompt: "Turn this concert QR into something people will remember.",
-    required: {
-      event: "concert",
-      medium: "qr",
-    },
+    required: { event: "concert", medium: "qr" },
     output: /concert|qr|remember/i,
   },
   {
     prompt: "Create a funny birthday memory that family members can keep adding to.",
-    required: {
-      event: "birthday",
-    },
+    required: { event: "birthday" },
     output: /birthday|family|adding|memory/i,
   },
   {
@@ -30,10 +25,21 @@ const cases = [
   },
   {
     prompt: "My grandmother gave me this watch.",
-    required: {
-      artifact: "watch",
-    },
+    required: { artifact: "watch" },
     output: /grandmother|watch/i,
+  },
+  {
+    /**
+     * The dog test is intentionally concrete. A valid result must not merely
+     * say that Max receives "care" or that the experience is "meaningful".
+     * It must retain the subject, the grooming/spa context, and an observable
+     * action or state change in the actual story beats.
+     */
+    prompt: "Create a dog groomer story for Max the poodle about the experience.",
+    required: {},
+    output: /max|poodle|groomer|grooming|bath|spa|pamper|clean/i,
+    observable: /groom|bath|wash|brush|dry|trim|pamper|spa|clean/i,
+    forbidden: /the operative move is|meaningful experience|deserves a closer look/i,
   },
 ];
 
@@ -59,6 +65,22 @@ for (const testCase of cases) {
     throw new Error(
       `Realized story lost salient meaning for: ${testCase.prompt}. Realized: ${beatText}`,
     );
+  }
+
+  if ("observable" in testCase && testCase.observable && !testCase.observable.test(beatText)) {
+    throw new Error(
+      `Concrete action/context was not realized in beats for: ${testCase.prompt}. Realized: ${beatText}`,
+    );
+  }
+
+  if ("forbidden" in testCase && testCase.forbidden && testCase.forbidden.test(beatText)) {
+    throw new Error(
+      `Generic realization leaked into subject-native beats for: ${testCase.prompt}. Realized: ${beatText}`,
+    );
+  }
+
+  if (new Set(result.story.beats.map((beat) => beat.text.toLowerCase())).size < Math.min(3, result.story.beats.length)) {
+    throw new Error(`Story beats collapsed into repeated prose for: ${testCase.prompt}`);
   }
 
   console.log(`✓ ${testCase.prompt}`);
