@@ -210,10 +210,35 @@ function strongestEvidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): str
   return candidates.find((value) => !realized.includes(lower(value))) ?? candidates[0] ?? "";
 }
 
-function directive(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
-  const candidate = plan?.realization?.directives.find((item) => item.kind === beat.kind);
-  if (!candidate || candidate.confidence < 0.72 || !clean(candidate.action)) return undefined;
-  return candidate;
+/**
+ * Coupled-prompt coverage for the substrate path, where no cognitive plan may
+ * be available. The universal compiler still receives the prompt's concrete
+ * entities on every beat. When several independent details remain unrealized,
+ * carry the missing details forward together instead of allowing the renderer
+ * to collapse the premise to whichever noun happens to be the subject.
+ *
+ * This is evidence preservation, not a domain template: QR + concert + memory,
+ * housekeeper + home + cleaning, or any future combination receives the same
+ * treatment.
+ */
+function coupledEvidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
+  if (plan?.premise?.relations.length) return [];
+
+  const realized = lower(beat.text);
+  const subjectValue = lower(subject(beat, plan));
+  const candidates = unique([
+    ...(beat.entities ?? []),
+    ...words(beat.text),
+  ])
+    .map(sentence)
+    .filter(Boolean)
+    .filter((value) => !generic(value))
+    .filter((value) => lower(value) !== subjectValue)
+    .filter((value) => !STOP.has(lower(value)))
+    .filter((value) => value.length >= 2)
+    .filter((value) => !realized.includes(lower(value)));
+
+  return candidates.slice(0, 3);
 }
 
 function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
@@ -255,6 +280,12 @@ function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
     case "continuation": return relation ? `${relation}, keeping the experience open.` : future ? `${name} remains open to ${sentence(future)}.` : `${name} carries the current state into what comes next.`;
     default: return evidence ? `${name} continues with ${evidence}.` : `${name} continues from the supplied premise.`;
   }
+}
+
+function directive(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
+  const candidate = plan?.realization?.directives.find((item) => item.kind === beat.kind);
+  if (!candidate || candidate.confidence < 0.72 || !clean(candidate.action)) return undefined;
+  return candidate;
 }
 
 function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
@@ -309,8 +340,22 @@ function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string 
 
 function preserveConcreteEvidence(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const evidence = strongestEvidence(beat, plan);
-  if (!evidence || lower(text).includes(lower(evidence))) return text;
-  return `${sentence(text)} The concrete detail is ${evidence}.`;
+  let result = text;
+
+  if (evidence && !lower(result).includes(lower(evidence))) {
+    result = `${sentence(result)} The concrete detail is ${evidence}.`;
+  }
+
+  // On the substrate path there may be no cognitive plan carrying explicit
+  // premise relations. If several independent prompt details remain missing,
+  // preserve them together in a single sentence. This is deliberately factual:
+  // it does not invent a relationship, it prevents semantic collapse.
+  const coupled = coupledEvidence(beat, plan);
+  if (coupled.length >= 2 && ["hook", "payoff", "continuation"].includes(beat.kind)) {
+    result = `${sentence(result)} It also carries ${coupled.join(", ")} forward.`;
+  }
+
+  return result;
 }
 
 function preserveSemanticAction(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
