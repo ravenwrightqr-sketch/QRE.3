@@ -1,5 +1,5 @@
 ﻿import { realizePremiseBeat } from "./premiseRealizer.js";
-
+import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
 import type {
   CognitiveExperiencePlan,
   ExperienceEntities,
@@ -1431,15 +1431,20 @@ function candidates(
    * This means the selected plan is visible in the candidate layer rather
    * than being reconstructed later from generic narrative candidates.
    */
-  const plannedStructure = planBeatStructure(plan);
+    const cognitiveTrajectory = composeCognitiveTrajectory({
+  plan,
+});
 
-  if (plannedStructure?.length) {
-    pool.push([
-      `cognitive-${lower(plan?.direction ?? "experience")}`,
-      plannedStructure,
-      `Realize the cognitive direction "${plan?.direction ?? "experience"}" using its declared experiential structure.`,
-    ]);
-  }
+if (cognitiveTrajectory.beats.length) {
+  pool.push([
+    "cognitive-derived",
+    cognitiveTrajectory.beats,
+    [
+      "Derived from cognitive mechanics rather than domain templates.",
+      ...cognitiveTrajectory.rationale,
+    ].join(" "),
+  ]);
+}
 
   return pool
     .map(([id, beats, rationale]) => ({
@@ -1460,7 +1465,6 @@ function candidates(
     }))
     .sort((a, b) => b.score - a.score);
 }
-
 function choose(
   candidateList: Candidate[],
   observation: ExperienceObservation,
@@ -1470,50 +1474,17 @@ function choose(
     throw new Error("Story compiler produced no candidates.");
   }
 
-  /*
-   * If cognition supplied a direction, prefer the candidate explicitly
-   * compiled from that direction.
-   *
-   * This is intentionally stronger than generic score-based selection.
-   */
-   /*
- * If cognition supplied a direction, prefer the candidate explicitly
- * compiled from that direction.
- *
- * This is intentionally stronger than generic score-based selection.
- */
-if (plan?.direction) {
-  const direction = plan.direction;
+  if (plan) {
+    const cognitiveCandidate = candidateList.find(
+      (candidate) => candidate.id === "cognitive-derived",
+    );
 
-  const cognitiveCandidate = candidateList.find(
-    (candidate) =>
-      candidate.id === `cognitive-${lower(direction)}`,
-  );
-
-  if (cognitiveCandidate) {
-    return cognitiveCandidate;
+    if (cognitiveCandidate) {
+      return cognitiveCandidate;
+    }
   }
-}
 
-if (!plan) {
   return candidateList[0];
-}
-
-const planTextValue = planText(plan).join(" ");
-
-return (
-  [...candidateList].sort((a, b) => {
-    const aFit =
-      wordOverlap(a.rationale, planTextValue) +
-      a.score * 0.08;
-
-    const bFit =
-      wordOverlap(b.rationale, planTextValue) +
-      b.score * 0.08;
-
-    return bFit - aFit;
-  })[0] ?? candidateList[0]
-);
 }
 
 function primaryPlanSignal(
@@ -3031,53 +3002,38 @@ export function compileStoryExperience(
       blueprintValue,
       context.cognitivePlan,
     );
+return {
+  observation: observationValue,
 
-  return {
-    observation:
-      observationValue,
+  situation: situationValue,
 
-    situation:
-      situationValue,
+  candidates: candidateList,
 
-    candidates:
-      candidateList,
+  genome: genomeValue,
 
-    genome:
-      genomeValue,
+  story: storyValue,
 
-    story:
-      storyValue,
+  blueprint: blueprintValue,
 
-    blueprint:
-      blueprintValue,
+  flowSteps,
 
-    flowSteps,
+  moments: momentList,
 
-    moments:
-      momentList,
+  cinematicScenes,
 
-    cinematicScenes,
+  scenePlan: scenePlanValue,
 
-    scenePlan:
-      scenePlanValue,
+  model: modelValue,
 
-    model:
-      modelValue,
+  title: storyValue.title,
 
-    title:
-      storyValue.title,
+  estimatedDuration: momentList.reduce(
+    (total, moment) =>
+      total +
+      (moment.meta?.duration ?? 2200),
+    0,
+  ),
 
-    estimatedDuration:
-      momentList.reduce(
-        (total, moment) =>
-          total +
-          (moment.meta?.duration ??
-            2200),
-        0,
-      ),
-
-    momentCount:
-      momentList.length,
-  };
+  momentCount: momentList.length,
+};
 }
-
