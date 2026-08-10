@@ -89,29 +89,50 @@ function ensureDirectiveSubject(
   const subjects = authoritativeSubjects(beat, plan);
   if (!subjects.length) return text;
 
-  const normalized = text.toLocaleLowerCase();
-
   // The most specific conserved subject is authoritative. Do not accept a
-  // generic subject such as "the dog" merely because it happens to survive;
-  // that would allow a proper name such as "Max" to disappear downstream.
-  const subject = subjects[0];
-  const subjectWords = subject
-    .split(/\s+/)
-    .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
-    .filter(Boolean);
+  // generic subject merely because it happens to survive downstream.
+  const strongestSubject =
+    subjects
+      .slice()
+      .sort(
+        (a, b) =>
+          b.split(/\s+/).filter(Boolean).length -
+            a.split(/\s+/).filter(Boolean).length ||
+          b.length - a.length,
+      )[0] ?? subjects[0];
 
-  const missing = subjectWords.filter((word) =>
-    word.length > 1 && !normalized.includes(word.toLocaleLowerCase()),
+  const normalizeToken = (value: string) =>
+    value
+      .replace(/[^\p{L}\p{N}'’-]/gu, "")
+      .toLocaleLowerCase();
+
+  // Preserve concrete evidence carried by every authoritative subject.
+  // This prevents language realization from silently erasing details such as
+  // "Max", "poodle", "billionaire", "spa", or other prompt-grounded facts.
+  const evidenceTokens = [
+    ...new Set(
+      subjects
+        .flatMap((subject) => subject.split(/\s+/))
+        .map(normalizeToken)
+        .filter((token) => token.length > 1),
+    ),
+  ];
+
+  if (!evidenceTokens.length) return text;
+
+  const normalizedText = text.toLocaleLowerCase();
+
+  const missing = evidenceTokens.filter(
+    (token) => !normalizedText.includes(token),
   );
 
   if (!missing.length) {
     return text;
   }
 
-  // No authoritative subject representation survived. Restore the complete
-  // conserved subject, rather than allowing language realization to silently
-  // erase cognition's observed subject.
-  return `${text.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
+  // Restore the strongest conserved representation rather than isolated
+  // missing words so concrete relationships remain intact.
+  return `${text.replace(/[.!?]+$/, "")}. ${strongestSubject} remains at the center of this beat.`;
 }
 
 export function elevateStoryBeat(

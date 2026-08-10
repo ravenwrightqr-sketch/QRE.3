@@ -397,6 +397,53 @@ function realizeLanguage(
   };
 }
 
+function enrichConcreteSubjectEvidence(
+  prompt: string,
+  cognition: CognitiveExperienceState,
+): CognitiveExperienceState {
+  const concrete =
+    prompt.match(
+      /\bfor\s+((?:the|a|an)\s+[\p{L}\p{N}'’-]+(?:\s+[\p{L}\p{N}'’-]+){0,4}|[A-Z][\p{L}\p{N}'’-]*(?:\s+(?:the|a|an)\s+[\p{L}\p{N}'’-]+){0,4})\b/u,
+    )?.[1]
+      ?.replace(/\s+/g, " ")
+      .trim();
+
+  if (!concrete) {
+    return cognition;
+  }
+
+  const existingEvidence = cognition.subject.evidence ?? [];
+
+  const alreadyObserved = existingEvidence.some(
+    (evidence) =>
+      evidence.source === "prompt" &&
+      evidence.detail.toLowerCase().includes(concrete.toLowerCase()),
+  );
+
+  return {
+    ...cognition,
+    subject: {
+      ...cognition.subject,
+      value: concrete,
+      status: "observed",
+      confidence: Math.max(cognition.subject.confidence, 0.99),
+      evidence: alreadyObserved
+        ? existingEvidence
+        : [
+            ...existingEvidence,
+            {
+              source: "prompt",
+              detail: `concrete subject preserved from prompt: ${concrete}`,
+              confidence: 0.99,
+            },
+          ],
+    },
+    plan: {
+      ...cognition.plan,
+      centralSubject: concrete,
+    },
+  };
+}
 /**
  * Canonical public compiler entry point.
  *
@@ -408,12 +455,15 @@ export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
-  const cognitionBase = canonicalizeCognition(
+   const cognitionBase = canonicalizeCognition(
+  enrichConcreteSubjectEvidence(
+    prompt,
     respectExplicitNarrativeIntent(
       prompt,
       understandExperience(prompt, context),
     ),
-  );
+  ),
+);
 
   const premise = buildCognitivePremise({
     prompt,
