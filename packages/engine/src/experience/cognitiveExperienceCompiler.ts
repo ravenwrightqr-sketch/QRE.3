@@ -1,4 +1,5 @@
 import type {
+  CognitiveEvidence,
   CognitiveExperienceState,
   ExperienceBlueprint,
   ExperienceGenome,
@@ -69,6 +70,62 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
 export type CognitiveCompiledExperience = CompiledStoryExperience & {
   cognition: CognitiveExperienceState;
 };
+
+function explicitNarrativeIntent(prompt: string): boolean {
+  return /\b(?:story|stories|narrative|tale|tell the story|storytelling)\b/i.test(
+    prompt,
+  );
+}
+
+/**
+ * The hypothesis scorer intentionally compares several experiential modes.
+ * An explicit narrative request is stronger evidence than a near-tie between
+ * abstract dimensions (for example identity vs. story differing by 0.0001).
+ * Preserve the existing hypothesis set, but make the user's declared
+ * narrative intent authoritative at the composition boundary.
+ */
+function respectExplicitNarrativeIntent(
+  prompt: string,
+  cognition: CognitiveExperienceState,
+): CognitiveExperienceState {
+  if (!explicitNarrativeIntent(prompt)) {
+    return cognition;
+  }
+
+  if (cognition.selectedHypothesis.kind === "story") {
+    return cognition;
+  }
+
+  const evidence: CognitiveEvidence = {
+    source: "prompt",
+    detail: "explicit narrative/story request",
+    confidence: 0.99,
+  };
+
+  const selectedHypothesis = {
+    ...cognition.selectedHypothesis,
+    kind: "story" as const,
+    premise: `${cognition.subject.value} unfolds as a sequence of meaningful moments`,
+    rationale:
+      "The prompt explicitly requests a story or narrative, so narrative form is the declared experience direction.",
+    evidence: [...cognition.selectedHypothesis.evidence, evidence],
+    score: Math.max(cognition.selectedHypothesis.score, 0.99),
+  };
+
+  return {
+    ...cognition,
+    selectedHypothesis,
+    hypotheses: cognition.hypotheses.map((hypothesis) =>
+      hypothesis.kind === "story"
+        ? {
+            ...hypothesis,
+            score: Math.max(hypothesis.score, 0.99),
+            evidence: [...hypothesis.evidence, evidence],
+          }
+        : hypothesis,
+    ),
+  };
+}
 
 function canonicalizeCognition(
   cognition: CognitiveExperienceState,
@@ -352,7 +409,10 @@ export function compileCognitiveExperience(
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
   const cognitionBase = canonicalizeCognition(
-    understandExperience(prompt, context),
+    respectExplicitNarrativeIntent(
+      prompt,
+      understandExperience(prompt, context),
+    ),
   );
 
   const premise = buildCognitivePremise({
