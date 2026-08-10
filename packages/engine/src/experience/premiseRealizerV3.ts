@@ -140,7 +140,8 @@ function detailForBeat(
       case "reflection":
         return ["temporal", "artifact", "memory", "event", "place"];
       case "encounter":
-      case "contribution":n        return ["participants", "social", "action", "affordance", "artifact", "event"];
+      case "contribution":
+        return ["participants", "social", "action", "affordance", "artifact", "event"];
       case "threshold":
         return ["medium", "place", "event", "artifact", "affordance"];
       case "discovery":
@@ -187,7 +188,7 @@ function narrativeAction(action: string): string | undefined {
   if (!value) return undefined;
 
   if (
-    /(?:\bmake\b.*\b(?:matter|meaningful)\b|\bthrough\b\s+(?:memory|cognition|semantics?|interaction|experience)\b|\bstate\b|\b(?:scan\s*→|→)\b|\bselected\b|\bcompiler\b|\bsemantic\b)/i.test(
+    /(?:\bmake\b.*\b(?:matter|meaningful)\b|\bthrough\b\s+(?:memory|cognition|semantics?|interaction|experience)\b|\bstate\b|(?:scan\s*→|→)|\bselected\b|\bcompiler\b|\bsemantic\b)/i.test(
       value,
     )
   ) {
