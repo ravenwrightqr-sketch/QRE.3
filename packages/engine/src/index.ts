@@ -32,6 +32,13 @@ export type {
   CompiledStoryExperience,
 } from "./experience/universalStoryCompiler.js";
 
+/** Cognitive event-world realization boundary. */
+export {
+  buildExperienceEvent,
+  buildExperienceEventWorld,
+  eventRealizationHint,
+} from "./experience/eventWorld.js";
+
 /** Canonical cognition → experience compiler. */
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
