@@ -1,15 +1,16 @@
 import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 import { isGenericCompilerProse } from "./premiseRealizer.js";
 import {
-  realizePremiseBeatV2,
-  realizePremiseBeatsV2,
-} from "./premiseRealizerV2.js";
+  realizePremiseBeatV3,
+  realizePremiseBeatsV3,
+} from "./premiseRealizerV3.js";
 
 /**
- * Compatibility facade for the old realization entry point.
+ * Compatibility facade for the story realization entry point.
  *
- * The public boundary remains stable while semantic realization now consumes
- * the conserved role-based premise carried by the cognitive plan.
+ * The public boundary remains stable while presentation realization consumes
+ * semantic directives plus conserved premise evidence and concrete prompt
+ * details carried by the compiled beat.
  */
 
 export function elevateStoryBeat(
@@ -17,14 +18,14 @@ export function elevateStoryBeat(
   _index: number,
   plan?: CognitiveExperiencePlan,
 ): string {
-  return realizePremiseBeatV2(beat, plan);
+  return realizePremiseBeatV3(beat, plan);
 }
 
 export function elevateStoryBeats(
   beats: StoryBeat[],
   plan?: CognitiveExperiencePlan,
 ): StoryBeat[] {
-  return realizePremiseBeatsV2(beats, plan);
+  return realizePremiseBeatsV3(beats, plan);
 }
 
 export { isGenericCompilerProse };
