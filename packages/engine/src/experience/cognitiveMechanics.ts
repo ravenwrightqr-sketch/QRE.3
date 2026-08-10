@@ -266,14 +266,14 @@ export function inferExperienceMechanics(args: {
   }
 
   if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower(plan.dynamicBehavior.join(" "));
+    const dynamic = lower((plan?.dynamicBehavior ?? []).join(" "));
     if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
       add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
     }
   }
 
   if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower(plan.futureEvolution.join(" "));
+    const future = lower((plan?.futureEvolution ?? []).join(" "));
     if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
       add("continuation", 0.88, "future evolution explicitly preserves a next state");
     }
