@@ -48,13 +48,39 @@ function attachCognitiveDirectives(
   });
 }
 
+function ensureDirectiveSubject(
+  text: string,
+  beat: StoryBeat,
+): string {
+  const subject = beat.directive?.subject?.trim();
+  if (!subject) return text;
+
+  const normalized = text.toLocaleLowerCase();
+  const subjectWords = subject
+    .split(/\s+/)
+    .map((word) => word.replace(/[^\p{L}\p{N}'’-]/gu, ""))
+    .filter(Boolean);
+
+  // The language layer may inflect or abbreviate surrounding prose, but it
+  // must never erase the authoritative cognitive subject. For multi-word
+  // subjects, require every distinctive token to survive.
+  const missing = subjectWords.filter((word) =>
+    word.length > 1 && !normalized.includes(word.toLocaleLowerCase()),
+  );
+
+  if (!missing.length) return text;
+
+  return `${text.replace(/[.!?]+$/, "")}. ${subject} remains at the center of this beat.`;
+}
+
 export function elevateStoryBeat(
   beat: StoryBeat,
   _index: number,
   plan?: CognitiveExperiencePlan,
 ): string {
   const [resolved] = attachCognitiveDirectives([beat], plan);
-  return realizePremiseBeatV3(resolved ?? beat, plan);
+  const realized = realizePremiseBeatV3(resolved ?? beat, plan);
+  return ensureDirectiveSubject(realized, resolved ?? beat);
 }
 
 export function elevateStoryBeats(
@@ -62,7 +88,14 @@ export function elevateStoryBeats(
   plan?: CognitiveExperiencePlan,
 ): StoryBeat[] {
   const authoritativeBeats = attachCognitiveDirectives(beats, plan);
-  return realizePremiseBeatsV3(authoritativeBeats, plan);
+
+  return authoritativeBeats.map((beat) => ({
+    ...beat,
+    text: ensureDirectiveSubject(
+      realizePremiseBeatV3(beat, plan),
+      beat,
+    ),
+  }));
 }
 
 export { isGenericCompilerProse };
