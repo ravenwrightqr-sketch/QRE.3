@@ -169,27 +169,46 @@ function capPrompt(value: string): string {
 function appendPromptEvidence(text: string, beat: StoryBeat, evidence: string[]): string {
   const normalized = lower(text);
   const missing = evidence.filter((value) => !normalized.includes(lower(value)));
-  const detail = missing[0];
-  if (!detail) return text;
+  if (!missing.length) return text;
+
+  const details = missing.slice(0, 2);
+  const first = details[0];
+  const second = details[1];
 
   switch (beat.kind) {
     case "encounter":
-      return `${sentence(text)} ${capPrompt(detail)} enters the scene.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} stay present in the scene.`
+        : `${sentence(text)} ${capPrompt(first)} stays present in the scene.`;
     case "discovery":
     case "reveal":
-      return `${sentence(text)} ${capPrompt(detail)} becomes part of what is discovered.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} become part of what is discovered.`
+        : `${sentence(text)} ${capPrompt(first)} becomes part of what is discovered.`;
     case "action":
-      return `${sentence(text)} The action stays grounded in ${detail}.`;
+      return second
+        ? `${sentence(text)} The action stays grounded in ${first} and ${second}.`
+        : `${sentence(text)} The action stays grounded in ${first}.`;
     case "escalation":
-      return `${sentence(text)} ${capPrompt(detail)} raises the intensity.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} raise the intensity.`
+        : `${sentence(text)} ${capPrompt(first)} raises the intensity.`;
     case "transformation":
-      return `${sentence(text)} ${capPrompt(detail)} marks the change.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} mark the change.`
+        : `${sentence(text)} ${capPrompt(first)} marks the change.`;
     case "payoff":
-      return `${sentence(text)} ${capPrompt(detail)} remains attached to the result.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain attached to the result.`
+        : `${sentence(text)} ${capPrompt(first)} remains attached to the result.`;
     case "reflection":
-      return `${sentence(text)} ${capPrompt(detail)} remains part of what is remembered.`;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain part of what is remembered.`
+        : `${sentence(text)} ${capPrompt(first)} remains part of what is remembered.`;
     default:
-      return text;
+      return second
+        ? `${sentence(text)} ${capPrompt(first)} and ${second} remain part of the moment.`
+        : `${sentence(text)} ${capPrompt(first)} remains part of the moment.`;
   }
 }
 
