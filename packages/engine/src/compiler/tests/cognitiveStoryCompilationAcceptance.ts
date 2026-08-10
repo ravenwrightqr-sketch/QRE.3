@@ -44,6 +44,13 @@ const cases = [
     required: /grandmother|watch|memory|story|present/i,
     forbidden: /the experience puts into focus|the subject now means more|what the experience has revealed/i,
   },
+  {
+    name: "arbitrary concrete detail",
+    prompt: "A housekeeper documents a client's home after a huge cleaning day.",
+    required: /housekeeper|client|home|cleaning/i,
+    premiseDetail: /cleaning/i,
+    forbidden: /the experience puts into focus|the subject now means more|what the experience has revealed/i,
+  },
 ] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -53,12 +60,23 @@ function assert(condition: unknown, message: string): asserts condition {
 for (const testCase of cases) {
   const result = compileCognitiveExperience(testCase.prompt);
   const beatText = result.story.beats.map((beat) => beat.text).join(" ");
+  const premiseDetails = result.cognition.plan.premise?.slots
+    .filter((slot) => slot.role === "detail")
+    .flatMap((slot) => slot.values)
+    .join(" ") ?? "";
 
   assert(result.cognition.plan, `${testCase.name}: missing cognitive plan`);
   assert(result.cognition.plan.premise, `${testCase.name}: missing conserved premise`);
   assert(result.story.beats.length >= 3, `${testCase.name}: story collapsed to fewer than 3 beats`);
   assert(testCase.required.test(beatText), `${testCase.name}: salient prompt material was lost. Got: ${beatText}`);
   assert(!testCase.forbidden.test(beatText), `${testCase.name}: compiler leaked meta-language. Got: ${beatText}`);
+
+  if ("premiseDetail" in testCase && testCase.premiseDetail) {
+    assert(
+      testCase.premiseDetail.test(premiseDetails),
+      `${testCase.name}: arbitrary prompt detail was lost at the premise boundary. Got: ${premiseDetails}`,
+    );
+  }
 
   const beatIds = new Set(result.story.beats.map((beat) => beat.id));
   assert(
