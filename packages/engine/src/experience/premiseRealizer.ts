@@ -88,9 +88,7 @@ function first(
 function join(valuesValue: string[], fallback: string): string {
   if (!valuesValue.length) return fallback;
   if (valuesValue.length === 1) return valuesValue[0];
-  if (valuesValue.length === 2) {
-    return `${valuesValue[0]} and ${valuesValue[1]}`;
-  }
+  if (valuesValue.length === 2) return `${valuesValue[0]} and ${valuesValue[1]}`;
   return `${valuesValue.slice(0, -1).join(", ")}, and ${valuesValue.at(-1)}`;
 }
 
@@ -134,10 +132,7 @@ function anchorValues(
   });
 }
 
-function directive(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-) {
+function directive(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
   const candidate = plan?.realization?.directives.find(
     (item) => item.kind === beat.kind,
   );
@@ -170,31 +165,20 @@ function contextualDetail(
     reflection: ["emotion", "outcome", "artifact", "temporal"],
     provenance: ["artifact", "event", "place", "temporal"],
     identity: ["artifact", "social", "place", "event"],
-    milestone: ["outcome", "progression", "transformation"],
+    milestone: ["outcome", "transformation"],
     unlock: ["outcome", "affordance", "artifact"],
     earned_access: ["outcome", "affordance", "constraint"],
-    payoff: ["outcome", "transformation", "reward" as CognitivePremiseRole],
+    payoff: ["outcome", "transformation"],
     next_step: ["affordance", "outcome", "temporal"],
     continuation: ["temporal", "transformation", "outcome", "social"],
   };
 
-  const priorities = rolePriority[beat.kind];
-  for (const role of priorities) {
+  for (const role of rolePriority[beat.kind]) {
     const value = first(plan, role);
     if (value) return value;
   }
 
   return anchorValues(beat, plan)[0] ?? "";
-}
-
-function stateClause(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
-  const item = directive(beat, plan);
-  const after = sentence(item?.stateAfter);
-  if (!after) return "";
-  return after;
 }
 
 function directiveText(
@@ -206,7 +190,7 @@ function directiveText(
 
   const name = cap(item.subject || subject(beat, plan));
   const action = sentence(item.action);
-  const after = stateClause(beat, plan);
+  const after = sentence(item.stateAfter);
 
   switch (beat.kind) {
     case "orientation":
@@ -271,7 +255,7 @@ function fallbackText(
   const anchors = anchorValues(beat, plan);
   const outcome = first(plan, "outcome");
   const transformation = values(plan, "transformation");
-  const future = first(plan, "temporal") || plan?.futureEvolution?.[0] || "";
+  const future = plan?.futureEvolution?.[0] ?? first(plan, "temporal");
   const why = plan?.whyInteract?.[0] ?? "";
   const progression = plan?.progressionModel?.[0] ?? "";
   const interaction = plan?.interactionModel?.[0] ?? "";
@@ -400,8 +384,6 @@ function preserveConcreteEvidence(
   const detail = contextualDetail(beat, plan);
   if (!detail || normalized.includes(lower(detail))) return text;
 
-  // Evidence is integrated only when the current realization has lost the
-  // most salient role value. Never append a keyword list or diagnostic label.
   return `${sentence(text)}, with ${detail} still part of the moment.`;
 }
 
