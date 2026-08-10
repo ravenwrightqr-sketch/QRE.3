@@ -247,6 +247,21 @@ export function inferExperienceMechanics(args: {
     add("surprise", 0.92, "each state changes the next state, making the outcome intentionally unpredictable");
   }
 
+  // Normalized plans can preserve the relation without preserving the exact
+  // surface phrase. Keep surprise when repetition, state change, and a future
+  // state all survive as conserved evidence.
+  if (
+    has(corpus, /\b(?:every|each|different|another)\b/) &&
+    has(corpus, /\b(?:chang(?:e|es|ed|ing)|alter(?:s|ed|ing)?|reshap(?:e|es|ed|ing)|determin(?:e|es|ed|ing)|affect(?:s|ed|ing)?)\b/) &&
+    has(corpus, /\b(?:next|following|subsequent|later)\b/)
+  ) {
+    add(
+      "surprise",
+      0.9,
+      "a repeated state-change relation determines what follows, preserving dynamic unpredictability after normalization",
+    );
+  }
+
   if (has(corpus, /\b(?:terror|terrifying|haunted|horror|dread|fear|threat|danger|creepy|unknown)\b/)) {
     add("uncertainty", 0.96, "threat or uncertainty should intensify over time");
     add("escalation", 0.72, "horror gains force from increasing threat");
