@@ -11,8 +11,9 @@ import type { CognitivePremise } from "./premise.js";
  *
  * CANONICAL PIPELINE:
  *   PROMPT → COGNITION → MEANING → HYPOTHESES → OPPORTUNITY SPACE
- *   → EXPERIENCE DIRECTION → COGNITIVE PLAN → UNIVERSAL COMPILATION
- *   → BLUEPRINT → FLOW → MOMENTS → CINEMATIC SCENES
+ *   → EXPERIENCE DIRECTION → COGNITIVE PLAN → SEMANTIC REALIZATION
+ *   → UNIVERSAL COMPILATION → BLUEPRINT → FLOW → MOMENTS
+ *   → CINEMATIC SCENES
  *
  * ARCHITECTURE RULE:
  *   THE COMPILER BECOMES SMARTER.
@@ -29,6 +30,10 @@ import type { CognitivePremise } from "./premise.js";
  * CONSERVATION RULE:
  *   The selected plan carries a role-based premise so realization can
  *   preserve relationships among facts instead of relying on noun lists.
+ *
+ * REALIZATION RULE:
+ *   Semantic realization describes what each experiential operation is
+ *   supposed to accomplish. It does not contain presentation copy.
  *
  * ============================================================
  */
@@ -87,6 +92,59 @@ export type ExperienceHypothesis = {
   score: number;
 };
 
+export type CognitiveBeatKind =
+  | "orientation"
+  | "hook"
+  | "need"
+  | "threshold"
+  | "origin"
+  | "encounter"
+  | "challenge"
+  | "discovery"
+  | "reveal"
+  | "instruction"
+  | "action"
+  | "feedback"
+  | "contribution"
+  | "escalation"
+  | "transformation"
+  | "reflection"
+  | "provenance"
+  | "identity"
+  | "milestone"
+  | "unlock"
+  | "payoff"
+  | "earned_access"
+  | "next_step"
+  | "continuation";
+
+/**
+ * Semantic instruction for one experiential operation.
+ *
+ * This is deliberately not presentation copy. It records the cognitive
+ * function of a beat so any later language/media renderer can realize it
+ * without reconstructing the meaning from nouns or templates.
+ */
+export type CognitiveBeatDirective = {
+  kind: CognitiveBeatKind;
+  intent: string;
+  subject: string;
+  action: string;
+  stateBefore: string;
+  stateAfter: string;
+  relationalFocus: string[];
+  evidence: CognitiveEvidence[];
+  confidence: number;
+};
+
+export type CognitiveExperienceRealization = {
+  direction: ExperienceHypothesisKind;
+  directives: CognitiveBeatDirective[];
+  semanticArc: string[];
+  conservedRoles: string[];
+  confidence: number;
+};
+
 /**
  * Cognitive direction selected before universal compilation.
  *
@@ -120,6 +178,12 @@ export type CognitiveExperiencePlan = {
    * callers remain source-compatible while new cognitive paths populate it.
    */
   premise?: CognitivePremise;
+
+  /**
+   * Semantic beat realization. Optional for compatibility with historical
+   * plan producers; canonical cognitive compilation populates it.
+   */
+  realization?: CognitiveExperienceRealization;
 };
 
 export type CognitiveExperienceState = {

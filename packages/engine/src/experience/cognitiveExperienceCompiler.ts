@@ -6,12 +6,12 @@ import type {
 
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
+import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
   type StoryCompilerContext,
 } from "./universalStoryCompiler.js";
-import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
 
 /**
  * ============================================================
@@ -26,14 +26,8 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *   PROMPT
  *     → COGNITIVE UNDERSTANDING
  *     → CONSERVED PREMISE / EVIDENCE RELATIONSHIPS
- *     → EVIDENCE
- *     → MEANING
- *     → HYPOTHESES
- *     → OPPORTUNITY SPACE
- *     → SELECTED EXPERIENCE DIRECTION
- *     → COGNITIVE PLAN
+ *     → SEMANTIC REALIZATION
  *     → UNIVERSAL COMPILATION
- *     → PREMISE LANGUAGE REALIZATION
  *     → BLUEPRINT
  *     → FLOW
  *     → MOMENTS
@@ -49,18 +43,16 @@ import { elevateStoryBeats } from "./eloquentStoryRealizer.js";
  *
  * COGNITIVE RULE:
  *   Cognition decides what the experience could become.
- *   The universal compiler remains the runtime-shape substrate and receives
- *   the selected cognitive plan before it compiles the experience.
- *   No inferred possibility is promoted to observed fact.
+ *   Semantic realization records how each operation should change the
+ *   experiential state. It does not manufacture facts or presentation copy.
  *
  * LANGUAGE RULE:
- *   Language realization happens after cognition and story structure are
- *   selected. It may improve cadence and clarity, but it may not invent
- *   facts, alter the selected direction, or create a parallel planner.
+ *   The universal compiler owns the single presentation-realization pass.
+ *   The cognitive compiler never re-realizes already compiled beats.
  *
  * CONTINUITY RULE:
  *   This file composes the existing compiler layers; it does not create
- *   a parallel compiler, template registry, or second runtime pipeline.
+ *   a parallel runtime pipeline.
  *
  * ============================================================
  */
@@ -151,10 +143,12 @@ function mergeGenome(
         "hypothesis-driven",
         "cognitive-plan-directed",
         "premise-conserved",
+        "semantic-realization",
         "universal-compiler-substrate",
         `hypothesis:${selected.kind}`,
         ...cognition.affordances.map((value) => `affordance:${value}`),
         ...cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
+        ...(cognition.plan.realization?.semanticArc.map((value) => `arc:${value}`) ?? []),
       ]),
     ],
   };
@@ -192,6 +186,7 @@ function mergeBlueprint(
           "hypothesis-driven",
           "cognitive-plan",
           "premise-conserved",
+          "semantic-realization",
           "adaptive-experience",
           "universal-compiler-substrate",
           ...cognition.assumptions.map(() => "assumption-explicit"),
@@ -216,8 +211,8 @@ function directModel(
         "cognitive-experience-intelligence",
         "cognitive-plan-directed",
         "premise-conserved",
+        "semantic-realization",
         "universal-compiler-substrate",
-        "eloquent-language-realization",
         `selected:${cognition.selectedHypothesis.kind}`,
         `subject:${cognition.subject.value}`,
       ],
@@ -226,121 +221,11 @@ function directModel(
 }
 
 /**
- * Apply the language layer once, then propagate the realized text through
- * every presentation representation that carries story copy.
- *
- * The semantic structure is untouched. Only the already-selected beat text
- * is improved, and every downstream representation receives the same text so
- * the blueprint, flow, moment, scene-plan, and cinematic scene cannot drift.
- */
-function realizeLanguage(
-  compiled: CompiledStoryExperience,
-  cognition: CognitiveExperienceState,
-): CompiledStoryExperience {
-  const beats = elevateStoryBeats(
-    compiled.story.beats,
-    cognition.plan,
-  );
-
-  const beatById = new Map(
-    beats.map((beat) => [beat.id, beat]),
-  );
-
-  const story = {
-    ...compiled.story,
-    beats,
-    hook: beats[0]?.text ?? compiled.story.hook,
-    ending:
-      beats.find((beat) => beat.kind === "payoff")?.text ??
-      beats.at(-1)?.text ??
-      compiled.story.ending,
-    continuation:
-      beats.find((beat) => beat.kind === "continuation")?.text ??
-      compiled.story.continuation,
-  };
-
-  const blueprint = {
-    ...compiled.blueprint,
-    moments: compiled.blueprint.moments.map((moment) => {
-      const beatId = String(
-        (moment.payload as { beatId?: unknown } | undefined)?.beatId ?? "",
-      );
-      const beat = beatById.get(beatId);
-      return beat
-        ? {
-            ...moment,
-            description: beat.text,
-          }
-        : moment;
-    }),
-  };
-
-  const flowSteps = compiled.flowSteps.map((step) => {
-    const payload = step.payload as
-      | { beat?: { id?: string } }
-      | undefined;
-    const beatId = payload?.beat?.id;
-    const beat = beatId ? beatById.get(beatId) : undefined;
-
-    return beat
-      ? {
-          ...step,
-          payload: {
-            ...step.payload,
-            beat,
-          },
-        }
-      : step;
-  });
-
-  const moments = compiled.moments.map((moment) => {
-    const beatId = String(
-      (moment.meta as { beatId?: unknown } | undefined)?.beatId ?? "",
-    );
-    const beat = beatById.get(beatId);
-
-    return beat
-      ? {
-          ...moment,
-          text: beat.text,
-        }
-      : moment;
-  });
-
-  const scenePlan = compiled.scenePlan.map((scene) => {
-    const beat = beatById.get(scene.beatId);
-    return beat
-      ? {
-          ...scene,
-          text: beat.text,
-        }
-      : scene;
-  });
-
-  const cinematicScenes = compiled.cinematicScenes.map(
-    (scene, index) => ({
-      ...scene,
-      moment: moments[index] ?? scene.moment,
-    }),
-  );
-
-  return {
-    ...compiled,
-    story,
-    blueprint,
-    flowSteps,
-    moments,
-    scenePlan,
-    cinematicScenes,
-  };
-}
-
-/**
  * Canonical public compiler entry point.
  *
- * Cognition runs first. The selected plan is then supplied directly to the
- * universal compiler, which remains the only runtime-shape compilation path.
- * The role-based premise is constructed once here and travels with that plan.
+ * Cognition runs first. The conserved premise and semantic realization are
+ * then supplied directly to the universal compiler, which remains the only
+ * runtime-shape compilation path and the only presentation-realization path.
  */
 export function compileCognitiveExperience(
   prompt: string,
@@ -361,11 +246,19 @@ export function compileCognitiveExperience(
     context,
   });
 
+  const realization = realizeCognitiveExperience({
+    plan: cognitionBase.plan,
+    premise,
+    evidence: cognitionBase.subject.evidence,
+    hypothesisEvidence: cognitionBase.selectedHypothesis.evidence,
+  });
+
   const cognition: CognitiveExperienceState = {
     ...cognitionBase,
     plan: {
       ...cognitionBase.plan,
       premise,
+      realization,
     },
   };
 
@@ -374,13 +267,11 @@ export function compileCognitiveExperience(
     cognitivePlan: cognition.plan,
   });
 
-  const realized = realizeLanguage(compiled, cognition);
-
   return {
-    ...realized,
+    ...compiled,
     cognition,
-    genome: mergeGenome(realized.genome, cognition),
-    blueprint: mergeBlueprint(realized.blueprint, cognition),
-    model: directModel(realized, cognition),
+    genome: mergeGenome(compiled.genome, cognition),
+    blueprint: mergeBlueprint(compiled.blueprint, cognition),
+    model: directModel(compiled, cognition),
   };
 }

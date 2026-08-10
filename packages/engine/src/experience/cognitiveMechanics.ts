@@ -38,10 +38,12 @@ export type MechanicSignal = {
   evidence: string[];
 };
 
-const clean = (value: string) => value.replace(/\s+/g, " ").trim();
-const lower = (value: string) => clean(value).toLowerCase();
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-function unique(values: string[]): string[] {
+const lower = (value: unknown) => clean(value).toLowerCase();
+
+function unique(values: readonly unknown[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
 }
 
@@ -51,6 +53,7 @@ function planValues(plan: CognitiveExperiencePlan | undefined): string[] {
   return unique([
     plan.centralSubject,
     plan.purpose,
+    plan.direction,
     ...(plan.audience ?? []),
     ...(plan.emotionalIntent ?? []),
     ...(plan.interactionModel ?? []),
@@ -144,13 +147,24 @@ export function inferExperienceMechanics(args: {
     scores.set(mechanic, current);
   };
 
-  if (has(corpus, /\b(?:add|adding|contribute|contribution|accumulate|accumulating|grows?|versions?|folklore|mythology)\b/)) {
+  if (has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|versions?|folklore|mythology)\b/)) {
     add("accumulation", 0.95, "material compounds or competing versions can grow");
     add("contribution", 0.8, "participants can add material");
   }
 
   if (has(corpus, /\b(?:escalat|increasingly|more and more|wild|ridiculous|bigger|worse|extreme|over the top)\b/)) {
     add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
+  }
+
+  // Compounding material is not automatically escalation. It becomes escalation
+  // when the accumulated contributions compete, mutate, or build toward a larger
+  // shared legend. This preserves prompts such as family folklore even when the
+  // planner normalizes away surface words like "more ridiculous".
+  if (
+    has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
+    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing|ing))\b/)
+  ) {
+    add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
   }
 
   if (has(corpus, /\b(?:transform|change|before and after|becomes?|turn(?:s|ed)? .* into|groom|clean|restore|makeover|pamper)\b/)) {
@@ -191,24 +205,84 @@ export function inferExperienceMechanics(args: {
     add("pampering", 0.92, "care is part of the premise and should become an experiential behavior");
   }
 
-  if (has(corpus, /\b(?:memory|remember|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
+  // Treat inflected forms as memory evidence. A premise such as
+  // "she remembers the absurd treatment" is just as semantically explicit as
+  // the noun "memory" and must not lose the mechanic during normalization.
+  if (has(corpus, /\b(?:memor(?:y|ies)|remember(?:s|ed|ing)?|reminisc|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
     add("memory", 0.96, "past experience should affect present meaning");
   }
 
-  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit)\b/)) {
+  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit|over time)\b/)) {
     add("continuation", 0.95, "the experience has an explicit future state");
   }
 
-  if (has(corpus, /\b(?:adaptive|preference|prefers?|history|previous|remembered|changes based|learns?)\b/)) {
+  if (has(corpus, /\b(?:adaptive|adapt|preference|prefers?|history|previous|remembered|changes based|learns?|personalize|personalized)\b/)) {
     add("adaptation", 0.96, "prior state should change the next realization");
   }
 
-  for (const mechanic of toneMechanics(tone)) {
-    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
+  // A return is not automatically memory. It becomes memory when the premise
+  // also carries prior-state semantics such as preferences, previous outcomes,
+  // remembered experience, or adaptation. This keeps the mechanic universal
+  // without turning every "return" prompt into a memory story.
+  if (
+    has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
+    has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
+  ) {
+    add("memory", 0.84, "returning interaction is explicitly shaped by prior experience");
+  }
+
+  /**
+   * Directional semantics are not domain templates. They are the cognitive
+   * commitments already selected upstream. Use them only as a conservative
+   * floor when the plan explicitly contains the corresponding temporal or
+   * memory model, so mechanics do not disappear merely because a wording cue
+   * was normalized away by the planner.
+   */
+  if (plan?.direction === "memory") {
+    add("memory", 0.88, "selected cognitive direction is memory");
+
+    if ((plan.memoryModel?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("continuation", 0.82, "memory direction carries future continuity");
+    }
+
+    if ((plan.dynamicBehavior?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
+      add("adaptation", 0.78, "memory direction exposes accumulated state to later interactions");
+    }
+  }
+
+  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
+    const dynamic = lower(plan?.dynamicBehavior?.join(" "));
+    if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
+      add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
+    }
+  }
+
+  if ((plan?.futureEvolution?.length ?? 0) > 0) {
+    const future = lower(plan?.futureEvolution?.join(" "));
+    if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
+      add("continuation", 0.88, "future evolution explicitly preserves a next state");
+    }
+  }
+
+  // Some upstream normalization removes the original adjectives that expressed
+  // intensity (for example "more ridiculous") while preserving the underlying
+  // mechanics as accumulation + contribution + continuity. When all three are
+  // present, the experience is not merely collecting material: each new action
+  // compounds the prior state, so escalation must survive as a derived mechanic.
+  if (
+    scores.has("accumulation") &&
+    scores.has("contribution") &&
+    (scores.has("memory") || scores.has("continuation"))
+  ) {
+    add("escalation", 0.82, "repeated contributions compound accumulated state into increasing experiential intensity");
   }
 
   if (roleCorpus.includes("transformation")) {
     add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
+  }
+
+  for (const mechanic of toneMechanics(tone)) {
+    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
   }
 
   return [...scores.entries()]
