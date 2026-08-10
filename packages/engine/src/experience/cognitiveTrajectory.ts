@@ -94,7 +94,7 @@ const RULES: MechanicRule[] = [
   { mechanic: "celebration", operations: ["encounter", "milestone", "payoff"], weight: 1.15 },
   { mechanic: "prestige", operations: ["threshold", "identity", "payoff"], weight: 1.15 },
   { mechanic: "novelty", operations: ["discovery", "reveal"], weight: 1.1 },
-  { mechanic: "curation", operations: ["discovery", "selection" as StoryBeatKind], weight: 1.0 },
+  { mechanic: "curation", operations: ["discovery", "action", "feedback"], weight: 1.0 },
   { mechanic: "scarcity", operations: ["threshold", "challenge", "unlock"], weight: 1.2 },
   { mechanic: "recognition", operations: ["identity", "milestone", "payoff"], weight: 1.15 },
   { mechanic: "ownership", operations: ["identity", "milestone", "payoff"], weight: 1.1 },
@@ -178,10 +178,7 @@ function deriveOperations(
     ...(plan?.realization?.directives?.map((directive) => directive.kind) ?? []),
   );
 
-  /*
-   * Causal floor: every trajectory needs an experiential entry point. This is
-   * the minimum condition required before an experience can begin moving.
-   */
+  /* Causal floor: every trajectory needs an experiential entry point. */
   if (!operations.some((beat) =>
     ["orientation", "hook", "threshold", "origin"].includes(beat),
   )) {
@@ -189,8 +186,8 @@ function deriveOperations(
   }
 
   /*
-   * If the mechanics contain active escalation but no challenge, action, or
-   * encounter, give the escalation something causally grounded to act upon.
+   * If escalation is active without a grounded interaction, give it a concrete
+   * state to act upon. This is a causal safeguard, not a genre insertion.
    */
   if (
     operations.includes("escalation") &&
@@ -199,11 +196,7 @@ function deriveOperations(
     operations.push("encounter");
   }
 
-  /*
-   * Every meaningful trajectory needs a state-changing middle. Prefer the
-   * operation actually implied by the mechanics instead of inserting a genre
-   * beat merely because a template expects one.
-   */
+  /* Every meaningful trajectory needs a state-changing middle. */
   if (!operations.some((beat) =>
     [
       "encounter",
@@ -218,10 +211,7 @@ function deriveOperations(
     operations.push("encounter");
   }
 
-  /*
-   * A derived experience should resolve unless the semantics explicitly
-   * describe an open-ended continuation.
-   */
+  /* Resolve unless cognition explicitly describes an open-ended continuation. */
   if (!operations.includes("payoff")) {
     operations.push("payoff");
   }
@@ -252,14 +242,11 @@ function scoreTrajectory(
       (coverage / rule.operations.length);
   }
 
-  if (beats.includes("payoff")) {
-    score += 0.75;
-  }
+  if (beats.includes("payoff")) score += 0.75;
 
   /*
-   * Reward enough structural room for an actual experience while avoiding a
-   * hard preference for tiny template-shaped trajectories. Rich prompts may
-   * legitimately produce substantially more than seven operations.
+   * Reward enough structural room for an actual experience without imposing a
+   * seven-beat template. Rich prompts may legitimately produce many operations.
    */
   if (beats.length >= 4) score += 0.35;
   if (beats.length >= 4 && beats.length <= 12) score += 0.25;
@@ -271,11 +258,7 @@ function scoreTrajectory(
     }
   }
 
-  /*
-   * Extra reward when the trajectory contains the classic state-change chain:
-   * interaction -> feedback -> transformation/payoff. This is deliberately
-   * structural, not a domain template.
-   */
+  /* Reward an actual interaction -> feedback -> state-change chain. */
   if (
     beats.includes("action") &&
     beats.includes("feedback") &&
@@ -300,19 +283,11 @@ function rationale(
  * Derive narrative structure from experiential mechanics.
  *
  * This is intentionally downstream of cognition and upstream of language.
+ * The compiler asks what behavioral forces are present, what operations those
+ * forces require, and what sequence lets those operations causally unfold.
  *
- * The compiler does NOT ask:
- *
- *   "What industry is this?"
- *
- * It asks:
- *
- *   "What behavioral forces are present?"
- *   "What operations do those forces require?"
- *   "What sequence lets those operations causally unfold?"
- *
- * Consequently, novel domains are handled through combinations of mechanics
- * rather than domain-specific templates.
+ * Novel domains are therefore handled through combinations of mechanics rather
+ * than domain-specific templates.
  */
 export function composeCognitiveTrajectory(args: {
   plan?: CognitiveExperiencePlan;
