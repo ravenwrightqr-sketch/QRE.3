@@ -291,10 +291,12 @@ function rationale(
  */
 export function composeCognitiveTrajectory(args: {
   plan?: CognitiveExperiencePlan;
+  prompt?: string;
 }): CognitiveTrajectory {
   const mechanics = inferExperienceMechanics({
     plan: args.plan,
     premise: args.plan?.premise,
+    prompt: args.prompt,
   });
 
   const beats = deriveOperations(mechanics, args.plan);
