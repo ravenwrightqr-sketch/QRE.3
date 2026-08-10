@@ -139,6 +139,7 @@ function activeSignals(
 
 function deriveOperations(
   signals: MechanicSignal[],
+  plan?: CognitiveExperiencePlan,
 ): StoryBeatKind[] {
   const active = activeSignals(signals);
   const operations: StoryBeatKind[] = [];
@@ -152,6 +153,15 @@ function deriveOperations(
 
     operations.push(...rule.operations);
   }
+
+  /*
+   * Cognitive realization directives are semantic commitments, not a canned
+   * story template. Mechanics may derive additional operations, but they may
+   * never erase an operation cognition explicitly decided must occur.
+   */
+  operations.push(
+    ...(plan?.realization?.directives?.map((directive) => directive.kind) ?? []),
+  );
 
   /*
    * Every trajectory needs an experiential entry point.
@@ -273,7 +283,7 @@ export function composeCognitiveTrajectory(args: {
     premise: args.plan?.premise,
   });
 
-  const beats = deriveOperations(mechanics);
+  const beats = deriveOperations(mechanics, args.plan);
 
   return {
     beats,
