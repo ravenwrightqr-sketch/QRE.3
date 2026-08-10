@@ -105,6 +105,7 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const transformation = values(p, "transformation");
   const why = plan?.whyInteract?.[0] ?? "";
   const progression = plan?.progressionModel?.[0] ?? "";
+  const dynamic = plan?.dynamicBehavior?.[0] ?? "";
   const future = plan?.futureEvolution?.[0] ?? "";
   const content = plan?.contentModel?.[0] ?? "";
 
@@ -167,6 +168,7 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
 
     case "contribution":
       if (social.length && outcome) return `${cap(join(social.slice(0, 2), "participants"))} can contribute to ${subject}, moving it toward ${sentence(outcome)}.`;
+      if (progression) return `${cap(subject)} changes when new material is added: ${sentence(progression)}.`;
       return `${cap(subject)} changes when new material is added.`;
 
     case "escalation":
@@ -182,6 +184,9 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
     case "reflection":
       if (emotion) return `${cap(subject)} retains ${sentence(emotion)} as part of the experience.`;
       if (outcome) return `${cap(subject)} retains the consequence: ${sentence(outcome)}.`;
+      if (progression && /add|accumulat|grow|contribut|version|folklore/i.test(progression)) {
+        return `${cap(subject)} retains what has accumulated so far: ${sentence(progression)}.`;
+      }
       return `${cap(subject)} retains the consequence of what happened.`;
 
     case "provenance":
@@ -204,6 +209,9 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
     case "payoff":
       if (outcome) return `${cap(subject)} reaches the payoff: ${sentence(outcome)}.`;
       if (emotion) return `${cap(subject)} resolves through ${sentence(emotion)}.`;
+      if (progression && /add|accumulat|grow|contribut|version|folklore/i.test(progression)) {
+        return `${cap(subject)} reaches a richer state as ${sentence(progression)}.`;
+      }
       return `${cap(subject)} reaches the result established by the premise.`;
 
     case "next_step":
@@ -212,6 +220,7 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
       return `${cap(subject)} uses the current state to determine the next action.`;
 
     case "continuation":
+      if (dynamic) return `${cap(subject)} remains adaptive as ${sentence(dynamic)}.`;
       if (future) return `${cap(subject)} remains open to ${sentence(future)}.`;
       if (temporal) return `${cap(subject)} carries the current state into ${sentence(temporal)}.`;
       return `${cap(subject)} remains open as new context changes what comes next.`;
