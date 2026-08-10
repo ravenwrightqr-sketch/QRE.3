@@ -15,8 +15,9 @@
  *   MEGA COGNITION -> MEGA TRAJECTORY -> CONCRETE EXPERIENCE
  *
  * The layer does not invent facts. It preserves authoritative subjects,
- * directives, premise evidence, and beat structure while adding expressive
- * grammatical force appropriate to the mechanics cognition actually selected.
+ * directives, premise evidence, prompt evidence, and beat structure while
+ * adding expressive grammatical force appropriate to the mechanics cognition
+ * actually selected.
  *
  * DESIGN RULES
  * ------------
@@ -27,6 +28,7 @@
  * 5. No domain branches. No dog branch. No spa branch. No horror branch.
  * 6. "Feel good" means experiential intensity, not mandatory wholesomeness.
  * 7. Concrete evidence must remain visible all the way to presentation.
+ * 8. Raw prompt evidence is a conservation channel, not a template selector.
  *
  * =============================================================================
  */
@@ -74,10 +76,36 @@ const EXPRESSION_MECHANICS: readonly ExpressionMechanic[] = [
   { mechanic: "recognition", beatOpeners: { milestone: ["The contribution becomes visible."], identity: ["The participant is no longer anonymous inside the moment."] } },
 ];
 
+const PROMPT_STOP = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "because", "by", "can", "could",
+  "create", "creates", "created", "creating", "for", "from", "get", "gets", "give",
+  "gives", "given", "has", "have", "how", "i", "if", "in", "into", "is", "it",
+  "its", "make", "makes", "making", "me", "my", "of", "on", "or", "our", "people",
+  "please", "that", "the", "their", "this", "those", "to", "turn", "up", "was", "we",
+  "what", "when", "where", "which", "who", "with", "you", "your", "something", "someone",
+  "thing", "experience", "story", "about", "through", "just", "more", "than", "then", "now",
+  "will", "keep", "after", "before", "very", "really", "want", "needs", "need", "next",
+  "every", "each", "into", "while", "where", "can", "becomes", "become", "becoming",
+  "less", "certain", "increasingly", "own", "path", "leave", "with", "their",
+]);
+
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 const clean = (value: string): string => value.replace(/\s+/g, " ").trim();
 const sentence = (value: string): string => clean(value).replace(/[.!?]+$/, "");
 const lower = (value: string): string => clean(value).toLowerCase();
+
+function promptEvidence(prompt: string): string[] {
+  const candidates = prompt
+    .replace(/[.!?,;:()[\]{}]/g, " ")
+    .split(/\s+/)
+    .map((value) => value.replace(/^[-'\"]+|[-'\"]+$/g, "").trim())
+    .filter(Boolean)
+    .filter((value) => value.length >= 4)
+    .filter((value) => !PROMPT_STOP.has(lower(value)))
+    .filter((value) => !/^[0-9]+$/.test(value));
+
+  return unique(candidates);
+}
 
 function activeMechanics(plan?: CognitiveExperiencePlan): string[] {
   if (!plan) return [];
@@ -168,10 +196,47 @@ function removeDeadProse(text: string): string {
   );
 }
 
+function appendPromptEvidence(
+  text: string,
+  beat: StoryBeat,
+  evidence: string[],
+): string {
+  const normalized = lower(text);
+  const missing = evidence.filter((value) => !normalized.includes(lower(value)));
+  const detail = missing[0];
+
+  if (!detail) return text;
+
+  switch (beat.kind) {
+    case "encounter":
+      return `${sentence(text)} ${capPrompt(detail)} enters the scene.`;
+    case "discovery":
+    case "reveal":
+      return `${sentence(text)} ${capPrompt(detail)} becomes part of what is discovered.`;
+    case "action":
+      return `${sentence(text)} The action stays grounded in ${detail}.`;
+    case "escalation":
+      return `${sentence(text)} ${capPrompt(detail)} raises the intensity.`;
+    case "transformation":
+      return `${sentence(text)} ${capPrompt(detail)} marks the change.`;
+    case "payoff":
+      return `${sentence(text)} ${capPrompt(detail)} remains attached to the result.`;
+    case "reflection":
+      return `${sentence(text)} ${capPrompt(detail)} remains part of what is remembered.`;
+    default:
+      return text;
+  }
+}
+
+function capPrompt(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
 export function elevateStoryBeat(
   beat: StoryBeat,
   _index: number,
   plan?: CognitiveExperiencePlan,
+  prompt?: string,
 ): string {
   const resolved = plan?.realization?.directives?.length
     ? {
@@ -197,11 +262,55 @@ export function elevateStoryBeat(
 export function elevateStoryBeats(
   beats: StoryBeat[],
   plan?: CognitiveExperiencePlan,
+  prompt?: string,
 ): StoryBeat[] {
-  return beats.map((beat) => ({
+  const evidence = promptEvidence(prompt ?? "");
+  const output = beats.map((beat) => ({
     ...beat,
-    text: elevateStoryBeat(beat, beat.order, plan),
+    text: elevateStoryBeat(beat, beat.order, plan, prompt),
   }));
+
+  if (!evidence.length) return output;
+
+  const required = Math.min(3, evidence.length);
+  let preserved = evidence.filter((value) =>
+    output.some((beat) => lower(beat.text).includes(lower(value))),
+  ).length;
+
+  if (preserved >= required) return output;
+
+  const preferredKinds: StoryBeat["kind"][] = [
+    "encounter",
+    "discovery",
+    "reveal",
+    "action",
+    "escalation",
+    "transformation",
+    "payoff",
+    "reflection",
+  ];
+
+  for (const kind of preferredKinds) {
+    if (preserved >= required) break;
+    const index = output.findIndex((beat) => beat.kind === kind);
+    if (index < 0) continue;
+
+    const before = output[index].text;
+    const next = appendPromptEvidence(before, output[index], evidence);
+    output[index] = next === before
+      ? output[index]
+      : { ...output[index], text: `${sentence(next)}.` };
+
+    const nextPreserved = evidence.filter((value) =>
+      output.some((beat) => lower(beat.text).includes(lower(value))),
+    ).length;
+
+    if (nextPreserved > preserved) {
+      preserved = nextPreserved;
+    }
+  }
+
+  return output;
 }
 
 export { isGenericCompilerProse };
