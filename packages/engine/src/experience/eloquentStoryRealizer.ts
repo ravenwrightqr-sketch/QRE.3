@@ -33,10 +33,7 @@
  * =============================================================================
  */
 
-import type {
-  CognitiveExperiencePlan,
-  StoryBeat,
-} from "@qre/contracts";
+import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
 import { isGenericCompilerProse } from "./premiseRealizer.js";
 import { realizePremiseBeatV3 } from "./premiseRealizerV3.js";
@@ -85,8 +82,8 @@ const PROMPT_STOP = new Set([
   "what", "when", "where", "which", "who", "with", "you", "your", "something", "someone",
   "thing", "experience", "story", "about", "through", "just", "more", "than", "then", "now",
   "will", "keep", "after", "before", "very", "really", "want", "needs", "need", "next",
-  "every", "each", "into", "while", "where", "can", "becomes", "become", "becoming",
-  "less", "certain", "increasingly", "own", "path", "leave", "with", "their",
+  "every", "each", "while", "becomes", "become", "becoming", "less", "certain", "genuinely",
+  "increasingly", "own", "path", "leave", "rare", "personalized",
 ]);
 
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
@@ -119,63 +116,37 @@ function activeMechanics(plan?: CognitiveExperiencePlan): string[] {
   );
 }
 
-function openerFor(
-  beat: StoryBeat,
-  mechanics: string[],
-): string | undefined {
+function openerFor(beat: StoryBeat, mechanics: string[]): string | undefined {
   for (const mechanic of mechanics) {
-    const entry = EXPRESSION_MECHANICS.find(
-      (candidate) => candidate.mechanic === mechanic,
-    );
-
+    const entry = EXPRESSION_MECHANICS.find((candidate) => candidate.mechanic === mechanic);
     const options = entry?.beatOpeners?.[beat.kind];
-    if (options?.length) {
-      return options[beat.order % options.length];
-    }
+    if (options?.length) return options[beat.order % options.length];
   }
-
   return undefined;
 }
 
-function preserveConcreteSubject(
-  text: string,
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function preserveConcreteSubject(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const subjects = unique([
     beat.directive?.subject,
-    ...(plan?.premise?.slots
-      .filter((slot) => slot.role === "subject")
-      .flatMap((slot) => slot.values) ?? []),
+    ...(plan?.premise?.slots.filter((slot) => slot.role === "subject").flatMap((slot) => slot.values) ?? []),
     plan?.centralSubject,
   ].filter((value): value is string => Boolean(value?.trim())));
 
   if (!subjects.length) return text;
-
   const normalized = lower(text);
-  const strongest = subjects.sort(
-    (a, b) =>
-      b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length,
+  const strongest = subjects.sort((a, b) =>
+    b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length,
   )[0];
-
-  const missing = strongest
-    .split(/\s+/)
-    .filter((token) => token.length > 1 && !normalized.includes(lower(token)));
+  const missing = strongest.split(/\s+/).filter((token) => token.length > 1 && !normalized.includes(lower(token)));
 
   return missing.length
     ? `${sentence(text)} ${strongest} remains at the center of this moment.`
     : text;
 }
 
-function addMechanicTexture(
-  text: string,
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
+function addMechanicTexture(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const opener = openerFor(beat, activeMechanics(plan));
-
   if (!opener || lower(text).includes(lower(opener))) return text;
-
   return `${opener} ${sentence(text)}`;
 }
 
@@ -188,23 +159,17 @@ function removeDeadProse(text: string): string {
     /the operative move is/gi,
   ];
 
-  return sentence(
-    blocked.reduce(
-      (current, pattern) => current.replace(pattern, ""),
-      text,
-    ).replace(/\s{2,}/g, " "),
-  );
+  return sentence(blocked.reduce((current, pattern) => current.replace(pattern, ""), text).replace(/\s{2,}/g, " "));
 }
 
-function appendPromptEvidence(
-  text: string,
-  beat: StoryBeat,
-  evidence: string[],
-): string {
+function capPrompt(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function appendPromptEvidence(text: string, beat: StoryBeat, evidence: string[]): string {
   const normalized = lower(text);
   const missing = evidence.filter((value) => !normalized.includes(lower(value)));
   const detail = missing[0];
-
   if (!detail) return text;
 
   switch (beat.kind) {
@@ -228,22 +193,16 @@ function appendPromptEvidence(
   }
 }
 
-function capPrompt(value: string): string {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
-
 export function elevateStoryBeat(
   beat: StoryBeat,
   _index: number,
   plan?: CognitiveExperiencePlan,
-  prompt?: string,
+  _prompt?: string,
 ): string {
   const resolved = plan?.realization?.directives?.length
     ? {
         ...beat,
-        directive:
-          plan.realization.directives.find((directive) => directive.kind === beat.kind) ??
-          beat.directive,
+        directive: plan.realization.directives.find((directive) => directive.kind === beat.kind) ?? beat.directive,
       }
     : beat;
 
@@ -252,10 +211,7 @@ export function elevateStoryBeat(
   realized = preserveConcreteSubject(realized, resolved, plan);
   realized = removeDeadProse(realized);
 
-  if (isGenericCompilerProse(realized)) {
-    realized = realizePremiseBeatV3(resolved, plan);
-  }
-
+  if (isGenericCompilerProse(realized)) realized = realizePremiseBeatV3(resolved, plan);
   return `${sentence(realized)}.`;
 }
 
@@ -273,21 +229,11 @@ export function elevateStoryBeats(
   if (!evidence.length) return output;
 
   const required = Math.min(3, evidence.length);
-  let preserved = evidence.filter((value) =>
-    output.some((beat) => lower(beat.text).includes(lower(value))),
-  ).length;
-
+  let preserved = evidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
   if (preserved >= required) return output;
 
   const preferredKinds: StoryBeat["kind"][] = [
-    "encounter",
-    "discovery",
-    "reveal",
-    "action",
-    "escalation",
-    "transformation",
-    "payoff",
-    "reflection",
+    "encounter", "discovery", "reveal", "action", "escalation", "transformation", "payoff", "reflection",
   ];
 
   for (const kind of preferredKinds) {
@@ -297,17 +243,11 @@ export function elevateStoryBeats(
 
     const before = output[index].text;
     const next = appendPromptEvidence(before, output[index], evidence);
-    output[index] = next === before
-      ? output[index]
-      : { ...output[index], text: `${sentence(next)}.` };
+    if (next === before) continue;
 
-    const nextPreserved = evidence.filter((value) =>
-      output.some((beat) => lower(beat.text).includes(lower(value))),
-    ).length;
-
-    if (nextPreserved > preserved) {
-      preserved = nextPreserved;
-    }
+    output[index] = { ...output[index], text: `${sentence(next)}.` };
+    const nextPreserved = evidence.filter((value) => output.some((beat) => lower(beat.text).includes(lower(value)))).length;
+    if (nextPreserved > preserved) preserved = nextPreserved;
   }
 
   return output;
