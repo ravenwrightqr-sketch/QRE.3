@@ -1,3 +1,26 @@
+/**
+ * =============================================================================
+ * COGNITIVE EXPERIENCE MECHANICS
+ * =============================================================================
+ *
+ * GOAL
+ * ----
+ * Convert conserved cognitive meaning into reusable experiential forces that
+ * can drive any prompt into concrete experience without domain templates.
+ *
+ * PURPOSE
+ * -------
+ * This is the behavioral vocabulary layer between cognition and trajectory.
+ * Mechanics describe what an experience does to a participant or how its state
+ * evolves: discovery, agency, suspense, spectacle, indulgence, mastery,
+ * memory, consequence, legacy, and so on.
+ *
+ * The compiler must never need a new dog/concert/spa/birthday branch merely
+ * because a new noun appears. New nouns inherit these forces compositionally.
+ * Lexical evidence is a signal; conserved premise structure remains the source
+ * of truth and no mechanic is permission to invent facts.
+ */
+
 import type {
   CognitiveExperiencePlan,
   CognitivePremise,
@@ -5,15 +28,7 @@ import type {
   ExperienceTone,
 } from "@qre/contracts";
 
-/**
- * COGNITIVE EXPERIENCE MECHANICS
- *
- * This module is deliberately domain-neutral.
- *
- * A mechanic describes how an experience behaves, not what industry or noun it
- * belongs to. New prompts should be explainable through combinations of these
- * operations rather than by adding a new dog/concert/spa/birthday branch.
- */
+import { COGNITIVE_VOCABULARY } from "./cognitiveVocabulary.js";
 
 export type ExperienceMechanic =
   | "accumulation"
@@ -30,7 +45,38 @@ export type ExperienceMechanic =
   | "pampering"
   | "memory"
   | "continuation"
-  | "adaptation";
+  | "adaptation"
+  | "anticipation"
+  | "suspense"
+  | "surprise"
+  | "agency"
+  | "mastery"
+  | "novelty"
+  | "spectacle"
+  | "indulgence"
+  | "delight"
+  | "euphoria"
+  | "celebration"
+  | "prestige"
+  | "ritual"
+  | "authorship"
+  | "reciprocity"
+  | "resonance"
+  | "intimacy"
+  | "catharsis"
+  | "relief"
+  | "reversal"
+  | "momentum"
+  | "scarcity"
+  | "curation"
+  | "embodiment"
+  | "immersion"
+  | "ownership"
+  | "consequence"
+  | "recognition"
+  | "legacy"
+  | "wonder"
+  | "awe";
 
 export type MechanicSignal = {
   mechanic: ExperienceMechanic;
@@ -41,7 +87,7 @@ export type MechanicSignal = {
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-const lower = (value: unknown) => clean(value).toLowerCase();
+const lower = (value: unknown): string => clean(value).toLowerCase();
 
 function unique(values: readonly unknown[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
@@ -89,19 +135,19 @@ function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
   const result: ExperienceMechanic[] = [];
 
   if (tone.includes("playful")) {
-    result.push("contrast", "escalation", "participation");
+    result.push("contrast", "escalation", "participation", "surprise", "delight");
   }
 
   if (tone.includes("energetic")) {
-    result.push("escalation", "participation");
+    result.push("escalation", "participation", "momentum", "euphoria");
   }
 
   if (tone.includes("mysterious")) {
-    result.push("uncertainty", "discovery", "reveal");
+    result.push("uncertainty", "discovery", "reveal", "suspense", "anticipation", "wonder");
   }
 
   if (tone.includes("emotional")) {
-    result.push("memory", "continuation");
+    result.push("memory", "continuation", "resonance", "catharsis", "intimacy");
   }
 
   return result;
@@ -109,8 +155,10 @@ function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
 
 /**
  * Derive reusable experiential operations from conserved semantics.
- * The result is ranked and evidence-backed so downstream trajectory selection
- * can inspect why a mechanic was selected.
+ *
+ * The original semantic detectors remain deliberately explicit because they
+ * encode higher-order relationships. The vocabulary pass below supplies a
+ * broad, extensible lexical layer without creating subject-specific branches.
  */
 export function inferExperienceMechanics(args: {
   plan?: CognitiveExperiencePlan;
@@ -156,10 +204,6 @@ export function inferExperienceMechanics(args: {
     add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
   }
 
-  // Compounding material is not automatically escalation. It becomes escalation
-  // when the accumulated contributions compete, mutate, or build toward a larger
-  // shared legend. This preserves prompts such as family folklore even when a
-  // wording cue is normalized away.
   if (
     has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
     has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing)?)\b/)
@@ -205,11 +249,6 @@ export function inferExperienceMechanics(args: {
     add("pampering", 0.92, "care is part of the premise and should become an experiential behavior");
   }
 
-  // Excess + care is itself an escalation signal. This MUST run after the
-  // independent excess and pampering detectors above so the derived mechanic
-  // sees the signals it depends on. A pampering experience is not merely
-  // luxurious when treatment is deliberately disproportionate: each stage
-  // should outdo the previous one.
   if (
     scores.has("excess") &&
     (scores.has("pampering") || has(corpus, /\b(?:care|indulgence|indulgent|pamper|pampering|treatment|treatments)\b/))
@@ -217,13 +256,10 @@ export function inferExperienceMechanics(args: {
     add(
       "escalation",
       0.86,
-      "excessive care should intensify through progressively more disproportionate treatment",
+      "excessive treatment should intensify through progressively more disproportionate experience",
     );
   }
 
-  // Treat inflected forms as memory evidence. A premise such as
-  // "she remembers the absurd treatment" is just as semantically explicit as
-  // the noun "memory" and must not lose the mechanic during normalization.
   if (has(corpus, /\b(?:memor(?:y|ies)|remember(?:s|ed|ing)?|reminisc|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
     add("memory", 0.96, "past experience should affect present meaning");
   }
@@ -236,9 +272,6 @@ export function inferExperienceMechanics(args: {
     add("adaptation", 0.96, "prior state should change the next realization");
   }
 
-  // A return is not automatically memory. It becomes memory when the premise
-  // also carries prior-state semantics such as preferences, previous outcomes,
-  // remembered experience, or adaptation.
   if (
     has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
     has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
@@ -266,24 +299,19 @@ export function inferExperienceMechanics(args: {
   }
 
   if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower((plan?.dynamicBehavior ?? []).join(" "));
+    const dynamic = lower((plan.dynamicBehavior ?? []).join(" "));
     if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
       add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
     }
   }
 
   if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower((plan?.futureEvolution ?? []).join(" "));
+    const future = lower((plan.futureEvolution ?? []).join(" "));
     if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
       add("continuation", 0.88, "future evolution explicitly preserves a next state");
     }
   }
 
-  // Some upstream normalization removes the original adjectives that expressed
-  // intensity (for example "more ridiculous") while preserving the underlying
-  // mechanics as accumulation + contribution + continuity. When all three are
-  // present, the experience is not merely collecting material: each new action
-  // compounds the prior state, so escalation must survive as a derived mechanic.
   if (
     scores.has("accumulation") &&
     scores.has("contribution") &&
@@ -296,6 +324,22 @@ export function inferExperienceMechanics(args: {
     add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
   }
 
+  /*
+   * Broad expressive vocabulary pass.
+   *
+   * This happens after structural detectors so lexical evidence can enrich a
+   * mechanically understood prompt without overriding stronger relationships.
+   */
+  for (const entry of COGNITIVE_VOCABULARY) {
+    if (entry.patterns.some((pattern) => pattern.test(corpus))) {
+      add(
+        entry.mechanic as ExperienceMechanic,
+        entry.score,
+        entry.evidence,
+      );
+    }
+  }
+
   for (const mechanic of toneMechanics(tone)) {
     add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
   }
@@ -306,13 +350,19 @@ export function inferExperienceMechanics(args: {
       confidence: Math.min(1, value.score),
       evidence: unique(value.evidence),
     }))
-    .sort((a, b) => b.confidence - a.confidence || a.mechanic.localeCompare(b.mechanic));
+    .sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        a.mechanic.localeCompare(b.mechanic),
+    );
 }
 
 /**
  * Produce a compact behavioral brief for trajectory generation.
  */
-export function mechanicBrief(signals: MechanicSignal[]): string[] {
+export function mechanicBrief(
+  signals: MechanicSignal[],
+): string[] {
   return signals
     .filter((signal) => signal.confidence >= 0.7)
     .map((signal) => signal.mechanic);
