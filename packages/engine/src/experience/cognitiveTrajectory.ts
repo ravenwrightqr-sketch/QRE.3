@@ -1,3 +1,33 @@
+/**
+ * =============================================================================
+ * COGNITIVE TRAJECTORY
+ * =============================================================================
+ *
+ * GOAL
+ * ----
+ * Convert discovered experiential mechanics into a causal experience
+ * trajectory without collapsing cognition back into domain templates.
+ *
+ * PURPOSE
+ * -------
+ * This is the structural bridge between:
+ *
+ *   cognitive understanding
+ *       -> experiential mechanics
+ *       -> causal operations
+ *       -> concrete realization
+ *
+ * The trajectory is deliberately variable. It composes primitive story
+ * operations from the forces cognition discovered instead of selecting a
+ * canned sequence for a subject, industry, genre, or noun.
+ *
+ * ALIGNMENT RULE
+ * --------------
+ * Cognitive realization directives are authoritative commitments. Derived
+ * mechanics may add useful experiential operations, but they may never erase
+ * or replace an operation cognition explicitly decided must happen.
+ */
+
 import type {
   CognitiveExperiencePlan,
   StoryBeatKind,
@@ -22,84 +52,69 @@ type MechanicRule = {
   weight: number;
 };
 
+/**
+ * Mechanical forces -> primitive experiential operations.
+ *
+ * These are not genre templates. A single prompt can activate many forces and
+ * therefore compose a different trajectory from another prompt using the same
+ * nouns. The weights express how strongly a covered operation supports the
+ * corresponding mechanic; they are not domain preferences.
+ */
 const RULES: MechanicRule[] = [
-  {
-    mechanic: "uncertainty",
-    operations: ["threshold", "encounter", "reveal"],
-    weight: 1.4,
-  },
-  {
-    mechanic: "discovery",
-    operations: ["discovery", "reveal"],
-    weight: 1.35,
-  },
-  {
-    mechanic: "participation",
-    operations: ["action", "feedback"],
-    weight: 1.15,
-  },
-  {
-    mechanic: "competition",
-    operations: ["challenge", "escalation"],
-    weight: 1.3,
-  },
-  {
-    mechanic: "contribution",
-    operations: ["encounter", "contribution", "feedback"],
-    weight: 1.2,
-  },
-  {
-    mechanic: "accumulation",
-    operations: ["contribution", "milestone"],
-    weight: 1.2,
-  },
-  {
-    mechanic: "escalation",
-    operations: ["escalation"],
-    weight: 1.45,
-  },
-  {
-    mechanic: "transformation",
-    operations: ["transformation"],
-    weight: 1.5,
-  },
-  {
-    mechanic: "contrast",
-    operations: ["orientation", "transformation"],
-    weight: 1.0,
-  },
-  {
-    mechanic: "reveal",
-    operations: ["reveal"],
-    weight: 1.3,
-  },
-  {
-    mechanic: "memory",
-    operations: ["origin", "reflection"],
-    weight: 1.25,
-  },
-  {
-    mechanic: "pampering",
-    operations: ["encounter", "transformation"],
-    weight: 1.15,
-  },
-  {
-    mechanic: "excess",
-    operations: ["escalation"],
-    weight: 1.2,
-  },
-  {
-    mechanic: "adaptation",
-    operations: ["feedback", "next_step"],
-    weight: 1.2,
-  },
-  {
-    mechanic: "continuation",
-    operations: ["continuation"],
-    weight: 1.35,
-  },
+  { mechanic: "anticipation", operations: ["hook", "threshold"], weight: 1.25 },
+  { mechanic: "uncertainty", operations: ["threshold", "encounter", "reveal"], weight: 1.4 },
+  { mechanic: "suspense", operations: ["threshold", "encounter", "reveal"], weight: 1.45 },
+  { mechanic: "discovery", operations: ["discovery", "reveal"], weight: 1.35 },
+  { mechanic: "surprise", operations: ["reveal", "transformation"], weight: 1.3 },
+  { mechanic: "reversal", operations: ["reveal", "transformation"], weight: 1.35 },
+  { mechanic: "participation", operations: ["action", "feedback"], weight: 1.15 },
+  { mechanic: "agency", operations: ["action", "feedback", "next_step"], weight: 1.35 },
+  { mechanic: "consequence", operations: ["action", "feedback", "transformation"], weight: 1.4 },
+  { mechanic: "competition", operations: ["challenge", "escalation"], weight: 1.3 },
+  { mechanic: "mastery", operations: ["challenge", "feedback", "milestone"], weight: 1.35 },
+  { mechanic: "contribution", operations: ["encounter", "contribution", "feedback"], weight: 1.2 },
+  { mechanic: "authorship", operations: ["action", "contribution", "identity"], weight: 1.3 },
+  { mechanic: "reciprocity", operations: ["encounter", "action", "feedback"], weight: 1.2 },
+  { mechanic: "accumulation", operations: ["contribution", "milestone"], weight: 1.2 },
+  { mechanic: "momentum", operations: ["encounter", "escalation", "next_step"], weight: 1.3 },
+  { mechanic: "escalation", operations: ["escalation"], weight: 1.45 },
+  { mechanic: "transformation", operations: ["transformation"], weight: 1.5 },
+  { mechanic: "contrast", operations: ["orientation", "transformation"], weight: 1.0 },
+  { mechanic: "reveal", operations: ["reveal"], weight: 1.3 },
+  { mechanic: "memory", operations: ["origin", "reflection"], weight: 1.25 },
+  { mechanic: "ritual", operations: ["origin", "action", "continuation"], weight: 1.15 },
+  { mechanic: "continuation", operations: ["continuation"], weight: 1.35 },
+  { mechanic: "adaptation", operations: ["feedback", "next_step"], weight: 1.2 },
+  { mechanic: "pampering", operations: ["encounter", "transformation"], weight: 1.15 },
+  { mechanic: "indulgence", operations: ["encounter", "escalation", "transformation"], weight: 1.35 },
+  { mechanic: "excess", operations: ["escalation", "payoff"], weight: 1.25 },
+  { mechanic: "spectacle", operations: ["encounter", "escalation", "payoff"], weight: 1.3 },
+  { mechanic: "delight", operations: ["encounter", "transformation", "payoff"], weight: 1.2 },
+  { mechanic: "euphoria", operations: ["escalation", "payoff"], weight: 1.3 },
+  { mechanic: "celebration", operations: ["encounter", "milestone", "payoff"], weight: 1.15 },
+  { mechanic: "prestige", operations: ["threshold", "identity", "payoff"], weight: 1.15 },
+  { mechanic: "novelty", operations: ["discovery", "reveal"], weight: 1.1 },
+  { mechanic: "curation", operations: ["discovery", "selection" as StoryBeatKind], weight: 1.0 },
+  { mechanic: "scarcity", operations: ["threshold", "challenge", "unlock"], weight: 1.2 },
+  { mechanic: "recognition", operations: ["identity", "milestone", "payoff"], weight: 1.15 },
+  { mechanic: "ownership", operations: ["identity", "milestone", "payoff"], weight: 1.1 },
+  { mechanic: "legacy", operations: ["reflection", "provenance", "continuation"], weight: 1.3 },
+  { mechanic: "resonance", operations: ["reflection", "payoff", "continuation"], weight: 1.2 },
+  { mechanic: "intimacy", operations: ["encounter", "reflection", "payoff"], weight: 1.05 },
+  { mechanic: "catharsis", operations: ["escalation", "transformation", "payoff"], weight: 1.35 },
+  { mechanic: "relief", operations: ["challenge", "payoff"], weight: 1.15 },
+  { mechanic: "wonder", operations: ["threshold", "discovery", "reveal"], weight: 1.25 },
+  { mechanic: "awe", operations: ["encounter", "escalation", "payoff"], weight: 1.25 },
+  { mechanic: "embodiment", operations: ["threshold", "action", "feedback"], weight: 1.15 },
+  { mechanic: "immersion", operations: ["threshold", "encounter", "transformation"], weight: 1.2 },
 ];
 
+/**
+ * StoryBeatKind is intentionally finite in the shared contract. Vocabulary
+ * terms therefore compose through existing primitives rather than inventing a
+ * parallel private beat taxonomy. Keep this table explicit so a vocabulary
+ * addition cannot silently disappear from trajectory generation.
+ */
 const PHASE: Record<StoryBeatKind, number> = {
   orientation: 10,
   hook: 15,
@@ -137,6 +152,10 @@ function activeSignals(
     .sort((a, b) => b.confidence - a.confidence);
 }
 
+function ruleFor(mechanic: ExperienceMechanic): MechanicRule | undefined {
+  return RULES.find((candidate) => candidate.mechanic === mechanic);
+}
+
 function deriveOperations(
   signals: MechanicSignal[],
   plan?: CognitiveExperiencePlan,
@@ -145,12 +164,8 @@ function deriveOperations(
   const operations: StoryBeatKind[] = [];
 
   for (const signal of active) {
-    const rule = RULES.find(
-      (candidate) => candidate.mechanic === signal.mechanic,
-    );
-
+    const rule = ruleFor(signal.mechanic);
     if (!rule) continue;
-
     operations.push(...rule.operations);
   }
 
@@ -164,9 +179,8 @@ function deriveOperations(
   );
 
   /*
-   * Every trajectory needs an experiential entry point.
-   * This is not a domain template: it is the minimum causal condition
-   * required before an experience can begin moving.
+   * Causal floor: every trajectory needs an experiential entry point. This is
+   * the minimum condition required before an experience can begin moving.
    */
   if (!operations.some((beat) =>
     ["orientation", "hook", "threshold", "origin"].includes(beat),
@@ -175,8 +189,20 @@ function deriveOperations(
   }
 
   /*
-   * Every meaningful trajectory needs a state-changing middle.
-   * Prefer the operation actually implied by the mechanics.
+   * If the mechanics contain active escalation but no challenge, action, or
+   * encounter, give the escalation something causally grounded to act upon.
+   */
+  if (
+    operations.includes("escalation") &&
+    !operations.some((beat) => ["encounter", "action", "challenge", "contribution"].includes(beat))
+  ) {
+    operations.push("encounter");
+  }
+
+  /*
+   * Every meaningful trajectory needs a state-changing middle. Prefer the
+   * operation actually implied by the mechanics instead of inserting a genre
+   * beat merely because a template expects one.
    */
   if (!operations.some((beat) =>
     [
@@ -201,6 +227,7 @@ function deriveOperations(
   }
 
   return unique(operations)
+    .filter((beat) => PHASE[beat] !== undefined)
     .sort((a, b) => PHASE[a] - PHASE[b]);
 }
 
@@ -212,10 +239,7 @@ function scoreTrajectory(
   let score = 0;
 
   for (const signal of active) {
-    const rule = RULES.find(
-      (candidate) => candidate.mechanic === signal.mechanic,
-    );
-
+    const rule = ruleFor(signal.mechanic);
     if (!rule) continue;
 
     const coverage = rule.operations.filter((operation) =>
@@ -232,17 +256,32 @@ function scoreTrajectory(
     score += 0.75;
   }
 
-  if (beats.length >= 3 && beats.length <= 7) {
-    score += 0.5;
-  }
-
   /*
-   * Reward causal development rather than a pile of disconnected beats.
+   * Reward enough structural room for an actual experience while avoiding a
+   * hard preference for tiny template-shaped trajectories. Rich prompts may
+   * legitimately produce substantially more than seven operations.
    */
+  if (beats.length >= 4) score += 0.35;
+  if (beats.length >= 4 && beats.length <= 12) score += 0.25;
+
+  /* Reward causal development rather than a pile of disconnected beats. */
   for (let index = 1; index < beats.length; index += 1) {
     if (PHASE[beats[index]] > PHASE[beats[index - 1]]) {
       score += 0.08;
     }
+  }
+
+  /*
+   * Extra reward when the trajectory contains the classic state-change chain:
+   * interaction -> feedback -> transformation/payoff. This is deliberately
+   * structural, not a domain template.
+   */
+  if (
+    beats.includes("action") &&
+    beats.includes("feedback") &&
+    (beats.includes("transformation") || beats.includes("payoff"))
+  ) {
+    score += 0.4;
   }
 
   return Number(score.toFixed(3));
