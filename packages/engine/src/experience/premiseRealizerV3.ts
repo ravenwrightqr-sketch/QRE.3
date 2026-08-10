@@ -342,6 +342,25 @@ function preserveConcreteEvidence(
   return text;
 }
 
+function preserveSemanticAction(
+  text: string,
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): string {
+  const directive = plan?.realization?.directives.find(
+    (candidate) => candidate.kind === beat.kind,
+  );
+  const action = sentence(directive?.action);
+
+  if (!directive || !action || directive.confidence < 0.72) return text;
+  if (lower(text).includes(lower(action))) return text;
+
+  // Semantic actions are executable meaning, not optional metadata. If the
+  // prose layer paraphrases one away, preserve the exact operation in a
+  // compact clause rather than weakening the cognition to fit the prose.
+  return `${sentence(text)} The operative move is ${action}.`;
+}
+
 export function realizePremiseBeatV3(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
@@ -352,7 +371,8 @@ export function realizePremiseBeatV3(
     text = clean(fallbackText(beat, plan));
   }
 
-  return preserveConcreteEvidence(text, beat, plan);
+  text = preserveConcreteEvidence(text, beat, plan);
+  return preserveSemanticAction(text, beat, plan);
 }
 
 export function realizePremiseBeatsV3(
