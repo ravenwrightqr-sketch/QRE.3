@@ -10,10 +10,12 @@ import type {
 } from "@qre/contracts";
 
 /**
- * Semantic realization layer.
+ * SEMANTIC REALIZATION + CREATIVE PRESSURE
  *
- * Cognition selects meaning; this layer turns that meaning into operation
- * semantics. It produces no presentation copy and no runtime objects.
+ * Cognition selects meaning. This layer turns meaning into operation semantics.
+ * It may introduce a deliberately CREATED experiential detail, but that detail
+ * is explicitly provenance-tagged as creative_realization and is never treated
+ * as prompt evidence.
  */
 
 const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
@@ -31,25 +33,12 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
 
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-
+const lower = (value: unknown): string => clean(value).toLowerCase();
 const first = (values?: readonly unknown[]) => clean(values?.[0]);
-
-/**
- * Runtime boundary for semantic collections. Several contract fields are
- * typed as strings, but older/migrating callers can still surface undefined
- * array entries at runtime. Realization must not crash the entire compiler
- * because an optional semantic slot is absent.
- */
-function unique(values: readonly unknown[]): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))];
-}
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
 function values(premise: CognitivePremise | undefined, role: CognitivePremiseRole): string[] {
-  return unique(
-    premise?.slots
-      .filter((slot) => slot.role === role)
-      .flatMap((slot) => slot.values) ?? [],
-  );
+  return unique(premise?.slots.filter((slot) => slot.role === role).flatMap((slot) => slot.values) ?? []);
 }
 
 function evidenceFor(
@@ -58,9 +47,7 @@ function evidenceFor(
   extra: CognitiveEvidence[],
 ): CognitiveEvidence[] {
   return [
-    ...(premise?.slots
-      .filter((slot) => roles.includes(slot.role))
-      .flatMap((slot) => slot.evidence) ?? []),
+    ...(premise?.slots.filter((slot) => roles.includes(slot.role)).flatMap((slot) => slot.evidence) ?? []),
     ...extra,
   ].slice(0, 8);
 }
@@ -102,33 +89,15 @@ function inputs(plan: CognitiveExperiencePlan, premise?: CognitivePremise): Inpu
     social: values(premise, "social")[0],
     place: values(premise, "place")[0],
     temporal: values(premise, "temporal")[0],
-    transformation: transformation.length >= 2
-      ? `${transformation[0]} → ${transformation[1]}`
-      : first(transformation),
+    transformation: transformation.length >= 2 ? `${transformation[0]} → ${transformation[1]}` : first(transformation),
   };
 }
 
-function state(
-  intent: string,
-  action: string,
-  before: string,
-  after: string,
-): Omit<CognitiveBeatDirective, "kind" | "subject" | "relationalFocus" | "evidence" | "confidence"> {
-  return {
-    intent,
-    action,
-    stateBefore: before,
-    stateAfter: after,
-  };
+function state(intent: string, action: string, before: string, after: string) {
+  return { intent, action, stateBefore: before, stateAfter: after };
 }
 
-function semantics(
-  direction: ExperienceHypothesisKind,
-  kind: CognitiveBeatKind,
-  x: Inputs,
-): ReturnType<typeof state> {
-  const subject = x.subject || "the subject";
-
+function semantics(direction: ExperienceHypothesisKind, kind: CognitiveBeatKind, x: Inputs): ReturnType<typeof state> {
   const generic: Record<string, ReturnType<typeof state>> = {
     orientation: state("establish the subject and current situation", x.why || x.interaction || "enter the experience", "only prompt context is available", "the subject and situation are clear"),
     hook: state("create a reason to continue", x.why || x.interaction || "engage with the subject", "the subject is understood but participation has not begun", "the participant has a reason to continue"),
@@ -197,13 +166,105 @@ function semantics(
   );
 }
 
+/** Stable hash gives variation without making builds nondeterministic. */
+function hash(text: string): number {
+  let value = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    value ^= text.charCodeAt(index);
+    value = Math.imul(value, 16777619);
+  }
+  return value >>> 0;
+}
+
+const CREATIVE_MOTIFS = [
+  "a stray feather appears where the work should have left nothing behind",
+  "one glove turns up somewhere it absolutely should not be",
+  "a tiny trail of glitter crosses an otherwise immaculate surface",
+  "one object appears twice when there should only be one",
+  "a note with no obvious explanation is found in plain sight",
+  "an immaculate area contains one absurdly specific mess",
+  "a suspiciously perfect line of crumbs leads somewhere unexpected",
+  "one small detail is just strange enough to demand a second look",
+] as const;
+
+const SERIOUS_GUARD = /\b(?:memorial|funeral|death|died|grief|emergency|medical|injury|lawsuit|legal|crisis|trauma)\b/i;
+
+function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): string | undefined {
+  if (SERIOUS_GUARD.test(prompt)) return undefined;
+  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity"].includes(direction)) return undefined;
+
+  const text = lower(prompt);
+  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|organize|document|inspect|prepare)\b/.test(text);
+  const explicitlyPlayful = /\b(?:fun|funny|comedy|absurd|ridiculous|wild|weird|playful|hilarious)\b/.test(text);
+  if (!mundane && !explicitlyPlayful) return undefined;
+
+  return CREATIVE_MOTIFS[hash(`${prompt}|${direction}`) % CREATIVE_MOTIFS.length];
+}
+
+function creativeDirective(
+  direction: ExperienceHypothesisKind,
+  kind: CognitiveBeatKind,
+  prompt: string,
+  subject: string,
+  evidence: CognitiveEvidence[],
+): Partial<CognitiveBeatDirective> | undefined {
+  const motif = creativeMotif(prompt, direction);
+  if (!motif) return undefined;
+
+  const creativeEvidence: CognitiveEvidence = {
+    source: "creative_realization",
+    detail: `created experiential twist for ${kind}: ${motif}`,
+    confidence: 0.76,
+  };
+
+  if (kind === "reveal" || kind === "encounter") {
+    return {
+      action: `notice a new, plausible surprise: ${motif}`,
+      stateAfter: "a concrete unexpected detail has entered the experience",
+      evidence: [...evidence, creativeEvidence].slice(0, 8),
+      confidence: 0.76,
+    };
+  }
+
+  if (kind === "hook") {
+    return {
+      action: `follow the first attention-grabbing turn: ${motif}`,
+      stateAfter: "the participant has a concrete reason to keep going",
+      evidence: [...evidence, creativeEvidence].slice(0, 8),
+      confidence: 0.76,
+    };
+  }
+
+  if (kind === "escalation") {
+    return {
+      action: `let the situation become more interesting because ${motif}`,
+      stateAfter: "the initial surprise has consequences",
+      evidence: [...evidence, creativeEvidence].slice(0, 8),
+      confidence: 0.76,
+    };
+  }
+
+  if (kind === "payoff") {
+    return {
+      action: `resolve the surprise without losing the original subject: ${motif}`,
+      stateAfter: "the creative turn lands as an earned payoff",
+      evidence: [...evidence, creativeEvidence].slice(0, 8),
+      confidence: 0.76,
+    };
+  }
+
+  void subject;
+  return undefined;
+}
+
 export function realizeCognitiveExperience(args: {
   plan: CognitiveExperiencePlan;
   premise?: CognitivePremise;
   evidence?: CognitiveEvidence[];
   hypothesisEvidence?: CognitiveEvidence[];
+  prompt?: string;
 }): CognitiveExperienceRealization {
-  const { plan, premise, evidence = [], hypothesisEvidence = [] } = args;
+  const { plan, premise, evidence = [], hypothesisEvidence = [], prompt = "" } = args;
   const direction = plan.direction ?? "story";
   const x = inputs(plan, premise);
   const kinds = STRUCTURES[direction];
@@ -218,30 +279,28 @@ export function realizeCognitiveExperience(args: {
     if (kind === "transformation") roleSet.add("transformation");
     if (kind === "payoff") roleSet.add("outcome");
 
-    const directiveEvidence = evidenceFor(premise, [...roleSet], [
-      ...evidence,
-      ...hypothesisEvidence,
-    ]);
+    const directiveEvidence = evidenceFor(premise, [...roleSet], [...evidence, ...hypothesisEvidence]);
     const semantic = semantics(direction, kind, x);
+    const creative = creativeDirective(direction, kind, prompt, x.subject, directiveEvidence);
 
     return {
       kind,
       ...semantic,
+      ...creative,
       subject: x.subject,
-      relationalFocus: unique([
-        x.social,
-        x.place,
-        x.temporal,
-        x.memory,
-        x.discovery,
-        x.progression,
-      ]),
-      evidence: directiveEvidence,
-      confidence: directiveEvidence.length
-        ? Number(Math.min(0.98, Math.max(0.72, ...directiveEvidence.map((item) => item.confidence))).toFixed(3))
-        : 0.72,
+      relationalFocus: unique([x.social, x.place, x.temporal, x.memory, x.discovery, x.progression]),
+      evidence: creative?.evidence ?? directiveEvidence,
+      confidence: creative?.confidence ?? (
+        directiveEvidence.length
+          ? Number(Math.min(0.98, Math.max(0.72, ...directiveEvidence.map((item) => item.confidence))).toFixed(3))
+          : 0.72
+      ),
     } satisfies CognitiveBeatDirective;
   });
+
+  const creativeCount = directives.filter((directive) =>
+    directive.evidence.some((item) => item.source === "creative_realization"),
+  ).length;
 
   return {
     direction,
