@@ -14,8 +14,7 @@ type SnapshotInput = {
   observedAt?: string;
 };
 
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
 function momentText(moment: Moment): string {
   const raw = moment.meta?.text ?? moment.meta?.label ?? moment.type;
@@ -29,7 +28,7 @@ function inferType(prompt: string, geoStory: GeoStory | null | undefined): Memor
   if (/\b(business|company|brand|restaurant|shop|studio|salon|groomer|customer|client)\b/.test(text)) return "business";
   if (/\b(cleaning|cleaner|housekeeper|repair|service|appointment|treatment|grooming)\b/.test(text)) return "service";
   if (/\b(wife|husband|partner|girlfriend|boyfriend|family|friend|relationship)\b/.test(text)) return "relationship";
-  if (geoStory?.mode === "physical" || geoStory?.mode === "semantic") return "location";
+  if (geoStory?.mode === "physical" || (/\b(place|location|trip|travel|visited|near|city|park|beach|hotel|home)\b/.test(text) && geoStory?.mode === "semantic")) return "location";
   if (/\b(my|our|i|me|family|personal)\b/.test(text)) return "personal";
   return "experience";
 }
@@ -48,7 +47,7 @@ function inferTone(prompt: string, moments: Moment[], type: MemorySnapshot["type
 function titleFor(prompt: string, geoStory: GeoStory | null | undefined, entities: string[]): string {
   if (geoStory?.title) return geoStory.title;
   const subject = entities.find(Boolean);
-  if (subject) return `${subject} — Memory`; 
+  if (subject) return `${subject} — Memory`;
   const words = clean(prompt).replace(/[.!?]+$/, "");
   return words ? words.slice(0, 72) : "Experience Memory";
 }
@@ -65,17 +64,13 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
     ...(geoStory?.placeTags ?? []),
     ...geoStory?.scenes.map((scene) => scene.location?.label ?? "").filter(Boolean) ?? [],
   ])];
-  const timeline = input.moments.map((moment, index) => ({
+  const timeline = input.moments.map((moment) => ({
     label: momentText(moment),
-    timestamp:
-      typeof moment.meta?.timestamp === "string"
-        ? moment.meta.timestamp
-        : observedAt,
+    timestamp: typeof moment.meta?.timestamp === "string" ? moment.meta.timestamp : observedAt,
     kind: String(moment.type),
     source: input.source ?? "system",
     confidence: 0.9,
   }));
-
   const summary = geoStory?.summary
     ? `${geoStory.summary}${highlights.length ? ` ${highlights[0]}` : ""}`.trim()
     : input.prompt
