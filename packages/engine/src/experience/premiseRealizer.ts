@@ -104,14 +104,19 @@ function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
 }
 
+function abstractDirective(value: string): boolean {
+  return ABSTRACT_DIRECTIVE.some((pattern) => pattern.test(value));
+}
+
 function values(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string[] {
-  return unique(
+  const raw = unique(
     premise(plan)?.slots
       .filter((slot) => slot.role === role)
       .flatMap((slot) => slot.values)
       .map(clean)
       .filter(Boolean) ?? [],
   );
+  return role === "outcome" ? raw.filter((value) => !abstractDirective(value)) : raw;
 }
 
 function first(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string {
@@ -128,10 +133,6 @@ function words(value: unknown): string[] {
 
 function generic(value: string): boolean {
   return DEAD_PROSE.some((pattern) => pattern.test(value));
-}
-
-function abstractDirective(value: string): boolean {
-  return ABSTRACT_DIRECTIVE.some((pattern) => pattern.test(value));
 }
 
 function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
@@ -152,6 +153,7 @@ function evidenceCandidates(beat: StoryBeat, plan?: CognitiveExperiencePlan): st
       .map(sentence)
       .filter(Boolean)
       .filter((value) => !generic(value))
+      .filter((value) => !abstractDirective(value))
       .filter((value) => lower(value) !== subjectValue)
       .filter((value) => !STOP.has(lower(value))),
   );
@@ -161,16 +163,8 @@ function evidenceForBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan, limit 
   const candidates = evidenceCandidates(beat, plan);
   return candidates
     .map((value, index) => {
-      const slot = premise(plan)?.slots.find((candidate) =>
-        candidate.values.some((item) => lower(item) === lower(value)),
-      );
-      const roleBonus =
-        slot?.role === "event" ? 1.4
-        : slot?.role === "artifact" ? 1.3
-        : slot?.role === "medium" ? 1.2
-        : slot?.role === "outcome" ? 1.15
-        : slot?.role === "transformation" ? 1.1
-        : 0;
+      const slot = premise(plan)?.slots.find((candidate) => candidate.values.some((item) => lower(item) === lower(value)));
+      const roleBonus = slot?.role === "event" ? 1.4 : slot?.role === "artifact" ? 1.3 : slot?.role === "medium" ? 1.2 : slot?.role === "outcome" ? 1.15 : slot?.role === "transformation" ? 1.1 : 0;
       return { value, score: (slot?.salience ?? 0) * 5 + roleBonus - index * 0.01 };
     })
     .sort((a, b) => b.score - a.score)
@@ -178,20 +172,12 @@ function evidenceForBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan, limit 
     .slice(0, limit);
 }
 
-function relationValues(
-  plan: CognitiveExperiencePlan | undefined,
-  from: CognitivePremiseRole,
-  to: CognitivePremiseRole,
-): Array<{ relation: CognitivePremiseRelation; fromValue: string; toValue: string }> {
+function relationValues(plan: CognitiveExperiencePlan | undefined, from: CognitivePremiseRole, to: CognitivePremiseRole): Array<{ relation: CognitivePremiseRelation; fromValue: string; toValue: string }> {
   const current = premise(plan);
   if (!current) return [];
   return current.relations
     .filter((item) => item.from === from && item.to === to && item.confidence >= 0.72)
-    .flatMap((relation) =>
-      values(plan, from).flatMap((fromValue) =>
-        values(plan, to).map((toValue) => ({ relation, fromValue, toValue })),
-      ),
-    );
+    .flatMap((relation) => values(plan, from).flatMap((fromValue) => values(plan, to).map((toValue) => ({ relation, fromValue, toValue }))));
 }
 
 function relationClause(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
@@ -214,7 +200,6 @@ function relationClause(beat: StoryBeat, plan?: CognitiveExperiencePlan): string
     payoff: [["subject", "outcome"], ["transformation", "outcome"]],
     continuation: [["subject", "temporal"], ["subject", "outcome"]],
   };
-
   for (const [from, to] of priorities[beat.kind] ?? []) {
     const match = relationValues(plan, from, to)[0];
     if (!match) continue;
@@ -247,7 +232,6 @@ function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string 
   if (!item) return undefined;
   const action = sentence(item.action);
   if (!action || abstractDirective(action)) return undefined;
-
   const name = cap(item.subject || subject(beat, plan));
   switch (beat.kind) {
     case "orientation": return `${name} enters the experience by ${action}.`;
@@ -263,7 +247,7 @@ function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string 
     case "action": return `${name} acts: ${action}.`;
     case "feedback": return `${name} sees the result when ${action}.`;
     case "contribution": return `${name} changes the shared experience by ${action}.`;
-    case "escalation": return `${name} pushes the situation further by ${action}.`;
+    case "escalation": return `${name} goes further: ${action}.`;
     case "transformation": return `${name} changes as ${action}.`;
     case "reflection": return `${name} recognizes what happened: ${action}.`;
     case "provenance": return `${name} preserves the origin through ${action}.`;
@@ -282,19 +266,11 @@ function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const name = cap(subject(beat, plan));
   const relation = relationClause(beat, plan);
   const evidence = evidenceForBeat(beat, plan, 3);
-  const context = evidence.length === 1
-    ? evidence[0]
-    : evidence.length === 2
-      ? `${evidence[0]} and ${evidence[1]}`
-      : evidence.length > 2
-        ? `${evidence.slice(0, -1).join(", ")}, and ${evidence.at(-1)}`
-        : "";
+  const context = evidence.length === 1 ? evidence[0] : evidence.length === 2 ? `${evidence[0]} and ${evidence[1]}` : evidence.length > 2 ? `${evidence.slice(0, -1).join(", ")}, and ${evidence.at(-1)}` : "";
   const outcome = first(plan, "outcome");
   const transformation = values(plan, "transformation");
   const affordance = first(plan, "affordance");
-
   if (relation) return sentence(relation);
-
   switch (beat.kind) {
     case "orientation": return context ? `${name} enters a situation shaped by ${context}.` : `${name} enters the situation.`;
     case "hook": return context ? `${name} encounters ${context}, and the situation turns active.` : `${name} encounters the first active condition.`;
@@ -309,7 +285,7 @@ function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
     case "action": return affordance ? `${name} acts: ${sentence(affordance)}.` : context ? `${name} acts on ${context}.` : `${name} takes the next concrete action.`;
     case "feedback": return outcome ? `${name} gets a result that moves toward ${sentence(outcome)}.` : context ? `${name} sees what ${context} changes.` : `${name} sees the result of the action.`;
     case "contribution": return context ? `${name} adds ${context}, changing what becomes available next.` : `${name} adds something that changes what becomes available next.`;
-    case "escalation": return context ? `${name} pushes ${context} further than before.` : `${name} pushes the situation into a more intense state.`;
+    case "escalation": return context ? `${name} pushes ${context} further than before.` : `${name} goes further than before.`;
     case "transformation": return transformation.length >= 2 ? `${name} moves from ${sentence(transformation[0])} toward ${sentence(transformation[1])}.` : context ? `${name} is changed by what happens with ${context}.` : `${name} changes because of what happens.`;
     case "reflection": return context ? `${name} looks back on what ${context} changed.` : `${name} recognizes the consequence of what happened.`;
     case "provenance": return context ? `${name} preserves the origin in ${context}.` : `${name} preserves where the experience came from.`;
@@ -328,7 +304,6 @@ function preserveConcreteEvidence(text: string, beat: StoryBeat, plan?: Cognitiv
   const evidence = evidenceForBeat(beat, plan, 3);
   const missing = evidence.filter((value) => !lower(text).includes(lower(value)));
   if (!missing.length) return text;
-
   const additions = missing.slice(0, 2);
   switch (beat.kind) {
     case "orientation": return `${sentence(text)} ${additions.join(" and ")} are present from the start.`;
@@ -383,7 +358,6 @@ export function classifyPremise(beat: StoryBeat, plan?: CognitiveExperiencePlan)
     ...ROLES.flatMap((role) => values(plan, role)),
     ...(plan?.emotionalIntent ?? []),
   ].join(" "));
-
   return {
     evidence: evidenceCandidates(beat, plan).length > 0,
     relationship: Boolean(plan?.premise?.relations.some((item) => item.confidence >= 0.72)),
