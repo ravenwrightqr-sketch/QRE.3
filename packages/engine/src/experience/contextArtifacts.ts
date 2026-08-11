@@ -1,5 +1,6 @@
 import type { GeoStory, MemorySnapshot } from "@qre/contracts";
-import { buildGeoStory } from "../geo/geoStoryCompiler.js";
+import { deriveGeoCognition } from "../cognition/geoCognition.js";
+import { buildGeoStory, type GeoPoint, type SemanticGeoPlace } from "../geo/geoStoryCompiler.js";
 import { buildMemorySnapshot } from "../geo/buildMemorySnapshot.js";
 import type { CognitiveCompiledExperience } from "./cognitiveExperienceCompiler.js";
 
@@ -8,18 +9,63 @@ export type ExperienceContextArtifacts = {
   memorySnapshot: MemorySnapshot;
 };
 
-function semanticPlaces(compiled: CognitiveCompiledExperience) {
+function semanticPlaces(prompt: string, compiled: CognitiveCompiledExperience): SemanticGeoPlace[] {
   const entities = compiled.cognition.entities;
-  const places = [
-    ...(entities.places ?? []).map((label) => ({ label, kind: "place", evidence: [label] })),
-    ...(entities.events ?? []).map((label) => ({ label, kind: "event", evidence: [label] })),
-  ];
+  const geo = deriveGeoCognition(prompt);
+  const places: SemanticGeoPlace[] = [];
+
+  for (const label of entities.places ?? []) {
+    places.push({
+      label,
+      kind: "place",
+      evidence: [`named place preserved from cognition: ${label}`],
+      intensity: 0.82,
+    });
+  }
+
+  for (const place of geo.places) {
+    if (!places.some((item) => item.label.toLowerCase() === place.toLowerCase())) {
+      places.push({
+        label: place,
+        kind: "prompt_place",
+        evidence: [`named place preserved from prompt: ${place}`],
+        intensity: 0.84,
+      });
+    }
+  }
+
+  for (const route of geo.routes) {
+    places.push({
+      label: route,
+      kind: "route",
+      evidence: [`route preserved from prompt: ${route}`],
+      intensity: 0.9,
+      meta: { route, people: geo.people },
+    });
+  }
+
+  for (const distance of geo.distances) {
+    places.push({
+      label: distance,
+      kind: "distance",
+      evidence: [`distance preserved from prompt: ${distance}`],
+      intensity: 0.76,
+      meta: { distance, routes: geo.routes },
+    });
+  }
+
+  for (const destination of geo.destinations) {
+    places.push({
+      label: destination,
+      kind: "future_destination",
+      evidence: [`future destination preserved from prompt: ${destination}`],
+      intensity: 0.88,
+      meta: { destination, intention: "future_destination" },
+    });
+  }
 
   if (places.length) return places;
 
-  // No coordinates and no named place is not permission to invent one.
-  // Instead preserve a semantic anchor so every prompt still has a geo
-  // artifact that explicitly says it is semantic rather than physical.
   const anchor =
     compiled.situation.setting[0] ??
     compiled.observation.activity ??
@@ -31,6 +77,12 @@ function semanticPlaces(compiled: CognitiveCompiledExperience) {
     kind: "experience_anchor",
     evidence: [compiled.observation.prompt],
     intensity: 0.35,
+    meta: {
+      people: geo.people,
+      dates: geo.dates,
+      times: geo.times,
+      intentions: geo.intentions,
+    },
   }];
 }
 
@@ -43,7 +95,11 @@ function semanticPlaces(compiled: CognitiveCompiledExperience) {
 export function buildExperienceContextArtifacts(
   prompt: string,
   compiled: CognitiveCompiledExperience,
-  input: { assetId?: string; sessionId?: string } = {},
+  input: {
+    assetId?: string;
+    sessionId?: string;
+    physicalPoint?: GeoPoint;
+  } = {},
 ): ExperienceContextArtifacts {
   const entities = compiled.cognition.entities;
   const entityValues = [
@@ -57,13 +113,20 @@ export function buildExperienceContextArtifacts(
     ...compiled.cognition.emotionalIntent,
     ...compiled.cognition.affordances,
     ...compiled.cognition.plan.futureEvolution,
+    ...compiled.cognition.plan.geographicModel,
   ];
 
-  const geoStory = buildGeoStory(input.assetId ?? "preview", [], {
+  const physicalPoints = input.physicalPoint ? [input.physicalPoint] : [];
+  const semantic = semanticPlaces(prompt, compiled);
+  const geo = deriveGeoCognition(prompt);
+
+  const geoStory = buildGeoStory(input.assetId ?? "preview", physicalPoints, {
     sessionId: input.sessionId,
-    semanticPlaces: semanticPlaces(compiled),
+    semanticPlaces: semantic,
     title: compiled.title,
-    summary: `Place and event context for ${compiled.title}.`,
+    summary: geo.places.length || geo.routes.length || geo.distances.length || geo.destinations.length
+      ? `Geographic story anchored by ${[...geo.places, ...geo.routes, ...geo.distances, ...geo.destinations].slice(0, 5).join(", ")}.`
+      : `Place and event context for ${compiled.title}.`,
   });
 
   const memorySnapshot = buildMemorySnapshot({
@@ -76,6 +139,7 @@ export function buildExperienceContextArtifacts(
     entities: entityValues,
     themes,
     source: "prompt",
+    observedAt: input.physicalPoint?.createdAt?.toISOString(),
   });
 
   return { geoStory, memorySnapshot };
