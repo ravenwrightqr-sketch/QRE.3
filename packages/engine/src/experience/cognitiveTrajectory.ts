@@ -16,6 +16,13 @@
  * score them for mechanic coverage and causal coherence, then keep the best
  * one. The same prompt can therefore produce a materially different shape
  * when its cognitive forces differ.
+ *
+ * HARD REALIZATION RULE:
+ * ----------------------
+ * A mechanic is not realized by metadata alone. Every active mechanic must
+ * have at least one concrete beat capable of expressing it, and the selected
+ * trajectory exposes those mechanic/beat bindings as event pressure for the
+ * downstream realization boundary.
  */
 
 import type { CognitiveExperiencePlan, StoryBeatKind } from "@qre/contracts";
@@ -32,9 +39,17 @@ export type CognitiveTrajectoryCandidate = {
   rationale: string[];
 };
 
+export type CognitiveEventPressure = {
+  mechanic: ExperienceMechanic;
+  beat: StoryBeatKind;
+  confidence: number;
+  evidence: string[];
+};
+
 export type CognitiveTrajectory = {
   beats: StoryBeatKind[];
   mechanics: MechanicSignal[];
+  eventPressure: CognitiveEventPressure[];
   score: number;
   rationale: string[];
   candidates: CognitiveTrajectoryCandidate[];
@@ -226,7 +241,7 @@ function searchTrajectories(pool: StoryBeatKind[], signals: MechanicSignal[]): C
     score: operationAffinity(beat, signals) + (beat === "hook" ? 0.25 : 0),
   }));
 
-  for (let depth = 1; depth < 10; depth += 1) {
+  for (let depth = 1; depth < 14; depth += 1) {
     const next: SearchState[] = [];
 
     for (const state of beam) {
@@ -242,25 +257,29 @@ function searchTrajectories(pool: StoryBeatKind[], signals: MechanicSignal[]): C
           operationAffinity(operation, signals) +
           transitionBonus(previous, operation) +
           prerequisitePenalty(state.beats, operation) +
-          (PHASE[operation] > PHASE[previous] ? 0.06 : -0.12);
+          (PHASE[operation] > PHASE[previous] ? 0.06 : -0.12) +
+          (operation === "payoff" ? 0.55 : 0);
 
         next.push({ beats: [...state.beats, operation], score });
       }
     }
 
     next.sort((a, b) => b.score - a.score);
-    beam = next.slice(0, 24);
+    beam = next.slice(0, 32);
     if (!beam.length) break;
   }
 
   const candidates = beam
     .filter((state) => state.beats.length >= 4 && state.beats.includes("payoff"))
-    .map((state, index) => ({
-      id: `trajectory-${index + 1}`,
-      beats: state.beats,
-      score: scoreTrajectory(state.beats, signals, state.score),
-      rationale: rationale(signals, state.beats),
-    }));
+    .map((state, index) => {
+      const beats = repairTrajectory(state.beats, signals);
+      return {
+        id: `trajectory-${index + 1}`,
+        beats,
+        score: scoreTrajectory(beats, signals, state.score),
+        rationale: rationale(signals, beats),
+      };
+    });
 
   const seen = new Set<string>();
   return candidates
@@ -272,6 +291,48 @@ function searchTrajectories(pool: StoryBeatKind[], signals: MechanicSignal[]): C
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 8);
+}
+
+function insertByPhase(beats: StoryBeatKind[], operation: StoryBeatKind): StoryBeatKind[] {
+  if (beats.includes(operation)) return beats;
+  const next = [...beats];
+  const targetPhase = PHASE[operation];
+  const index = next.findIndex((beat) => PHASE[beat] > targetPhase);
+  if (index < 0) next.push(operation);
+  else next.splice(index, 0, operation);
+  return next;
+}
+
+/**
+ * Repair only the missing causal affordance for a high-confidence mechanic.
+ * This is not a template generator: the operation comes from the mechanic's
+ * primitive rule, and the prose layer is still responsible for making the
+ * resulting event observable.
+ */
+function repairTrajectory(beats: StoryBeatKind[], signals: MechanicSignal[]): StoryBeatKind[] {
+  let repaired = unique(beats);
+
+  for (const signal of activeSignals(signals)) {
+    const rule = ruleFor(signal.mechanic);
+    if (!rule || rule.operations.some((operation) => repaired.includes(operation))) continue;
+
+    const preferred = [...rule.operations].sort(
+      (a, b) => operationAffinity(b, signals) - operationAffinity(a, signals),
+    )[0];
+
+    if (preferred) repaired = insertByPhase(repaired, preferred);
+  }
+
+  if (!repaired.includes("payoff")) repaired = insertByPhase(repaired, "payoff");
+
+  if (
+    activeSignals(signals).some((signal) => signal.mechanic === "continuation") &&
+    !repaired.includes("continuation")
+  ) {
+    repaired = insertByPhase(repaired, "continuation");
+  }
+
+  return repaired;
 }
 
 function scoreTrajectory(beats: StoryBeatKind[], signals: MechanicSignal[], searchScore = 0): number {
@@ -291,7 +352,7 @@ function scoreTrajectory(beats: StoryBeatKind[], signals: MechanicSignal[], sear
 
   if (beats.includes("payoff")) score += 0.75;
   if (beats.length >= 4) score += 0.35;
-  if (beats.length >= 4 && beats.length <= 12) score += 0.25;
+  if (beats.length >= 4 && beats.length <= 16) score += 0.25;
 
   for (let index = 1; index < beats.length; index += 1) {
     if (PHASE[beats[index]] > PHASE[beats[index - 1]]) score += 0.08;
@@ -311,6 +372,27 @@ function rationale(signals: MechanicSignal[], beats: StoryBeatKind[]): string[] 
     .map((signal) => `${signal.mechanic}: ${signal.evidence.join("; ")}`);
 }
 
+function buildEventPressure(beats: StoryBeatKind[], signals: MechanicSignal[]): CognitiveEventPressure[] {
+  const pressure: CognitiveEventPressure[] = [];
+
+  for (const signal of activeSignals(signals)) {
+    const rule = ruleFor(signal.mechanic);
+    if (!rule) continue;
+
+    for (const beat of rule.operations) {
+      if (!beats.includes(beat)) continue;
+      pressure.push({
+        mechanic: signal.mechanic,
+        beat,
+        confidence: signal.confidence,
+        evidence: signal.evidence,
+      });
+    }
+  }
+
+  return pressure;
+}
+
 export function composeCognitiveTrajectory(args: {
   plan?: CognitiveExperiencePlan;
   prompt?: string;
@@ -323,7 +405,10 @@ export function composeCognitiveTrajectory(args: {
 
   const pool = deriveOperations(mechanics, args.plan);
   const candidates = searchTrajectories(pool, mechanics);
-  const fallbackBeats = unique(pool.sort((a, b) => PHASE[a] - PHASE[b]).slice(0, 12));
+  const fallbackBeats = repairTrajectory(
+    unique(pool.sort((a, b) => PHASE[a] - PHASE[b]).slice(0, 16)),
+    mechanics,
+  );
 
   const selected = candidates[0] ?? {
     id: "trajectory-fallback",
@@ -335,6 +420,7 @@ export function composeCognitiveTrajectory(args: {
   return {
     beats: selected.beats,
     mechanics,
+    eventPressure: buildEventPressure(selected.beats, mechanics),
     score: selected.score,
     rationale: selected.rationale,
     candidates: [selected, ...candidates.filter((candidate) => candidate.id !== selected.id)],
