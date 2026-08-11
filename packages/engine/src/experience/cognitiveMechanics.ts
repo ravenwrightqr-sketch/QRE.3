@@ -37,21 +37,11 @@ const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(
 function planValues(plan?: CognitiveExperiencePlan): string[] {
   if (!plan) return [];
   return unique([
-    plan.centralSubject,
-    plan.purpose,
-    plan.direction,
-    ...plan.audience,
-    ...plan.emotionalIntent,
-    ...plan.interactionModel,
-    ...plan.storyStructure,
-    ...plan.memoryModel,
-    ...plan.socialModel,
-    ...plan.discoveryModel,
-    ...plan.rewardModel,
-    ...plan.progressionModel,
-    ...plan.contentModel,
-    ...plan.dynamicBehavior,
-    ...plan.futureEvolution,
+    plan.centralSubject, plan.purpose, plan.direction,
+    ...plan.audience, ...plan.emotionalIntent, ...plan.interactionModel,
+    ...plan.storyStructure, ...plan.memoryModel, ...plan.socialModel,
+    ...plan.discoveryModel, ...plan.rewardModel, ...plan.progressionModel,
+    ...plan.contentModel, ...plan.dynamicBehavior, ...plan.futureEvolution,
     ...plan.creativePossibilities,
   ]);
 }
@@ -69,14 +59,7 @@ function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
   return result;
 }
 
-function addPattern(
-  corpus: string,
-  scores: Map<ExperienceMechanic, { score: number; evidence: string[] }>,
-  mechanic: ExperienceMechanic,
-  score: number,
-  pattern: RegExp,
-  evidence: string,
-): void {
+function addPattern(corpus: string, scores: Map<ExperienceMechanic, { score: number; evidence: string[] }>, mechanic: ExperienceMechanic, score: number, pattern: RegExp, evidence: string): void {
   if (!pattern.test(corpus)) return;
   const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
   current.score += score;
@@ -100,7 +83,6 @@ export function inferExperienceMechanics(args: {
     ...premiseValues(premise, "temporal"),
     ...premiseValues(premise, "social"),
   ].join(" "));
-
   const scores = new Map<ExperienceMechanic, { score: number; evidence: string[] }>();
 
   addPattern(corpus, scores, "accumulation", 0.95, /\b(?:add|adding|contribut|accumulat|grow|growing|versions?|folklore|mythology)\b/, "material can compound or accumulate");
@@ -147,19 +129,26 @@ export function inferExperienceMechanics(args: {
   addPattern(corpus, scores, "wonder", 0.9, /\b(?:wonder|magical|marvel|mesmerize|spellbind)\b/, "the experience invites astonishment");
   addPattern(corpus, scores, "awe", 0.9, /\b(?:awe|majestic|epic)\b/, "scale or significance produces awe");
 
-  if (roleCorpus.includes("transformation")) addPattern("transformation", scores, "transformation", 0.5, /transformation/, "the conserved premise contains transformation evidence");
-  if (plan?.direction === "memory") addPattern("memory", scores, "memory", 0.88, /memory/, "selected direction is memory");
-  if ((plan?.dynamicBehavior?.length ?? 0) > 0) addPattern(plan.dynamicBehavior.join(" "), scores, "adaptation", 0.78, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/, "dynamic behavior changes future state");
-  if ((plan?.futureEvolution?.length ?? 0) > 0) addPattern(plan.futureEvolution.join(" "), scores, "continuation", 0.82, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/, "future evolution preserves continuity");
+  if (roleCorpus.includes("transformation")) {
+    addPattern(roleCorpus, scores, "transformation", 0.5, /transformation/, "the conserved premise contains transformation evidence");
+  }
+  if (plan?.direction === "memory") {
+    addPattern("memory", scores, "memory", 0.88, /memory/, "selected direction is memory");
+  }
+  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
+    addPattern(plan.dynamicBehavior.join(" "), scores, "adaptation", 0.78, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/, "dynamic behavior changes future state");
+  }
+  if ((plan?.futureEvolution?.length ?? 0) > 0) {
+    addPattern(plan.futureEvolution.join(" "), scores, "continuation", 0.82, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/, "future evolution preserves continuity");
+  }
 
   for (const entry of COGNITIVE_VOCABULARY) {
-    if (entry.patterns.some((pattern) => pattern.test(corpus))) {
-      const mechanic = entry.mechanic as ExperienceMechanic;
-      const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
-      current.score += entry.score * 0.65;
-      current.evidence.push(entry.evidence);
-      scores.set(mechanic, current);
-    }
+    if (!entry.patterns.some((pattern) => pattern.test(corpus))) continue;
+    const mechanic = entry.mechanic as ExperienceMechanic;
+    const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
+    current.score += entry.score * 0.65;
+    current.evidence.push(entry.evidence);
+    scores.set(mechanic, current);
   }
 
   for (const mechanic of toneMechanics(tone)) {
