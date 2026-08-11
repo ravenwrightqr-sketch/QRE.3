@@ -42,6 +42,13 @@ const ABSTRACT = [
 const OBSERVABLE = /\b(?:arrives?|enters?|crosses?|encounters?|notices?|finds?|sees?|discovers?|handles?|touches?|uses?|opens?|closes?|moves?|returns?|adds?|shares?|gives?|brings?|takes?|shows?|records?|writes?|reads?|follows?|chooses?|responds?|inspects?|cleans?|washes?|grooms?|serves?|plays?|collects?|keeps?|preserves?|reaches?|earns?|claims?|owns?|changes?|reveals?|places?|leaves?|picks?|carries?|visits?|meets?|watches?|hears?|smells?|tastes?|looks?|holds?|builds?|repairs?|restores?|prepares?|delivers?|documents?|photographs?|saves?|stores?|remembers?|recognizes?|compares?|connects?|continues?)\b/i;
 const TRANSITIONAL = /\b(?:changes?|changed|becomes?|became|different|result|consequence|because|after|now|then|next|remains?|carries?|contains?|available|visible|unresolved|hidden|unknown|another|again|further|more|larger|bigger)\b/i;
 
+// Agency is only surfaced when cognition already selected agency-bearing
+// evidence such as participants, choice, ownership, or decision. The guard
+// never invents an agency mechanic; it only prevents that selected operation
+// from disappearing during language cleanup.
+const AGENCY_SIGNAL = /\b(?:agency|choice|choose|chooses|chosen|decide|decides|decision|determines|determined|participant|participants|owner|ownership|gets the move|gets to decide|gets to choose)\b/i;
+const AGENCY_PRESENTATION = /\b(?:choice|choose|chooses|chosen|decide|decides|decision|determines|determined|participant|participants|agency|own path|their path)\b/i;
+
 function clean(value: string): string { return value.replace(/\s+/g, " ").trim(); }
 function sentence(value: string): string { return clean(value).replace(/[.!?]+$/, ""); }
 
@@ -76,18 +83,56 @@ function needsRepair(beat: StoryBeat, text: string): boolean {
   }
 }
 
+function agencySource(
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): string {
+  return [
+    beat.text,
+    plan?.interactionModel?.join(" "),
+    plan?.dynamicBehavior?.join(" "),
+    plan?.futureEvolution?.join(" "),
+    plan?.realization?.semanticArc?.join(" "),
+    ...(plan?.realization?.directives?.flatMap((directive) => [directive.intent, directive.action, directive.stateAfter]) ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function preserveAgency(
+  text: string,
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): string {
+  const source = agencySource(beat, plan);
+
+  if (!AGENCY_SIGNAL.test(source) || AGENCY_PRESENTATION.test(text)) {
+    return text;
+  }
+
+  // This is a deterministic realization of already-selected agency. It does
+  // not add a domain fact; it makes the participant's decision point visible.
+  return `${sentence(text)} Participants choose what happens next, and that choice determines the available path.`;
+}
+
 export function guardCognitiveBeatText(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
   const original = sentence(beat.text);
   const stripped = stripAbstract(original);
-  if (!needsRepair(beat, stripped)) return `${stripped}.`;
+  let result: string;
 
-  // Repair through the canonical realization boundary. This keeps one language
-  // authority and makes the guard accountable to the same evidence rules.
-  const repaired = sentence(realizePremiseBeat(beat, plan));
-  return `${repaired || stripped || original}.`;
+  if (!needsRepair(beat, stripped)) {
+    result = `${stripped}.`;
+  } else {
+    // Repair through the canonical realization boundary. This keeps one language
+    // authority and makes the guard accountable to the same evidence rules.
+    const repaired = sentence(realizePremiseBeat(beat, plan));
+    result = `${repaired || stripped || original}.`;
+  }
+
+  return `${sentence(preserveAgency(result, beat, plan))}.`;
 }
 
 export function guardCognitiveStory(
