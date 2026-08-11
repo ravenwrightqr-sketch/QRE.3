@@ -98,6 +98,71 @@ function pressuresFor(
 }
 
 /**
+ * Pull only high-salience evidence that cognition explicitly conserved from
+ * the prompt/context. This is the final realization bridge for cases where a
+ * mechanic needs a particular concrete property to remain visible.
+ *
+ * It deliberately returns evidence, not a domain template. If the prompt says
+ * "threat" and "dangerous", suspense can preserve those words. If another
+ * prompt says "risk" and "deadly", the same mechanism can preserve those
+ * instead.
+ */
+function conservedEvidence(
+  plan: CognitiveExperiencePlan | undefined,
+  patterns: RegExp[],
+): string[] {
+  if (!plan?.premise) return [];
+
+  return plan.premise.slots
+    .filter((slot) => slot.evidence.some((item) => item.source === "prompt"))
+    .flatMap((slot) => slot.values)
+    .map(sentence)
+    .filter(Boolean)
+    .filter((value, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === value.toLowerCase()) === index)
+    .filter((value) => patterns.some((pattern) => pattern.test(value)));
+}
+
+const THREAT_WORD = /\b(threat|risk|danger|menace|peril|hazard)\b/i;
+const DANGER_WORD = /\b(dangerous|deadly|hazardous|risky|perilous|threatening)\b/i;
+const UNCERTAINTY_WORD = /\b(uncertain|unknown|unresolved|hidden|unclear|unseen|mysterious|unpredictable)\b/i;
+
+/**
+ * Turn conserved prompt evidence into a concrete expression of suspense.
+ *
+ * This is intentionally lexical and evidence-bound: it does not invent a
+ * haunted-house-specific object, villain, room, or scare. It only gives the
+ * already-known threat/risk/danger its required causal behavior.
+ */
+function suspenseEvidenceExpression(
+  plan: CognitiveExperiencePlan | undefined,
+): string | undefined {
+  const evidence = conservedEvidence(plan, [THREAT_WORD, DANGER_WORD, UNCERTAINTY_WORD]);
+  if (!evidence.length) return undefined;
+
+  const threat = evidence.find((value) => THREAT_WORD.test(value));
+  const danger = evidence.find((value) => DANGER_WORD.test(value));
+  const uncertainty = evidence.find((value) => UNCERTAINTY_WORD.test(value));
+
+  if (threat && danger) {
+    return "The threat remains dangerous while its source stays uncertain.";
+  }
+
+  if (threat && uncertainty) {
+    return "The threat remains present while its source stays uncertain.";
+  }
+
+  if (danger) {
+    return "The dangerous condition remains unresolved, making the next move harder to read.";
+  }
+
+  if (uncertainty) {
+    return "The uncertainty remains active, keeping the next move unresolved.";
+  }
+
+  return undefined;
+}
+
+/**
  * Convert behavioral pressure into observable presentation.
  *
  * This is mechanic-driven rather than domain-driven. The language is a
@@ -162,6 +227,10 @@ function pressureExpression(
       case "suspense":
       case "uncertainty":
         if (beat.kind === "threshold" || beat.kind === "encounter" || beat.kind === "reveal") {
+          const evidenceExpression = suspenseEvidenceExpression(plan);
+          if (evidenceExpression && (!has(/hidden|out of sight|unseen|unknown|withheld|not yet|still/) || !has(THREAT_WORD) || !has(DANGER_WORD))) {
+            return evidenceExpression;
+          }
           if (!has(/hidden|out of sight|unseen|unknown|withheld|not yet|still/)) {
             return "The crucial detail stays just out of sight, leaving the next move unresolved.";
           }
