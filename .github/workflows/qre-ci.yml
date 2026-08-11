@@ -1,0 +1,83 @@
+name: QRE CI
+
+on:
+  push:
+    branches:
+      - main
+      - cognitive-superstar-final
+  pull_request:
+
+concurrency:
+  group: qre-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-cognitive-acceptance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build contracts
+        run: pnpm build:contracts
+
+      - name: Build database package
+        run: pnpm build:db
+
+      - name: Build engine
+        run: pnpm build:engine
+
+      - name: Build API
+        run: pnpm build:api
+
+      - name: Build web
+        run: pnpm build:web
+
+      - name: Cognitive prompt matrix
+        run: pnpm --filter @qre/engine test:cognition
+
+      - name: Universal compiler acceptance
+        run: pnpm --filter @qre/engine test:universal
+
+      - name: Premise realization acceptance
+        run: pnpm --filter @qre/engine test:realization
+
+      - name: Super Cog premise acceptance
+        run: pnpm --filter @qre/engine test:super-cog
+
+      - name: Cognitive mechanics acceptance
+        run: pnpm --filter @qre/engine test:mechanics
+
+      - name: Cognitive trajectory acceptance
+        run: pnpm --filter @qre/engine test:trajectory
+
+      - name: Concrete experience acceptance
+        run: pnpm --filter @qre/engine test:concrete-experience
+
+      - name: Creative realization acceptance
+        run: pnpm --filter @qre/engine test:creative
+
+      - name: Bodyguard invariants
+        run: pnpm --filter @qre/engine test:bodyguards
+
+      - name: Observable event realization acceptance
+        run: pnpm --filter @qre/engine test:event-realization
+
+      - name: Durable memory compiler acceptance
+        run: pnpm --filter @qre/engine test:memory
