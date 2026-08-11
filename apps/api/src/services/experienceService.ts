@@ -1,8 +1,7 @@
 import {
-  buildMemoryWriteBatch,
-  buildMemorySnapshot,
-  buildGeoStory,
   buildExperienceAnalytics,
+  buildExperienceContextArtifacts,
+  buildMemoryWriteBatch,
   compileCognitiveExperience,
   memoryContextToCompilerMemories,
   getExperienceAnalytics,
@@ -28,51 +27,6 @@ export type CompiledExperienceResult = {
   [key: string]: unknown;
 };
 
-function semanticPlaces(compiled: any) {
-  const entities = compiled.cognition?.entities ?? {};
-  const places = Array.isArray(entities.places) ? entities.places : [];
-  const events = Array.isArray(entities.events) ? entities.events : [];
-  return [
-    ...places.map((label: string) => ({ label, kind: "place", evidence: [label] })),
-    ...events.map((label: string) => ({ label, kind: "event", evidence: [label] })),
-  ];
-}
-
-function buildContextArtifacts(prompt: string, compiled: any, assetId?: string, sessionId?: string) {
-  const entities = compiled.cognition?.entities ?? {};
-  const entityValues = [
-    ...(entities.people ?? []),
-    ...(entities.places ?? []),
-    ...(entities.events ?? []),
-    ...(entities.products ?? []),
-    ...(entities.organizations ?? []),
-  ].filter((value: unknown): value is string => typeof value === "string");
-  const themes = [
-    ...(compiled.cognition?.emotionalIntent ?? []),
-    ...(compiled.cognition?.affordances ?? []),
-    ...(compiled.cognition?.plan?.futureEvolution ?? []),
-  ].filter((value: unknown): value is string => typeof value === "string");
-
-  const geoStory = buildGeoStory(assetId ?? "preview", [], {
-    sessionId,
-    semanticPlaces: semanticPlaces(compiled),
-    title: compiled.title,
-    summary: `Place and event context for ${compiled.title}.`,
-  });
-  const memorySnapshot = buildMemorySnapshot({
-    assetId,
-    sessionId,
-    prompt,
-    moments: compiled.moments ?? [],
-    geoStory,
-    cinematicScenes: compiled.cinematicScenes ?? [],
-    entities: entityValues,
-    themes,
-    source: "prompt",
-  });
-  return { geoStory, memorySnapshot };
-}
-
 /** Compile a prompt against durable memory. Every response carries memory, geo, and analytics context. */
 export async function compileExperience(input: {
   prompt: string;
@@ -85,13 +39,19 @@ export async function compileExperience(input: {
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
-    memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
+    memoryContext = await input.memoryRepository.loadContext({
+      assetId: input.assetId,
+      userId: input.userId,
+    });
   }
 
   const compiled = compileCognitiveExperience(prompt, {
     memories: memoryContext ? memoryContextToCompilerMemories(memoryContext) : [],
   });
-  const artifacts = buildContextArtifacts(prompt, compiled, input.assetId);
+
+  const artifacts = buildExperienceContextArtifacts(prompt, compiled, {
+    assetId: input.assetId,
+  });
   let analytics = buildExperienceAnalytics([], { assetId: input.assetId });
   let memoryCounts: CompiledExperienceResult["memory"];
 
@@ -115,18 +75,12 @@ export async function compileExperience(input: {
     await analyticsRepository.trackEvent({
       assetId: input.assetId,
       type: "EXPERIENCE_COMPILED",
-      meta: {
-        promptLength: prompt.length,
-        direction: compiled.cognition.plan.direction,
-      },
+      meta: { promptLength: prompt.length, direction: compiled.cognition.plan.direction },
     });
     await analyticsRepository.trackEvent({
       assetId: input.assetId,
       type: "GEO_STORY_BUILT",
-      meta: {
-        mode: artifacts.geoStory.mode,
-        sceneCount: artifacts.geoStory.scenes.length,
-      },
+      meta: { mode: artifacts.geoStory.mode, sceneCount: artifacts.geoStory.scenes.length },
     });
     await analyticsRepository.trackEvent({
       assetId: input.assetId,
@@ -136,7 +90,6 @@ export async function compileExperience(input: {
         highlightCount: artifacts.memorySnapshot.highlights.length,
       },
     });
-
     analytics = await getExperienceAnalytics(input.assetId, analyticsRepository);
   }
 
