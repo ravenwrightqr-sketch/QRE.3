@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { CinematicScene, GeoStory, MemorySnapshot, Moment } from "@qre/contracts";
+import { deriveGeoCognition } from "../cognition/geoCognition.js";
 
 type SnapshotInput = {
   assetId?: string;
@@ -10,7 +11,7 @@ type SnapshotInput = {
   cinematicScenes: CinematicScene[];
   entities?: string[];
   themes?: string[];
-  source?: "prompt" | "event" | "scan" | "memory" | "system";
+  source?: "prompt" | "event" | "scan" | "memory" | "location" | "system";
   observedAt?: string;
 };
 
@@ -52,29 +53,63 @@ function titleFor(prompt: string, geoStory: GeoStory | null | undefined, entitie
   return words ? words.slice(0, 72) : "Experience Memory";
 }
 
+function timelineTimestamp(value: string, fallback: string): string {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value || fallback;
+}
+
 export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
   const observedAt = input.observedAt ?? new Date().toISOString();
   const geoStory = input.geoStory ?? null;
+  const prompt = clean(input.prompt ?? "");
+  const geo = deriveGeoCognition(prompt);
   const texts = input.moments.map(momentText).filter(Boolean);
-  const type = inferType(input.prompt ?? "", geoStory);
+  const type = inferType(prompt, geoStory);
   const entities = [...new Set((input.entities ?? []).map(clean).filter(Boolean))];
   const themes = [...new Set((input.themes ?? []).map(clean).filter(Boolean))];
-  const highlights = texts.slice(0, 8);
+  const highlights = [
+    ...(geo.places.slice(0, 4).map((place) => `Place: ${place}`)),
+    ...(geo.routes.slice(0, 3).map((route) => `Route: ${route}`)),
+    ...(geo.distances.slice(0, 3).map((distance) => `Distance: ${distance}`)),
+    ...(geo.destinations.slice(0, 3).map((destination) => `Future destination: ${destination}`)),
+    ...texts,
+  ].slice(0, 10);
+
   const locationTags = [...new Set([
     ...(geoStory?.placeTags ?? []),
+    ...geo.places,
+    ...geo.destinations,
     ...geoStory?.scenes.map((scene) => scene.location?.label ?? "").filter(Boolean) ?? [],
   ])];
-  const timeline = input.moments.map((moment) => ({
+
+  const geoTimeline = (geoStory?.scenes ?? []).map((scene) => ({
+    label: scene.title,
+    timestamp: timelineTimestamp(scene.timestamp, observedAt),
+    kind: `geo:${scene.type}`,
+    source: "location" as const,
+    confidence: scene.evidenceMode === "physical" ? 0.99 : 0.9,
+  }));
+
+  const memoryTimeline = input.moments.map((moment) => ({
     label: momentText(moment),
-    timestamp: typeof moment.meta?.timestamp === "string" ? moment.meta.timestamp : observedAt,
+    timestamp: typeof moment.meta?.timestamp === "string"
+      ? timelineTimestamp(moment.meta.timestamp, observedAt)
+      : observedAt,
     kind: String(moment.type),
     source: input.source ?? "system",
     confidence: 0.9,
   }));
+
+  const semanticTimeline = [
+    ...geo.dates.map((date) => ({ label: `Date: ${date}`, timestamp: timelineTimestamp(date, observedAt), kind: "geo:date", source: "location" as const, confidence: 0.97 })),
+    ...geo.times.map((time) => ({ label: `Time: ${time}`, timestamp: observedAt, kind: "geo:time", source: "location" as const, confidence: 0.97 })),
+  ];
+
+  const timeline = [...geoTimeline, ...semanticTimeline, ...memoryTimeline];
   const summary = geoStory?.summary
     ? `${geoStory.summary}${highlights.length ? ` ${highlights[0]}` : ""}`.trim()
-    : input.prompt
-      ? `Preserved experience from: ${clean(input.prompt).slice(0, 700)}`
+    : prompt
+      ? `Preserved experience from: ${prompt.slice(0, 700)}`
       : `Captured ${input.moments.length} moments.`;
 
   return {
@@ -82,13 +117,13 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
     assetId: input.assetId,
     sessionId: input.sessionId,
     type,
-    title: titleFor(input.prompt ?? "", geoStory, entities),
+    title: titleFor(prompt, geoStory, entities),
     summary,
-    emotionalTone: inferTone(input.prompt ?? "", input.moments, type),
+    emotionalTone: inferTone(prompt, input.moments, type),
     highlights,
     locationTags,
     timeline,
-    confidence: 0.9,
+    confidence: geo.evidence.length ? 0.94 : 0.9,
     themes,
     entities,
     geoSceneIds: geoStory?.scenes.map((scene) => scene.id) ?? [],
@@ -96,13 +131,23 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
     provenance: {
       source: input.source ?? "system",
       observedAt,
-      evidenceCount: highlights.length + entities.length + locationTags.length,
+      evidenceCount: highlights.length + entities.length + locationTags.length + geo.evidence.length,
     },
     meta: {
       prompt: input.prompt,
       momentCount: input.moments.length,
       cinematicSceneCount: input.cinematicScenes.length,
       geoSceneCount: geoStory?.scenes.length ?? 0,
+      geoEvidence: {
+        places: geo.places,
+        dates: geo.dates,
+        times: geo.times,
+        distances: geo.distances,
+        routes: geo.routes,
+        people: geo.people,
+        destinations: geo.destinations,
+        intentions: geo.intentions,
+      },
     },
   };
 }
