@@ -30,6 +30,9 @@ export const AnalyticsEventTypes = {
   CHECK_OUT: "CHECK_OUT",
   PRESENCE_JOIN: "PRESENCE_JOIN",
   PRESENCE_LEAVE: "PRESENCE_LEAVE",
+  EXPERIENCE_COMPILED: "EXPERIENCE_COMPILED",
+  MEMORY_SNAPSHOT_BUILT: "MEMORY_SNAPSHOT_BUILT",
+  GEO_STORY_BUILT: "GEO_STORY_BUILT",
 } as const;
 
 export type AnalyticsEventType =
@@ -38,10 +41,23 @@ export type AnalyticsEventType =
 export interface AnalyticsEvent {
   type: AnalyticsEventType;
   createdAt: Date;
-
   assetId?: string;
   sessionId?: string;
   userId?: string;
-
   metadata?: Record<string, unknown>;
 }
+
+/** Runtime analytics summary carried with every compiled experience. */
+export type ExperienceAnalytics = {
+  eventCount: number;
+  byType: Record<string, number>;
+  sessionId?: string;
+  assetId?: string;
+  firstEventAt?: string;
+  lastEventAt?: string;
+  geoMarks: number;
+  memoryUses: number;
+  completions: number;
+  errors: number;
+  meta?: Record<string, unknown>;
+};
