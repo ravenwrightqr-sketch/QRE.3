@@ -1,48 +1,66 @@
 # Super Cog Engineering Rules
 
 ## Mission
-Build a domain-neutral cognitive experience compiler that can turn arbitrary prompts into concrete, fun, coherent experiences without subject-specific story templates or generic significance prose.
+Build a domain-neutral cognitive experience compiler that can turn arbitrary prompts into concrete, specific, surprising, coherent experiences without subject-specific story templates or generic significance prose.
+
+The target is not "positive" output. Feel-good means experiential quality: comedy, horror, luxury, mystery, absurdity, competition, self-care, celebration, utility, drama, and other tones are valid when the prompt supports them.
 
 ## Locked architecture
 
-`PROMPT -> UNDERSTANDING -> MEANING -> EXPERIENCE GENOME -> COMPILER MIND -> WORLD/BLUEPRINT -> DIRECTION -> FLOW -> MOMENTS -> SCENES`
+`PROMPT -> UNDERSTANDING -> PREMISE/EVIDENCE -> MEANING -> EXPERIENCE GENOME -> COGNITIVE DIRECTION -> SEMANTIC/CREATIVE REALIZATION -> UNIVERSAL STORY COMPILATION -> BLUEPRINT -> FLOW -> MOMENTS -> SCENES`
 
 The brain gets smarter; the architecture does not get replaced.
 
-## Canonical file responsibilities
+## One-authority rule
 
-- `packages/engine/src/experience/universalStoryCompiler.ts` — **UNIVERSAL COMPILER / STRUCTURE AUTHORITY**. Owns observation-to-story structure and downstream projections. It is not a second brain.
-- `packages/engine/src/experience/premiseRealizer.ts` — **CANONICAL LANGUAGE REALIZATION AUTHORITY**. Converts the already-selected premise, relations, evidence, and directives into observable language. It does not plan, score directions, or invent domain facts.
-- `packages/engine/src/experience/cognitiveMechanics.ts` — **EXPERIENTIAL MECHANICS**. Derives reusable behavioral operations such as escalation, transformation, discovery, participation, excess, memory, continuation, and adaptation. It must remain domain-neutral.
-- `packages/engine/src/cognition/*` — **COGNITION**. Owns understanding, evidence, hypotheses, direction, premise, and cognitive plan decisions.
+There is one downstream structure authority and one canonical language authority:
 
-### One-authority rule
+- `packages/engine/src/experience/universalStoryCompiler.ts` — **UNIVERSAL STRUCTURE AUTHORITY**
+- `packages/engine/src/experience/premiseRealizer.ts` — **CANONICAL LANGUAGE REALIZATION AUTHORITY**
+- `packages/engine/src/experience/eloquentStoryRealizer.ts` — **COMPATIBILITY FACADE ONLY**; it must never become another realization brain.
 
-There is exactly one canonical premise realization implementation: `premiseRealizer.ts`.
+Do not resurrect `premiseRealizerV2.ts`, `premiseRealizerV3.ts`, or create another parallel realizer.
 
-Do not create `premiseRealizerV2.ts`, `premiseRealizerV3.ts`, `SuperStoryRealizer`, `UniversalStoryCompilerSuper`, or another parallel realization/compiler brain. If realization needs to become smarter, strengthen the canonical boundary instead.
-
-## Semantic rules
+## Cognitive rules
 
 - Preserve distinctive prompt evidence in actual beats, not only metadata.
+- Preserve semantic relationships, not merely nouns.
 - Treat coupled premises as bundles: event + artifact/medium + audience + human outcome must survive realization.
-- Treat QR/NFC/scan/tag as media/interfaces unless the prompt explicitly makes them the subject.
-- The physical art object is an artifact/portal concept and may be non-square, DIY-shaped, physical, wearable, installed, or not visibly QR-like.
+- Claims and evidence distinguish observed/derived material from created material.
+- `creative_realization` provenance explicitly marks invented experiential details.
+- **Never invent the premise; invent inside the premise.**
+- Creative invention is allowed and expected when it increases attention, specificity, surprise, humor, tension, escalation, sensory impact, or payoff.
+- A mundane prompt may receive a fresh concrete twist. It must not receive the same twist every time.
+- Creative variation must be deterministic for a given prompt so tests/builds remain reproducible.
+- Serious contexts must not be forced into comedy.
+- "Feel good" is not synonymous with wholesome.
+
+## Universal rules
+
 - Do not create branches for individual nouns or industries.
 - Generalize event context rather than building a concert-only branch.
-- Keep semantic/runtime contracts in `@qre/contracts`.
+- QR/NFC/scan/tag are media/interfaces unless the prompt explicitly makes them the subject.
+- The physical art object is an artifact/portal concept and may be non-square, DIY-shaped, physical, wearable, installed, or not visibly QR-like.
+- New nouns inherit intelligence through semantic roles and mechanics.
+- Do not solve a new prompt by adding a noun-specific rescue branch.
+- Generic compiler language is a failure mode. Concrete action, reaction, consequence, and payoff are preferred.
+
+## Contracts
+
+- All shared semantic/runtime types come from `@qre/contracts`.
 - Engine remains Prisma-agnostic.
-- Semantic relations are stronger than keyword rescue. Render relationships already selected by cognition rather than inventing facts from noun dictionaries.
-- Directive actions are authoritative semantic material and must survive into observable realization.
-- Evidence coverage is a compilation invariant: a good-sounding story that drops a high-salience premise dimension is a failed compilation.
-- Feel-good means **lean into the actual experience**, not forced wholesome sentiment. Horror, comedy, luxury, absurdity, competition, mystery, celebration, utility, and self-care can all be fully realized when supported by the prompt.
+- Do not create engine-local competing semantic contracts.
+
+## File labels
+
+See `docs/SUPER_COG_FILE_MAP.md`. Every cognition/compiler file must have an obvious responsibility. When changing a file, strengthen its labeled responsibility; do not silently move authority between layers.
 
 ## Forbidden drift
 
 Kill rather than extend:
 
 - duplicate realization authorities
-- `V2`/`V3` realization copies
+- V2/V3 realization copies
 - subject-specific rescue vocabulary
 - noun-to-genre template dictionaries
 - compiler/meta-language leaking into final prose
@@ -59,6 +77,10 @@ pnpm --filter @qre/engine run test:universal
 pnpm --filter @qre/engine run test:realization
 ```
 
+For cognitive/creative work, also run the acceptance probes under `packages/engine/src/compiler/tests/` and verify that created details carry `creative_realization` provenance.
+
 ## Current hard acceptance
 
-The coupled premise `Turn this concert QR into something people will remember.` must preserve `concert`, `qr`, and `remember` in the actual story beats, not merely in metadata.
+The coupled premise `Turn this concert QR into something people will remember.` must preserve `concert`, `qr`, and `remember` in actual story beats, not merely metadata.
+
+The mundane premise `A housekeeper documents a client's home after a huge cleaning day.` must not collapse into a keyword dump or a generic "meaningful discovery" story. It must retain the housekeeper/home/cleaning/documentation relationship and may introduce a fresh, premise-compatible attention twist with explicit creative provenance.
