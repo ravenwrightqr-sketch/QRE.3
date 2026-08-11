@@ -26,23 +26,14 @@ const STOP = new Set([
 ]);
 
 const DEAD_PROSE: RegExp[] = [
-  /the experience puts into focus/i,
-  /deserves a closer look/i,
-  /gives the story somewhere concrete to begin/i,
-  /the next layer/i,
-  /the next move follows from the state reached here/i,
-  /what the experience has revealed/i,
-  /has become more meaningful through the interaction/i,
-  /the experience leaves a meaning behind/i,
-  /giving the moment a direction/i,
-  /lands differently because of everything that happened/i,
-  /the supplied premise/i,
-  /the supplied context/i,
-  /the concrete detail is/i,
-  /the next concrete condition in the premise/i,
-  /reaches the result established by the premise/i,
-  /the situation is now meaningful/i,
-  /the experience becomes more interesting/i,
+  /the experience puts into focus/i, /deserves a closer look/i,
+  /gives the story somewhere concrete to begin/i, /the next layer/i,
+  /the next move follows from the state reached here/i, /what the experience has revealed/i,
+  /has become more meaningful through the interaction/i, /the experience leaves a meaning behind/i,
+  /giving the moment a direction/i, /lands differently because of everything that happened/i,
+  /the supplied premise/i, /the supplied context/i, /the concrete detail is/i,
+  /the next concrete condition in the premise/i, /reaches the result established by the premise/i,
+  /the situation is now meaningful/i, /the experience becomes more interesting/i,
 ];
 
 const ABSTRACT_DIRECTIVE: RegExp[] = [
@@ -84,15 +75,9 @@ const unique = (values: readonly string[]): string[] => [...new Set(values.map(c
 const matches = (value: string, patterns: RegExp[]): boolean => patterns.some((pattern) => pattern.test(value));
 
 function cleanEvidence(value: unknown): string {
-  return sentence(value)
-    .replace(/^n\s+/i, "")
-    .replace(/\s+and\s+gets$/i, "")
-    .replace(/\s+gets$/i, "")
-    .replace(/\bthe interaction\b/gi, "")
-    .replace(/\bthe experience\b/gi, "")
-    .replace(/\bthe situation\b/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  return sentence(value).replace(/^n\s+/i, "").replace(/\s+and\s+gets$/i, "").replace(/\s+gets$/i, "")
+    .replace(/\bthe interaction\b/gi, "").replace(/\bthe experience\b/gi, "").replace(/\bthe situation\b/gi, "")
+    .replace(/\s{2,}/g, " ").trim();
 }
 
 function safe(value: string): boolean {
@@ -101,22 +86,14 @@ function safe(value: string): boolean {
 }
 
 function words(value: unknown): string[] {
-  return clean(value)
-    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
-    .split(/\s+/)
+  return clean(value).replace(/[^\p{L}\p{N}'’-]+/gu, " ").split(/\s+/)
     .map((word) => word.replace(/^['-]+|['-]+$/g, ""))
     .filter((word) => word.length > 2 && !STOP.has(lower(word)));
 }
 
 function premiseValues(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string[] {
-  return unique(
-    plan?.premise?.slots
-      .filter((slot) => slot.role === role)
-      .flatMap((slot) => slot.values)
-      .filter((value): value is string => typeof value === "string")
-      .map(cleanEvidence)
-      .filter(safe) ?? [],
-  );
+  return unique(plan?.premise?.slots.filter((slot) => slot.role === role).flatMap((slot) => slot.values)
+    .filter((value): value is string => typeof value === "string").map(cleanEvidence).filter(safe) ?? []);
 }
 
 function first(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string {
@@ -140,29 +117,16 @@ function evidenceCandidates(beat: StoryBeat, plan?: CognitiveExperiencePlan): st
     outcome: 4, participants: 3, social: 3, emotion: 2, affordance: 2, constraint: 2,
   };
   const ranked: Array<{ value: string; score: number }> = [];
-
-  for (const role of ROLES) {
-    for (const value of premiseValues(plan, role)) {
-      ranked.push({
-        value,
-        score: (roleWeight[role] ?? 1) + (plan?.premise?.slots.find((slot) => slot.role === role)?.salience ?? 0),
-      });
-    }
+  for (const role of ROLES) for (const value of premiseValues(plan, role)) {
+    ranked.push({ value, score: (roleWeight[role] ?? 1) + (plan?.premise?.slots.find((slot) => slot.role === role)?.salience ?? 0) });
   }
   for (const value of beat.entities ?? []) {
     const cleaned = cleanEvidence(value);
     if (safe(cleaned)) ranked.push({ value: cleaned, score: 4 });
   }
-  for (const value of words(beat.text)) {
-    if (value.length >= 4 && safe(value)) ranked.push({ value, score: 2 });
-  }
-
-  return unique(
-    ranked.sort((a, b) => b.score - a.score).map((item) => item.value)
-      .filter((value) => lower(value) !== subjectValue)
-      .filter((value) => !STOP.has(lower(value)))
-      .slice(0, 6),
-  );
+  for (const value of words(beat.text)) if (value.length >= 4 && safe(value)) ranked.push({ value, score: 2 });
+  return unique(ranked.sort((a, b) => b.score - a.score).map((item) => item.value)
+    .filter((value) => lower(value) !== subjectValue).filter((value) => !STOP.has(lower(value))).slice(0, 6));
 }
 
 function directiveFor(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
@@ -170,29 +134,18 @@ function directiveFor(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
 }
 
 function executableAction(value: unknown): string | undefined {
-  const action = sentence(value)
-    .replace(/^the\s+concrete\s+action\s+is\s+to\s*/i, "")
-    .replace(/^the\s+action\s+is\s+to\s*/i, "")
-    .replace(/^action\s*:\s*/i, "")
-    .replace(/^payoff\s+action\s*:\s*/i, "")
-    .trim();
-
+  const action = sentence(value).replace(/^the\s+concrete\s+action\s+is\s+to\s*/i, "")
+    .replace(/^the\s+action\s+is\s+to\s*/i, "").replace(/^action\s*:\s*/i, "")
+    .replace(/^payoff\s+action\s*:\s*/i, "").trim();
   if (!action || matches(action, DEAD_PROSE) || matches(action, ABSTRACT_DIRECTIVE) || matches(action, COMPILER_FRAGMENT)) return undefined;
   if (/^(?:meaning|significance|context|identity|evidence|experience|direction|purpose|state|condition|result|relationship|continuity)$/i.test(action)) return undefined;
-  // One-word concrete actions are valid. Do not require two lexical tokens.
   if (!words(action).length) return undefined;
   if (/^(?:make|create|surface|adapt|allow|recognize|provide|resolve|advance|increase)\b/i.test(action) && words(action).length <= 2) return undefined;
   return action;
 }
 
 function expressiveSource(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  return [
-    beat.text,
-    directiveFor(beat, plan)?.action,
-    ...ROLES.flatMap((role) => premiseValues(plan, role)),
-    ...(plan?.emotionalIntent ?? []),
-    ...(plan?.creativePossibilities ?? []),
-  ].filter(Boolean).join(" ");
+  return [beat.text, directiveFor(beat, plan)?.action, ...ROLES.flatMap((role) => premiseValues(plan, role)), ...(plan?.emotionalIntent ?? []), ...(plan?.creativePossibilities ?? [])].filter(Boolean).join(" ");
 }
 
 type Signal = "suspense" | "uncertainty" | "memory" | "discovery" | "reveal" | "escalation" | "surprise" | "transformation" | "delight" | "continuation";
@@ -215,14 +168,7 @@ function signals(beat: StoryBeat, plan?: CognitiveExperiencePlan): Signal[] {
 }
 
 function context(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const preferred = [
-    ...premiseValues(plan, "event"),
-    ...premiseValues(plan, "artifact"),
-    ...premiseValues(plan, "place"),
-    ...premiseValues(plan, "transformation"),
-    ...premiseValues(plan, "outcome"),
-    ...evidenceCandidates(beat, plan),
-  ];
+  const preferred = [...premiseValues(plan, "event"), ...premiseValues(plan, "artifact"), ...premiseValues(plan, "place"), ...premiseValues(plan, "transformation"), ...premiseValues(plan, "outcome"), ...evidenceCandidates(beat, plan)];
   const subjectValue = lower(subject(beat, plan));
   return unique(preferred).filter((value) => lower(value) !== subjectValue).filter(safe).slice(0, 2).join(" and ");
 }
@@ -232,7 +178,6 @@ function expressive(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | u
   if (!active.length) return undefined;
   const name = cap(subject(beat, plan));
   const detail = context(beat, plan);
-
   if (["orientation", "encounter", "discovery", "reveal", "feedback", "escalation", "payoff"].includes(beat.kind)) {
     if (active.includes("suspense")) return detail ? `${name} reaches ${detail}, but what comes next remains out of sight.` : `${name} reaches the next point, but what comes next remains unresolved.`;
     if (active.includes("uncertainty")) return detail ? `${name} has ${detail} in view, but the outcome is still unknown.` : `${name} has enough to continue, but the outcome is still unknown.`;
@@ -258,30 +203,30 @@ function eventText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
 
   if (action) {
     switch (beat.kind) {
-      case "orientation": return `${name} begins by ${action}.`;
-      case "hook": return `${name} encounters the turn when ${action}.`;
+      case "orientation": return `${name} ${action}.`;
+      case "hook": return `${name} ${action}.`;
       case "need": return `${name} needs to ${action}.`;
-      case "threshold": return `${name} crosses the threshold by ${action}.`;
-      case "origin": return `${name} brings ${action} into the present.`;
-      case "encounter": return `${name} encounters a new condition when ${action}.`;
-      case "challenge": return `${name} faces the challenge by ${action}.`;
-      case "discovery": return `${name} discovers something when ${action}.`;
-      case "reveal": return `${name} sees the hidden detail when ${action}.`;
+      case "threshold": return `${name} ${action}.`;
+      case "origin": return `${name} ${action}.`;
+      case "encounter": return `${name} ${action}.`;
+      case "challenge": return `${name} ${action}.`;
+      case "discovery": return `${name} ${action}.`;
+      case "reveal": return `${name} ${action}.`;
       case "instruction": return `${name} gets a usable next move: ${action}.`;
-      case "action": return `${name} acts: ${action}.`;
-      case "feedback": return `${name} sees the result when ${action}.`;
-      case "contribution": return `${name} adds to what is happening by ${action}.`;
-      case "escalation": return `${name} goes further by ${action}.`;
-      case "transformation": return `${name} changes when ${action}.`;
-      case "reflection": return `${name} revisits what happened when ${action}.`;
-      case "provenance": return `${name} preserves the origin by ${action}.`;
-      case "identity": return `${name} establishes its identity when ${action}.`;
-      case "milestone": return `${name} reaches a new milestone when ${action}.`;
-      case "unlock": return `${name} unlocks the next possibility by ${action}.`;
-      case "earned_access": return `${name} earns access by ${action}.`;
-      case "payoff": return `${name} reaches the payoff by ${action}.`;
-      case "next_step": return `${name} takes the next step: ${action}.`;
-      case "continuation": return `${name} carries the result forward by ${action}.`;
+      case "action": return `${name} ${action}.`;
+      case "feedback": return `${name} ${action}.`;
+      case "contribution": return `${name} ${action}.`;
+      case "escalation": return `${name} ${action}.`;
+      case "transformation": return `${name} ${action}.`;
+      case "reflection": return `${name} ${action}.`;
+      case "provenance": return `${name} ${action}.`;
+      case "identity": return `${name} ${action}.`;
+      case "milestone": return `${name} ${action}.`;
+      case "unlock": return `${name} ${action}.`;
+      case "earned_access": return `${name} ${action}.`;
+      case "payoff": return `${name} ${action}.`;
+      case "next_step": return `${name} ${action}.`;
+      case "continuation": return `${name} ${action}.`;
     }
   }
 
@@ -346,7 +291,6 @@ export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePl
   let text = eventText(beat, plan);
   text = removeCompilerFiller(text);
   text = preserveEvidence(text, beat, plan);
-  // FINAL authority step. Nothing filters the directive after this point.
   text = preserveDirective(text, beat, plan);
   return `${sentence(text)}.`;
 }
