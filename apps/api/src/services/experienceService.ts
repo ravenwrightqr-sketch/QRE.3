@@ -1,11 +1,16 @@
 import {
   buildMemoryWriteBatch,
+  buildMemorySnapshot,
+  buildGeoStory,
+  buildExperienceAnalytics,
   compileCognitiveExperience,
   memoryContextToCompilerMemories,
+  getExperienceAnalytics,
 } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
 
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 
 export type CompiledExperienceResult = {
   title: string;
@@ -15,7 +20,10 @@ export type CompiledExperienceResult = {
   cinematicScenes: any[];
   estimatedDuration: number;
   momentCount: number;
-  cognition?: unknown;
+  cognition?: any;
+  geoStory: any;
+  memorySnapshot: any;
+  analytics: any;
   memory?: {
     entities: number;
     facts: number;
@@ -25,12 +33,62 @@ export type CompiledExperienceResult = {
   [key: string]: unknown;
 };
 
+function semanticPlaces(compiled: any) {
+  const entities = compiled.cognition?.entities ?? {};
+  const places = Array.isArray(entities.places) ? entities.places : [];
+  const events = Array.isArray(entities.events) ? entities.events : [];
+  return [
+    ...places.map((label: string) => ({ label, kind: "place", evidence: [label] })),
+    ...events.map((label: string) => ({ label, kind: "event", evidence: [label] })),
+  ];
+}
+
+function buildContextArtifacts(
+  prompt: string,
+  compiled: any,
+  assetId?: string,
+  sessionId?: string,
+) {
+  const entities = compiled.cognition?.entities ?? {};
+  const entityValues = [
+    ...(entities.people ?? []),
+    ...(entities.places ?? []),
+    ...(entities.events ?? []),
+    ...(entities.products ?? []),
+    ...(entities.organizations ?? []),
+  ].filter((value: unknown): value is string => typeof value === "string");
+
+  const themes = [
+    ...(compiled.cognition?.emotionalIntent ?? []),
+    ...(compiled.cognition?.affordances ?? []),
+    ...(compiled.cognition?.plan?.futureEvolution ?? []),
+  ].filter((value: unknown): value is string => typeof value === "string");
+
+  const geoStory = buildGeoStory(assetId ?? "preview", [], {
+    sessionId,
+    semanticPlaces: semanticPlaces(compiled),
+    title: compiled.title,
+    summary: `Place and event context for ${compiled.title}.`,
+  });
+
+  const memorySnapshot = buildMemorySnapshot({
+    assetId,
+    sessionId,
+    prompt,
+    moments: compiled.moments ?? [],
+    geoStory,
+    cinematicScenes: compiled.cinematicScenes ?? [],
+    entities: entityValues,
+    themes,
+    source: "prompt",
+  });
+
+  return { geoStory, memorySnapshot };
+}
+
 /**
  * Compile a prompt against durable memory when an asset is supplied.
- *
- * Memory is loaded before cognition and written only after a successful
- * compilation. This keeps the compiler pure while giving the product a
- * persistent learning loop.
+ * The returned artifact always carries memory, geo, and analytics context.
  */
 export async function compileExperience(input: {
   prompt: string;
@@ -39,10 +97,7 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
-
-  if (!prompt) {
-    throw new Error("Experience prompt required");
-  }
+  if (!prompt) throw new Error("Experience prompt required");
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
@@ -53,10 +108,12 @@ export async function compileExperience(input: {
   }
 
   const compiled = compileCognitiveExperience(prompt, {
-    memories: memoryContext
-      ? memoryContextToCompilerMemories(memoryContext)
-      : [],
+    memories: memoryContext ? memoryContextToCompilerMemories(memoryContext) : [],
   });
+
+  const artifacts = buildContextArtifacts(prompt, compiled, input.assetId);
+  let analytics = buildExperienceAnalytics([], { assetId: input.assetId });
+  let memoryCounts: CompiledExperienceResult["memory"];
 
   if (input.assetId && input.memoryRepository) {
     const batch = buildMemoryWriteBatch({
@@ -68,17 +125,23 @@ export async function compileExperience(input: {
     });
 
     await input.memoryRepository.writeBatch(batch);
+    memoryCounts = {
+      entities: batch.entities.length,
+      facts: batch.facts.length,
+      relations: batch.relations.length,
+      events: batch.events.length,
+    };
 
-    return {
-      ...compiled,
-      memory: {
-        entities: batch.entities.length,
-        facts: batch.facts.length,
-        relations: batch.relations.length,
-        events: batch.events.length,
-      },
-    } as CompiledExperienceResult;
+    analytics = await getExperienceAnalytics(
+      input.assetId,
+      createAnalyticsRepository(),
+    );
   }
 
-  return compiled as CompiledExperienceResult;
+  return {
+    ...compiled,
+    ...artifacts,
+    analytics,
+    ...(memoryCounts ? { memory: memoryCounts } : {}),
+  } as CompiledExperienceResult;
 }
