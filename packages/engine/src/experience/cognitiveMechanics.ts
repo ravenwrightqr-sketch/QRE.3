@@ -312,17 +312,35 @@ export function inferExperienceMechanics(args: {
     }
   }
 
-  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower(plan.dynamicBehavior.join(" "));
+  const dynamicBehavior = plan?.dynamicBehavior;
+  if (dynamicBehavior && dynamicBehavior.length > 0) {
+    const dynamic = lower(dynamicBehavior.join(" "));
     if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
       add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
     }
+
+    if (
+      has(dynamic, /\b(?:clue|choice|move|state|step|input|action|result|version|contribution)\b/) &&
+      has(dynamic, /\b(?:chang(?:e|es|ed|ing)|alter(?:s|ed|ing)?|reshap(?:e|es|ed|ing)|determin(?:e|es|ed|ing)|affect(?:s|ed|ing)?)\b/) &&
+      has(dynamic, /\b(?:next|following|subsequent|later)\b/)
+    ) {
+      add("surprise", 0.92, "dynamic behavior explicitly makes a later state depend on the current state");
+    }
   }
 
-  if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower(plan.futureEvolution.join(" "));
+  const futureEvolution = plan?.futureEvolution;
+  if (futureEvolution && futureEvolution.length > 0) {
+    const future = lower(futureEvolution.join(" "));
     if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
       add("continuation", 0.88, "future evolution explicitly preserves a next state");
+    }
+
+    if (
+      has(future, /\b(?:clue|choice|move|state|step|input|action|result|version|contribution)\b/) &&
+      has(future, /\b(?:chang(?:e|es|ed|ing)|alter(?:s|ed|ing)?|reshap(?:e|es|ed|ing)|determin(?:e|es|ed|ing)|affect(?:s|ed|ing)?)\b/) &&
+      has(future, /\b(?:next|following|subsequent|later)\b/)
+    ) {
+      add("surprise", 0.9, "future evolution explicitly preserves a state-changing dependency");
     }
   }
 
