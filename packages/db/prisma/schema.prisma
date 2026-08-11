@@ -17,6 +17,7 @@ model User {
   createdAt        DateTime      @default(now())
   phone            String?
   AccountUser      AccountUser[]
+  // Legacy direct-user asset ownership. New assets are account-scoped.
   Asset            Asset[]
   Ownership        Ownership[]
   sessions         ScanSession[]
@@ -50,6 +51,8 @@ model Asset {
   accountId         String?
   analyticsEvents   AnalyticsEvent[]
   User              User?             @relation(fields: [ownerId], references: [id])
+  // Canonical tenant relationship for new assets.
+  account           Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   template          Template?         @relation(fields: [templateId], references: [id])
   flows             AssetFlow[]
   claims            Claim[]
@@ -61,6 +64,7 @@ model Asset {
 
   @@index([slug])
   @@index([ownerId])
+  @@index([accountId])
 }
 
 model Account {
@@ -72,6 +76,7 @@ model Account {
   stripeCustomerId String?
   AccountUser      AccountUser[]
   ownerships       Ownership[]
+  assets           Asset[]
 }
 
 model AccountUser {
@@ -128,24 +133,6 @@ model Flow {
   experiences Experience[] @relation("ExperienceFlow")
 
   publishedExperiences Experience[] @relation("PublishedExperienceFlow")
-}
-
-model AssetFlow {
-  id          String    @id @default(cuid())
-  assetId     String
-  flowId      String
-  priority    Int       @default(0)
-  active      Boolean   @default(true)
-  triggerType String    @default("DEFAULT")
-  startTime   DateTime?
-  endTime     DateTime?
-  createdAt   DateTime  @default(now())
-  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  flow        Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
-
-  @@unique([assetId, flowId])
-  @@index([assetId])
-  @@index([flowId])
 }
 
 /// *
@@ -392,16 +379,16 @@ model GeoProof {
 }
 
 model PresenceEvent {
-  id        String   @id @default(cuid())
-  assetId   String
-  userId    String?
-  sessionId String?
-  type      String
-  lat       Float?
-  lng       Float?
-  accuracy  Float?
-  meta      Json?
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  assetId    String
+  userId     String?
+  sessionId  String?
+  type       String
+  lat        Float?
+  lng        Float?
+  accuracy   Float?
+  meta       Json?
+  createdAt  DateTime  @default(now())
 
   @@index([assetId])
   @@index([sessionId])
@@ -409,17 +396,17 @@ model PresenceEvent {
 }
 
 model PresenceSession {
-  id        String         @id @default(cuid())
-  assetId   String
-  userId    String?
-  status    PresenceStatus
-  enteredAt DateTime       @default(now())
-  exitedAt  DateTime?
-  geoLat    Float?
-  geoLng    Float?
-  accuracy  Float?
-  createdAt DateTime       @default(now())
-  sessionId String?
+  id         String         @id @default(cuid())
+  assetId    String
+  userId     String?
+  status     PresenceStatus
+  enteredAt  DateTime       @default(now())
+  exitedAt   DateTime?
+  geoLat     Float?
+  geoLng     Float?
+  accuracy   Float?
+  createdAt  DateTime       @default(now())
+  sessionId  String?
 
   @@index([assetId])
   @@index([sessionId])
@@ -609,4 +596,3 @@ enum TicketStatus {
   REDEEMED
   VOID
 }
-
