@@ -232,18 +232,31 @@ function realize(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
 
 function preserveHighSalienceEvidence(
   text: string,
-  beat: StoryBeat,
+  _beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
   const p = premise(plan);
   const normalized = lower(text);
-  const salient = (p?.slots ?? [])
+
+  const highSalience = (p?.slots ?? [])
     .filter((slot) => slot.salience >= 0.88)
     .flatMap((slot) => slot.values)
     .map(clean)
     .filter(Boolean)
+    .filter((value) => !normalized.includes(lower(value)));
+
+  const details = values(p, "detail")
+    .filter((value) => value.length >= 4)
     .filter((value) => !normalized.includes(lower(value)))
-    .slice(0, 3);
+    .filter((value, index, all) =>
+      !all.some((other, otherIndex) =>
+        otherIndex !== index &&
+        other.length > value.length &&
+        lower(other).includes(lower(value)),
+      ),
+    );
+
+  const salient = [...highSalience.slice(0, 2), ...details.slice(0, 2)].slice(0, 4);
 
   if (!salient.length) return text;
   return `${clean(text).replace(/[.!?]+$/, "")}. Preserved detail: ${salient.join(", ")}.`;

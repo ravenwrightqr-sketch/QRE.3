@@ -21,7 +21,8 @@ export type CognitivePremiseRole =
   | "place"
   | "social"
   | "transformation"
-  | "constraint";
+  | "constraint"
+  | "detail";
 
 export type CognitivePremiseSlot = {
   role: CognitivePremiseRole;

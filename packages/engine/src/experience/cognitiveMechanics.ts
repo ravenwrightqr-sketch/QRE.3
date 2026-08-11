@@ -108,6 +108,11 @@ function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
  * Derive reusable experiential operations from conserved semantics.
  * The result is ranked and evidence-backed so downstream trajectory selection
  * can inspect why a mechanic was selected.
+ *
+ * IMPORTANT:
+ * Explicit cognitive-plan semantics outrank lexical guesses. If cognition has
+ * already decided that an experience adapts, remembers, or continues, that
+ * decision must survive this boundary even when the surface wording changes.
  */
 export function inferExperienceMechanics(args: {
   plan?: CognitiveExperiencePlan;
@@ -129,6 +134,7 @@ export function inferExperienceMechanics(args: {
     ...premiseValues(premise, "affordance"),
     ...premiseValues(premise, "temporal"),
     ...premiseValues(premise, "social"),
+    ...premiseValues(premise, "detail"),
   ].join(" "));
 
   const scores = new Map<ExperienceMechanic, { score: number; evidence: string[] }>();
@@ -143,6 +149,28 @@ export function inferExperienceMechanics(args: {
     current.evidence.push(evidence);
     scores.set(mechanic, current);
   };
+
+  // Cognitive-plan commitments are hard semantic signals. They must survive
+  // realization even when the prompt's lexical surface does not repeat them.
+  if (plan?.memoryModel?.length || plan?.direction === "memory") {
+    add("memory", 1, "cognitive plan explicitly carries memory semantics");
+  }
+
+  if (plan?.dynamicBehavior?.length) {
+    add("adaptation", 1, "cognitive plan explicitly requires adaptive behavior");
+  }
+
+  if (plan?.futureEvolution?.length) {
+    add("continuation", 1, "cognitive plan explicitly carries future evolution");
+  }
+
+  if (plan?.progressionModel?.length) {
+    add("escalation", 0.55, "cognitive plan explicitly defines progression");
+  }
+
+  if (plan?.interactionModel?.length) {
+    add("participation", 0.35, "cognitive plan defines participant interaction");
+  }
 
   if (has(corpus, /\b(?:add|adding|contribute|contribution|accumulate|accumulating|grows?|versions?|folklore|mythology)\b/)) {
     add("accumulation", 0.95, "material compounds or competing versions can grow");
@@ -195,8 +223,14 @@ export function inferExperienceMechanics(args: {
     add("memory", 0.96, "past experience should affect present meaning");
   }
 
-  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit)\b/)) {
-    add("continuation", 0.95, "the experience has an explicit future state");
+  if (has(corpus, /\b(?:again|return|returns?|returned|comes? back|came back|revisit|revisits|same|previous|prior|every visit|each visit|this time|before)\b/)) {
+    add("continuation", 0.95, "the premise explicitly returns to an earlier state or visit");
+    add("memory", 0.86, "a return implies prior experience is relevant to the present");
+    add("adaptation", 0.82, "the present visit can change because of what happened before");
+  }
+
+  if (has(corpus, /\b(?:again|return|returns?|revisit|revisits|same|previous|prior|remember(?:s|ed)?|preference(?:s)?|loved before|this time|more excited|even more)\b/)) {
+    add("adaptation", 0.9, "prior experience or preference can alter the next realization");
   }
 
   if (has(corpus, /\b(?:adaptive|preference|prefers?|history|previous|remembered|changes based|learns?)\b/)) {

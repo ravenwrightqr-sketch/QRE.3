@@ -1,3 +1,9 @@
+/**
+ * Build the conserved semantic premise without creating domain-specific
+ * compiler modes. The builder extracts roles and relationships from evidence
+ * the cognition layer already owns.
+ */
+
 import type {
   CognitiveClaim,
   CognitiveEvidence,
@@ -8,12 +14,6 @@ import type {
   CognitivePremiseSlot,
   ExperienceEntities,
 } from "@qre/contracts";
-
-/**
- * Build the conserved semantic premise without creating domain-specific
- * compiler modes. The builder extracts roles and relationships from evidence
- * the cognition layer already owns.
- */
 
 type PremiseContext = {
   location?: {
@@ -31,6 +31,19 @@ const lower = (value: string) => clean(value).toLowerCase();
 
 const unique = (values: string[]) =>
   [...new Set(values.map(clean).filter(Boolean))];
+
+const DETAIL_STOP = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "because", "but", "by",
+  "can", "could", "did", "do", "does", "doing", "for", "from", "get",
+  "give", "gives", "given", "has", "have", "having", "how", "i", "if",
+  "in", "into", "is", "it", "its", "just", "make", "makes", "making",
+  "me", "my", "of", "on", "or", "our", "people", "please", "that",
+  "the", "their", "this", "those", "to", "turn", "up", "was", "we",
+  "were", "what", "when", "where", "which", "who", "will", "with", "you",
+  "your", "after", "before", "over", "through", "then", "now", "something",
+  "someone", "thing", "things", "experience", "story", "about", "want", "wants",
+  "need", "needs", "create", "build", "built", "house", "day",
+]);
 
 function evidence(detail: string, confidence = 0.9): CognitiveEvidence {
   return {
@@ -142,6 +155,56 @@ function mediumValues(entities: ExperienceEntities): string[] {
   ]);
 }
 
+function detailValues(prompt: string, known: string[]): string[] {
+  const knownTokens = new Set(
+    known
+      .flatMap((value) => clean(value).toLowerCase().split(/\s+/))
+      .filter(Boolean),
+  );
+
+  const words = clean(prompt)
+    .replace(/[^\p{L}\p{N}'-]+/gu, " ")
+    .split(/\s+/)
+    .map((word) => word.replace(/^['-]+|['-]+$/g, ""))
+    .filter((word) => word.length > 2);
+
+  const phrases: string[] = [];
+  let run: string[] = [];
+
+  const flush = () => {
+    if (run.length >= 1) {
+      for (let size = Math.min(4, run.length); size >= 1; size -= 1) {
+        for (let start = 0; start + size <= run.length; start += 1) {
+          const phrase = run.slice(start, start + size).join(" ");
+          if (phrase.split(/\s+/).every((word) => !knownTokens.has(lower(word)))) {
+            phrases.push(phrase);
+          }
+        }
+      }
+    }
+    run = [];
+  };
+
+  for (const word of words) {
+    if (DETAIL_STOP.has(lower(word))) {
+      flush();
+      continue;
+    }
+    run.push(word);
+  }
+  flush();
+
+  return unique(phrases)
+    .filter((value) => !known.some((item) => lower(item) === lower(value)))
+    .filter((value) => value.length >= 4)
+    .sort((a, b) => {
+      const aWords = a.split(/\s+/).length;
+      const bWords = b.split(/\s+/).length;
+      return bWords - aWords || b.length - a.length;
+    })
+    .slice(0, 8);
+}
+
 export function buildCognitivePremise(args: {
   prompt: string;
   subject: CognitiveClaim<string>;
@@ -198,6 +261,19 @@ export function buildCognitivePremise(args: {
   const constraints = constraintValues(prompt);
   const temporal = temporalValues(prompt, entities, plan);
   const media = mediumValues(entities);
+  const knownEvidence = [
+    subject.value,
+    ...eventValues,
+    ...artifactValues,
+    ...places,
+    ...social,
+    ...outcomes,
+    ...transformations,
+    ...constraints,
+    ...temporal,
+    ...media,
+  ];
+  const details = detailValues(prompt, knownEvidence);
 
   const slots = [
     slot(
@@ -303,6 +379,14 @@ export function buildCognitivePremise(args: {
       constraints.length ? 0.96 : 0,
       constraints.length ? 0.94 : 0,
       "explicit rejection or constraint in prompt",
+    ),
+    slot(
+      "detail",
+      details,
+      details.length ? "observed" : "unknown",
+      details.length ? 0.9 : 0,
+      details.length ? 0.86 : 0,
+      "salient lexical detail preserved directly from the prompt",
     ),
   ].filter(Boolean) as CognitivePremiseSlot[];
 
