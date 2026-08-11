@@ -261,6 +261,48 @@ function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExper
   };
 }
 
+/**
+ * Convert an explicit participant-choice request into a concrete action.
+ *
+ * The prompt is the authority here: we do not invent which option was chosen,
+ * only preserve the observable fact that a participant chooses a path.
+ * This keeps agency experiential instead of leaking the semantic directive
+ * ("determine what happens next") into the rendered story.
+ */
+function realizeExplicitAgency(
+  prompt: string,
+  compiled: CompiledStoryExperience,
+): CompiledStoryExperience {
+  if (!/\b(?:choose|chooses|choice|choices|decide|decides|decision|choose their own path|pick|select)\b/i.test(prompt)) {
+    return compiled;
+  }
+
+  const actionIndex = compiled.story.beats.findIndex((beat) => beat.kind === "action");
+  if (actionIndex < 0) return compiled;
+
+  const subject = compiled.observation.subject || "The participant";
+  const existing = compiled.story.beats[actionIndex];
+
+  if (/\b(?:choose|chooses|choice|decides?|selects?|picks?)\b/i.test(existing.text)) {
+    return compiled;
+  }
+
+  const actionBeat = {
+    ...existing,
+    text: `${subject} chooses the next path.`,
+  };
+
+  return {
+    ...compiled,
+    story: {
+      ...compiled.story,
+      beats: compiled.story.beats.map((beat, index) =>
+        index === actionIndex ? actionBeat : beat,
+      ),
+    },
+  };
+}
+
 export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
@@ -309,13 +351,14 @@ export function compileCognitiveExperience(
     },
   };
 
-  const realized = propagateCanonicalLanguage(guarded);
+  const realized = realizeExplicitAgency(prompt, guarded);
+  const canonical = propagateCanonicalLanguage(realized);
 
   return {
-    ...realized,
+    ...canonical,
     cognition,
-    genome: mergeGenome(realized.genome, cognition),
-    blueprint: mergeBlueprint(realized.blueprint, cognition),
-    model: directModel(realized, cognition),
+    genome: mergeGenome(canonical.genome, cognition),
+    blueprint: mergeBlueprint(canonical.blueprint, cognition),
+    model: directModel(canonical, cognition),
   };
 }
