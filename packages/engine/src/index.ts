@@ -43,6 +43,7 @@ export {
 /** Governed long-term memory compilation. */
 export {
   buildMemoryWriteBatch,
+  buildScanMemoryBatch,
   memoryContextToCompilerMemories,
 } from "./memory/memoryCompiler.js";
 
