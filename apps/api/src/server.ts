@@ -19,6 +19,7 @@ import presenceRoutes from "./routes/presence.js";
 import debugRouter from "./routes/debug.js";
 import experienceRouter from "./routes/experience.js";
 import assetGenerateRouter from "./routes/assets.generate.js";
+import memoryRouter from "./routes/memory.js";
 
 /** AUTH + FLOW */
 import { authRoutes } from "./routes/auth.js";
@@ -82,6 +83,7 @@ app.use("/api/claim", claimRouter);
 app.use("/api/flow", flowRouter);
 app.use("/api/presence", presenceRoutes);
 app.use("/api/debug", debugRouter);
+app.use("/api/memory", memoryRouter);
 app.use("/experience", experienceRouter);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/master-dashboard", masterDashboardRoutes);

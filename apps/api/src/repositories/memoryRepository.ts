@@ -5,6 +5,9 @@ import { db } from "@qre/db";
 
 import type {
   MemoryContext,
+  MemoryFactKind,
+  MemoryFactStatus,
+  MemoryVisibility,
   MemoryWriteBatch,
 } from "@qre/contracts";
 
@@ -14,6 +17,23 @@ export type MemoryRepository = {
   assertAccess(input: { assetId: string; userId: string }): Promise<void>;
   loadContext(input: { assetId: string; userId?: string }): Promise<MemoryContext>;
   writeBatch(batch: MemoryWriteBatch): Promise<void>;
+  correctFact(input: {
+    assetId: string;
+    factId: string;
+    userId: string;
+    value: string;
+    predicate?: string;
+    kind?: MemoryFactKind;
+    confidence?: number;
+    visibility?: MemoryVisibility;
+  }): Promise<{ factId: string; supersededFactId: string }>;
+  setFactGovernance(input: {
+    assetId: string;
+    factId: string;
+    userId: string;
+    status?: MemoryFactStatus;
+    visibility?: MemoryVisibility;
+  }): Promise<{ factId: string; status: MemoryFactStatus; visibility: MemoryVisibility }>;
 };
 
 const json = (value: unknown) =>
@@ -232,6 +252,127 @@ export function createMemoryRepository(): MemoryRepository {
               eventCount: batch.events.length,
             })})
         `);
+      });
+    },
+
+    async correctFact({
+      assetId,
+      factId,
+      userId,
+      value,
+      predicate,
+      kind,
+      confidence,
+      visibility,
+    }) {
+      await this.assertAccess({ assetId, userId });
+
+      return db.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<any[]>(Prisma.sql`
+          SELECT *
+          FROM "qre_memory_fact"
+          WHERE "id" = ${factId}
+            AND "asset_id" = ${assetId}
+          FOR UPDATE
+        `);
+
+        const current = rows[0];
+        if (!current) throw new Error("Memory fact not found");
+
+        const nextId = randomUUID();
+        const nextPredicate = predicate ?? current.predicate;
+        const nextKind = kind ?? current.kind;
+        const nextConfidence =
+          confidence === undefined ? Number(current.confidence) : confidence;
+        const nextVisibility = visibility ?? current.visibility;
+        const now = new Date();
+
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "qre_memory_fact"
+          SET "status" = 'superseded',
+              "updated_at" = NOW()
+          WHERE "id" = ${factId}
+            AND "asset_id" = ${assetId}
+        `);
+
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "qre_memory_fact"
+            ("id", "asset_id", "entity_id", "kind", "predicate", "value", "confidence",
+             "source", "source_ref", "status", "observed_at", "valid_from", "valid_to",
+             "visibility", "metadata")
+          VALUES
+            (${nextId}, ${assetId}, ${current.entity_id}, ${nextKind}, ${nextPredicate}, ${value},
+             ${nextConfidence}, 'user', ${`correction:${factId}`}, 'active', ${now},
+             ${current.valid_from}, ${current.valid_to}, ${nextVisibility},
+             ${json({
+               ...(current.metadata ?? {}),
+               correctedFrom: factId,
+             })})
+        `);
+
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "qre_memory_audit"
+            ("id", "asset_id", "user_id", "operation", "target_type", "target_id", "payload")
+          VALUES
+            (${randomUUID()}, ${assetId}, ${userId}, 'correct', 'fact', ${factId}, ${json({
+              replacementFactId: nextId,
+            })})
+        `);
+
+        return { factId: nextId, supersededFactId: factId };
+      });
+    },
+
+    async setFactGovernance({
+      assetId,
+      factId,
+      userId,
+      status,
+      visibility,
+    }) {
+      await this.assertAccess({ assetId, userId });
+
+      return db.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<any[]>(Prisma.sql`
+          SELECT "status", "visibility"
+          FROM "qre_memory_fact"
+          WHERE "id" = ${factId}
+            AND "asset_id" = ${assetId}
+          FOR UPDATE
+        `);
+
+        const current = rows[0];
+        if (!current) throw new Error("Memory fact not found");
+
+        const nextStatus = status ?? current.status;
+        const nextVisibility = visibility ?? current.visibility;
+
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE "qre_memory_fact"
+          SET "status" = ${nextStatus},
+              "visibility" = ${nextVisibility},
+              "updated_at" = NOW()
+          WHERE "id" = ${factId}
+            AND "asset_id" = ${assetId}
+        `);
+
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "qre_memory_audit"
+            ("id", "asset_id", "user_id", "operation", "target_type", "target_id", "payload")
+          VALUES
+            (${randomUUID()}, ${assetId}, ${userId}, 'govern', 'fact', ${factId}, ${json({
+              previousStatus: current.status,
+              nextStatus,
+              previousVisibility: current.visibility,
+              nextVisibility,
+            })})
+        `);
+
+        return {
+          factId,
+          status: nextStatus as MemoryFactStatus,
+          visibility: nextVisibility as MemoryVisibility,
+        };
       });
     },
   };
