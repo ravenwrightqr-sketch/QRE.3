@@ -6,17 +6,14 @@
  * GOAL
  * ----
  * Prove that expressive cognitive structure survives from prompt understanding
- * into mechanics and then into concrete causal story beats.
+ * into mechanics, causal pressure, and concrete story beats.
  *
- * PURPOSE
- * -------
- * This suite protects the universal substrate from semantic collapse. A prompt
- * may normalize into a generic cognitive plan, but high-value experiential
- * commitments such as agency, prestige, suspense, surprise, mastery, scarcity,
- * and legacy must remain available to trajectory composition.
+ * The critical invariant is now:
  *
- * The suite is intentionally domain-diverse and does not authorize subject
- * specific templates.
+ *   mechanic -> event pressure -> observable state change
+ *
+ * A mechanic is not considered realized merely because its name survives in
+ * metadata or because a generic beat exists for it.
  */
 
 import { understandExperience } from "../../cognition/cognitiveEngine.js";
@@ -27,6 +24,7 @@ type Probe = {
   prompt: string;
   mustContainMechanics: string[];
   mustContainBeats: string[];
+  mustContainPressure: string[];
 };
 
 const probes: Probe[] = [
@@ -35,18 +33,21 @@ const probes: Probe[] = [
     prompt: "Create an absurd luxury spa experience for a billionaire that gets increasingly over the top.",
     mustContainMechanics: ["excess", "escalation", "pampering"],
     mustContainBeats: ["encounter", "escalation", "transformation", "payoff"],
+    mustContainPressure: ["excess", "escalation", "pampering"],
   },
   {
     name: "Suspense machine",
     prompt: "Create a genuinely terrifying haunted-house experience where every room makes the threat less certain and more dangerous.",
     mustContainMechanics: ["uncertainty", "escalation", "suspense"],
     mustContainBeats: ["threshold", "encounter", "reveal", "escalation", "payoff"],
+    mustContainPressure: ["uncertainty", "escalation", "suspense"],
   },
   {
     name: "Living folklore",
     prompt: "Create a funny birthday memory that family members can keep adding to, with each version becoming more ridiculous.",
     mustContainMechanics: ["accumulation", "contribution", "memory", "continuation", "escalation"],
     mustContainBeats: ["origin", "encounter", "contribution", "escalation", "reflection", "payoff", "continuation"],
+    mustContainPressure: ["accumulation", "contribution", "memory", "continuation", "escalation"],
   },
   {
     name: "Agency and prestige",
@@ -64,6 +65,7 @@ const probes: Probe[] = [
       "legacy",
     ],
     mustContainBeats: ["threshold", "action", "challenge", "feedback", "milestone", "unlock", "identity", "payoff", "continuation"],
+    mustContainPressure: ["prestige", "spectacle", "agency", "mastery", "scarcity", "ownership", "legacy"],
   },
 ];
 
@@ -76,6 +78,7 @@ for (const probe of probes) {
   const mechanics = trajectory.mechanics
     .filter((signal) => signal.confidence >= 0.7)
     .map((signal) => signal.mechanic);
+  const pressureMechanics = trajectory.eventPressure.map((pressure) => pressure.mechanic);
 
   const missingMechanics = probe.mustContainMechanics.filter(
     (mechanic) => !mechanics.includes(mechanic as never),
@@ -85,19 +88,26 @@ for (const probe of probes) {
     (beat) => !trajectory.beats.includes(beat as never),
   );
 
-  if (missingMechanics.length || missingBeats.length) {
+  const missingPressure = probe.mustContainPressure.filter(
+    (mechanic) => !pressureMechanics.includes(mechanic as never),
+  );
+
+  if (missingMechanics.length || missingBeats.length || missingPressure.length) {
     throw new Error(
       `${probe.name} failed.\n` +
         `Missing mechanics: ${missingMechanics.join(", ") || "none"}\n` +
         `Missing beats: ${missingBeats.join(", ") || "none"}\n` +
+        `Missing event pressure: ${missingPressure.join(", ") || "none"}\n` +
         `Mechanics: ${mechanics.join(", ")}\n` +
-        `Beats: ${trajectory.beats.join(" → ")}`,
+        `Beats: ${trajectory.beats.join(" → ")}\n` +
+        `Pressure: ${pressureMechanics.join(", ")}`,
     );
   }
 
   console.log(`✓ ${probe.name}`);
   console.log(`  mechanics: ${mechanics.join(", ")}`);
   console.log(`  beats: ${trajectory.beats.join(" → ")}`);
+  console.log(`  event pressure: ${pressureMechanics.join(", ")}`);
 }
 
 console.log("✓ Super Cog cognitive trajectory acceptance passed.");

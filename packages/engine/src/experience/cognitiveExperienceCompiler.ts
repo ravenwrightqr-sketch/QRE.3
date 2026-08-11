@@ -8,6 +8,7 @@ import type {
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
+import { guardCognitiveStory } from "../cognition/cognitiveRealizationGuard.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
@@ -17,13 +18,11 @@ import {
 /**
  * QRE COGNITIVE EXPERIENCE COMPILER
  *
- * CANONICAL PIPELINE:
  * PROMPT → COGNITION → PREMISE/EVIDENCE → SEMANTIC + CREATIVE REALIZATION
  * → UNIVERSAL STORY COMPILATION → BLUEPRINT/FLOW/MOMENTS/SCENES
  *
- * IMPORTANT: universalStoryCompiler + premiseRealizer are the single
- * downstream structure/language authority. This boundary does not run a
- * second prose realizer after compilation.
+ * There is one downstream structure authority and one canonical language
+ * authority. This boundary only composes them.
  */
 
 export type CognitiveCompiledExperience = CompiledStoryExperience & {
@@ -50,8 +49,8 @@ function respectExplicitNarrativeIntent(
   const selectedHypothesis = {
     ...cognition.selectedHypothesis,
     kind: "story" as const,
-    premise: `${cognition.subject.value} unfolds as a sequence of meaningful moments`,
-    rationale: "The prompt explicitly requests a story or narrative, so narrative form is the declared experience direction.",
+    premise: `${cognition.subject.value} unfolds as a sequence of moments`,
+    rationale: "The prompt explicitly requests a story or narrative.",
     evidence: [...cognition.selectedHypothesis.evidence, evidence],
     score: Math.max(cognition.selectedHypothesis.score, 0.99),
   };
@@ -61,7 +60,11 @@ function respectExplicitNarrativeIntent(
     selectedHypothesis,
     hypotheses: cognition.hypotheses.map((hypothesis) =>
       hypothesis.kind === "story"
-        ? { ...hypothesis, score: Math.max(hypothesis.score, 0.99), evidence: [...hypothesis.evidence, evidence] }
+        ? {
+            ...hypothesis,
+            score: Math.max(hypothesis.score, 0.99),
+            evidence: [...hypothesis.evidence, evidence],
+          }
         : hypothesis,
     ),
   };
@@ -189,24 +192,54 @@ function propagateCanonicalLanguage(compiled: CompiledStoryExperience): Compiled
   return { ...compiled, story, blueprint, flowSteps, moments, scenePlan, cinematicScenes };
 }
 
-/**
- * Repair the common "agent + action + object" shape before premise building.
- * This is intentionally grammatical, not noun-specific.
- */
+/** Extract a grammatical subject without creating noun-specific branches. */
 function grammaticalSubject(prompt: string): string | undefined {
   const text = prompt.replace(/\s+/g, " ").trim();
-  const verb = "(?:documents?|clean(?:s|ed|ing)?|repairs?|restores?|records?|photographs?|writes?|builds?|creates?|designs?|runs?|owns?|manages?|prepares?|inspects?|visits?|helps?|takes?|makes?|finds?|grooms?|cooks?|sells?|buys?|teaches?|plays?|wears?|drives?|uses?|opens?|closes?|carries?|brings?|delivers?|serves?|hosts?|shares?|celebrates?|explores?|discovers?|collects?|organizes?|organises?|clears?|washes?|fixes?|tests?|checks?|shows?|tells?|turns?|handles?|cleans?)";
-  const match = text.match(new RegExp(`^(?:a|an|the|my|our)?\\s*([\\p{L}][\\p{L}\\p{N}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}'’-]*){0,3})\\s+${verb}\\b`, "iu"));
-  return match?.[1]?.trim();
+  const verbs = "documents?|clean(?:s|ed|ing)?|repairs?|restores?|records?|photographs?|writes?|builds?|creates?|designs?|runs?|owns?|manages?|prepares?|inspects?|visits?|helps?|takes?|makes?|finds?|grooms?|cooks?|sells?|buys?|teaches?|plays?|wears?|drives?|uses?|opens?|closes?|carries?|brings?|delivers?|serves?|hosts?|shares?|celebrates?|explores?|discovers?|collects?|organizes?|organises?|clears?|washes?|fixes?|tests?|checks?|shows?|tells?|turns?|handles?";
+
+  const declarative = text.match(new RegExp(
+    `^(?:a|an|the|my|our)?\\s*([\\p{L}][\\p{L}\\p{N}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}'’-]*){0,3})\\s+(?:${verbs})\\b`,
+    "iu",
+  ));
+  if (declarative?.[1]) return declarative[1].trim();
+
+  const imperative = text.match(
+    /^(?:make|create|build|design|turn|transform|treat)\s+(?:a|an|the|my|our)?\s*(.+?)(?=\s+(?:into|like|feel|become|as|a|an|for|so|that|which)\b|[.!?]|$)/i,
+  );
+  if (imperative?.[1]) return imperative[1].trim();
+
+  // "Teach someone how to make sourdough" -> "sourdough".
+  const instructional = text.match(
+    /\b(?:make|cook|bake|build|create|design|draw|write)\s+(?:a|an|the)?\s*([^,.!?]+?)(?=\s+(?:for|with|using|at|in|on|today|tonight)\b|[,.!?]|$)/i,
+  );
+  if (instructional?.[1]) {
+    const candidate = instructional[1].trim();
+    if (candidate && !/^(?:someone|something|people|how|how to)$/i.test(candidate)) return candidate;
+  }
+
+  const objectFirst = text.match(
+    /^(?:turn|transform|make)\s+(?:a|an|the|my|our)?\s*(.+?)\s+(?:into|feel like|become)\b/i,
+  );
+  return objectFirst?.[1]?.trim();
+}
+
+function looksLikeInstructionSubject(value: string): boolean {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return /^(?:teach|teaching|make|making|create|creating|build|building|turn|turning|transform|transforming|how|how to|someone|something|people)\b/i.test(normalized)
+    || /\bhow to\b/i.test(normalized);
 }
 
 function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
-  const direct = prompt.match(/\b(?:for|about|with)\s+((?:the|a|an)\s+[\p{L}\p{N}'’-]+(?:\s+[\p{L}\p{N}'’-]+){0,4}|[A-Z][\p{L}\p{N}'’-]*(?:\s+(?:the|a|an)\s+[\p{L}\p{N}'’-]+){0,4})\b/u)?.[1]?.replace(/\s+/g, " ").trim();
-  const candidate = grammaticalSubject(prompt) ?? direct;
-  if (!candidate) return cognition;
+  const candidate = grammaticalSubject(prompt);
+  const current = cognition.subject.value.trim();
+  const currentLooksMalformed = /^n\b/i.test(current);
+
+  if (!candidate || (!currentLooksMalformed && current && !looksLikeInstructionSubject(current))) return cognition;
 
   const existingEvidence = cognition.subject.evidence ?? [];
-  const alreadyObserved = existingEvidence.some((evidence) => evidence.source === "prompt" && evidence.detail.toLowerCase().includes(candidate.toLowerCase()));
+  const alreadyObserved = existingEvidence.some(
+    (evidence) => evidence.source === "prompt" && evidence.detail.toLowerCase().includes(candidate.toLowerCase()),
+  );
 
   return {
     ...cognition,
@@ -215,13 +248,23 @@ function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExper
       value: candidate,
       status: "observed",
       confidence: Math.max(cognition.subject.confidence, 0.99),
-      evidence: alreadyObserved ? existingEvidence : [...existingEvidence, { source: "prompt", detail: `concrete grammatical subject preserved from prompt: ${candidate}`, confidence: 0.99 }],
+      evidence: alreadyObserved ? existingEvidence : [
+        ...existingEvidence,
+        {
+          source: "prompt",
+          detail: `concrete grammatical subject preserved from prompt: ${candidate}`,
+          confidence: 0.99,
+        },
+      ],
     },
     plan: { ...cognition.plan, centralSubject: candidate },
   };
 }
 
-export function compileCognitiveExperience(prompt: string, context: StoryCompilerContext = {}): CognitiveCompiledExperience {
+export function compileCognitiveExperience(
+  prompt: string,
+  context: StoryCompilerContext = {},
+): CognitiveCompiledExperience {
   const cognitionBase = canonicalizeCognition(
     enrichConcreteSubjectEvidence(
       prompt,
@@ -258,7 +301,15 @@ export function compileCognitiveExperience(prompt: string, context: StoryCompile
     cognitivePlan: cognition.plan,
   });
 
-  const realized = propagateCanonicalLanguage(compiled);
+  const guarded = {
+    ...compiled,
+    story: {
+      ...compiled.story,
+      beats: guardCognitiveStory(compiled.story.beats, cognition.plan),
+    },
+  };
+
+  const realized = propagateCanonicalLanguage(guarded);
 
   return {
     ...realized,

@@ -12,10 +12,9 @@ import type {
 /**
  * SEMANTIC REALIZATION + CREATIVE PRESSURE
  *
- * Cognition selects meaning. This layer turns meaning into operation semantics.
- * It may introduce a deliberately CREATED experiential detail, but that detail
- * is explicitly provenance-tagged as creative_realization and is never treated
- * as prompt evidence.
+ * Cognition selects meaning. This layer turns that meaning into operation
+ * semantics. Created details are explicitly provenance-tagged and remain
+ * distinguishable from prompt evidence.
  */
 
 const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
@@ -27,12 +26,13 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
   commerce: ["orientation", "identity", "discovery", "payoff", "continuation"],
   journey: ["orientation", "threshold", "discovery", "transformation", "continuation"],
   identity: ["orientation", "identity", "reflection", "payoff", "continuation"],
-  story: ["orientation", "hook", "encounter", "transformation", "payoff", "continuation"],
+  // Story realization explicitly carries escalation so a detected escalation
+  // mechanic cannot disappear between cognition and presentation.
+  story: ["orientation", "hook", "encounter", "escalation", "transformation", "payoff", "continuation"],
   ritual: ["orientation", "threshold", "encounter", "reflection", "payoff", "continuation"],
 };
 
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const lower = (value: unknown): string => clean(value).toLowerCase();
 const first = (values?: readonly unknown[]) => clean(values?.[0]);
 const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
@@ -41,11 +41,7 @@ function values(premise: CognitivePremise | undefined, role: CognitivePremiseRol
   return unique(premise?.slots.filter((slot) => slot.role === role).flatMap((slot) => slot.values) ?? []);
 }
 
-function evidenceFor(
-  premise: CognitivePremise | undefined,
-  roles: CognitivePremiseRole[],
-  extra: CognitiveEvidence[],
-): CognitiveEvidence[] {
+function evidenceFor(premise: CognitivePremise | undefined, roles: CognitivePremiseRole[], extra: CognitiveEvidence[]): CognitiveEvidence[] {
   return [
     ...(premise?.slots.filter((slot) => roles.includes(slot.role)).flatMap((slot) => slot.evidence) ?? []),
     ...extra,
@@ -55,7 +51,6 @@ function evidenceFor(
 type Inputs = {
   subject: string;
   outcome: string;
-  purpose: string;
   why: string;
   interaction: string;
   content: string;
@@ -63,7 +58,6 @@ type Inputs = {
   progression: string;
   dynamic: string;
   future: string;
-  reward: string;
   memory: string;
   social: string;
   place: string;
@@ -75,8 +69,7 @@ function inputs(plan: CognitiveExperiencePlan, premise?: CognitivePremise): Inpu
   const transformation = values(premise, "transformation");
   return {
     subject: values(premise, "subject")[0] || clean(plan.centralSubject),
-    outcome: values(premise, "outcome")[0] || clean(plan.purpose),
-    purpose: clean(plan.purpose),
+    outcome: values(premise, "outcome")[0] || "",
     why: first(plan.whyInteract),
     interaction: first(plan.interactionModel),
     content: first(plan.contentModel),
@@ -84,7 +77,6 @@ function inputs(plan: CognitiveExperiencePlan, premise?: CognitivePremise): Inpu
     progression: first(plan.progressionModel),
     dynamic: first(plan.dynamicBehavior),
     future: first(plan.futureEvolution),
-    reward: first(plan.rewardModel),
     memory: first(plan.memoryModel),
     social: values(premise, "social")[0],
     place: values(premise, "place")[0],
@@ -99,74 +91,70 @@ function state(intent: string, action: string, before: string, after: string) {
 
 function semantics(direction: ExperienceHypothesisKind, kind: CognitiveBeatKind, x: Inputs): ReturnType<typeof state> {
   const generic: Record<string, ReturnType<typeof state>> = {
-    orientation: state("establish the subject and current situation", x.why || x.interaction || "enter the experience", "only prompt context is available", "the subject and situation are clear"),
-    hook: state("create a reason to continue", x.why || x.interaction || "engage with the subject", "the subject is understood but participation has not begun", "the participant has a reason to continue"),
-    encounter: state("introduce the next concrete relationship or condition", x.interaction || x.content || "encounter the next supported condition", "the experience has been established", "a new relationship changes what can happen next"),
-    transformation: state("make accumulated interaction produce meaningful change", x.transformation || x.outcome || "carry the interaction into a changed state", "experience has accumulated", "the subject or its meaning has changed"),
-    payoff: state("resolve the experience into the intended outcome", x.outcome || x.purpose || x.why || "resolve the current experience", "the experience has reached its decisive point", "the intended experiential result is available"),
-    continuation: state("preserve continuity into the next interaction", x.future || x.dynamic || "continue from the current state", "the current experience state is established", "the current state remains available to future interaction"),
+    orientation: state("establish the subject and current situation", "enter the observed situation", "the situation has not been entered", "the subject and situation are established"),
+    hook: state("create a reason to continue", "encounter the first active turn", "the situation is static", "something now demands attention"),
+    encounter: state("introduce the next concrete condition", "encounter the next supported condition", "the current state is established", "a new condition changes what can happen next"),
+    escalation: state("increase the active condition", "go further than before", "the current state is established", "the situation has intensified"),
+    transformation: state("make accumulated interaction produce observable change", "carry the preceding state into a changed condition", "the preceding state is established", "the subject or situation is visibly different"),
+    payoff: state("resolve the experience into its earned result", "reach the result produced by what happened before", "the decisive state has not resolved", "the result is available"),
+    continuation: state("preserve continuity into another interaction", "carry the current state forward", "the current experience has resolved", "the current state remains available"),
   };
 
   switch (direction) {
     case "memory":
-      if (kind === "orientation") return state("establish the subject as a continuity anchor", x.memory || "place present evidence beside remembered context", "only the present encounter is available", "the subject is recognized as carrying history");
-      if (kind === "origin") return state("surface available historical source without inventing missing history", x.memory || "surface available historical evidence", "history is implied or partially known", "available history is connected to the present");
-      if (kind === "encounter") return state("bring a concrete remembered relationship into the present", x.social || x.interaction || "encounter the next available piece of history", "history is contextual", "a concrete relationship is present");
-      if (kind === "reflection") return state("interpret what preserved evidence means now", x.memory || x.outcome || "connect preserved evidence to present meaning", "preserved evidence has been encountered", "continuing meaning is understood");
+      if (kind === "orientation") return state("establish continuity", "place present evidence beside available prior context", "only the present is visible", "continuity is established");
+      if (kind === "origin") return state("surface available history without inventing missing history", "bring an available historical detail into the present", "the prior context is not foregrounded", "available history is connected to now");
+      if (kind === "encounter") return state("bring a remembered relationship into the present", "encounter a concrete remembered detail", "history is contextual", "a remembered relationship is active");
+      if (kind === "reflection") return state("connect preserved evidence to the present", "recognize the consequence of what was preserved", "the remembered detail has been encountered", "its present consequence is visible");
       break;
     case "utility":
-      if (kind === "need") return state("identify the immediate useful outcome", x.outcome || x.why || "identify the current need", "the need is unresolved", "the useful target is explicit");
-      if (kind === "instruction") return state("supply only information required for the next useful move", x.content || "provide the next relevant knowledge", "the target is known but not actionable", "actionable guidance is available");
-      if (kind === "action") return state("convert guidance into an observable action", x.interaction || "perform the next useful action", "guidance is available", "an observable result exists");
-      if (kind === "feedback") return state("use the observed result to determine the next state", x.dynamic || "evaluate the result before proceeding", "an action has produced a result", "the next decision is informed by evidence");
+      if (kind === "need") return state("identify the useful target", "identify the immediate target", "the target is unclear", "the useful target is explicit");
+      if (kind === "instruction") return state("supply the next useful move", "make the next required action available", "the target is known but not actionable", "the next action is available");
+      if (kind === "action") return state("convert guidance into action", "perform the next useful action", "guidance is available", "an observable result exists");
+      if (kind === "feedback") return state("use the result as evidence", "observe the result before choosing again", "an action has occurred", "the next decision is informed");
       break;
     case "game":
-      if (kind === "hook") return state("establish the challenge and reason to participate", x.why || x.interaction || "enter the challenge", "the challenge has not begun", "the participant understands participation");
-      if (kind === "challenge") return state("present a meaningful obstacle", x.progression || "resolve the next challenge condition", "the challenge is active", "a concrete problem is available to solve");
-      if (kind === "discovery") return state("reward exploration with meaningful information", x.discovery || x.content || "inspect the next available clue", "information is incomplete", "new information affects play");
-      if (kind === "escalation") return state("increase consequence based on accumulated play", x.dynamic || x.progression || "apply the previous result to the next challenge", "the participant has accumulated state", "the next challenge reflects accumulated state");
+      if (kind === "hook") return state("establish the challenge", "enter the challenge", "the challenge has not begun", "participation has begun");
+      if (kind === "challenge") return state("present a meaningful obstacle", "face the next challenge condition", "the challenge is active", "a concrete problem requires response");
+      if (kind === "discovery") return state("reward exploration with information", "inspect the next available clue or condition", "information is incomplete", "new information changes the available choices");
+      if (kind === "escalation") return state("increase consequence from accumulated play", "apply the previous result to a harder or stranger next condition", "state has accumulated", "the next condition carries more consequence");
       break;
     case "discovery":
-      if (kind === "threshold") return state("move beyond the obvious surface", x.interaction || x.why || "cross into the discoverable layer", "only the surface is available", "hidden context can be encountered");
-      if (kind === "reveal" || kind === "discovery") return state(kind === "reveal" ? "expose supported hidden information" : "connect revealed detail to larger meaning", x.discovery || x.content || "reveal the next supported relationship", "the relationship is not yet visible", kind === "reveal" ? "a hidden relationship is visible" : "the discovery has meaning");
+      if (kind === "threshold") return state("move beyond the obvious surface", "cross into the discoverable layer", "only the surface is available", "hidden context can be encountered");
+      if (kind === "reveal") return state("expose supported hidden information", "bring a concealed detail into view", "the detail is withheld", "the detail is visible");
+      if (kind === "discovery") return state("connect discovered detail to the situation", "follow the newly visible relationship", "the detail is visible but disconnected", "the discovery changes interpretation");
       break;
     case "social":
-      if (kind === "orientation") return state("establish shared context", x.social || x.interaction || "enter the shared experience", "participants are uncoordinated", "participants share a point of attention");
-      if (kind === "encounter") return state("bring participants into relationship with the subject", x.social || x.interaction || "respond to the shared subject together", "shared context exists", "participants can affect the shared experience");
-      if (kind === "contribution") return state("make participation alter shared state", x.interaction || x.outcome || "add a contribution others can encounter", "the shared state already exists", "the shared state contains a new contribution");
+      if (kind === "orientation") return state("establish shared context", "bring participants to the same point of attention", "participants are separate", "a shared context exists");
+      if (kind === "encounter") return state("bring participants into relationship", "let participants encounter the subject together", "shared context exists", "participants can affect shared state");
+      if (kind === "contribution") return state("make participation alter shared state", "add a contribution others can encounter", "shared state exists", "the shared state now contains the contribution");
       break;
     case "commerce":
-      if (kind === "orientation") return state("give commercial interaction an experiential reason to begin", x.why || x.interaction || "enter the relationship around the subject", "transaction context exists", "engagement has value beyond transaction mechanics");
-      if (kind === "identity") return state("connect the subject with participant identity and meaning", x.content || x.interaction || "recognize identity carried by the subject", "the relationship is transactional", "the subject participates in an evolving identity relationship");
-      if (kind === "discovery") return state("reveal value that follows naturally from the experience", x.discovery || x.content || "discover relevant value beyond the transaction", "transactional value is known", "additional experiential value is recognized");
+      if (kind === "orientation") return state("give commercial interaction an experiential reason to begin", "enter the relationship around the subject", "transaction context exists", "engagement has begun");
+      if (kind === "identity") return state("connect subject and participant identity", "make the subject's identity-bearing detail visible", "identity is implicit", "identity is explicit");
+      if (kind === "discovery") return state("reveal value beyond the transaction", "encounter the relevant additional value", "transactional value is known", "additional value is visible");
       break;
     case "journey":
-      if (kind === "orientation") return state("establish the journey starting state", x.place || x.interaction || "recognize the current starting point", "the journey is beginning", "starting point and direction are clear");
-      if (kind === "threshold") return state("move from known state into the next stage", x.interaction || x.why || "cross into the next stage", "the starting state is known", "the participant has entered a new stage");
-      if (kind === "discovery") return state("derive meaning from what the journey exposes", x.discovery || x.content || "discover what the current stage reveals", "the participant has moved into a new stage", "a new relationship or place is understood");
+      if (kind === "orientation") return state("establish the starting state", "recognize the current starting point", "the journey is beginning", "starting point is clear");
+      if (kind === "threshold") return state("move into the next stage", "cross into the next stage", "the starting state is known", "a new stage is active");
+      if (kind === "discovery") return state("derive new information from movement", "discover what the current stage exposes", "the new stage is active", "a new relationship is understood");
       break;
     case "identity":
-      if (kind === "orientation") return state("establish the subject as a marker of identity", x.content || x.why || "notice what the subject represents", "the subject is primarily observed", "identity significance is visible");
-      if (kind === "identity") return state("make identity relationship explicit through evidence and context", x.content || x.social || "connect the subject with associated identity", "identity meaning is implicit", "identity meaning is explicit enough to engage");
-      if (kind === "reflection") return state("relate identity meaning back to the participant", x.outcome || x.memory || "reflect on what the identity relationship means", "identity meaning is recognized", "the participant has a personal interpretation");
+      if (kind === "orientation") return state("establish identity-bearing context", "notice what the subject represents", "the subject is observed", "identity context is visible");
+      if (kind === "identity") return state("make identity relationship explicit", "connect the subject with its supplied identity context", "identity is implicit", "identity is explicit");
+      if (kind === "reflection") return state("relate identity back to the participant", "recognize the personal consequence", "identity is recognized", "the participant has a personal interpretation");
       break;
     case "ritual":
-      if (kind === "orientation") return state("establish meaningful repeated context", x.why || x.interaction || "enter the meaningful context", "the participant is outside the ritual state", "the ritual context is recognized");
-      if (kind === "threshold") return state("mark transition into intentional participation", x.interaction || "perform the entry action", "participation has not begun", "intentional participation has begun");
-      if (kind === "encounter") return state("connect participant with subject through ritual action", x.interaction || x.content || "perform the central ritual interaction", "intentional participation is established", "the ritual relationship is enacted");
-      if (kind === "reflection") return state("make the meaning of the repeated action explicit", x.memory || x.outcome || "recognize what the ritual action means", "the ritual has been enacted", "the participant understands its meaning");
+      if (kind === "orientation") return state("establish repeated context", "enter the meaningful context", "participation has not begun", "the ritual context is recognized");
+      if (kind === "threshold") return state("mark intentional participation", "perform the entry action", "participation has not begun", "intentional participation has begun");
+      if (kind === "encounter") return state("enact the central ritual relationship", "perform the central ritual interaction", "intentional participation is established", "the ritual relationship is enacted");
+      if (kind === "reflection") return state("connect repeated action to present consequence", "recognize what the ritual action changed", "the ritual has been enacted", "its consequence is visible");
       break;
   }
 
-  return generic[kind] ?? state(
-    "advance the experience through the selected cognitive direction",
-    x.interaction || x.outcome || "continue from the current state",
-    "the current state is established",
-    "the next experiential state is available",
-  );
+  return generic[kind] ?? state("advance the selected cognitive direction", "continue from the current state", "the current state is established", "the next experiential state is available");
 }
 
-/** Stable hash gives variation without making builds nondeterministic. */
 function hash(text: string): number {
   let value = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -191,13 +179,11 @@ const SERIOUS_GUARD = /\b(?:memorial|funeral|death|died|grief|emergency|medical|
 
 function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): string | undefined {
   if (SERIOUS_GUARD.test(prompt)) return undefined;
-  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity"].includes(direction)) return undefined;
-
+  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity", "utility"].includes(direction)) return undefined;
   const text = lower(prompt);
-  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|organize|document|inspect|prepare)\b/.test(text);
+  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|document|inspect|prepare)\b/.test(text);
   const explicitlyPlayful = /\b(?:fun|funny|comedy|absurd|ridiculous|wild|weird|playful|hilarious)\b/.test(text);
   if (!mundane && !explicitlyPlayful) return undefined;
-
   return CREATIVE_MOTIFS[hash(`${prompt}|${direction}`) % CREATIVE_MOTIFS.length];
 }
 
@@ -205,7 +191,6 @@ function creativeDirective(
   direction: ExperienceHypothesisKind,
   kind: CognitiveBeatKind,
   prompt: string,
-  subject: string,
   evidence: CognitiveEvidence[],
 ): Partial<CognitiveBeatDirective> | undefined {
   const motif = creativeMotif(prompt, direction);
@@ -217,43 +202,20 @@ function creativeDirective(
     confidence: 0.76,
   };
 
-  if (kind === "reveal" || kind === "encounter") {
-    return {
-      action: `notice a new, plausible surprise: ${motif}`,
-      stateAfter: "a concrete unexpected detail has entered the experience",
-      evidence: [...evidence, creativeEvidence].slice(0, 8),
-      confidence: 0.76,
-    };
-  }
+  const withEvidence = (action: string, stateAfter: string): Partial<CognitiveBeatDirective> => ({
+    action,
+    stateAfter,
+    evidence: [...evidence, creativeEvidence].slice(0, 8),
+    confidence: 0.76,
+  });
 
-  if (kind === "hook") {
-    return {
-      action: `follow the first attention-grabbing turn: ${motif}`,
-      stateAfter: "the participant has a concrete reason to keep going",
-      evidence: [...evidence, creativeEvidence].slice(0, 8),
-      confidence: 0.76,
-    };
-  }
-
-  if (kind === "escalation") {
-    return {
-      action: `let the situation become more interesting because ${motif}`,
-      stateAfter: "the initial surprise has consequences",
-      evidence: [...evidence, creativeEvidence].slice(0, 8),
-      confidence: 0.76,
-    };
-  }
-
-  if (kind === "payoff") {
-    return {
-      action: `resolve the surprise without losing the original subject: ${motif}`,
-      stateAfter: "the creative turn lands as an earned payoff",
-      evidence: [...evidence, creativeEvidence].slice(0, 8),
-      confidence: 0.76,
-    };
-  }
-
-  void subject;
+  if (kind === "encounter") return withEvidence(`notice ${motif}`, "a concrete unexpected detail has entered the experience");
+  if (kind === "hook") return withEvidence(`encounter ${motif}`, "the subject has a concrete reason to continue");
+  if (kind === "action") return withEvidence(`notice ${motif} and respond to what it changes`, "the concrete detail changes the immediate action");
+  if (kind === "feedback") return withEvidence(`find that ${motif}`, "the result contains a concrete unexpected detail");
+  if (kind === "next_step") return withEvidence(`follow what ${motif} changes`, "the next action reflects the concrete twist");
+  if (kind === "escalation") return withEvidence(`goes further because ${motif}`, "the initial surprise now produces a more intense concrete condition");
+  if (kind === "payoff") return withEvidence(`resolve the thread created when ${motif}`, "the creative turn lands as an earned consequence");
   return undefined;
 }
 
@@ -281,7 +243,7 @@ export function realizeCognitiveExperience(args: {
 
     const directiveEvidence = evidenceFor(premise, [...roleSet], [...evidence, ...hypothesisEvidence]);
     const semantic = semantics(direction, kind, x);
-    const creative = creativeDirective(direction, kind, prompt, x.subject, directiveEvidence);
+    const creative = creativeDirective(direction, kind, prompt, directiveEvidence);
 
     return {
       kind,
@@ -297,10 +259,6 @@ export function realizeCognitiveExperience(args: {
       ),
     } satisfies CognitiveBeatDirective;
   });
-
-  const creativeCount = directives.filter((directive) =>
-    directive.evidence.some((item) => item.source === "creative_realization"),
-  ).length;
 
   return {
     direction,
