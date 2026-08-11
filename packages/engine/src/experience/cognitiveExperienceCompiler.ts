@@ -280,16 +280,18 @@ function realizeExplicitAgency(
   const actionIndex = compiled.story.beats.findIndex((beat) => beat.kind === "action");
   if (actionIndex < 0) return compiled;
 
-  const subject = compiled.observation.subject || "The participant";
+  const subject = /\bparticipants?\b/i.test(prompt)
+    ? "Participants"
+    : compiled.observation.subject || "The participant";
   const existing = compiled.story.beats[actionIndex];
 
-  if (/\b(?:choose|chooses|choice|decides?|selects?|picks?)\b/i.test(existing.text)) {
+  if (/\b(?:choice|chooses?|decides?|selects?|picks?)\b/i.test(existing.text)) {
     return compiled;
   }
 
   const actionBeat = {
     ...existing,
-    text: `${subject} chooses the next path.`,
+    text: `${subject} choose their own path, and that choice determines what they encounter next.`,
   };
 
   return {
