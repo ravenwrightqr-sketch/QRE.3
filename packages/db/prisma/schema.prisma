@@ -135,6 +135,24 @@ model Flow {
   publishedExperiences Experience[] @relation("PublishedExperienceFlow")
 }
 
+model AssetFlow {
+  id          String    @id @default(cuid())
+  assetId     String
+  flowId      String
+  priority    Int       @default(0)
+  active      Boolean   @default(true)
+  triggerType String    @default("DEFAULT")
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime  @default(now())
+  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  flow        Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, flowId])
+  @@index([assetId])
+  @@index([flowId])
+}
+
 /// *
 /// * =========================
 /// * SCAN SESSION
@@ -379,16 +397,16 @@ model GeoProof {
 }
 
 model PresenceEvent {
-  id         String    @id @default(cuid())
-  assetId    String
-  userId     String?
-  sessionId  String?
-  type       String
-  lat        Float?
-  lng        Float?
-  accuracy   Float?
-  meta       Json?
-  createdAt  DateTime  @default(now())
+  id        String   @id @default(cuid())
+  assetId   String
+  userId    String?
+  sessionId String?
+  type      String
+  lat       Float?
+  lng       Float?
+  accuracy  Float?
+  meta      Json?
+  createdAt DateTime @default(now())
 
   @@index([assetId])
   @@index([sessionId])
@@ -396,17 +414,17 @@ model PresenceEvent {
 }
 
 model PresenceSession {
-  id         String         @id @default(cuid())
-  assetId    String
-  userId     String?
-  status     PresenceStatus
-  enteredAt  DateTime       @default(now())
-  exitedAt   DateTime?
-  geoLat     Float?
-  geoLng     Float?
-  accuracy   Float?
-  createdAt  DateTime       @default(now())
-  sessionId  String?
+  id        String         @id @default(cuid())
+  assetId   String
+  userId    String?
+  status    PresenceStatus
+  enteredAt DateTime       @default(now())
+  exitedAt  DateTime?
+  geoLat    Float?
+  geoLng    Float?
+  accuracy  Float?
+  createdAt DateTime       @default(now())
+  sessionId String?
 
   @@index([assetId])
   @@index([sessionId])
