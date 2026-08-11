@@ -65,12 +65,13 @@ const probes: Probe[] = [
 
 for (const probe of probes) {
   const state = understandExperience(probe.prompt, {});
-  const mechanics = mechanicBrief(
-    inferExperienceMechanics({
-      plan: state.plan,
-      premise: state.plan.premise,
-    }),
-  );
+ const mechanics = mechanicBrief(
+  inferExperienceMechanics({
+    plan: state.plan,
+    premise: state.plan.premise,
+    prompt: probe.prompt,
+  }),
+);
 
   const missing = probe.mustContain.filter((mechanic) => !mechanics.includes(mechanic));
 

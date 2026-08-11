@@ -231,7 +231,7 @@ export const COGNITIVE_VOCABULARY: readonly CognitiveVocabularyEntry[] = [
   {
     mechanic: "resonance",
     patterns: [
-      /\bresonan(?:ce|t)\b/,
+     /\bresonan(?:ce|t)\b|\bresonat(?:e|es|ed|ing)\b/,
       /\bmeaningful connection\b/,
       /\bsticks with you\b/,
       /\bhits home\b/,

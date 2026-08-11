@@ -162,8 +162,96 @@ function preserveConcreteSubject(text: string, beat: StoryBeat, plan?: Cognitive
     : text;
 }
 
-function addMechanicTexture(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan, prompt?: string): string {
-  const opener = openerFor(beat, activeMechanics(plan, prompt));
+function actionalMechanicTexture(
+  text: string,
+  beat: StoryBeat,
+  mechanics: string[],
+): string {
+  const active = new Set(mechanics);
+  const normalized = lower(text);
+
+  if (beat.kind === "action" && active.has("agency")) {
+    if (
+      !normalized.includes("participant gets the move") &&
+      !normalized.includes("participant chooses") &&
+      !normalized.includes("participant can choose")
+    ) {
+      return `The participant gets the move. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "feedback" && active.has("agency") && active.has("consequence")) {
+    if (
+      !normalized.includes("choice answers back") &&
+      !normalized.includes("choice changed") &&
+      !normalized.includes("choice changes")
+    ) {
+      return `The participant sees what their choice changed. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "next_step" && active.has("agency")) {
+    if (
+      !normalized.includes("choice determines") &&
+      !normalized.includes("participant chooses") &&
+      !normalized.includes("participant gets")
+    ) {
+      return `The participant's choice determines what happens next. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "contribution" && active.has("contribution")) {
+    if (
+      !normalized.includes("participant adds") &&
+      !normalized.includes("added")
+    ) {
+      return `The participant adds to the shared state. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "reveal" && active.has("surprise")) {
+    if (
+      !normalized.includes("expectation breaks") &&
+      !normalized.includes("unexpected")
+    ) {
+      return `The expectation breaks before the reveal lands. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "reveal" && active.has("suspense")) {
+    if (
+      !normalized.includes("withheld") &&
+      !normalized.includes("uncertain") &&
+      !normalized.includes("hidden")
+    ) {
+      return `The answer stays withheld until the reveal. ${sentence(text)}`;
+    }
+  }
+
+  if (beat.kind === "escalation" && active.has("excess")) {
+    if (!normalized.includes("goes further")) {
+      return `It goes further than the previous state. ${sentence(text)}`;
+    }
+  }
+
+  return text;
+}
+
+function addMechanicTexture(
+  text: string,
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+  prompt?: string,
+): string {
+  const mechanics = activeMechanics(plan, prompt);
+  const actional = actionalMechanicTexture(text, beat, mechanics);
+  const opener = openerFor(beat, mechanics);
+
+  if (actional !== text) {
+    if (!opener || lower(actional).includes(lower(opener))) return actional;
+    return `${opener} ${actional}`;
+  }
+
   if (!opener || lower(text).includes(lower(opener))) return text;
   return `${opener} ${sentence(text)}`;
 }
@@ -298,3 +386,5 @@ export function elevateStoryBeats(
 }
 
 export { isGenericCompilerProse };
+
+
