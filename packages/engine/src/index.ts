@@ -22,7 +22,7 @@ export {
 } from "./experience/genomeCompiler.js";
 
 /** Universal creative compiler. */
-export { compileSuperCognitiveStoryExperience as compileStoryExperience } from "./experience/universalStoryCompilerSuper.js";
+export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
 export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
 export type {
   StoryCompilerContext,

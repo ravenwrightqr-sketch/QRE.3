@@ -36,7 +36,7 @@
 import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
 import { isGenericCompilerProse } from "./premiseRealizer.js";
-import { realizePremiseBeatV3 } from "./premiseRealizerV3.js";
+import { realizePremiseBeat } from "./premiseRealizer.js";
 
 type ExpressionMechanic = {
   mechanic: string;
@@ -319,12 +319,12 @@ export function elevateStoryBeat(
       }
     : beat;
 
-  let realized = realizePremiseBeatV3(resolved, plan);
+  let realized = realizePremiseBeat(resolved, plan);
   realized = addMechanicTexture(realized, resolved, plan, prompt);
   realized = preserveConcreteSubject(realized, resolved, plan);
   realized = removeDeadProse(realized);
 
-  if (isGenericCompilerProse(realized)) realized = realizePremiseBeatV3(resolved, plan);
+  if (isGenericCompilerProse(realized)) realized = realizePremiseBeat(resolved, plan);
   return `${sentence(realized)}.`;
 }
 
