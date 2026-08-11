@@ -1,82 +1,28 @@
-/**
- * =============================================================================
- * COGNITIVE EXPERIENCE MECHANICS
- * =============================================================================
- *
- * GOAL
- * ----
- * Convert conserved cognitive meaning into reusable experiential forces that
- * can drive any prompt into concrete experience without domain templates.
- *
- * PURPOSE
- * -------
- * This is the behavioral vocabulary layer between cognition and trajectory.
- * Mechanics describe what an experience does to a participant or how its state
- * evolves: discovery, agency, suspense, spectacle, indulgence, mastery,
- * memory, consequence, legacy, and so on.
- *
- * The compiler must never need a new dog/concert/spa/birthday branch merely
- * because a new noun appears. New nouns inherit these forces compositionally.
- * Lexical evidence is a signal; conserved premise structure remains the source
- * of truth and no mechanic is permission to invent facts.
- */
-
 import type {
   CognitiveExperiencePlan,
   CognitivePremise,
   CognitivePremiseRole,
   ExperienceTone,
 } from "@qre/contracts";
-
 import { COGNITIVE_VOCABULARY } from "./cognitiveVocabulary.js";
 
+/**
+ * COGNITIVE MECHANICS
+ *
+ * Universal behavioral forces. A mechanic says HOW an experience behaves, not
+ * WHAT noun or industry it belongs to. This layer must never need a dog,
+ * concert, spa, birthday, restaurant, or housekeeper branch.
+ */
+
 export type ExperienceMechanic =
-  | "accumulation"
-  | "escalation"
-  | "transformation"
-  | "reveal"
-  | "discovery"
-  | "contrast"
-  | "participation"
-  | "competition"
-  | "contribution"
-  | "uncertainty"
-  | "excess"
-  | "pampering"
-  | "memory"
-  | "continuation"
-  | "adaptation"
-  | "anticipation"
-  | "suspense"
-  | "surprise"
-  | "agency"
-  | "mastery"
-  | "novelty"
-  | "spectacle"
-  | "indulgence"
-  | "delight"
-  | "euphoria"
-  | "celebration"
-  | "prestige"
-  | "ritual"
-  | "authorship"
-  | "reciprocity"
-  | "resonance"
-  | "intimacy"
-  | "catharsis"
-  | "relief"
-  | "reversal"
-  | "momentum"
-  | "scarcity"
-  | "curation"
-  | "embodiment"
-  | "immersion"
-  | "ownership"
-  | "consequence"
-  | "recognition"
-  | "legacy"
-  | "wonder"
-  | "awe";
+  | "accumulation" | "escalation" | "transformation" | "reveal" | "discovery"
+  | "contrast" | "participation" | "competition" | "contribution" | "uncertainty"
+  | "excess" | "pampering" | "memory" | "continuation" | "adaptation"
+  | "anticipation" | "suspense" | "surprise" | "agency" | "mastery" | "novelty"
+  | "spectacle" | "indulgence" | "delight" | "euphoria" | "celebration" | "prestige"
+  | "ritual" | "authorship" | "reciprocity" | "resonance" | "intimacy" | "catharsis"
+  | "relief" | "reversal" | "momentum" | "scarcity" | "curation" | "embodiment"
+  | "immersion" | "ownership" | "consequence" | "recognition" | "legacy" | "wonder" | "awe";
 
 export type MechanicSignal = {
   mechanic: ExperienceMechanic;
@@ -84,73 +30,58 @@ export type MechanicSignal = {
   evidence: string[];
 };
 
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const lower = (value: unknown): string => clean(value).toLowerCase();
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
-function unique(values: readonly unknown[]): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))];
-}
-
-function planValues(plan: CognitiveExperiencePlan | undefined): string[] {
+function planValues(plan?: CognitiveExperiencePlan): string[] {
   if (!plan) return [];
-
   return unique([
     plan.centralSubject,
     plan.purpose,
     plan.direction,
-    ...(plan.audience ?? []),
-    ...(plan.emotionalIntent ?? []),
-    ...(plan.interactionModel ?? []),
-    ...(plan.storyStructure ?? []),
-    ...(plan.memoryModel ?? []),
-    ...(plan.socialModel ?? []),
-    ...(plan.discoveryModel ?? []),
-    ...(plan.rewardModel ?? []),
-    ...(plan.progressionModel ?? []),
-    ...(plan.contentModel ?? []),
-    ...(plan.dynamicBehavior ?? []),
-    ...(plan.futureEvolution ?? []),
-    ...(plan.creativePossibilities ?? []),
+    ...plan.audience,
+    ...plan.emotionalIntent,
+    ...plan.interactionModel,
+    ...plan.storyStructure,
+    ...plan.memoryModel,
+    ...plan.socialModel,
+    ...plan.discoveryModel,
+    ...plan.rewardModel,
+    ...plan.progressionModel,
+    ...plan.contentModel,
+    ...plan.dynamicBehavior,
+    ...plan.futureEvolution,
+    ...plan.creativePossibilities,
   ]);
 }
 
-function premiseValues(
-  premise: CognitivePremise | undefined,
-  role?: CognitivePremiseRole,
-): string[] {
-  return unique(
-    premise?.slots
-      .filter((slot) => !role || slot.role === role)
-      .flatMap((slot) => slot.values) ?? [],
-  );
-}
-
-function has(text: string, pattern: RegExp): boolean {
-  return pattern.test(text);
+function premiseValues(premise: CognitivePremise | undefined, role?: CognitivePremiseRole): string[] {
+  return unique(premise?.slots.filter((slot) => !role || slot.role === role).flatMap((slot) => slot.values) ?? []);
 }
 
 function toneMechanics(tone: ExperienceTone[]): ExperienceMechanic[] {
   const result: ExperienceMechanic[] = [];
-
-  if (tone.includes("playful")) {
-    result.push("contrast", "escalation", "participation", "surprise", "delight");
-  }
-
-  if (tone.includes("energetic")) {
-    result.push("escalation", "participation", "momentum", "euphoria");
-  }
-
-  if (tone.includes("mysterious")) {
-    result.push("uncertainty", "discovery", "reveal", "suspense", "anticipation", "wonder");
-  }
-
-  if (tone.includes("emotional")) {
-    result.push("memory", "continuation", "resonance", "catharsis", "intimacy");
-  }
-
+  if (tone.includes("playful")) result.push("contrast", "escalation", "participation", "surprise", "delight");
+  if (tone.includes("energetic")) result.push("escalation", "participation", "momentum", "euphoria");
+  if (tone.includes("mysterious")) result.push("uncertainty", "discovery", "reveal", "suspense", "anticipation", "wonder");
+  if (tone.includes("emotional")) result.push("memory", "continuation", "resonance", "catharsis", "intimacy");
   return result;
+}
+
+function addPattern(
+  corpus: string,
+  scores: Map<ExperienceMechanic, { score: number; evidence: string[] }>,
+  mechanic: ExperienceMechanic,
+  score: number,
+  pattern: RegExp,
+  evidence: string,
+): void {
+  if (!pattern.test(corpus)) return;
+  const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
+  current.score += score;
+  current.evidence.push(evidence);
+  scores.set(mechanic, current);
 }
 
 export function inferExperienceMechanics(args: {
@@ -160,14 +91,7 @@ export function inferExperienceMechanics(args: {
   tone?: ExperienceTone[];
 }): MechanicSignal[] {
   const { plan, premise = plan?.premise, prompt = "", tone = [] } = args;
-
-  const corpus = lower([
-    prompt,
-    ...planValues(plan),
-    ...premiseValues(premise),
-    ...tone,
-  ].join(" "));
-
+  const corpus = lower([prompt, ...planValues(plan), ...premiseValues(premise), ...tone].join(" "));
   const roleCorpus = lower([
     ...premiseValues(premise, "transformation"),
     ...premiseValues(premise, "outcome"),
@@ -179,190 +103,77 @@ export function inferExperienceMechanics(args: {
 
   const scores = new Map<ExperienceMechanic, { score: number; evidence: string[] }>();
 
-  const add = (mechanic: ExperienceMechanic, score: number, evidence: string) => {
-    const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
-    current.score += score;
-    current.evidence.push(evidence);
-    scores.set(mechanic, current);
-  };
+  addPattern(corpus, scores, "accumulation", 0.95, /\b(?:add|adding|contribut|accumulat|grow|growing|versions?|folklore|mythology)\b/, "material can compound or accumulate");
+  addPattern(corpus, scores, "contribution", 0.82, /\b(?:contribut|add|share|participat|author|create)\w*\b/, "participants can add material");
+  addPattern(corpus, scores, "escalation", 0.96, /\b(?:escalat|increasingly|more and more|wild|ridiculous|bigger|worse|extreme|over the top)\b/, "intensity is explicitly increasing");
+  addPattern(corpus, scores, "transformation", 0.95, /\b(?:transform|change|before and after|becomes?|turn\w*\s+.*\s+into|restore|makeover|pamper|clean\w*)\b/, "a state change is central");
+  addPattern(corpus, scores, "reveal", 0.94, /\b(?:reveal|hidden|secret|uncover|expose|forgotten)\b/, "information is withheld then exposed");
+  addPattern(corpus, scores, "discovery", 0.94, /\b(?:discover|explore|find|hunt|clue|mystery|portal|encounter)\b/, "exploration or finding drives the experience");
+  addPattern(corpus, scores, "contrast", 0.84, /\b(?:boring|ordinary|routine|mundane|before|after|unexpected|surprise|opposite)\b/, "a baseline or reversal creates contrast");
+  addPattern(corpus, scores, "participation", 0.9, /\b(?:scan|participate|join|play|interact|touch|choose|vote|share|do|try)\b/, "participant action changes the experience");
+  addPattern(corpus, scores, "competition", 0.95, /\b(?:compete|competition|race|versus|vs\.?|winner|challenge|score)\b/, "participants face comparative challenge");
+  addPattern(corpus, scores, "uncertainty", 0.96, /\b(?:terror|terrifying|haunted|horror|dread|fear|threat|danger|creepy|unknown|uncertain)\b/, "uncertainty or threat drives intensity");
+  addPattern(corpus, scores, "suspense", 0.9, /\b(?:suspense|uncertain|unknown|threat|danger|what happens next|keeps? guessing)\b/, "uncertainty is sustained across time");
+  addPattern(corpus, scores, "excess", 0.97, /\b(?:absurd|luxury|lavish|opulent|ridiculous|excess|indulgent|extravagant|decadent|over the top)\b/, "disproportion is part of the experience");
+  addPattern(corpus, scores, "pampering", 0.92, /\b(?:pamper|pampering|care|comfort|groom|grooming|treatment|treatments|spoil|spoiled)\b/, "care is realized as an active experiential behavior");
+  addPattern(corpus, scores, "indulgence", 0.9, /\b(?:luxury|lavish|opulent|indulgent|extravagant|decadent|no expense spared)\b/, "luxury is expressed as active indulgence");
+  addPattern(corpus, scores, "memory", 0.96, /\b(?:memory|memories|remember|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/, "past experience affects present meaning");
+  addPattern(corpus, scores, "continuation", 0.95, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit|over time)\b/, "the experience has a future state");
+  addPattern(corpus, scores, "adaptation", 0.96, /\b(?:adaptive|adapt|preference|preferred|previous|remembered|changes based|learns?|personalize|personalized)\b/, "prior state changes future experience");
+  addPattern(corpus, scores, "surprise", 0.92, /\b(?:surprise|unexpected|suddenly|twist|strange|weird|absurd|ridiculous)\b/, "expectation is deliberately disrupted");
+  addPattern(corpus, scores, "novelty", 0.88, /\b(?:novel|brand[- ]new|never seen before|first[- ]ever|fresh|new twist)\b/, "newness is part of the experience");
+  addPattern(corpus, scores, "spectacle", 0.94, /\b(?:spectacle|spectacular|showstopper|grand finale|jaw[- ]dropping|showcase)\b/, "the experience should become impressive");
+  addPattern(corpus, scores, "delight", 0.9, /\b(?:delight|joy|thrill|pleasure|love every second|fun|funny|hilarious)\b/, "active pleasure is an intended effect");
+  addPattern(corpus, scores, "euphoria", 0.95, /\b(?:euphoria|ecstatic|bliss|high point|over the moon)\b/, "payoff reaches unusually intense positive affect");
+  addPattern(corpus, scores, "celebration", 0.86, /\b(?:celebrate|celebration|party|toast|festive|commemorate)\b/, "the experience converts an event into celebration");
+  addPattern(corpus, scores, "prestige", 0.88, /\b(?:prestige|exclusive|elite|VIP|high[- ]status|first class)\b/, "distinction and status shape the experience");
+  addPattern(corpus, scores, "ritual", 0.86, /\b(?:ritual|ceremony|tradition|annual|ceremonial)\b/, "repetition or ceremony structures participation");
+  addPattern(corpus, scores, "authorship", 0.9, /\b(?:author|create their own|write their own|make their own|shape)\b/, "participants create part of the evolving experience");
+  addPattern(corpus, scores, "reciprocity", 0.84, /\b(?:reciprocity|give and take|give back|in return|responds? to)\b/, "one action produces a meaningful response");
+  addPattern(corpus, scores, "resonance", 0.86, /\b(?:resonance|meaningful connection|sticks with you|hits home|deeply personal)\b/, "the experience reverberates beyond the moment");
+  addPattern(corpus, scores, "intimacy", 0.82, /\b(?:intimacy|intimate|personal moment|one[- ]on[- ]one|private|close[- ]knit)\b/, "closeness gives the experience force");
+  addPattern(corpus, scores, "catharsis", 0.92, /\b(?:catharsis|cathartic|let it out|finally release|release the tension|tearjerker)\b/, "accumulated tension resolves in release");
+  addPattern(corpus, scores, "relief", 0.84, /\b(?:relief|relieved|weight off|finally safe|breathe again)\b/, "pressure drops into release");
+  addPattern(corpus, scores, "reversal", 0.94, /\b(?:reversal|turns? the tables|opposite of what|not what it seemed|plot twist|flips? the script)\b/, "interpretation or direction deliberately flips");
+  addPattern(corpus, scores, "momentum", 0.88, /\b(?:momentum|keeps? going|keeps? building|one thing leads to another|can'?t stop)\b/, "each state creates energy for the next");
+  addPattern(corpus, scores, "scarcity", 0.86, /\b(?:scarce|scarcity|limited|only \d+|one[- ]time|rare|hard to get)\b/, "limited availability creates urgency");
+  addPattern(corpus, scores, "curation", 0.9, /\b(?:curate|hand[- ]picked|selected just for|tailored|personalized)\b/, "selection itself is part of the experience");
+  addPattern(corpus, scores, "embodiment", 0.82, /\b(?:physical|touch|walk through|hold|wear|hands[- ]on)\b/, "physical presence or action matters");
+  addPattern(corpus, scores, "immersion", 0.88, /\b(?:immerse|immersive|lost in|fully inside|surround|transported)\b/, "attention is absorbed by the experience");
+  addPattern(corpus, scores, "ownership", 0.84, /\b(?:ownership|mine|personal artifact|keep forever|belongs to)\b/, "the participant gains durable possession or authorship");
+  addPattern(corpus, scores, "consequence", 0.94, /\b(?:consequence|has an effect|changes the outcome|what happens depends on)\b/, "actions persist as consequences");
+  addPattern(corpus, scores, "recognition", 0.86, /\b(?:recognize|recognized|seen|remembered by|gets credit|spotlight)\b/, "a participant or contribution becomes visible");
+  addPattern(corpus, scores, "legacy", 0.9, /\b(?:legacy|lives on|passed down|for generations|remembered for years)\b/, "the experience persists beyond the interaction");
+  addPattern(corpus, scores, "wonder", 0.9, /\b(?:wonder|magical|marvel|mesmerize|spellbind)\b/, "the experience invites astonishment");
+  addPattern(corpus, scores, "awe", 0.9, /\b(?:awe|majestic|epic)\b/, "scale or significance produces awe");
 
-  if (has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|versions?|folklore|mythology)\b/)) {
-    add("accumulation", 0.95, "material compounds or competing versions can grow");
-    add("contribution", 0.8, "participants can add material");
-  }
-
-  if (has(corpus, /\b(?:escalat|increasingly|more and more|wild|ridiculous|bigger|worse|extreme|over the top)\b/)) {
-    add("escalation", 0.96, "the premise explicitly asks for increasing intensity");
-  }
-
-  if (
-    has(corpus, /\b(?:versions?|folklore|mythology|legend|tall tale|rumou?rs?)\b/) &&
-    has(corpus, /\b(?:add(?:s|ed|ing)?|contribut(?:e|es|ed|ing|ion|ions)|accumulate|accumulates|accumulated|accumulating|grow|grows|grew|growing|compound(?:s|ed|ing)?|compet(?:e|es|ed|ing)?)\b/)
-  ) {
-    add("escalation", 0.88, "compounding versions or contributions are meant to intensify the shared story");
-  }
-
-  if (has(corpus, /\b(?:transform|change|before and after|becomes?|turn(?:s|ed)? .* into|groom|clean|restore|makeover|pamper)\b/)) {
-    add("transformation", 0.95, "a state change is central to the premise");
-  }
-
-  if (has(corpus, /\b(?:reveal|hidden|secret|uncover|unknown|expose|forgotten)\b/)) {
-    add("reveal", 0.94, "information is intentionally withheld then exposed");
-    add("discovery", 0.82, "the participant must encounter something not initially visible");
-  }
-
-  if (has(corpus, /\b(?:discover|explore|find|hunt|clue|mystery|portal|encounter)\b/)) {
-    add("discovery", 0.94, "the premise asks for exploration or finding");
-  }
-
-  if (has(corpus, /\b(?:boring|ordinary|routine|mundane|before|after|unexpected|surprise)\b/)) {
-    add("contrast", 0.84, "the experience gains force from a baseline or reversal");
-  }
-
-  if (has(corpus, /\b(?:scan|participate|join|play|interact|touch|choose|vote|share)\b/)) {
-    add("participation", 0.9, "the participant performs an action that changes the experience");
-  }
-
-  if (has(corpus, /\b(?:compete|competition|race|versus|vs\.?|winner|challenge|score)\b/)) {
-    add("competition", 0.95, "participants are compared against a challenge or one another");
-  }
-
-  if (has(corpus, /\b(?:every|each)\s+\w+\s+(?:changes?|alters?|reshapes?|determines?)\s+(?:the\s+)?(?:next|following)\b/)) {
-    add("surprise", 0.92, "each state changes the next state, making the outcome intentionally unpredictable");
-  }
-
-  if (
-    has(corpus, /\b(?:every|each|different|another)\b/) &&
-    has(corpus, /\b(?:chang(?:e|es|ed|ing)|alter(?:s|ed|ing)?|reshap(?:e|es|ed|ing)|determin(?:e|es|ed|ing)|affect(?:s|ed|ing)?)\b/) &&
-    has(corpus, /\b(?:next|following|subsequent|later)\b/)
-  ) {
-    add("surprise", 0.9, "a repeated state-change relation determines what follows, preserving dynamic unpredictability after normalization");
-  }
-
-  if (
-    has(corpus, /\b(?:clue|choice|move|state|step|input|action|result|version|contribution)\b/) &&
-    has(corpus, /\b(?:chang(?:e|es|ed|ing)|alter(?:s|ed|ing)?|reshap(?:e|es|ed|ing)|determin(?:e|es|ed|ing)|affect(?:s|ed|ing)?)\b/) &&
-    has(corpus, /\b(?:next|following|subsequent|later)\b/)
-  ) {
-    add("surprise", 0.82, "a conserved state-changing dependency makes the next available state intentionally unpredictable");
-  }
-
-  if (has(corpus, /\b(?:terror|terrifying|haunted|horror|dread|fear|threat|danger|creepy|unknown)\b/)) {
-    add("uncertainty", 0.96, "threat or uncertainty should intensify over time");
-    add("escalation", 0.72, "horror gains force from increasing threat");
-  }
-
-  if (
-    scores.has("uncertainty") &&
-    has(corpus, /\b(?:threat|danger|terror|terrifying|haunted|horror|dread|fear|unknown|uncertain|uncertainty)\b/)
-  ) {
-    add("suspense", 0.9, "uncertainty is sustained around an active threat, creating unresolved anticipation");
-  }
-
-  if (has(corpus, /\b(?:absurd|billionaire|luxury|lavish|opulent|ridiculous|excess|indulgent|over the top)\b/)) {
-    add("excess", 0.97, "the premise rewards disproportion and indulgence");
-  }
-
-  if (
-    scores.has("excess") &&
-    has(corpus, /\b(?:luxury|lavish|opulent|indulgent|indulgence|extravagant|decadent|billionaire|no expense spared)\b/)
-  ) {
-    add("indulgence", 0.9, "luxury is framed as active disproportionate indulgence rather than background setting");
-  }
-
-  if (has(corpus, /\b(?:spa|groom|groomer|pamper|poodle|princess|royal|treatments?)\b/)) {
-    add("pampering", 0.92, "care is part of the premise and should become an experiential behavior");
-  }
-
-  if (
-    scores.has("excess") &&
-    (scores.has("pampering") || has(corpus, /\b(?:care|indulgence|indulgent|pamper|pampering|treatment|treatments)\b/))
-  ) {
-    add("escalation", 0.86, "excessive treatment should intensify through progressively more disproportionate experience");
-  }
-
-  if (has(corpus, /\b(?:memor(?:y|ies)|remember(?:s|ed|ing)?|reminisc|history|legacy|photograph|folklore|nostalgia|keepsake|memorial)\b/)) {
-    add("memory", 0.96, "past experience should affect present meaning");
-  }
-
-  if (has(corpus, /\b(?:again|return|next time|future|later|continues?|grows?|evolv|revisit|over time)\b/)) {
-    add("continuation", 0.95, "the experience has an explicit future state");
-  }
-
-  if (has(corpus, /\b(?:adaptive|adapt|preference|prefers?|history|previous|remembered|changes based|learns?|personalize|personalized)\b/)) {
-    add("adaptation", 0.96, "prior state should change the next realization");
-  }
-
-  if (
-    has(corpus, /\b(?:again|return(?:s|ed|ing)?|revisit|next time|previous|prior|before)\b/) &&
-    has(corpus, /\b(?:preference|preferences|preferred|remember(?:s|ed|ing)?|previous|prior|history|past|adapt(?:s|ed|ing|ive)?|learn(?:s|ed|ing)?)\b/)
-  ) {
-    add("memory", 0.84, "returning interaction is explicitly shaped by prior experience");
-  }
-
-  if (plan?.direction === "memory") {
-    add("memory", 0.88, "selected cognitive direction is memory");
-
-    if ((plan.memoryModel?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
-      add("continuation", 0.82, "memory direction carries future continuity");
-    }
-
-    if ((plan.dynamicBehavior?.length ?? 0) > 0 || (plan.futureEvolution?.length ?? 0) > 0) {
-      add("adaptation", 0.78, "memory direction exposes accumulated state to later interactions");
-    }
-  }
-
-  if ((plan?.dynamicBehavior?.length ?? 0) > 0) {
-    const dynamic = lower(plan.dynamicBehavior.join(" "));
-    if (has(dynamic, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/)) {
-      add("adaptation", 0.9, "dynamic behavior explicitly changes future experience state");
-    }
-  }
-
-  if ((plan?.futureEvolution?.length ?? 0) > 0) {
-    const future = lower(plan.futureEvolution.join(" "));
-    if (has(future, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/)) {
-      add("continuation", 0.88, "future evolution explicitly preserves a next state");
-    }
-  }
-
-  if (
-    scores.has("accumulation") &&
-    scores.has("contribution") &&
-    (scores.has("memory") || scores.has("continuation"))
-  ) {
-    add("escalation", 0.82, "repeated contributions compound accumulated state into increasing experiential intensity");
-  }
-
-  if (roleCorpus.includes("transformation")) {
-    add("transformation", 0.5, "conserved premise explicitly contains transformation evidence");
-  }
+  if (roleCorpus.includes("transformation")) addPattern("transformation", scores, "transformation", 0.5, /transformation/, "the conserved premise contains transformation evidence");
+  if (plan?.direction === "memory") addPattern("memory", scores, "memory", 0.88, /memory/, "selected direction is memory");
+  if ((plan?.dynamicBehavior?.length ?? 0) > 0) addPattern(plan.dynamicBehavior.join(" "), scores, "adaptation", 0.78, /\b(?:adapt|change|previous|history|accumulat|progress|state|preference|context)\b/, "dynamic behavior changes future state");
+  if ((plan?.futureEvolution?.length ?? 0) > 0) addPattern(plan.futureEvolution.join(" "), scores, "continuation", 0.82, /\b(?:continue|future|again|return|later|new|evolv|grow|accumulat|chapter|event)\b/, "future evolution preserves continuity");
 
   for (const entry of COGNITIVE_VOCABULARY) {
     if (entry.patterns.some((pattern) => pattern.test(corpus))) {
-      add(entry.mechanic as ExperienceMechanic, entry.score, entry.evidence);
+      const mechanic = entry.mechanic as ExperienceMechanic;
+      const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
+      current.score += entry.score * 0.65;
+      current.evidence.push(entry.evidence);
+      scores.set(mechanic, current);
     }
   }
 
   for (const mechanic of toneMechanics(tone)) {
-    add(mechanic, 0.45, `tone implies ${mechanic} behavior`);
+    const current = scores.get(mechanic) ?? { score: 0, evidence: [] };
+    current.score += 0.45;
+    current.evidence.push(`tone implies ${mechanic} behavior`);
+    scores.set(mechanic, current);
   }
 
   return [...scores.entries()]
-    .map(([mechanic, value]) => ({
-      mechanic,
-      confidence: Math.min(1, value.score),
-      evidence: unique(value.evidence),
-    }))
-    .sort(
-      (a, b) =>
-        b.confidence - a.confidence ||
-        a.mechanic.localeCompare(b.mechanic),
-    );
+    .map(([mechanic, value]) => ({ mechanic, confidence: Math.min(1, value.score), evidence: unique(value.evidence) }))
+    .sort((a, b) => b.confidence - a.confidence || a.mechanic.localeCompare(b.mechanic));
 }
 
 export function mechanicBrief(signals: MechanicSignal[]): string[] {
-  return signals
-    .filter((signal) => signal.confidence >= 0.7)
-    .map((signal) => signal.mechanic);
+  return signals.filter((signal) => signal.confidence >= 0.7).map((signal) => signal.mechanic);
 }
