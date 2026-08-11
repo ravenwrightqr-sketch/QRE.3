@@ -176,9 +176,9 @@ const SERIOUS_GUARD = /\b(?:memorial|funeral|death|died|grief|emergency|medical|
 
 function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): string | undefined {
   if (SERIOUS_GUARD.test(prompt)) return undefined;
-  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity"].includes(direction)) return undefined;
+  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity", "utility"].includes(direction)) return undefined;
   const text = lower(prompt);
-  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|organize|document|inspect|prepare)\b/.test(text);
+  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|document|inspect|prepare)\b/.test(text);
   const explicitlyPlayful = /\b(?:fun|funny|comedy|absurd|ridiculous|wild|weird|playful|hilarious)\b/.test(text);
   if (!mundane && !explicitlyPlayful) return undefined;
   return CREATIVE_MOTIFS[hash(`${prompt}|${direction}`) % CREATIVE_MOTIFS.length];
@@ -199,20 +199,20 @@ function creativeDirective(
     confidence: 0.76,
   };
 
-  // The action itself remains concrete so the canonical language boundary can
-  // safely render it instead of leaking cognitive significance prose.
-  if (kind === "encounter") {
-    return { action: `notice ${motif}`, stateAfter: "a concrete unexpected detail has entered the experience", evidence: [...evidence, creativeEvidence].slice(0, 8), confidence: 0.76 };
-  }
-  if (kind === "hook") {
-    return { action: `encounter ${motif}`, stateAfter: "the subject has a concrete reason to continue", evidence: [...evidence, creativeEvidence].slice(0, 8), confidence: 0.76 };
-  }
-  if (kind === "escalation") {
-    return { action: `follow the consequence of ${motif}`, stateAfter: "the initial surprise has a concrete consequence", evidence: [...evidence, creativeEvidence].slice(0, 8), confidence: 0.76 };
-  }
-  if (kind === "payoff") {
-    return { action: `resolve the thread created when ${motif}`, stateAfter: "the creative turn lands as an earned consequence", evidence: [...evidence, creativeEvidence].slice(0, 8), confidence: 0.76 };
-  }
+  const withEvidence = (action: string, stateAfter: string): Partial<CognitiveBeatDirective> => ({
+    action,
+    stateAfter,
+    evidence: [...evidence, creativeEvidence].slice(0, 8),
+    confidence: 0.76,
+  });
+
+  if (kind === "encounter") return withEvidence(`notice ${motif}`, "a concrete unexpected detail has entered the experience");
+  if (kind === "hook") return withEvidence(`encounter ${motif}`, "the subject has a concrete reason to continue");
+  if (kind === "action") return withEvidence(`notice ${motif} and respond to what it changes`, "the concrete detail changes the immediate action");
+  if (kind === "feedback") return withEvidence(`find that ${motif}`, "the result contains a concrete unexpected detail");
+  if (kind === "next_step") return withEvidence(`follow what ${motif} changes`, "the next action reflects the concrete twist");
+  if (kind === "escalation") return withEvidence(`follow the consequence of ${motif}`, "the initial surprise has a concrete consequence");
+  if (kind === "payoff") return withEvidence(`resolve the thread created when ${motif}`, "the creative turn lands as an earned consequence");
   return undefined;
 }
 
