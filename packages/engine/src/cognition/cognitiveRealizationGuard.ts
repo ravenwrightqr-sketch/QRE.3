@@ -1,4 +1,4 @@
-import type { CognitiveExperiencePlan, StoryBeat, StoryBeatKind } from "@qre/contracts";
+import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 import {
   composeCognitiveTrajectory,
   type CognitiveEventPressure,
@@ -11,7 +11,7 @@ import {
  * "adapt to accumulated history". Those are useful internally, but they are
  * never allowed to become authored story prose.
  *
- * The trajectory now supplies observable event pressure. This guard translates
+ * The trajectory supplies observable event pressure. This guard translates
  * that pressure into presentation only when the normal realization has failed
  * to show the mechanic. It is not a second brain and it does not choose a
  * domain, genre, or template.
@@ -29,6 +29,9 @@ const ABSTRACT = [
   /change what can happen next[^.!?]*/i,
   /determine what happens next[^.!?]*/i,
   /carry .* into the present[^.!?]*/i,
+  /brings an available detail into the present/i,
+  /place present evidence beside available prior context/i,
+  /carries (?:a )?past into the present/i,
   /recognize what .* means[^.!?]*/i,
   /create a reason to continue[^.!?]*/i,
   /the intended experiential result[^.!?]*/i,
@@ -58,7 +61,7 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
     case "orientation": return `${subject} enters the situation`;
     case "hook": return `${subject} encounters the first concrete turn`;
     case "threshold": return `${subject} crosses into the next state`;
-    case "origin": return `${subject} brings an available detail into the present`;
+    case "origin": return `${subject} starts with a concrete detail from before this moment`;
     case "encounter": return `${subject} encounters a new concrete condition`;
     case "discovery": return `${subject} finds a detail that changes the situation`;
     case "reveal": return `${subject} sees what was hidden`;
@@ -97,9 +100,9 @@ function pressuresFor(
 /**
  * Convert behavioral pressure into observable presentation.
  *
- * This is intentionally mechanic-driven rather than domain-driven. The
- * language is a witness to the state change; it is never a restatement of the
- * mechanic name or its semantic purpose.
+ * This is mechanic-driven rather than domain-driven. The language is a
+ * witness to the state change; it is never a restatement of the mechanic name
+ * or its semantic purpose.
  */
 function pressureExpression(
   beat: StoryBeat,
@@ -185,7 +188,7 @@ function pressureExpression(
       case "participation":
       case "agency":
       case "embodiment":
-        if (beat.kind === "action" && !has(/chooses|chooses|takes|does|adds|moves|acts/)) {
+        if (beat.kind === "action" && !has(/choose|chooses|takes|does|adds|moves|acts/)) {
           return "The participant makes a concrete move, and the situation responds.";
         }
         break;
