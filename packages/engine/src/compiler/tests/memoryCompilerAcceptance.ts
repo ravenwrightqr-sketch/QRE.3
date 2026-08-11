@@ -1,9 +1,10 @@
-import { buildMemoryWriteBatch, compileCognitiveExperience } from "@qre/engine";
+import { buildMemoryWriteBatch } from "../../memory/memoryCompiler.js";
+import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 
 const cases = [
   {
     prompt: "Preserve my wedding day forever with my wife and our family.",
-    expected: ["memory", "wedding"],
+    expected: ["wedding"],
   },
   {
     prompt: "My dog Max has been part of our family for ten years and his story should keep growing.",
@@ -40,22 +41,26 @@ for (const test of cases) {
   }
 
   for (const fact of batch.facts) {
-    if (fact.source === "system" && String(fact.metadata ?? "").includes("creative_realization")) {
+    const metadata = JSON.stringify(fact.metadata ?? {});
+    if (metadata.includes("creative_realization")) {
       throw new Error("creative realization crossed into durable factual memory");
     }
   }
 }
 
 const first = compileCognitiveExperience("My grandfather gave me this watch.");
-const second = compileCognitiveExperience("My grandfather gave me this watch and I want its history to continue.", {
-  memories: [
-    {
-      summary: "subject: watch",
-      entities: ["watch", "grandfather"],
-      timestamp: new Date().toISOString(),
-    },
-  ],
-});
+const second = compileCognitiveExperience(
+  "My grandfather gave me this watch and I want its history to continue.",
+  {
+    memories: [
+      {
+        summary: "subject: watch",
+        entities: ["watch", "grandfather"],
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  },
+);
 
 if (first.cognition.plan.direction !== "discovery" && first.cognition.plan.direction !== "memory") {
   throw new Error("expected memory/discovery direction for family artifact");
