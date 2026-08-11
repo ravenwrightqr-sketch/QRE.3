@@ -251,7 +251,9 @@ export function buildScanMemoryBatch(input: {
   userId?: string;
 }): MemoryWriteBatch {
   const now = new Date().toISOString();
-  const summary = input.experience.moments?.[0]?.meta?.text
+  const firstMoment = input.experience.moments[0];
+  const momentText = firstMoment && "text" in firstMoment ? firstMoment.text : undefined;
+  const summary = momentText
     ?? input.experience.memorySnapshot?.summary
     ?? "QRE experience scanned";
 
@@ -271,8 +273,8 @@ export function buildScanMemoryBatch(input: {
       sessionId: input.experience.sessionId ?? undefined,
       metadata: {
         preview: input.experience.preview,
-        momentCount: input.experience.moments?.length ?? 0,
-        sceneCount: input.experience.cinematicScenes?.length ?? 0,
+        momentCount: input.experience.moments.length,
+        sceneCount: input.experience.cinematicScenes.length,
         access: input.experience.access,
       },
     }],
