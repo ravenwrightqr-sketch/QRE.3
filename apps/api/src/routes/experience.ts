@@ -16,6 +16,12 @@
 
 import { Router } from "express";
 
+import {
+  buildMemoryWriteBatch,
+  compileCognitiveExperience,
+  memoryContextToCompilerMemories,
+} from "@qre/engine";
+
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience } from "../services/experienceService.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
@@ -51,6 +57,83 @@ router.post("/compile", requireAuth, async (req, res) => {
       success: false,
       error: "Failed to compile experience.",
     });
+  }
+});
+
+/**
+ * GET /experience/memory/:assetId
+ *
+ * Returns governed long-term memory for the authenticated asset.
+ */
+router.get("/memory/:assetId", requireAuth, async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId ?? "").trim();
+    if (!assetId) {
+      return res.status(400).json({ success: false, error: "Asset id required." });
+    }
+
+    const memory = await createMemoryRepository().loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
+
+    return res.json({ success: true, memory });
+  } catch (error) {
+    console.error("Memory load failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to load memory." });
+  }
+});
+
+/**
+ * POST /experience/memory/:assetId
+ *
+ * Explicit "remember this" path. It parses the supplied statement through
+ * the same cognition boundary but does not compile a new experience.
+ */
+router.post("/memory/:assetId", requireAuth, async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId ?? "").trim();
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+
+    if (!assetId || !prompt) {
+      return res.status(400).json({
+        success: false,
+        error: "Asset id and memory prompt are required.",
+      });
+    }
+
+    const repository = createMemoryRepository();
+    const context = await repository.loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
+
+    const compiled = compileCognitiveExperience(prompt, {
+      memories: memoryContextToCompilerMemories(context),
+    });
+
+    const batch = buildMemoryWriteBatch({
+      assetId,
+      userId: req.user?.userId,
+      prompt,
+      plan: compiled.cognition.plan,
+      source: "user",
+    });
+
+    await repository.writeBatch(batch);
+
+    return res.status(201).json({
+      success: true,
+      memory: {
+        entities: batch.entities.length,
+        facts: batch.facts.length,
+        relations: batch.relations.length,
+        events: batch.events.length,
+      },
+    });
+  } catch (error) {
+    console.error("Memory write failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to write memory." });
   }
 });
 
