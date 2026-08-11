@@ -1,5 +1,8 @@
 import type { CognitiveExperiencePlan, StoryBeat, StoryBeatKind } from "@qre/contracts";
-import { inferExperienceMechanics, mechanicBrief } from "../experience/cognitiveMechanics.js";
+import {
+  composeCognitiveTrajectory,
+  type CognitiveEventPressure,
+} from "../experience/cognitiveTrajectory.js";
 
 /**
  * FINAL REALIZATION BODYGUARD
@@ -8,16 +11,10 @@ import { inferExperienceMechanics, mechanicBrief } from "../experience/cognitive
  * "adapt to accumulated history". Those are useful internally, but they are
  * never allowed to become authored story prose.
  *
- * This guard is deliberately downstream of the universal compiler. It does
- * not choose structure, invent domains, or replace the cognitive brain. It
- * only rejects semantic-control language that escaped into presentation and
- * restores a concrete beat-level expression when necessary.
- *
- * Mechanical forces are also given a final expressive pressure here. This is
- * not a domain template: suspense becomes withheld/hidden/out-of-reach,
- * excess becomes further-than-before, agency becomes choice, and ownership
- * becomes possession. The language describes observable experience rather than
- * explaining why the experience matters.
+ * The trajectory now supplies observable event pressure. This guard translates
+ * that pressure into presentation only when the normal realization has failed
+ * to show the mechanic. It is not a second brain and it does not choose a
+ * domain, genre, or template.
  */
 
 const ABSTRACT = [
@@ -68,15 +65,15 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
     case "action": return `${subject} takes the next concrete action`;
     case "feedback": return `${subject} sees the result of that action`;
     case "contribution": return `${subject} adds something that changes what is available next`;
-    case "escalation": return `${subject} goes further, pushing the current condition beyond what came before`;
+    case "escalation": return `${subject} goes further, forcing the next state beyond what came before`;
     case "transformation": return `${subject} is visibly different because of what happened`;
-    case "reflection": return `${subject} recognizes the consequence of what happened`;
+    case "reflection": return `${subject} responds to the consequence of what happened`;
     case "milestone": return `${subject} reaches a new state`;
     case "unlock": return `${subject} unlocks what comes next`;
     case "earned_access": return `${subject} earns access to what comes next`;
     case "payoff": return `${subject} reaches the result created by what happened before`;
     case "next_step": return `${subject} takes the next step from the current state`;
-    case "continuation": return `${subject} carries the current state forward`;
+    case "continuation": return `${subject} leaves something concrete available for the next interaction`;
     default: return `${subject} continues from the current state`;
   }
 }
@@ -88,65 +85,138 @@ function stillAbstract(text: string): boolean {
   });
 }
 
-function activeMechanics(plan?: CognitiveExperiencePlan): Set<string> {
-  return new Set(
-    mechanicBrief(
-      inferExperienceMechanics({
-        plan,
-        premise: plan?.premise,
-      }),
-    ),
-  );
+function pressuresFor(
+  beat: StoryBeat,
+  plan?: CognitiveExperiencePlan,
+): CognitiveEventPressure[] {
+  return composeCognitiveTrajectory({ plan })
+    .eventPressure
+    .filter((pressure) => pressure.beat === beat.kind);
 }
 
-function mechanicExpression(
+/**
+ * Convert behavioral pressure into observable presentation.
+ *
+ * This is intentionally mechanic-driven rather than domain-driven. The
+ * language is a witness to the state change; it is never a restatement of the
+ * mechanic name or its semantic purpose.
+ */
+function pressureExpression(
   beat: StoryBeat,
   plan: CognitiveExperiencePlan | undefined,
   text: string,
 ): string | undefined {
-  const mechanics = activeMechanics(plan);
   const lower = text.toLowerCase();
+  const pressures = pressuresFor(beat, plan);
+  if (!pressures.length) return undefined;
 
-  if (mechanics.has("suspense") || mechanics.has("uncertainty")) {
-    if (beat.kind === "threshold" && !/out of reach|withheld|hidden/.test(lower)) {
-      return "The threat stays out of reach.";
-    }
-    if (beat.kind === "encounter" && !/out of reach|withheld|hidden/.test(lower)) {
-      return "Something remains just beyond sight.";
-    }
-    if (beat.kind === "reveal" && !/out of reach|withheld|hidden/.test(lower)) {
-      return "The crucial detail is still hidden.";
-    }
-  }
+  const has = (pattern: RegExp) => pattern.test(lower);
 
-  if (mechanics.has("excess") || mechanics.has("escalation")) {
-    if (beat.kind === "escalation" && !/goes further|excessive|ordinary|more|another|again/.test(lower)) {
-      return "It goes further than before.";
-    }
-    if (beat.kind === "encounter" && mechanics.has("excess") && !/luxur|extravag|lavish|opulent|excessive/.test(lower)) {
-      return "The next detail is more extravagant than necessary.";
-    }
-  }
+  for (const pressure of pressures) {
+    switch (pressure.mechanic) {
+      case "escalation":
+      case "excess":
+      case "indulgence":
+      case "pampering":
+      case "spectacle":
+      case "awe":
+      case "euphoria":
+        if (beat.kind === "escalation" || beat.kind === "encounter") {
+          if (!has(/another|again|goes further|more|larger|bigger|lavish|luxur|extravag|excess/)) {
+            return "Another layer is added, making the current state more elaborate than the one before it.";
+          }
+        }
+        break;
 
-  if (mechanics.has("agency")) {
-    if (beat.kind === "action" && !/choose|choice|chosen|select|decide/.test(lower)) {
-      return "The participant chooses the move.";
-    }
-    if (beat.kind === "feedback" && !/respond|response|choice|chosen/.test(lower)) {
-      return "The experience responds to that choice.";
-    }
-  }
+      case "memory":
+      case "legacy":
+      case "resonance":
+        if (beat.kind === "origin" || beat.kind === "reflection" || beat.kind === "encounter") {
+          if (!has(/photo|image|video|detail|note|record|trace|artifact|message|memory|remembered/)) {
+            return "A concrete detail from before appears here and changes what happens now.";
+          }
+        }
+        break;
 
-  if (mechanics.has("ownership")) {
-    if ((beat.kind === "milestone" || beat.kind === "payoff") && !/mine|own|belongs|keep|claim|take home|possess/.test(lower)) {
-      return "The participant can keep what was earned.";
+      case "adaptation":
+        if (beat.kind === "feedback" || beat.kind === "next_step") {
+          if (!has(/because|respond|response|changes|adjust|instead|now/)) {
+            return "What just happened changes the next move.";
+          }
+        }
+        break;
+
+      case "accumulation":
+      case "contribution":
+      case "authorship":
+        if (beat.kind === "contribution" || beat.kind === "milestone" || beat.kind === "feedback") {
+          if (!has(/adds|added|joins|keeps|now contains|another|contribution|created/)) {
+            return "The new addition stays in the experience and changes what is available next.";
+          }
+        }
+        break;
+
+      case "suspense":
+      case "uncertainty":
+        if (beat.kind === "threshold" || beat.kind === "encounter" || beat.kind === "reveal") {
+          if (!has(/hidden|out of sight|unseen|unknown|withheld|not yet|still/)) {
+            return "The crucial detail stays just out of sight, leaving the next move unresolved.";
+          }
+        }
+        break;
+
+      case "discovery":
+      case "novelty":
+      case "wonder":
+        if (beat.kind === "discovery" || beat.kind === "reveal") {
+          if (!has(/finds|find|reveals|appears|opens|shows|uncovers|new/)) {
+            return "A new concrete detail appears and changes what can happen next.";
+          }
+        }
+        break;
+
+      case "transformation":
+      case "contrast":
+        if (beat.kind === "transformation" && !has(/becomes|changes|now|different|after/)) {
+          return "The after-state is visibly different from the state that entered this sequence.";
+        }
+        break;
+
+      case "participation":
+      case "agency":
+      case "embodiment":
+        if (beat.kind === "action" && !has(/chooses|chooses|takes|does|adds|moves|acts/)) {
+          return "The participant makes a concrete move, and the situation responds.";
+        }
+        break;
+
+      case "consequence":
+      case "reciprocity":
+        if (beat.kind === "feedback" && !has(/result|respond|changes|because|follows/)) {
+          return "The result of the previous move appears and changes the next condition.";
+        }
+        break;
+
+      case "ownership":
+        if ((beat.kind === "milestone" || beat.kind === "payoff") && !has(/mine|own|belongs|keep|claim|take home|possess/)) {
+          return "The result is now identified as something the participant can keep.";
+        }
+        break;
+
+      case "continuation":
+        if (beat.kind === "continuation" && !has(/saved|kept|remains|next|return|later|again/)) {
+          return "Something from this moment remains available for whoever returns next.";
+        }
+        break;
+
+      default:
+        break;
     }
   }
 
   return undefined;
 }
 
-/** Remove escaped semantic-control prose while preserving concrete details. */
 export function guardCognitiveBeatText(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
@@ -154,27 +224,22 @@ export function guardCognitiveBeatText(
   const original = sentence(beat.text);
   let stripped = stripAbstract(original);
 
-  // If the escaped directive was the whole sentence, replace it with an
-  // observable operation rather than returning empty prose.
   if (!stripped || stillAbstract(stripped)) {
     stripped = concreteFallback(beat, plan);
   }
 
-  // Escaped cognitive directives can contain useful structure but not useful
-  // presentation language. Replace the directive itself with an experiential
-  // expression instead of allowing it to survive verbatim.
-  const pressure = mechanicExpression(beat, plan, stripped);
+  const pressure = pressureExpression(beat, plan, stripped);
   if (pressure) {
     stripped = `${sentence(stripped)} ${pressure}`;
   }
 
-  // Escalation must be observable. A surviving abstract-looking escalation
-  // should still contain an unmistakable state movement.
+  // An escalation beat cannot pass merely because it contains the word
+  // "further". It must contain an observable addition or changed condition.
   if (
     beat.kind === "escalation" &&
-    !/\b(?:goes? further|further than before|excessive|ordinary|more|another|again)\b/i.test(stripped)
+    !/\b(?:another|again|more|larger|bigger|adds|added|new layer|changes the current|goes further)\b/i.test(stripped)
   ) {
-    stripped = `${sentence(stripped)} ${concreteFallback(beat, plan)}`;
+    stripped = `${sentence(stripped)} Another layer is added, forcing the next state beyond what came before.`;
   }
 
   return `${sentence(stripped)}.`;
