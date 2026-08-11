@@ -2,7 +2,6 @@ import "dotenv/config";
 
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { db } from "@qre/db";
 
 /** ROUTERS */
 import userRouter from "./routes/user.js";
@@ -85,5 +84,3 @@ const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
   console.log(`⚡ QRE API running on port ${PORT}`);
 });
-
-void db;
