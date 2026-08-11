@@ -24,12 +24,7 @@ export type CompiledExperienceResult = {
   geoStory: any;
   memorySnapshot: any;
   analytics: any;
-  memory?: {
-    entities: number;
-    facts: number;
-    relations: number;
-    events: number;
-  };
+  memory?: { entities: number; facts: number; relations: number; events: number };
   [key: string]: unknown;
 };
 
@@ -43,12 +38,7 @@ function semanticPlaces(compiled: any) {
   ];
 }
 
-function buildContextArtifacts(
-  prompt: string,
-  compiled: any,
-  assetId?: string,
-  sessionId?: string,
-) {
+function buildContextArtifacts(prompt: string, compiled: any, assetId?: string, sessionId?: string) {
   const entities = compiled.cognition?.entities ?? {};
   const entityValues = [
     ...(entities.people ?? []),
@@ -57,7 +47,6 @@ function buildContextArtifacts(
     ...(entities.products ?? []),
     ...(entities.organizations ?? []),
   ].filter((value: unknown): value is string => typeof value === "string");
-
   const themes = [
     ...(compiled.cognition?.emotionalIntent ?? []),
     ...(compiled.cognition?.affordances ?? []),
@@ -70,7 +59,6 @@ function buildContextArtifacts(
     title: compiled.title,
     summary: `Place and event context for ${compiled.title}.`,
   });
-
   const memorySnapshot = buildMemorySnapshot({
     assetId,
     sessionId,
@@ -82,14 +70,10 @@ function buildContextArtifacts(
     themes,
     source: "prompt",
   });
-
   return { geoStory, memorySnapshot };
 }
 
-/**
- * Compile a prompt against durable memory when an asset is supplied.
- * The returned artifact always carries memory, geo, and analytics context.
- */
+/** Compile a prompt against durable memory. Every response carries memory, geo, and analytics context. */
 export async function compileExperience(input: {
   prompt: string;
   assetId?: string;
@@ -101,16 +85,12 @@ export async function compileExperience(input: {
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
-    memoryContext = await input.memoryRepository.loadContext({
-      assetId: input.assetId,
-      userId: input.userId,
-    });
+    memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
   }
 
   const compiled = compileCognitiveExperience(prompt, {
     memories: memoryContext ? memoryContextToCompilerMemories(memoryContext) : [],
   });
-
   const artifacts = buildContextArtifacts(prompt, compiled, input.assetId);
   let analytics = buildExperienceAnalytics([], { assetId: input.assetId });
   let memoryCounts: CompiledExperienceResult["memory"];
@@ -123,7 +103,6 @@ export async function compileExperience(input: {
       plan: compiled.cognition.plan,
       source: "prompt",
     });
-
     await input.memoryRepository.writeBatch(batch);
     memoryCounts = {
       entities: batch.entities.length,
@@ -132,10 +111,33 @@ export async function compileExperience(input: {
       events: batch.events.length,
     };
 
-    analytics = await getExperienceAnalytics(
-      input.assetId,
-      createAnalyticsRepository(),
-    );
+    const analyticsRepository = createAnalyticsRepository();
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "EXPERIENCE_COMPILED",
+      meta: {
+        promptLength: prompt.length,
+        direction: compiled.cognition.plan.direction,
+      },
+    });
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "GEO_STORY_BUILT",
+      meta: {
+        mode: artifacts.geoStory.mode,
+        sceneCount: artifacts.geoStory.scenes.length,
+      },
+    });
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "MEMORY_SNAPSHOT_BUILT",
+      meta: {
+        memoryType: artifacts.memorySnapshot.type,
+        highlightCount: artifacts.memorySnapshot.highlights.length,
+      },
+    });
+
+    analytics = await getExperienceAnalytics(input.assetId, analyticsRepository);
   }
 
   return {
