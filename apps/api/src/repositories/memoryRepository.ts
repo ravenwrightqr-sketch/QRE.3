@@ -9,6 +9,7 @@ import type {
 } from "@qre/contracts";
 
 export type MemoryRepository = {
+  assertAccess(input: { assetId: string; userId: string }): Promise<void>;
   loadContext(input: { assetId: string; userId?: string }): Promise<MemoryContext>;
   writeBatch(batch: MemoryWriteBatch): Promise<void>;
 };
@@ -72,7 +73,42 @@ const mapEvent = (row: any) => ({
 
 export function createMemoryRepository(): MemoryRepository {
   return {
-    async loadContext({ assetId }) {
+    async assertAccess({ assetId, userId }) {
+      const asset = await db.asset.findUnique({
+        where: { id: assetId },
+        select: {
+          id: true,
+          ownerId: true,
+          accountId: true,
+          ownership: {
+            select: {
+              userId: true,
+              accountId: true,
+            },
+          },
+        },
+      });
+
+      if (!asset) throw new Error("Memory asset not found");
+      if (asset.ownerId === userId || asset.ownership?.userId === userId) return;
+
+      const accountId = asset.accountId ?? asset.ownership?.accountId;
+      if (accountId) {
+        const membership = await db.accountUser.findFirst({
+          where: { accountId, userId },
+          select: { id: true },
+        });
+        if (membership) return;
+      }
+
+      throw new Error("Memory access denied");
+    },
+
+    async loadContext({ assetId, userId }) {
+      if (userId) {
+        await this.assertAccess({ assetId, userId });
+      }
+
       const [entities, facts, relations, events] = await Promise.all([
         db.$queryRaw<any[]>(Prisma.sql`
           SELECT *
