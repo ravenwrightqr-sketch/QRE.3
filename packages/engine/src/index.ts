@@ -61,5 +61,4 @@ export type {
   GeoProofRecord,
   StoryDeliveryRepository,
   UserRepository,
-  StoryDeliveryRepository,
 } from "./repositories/index.js";
