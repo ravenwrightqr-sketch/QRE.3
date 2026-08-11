@@ -32,6 +32,11 @@ const FACT_KINDS: MemoryFactKind[] = [
   "context",
 ];
 
+function param(req: AuthRequest, name: string): string {
+  const value = req.params[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function bodyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
@@ -59,10 +64,8 @@ router.get("/:assetId", async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const context = await memory.loadContext({
-      assetId: req.params.assetId,
-      userId,
-    });
+    const assetId = param(req, "assetId");
+    const context = await memory.loadContext({ assetId, userId });
 
     return res.json(context);
   } catch (error) {
@@ -83,15 +86,13 @@ router.get("/:assetId/export", async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const context = await memory.loadContext({
-      assetId: req.params.assetId,
-      userId,
-    });
+    const assetId = param(req, "assetId");
+    const context = await memory.loadContext({ assetId, userId });
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="qre-memory-${req.params.assetId}.json"`,
+      `attachment; filename="qre-memory-${assetId}.json"`,
     );
     return res.json(context);
   } catch (error) {
@@ -123,9 +124,11 @@ router.post("/:assetId/facts/:factId/correct", async (req: AuthRequest, res: Res
       return res.status(400).json({ error: "invalid visibility" });
     }
 
+    const assetId = param(req, "assetId");
+    const factId = param(req, "factId");
     const result = await memory.correctFact({
-      assetId: req.params.assetId,
-      factId: req.params.factId,
+      assetId,
+      factId,
       userId,
       value,
       predicate: bodyString(req.body?.predicate),
@@ -174,9 +177,11 @@ router.patch("/:assetId/facts/:factId", async (req: AuthRequest, res: Response) 
       return res.status(400).json({ error: "invalid visibility" });
     }
 
+    const assetId = param(req, "assetId");
+    const factId = param(req, "factId");
     const result = await memory.setFactGovernance({
-      assetId: req.params.assetId,
-      factId: req.params.factId,
+      assetId,
+      factId,
       userId,
       status,
       visibility,
