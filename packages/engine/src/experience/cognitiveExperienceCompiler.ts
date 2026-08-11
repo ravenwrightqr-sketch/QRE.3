@@ -9,6 +9,7 @@ import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
 import { guardCognitiveStory } from "../cognition/cognitiveRealizationGuard.js";
+import { enrichCognitiveGeo } from "../cognition/geoCognition.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
@@ -18,7 +19,7 @@ import {
 /**
  * QRE COGNITIVE EXPERIENCE COMPILER
  *
- * PROMPT → COGNITION → PREMISE/EVIDENCE → SEMANTIC + CREATIVE REALIZATION
+ * PROMPT → COGNITION → GEO COGNITION → PREMISE/EVIDENCE → SEMANTIC + CREATIVE REALIZATION
  * → UNIVERSAL STORY COMPILATION → BLUEPRINT/FLOW/MOMENTS/SCENES
  *
  * There is one downstream structure authority and one canonical language
@@ -86,7 +87,7 @@ function mergeGenome(genome: ExperienceGenome, cognition: CognitiveExperienceSta
     ...genome,
     intent: [...new Set([...genome.intent, selected.kind, ...cognition.motivations.value])],
     archetypes: [...new Set([...genome.archetypes, selected.kind, ...cognition.hypotheses.map((item) => item.kind)])],
-    themes: [...new Set([...genome.themes, ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.interactionModel, ...cognition.plan.futureEvolution])],
+    themes: [...new Set([...genome.themes, ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.interactionModel, ...cognition.plan.futureEvolution, ...cognition.plan.geographicModel])],
     emotions: [...new Set([...genome.emotions, ...cognition.emotionalIntent])],
     memory: Math.max(genome.memory, selected.dimensions.memoryPotential),
     discovery: Math.max(genome.discovery, selected.dimensions.discoveryPotential),
@@ -108,6 +109,7 @@ function mergeGenome(genome: ExperienceGenome, cognition: CognitiveExperienceSta
       `hypothesis:${selected.kind}`,
       ...cognition.affordances.map((value) => `affordance:${value}`),
       ...cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
+      ...cognition.plan.geographicModel.map((value) => `geo:${value}`),
       ...(cognition.plan.realization?.semanticArc.map((value) => `arc:${value}`) ?? []),
     ])],
   };
@@ -120,7 +122,7 @@ function mergeBlueprint(blueprint: ExperienceBlueprint, cognition: CognitiveExpe
     metadata: {
       ...blueprint.metadata,
       archetypes: [...new Set([...(blueprint.metadata?.archetypes ?? []), cognition.selectedHypothesis.kind, ...cognition.hypotheses.slice(0, 3).map((item) => item.kind)])],
-      themes: [...new Set([...(blueprint.metadata?.themes ?? []), ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.futureEvolution, ...cognition.plan.creativePossibilities])],
+      themes: [...new Set([...(blueprint.metadata?.themes ?? []), ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.futureEvolution, ...cognition.plan.geographicModel, ...cognition.plan.creativePossibilities])],
       dna: [...new Set([...(blueprint.metadata?.dna ?? []), "evidence-aware", "hypothesis-driven", "cognitive-plan", "premise-conserved", "semantic-realization", "creative-realization", "adaptive-experience", "universal-compiler-substrate", ...cognition.assumptions.map(() => "assumption-explicit")])],
     },
   };
@@ -143,6 +145,7 @@ function directModel(compiled: CompiledStoryExperience, cognition: CognitiveExpe
         "universal-compiler-substrate",
         `selected:${cognition.selectedHypothesis.kind}`,
         `subject:${cognition.subject.value}`,
+        ...cognition.plan.geographicModel.map((value) => `geo:${value}`),
       ],
     },
   };
@@ -208,7 +211,6 @@ function grammaticalSubject(prompt: string): string | undefined {
   );
   if (imperative?.[1]) return imperative[1].trim();
 
-  // "Teach someone how to make sourdough" -> "sourdough".
   const instructional = text.match(
     /\b(?:make|cook|bake|build|create|design|draw|write)\s+(?:a|an|the)?\s*([^,.!?]+?)(?=\s+(?:for|with|using|at|in|on|today|tonight)\b|[,.!?]|$)/i,
   );
@@ -309,11 +311,10 @@ export function compileCognitiveExperience(
   prompt: string,
   context: StoryCompilerContext = {},
 ): CognitiveCompiledExperience {
+  const understood = respectExplicitNarrativeIntent(prompt, understandExperience(prompt, context));
+  const cognitionWithGeo = enrichCognitiveGeo(prompt, understood);
   const cognitionBase = canonicalizeCognition(
-    enrichConcreteSubjectEvidence(
-      prompt,
-      respectExplicitNarrativeIntent(prompt, understandExperience(prompt, context)),
-    ),
+    enrichConcreteSubjectEvidence(prompt, cognitionWithGeo),
   );
 
   const premise = buildCognitivePremise({
