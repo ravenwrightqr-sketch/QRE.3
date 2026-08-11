@@ -10,6 +10,7 @@ export type { Moment } from "@qre/contracts";
 export * from "./analytics/index.js";
 export { buildExperienceAnalytics, getExperienceAnalytics } from "./analytics/analyticsService.js";
 export { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
+export { buildExperienceContextArtifacts } from "./experience/contextArtifacts.js";
 export * from "./geo/geoMemoryLayer.js";
 export * from "./geo/geoStoryCompiler.js";
 export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
