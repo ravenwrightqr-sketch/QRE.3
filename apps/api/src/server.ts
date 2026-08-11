@@ -31,9 +31,25 @@ if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET is missing");
 }
 
+const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin(origin, callback) {
+      // Non-browser clients and direct QR requests do not send an Origin.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS origin denied"));
+    },
     credentials: true,
   }),
 );
