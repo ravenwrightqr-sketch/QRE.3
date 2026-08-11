@@ -27,6 +27,7 @@
     "test:mechanics": "tsx src/compiler/tests/cognitiveMechanicsAcceptance.ts",
     "test:trajectory": "tsx src/compiler/tests/cognitiveTrajectoryAcceptance.ts",
     "test:concrete-experience": "tsx src/compiler/tests/cognitiveConcreteExperienceAcceptance.ts",
-    "test:creative": "tsx src/compiler/tests/superCogCreativeAcceptance.ts"
+    "test:creative": "tsx src/compiler/tests/superCogCreativeAcceptance.ts",
+    "test:bodyguards": "tsx src/compiler/tests/superCogBodyguardsAcceptance.ts"
   }
 }
