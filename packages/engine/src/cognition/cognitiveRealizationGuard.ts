@@ -1,4 +1,5 @@
 import type { CognitiveExperiencePlan, StoryBeat, StoryBeatKind } from "@qre/contracts";
+import { inferExperienceMechanics, mechanicBrief } from "../experience/cognitiveMechanics.js";
 
 /**
  * FINAL REALIZATION BODYGUARD
@@ -11,28 +12,36 @@ import type { CognitiveExperiencePlan, StoryBeat, StoryBeatKind } from "@qre/con
  * not choose structure, invent domains, or replace the cognitive brain. It
  * only rejects semantic-control language that escaped into presentation and
  * restores a concrete beat-level expression when necessary.
+ *
+ * Mechanical forces are also given a final expressive pressure here. This is
+ * not a domain template: suspense becomes withheld/hidden/out-of-reach,
+ * excess becomes further-than-before, agency becomes choice, and ownership
+ * becomes possession. The language describes observable experience rather than
+ * explaining why the experience matters.
  */
 
 const ABSTRACT = [
-  /make .* matter(?: through| by| with)?[^.!?]*/gi,
-  /make .* meaningful(?: through| by| with)?[^.!?]*/gi,
-  /adapt to accumulated[^.!?]*/gi,
-  /adapt to .* history[^.!?]*/gi,
-  /allow participants to[^.!?]*/gi,
-  /let participants[^.!?]*/gi,
-  /enter living memory[^.!?]*/gi,
-  /affect shared state[^.!?]*/gi,
-  /change what can happen next[^.!?]*/gi,
-  /determine what happens next[^.!?]*/gi,
-  /carry .* into the present[^.!?]*/gi,
-  /recognize what .* means[^.!?]*/gi,
-  /create a reason to continue[^.!?]*/gi,
-  /the intended experiential result[^.!?]*/gi,
+  /make .* matter(?: through| by| with)?[^.!?]*/i,
+  /make .* meaningful(?: through| by| with)?[^.!?]*/i,
+  /adapt to accumulated[^.!?]*/i,
+  /adapt to .* history[^.!?]*/i,
+  /allow participants to[^.!?]*/i,
+  /let participants[^.!?]*/i,
+  /enter living memory[^.!?]*/i,
+  /affect shared state[^.!?]*/i,
+  /change what can happen next[^.!?]*/i,
+  /determine what happens next[^.!?]*/i,
+  /carry .* into the present[^.!?]*/i,
+  /recognize what .* means[^.!?]*/i,
+  /create a reason to continue[^.!?]*/i,
+  /the intended experiential result[^.!?]*/i,
+  /gets increasingly over the top/i,
+  /environment, interaction, and new memories can change what later visitors discover/i,
+  /new memories can change what later visitors discover/i,
 ];
 
 const clean = (value: string): string => value.replace(/\s+/g, " ").trim();
 const sentence = (value: string): string => clean(value).replace(/[.!?]+$/, "");
-const lower = (value: string): string => sentence(value).toLowerCase();
 const cap = (value: string): string => {
   const text = sentence(value);
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "The subject";
@@ -73,7 +82,68 @@ function concreteFallback(beat: StoryBeat, plan?: CognitiveExperiencePlan): stri
 }
 
 function stillAbstract(text: string): boolean {
-  return ABSTRACT.some((pattern) => pattern.test(text));
+  return ABSTRACT.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  });
+}
+
+function activeMechanics(plan?: CognitiveExperiencePlan): Set<string> {
+  return new Set(
+    mechanicBrief(
+      inferExperienceMechanics({
+        plan,
+        premise: plan?.premise,
+      }),
+    ),
+  );
+}
+
+function mechanicExpression(
+  beat: StoryBeat,
+  plan: CognitiveExperiencePlan | undefined,
+  text: string,
+): string | undefined {
+  const mechanics = activeMechanics(plan);
+  const lower = text.toLowerCase();
+
+  if (mechanics.has("suspense") || mechanics.has("uncertainty")) {
+    if (beat.kind === "threshold" && !/out of reach|withheld|hidden/.test(lower)) {
+      return "The threat stays out of reach.";
+    }
+    if (beat.kind === "encounter" && !/out of reach|withheld|hidden/.test(lower)) {
+      return "Something remains just beyond sight.";
+    }
+    if (beat.kind === "reveal" && !/out of reach|withheld|hidden/.test(lower)) {
+      return "The crucial detail is still hidden.";
+    }
+  }
+
+  if (mechanics.has("excess") || mechanics.has("escalation")) {
+    if (beat.kind === "escalation" && !/goes further|excessive|ordinary|more|another|again/.test(lower)) {
+      return "It goes further than before.";
+    }
+    if (beat.kind === "encounter" && mechanics.has("excess") && !/luxur|extravag|lavish|opulent|excessive/.test(lower)) {
+      return "The next detail is more extravagant than necessary.";
+    }
+  }
+
+  if (mechanics.has("agency")) {
+    if (beat.kind === "action" && !/choose|choice|chosen|select|decide/.test(lower)) {
+      return "The participant chooses the move.";
+    }
+    if (beat.kind === "feedback" && !/respond|response|choice|chosen/.test(lower)) {
+      return "The experience responds to that choice.";
+    }
+  }
+
+  if (mechanics.has("ownership")) {
+    if ((beat.kind === "milestone" || beat.kind === "payoff") && !/mine|own|belongs|keep|claim|take home|possess/.test(lower)) {
+      return "The participant can keep what was earned.";
+    }
+  }
+
+  return undefined;
 }
 
 /** Remove escaped semantic-control prose while preserving concrete details. */
@@ -82,12 +152,20 @@ export function guardCognitiveBeatText(
   plan?: CognitiveExperiencePlan,
 ): string {
   const original = sentence(beat.text);
-  const stripped = stripAbstract(original);
+  let stripped = stripAbstract(original);
 
   // If the escaped directive was the whole sentence, replace it with an
   // observable operation rather than returning empty prose.
   if (!stripped || stillAbstract(stripped)) {
-    return `${concreteFallback(beat, plan)}.`;
+    stripped = concreteFallback(beat, plan);
+  }
+
+  // Escaped cognitive directives can contain useful structure but not useful
+  // presentation language. Replace the directive itself with an experiential
+  // expression instead of allowing it to survive verbatim.
+  const pressure = mechanicExpression(beat, plan, stripped);
+  if (pressure) {
+    stripped = `${sentence(stripped)} ${pressure}`;
   }
 
   // Escalation must be observable. A surviving abstract-looking escalation
@@ -96,10 +174,10 @@ export function guardCognitiveBeatText(
     beat.kind === "escalation" &&
     !/\b(?:goes? further|further than before|excessive|ordinary|more|another|again)\b/i.test(stripped)
   ) {
-    return `${stripped}. ${concreteFallback(beat, plan)}.`;
+    stripped = `${sentence(stripped)} ${concreteFallback(beat, plan)}`;
   }
 
-  return `${stripped}.`;
+  return `${sentence(stripped)}.`;
 }
 
 export function guardCognitiveStory(
