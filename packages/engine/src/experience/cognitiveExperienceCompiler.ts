@@ -8,6 +8,7 @@ import type {
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
+import { guardCognitiveStory } from "../cognition/cognitiveRealizationGuard.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
@@ -231,8 +232,9 @@ function looksLikeInstructionSubject(value: string): boolean {
 function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
   const candidate = grammaticalSubject(prompt);
   const current = cognition.subject.value.trim();
+  const currentLooksMalformed = /^n\b/i.test(current);
 
-  if (!candidate || (current && !looksLikeInstructionSubject(current))) return cognition;
+  if (!candidate || (!currentLooksMalformed && current && !looksLikeInstructionSubject(current))) return cognition;
 
   const existingEvidence = cognition.subject.evidence ?? [];
   const alreadyObserved = existingEvidence.some(
@@ -299,7 +301,15 @@ export function compileCognitiveExperience(
     cognitivePlan: cognition.plan,
   });
 
-  const realized = propagateCanonicalLanguage(compiled);
+  const guarded = {
+    ...compiled,
+    story: {
+      ...compiled.story,
+      beats: guardCognitiveStory(compiled.story.beats, cognition.plan),
+    },
+  };
+
+  const realized = propagateCanonicalLanguage(guarded);
 
   return {
     ...realized,
