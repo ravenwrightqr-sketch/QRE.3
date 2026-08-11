@@ -40,6 +40,12 @@ export {
   eventRealizationHint,
 } from "./experience/eventWorld.js";
 
+/** Governed long-term memory compilation. */
+export {
+  buildMemoryWriteBatch,
+  memoryContextToCompilerMemories,
+} from "./memory/memoryCompiler.js";
+
 /** Canonical cognition → experience compiler. */
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
