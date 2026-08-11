@@ -16,6 +16,7 @@ export type SemanticGeoPlace = {
   timestamp?: string;
   evidence?: string[];
   intensity?: number;
+  meta?: Record<string, unknown>;
 };
 
 export function buildGeoStory(
@@ -146,12 +147,16 @@ function buildSemanticScenes(places: SemanticGeoPlace[]): GeoStoryScene[] {
     id: `semantic-place-${index + 1}`,
     type: index === 0 ? "memory_place" : "semantic_place",
     title: place.label,
-    description: `Place context: ${place.label}${place.kind ? ` (${place.kind})` : ""}.`,
+    description: place.kind === "route"
+      ? `Route context: ${place.label}.`
+      : place.kind === "distance"
+        ? `Travel distance: ${place.label}.`
+        : `Place context: ${place.label}${place.kind ? ` (${place.kind})` : ""}.`,
     timestamp: place.timestamp ?? new Date().toISOString(),
     intensity: Math.max(0, Math.min(1, place.intensity ?? 0.65)),
     evidenceMode: "semantic",
     evidence: place.evidence ?? [place.label],
-    meta: { kind: place.kind, semanticOnly: true },
+    meta: { kind: place.kind, semanticOnly: true, ...place.meta },
   }));
 }
 
