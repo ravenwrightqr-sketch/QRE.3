@@ -102,23 +102,40 @@ function pressuresFor(
  * the prompt/context. This is the final realization bridge for cases where a
  * mechanic needs a particular concrete property to remain visible.
  *
- * It deliberately returns evidence, not a domain template. If the prompt says
- * "threat" and "dangerous", suspense can preserve those words. If another
- * prompt says "risk" and "deadly", the same mechanism can preserve those
- * instead.
+ * Evidence may be conserved either in premise slots or directly on the
+ * realization directives. The latter matters when cognition has correctly
+ * understood a concrete prompt fact but the premise extractor has not placed
+ * that fact into a named role. We still require explicit prompt provenance;
+ * realization never promotes an invented value into user evidence.
  */
 function conservedEvidence(
   plan: CognitiveExperiencePlan | undefined,
   patterns: RegExp[],
 ): string[] {
-  if (!plan?.premise) return [];
+  if (!plan) return [];
 
-  return plan.premise.slots
-    .filter((slot) => slot.evidence.some((item) => item.source === "prompt"))
-    .flatMap((slot) => slot.values)
+  const details = [
+    ...(plan.premise?.slots.flatMap((slot) =>
+      slot.evidence
+        .filter((item) => item.source === "prompt")
+        .map((item) => item.detail),
+    ) ?? []),
+    ...(plan.realization?.directives.flatMap((directive) =>
+      directive.evidence
+        .filter((item) => item.source === "prompt")
+        .map((item) => item.detail),
+    ) ?? []),
+    ...(plan.premise?.slots
+      .filter((slot) => slot.evidence.some((item) => item.source === "prompt"))
+      .flatMap((slot) => slot.values) ?? []),
+  ];
+
+  return details
     .map(sentence)
     .filter(Boolean)
-    .filter((value, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === value.toLowerCase()) === index)
+    .filter((value, index, all) =>
+      all.findIndex((candidate) => candidate.toLowerCase() === value.toLowerCase()) === index,
+    )
     .filter((value) => patterns.some((pattern) => pattern.test(value)));
 }
 
@@ -162,13 +179,6 @@ function suspenseEvidenceExpression(
   return undefined;
 }
 
-/**
- * Convert behavioral pressure into observable presentation.
- *
- * This is mechanic-driven rather than domain-driven. The language is a
- * witness to the state change; it is never a restatement of the mechanic name
- * or its semantic purpose.
- */
 function pressureExpression(
   beat: StoryBeat,
   plan: CognitiveExperiencePlan | undefined,
@@ -305,8 +315,6 @@ export function guardCognitiveBeatText(
     stripped = `${sentence(stripped)} ${pressure}`;
   }
 
-  // An escalation beat cannot pass merely because it contains the word
-  // "further". It must contain an observable addition or changed condition.
   if (
     beat.kind === "escalation" &&
     !/\b(?:another|again|more|larger|bigger|adds|added|new layer|changes the current|goes further)\b/i.test(stripped)
