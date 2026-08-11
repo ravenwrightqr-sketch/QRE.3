@@ -117,6 +117,7 @@ function entitiesForPlan(assetId: string, plan: CognitiveExperiencePlan) {
 }
 
 function factWrites(
+  assetId: string,
   plan: CognitiveExperiencePlan,
   source: MemorySource,
   observedAt: string,
@@ -132,7 +133,7 @@ function factWrites(
       const cleanValue = clean(value);
       if (!cleanValue) continue;
       const entityId = stableId(
-        "pending",
+        assetId,
         ROLE_KIND[slot.role] ?? "other",
         cleanValue,
       );
@@ -204,10 +205,7 @@ export function buildMemoryWriteBatch(input: {
   const observedAt = input.observedAt ?? new Date().toISOString();
   const source = input.source ?? "prompt";
   const entities = entitiesForPlan(input.assetId, input.plan);
-  const facts = factWrites(input.plan, source, observedAt, input.sessionId).map((fact) => ({
-    ...fact,
-    entityId: fact.entityId?.replace(/^mem_/, "mem_"),
-  }));
+  const facts = factWrites(input.assetId, input.plan, source, observedAt, input.sessionId);
   const relations = relationWrites(input.assetId, input.plan, source, observedAt, input.sessionId);
 
   const event: MemoryEventWrite = {
