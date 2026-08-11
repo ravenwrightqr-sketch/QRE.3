@@ -8,20 +8,15 @@ export { createPaymentLink } from "./payments.js";
 export type { Moment } from "@qre/contracts";
 
 export * from "./analytics/index.js";
+export { buildExperienceAnalytics, getExperienceAnalytics } from "./analytics/analyticsService.js";
+export { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
 export * from "./geo/geoMemoryLayer.js";
 export * from "./geo/geoStoryCompiler.js";
 export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
-/** Compatibility prompt compiler boundary. */
-export {
-  compileExperienceGenome,
-  genomeCompiler,
-  experienceCompiler,
-} from "./experience/genomeCompiler.js";
-
-/** Universal creative compiler. */
+export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
 export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
 export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
 export type {
@@ -33,21 +28,18 @@ export type {
   CompiledStoryExperience,
 } from "./experience/universalStoryCompiler.js";
 
-/** Cognitive event-world realization boundary. */
 export {
   buildExperienceEvent,
   buildExperienceEventWorld,
   eventRealizationHint,
 } from "./experience/eventWorld.js";
 
-/** Governed long-term memory compilation. */
 export {
   buildMemoryWriteBatch,
   buildScanMemoryBatch,
   memoryContextToCompilerMemories,
 } from "./memory/memoryCompiler.js";
 
-/** Canonical cognition → experience compiler. */
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
 
@@ -69,4 +61,5 @@ export type {
   GeoProofRecord,
   StoryDeliveryRepository,
   UserRepository,
+  StoryDeliveryRepository,
 } from "./repositories/index.js";
