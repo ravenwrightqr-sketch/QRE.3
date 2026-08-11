@@ -58,6 +58,9 @@ jobs:
       - name: Premise realization acceptance
         run: pnpm --filter @qre/engine test:realization
 
+      - name: Semantic realization acceptance
+        run: pnpm --filter @qre/engine test:semantic-realization
+
       - name: Super Cog premise acceptance
         run: pnpm --filter @qre/engine test:super-cog
 
