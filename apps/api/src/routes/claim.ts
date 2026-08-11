@@ -5,9 +5,7 @@ import {
   type AuthRequest,
 } from "../middleware/requireAuth.js";
 
-
 const router = express.Router();
-
 
 /**
  * =====================================================
@@ -16,256 +14,118 @@ const router = express.Router();
  *
  * Inventory assignment boundary.
  *
+ * A user may belong to multiple accounts, so accountId is required when the
+ * membership set is ambiguous. OWNER/ADMIN membership is required because
+ * claiming inventory changes tenant ownership/control.
  *
- * DOES:
- *
- * ✅ Resolve user's account membership
- * ✅ Attach unassigned Asset to Account
- *
- *
- * DOES NOT:
- *
- * ❌ Unlock payment
- * ❌ Mark paid
- * ❌ Create Ownership
- * ❌ Handle Stripe
- *
- *
- * PAYMENT TRUTH:
- *
- * Stripe
- *    |
- *    v
- * unlockAsset()
- *    |
- *    v
- * Ownership
- *
- *
- * Asset control:
- *
- * AccountUser
- *    |
- *    v
- * Account
- *    |
- *    v
- * Asset.accountId
- *
+ * This does not create paid ownership. Stripe/payment remains separate.
  * =====================================================
  */
-
 
 router.post(
   "/:slug",
   requireAuth,
-  async(
-    req: AuthRequest,
-    res
-  )=>{
+  async (req: AuthRequest, res) => {
+    try {
+      const slug = Array.isArray(req.params.slug)
+        ? req.params.slug[0]
+        : req.params.slug;
+      const userId = req.user?.userId;
+      const requestedAccountId =
+        typeof req.body?.accountId === "string"
+          ? req.body.accountId.trim()
+          : "";
 
-    try{
-
-
-      const slug =
-        Array.isArray(req.params.slug)
-          ? req.params.slug[0]
-          : req.params.slug;
-
-
-
-      const userId =
-        req.user?.userId;
-
-
-
-      if(
-        !slug ||
-        !userId
-      ){
-
+      if (!slug || !userId) {
         return res.status(400).json({
-
-          error:
-            "slug and authentication required",
-
+          error: "slug and authentication required",
         });
-
       }
 
-
-
-      /**
-       * Resolve account access
-       */
-
-      const membership =
-        await db.accountUser.findFirst({
-
-          where:{
-
-            userId,
-
-            role:{
-
-              in:[
-
-                "OWNER",
-                "ADMIN",
-
-              ],
-
-            },
-
+      const memberships = await db.accountUser.findMany({
+        where: {
+          userId,
+          role: {
+            in: ["OWNER", "ADMIN"],
           },
+        },
+        select: {
+          accountId: true,
+          role: true,
+        },
+        orderBy: {
+          accountId: "asc",
+        },
+      });
 
-          select:{
-
-            accountId:true,
-
-          },
-
-        });
-
-
-
-      if(!membership){
-
+      if (memberships.length === 0) {
         return res.status(403).json({
-
-          error:
-            "No account permission",
-
+          error: "No account permission",
         });
-
       }
 
+      const membership = requestedAccountId
+        ? memberships.find((item) => item.accountId === requestedAccountId)
+        : memberships.length === 1
+          ? memberships[0]
+          : undefined;
 
-
-      const accountId =
-        membership.accountId;
-
-
-
-      /**
-       * Assign asset to account
-       *
-       * No ownership creation.
-       */
-
-      const asset =
-        await db.asset.findUnique({
-
-          where:{
-
-            slug,
-
-          },
-
-          select:{
-
-            id:true,
-
-            accountId:true,
-
-          },
-
-        });
-
-
-
-      if(!asset){
-
-        return res.status(404).json({
-
-          error:
-            "Asset not found",
-
-        });
-
-      }
-
-
-
-      if(asset.accountId){
+      if (!membership) {
+        if (requestedAccountId) {
+          return res.status(403).json({
+            error: "User does not have claim permission for the requested account",
+          });
+        }
 
         return res.status(409).json({
-
-          error:
-            "Asset already assigned",
-
+          error: "Account selection required",
+          accounts: memberships.map((item) => ({
+            accountId: item.accountId,
+            role: item.role,
+          })),
         });
-
       }
 
+      const accountId = membership.accountId;
 
+      const asset = await db.asset.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          accountId: true,
+        },
+      });
 
-      const updated =
-        await db.asset.update({
-
-          where:{
-
-            id:
-              asset.id,
-
-          },
-
-
-          data:{
-
-            accountId,
-
-
-          },
-
-
+      if (!asset) {
+        return res.status(404).json({
+          error: "Asset not found",
         });
+      }
 
+      if (asset.accountId) {
+        return res.status(409).json({
+          error: "Asset already assigned",
+        });
+      }
 
+      const updated = await db.asset.update({
+        where: { id: asset.id },
+        data: { accountId },
+      });
 
       return res.json({
-
-        success:true,
-
-
-        assetId:
-          updated.id,
-
-
-        accountId:
-          updated.accountId,
-
-
+        success: true,
+        assetId: updated.id,
+        accountId: updated.accountId,
       });
-
-
-
-    }
-    catch(error:any){
-
-
-      console.error(
-
-        "[ASSET CLAIM FAILED]",
-
-        error
-
-      );
-
+    } catch (error: any) {
+      console.error("[ASSET CLAIM FAILED]", error);
 
       return res.status(500).json({
-
-        error:
-          "Claim failed",
-
+        error: "Claim failed",
       });
-
-
     }
-
-  }
-
+  },
 );
-
 
 export default router;
