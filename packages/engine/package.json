@@ -31,6 +31,7 @@
     "test:bodyguards": "tsx src/compiler/tests/superCogBodyguardsAcceptance.ts",
     "test:event-realization": "tsx src/compiler/tests/cognitiveEventRealizationAcceptance.ts",
     "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts",
-    "test:context-artifacts": "tsx src/compiler/tests/contextArtifactsAcceptance.ts"
+    "test:context-artifacts": "tsx src/compiler/tests/contextArtifactsAcceptance.ts",
+    "test:geo-cognition": "tsx src/compiler/tests/geoCognitionAcceptance.ts"
   }
 }
