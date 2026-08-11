@@ -15,6 +15,7 @@
  *   cognitive understanding
  *       -> experiential mechanics
  *       -> causal operations
+ *       -> observable event pressure
  *       -> concrete realization
  *
  * The trajectory is deliberately variable. It composes primitive story
@@ -39,9 +40,18 @@ import {
   type MechanicSignal,
 } from "./cognitiveMechanics.js";
 
+export type CognitiveEventPressure = {
+  mechanic: ExperienceMechanic;
+  beat: StoryBeatKind;
+  force: string;
+  observableChange: string;
+  causalRequirement: string;
+};
+
 export type CognitiveTrajectory = {
   beats: StoryBeatKind[];
   mechanics: MechanicSignal[];
+  eventPressure: CognitiveEventPressure[];
   score: number;
   rationale: string[];
 };
@@ -52,14 +62,6 @@ type MechanicRule = {
   weight: number;
 };
 
-/**
- * Mechanical forces -> primitive experiential operations.
- *
- * These are not genre templates. A single prompt can activate many forces and
- * therefore compose a different trajectory from another prompt using the same
- * nouns. The weights express how strongly a covered operation supports the
- * corresponding mechanic; they are not domain preferences.
- */
 const RULES: MechanicRule[] = [
   { mechanic: "anticipation", operations: ["hook", "threshold"], weight: 1.25 },
   { mechanic: "uncertainty", operations: ["threshold", "encounter", "reveal"], weight: 1.4 },
@@ -110,11 +112,249 @@ const RULES: MechanicRule[] = [
 ];
 
 /**
- * StoryBeatKind is intentionally finite in the shared contract. Vocabulary
- * terms therefore compose through existing primitives rather than inventing a
- * parallel private beat taxonomy. Keep this table explicit so a vocabulary
- * addition cannot silently disappear from trajectory generation.
+ * A mechanic is a behavioral constraint, not a prose adjective.
+ *
+ * These pressures deliberately describe what must change in the world. They
+ * contain no domain nouns and therefore remain reusable across dogs, weddings,
+ * cars, businesses, memories, horror, luxury, and arbitrary future prompts.
  */
+const PRESSURE: Record<ExperienceMechanic, {
+  force: string;
+  observableChange: string;
+  causalRequirement: string;
+}> = {
+  anticipation: {
+    force: "build expectation",
+    observableChange: "something approaches or becomes imminent",
+    causalRequirement: "the next beat must provide evidence that the expected event is getting closer",
+  },
+  uncertainty: {
+    force: "withhold certainty",
+    observableChange: "important information remains unavailable or ambiguous",
+    causalRequirement: "the next beat must preserve an unresolved question until evidence changes it",
+  },
+  suspense: {
+    force: "delay resolution under pressure",
+    observableChange: "a threat, risk, or unknown condition becomes harder to ignore",
+    causalRequirement: "each beat must increase what is at stake or reduce safe options before release",
+  },
+  discovery: {
+    force: "reveal a previously unavailable layer",
+    observableChange: "new information changes the current situation",
+    causalRequirement: "a concrete clue, object, action, or observation must cause the new knowledge",
+  },
+  surprise: {
+    force: "break the immediate expectation",
+    observableChange: "an unexpected but defensible condition appears",
+    causalRequirement: "the turn must be caused by evidence already available in the experience",
+  },
+  reversal: {
+    force: "change the meaning or direction of the current state",
+    observableChange: "what seemed true no longer governs the situation",
+    causalRequirement: "a new fact or consequence must force the reversal",
+  },
+  participation: {
+    force: "require an action from a participant",
+    observableChange: "the participant's action changes available state",
+    causalRequirement: "a visible response must follow the participant's action",
+  },
+  agency: {
+    force: "make choice consequential",
+    observableChange: "different choices produce different immediate conditions",
+    causalRequirement: "the world must visibly respond to the chosen action",
+  },
+  consequence: {
+    force: "make action matter through result",
+    observableChange: "an earlier action produces a later condition",
+    causalRequirement: "the later state must be traceable to the earlier action",
+  },
+  competition: {
+    force: "create comparative pressure",
+    observableChange: "one attempt must answer or exceed another",
+    causalRequirement: "the next attempt must respond to the current benchmark",
+  },
+  mastery: {
+    force: "increase capability through feedback",
+    observableChange: "performance improves or clears a harder threshold",
+    causalRequirement: "feedback from the previous attempt must affect the next attempt",
+  },
+  contribution: {
+    force: "let an addition alter the shared result",
+    observableChange: "a new contribution becomes part of the available state",
+    causalRequirement: "later beats must contain evidence of what was added",
+  },
+  authorship: {
+    force: "make the participant's creation identifiable",
+    observableChange: "the result bears evidence of who shaped it",
+    causalRequirement: "the authored change must persist into a later beat",
+  },
+  reciprocity: {
+    force: "make interaction produce a response",
+    observableChange: "one side responds to what the other did",
+    causalRequirement: "the response must reference or alter the preceding action",
+  },
+  accumulation: {
+    force: "stack additions over time",
+    observableChange: "the current state contains more than it did before",
+    causalRequirement: "each addition must remain available to affect a later state",
+  },
+  momentum: {
+    force: "make the current state propel the next event",
+    observableChange: "one event creates pressure for another",
+    causalRequirement: "the next beat must follow from the changed current state",
+  },
+  escalation: {
+    force: "increase the magnitude or consequence of the current condition",
+    observableChange: "the next condition exceeds the previous condition",
+    causalRequirement: "the next event must be measurably more consequential, elaborate, intense, or extreme than what preceded it",
+  },
+  transformation: {
+    force: "change the subject or situation",
+    observableChange: "the before-state and after-state are visibly different",
+    causalRequirement: "the change must result from events that occurred in the trajectory",
+  },
+  contrast: {
+    force: "make the difference between states visible",
+    observableChange: "two conditions are placed against each other",
+    causalRequirement: "the later condition must make the earlier condition legible by comparison",
+  },
+  reveal: {
+    force: "make hidden information visible",
+    observableChange: "a previously hidden detail becomes available",
+    causalRequirement: "the reveal must expose a concrete detail rather than explain its significance",
+  },
+  memory: {
+    force: "let prior evidence alter the present",
+    observableChange: "a remembered detail appears and changes what happens now",
+    causalRequirement: "the present beat must contain a concrete trace of the prior memory",
+  },
+  ritual: {
+    force: "repeat a recognizable meaningful action",
+    observableChange: "a recurring action is performed again or completed",
+    causalRequirement: "the repeated action must visibly connect this occurrence to earlier or later occurrences",
+  },
+  continuation: {
+    force: "leave the current state available for another interaction",
+    observableChange: "something from this experience remains available afterward",
+    causalRequirement: "a later interaction must have something concrete to pick up or change",
+  },
+  adaptation: {
+    force: "change the next action in response to current state",
+    observableChange: "the next behavior differs because of what just happened",
+    causalRequirement: "the preceding result must be identifiable as the reason for the adaptation",
+  },
+  pampering: {
+    force: "increase care delivered to the subject",
+    observableChange: "the subject receives another concrete layer of care",
+    causalRequirement: "each care action must produce a visible condition that permits the next one",
+  },
+  indulgence: {
+    force: "add optional luxury beyond necessity",
+    observableChange: "the experience gains an unnecessary but desirable layer",
+    causalRequirement: "the next indulgence must build on the current level rather than merely rename it",
+  },
+  excess: {
+    force: "push beyond ordinary sufficiency",
+    observableChange: "the result becomes conspicuously more elaborate than necessary",
+    causalRequirement: "the excess must be visible in an added action, object, scale, or consequence",
+  },
+  spectacle: {
+    force: "make the event increasingly visible or impressive",
+    observableChange: "more people, scale, motion, or visual consequence enters the scene",
+    causalRequirement: "the spectacle must grow from what has already happened",
+  },
+  delight: {
+    force: "produce an unexpectedly satisfying response",
+    observableChange: "the subject or participant reacts positively to a concrete turn",
+    causalRequirement: "the response must be caused by the preceding event",
+  },
+  euphoria: {
+    force: "build toward an intensified positive peak",
+    observableChange: "energy and response visibly rise toward a peak",
+    causalRequirement: "each escalation must increase observable participation or intensity",
+  },
+  celebration: {
+    force: "mark an achieved or shared occasion",
+    observableChange: "people perform a recognizable celebratory act",
+    causalRequirement: "the celebration must follow a concrete achievement or occasion",
+  },
+  prestige: {
+    force: "increase perceived status or exclusivity",
+    observableChange: "access, treatment, setting, or recognition becomes more exclusive",
+    causalRequirement: "the elevated status must be shown through changed treatment or access",
+  },
+  novelty: {
+    force: "introduce something not previously encountered",
+    observableChange: "a genuinely new element enters the situation",
+    causalRequirement: "the new element must alter attention or available action",
+  },
+  curation: {
+    force: "select among available elements deliberately",
+    observableChange: "one chosen element changes what follows",
+    causalRequirement: "the selection must constrain or shape the next event",
+  },
+  scarcity: {
+    force: "limit availability",
+    observableChange: "access becomes narrower or time becomes more constrained",
+    causalRequirement: "the limitation must affect the next available choice",
+  },
+  recognition: {
+    force: "identify a person or contribution as significant",
+    observableChange: "the subject receives explicit acknowledgment",
+    causalRequirement: "the recognition must be tied to a concrete contribution or history",
+  },
+  ownership: {
+    force: "transfer or affirm possession",
+    observableChange: "something becomes identifiable as belonging to someone",
+    causalRequirement: "the ownership state must persist into a later beat",
+  },
+  legacy: {
+    force: "carry a concrete contribution forward",
+    observableChange: "something created or remembered remains available after the original moment",
+    causalRequirement: "the later state must contain evidence of what was carried forward",
+  },
+  resonance: {
+    force: "connect the current event to another meaningful state",
+    observableChange: "a detail from one state changes how another state is perceived",
+    causalRequirement: "the connection must be shown through a concrete shared detail",
+  },
+  intimacy: {
+    force: "narrow attention toward a personal exchange",
+    observableChange: "the interaction becomes more specific to the people involved",
+    causalRequirement: "a personal detail or response must affect the next beat",
+  },
+  catharsis: {
+    force: "release accumulated emotional pressure",
+    observableChange: "a held tension breaks into an observable response or action",
+    causalRequirement: "the release must follow the pressure built earlier",
+  },
+  relief: {
+    force: "remove a previously active burden or threat",
+    observableChange: "a constrained state becomes easier or safer",
+    causalRequirement: "the relief must be caused by the resolution of the earlier problem",
+  },
+  wonder: {
+    force: "expand perceived possibility through discovery",
+    observableChange: "a newly revealed condition is more remarkable than expected",
+    causalRequirement: "the remarkable turn must come from a concrete discovery",
+  },
+  awe: {
+    force: "increase scale beyond ordinary expectation",
+    observableChange: "size, intensity, beauty, or consequence becomes visibly greater",
+    causalRequirement: "the increased scale must be shown through a changed scene state",
+  },
+  embodiment: {
+    force: "make the participant physically or behaviorally enact the experience",
+    observableChange: "the participant performs an action rather than only observing",
+    causalRequirement: "the performed action must alter the next available state",
+  },
+  immersion: {
+    force: "increase environmental involvement",
+    observableChange: "more of the surrounding world becomes active in the experience",
+    causalRequirement: "the added environment must affect attention or action",
+  },
+};
+
 const PHASE: Record<StoryBeatKind, number> = {
   orientation: 10,
   hook: 15,
@@ -156,6 +396,32 @@ function ruleFor(mechanic: ExperienceMechanic): MechanicRule | undefined {
   return RULES.find((candidate) => candidate.mechanic === mechanic);
 }
 
+function deriveEventPressure(
+  beats: StoryBeatKind[],
+  signals: MechanicSignal[],
+): CognitiveEventPressure[] {
+  const pressures: CognitiveEventPressure[] = [];
+
+  for (const signal of activeSignals(signals)) {
+    const rule = ruleFor(signal.mechanic);
+    const pressure = PRESSURE[signal.mechanic];
+    if (!rule || !pressure) continue;
+
+    for (const beat of rule.operations) {
+      if (!beats.includes(beat)) continue;
+      pressures.push({
+        mechanic: signal.mechanic,
+        beat,
+        force: pressure.force,
+        observableChange: pressure.observableChange,
+        causalRequirement: pressure.causalRequirement,
+      });
+    }
+  }
+
+  return pressures;
+}
+
 function deriveOperations(
   signals: MechanicSignal[],
   plan?: CognitiveExperiencePlan,
@@ -169,26 +435,16 @@ function deriveOperations(
     operations.push(...rule.operations);
   }
 
-  /*
-   * Cognitive realization directives are semantic commitments, not a canned
-   * story template. Mechanics may derive additional operations, but they may
-   * never erase an operation cognition explicitly decided must occur.
-   */
   operations.push(
     ...(plan?.realization?.directives?.map((directive) => directive.kind) ?? []),
   );
 
-  /* Causal floor: every trajectory needs an experiential entry point. */
   if (!operations.some((beat) =>
     ["orientation", "hook", "threshold", "origin"].includes(beat),
   )) {
     operations.unshift("orientation");
   }
 
-  /*
-   * If escalation is active without a grounded interaction, give it a concrete
-   * state to act upon. This is a causal safeguard, not a genre insertion.
-   */
   if (
     operations.includes("escalation") &&
     !operations.some((beat) => ["encounter", "action", "challenge", "contribution"].includes(beat))
@@ -196,7 +452,6 @@ function deriveOperations(
     operations.push("encounter");
   }
 
-  /* Every meaningful trajectory needs a state-changing middle. */
   if (!operations.some((beat) =>
     [
       "encounter",
@@ -211,7 +466,6 @@ function deriveOperations(
     operations.push("encounter");
   }
 
-  /* Resolve unless cognition explicitly describes an open-ended continuation. */
   if (!operations.includes("payoff")) {
     operations.push("payoff");
   }
@@ -243,22 +497,15 @@ function scoreTrajectory(
   }
 
   if (beats.includes("payoff")) score += 0.75;
-
-  /*
-   * Reward enough structural room for an actual experience without imposing a
-   * seven-beat template. Rich prompts may legitimately produce many operations.
-   */
   if (beats.length >= 4) score += 0.35;
   if (beats.length >= 4 && beats.length <= 12) score += 0.25;
 
-  /* Reward causal development rather than a pile of disconnected beats. */
   for (let index = 1; index < beats.length; index += 1) {
     if (PHASE[beats[index]] > PHASE[beats[index - 1]]) {
       score += 0.08;
     }
   }
 
-  /* Reward an actual interaction -> feedback -> state-change chain. */
   if (
     beats.includes("action") &&
     beats.includes("feedback") &&
@@ -279,16 +526,6 @@ function rationale(
   );
 }
 
-/**
- * Derive narrative structure from experiential mechanics.
- *
- * This is intentionally downstream of cognition and upstream of language.
- * The compiler asks what behavioral forces are present, what operations those
- * forces require, and what sequence lets those operations causally unfold.
- *
- * Novel domains are therefore handled through combinations of mechanics rather
- * than domain-specific templates.
- */
 export function composeCognitiveTrajectory(args: {
   plan?: CognitiveExperiencePlan;
   prompt?: string;
@@ -304,6 +541,7 @@ export function composeCognitiveTrajectory(args: {
   return {
     beats,
     mechanics,
+    eventPressure: deriveEventPressure(beats, mechanics),
     score: scoreTrajectory(beats, mechanics),
     rationale: rationale(mechanics),
   };
