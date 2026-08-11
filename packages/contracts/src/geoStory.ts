@@ -9,8 +9,8 @@
 import type { MediaAsset } from "./media.js";
 
 export type GeoLocation = {
-  lat?: number;
-  lng?: number;
+  lat: number;
+  lng: number;
   label?: string;
   city?: string;
   region?: string;
@@ -35,9 +35,7 @@ export type GeoStoryScene = {
   timestamp: string;
   intensity: number;
   media?: MediaAsset[];
-  /** Physical GPS evidence vs semantic place evidence. */
   evidenceMode?: "physical" | "semantic" | "mixed";
-  /** Prompt/memory/event terms that caused the scene to exist. */
   evidence?: string[];
   meta?: Record<string, unknown>;
 };
@@ -51,7 +49,6 @@ export type GeoStory = {
   startedAt?: string;
   endedAt?: string;
   mode?: "physical" | "semantic" | "mixed" | "none";
-  /** Stable place/entity labels useful to memory and analytics. */
   placeTags?: string[];
   meta?: Record<string, unknown>;
 };
