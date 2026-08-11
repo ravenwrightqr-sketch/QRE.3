@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { db } from "@qre/db";
+import { db } from "../index.js";
 
 async function main() {
   const password = await bcrypt.hash("test123", 10);
