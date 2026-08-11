@@ -1,401 +1,90 @@
-import express, {
-  Response,
-} from "express";
+import express, { Response } from "express";
 
+import { db } from "@qre/db";
 
-import {
-  db,
-} from "@qre/db";
+import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
+import { createExperience } from "../services/experienceCreationServices.js";
 
-
-import {
-  requireAuth,
-  type AuthRequest,
-} from "../middleware/requireAuth.js";
-
-
-import {
-  createExperience,
-} from "../services/experienceCreationServices.js";
-
-
-
-const router =
-  express.Router();
-
-
+const router = express.Router();
 
 router.use(requireAuth);
 
-
-
-
 /**
- * =====================================================
- * CREATE ASSET + EXPERIENCE
- * =====================================================
+ * Create an asset and compile its first experience.
  *
- * User
- *   |
- * Account
- *   |
- * Asset
- *   |
- * Experience Service
- *   |
- * Experience
- *   |
- * Flow
- *   |
- * Ready To Scan
- *
- *
- * Architecture:
- *
- * Asset:
- * - QR/NFC identity
- * - belongs to Account
- *
- * Experience Service:
- * - owns compilation
- * - owns Experience creation
- * - owns Flow creation
- *
- * Routes:
- * - request handling only
- *
- * =====================================================
+ * Authentication/account authorization stays at the API boundary. The
+ * creation service receives the authenticated user id so durable memory
+ * writes are attributable to, and governed by, that same principal.
  */
-
-
-
 router.post(
   "/assets/create-experience",
-  async(
-    req: AuthRequest,
-    res: Response,
-  ) => {
-
-
+  async (req: AuthRequest, res: Response) => {
     try {
+      const userId = req.user?.userId;
 
-
-      const userId =
-        req.user?.userId;
-
-
-
-      if(!userId){
-
-
-        return res.status(401).json({
-
-          error:
-            "Unauthorized",
-
-        });
-
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
       }
 
+      const { displayName, slug, prompt, priceCents } = req.body;
 
+      if (!slug || !prompt) {
+        return res.status(400).json({ error: "slug and prompt required" });
+      }
 
+      const membership = await db.accountUser.findFirst({
+        where: {
+          userId,
+          role: {
+            in: ["OWNER", "ADMIN"],
+          },
+        },
+        select: {
+          accountId: true,
+        },
+      });
 
+      if (!membership) {
+        return res.status(403).json({ error: "No account available" });
+      }
 
-      const {
+      const accountId = membership.accountId;
 
-        displayName,
+      const asset = await db.asset.create({
+        data: {
+          accountId,
+          displayName,
+          slug,
+          status: "active",
+          paid: false,
+          saleChannel: "ADMIN",
+          priceCents: priceCents ?? 999,
+        },
+      });
 
-        slug,
-
+      const result = await createExperience({
+        assetId: asset.id,
         prompt,
-
-        priceCents,
-
-      } =
-        req.body;
-
-
-
-
-
-      if(
-        !slug ||
-        !prompt
-      ){
-
-
-        return res.status(400).json({
-
-          error:
-            "slug and prompt required",
-
-        });
-
-
-      }
-
-
-
-
-
-      /**
-       * =================================================
-       * RESOLVE ACCOUNT
-       * =================================================
-       */
-
-
-      const membership =
-
-        await db.accountUser.findFirst({
-
-          where:{
-
-
-            userId,
-
-
-            role:{
-
-              in:[
-
-                "OWNER",
-
-                "ADMIN",
-
-              ],
-
-            },
-
-
-          },
-
-
-          select:{
-
-
-            accountId:true,
-
-
-          },
-
-
-        });
-
-
-
-
-
-      if(!membership){
-
-
-        return res.status(403).json({
-
-          error:
-            "No account available",
-
-        });
-
-
-      }
-
-
-
-
-
-      const accountId =
-
-        membership.accountId;
-
-
-
-
-
-
-
-
-      /**
-       * =================================================
-       * CREATE ASSET
-       * =================================================
-       *
-       * Asset is the identity.
-       *
-       * Experience is created after.
-       *
-       * =================================================
-       */
-
-
-
-      const asset =
-
-        await db.asset.create({
-
-          data:{
-
-
-            accountId,
-
-
-            displayName,
-
-
-            slug,
-
-
-            status:
-              "active",
-
-
-            paid:
-              false,
-
-
-            saleChannel:
-              "ADMIN",
-
-
-            priceCents:
-              priceCents ?? 999,
-
-
-          },
-
-
-        });
-
-
-
-
-
-
-
-
-      /**
-       * =================================================
-       * CREATE EXPERIENCE
-       * =================================================
-       *
-       * Asset
-       *   ↓
-       * Experience Service
-       *   ↓
-       * Engine Compiler
-       *   ↓
-       * Experience + Flow
-       *
-       * =================================================
-       */
-
-
-
-      const result =
-
-        await createExperience({
-
-          assetId:
-            asset.id,
-
-
-          prompt,
-
-
-        });
-
-
-
-
-
-
-
-
-
-      /**
-       * =================================================
-       * RESPONSE
-       * =================================================
-       */
-
-
+        userId,
+      });
 
       return res.json({
-
-
-        success:
-          true,
-
-
-
+        success: true,
         accountId,
-
-
-
-        assetId:
-          asset.id,
-
-
-
-        experienceId:
-          result.experience.id,
-
-
-
-        flowId:
-          result.flow.id,
-
-
-
-        slug:
-          asset.slug,
-
-
-
-        scanUrl:
-          `/api/scan/${asset.slug}`,
-
-
-
+        assetId: asset.id,
+        experienceId: result.experience.id,
+        flowId: result.flow.id,
+        slug: asset.slug,
+        scanUrl: `/api/scan/${asset.slug}`,
       });
-
-
-
-
-    }
-
-    catch(error:any){
-
-
-
-      console.error(
-
-        "CREATE EXPERIENCE ERROR",
-
-        error,
-
-      );
-
-
-
+    } catch (error: any) {
+      console.error("CREATE EXPERIENCE ERROR", error);
 
       return res.status(500).json({
-
-
-        error:
-          error.message,
-
-
+        error: error.message,
       });
-
-
     }
-
-
-
   },
-
 );
-
-
 
 export default router;
