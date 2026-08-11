@@ -26,7 +26,9 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
   commerce: ["orientation", "identity", "discovery", "payoff", "continuation"],
   journey: ["orientation", "threshold", "discovery", "transformation", "continuation"],
   identity: ["orientation", "identity", "reflection", "payoff", "continuation"],
-  story: ["orientation", "hook", "encounter", "transformation", "payoff", "continuation"],
+  // Story realization explicitly carries escalation so a detected escalation
+  // mechanic cannot disappear between cognition and presentation.
+  story: ["orientation", "hook", "encounter", "escalation", "transformation", "payoff", "continuation"],
   ritual: ["orientation", "threshold", "encounter", "reflection", "payoff", "continuation"],
 };
 
@@ -92,6 +94,7 @@ function semantics(direction: ExperienceHypothesisKind, kind: CognitiveBeatKind,
     orientation: state("establish the subject and current situation", "enter the observed situation", "the situation has not been entered", "the subject and situation are established"),
     hook: state("create a reason to continue", "encounter the first active turn", "the situation is static", "something now demands attention"),
     encounter: state("introduce the next concrete condition", "encounter the next supported condition", "the current state is established", "a new condition changes what can happen next"),
+    escalation: state("increase the active condition", "go further than before", "the current state is established", "the situation has intensified"),
     transformation: state("make accumulated interaction produce observable change", "carry the preceding state into a changed condition", "the preceding state is established", "the subject or situation is visibly different"),
     payoff: state("resolve the experience into its earned result", "reach the result produced by what happened before", "the decisive state has not resolved", "the result is available"),
     continuation: state("preserve continuity into another interaction", "carry the current state forward", "the current experience has resolved", "the current state remains available"),
@@ -211,7 +214,7 @@ function creativeDirective(
   if (kind === "action") return withEvidence(`notice ${motif} and respond to what it changes`, "the concrete detail changes the immediate action");
   if (kind === "feedback") return withEvidence(`find that ${motif}`, "the result contains a concrete unexpected detail");
   if (kind === "next_step") return withEvidence(`follow what ${motif} changes`, "the next action reflects the concrete twist");
-  if (kind === "escalation") return withEvidence(`follow the consequence of ${motif}`, "the initial surprise has a concrete consequence");
+  if (kind === "escalation") return withEvidence(`goes further because ${motif}`, "the initial surprise now produces a more intense concrete condition");
   if (kind === "payoff") return withEvidence(`resolve the thread created when ${motif}`, "the creative turn lands as an earned consequence");
   return undefined;
 }
