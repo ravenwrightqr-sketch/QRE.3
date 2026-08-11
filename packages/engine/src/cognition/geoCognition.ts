@@ -8,6 +8,9 @@ import type { CognitiveEvidence, CognitiveExperienceState } from "@qre/contracts
  * coordinates. Physical pins remain authoritative when supplied by runtime
  * context; named places, dates, distances, routes, people, and destinations
  * remain semantic evidence until a real location signal exists.
+ *
+ * IMPORTANT: this layer is intentionally domain-neutral. It must not contain a
+ * list of "known" cities, businesses, weddings, services, or other verticals.
  */
 
 export type GeoCognition = {
@@ -34,14 +37,36 @@ function stripPrefix(value: string): string {
   return clean(value.replace(/^\b(?:at|in|near|from|to|toward|towards|on)\s+/i, ""));
 }
 
+/**
+ * Recover arbitrary proper-noun place phrases without requiring a geography
+ * vocabulary. For example, "at The Glasshouse in Austin" yields
+ * "The Glasshouse" and "Austin" without knowing either name in advance.
+ */
+function contextualPlacePhrases(text: string): string[] {
+  const phrases = matches(
+    text,
+    /\b(?:at|in|near|from|to|toward|towards|on)\s+([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Z][A-Za-z0-9'’-]*){0,5})/g,
+  ).map(stripPrefix);
+
+  return unique(phrases.filter((value) => !/^(?:The|A|An)$/i.test(value)));
+}
+
+function contextualPersonPhrases(text: string): string[] {
+  return unique(
+    matches(
+      text,
+      /\b(?:my|our|their|his|her|for)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})/g,
+    ).map((value) =>
+      value.replace(/^\b(?:my|our|their|his|her|for)\s+/i, ""),
+    ),
+  );
+}
+
 export function deriveGeoCognition(prompt: string): GeoCognition {
   const text = clean(prompt);
   const lo = lower(text);
 
-  const places = unique([
-    ...matches(text, /\b(?:at|in|near|from|to|toward|towards|on)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,5})/g).map(stripPrefix),
-    ...matches(text, /\b(?:Long Beach|Los Angeles|New York|Las Vegas|San Francisco|San Diego|Tokyo|Japan|India|California|Washington|Oregon)\b/gi),
-  ]);
+  const places = contextualPlacePhrases(text);
 
   const dates = unique([
     ...matches(text, /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,\s*\d{4})?\b/gi),
@@ -53,21 +78,22 @@ export function deriveGeoCognition(prompt: string): GeoCognition {
   const distances = matches(text, /\b\d[\d,]*(?:\.\d+)?\s*(?:miles?|mi|kilometers?|km)\b/gi);
 
   const routeMatches = [
-    ...matches(text, /\b(?:from\s+.+?\s+to\s+.+?)(?=[,.!?]|\s+and\s+|$)/gi),
-    ...matches(text, /\b(?:travel(?:ed|ing)?|drove|flew|went|moved|journeyed)\s+(?:\d[\d,]*(?:\.\d+)?\s*)?(?:miles?|mi|kilometers?|km)?\s*(?:from\s+.+?\s+to\s+.+?)(?=[,.!?]|\s+and\s+|$)/gi),
+    ...matches(text, /\bfrom\s+.+?\s+to\s+.+?(?=[,.!?]|\s+and\s+|$)/gi),
+    ...matches(text, /\b(?:travel(?:ed|ing)?|drove|flew|went|moved|journeyed)\s+(?:\d[\d,]*(?:\.\d+)?\s*)?(?:miles?|mi|kilometers?|km)?\s*from\s+.+?\s+to\s+.+?(?=[,.!?]|\s+and\s+|$)/gi),
   ];
   const routes = unique(routeMatches);
 
-  const people = unique([
-    ...matches(text, /\b(?:Jane|Joe|John|Mary|Mom|Dad|bridesmaid|bridesmaids|bride|groom|couple|partner|client|customer|housekeeper|technician)\b/gi),
-    ...matches(text, /\b(?:my|our|their|his|her)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})/g).map((value) => value.replace(/^\b(?:my|our|their|his|her)\s+/i, "")),
-  ]);
+  const people = contextualPersonPhrases(text);
 
   const destinationPhrases = [
     ...matches(text, /\b(?:want|wants|wish|wishes|hope|hopes|plan|plans|planning|dream|dreams|would love)\s+(?:to\s+)?(?:travel|go|visit|return|see)\s+(?:to\s+)?([^,.!?]+?)(?=[,.!?]|\s+and\s+|$)/gi),
     ...matches(text, /\b(?:want to travel to|dream of visiting|places we want to travel to)\s+([^,.!?]+)/gi),
   ];
-  const destinations = unique(destinationPhrases.map((value) => value.replace(/^.*?\b(?:travel|go|visit|return|see|visiting|to)\s+/i, "")));
+  const destinations = unique(
+    destinationPhrases.map((value) =>
+      value.replace(/^.*?\b(?:travel|go|visit|return|see|visiting|to)\s+/i, ""),
+    ),
+  );
 
   const intentions = unique([
     ...(distances.length ? ["travel_distance"] : []),
@@ -80,20 +106,52 @@ export function deriveGeoCognition(prompt: string): GeoCognition {
   ]);
 
   const evidence: CognitiveEvidence[] = [
-    ...places.map((value) => ({ source: "location" as const, detail: `named place preserved from prompt: ${value}`, confidence: 0.97 })),
-    ...dates.map((value) => ({ source: "prompt" as const, detail: `date preserved as geographic-temporal evidence: ${value}`, confidence: 0.97 })),
-    ...times.map((value) => ({ source: "prompt" as const, detail: `time preserved as geographic-temporal evidence: ${value}`, confidence: 0.97 })),
-    ...distances.map((value) => ({ source: "location" as const, detail: `travel distance preserved from prompt: ${value}`, confidence: 0.95 })),
-    ...routes.map((value) => ({ source: "location" as const, detail: `route relationship preserved from prompt: ${value}`, confidence: 0.95 })),
-    ...destinations.map((value) => ({ source: "history" as const, detail: `future destination preserved from prompt: ${value}`, confidence: 0.94 })),
-    ...people.map((value) => ({ source: "prompt" as const, detail: `person/place relationship candidate preserved: ${value}`, confidence: 0.9 })),
+    ...places.map((value) => ({
+      source: "location" as const,
+      detail: `named place preserved from prompt: ${value}`,
+      confidence: 0.97,
+    })),
+    ...dates.map((value) => ({
+      source: "prompt" as const,
+      detail: `date preserved as geographic-temporal evidence: ${value}`,
+      confidence: 0.97,
+    })),
+    ...times.map((value) => ({
+      source: "prompt" as const,
+      detail: `time preserved as geographic-temporal evidence: ${value}`,
+      confidence: 0.97,
+    })),
+    ...distances.map((value) => ({
+      source: "location" as const,
+      detail: `travel distance preserved from prompt: ${value}`,
+      confidence: 0.95,
+    })),
+    ...routes.map((value) => ({
+      source: "location" as const,
+      detail: `route relationship preserved from prompt: ${value}`,
+      confidence: 0.95,
+    })),
+    ...destinations.map((value) => ({
+      source: "history" as const,
+      detail: `future destination preserved from prompt: ${value}`,
+      confidence: 0.94,
+    })),
+    ...people.map((value) => ({
+      source: "prompt" as const,
+      detail: `person/place relationship candidate preserved: ${value}`,
+      confidence: 0.9,
+    })),
   ];
 
   // A prompt that explicitly says "dropped pin" is a request for a location
   // anchor, not permission to fabricate coordinates.
   if (/\b(?:dropped|drop|pin|pinned|location pin)\b/i.test(lo)) {
     intentions.push("pin_requested");
-    evidence.push({ source: "location", detail: "prompt requests a location pin; physical coordinates must come from supplied runtime location data", confidence: 0.99 });
+    evidence.push({
+      source: "location",
+      detail: "prompt requests a location pin; physical coordinates must come from supplied runtime location data",
+      confidence: 0.99,
+    });
   }
 
   return {
@@ -109,7 +167,10 @@ export function deriveGeoCognition(prompt: string): GeoCognition {
   };
 }
 
-export function enrichCognitiveGeo(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
+export function enrichCognitiveGeo(
+  prompt: string,
+  cognition: CognitiveExperienceState,
+): CognitiveExperienceState {
   const geo = deriveGeoCognition(prompt);
   if (!geo.evidence.length) return cognition;
 
@@ -141,8 +202,12 @@ export function enrichCognitiveGeo(prompt: string, cognition: CognitiveExperienc
       geographicModel,
       futureEvolution: unique([
         ...cognition.plan.futureEvolution,
-        ...(geo.destinations.length ? ["future destinations can become remembered goals"] : []),
-        ...(geo.routes.length || geo.distances.length ? ["travel history can remain ordered as route evidence"] : []),
+        ...(geo.destinations.length
+          ? ["future destinations can become remembered goals"]
+          : []),
+        ...(geo.routes.length || geo.distances.length
+          ? ["travel history can remain ordered as route evidence"]
+          : []),
       ]),
     },
     assumptions: cognition.assumptions,
