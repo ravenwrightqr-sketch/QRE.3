@@ -96,7 +96,7 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
       ? timelineTimestamp(moment.meta.timestamp, observedAt)
       : observedAt,
     kind: String(moment.type),
-    source: input.source ?? "system",
+    source: input.source === "location" ? "system" as const : (input.source ?? "system"),
     confidence: 0.9,
   }));
 
@@ -129,7 +129,7 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
     geoSceneIds: geoStory?.scenes.map((scene) => scene.id) ?? [],
     geoMode: geoStory?.mode ?? "none",
     provenance: {
-      source: input.source ?? "system",
+      source: input.source === "location" ? "system" : (input.source ?? "system"),
       observedAt,
       evidenceCount: highlights.length + entities.length + locationTags.length + geo.evidence.length,
     },
