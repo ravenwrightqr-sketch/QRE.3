@@ -4,6 +4,10 @@
  * The acceptance boundary is behavioral: mechanics must survive into
  * observable events, concrete evidence must survive, compiler prose must not,
  * and executable directives must not disappear.
+ *
+ * The service-story probes are intentionally evidence-rich. They test the
+ * behavior QRE needs in production: a mundane job can become entertaining
+ * without turning invented details into claimed facts.
  */
 
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
@@ -16,6 +20,7 @@ type Probe = {
   mechanic: string;
   expressiveEvidence: string[];
   concreteEvidence: string[];
+  forbiddenInventedEvidence?: string[];
 };
 
 const probes: Probe[] = [
@@ -49,17 +54,19 @@ const probes: Probe[] = [
   },
   {
     name: "Housekeeping attention test",
-    prompt: "I'm a housekeeper. After cleaning a client's house, send them a funny actual story that makes the ordinary cleaning feel weird and worth reading.",
+    prompt: "I'm a housekeeper. After cleaning a client's house, tell a funny actual story: I arrived at 9:12 AM at the client's Riverside home, finished the kitchen and bathrooms, then found feathers on a stick in the living room and was glad I had two boxes of extra gloves in the van. The house was locked up when I left. Encourage tips without making it sound like a tip request.",
     mechanic: "delight",
-    expressiveEvidence: ["funny", "unexpected", "turn", "attention"],
-    concreteEvidence: ["housekeeper", "cleaning", "client"],
+    expressiveEvidence: ["funny", "ordinary", "unexpected", "turn"],
+    concreteEvidence: ["housekeeper", "cleaning", "9:12 AM", "Riverside", "kitchen", "bathrooms", "feathers on a stick", "extra gloves", "van", "locked up"],
+    forbiddenInventedEvidence: ["haunted", "monster", "fire", "flood"],
   },
   {
     name: "Dog groomer attention test",
-    prompt: "I'm a dog groomer. Tell the client a funny actual story about Max arriving ready to call his lawyer, getting pampered, and leaving like a rockstar.",
+    prompt: "I'm a dog groomer. Tell the client a funny actual story about Max arriving ready to call his lawyer, getting pampered, eating one bow, and leaving like a rockstar.",
     mechanic: "transformation",
     expressiveEvidence: ["unexpected", "turn", "different", "changes"],
-    concreteEvidence: ["dog", "groomer", "Max", "lawyer", "rockstar"],
+    concreteEvidence: ["dog groomer", "Max", "lawyer", "bow", "pampered", "rockstar"],
+    forbiddenInventedEvidence: ["bit the groomer", "ran away", "police"],
   },
 ];
 
@@ -95,6 +102,12 @@ for (const probe of probes) {
     throw new Error(`${probe.name}: concrete evidence collapsed. Missing: ${missingConcrete.join(", ")}`);
   }
 
+  for (const forbidden of probe.forbiddenInventedEvidence ?? []) {
+    if (text.includes(forbidden.toLowerCase())) {
+      throw new Error(`${probe.name}: invented evidence leaked into canonical story: ${forbidden}`);
+    }
+  }
+
   if (result.story.beats.some((beat) => isGenericCompilerProse(beat.text))) {
     throw new Error(`${probe.name}: generic compiler prose survived into final story text`);
   }
@@ -105,6 +118,10 @@ for (const probe of probes) {
 
     const beat = result.story.beats.find((candidate) => candidate.kind === directive.kind);
     if (!beat) continue;
+
+    // Creative-realization directives are pressure, not observed facts. They
+    // are intentionally not required to survive as literal action text.
+    if (directive.evidence.some((item) => item.source === "creative_realization")) continue;
 
     if (!beat.text.toLowerCase().includes(action.toLowerCase())) {
       throw new Error(`${probe.name}: executable directive was lost for ${directive.kind}: ${directive.action}`);
