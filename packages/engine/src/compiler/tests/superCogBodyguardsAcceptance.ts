@@ -15,7 +15,8 @@ const ABSTRACT = [
 ];
 
 function storyText(prompt: string): string {
-  return compileCognitiveExperience(prompt).story.beats.map((beat) => beat.text).join(" ");
+  const result = compileCognitiveExperience(prompt);
+  return result.story.beats.map((beat) => beat.text).join(" ");
 }
 
 const sourdough = compileCognitiveExperience("Teach someone how to make sourdough.");

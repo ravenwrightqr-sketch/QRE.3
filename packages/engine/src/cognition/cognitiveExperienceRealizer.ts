@@ -26,6 +26,8 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
   commerce: ["orientation", "identity", "discovery", "payoff", "continuation"],
   journey: ["orientation", "threshold", "discovery", "transformation", "continuation"],
   identity: ["orientation", "identity", "reflection", "payoff", "continuation"],
+  // Story realization explicitly carries escalation so a detected escalation
+  // mechanic cannot disappear between cognition and presentation.
   story: ["orientation", "hook", "encounter", "escalation", "transformation", "payoff", "continuation"],
   ritual: ["orientation", "threshold", "encounter", "reflection", "payoff", "continuation"],
 };
@@ -185,20 +187,28 @@ function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): str
   return CREATIVE_MOTIFS[hash(`${prompt}|${direction}`) % CREATIVE_MOTIFS.length];
 }
 
-function creativeDirective(direction: ExperienceHypothesisKind, kind: CognitiveBeatKind, prompt: string, evidence: CognitiveEvidence[]): Partial<CognitiveBeatDirective> | undefined {
+function creativeDirective(
+  direction: ExperienceHypothesisKind,
+  kind: CognitiveBeatKind,
+  prompt: string,
+  evidence: CognitiveEvidence[],
+): Partial<CognitiveBeatDirective> | undefined {
   const motif = creativeMotif(prompt, direction);
   if (!motif) return undefined;
+
   const creativeEvidence: CognitiveEvidence = {
     source: "creative_realization",
     detail: `created experiential twist for ${kind}: ${motif}`,
     confidence: 0.76,
   };
+
   const withEvidence = (action: string, stateAfter: string): Partial<CognitiveBeatDirective> => ({
     action,
     stateAfter,
     evidence: [...evidence, creativeEvidence].slice(0, 8),
     confidence: 0.76,
   });
+
   if (kind === "encounter") return withEvidence(`notice ${motif}`, "a concrete unexpected detail has entered the experience");
   if (kind === "hook") return withEvidence(`encounter ${motif}`, "the subject has a concrete reason to continue");
   if (kind === "action") return withEvidence(`notice ${motif} and respond to what it changes`, "the concrete detail changes the immediate action");
@@ -242,7 +252,11 @@ export function realizeCognitiveExperience(args: {
       subject: x.subject,
       relationalFocus: unique([x.social, x.place, x.temporal, x.memory, x.discovery, x.progression]),
       evidence: creative?.evidence ?? directiveEvidence,
-      confidence: creative?.confidence ?? (directiveEvidence.length ? Number(Math.min(0.98, Math.max(0.72, ...directiveEvidence.map((item) => item.confidence))).toFixed(3)) : 0.72),
+      confidence: creative?.confidence ?? (
+        directiveEvidence.length
+          ? Number(Math.min(0.98, Math.max(0.72, ...directiveEvidence.map((item) => item.confidence))).toFixed(3))
+          : 0.72
+      ),
     } satisfies CognitiveBeatDirective;
   });
 
@@ -251,6 +265,8 @@ export function realizeCognitiveExperience(args: {
     directives,
     semanticArc: directives.map((directive) => `${directive.intent} → ${directive.stateAfter}`),
     conservedRoles,
-    confidence: directives.length ? Number((directives.reduce((sum, directive) => sum + directive.confidence, 0) / directives.length).toFixed(3)) : 0.72,
+    confidence: directives.length
+      ? Number((directives.reduce((sum, directive) => sum + directive.confidence, 0) / directives.length).toFixed(3))
+      : 0.72,
   };
 }

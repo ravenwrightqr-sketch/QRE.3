@@ -23,6 +23,7 @@ export {
 
 /** Universal creative compiler. */
 export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
+export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
 export type {
   StoryCompilerContext,
   StoryCompilerMemory,
@@ -31,6 +32,13 @@ export type {
   ExperienceObservation,
   CompiledStoryExperience,
 } from "./experience/universalStoryCompiler.js";
+
+/** Cognitive event-world realization boundary. */
+export {
+  buildExperienceEvent,
+  buildExperienceEventWorld,
+  eventRealizationHint,
+} from "./experience/eventWorld.js";
 
 /** Canonical cognition → experience compiler. */
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";

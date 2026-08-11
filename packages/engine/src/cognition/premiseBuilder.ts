@@ -189,10 +189,10 @@ export function buildCognitivePremise(args: {
     ...(context?.event?.participants ?? []),
   ]);
 
-  const outcomes = unique([
-    ...outcomeValues(prompt),
-    ...(plan.purpose ? [plan.purpose] : []),
-  ]);
+  // Semantic purpose is a cognitive control signal, not concrete story
+  // evidence. Keep outcome slots grounded in explicit prompt claims so
+  // significance prose cannot leak into realization as if it were an event.
+  const outcomes = outcomeValues(prompt);
 
   const transformations = transformationValues(prompt);
   const constraints = constraintValues(prompt);
@@ -246,7 +246,7 @@ export function buildCognitivePremise(args: {
       outcomes.length ? "derived" : "unknown",
       outcomes.length ? 0.78 : 0,
       outcomes.length ? 0.94 : 0,
-      "desired human outcome inferred from explicit request and selected plan",
+      "desired human outcome inferred from explicit prompt evidence",
     ),
     slot(
       "emotion",

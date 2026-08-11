@@ -33,10 +33,19 @@ function explicitNarrativeIntent(prompt: string): boolean {
   return /\b(?:story|stories|narrative|tale|tell the story|storytelling)\b/i.test(prompt);
 }
 
-function respectExplicitNarrativeIntent(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
+function respectExplicitNarrativeIntent(
+  prompt: string,
+  cognition: CognitiveExperienceState,
+): CognitiveExperienceState {
   if (!explicitNarrativeIntent(prompt)) return cognition;
   if (cognition.selectedHypothesis.kind === "story") return cognition;
-  const evidence: CognitiveEvidence = { source: "prompt", detail: "explicit narrative/story request", confidence: 0.99 };
+
+  const evidence: CognitiveEvidence = {
+    source: "prompt",
+    detail: "explicit narrative/story request",
+    confidence: 0.99,
+  };
+
   const selectedHypothesis = {
     ...cognition.selectedHypothesis,
     kind: "story" as const,
@@ -45,15 +54,30 @@ function respectExplicitNarrativeIntent(prompt: string, cognition: CognitiveExpe
     evidence: [...cognition.selectedHypothesis.evidence, evidence],
     score: Math.max(cognition.selectedHypothesis.score, 0.99),
   };
+
   return {
     ...cognition,
     selectedHypothesis,
-    hypotheses: cognition.hypotheses.map((hypothesis) => hypothesis.kind === "story" ? { ...hypothesis, score: Math.max(hypothesis.score, 0.99), evidence: [...hypothesis.evidence, evidence] } : hypothesis),
+    hypotheses: cognition.hypotheses.map((hypothesis) =>
+      hypothesis.kind === "story"
+        ? {
+            ...hypothesis,
+            score: Math.max(hypothesis.score, 0.99),
+            evidence: [...hypothesis.evidence, evidence],
+          }
+        : hypothesis,
+    ),
   };
 }
 
 function canonicalizeCognition(cognition: CognitiveExperienceState): CognitiveExperienceState {
-  return { ...cognition, plan: { ...cognition.plan, direction: cognition.selectedHypothesis.kind } };
+  return {
+    ...cognition,
+    plan: {
+      ...cognition.plan,
+      direction: cognition.selectedHypothesis.kind,
+    },
+  };
 }
 
 function mergeGenome(genome: ExperienceGenome, cognition: CognitiveExperienceState): ExperienceGenome {
@@ -133,6 +157,7 @@ function propagateCanonicalLanguage(compiled: CompiledStoryExperience): Compiled
     ending: compiled.story.beats.find((beat) => beat.kind === "payoff")?.text ?? compiled.story.beats.at(-1)?.text ?? compiled.story.ending,
     continuation: compiled.story.beats.find((beat) => beat.kind === "continuation")?.text ?? compiled.story.continuation,
   };
+
   const blueprint = {
     ...compiled.blueprint,
     moments: compiled.blueprint.moments.map((moment) => {
@@ -141,52 +166,81 @@ function propagateCanonicalLanguage(compiled: CompiledStoryExperience): Compiled
       return beat ? { ...moment, description: beat.text } : moment;
     }),
   };
+
   const flowSteps = compiled.flowSteps.map((step) => {
     const beatId = (step.payload as { beat?: { id?: string } } | undefined)?.beat?.id;
     const beat = beatId ? beatById.get(beatId) : undefined;
     return beat ? { ...step, payload: { ...step.payload, beat } } : step;
   });
+
   const moments = compiled.moments.map((moment) => {
     const beatId = String((moment.meta as { beatId?: unknown } | undefined)?.beatId ?? "");
     const beat = beatById.get(beatId);
     return beat ? { ...moment, text: beat.text } : moment;
   });
+
   const scenePlan = compiled.scenePlan.map((scene) => {
     const beat = beatById.get(scene.beatId);
     return beat ? { ...scene, text: beat.text } : scene;
   });
-  const cinematicScenes = compiled.cinematicScenes.map((scene, index) => ({ ...scene, moment: moments[index] ?? scene.moment }));
+
+  const cinematicScenes = compiled.cinematicScenes.map((scene, index) => ({
+    ...scene,
+    moment: moments[index] ?? scene.moment,
+  }));
+
   return { ...compiled, story, blueprint, flowSteps, moments, scenePlan, cinematicScenes };
 }
 
-/** Repair common grammatical-subject shapes before premise building. */
+/** Extract a grammatical subject without creating noun-specific branches. */
 function grammaticalSubject(prompt: string): string | undefined {
   const text = prompt.replace(/\s+/g, " ").trim();
   const verbs = "documents?|clean(?:s|ed|ing)?|repairs?|restores?|records?|photographs?|writes?|builds?|creates?|designs?|runs?|owns?|manages?|prepares?|inspects?|visits?|helps?|takes?|makes?|finds?|grooms?|cooks?|sells?|buys?|teaches?|plays?|wears?|drives?|uses?|opens?|closes?|carries?|brings?|delivers?|serves?|hosts?|shares?|celebrates?|explores?|discovers?|collects?|organizes?|organises?|clears?|washes?|fixes?|tests?|checks?|shows?|tells?|turns?|handles?";
-  const declarative = text.match(new RegExp(`^(?:a|an|the|my|our)?\\s*([\\p{L}][\\p{L}\\p{N}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}'’-]*){0,3})\\s+(?:${verbs})\\b`, "iu"));
+
+  const declarative = text.match(new RegExp(
+    `^(?:a|an|the|my|our)?\\s*([\\p{L}][\\p{L}\\p{N}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}'’-]*){0,3})\\s+(?:${verbs})\\b`,
+    "iu",
+  ));
   if (declarative?.[1]) return declarative[1].trim();
-  const imperative = text.match(/^(?:make|create|build|design|turn|transform|treat)\s+(?:a|an|the|my|our)?\s*(.+?)(?=\s+(?:into|like|feel|become|as|a|an|for|so|that|which)\b|[.!?]|$)/i);
+
+  const imperative = text.match(
+    /^(?:make|create|build|design|turn|transform|treat)\s+(?:a|an|the|my|our)?\s*(.+?)(?=\s+(?:into|like|feel|become|as|a|an|for|so|that|which)\b|[.!?]|$)/i,
+  );
   if (imperative?.[1]) return imperative[1].trim();
-  const instructional = text.match(/\b(?:make|cook|bake|build|create|design|draw|write)\s+(?:a|an|the)?\s*([^,.!?]+?)(?=\s+(?:for|with|using|at|in|on|today|tonight)\b|[,.!?]|$)/i);
+
+  // "Teach someone how to make sourdough" -> "sourdough".
+  const instructional = text.match(
+    /\b(?:make|cook|bake|build|create|design|draw|write)\s+(?:a|an|the)?\s*([^,.!?]+?)(?=\s+(?:for|with|using|at|in|on|today|tonight)\b|[,.!?]|$)/i,
+  );
   if (instructional?.[1]) {
     const candidate = instructional[1].trim();
     if (candidate && !/^(?:someone|something|people|how|how to)$/i.test(candidate)) return candidate;
   }
-  return undefined;
+
+  const objectFirst = text.match(
+    /^(?:turn|transform|make)\s+(?:a|an|the|my|our)?\s*(.+?)\s+(?:into|feel like|become)\b/i,
+  );
+  return objectFirst?.[1]?.trim();
 }
 
 function looksLikeInstructionSubject(value: string): boolean {
   const normalized = value.replace(/\s+/g, " ").trim();
-  return /^(?:teach|teaching|make|making|create|creating|build|building|turn|turning|transform|transforming|how|how to|someone|something|people)\b/i.test(normalized) || /\bhow to\b/i.test(normalized);
+  return /^(?:teach|teaching|make|making|create|creating|build|building|turn|turning|transform|transforming|how|how to|someone|something|people)\b/i.test(normalized)
+    || /\bhow to\b/i.test(normalized);
 }
 
 function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
   const candidate = grammaticalSubject(prompt);
   const current = cognition.subject.value.trim();
   const currentLooksMalformed = /^n\b/i.test(current);
+
   if (!candidate || (!currentLooksMalformed && current && !looksLikeInstructionSubject(current))) return cognition;
+
   const existingEvidence = cognition.subject.evidence ?? [];
-  const alreadyObserved = existingEvidence.some((evidence) => evidence.source === "prompt" && evidence.detail.toLowerCase().includes(candidate.toLowerCase()));
+  const alreadyObserved = existingEvidence.some(
+    (evidence) => evidence.source === "prompt" && evidence.detail.toLowerCase().includes(candidate.toLowerCase()),
+  );
+
   return {
     ...cognition,
     subject: {
@@ -194,16 +248,30 @@ function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExper
       value: candidate,
       status: "observed",
       confidence: Math.max(cognition.subject.confidence, 0.99),
-      evidence: alreadyObserved ? existingEvidence : [...existingEvidence, { source: "prompt", detail: `concrete grammatical subject preserved from prompt: ${candidate}`, confidence: 0.99 }],
+      evidence: alreadyObserved ? existingEvidence : [
+        ...existingEvidence,
+        {
+          source: "prompt",
+          detail: `concrete grammatical subject preserved from prompt: ${candidate}`,
+          confidence: 0.99,
+        },
+      ],
     },
     plan: { ...cognition.plan, centralSubject: candidate },
   };
 }
 
-export function compileCognitiveExperience(prompt: string, context: StoryCompilerContext = {}): CognitiveCompiledExperience {
+export function compileCognitiveExperience(
+  prompt: string,
+  context: StoryCompilerContext = {},
+): CognitiveCompiledExperience {
   const cognitionBase = canonicalizeCognition(
-    enrichConcreteSubjectEvidence(prompt, respectExplicitNarrativeIntent(prompt, understandExperience(prompt, context))),
+    enrichConcreteSubjectEvidence(
+      prompt,
+      respectExplicitNarrativeIntent(prompt, understandExperience(prompt, context)),
+    ),
   );
+
   const premise = buildCognitivePremise({
     prompt,
     subject: cognitionBase.subject,
@@ -214,6 +282,7 @@ export function compileCognitiveExperience(prompt: string, context: StoryCompile
     plan: cognitionBase.plan,
     context,
   });
+
   const realization = realizeCognitiveExperience({
     plan: cognitionBase.plan,
     premise,
@@ -221,11 +290,17 @@ export function compileCognitiveExperience(prompt: string, context: StoryCompile
     hypothesisEvidence: cognitionBase.selectedHypothesis.evidence,
     prompt,
   });
+
   const cognition: CognitiveExperienceState = {
     ...cognitionBase,
     plan: { ...cognitionBase.plan, premise, realization },
   };
-  const compiled = compileStoryExperience(prompt, { ...context, cognitivePlan: cognition.plan });
+
+  const compiled = compileStoryExperience(prompt, {
+    ...context,
+    cognitivePlan: cognition.plan,
+  });
+
   const guarded = {
     ...compiled,
     story: {
@@ -233,7 +308,9 @@ export function compileCognitiveExperience(prompt: string, context: StoryCompile
       beats: guardCognitiveStory(compiled.story.beats, cognition.plan),
     },
   };
+
   const realized = propagateCanonicalLanguage(guarded);
+
   return {
     ...realized,
     cognition,
