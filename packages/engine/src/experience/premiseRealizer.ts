@@ -1,26 +1,27 @@
 import type {
   CognitiveExperiencePlan,
   CognitivePremise,
-  CognitivePremiseRelation,
   CognitivePremiseRole,
   StoryBeat,
-  StoryBeatKind,
 } from "@qre/contracts";
 
 /**
  * CANONICAL UNIVERSAL PREMISE REALIZER
  *
  * Cognition owns meaning.
- * Trajectory owns causal structure.
+ * Trajectory owns causal pressure.
  * The universal compiler owns structure.
- * This boundary turns selected operations + conserved premise evidence into
- * observable language.
+ * This boundary owns the final translation from those constraints into
+ * observable, evidence-backed events expressed as natural language.
  *
- * Critical invariant: semantic significance is not presentation copy.
+ * Critical invariant:
+ * semantic significance is never presentation copy.
+ * A mechanic is not considered realized merely because its vocabulary appears;
+ * the resulting beat must describe something that happens, changes, or becomes
+ * available because of the preceding state.
  */
 
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const lower = (value: unknown): string => clean(value).toLowerCase().replace(/[’]/g, "'");
 const sentence = (value: unknown): string => clean(value).replace(/[.!?]+$/, "");
 const cap = (value: unknown): string => {
@@ -44,6 +45,8 @@ const DEAD_PROSE = [
   /the concrete detail is/i,
   /the next concrete condition in the premise/i,
   /reaches the result established by the premise/i,
+  /the situation is now meaningful/i,
+  /the experience becomes more interesting/i,
 ];
 
 const ABSTRACT_DIRECTIVE = [
@@ -76,6 +79,10 @@ const ABSTRACT_DIRECTIVE = [
   /the useful target/i,
   /the next available relationship/i,
   /the next supported condition/i,
+  /go further than before/i,
+  /increase the active condition/i,
+  /carry the preceding state/i,
+  /reach the result produced by what happened before/i,
 ];
 
 const ROLES: CognitivePremiseRole[] = [
@@ -96,50 +103,32 @@ const STOP = new Set([
   "current", "available", "supported", "meaningful", "intended", "useful", "immediate",
 ]);
 
-function premise(plan?: CognitiveExperiencePlan): CognitivePremise | undefined {
-  return plan?.premise;
-}
-
-function unique<T>(items: T[]): T[] {
-  return [...new Set(items)];
-}
-
-function abstractDirective(value: string): boolean {
-  return ABSTRACT_DIRECTIVE.some((pattern) => pattern.test(value));
-}
+function premise(plan?: CognitiveExperiencePlan): CognitivePremise | undefined { return plan?.premise; }
+function unique(items: string[]): string[] { return [...new Set(items.map(clean).filter(Boolean))]; }
+function abstractDirective(value: string): boolean { return ABSTRACT_DIRECTIVE.some((pattern) => pattern.test(value)); }
+function generic(value: string): boolean { return DEAD_PROSE.some((pattern) => pattern.test(value)); }
 
 function values(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string[] {
-  const raw = unique(
-    premise(plan)?.slots
-      .filter((slot) => slot.role === role)
-      .flatMap((slot) => slot.values)
-      .map(clean)
-      .filter(Boolean) ?? [],
-  );
-  return role === "outcome" ? raw.filter((value) => !abstractDirective(value)) : raw;
+  const raw = premise(plan)?.slots
+    .filter((slot) => slot.role === role)
+    .flatMap((slot) => slot.values)
+    .filter((value): value is string => typeof value === "string") ?? [];
+  return unique(raw).filter((value) => role !== "outcome" || !abstractDirective(value));
 }
 
-function first(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string {
-  return values(plan, role)[0] ?? "";
-}
+function first(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string { return values(plan, role)[0] ?? ""; }
 
 function words(value: unknown): string[] {
-  return clean(value)
-    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
-    .split(/\s+/)
+  return clean(value).replace(/[^\p{L}\p{N}'’-]+/gu, " ").split(/\s+/)
     .map((word) => word.replace(/^['-]+|['-]+$/g, ""))
     .filter((word) => word.length > 2 && !STOP.has(lower(word)));
-}
-
-function generic(value: string): boolean {
-  return DEAD_PROSE.some((pattern) => pattern.test(value));
 }
 
 function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const explicit = first(plan, "subject");
   if (explicit) return explicit;
   const central = clean(plan?.centralSubject);
-  if (central && words(central).length <= 6) return central;
+  if (central && words(central).length <= 8) return central;
   const entity = clean(beat.entities?.[0]);
   if (entity) return entity;
   return central ? words(central)[0] ?? central : "the subject";
@@ -147,78 +136,18 @@ function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
 
 function evidenceCandidates(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   const subjectValue = lower(subject(beat, plan));
-  return unique(
-    ROLES.flatMap((role) => values(plan, role))
-      .concat(beat.entities ?? [])
-      .map(sentence)
-      .filter(Boolean)
-      .filter((value) => !generic(value))
-      .filter((value) => !abstractDirective(value))
-      .filter((value) => lower(value) !== subjectValue)
-      .filter((value) => !STOP.has(lower(value))),
-  );
-}
-
-function evidenceForBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan, limit = 3): string[] {
-  const candidates = evidenceCandidates(beat, plan);
-  return candidates
-    .map((value, index) => {
-      const slot = premise(plan)?.slots.find((candidate) => candidate.values.some((item) => lower(item) === lower(value)));
-      const roleBonus = slot?.role === "event" ? 1.4 : slot?.role === "artifact" ? 1.3 : slot?.role === "medium" ? 1.2 : slot?.role === "outcome" ? 1.15 : slot?.role === "transformation" ? 1.1 : 0;
-      return { value, score: (slot?.salience ?? 0) * 5 + roleBonus - index * 0.01 };
-    })
-    .sort((a, b) => b.score - a.score)
-    .map((item) => item.value)
-    .slice(0, limit);
-}
-
-function relationValues(plan: CognitiveExperiencePlan | undefined, from: CognitivePremiseRole, to: CognitivePremiseRole): Array<{ relation: CognitivePremiseRelation; fromValue: string; toValue: string }> {
-  const current = premise(plan);
-  if (!current) return [];
-  return current.relations
-    .filter((item) => item.from === from && item.to === to && item.confidence >= 0.72)
-    .flatMap((relation) => values(plan, from).flatMap((fromValue) => values(plan, to).map((toValue) => ({ relation, fromValue, toValue }))));
-}
-
-function relationClause(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const priorities: Partial<Record<StoryBeatKind, Array<[CognitivePremiseRole, CognitivePremiseRole]>>> = {
-    orientation: [["subject", "place"], ["subject", "event"], ["event", "medium"]],
-    hook: [["subject", "outcome"], ["event", "medium"]],
-    threshold: [["subject", "medium"], ["event", "place"]],
-    origin: [["subject", "artifact"], ["subject", "temporal"], ["event", "place"]],
-    encounter: [["subject", "event"], ["subject", "artifact"], ["participants", "outcome"]],
-    discovery: [["subject", "artifact"], ["subject", "medium"]],
-    reveal: [["subject", "artifact"], ["subject", "outcome"]],
-    action: [["subject", "affordance"], ["subject", "artifact"], ["subject", "medium"]],
-    feedback: [["subject", "transformation"], ["subject", "outcome"]],
-    contribution: [["participants", "outcome"], ["subject", "social"]],
-    escalation: [["subject", "transformation"], ["subject", "constraint"]],
-    transformation: [["transformation", "outcome"], ["subject", "transformation"]],
-    reflection: [["subject", "temporal"], ["subject", "artifact"]],
-    identity: [["subject", "artifact"], ["subject", "social"]],
-    milestone: [["subject", "outcome"], ["subject", "transformation"]],
-    payoff: [["subject", "outcome"], ["transformation", "outcome"]],
-    continuation: [["subject", "temporal"], ["subject", "outcome"]],
-  };
-  for (const [from, to] of priorities[beat.kind] ?? []) {
-    const match = relationValues(plan, from, to)[0];
-    if (!match) continue;
-    const { fromValue, toValue } = match;
-    if (from === "event" && to === "medium") return `${cap(fromValue)} reaches people through ${toValue}`;
-    if (from === "subject" && to === "medium") return `${cap(fromValue)} uses ${toValue}`;
-    if (from === "subject" && to === "event") return `${cap(fromValue)} enters ${toValue}`;
-    if (from === "subject" && to === "artifact") return `${cap(fromValue)} works with ${toValue}`;
-    if (from === "subject" && to === "place") return `${cap(fromValue)} arrives at ${toValue}`;
-    if (from === "subject" && to === "outcome") return `${cap(fromValue)} moves toward ${sentence(toValue)}`;
-    if (from === "subject" && to === "temporal") return `${cap(fromValue)} returns to ${sentence(toValue)}`;
-    if (from === "subject" && to === "affordance") return `${cap(fromValue)} can ${sentence(toValue)}`;
-    if (from === "subject" && to === "transformation") return `${cap(fromValue)} changes through ${sentence(toValue)}`;
-    if (from === "subject" && to === "social") return `${cap(fromValue)} connects with ${toValue}`;
-    if (from === "participants" && to === "outcome") return `${cap(fromValue)} move toward ${sentence(toValue)}`;
-    if (from === "transformation" && to === "outcome") return `${cap(fromValue)} leads toward ${sentence(toValue)}`;
-    if (from === "event" && to === "place") return `${cap(fromValue)} unfolds at ${toValue}`;
-  }
-  return "";
+  const candidates = ROLES.flatMap((role) => values(plan, role).map((value) => {
+    const slot = premise(plan)?.slots.find((item) => item.role === role && item.values.some((candidate) => lower(candidate) === lower(value)));
+    const priority = role === "event" ? 8 : role === "artifact" ? 7 : role === "medium" ? 6 : role === "place" ? 5 : role === "temporal" ? 4 : role === "outcome" ? 3 : role === "transformation" ? 2 : 1;
+    return { value: sentence(value), priority: priority + (slot?.salience ?? 0) };
+  }));
+  return unique(candidates.sort((a, b) => b.priority - a.priority).map((item) => item.value)
+    .concat((beat.entities ?? []).map(sentence))
+    .filter(Boolean)
+    .filter((value) => lower(value) !== subjectValue)
+    .filter((value) => !generic(value))
+    .filter((value) => !abstractDirective(value))
+    .filter((value) => !STOP.has(lower(value)))).slice(0, 4);
 }
 
 function directiveFor(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
@@ -227,81 +156,98 @@ function directiveFor(beat: StoryBeat, plan?: CognitiveExperiencePlan) {
   return item;
 }
 
-function directiveText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
-  const item = directiveFor(beat, plan);
-  if (!item) return undefined;
-  const action = sentence(item.action);
-  if (!action || abstractDirective(action)) return undefined;
-  const name = cap(item.subject || subject(beat, plan));
+/** Only observable directive actions are allowed into final language. */
+function concreteDirectiveAction(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
+  const action = sentence(directiveFor(beat, plan)?.action);
+  if (!action || abstractDirective(action) || generic(action)) return undefined;
+  if (!/\b(?:arrive|enter|cross|encounter|notice|find|see|discover|handle|touch|use|open|close|move|return|add|share|give|bring|take|show|record|write|read|follow|choose|respond|inspect|clean|wash|groom|serve|play|collect|keep|preserve|reach|earn|claim|own|change|reveal|turn|place|leave|pick|carry|visit|meet|watch|hear|smell|taste|look|hold|build|repair|restore|prepare|deliver|document|photograph|save|store|remember|recognize|compare|connect|continue)\b/i.test(action)) return undefined;
+  return action;
+}
+
+function evidencePair(items: string[]): string {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+/** Domain-neutral event realization: actions and transitions, never domain templates. */
+function eventText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
+  const name = cap(subject(beat, plan));
+  const evidence = evidenceCandidates(beat, plan);
+  const context = evidencePair(evidence.slice(0, 2));
+  const action = concreteDirectiveAction(beat, plan);
+  const transformation = values(plan, "transformation");
+  const outcome = first(plan, "outcome");
+  const affordance = first(plan, "affordance");
+
+  if (action) {
+    switch (beat.kind) {
+      case "orientation": return `${name} begins by ${action}.`;
+      case "hook": return `${name} encounters the turn when ${action}.`;
+      case "need": return `${name} needs to ${action}.`;
+      case "threshold": return `${name} crosses the threshold by ${action}.`;
+      case "origin": return `${name} brings ${action} into the present.`;
+      case "encounter": return `${name} encounters a new condition when ${action}.`;
+      case "challenge": return `${name} faces the challenge by ${action}.`;
+      case "discovery": return `${name} discovers something when ${action}.`;
+      case "reveal": return `${name} sees the hidden detail when ${action}.`;
+      case "instruction": return `${name} gets a usable next move: ${action}.`;
+      case "action": return `${name} acts: ${action}.`;
+      case "feedback": return `${name} sees the result when ${action}.`;
+      case "contribution": return `${name} adds to the shared state when ${action}.`;
+      case "escalation": return `${name} pushes the current condition further by ${action}.`;
+      case "transformation": return `${name} changes when ${action}.`;
+      case "reflection": return `${name} revisits what happened when ${action}.`;
+      case "provenance": return `${name} preserves the origin by ${action}.`;
+      case "identity": return `${name} establishes its identity when ${action}.`;
+      case "milestone": return `${name} reaches a new state when ${action}.`;
+      case "unlock": return `${name} unlocks the next state by ${action}.`;
+      case "earned_access": return `${name} earns the next state by ${action}.`;
+      case "payoff": return `${name} reaches the result when ${action}.`;
+      case "next_step": return `${name} takes the next step: ${action}.`;
+      case "continuation": return `${name} carries the result forward by ${action}.`;
+      default: return `${name} acts: ${action}.`;
+    }
+  }
+
   switch (beat.kind) {
-    case "orientation": return `${name} enters the experience by ${action}.`;
-    case "hook": return `${name} encounters the first turn: ${action}.`;
-    case "need": return `${name} needs to ${action}.`;
-    case "threshold": return `${name} crosses into the next state by ${action}.`;
-    case "origin": return `${name} brings an available detail into the present: ${action}.`;
-    case "encounter": return `${name} encounters a new condition: ${action}.`;
-    case "challenge": return `${name} responds to the challenge by ${action}.`;
-    case "discovery": return `${name} discovers something when ${action}.`;
-    case "reveal": return `${name} discovers the consequence: ${action}.`;
-    case "instruction": return `${name} gets a concrete next move: ${action}.`;
-    case "action": return `${name} acts: ${action}.`;
-    case "feedback": return `${name} sees the result when ${action}.`;
-    case "contribution": return `${name} changes the shared experience by ${action}.`;
-    case "escalation": return `${name} goes further: ${action}.`;
-    case "transformation": return `${name} changes as ${action}.`;
-    case "reflection": return `${name} recognizes what happened: ${action}.`;
-    case "provenance": return `${name} preserves the origin through ${action}.`;
-    case "identity": return `${name} becomes distinct through ${action}.`;
-    case "milestone": return `${name} reaches a new state when ${action}.`;
-    case "unlock": return `${name} unlocks the next state by ${action}.`;
-    case "earned_access": return `${name} earns the next state by ${action}.`;
-    case "payoff": return `${name} reaches the result: ${action}.`;
-    case "next_step": return `${name} takes the next step: ${action}.`;
-    case "continuation": return `${name} leaves the experience open by ${action}.`;
-    default: return `${name} advances by ${action}.`;
+    case "orientation": return context ? `${name} enters with ${context} already in view.` : `${name} enters the situation.`;
+    case "hook": return context ? `${name} notices ${context}, giving the moment its first active turn.` : `${name} encounters the first active turn.`;
+    case "need": return outcome ? `${name} has a concrete target: ${sentence(outcome)}.` : context ? `${name} has to deal with ${context}.` : `${name} faces the immediate problem.`;
+    case "threshold": return context ? `${name} moves into ${context}.` : `${name} crosses into the next state.`;
+    case "origin": return context ? `${name} brings ${context} into the present.` : `${name} starts from what is already known.`;
+    case "encounter": return context ? `${name} encounters ${context}, and the next moment now has something new to respond to.` : `${name} encounters a concrete new condition.`;
+    case "challenge": return context ? `${name} has to respond to ${context}.` : `${name} meets a condition that requires a response.`;
+    case "discovery": return context ? `${name} finds ${context}, revealing a new part of the situation.` : `${name} discovers a concrete new detail.`;
+    case "reveal": return context ? `${name} sees ${context} for what it changes.` : `${name} sees a detail that was not visible at the beginning.`;
+    case "instruction": return affordance ? `${name} gets a usable next move: ${sentence(affordance)}.` : context ? `${name} has a concrete next move involving ${context}.` : `${name} gets a concrete next move.`;
+    case "action": return affordance ? `${name} acts: ${sentence(affordance)}.` : context ? `${name} acts on ${context}.` : `${name} takes the next concrete action.`;
+    case "feedback": return outcome ? `${name} sees a result that changes the route toward ${sentence(outcome)}.` : context ? `${name} sees what changes after ${context}.` : `${name} sees the result of the action.`;
+    case "contribution": return context ? `${name} adds ${context} to the experience, and the shared state now contains it.` : `${name} adds a concrete contribution, changing what is available next.`;
+    case "escalation": return context ? `${name} pushes ${context} further, so the next condition inherits the change.` : `${name} takes the current condition further, changing what follows.`;
+    case "transformation": return transformation.length >= 2 ? `${name} moves from ${sentence(transformation[0])} to ${sentence(transformation[1])}.` : context ? `${name} is visibly different after what happens with ${context}.` : `${name} ends in a different state than the one established at the beginning.`;
+    case "reflection": return context ? `${name} returns to ${context} and sees its consequence in the present.` : `${name} revisits what happened and carries its consequence forward.`;
+    case "provenance": return context ? `${name} preserves ${context} as part of the record.` : `${name} preserves the origin in the experience.`;
+    case "identity": return context ? `${name} becomes identifiable through ${context}.` : `${name} establishes a distinct identity through what has happened.`;
+    case "milestone": return outcome ? `${name} reaches ${sentence(outcome)}.` : context ? `${name} reaches a new state through ${context}.` : `${name} reaches a new state.`;
+    case "unlock":
+    case "earned_access": return outcome ? `${name} earns access to ${sentence(outcome)}.` : context ? `${name} opens the next possibility through ${context}.` : `${name} earns access to the next state.`;
+    case "payoff": return outcome ? `${name} reaches ${sentence(outcome)}.` : context ? `${name} reaches a result shaped by ${context}.` : `${name} reaches the result created by the preceding events.`;
+    case "next_step": return affordance ? `${name} takes the next step: ${sentence(affordance)}.` : context ? `${name} takes the next step with ${context} now in play.` : `${name} takes the next step from the changed state.`;
+    case "continuation": return context ? `${name} carries ${context} into what comes next.` : `${name} leaves a concrete next turn available.`;
+    default: return context ? `${name} continues with ${context} now in play.` : `${name} continues from the changed state.`;
   }
 }
 
-function fallbackText(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const name = cap(subject(beat, plan));
-  const relation = relationClause(beat, plan);
-  const evidence = evidenceForBeat(beat, plan, 3);
-  const context = evidence.length === 1 ? evidence[0] : evidence.length === 2 ? `${evidence[0]} and ${evidence[1]}` : evidence.length > 2 ? `${evidence.slice(0, -1).join(", ")}, and ${evidence.at(-1)}` : "";
-  const outcome = first(plan, "outcome");
-  const transformation = values(plan, "transformation");
-  const affordance = first(plan, "affordance");
-  if (relation) return sentence(relation);
-  switch (beat.kind) {
-    case "orientation": return context ? `${name} enters a situation shaped by ${context}.` : `${name} enters the situation.`;
-    case "hook": return context ? `${name} encounters ${context}, and the situation turns active.` : `${name} encounters the first active condition.`;
-    case "need": return outcome ? `${name} needs to reach ${sentence(outcome)}.` : context ? `${name} has to work through ${context}.` : `${name} faces the immediate need.`;
-    case "threshold": return context ? `${name} moves deeper into ${context}.` : `${name} crosses into the next state.`;
-    case "origin": return context ? `${name} brings ${context} into the present.` : `${name} starts from what is already known.`;
-    case "encounter": return context ? `${name} encounters ${context}, changing the next condition.` : `${name} encounters a new condition.`;
-    case "challenge": return context ? `${name} has to deal with ${context}.` : `${name} faces a condition that requires a response.`;
-    case "discovery": return context ? `${name} discovers how ${context} changes the situation.` : `${name} discovers a new consequence.`;
-    case "reveal": return context ? `${name} sees what ${context} changes.` : `${name} sees a consequence that was not visible at the beginning.`;
-    case "instruction": return affordance ? `${name} gets a usable next move: ${sentence(affordance)}.` : `${name} gets a concrete next move.`;
-    case "action": return affordance ? `${name} acts: ${sentence(affordance)}.` : context ? `${name} acts on ${context}.` : `${name} takes the next concrete action.`;
-    case "feedback": return outcome ? `${name} gets a result that moves toward ${sentence(outcome)}.` : context ? `${name} sees what ${context} changes.` : `${name} sees the result of the action.`;
-    case "contribution": return context ? `${name} adds ${context}, changing what becomes available next.` : `${name} adds something that changes what becomes available next.`;
-    case "escalation": return context ? `${name} pushes ${context} further than before.` : `${name} goes further than before.`;
-    case "transformation": return transformation.length >= 2 ? `${name} moves from ${sentence(transformation[0])} toward ${sentence(transformation[1])}.` : context ? `${name} is changed by what happens with ${context}.` : `${name} changes because of what happens.`;
-    case "reflection": return context ? `${name} looks back on what ${context} changed.` : `${name} recognizes the consequence of what happened.`;
-    case "provenance": return context ? `${name} preserves the origin in ${context}.` : `${name} preserves where the experience came from.`;
-    case "identity": return context ? `${name} becomes identifiable through ${context}.` : `${name} becomes more distinct through what has happened.`;
-    case "milestone": return outcome ? `${name} reaches ${sentence(outcome)}.` : context ? `${name} reaches a new state through ${context}.` : `${name} reaches a new state.`;
-    case "unlock":
-    case "earned_access": return outcome ? `${name} earns access to ${sentence(outcome)}.` : context ? `${name} unlocks what comes next through ${context}.` : `${name} earns access to the next state.`;
-    case "payoff": return outcome ? `${name} reaches ${sentence(outcome)}.` : context ? `${name} reaches a result shaped by ${context}.` : `${name} reaches the result created by what happened before.`;
-    case "next_step": return affordance ? `${name} takes the next step: ${sentence(affordance)}.` : `${name} takes the next step from the current state.`;
-    case "continuation": return context ? `${name} carries ${context} into what comes next.` : `${name} leaves the next turn open.`;
-    default: return context ? `${name} continues through ${context}.` : `${name} continues from the current state.`;
-  }
+function removeCompilerFiller(text: string): string {
+  let result = sentence(text);
+  for (const pattern of DEAD_PROSE) result = result.replace(pattern, "");
+  return sentence(result.replace(/\s{2,}/g, " ").trim());
 }
 
 function preserveConcreteEvidence(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const evidence = evidenceForBeat(beat, plan, 3);
+  const evidence = evidenceCandidates(beat, plan);
+  if (!evidence.length) return text;
   const missing = evidence.filter((value) => !lower(text).includes(lower(value)));
   if (!missing.length) return text;
   const additions = missing.slice(0, 2);
@@ -309,35 +255,18 @@ function preserveConcreteEvidence(text: string, beat: StoryBeat, plan?: Cognitiv
     case "orientation": return `${sentence(text)} ${additions.join(" and ")} are present from the start.`;
     case "encounter": return `${sentence(text)} Then ${additions.join(" and ")} enter the scene.`;
     case "discovery":
-    case "reveal": return `${sentence(text)} The next detail is ${additions.join(" and ")}.`;
-    case "escalation": return `${sentence(text)} The escalation also changes ${additions.join(" and ")}.`;
-    case "transformation": return `${sentence(text)} The change is visible in ${additions.join(" and ")}.`;
+    case "reveal": return `${sentence(text)} The next visible detail is ${additions.join(" and ")}.`;
+    case "escalation": return `${sentence(text)} The change also reaches ${additions.join(" and ")}.`;
+    case "transformation": return `${sentence(text)} The difference is visible in ${additions.join(" and ")}.`;
     case "payoff": return `${sentence(text)} The result remains tied to ${additions.join(" and ")}.`;
     default: return text;
   }
 }
 
-function preserveSemanticAction(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  const item = directiveFor(beat, plan);
-  const action = sentence(item?.action);
-  if (!item || !action || abstractDirective(action) || lower(text).includes(lower(action))) return text;
-  return `${sentence(text)} ${cap(action)}.`;
-}
-
-function removeCompilerFiller(text: string): string {
-  let result = sentence(text);
-  for (const pattern of DEAD_PROSE) {
-    result = result.replace(pattern, "").replace(/\s{2,}/g, " ").trim();
-  }
-  return sentence(result);
-}
-
 export function realizePremiseBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  let text = clean(directiveText(beat, plan) ?? fallbackText(beat, plan));
-  if (generic(text) || abstractDirective(text)) text = clean(fallbackText(beat, plan));
+  let text = eventText(beat, plan);
   text = removeCompilerFiller(text);
   text = preserveConcreteEvidence(text, beat, plan);
-  text = preserveSemanticAction(text, beat, plan);
   text = removeCompilerFiller(text);
   return `${sentence(text)}.`;
 }
@@ -347,7 +276,7 @@ export function realizePremiseBeats(beats: StoryBeat[], plan?: CognitiveExperien
 }
 
 export function isGenericCompilerProse(value: string): boolean {
-  return DEAD_PROSE.some((pattern) => pattern.test(value)) || abstractDirective(value);
+  return DEAD_PROSE.some((pattern) => pattern.test(value)) || ABSTRACT_DIRECTIVE.some((pattern) => pattern.test(value));
 }
 
 /** Diagnostic-only. It never selects a story or changes realization. */
