@@ -27,13 +27,20 @@ function bestSubject(plan?: CognitiveExperiencePlan): string {
 }
 
 function eventFacts(plan?: CognitiveExperiencePlan): string[] {
+  const premiseFacts = slotValues(plan, "event").filter(usable);
+  const outcomeFacts = slotValues(plan, "outcome").filter(usable);
   const directives = plan?.realization?.directives ?? [];
   const directiveFacts = directives
     .map((directive) => clean(directive.action || directive.stateAfter || directive.intent))
     .filter(usable);
-  const premiseFacts = slotValues(plan, "event").filter(usable);
-  const outcomes = slotValues(plan, "outcome").filter(usable);
-  return unique([...directiveFacts, ...premiseFacts, ...outcomes]);
+
+  // Observed premise evidence is authoritative. Directives are a semantic
+  // fallback, not a second source that can overwrite the user's reality.
+  return unique([
+    ...premiseFacts,
+    ...outcomeFacts,
+    ...(premiseFacts.length ? [] : directiveFacts),
+  ]);
 }
 
 function lensValues(plan?: CognitiveExperiencePlan): string[] {
