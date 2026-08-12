@@ -1,26 +1,31 @@
-    /\b(?:for|with)\s+(?:all\s+the\s+|the\s+)?([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*)*)\s+(?:at|in|on|during)\s+(?:my|our|the|this|that)?\s*([^,.!?]+?)(?:\s+(?:tonight|today|now)\b|[,.!?]|$)/i,
-  );
-  if (audienceContext) {
-    const audienceValue = clean(audienceContext[1] ?? "");
-    const contextValue = clean(audienceContext[2] ?? "");
-    if (audienceWords.has(audienceValue.toLowerCase()) && contextValue && contextValue.length <= 80) {
-      return contextValue;
-    }
+    if (cognitive) return cognitive;
   }
-
-  const possessive = clean(text.match(/\bmy\s+([^,.!?]+?)(?:[,.!?]|$)/i)?.[1] ?? "");
-  if (possessive && possessive.length <= 80 && !audienceWords.has(possessive.toLowerCase())) {
-    return possessive;
-  }
-
-  return value.products[0] ?? value.events[0] ?? value.places[0] ?? value.people[0] ??
-    (tokens(prompt)
-      .filter((word) => !STOP.has(word.toLowerCase()))
-      .filter((word) => !audienceWords.has(word.toLowerCase()))
-      .slice(0, 5)
-      .join(" ") || "this moment");
+  return list[0];
 }
 
-function activity(prompt: string, plan?: CognitiveExperiencePlan): string {
-  const direction = lower(plan?.direction ?? "");
-  const directionActivity: Record<string, string> = {
+/**
+ * The universal compiler creates a factual beat shell.
+ * It does not write presentation prose here.
+ *
+ * Presentation belongs exclusively to premiseRealizer.ts:
+ * cognition → trajectory → beat shell → premise realization → runtime.
+ */
+function beatSeed(kind: StoryBeatKind, observation: ExperienceObservation, plan?: CognitiveExperiencePlan): string {
+  const subjectValue = observation.subject;
+  const concrete = unique([
+    ...(plan?.premise?.slots
+      .filter((slot) => ["event", "artifact", "medium", "place", "temporal", "outcome", "transformation", "affordance"].includes(slot.role))
+      .flatMap((slot) => slot.values)
+      .filter((value): value is string => typeof value === "string") ?? []),
+    ...observation.entities.events,
+    ...observation.entities.products,
+    ...observation.entities.places,
+    ...observation.entities.media,
+    ...observation.entities.keywords.slice(0, 6),
+  ]);
+  const anchor = concrete.find((value) => lower(value) !== lower(subjectValue)) ?? "";
+  return anchor ? `${kind}: ${subjectValue}; ${anchor}` : `${kind}: ${subjectValue}`;
+}
+
+function beatPurpose(kind: StoryBeatKind, plan?: CognitiveExperiencePlan): string {
+  const directive = plan?.realization?.directives.find((item) => item.kind === kind);
