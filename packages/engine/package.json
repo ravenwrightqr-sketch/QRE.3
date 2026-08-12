@@ -30,6 +30,7 @@
     "test:creative": "tsx src/compiler/tests/superCogCreativeAcceptance.ts",
     "test:bodyguards": "tsx src/compiler/tests/superCogBodyguardsAcceptance.ts",
     "test:event-realization": "tsx src/compiler/tests/cognitiveEventRealizationAcceptance.ts",
-    "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts"
+    "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts",
+    "test:story-lab": "tsx src/compiler/tests/superStoryLab.ts"
   }
 }
