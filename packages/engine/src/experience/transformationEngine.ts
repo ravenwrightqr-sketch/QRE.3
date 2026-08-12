@@ -3,16 +3,10 @@ import type { CognitiveExperiencePlan, CognitivePremiseRole, StoryBeat } from "@
 /**
  * UNIVERSAL TRANSFORMATION REALIZER
  *
- * This is the language boundary between cognitive structure and customer-facing
- * experience. The compiler may reason in beats, roles, mechanics and plans;
- * the customer should receive concrete action, contrast, personality and a
- * visible change.
+ * Cognitive structure may speak in roles and mechanics. Customer-facing copy
+ * must speak in concrete moments, visible change, personality and consequence.
  *
- * Design law:
- *   evidence -> scene material -> pressure/turn -> changed state -> exit
- *
- * Creative attitude is presentation, not invented fact. Concrete prompt
- * evidence remains the highest-value material available to the realizer.
+ * Evidence is authoritative. Creative attitude is presentation only.
  */
 
 const clean = (value: unknown): string =>
@@ -36,9 +30,7 @@ const GENERIC = new Set([
 const META = /\b(?:compiler|cognition|cognitive|premise|directive|hypothesis|semantic|realization|realizer|experience plan|story structure|progression|meaning context)\b/i;
 const SERIOUS = /\b(?:memorial|funeral|death|died|grief|grieving|emergency|medical|injury|trauma|crisis|solemn|reverent|mourning|urgent|lawsuit|legal)\b/i;
 const PLAYFUL = /\b(?:playful|funny|fun|humor|humour|absurd|ridiculous|wild|delight|mischief|comedy|hilarious|joy|celebrat|whimsical|cute)\b/i;
-
-/* Words that indicate concrete action rather than compiler vocabulary. */
-const ACTION = /\b(?:arriv|enter|walk|go|went|come|came|leave|left|return|returning|groom|clean|wash|repair|fix|restore|build|make|create|design|write|cook|bake|serve|prepare|deliver|open|close|visit|travel|drive|ride|paint|dance|sing|play|choose|pick|select|decide|touch|hold|wear|taste|smell|look|see|watch|share|give|take|bring|send|receive|check|inspect|test|measure|install|remove|change|turn|transform|upgrade|finish|complete|celebrat|marry|vow|dance|photograph|capture|record|teach|learn|discover|find|collect|organize|organise|decorate|style|trim|cut|brush|dry|massage|relax|pamper|spoil|treat)\w*\b/i;
+const ACTION = /\b(?:arriv|enter|walk|go|went|come|came|leave|left|return|groom|clean|wash|repair|fix|restore|build|make|create|design|write|cook|bake|serve|prepare|deliver|open|close|visit|travel|drive|ride|paint|dance|sing|play|choose|pick|select|decide|touch|hold|wear|taste|smell|look|see|watch|share|give|take|bring|send|receive|check|inspect|test|measure|install|remove|change|turn|transform|upgrade|finish|complete|celebrat|marry|vow|photograph|capture|record|teach|learn|discover|find|collect|organize|organise|decorate|style|trim|cut|brush|dry|massage|relax|pamper|spoil|treat)\w*\b/i;
 
 function premiseValues(plan: CognitiveExperiencePlan | undefined, role: CognitivePremiseRole): string[] {
   return unique(
@@ -49,51 +41,45 @@ function premiseValues(plan: CognitiveExperiencePlan | undefined, role: Cognitiv
 }
 
 function isGeneric(value: string): boolean {
-  const normalized = lower(value);
-  return GENERIC.has(normalized) || META.test(normalized);
+  return GENERIC.has(lower(value)) || META.test(value);
 }
 
-function isLikelyName(value: string): boolean {
+function likelyName(value: string): boolean {
   return /\b[A-Z][A-Za-z0-9'’-]{2,}\b/.test(value) && !META.test(value);
 }
 
-function candidateScore(value: string, position: number): number {
-  const normalized = lower(value);
-  if (!normalized) return -100;
-
+function scoreSubject(value: string, index: number): number {
   let score = 0;
-  if (isGeneric(value)) score -= 20;
-  if (isLikelyName(value)) score += 18;
-  if (ACTION.test(value)) score += 4;
+  if (isGeneric(value)) score -= 35;
+  if (likelyName(value)) score += 20;
+  if (ACTION.test(value)) score += 3;
   if (value.split(/\s+/).length <= 3) score += 3;
-  if (value.length > 3 && value.length < 40) score += 2;
-  if (/^(?:receipt|story|experience|prompt|output|result|subject)$/i.test(normalized)) score -= 30;
-  score -= position * 0.05;
+  if (value.length >= 4 && value.length <= 40) score += 2;
+  score -= index * 0.01;
   return score;
 }
 
-/** Prefer an actual participant/name over an abstract artifact such as "receipt". */
+/**
+ * Pick the human/concrete actor before abstract delivery artifacts.
+ * "receipt" must never defeat "Coco" merely because it appears earlier.
+ */
 function subject(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const candidates = unique([
     ...premiseValues(plan, "participants"),
-    ...premiseValues(plan, "subject"),
     ...premiseValues(plan, "social"),
+    ...premiseValues(plan, "subject"),
     ...(beat.entities ?? []),
     clean(plan?.centralSubject),
   ]);
 
-  const scored = candidates.map((value, index) => ({
-    value,
-    score: candidateScore(value, index),
-  }));
-
-  const best = scored.sort((a, b) => b.score - a.score)[0]?.value;
-  if (best && !isGeneric(best)) return best;
+  const best = candidates
+    .map((value, index) => ({ value, score: scoreSubject(value, index) }))
+    .sort((a, b) => b.score - a.score)[0]?.value;
 
   return best || "the subject";
 }
 
-function splitClauses(value: string): string[] {
+function clauses(value: string): string[] {
   return unique(
     sentence(value)
       .replace(/\b(?:and then|then)\b/gi, ",")
@@ -121,46 +107,36 @@ function rawEvidence(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] 
 
 function detailCandidates(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   const name = lower(subject(beat, plan));
-  const candidates = rawEvidence(beat, plan)
-    .flatMap(splitClauses)
-    .map((value) =>
-      sentence(value)
-        .replace(new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`, "i"), "")
-        .replace(/^being\s+/i, "")
-        .replace(/^and\s+/i, "")
-        .replace(/^shows?\s+/i, "")
-        .trim(),
-    )
-    .filter((value) => lower(value) !== name && !META.test(value));
-
-  return unique(candidates);
+  return unique(
+    rawEvidence(beat, plan)
+      .flatMap(clauses)
+      .map((value) => sentence(value).replace(new RegExp(`^${name}\\s+`, "i"), "").trim())
+      .filter((value) => lower(value) !== name && !META.test(value)),
+  );
 }
 
 function context(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const details = detailCandidates(beat, plan);
-  const scored = details.map((value, index) => {
-    let score = 0;
-    if (ACTION.test(value)) score += 18;
-    if (/\b(?:show|shows|fun|funny|story|receipt|experience|business|customer|client)\b/i.test(value)) score -= 9;
-    if (value.length >= 6 && value.length <= 90) score += 5;
-    if (/\b(?:arriv|groom|clean|repair|fix|restore|cook|bake|build|open|close|travel|ready|finish|serve|share|choose|discover|return|deliver|prepare|inspect|test|wash|paint|write|create|design|celebrat|pamper|relax|massage|treat|trim|brush|dry)\w*\b/i.test(value)) score += 8;
-    score -= index * 0.02;
-    return { value, score };
-  });
-
-  return scored.sort((a, b) => b.score - a.score)[0]?.value ?? "";
+  return details
+    .map((value, index) => {
+      let score = 0;
+      if (ACTION.test(value)) score += 22;
+      if (/\b(?:show|shows|fun|funny|story|receipt|experience|business|customer|client)\b/i.test(value)) score -= 12;
+      if (value.length >= 6 && value.length <= 100) score += 5;
+      score -= index * 0.01;
+      return { value, score };
+    })
+    .sort((a, b) => b.score - a.score)[0]?.value ?? "";
 }
 
-function allConcreteDetails(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
+function concreteDetails(beat: StoryBeat, plan?: CognitiveExperiencePlan): string[] {
   return detailCandidates(beat, plan)
     .filter((value) => ACTION.test(value) || value.length > 5)
     .slice(0, 8);
 }
 
 function directive(beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  return sentence(
-    plan?.realization?.directives.find((item) => item.kind === beat.kind)?.action,
-  );
+  return sentence(plan?.realization?.directives.find((item) => item.kind === beat.kind)?.action);
 }
 
 function signalText(plan?: CognitiveExperiencePlan): string {
@@ -184,209 +160,141 @@ function playful(plan?: CognitiveExperiencePlan): boolean {
   return !SERIOUS.test(signal) && PLAYFUL.test(signal);
 }
 
-function choose(values: string[], seed: string): string | undefined {
-  if (!values.length) return undefined;
+function choose(values: string[], seed: string): string {
   let hash = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
     hash ^= seed.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  return values[(hash >>> 0) % values.length];
+  return values[(hash >>> 0) % values.length] ?? values[0]!;
 }
 
-function explicitAfter(plan?: CognitiveExperiencePlan): string | undefined {
+function afterState(plan?: CognitiveExperiencePlan): string | undefined {
   const transformation = premiseValues(plan, "transformation");
   if (transformation[1]) return sentence(transformation[1]);
   const outcome = premiseValues(plan, "outcome")[0];
   return outcome ? sentence(outcome) : undefined;
 }
 
-function playfulOpening(name: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
-  return choose([
-    `${name} arrived like this was going to require a formal complaint`,
-    `${name} showed up with opinions, standards, and absolutely no intention of making this easy`,
-    `${name} walked in ready to see what kind of nonsense the day had planned`,
-    `${name} arrived with just enough attitude to make an ordinary moment interesting`,
-    `${name} showed up looking like the situation had better be worth it`,
-  ], `${name}|opening|${beat.kind}|${beat.order}`) ?? `${name} arrived and the story began`;
+function opening(name: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
+  if (playful(plan)) {
+    return choose([
+      `${name} arrived like this was going to require a formal complaint`,
+      `${name} showed up with opinions, standards, and absolutely no intention of making this easy`,
+      `${name} walked in ready to see what kind of nonsense the day had planned`,
+      `${name} arrived with just enough attitude to make an ordinary moment interesting`,
+      `${name} showed up looking like the situation had better be worth it`,
+    ], `${name}|opening|${beat.order}`);
+  }
+  const detail = context(beat, plan);
+  return detail ? `${name} arrives with ${detail} already in motion` : `${name} arrives and the story begins`;
 }
 
-function playfulEncounter(name: string, detail: string, beat: StoryBeat): string {
-  if (detail) {
+function encounter(name: string, detail: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
+  if (!detail) return `${name} settles in, and the experience starts moving`;
+  if (playful(plan)) {
     return choose([
       `${name} met ${detail}, and the negotiations immediately got more interesting`,
       `${detail} entered the picture, and ${name} started reconsidering the situation`,
       `${name} discovered ${detail}, which turned out to be the first real plot twist`,
-    ], `${name}|encounter|${beat.order}`) ?? `${name} encountered ${detail}`;
+    ], `${name}|encounter|${beat.order}`);
   }
-  return `${name} settled in, and the mood finally started behaving itself`;
+  return `${name} encounters ${detail}`;
 }
 
-function playfulEscalation(name: string, details: string[], beat: StoryBeat): string {
+function escalation(name: string, details: string[], beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
   const detail = details[0];
-  if (detail) {
+  if (playful(plan)) {
+    if (detail) {
+      return choose([
+        `Then ${detail} happened, and ${name} decided to make the most of it`,
+        `${name} went from merely participating to making ${detail} part of the legend`,
+        `At that point, ${name} and ${detail} were clearly going to have a story of their own`,
+      ], `${name}|escalation|${beat.order}`);
+    }
     return choose([
-      `Then ${detail} happened, and ${name} decided to make the most of it`,
-      `${name} went from merely participating to making ${detail} part of the legend`,
-      `At that point, ${name} and ${detail} were clearly going to have a story of their own`,
-    ], `${name}|escalation|${beat.order}`) ?? `Then ${detail} happened`;
+      `Then ${name} found the fun part and refused to waste it`,
+      `The mood escalated from ordinary to considerably more memorable`,
+      `${name} took the moment and turned the volume up`,
+    ], `${name}|escalation|${beat.order}`);
   }
-  return choose([
-    `Then ${name} found the fun part and refused to waste it`,
-    `The mood escalated from ordinary to considerably more memorable`,
-    `${name} took the moment and turned the volume up`,
-  ], `${name}|escalation|${beat.order}`) ?? `${name} kept the story moving`;
+  return detail ? `${name} goes further with ${detail}` : `${name} keeps the experience moving`;
 }
 
-function playfulExit(name: string, after: string | undefined, details: string[], beat: StoryBeat): string {
-  if (after) {
-    return choose([
-      `${name} left ${after}, looking like the whole experience had finally clicked`,
-      `${name} walked out ${after}, with enough swagger to make the exit feel like a finale`,
-      `${name} left ${after}, looking ready for whatever came next`,
-    ], `${name}|exit|${beat.order}`) ?? `${name} left ${after}`;
-  }
-
-  const detail = details.find((value) => ACTION.test(value));
-  if (detail) {
-    return `${name} walked out having turned ${detail} into a story worth retelling`;
-  }
-  return `${name} left looking like the day had upgraded them`;
-}
-
-function transformationLine(name: string, details: string[], plan?: CognitiveExperiencePlan): string {
+function transformation(name: string, details: string[], plan?: CognitiveExperiencePlan): string {
   const explicit = premiseValues(plan, "transformation");
   if (explicit.length >= 2) {
     return `${name} moved from ${sentence(explicit[0])} to ${sentence(explicit[1])}`;
   }
-
-  const after = explicitAfter(plan);
+  const after = afterState(plan);
   if (after) return `${name} came out the other side ${after}`;
-
   const detail = details.find((value) => ACTION.test(value));
-  if (detail) return `${name} was not quite the same after ${detail}`;
-  return `${name} came out of the experience changed in a way that could actually be felt`;
+  return detail
+    ? `${name} was not quite the same after ${detail}`
+    : `${name} came out of the experience changed in a way that could actually be felt`;
+}
+
+function payoff(name: string, details: string[], beat: StoryBeat, plan?: CognitiveExperiencePlan): string {
+  const after = afterState(plan);
+  if (playful(plan)) {
+    if (after) {
+      return choose([
+        `${name} left ${after}, looking like the whole experience had finally clicked`,
+        `${name} walked out ${after}, with enough swagger to make the exit feel like a finale`,
+        `${name} left ${after}, looking ready for whatever came next`,
+      ], `${name}|payoff|${beat.order}`);
+    }
+    const detail = details.find((value) => ACTION.test(value));
+    return detail
+      ? `${name} walked out having turned ${detail} into a story worth retelling`
+      : `${name} left looking like the day had upgraded them`;
+  }
+  return after ? `${name} reaches ${after}` : details[0] ? `${name} reaches the result shaped by ${details[0]}` : `${name} reaches the payoff`;
 }
 
 function concreteBeat(name: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
   const action = directive(beat, plan);
   const detail = context(beat, plan);
-  const details = allConcreteDetails(beat, plan);
-  const after = explicitAfter(plan);
-  const isPlayful = playful(plan);
+  const details = concreteDetails(beat, plan);
+  const after = afterState(plan);
 
   switch (beat.kind) {
     case "orientation":
     case "hook":
-      if (isPlayful) return playfulOpening(name, beat, plan);
-      if (detail) return `${name} arrives with ${detail} already in motion`;
-      return action ? `${name} begins by ${action}` : `${name} arrives and the story begins`;
-
+      return opening(name, beat, plan);
     case "encounter":
-      return isPlayful
-        ? playfulEncounter(name, detail, beat)
-        : detail
-          ? `${name} encounters ${detail}`
-          : action
-            ? `${name} encounters the next condition when ${action}`
-            : undefined;
-
+      return encounter(name, detail, beat, plan);
     case "challenge":
-      return action
-        ? `${name} meets the challenge by ${action}`
-        : detail
-          ? `${name} has to deal with ${detail}`
-          : undefined;
-
+      return action ? `${name} meets the challenge by ${action}` : detail ? `${name} has to deal with ${detail}` : undefined;
     case "action":
-      return action
-        ? `${name} ${action}`
-        : detail
-          ? `${name} gets into ${detail}`
-          : undefined;
-
+      return action ? `${name} ${action}` : detail ? `${name} gets into ${detail}` : undefined;
     case "contribution":
-      return action
-        ? `${name} adds that action to the moment and the story moves with it`
-        : detail
-          ? `${name} puts ${detail} into motion`
-          : undefined;
-
+      return action ? `${name} puts that action into motion` : detail ? `${name} puts ${detail} into motion` : undefined;
     case "discovery":
-      return detail
-        ? `${name} discovers that ${detail} changes the feel of the experience`
-        : action
-          ? `${name} discovers what changes when ${action}`
-          : undefined;
-
+      return detail ? `${name} discovers that ${detail} changes the feel of the experience` : action ? `${name} discovers what changes when ${action}` : undefined;
     case "reveal":
-      return detail ? `${name} finally sees what ${detail was?}` : undefined;
-
+      return detail ? `${name} finally sees ${detail} clearly` : undefined;
     case "feedback":
-      return after
-        ? `${name} can finally see the result: ${after}`
-        : detail
-          ? `${name} sees what changed after ${detail}`
-          : undefined;
-
+      return after ? `${name} can finally see the result: ${after}` : detail ? `${name} sees what changed after ${detail}` : undefined;
     case "escalation":
-      return isPlayful
-        ? playfulEscalation(name, details, beat)
-        : detail
-          ? `${name} goes further with ${detail}`
-          : undefined;
-
+      return escalation(name, details, beat, plan);
     case "transformation":
-      return isPlayful
-        ? transformationLine(name, details, plan)
-        : transformationLine(name, details, plan);
-
+      return transformation(name, details, plan);
     case "reflection":
-      return detail
-        ? `${name} looks back at ${detail} and can see what it changed`
-        : undefined;
-
+      return detail ? `${name} looks back at ${detail} and can see what it changed` : undefined;
     case "identity":
-      return isPlayful
-        ? `${name} has officially become the kind of subject people remember`
-        : detail
-          ? `${name} becomes known through ${detail}`
-          : undefined;
-
+      return playful(plan) ? `${name} has officially become the kind of subject people remember` : detail ? `${name} becomes known through ${detail}` : undefined;
     case "milestone":
-      return after
-        ? `${name} reaches ${after}`
-        : detail
-          ? `${name} reaches a visible milestone through ${detail}`
-          : undefined;
-
+      return after ? `${name} reaches ${after}` : detail ? `${name} reaches a visible milestone through ${detail}` : undefined;
     case "unlock":
     case "earned_access":
-      return detail ? `${name} earns what ${detail makes possible` : undefined;
-
+      return detail ? `${name} earns what ${detail} makes possible` : undefined;
     case "payoff":
-      return isPlayful
-        ? playfulExit(name, after, details, beat)
-        : after
-          ? `${name} reaches ${after}`
-          : detail
-            ? `${name} reaches the result shaped by ${detail}`
-            : undefined;
-
+      return payoff(name, details, beat, plan);
     case "next_step":
-      return action
-        ? `${name} takes the next step by ${action}`
-        : detail
-          ? `${name} carries ${detail} into what comes next`
-          : undefined;
-
+      return action ? `${name} takes the next step by ${action}` : detail ? `${name} carries ${detail} into what comes next` : undefined;
     case "continuation":
-      return isPlayful
-        ? `${name} leaves the door open for the next chapter`
-        : detail
-          ? `${name} carries ${detail} forward`
-          : undefined;
-
+      return playful(plan) ? `${name} leaves the door open for the next chapter` : detail ? `${name} carries ${detail} forward` : undefined;
     default:
       return undefined;
   }
@@ -397,7 +305,6 @@ export function realizeTransformationalBeat(
   plan?: CognitiveExperiencePlan,
 ): string | undefined {
   if (!plan?.premise) return undefined;
-
   const evidence = unique([
     ...premiseValues(plan, "subject"),
     ...premiseValues(plan, "participants"),
@@ -411,8 +318,7 @@ export function realizeTransformationalBeat(
   ]);
   if (!evidence.length) return undefined;
 
-  const name = subject(beat, plan);
-  const text = concreteBeat(name, beat, plan);
+  const text = concreteBeat(subject(beat, plan), beat, plan);
   return text ? `${sentence(text)}.` : undefined;
 }
 
