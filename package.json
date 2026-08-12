@@ -13,6 +13,9 @@
     "build:engine": "pnpm --filter @qre/engine build",
     "build:api": "pnpm --filter @qre/api build",
     "build:web": "pnpm --filter @qre/web build",
+    "db:migrate": "pnpm --filter @qre/db prisma:deploy",
+    "test:memory": "pnpm --filter @qre/engine test:memory",
+    "test:elite": "pnpm --filter @qre/engine test:cognition && pnpm --filter @qre/engine test:universal && pnpm --filter @qre/engine test:realization && pnpm --filter @qre/engine test:semantic-realization && pnpm --filter @qre/engine test:super-cog && pnpm --filter @qre/engine test:mechanics && pnpm --filter @qre/engine test:trajectory && pnpm --filter @qre/engine test:concrete-experience && pnpm --filter @qre/engine test:creative && pnpm --filter @qre/engine test:bodyguards && pnpm --filter @qre/engine test:event-realization && pnpm --filter @qre/engine test:memory",
     "clean": "pnpm -r clean"
   },
   "pnpm": {

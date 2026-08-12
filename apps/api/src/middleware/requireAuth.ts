@@ -1,6 +1,16 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        userId: string;
+      };
+    }
+  }
+}
+
 export type AuthRequest = Request & {
   user?: {
     userId: string;
@@ -20,7 +30,6 @@ export function requireAuth(
     }
 
     const token = authHeader.slice(7);
-console.log("AUTH HEADER:", req.headers.authorization);
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET!

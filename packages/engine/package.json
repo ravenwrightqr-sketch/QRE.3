@@ -26,6 +26,10 @@
     "test:super-cog": "tsx src/compiler/tests/superCogPremiseAcceptance.ts",
     "test:mechanics": "tsx src/compiler/tests/cognitiveMechanicsAcceptance.ts",
     "test:trajectory": "tsx src/compiler/tests/cognitiveTrajectoryAcceptance.ts",
-    "test:concrete-experience": "tsx src/compiler/tests/cognitiveConcreteExperienceAcceptance.ts"
+    "test:concrete-experience": "tsx src/compiler/tests/cognitiveConcreteExperienceAcceptance.ts",
+    "test:creative": "tsx src/compiler/tests/superCogCreativeAcceptance.ts",
+    "test:bodyguards": "tsx src/compiler/tests/superCogBodyguardsAcceptance.ts",
+    "test:event-realization": "tsx src/compiler/tests/cognitiveEventRealizationAcceptance.ts",
+    "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts"
   }
 }

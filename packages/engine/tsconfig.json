@@ -20,7 +20,8 @@
     "types": ["node"],
 
     "baseUrl": ".",
-     
+    "ignoreDeprecations": "6.0",
+
     "paths": {
       "@qre/contracts": ["../contracts/dist"],
       "@qre/db": ["../db/src"],
@@ -32,6 +33,5 @@
     "forceConsistentCasingInFileNames": true
   },
 
-  
   "exclude": ["dist", "node_modules"]
 }

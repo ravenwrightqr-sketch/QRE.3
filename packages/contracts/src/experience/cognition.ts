@@ -2,46 +2,28 @@ import type { ExperienceEntities } from "./entityExtractor.js";
 import type { CognitivePremise } from "./premise.js";
 
 /**
- * ============================================================
- * QRE COGNITIVE CONTRACT — ARCHITECTURE LOCK
- * ============================================================
+ * QRE COGNITIVE CONTRACT
  *
- * PURPOSE:
- *   Canonical semantic contract for the cognitive compiler.
- *
- * CANONICAL PIPELINE:
- *   PROMPT → COGNITION → MEANING → HYPOTHESES → OPPORTUNITY SPACE
- *   → EXPERIENCE DIRECTION → COGNITIVE PLAN → SEMANTIC REALIZATION
- *   → UNIVERSAL COMPILATION → BLUEPRINT → FLOW → MOMENTS
- *   → CINEMATIC SCENES
- *
- * ARCHITECTURE RULE:
- *   THE COMPILER BECOMES SMARTER.
- *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
- *
- * CONTRACT RULE:
- *   This file is the shared semantic source of truth. Engine-local
- *   duplicates of these shapes are not permitted.
- *
- * COGNITIVE RULE:
- *   Claims distinguish observed input from derived or hypothesized meaning.
- *   Plans describe possibilities; they do not manufacture facts.
- *
- * CONSERVATION RULE:
- *   The selected plan carries a role-based premise so realization can
- *   preserve relationships among facts instead of relying on noun lists.
- *
- * REALIZATION RULE:
- *   Semantic realization describes what each experiential operation is
- *   supposed to accomplish. It does not contain presentation copy.
- *
- * ============================================================
+ * Canonical semantic source of truth for cognition and realization planning.
+ * The compiler may invent creative material, but invented material must remain
+ * distinguishable from prompt/context evidence.
  */
 
-export type CognitiveClaimStatus = "observed" | "derived" | "hypothesized" | "unknown";
+export type CognitiveClaimStatus =
+  | "observed"
+  | "derived"
+  | "hypothesized"
+  | "unknown";
 
 export type CognitiveEvidence = {
-  source: "prompt" | "context" | "memory" | "event" | "location" | "history";
+  source:
+    | "prompt"
+    | "context"
+    | "memory"
+    | "event"
+    | "location"
+    | "history"
+    | "creative_realization";
   detail: string;
   confidence: number;
 };
@@ -93,38 +75,12 @@ export type ExperienceHypothesis = {
 };
 
 export type CognitiveBeatKind =
-  | "orientation"
-  | "hook"
-  | "need"
-  | "threshold"
-  | "origin"
-  | "encounter"
-  | "challenge"
-  | "discovery"
-  | "reveal"
-  | "instruction"
-  | "action"
-  | "feedback"
-  | "contribution"
-  | "escalation"
-  | "transformation"
-  | "reflection"
-  | "provenance"
-  | "identity"
-  | "milestone"
-  | "unlock"
-  | "payoff"
-  | "earned_access"
-  | "next_step"
+  | "orientation" | "hook" | "need" | "threshold" | "origin" | "encounter"
+  | "challenge" | "discovery" | "reveal" | "instruction" | "action" | "feedback"
+  | "contribution" | "escalation" | "transformation" | "reflection" | "provenance"
+  | "identity" | "milestone" | "unlock" | "payoff" | "earned_access" | "next_step"
   | "continuation";
 
-/**
- * Semantic instruction for one experiential operation.
- *
- * This is deliberately not presentation copy. It records the cognitive
- * function of a beat so any later language/media renderer can realize it
- * without reconstructing the meaning from nouns or templates.
- */
 export type CognitiveBeatDirective = {
   kind: CognitiveBeatKind;
   intent: string;
@@ -145,13 +101,6 @@ export type CognitiveExperienceRealization = {
   confidence: number;
 };
 
-/**
- * Cognitive direction selected before universal compilation.
- *
- * `direction` is optional only so existing cognitive-state construction can
- * remain source-compatible during this migration. Canonical compiler output
- * always fills it from selectedHypothesis.kind before universal compilation.
- */
 export type CognitiveExperiencePlan = {
   direction?: ExperienceHypothesisKind;
   centralSubject: string;
@@ -172,17 +121,7 @@ export type CognitiveExperiencePlan = {
   dynamicBehavior: string[];
   futureEvolution: string[];
   creativePossibilities: string[];
-
-  /**
-   * Conserved semantic premise. Optional during migration so historical
-   * callers remain source-compatible while new cognitive paths populate it.
-   */
   premise?: CognitivePremise;
-
-  /**
-   * Semantic beat realization. Optional for compatibility with historical
-   * plan producers; canonical cognitive compilation populates it.
-   */
   realization?: CognitiveExperienceRealization;
 };
 

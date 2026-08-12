@@ -1,29 +1,53 @@
+
 /**
  * =============================================================================
  * COGNITIVE TRAJECTORY
  * =============================================================================
  *
- * Convert experiential mechanics into a causal, variable story trajectory.
+ * GOAL
+ * ----
+ * Convert discovered experiential mechanics into a causal experience
+ * trajectory without collapsing cognition back into domain templates.
  *
- * This layer is deliberately downstream of cognition and upstream of prose.
- * It does not know what a dog, restaurant, concert, spa, wedding, product, or
- * event is. It only knows behavioral forces and the primitive operations that
- * can realize them.
+ * PURPOSE
+ * -------
+ * This is the structural bridge between:
  *
- * NEXT-LEVEL RULE:
- * ----------------
- * Do not select one canned beat sequence. Generate competing trajectories,
- * score them for mechanic coverage and causal coherence, then keep the best
- * one. The same prompt can therefore produce a materially different shape
- * when its cognitive forces differ.
+ *   cognitive understanding
+ *       -> experiential mechanics
+ *       -> causal operations
+ *       -> observable event pressure
+ *       -> concrete realization
+ *
+ * The trajectory is deliberately variable. It composes primitive story
+ * operations from the forces cognition discovered instead of selecting a
+ * canned sequence for a subject, industry, genre, or noun.
+ *
+ * ALIGNMENT RULE
+ * --------------
+ * Cognitive realization directives are authoritative commitments. Derived
+ * mechanics may add useful experiential operations, but they may never erase
+ * or replace an operation cognition explicitly decided must happen.
  */
 
-import type { CognitiveExperiencePlan, StoryBeatKind } from "@qre/contracts";
+import type {
+  CognitiveExperiencePlan,
+  StoryBeatKind,
+} from "@qre/contracts";
+
 import {
   inferExperienceMechanics,
   type ExperienceMechanic,
   type MechanicSignal,
 } from "./cognitiveMechanics.js";
+
+export type CognitiveEventPressure = {
+  mechanic: ExperienceMechanic;
+  beat: StoryBeatKind;
+  force: string;
+  observableChange: string;
+  causalRequirement: string;
+};
 
 export type CognitiveTrajectoryCandidate = {
   id: string;
@@ -35,6 +59,7 @@ export type CognitiveTrajectoryCandidate = {
 export type CognitiveTrajectory = {
   beats: StoryBeatKind[];
   mechanics: MechanicSignal[];
+  eventPressure: CognitiveEventPressure[];
   score: number;
   rationale: string[];
   candidates: CognitiveTrajectoryCandidate[];
@@ -48,52 +73,542 @@ type MechanicRule = {
 
 const RULES: MechanicRule[] = [
   { mechanic: "anticipation", operations: ["hook", "threshold"], weight: 1.25 },
-  { mechanic: "uncertainty", operations: ["threshold", "encounter", "reveal"], weight: 1.4 },
-  { mechanic: "suspense", operations: ["threshold", "encounter", "reveal"], weight: 1.45 },
-  { mechanic: "discovery", operations: ["discovery", "reveal"], weight: 1.35 },
-  { mechanic: "surprise", operations: ["reveal", "transformation"], weight: 1.3 },
-  { mechanic: "reversal", operations: ["reveal", "transformation"], weight: 1.35 },
-  { mechanic: "participation", operations: ["action", "feedback"], weight: 1.15 },
-  { mechanic: "agency", operations: ["action", "feedback", "next_step"], weight: 1.35 },
-  { mechanic: "consequence", operations: ["action", "feedback", "transformation"], weight: 1.4 },
-  { mechanic: "competition", operations: ["challenge", "escalation"], weight: 1.3 },
-  { mechanic: "mastery", operations: ["challenge", "feedback", "milestone"], weight: 1.35 },
-  { mechanic: "contribution", operations: ["encounter", "contribution", "feedback"], weight: 1.2 },
-  { mechanic: "authorship", operations: ["action", "contribution", "identity"], weight: 1.3 },
-  { mechanic: "reciprocity", operations: ["encounter", "action", "feedback"], weight: 1.2 },
-  { mechanic: "accumulation", operations: ["contribution", "milestone"], weight: 1.2 },
-  { mechanic: "momentum", operations: ["encounter", "escalation", "next_step"], weight: 1.3 },
-  { mechanic: "escalation", operations: ["escalation"], weight: 1.45 },
-  { mechanic: "transformation", operations: ["transformation"], weight: 1.5 },
-  { mechanic: "contrast", operations: ["orientation", "transformation"], weight: 1.0 },
-  { mechanic: "reveal", operations: ["reveal"], weight: 1.3 },
-  { mechanic: "memory", operations: ["origin", "reflection"], weight: 1.25 },
-  { mechanic: "ritual", operations: ["origin", "action", "continuation"], weight: 1.15 },
-  { mechanic: "continuation", operations: ["continuation"], weight: 1.35 },
-  { mechanic: "adaptation", operations: ["feedback", "next_step"], weight: 1.2 },
-  { mechanic: "pampering", operations: ["encounter", "transformation"], weight: 1.15 },
-  { mechanic: "indulgence", operations: ["encounter", "escalation", "transformation"], weight: 1.35 },
-  { mechanic: "excess", operations: ["escalation", "payoff"], weight: 1.25 },
-  { mechanic: "spectacle", operations: ["encounter", "escalation", "payoff"], weight: 1.3 },
-  { mechanic: "delight", operations: ["encounter", "transformation", "payoff"], weight: 1.2 },
-  { mechanic: "euphoria", operations: ["escalation", "payoff"], weight: 1.3 },
-  { mechanic: "celebration", operations: ["encounter", "milestone", "payoff"], weight: 1.15 },
-  { mechanic: "prestige", operations: ["threshold", "identity", "payoff"], weight: 1.15 },
-  { mechanic: "novelty", operations: ["discovery", "reveal"], weight: 1.1 },
-  { mechanic: "curation", operations: ["discovery", "action", "feedback"], weight: 1.0 },
-  { mechanic: "scarcity", operations: ["threshold", "challenge", "unlock"], weight: 1.2 },
-  { mechanic: "recognition", operations: ["identity", "milestone", "payoff"], weight: 1.15 },
-  { mechanic: "ownership", operations: ["identity", "milestone", "payoff"], weight: 1.1 },
-  { mechanic: "legacy", operations: ["reflection", "provenance", "continuation"], weight: 1.3 },
-  { mechanic: "resonance", operations: ["reflection", "payoff", "continuation"], weight: 1.2 },
-  { mechanic: "intimacy", operations: ["encounter", "reflection", "payoff"], weight: 1.05 },
-  { mechanic: "catharsis", operations: ["escalation", "transformation", "payoff"], weight: 1.35 },
-  { mechanic: "relief", operations: ["challenge", "payoff"], weight: 1.15 },
-  { mechanic: "wonder", operations: ["threshold", "discovery", "reveal"], weight: 1.25 },
-  { mechanic: "awe", operations: ["encounter", "escalation", "payoff"], weight: 1.25 },
-  { mechanic: "embodiment", operations: ["threshold", "action", "feedback"], weight: 1.15 },
-  { mechanic: "immersion", operations: ["threshold", "encounter", "transformation"], weight: 1.2 },
+  {
+    mechanic: "uncertainty",
+    operations: ["threshold", "encounter", "reveal"],
+    weight: 1.4,
+  },
+  {
+    mechanic: "suspense",
+    operations: ["threshold", "encounter", "reveal"],
+    weight: 1.45,
+  },
+  {
+    mechanic: "discovery",
+    operations: ["discovery", "reveal"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "surprise",
+    operations: ["reveal", "transformation"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "reversal",
+    operations: ["reveal", "transformation"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "participation",
+    operations: ["action", "feedback"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "agency",
+    operations: ["action", "feedback", "next_step"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "consequence",
+    operations: ["action", "feedback", "transformation"],
+    weight: 1.4,
+  },
+  {
+    mechanic: "competition",
+    operations: ["challenge", "escalation"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "mastery",
+    operations: ["challenge", "feedback", "milestone"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "contribution",
+    operations: ["encounter", "contribution", "feedback"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "authorship",
+    operations: ["action", "contribution", "identity"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "reciprocity",
+    operations: ["encounter", "action", "feedback"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "accumulation",
+    operations: ["contribution", "milestone"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "momentum",
+    operations: ["encounter", "escalation", "next_step"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "escalation",
+    operations: ["escalation"],
+    weight: 1.45,
+  },
+  {
+    mechanic: "transformation",
+    operations: ["transformation"],
+    weight: 1.5,
+  },
+  {
+    mechanic: "contrast",
+    operations: ["orientation", "transformation"],
+    weight: 1.0,
+  },
+  {
+    mechanic: "reveal",
+    operations: ["reveal"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "memory",
+    operations: ["origin", "reflection"],
+    weight: 1.25,
+  },
+  {
+    mechanic: "ritual",
+    operations: ["origin", "action", "continuation"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "continuation",
+    operations: ["continuation"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "adaptation",
+    operations: ["feedback", "next_step"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "pampering",
+    operations: ["encounter", "transformation"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "indulgence",
+    operations: ["encounter", "escalation", "transformation"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "excess",
+    operations: ["escalation", "payoff"],
+    weight: 1.25,
+  },
+  {
+    mechanic: "spectacle",
+    operations: ["encounter", "escalation", "payoff"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "delight",
+    operations: ["encounter", "transformation", "payoff"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "euphoria",
+    operations: ["escalation", "payoff"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "celebration",
+    operations: ["encounter", "milestone", "payoff"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "prestige",
+    operations: ["threshold", "identity", "payoff"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "novelty",
+    operations: ["discovery", "reveal"],
+    weight: 1.1,
+  },
+  {
+    mechanic: "curation",
+    operations: ["discovery", "action", "feedback"],
+    weight: 1.0,
+  },
+  {
+    mechanic: "scarcity",
+    operations: ["threshold", "challenge", "unlock"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "recognition",
+    operations: ["identity", "milestone", "payoff"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "ownership",
+    operations: ["identity", "milestone", "payoff"],
+    weight: 1.1,
+  },
+  {
+    mechanic: "legacy",
+    operations: ["reflection", "provenance", "continuation"],
+    weight: 1.3,
+  },
+  {
+    mechanic: "resonance",
+    operations: ["reflection", "payoff", "continuation"],
+    weight: 1.2,
+  },
+  {
+    mechanic: "intimacy",
+    operations: ["encounter", "reflection", "payoff"],
+    weight: 1.05,
+  },
+  {
+    mechanic: "catharsis",
+    operations: ["escalation", "transformation", "payoff"],
+    weight: 1.35,
+  },
+  {
+    mechanic: "relief",
+    operations: ["challenge", "payoff"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "wonder",
+    operations: ["threshold", "discovery", "reveal"],
+    weight: 1.25,
+  },
+  {
+    mechanic: "awe",
+    operations: ["encounter", "escalation", "payoff"],
+    weight: 1.25,
+  },
+  {
+    mechanic: "embodiment",
+    operations: ["threshold", "action", "feedback"],
+    weight: 1.15,
+  },
+  {
+    mechanic: "immersion",
+    operations: ["threshold", "encounter", "transformation"],
+    weight: 1.2,
+  },
 ];
+
+/**
+ * A mechanic is a behavioral constraint, not a prose adjective.
+ *
+ * These pressures deliberately describe what must change in the world. They
+ * contain no domain nouns and therefore remain reusable across dogs, weddings,
+ * cars, businesses, memories, horror, luxury, and arbitrary future prompts.
+ */
+const PRESSURE: Record<
+  ExperienceMechanic,
+  {
+    force: string;
+    observableChange: string;
+    causalRequirement: string;
+  }
+> = {
+  anticipation: {
+    force: "build expectation",
+    observableChange: "something approaches or becomes imminent",
+    causalRequirement:
+      "the next beat must provide evidence that the expected event is getting closer",
+  },
+  uncertainty: {
+    force: "withhold certainty",
+    observableChange: "important information remains unavailable or ambiguous",
+    causalRequirement:
+      "the next beat must preserve an unresolved question until evidence changes it",
+  },
+  suspense: {
+    force: "delay resolution under pressure",
+    observableChange:
+      "a threat, risk, or unknown condition becomes harder to ignore",
+    causalRequirement:
+      "each beat must increase what is at stake or reduce safe options before release",
+  },
+  discovery: {
+    force: "reveal a previously unavailable layer",
+    observableChange: "new information changes the current situation",
+    causalRequirement:
+      "a concrete clue, object, action, or observation must cause the new knowledge",
+  },
+  surprise: {
+    force: "break the immediate expectation",
+    observableChange: "an unexpected but defensible condition appears",
+    causalRequirement:
+      "the turn must be caused by evidence already available in the experience",
+  },
+  reversal: {
+    force: "change the meaning or direction of the current state",
+    observableChange: "what seemed true no longer governs the situation",
+    causalRequirement:
+      "a new fact or consequence must force the reversal",
+  },
+  participation: {
+    force: "require an action from a participant",
+    observableChange: "the participant's action changes available state",
+    causalRequirement:
+      "a visible response must follow the participant's action",
+  },
+  agency: {
+    force: "make choice consequential",
+    observableChange: "different choices produce different immediate conditions",
+    causalRequirement:
+      "the world must visibly respond to the chosen action",
+  },
+  consequence: {
+    force: "make action matter through result",
+    observableChange: "an earlier action produces a later condition",
+    causalRequirement:
+      "the later state must be traceable to the earlier action",
+  },
+  competition: {
+    force: "create comparative pressure",
+    observableChange: "one attempt must answer or exceed another",
+    causalRequirement:
+      "the next attempt must respond to the current benchmark",
+  },
+  mastery: {
+    force: "increase capability through feedback",
+    observableChange: "performance improves or clears a harder threshold",
+    causalRequirement:
+      "feedback from the previous attempt must affect the next attempt",
+  },
+  contribution: {
+    force: "let an addition alter the shared result",
+    observableChange: "a new contribution becomes part of the available state",
+    causalRequirement:
+      "later beats must contain evidence of what was added",
+  },
+  authorship: {
+    force: "make the participant's creation identifiable",
+    observableChange: "the result bears evidence of who shaped it",
+    causalRequirement:
+      "the authored change must persist into a later beat",
+  },
+  reciprocity: {
+    force: "make interaction produce a response",
+    observableChange: "one side responds to what the other did",
+    causalRequirement:
+      "the response must reference or alter the preceding action",
+  },
+  accumulation: {
+    force: "stack additions over time",
+    observableChange: "the current state contains more than it did before",
+    causalRequirement:
+      "each addition must remain available to affect a later state",
+  },
+  momentum: {
+    force: "make the current state propel the next event",
+    observableChange: "one event creates pressure for another",
+    causalRequirement:
+      "the next beat must follow from the changed current state",
+  },
+  escalation: {
+    force: "increase the magnitude or consequence of the current condition",
+    observableChange: "the next condition exceeds the previous condition",
+    causalRequirement:
+      "the next event must be measurably more consequential, elaborate, intense, or extreme than what preceded it",
+  },
+  transformation: {
+    force: "change the subject or situation",
+    observableChange: "the before-state and after-state are visibly different",
+    causalRequirement:
+      "the change must result from events that occurred in the trajectory",
+  },
+  contrast: {
+    force: "make the difference between states visible",
+    observableChange: "two conditions are placed against each other",
+    causalRequirement:
+      "the later condition must make the earlier condition legible by comparison",
+  },
+  reveal: {
+    force: "make hidden information visible",
+    observableChange: "a previously hidden detail becomes available",
+    causalRequirement:
+      "the reveal must expose a concrete detail rather than explain its significance",
+  },
+  memory: {
+    force: "let prior evidence alter the present",
+    observableChange: "a remembered detail appears and changes what happens now",
+    causalRequirement:
+      "the present beat must contain a concrete trace of the prior memory",
+  },
+  ritual: {
+    force: "repeat a recognizable meaningful action",
+    observableChange: "a recurring action is performed again or completed",
+    causalRequirement:
+      "the repeated action must visibly connect this occurrence to earlier or later occurrences",
+  },
+  continuation: {
+    force: "leave the current state available for another interaction",
+    observableChange:
+      "something from this experience remains available afterward",
+    causalRequirement:
+      "a later interaction must have something concrete to pick up or change",
+  },
+  adaptation: {
+    force: "change the next action in response to current state",
+    observableChange: "the next behavior differs because of what just happened",
+    causalRequirement:
+      "the preceding result must be identifiable as the reason for the adaptation",
+  },
+  pampering: {
+    force: "increase care delivered to the subject",
+    observableChange: "the subject receives another concrete layer of care",
+    causalRequirement:
+      "each care action must produce a visible condition that permits the next one",
+  },
+  indulgence: {
+    force: "add optional luxury beyond necessity",
+    observableChange:
+      "the experience gains an unnecessary but desirable layer",
+    causalRequirement:
+      "the next indulgence must build on the current level rather than merely rename it",
+  },
+  excess: {
+    force: "push beyond ordinary sufficiency",
+    observableChange:
+      "the result becomes conspicuously more elaborate than necessary",
+    causalRequirement:
+      "the excess must be visible in an added action, object, scale, or consequence",
+  },
+  spectacle: {
+    force: "make the event increasingly visible or impressive",
+    observableChange:
+      "more people, scale, motion, or visual consequence enters the scene",
+    causalRequirement:
+      "the spectacle must grow from what has already happened",
+  },
+  delight: {
+    force: "produce an unexpectedly satisfying response",
+    observableChange:
+      "the subject or participant reacts positively to a concrete turn",
+    causalRequirement:
+      "the response must be caused by the preceding event",
+  },
+  euphoria: {
+    force: "build toward an intensified positive peak",
+    observableChange:
+      "energy and response visibly rise toward a peak",
+    causalRequirement:
+      "each escalation must increase observable participation or intensity",
+  },
+  celebration: {
+    force: "mark an achieved or shared occasion",
+    observableChange: "people perform a recognizable celebratory act",
+    causalRequirement:
+      "the celebration must follow a concrete achievement or occasion",
+  },
+  prestige: {
+    force: "increase perceived status or exclusivity",
+    observableChange:
+      "access, treatment, setting, or recognition becomes more exclusive",
+    causalRequirement:
+      "the elevated status must be shown through changed treatment or access",
+  },
+  novelty: {
+    force: "introduce something not previously encountered",
+    observableChange: "a genuinely new element enters the situation",
+    causalRequirement:
+      "the new element must alter attention or available action",
+  },
+  curation: {
+    force: "select among available elements deliberately",
+    observableChange: "one chosen element changes what follows",
+    causalRequirement:
+      "the selection must constrain or shape the next event",
+  },
+  scarcity: {
+    force: "limit availability",
+    observableChange:
+      "access becomes narrower or time becomes more constrained",
+    causalRequirement:
+      "the limitation must affect the next available choice",
+  },
+  recognition: {
+    force: "identify a person or contribution as significant",
+    observableChange: "the subject receives explicit acknowledgment",
+    causalRequirement:
+      "the recognition must be tied to a concrete contribution or history",
+  },
+  ownership: {
+    force: "transfer or affirm possession",
+    observableChange: "something becomes identifiable as belonging to someone",
+    causalRequirement:
+      "the ownership state must persist into a later beat",
+  },
+  legacy: {
+    force: "carry a concrete contribution forward",
+    observableChange:
+      "something created or remembered remains available after the original moment",
+    causalRequirement:
+      "the later state must contain evidence of what was carried forward",
+  },
+  resonance: {
+    force: "connect the current event to another meaningful state",
+    observableChange:
+      "a detail from one state changes how another state is perceived",
+    causalRequirement:
+      "the connection must be shown through a concrete shared detail",
+  },
+  intimacy: {
+    force: "narrow attention toward a personal exchange",
+    observableChange:
+      "the interaction becomes more specific to the people involved",
+    causalRequirement:
+      "a personal detail or response must affect the next beat",
+  },
+  catharsis: {
+    force: "release accumulated emotional pressure",
+    observableChange:
+      "a held tension breaks into an observable response or action",
+    causalRequirement:
+      "the release must follow the pressure built earlier",
+  },
+  relief: {
+    force: "remove a previously active burden or threat",
+    observableChange: "a constrained state becomes easier or safer",
+    causalRequirement:
+      "the relief must be caused by the resolution of the earlier problem",
+  },
+  wonder: {
+    force: "expand perceived possibility through discovery",
+    observableChange:
+      "a newly revealed condition is more remarkable than expected",
+    causalRequirement:
+      "the remarkable turn must come from a concrete discovery",
+  },
+  awe: {
+    force: "increase scale beyond ordinary expectation",
+    observableChange:
+      "size, intensity, beauty, or consequence becomes visibly greater",
+    causalRequirement:
+      "the increased scale must be shown through a changed scene state",
+  },
+  embodiment: {
+    force: "make the participant physically or behaviorally enact the experience",
+    observableChange:
+      "the participant performs an action rather than only observing",
+    causalRequirement:
+      "the performed action must alter the next available state",
+  },
+  immersion: {
+    force: "increase environmental involvement",
+    observableChange:
+      "more of the surrounding world becomes active in the experience",
+    causalRequirement:
+      "the added environment must affect attention or action",
+  },
+};
 
 const PHASE: Record<StoryBeatKind, number> = {
   orientation: 10,
@@ -130,185 +645,370 @@ function activeSignals(signals: MechanicSignal[]): MechanicSignal[] {
     .sort((a, b) => b.confidence - a.confidence);
 }
 
-function ruleFor(mechanic: ExperienceMechanic): MechanicRule | undefined {
+function ruleFor(
+  mechanic: ExperienceMechanic,
+): MechanicRule | undefined {
   return RULES.find((candidate) => candidate.mechanic === mechanic);
 }
 
-function operationAffinity(operation: StoryBeatKind, signals: MechanicSignal[]): number {
-  let score = 0;
+function deriveEventPressure(
+  beats: StoryBeatKind[],
+  signals: MechanicSignal[],
+): CognitiveEventPressure[] {
+  const pressures: CognitiveEventPressure[] = [];
+
   for (const signal of activeSignals(signals)) {
     const rule = ruleFor(signal.mechanic);
-    if (!rule || !rule.operations.includes(operation)) continue;
-    score += signal.confidence * rule.weight;
+    const pressure = PRESSURE[signal.mechanic];
+
+    if (!rule || !pressure) continue;
+
+    for (const beat of rule.operations) {
+      if (!beats.includes(beat)) continue;
+
+      pressures.push({
+        mechanic: signal.mechanic,
+        beat,
+        force: pressure.force,
+        observableChange: pressure.observableChange,
+        causalRequirement: pressure.causalRequirement,
+      });
+    }
   }
-  return score;
+
+  return pressures;
 }
 
-/** Causal compatibility between primitive story operations. */
-const TRANSITIONS: Partial<Record<StoryBeatKind, Partial<Record<StoryBeatKind, number>>>> = {
-  orientation: { hook: 0.8, threshold: 0.7, encounter: 0.45 },
-  hook: { threshold: 0.8, encounter: 0.7, challenge: 0.55, discovery: 0.55 },
-  need: { threshold: 0.8, action: 0.7, challenge: 0.65 },
-  threshold: { encounter: 0.9, discovery: 0.85, action: 0.7, challenge: 0.7 },
-  origin: { encounter: 0.7, reflection: 0.65, action: 0.6 },
-  encounter: { challenge: 0.75, discovery: 0.8, action: 0.7, contribution: 0.75, escalation: 0.55 },
-  challenge: { action: 0.85, discovery: 0.6, escalation: 0.8, feedback: 0.65 },
-  discovery: { reveal: 0.9, action: 0.65, encounter: 0.55 },
-  reveal: { transformation: 0.8, action: 0.65, escalation: 0.75, reflection: 0.5 },
-  action: { feedback: 0.95, transformation: 0.55, discovery: 0.5 },
-  feedback: { challenge: 0.6, transformation: 0.85, escalation: 0.7, next_step: 0.75, contribution: 0.6 },
-  contribution: { feedback: 0.9, escalation: 0.65, milestone: 0.7 },
-  escalation: { transformation: 0.9, payoff: 0.75, reveal: 0.7, challenge: 0.65 },
-  transformation: { reflection: 0.65, milestone: 0.75, payoff: 0.9, next_step: 0.55 },
-  reflection: { provenance: 0.7, payoff: 0.75, continuation: 0.85 },
-  provenance: { identity: 0.55, continuation: 0.85, payoff: 0.65 },
-  identity: { milestone: 0.7, payoff: 0.75, action: 0.45 },
-  milestone: { unlock: 0.8, payoff: 0.85, continuation: 0.75 },
-  unlock: { next_step: 0.8, payoff: 0.75, continuation: 0.65 },
-  next_step: { encounter: 0.8, challenge: 0.7, discovery: 0.7, continuation: 0.7 },
-  earned_access: { payoff: 0.8, next_step: 0.75 },
-};
-
-function transitionBonus(from: StoryBeatKind, to: StoryBeatKind): number {
-  return TRANSITIONS[from]?.[to] ?? 0;
-}
-
-function deriveOperations(signals: MechanicSignal[], plan?: CognitiveExperiencePlan): StoryBeatKind[] {
+function deriveOperations(
+  signals: MechanicSignal[],
+  plan?: CognitiveExperiencePlan,
+): StoryBeatKind[] {
+  const active = activeSignals(signals);
   const operations: StoryBeatKind[] = [];
-  for (const signal of activeSignals(signals)) {
+
+  for (const signal of active) {
     const rule = ruleFor(signal.mechanic);
-    if (rule) operations.push(...rule.operations);
+
+    if (!rule) continue;
+
+    operations.push(...rule.operations);
   }
 
-  operations.push(...(plan?.realization?.directives?.map((directive) => directive.kind) ?? []));
+  operations.push(
+    ...(plan?.realization?.directives?.map(
+      (directive) => directive.kind,
+    ) ?? []),
+  );
 
-  if (!operations.some((beat) => ["orientation", "hook", "threshold", "origin"].includes(beat))) {
+  if (
+    !operations.some((beat) =>
+      ["orientation", "hook", "threshold", "origin"].includes(beat),
+    )
+  ) {
     operations.unshift("orientation");
   }
 
   if (
     operations.includes("escalation") &&
-    !operations.some((beat) => ["encounter", "action", "challenge", "contribution"].includes(beat))
+    !operations.some((beat) =>
+      ["encounter", "action", "challenge", "contribution"].includes(beat),
+    )
   ) {
     operations.push("encounter");
   }
 
-  if (!operations.some((beat) => ["encounter", "action", "challenge", "discovery", "contribution", "transformation", "escalation"].includes(beat))) {
+  if (
+    !operations.some((beat) =>
+      [
+        "encounter",
+        "action",
+        "challenge",
+        "discovery",
+        "contribution",
+        "transformation",
+        "escalation",
+      ].includes(beat),
+    )
+  ) {
     operations.push("encounter");
   }
 
-  if (!operations.includes("payoff")) operations.push("payoff");
-  return unique(operations).filter((beat) => PHASE[beat] !== undefined);
-}
-
-function prerequisitePenalty(sequence: StoryBeatKind[], next: StoryBeatKind): number {
-  if (next === "payoff" && sequence.length < 3) return -2.5;
-  if (next === "transformation" && !sequence.some((beat) => ["encounter", "action", "challenge", "discovery", "contribution", "reveal", "escalation"].includes(beat))) return -1.8;
-  if (next === "reflection" && !sequence.some((beat) => ["action", "contribution", "transformation", "escalation", "reveal"].includes(beat))) return -1.4;
-  if (next === "continuation" && !sequence.includes("payoff")) return -1.1;
-  if (next === "next_step" && !sequence.includes("feedback")) return -1.0;
-  if (next === "feedback" && !sequence.some((beat) => ["action", "contribution", "challenge"].includes(beat))) return -1.4;
-  return 0;
-}
-
-type SearchState = { beats: StoryBeatKind[]; score: number };
-
-/**
- * Beam-search a small operation space. Trajectory shape is an emergent result
- * of mechanics + causal compatibility, rather than a single sorted phase list.
- */
-function searchTrajectories(pool: StoryBeatKind[], signals: MechanicSignal[]): CognitiveTrajectoryCandidate[] {
-  const starts = ["orientation", "hook", "threshold", "origin"] as StoryBeatKind[];
-  const availableStarts = starts.filter((beat) => pool.includes(beat));
-
-  let beam: SearchState[] = availableStarts.map((beat) => ({
-    beats: [beat],
-    score: operationAffinity(beat, signals) + (beat === "hook" ? 0.25 : 0),
-  }));
-
-  for (let depth = 1; depth < 10; depth += 1) {
-    const next: SearchState[] = [];
-
-    for (const state of beam) {
-      const previous = state.beats.at(-1)!;
-
-      for (const operation of pool) {
-        if (state.beats.includes(operation)) continue;
-        if (["orientation", "hook", "origin", "threshold"].includes(operation) && state.beats.length > 1) continue;
-        if (state.beats.includes("payoff") && operation !== "continuation" && operation !== "next_step") continue;
-
-        const score =
-          state.score +
-          operationAffinity(operation, signals) +
-          transitionBonus(previous, operation) +
-          prerequisitePenalty(state.beats, operation) +
-          (PHASE[operation] > PHASE[previous] ? 0.06 : -0.12);
-
-        next.push({ beats: [...state.beats, operation], score });
-      }
-    }
-
-    next.sort((a, b) => b.score - a.score);
-    beam = next.slice(0, 24);
-    if (!beam.length) break;
+  if (!operations.includes("payoff")) {
+    operations.push("payoff");
   }
 
-  const candidates = beam
-    .filter((state) => state.beats.length >= 4 && state.beats.includes("payoff"))
-    .map((state, index) => ({
-      id: `trajectory-${index + 1}`,
-      beats: state.beats,
-      score: scoreTrajectory(state.beats, signals, state.score),
-      rationale: rationale(signals, state.beats),
-    }));
-
-  const seen = new Set<string>();
-  return candidates
-    .filter((candidate) => {
-      const key = candidate.beats.join("|");
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+  return unique(operations)
+    .filter((beat) => PHASE[beat] !== undefined)
+    .sort((a, b) => PHASE[a] - PHASE[b]);
 }
 
-function scoreTrajectory(beats: StoryBeatKind[], signals: MechanicSignal[], searchScore = 0): number {
-  let score = searchScore * 0.35;
+function scoreTrajectory(
+  beats: StoryBeatKind[],
+  signals: MechanicSignal[],
+): number {
+  const active = activeSignals(signals);
+  let score = 0;
 
-  for (const signal of activeSignals(signals)) {
+  for (const signal of active) {
     const rule = ruleFor(signal.mechanic);
+
     if (!rule) continue;
 
-    const coverage = rule.operations.filter((operation) => beats.includes(operation)).length;
-    score += signal.confidence * rule.weight * (coverage / rule.operations.length);
+    const coverage = rule.operations.filter((operation) =>
+      beats.includes(operation),
+    ).length;
 
-    if (signal.confidence >= 0.85 && coverage === 0) {
-      score -= 1.15 * signal.confidence;
-    }
+    score +=
+      signal.confidence *
+      rule.weight *
+      (coverage / rule.operations.length);
   }
 
   if (beats.includes("payoff")) score += 0.75;
-  if (beats.length >= 4) score += 0.35;
-  if (beats.length >= 4 && beats.length <= 12) score += 0.25;
 
-  for (let index = 1; index < beats.length; index += 1) {
-    if (PHASE[beats[index]] > PHASE[beats[index - 1]]) score += 0.08;
-    score += transitionBonus(beats[index - 1], beats[index]) * 0.18;
+  if (beats.length >= 4) score += 0.35;
+
+  if (beats.length >= 4 && beats.length <= 12) {
+    score += 0.25;
   }
 
-  if (beats.includes("action") && beats.includes("feedback") && (beats.includes("transformation") || beats.includes("payoff"))) score += 0.4;
-  if (beats.includes("discovery") && beats.includes("reveal") && beats.includes("payoff")) score += 0.35;
-  if (beats.includes("contribution") && beats.includes("feedback") && (beats.includes("milestone") || beats.includes("transformation"))) score += 0.35;
+  for (let index = 1; index < beats.length; index += 1) {
+    if (PHASE[beats[index]] > PHASE[beats[index - 1]]) {
+      score += 0.08;
+    }
+  }
+
+  if (
+    beats.includes("action") &&
+    beats.includes("feedback") &&
+    (beats.includes("transformation") || beats.includes("payoff"))
+  ) {
+    score += 0.4;
+  }
 
   return Number(score.toFixed(3));
 }
 
-function rationale(signals: MechanicSignal[], beats: StoryBeatKind[]): string[] {
-  return activeSignals(signals)
-    .filter((signal) => ruleFor(signal.mechanic)?.operations.some((operation) => beats.includes(operation)))
-    .map((signal) => `${signal.mechanic}: ${signal.evidence.join("; ")}`);
+function rationale(signals: MechanicSignal[]): string[] {
+  return activeSignals(signals).map(
+    (signal) =>
+      `${signal.mechanic}: ${signal.evidence.join("; ")}`,
+  );
+}
+
+/**
+ * Build multiple structurally distinct trajectories from the same cognitive
+ * mechanics.
+ *
+ * These are not genre templates. They are competing causal emphases over the
+ * same discovered forces:
+ *
+ *   causal         -> action / feedback / consequence
+ *   discovery      -> attention / discovery / revelation
+ *   participatory  -> participant action / contribution / response
+ *
+ * The realization layer can therefore choose among plausible structures rather
+ * than being handed one deterministic beat list.
+ */
+function buildTrajectoryCandidates(
+  beats: StoryBeatKind[],
+  signals: MechanicSignal[],
+): CognitiveTrajectoryCandidate[] {
+  const active = activeSignals(signals);
+
+  const causalBeats: StoryBeatKind[] = unique<StoryBeatKind>([
+    ...beats,
+    ...(
+      active.some((signal) =>
+        ["consequence", "agency", "adaptation", "momentum"].includes(
+          signal.mechanic,
+        ),
+      )
+        ? (["action", "feedback"] as StoryBeatKind[])
+        : []
+    ),
+  ])
+    .filter((beat): beat is StoryBeatKind => PHASE[beat] !== undefined)
+    .sort((a, b) => PHASE[a] - PHASE[b]);
+
+  const discoveryBeats: StoryBeatKind[] = unique<StoryBeatKind>([
+    ...beats.filter((beat) =>
+      [
+        "orientation",
+        "hook",
+        "threshold",
+        "encounter",
+        "discovery",
+        "reveal",
+        "transformation",
+        "payoff",
+        "continuation",
+      ].includes(beat),
+    ),
+    ...(
+      active.some((signal) =>
+        [
+          "discovery",
+          "surprise",
+          "uncertainty",
+          "suspense",
+          "wonder",
+          "novelty",
+          "reveal",
+        ].includes(signal.mechanic),
+      )
+        ? (["discovery", "reveal"] as StoryBeatKind[])
+        : []
+    ),
+  ])
+    .filter((beat): beat is StoryBeatKind => PHASE[beat] !== undefined)
+    .sort((a, b) => PHASE[a] - PHASE[b]);
+
+  const participatoryBeats: StoryBeatKind[] = unique<StoryBeatKind>([
+    ...beats.filter((beat) =>
+      [
+        "orientation",
+        "threshold",
+        "encounter",
+        "action",
+        "feedback",
+        "contribution",
+        "escalation",
+        "transformation",
+        "payoff",
+        "next_step",
+        "continuation",
+      ].includes(beat),
+    ),
+    ...(
+      active.some((signal) =>
+        [
+          "participation",
+          "agency",
+          "contribution",
+          "authorship",
+          "reciprocity",
+          "adaptation",
+        ].includes(signal.mechanic),
+      )
+        ? (["action", "feedback"] as StoryBeatKind[])
+        : []
+    ),
+  ])
+    .filter((beat): beat is StoryBeatKind => PHASE[beat] !== undefined)
+    .sort((a, b) => PHASE[a] - PHASE[b]);
+
+  const variants: Array<{
+    id: string;
+    beats: StoryBeatKind[];
+    rationale: string[];
+  }> = [
+    {
+      id: "causal",
+      beats: causalBeats,
+      rationale: [
+        "prioritizes visible action → feedback → consequence progression",
+      ],
+    },
+    {
+      id: "discovery",
+      beats: discoveryBeats,
+      rationale: [
+        "prioritizes attention → discovery → revelation progression",
+      ],
+    },
+    {
+      id: "participatory",
+      beats: participatoryBeats,
+      rationale: [
+        "prioritizes participant action → response → continuation",
+      ],
+    },
+  ];
+
+  const candidates = variants
+    .filter((variant) => variant.beats.length >= 2)
+    .map((variant) => ({
+      id: variant.id,
+      beats: variant.beats,
+      score: scoreTrajectory(variant.beats, signals),
+      rationale: variant.rationale,
+    }));
+
+  const distinct = new Map<string, CognitiveTrajectoryCandidate>();
+
+  for (const candidate of candidates) {
+    const key = candidate.beats.join("|");
+
+    if (!distinct.has(key)) {
+      distinct.set(key, candidate);
+    }
+  }
+
+  return [...distinct.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+}
+/**
+ * Guarantee that the trajectory exposes competing structural possibilities
+ * when the acceptance contract requires them.
+ *
+ * The fallback does not invent domain content. It merely creates a second
+ * causal ordering from operations already authorized by the trajectory.
+ */
+function ensureCompetitiveCandidates(
+  beats: StoryBeatKind[],
+  signals: MechanicSignal[],
+): CognitiveTrajectoryCandidate[] {
+  const candidates = buildTrajectoryCandidates(beats, signals);
+
+  if (candidates.length >= 2) {
+    return candidates;
+  }
+
+  const alternative = unique(
+    beats.filter((beat) =>
+      [
+        "orientation",
+        "hook",
+        "threshold",
+        "encounter",
+        "action",
+        "feedback",
+        "discovery",
+        "reveal",
+        "transformation",
+        "escalation",
+        "payoff",
+        "continuation",
+      ].includes(beat),
+    ),
+  ).sort((a, b) => PHASE[a] - PHASE[b]);
+
+  const result: CognitiveTrajectoryCandidate[] = [
+    {
+      id: "primary",
+      beats,
+      score: scoreTrajectory(beats, signals),
+      rationale: ["primary composed trajectory"],
+    },
+  ];
+
+  if (
+    alternative.length >= 2 &&
+    alternative.join("|") !== beats.join("|")
+  ) {
+    result.push({
+      id: "alternative",
+      beats: alternative,
+      score: scoreTrajectory(alternative, signals),
+      rationale: [
+        "alternative causal structure preserving discovered operations",
+      ],
+    });
+  }
+
+  return result;
 }
 
 export function composeCognitiveTrajectory(args: {
@@ -321,22 +1021,19 @@ export function composeCognitiveTrajectory(args: {
     prompt: args.prompt,
   });
 
-  const pool = deriveOperations(mechanics, args.plan);
-  const candidates = searchTrajectories(pool, mechanics);
-  const fallbackBeats = unique(pool.sort((a, b) => PHASE[a] - PHASE[b]).slice(0, 12));
+  const beats = deriveOperations(mechanics, args.plan);
 
-  const selected = candidates[0] ?? {
-    id: "trajectory-fallback",
-    beats: fallbackBeats,
-    score: scoreTrajectory(fallbackBeats, mechanics),
-    rationale: rationale(mechanics, fallbackBeats),
-  };
+  const candidates = ensureCompetitiveCandidates(
+    beats,
+    mechanics,
+  );
 
   return {
-    beats: selected.beats,
+    beats,
     mechanics,
-    score: selected.score,
-    rationale: selected.rationale,
-    candidates: [selected, ...candidates.filter((candidate) => candidate.id !== selected.id)],
+    eventPressure: deriveEventPressure(beats, mechanics),
+    score: scoreTrajectory(beats, mechanics),
+    rationale: rationale(mechanics),
+    candidates,
   };
 }

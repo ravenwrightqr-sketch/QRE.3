@@ -1,148 +1,140 @@
 /**
- * =====================================================
  * QRE EXPERIENCE COMPILE ROUTE
- * =====================================================
  *
  * Human Prompt
- *        ↓
- * Experience Compiler
- *        ↓
+ *      ↓
+ * Durable Memory Context
+ *      ↓
+ * Cognitive Compiler
+ *      ↓
  * Experience Blueprint
+ *      ↓
+ * Memory Consolidation
  *
- * API delivery layer only.
- *
- * - No database writes
- * - No Prisma
- * - No execution
- * - Authentication required
- *
- * =====================================================
+ * API delivery boundary only. The engine remains database-agnostic.
  */
-
 
 import { Router } from "express";
 
-import { requireAuth } from "../middleware/requireAuth.js";
 import {
-  compileExperience,
-} from "../services/experienceService.js";
+  buildMemoryWriteBatch,
+  compileCognitiveExperience,
+  memoryContextToCompilerMemories,
+} from "@qre/engine";
+
+import { requireAuth } from "../middleware/requireAuth.js";
+import { compileExperience } from "../services/experienceService.js";
+import { createMemoryRepository } from "../repositories/memoryRepository.js";
 
 const router = Router();
 
+router.post("/compile", requireAuth, async (req, res) => {
+  try {
+    const prompt = req.body?.prompt;
+    const assetId = typeof req.body?.assetId === "string" ? req.body.assetId : undefined;
 
+    if (typeof prompt !== "string" || prompt.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Experience prompt is required.",
+      });
+    }
+
+    const experience = await compileExperience({
+      prompt,
+      assetId,
+      userId: req.user?.userId,
+      memoryRepository: assetId ? createMemoryRepository() : undefined,
+    });
+
+    return res.json({
+      success: true,
+      experience,
+    });
+  } catch (error) {
+    console.error("Experience compile failed:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to compile experience.",
+    });
+  }
+});
 
 /**
- * POST /experience/compile
+ * GET /experience/memory/:assetId
  *
- * Body:
- * {
- *   "prompt": "Create a VIP nightclub experience..."
- * }
- *
- * Returns:
- *
- * {
- *   success:true,
- *
- *   experience:{
- *     title,
- *     industry,
- *     blueprint,
- *     flowSteps,
- *     moments,
- *     cinematicScenes,
- *     estimatedDuration,
- *     momentCount
- *   }
- * }
- *
- * =====================================================
+ * Returns governed long-term memory for the authenticated asset.
  */
-
-
-router.post(
-  "/compile",
-  requireAuth,
-  async (req, res) => {
-
-    try {
-
-
-      const {
-        prompt,
-      } = req.body;
-
-
-
-      if (
-        typeof prompt !== "string" ||
-        prompt.trim().length === 0
-      ) {
-
-        return res.status(400).json({
-
-          success:false,
-
-          error:
-            "Experience prompt is required.",
-
-        });
-
-      }
-
-  
-
-const experience =
-  await compileExperience(
-    prompt.trim()
-  );
-
-
-
-
-   
-
-
-
-      return res.json({
-
-        success:true,
-
-        experience,
-
-      });
-
-
+router.get("/memory/:assetId", requireAuth, async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId ?? "").trim();
+    if (!assetId) {
+      return res.status(400).json({ success: false, error: "Asset id required." });
     }
 
-    catch(error){
+    const memory = await createMemoryRepository().loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
 
-
-      console.error(
-
-        "Experience compile failed:",
-
-        error
-
-      );
-
-
-
-      return res.status(500).json({
-
-        success:false,
-
-        error:
-          "Failed to compile experience.",
-
-      });
-
-    }
-
+    return res.json({ success: true, memory });
+  } catch (error) {
+    console.error("Memory load failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to load memory." });
   }
+});
 
-);
+/**
+ * POST /experience/memory/:assetId
+ *
+ * Explicit "remember this" path. It parses the supplied statement through
+ * the same cognition boundary but does not compile a new experience.
+ */
+router.post("/memory/:assetId", requireAuth, async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId ?? "").trim();
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
 
+    if (!assetId || !prompt) {
+      return res.status(400).json({
+        success: false,
+        error: "Asset id and memory prompt are required.",
+      });
+    }
 
+    const repository = createMemoryRepository();
+    const context = await repository.loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
+
+    const compiled = compileCognitiveExperience(prompt, {
+      memories: memoryContextToCompilerMemories(context),
+    });
+
+    const batch = buildMemoryWriteBatch({
+      assetId,
+      userId: req.user?.userId,
+      prompt,
+      plan: compiled.cognition.plan,
+      source: "user",
+    });
+
+    await repository.writeBatch(batch);
+
+    return res.status(201).json({
+      success: true,
+      memory: {
+        entities: batch.entities.length,
+        facts: batch.facts.length,
+        relations: batch.relations.length,
+        events: batch.events.length,
+      },
+    });
+  } catch (error) {
+    console.error("Memory write failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to write memory." });
+  }
+});
 
 export default router;

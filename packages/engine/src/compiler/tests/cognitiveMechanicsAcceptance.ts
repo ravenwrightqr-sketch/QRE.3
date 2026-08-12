@@ -1,10 +1,15 @@
-import { inferExperienceMechanics, mechanicBrief } from "../../experience/cognitiveMechanics.js";
+import {
+  inferExperienceMechanics,
+  mechanicBrief,
+  type ExperienceMechanic,
+} from "../../experience/cognitiveMechanics.js";
+
 import { understandExperience } from "../../cognition/cognitiveEngine.js";
 
 type Probe = {
   name: string;
   prompt: string;
-  mustContain: string[];
+  mustContain: ExperienceMechanic[];
 };
 
 const probes: Probe[] = [
@@ -65,12 +70,13 @@ const probes: Probe[] = [
 
 for (const probe of probes) {
   const state = understandExperience(probe.prompt, {});
-  const mechanics = mechanicBrief(
-    inferExperienceMechanics({
-      plan: state.plan,
-      premise: state.plan.premise,
-    }),
-  );
+const mechanics: ExperienceMechanic[] = mechanicBrief(
+  inferExperienceMechanics({
+    plan: state.plan,
+    premise: state.plan.premise,
+    prompt: probe.prompt,
+  }),
+);
 
   const missing = probe.mustContain.filter((mechanic) => !mechanics.includes(mechanic));
 

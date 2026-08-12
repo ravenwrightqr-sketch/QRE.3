@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist",
 
     "declaration": true,
@@ -19,7 +19,6 @@
     "types": ["node"]
   },
   "include": [
-    "src",
-    "test-experience.ts"
+    "src"
   ]
 }

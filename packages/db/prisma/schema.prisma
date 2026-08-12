@@ -17,6 +17,7 @@ model User {
   createdAt        DateTime      @default(now())
   phone            String?
   AccountUser      AccountUser[]
+  // Legacy direct-user asset ownership. New assets are account-scoped.
   Asset            Asset[]
   Ownership        Ownership[]
   sessions         ScanSession[]
@@ -50,6 +51,8 @@ model Asset {
   accountId         String?
   analyticsEvents   AnalyticsEvent[]
   User              User?             @relation(fields: [ownerId], references: [id])
+  // Canonical tenant relationship for new assets.
+  account           Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   template          Template?         @relation(fields: [templateId], references: [id])
   flows             AssetFlow[]
   claims            Claim[]
@@ -61,6 +64,7 @@ model Asset {
 
   @@index([slug])
   @@index([ownerId])
+  @@index([accountId])
 }
 
 model Account {
@@ -72,6 +76,7 @@ model Account {
   stripeCustomerId String?
   AccountUser      AccountUser[]
   ownerships       Ownership[]
+  assets           Asset[]
 }
 
 model AccountUser {
@@ -609,4 +614,3 @@ enum TicketStatus {
   REDEEMED
   VOID
 }
-
