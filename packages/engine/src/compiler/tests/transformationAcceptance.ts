@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
-import { compileCognitiveExperience } from "../cognitiveExperienceCompiler.js";
-import { inspectTransformation } from "../premiseRealizer.js";
+import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
+import { inspectTransformation } from "../../experience/premiseRealizer.js";
 
 /**
  * BUSINESS-FACING TRANSFORMATION ACCEPTANCE
