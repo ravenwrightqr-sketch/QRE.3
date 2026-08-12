@@ -1,7 +1,7 @@
 import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 
 const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean)];
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const sentence = (value: string): string => clean(value).replace(/[.!?]+$/, "");
 const cap = (value: string): string => {
   const s = sentence(value);
