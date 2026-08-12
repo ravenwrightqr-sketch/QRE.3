@@ -3,13 +3,15 @@ import type { LatentMovie, LatentMovieEvent, StoryBeat, StoryBeatKind } from "@q
 /**
  * QRE LATENT MOVIE FACTORY V2
  *
- * This is deliberately upstream of prose realization.
- * It does not try to "write nicely" from raw tokens. It first discovers
- * what happened: subject, events, state changes, contrast, escalation,
- * transformation and payoff opportunities.
+ * This is the narrative substrate between user reality and prose.
  *
- * No industry templates live here. A dog, wedding, service visit, object,
- * journey or event is reduced to the same narrative evidence substrate.
+ * The important distinction:
+ *   PROMPT != STORY
+ *   PROMPT -> EVIDENCE -> LATENT MOVIE -> NARRATIVE TRANSFORMATION -> PROSE
+ *
+ * We preserve observed facts, but we are allowed to transform their
+ * significance, rhythm and framing. The compiler should find the movie
+ * hiding inside an ordinary description rather than merely paraphrasing it.
  */
 
 export type MovieStyle = "cinematic" | "funny" | "dark" | "horror" | "warm" | "mysterious";
@@ -23,29 +25,33 @@ export type MovieFactoryResult = {
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
 const unique = (values: string[]) => [...new Set(values.map(clean).filter(Boolean))];
 
-const STOP = new Set([
-  "the", "a", "an", "and", "or", "but", "for", "with", "this", "that",
-  "my", "our", "your", "their", "his", "her", "its", "i", "me", "we",
-  "you", "they", "to", "of", "in", "on", "at", "from", "is", "was", "were",
-  "are", "be", "been", "being", "make", "made", "create", "build", "tell",
-  "story", "memory", "experience", "qr", "nfc", "tag", "please", "want", "need",
-]);
+const INSTRUCTION = /^(?:please\s+)?(?:make|create|build|turn|transform|write|tell|give|generate|design|produce|show)\b/i;
+const META_REQUEST = /\b(?:make|create|build|turn|transform|write|tell|give|generate|design|produce)\s+(?:a|an|the)?\s*(?:story|memory|experience|event|piece|invite|movie|film|art piece)\b/i;
 
 const AUDIENCE = new Set([
-  "everyone", "people", "customers", "guests", "visitors", "friends", "family",
-  "attendees", "fans", "clients", "homeowner", "homeowners", "users", "viewers",
+  "everyone", "everybody", "people", "customers", "guests", "visitors", "friends", "family",
+  "attendees", "fans", "clients", "homeowner", "homeowners", "users", "viewers", "members",
+  "participants", "followers", "customers", "invitees",
 ]);
 
-const EVENT_WORDS = /\b(wedding|rave|concert|festival|party|birthday|anniversary|trip|journey|visit|grooming|bath|cleaned|cleaning|service|launch|show|performance|memorial|ceremony|beach|travel(?:ed|ing)?)\b/i;
-const OBJECT_WORDS = /\b(dog|cat|horse|pet|surfboard|board|watch|necklace|ring|car|truck|house|home|product|art|jewelry|guitar|instrument|tag|book|camera)\b/i;
-const PLACE_WORDS = /\b(beach|lake|mountain|city|town|hotel|restaurant|bar|club|venue|pier|park|home|house|studio|salon|groomer|grooming|kitchen|bathroom)\b/i;
+const SUBJECT_STOP = new Set([
+  "make", "create", "build", "turn", "transform", "write", "tell", "give", "generate", "design",
+  "produce", "show", "story", "memory", "experience", "event", "piece", "invite", "movie", "film",
+  "something", "anything", "this", "that", "my", "our", "your", "the", "a", "an", "all",
+  "people", "everyone", "family", "friends", "customers", "guests",
+]);
 
-const POSITIVE = /\b(loved|love|liked|enjoyed|happy|excited|laughed|laugh|fun|great|beautiful|peaceful|relaxed|amazing|good|proud|won|finished|spotless|clean|safe|better|smiled|smile)\b/i;
-const NEGATIVE = /\b(scared|afraid|hated|hate|angry|sad|lost|missed|broken|mess|dirty|bad|terrified|creepy|dark|danger|failed|worried|nervous|late|stuck)\b/i;
-const ABSURD = /\b(stole|stole|chewed|ate|lawyer|owned|guilty|crime|chaos|disaster|ridiculous|insane|wild|weird|strange|secret|mysterious)\b/i;
-const HORROR = /\b(horror|horrifying|terrifying|terrifying|haunted|ghost|blood|dead|death|murder|creepy|dark|demented|nightmare|evil|disturbing)\b/i;
-const FUNNY = /\b(funny|fun|humor|comedy|ridiculous|silly|absurd|chaotic|wild)\b/i;
-const MYSTERY = /\b(mystery|mysterious|secret|hidden|unknown|strange|discover|discovery|uncover)\b/i;
+const POSITIVE = /\b(loved|love|liked|enjoyed|happy|excited|laughed|laugh|fun|great|beautiful|peaceful|relaxed|amazing|good|proud|won|finished|spotless|clean|safe|better|smiled|smile|joy|delighted)\b/i;
+const NEGATIVE = /\b(scared|afraid|hated|hate|angry|sad|lost|missed|broken|mess|dirty|bad|terrified|creepy|dark|danger|failed|worried|nervous|late|stuck|rough|awful|fear)\b/i;
+const TURN = /\b(stole|chewed|ate|missed|found|discovered|revealed|secret|strange|weird|unexpected|surprise|surprised|chaos|disaster|escaped|broke|caught|almost|nearly|suddenly)\b/i;
+const HORROR = /\b(horror|horrifying|terrifying|haunted|ghost|blood|dead|death|murder|creepy|dark|demented|nightmare|evil|disturbing|possessed)\b/i;
+const FUNNY = /\b(funny|fun|humor|comedy|ridiculous|silly|absurd|chaotic|wild|hilarious|lawyer|battle|owned)\b/i;
+const MYSTERY = /\b(mystery|mysterious|secret|hidden|unknown|strange|discover|discovery|uncover|clue)\b/i;
+const MEMORY = /\b(memory|memories|remember|past|history|childhood|legacy|forever|nostalgia|keepsake|milestone|preserve|trips|travel|traveled|beaches|raves)\b/i;
+const COMPLETION = /\b(finished|finish|complete|completed|done|left|walked out|arrived home|returned|homeowner comes home|came home|spotless)\b/i;
+const LOCATION = /\b(?:at|in|near|around|through|on)\s+([A-Z][A-Za-z0-9'’.-]*(?:\s+[A-Z][A-Za-z0-9'’.-]*){0,4})/g;
+const TIME = /\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/gi;
+const DATE = /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:,\s*\d{4})?|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/gi;
 
 function sentences(prompt: string): string[] {
   return prompt
@@ -55,82 +61,123 @@ function sentences(prompt: string): string[] {
     .filter((value) => value.length > 2);
 }
 
-function words(value: string): string[] {
+function isInstruction(sentence: string): boolean {
+  return INSTRUCTION.test(sentence) && META_REQUEST.test(sentence);
+}
+
+function meaningfulWords(value: string): string[] {
   return value
     .toLowerCase()
     .split(/[^a-z0-9'’-]+/)
-    .filter((word) => word.length > 2 && !STOP.has(word));
+    .filter((word) => word.length > 2 && !SUBJECT_STOP.has(word));
 }
 
-function subject(prompt: string, facts: string[]): string {
-  const explicit = prompt.match(/\b(?:this is|meet|about|for)\s+(?:my|our|the|a|an)?\s*([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})/i)?.[1];
-  if (explicit && !AUDIENCE.has(explicit.toLowerCase())) return clean(explicit);
-
-  const proper = prompt.match(/\b([A-Z][A-Za-z'’-]+)(?:\s+[A-Z][A-Za-z'’-]+)?\b/);
-  if (proper && !/^(Make|Build|Create|Turn|Tell|What|My|This|I|The|And|Her|His|She|He)$/.test(proper[1])) {
-    return clean(proper[0]);
-  }
-
-  const object = words(prompt).find((word) => OBJECT_WORDS.test(word));
-  if (object) return object;
-
-  const event = words(prompt).find((word) => EVENT_WORDS.test(word));
-  if (event) return event;
-
-  const meaningful = words(facts[0] ?? prompt).filter((word) => !AUDIENCE.has(word));
-  return meaningful.slice(0, 2).join(" ") || "the experience";
+function titleCase(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-function places(prompt: string, facts: string[]): string[] {
-  const result: string[] = [];
-  for (const match of prompt.matchAll(/\b(?:at|in|near|around|through|on)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,3})/g)) {
-    if (match[1]) result.push(clean(match[1]));
-  }
+function findSubject(prompt: string, facts: string[]): string {
+  // Proper names are the strongest subject signal: Coco, Maria, Max, etc.
   for (const fact of facts) {
-    const place = fact.match(/\b(?:at|in|near|around|through|on)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,3})/)?.[1];
-    if (place) result.push(clean(place));
+    const proper = fact.match(/\b([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})\b/);
+    if (proper && !SUBJECT_STOP.has(proper[1].toLowerCase())) return clean(proper[1]);
   }
-  return unique(result);
+
+  // Possessive constructions expose concrete objects without needing a template.
+  const possessive = prompt.match(/\b(?:my|our|this)\s+([A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2})/i)?.[1];
+  if (possessive) {
+    const candidate = meaningfulWords(possessive).slice(0, 2).join(" ");
+    if (candidate && !AUDIENCE.has(candidate)) return candidate;
+  }
+
+  // "all the beaches my surfboard has traveled" -> surfboard.
+  const subjectAfterPossessive = prompt.match(/\b(?:beaches|raves|trips|memories|places|events)\b[^.?!]*?\bmy\s+([A-Za-z][A-Za-z0-9'’-]*)/i)?.[1];
+  if (subjectAfterPossessive) return subjectAfterPossessive.toLowerCase();
+
+  // Domain nouns are evidence, not templates. Prefer the noun nearest the action.
+  const candidates = meaningfulWords(prompt).filter((word) =>
+    /^(dog|cat|horse|pet|surfboard|board|watch|necklace|ring|car|truck|house|home|product|art|jewelry|guitar|instrument|tag|book|camera|wedding|rave|concert|festival|party|birthday|anniversary|trip|journey|beach|business|client|customer|groomer|housekeeper|cleaning|service|launch|show|performance)$/i.test(word),
+  );
+  if (candidates[0]) return candidates[0];
+
+  const fallback = meaningfulWords(facts[0] ?? prompt).filter((word) => !AUDIENCE.has(word));
+  return fallback.slice(0, 2).join(" ") || "the moment";
 }
 
-function style(prompt: string): MovieStyle {
-  if (HORROR.test(prompt)) return "horror";
-  if (FUNNY.test(prompt) || ABSURD.test(prompt)) return "funny";
-  if (MYSTERY.test(prompt)) return "mysterious";
-  if (NEGATIVE.test(prompt) && !POSITIVE.test(prompt)) return "dark";
-  if (/\b(wedding|memorial|grandmother|grandfather|family|memory|legacy|romantic|love)\b/i.test(prompt)) return "warm";
+function extractPlaces(prompt: string, facts: string[]): string[] {
+  const found: string[] = [];
+  const collect = (text: string) => {
+    for (const match of text.matchAll(LOCATION)) {
+      const value = clean(match[1] ?? "");
+      if (value && !/^the\b/i.test(value) && !AUDIENCE.has(value.toLowerCase())) found.push(value);
+    }
+  };
+  collect(prompt);
+  facts.forEach(collect);
+  return unique(found);
+}
+
+function extractSignals(prompt: string, facts: string[]) {
+  const times = unique(prompt.match(TIME) ?? []);
+  const dates = unique(prompt.match(DATE) ?? []);
+  const places = extractPlaces(prompt, facts);
+  return { times, dates, places };
+}
+
+function classifyStyle(prompt: string, facts: string[]): MovieStyle {
+  const text = `${prompt} ${facts.join(" ")}`;
+  if (HORROR.test(text)) return "horror";
+  if (FUNNY.test(text) || TURN.test(text) && /\b(dog|groom|pet|stole|chewed|lawyer|owned)\b/i.test(text)) return "funny";
+  if (MYSTERY.test(text)) return "mysterious";
+  if (NEGATIVE.test(text) && !POSITIVE.test(text)) return "dark";
+  if (/\b(wedding|memorial|grandmother|grandfather|family|memory|legacy|romantic|love)\b/i.test(text)) return "warm";
   return "cinematic";
 }
 
 function stateOf(fact: string): "positive" | "negative" | "neutral" {
-  if (POSITIVE.test(fact)) return "positive";
+  if (POSITIVE.test(fact) && !NEGATIVE.test(fact)) return "positive";
   if (NEGATIVE.test(fact)) return "negative";
   return "neutral";
 }
 
 function eventKind(fact: string, index: number): string {
   if (index === 0) return "arrival";
-  if (/\b(finished|complete|completed|done|left|walked out|arrived home|returned)\b/i.test(fact)) return "completion";
-  if (/\b(stole|chewed|ate|missed|found|discovered|revealed|secret|strange|weird)\b/i.test(fact)) return "turn";
+  if (COMPLETION.test(fact)) return "completion";
+  if (TURN.test(fact)) return "turn";
   if (POSITIVE.test(fact) || NEGATIVE.test(fact)) return "state-change";
   return "event";
 }
 
-function buildEvents(prompt: string, facts: string[], subjectName: string, placeList: string[]): LatentMovieEvent[] {
+function buildEvents(
+  facts: string[],
+  subjectName: string,
+  places: string[],
+  times: string[],
+  dates: string[],
+): LatentMovieEvent[] {
   return facts.map((fact, index) => {
-    const before = index > 0 ? stateOf(facts[index - 1]) : undefined;
-    const after = stateOf(fact);
-    const place = placeList.find((candidate) => fact.toLowerCase().includes(candidate.toLowerCase())) ?? placeList[0];
+    const previousState = index > 0 ? stateOf(facts[index - 1]) : "neutral";
+    const currentState = stateOf(fact);
+    const factPlace = places.find((place) => fact.toLowerCase().includes(place.toLowerCase()));
+    const temporal = [
+      ...(fact.match(TIME) ?? []),
+      ...(fact.match(DATE) ?? []),
+    ];
+    const place = factPlace ?? (index === 0 ? places[0] : undefined);
+
     return {
       id: `movie-event-${index + 1}`,
       order: index,
       fact,
       actor: subjectName,
       place,
-      stateBefore: before && before !== "neutral" ? before : undefined,
-      stateAfter: after !== "neutral" ? after : undefined,
+      stateBefore: previousState !== "neutral" ? previousState : undefined,
+      stateAfter: currentState !== "neutral" ? currentState : undefined,
       confidence: 0.98,
-    };
+      ...(temporal.length ? { temporal: unique(temporal) } : {}),
+      ...(index === 0 && times.length ? { time: times[0] } : {}),
+      ...(index === 0 && dates.length ? { date: dates[0] } : {}),
+    } as LatentMovieEvent;
   });
 }
 
@@ -144,90 +191,186 @@ function findContrasts(events: LatentMovieEvent[]): string[] {
   return unique(results);
 }
 
-function pickTurn(events: LatentMovieEvent[]): LatentMovieEvent | undefined {
-  return events.find((event) => /\b(stole|chewed|ate|missed|found|discovered|secret|strange|weird|chaos|unexpected)\b/i.test(event.fact))
+function findTurn(events: LatentMovieEvent[]): LatentMovieEvent | undefined {
+  return events.find((event) => TURN.test(event.fact))
     ?? events.find((event) => event.stateBefore && event.stateAfter && event.stateBefore !== event.stateAfter)
-    ?? events[Math.max(0, events.length - 2)];
+    ?? (events.length >= 3 ? events[Math.floor(events.length / 2)] : undefined);
 }
 
-function prose(styleName: MovieStyle, movie: LatentMovie, beat: StoryBeatKind, fact?: string): string {
-  const subjectName = movie.subject;
+function hasServiceContext(movie: LatentMovie): boolean {
+  return /\b(groom|clean|housekeep|service|client|customer|bathroom|kitchen|salon|shop)\b/i.test(
+    [movie.subject, ...movie.details].join(" "),
+  );
+}
+
+function hasTravelContext(movie: LatentMovie): boolean {
+  return /\b(travel|trip|journey|beach|rave|festival|concert|tour|visited|traveled)\b/i.test(
+    movie.details.join(" "),
+  );
+}
+
+function storytellerLine(styleName: MovieStyle, movie: LatentMovie, beat: StoryBeatKind, fact?: string): string {
+  const subject = titleCase(movie.subject);
   const first = movie.events[0]?.fact;
   const last = movie.events.at(-1)?.fact;
-  const turn = movie.events.find((event) => event.id === movie.events.find((candidate) => /\b(stole|chewed|ate|missed|found|discovered|secret|strange|weird)\b/i.test(candidate.fact))?.id)?.fact;
+  const turn = findTurn(movie.events)?.fact;
+  const time = movie.events[0]?.time;
+  const date = movie.events[0]?.date;
+  const place = movie.events[0]?.place;
+  const service = hasServiceContext(movie);
+  const travel = hasTravelContext(movie);
 
+  // The voice changes the framing, not the facts. These are transformations,
+  // not fabricated events.
   if (styleName === "funny") {
-    if (beat === "orientation") return `${subjectName} had arrived, and the day was about to become more interesting than the itinerary suggested.`;
-    if (beat === "encounter") return fact ? `${fact}. So far, everything was going according to plan. More or less.` : `Then the plan met reality.`;
-    if (beat === "escalation" || beat === "discovery") return turn ? `${turn}. That was the moment the story acquired evidence.` : `Then something happened that made the ordinary part much less ordinary.`;
-    if (beat === "transformation") return `Somewhere in the middle of it, ${subjectName} stopped being the same ${subjectName} who arrived.`;
-    if (beat === "payoff") return last ? `${last}. Not a bad ending for a day that started out looking completely normal.` : `And somehow, that became the part worth remembering.`;
+    if (beat === "orientation") {
+      if (service && time) return `${subject} arrived at ${time}, ready for battle. The house had other plans.`;
+      if (service) return `${subject} showed up with a mission. The day was about to become somebody else's problem.`;
+      return `${subject} arrived, and the plan immediately looked a little too innocent.`;
+    }
+    if (beat === "encounter") return fact ? `${fact}. So far, the operation was still pretending to be normal.` : `Then reality entered the room.`;
+    if (beat === "discovery" || beat === "escalation") {
+      if (turn) return `${turn}. There it was: the plot twist hiding in plain sight.`;
+      return `Then the ordinary part started developing a personality.`;
+    }
+    if (beat === "transformation") {
+      if (service) return `Somewhere between the mess and the finish line, the job stopped looking like a job and started looking like a victory lap.`;
+      return `By then, the original plan had acquired a much better story.`;
+    }
+    if (beat === "payoff") {
+      if (last && service) return `${last}. Maria won today.`;
+      if (last) return `${last}. Not bad for a day that arrived looking completely ordinary.`;
+      return `And somehow, that became the part worth telling.`;
+    }
   }
 
   if (styleName === "horror") {
-    if (beat === "orientation") return `${subjectName} arrived. At first, nothing seemed wrong.`;
-    if (beat === "encounter") return fact ? `${fact}. Nobody thought much of it then.` : `The first sign was easy to ignore.`;
-    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. That was when the ordinary story stopped feeling ordinary.` : `Then the details began to stop making sense.`;
-    if (beat === "transformation") return `Whatever had begun here had changed the meaning of everything that came before it.`;
-    if (beat === "payoff") return last ? `${last}. And that is the version of the story people tell after the lights come back on.` : `The story ends. The unease does not.`;
+    if (beat === "orientation") return time ? `${subject} arrived at ${time}. At first, everything looked normal.` : `${subject} arrived. Nothing seemed wrong yet.`;
+    if (beat === "encounter") return fact ? `${fact}. Nobody knew that detail would matter.` : `The first sign was easy to dismiss.`;
+    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. That was when the ordinary story stopped feeling ordinary.` : `Then the details stopped lining up.`;
+    if (beat === "transformation") return `After that, the beginning could no longer be trusted.`;
+    if (beat === "payoff") return last ? `${last}. The record says it ended there. The feeling did not.` : `The moment ended. The unease stayed.`;
   }
 
   if (styleName === "warm") {
-    if (beat === "orientation") return `${subjectName} began with a moment worth keeping.`;
-    if (beat === "encounter") return fact ? `${fact}. It became another piece of the memory.` : `Then the people and places around it began to matter.`;
-    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. One of those small moments that becomes bigger after you remember it.` : `The details gathered, one after another.`;
-    if (beat === "transformation") return `What began as a moment became part of a larger story.`;
-    if (beat === "payoff") return last ? `${last}. That is the part to keep.` : `And now the memory has somewhere to live.`;
+    if (beat === "orientation") return date ? `${subject} began on ${date}, with a moment worth keeping.` : `${subject} began with a moment worth keeping.`;
+    if (beat === "encounter") return fact ? `${fact}. Another small piece of the memory found its place.` : `Then another piece joined the story.`;
+    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. One of those little details that becomes bigger every time it is remembered.` : `The details gathered, one after another.`;
+    if (beat === "transformation") return travel ? `The places changed, the years moved, and the memory kept accumulating.` : `What began as a moment became part of something larger.`;
+    if (beat === "payoff") return last ? `${last}. That is the part to keep.` : `Now the memory has somewhere to grow.`;
   }
 
-  if (beat === "orientation") return first ? `${subjectName} arrived, and the story had its beginning.` : `${subjectName} is where the story begins.`;
+  if (styleName === "mysterious") {
+    if (beat === "orientation") return place ? `${subject} arrived at ${place}. The record begins there.` : `${subject} arrived. That is where the trail begins.`;
+    if (beat === "encounter") return fact ? `${fact}. One detail did not quite fit.` : `Then a detail surfaced that was easy to overlook.`;
+    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. The clue had finally become part of the story.` : `Then the pattern became visible.`;
+    if (beat === "transformation") return `By then, the beginning meant something different.`;
+    if (beat === "payoff") return last ? `${last}. The record closes there, but the question remains.` : `Some stories answer themselves. This one leaves a door open.`;
+  }
+
+  // Cinematic / dark default. This is deliberately concrete and rhythmic.
+  if (beat === "orientation") {
+    if (service && time) return `${subject} arrived at ${time}, ready for battle.`;
+    if (place && time) return `${subject} arrived at ${place} at ${time}. The clock started the scene.`;
+    if (date) return `${subject} arrived on ${date}. That is where the story starts.`;
+    return first ? `${subject} arrived, and the day took its first breath.` : `${subject} is where the story begins.`;
+  }
+
   if (beat === "encounter") return fact ? `${fact}. The day moved forward.` : `Then the next moment arrived.`;
-  if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. That changed the shape of the story.` : `Then came the detail that gave the story somewhere to go.`;
-  if (beat === "transformation") return `By then, the beginning no longer looked quite the same.`;
-  if (beat === "payoff") return last ? `${last}. And that is how this moment becomes a memory.` : `The moment ends, but the story has somewhere to continue.`;
+
+  if (beat === "discovery" || beat === "escalation") {
+    if (turn) return `${turn}. That was the detail that changed the shape of the day.`;
+    if (service) return `The first job was handled. Then came the next one.`;
+    return `Then came the detail that gave the story somewhere to go.`;
+  }
+
+  if (beat === "transformation") {
+    if (service) return `By then, the mess had become evidence of the work. The mission was winning.`;
+    if (travel) return `One place became another, then another. The object carried the history forward.`;
+    return `By then, the beginning no longer looked quite the same.`;
+  }
+
+  if (beat === "payoff") {
+    if (last) return `${last}. And that is how an ordinary moment earns a place in the story.`;
+    return `The moment ends. The memory does not.`;
+  }
+
   return fact ?? "The story continues.";
 }
 
 export function findLatentMovie(prompt: string): MovieFactoryResult {
-  const facts = sentences(prompt);
-  const subjectName = subject(prompt, facts);
-  const placeList = places(prompt, facts);
-  const styleName = style(prompt);
-  const events = buildEvents(prompt, facts, subjectName, placeList);
+  const rawSentences = sentences(prompt);
+  const explicitFacts = rawSentences.filter((sentence) => !isInstruction(sentence));
+  const facts = explicitFacts.length ? explicitFacts : rawSentences.filter((sentence) => sentence.length > 2);
+  const subjectName = findSubject(prompt, facts);
+  const signals = extractSignals(prompt, facts);
+  const styleName = classifyStyle(prompt, facts);
+  const events = buildEvents(facts, subjectName, signals.places, signals.times, signals.dates);
   const contrasts = findContrasts(events);
-  const turn = pickTurn(events);
+  const turn = findTurn(events);
+
+  // Sparse prompts still have a movie. The movie is an intent-backed premise,
+  // not an invented factual timeline. This distinction is crucial for QRE.
+  if (!events.length && rawSentences.length) {
+    events.push({
+      id: "movie-event-1",
+      order: 0,
+      fact: rawSentences[0],
+      actor: subjectName,
+      confidence: 0.82,
+    } as LatentMovieEvent);
+  }
 
   const movie: LatentMovie = {
     subject: subjectName,
-    participants: unique(facts.flatMap((fact) => fact.match(/\b[A-Z][A-Za-z'’-]+\b/g) ?? []).filter((name) => name !== subjectName)),
-    places: placeList,
+    participants: unique(
+      facts
+        .flatMap((fact) => fact.match(/\b[A-Z][A-Za-z'’-]+\b/g) ?? [])
+        .filter((name) => name !== subjectName),
+    ),
+    places: signals.places,
     before: events[0]?.stateAfter,
     after: events.at(-1)?.stateAfter,
     events,
-    details: unique([...facts, ...placeList]),
+    details: unique([...facts, ...signals.places, ...signals.times, ...signals.dates]),
     emotionalDirection: unique([styleName, ...contrasts]),
-    styleLenses: [styleName, ...(turn ? [eventKind(turn.fact, turn.order)] : [])],
-    memoryPotential: unique(["timeline", "meaningful moments", ...(placeList.length ? ["geography"] : [])]),
+    styleLenses: unique([styleName, ...(turn ? [eventKind(turn.fact, turn.order)] : [])]),
+    memoryPotential: unique([
+      "timeline",
+      "meaningful moments",
+      ...(signals.places.length ? ["geography"] : []),
+      ...(signals.dates.length ? ["date"] : []),
+      ...(signals.times.length ? ["time"] : []),
+      ...(MEMORY.test(prompt) ? ["continuation"] : []),
+    ]),
     continuation: "new moments can be added later without erasing this history",
   };
 
   const beatKinds: StoryBeatKind[] = events.length >= 3
     ? ["orientation", "encounter", turn ? "discovery" : "escalation", "transformation", "payoff"]
-    : ["orientation", "encounter", "transformation", "payoff"];
+    : events.length === 2
+      ? ["orientation", "encounter", "transformation", "payoff"]
+      : ["orientation", "transformation", "payoff"];
 
   const beats: StoryBeat[] = beatKinds.map((kind, index) => {
-    const fact = events[Math.min(index, Math.max(0, events.length - 1))]?.fact;
-    const text = prose(styleName, movie, kind, fact);
+    const eventIndex = kind === "orientation"
+      ? 0
+      : kind === "payoff"
+        ? Math.max(0, events.length - 1)
+        : Math.min(index - 1, Math.max(0, events.length - 1));
+    const fact = events[eventIndex]?.fact;
     return {
       id: `movie-beat-${index + 1}-${kind}`,
       kind,
       order: index,
-      purpose: kind === "orientation" ? "Establish the subject and opening state."
-        : kind === "payoff" ? "Land the meaning of the accumulated facts."
-        : "Advance the latent movie using observed evidence.",
-      text,
+      purpose: kind === "orientation"
+        ? "Establish the subject, opening state and strongest temporal/place evidence."
+        : kind === "payoff"
+          ? "Land the meaning of the accumulated evidence without inventing a new event."
+          : "Advance the latent movie using observed evidence and a narrative transformation.",
+      text: storytellerLine(styleName, movie, kind, fact),
       emotionalTarget: styleName,
-      entities: unique([subjectName, ...placeList, ...(fact ? [fact] : [])]),
+      entities: unique([subjectName, ...signals.places, ...(fact ? [fact] : [])]),
       provenance: [{ kind: "observed", source: "prompt", confidence: 1 }],
     };
   });
