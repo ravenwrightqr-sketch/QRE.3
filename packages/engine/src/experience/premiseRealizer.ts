@@ -2,9 +2,11 @@ import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 import {
   classifyNarrativeBeat,
   isGenericCompilerProse as isNarrativeGenericProse,
-  realizeNarrativeBeat,
-  realizeNarrativeBeats,
 } from "./narrativeAttentionRealizer.js";
+import {
+  realizeGoldNarrativeBeat,
+  realizeGoldNarrativeBeats,
+} from "./goldNarrativeRealizer.js";
 import {
   inspectTransformation,
 } from "./transformationEngine.js";
@@ -13,21 +15,21 @@ import {
  * CANONICAL LANGUAGE AUTHORITY
  *
  * Cognition and trajectory remain upstream. This module is the presentation
- * boundary. Narrative attention gets first authority so internal operations
- * do not become customer sentences.
+ * boundary. The gold narrative layer chooses observable evidence and sentence
+ * shape without introducing domain templates or internal vocabulary.
  */
 export function realizePremiseBeat(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
-  return realizeNarrativeBeat(beat, plan) ?? "";
+  return realizeGoldNarrativeBeat(beat, plan) ?? "";
 }
 
 export function realizePremiseBeats(
   beats: StoryBeat[],
   plan?: CognitiveExperiencePlan,
 ): StoryBeat[] {
-  return realizeNarrativeBeats(beats, plan);
+  return realizeGoldNarrativeBeats(beats, plan);
 }
 
 export function isGenericCompilerProse(value: string): boolean {
