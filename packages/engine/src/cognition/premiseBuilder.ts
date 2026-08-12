@@ -22,51 +22,19 @@ function evidence(detail: string, confidence = 0.9): CognitiveEvidence {
   return { source: "prompt", detail, confidence };
 }
 
-function slot(
-  role: CognitivePremiseRole,
-  values: string[],
-  status: CognitivePremiseSlot["status"],
-  confidence: number,
-  salience: number,
-  detail: string,
-): CognitivePremiseSlot | undefined {
+function slot(role: CognitivePremiseRole, values: string[], status: CognitivePremiseSlot["status"], confidence: number, salience: number, detail: string): CognitivePremiseSlot | undefined {
   const normalized = unique(values);
   if (!normalized.length) return undefined;
-  return {
-    role,
-    values: normalized,
-    status,
-    confidence,
-    salience,
-    evidence: [evidence(detail, confidence)],
-  };
+  return { role, values: normalized, status, confidence, salience, evidence: [evidence(detail, confidence)] };
 }
 
-function relation(
-  from: CognitivePremiseRole,
-  to: CognitivePremiseRole,
-  relationName: string,
-  confidence: number,
-  detail: string,
-): CognitivePremiseRelation {
-  return {
-    from,
-    to,
-    relation: relationName,
-    confidence,
-    evidence: [evidence(detail, confidence)],
-  };
+function relation(from: CognitivePremiseRole, to: CognitivePremiseRole, relationName: string, confidence: number, detail: string): CognitivePremiseRelation {
+  return { from, to, relation: relationName, confidence, evidence: [evidence(detail, confidence)] };
 }
 
-/**
- * Extract observable event clauses from ordinary language.
- *
- * This is deliberately grammatical rather than domain-specific. We are not
- * teaching the compiler what a groomer, wedding, house, rave, car, or animal
- * is. We are preserving the user's verbs and the concrete material attached
- * to them so the downstream realizer has something real to say.
- */
-const EVENT_VERB = /\b(?:arrive|arrived|arriving|enter|entered|entering|walk|walked|walking|go|went|going|come|came|coming|leave|left|leaving|return|returned|returning|groom|groomed|grooming|clean|cleaned|cleaning|wash|washed|washing|repair|repaired|repairing|fix|fixed|fixing|restore|restored|restoring|build|built|building|make|made|making|create|created|creating|cook|cooked|cooking|bake|baked|baking|serve|served|serving|prepare|prepared|preparing|open|opened|opening|close|closed|closing|visit|visited|visiting|travel|traveled|travelling|drive|drove|driving|ride|rode|riding|paint|painted|painting|dance|danced|dancing|sing|sang|singing|play|played|playing|choose|chose|choosing|pick|picked|picking|decide|decided|deciding|touch|touched|touching|hold|held|holding|wear|wore|wearing|taste|tasted|tasting|smell|smelled|smelling|look|looked|looking|see|saw|seeing|watch|watched|watching|share|shared|sharing|give|gave|giving|take|took|taking|bring|brought|bringing|receive|received|receiving|check|checked|checking|inspect|inspected|inspecting|test|tested|testing|measure|measured|measuring|install|installed|installing|remove|removed|removing|change|changed|changing|turn|turned|turning|finish|finished|finishing|complete|completed|completing|celebrate|celebrated|celebrating|marry|married|marrying|photograph|photographed|photographing|capture|captured|capturing|record|recorded|recording|teach|taught|teaching|learn|learned|learning|discover|discovered|discovering|find|found|finding|collect|collected|collecting|organize|organized|organizing|decorate|decorated|decorating|style|styled|styling|trim|trimmed|trimming|cut|cutting|brush|brushed|brushing|dry|dried|drying|massage|massaged|massaging|relax|relaxed|relaxing|pamper|pampered|pampering|spoil|spoiled|spoiling|treat|treated|treating|rescue|rescued|rescuing|adopt|adopted|adopting|meet|met|meeting|kiss|kissed|kissing|hug|hugged|hugging|remember|remembered|remembering|reconnect|reconnected|reconnecting|propose|proposed|proposing|vow|vowed|vowing|exchange|exchanged|exchanging|celebration|celebrated)\b/i;
+/** Universal grammatical evidence: preserve what happened, not a domain label. */
+const EVENT_VERB = /\b(?:arrive|arrived|arriving|enter|entered|entering|walk|walked|walking|go|went|going|come|came|coming|leave|left|leaving|return|returned|returning|groom|groomed|grooming|clean|cleaned|cleaning|wash|washed|washing|repair|repaired|repairing|fix|fixed|fixing|restore|restored|restoring|build|built|building|make|made|making|create|created|creating|cook|cooked|cooking|bake|baked|baking|serve|served|serving|prepare|prepared|preparing|open|opened|opening|close|closed|closing|visit|visited|visiting|travel|traveled|travelling|drive|drove|driving|ride|rode|riding|paint|painted|painting|dance|danced|dancing|sing|sang|singing|play|played|playing|choose|chose|choosing|pick|picked|picking|decide|decided|deciding|touch|touched|touching|hold|held|holding|wear|wore|wearing|taste|tasted|tasting|smell|smelled|smelling|look|looked|looking|see|saw|seeing|watch|watched|watching|share|shared|sharing|give|gave|giving|take|took|taking|bring|brought|bringing|receive|received|receiving|check|checked|checking|inspect|inspected|inspecting|test|tested|testing|measure|measured|measuring|install|installed|installing|remove|removed|removing|change|changed|changing|turn|turned|turning|finish|finished|finishing|complete|completed|completing|celebrate|celebrated|celebrating|marry|married|marrying|photograph|photographed|photographing|capture|captured|capturing|record|recorded|recording|teach|taught|teaching|learn|learned|learning|discover|discovered|discovering|find|found|finding|collect|collected|collecting|organize|organized|organizing|decorate|decorated|decorating|style|styled|styling|trim|trimmed|trimming|cut|cutting|brush|brushed|brushing|dry|dried|drying|massage|massaged|massaging|relax|relaxed|relaxing|pamper|pampered|pampering|spoil|spoiled|spoiling|treat|treated|treating|rescue|rescued|rescuing|adopt|adopted|adopting|meet|met|meeting|kiss|kissed|kissing|hug|hugged|hugging|remember|remembered|remembering|reconnect|reconnected|reconnecting|propose|proposed|proposing|vow|vowed|vowing|exchange|exchanged|exchanging|ready|clean|finished|done|complete)\b/i;
+const STATE_PATTERN = /\b(?:is|was|are|were|looks?|looked|feels?|felt|became|becomes?)\s+(?:ready|clean|cleaned|great|beautiful|finished|done|polished|safe|home|complete|changed|different|better|worse|open|closed)\b/i;
 
 function stripRequestFrame(value: string): string {
   return clean(value)
@@ -77,28 +45,23 @@ function stripRequestFrame(value: string): string {
 
 function observedEventValues(prompt: string): string[] {
   const text = clean(prompt);
-  const clauses = text
-    .split(/(?:[.!?;]+|,\s+|\s+and\s+)/)
-    .map(stripRequestFrame)
-    .filter(Boolean);
-
+  // Do not split on every "and": coordinated objects such as
+  // "the kitchen and living room" are one concrete event.
+  const clauses = text.split(/(?:[.!?;]+|,\s+)/).map(stripRequestFrame).filter(Boolean);
   const result: string[] = [];
 
   for (const clause of clauses) {
-    if (EVENT_VERB.test(clause)) {
+    if (EVENT_VERB.test(clause) || STATE_PATTERN.test(clause)) {
       const trimmed = clause.replace(/\b(?:to send|for the client|for the customer|for the owner|to the client)\b.*$/i, "");
-      if (trimmed.length >= 4 && trimmed.split(/\s+/).length <= 18) result.push(trimmed);
+      if (trimmed.length >= 4 && trimmed.split(/\s+/).length <= 20) result.push(trimmed);
     }
   }
 
-  // Imperative narrative requests often put the concrete sequence after
-  // "show": "Coco arriving, getting groomed, looking great...". Preserve
-  // those fragments rather than reducing them to the generic verb "arrive".
   const showSequence = text.match(/\bshow\s+(.+?)(?:\.|$)/i)?.[1];
   if (showSequence) {
     for (const fragment of showSequence.split(/,|\s+and\s+/i)) {
       const value = clean(fragment.replace(/^and\s+/i, ""));
-      if (value && EVENT_VERB.test(value) && value.split(/\s+/).length <= 10) result.push(value);
+      if (value && (EVENT_VERB.test(value) || STATE_PATTERN.test(value)) && value.split(/\s+/).length <= 10) result.push(value);
     }
   }
 
@@ -154,31 +117,14 @@ export function buildCognitivePremise(args: {
   context?: PremiseContext;
 }): CognitivePremise {
   const { prompt, subject, participants, entities, affordances, emotionalIntent, plan, context } = args;
-
   const observedEvents = observedEventValues(prompt);
-  const eventValues = unique([
-    ...observedEvents,
-    ...entities.events,
-    ...(context?.event?.venue ? [context.event.venue] : []),
-  ]);
-
+  const eventValues = unique([...observedEvents, ...entities.events, ...(context?.event?.venue ? [context.event.venue] : [])]);
   const artifactValues = unique([
     ...entities.products.filter(value => !/\b(?:qr|nfc|scan|tag|barcode|code)\b/i.test(value)),
     ...entities.organizations.filter(value => /\b(?:shop|studio|restaurant|hotel|club|brand|company)\b/i.test(value)),
   ]);
-
-  const places = unique([
-    ...entities.places,
-    ...(context?.location?.label ? [context.location.label] : []),
-    ...(context?.location?.city ? [context.location.city] : []),
-  ]);
-
-  const social = unique([
-    ...participants.value,
-    ...entities.people,
-    ...(context?.event?.participants ?? []),
-  ]);
-
+  const places = unique([...entities.places, ...(context?.location?.label ? [context.location.label] : []), ...(context?.location?.city ? [context.location.city] : [])]);
+  const social = unique([...participants.value, ...entities.people, ...(context?.event?.participants ?? [])]);
   const outcomes = outcomeValues(prompt);
   const transformations = transformationValues(prompt);
   const constraints = constraintValues(prompt);
@@ -187,7 +133,7 @@ export function buildCognitivePremise(args: {
 
   const slots = [
     slot("subject", [subject.value], subject.status, subject.confidence, 1, "central subject claim"),
-    slot("event", eventValues, "observed", eventValues.length ? 0.98 : 0, 0.98, "concrete observable event clauses preserved from prompt/context"),
+    slot("event", eventValues, "observed", eventValues.length ? 0.98 : 0, 0.98, "concrete observable event and state clauses preserved from prompt/context"),
     slot("medium", media, "observed", media.length ? 0.96 : 0, 0.92, "interaction medium or interface evidence"),
     slot("artifact", artifactValues, "observed", artifactValues.length ? 0.9 : 0, 0.88, "physical or concrete artifact evidence"),
     slot("participants", social, social.length ? "observed" : "unknown", social.length ? 0.84 : 0, 0.78, "participant and social evidence"),
@@ -203,7 +149,6 @@ export function buildCognitivePremise(args: {
 
   const relations: CognitivePremiseRelation[] = [];
   const add = (from: CognitivePremiseRole, to: CognitivePremiseRole, name: string, confidence: number, detail: string) => relations.push(relation(from, to, name, confidence, detail));
-
   if (eventValues.length && media.length) add("event", "medium", "medium operates within event context", 0.96, `${eventValues.join(", ")} + ${media.join(", ")}`);
   if (eventValues.length && subject.value) add("subject", "event", "subject is situated in observed event sequence", 0.94, `${subject.value} + ${eventValues.join(", ")}`);
   if (media.length && subject.value) add("subject", "medium", "subject is carried or accessed through medium", 0.9, `${subject.value} + ${media.join(", ")}`);
