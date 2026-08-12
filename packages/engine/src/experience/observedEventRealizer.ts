@@ -47,10 +47,7 @@ function normalizeEvent(raw: string, name: string): string {
 }
 
 function finalState(plan?: CognitiveExperiencePlan): string | undefined {
-  const candidates = [
-    ...values(plan, "transformation"),
-    ...values(plan, "outcome"),
-  ].filter(usable);
+  const candidates = [...values(plan, "transformation"), ...values(plan, "outcome")].filter(usable);
   return candidates.at(-1);
 }
 
@@ -80,10 +77,8 @@ export function realizeObservedEventBeat(beat: StoryBeat, plan?: CognitiveExperi
       return `The result was already visible: ${normalizeEvent(next, name).toLowerCase()}.`;
     }
     case "transformation": {
-      const state = finalState(plan);
-      if (state) return `By the end, ${sentence(state).toLowerCase()}.`;
-      const last = bank.at(-1);
-      return last ? `By the end, ${normalizeEvent(last, name).toLowerCase()}.` : undefined;
+      const state = finalState(plan) ?? bank[Math.max(0, bank.length - 2)];
+      return state ? `By the end, ${sentence(state).toLowerCase()}.` : undefined;
     }
     case "reflection":
       return `Looking back, ${normalized.toLowerCase()}.`;
