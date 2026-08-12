@@ -4,10 +4,10 @@ import { compileCognitiveExperience } from "../../experience/cognitiveExperience
 /**
  * SUPER STORY LAB
  *
- * This is intentionally different from unit/acceptance probes. It prints the
- * actual customer-facing experience and scores the properties that matter to
- * the product: evidence retention, narrative motion, transformation,
- * sentence variety, and absence of compiler language.
+ * This is the product test. It prints the actual customer-facing story and
+ * scores the properties that determine whether the compiler is useful in the
+ * real business: evidence retention, narrative motion, transformation,
+ * sentence variety, creative specificity, and zero internal-language leakage.
  *
  * Run with:
  * pnpm --filter @qre/engine exec tsx src/compiler/tests/superStoryLab.ts
@@ -18,6 +18,7 @@ type Probe = {
   prompt: string;
   evidence: RegExp[];
   tone?: RegExp;
+  creative?: RegExp;
 };
 
 const probes: Probe[] = [
@@ -26,7 +27,8 @@ const probes: Probe[] = [
     prompt:
       "Make a funny dog groomer story about Coco to send to the client. Show Coco arriving, getting groomed, looking great, and being ready to go home.",
     evidence: [/coco/i, /groom/i, /home/i],
-    tone: /funny|suspicious|interesting|attitude|bubbles|finishing|drama/i,
+    tone: /funny|suspicious|interesting|attitude|drama/i,
+    creative: /bubbles|foot rubs|bows|celebrity|paint the town red/i,
   },
   {
     name: "Housekeeper / completion",
@@ -34,6 +36,7 @@ const probes: Probe[] = [
       "Make a playful story for Maria after the housekeeper cleaned the kitchen and living room. The home is ready for the client.",
     evidence: [/kitchen/i, /living room/i, /clean/i],
     tone: /playful|stubborn|finish|spot|crumb|mood|interesting/i,
+    creative: /crumb|spot|surrender|life together|mood/i,
   },
   {
     name: "Mechanic / recovery",
@@ -47,7 +50,7 @@ const probes: Probe[] = [
     prompt:
       "Create a beautiful wedding story from the ceremony to the reception and leave the couple with a memory they can keep.",
     evidence: [/wedding|ceremony|reception/i, /memory/i],
-    tone: /beautiful|moment|remember|story|celebrat/i,
+    tone: /beautiful|moment|remember|story|celebrat|keeping/i,
   },
   {
     name: "Bicycle / continuation",
@@ -55,6 +58,7 @@ const probes: Probe[] = [
       "Turn my old red bicycle into a funny story that people can keep adding to.",
     evidence: [/bicycle/i, /red/i],
     tone: /funny|story|old|interesting|memory|chapter/i,
+    creative: /ordinary|interesting|surprise|second life|story/i,
   },
   {
     name: "Restaurant / ordinary becomes memorable",
@@ -62,6 +66,7 @@ const probes: Probe[] = [
       "Write a fun story about a small restaurant where a tired cook somehow turns a chaotic dinner into the best meal of the night.",
     evidence: [/restaurant/i, /cook/i, /dinner|meal/i],
     tone: /fun|chaos|best|night|moment|story|changed/i,
+    creative: /plot|interesting|questionable|best|ordinary/i,
   },
   {
     name: "Travel / detour",
@@ -69,6 +74,7 @@ const probes: Probe[] = [
       "Tell a playful story about our road trip to the coast. We missed a turn, found a strange little town, ate pie, and arrived at sunset.",
     evidence: [/road trip|trip/i, /coast/i, /sunset/i, /pie/i],
     tone: /turn|detour|sunset|pie|town|story|interesting/i,
+    creative: /route|detour|plot twist|landing/i,
   },
   {
     name: "Serious / no forced comedy",
@@ -79,11 +85,13 @@ const probes: Probe[] = [
   },
 ];
 
-const META = /\b(?:compiler|cognition|cognitive|premise|directive|hypothesis|semantic|realization|realizer|experience plan|story structure|progression|meaning context|beat)\b/i;
-const ROBOTIC = /\b(?:acts:|adds to what is happening|becomes identifiable|goes further by|reaches the payoff by|takes the next step:|carries the result forward by|another visible detail is|the difference is visible in|the payoff remains tied to|what happens next depends on)\b/i;
+const META = /\b(?:compiler|cognition|cognitive|premise|directive|hypothesis|semantic|realization|realizer|experience plan|story structure|progression|meaning context|beat|receipt|customer-facing)\b/i;
+const ROBOTIC = /\b(?:acts:|adds to what is happening|becomes identifiable|goes further by|reaches the payoff by|takes the next step:|carries the result forward by|another visible detail is|the difference is visible in|the payoff remains tied to|what happens next depends on|the subject and situation are established)\b/i;
 
 function countSubject(text: string, subject: string): number {
-  return (text.match(new RegExp(`\\b${subject.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "gi")) ?? []).length;
+  const normalized = subject.trim();
+  if (!normalized) return 0;
+  return (text.match(new RegExp(`\\b${normalized.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "gi")) ?? []).length;
 }
 
 function quality(text: string, subject: string, prompt: Probe) {
@@ -99,21 +107,39 @@ function quality(text: string, subject: string, prompt: Probe) {
   const varietyScore = sentences.length ? Math.min(1, uniqueStarts / Math.max(3, sentences.length * 0.65)) : 0;
   const repetitionScore = Math.max(0, 1 - Math.max(0, subjectCount - 3) / 8);
   const proseScore = metaLeaks === 0 && roboticLeaks === 0 ? 1 : 0;
-  const transformationScore = /\b(?:different|changed|came out|left|walked out|by the end|result|ready|remember)\b/i.test(text) ? 1 : 0.45;
+  const transformationScore = /\b(?:different|changed|came out|left|walked out|by the end|result|ready|remember|became)\b/i.test(text) ? 1 : 0.45;
   const toneScore = prompt.tone?.test(text) ? 1 : 0.5;
+  const creativeScore = prompt.creative ? (prompt.creative.test(text) ? 1 : 0) : 1;
+  const subjectStartRatio = sentences.length
+    ? starts.filter((value) => value === subject.toLowerCase()).length / sentences.length
+    : 0;
 
   const score = Math.round(
     100 * (
-      evidenceScore * 0.30 +
+      evidenceScore * 0.25 +
       varietyScore * 0.15 +
-      repetitionScore * 0.15 +
+      repetitionScore * 0.10 +
       proseScore * 0.20 +
       transformationScore * 0.10 +
-      toneScore * 0.10
+      toneScore * 0.10 +
+      creativeScore * 0.10
     ),
   );
 
-  return { score, sentences: sentences.length, uniqueStarts, subjectCount, metaLeaks, roboticLeaks, evidenceScore, varietyScore, transformationScore, toneScore };
+  return {
+    score,
+    sentences: sentences.length,
+    uniqueStarts,
+    subjectCount,
+    subjectStartRatio,
+    metaLeaks,
+    roboticLeaks,
+    evidenceScore,
+    varietyScore,
+    transformationScore,
+    toneScore,
+    creativeScore,
+  };
 }
 
 for (const probe of probes) {
@@ -134,12 +160,14 @@ for (const probe of probes) {
 
   assert.ok(beats.length >= 5, `${probe.name}: too few realized beats`);
   assert.ok(metrics.evidenceScore >= 0.66, `${probe.name}: concrete evidence was lost`);
-  assert.equal(metrics.metaLeaks, 0, `${probe.name}: compiler vocabulary leaked into customer prose`);
+  assert.equal(metrics.metaLeaks, 0, `${probe.name}: internal/customer-label vocabulary leaked into prose`);
   assert.equal(metrics.roboticLeaks, 0, `${probe.name}: robotic beat template leaked into customer prose`);
-  assert.ok(metrics.subjectCount <= Math.max(5, Math.ceil(beats.length * 0.45)), `${probe.name}: subject repetition is too high`);
+  assert.ok(metrics.subjectStartRatio <= 0.40, `${probe.name}: subject repetition is too high at sentence starts`);
+  assert.ok(metrics.varietyScore >= 0.60, `${probe.name}: sentence openings are too repetitive`);
   assert.ok(metrics.transformationScore >= 0.8, `${probe.name}: transformation/payoff signal is weak`);
+  if (probe.creative) assert.equal(metrics.creativeScore, 1, `${probe.name}: creative specificity was lost`);
   if (probe.name.startsWith("Serious")) {
-    assert.equal(/\b(?:ridiculous|nonsense|formal complaint|international importance|final boss)\b/i.test(text), false, `${probe.name}: serious prompt was forced into comedy`);
+    assert.equal(/\b(?:ridiculous|nonsense|formal complaint|international importance|final boss|bows|paint the town red)\b/i.test(text), false, `${probe.name}: serious prompt was forced into comedy`);
   }
 
   console.log(`\n✓ ${probe.name}: ${metrics.score}/100`);
