@@ -1,5 +1,6 @@
 import type { ExperienceEntities } from "./entityExtractor.js";
 import type { CognitivePremise } from "./premise.js";
+import type { RealityModel } from "./realityModel.js";
 
 /**
  * QRE COGNITIVE CONTRACT
@@ -121,6 +122,8 @@ export type CognitiveExperiencePlan = {
   dynamicBehavior: string[];
   futureEvolution: string[];
   creativePossibilities: string[];
+  /** JEKYLL: conserved prompt reality. HYDE must not erase it. */
+  reality?: RealityModel;
   premise?: CognitivePremise;
   realization?: CognitiveExperienceRealization;
 };
