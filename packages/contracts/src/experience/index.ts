@@ -19,5 +19,6 @@ export * from "./genesis.js";
 export * from "./story.js";
 export * from "./cognition.js";
 export * from "./premise.js";
+export * from "./realityModel.js";
 export * from "./memoryContext.js";
 export type { SemanticInterpretation } from "./semantic.js";
