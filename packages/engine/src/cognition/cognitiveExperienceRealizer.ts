@@ -8,6 +8,7 @@ import type {
   CognitivePremiseRole,
   ExperienceHypothesisKind,
 } from "@qre/contracts";
+import { deriveAttentionPressure, attentionSummary } from "./attentionPressure.js";
 
 /**
  * SEMANTIC REALIZATION + CREATIVE PRESSURE
@@ -26,14 +27,11 @@ const STRUCTURES: Record<ExperienceHypothesisKind, CognitiveBeatKind[]> = {
   commerce: ["orientation", "identity", "discovery", "payoff", "continuation"],
   journey: ["orientation", "threshold", "discovery", "transformation", "continuation"],
   identity: ["orientation", "identity", "reflection", "payoff", "continuation"],
-  // Story realization explicitly carries escalation so a detected escalation
-  // mechanic cannot disappear between cognition and presentation.
   story: ["orientation", "hook", "encounter", "escalation", "transformation", "payoff", "continuation"],
   ritual: ["orientation", "threshold", "encounter", "reflection", "payoff", "continuation"],
 };
 
 const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-const lower = (value: unknown): string => clean(value).toLowerCase();
 const first = (values?: readonly unknown[]) => clean(values?.[0]);
 const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
@@ -155,67 +153,60 @@ function semantics(direction: ExperienceHypothesisKind, kind: CognitiveBeatKind,
   return generic[kind] ?? state("advance the selected cognitive direction", "continue from the current state", "the current state is established", "the next experiential state is available");
 }
 
-function hash(text: string): number {
-  let value = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    value ^= text.charCodeAt(index);
-    value = Math.imul(value, 16777619);
-  }
-  return value >>> 0;
-}
-
-const CREATIVE_MOTIFS = [
-  "a stray feather appears where the work should have left nothing behind",
-  "one glove turns up somewhere it absolutely should not be",
-  "a tiny trail of glitter crosses an otherwise immaculate surface",
-  "one object appears twice when there should only be one",
-  "a note with no obvious explanation is found in plain sight",
-  "an immaculate area contains one absurdly specific mess",
-  "a suspiciously perfect line of crumbs leads somewhere unexpected",
-  "one small detail is just strange enough to demand a second look",
-] as const;
-
-const SERIOUS_GUARD = /\b(?:memorial|funeral|death|died|grief|emergency|medical|injury|lawsuit|legal|crisis|trauma)\b/i;
-
-function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): string | undefined {
-  if (SERIOUS_GUARD.test(prompt)) return undefined;
-  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity", "utility"].includes(direction)) return undefined;
-  const text = lower(prompt);
-  const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|document|inspect|prepare)\b/.test(text);
-  const explicitlyPlayful = /\b(?:fun|funny|comedy|absurd|ridiculous|wild|weird|playful|hilarious)\b/.test(text);
-  if (!mundane && !explicitlyPlayful) return undefined;
-  return CREATIVE_MOTIFS[hash(`${prompt}|${direction}`) % CREATIVE_MOTIFS.length];
-}
-
-function creativeDirective(
+function attentionDirective(
   direction: ExperienceHypothesisKind,
   kind: CognitiveBeatKind,
-  prompt: string,
+  premise: CognitivePremise | undefined,
   evidence: CognitiveEvidence[],
 ): Partial<CognitiveBeatDirective> | undefined {
-  const motif = creativeMotif(prompt, direction);
-  if (!motif) return undefined;
+  const pressure = deriveAttentionPressure(premise, direction);
+  const anchor = pressure[0];
+  if (!anchor) return undefined;
 
+  const secondary = pressure[1];
+  const relation = secondary ? ` and its relationship to ${secondary.value}` : "";
+  const summary = attentionSummary(pressure);
   const creativeEvidence: CognitiveEvidence = {
     source: "creative_realization",
-    detail: `created experiential twist for ${kind}: ${motif}`,
-    confidence: 0.76,
+    detail: `evidence-driven attention pressure for ${kind}: ${summary}`,
+    confidence: Number(Math.min(0.94, Math.max(0.78, anchor.score)).toFixed(3)),
   };
 
   const withEvidence = (action: string, stateAfter: string): Partial<CognitiveBeatDirective> => ({
     action,
     stateAfter,
-    evidence: [...evidence, creativeEvidence].slice(0, 8),
-    confidence: 0.76,
+    evidence: [...evidence, ...anchor.evidence, creativeEvidence].slice(0, 8),
+    confidence: creativeEvidence.confidence,
   });
 
-  if (kind === "encounter") return withEvidence(`notice ${motif}`, "a concrete unexpected detail has entered the experience");
-  if (kind === "hook") return withEvidence(`encounter ${motif}`, "the subject has a concrete reason to continue");
-  if (kind === "action") return withEvidence(`notice ${motif} and respond to what it changes`, "the concrete detail changes the immediate action");
-  if (kind === "feedback") return withEvidence(`find that ${motif}`, "the result contains a concrete unexpected detail");
-  if (kind === "next_step") return withEvidence(`follow what ${motif} changes`, "the next action reflects the concrete twist");
-  if (kind === "escalation") return withEvidence(`goes further because ${motif}`, "the initial surprise now produces a more intense concrete condition");
-  if (kind === "payoff") return withEvidence(`resolve the thread created when ${motif}`, "the creative turn lands as an earned consequence");
+  if (["hook", "threshold", "encounter", "reveal", "discovery"].includes(kind)) {
+    return withEvidence(
+      `notice what is distinctive about ${anchor.value}${relation}`,
+      `the concrete detail ${anchor.value} now carries attention and changes what is worth noticing next`,
+    );
+  }
+
+  if (["escalation", "transformation"].includes(kind)) {
+    return withEvidence(
+      `follow what ${anchor.value} changes${relation}`,
+      `the significance of ${anchor.value} increases through its observed relationship to the next state`,
+    );
+  }
+
+  if (kind === "payoff") {
+    return withEvidence(
+      `resolve what ${anchor.value} has made matter${relation}`,
+      `the experience pays off through the consequence of ${anchor.value}`,
+    );
+  }
+
+  if (kind === "continuation" || kind === "next_step" || kind === "feedback") {
+    return withEvidence(
+      `carry ${anchor.value} forward${relation}`,
+      `the next interaction retains the significance of ${anchor.value}`,
+    );
+  }
+
   return undefined;
 }
 
@@ -226,7 +217,7 @@ export function realizeCognitiveExperience(args: {
   hypothesisEvidence?: CognitiveEvidence[];
   prompt?: string;
 }): CognitiveExperienceRealization {
-  const { plan, premise, evidence = [], hypothesisEvidence = [], prompt = "" } = args;
+  const { plan, premise, evidence = [], hypothesisEvidence = [] } = args;
   const direction = plan.direction ?? "story";
   const x = inputs(plan, premise);
   const kinds = STRUCTURES[direction];
@@ -240,19 +231,20 @@ export function realizeCognitiveExperience(args: {
     if (kind === "threshold") roleSet.add("medium");
     if (kind === "transformation") roleSet.add("transformation");
     if (kind === "payoff") roleSet.add("outcome");
+    if (kind === "escalation") roleSet.add("constraint");
 
     const directiveEvidence = evidenceFor(premise, [...roleSet], [...evidence, ...hypothesisEvidence]);
     const semantic = semantics(direction, kind, x);
-    const creative = creativeDirective(direction, kind, prompt, directiveEvidence);
+    const attention = attentionDirective(direction, kind, premise, directiveEvidence);
 
     return {
       kind,
       ...semantic,
-      ...creative,
+      ...attention,
       subject: x.subject,
       relationalFocus: unique([x.social, x.place, x.temporal, x.memory, x.discovery, x.progression]),
-      evidence: creative?.evidence ?? directiveEvidence,
-      confidence: creative?.confidence ?? (
+      evidence: attention?.evidence ?? directiveEvidence,
+      confidence: attention?.confidence ?? (
         directiveEvidence.length
           ? Number(Math.min(0.98, Math.max(0.72, ...directiveEvidence.map((item) => item.confidence))).toFixed(3))
           : 0.72

@@ -87,3 +87,9 @@ jobs:
 
       - name: Durable memory compiler acceptance
         run: pnpm --filter @qre/engine test:memory
+
+      - name: Universal context artifact acceptance
+        run: pnpm --filter @qre/engine test:context-artifacts
+
+      - name: Geo cognition and rendered story acceptance
+        run: pnpm --filter @qre/engine test:geo-cognition

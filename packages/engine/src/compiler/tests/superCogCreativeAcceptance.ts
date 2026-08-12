@@ -1,16 +1,28 @@
 /**
  * SUPER COG CREATIVE ACCEPTANCE
  *
- * Protects the new rule:
- * preserve the premise, then invent inside it when a mundane prompt has room
- * for attention, surprise, humor, or escalation.
+ * The creative layer must derive attention from the actual premise. Fixed
+ * mundane motifs are forbidden because QRE must discover what is interesting
+ * about the user's world rather than decorate it with a canned surprise.
  */
 
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
 
 const prompts = [
-  "A housekeeper documents a client's home after a huge cleaning day.",
-  "A repair technician documents an ordinary office after a long repair day.",
+  "A housekeeper documents a client's home after a huge cleaning day. The kitchen is immaculate and the client asked for the work to be remembered.",
+  "A repair technician documents an ordinary office after a long repair day. The server room was finally restored before the team returned.",
+  "A wedding begins at a beach venue tonight and the couple wants the night to feel like a movie their family can keep.",
+  "Take me through a rave from arriving at the warehouse to sunrise, with the crowd and the changing energy carrying the story.",
+];
+
+const forbiddenMotifs = [
+  "stray feather",
+  "one glove",
+  "trail of glitter",
+  "one object appears twice",
+  "note with no obvious explanation",
+  "specific mess",
+  "line of crumbs",
 ];
 
 const results = prompts.map((prompt) => compileCognitiveExperience(prompt));
@@ -24,30 +36,35 @@ for (const [index, result] of results.entries()) {
     throw new Error(`${prompt}: repaired subject was not conserved in final story text: ${subject}`);
   }
 
-  const creativeEvidence = result.cognition.plan.realization?.directives
+  if (forbiddenMotifs.some((motif) => text.includes(motif))) {
+    throw new Error(`${prompt}: fixed mundane creative motif leaked into final story text`);
+  }
+
+  const attentionEvidence = result.cognition.plan.realization?.directives
     .flatMap((directive) => directive.evidence)
-    .filter((evidence) => evidence.source === "creative_realization") ?? [];
+    .filter((evidence) => evidence.detail.includes("evidence-driven attention pressure")) ?? [];
 
-  if (!creativeEvidence.length) {
-    throw new Error(`${prompt}: no created experiential detail was produced for a mundane prompt`);
+  if (!attentionEvidence.length) {
+    throw new Error(`${prompt}: no evidence-driven attention pressure was produced`);
   }
 
-  const creativeDetail = creativeEvidence[0]?.detail ?? "";
-  if (!text.includes(creativeDetail.split(": ").at(-1)?.toLowerCase() ?? "never")) {
-    throw new Error(`${prompt}: created detail did not survive into final story text`);
+  const attentionDetail = attentionEvidence[0]?.detail ?? "";
+  const anchors = attentionDetail.split(": ").at(-1)?.split(" + ").map((value) => value.split(": ").at(-1)?.toLowerCase() ?? "").filter(Boolean) ?? [];
+  if (!anchors.some((anchor) => text.includes(anchor))) {
+    throw new Error(`${prompt}: attention anchor did not survive into final story text`);
   }
 }
 
-const firstCreative = results[0].cognition.plan.realization?.directives
+const firstAttention = results[0].cognition.plan.realization?.directives
   .flatMap((directive) => directive.evidence)
-  .find((evidence) => evidence.source === "creative_realization")?.detail;
+  .find((evidence) => evidence.detail.includes("evidence-driven attention pressure"))?.detail;
 
-const secondCreative = results[1].cognition.plan.realization?.directives
+const secondAttention = results[1].cognition.plan.realization?.directives
   .flatMap((directive) => directive.evidence)
-  .find((evidence) => evidence.source === "creative_realization")?.detail;
+  .find((evidence) => evidence.detail.includes("evidence-driven attention pressure"))?.detail;
 
-if (firstCreative && secondCreative && firstCreative === secondCreative) {
-  throw new Error("Creative realization repeated the exact same twist across distinct prompts");
+if (firstAttention && secondAttention && firstAttention === secondAttention) {
+  throw new Error("Evidence-driven attention repeated the exact same pressure across distinct prompts");
 }
 
-console.log("✓ Super Cog creative realization acceptance passed.");
+console.log("✓ Super Cog evidence-driven attention acceptance passed.");

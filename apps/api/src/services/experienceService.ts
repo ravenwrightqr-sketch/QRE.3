@@ -1,11 +1,15 @@
 import {
+  buildExperienceAnalytics,
+  buildExperienceContextArtifacts,
   buildMemoryWriteBatch,
   compileCognitiveExperience,
   memoryContextToCompilerMemories,
+  getExperienceAnalytics,
 } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
 
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 
 export type CompiledExperienceResult = {
   title: string;
@@ -15,23 +19,15 @@ export type CompiledExperienceResult = {
   cinematicScenes: any[];
   estimatedDuration: number;
   momentCount: number;
-  cognition?: unknown;
-  memory?: {
-    entities: number;
-    facts: number;
-    relations: number;
-    events: number;
-  };
+  cognition?: any;
+  geoStory: any;
+  memorySnapshot: any;
+  analytics: any;
+  memory?: { entities: number; facts: number; relations: number; events: number };
   [key: string]: unknown;
 };
 
-/**
- * Compile a prompt against durable memory when an asset is supplied.
- *
- * Memory is loaded before cognition and written only after a successful
- * compilation. This keeps the compiler pure while giving the product a
- * persistent learning loop.
- */
+/** Compile a prompt against durable memory. Every response carries memory, geo, and analytics context. */
 export async function compileExperience(input: {
   prompt: string;
   assetId?: string;
@@ -39,10 +35,7 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
-
-  if (!prompt) {
-    throw new Error("Experience prompt required");
-  }
+  if (!prompt) throw new Error("Experience prompt required");
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
@@ -53,10 +46,14 @@ export async function compileExperience(input: {
   }
 
   const compiled = compileCognitiveExperience(prompt, {
-    memories: memoryContext
-      ? memoryContextToCompilerMemories(memoryContext)
-      : [],
+    memories: memoryContext ? memoryContextToCompilerMemories(memoryContext) : [],
   });
+
+  const artifacts = buildExperienceContextArtifacts(prompt, compiled, {
+    assetId: input.assetId,
+  });
+  let analytics = buildExperienceAnalytics([], { assetId: input.assetId });
+  let memoryCounts: CompiledExperienceResult["memory"];
 
   if (input.assetId && input.memoryRepository) {
     const batch = buildMemoryWriteBatch({
@@ -66,19 +63,40 @@ export async function compileExperience(input: {
       plan: compiled.cognition.plan,
       source: "prompt",
     });
-
     await input.memoryRepository.writeBatch(batch);
+    memoryCounts = {
+      entities: batch.entities.length,
+      facts: batch.facts.length,
+      relations: batch.relations.length,
+      events: batch.events.length,
+    };
 
-    return {
-      ...compiled,
-      memory: {
-        entities: batch.entities.length,
-        facts: batch.facts.length,
-        relations: batch.relations.length,
-        events: batch.events.length,
+    const analyticsRepository = createAnalyticsRepository();
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "EXPERIENCE_COMPILED",
+      meta: { promptLength: prompt.length, direction: compiled.cognition.plan.direction },
+    });
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "GEO_STORY_BUILT",
+      meta: { mode: artifacts.geoStory.mode, sceneCount: artifacts.geoStory.scenes.length },
+    });
+    await analyticsRepository.trackEvent({
+      assetId: input.assetId,
+      type: "MEMORY_SNAPSHOT_BUILT",
+      meta: {
+        memoryType: artifacts.memorySnapshot.type,
+        highlightCount: artifacts.memorySnapshot.highlights.length,
       },
-    } as CompiledExperienceResult;
+    });
+    analytics = await getExperienceAnalytics(input.assetId, analyticsRepository);
   }
 
-  return compiled as CompiledExperienceResult;
+  return {
+    ...compiled,
+    ...artifacts,
+    analytics,
+    ...(memoryCounts ? { memory: memoryCounts } : {}),
+  } as CompiledExperienceResult;
 }
