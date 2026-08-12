@@ -4,6 +4,7 @@ import {
   isGenericCompilerProse as isLegacyGenericCompilerProse,
   realizePremiseBeat as realizeLegacyPremiseBeat,
 } from "./premiseRealizerLegacy.js";
+import { realizeSuperStoryBeat } from "./superStoryRealizer.js";
 import {
   inspectTransformation,
   realizeTransformationalBeat,
@@ -12,10 +13,9 @@ import {
 /**
  * CANONICAL LANGUAGE AUTHORITY
  *
- * The mature premise realizer remains the conservative evidence/semantic
- * fallback. Transformation realization now gets first refusal so the same
- * cognitive plan can produce an actual state-changing experience rather than
- * compiler-description prose.
+ * Customer-facing prose gets the strongest realization pass first. The older
+ * transformational realizer remains the evidence-safe fallback, followed by
+ * the conservative legacy semantic realizer.
  *
  * Architecture is unchanged:
  * cognition -> premise -> trajectory -> universal compiler -> realization.
@@ -24,6 +24,9 @@ export function realizePremiseBeat(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
+  const superStory = realizeSuperStoryBeat(beat, plan);
+  if (superStory) return superStory;
+
   const transformed = realizeTransformationalBeat(beat, plan);
   if (transformed) return transformed;
   return realizeLegacyPremiseBeat(beat, plan);
