@@ -1,4 +1,4 @@
-﻿import { realizePremiseBeat } from "./premiseRealizer.js";
+import { realizePremiseBeat } from "./premiseRealizer.js";
 import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
 import type {
   CognitiveExperiencePlan,
@@ -1347,6 +1347,109 @@ function score(
   return Number(value.toFixed(3));
 }
 
+/**
+ * Compresses internal cognitive operations into observable narrative
+ * attention. A trajectory may contain many reasoning operations, but
+ * customer prose should only surface the operations that actually
+ * change attention or state.
+ *
+ * This is deliberately domain-neutral. It is not a story template.
+ */
+function compressCognitiveTrajectory(
+  beats: StoryBeatKind[],
+  observation: ExperienceObservation,
+  plan?: CognitiveExperiencePlan,
+): StoryBeatKind[] {
+  if (beats.length <= 7) return [...beats];
+
+  const phases: Array<{
+    name: string;
+    kinds: StoryBeatKind[];
+    required?: boolean;
+  }> = [
+    {
+      name: "entry",
+      kinds: ["orientation", "hook", "threshold", "origin", "need"],
+      required: true,
+    },
+    {
+      name: "event",
+      kinds: ["encounter", "action", "challenge", "instruction", "contribution"],
+      required: true,
+    },
+    {
+      name: "turn",
+      kinds: ["discovery", "reveal", "feedback", "escalation"],
+      required: true,
+    },
+    {
+      name: "change",
+      kinds: ["transformation", "identity", "milestone"],
+    },
+    {
+      name: "close",
+      kinds: ["payoff", "reflection"],
+      required: true,
+    },
+    {
+      name: "continuation",
+      kinds: ["continuation", "next_step"],
+    },
+  ];
+
+  const selected: StoryBeatKind[] = [];
+  const used = new Set<StoryBeatKind>();
+
+  for (const phase of phases) {
+    const found = beats.find(
+      (kind) => phase.kinds.includes(kind) && !used.has(kind),
+    );
+
+    if (found) {
+      selected.push(found);
+      used.add(found);
+    }
+  }
+
+  // A second observable event is valuable when the trajectory has
+  // enough distinct evidence to support it. This is where comedy,
+  // surprise, or a concrete middle action can breathe without
+  // turning every internal operation into a sentence.
+  const evidenceRich =
+    observation.entities.keywords.length >= 4 ||
+    Boolean(plan?.premise?.slots.length && plan.premise.slots.length >= 4);
+
+  if (evidenceRich && selected.length < 7) {
+    const extra = beats.find(
+      (kind) =>
+        ["action", "encounter", "challenge", "discovery", "reveal", "feedback", "escalation"]
+          .includes(kind) &&
+        !used.has(kind),
+    );
+
+    if (extra) {
+      const closeIndex = selected.findIndex(
+        (kind) => kind === "payoff" || kind === "reflection",
+      );
+
+      if (closeIndex >= 0) {
+        selected.splice(closeIndex, 0, extra);
+      } else {
+        selected.push(extra);
+      }
+      used.add(extra);
+    }
+  }
+
+  // Continuation is a semantic capability, not a mandatory ending.
+  // Only surface it when the plan actually supports future growth.
+  if (!plan?.futureEvolution?.length && !plan?.memoryModel?.length) {
+    return selected.filter((kind) => kind !== "continuation" && kind !== "next_step");
+  }
+
+  return selected.slice(0, 7);
+}
+
 function candidates(
   observation: ExperienceObservation,
   situationValue: StorySituation,
@@ -1435,10 +1538,16 @@ function candidates(
   plan,
 });
 
-if (cognitiveTrajectory.beats.length) {
+const narrativeBeats = compressCognitiveTrajectory(
+  cognitiveTrajectory.beats,
+  observation,
+  plan,
+);
+
+if (narrativeBeats.length) {
   pool.push([
     "cognitive-derived",
-    cognitiveTrajectory.beats,
+    narrativeBeats,
     [
       "Derived from cognitive mechanics rather than domain templates.",
       ...cognitiveTrajectory.rationale,

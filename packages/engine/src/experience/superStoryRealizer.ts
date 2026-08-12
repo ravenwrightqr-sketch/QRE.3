@@ -124,6 +124,7 @@ function signal(plan?: CognitiveExperiencePlan): string {
       item.stateAfter,
     ]) ?? []),
     ...premiseValues(plan, "emotion"),
+    ...(plan?.premise?.slots.flatMap((slot) => slot.values) ?? []),
   ].join(" "));
 }
 
