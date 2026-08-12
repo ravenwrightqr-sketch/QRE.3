@@ -51,6 +51,10 @@ export {
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
 
+/** Source-first latent movie discovery. */
+export { findLatentMovie } from "./experience/movieFactoryV2.js";
+export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
+
 export * from "./cognition/index.js";
 export * from "./intelligence/index.js";
 export * from "./world/index.js";
