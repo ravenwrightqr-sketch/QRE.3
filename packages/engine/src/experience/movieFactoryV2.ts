@@ -3,15 +3,14 @@ import type { LatentMovie, LatentMovieEvent, StoryBeat, StoryBeatKind } from "@q
 /**
  * QRE LATENT MOVIE FACTORY V2
  *
- * This is the narrative substrate between user reality and prose.
+ * PROMPT != STORY.
  *
- * The important distinction:
- *   PROMPT != STORY
- *   PROMPT -> EVIDENCE -> LATENT MOVIE -> NARRATIVE TRANSFORMATION -> PROSE
+ * The compiler first finds the latent movie:
+ *   request -> subject -> evidence -> state -> turn -> transformation -> payoff
  *
- * We preserve observed facts, but we are allowed to transform their
- * significance, rhythm and framing. The compiler should find the movie
- * hiding inside an ordinary description rather than merely paraphrasing it.
+ * Facts remain grounded. The prose is allowed to reframe their significance,
+ * rhythm and emotional shape. That is the part that makes an ordinary service,
+ * object, trip or event feel authored rather than summarized.
  */
 
 export type MovieStyle = "cinematic" | "funny" | "dark" | "horror" | "warm" | "mysterious";
@@ -31,7 +30,7 @@ const META_REQUEST = /\b(?:make|create|build|turn|transform|write|tell|give|gene
 const AUDIENCE = new Set([
   "everyone", "everybody", "people", "customers", "guests", "visitors", "friends", "family",
   "attendees", "fans", "clients", "homeowner", "homeowners", "users", "viewers", "members",
-  "participants", "followers", "customers", "invitees",
+  "participants", "followers", "invitees",
 ]);
 
 const SUBJECT_STOP = new Set([
@@ -83,18 +82,18 @@ function findSubject(prompt: string, facts: string[]): string {
     if (proper && !SUBJECT_STOP.has(proper[1].toLowerCase())) return clean(proper[1]);
   }
 
-  // Possessive constructions expose concrete objects without needing a template.
-  const possessive = prompt.match(/\b(?:my|our|this)\s+([A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2})/i)?.[1];
-  if (possessive) {
-    const candidate = meaningfulWords(possessive).slice(0, 2).join(" ");
-    if (candidate && !AUDIENCE.has(candidate)) return candidate;
+  // "all the beaches my surfboard has traveled" -> surfboard.
+  const subjectAfterCollection = prompt.match(/\b(?:beaches|raves|trips|memories|places|events)\b[^.?!]*?\b(?:my|our|this)\s+([A-Za-z][A-Za-z0-9'’-]*)/i)?.[1];
+  if (subjectAfterCollection) return subjectAfterCollection.toLowerCase();
+
+  // "my wedding Jan 1 2025" -> wedding, not "wedding jan".
+  // The first concrete noun after a possessive is the semantic anchor.
+  const possessive = prompt.match(/\b(?:my|our|this)\s+([A-Za-z][A-Za-z0-9'’-]*)/i)?.[1];
+  if (possessive && !SUBJECT_STOP.has(possessive.toLowerCase()) && !AUDIENCE.has(possessive.toLowerCase())) {
+    return possessive.toLowerCase();
   }
 
-  // "all the beaches my surfboard has traveled" -> surfboard.
-  const subjectAfterPossessive = prompt.match(/\b(?:beaches|raves|trips|memories|places|events)\b[^.?!]*?\bmy\s+([A-Za-z][A-Za-z0-9'’-]*)/i)?.[1];
-  if (subjectAfterPossessive) return subjectAfterPossessive.toLowerCase();
-
-  // Domain nouns are evidence, not templates. Prefer the noun nearest the action.
+  // Domain nouns are evidence, not templates.
   const candidates = meaningfulWords(prompt).filter((word) =>
     /^(dog|cat|horse|pet|surfboard|board|watch|necklace|ring|car|truck|house|home|product|art|jewelry|guitar|instrument|tag|book|camera|wedding|rave|concert|festival|party|birthday|anniversary|trip|journey|beach|business|client|customer|groomer|housekeeper|cleaning|service|launch|show|performance)$/i.test(word),
   );
@@ -127,7 +126,7 @@ function extractSignals(prompt: string, facts: string[]) {
 function classifyStyle(prompt: string, facts: string[]): MovieStyle {
   const text = `${prompt} ${facts.join(" ")}`;
   if (HORROR.test(text)) return "horror";
-  if (FUNNY.test(text) || TURN.test(text) && /\b(dog|groom|pet|stole|chewed|lawyer|owned)\b/i.test(text)) return "funny";
+  if (FUNNY.test(text) || (TURN.test(text) && /\b(dog|groom|pet|stole|chewed|lawyer|owned)\b/i.test(text))) return "funny";
   if (MYSTERY.test(text)) return "mysterious";
   if (NEGATIVE.test(text) && !POSITIVE.test(text)) return "dark";
   if (/\b(wedding|memorial|grandmother|grandfather|family|memory|legacy|romantic|love)\b/i.test(text)) return "warm";
@@ -159,10 +158,7 @@ function buildEvents(
     const previousState = index > 0 ? stateOf(facts[index - 1]) : "neutral";
     const currentState = stateOf(fact);
     const factPlace = places.find((place) => fact.toLowerCase().includes(place.toLowerCase()));
-    const temporal = [
-      ...(fact.match(TIME) ?? []),
-      ...(fact.match(DATE) ?? []),
-    ];
+    const temporal = [...(fact.match(TIME) ?? []), ...(fact.match(DATE) ?? [])];
     const place = factPlace ?? (index === 0 ? places[0] : undefined);
 
     return {
@@ -179,6 +175,15 @@ function buildEvents(
       ...(index === 0 && dates.length ? { date: dates[0] } : {}),
     } as LatentMovieEvent;
   });
+}
+
+function inferIntentFact(prompt: string, subject: string, dates: string[], places: string[]): string {
+  const text = clean(prompt.replace(/^[^.!?]*?\b(?:make|create|build|turn|transform|write|tell|give|generate|design|produce|show)\b/i, "").replace(/^\s*(?:a|an|the)\s+/i, ""));
+  if (/\bwedding\b/i.test(text)) return dates[0] ? `Wedding memory anchored to ${dates[0]}.` : "A wedding memory worth keeping.";
+  if (/\bsurfboard\b/i.test(text)) return places.length ? `The surfboard's journey through ${places.join(", ")}.` : "The surfboard's journey across the beaches.";
+  if (/\braves?\b/i.test(text)) return "A memory of the raves and the nights that became part of the story.";
+  if (text) return `${titleCase(subject)} — ${text.replace(/[.!?]+$/, "")}.`;
+  return `${titleCase(subject)} — a moment worth remembering.`;
 }
 
 function findContrasts(events: LatentMovieEvent[]): string[] {
@@ -214,14 +219,12 @@ function storytellerLine(styleName: MovieStyle, movie: LatentMovie, beat: StoryB
   const first = movie.events[0]?.fact;
   const last = movie.events.at(-1)?.fact;
   const turn = findTurn(movie.events)?.fact;
-  const time = movie.events[0]?.time;
-  const date = movie.events[0]?.date;
+  const time = (movie.events[0] as LatentMovieEvent & { time?: string })?.time;
+  const date = (movie.events[0] as LatentMovieEvent & { date?: string })?.date;
   const place = movie.events[0]?.place;
   const service = hasServiceContext(movie);
   const travel = hasTravelContext(movie);
 
-  // The voice changes the framing, not the facts. These are transformations,
-  // not fabricated events.
   if (styleName === "funny") {
     if (beat === "orientation") {
       if (service && time) return `${subject} arrived at ${time}, ready for battle. The house had other plans.`;
@@ -229,19 +232,9 @@ function storytellerLine(styleName: MovieStyle, movie: LatentMovie, beat: StoryB
       return `${subject} arrived, and the plan immediately looked a little too innocent.`;
     }
     if (beat === "encounter") return fact ? `${fact}. So far, the operation was still pretending to be normal.` : `Then reality entered the room.`;
-    if (beat === "discovery" || beat === "escalation") {
-      if (turn) return `${turn}. There it was: the plot twist hiding in plain sight.`;
-      return `Then the ordinary part started developing a personality.`;
-    }
-    if (beat === "transformation") {
-      if (service) return `Somewhere between the mess and the finish line, the job stopped looking like a job and started looking like a victory lap.`;
-      return `By then, the original plan had acquired a much better story.`;
-    }
-    if (beat === "payoff") {
-      if (last && service) return `${last}. Maria won today.`;
-      if (last) return `${last}. Not bad for a day that arrived looking completely ordinary.`;
-      return `And somehow, that became the part worth telling.`;
-    }
+    if (beat === "discovery" || beat === "escalation") return turn ? `${turn}. There it was: the plot twist hiding in plain sight.` : `Then the ordinary part started developing a personality.`;
+    if (beat === "transformation") return service ? `Somewhere between the mess and the finish line, the job stopped looking like a job and started looking like a victory lap.` : `By then, the original plan had acquired a much better story.`;
+    if (beat === "payoff") return last && service ? `${last}. Maria won today.` : last ? `${last}. Not bad for a day that arrived looking completely ordinary.` : `And somehow, that became the part worth telling.`;
   }
 
   if (styleName === "horror") {
@@ -268,66 +261,57 @@ function storytellerLine(styleName: MovieStyle, movie: LatentMovie, beat: StoryB
     if (beat === "payoff") return last ? `${last}. The record closes there, but the question remains.` : `Some stories answer themselves. This one leaves a door open.`;
   }
 
-  // Cinematic / dark default. This is deliberately concrete and rhythmic.
   if (beat === "orientation") {
     if (service && time) return `${subject} arrived at ${time}, ready for battle.`;
     if (place && time) return `${subject} arrived at ${place} at ${time}. The clock started the scene.`;
     if (date) return `${subject} arrived on ${date}. That is where the story starts.`;
     return first ? `${subject} arrived, and the day took its first breath.` : `${subject} is where the story begins.`;
   }
-
   if (beat === "encounter") return fact ? `${fact}. The day moved forward.` : `Then the next moment arrived.`;
-
   if (beat === "discovery" || beat === "escalation") {
     if (turn) return `${turn}. That was the detail that changed the shape of the day.`;
     if (service) return `The first job was handled. Then came the next one.`;
     return `Then came the detail that gave the story somewhere to go.`;
   }
-
   if (beat === "transformation") {
     if (service) return `By then, the mess had become evidence of the work. The mission was winning.`;
     if (travel) return `One place became another, then another. The object carried the history forward.`;
     return `By then, the beginning no longer looked quite the same.`;
   }
-
-  if (beat === "payoff") {
-    if (last) return `${last}. And that is how an ordinary moment earns a place in the story.`;
-    return `The moment ends. The memory does not.`;
-  }
-
+  if (beat === "payoff") return last ? `${last}. And that is how an ordinary moment earns a place in the story.` : `The moment ends. The memory does not.`;
   return fact ?? "The story continues.";
 }
 
 export function findLatentMovie(prompt: string): MovieFactoryResult {
   const rawSentences = sentences(prompt);
   const explicitFacts = rawSentences.filter((sentence) => !isInstruction(sentence));
-  const facts = explicitFacts.length ? explicitFacts : rawSentences.filter((sentence) => sentence.length > 2);
-  const subjectName = findSubject(prompt, facts);
-  const signals = extractSignals(prompt, facts);
+  const facts = explicitFacts;
+  const subjectName = findSubject(prompt, facts.length ? facts : rawSentences);
+  const signals = extractSignals(prompt, facts.length ? facts : rawSentences);
   const styleName = classifyStyle(prompt, facts);
   const events = buildEvents(facts, subjectName, signals.places, signals.times, signals.dates);
-  const contrasts = findContrasts(events);
-  const turn = findTurn(events);
 
-  // Sparse prompts still have a movie. The movie is an intent-backed premise,
-  // not an invented factual timeline. This distinction is crucial for QRE.
+  // Instruction-only prompts still contain a latent premise. Materialize that
+  // premise as a low-confidence inferred event instead of pretending the request
+  // itself was an observed event. This fixes "Make a wedding..." / surfboard /
+  // rave prompts without polluting the movie with compiler instructions.
   if (!events.length && rawSentences.length) {
     events.push({
       id: "movie-event-1",
       order: 0,
-      fact: rawSentences[0],
+      fact: inferIntentFact(prompt, subjectName, signals.dates, signals.places),
       actor: subjectName,
+      place: signals.places[0],
       confidence: 0.82,
     } as LatentMovieEvent);
   }
 
+  const contrasts = findContrasts(events);
+  const turn = findTurn(events);
+
   const movie: LatentMovie = {
     subject: subjectName,
-    participants: unique(
-      facts
-        .flatMap((fact) => fact.match(/\b[A-Z][A-Za-z'’-]+\b/g) ?? [])
-        .filter((name) => name !== subjectName),
-    ),
+    participants: unique(facts.flatMap((fact) => fact.match(/\b[A-Z][A-Za-z'’-]+\b/g) ?? []).filter((name) => name !== subjectName)),
     places: signals.places,
     before: events[0]?.stateAfter,
     after: events.at(-1)?.stateAfter,
