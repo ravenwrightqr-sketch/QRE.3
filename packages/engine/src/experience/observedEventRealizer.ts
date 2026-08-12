@@ -1,7 +1,7 @@
 import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
 
 const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean)];
 const sentence = (value: string): string => clean(value).replace(/[.!?]+$/, "");
 const cap = (value: string): string => {
   const s = sentence(value);
@@ -57,9 +57,7 @@ function evidenceIndex(kind: StoryBeat["kind"], order: number, length: number): 
   if (kind === "payoff") return length - 1;
   if (kind === "transformation") return Math.max(0, length - 2);
   if (kind === "feedback") return Math.min(length - 1, Math.max(1, order));
-  if (kind === "action" || kind === "origin" || kind === "encounter" || kind === "hook" || kind === "threshold") {
-    return Math.min(length - 1, length <= 2 ? 0 : order);
-  }
+  if (["action", "origin", "encounter", "hook", "threshold"].includes(kind)) return Math.min(length - 1, length <= 2 ? 0 : order);
   return Math.min(length - 1, order);
 }
 
@@ -89,8 +87,15 @@ export function realizeObservedEventBeat(beat: StoryBeat, plan?: CognitiveExperi
       return `The result was already visible: ${normalizeEvent(next, name).toLowerCase()}.`;
     }
     case "transformation": {
-      const state = finalState(plan) ?? bank[Math.max(0, bank.length - 2)];
-      return state ? `By the end, ${sentence(state).toLowerCase()}.` : undefined;
+      if (bank.length >= 2) {
+        const first = normalizeEvent(bank[Math.max(0, bank.length - 2)], name).toLowerCase();
+        const last = normalizeEvent(bank[bank.length - 1], name).toLowerCase();
+        const subjectPattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\s+`, "i");
+        const joinedLast = last.replace(subjectPattern, "");
+        return `By the end, ${sentence(first)} and ${joinedLast}.`;
+      }
+      const state = finalState(plan) ?? bank[0];
+      return state ? `By the end, ${sentence(normalizeEvent(state, name)).toLowerCase()}.` : undefined;
     }
     case "reflection":
       return `Looking back, ${normalized.toLowerCase()}.`;
