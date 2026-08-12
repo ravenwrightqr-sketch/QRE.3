@@ -20,4 +20,5 @@ export * from "./story.js";
 export * from "./cognition.js";
 export * from "./premise.js";
 export * from "./memoryContext.js";
+export * from "./latentMovie.js";
 export type { SemanticInterpretation } from "./semantic.js";
