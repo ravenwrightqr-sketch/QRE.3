@@ -51,11 +51,23 @@ function finalState(plan?: CognitiveExperiencePlan): string | undefined {
   return candidates.at(-1);
 }
 
+function evidenceIndex(kind: StoryBeat["kind"], order: number, length: number): number {
+  if (length <= 1) return 0;
+  if (kind === "orientation") return 0;
+  if (kind === "payoff") return length - 1;
+  if (kind === "transformation") return Math.max(0, length - 2);
+  if (kind === "feedback") return Math.min(length - 1, Math.max(1, order));
+  if (kind === "action" || kind === "origin" || kind === "encounter" || kind === "hook" || kind === "threshold") {
+    return Math.min(length - 1, length <= 2 ? 0 : order);
+  }
+  return Math.min(length - 1, order);
+}
+
 export function realizeObservedEventBeat(beat: StoryBeat, plan?: CognitiveExperiencePlan): string | undefined {
   const bank = events(plan);
   if (!bank.length) return undefined;
   const name = subject(plan, beat);
-  const index = Math.min(bank.length - 1, Math.max(0, beat.order));
+  const index = evidenceIndex(beat.kind, beat.order, bank.length);
   const chosen = bank[index] ?? bank[bank.length - 1];
   const normalized = normalizeEvent(chosen, name);
 
@@ -73,7 +85,7 @@ export function realizeObservedEventBeat(beat: StoryBeat, plan?: CognitiveExperi
     case "escalation":
       return normalized;
     case "feedback": {
-      const next = bank[index + 1] ?? finalState(plan) ?? chosen;
+      const next = bank[Math.min(bank.length - 1, index + 1)] ?? finalState(plan) ?? chosen;
       return `The result was already visible: ${normalizeEvent(next, name).toLowerCase()}.`;
     }
     case "transformation": {
