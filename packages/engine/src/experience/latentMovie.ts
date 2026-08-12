@@ -1,11 +1,8 @@
 import type { CognitiveExperiencePlan, LatentMovie, LatentMovieEvent, StoryBeat } from "@qre/contracts";
+import { buildRealityModel } from "./realityModel.js";
 
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-
-const unique = (values: readonly unknown[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
-
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const genericSubject = /^(?:the subject|situation|experience|interaction|can|new|old|it|this|that)$/i;
 
 function slotValues(plan: CognitiveExperiencePlan | undefined, role: string): string[] {
@@ -18,7 +15,9 @@ function usable(value: string): boolean {
 }
 
 function bestSubject(plan?: CognitiveExperiencePlan): string {
-  const central = clean(plan?.centralSubject);
+  const reality = buildRealityModel(plan, plan?.premise);
+  const entity = reality.entities.find((item) => item.id === reality.subjectId);
+  const central = clean(entity?.name || plan?.centralSubject);
   const premise = slotValues(plan, "subject")[0] ?? "";
   if (central && !genericSubject.test(central)) return central;
   if (premise && !genericSubject.test(premise)) return premise;
@@ -27,19 +26,23 @@ function bestSubject(plan?: CognitiveExperiencePlan): string {
 }
 
 function eventFacts(plan?: CognitiveExperiencePlan): string[] {
-  const premiseFacts = slotValues(plan, "event").filter(usable);
+  const reality = buildRealityModel(plan, plan?.premise);
+  const observed = reality.observations
+    .sort((a, b) => a.order - b.order)
+    .map((observation) => observation.text)
+    .filter(usable);
   const outcomeFacts = slotValues(plan, "outcome").filter(usable);
   const directives = plan?.realization?.directives ?? [];
   const directiveFacts = directives
     .map((directive) => clean(directive.action || directive.stateAfter || directive.intent))
     .filter(usable);
 
-  // Observed premise evidence is authoritative. Directives are a semantic
-  // fallback, not a second source that can overwrite the user's reality.
+  // Reality observations are authoritative. Derived directives only fill a
+  // genuine information gap; they never overwrite prompt evidence.
   return unique([
-    ...premiseFacts,
+    ...observed,
     ...outcomeFacts,
-    ...(premiseFacts.length ? [] : directiveFacts),
+    ...(observed.length ? [] : directiveFacts),
   ]);
 }
 
@@ -51,22 +54,31 @@ function lensValues(plan?: CognitiveExperiencePlan): string[] {
 }
 
 export function buildLatentMovie(plan?: CognitiveExperiencePlan, beats: StoryBeat[] = []): LatentMovie {
+  const reality = buildRealityModel(plan, plan?.premise);
   const subject = bestSubject(plan);
-  const participants = slotValues(plan, "participants").filter((value) => value.toLowerCase() !== subject.toLowerCase());
-  const places = slotValues(plan, "place");
+  const participants = unique([
+    ...reality.entities.filter((entity) => entity.id !== reality.subjectId && entity.kind === "person").map((entity) => entity.name),
+    ...slotValues(plan, "participants"),
+  ]);
+  const places = unique([...reality.places, ...slotValues(plan, "place")]);
   const facts = eventFacts(plan);
   const directives = plan?.realization?.directives ?? [];
 
   const events: LatentMovieEvent[] = facts.map((fact, index) => {
+    const observation = reality.observations[index];
     const directive = directives[index];
     return {
       id: `latent-${index + 1}`,
       order: index,
       fact,
       actor: clean(directive?.subject) || subject,
-      stateBefore: clean(directive?.stateBefore) || undefined,
-      stateAfter: clean(directive?.stateAfter) || undefined,
-      confidence: directive?.confidence ?? 0.9,
+      object: reality.entities.find((entity) => entity.kind === "object")?.name,
+      place: observation?.placeId
+        ? reality.entities.find((entity) => entity.id === observation.placeId)?.name
+        : places[0],
+      stateBefore: clean(observation?.before || directive?.stateBefore) || undefined,
+      stateAfter: clean(observation?.after || directive?.stateAfter) || undefined,
+      confidence: observation?.confidence ?? directive?.confidence ?? 0.9,
     };
   });
 
@@ -82,7 +94,8 @@ export function buildLatentMovie(plan?: CognitiveExperiencePlan, beats: StoryBea
     ...slotValues(plan, "artifact"),
     ...slotValues(plan, "medium"),
     ...slotValues(plan, "temporal"),
-    ...slotValues(plan, "place"),
+    ...places,
+    ...reality.entities.map((entity) => entity.name),
     ...beats.flatMap((beat) => beat.entities),
   ]);
 
