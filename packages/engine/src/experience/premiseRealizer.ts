@@ -7,35 +7,35 @@ import {
   realizeGoldNarrativeBeat,
   realizeGoldNarrativeBeats,
 } from "./goldNarrativeRealizer.js";
-import {
-  inspectTransformation,
-} from "./transformationEngine.js";
+import { realizeObservedEventBeat } from "./observedEventRealizer.js";
+import { inspectTransformation } from "./transformationEngine.js";
 
 /**
  * CANONICAL LANGUAGE AUTHORITY
  *
- * Cognition and trajectory remain upstream. This module is the presentation
- * boundary. The gold narrative layer chooses observable evidence and sentence
- * shape without introducing domain templates or internal vocabulary.
+ * Cognition and trajectory decide what kind of experience is happening.
+ * Observed-event realization is the first prose boundary: concrete prompt
+ * evidence gets the first chance to become language. Gold narrative prose is
+ * the stylistic fallback for beats where no direct observed event can carry
+ * the sentence.
  */
 export function realizePremiseBeat(
   beat: StoryBeat,
   plan?: CognitiveExperiencePlan,
 ): string {
-  let text = realizeGoldNarrativeBeat(beat, plan) ?? "";
+  const observed = realizeObservedEventBeat(beat, plan);
+  let text = observed ?? realizeGoldNarrativeBeat(beat, plan) ?? "";
 
-  // Subject repetition is a discourse penalty, not a ban. The opening and
-  // earned payoff may name the subject; middle beats should let the event,
-  // reaction, detail, or consequence carry attention.
   const name = cleanSubject(plan?.centralSubject ?? beat.directive?.subject ?? "");
   if (name && beat.order >= 2 && beat.kind !== "transformation" && beat.kind !== "payoff") {
     const startsWithSubject = new RegExp(`^${escapeRegExp(name)}\\b`, "i").test(text);
     if (startsWithSubject) {
-      text = beat.kind === "feedback"
-        ? "The reaction was immediate, dramatic, and entirely justified."
-        : beat.kind === "identity"
-          ? "After that, the new look was hard to miss."
-          : text.replace(new RegExp(`^${escapeRegExp(name)}\\b\\s*`, "i"), "");
+      // Only remove a repeated subject when the sentence still contains a
+      // grammatical alternative. Never turn "Coco arrived" into "arrived".
+      const remainder = text.replace(new RegExp(`^${escapeRegExp(name)}\\b\\s*`, "i"), "");
+      if (remainder && !/^(?:arrived|left|entered|returned|went|came|looked|was|is|got)\b/i.test(remainder)) {
+        text = remainder[0]!.toUpperCase() + remainder.slice(1);
+      }
     }
   }
 
