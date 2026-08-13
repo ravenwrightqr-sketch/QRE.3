@@ -25,6 +25,7 @@ import {
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience } from "../services/experienceService.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
+import { loadEntityMemory } from "../services/entityMemoryService.js";
 
 const router = Router();
 
@@ -81,6 +82,50 @@ router.get("/memory/:assetId", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Memory load failed:", error);
     return res.status(500).json({ success: false, error: "Failed to load memory." });
+  }
+});
+
+/**
+ * GET /experience/entity/:assetId/:entityName
+ *
+ * Stable customer/entity memory surface for the future dashboard.
+ * Memory remains tenant-scoped by asset; entity names are never global.
+ */
+router.get("/entity/:assetId/:entityName", requireAuth, async (req, res) => {
+  try {
+    const assetId = String(req.params.assetId ?? "").trim();
+    const entityName = String(req.params.entityName ?? "").trim();
+
+    if (!assetId || !entityName) {
+      return res.status(400).json({
+        success: false,
+        error: "Asset id and entity name required.",
+      });
+    }
+
+    // loadContext performs the canonical AccountUser → Asset authorization
+    // check before the entity-specific query is allowed to run.
+    await createMemoryRepository().loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
+
+    const entity = await loadEntityMemory({ assetId, entityName });
+
+    if (!entity) {
+      return res.status(404).json({
+        success: false,
+        error: "Entity memory not found.",
+      });
+    }
+
+    return res.json({ success: true, entity });
+  } catch (error) {
+    console.error("Entity memory load failed:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to load entity memory.",
+    });
   }
 });
 
