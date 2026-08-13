@@ -39,21 +39,28 @@ const PURPOSE_RULES: Array<[ExperienceIntentV7["purpose"], RegExp]> = [
   ["story", /\b(story|movie|film|cinematic|narrative)\b/i],
 ];
 
-function findSubject(prompt: string, entities: ExperienceEntities): string {
+function findSubject(prompt: string, entities: ExperienceEntities, domain: string): string {
   const text = clean(prompt);
+
+  // Experience nouns outrank incidental dates, names, and audience words.
+  if (domain === "wedding") return "wedding";
+  if (domain === "real_estate" && /\b(property|listing|open house|home tour)\b/i.test(text)) return "property";
+  if (domain === "personal") return /\b(manifest|goal|dream|future)\b/i.test(text) ? "my future" : "my life";
+
   const proper = text.match(/\b([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})\b/);
-  if (proper && !/^(I|Make|Create|Build|After|Everyone|The|This)$/.test(proper[1])) return proper[1];
+  if (proper && !/^(I|Make|Create|Build|After|Everyone|The|This|Jan|January|Feb|March|April|May|June|July|August|September|October|November|December)$/.test(proper[1])) return proper[1];
+
   const explicit = text.match(/\b(?:for|about|of|called|named)\s+([A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2})/i)?.[1];
-  if (explicit && !/^(everyone|customers?|clients?|people|users?)$/i.test(explicit)) return clean(explicit);
+  if (explicit && !/^(everyone|customers?|clients?|people|users?|my wedding)$/i.test(explicit)) return clean(explicit);
+
   return entities.products?.[0] ?? entities.events?.[0] ?? entities.places?.[0] ?? "the experience";
 }
 
 export function inferExperienceIntentV7(prompt: string, entities: ExperienceEntities): ExperienceIntentV7 {
   const text = clean(prompt);
-  const lo = lower(text);
   const domain = DOMAIN_RULES.find(([, rule]) => rule.test(text))?.[0] ?? "general";
   const purpose = PURPOSE_RULES.find(([, rule]) => rule.test(text))?.[0] ?? "story";
-  const subject = findSubject(text, entities);
+  const subject = findSubject(text, entities, domain);
 
   const audience = unique([
     ...((entities.people ?? []).length ? ["people"] : []),
@@ -71,17 +78,12 @@ export function inferExperienceIntentV7(prompt: string, entities: ExperienceEnti
     domain,
     purpose,
     subject,
-    subjectKind: domain === "dog_grooming" ? "pet" : domain === "real_estate" ? "property" : domain === "wedding" ? "event" : "entity",
+    subjectKind: domain === "dog_grooming" ? "pet" : domain === "real_estate" ? "property" : domain === "wedding" ? "event" : domain === "personal" ? "goal" : "entity",
     audience: audience.length ? audience : ["viewer"],
     tone: tone.length ? tone : ["cinematic"],
     memoryEnabled: /\b(memory|memories|remember|every visit|again|return|adventures|history|forever|keep)\b/i.test(text) || ["dog_grooming", "wedding", "travel", "personal"].includes(domain),
     continuationEnabled: /\b(again|next|return|every|each|over time|keep|adventures|series|growing|forever)\b/i.test(text),
     mediaExpected: /\b(photo|picture|image|video|gallery|film|qr|nfc)\b/i.test(text),
-    signals: unique([
-      domain,
-      purpose,
-      subject,
-      ...((entities.keywords ?? []).slice(0, 20)),
-    ]),
+    signals: unique([domain, purpose, subject, ...(entities.keywords ?? []).slice(0, 20)]),
   };
 }
