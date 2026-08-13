@@ -22,11 +22,61 @@ function choose(values: string[], seed: string): string {
   return values[hash(seed) % values.length];
 }
 
+function evidence(movie: LatentMovieV5): string {
+  return movie.facts.map((fact) => fact.text).join(" ");
+}
+
+function domain(movie: LatentMovieV5): "grooming" | "housekeeping" | "generic" {
+  const text = evidence(movie);
+  if (/\b(?:groom|groomer|grooming|bath|bow|pomeranian|dog)\b/i.test(text)) return "grooming";
+  if (/\b(?:housekeep|clean|cleaned|kitchen|bathroom|spotless|mess|tidy)\b/i.test(text)) return "housekeeping";
+  return "generic";
+}
+
 /** V9 composes a realization from a cognitive operation and current evidence. */
 export function inventPhraseV9(movie: LatentMovieV5, design: ExperienceDesignV8, opportunities: CreativeOpportunitySetV9, index: number): PhraseInventionV9 {
   const subject = movie.subject.trim() || "The moment";
-  const seed = `${subject}|${design.trajectory}|${design.voice.join("|")}|${opportunities.dominant}|${index}|${movie.facts.map((fact) => fact.text).join("|")}`;
+  const kind = domain(movie);
+  const seed = `${subject}|${kind}|${design.trajectory}|${design.voice.join("|")}|${opportunities.dominant}|${index}|${evidence(movie)}`;
   const dominant = opportunities.dominant;
+
+  if (kind === "housekeeping") {
+    if (dominant === "agency" || dominant === "contrast" || dominant === "absurdity") return {
+      operation: "metaphor",
+      confidence: 0.88,
+      seed,
+      text: choose([
+        `The kitchen had officially entered negotiations.`,
+        `The mess had picked the wrong day.`,
+        `The house was beginning to realize it had underestimated ${subject}.`,
+        `The kitchen and bathrooms were no longer running the meeting.`,
+      ], seed),
+    };
+    if (dominant === "transformation") return {
+      operation: "transformation",
+      confidence: 0.86,
+      seed,
+      text: choose([
+        `By the end, the house looked like it had gotten its act together.`,
+        `Somewhere between the kitchen and the bathrooms, the whole place changed sides.`,
+        `The mess arrived with a plan. ${subject} had a better one.`,
+      ], seed),
+    };
+  }
+
+  if (kind === "grooming") {
+    if (dominant === "agency" || dominant === "absurdity") return {
+      operation: "agency",
+      confidence: 0.9,
+      seed,
+      text: choose([
+        `${subject} apparently had a different plan for the appointment.`,
+        `${subject} made one executive decision and changed the shape of the visit.`,
+        `The grooming had a schedule. ${subject} had amendments.`,
+        `${subject} treated the appointment less like a service and more like a mission.`
+      ], seed),
+    };
+  }
 
   if (dominant === "agency" || dominant === "contrast") return {
     operation: "agency",
