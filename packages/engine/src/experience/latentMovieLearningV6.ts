@@ -48,9 +48,13 @@ const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, 
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
 const unique = <T>(values: T[]) => [...new Set(values)];
 
+function scopedSegment(value: string, fallback: string): string {
+  return normalize(value).replace(/\s+/g, "-") || fallback;
+}
+
 function scopedKey(scope: MemoryScopeV6): string {
-  const owner = normalize(scope.ownerKey) || "anonymous";
-  const entity = normalize(scope.entityKey) || "entity";
+  const owner = scopedSegment(scope.ownerKey, "anonymous");
+  const entity = scopedSegment(scope.entityKey, "entity");
   return `memory:${owner}:${entity}`;
 }
 
