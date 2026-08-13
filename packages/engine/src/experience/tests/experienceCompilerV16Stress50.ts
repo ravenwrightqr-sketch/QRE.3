@@ -1,3 +1,4 @@
+
 import { compileExperienceV16 } from "../experienceCompilerV16.js";
 
 function assert(ok: unknown, message: string): asserts ok {
@@ -78,28 +79,279 @@ const cases: Case[] = [
 ];
 
 const geoByAsset: Record<string, Case["geo"]> = {
-  "marriage": { timezone: "America/Los_Angeles", points: [{ latitude: 33.7701, longitude: -118.1937, accuracyMeters: 4, capturedAt: "2026-08-13T18:42:00-07:00", placeName: "Long Beach", city: "Long Beach", region: "CA", country: "US" }] },
-  "surfboard": { timezone: "America/Los_Angeles", points: [
-    { latitude: 34.0195, longitude: -118.4912, accuracyMeters: 6, capturedAt: "2026-06-01T09:00:00-07:00", placeName: "Santa Monica", city: "Santa Monica", region: "CA", country: "US" },
-    { latitude: 34.0259, longitude: -118.7798, accuracyMeters: 6, capturedAt: "2026-07-04T08:30:00-07:00", placeName: "Malibu", city: "Malibu", region: "CA", country: "US" },
-    { latitude: 34.4208, longitude: -119.6982, accuracyMeters: 7, capturedAt: "2026-08-01T07:45:00-07:00", placeName: "Santa Barbara", city: "Santa Barbara", region: "CA", country: "US" },
-  ] },
-  "exact-beach": { timezone: "America/Los_Angeles", points: [{ latitude: 33.7701, longitude: -118.1937, accuracyMeters: 4, capturedAt: "2026-08-13T18:42:00-07:00", placeName: "Long Beach", city: "Long Beach", region: "CA", country: "US" }] },
-  "vehicle-stops": { timezone: "America/Los_Angeles", points: [
-    { latitude: 33.9533, longitude: -117.3962, accuracyMeters: 8, capturedAt: "2026-08-01T07:00:00-07:00", placeName: "Riverside", city: "Riverside", region: "CA", country: "US" },
-    { latitude: 34.0195, longitude: -118.4912, accuracyMeters: 8, capturedAt: "2026-08-01T09:00:00-07:00", placeName: "Santa Monica", city: "Santa Monica", region: "CA", country: "US" },
-    { latitude: 34.4208, longitude: -119.6982, accuracyMeters: 8, capturedAt: "2026-08-01T11:00:00-07:00", placeName: "Santa Barbara", city: "Santa Barbara", region: "CA", country: "US" },
-  ] },
-  "boat-marinas": { timezone: "America/Los_Angeles", points: [
-    { latitude: 33.7405, longitude: -118.2781, accuracyMeters: 10, capturedAt: "2026-07-01T08:00:00-07:00", placeName: "San Pedro", city: "Los Angeles", region: "CA", country: "US" },
-    { latitude: 33.6757, longitude: -118.0025, accuracyMeters: 10, capturedAt: "2026-07-02T10:00:00-07:00", placeName: "Huntington Harbour", city: "Huntington Beach", region: "CA", country: "US" },
-    { latitude: 33.9806, longitude: -118.4517, accuracyMeters: 10, capturedAt: "2026-07-03T09:00:00-07:00", placeName: "Marina del Rey", city: "Los Angeles", region: "CA", country: "US" },
-  ] },
-  "return-beach": { timezone: "America/Los_Angeles", points: [{ latitude: 33.77011, longitude: -118.19372, accuracyMeters: 4, capturedAt: "2027-08-13T18:44:00-07:00", placeName: "Long Beach", city: "Long Beach", region: "CA", country: "US" }] },
+  marriage: {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 33.7701,
+        longitude: -118.1937,
+        accuracyMeters: 4,
+        capturedAt: "2026-08-13T18:42:00-07:00",
+        placeName: "Long Beach",
+        city: "Long Beach",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
+
+  surfboard: {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 34.0195,
+        longitude: -118.4912,
+        accuracyMeters: 6,
+        capturedAt: "2026-06-01T09:00:00-07:00",
+        placeName: "Santa Monica",
+        city: "Santa Monica",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 34.0259,
+        longitude: -118.7798,
+        accuracyMeters: 6,
+        capturedAt: "2026-07-04T08:30:00-07:00",
+        placeName: "Malibu",
+        city: "Malibu",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 34.4208,
+        longitude: -119.6982,
+        accuracyMeters: 7,
+        capturedAt: "2026-08-01T07:45:00-07:00",
+        placeName: "Santa Barbara",
+        city: "Santa Barbara",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
+
+  "exact-beach": {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 33.7701,
+        longitude: -118.1937,
+        accuracyMeters: 4,
+        capturedAt: "2026-08-13T18:42:00-07:00",
+        placeName: "Long Beach",
+        city: "Long Beach",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
+
+  "vehicle-stops": {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 33.9533,
+        longitude: -117.3962,
+        accuracyMeters: 8,
+        capturedAt: "2026-08-01T07:00:00-07:00",
+        placeName: "Riverside",
+        city: "Riverside",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 34.0195,
+        longitude: -118.4912,
+        accuracyMeters: 8,
+        capturedAt: "2026-08-01T09:00:00-07:00",
+        placeName: "Santa Monica",
+        city: "Santa Monica",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 34.4208,
+        longitude: -119.6982,
+        accuracyMeters: 8,
+        capturedAt: "2026-08-01T11:00:00-07:00",
+        placeName: "Santa Barbara",
+        city: "Santa Barbara",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
+
+  "boat-marinas": {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 33.7405,
+        longitude: -118.2781,
+        accuracyMeters: 10,
+        capturedAt: "2026-07-01T08:00:00-07:00",
+        placeName: "San Pedro",
+        city: "Los Angeles",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 33.6757,
+        longitude: -118.0025,
+        accuracyMeters: 10,
+        capturedAt: "2026-07-02T10:00:00-07:00",
+        placeName: "Huntington Harbour",
+        city: "Huntington Beach",
+        region: "CA",
+        country: "US",
+      },
+      {
+        latitude: 33.9806,
+        longitude: -118.4517,
+        accuracyMeters: 10,
+        capturedAt: "2026-07-03T09:00:00-07:00",
+        placeName: "Marina del Rey",
+        city: "Los Angeles",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
+
+  "return-beach": {
+    timezone: "America/Los_Angeles",
+    points: [
+      {
+        latitude: 33.77011,
+        longitude: -118.19372,
+        accuracyMeters: 4,
+        capturedAt: "2027-08-13T18:44:00-07:00",
+        placeName: "Long Beach",
+        city: "Long Beach",
+        region: "CA",
+        country: "US",
+      },
+    ],
+  },
 };
+
+function line(label: string, value: unknown): void {
+  console.log(`${label}:`, value);
+}
+
+function printSection(title: string): void {
+  console.log(`\n${"=".repeat(78)}`);
+  console.log(title);
+  console.log("=".repeat(78));
+}
+
+function printExperience(index: number, testCase: Case, result: ReturnType<typeof compileExperienceV16>): void {
+  printSection(`${String(index + 1).padStart(2, "0")}. ${testCase.name.toUpperCase()}`);
+
+  console.log("\nPROMPT:");
+  console.log(testCase.prompt);
+
+  console.log("\nGENERATED EXPERIENCE:");
+
+  if (!result.movie.beats.length) {
+    console.log("[NO BEATS GENERATED]");
+  } else {
+    for (const [beatIndex, beat] of result.movie.beats.entries()) {
+      console.log(`\n[BEAT ${beatIndex + 1}]`);
+      console.log(beat.text);
+    }
+  }
+
+  console.log("\nMEMORY:");
+  line("Entities", result.memory.entities.map((entity) => entity.name ?? entity.id));
+  line("Events", result.memory.events.length);
+  line(
+    "Semantic locations",
+    result.memory.world.locations.map((location) => ({
+      name: location.name,
+      lat: location.latitude,
+      lon: location.longitude,
+    })),
+  );
+  line(
+    "Time contexts",
+    result.memory.world.timeContexts.map((time) => ({
+      observedAt: time.observedAt,
+      date: time.date,
+      time: time.time,
+      recurrenceKey: time.recurrenceKey,
+      sequence: time.sequence,
+    })),
+  );
+  line(
+    "Relationships",
+    result.memory.relations.map((relation) => relation.relation),
+  );
+  line(
+    "Preferences",
+    result.memory.world.preferences.map((preference) => ({
+      preference: preference.preference,
+      polarity: preference.polarity,
+    })),
+  );
+  line(
+    "Milestones",
+    result.memory.world.milestones.map((milestone) => ({
+      type: milestone.type,
+      title: milestone.title,
+      occurredAt: milestone.occurredAt,
+    })),
+  );
+  line(
+    "Patterns",
+    result.memory.world.patterns.map((pattern) => ({
+      pattern: pattern.pattern,
+      occurrences: pattern.occurrences,
+    })),
+  );
+  line(
+    "Associations",
+   result.memory.intelligence.associations.map(
+  (association) => `${association.left}+${association.right}`,
+),
+  );
+
+  console.log("\nGEOGRAPHIC MEMORY:");
+
+  line(
+    "Exact points",
+    result.memory.spatial.points.map((point) => ({
+      lat: point.latitude,
+      lon: point.longitude,
+      accuracyMeters: point.accuracyMeters,
+      capturedAt: point.capturedAt,
+      placeName: point.placeName,
+    })),
+  );
+
+  line(
+  "Travel trails",
+  result.memory.spatial.trails.map((trail) => ({
+    distanceMeters: trail.distanceMeters,
+    points: trail.pointIds.length,
+  })),
+);
+
+  line(
+    "Repeated spots",
+    result.memory.spatial.repeatedSpots.map((spot) => ({
+      lat: spot.latitude,
+      lon: spot.longitude,
+      occurrences: spot.occurrences,
+    })),
+  );
+}
 
 let compiled = 0;
 let failures = 0;
+let leaked = 0;
+
 let entities = 0;
 let events = 0;
 let locations = 0;
@@ -112,22 +364,34 @@ let patterns = 0;
 let associations = 0;
 let trails = 0;
 let repeatedSpots = 0;
-let leaked = 0;
+
 const failuresByCase: string[] = [];
 
 for (const [index, testCase] of cases.entries()) {
   try {
     const result = compileExperienceV16(testCase.prompt, {
       memoryScope: { assetId: testCase.assetId },
-      ...(geoByAsset[testCase.assetId] ? { geo: geoByAsset[testCase.assetId] } : {}),
+      ...(geoByAsset[testCase.assetId]
+        ? { geo: geoByAsset[testCase.assetId] }
+        : {}),
     });
+   console.log("\n" + "=".repeat(80));
+console.log(`${index + 1}. ${testCase.name}`);
+console.log("PROMPT:", testCase.prompt);
+console.log("-".repeat(80));
 
+for (const beat of result.movie.beats) {
+  console.log(beat.text);
+}
+
+console.log("=".repeat(80));
     compiled += 1;
+
     entities += result.memory.entities.length;
     events += result.memory.events.length;
     locations += result.memory.world.locations.length;
     exactPoints += result.memory.spatial.points.length;
-    times += result.memory.world.time.length;
+    times += result.memory.world.timeContexts.length;
     relationships += result.memory.relations.length;
     preferences += result.memory.world.preferences.length;
     milestones += result.memory.world.milestones.length;
@@ -136,65 +400,181 @@ for (const [index, testCase] of cases.entries()) {
     trails += result.memory.spatial.trails.length;
     repeatedSpots += result.memory.spatial.repeatedSpots.length;
 
-    if ([...result.movie.beats].some((beat) => /mechanic|compiler|memory thread|trajectory|experience design/i.test(beat.text))) {
+    if (
+      result.movie.beats.some((beat) =>
+        /mechanic|compiler|memory thread|trajectory|experience design/i.test(
+          beat.text,
+        ),
+      )
+    ) {
       leaked += 1;
-      failuresByCase.push(`${index + 1}. ${testCase.name}: internal language leaked into prose`);
+      failuresByCase.push(
+        `${index + 1}. ${testCase.name}: internal language leaked into prose`,
+      );
     }
+
+    printExperience(index, testCase, result);
   } catch (error) {
     failures += 1;
-    failuresByCase.push(`${index + 1}. ${testCase.name}: ${error instanceof Error ? error.message : String(error)}`);
+
+    failuresByCase.push(
+      `${index + 1}. ${testCase.name}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+
+    printSection(
+      `${String(index + 1).padStart(2, "0")}. ${testCase.name.toUpperCase()} — FAILED`,
+    );
+
+    console.log("\nPROMPT:");
+    console.log(testCase.prompt);
+
+    console.log("\nERROR:");
+    console.log(error instanceof Error ? error.stack ?? error.message : String(error));
   }
 }
 
-// Explicit continuity test: the same identity accumulates time + exact location across visits.
+// -----------------------------------------------------------------------------
+// CONTINUITY TEST
+// Same identity + same physical location + different time.
+// -----------------------------------------------------------------------------
+
+printSection("CONTINUITY / ACCUMULATED SPATIOTEMPORAL MEMORY");
+
 const continuityFirst = compileExperienceV16(
   "John and Jane returned to their anniversary beach spot and watched the sunset.",
   {
     memoryScope: { assetId: "continuity-50" },
-    geo: { timezone: "America/Los_Angeles", points: [{ latitude: 33.7701, longitude: -118.1937, accuracyMeters: 4, capturedAt: "2026-08-13T18:42:00-07:00", placeName: "Long Beach", city: "Long Beach", region: "CA", country: "US" }] },
+    geo: {
+      timezone: "America/Los_Angeles",
+      points: [
+        {
+          latitude: 33.7701,
+          longitude: -118.1937,
+          accuracyMeters: 4,
+          capturedAt: "2026-08-13T18:42:00-07:00",
+          placeName: "Long Beach",
+          city: "Long Beach",
+          region: "CA",
+          country: "US",
+        },
+      ],
+    },
   },
 );
+
+console.log("\nFIRST VISIT:");
+continuityFirst.movie.beats.forEach((beat, index) => {
+  console.log(`\n[BEAT ${index + 1}]`);
+  console.log(beat.text);
+});
+
 const continuitySecond = compileExperienceV16(
   "John and Jane came back to the same beach spot one year later for another anniversary.",
   {
     memoryScope: { assetId: "continuity-50" },
     memory: continuityFirst.memory,
     spatialMemory: continuityFirst.memory.spatial,
-    geo: { timezone: "America/Los_Angeles", points: [{ latitude: 33.77011, longitude: -118.19372, accuracyMeters: 4, capturedAt: "2027-08-13T18:44:00-07:00", placeName: "Long Beach", city: "Long Beach", region: "CA", country: "US" }] },
+    geo: {
+      timezone: "America/Los_Angeles",
+      points: [
+        {
+          latitude: 33.77011,
+          longitude: -118.19372,
+          accuracyMeters: 4,
+          capturedAt: "2027-08-13T18:44:00-07:00",
+          placeName: "Long Beach",
+          city: "Long Beach",
+          region: "CA",
+          country: "US",
+        },
+      ],
+    },
   },
 );
 
-assert(cases.length === 50, "exactly 50 prompts are exercised");
-assert(compiled === 50, `all prompts compile (${compiled}/50)`);
+console.log("\nSECOND VISIT:");
+continuitySecond.movie.beats.forEach((beat, index) => {
+  console.log(`\n[BEAT ${index + 1}]`);
+  console.log(beat.text);
+});
+
+console.log("\nACCUMULATED GEOGRAPHIC MEMORY:");
+console.log(
+  continuitySecond.memory.spatial.points.map((point) => ({
+    lat: point.latitude,
+    lon: point.longitude,
+    at: point.capturedAt,
+    place: point.placeName,
+  })),
+);
+
+console.log("\nRECOGNIZED REPEATED SPOTS:");
+console.log(
+  continuitySecond.memory.spatial.repeatedSpots.map((spot) => ({
+    lat: spot.latitude,
+    lon: spot.longitude,
+    occurrences: spot.occurrences,
+  })),
+);
+
+// -----------------------------------------------------------------------------
+// FINAL ASSERTIONS
+// -----------------------------------------------------------------------------
+assert(cases.length === 51, `exactly 51 prompts are exercised`);
+assert(compiled === cases.length, `all prompts compile (${compiled}/${cases.length})`);
 assert(failures === 0, `no prompt throws (${failures} failures)`);
 assert(leaked === 0, `no internal language leaks (${leaked})`);
-assert(continuitySecond.memory.events.length > continuityFirst.memory.events.length, "memory accumulates events across visits");
-assert(continuitySecond.memory.spatial.points.length === 2, "exact geographic points accumulate across visits");
-assert(continuitySecond.memory.spatial.repeatedSpots.some((spot) => spot.occurrences >= 2), "same physical spot becomes a repeated spot");
 
-console.log("\n===== V16 UNIVERSAL 50-PROMPT STRESS TEST =====\n");
-console.log("PROMPTS:", cases.length);
-console.log("COMPILED:", compiled);
-console.log("FAILED:", failures);
-console.log("ENTITIES:", entities);
-console.log("EVENTS:", events);
-console.log("RELATIONSHIPS:", relationships);
-console.log("SEMANTIC LOCATIONS:", locations);
-console.log("EXACT GPS POINTS:", exactPoints);
-console.log("TIME OBSERVATIONS:", times);
-console.log("PREFERENCES:", preferences);
-console.log("MILESTONES:", milestones);
-console.log("RECURRING PATTERNS:", patterns);
-console.log("ASSOCIATIONS:", associations);
-console.log("TRAVEL TRAILS:", trails);
-console.log("REPEATED SPOTS:", repeatedSpots);
-console.log("INTERNAL LANGUAGE LEAKS:", leaked);
-console.log("CONTINUITY POINTS:", continuitySecond.memory.spatial.points.map((point) => ({ lat: point.latitude, lon: point.longitude, at: point.capturedAt })));
-console.log("CONTINUITY REPEATED SPOTS:", continuitySecond.memory.spatial.repeatedSpots.map((spot) => ({ lat: spot.latitude, lon: spot.longitude, occurrences: spot.occurrences })));
+assert(
+  continuitySecond.memory.events.length >
+    continuityFirst.memory.events.length,
+  "memory accumulates events across visits",
+);
+
+assert(
+  continuitySecond.memory.spatial.points.length === 2,
+  "exact geographic points accumulate across visits",
+);
+
+assert(
+  continuitySecond.memory.spatial.repeatedSpots.some(
+    (spot) => spot.occurrences >= 2,
+  ),
+  "same physical spot becomes a repeated spot",
+);
+
+// -----------------------------------------------------------------------------
+// FINAL SCOREBOARD
+// -----------------------------------------------------------------------------
+
+printSection("V16 UNIVERSAL 50-PROMPT SCOREBOARD");
+
+line("PROMPTS", cases.length);
+line("COMPILED", compiled);
+line("FAILED", failures);
+line("ENTITIES", entities);
+line("EVENTS", events);
+line("RELATIONSHIPS", relationships);
+line("SEMANTIC LOCATIONS", locations);
+line("EXACT GPS POINTS", exactPoints);
+line("TIME OBSERVATIONS", times);
+line("PREFERENCES", preferences);
+line("MILESTONES", milestones);
+line("RECURRING PATTERNS", patterns);
+line("ASSOCIATIONS", associations);
+line("TRAVEL TRAILS", trails);
+line("REPEATED SPOTS", repeatedSpots);
+line("INTERNAL LANGUAGE LEAKS", leaked);
 
 if (failuresByCase.length) {
   console.log("\nFAILURES:");
-  for (const failure of failuresByCase) console.log("-", failure);
+
+  for (const failure of failuresByCase) {
+    console.log("-", failure);
+  }
 }
 
-console.log("\nV16 50-PROMPT STRESS TEST: PASS\n");
+console.log("\nV16 50-PROMPT SHOWCASE STRESS TEST: PASS\n");
+

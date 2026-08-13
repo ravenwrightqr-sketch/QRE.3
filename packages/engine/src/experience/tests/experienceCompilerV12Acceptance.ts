@@ -1,6 +1,8 @@
 import { compileExperienceV12 } from "../experienceCompilerV12.js";
 
-const assert = (ok: unknown, message: string): asserts ok => { if (!ok) throw new Error(`V12 ACCEPTANCE FAILED: ${message}`); };
+function assert(ok: unknown, message: string): asserts ok {
+  if (!ok) throw new Error(`V12 ACCEPTANCE FAILED: ${message}`);
+}
 
 console.log("\n===== V12 UNIVERSAL MEMORY =====\n");
 

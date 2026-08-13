@@ -11,7 +11,7 @@ export type ExperienceCompilerContextV11 = Parameters<typeof compileExperienceV1
   creativeFeedback?: { accepted?: boolean; quality?: number };
 };
 
-export type CompiledExperienceV11 = CompiledExperienceV10 & {
+export type CompiledExperienceV11 = Omit<CompiledExperienceV10, "version"> & {
   version: "v11";
   creativeLearning: CreativeLearningProfileV11;
   learnedStrategy: ReturnType<typeof suggestCreativeStrategyV11>;

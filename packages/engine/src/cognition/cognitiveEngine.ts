@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   CognitiveAssumption,
   CognitiveClaim,
   CognitiveEvidence,
@@ -10,8 +10,8 @@
 } from "@qre/contracts";
 
 import type {
-  StoryCompilerContext,
-} from "../experience/universalStoryCompiler.js";
+  ExperienceCompilerContext,
+} from "../experience/experienceCompilerContext.js";
 
 const STOP = new Set([
   "a",
@@ -81,11 +81,11 @@ const clean = (value: string) =>
   value.replace(/\s+/g, " ").trim();
 
 const lower = (value: string) =>
-  clean(value).toLowerCase().replace(/[’]/g, "'");
+  clean(value).toLowerCase().replace(/[�]/g, "'");
 
 const tokens = (value: string) =>
   clean(value)
-    .split(/[^A-Za-z0-9'’-]+/)
+    .split(/[^A-Za-z0-9'�-]+/)
     .filter(Boolean);
 
 const clamp = (value: number) =>
@@ -107,7 +107,7 @@ function promptEvidence(
 
 function extractEntities(
   prompt: string,
-  context: StoryCompilerContext,
+  context: ExperienceCompilerContext,
 ): ExperienceEntities {
   const text = clean(prompt);
   const lo = lower(text);
@@ -124,7 +124,7 @@ function extractEntities(
 
   const people = unique([
     ...(text.match(
-      /\b(?:my|our)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,2})/g,
+      /\b(?:my|our)\s+([A-Z][A-Za-z'�-]+(?:\s+[A-Z][A-Za-z'�-]+){0,2})/g,
     ) ?? []).map((value) =>
       value.replace(
         /^\b(?:my|our)\s+/i,
@@ -158,7 +158,7 @@ function extractEntities(
         : []),
 
       ...(text.match(
-        /\b(?:at|near)\s+([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,3})/g,
+        /\b(?:at|near)\s+([A-Z][A-Za-z'�-]+(?:\s+[A-Z][A-Za-z'�-]+){0,3})/g,
       ) ?? []).map((value) =>
         value.replace(
           /^\b(?:at|near)\s+/i,
@@ -528,7 +528,7 @@ add(
 
   add(
     text.match(
-      /\b([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*){1,5})\s+(?:wants?|needs?|is looking for|is the only thing)\b/i,
+      /\b([A-Za-z][A-Za-z'�-]*(?:\s+[A-Za-z][A-Za-z'�-]*){1,5})\s+(?:wants?|needs?|is looking for|is the only thing)\b/i,
     )?.[1],
     0.90,
     "subject of desired change",
@@ -623,7 +623,7 @@ add(
 
 function inferParticipants(
   prompt: string,
-  context: StoryCompilerContext,
+  context: ExperienceCompilerContext,
 ): CognitiveClaim<string[]> {
   const text = lower(prompt);
   const values: string[] = [];
@@ -1235,11 +1235,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → enter living memory → contribute or revisit",
+        "scan ? enter living memory ? contribute or revisit",
       );
 
       plan.storyStructure.push(
-        "origin → meaningful moments → present state → continuation",
+        "origin ? meaningful moments ? present state ? continuation",
       );
 
       plan.memoryModel.push(
@@ -1261,11 +1261,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → threshold → reveal → deeper layer → payoff",
+        "scan ? threshold ? reveal ? deeper layer ? payoff",
       );
 
       plan.storyStructure.push(
-        "threshold → reveal → deeper layer → payoff → invitation",
+        "threshold ? reveal ? deeper layer ? payoff ? invitation",
       );
 
       plan.discoveryModel.push(
@@ -1291,11 +1291,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → open accumulated journey → explore chapter",
+        "scan ? open accumulated journey ? explore chapter",
       );
 
       plan.storyStructure.push(
-        "departure → places → encounters → accumulation → next destination",
+        "departure ? places ? encounters ? accumulation ? next destination",
       );
 
       plan.geographicModel.push(
@@ -1321,11 +1321,11 @@ function buildPlan(
   );
 
   plan.interactionModel.push(
-    "scan → action → feedback → unlock → next step",
+    "scan ? action ? feedback ? unlock ? next step",
   );
 
   plan.storyStructure.push(
-    "hook → challenge → discovery → escalation → payoff",
+    "hook ? challenge ? discovery ? escalation ? payoff",
   );
 
   plan.progressionModel.push(
@@ -1357,11 +1357,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → understand need → shortest useful action",
+        "scan ? understand need ? shortest useful action",
       );
 
       plan.storyStructure.push(
-        "need → answer → action",
+        "need ? answer ? action",
       );
 
       plan.contentModel.push(
@@ -1375,11 +1375,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → artifact identity → creator/world identity",
+        "scan ? artifact identity ? creator/world identity",
       );
 
       plan.storyStructure.push(
-        "artifact → creator → world → signature → return",
+        "artifact ? creator ? world ? signature ? return",
       );
 
       plan.discoveryModel.push(
@@ -1401,7 +1401,7 @@ function buildPlan(
       );
 
       plan.storyStructure.push(
-        "arrival → meaning → shared moment → keepsake → continuation",
+        "arrival ? meaning ? shared moment ? keepsake ? continuation",
       );
 
       plan.memoryModel.push(
@@ -1417,14 +1417,14 @@ function buildPlan(
 
   plan.interactionModel.push(
     cue.rejection
-      ? "discover → participate → build identity → unlock meaningful access → return"
-      : "experience first → relevant offer/access second → meaningful return",
+      ? "discover ? participate ? build identity ? unlock meaningful access ? return"
+      : "experience first ? relevant offer/access second ? meaningful return",
   );
 
   plan.storyStructure.push(
     cue.rejection
-      ? "arrival → discovery → participation → earned access → return"
-      : "need → experience → value → access → return",
+      ? "arrival ? discovery ? participation ? earned access ? return"
+      : "need ? experience ? value ? access ? return",
   );
 
   plan.commerceModel.push(
@@ -1457,11 +1457,11 @@ function buildPlan(
       );
 
       plan.interactionModel.push(
-        "scan → witness → contribute → affect shared state",
+        "scan ? witness ? contribute ? affect shared state",
       );
 
       plan.storyStructure.push(
-        "arrival → shared context → contribution → collective payoff → return",
+        "arrival ? shared context ? contribution ? collective payoff ? return",
       );
 
       plan.socialModel.push(
@@ -1482,13 +1482,13 @@ default:
   );
 
   plan.interactionModel.push(
-    "scan → orientation → reveal → payoff → continuation",
+    "scan ? orientation ? reveal ? payoff ? continuation",
   );
 
   plan.storyStructure.push(
     cue.creative
-      ? "premise → strange encounter → escalation → reveal → continuation"
-      : "orientation → hook → development → payoff → continuation",
+      ? "premise ? strange encounter ? escalation ? reveal ? continuation"
+      : "orientation ? hook ? development ? payoff ? continuation",
   );
 
   plan.contentModel.push(
@@ -1734,7 +1734,7 @@ default:
 
 export function understandExperience(
   prompt: string,
-  context: StoryCompilerContext = {},
+  context: ExperienceCompilerContext = {},
 ): CognitiveExperienceState {
   const text = clean(prompt);
 

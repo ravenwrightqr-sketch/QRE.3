@@ -12,7 +12,7 @@ import { guardCognitiveStory } from "../cognition/cognitiveRealizationGuard.js";
 import {
   compileStoryExperience,
   type CompiledStoryExperience,
-  type StoryCompilerContext,
+  type ExperienceCompilerContext,
 } from "./universalStoryCompiler.js";
 
 /**
@@ -307,7 +307,7 @@ function realizeExplicitAgency(
 
 export function compileCognitiveExperience(
   prompt: string,
-  context: StoryCompilerContext = {},
+  context: ExperienceCompilerContext = {},
 ): CognitiveCompiledExperience {
   const cognitionBase = canonicalizeCognition(
     enrichConcreteSubjectEvidence(
