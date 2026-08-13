@@ -98,8 +98,8 @@ function mergePoints(previous: MemorySpatialV16 | undefined, incoming: MemoryGeo
 function buildTrails(points: MemoryGeoPointV16[], previous?: MemorySpatialV16): MemorySpatialTrailV16[] {
   const trails: MemorySpatialTrailV16[] = [...(previous?.trails ?? [])];
   for (let i = 1; i < points.length; i += 1) {
-    const from = points[i - 1];
-    const to = points[i];
+    const from = points[i - 1]!;
+    const to = points[i]!;
     const distanceMeters = haversineMeters(from, to);
     if (!Number.isFinite(distanceMeters) || distanceMeters < 1) continue;
     const entityIds = unique([...from.entityIds, ...to.entityIds]);
@@ -125,7 +125,7 @@ function buildTrails(points: MemoryGeoPointV16[], previous?: MemorySpatialV16): 
 function buildRepeatedSpots(points: MemoryGeoPointV16[]): MemorySpatialRepeatV16[] {
   const clusters: MemoryGeoPointV16[][] = [];
   for (const point of points) {
-    const cluster = clusters.find((candidate) => haversineMeters(candidate[0], point) <= REPEAT_RADIUS_METERS);
+    const cluster = clusters.find((candidate) => haversineMeters(candidate[0]!, point) <= REPEAT_RADIUS_METERS);
     if (cluster) cluster.push(point);
     else clusters.push([point]);
   }
@@ -135,8 +135,9 @@ function buildRepeatedSpots(points: MemoryGeoPointV16[]): MemorySpatialRepeatV16
     .map((cluster, index) => {
       const latitude = cluster.reduce((sum, point) => sum + point.latitude, 0) / cluster.length;
       const longitude = cluster.reduce((sum, point) => sum + point.longitude, 0) / cluster.length;
-      const first = cluster[0];
-      const last = cluster[cluster.length - 1];
+      const first = cluster[0]!;
+      const last = cluster[cluster.length - 1]!;
+      const namedPoint = cluster.find((point) => point.placeName);
       return {
         id: `memory-repeat-v16-${index + 1}-${key(first.id)}`,
         entityIds: unique(cluster.flatMap((point) => point.entityIds)),
@@ -149,7 +150,7 @@ function buildRepeatedSpots(points: MemoryGeoPointV16[]): MemorySpatialRepeatV16
         lastObservedAt: last.capturedAt,
         confidence: Math.min(0.99, cluster.reduce((sum, point) => sum + point.confidence, 0) / cluster.length),
         visibility: cluster.every((point) => point.visibility === "private") ? "private" : "shared",
-        ...(cluster.find((point) => point.placeName)?.placeName ? { placeName: cluster.find((point) => point.placeName)?.placeName } : {}),
+        ...(namedPoint?.placeName ? { placeName: namedPoint.placeName } : {}),
       };
     });
 }
