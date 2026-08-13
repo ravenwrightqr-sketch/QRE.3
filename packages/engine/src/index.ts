@@ -46,6 +46,14 @@ export type { RealizedMovieV9 } from "./experience/creativeRealizerV9.js";
 export type { CreativeOpportunityV9, CreativeOpportunitySetV9, CreativeOpportunityKindV9 } from "./experience/creativeOpportunityV9.js";
 export type { PhraseInventionV9 } from "./experience/phraseInventorV9.js";
 
+/** V10 creative thinker: evidence-specific language plus explicit learning signals. */
+export { compileExperienceV10 } from "./experience/experienceCompilerV10.js";
+export { realizeLatentMovieV10 } from "./experience/creativeRealizerV10.js";
+export { inventPhraseV10, extractCreativeLearningV10 } from "./experience/phraseInventorV10.js";
+export type { CompiledExperienceV10 } from "./experience/experienceCompilerV10.js";
+export type { RealizedMovieV10 } from "./experience/creativeRealizerV10.js";
+export type { PhraseInventionV10 } from "./experience/phraseInventorV10.js";
+
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
 
