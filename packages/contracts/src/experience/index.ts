@@ -23,3 +23,4 @@ export * from "./memoryContext.js";
 export * from "./latentMovie.js";
 export * from "./realityModel.js";
 export type { SemanticInterpretation } from "./semantic.js";
+export * from "./indexV13.js";
