@@ -11,6 +11,49 @@ export type CompiledExperienceV9 = Omit<CompiledExperienceV8, "version" | "movie
   inventions: RealizedMovieV9["inventions"];
 };
 
+const GENERIC_ENTITIES = new Set([
+  "dog", "cat", "pet", "housekeeping", "housekeeper", "groomer", "grooming", "service",
+  "salon", "business", "client", "customer", "wedding", "birthday", "home", "house",
+  "property", "product", "moment", "the moment", "raves", "rave",
+]);
+
+function clean(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function resolveEntitySubject(movie: CompiledExperienceV8["movie"]): string {
+  const candidates = movie.facts
+    .flatMap((fact) => fact.actors)
+    .map(clean)
+    .filter(Boolean)
+    .filter((candidate) => !GENERIC_ENTITIES.has(candidate.toLowerCase()));
+
+  if (candidates.length) return candidates[0];
+  return movie.subject;
+}
+
+function groundMovieEntity(movie: CompiledExperienceV8["movie"]): CompiledExperienceV8["movie"] {
+  const subject = resolveEntitySubject(movie);
+  const oldSubject = movie.subject;
+  if (!subject || subject === oldSubject) return movie;
+
+  const replaceSubject = (text: string) => {
+    if (!oldSubject) return text;
+    return text.replace(new RegExp(`\\b${oldSubject.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "gi"), subject);
+  };
+
+  return {
+    ...movie,
+    subject,
+    memoryThread: {
+      ...movie.memoryThread,
+      subject,
+      identitySignals: [...new Set([subject, ...movie.memoryThread.identitySignals])],
+    },
+    beats: movie.beats.map((beat) => ({ ...beat, text: replaceSubject(beat.text) })),
+  };
+}
+
 function momentType(index: number, total: number): ExperienceMoment["type"] {
   if (index === 0) return "introduction";
   if (index === total - 1) return "completion";
@@ -42,7 +85,8 @@ function buildFlowSteps(movie: CompiledExperienceV8["movie"]): FlowStep[] {
 
 export function compileExperienceV9(prompt: string, context: Parameters<typeof compileExperienceV8>[1] = {}): CompiledExperienceV9 {
   const v8 = compileExperienceV8(prompt, context);
-  const realized = realizeLatentMovieV9(v8.movie, v8.design);
+  const groundedMovie = groundMovieEntity(v8.movie);
+  const realized = realizeLatentMovieV9(groundedMovie, v8.design);
   const moments = buildMoments(realized.movie);
   const flowSteps = buildFlowSteps(realized.movie);
   return { ...v8, version: "v9", movie: realized.movie, moments, flowSteps, creativity: realized.opportunities, inventions: realized.inventions, estimatedDuration: Math.max(8, realized.movie.beats.length * 4), momentCount: moments.length };
