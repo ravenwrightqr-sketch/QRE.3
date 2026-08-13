@@ -35,6 +35,7 @@
     "test:movie-factory": "tsx src/experience/tests/movieFactoryV2Acceptance.ts",
     "test:movie-v3": "tsx src/experience/tests/latentMovieExtractorV3Acceptance.ts",
     "test:movie-v4": "tsx src/experience/tests/latentMovieExtractorV4Acceptance.ts",
-    "test:movie-v5": "tsx src/experience/tests/latentMovieExtractorV5Acceptance.ts"
+    "test:movie-v5": "tsx src/experience/tests/latentMovieExtractorV5Acceptance.ts",
+    "test:movie-v6": "tsx src/experience/tests/latentMovieLearningV6Acceptance.ts"
   }
 }
