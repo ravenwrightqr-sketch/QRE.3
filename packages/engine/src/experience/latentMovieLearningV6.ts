@@ -75,23 +75,25 @@ function mergeSignals(
   return [...byValue.values()].sort((a, b) => b.count - a.count || a.firstSeen - b.firstSeen);
 }
 
-function recurringLexicalSignals(movie: LatentMovieV5): string[] {
+/**
+ * Produce candidate learning signals from every event, not only words that
+ * repeat inside one event. A word appearing once on visit 1 and once on visit
+ * 2 becomes a learned recurring signal at the merge step.
+ */
+function lexicalLearningSignals(movie: LatentMovieV5): string[] {
   const stop = new Set([
     "the", "and", "was", "were", "with", "that", "this", "then", "from", "into", "when",
     "she", "he", "they", "her", "his", "their", "came", "went", "arrived", "left", "today",
-    "there", "here", "just", "very", "really", "made", "make", "got", "get", "for", "was",
+    "there", "here", "just", "very", "really", "made", "make", "got", "get", "for", "again",
   ]);
-  const counts = new Map<string, number>();
+  const candidates: string[] = [];
   for (const fact of movie.facts) {
     for (const token of normalize(fact.text).split(" ")) {
       if (token.length < 4 || stop.has(token) || /^\d+$/.test(token)) continue;
-      counts.set(token, (counts.get(token) ?? 0) + 1);
+      candidates.push(token);
     }
   }
-  return [...counts.entries()]
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .map(([token]) => token);
+  return unique(candidates);
 }
 
 function buildMemory(scope: MemoryScopeV6, movie: LatentMovieV5, previous?: EntityMemoryV6): EntityMemoryV6 {
@@ -104,7 +106,7 @@ function buildMemory(scope: MemoryScopeV6, movie: LatentMovieV5, previous?: Enti
     ...movie.memoryThread.identitySignals,
     ...movie.memoryThread.continuationSignals,
     ...movie.facts.flatMap((fact) => fact.places),
-    ...recurringLexicalSignals(movie),
+    ...lexicalLearningSignals(movie),
   ]);
 
   return {
@@ -143,7 +145,6 @@ export function sameEntityMemoryV6(a: EntityMemoryV6, b: EntityMemoryV6): boolea
 }
 
 export function memoryContinuationV6(memory: EntityMemoryV6): string | undefined {
-  const signal = memory.recurringSignals.find((candidate) => candidate.count >= 2);
-  if (!signal) return undefined;
-  return signal.value;
+  const signal = memory.recurringSignals.find((candidate) => candidate.count >= 2 && candidate.value.length >= 4);
+  return signal?.value;
 }
