@@ -1,81 +1,28 @@
+/**
+ * Compatibility facade. No fixed scene library remains here.
+ * Super Cog owns semantic scene selection.
+ */
+
+import {
+  compileCognitiveExperience,
+} from "../../experience/cognitiveExperienceCompiler.js";
+
 import type {
- ExperienceGenome
+  ExperienceGenome,
+  ExperienceScene,
 } from "@qre/contracts";
 
-
-import type {
- ExperienceScene
-} from "./experienceTypes.js";
-
-
-
 export function compileScenes(
+  genome: ExperienceGenome,
+): ExperienceScene[] {
+  const result = compileCognitiveExperience(genome.meaning.why);
 
- genome:ExperienceGenome
-
-):ExperienceScene[] {
-
-
-return [
-
-
-{
- id:"arrival",
-
- type:"arrival",
-
- title:"The Beginning",
-
- atmosphere:
- genome.energy,
-
- emotionalIntent:
- genome.emotions[0] ?? "wonder",
-
- duration:30
-
-},
-
-
-{
- id:"discovery",
-
- type:"discovery",
-
- title:"The Discovery",
-
- atmosphere:
-
- genome.environments[0] ??
- "unknown",
-
- emotionalIntent:
- "curiosity",
-
- duration:60
-
-},
-
-
-{
- id:"reflection",
-
- type:"reflection",
-
- title:"The Memory",
-
- atmosphere:
- "reflection",
-
- emotionalIntent:
- "meaning",
-
- duration:45
-
-}
-
-
-];
-
-
+  return result.story.beats.map((beat) => ({
+    id: beat.id,
+    type: beat.kind,
+    title: beat.kind,
+    atmosphere: beat.emotionalTarget,
+    emotionalIntent: beat.text,
+    duration: 30,
+  }));
 }

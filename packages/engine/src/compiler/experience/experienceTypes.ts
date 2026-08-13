@@ -1,25 +1,7 @@
-export type ExperienceSceneType =
-  | "arrival"
-  | "discovery"
-  | "connection"
-  | "reflection"
-  | "transformation"
-  | "memory"
-  | "return";
-
-
-export interface ExperienceScene {
-
-  id:string;
-
-  type:ExperienceSceneType;
-
-  title:string;
-
-  atmosphere:string;
-
-  emotionalIntent:string;
-
-  duration:number;
-
-}
+/**
+ * Compatibility exports only. Canonical scene contracts live in @qre/contracts.
+ */
+export type {
+  ExperienceScene,
+  ExperienceSceneType,
+} from "@qre/contracts";
