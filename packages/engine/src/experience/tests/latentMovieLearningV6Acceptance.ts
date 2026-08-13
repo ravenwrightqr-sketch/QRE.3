@@ -55,6 +55,6 @@ assert(coco.recurringSignals.some((signal) => signal.count >= 2 && /bath/i.test(
 assert(coco2.novelFacts.length > 0, "Second Coco visit must produce novel facts");
 assert(coco2.recurringFacts.length > 0, "Second Coco visit must recognize recurring facts");
 assert(coco2.movie.beats.every((beat) => !/mechanic|payoff|compiler|memory thread/i.test(beat.text)), "Internal mechanics must never leak into movie prose");
-assert(patty.movie.beats.every((beat) => !/Coco|bow/i.test(beat.text)), "Patty's movie must not inherit Coco's character details");
+assert(patty1.movie.beats.every((beat) => !/Coco|bow/i.test(beat.text)), "Patty's movie must not inherit Coco's character details");
 
 console.log("\nV6 ACCEPTANCE: PASS\n");
