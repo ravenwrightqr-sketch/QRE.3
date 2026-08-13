@@ -179,7 +179,9 @@ const SERIOUS_GUARD = /\b(?:memorial|funeral|death|died|grief|emergency|medical|
 
 function creativeMotif(prompt: string, direction: ExperienceHypothesisKind): string | undefined {
   if (SERIOUS_GUARD.test(prompt)) return undefined;
-  if (!["story", "discovery", "game", "social", "commerce", "journey", "identity", "utility"].includes(direction)) return undefined;
+ // Creative realization is available to any non-serious mundane/playful
+// experience. The selected direction controls the trajectory elsewhere;
+// it must not suppress concrete experiential invention.
   const text = lower(prompt);
   const mundane = /\b(?:clean|cleaning|housekeeper|office|shop|routine|ordinary|home|work|client|customer|repair|document|inspect|prepare)\b/.test(text);
   const explicitlyPlayful = /\b(?:fun|funny|comedy|absurd|ridiculous|wild|weird|playful|hilarious)\b/.test(text);
