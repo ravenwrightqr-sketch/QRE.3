@@ -21,7 +21,7 @@ export {
   experienceCompiler,
 } from "./experience/genomeCompiler.js";
 
-/** Universal creative compiler. */
+/** Legacy story compiler boundary; retained only for compatibility during migration. */
 export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
 export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
 export type {
@@ -47,9 +47,32 @@ export {
   memoryContextToCompilerMemories,
 } from "./memory/memoryCompiler.js";
 
-/** Canonical cognition → experience compiler. */
+/** Compatibility cognition compiler. */
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
+
+/** V7 human-to-experience authoring boundary. */
+export { compileExperienceV7 } from "./experience/experienceCompilerV7.js";
+export { inferExperienceIntentV7 } from "./experience/experienceIntentV7.js";
+export { realizeLatentMovieV7 } from "./experience/creativeRealizerV7.js";
+export type {
+  CompiledExperienceV7,
+  ExperienceCompilerContextV7,
+} from "./experience/experienceCompilerV7.js";
+export type { ExperienceIntentV7 } from "./experience/experienceIntentV7.js";
+
+/** V8 experience-design and creative-realization boundary. */
+export { compileExperienceV8 } from "./experience/experienceCompilerV8.js";
+export { designExperienceV8 } from "./experience/experienceDesignV8.js";
+export { realizeLatentMovieV8 } from "./experience/creativeRealizerV8.js";
+export type {
+  CompiledExperienceV8,
+} from "./experience/experienceCompilerV8.js";
+export type {
+  ExperienceDesignV8,
+  ExperienceTrajectoryV8,
+  ExperienceVoiceV8,
+} from "./experience/experienceDesignV8.js";
 
 /** Source-first latent movie discovery. */
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
