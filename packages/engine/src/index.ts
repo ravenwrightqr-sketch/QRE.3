@@ -14,67 +14,38 @@ export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
-/** Compatibility prompt compiler boundary. */
-export {
-  compileExperienceGenome,
-  genomeCompiler,
-  experienceCompiler,
-} from "./experience/genomeCompiler.js";
-
-/** Legacy story compiler boundary; retained only for compatibility during migration. */
+export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
 export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
 export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
-export type {
-  StoryCompilerContext,
-  StoryCompilerMemory,
-  StorySituation,
-  StorySignal,
-  ExperienceObservation,
-  CompiledStoryExperience,
-} from "./experience/universalStoryCompiler.js";
+export type { StoryCompilerContext, StoryCompilerMemory, StorySituation, StorySignal, ExperienceObservation, CompiledStoryExperience } from "./experience/universalStoryCompiler.js";
 
-/** Cognitive event-world realization boundary. */
-export {
-  buildExperienceEvent,
-  buildExperienceEventWorld,
-  eventRealizationHint,
-} from "./experience/eventWorld.js";
-
-/** Governed long-term memory compilation. */
-export {
-  buildMemoryWriteBatch,
-  buildScanMemoryBatch,
-  memoryContextToCompilerMemories,
-} from "./memory/memoryCompiler.js";
-
-/** Compatibility cognition compiler. */
+export { buildExperienceEvent, buildExperienceEventWorld, eventRealizationHint } from "./experience/eventWorld.js";
+export { buildMemoryWriteBatch, buildScanMemoryBatch, memoryContextToCompilerMemories } from "./memory/memoryCompiler.js";
 export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
 export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
 
-/** V7 human-to-experience authoring boundary. */
 export { compileExperienceV7 } from "./experience/experienceCompilerV7.js";
 export { inferExperienceIntentV7 } from "./experience/experienceIntentV7.js";
 export { realizeLatentMovieV7 } from "./experience/creativeRealizerV7.js";
-export type {
-  CompiledExperienceV7,
-  ExperienceCompilerContextV7,
-} from "./experience/experienceCompilerV7.js";
+export type { CompiledExperienceV7, ExperienceCompilerContextV7 } from "./experience/experienceCompilerV7.js";
 export type { ExperienceIntentV7 } from "./experience/experienceIntentV7.js";
 
-/** V8 experience-design and creative-realization boundary. */
 export { compileExperienceV8 } from "./experience/experienceCompilerV8.js";
 export { designExperienceV8 } from "./experience/experienceDesignV8.js";
 export { realizeLatentMovieV8 } from "./experience/creativeRealizerV8.js";
-export type {
-  CompiledExperienceV8,
-} from "./experience/experienceCompilerV8.js";
-export type {
-  ExperienceDesignV8,
-  ExperienceTrajectoryV8,
-  ExperienceVoiceV8,
-} from "./experience/experienceDesignV8.js";
+export type { CompiledExperienceV8 } from "./experience/experienceCompilerV8.js";
+export type { ExperienceDesignV8, ExperienceTrajectoryV8, ExperienceVoiceV8 } from "./experience/experienceDesignV8.js";
 
-/** Source-first latent movie discovery. */
+/** V9 creative cognition boundary: opportunity detection, phrase invention, and experience compilation. */
+export { compileExperienceV9 } from "./experience/experienceCompilerV9.js";
+export { realizeLatentMovieV9 } from "./experience/creativeRealizerV9.js";
+export { detectCreativeOpportunitiesV9 } from "./experience/creativeOpportunityV9.js";
+export { inventPhraseV9 } from "./experience/phraseInventorV9.js";
+export type { CompiledExperienceV9 } from "./experience/experienceCompilerV9.js";
+export type { RealizedMovieV9 } from "./experience/creativeRealizerV9.js";
+export type { CreativeOpportunityV9, CreativeOpportunitySetV9, CreativeOpportunityKindV9 } from "./experience/creativeOpportunityV9.js";
+export type { PhraseInventionV9 } from "./experience/phraseInventorV9.js";
+
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
 
@@ -85,15 +56,4 @@ export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
 export { getPresenceReplay } from "./presence/getPresenceReplay.js";
 export { getPresenceMap } from "./presence/getPresenceMap.js";
 
-export type {
-  AssetRepository,
-  AssetRecord,
-  SessionRepository,
-  AccessRepository,
-  AnalyticsRepository,
-  PresenceRepository,
-  GeoMemoryRepository,
-  GeoProofRecord,
-  StoryDeliveryRepository,
-  UserRepository,
-} from "./repositories/index.js";
+export type { AssetRepository, AssetRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
