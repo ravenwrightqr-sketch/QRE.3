@@ -90,6 +90,11 @@ function momentType(index: number, total: number): ExperienceMoment["type"] {
   return index === Math.floor(total / 2) ? "reveal" : "story";
 }
 
+function factualEventForBeat(movie: LatentMovieV5, sourceFactIds: string[]): string | undefined {
+  const ids = new Set(sourceFactIds);
+  return movie.facts.find((fact) => ids.has(fact.id))?.text;
+}
+
 function buildMoments(movie: LatentMovieV5): ExperienceMoment[] {
   return movie.beats.map((beat, index) => ({
     type: momentType(index, movie.beats.length),
@@ -101,21 +106,21 @@ function buildMoments(movie: LatentMovieV5): ExperienceMoment[] {
     demo: false,
     order: index,
     payload: {
-      beatId: beat.id,
+      beatId: `${beat.order}`,
       source: "latent-movie",
-      factualEvent: movie.events[index]?.fact,
+      factualEvent: factualEventForBeat(movie, beat.sourceFactIds),
     },
   }));
 }
 
 function buildFlowSteps(movie: LatentMovieV5): FlowStep[] {
   return movie.beats.map((beat, index) => ({
-    id: `experience-v7-${beat.id}`,
+    id: `experience-v7-${beat.order}`,
     order: index,
     type: "message",
     payload: {
       beat,
-      beatId: beat.id,
+      beatId: `${beat.order}`,
       subject: movie.subject,
       source: "experience-v7",
     },
