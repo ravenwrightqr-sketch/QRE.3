@@ -28,6 +28,7 @@ export type CompiledExperienceV7 = {
   blueprint: ExperienceBlueprint;
   flowSteps: FlowStep[];
   moments: ExperienceMoment[];
+  cinematicScenes: unknown[];
   title: string;
   estimatedDuration: number;
   momentCount: number;
@@ -150,12 +151,10 @@ function meaning(intent: ExperienceIntentV7, movie: LatentMovieV5): ExperienceMe
 
 /**
  * V7 is the new authoring boundary:
- *
  * HUMAN LANGUAGE → INTENT → COGNITION → EXPERIENCE BLUEPRINT → LATENT MOVIE → FLOW
  *
  * There is no StoryCompiler in this path. Narrative structure is an internal
- * consequence of the experience and its evidence, not the product's authoring
- * abstraction.
+ * consequence of the experience and its evidence, not the product's authoring abstraction.
  */
 export function compileExperienceV7(
   prompt: string,
@@ -164,15 +163,13 @@ export function compileExperienceV7(
   const rawMovie = extractLatentMovieV5(prompt);
   const movie = realizeLatentMovieV7(rawMovie);
   const entities = entitiesFromMovie(movie);
-  const cognitivePrompt = context.businessDomain
-    ? `${context.businessDomain}. ${prompt}`
-    : prompt;
+  const cognitivePrompt = context.businessDomain ? `${context.businessDomain}. ${prompt}` : prompt;
   const cognition = understandExperience(cognitivePrompt, {
     memories: (context.memorySummary ?? []).map((summary) => ({ summary })),
   });
   const intent = inferExperienceIntentV7(cognitivePrompt, entities);
-
   const moments = buildMoments(movie);
+
   const blueprint: ExperienceBlueprint = {
     title: titleFor(intent, movie),
     type: experienceType(intent),
@@ -184,14 +181,7 @@ export function compileExperienceV7(
     metadata: {
       archetypes: [intent.purpose, intent.subjectKind, cognition.selectedHypothesis.kind],
       themes: intent.signals.slice(0, 12),
-      dna: [
-        "human-to-experience",
-        "evidence-grounded",
-        "entity-aware",
-        "memory-capable",
-        "creative-realization",
-        "domain-neutral",
-      ],
+      dna: ["human-to-experience", "evidence-grounded", "entity-aware", "memory-capable", "creative-realization", "domain-neutral"],
     },
   };
 
@@ -202,6 +192,7 @@ export function compileExperienceV7(
     blueprint,
     flowSteps: buildFlowSteps(movie),
     moments,
+    cinematicScenes: [],
     title: blueprint.title,
     estimatedDuration: Math.max(8, movie.beats.length * 4),
     momentCount: moments.length,
