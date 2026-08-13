@@ -1,7 +1,7 @@
 import type { ExperienceDesignV8 } from "./experienceDesignV8.js";
 import type { LatentMovieV5 } from "./latentMovieExtractorV5.js";
 import { detectCreativeOpportunitiesV9, type CreativeOpportunitySetV9 } from "./creativeOpportunityV9.js";
-import { inventPhraseV10, type PhraseInventionV10 } from "./phraseInventorV10.js";
+import { extractCreativeLearningV10, inventPhraseV10, type PhraseInventionV10 } from "./phraseInventorV10.js";
 
 const INTERNAL = /\b(?:mechanic|payoff|compiler|memory thread|recurring signal|latent movie|story compiler|cognitive plan|narrative operation|trajectory|blueprint|directive|experience design)\b/i;
 const DIRECTIVE = /\b(?:make it|make this|turn this|write it|create it|give it|for the client|for customers?|for viewers?|for the audience)\b/i;
@@ -11,13 +11,14 @@ export type RealizedMovieV10 = {
   movie: LatentMovieV5;
   opportunities: CreativeOpportunitySetV9;
   inventions: PhraseInventionV10[];
-  learning: ReturnType<typeof import("./phraseInventorV10.js").extractCreativeLearningV10>;
+  learning: ReturnType<typeof extractCreativeLearningV10>;
 };
 
 function clean(value: string): string {
   return value.replace(/\s+/g, " ").replace(/\.\s*\./g, ".").trim();
 }
 
+/** V10 prefers evidence-specific inventions and records what vocabulary made them possible. */
 export function realizeLatentMovieV10(movie: LatentMovieV5, design: ExperienceDesignV8): RealizedMovieV10 {
   const opportunities = detectCreativeOpportunitiesV9(movie, design);
   const inventions: PhraseInventionV10[] = [];
@@ -47,7 +48,6 @@ export function realizeLatentMovieV10(movie: LatentMovieV5, design: ExperienceDe
     }
   }
 
-  const { extractCreativeLearningV10 } = awaitImportLearning();
   const realizedMovie = { ...movie, beats };
   return {
     movie: realizedMovie,
@@ -56,15 +56,3 @@ export function realizeLatentMovieV10(movie: LatentMovieV5, design: ExperienceDe
     learning: extractCreativeLearningV10(realizedMovie, inventions),
   };
 }
-
-function awaitImportLearning(): typeof import("./phraseInventorV10.js") {
-  // Static module shape helper keeps the public realization path synchronous.
-  return requireLearningModule();
-}
-
-function requireLearningModule(): typeof import("./phraseInventorV10.js") {
-  // The imported function is re-exported through a local static binding below.
-  return { extractCreativeLearningV10 } as typeof import("./phraseInventorV10.js");
-}
-
-import { extractCreativeLearningV10 } from "./phraseInventorV10.js";
