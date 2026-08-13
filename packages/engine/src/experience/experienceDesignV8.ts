@@ -21,9 +21,9 @@ const clean = (value: string) => value.replace(/\s+/g, " ").trim();
 const normalize = (value: string) => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const unique = (values: string[]) => [...new Set(values.map(clean).filter(Boolean))];
 
-function signalWords(movie: LatentMovieV5): string[] {
+function rawSignalWords(movie: LatentMovieV5): string[] {
   const stop = new Set(["the", "and", "was", "were", "with", "that", "this", "then", "from", "into", "when", "she", "he", "they", "her", "his", "their", "came", "went", "arrived", "left", "today", "there", "here", "just", "very", "really", "again"]);
-  return unique(movie.facts.flatMap((fact) => normalize(fact.text).split(" ")).filter((word) => word.length >= 4 && !stop.has(word)));
+  return movie.facts.flatMap((fact) => normalize(fact.text).split(" ")).filter((word) => word.length >= 4 && !stop.has(word));
 }
 
 function trajectory(intent: ExperienceIntentV7, movie: LatentMovieV5): ExperienceTrajectoryV8 {
@@ -48,20 +48,23 @@ function voices(intent: ExperienceIntentV7, movie: LatentMovieV5): ExperienceVoi
 }
 
 export function designExperienceV8(intent: ExperienceIntentV7, movie: LatentMovieV5): ExperienceDesignV8 {
-  const signals = signalWords(movie);
-  const repeated = signals.filter((signal, index) => signals.indexOf(signal) !== index);
-  const facts = movie.facts.map((fact) => normalize(fact.text));
+  const rawSignals = rawSignalWords(movie);
+  const counts = new Map<string, number>();
+  for (const signal of rawSignals) counts.set(signal, (counts.get(signal) ?? 0) + 1);
+  const repeated = [...counts.entries()].filter(([, count]) => count >= 2).map(([signal]) => signal);
+  const signals = unique(rawSignals);
   const recurringMotifs = unique([
     ...movie.memoryThread.identitySignals,
     ...movie.memoryThread.continuationSignals,
     ...repeated,
   ]).slice(0, 8);
-  const novelMotifs = unique(movie.facts.map((fact) => fact.text).filter((fact, index) => index === facts.findIndex((candidate) => candidate === normalize(fact)))).slice(0, 8);
+  const novelMotifs = unique(movie.facts.map((fact) => fact.text)).slice(0, 8);
 
   const t = trajectory(intent, movie);
+  const voice = voices(intent, movie);
   return {
     trajectory: t,
-    voice: voices(intent, movie),
+    voice,
     openingJob: t === "adventure" || t === "escalation" ? "intrigue" : "orient",
     middleJob: t === "transformation" || t === "reflection" ? "deepen" : t === "reveal" ? "reframe" : "escalate",
     endingJob: intent.continuationEnabled || intent.memoryEnabled ? "invite_continuation" : t === "reflection" ? "linger" : "payoff",
@@ -71,7 +74,7 @@ export function designExperienceV8(intent: ExperienceIntentV7, movie: LatentMovi
       ...recurringMotifs.slice(0, 4),
       ...signals.slice(0, 6),
       t,
-      ...voices(intent, movie),
+      ...voice,
     ]).slice(0, 16),
     memoryWeight: intent.memoryEnabled ? 1 : 0.35,
     promotionWeight: intent.purpose === "service_receipt" || intent.purpose === "business" ? 0.7 : 0.15,
