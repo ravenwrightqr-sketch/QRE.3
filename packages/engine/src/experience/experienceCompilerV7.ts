@@ -1,4 +1,5 @@
 import type {
+  CognitiveExperienceState,
   ExperienceBlueprint,
   ExperienceEntities,
   ExperienceMeaning,
@@ -7,6 +8,7 @@ import type {
   ExperienceType,
   FlowStep,
 } from "@qre/contracts";
+import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { extractLatentMovieV5, type LatentMovieV5 } from "./latentMovieExtractorV5.js";
 import { inferExperienceIntentV7, type ExperienceIntentV7 } from "./experienceIntentV7.js";
 import { realizeLatentMovieV7 } from "./creativeRealizerV7.js";
@@ -21,6 +23,7 @@ export type ExperienceCompilerContextV7 = {
 
 export type CompiledExperienceV7 = {
   intent: ExperienceIntentV7;
+  cognition: CognitiveExperienceState;
   movie: LatentMovieV5;
   blueprint: ExperienceBlueprint;
   flowSteps: FlowStep[];
@@ -148,7 +151,7 @@ function meaning(intent: ExperienceIntentV7, movie: LatentMovieV5): ExperienceMe
 /**
  * V7 is the new authoring boundary:
  *
- * HUMAN LANGUAGE → INTENT → EXPERIENCE BLUEPRINT → LATENT MOVIE → FLOW
+ * HUMAN LANGUAGE → INTENT → COGNITION → EXPERIENCE BLUEPRINT → LATENT MOVIE → FLOW
  *
  * There is no StoryCompiler in this path. Narrative structure is an internal
  * consequence of the experience and its evidence, not the product's authoring
@@ -161,10 +164,13 @@ export function compileExperienceV7(
   const rawMovie = extractLatentMovieV5(prompt);
   const movie = realizeLatentMovieV7(rawMovie);
   const entities = entitiesFromMovie(movie);
-  const intent = inferExperienceIntentV7(
-    context.businessDomain ? `${context.businessDomain}. ${prompt}` : prompt,
-    entities,
-  );
+  const cognitivePrompt = context.businessDomain
+    ? `${context.businessDomain}. ${prompt}`
+    : prompt;
+  const cognition = understandExperience(cognitivePrompt, {
+    memories: (context.memorySummary ?? []).map((summary) => ({ summary })),
+  });
+  const intent = inferExperienceIntentV7(cognitivePrompt, entities);
 
   const moments = buildMoments(movie);
   const blueprint: ExperienceBlueprint = {
@@ -174,8 +180,9 @@ export function compileExperienceV7(
     meaning: meaning(intent, movie),
     moments,
     entities,
+    cognitivePlan: cognition.plan,
     metadata: {
-      archetypes: [intent.purpose, intent.subjectKind],
+      archetypes: [intent.purpose, intent.subjectKind, cognition.selectedHypothesis.kind],
       themes: intent.signals.slice(0, 12),
       dna: [
         "human-to-experience",
@@ -190,6 +197,7 @@ export function compileExperienceV7(
 
   return {
     intent,
+    cognition,
     movie,
     blueprint,
     flowSteps: buildFlowSteps(movie),
