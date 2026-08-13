@@ -22,4 +22,5 @@ export * from "./experience/index.js";
 export * from "./experience/indexV13.js";
 export * from "./experience/memoryIntelligenceV14.js";
 export * from "./experience/memoryForesightV15.js";
+export * from "./experience/memorySpatialV16.js";
 export type { MediaAsset, MediaType } from "./media.js";
