@@ -54,6 +54,25 @@ export type { CompiledExperienceV10 } from "./experience/experienceCompilerV10.j
 export type { RealizedMovieV10 } from "./experience/creativeRealizerV10.js";
 export type { PhraseInventionV10 } from "./experience/phraseInventorV10.js";
 
+/** V11 learning loop: accumulated creative memory, quality reinforcement, and strategy suggestions. */
+export { compileExperienceV11 } from "./experience/experienceCompilerV11.js";
+export {
+  createCreativeLearningProfileV11,
+  observeCreativeInventionV11,
+  learnFromInventionsV11,
+  suggestCreativeStrategyV11,
+  mergeCreativeLearningV11,
+} from "./experience/creativeLearningV11.js";
+export type {
+  CompiledExperienceV11,
+  ExperienceCompilerContextV11,
+} from "./experience/experienceCompilerV11.js";
+export type {
+  CreativeLearningObservationV11,
+  CreativeLearningSignalV11,
+  CreativeLearningProfileV11,
+} from "./experience/creativeLearningV11.js";
+
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
 
