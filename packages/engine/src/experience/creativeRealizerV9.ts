@@ -20,20 +20,28 @@ function clean(value: string): string {
 export function realizeLatentMovieV9(movie: LatentMovieV5, design: ExperienceDesignV8): RealizedMovieV9 {
   const opportunities = detectCreativeOpportunitiesV9(movie, design);
   const inventions: PhraseInventionV9[] = [];
+  const used = new Set<string>();
   const beats = movie.beats.map((beat, index) => {
     let text = clean(beat.text);
     const shouldInvent = index > 0 && (INTERNAL.test(text) || STALE.test(text) || DIRECTIVE.test(text) || opportunities.opportunities.some((opportunity) => opportunity.score >= 0.78));
     if (shouldInvent) {
       const invention = inventPhraseV9(movie, design, opportunities, index);
-      inventions.push(invention);
-      text = invention.text;
+      const key = clean(invention.text).toLowerCase();
+      if (!used.has(key)) {
+        inventions.push(invention);
+        used.add(key);
+        text = invention.text;
+      }
     }
     return { ...beat, text };
   });
   if (beats.length > 1 && inventions.length === 0) {
     const invention = inventPhraseV9(movie, design, opportunities, beats.length - 1);
-    inventions.push(invention);
-    beats[beats.length - 1] = { ...beats[beats.length - 1], text: invention.text };
+    const key = clean(invention.text).toLowerCase();
+    if (!used.has(key)) {
+      inventions.push(invention);
+      beats[beats.length - 1] = { ...beats[beats.length - 1], text: invention.text };
+    }
   }
   return { movie: { ...movie, beats }, opportunities, inventions };
 }
