@@ -103,6 +103,13 @@ router.get("/entity/:assetId/:entityName", requireAuth, async (req, res) => {
       });
     }
 
+    // loadContext performs the canonical AccountUser → Asset authorization
+    // check before the entity-specific query is allowed to run.
+    await createMemoryRepository().loadContext({
+      assetId,
+      userId: req.user?.userId,
+    });
+
     const entity = await loadEntityMemory({ assetId, entityName });
 
     if (!entity) {
