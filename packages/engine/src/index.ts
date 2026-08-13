@@ -15,9 +15,6 @@ export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
 export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
-export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
-export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
-export type { StoryCompilerContext, StoryCompilerMemory, StorySituation, StorySignal, ExperienceObservation, CompiledStoryExperience } from "./experience/universalStoryCompiler.js";
 
 export { buildExperienceEvent, buildExperienceEventWorld, eventRealizationHint } from "./experience/eventWorld.js";
 export { buildMemoryWriteBatch, buildScanMemoryBatch, memoryContextToCompilerMemories } from "./memory/memoryCompiler.js";
@@ -88,3 +85,4 @@ export { getPresenceReplay } from "./presence/getPresenceReplay.js";
 export { getPresenceMap } from "./presence/getPresenceMap.js";
 
 export type { AssetRepository, AssetRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
+

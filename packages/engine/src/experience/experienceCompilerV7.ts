@@ -47,7 +47,6 @@ import { realizeLatentMovieV7 } from "./creativeRealizerV7.js";
  *   - intent
  *   - latent movie realization
  *
- * The old universalStoryCompiler abstraction is DEAD.
  *
  * IMPORTANT:
  * This file owns the V7 compiler context.
