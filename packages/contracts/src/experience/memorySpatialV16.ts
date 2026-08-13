@@ -13,10 +13,7 @@ import type { MemoryVisibility } from "./memoryContext.js";
 
 export type MemoryGeoSourceV16 = "runtime" | "scan" | "location" | "import";
 
-export type MemoryGeoPointV16 = {
-  id: string;
-  eventId: string;
-  entityIds: string[];
+export type MemoryGeoPointInputV16 = {
   latitude: number;
   longitude: number;
   accuracyMeters?: number;
@@ -30,10 +27,24 @@ export type MemoryGeoPointV16 = {
   city?: string;
   region?: string;
   country?: string;
+  source?: MemoryGeoSourceV16;
+  confidence?: number;
+  visibility?: MemoryVisibility;
+  metadata?: Record<string, unknown>;
+};
+
+export type MemoryGeoContextV16 = {
+  points: MemoryGeoPointInputV16[];
+  timezone?: string;
+};
+
+export type MemoryGeoPointV16 = MemoryGeoPointInputV16 & {
+  id: string;
+  eventId: string;
+  entityIds: string[];
   source: MemoryGeoSourceV16;
   confidence: number;
   visibility: MemoryVisibility;
-  metadata?: Record<string, unknown>;
 };
 
 export type MemorySpatialTrailV16 = {
