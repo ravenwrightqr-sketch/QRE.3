@@ -61,6 +61,19 @@ export type {
 } from "./experience/experienceCompilerV7.js";
 export type { ExperienceIntentV7 } from "./experience/experienceIntentV7.js";
 
+/** V8 experience-design and creative-realization boundary. */
+export { compileExperienceV8 } from "./experience/experienceCompilerV8.js";
+export { designExperienceV8 } from "./experience/experienceDesignV8.js";
+export { realizeLatentMovieV8 } from "./experience/creativeRealizerV8.js";
+export type {
+  CompiledExperienceV8,
+} from "./experience/experienceCompilerV8.js";
+export type {
+  ExperienceDesignV8,
+  ExperienceTrajectoryV8,
+  ExperienceVoiceV8,
+} from "./experience/experienceDesignV8.js";
+
 /** Source-first latent movie discovery. */
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
