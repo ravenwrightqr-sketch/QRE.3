@@ -4,6 +4,10 @@ import { inferExperienceMechanics, type ExperienceMechanic, type MechanicSignal 
 /**
  * Scene compositor: mechanics constrain the scene; they do not become
  * individual sentences. Length is earned by concrete evidence density.
+ *
+ * The trajectory is the structural bridge between cognition and realization:
+ * active mechanics may require concrete beat types, and those requirements
+ * must survive into the final scene plan.
  */
 export type CognitiveEventPressure = { mechanic: ExperienceMechanic; beat: StoryBeatKind; force: string; observableChange: string; causalRequirement: string };
 export type CognitiveTrajectoryCandidate = { id: string; beats: StoryBeatKind[]; score: number; rationale: string[] };
@@ -22,10 +26,10 @@ const ABSTRACT = /\b(?:situation|experience|interaction|process|journey|moment|m
 const DELIVERY = /\b(?:receipt|prompt|output|client|customer|audience|user|users|qr|nfc|scan|tag|code|message|text|send|sending|deliver|delivery)\b/i;
 
 const SHAPE_SIGNALS: Record<string, ExperienceMechanic[]> = {
-  completion: ["transformation", "consequence", "relief", "delight", "pampering", "indulgence", "contribution", "momentum"],
+  completion: ["transformation", "consequence", "relief", "delight", "pampering", "indulgence", "excess", "escalation", "contribution", "momentum"],
   discovery: ["discovery", "surprise", "uncertainty", "suspense", "reveal", "wonder", "novelty"],
-  participatory: ["participation", "agency", "authorship", "reciprocity", "adaptation", "consequence"],
-  journey: ["anticipation", "momentum", "escalation", "contrast", "immersion", "relief"],
+  participatory: ["participation", "agency", "authorship", "reciprocity", "adaptation", "consequence", "contribution"],
+  journey: ["anticipation", "momentum", "escalation", "contrast", "immersion", "relief", "excess"],
 };
 
 const SHAPES: Record<string, StoryBeatKind[]> = {
@@ -40,8 +44,11 @@ const PRESSURE: Partial<Record<ExperienceMechanic, Omit<CognitiveEventPressure, 
   discovery: { force: "reveal a hidden layer", observableChange: "a concrete detail changes attention", causalRequirement: "the discovery must come from available evidence" },
   surprise: { force: "break expectation", observableChange: "an unexpected defensible condition appears", causalRequirement: "the turn must attach to evidence" },
   participation: { force: "make action consequential", observableChange: "a participant action changes the condition", causalRequirement: "a visible response follows" },
+  contribution: { force: "make contribution visible", observableChange: "a contribution changes the shared state", causalRequirement: "the contribution must be observable in what follows" },
   consequence: { force: "make action matter", observableChange: "a later condition follows an earlier event", causalRequirement: "the result remains traceable" },
+  accumulation: { force: "compound prior material", observableChange: "the current state contains more than the earlier state", causalRequirement: "each added element must remain connected to prior evidence" },
   escalation: { force: "increase magnitude", observableChange: "the next condition exceeds the previous", causalRequirement: "the increase must be visible" },
+  excess: { force: "make the experience disproportionately more than necessary", observableChange: "an optional concrete extra exceeds the ordinary requirement", causalRequirement: "the extra must grow from the existing experience rather than appear randomly" },
   transformation: { force: "change the subject or situation", observableChange: "before and after differ visibly", causalRequirement: "the change is earned by preceding events" },
   contrast: { force: "make states comparable", observableChange: "two conditions become visibly distinct", causalRequirement: "the later state exposes the earlier one" },
   relief: { force: "remove a burden", observableChange: "a constrained condition becomes easier", causalRequirement: "resolution causes the relief" },
@@ -79,7 +86,6 @@ function evidenceCount(plan?: CognitiveExperiencePlan, prompt?: string): number 
 
 function sceneBudget(plan?: CognitiveExperiencePlan, prompt?: string): number {
   const count = evidenceCount(plan, prompt);
-  // Five is the default scene unit: arrival, action, turn, transformation, payoff.
   if (count <= 4) return 5;
   if (count === 5) return 6;
   return 7;
@@ -101,13 +107,72 @@ function chooseShape(signals: MechanicSignal[], plan?: CognitiveExperiencePlan):
   return ["completion", "discovery", "participatory", "journey"].map((shape) => ({ shape, score: shapeScore(signals, shape) })).sort((a, b) => b.score - a.score)[0]?.shape ?? "completion";
 }
 
-function fitScene(shape: string, budget: number): StoryBeatKind[] {
+function requiredBeats(signals: MechanicSignal[]): StoryBeatKind[] {
+  const required = new Set<StoryBeatKind>();
+  for (const signal of active(signals)) {
+    switch (signal.mechanic) {
+      case "anticipation":
+      case "uncertainty":
+      case "suspense":
+        required.add("hook");
+        break;
+      case "discovery":
+        required.add("discovery");
+        break;
+      case "reveal":
+        required.add("reveal");
+        break;
+      case "participation":
+      case "contribution":
+      case "pampering":
+      case "accumulation":
+      case "reciprocity":
+        required.add("encounter");
+        break;
+      case "escalation":
+      case "excess":
+      case "indulgence":
+      case "momentum":
+        required.add("escalation");
+        break;
+      case "transformation":
+        required.add("transformation");
+        break;
+      case "consequence":
+      case "relief":
+      case "delight":
+      case "euphoria":
+      case "celebration":
+        required.add("payoff");
+        break;
+    }
+  }
+  return [...required].sort((a, b) => PHASE[a] - PHASE[b]);
+}
+
+function fitScene(shape: string, budget: number, signals: MechanicSignal[]): StoryBeatKind[] {
   const base = [...(SHAPES[shape] ?? SHAPES.completion)];
-  if (budget <= 5) return base;
   const beats = [...base];
-  if (budget >= 6) beats.splice(Math.max(1, beats.indexOf("transformation")), 0, "encounter");
-  if (budget >= 7) beats.splice(Math.max(1, beats.indexOf("transformation")), 0, "feedback");
-  return unique(beats).sort((a, b) => PHASE[a] - PHASE[b]);
+  const required = requiredBeats(signals);
+
+  for (const beat of required) {
+    if (!beats.includes(beat)) {
+      const insertion = beats.findIndex((kind) => PHASE[kind] > PHASE[beat]);
+      beats.splice(insertion < 0 ? beats.length : insertion, 0, beat);
+    }
+  }
+
+  // Evidence remains the normal length governor, but a high-confidence
+  // mechanic is allowed to earn the structural beat it requires.
+  const maxBudget = Math.min(8, Math.max(budget, required.length >= 2 ? 6 : budget));
+  const preferred = unique(beats);
+  if (preferred.length <= maxBudget) return preferred.sort((a, b) => PHASE[a] - PHASE[b]);
+
+  const protectedBeats = new Set<StoryBeatKind>(["orientation", ...required, "transformation", "payoff"]);
+  return preferred
+    .filter((beat) => protectedBeats.has(beat) || preferred.length <= maxBudget)
+    .slice(0, maxBudget)
+    .sort((a, b) => PHASE[a] - PHASE[b]);
 }
 
 function alternateShape(primary: string): string {
@@ -121,29 +186,61 @@ function scoreTrajectory(beats: StoryBeatKind[], signals: MechanicSignal[], shap
   if (beats.includes("transformation")) score += 0.9;
   if (beats.includes("payoff")) score += 1.1;
   if (beats.length >= 5 && beats.length <= 6) score += 0.7;
-  score -= Math.max(0, beats.length - 5) * 0.4;
+  score += requiredBeats(signals).filter((beat) => beats.includes(beat)).length * 0.35;
+  score -= Math.max(0, beats.length - 6) * 0.4;
   return Number(score.toFixed(3));
 }
 
 function candidate(id: string, shape: string, beats: StoryBeatKind[], signals: MechanicSignal[]): CognitiveTrajectoryCandidate {
-  return { id, beats, score: scoreTrajectory(beats, signals, shape), rationale: [`${shape} causal scene shape`, "length derived from concrete evidence density", "mechanics constrain the scene instead of becoming individual beats"] };
+  return { id, beats, score: scoreTrajectory(beats, signals, shape), rationale: [`${shape} causal scene shape`, "length derived from concrete evidence density", "active mechanics earn required structural beats", "mechanics constrain the scene instead of becoming individual beats"] };
+}
+
+function pressureBeat(mechanic: ExperienceMechanic, beats: StoryBeatKind[]): StoryBeatKind | undefined {
+  const preferred: Partial<Record<ExperienceMechanic, StoryBeatKind[]>> = {
+    anticipation: ["hook", "encounter"],
+    discovery: ["discovery", "reveal"],
+    surprise: ["hook", "encounter", "reveal"],
+    participation: ["encounter", "action", "feedback"],
+    contribution: ["encounter", "contribution"],
+    accumulation: ["encounter", "escalation"],
+    consequence: ["escalation", "transformation", "payoff"],
+    escalation: ["escalation", "transformation"],
+    excess: ["escalation", "payoff"],
+    pampering: ["encounter", "action", "escalation"],
+    indulgence: ["escalation", "payoff"],
+    transformation: ["transformation", "payoff"],
+    contrast: ["action", "transformation"],
+    relief: ["transformation", "payoff"],
+    delight: ["payoff"],
+    agency: ["action", "feedback"],
+    reciprocity: ["encounter", "feedback"],
+    adaptation: ["feedback", "transformation"],
+    momentum: ["escalation", "encounter"],
+    uncertainty: ["hook", "discovery"],
+    suspense: ["hook", "reveal"],
+    reveal: ["reveal"],
+    novelty: ["encounter", "discovery"],
+    wonder: ["discovery", "payoff"],
+    immersion: ["encounter", "transformation"],
+  };
+  return (preferred[mechanic] ?? []).find((beat) => beats.includes(beat));
 }
 
 export function composeCognitiveTrajectory(args: { plan?: CognitiveExperiencePlan; prompt?: string }): CognitiveTrajectory {
   const mechanics = inferExperienceMechanics({ plan: args.plan, premise: args.plan?.premise, prompt: args.prompt });
   const budget = sceneBudget(args.plan, args.prompt);
   const shape = chooseShape(mechanics, args.plan);
-  const beats = fitScene(shape, budget);
+  const beats = fitScene(shape, budget, mechanics);
   const altShape = alternateShape(shape);
-  const alternate = fitScene(altShape, budget);
+  const alternate = fitScene(altShape, budget, mechanics);
   const candidates = [candidate("primary", shape, beats, mechanics), candidate("alternative", altShape, alternate, mechanics)].sort((a, b) => b.score - a.score);
 
   const eventPressure: CognitiveEventPressure[] = [];
   for (const signal of active(mechanics)) {
     const pressure = PRESSURE[signal.mechanic];
-    if (!pressure || !SHAPE_SIGNALS[shape]?.includes(signal.mechanic)) continue;
-    const beat = beats.find((kind) => ["hook", "encounter", "action", "feedback", "discovery", "reveal", "escalation", "transformation", "payoff"].includes(kind));
-    if (beat) eventPressure.push({ mechanic: signal.mechanic, beat, ...pressure });
+    const beat = pressureBeat(signal.mechanic, beats);
+    if (!pressure || !beat) continue;
+    eventPressure.push({ mechanic: signal.mechanic, beat, ...pressure });
   }
 
   return {
@@ -151,7 +248,7 @@ export function composeCognitiveTrajectory(args: { plan?: CognitiveExperiencePla
     mechanics,
     eventPressure,
     score: candidates[0]?.score ?? 0,
-    rationale: [`scene budget: ${budget} beats`, `selected shape: ${shape}`, ...active(mechanics).slice(0, 8).map((s) => `${s.mechanic}: ${s.evidence.join("; ")}`)],
+    rationale: [`scene budget: ${budget} beats`, `selected shape: ${shape}`, `required beats: ${requiredBeats(mechanics).join(", ") || "none"}`, ...active(mechanics).slice(0, 10).map((s) => `${s.mechanic}: ${s.evidence.join("; ")}`)],
     candidates,
   };
 }
