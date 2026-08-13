@@ -1,4 +1,4 @@
-import type { CognitiveExperienceState, ExperienceBlueprint, ExperienceEntities, ExperienceGenome, ExperienceModel, ExperienceMoment, ExperienceStory, Moment, CinematicScene, StoryBeat, StoryBeatKind, StoryProvenance, StoryScenePlan } from "@qre/contracts";
+import type { CognitiveBeatDirective, CognitiveExperienceState, ExperienceBlueprint, ExperienceEntities, ExperienceGenome, ExperienceModel, ExperienceMoment, ExperienceStory, Moment, CinematicScene, StoryBeat, StoryBeatKind, StoryProvenance, StoryScenePlan } from "@qre/contracts";
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
@@ -18,9 +18,29 @@ const u=(x:string[])=>[...new Set(x.map(v=>v.replace(/\s+/g," ").trim()).filter(
 const pv=(c:CognitiveExperienceState):StoryProvenance[]=>c.subject.evidence.map(e=>({kind:e.source==="prompt"?"observed":e.source==="creative_realization"?"playful":"inferred",source:e.source,confidence:e.confidence}));
 const names=(e:ExperienceEntities,s:string)=>u([s,...e.people,...e.places,...e.events,...e.products,...e.media]);
 
-function directiveText(d: CognitiveExperienceState["plan"]["realization"] extends infer R ? NonNullable<R>["directives"][number] | undefined : never): string | undefined {
+function directiveText(d: CognitiveBeatDirective | undefined): string | undefined {
   const text=typeof d?.action==="string"?d.action.replace(/\s+/g," ").trim():"";
   return text||undefined;
+}
+
+/** Repair ordinary actor/action prompts before realization. This is intentionally
+ * generic: it recognizes grammatical actors, never industries or named brands. */
+function repairOrdinarySubject(prompt:string,x:CognitiveExperienceState): CognitiveExperienceState {
+  if (x.subject.status === "observed" && x.subject.value.trim().split(/\s+/).length <= 4) return x;
+  const actorVerb = /^(?:a|an|the)\s+([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,3})\s+(?:arrives?|arrived|enters?|entered|walks?|walked|goes?|went|comes?|came|leaves?|left|returns?|returned|grooms?|groomed|cleans?|cleaned|washes?|washed|repairs?|repaired|fixes?|fixed|restores?|restored|builds?|built|makes?|made|creates?|created|designs?|designed|writes?|wrote|cooks?|cooked|serves?|served|prepares?|prepared|opens?|opened|closes?|closed|visits?|visited|travels?|traveled|drives?|drove|rides?|rode|paints?|painted|dances?|danced|sings?|sang|plays?|played|chooses?|chose|picks?|picked|selects?|selected|decides?|decided|touches?|touched|holds?|held|wears?|wore|tastes?|tasted|smells?|smelled|looks?|looked|sees?|saw|watches?|watched|shares?|shared|gives?|gave|takes?|took|brings?|brought|receives?|received|checks?|checked|inspects?|inspected|tests?|tested|measures?|measured|installs?|installed|removes?|removed|changes?|changed|turns?|turned|transforms?|transformed|upgrades?|upgraded|finishes?|finished|completes?|completed|photographs?|photographed|captures?|captured|records?|recorded|teaches?|taught|learns?|learned|discovers?|discovered|finds?|found|collects?|collected|organizes?|organized|decorates?|decorated|styles?|styled|trims?|trimmed|cuts?|cut|brushes?|brushed|dries?|dried|massages?|massaged|relaxes?|relaxed|pampers?|pampered|spoil(?:s|ed)?|treats?|treated|documents?|documented|shakes?|shook|chews?|chewed|runs?|ran|calls?|called)\b/i;
+  const match=prompt.trim().match(actorVerb);
+  const actor=match?.[1]?.replace(/\s+/g," ").trim();
+  if(!actor || actor.length>60) return x;
+  return {
+    ...x,
+    subject:{
+      ...x.subject,
+      value:actor,
+      status:"observed",
+      confidence:Math.max(x.subject.confidence,0.97),
+      evidence:[...x.subject.evidence,{source:"prompt",detail:`ordinary actor subject: ${actor}`,confidence:0.97}],
+    },
+  };
 }
 
 function compose(prompt:string,c:CompiledExperienceV16,x:CognitiveExperienceState){
@@ -32,11 +52,6 @@ function compose(prompt:string,c:CompiledExperienceV16,x:CognitiveExperienceStat
     const src=c.movie.beats[i];
     const d=x.plan.realization?.directives.find(v=>v.kind===kind);
     const baseText=src?.text??"";
-
-    // The cognitive realization directive is now the first presentation
-    // authority. Super Cog has already selected the transformation and
-    // written the concrete action. Do not recompute a second creative line
-    // here; that was the source of language drift.
     const authoritativeText=directiveText(d);
     const text=authoritativeText??baseText;
 
@@ -85,13 +100,14 @@ function compose(prompt:string,c:CompiledExperienceV16,x:CognitiveExperienceStat
 
 function blueprint(b:ExperienceBlueprint,x:CognitiveExperienceState,m:Moment[]):ExperienceBlueprint{
   const moments:ExperienceMoment[]=m.map((v,i)=>({type:i===0?"introduction":i===m.length-1?"completion":"story",component:"story",title:i===0?"The beginning":i===m.length-1?"The moment that stayed":"And then",subtitle:x.subject.value,description:v.type==="message"?v.text:"",editable:true,demo:false,order:i,payload:{beatId:v.meta?.beatId,source:"cognitive-experience"}}));
-  return{...b,cognitivePlan:x.plan,moments,metadata:{...b.metadata,archetypes:u([...(b.metadata?.archetypes??[]),x.selectedHypothesis.kind]),dna:u([...(b.metadata?.dna??[]),"canonical-cognitive-compiler","premise-conserved","single-language-authority","super-cog-authoritative-realization"])}};
+  return{...b,cognitivePlan:x.plan,moments,metadata:{...b.metadata,archetypes:u([...(b.metadata?.archetypes??[]),x.selectedHypothesis.kind]),dna:u([...(b.metadata?.dna??[]),"canonical-cognitive-compiler","premise-conserved","single-language-authority","super-cog-authoritative-realization","generic-actor-subject-repair"])}};
 }
 
 function makeGenome(c:CompiledExperienceV16,x:CognitiveExperienceState):ExperienceGenome{return{intent:u([x.selectedHypothesis.kind,c.intent.purpose]),interpretation:{intent:[x.selectedHypothesis.kind],concepts:u([x.subject.value,...x.affordances]),emotionalSignals:x.emotionalIntent,worldSignals:[],cognitiveSignals:u([...x.plan.dynamicBehavior,...x.plan.futureEvolution]),confidence:x.selectedHypothesis.score},archetypes:[x.selectedHypothesis.kind],themes:x.emotionalIntent,emotions:x.emotionalIntent,meaning:c.blueprint.meaning,relationships:[],energy:"calm",pacing:"medium",social:x.participants.value.length>1?"shared":"solo",journey:["arrival","discovery","transformation","peak"],discovery:x.selectedHypothesis.dimensions.discoveryPotential,memory:x.selectedHypothesis.dimensions.memoryPotential,commerce:x.selectedHypothesis.dimensions.commercialPotential,immersion:x.selectedHypothesis.dimensions.temporalPotential,interaction:x.selectedHypothesis.dimensions.interactionNaturalness,replay:x.selectedHypothesis.dimensions.temporalPotential,entities:x.entities,environments:x.entities.places,audience:u([...x.participants.value,...x.plan.audience]),dna:["canonical-cognitive-compiler","cognitive-trajectory","super-cog-authoritative-realization"]};}
 
 export function compileCognitiveExperience(prompt:string,context:ExperienceCompilerContext={}):CognitiveCompiledExperience{
   let x=understandExperience(prompt,context);
+  x=repairOrdinarySubject(prompt,x);
   x={...x,plan:{...x.plan,direction:x.selectedHypothesis.kind}};
 
   const premise=buildCognitivePremise({prompt,subject:x.subject,participants:x.participants,entities:x.entities,affordances:x.affordances,emotionalIntent:x.emotionalIntent,plan:x.plan,context});
@@ -99,8 +115,6 @@ export function compileCognitiveExperience(prompt:string,context:ExperienceCompi
   const realization=augmentCreativeRealization({prompt,plan:x.plan,premise,realization:baseRealization});
   x={...x,plan:{...x.plan,premise,realization}};
 
-  // V16 supplies the downstream artifact substrate (memory/geo/etc.).
-  // It is not allowed to author the cognitive story text.
   const c=compileExperienceV16(prompt,{...context,cognitivePlan:x.plan});
   const r=compose(prompt,c,x);
   const bp=blueprint(c.blueprint,x,r.moments);
