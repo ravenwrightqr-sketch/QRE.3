@@ -41,6 +41,8 @@
     "test:experience-v8": "tsx src/experience/tests/experienceCompilerV8Acceptance.ts",
     "test:experience-v9": "tsx src/experience/tests/experienceCompilerV9Acceptance.ts",
     "test:experience-v10": "tsx src/experience/tests/experienceCompilerV10Acceptance.ts",
-    "test:experience-v11": "tsx src/experience/tests/experienceCompilerV11Acceptance.ts"
+    "test:experience-v11": "tsx src/experience/tests/experienceCompilerV11Acceptance.ts",
+    "test:experience-v15": "tsx src/experience/tests/experienceCompilerV15Acceptance.ts",
+    "test:experience-v16": "tsx src/experience/tests/experienceCompilerV16Acceptance.ts"
   }
 }
