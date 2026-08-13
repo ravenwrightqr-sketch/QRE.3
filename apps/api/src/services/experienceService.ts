@@ -1,6 +1,6 @@
 import {
   buildMemoryWriteBatch,
-  compileCognitiveExperience,
+  compileExperienceV7,
   memoryContextToCompilerMemories,
 } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
@@ -26,11 +26,23 @@ export type CompiledExperienceResult = {
 };
 
 /**
- * Compile a prompt against durable memory when an asset is supplied.
+ * Production authoring boundary.
  *
- * Memory is loaded before cognition and written only after a successful
- * compilation. This keeps the compiler pure while giving the product a
- * persistent learning loop.
+ * HUMAN LANGUAGE
+ *   ↓
+ * V7 INTENT
+ *   ↓
+ * COGNITION
+ *   ↓
+ * EXPERIENCE BLUEPRINT
+ *   ↓
+ * LATENT MOVIE / CREATIVE REALIZATION
+ *   ↓
+ * FLOW
+ *
+ * The old StoryCompiler is no longer on the production experience-creation
+ * path. Durable memory is still loaded before cognition and written only after
+ * successful compilation.
  */
 export async function compileExperience(input: {
   prompt: string;
@@ -39,10 +51,7 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
-
-  if (!prompt) {
-    throw new Error("Experience prompt required");
-  }
+  if (!prompt) throw new Error("Experience prompt required");
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
@@ -52,10 +61,12 @@ export async function compileExperience(input: {
     });
   }
 
-  const compiled = compileCognitiveExperience(prompt, {
-    memories: memoryContext
-      ? memoryContextToCompilerMemories(memoryContext)
-      : [],
+  const compilerMemories = memoryContext
+    ? memoryContextToCompilerMemories(memoryContext)
+    : [];
+
+  const compiled = compileExperienceV7(prompt, {
+    memorySummary: compilerMemories.map((memory) => memory.summary),
   });
 
   if (input.assetId && input.memoryRepository) {
@@ -80,5 +91,5 @@ export async function compileExperience(input: {
     } as CompiledExperienceResult;
   }
 
-  return compiled as CompiledExperienceResult;
+  return compiled as unknown as CompiledExperienceResult;
 }
