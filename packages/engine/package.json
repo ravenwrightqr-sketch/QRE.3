@@ -32,6 +32,7 @@
     "test:event-realization": "tsx src/compiler/tests/cognitiveEventRealizationAcceptance.ts",
     "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts",
     "test:story-lab": "tsx src/compiler/tests/superStoryLab.ts",
-    "test:movie-factory": "tsx src/experience/tests/movieFactoryV2Acceptance.ts"
+    "test:movie-factory": "tsx src/experience/tests/movieFactoryV2Acceptance.ts",
+    "test:movie-v3": "tsx src/experience/tests/latentMovieExtractorV3Acceptance.ts"
   }
 }
