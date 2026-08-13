@@ -63,13 +63,15 @@ export function compileExperienceV8(
   const movie = realizeLatentMovieV8(rawMovie, design);
   const moments = buildMoments(movie);
   const flowSteps = buildFlowSteps(movie);
+  const metadata = v7.blueprint.metadata ?? {};
+  const dna = metadata.dna ?? [];
   const blueprint = {
     ...v7.blueprint,
     moments,
     metadata: {
-      ...v7.blueprint.metadata,
+      ...metadata,
       dna: [
-        ...v7.blueprint.metadata.dna,
+        ...dna,
         `trajectory:${design.trajectory}`,
         ...design.voice.map((voice) => `voice:${voice}`),
       ],
