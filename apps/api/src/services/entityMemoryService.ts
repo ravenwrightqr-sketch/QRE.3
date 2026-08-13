@@ -73,7 +73,7 @@ export async function loadEntityMemory(input: {
       FROM "qre_memory_event"
       WHERE "asset_id" = ${input.assetId}
         AND (
-          ${entity.id} = ANY("entity_ids")
+          "entity_ids" @> ${JSON.stringify([entity.id])}::jsonb
           OR "entity_ids" = '[]'::jsonb
         )
       ORDER BY "occurred_at" DESC
