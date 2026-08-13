@@ -38,6 +38,7 @@
     "test:movie-v5": "tsx src/experience/tests/latentMovieExtractorV5Acceptance.ts",
     "test:movie-v6": "tsx src/experience/tests/latentMovieLearningV6Acceptance.ts",
     "test:experience-v7": "tsx src/experience/tests/experienceCompilerV7Acceptance.ts",
-    "test:experience-v8": "tsx src/experience/tests/experienceCompilerV8Acceptance.ts"
+    "test:experience-v8": "tsx src/experience/tests/experienceCompilerV8Acceptance.ts",
+    "test:experience-v9": "tsx src/experience/tests/experienceCompilerV9Acceptance.ts"
   }
 }
