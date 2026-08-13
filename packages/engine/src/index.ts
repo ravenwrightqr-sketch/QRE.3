@@ -63,15 +63,19 @@ export {
   suggestCreativeStrategyV11,
   mergeCreativeLearningV11,
 } from "./experience/creativeLearningV11.js";
-export type {
-  CompiledExperienceV11,
-  ExperienceCompilerContextV11,
-} from "./experience/experienceCompilerV11.js";
-export type {
-  CreativeLearningObservationV11,
-  CreativeLearningSignalV11,
-  CreativeLearningProfileV11,
-} from "./experience/creativeLearningV11.js";
+export type { CompiledExperienceV11, ExperienceCompilerContextV11 } from "./experience/experienceCompilerV11.js";
+export type { CreativeLearningObservationV11, CreativeLearningSignalV11, CreativeLearningProfileV11 } from "./experience/creativeLearningV11.js";
+
+/** V15/V16 universal memory layers: foresight, exact physical points, and travel trails. */
+export { compileExperienceV15 } from "./experience/experienceCompilerV15.js";
+export { compileUniversalMemoryV15, memoryForesightSignalsV15 } from "./experience/universalMemoryV15.js";
+export type { CompiledExperienceV15, ExperienceCompilerContextV15 } from "./experience/experienceCompilerV15.js";
+export type { UniversalMemoryV15 } from "./experience/universalMemoryV15.js";
+
+export { compileExperienceV16 } from "./experience/experienceCompilerV16.js";
+export { compileUniversalMemoryV16, memorySpatialSignalsV16 } from "./experience/universalMemoryV16.js";
+export type { CompiledExperienceV16, ExperienceCompilerContextV16 } from "./experience/experienceCompilerV16.js";
+export type { UniversalMemoryV16 } from "./experience/universalMemoryV16.js";
 
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
