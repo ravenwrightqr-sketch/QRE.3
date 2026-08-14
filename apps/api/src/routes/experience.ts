@@ -61,26 +61,34 @@ router.post("/compile", requireAuth, async (req, res) => {
       geoAnchor: geo,
     });
 
+    const warnings = [...(experience.warnings ?? [])];
     if (assetId && geo?.latitude !== undefined && geo.longitude !== undefined) {
-      const sessionId = randomUUID();
-      await createPresenceRepository().createGeoProof({
-        assetId,
-        sessionId,
-        userId: req.user?.userId,
-        lat: geo.latitude,
-        lng: geo.longitude,
-        source: `authoring:${geo.role ?? "experience_place"}`,
-        label: geo.label,
-        city: geo.city,
-        region: geo.region,
-        country: geo.country,
-      });
+      try {
+        await createPresenceRepository().createGeoProof({
+          assetId,
+          sessionId: randomUUID(),
+          userId: req.user?.userId,
+          lat: geo.latitude,
+          lng: geo.longitude,
+          source: `authoring:${geo.role ?? "experience_place"}`,
+          label: geo.label,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+        });
+      } catch (error) {
+        console.warn("[QRE][AUTHORING] GeoProof persistence failed after successful compile.", error);
+        warnings.push("geo_persistence_failed");
+      }
     }
 
-    return res.json({ success: true, experience, geo: geo ?? null });
+    return res.json({ success: true, experience: { ...experience, warnings }, geo: geo ?? null });
   } catch (error) {
     console.error("Experience compile failed:", error);
-    return res.status(500).json({ success: false, error: "Failed to compile experience." });
+    const details = process.env.NODE_ENV === "production"
+      ? undefined
+      : error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ success: false, error: "Failed to compile experience.", details });
   }
 });
 
