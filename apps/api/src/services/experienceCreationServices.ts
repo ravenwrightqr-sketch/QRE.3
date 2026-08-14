@@ -5,6 +5,7 @@ import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
 import { buildSponsorPolicy } from "@qre/engine";
 import { generateAiExperienceDraft } from "./aiProvider.js";
+import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
 
 export type SponsorInput = {
   enabled?: boolean;
@@ -79,6 +80,7 @@ export async function createExperience(input: CreateExperienceInput) {
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
   const sponsor = buildSponsorPolicy(input.sponsor ?? {});
   const compiledWorld = compiled?.world as { lens?: string } | undefined;
+  const learning = await getCreativeLearningContext({ assetId: input.assetId, userId: input.userId });
 
   let aiDraft: string | null = null;
   try {
@@ -88,6 +90,7 @@ export async function createExperience(input: CreateExperienceInput) {
       sourceMoments: (compiled.moments ?? []).map((moment: any) => typeof moment?.text === "string" ? moment.text : "").filter(Boolean),
       facts: compiledFacts(compiled),
       memoryContext: compiled.discoveries ?? [],
+      creativeLearningContext: learningContextLines(learning),
       audience: "customer-facing QRE experience",
     });
     if (aiDraft) applyGenerativeDraft(compiled, aiDraft);
@@ -106,6 +109,8 @@ export async function createExperience(input: CreateExperienceInput) {
       behaviorAware: true,
       sponsorAware: Boolean(sponsor),
       generativeAuthor: Boolean(aiDraft),
+      learningAware: true,
+      learnedCreativePreferences: learningContextLines(learning),
     },
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
     generativeDraft: aiDraft,
@@ -116,11 +121,11 @@ export async function createExperience(input: CreateExperienceInput) {
     data: {
       name: experience.title ?? "Experience",
       version: 1,
-      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor, generativeAuthor: Boolean(aiDraft) },
+      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor, generativeAuthor: Boolean(aiDraft), learningAware: true },
       steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
     },
     include: { steps: true },
   });
   await db.experience.update({ where: { id: experience.id }, data: { flow: { connect: { id: flow.id } } } });
-  return { experience, flow, compiled, entityMemory, sponsor, aiDraft };
+  return { experience, flow, compiled, entityMemory, sponsor, aiDraft, learning };
 }
