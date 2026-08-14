@@ -78,12 +78,13 @@ export async function createExperience(input: CreateExperienceInput) {
   const compiled = await compileExperience({ prompt: input.prompt.trim(), assetId: input.assetId, userId: input.userId, memoryRepository });
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
   const sponsor = buildSponsorPolicy(input.sponsor ?? {});
+  const compiledWorld = compiled?.world as { lens?: string } | undefined;
 
   let aiDraft: string | null = null;
   try {
     aiDraft = await generateAiExperienceDraft({
       prompt: input.prompt.trim(),
-      lens: compiled.world?.lens,
+      lens: compiledWorld?.lens,
       sourceMoments: (compiled.moments ?? []).map((moment: any) => typeof moment?.text === "string" ? moment.text : "").filter(Boolean),
       facts: compiledFacts(compiled),
       memoryContext: compiled.discoveries ?? [],
