@@ -51,7 +51,6 @@ export async function recordCreativeFeedback(input: {
       type,
       meta: {
         userId: input.userId ?? null,
-        decisionSource: "human",
         prompt: clean(input.prompt).slice(0, 4000),
         draft: clean(input.draft).slice(0, 12000),
         feedback: clean(input.feedback).slice(0, 4000),
@@ -77,7 +76,16 @@ export async function getCreativeLearningContext(input: {
   });
 
   if (!asset) {
-    return { signals: [], acceptedPatterns: [], rejectedPatterns: [], recentFeedback: [], autonomousSignals: [], autonomousWinners: [], autonomousWeaknesses: [], autonomousConfidence: 0 };
+    return {
+      signals: [],
+      acceptedPatterns: [],
+      rejectedPatterns: [],
+      recentFeedback: [],
+      autonomousSignals: [],
+      autonomousWinners: [],
+      autonomousWeaknesses: [],
+      autonomousConfidence: 0,
+    };
   }
 
   let scopeAssetIds = [asset.id];
@@ -103,19 +111,16 @@ export async function getCreativeLearningContext(input: {
     if (owned.length) scopeAssetIds = owned.map((row) => row.id);
   }
 
-  const [events, autonomous] = await Promise.all([
-    db.analyticsEvent.findMany({
-      where: {
-        assetId: { in: scopeAssetIds },
-        type: {
-          in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
-        },
+  const events = await db.analyticsEvent.findMany({
+    where: {
+      assetId: { in: scopeAssetIds },
+      type: {
+        in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
       },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    }),
-    getAutonomousLearning({ assetId: input.assetId, userId: input.userId, limit: Math.max(limit, 120) }),
-  ]);
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
 
   const accepted: string[] = [];
   const rejected: string[] = [];
@@ -135,7 +140,7 @@ export async function getCreativeLearningContext(input: {
     const sameAsset = event.assetId === input.assetId;
     const prefix = sameUser ? "your preference" : "account preference";
     const scope = sameAsset ? "this experience" : "another experience";
-    const source = clean(meta.decisionSource) || "human";
+    const source = event.type.startsWith("AI_") ? "explicit" : "observed";
 
     if (event.type === "AI_CREATIVE_REJECTED") {
       if (feedback) rejected.push(`${prefix}: avoid ${feedback}`);
@@ -153,9 +158,15 @@ export async function getCreativeLearningContext(input: {
     if (feedback) recentFeedback.push(`${source.toUpperCase()} ${event.type}: ${feedback.slice(0, 350)}`);
   }
 
+  const autonomous = await getAutonomousLearning({
+    assetId: input.assetId,
+    userId: input.userId,
+    limit,
+  });
+
   signals.push(...autonomous.signals);
   accepted.push(...autonomous.winningPatterns);
-  rejected.push(...autonomous.weaknesses);
+  rejected.push(...autonomous.weakPatterns);
 
   return {
     signals: unique(signals).slice(0, 40),
@@ -173,10 +184,9 @@ export function learningContextLines(context: CreativeLearningContext): string[]
   return [
     ...context.acceptedPatterns.map((value) => `LEARNED_PREFERENCE: ${value}`),
     ...context.rejectedPatterns.map((value) => `LEARNED_AVOIDANCE: ${value}`),
-    ...context.autonomousWinners.map((value) => `AUTONOMOUS_LEARNING_WINNER: ${value}`),
-    ...context.autonomousWeaknesses.map((value) => `AUTONOMOUS_LEARNING_WEAKNESS: ${value}`),
+    ...context.autonomousWinners.map((value) => `AUTO_LEARNED_WINNER: ${value}`),
+    ...context.autonomousWeaknesses.map((value) => `AUTO_LEARNED_WEAKNESS: ${value}`),
     ...context.recentFeedback.map((value) => `RECENT_FEEDBACK: ${value}`),
-    ...context.signals.slice(0, 12).map((value) => `LEARNING_SIGNAL: ${value}`),
-    `AUTONOMOUS_CONFIDENCE: ${context.autonomousConfidence.toFixed(2)}`,
+    ...context.signals.slice(0, 10).map((value) => `LEARNING_SIGNAL: ${value}`),
   ].slice(0, 100);
 }
