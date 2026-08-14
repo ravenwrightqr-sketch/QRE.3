@@ -19,6 +19,7 @@ export type WorldEvent = {
   evidence: WorldEvidence[];
   resolvedFromMemory?: boolean;
 };
+
 export type WorldModel = {
   prompt: string;
   lens: CognitiveLens;
@@ -33,20 +34,29 @@ export type WorldModel = {
   entitiesByKind: ExperienceEntities;
 };
 
+/**
+ * Bootstrap semantic lexicons are only used for event/state boundary detection.
+ * Places, objects, businesses, landmarks, rooms and other real-world entities
+ * are discovered from grammatical role + evidence, never from a finite place list.
+ */
 const ACTIONS = [
   "arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened","surrendered","disappeared","appeared","continued","waited","lingered","kept","became"
 ] as const;
 const ACTION_RE = new RegExp(`\\b(?:${ACTIONS.join("|")})\\b`, "i");
 const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked)\b/i;
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b/i;
-const PLACE_WORDS = ["restaurant","bar","club","museum","theater","theatre","park","beach","hotel","house","home","kitchen","bathroom","bathrooms","living room","bedroom","garage","school","office","stadium","arena","shop","store","airport","station","road","street","city","town","warehouse","church","hall","studio","groomer","gym","spa","backyard","venue","pier","lake","mountain","forest","farm","garden","downtown","desert","convention","expo"];
-const PLACE_RE = new RegExp(`\\b(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
-const EXPLICIT_PLACE_RE = new RegExp(`\\b(?:at|in|inside|near|around|outside|on|to)\\s+(?:the\\s+)?((?:[A-Za-z][A-Za-z'’-]*\\s+){0,3}(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")}))\\b`, "i");
-const RETURN_RE = /\b(?:back|again|returned|returning|same place|there)\b/i;
+const SPATIAL_PREP_RE = /\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\b/i;
+const RETURN_RE = /\b(?:back|again|returned|returning|same place|there|here)\b/i;
+const SENTENCE_BOUNDARY_RE = /(?<=[.!?])\s+|\n+/;
+const CONJUNCTION_RE = /\b(?:then|but|while|after|before)\b/i;
+const STOPWORD_RE = /^(?:I|We|The|Then|At|And|My|Our|This|A|An|By|He|She|They|Guests|Everyone|Grandma|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday)$/i;
+const PRONOUN_RE = /^(?:I|we|you|he|she|they|it|this|that|these|those|someone|something|everyone|guests)$/i;
+const LEADING_DETERMINER_RE = /^(?:the|a|an|my|our|your|his|her|their|this|that|these|those)\s+/i;
 
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const sentence = (value: unknown) => clean(value).replace(/[.!?]+$/, "");
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function semanticIndex(text: string, start = 0): number | undefined {
   const fragment = text.slice(start);
@@ -56,19 +66,20 @@ function semanticIndex(text: string, start = 0): number | undefined {
   return first?.index === undefined ? undefined : start + first.index;
 }
 
-function splitClauses(input: string): string[] {
+function splitIndependentClauses(input: string): string[] {
   const text = sentence(input);
   const out: string[] = [];
   let start = 0;
-  for (const match of text.matchAll(/\b(?:then|but|while|after|before)\b/gi)) {
+  for (const match of text.matchAll(CONJUNCTION_RE)) {
     if (match.index === undefined) continue;
-    const next = semanticIndex(text, match.index + match[0].length);
-    if (next === undefined) continue;
-    const piece = sentence(text.slice(start, match.index));
-    if (piece.length >= 5) out.push(piece);
+    const rightStart = match.index + match[0].length;
+    const right = text.slice(rightStart).trim();
+    if (!right || semanticIndex(right) === undefined) continue;
+    const left = sentence(text.slice(start, match.index));
+    if (left.length >= 5) out.push(left);
     start = match.index;
   }
-  const tail = sentence(text.slice(start));
+  const tail = sentence(text.slice(start).replace(/^(?:then|but|while|after|before)\s+/i, ""));
   if (tail.length >= 5) out.push(tail);
   return out.length ? out : [text];
 }
@@ -76,7 +87,7 @@ function splitClauses(input: string): string[] {
 function splitCoordinatedActions(clause: string): string[] {
   const text = sentence(clause);
   const boundaries: number[] = [];
-  for (const match of text.matchAll(/\b(?:and|&|then|but)\b/gi)) {
+  for (const match of text.matchAll(/\b(?:and|&)\b/gi)) {
     if (match.index === undefined) continue;
     const left = text.slice(0, match.index);
     const right = text.slice(match.index + match[0].length);
@@ -88,80 +99,98 @@ function splitCoordinatedActions(clause: string): string[] {
   for (const boundary of boundaries) {
     const piece = sentence(text.slice(start, boundary));
     if (piece.length >= 5) parts.push(piece);
-    start = boundary;
+    start = boundary + 1;
   }
   const tail = sentence(text.slice(start));
   if (tail.length >= 5) parts.push(tail);
-  return parts.length ? parts.map((part) => sentence(part.replace(/^(?:and|&|then|but)\s+/i, ""))) : [text];
+  return parts.length ? parts : [text];
 }
 
 function splitPrompt(prompt: string): string[] {
-  const sentences = clean(prompt).split(/\n+|(?<=[.!?])\s+/).map(sentence).filter(Boolean);
+  const sentences = clean(prompt).split(SENTENCE_BOUNDARY_RE).map(sentence).filter(Boolean);
   const result: string[] = [];
-  for (const value of sentences) {
-    for (const clause of splitClauses(value)) {
-      const parts = clause.split(/,\s+/).map(sentence).filter(Boolean);
-      let current = "";
-      for (const part of parts) {
-        const semantic = semanticIndex(part);
-        const currentSemantic = current ? semanticIndex(current) : undefined;
-        if (current && semantic !== undefined && currentSemantic !== undefined) {
-          result.push(current);
-          current = part.replace(/^(?:and|&|then|but)\s+/i, "");
-        } else current = current ? `${current}, ${part}` : part;
-      }
-      if (current) result.push(current);
-      const coordinated = splitCoordinatedActions(result.splice(result.length - (parts.length ? 1 : 0))[0] ?? "");
-      if (coordinated.length > 1) result.push(...coordinated);
+  for (const rawSentence of sentences) {
+    for (const clause of splitIndependentClauses(rawSentence)) {
+      for (const actionClause of splitCoordinatedActions(clause)) result.push(actionClause);
     }
   }
   return unique(result);
 }
 
 function properNames(text: string): string[] {
-  const stop = /^(?:I|We|The|Then|At|And|My|Our|This|A|An|By|He|She|They|Guests|Everyone|Grandma|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday)$/i;
-  return unique([...text.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]).filter((v) => !stop.test(v)));
+  return unique([...text.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*){0,4}\b/g)]
+    .map((match) => match[0])
+    .filter((value) => !STOPWORD_RE.test(value)));
 }
 
 function participants(text: string, carry: string[]): string[] {
   const index = semanticIndex(text);
   if (index === undefined) return carry;
   const prefix = sentence(text.slice(0, index).replace(/^(?:then|but|and)\s+/i, ""));
+  const explicit = prefix.match(/^([A-Z][A-Za-z'’-]*)\s+(?:and|&)\s+([A-Z][A-Za-z'’-]*)$/);
+  if (explicit) return unique([explicit[1]!, explicit[2]!]);
   const names = properNames(prefix);
-  const pair = prefix.match(/^([A-Z][A-Za-z'’-]*)\s+(?:and|&)\s+([A-Z][A-Za-z'’-]*)$/);
-  return pair ? unique([pair[1]!, pair[2]!]) : names.length ? names : carry;
-}
-
-function placeOf(text: string): string | undefined {
-  const explicit = text.match(EXPLICIT_PLACE_RE)?.[1];
-  if (explicit) return sentence(explicit).replace(/^(?:the|a|an)\s+/i, "");
-  return text.match(PLACE_RE)?.[0];
+  return names.length ? names : carry;
 }
 
 function timeOf(text: string) { return text.match(TIME_RE)?.[0]; }
 function actionOf(text: string) { return text.match(ACTION_RE)?.[0]; }
 function stateOf(text: string) { return text.match(STATE_RE)?.[0]; }
 
-function objectOf(text: string, action?: string, place?: string): string | undefined {
-  if (!action) return undefined;
-  const escaped = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(new RegExp(`\\b${escaped}\\b(?:\\s+to)?\\s+(?:the|a|an|my|our|his|her|their|this|that)?\\s*([^,.;]+)`, "i"));
-  if (!match?.[1]) return undefined;
-  const value = sentence(match[1]).replace(/\b(?:and|or|but|while|after|before|until|where)\b.*$/i, "").trim();
-  if (!value || value.length > 80) return undefined;
-  if (place && value.toLowerCase() === place.toLowerCase()) return undefined;
-  if (TIME_RE.test(value)) return undefined;
+function spatialPhraseOf(text: string): string | undefined {
+  const match = text.match(/\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\s+((?:the|a|an|my|our|your|his|her|their|this|that)\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8})/i);
+  if (!match?.[2]) return undefined;
+  const value = clean(`${match[1] ?? ""}${match[2]}`).replace(/^(?:the|a|an)\s+/i, "");
+  if (!value || PRONOUN_RE.test(value)) return undefined;
   return value;
 }
 
-function concreteDetails(text: string, participantsList: string[], place?: string, time?: string, object?: string): string[] {
-  const withoutKnown = sentence(text)
-    .replace(new RegExp(`\\b(?:${participantsList.map((x) => x.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")).join("|")})\\b`, "gi"), " ")
-    .replace(place ? new RegExp(place.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ")
-    .replace(time ? new RegExp(time.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ")
-    .replace(object ? new RegExp(object.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ");
-  const chunks = unique(withoutKnown.split(/\b(?:and|or|but|while|after|before|until|where)\b|,|;/i));
-  return chunks.filter((chunk) => chunk.length >= 3 && !ACTION_RE.test(chunk) && !STATE_RE.test(chunk) && !PLACE_RE.test(chunk) && !TIME_RE.test(chunk)).slice(0, 6);
+function subjectEntityOf(text: string, action?: string): string | undefined {
+  if (!action) return undefined;
+  const index = text.toLowerCase().indexOf(action.toLowerCase());
+  if (index <= 0) return undefined;
+  const prefix = sentence(text.slice(0, index));
+  if (!prefix || PRONOUN_RE.test(prefix)) return undefined;
+  const normalized = prefix.replace(/^(?:then|but|and)\s+/i, "").trim();
+  const value = normalized.replace(/\b(?:finally|suddenly|just|already|still|now)\b\s*/gi, " ").trim();
+  return value.length >= 2 && value.length <= 100 ? value : undefined;
+}
+
+function objectOf(text: string, action?: string): string | undefined {
+  if (!action) return undefined;
+  const escaped = escapeRegExp(action);
+  const match = text.match(new RegExp(`\\b${escaped}\\b(?:\\s+to)?\\s+(?:the|a|an|my|our|your|his|her|their|this|that)?\\s*([^,.;]+)`, "i"));
+  if (!match?.[1]) return undefined;
+  const value = sentence(match[1])
+    .replace(/\b(?:and|or|but|while|after|before|until|where|then)\b.*$/i, "")
+    .trim();
+  if (!value || value.length > 100 || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
+  return value;
+}
+
+function objectParts(value: string | undefined): string[] {
+  if (!value) return [];
+  const parts = value.split(/\s+(?:and|&|or)\s+/i).map(sentence).filter(Boolean);
+  return parts.length ? parts : [value];
+}
+
+function detailCandidates(text: string, participantsList: string[], place: string | undefined, time: string | undefined, action: string | undefined, object: string | undefined, subject: string | undefined): string[] {
+  const known = [
+    ...participantsList,
+    place ?? "",
+    time ?? "",
+    action ?? "",
+    object ?? "",
+    subject ?? "",
+  ].filter(Boolean).map(escapeRegExp);
+  const residual = known.length
+    ? text.replace(new RegExp(`\\b(?:${known.join("|")})\\b`, "gi"), " ")
+    : text;
+  const chunks = unique(residual.split(/\b(?:and|or|but|while|after|before|until|where|then)\b|,|;/i));
+  return chunks
+    .filter((chunk) => chunk.length >= 3)
+    .filter((chunk) => !ACTION_RE.test(chunk) && !STATE_RE.test(chunk) && !TIME_RE.test(chunk))
+    .slice(0, 8);
 }
 
 function lensOf(prompt: string, preferences: string[]): CognitiveLens {
@@ -178,6 +207,52 @@ function evidence(id: string, detail: string, kind: WorldKind, salience: number,
   return { id, detail, kind, salience, source, confidence: 1 };
 }
 
+function eventFromChunk(raw: string, index: number, carryParticipants: string[], carryPlace: string | undefined, memoryMatches: string[], memorySources: string[]): WorldEvent {
+  const eventParticipants = participants(raw, carryParticipants);
+  const action = actionOf(raw);
+  const state = stateOf(raw);
+  const spatialPlace = spatialPhraseOf(raw);
+  const inheritedPlace = RETURN_RE.test(raw) ? carryPlace : undefined;
+  const place = spatialPlace ?? inheritedPlace;
+  const time = timeOf(raw);
+  const object = objectOf(raw, action);
+  const objectPartsList = objectParts(object);
+  const subject = subjectEntityOf(raw, action);
+  const details = unique([
+    ...objectPartsList,
+    ...(subject && !eventParticipants.some((item) => item.toLowerCase() === subject.toLowerCase()) && !SPATIAL_PREP_RE.test(subject) ? [subject] : []),
+    ...detailCandidates(raw, eventParticipants, place, time, action, object, subject),
+  ]).filter((value) => !eventParticipants.some((item) => item.toLowerCase() === value.toLowerCase()));
+
+  const source = memorySources[index] ? "memory" : "prompt";
+  const items: WorldEvidence[] = [evidence(`event-${index}-raw`, raw, action ? "event" : "history", action || state ? 0.95 : 0.8, source)];
+  eventParticipants.forEach((value) => items.push(evidence(`event-${index}-p-${value}`, value, "entity", 1, source)));
+  if (place) items.push(evidence(`event-${index}-place`, place, "place", 1, source));
+  if (time) items.push(evidence(`event-${index}-time`, time, "time", 1, source));
+  if (state) items.push(evidence(`event-${index}-state`, state, "state", 0.85, source));
+  if (action) items.push(evidence(`event-${index}-action`, action, "event", 0.95, source));
+  objectPartsList.forEach((value) => items.push(evidence(`event-${index}-object-${value}`, value, "detail", 0.95, source)));
+  if (subject && !eventParticipants.includes(subject)) items.push(evidence(`event-${index}-subject`, subject, "entity", 0.9, source));
+  details.forEach((value) => {
+    if (!items.some((item) => item.detail.toLowerCase() === value.toLowerCase())) items.push(evidence(`event-${index}-detail-${value}`, value, "detail", 0.8, source));
+  });
+
+  return {
+    id: `event-${index + 1}`,
+    raw,
+    participants: eventParticipants,
+    action,
+    state,
+    object: objectPartsList[0],
+    place,
+    time,
+    details,
+    order: index,
+    evidence: items,
+    resolvedFromMemory: Boolean(memoryMatches.length),
+  };
+}
+
 export function buildWorldModel(prompt: string, options: { memoryMatches?: string[]; memorySources?: string[]; creativePreferences?: string[]; eventParticipants?: string[]; locationLabel?: string; eventVenue?: string } = {}): WorldModel {
   const chunks = splitPrompt(prompt);
   const events: WorldEvent[] = [];
@@ -186,36 +261,29 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
   let carryPlace = options.locationLabel ?? options.eventVenue;
 
   chunks.forEach((raw, index) => {
-    const eventParticipants = participants(raw, carryParticipants);
-    const action = actionOf(raw);
-    const state = stateOf(raw);
-    const place = placeOf(raw) ?? (RETURN_RE.test(raw) ? carryPlace : undefined);
-    const time = timeOf(raw);
-    const object = objectOf(raw, action, place);
-    const detailList = concreteDetails(raw, eventParticipants, place, time, object);
-    if (eventParticipants.length) carryParticipants = eventParticipants;
-    if (place) carryPlace = place;
-    const items: WorldEvidence[] = [evidence(`event-${index}-raw`, raw, action ? "event" : "history", action || state ? 0.95 : 0.8, options.memorySources?.[index] ? "memory" : "prompt")];
-    eventParticipants.forEach((value) => items.push(evidence(`event-${index}-p-${value}`, value, "entity", 1)));
-    if (place) items.push(evidence(`event-${index}-place`, place, "place", 1));
-    if (time) items.push(evidence(`event-${index}-time`, time, "time", 1));
-    if (state) items.push(evidence(`event-${index}-state`, state, "state", 0.85));
-    if (object) items.push(evidence(`event-${index}-object`, object, "detail", 0.95));
-    detailList.forEach((value) => items.push(evidence(`event-${index}-detail-${value}`, value, "detail", 0.9)));
-    events.push({ id: `event-${index + 1}`, raw, participants: eventParticipants, action, state, object, place, time, details: detailList, order: index, evidence: items, resolvedFromMemory: Boolean(options.memoryMatches?.length) });
-    allEvidence.push(...items);
+    const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []);
+    events.push(event);
+    allEvidence.push(...event.evidence);
+    if (event.participants.length) carryParticipants = event.participants;
+    if (event.place) carryPlace = event.place;
   });
 
   const participantsList = unique(events.flatMap((event) => event.participants));
-  const places = unique(events.map((event) => event.place ?? ""));
-  const times = unique(events.map((event) => event.time ?? ""));
-  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]));
-  const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]);
+  const places = unique(events.flatMap((event) => [event.place ?? ""]).filter(Boolean));
+  const times = unique(events.map((event) => event.time ?? "").filter(Boolean));
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]).filter(Boolean));
+  const entities = unique([
+    ...participantsList,
+    ...places,
+    ...objects,
+    ...events.flatMap((event) => event.evidence.filter((item) => item.kind === "entity").map((item) => item.detail)),
+  ]);
+
   const relations: WorldRelation[] = [];
   for (const event of events) {
     for (const participant of event.participants) {
       if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` });
-      if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object` });
+      if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object-${event.object}` });
     }
     for (let i = 0; i < event.participants.length; i += 1) {
       for (let j = i + 1; j < event.participants.length; j += 1) {
@@ -237,6 +305,13 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
     organizations: [],
     concepts: [],
     other: [],
+    products: [],
+    dates: [],
+    times,
+    urls: [],
+    phones: [],
+    emails: [],
+    keywords: [],
   };
 
   return {
