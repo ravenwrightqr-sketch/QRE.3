@@ -34,6 +34,8 @@ export function learningInput(state: CognitiveMindState) {
     preferences: state.creativeLearning.preferences,
     accepted: state.creativeLearning.accepted,
     rejected: state.creativeLearning.rejected,
+    usedPhrases: state.creativeLearning.usedPhrases,
+    noveltyPressure: state.creativeLearning.noveltyPressure,
   };
 }
 
