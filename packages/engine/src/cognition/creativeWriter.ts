@@ -10,7 +10,12 @@ export type WriterMove =
   | "suspense"
   | "tender"
   | "reversal"
-  | "understatement";
+  | "understatement"
+  | "detail-first"
+  | "place-first"
+  | "time-first"
+  | "consequence-first"
+  | "implication-first";
 
 export type WriterDraft = {
   text: string;
@@ -24,17 +29,7 @@ const lower = (value: string) => clean(value).toLowerCase();
 function dominantObject(event: WorldEvent): string | undefined {
   return event.object || event.details.find((detail) => detail.length >= 3);
 }
-
-function movePool(lens: CognitiveLens, event: WorldEvent): WriterMove[] {
-  if (lens === "comedy") return ["trickster", "comic", "reversal", "understatement", "observer"];
-  if (lens === "horror") return ["suspense", "observer", "reversal", "understatement", "director"];
-  if (lens === "romance") return ["tender", "historian", "poet", "observer", "understatement"];
-  if (lens === "mysterious") return ["suspense", "observer", "reversal", "historian", "poet"];
-  if (lens === "wild") return ["trickster", "comic", "director", "reversal", "observer"];
-  if (event.details.length >= 2) return ["observer", "poet", "historian", "reversal", "understatement"];
-  return ["observer", "poet", "historian", "understatement", "reversal"];
-}
-
+function contextualNoun(event: WorldEvent): string { return event.object || event.place || event.details[0] || "the detail"; }
 function objectKernel(object: string | undefined): string | undefined {
   if (!object) return undefined;
   const v = lower(object);
@@ -49,36 +44,33 @@ function objectKernel(object: string | undefined): string | undefined {
   if (/\b(?:snow|rain|ocean|lake|sunrise|sunset|night|storm)\b/.test(v)) return "atmosphere";
   return undefined;
 }
-
-function contextualNoun(event: WorldEvent): string {
-  return event.object || event.place || event.details[0] || "the detail";
+function movePool(lens: CognitiveLens, event: WorldEvent): WriterMove[] {
+  if (lens === "comedy") return ["trickster", "comic", "reversal", "understatement", "detail-first"];
+  if (lens === "horror") return ["suspense", "observer", "reversal", "understatement", "implication-first"];
+  if (lens === "romance") return ["tender", "historian", "poet", "observer", "detail-first"];
+  if (lens === "mysterious") return ["suspense", "observer", "reversal", "historian", "place-first"];
+  if (lens === "wild") return ["trickster", "comic", "director", "reversal", "consequence-first"];
+  if (event.details.length >= 2) return ["observer", "poet", "historian", "reversal", "detail-first"];
+  return ["observer", "poet", "historian", "understatement", "implication-first"];
 }
 
-function leadVariants(event: WorldEvent, world: WorldModel): WriterDraft[] {
-  const drafts: WriterDraft[] = [];
+function entryVariants(event: WorldEvent, lens: CognitiveLens): WriterDraft[] {
   const raw = clean(event.raw);
-  const subject = event.participants.join(" and ") || event.place || event.object || "the moment";
   const object = dominantObject(event);
   const place = event.place;
   const time = event.time;
-  const detail = event.details[0];
-  const lens = world.lens;
+  const detail = event.details.find((value) => lower(value) !== lower(object ?? ""));
+  const drafts: WriterDraft[] = [];
+  const add = (text: string, move: WriterMove, ...details: string[]) => { const value = clean(text); if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details }); };
 
-  const add = (text: string, move: WriterMove, ...details: string[]) => {
-    const value = clean(text);
-    if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details });
-  };
-
-  if (time && subject) add(`${time} was when ${subject} ${event.action ?? "was"}${object ? ` with ${object}` : ""}${place ? ` at ${place}` : ""}`, "director", "time-first opening", "cinematic anchoring");
-  if (place && subject) add(`${place} had the scene before ${subject} did`, "director", "place-first opening", "setting as character");
-  if (object && subject) add(`The ${object} was the easiest detail to notice about ${subject}`, "observer", "object-first opening", "attention redirection");
-  if (detail && detail !== object) add(`${detail} sounds incidental until the rest of the moment catches up with it`, "poet", "detail-first opening", "semantic reweighting");
-  if (lens === "comedy" && subject) add(`${subject} had apparently decided that ordinary was optional`, "trickster", "character-first opening", "comic personification");
-  if (lens === "horror" && place) add(`${place} was quiet in exactly the way quiet places sometimes become suspicious`, "suspense", "atmosphere-first opening", "horror implication");
-  if (lens === "romance" && object) add(`${object} was only an object until memory gave it a longer job`, "historian", "memory-first opening", "romantic object elevation");
-  if (lens === "mysterious" && detail) add(`${detail} was the detail that refused to stay in the background`, "suspense", "clue-first opening", "mystery emphasis");
-  if (lens === "wild" && event.action) add(`${subject}'s ${event.action} was the moment the day stopped pretending it had a quiet plan`, "trickster", "consequence-first opening", "escalation");
-
+  if (object) add(`${object} was the first detail worth noticing`, "detail-first", "attention shift", "object-first entry");
+  if (place) add(`${place} set the scene before anyone explained what the moment meant`, "place-first", "setting-first entry");
+  if (time) add(`${time} looked ordinary on the clock; the sequence around it was less ordinary`, "time-first", "temporal contrast");
+  if (detail) add(`${detail} looked incidental until the rest of the event gave it weight`, "detail-first", "detail revaluation");
+  if (object && place) add(`At ${place}, ${object} became more than background detail`, "place-first", "contextual elevation");
+  if (lens === "horror" && place) add(`The unsettling part was that ${place} still looked completely normal`, "implication-first", "ordinary-to-ominous");
+  if (lens === "romance" && detail) add(`${detail} was small enough to overlook and exact enough to remember`, "detail-first", "romantic compression");
+  if (lens === "comedy" && object) add(`${object} had somehow become the most overqualified part of the situation`, "trickster", "comic incongruity");
   return drafts;
 }
 
@@ -89,14 +81,8 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
   const kernel = objectKernel(object);
   const subject = event.participants.join(" and ") || event.place || object || "the moment";
   const moves = movePool(world.lens, event);
-  const drafts: WriterDraft[] = [];
-
-  const add = (text: string, move: WriterMove, ...details: string[]) => {
-    const value = clean(text);
-    if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details });
-  };
-
-  drafts.push(...leadVariants(event, world));
+  const drafts: WriterDraft[] = [...entryVariants(event, world.lens)];
+  const add = (text: string, move: WriterMove, ...details: string[]) => { const value = clean(text); if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details }); };
 
   if (kernel === "ornament") add(`${raw}. The ${noun} was technically an accessory; memory had clearly promoted it`, "poet", "object elevation", "specific association");
   if (kernel === "memory-artifact") add(`${raw}. The ${noun} had stopped being an object and started behaving like evidence`, "historian", "artifact-as-history", "memory framing");
@@ -120,6 +106,11 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
       case "tender": add(`${raw}. It was small enough to miss and exact enough to become important later`, move, "emotional compression", "future-memory cue"); break;
       case "reversal": add(`${raw}. What looked like the point of the moment was only the setup for what it meant`, move, "reversal", "reinterpretation"); break;
       case "understatement": add(`${raw}. No fireworks required. The detail had already done its job`, move, "understatement", "restraint"); break;
+      case "detail-first": if (object) add(`${object} was the part that refused to behave like background`, move, "detail elevation"); break;
+      case "implication-first": if (detail) add(`${detail} was enough to make the rest of the facts read differently`, move, "implication-first"); break;
+      case "consequence-first": if (previous) add(`After that, ${noun} carried more consequence than it had a moment earlier`, move, "consequence-first"); break;
+      case "place-first": if (event.place) add(`${event.place} did not change, but the meaning of the scene did`, move, "place-first"); break;
+      case "time-first": if (event.time) add(`${event.time} was only a timestamp until the surrounding details gave it a memory`, move, "time-first"); break;
     }
   }
 
