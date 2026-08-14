@@ -28,11 +28,22 @@ function wordOverlap(left: string, right: string): number {
   return [...a].filter((word) => b.has(word)).length / Math.max(1, Math.min(a.size, b.size));
 }
 
-function subjectRepetitionPenalty(candidate: CreativeCandidate, prior: CreativeCandidate[]): number {
+function lead(value: string, count = 3): string {
+  return lower(value).split(/\s+/).filter(Boolean).slice(0, count).join(" ");
+}
+
+function leadRepetitionPenalty(candidate: CreativeCandidate, prior: CreativeCandidate[]): number {
   if (!prior.length) return 0;
-  const subject = candidate.text.split(/\s+/).slice(0, 3).join(" ");
-  const sameLead = prior.some((item) => lower(item.text).startsWith(lower(subject)));
-  return sameLead ? 9 : 0;
+  const three = lead(candidate.text, 3);
+  const two = lead(candidate.text, 2);
+  const one = lead(candidate.text, 1);
+  let penalty = 0;
+  for (const item of prior) {
+    if (three && three === lead(item.text, 3)) penalty += 26;
+    else if (two && two === lead(item.text, 2)) penalty += 13;
+    else if (one && one === lead(item.text, 1)) penalty += 4;
+  }
+  return penalty;
 }
 
 export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEvent, prior: CreativeCandidate[] = []): Critique {
@@ -44,7 +55,8 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
     TEMPLATE_RE.test(candidate.text) ? "template-repetition-risk" : "",
   ].filter(Boolean);
   const coverageRatio = required.length === 0 ? 1 : 1 - missingEvidence.length / Math.max(1, required.length);
-  const repetitionPenalty = subjectRepetitionPenalty(candidate, prior) + Math.max(0, wordOverlap(candidate.text, prior.at(-1)?.text ?? "") - 0.72) * 16;
+  const leadPenalty = leadRepetitionPenalty(candidate, prior);
+  const repetitionPenalty = leadPenalty + Math.max(0, wordOverlap(candidate.text, prior.at(-1)?.text ?? "") - 0.72) * 16;
   const score = candidate.score + coverageRatio * 20 - violations.length * 50 - repetitionPenalty;
   return {
     accepted: missingEvidence.length === 0 && violations.length === 0,
@@ -54,6 +66,7 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
     reasons: [
       missingEvidence.length ? `missing evidence: ${missingEvidence.join(", ")}` : "explicit evidence conserved",
       violations.length ? violations.join(", ") : "no generic realization leak",
+      leadPenalty ? "repeated sentence lead penalized heavily" : "sentence lead remains distinct",
       repetitionPenalty ? "sequence repetition penalized" : "sequence voice remains distinct",
     ],
   };
