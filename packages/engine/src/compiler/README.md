@@ -5,7 +5,7 @@ CANONICAL. This directory is the single compiler surface for customer-language e
 
 ## Canonical pipeline
 
-`prompt → source evidence → world model → memory resolution → event segmentation → evidence conservation → change/attention → creative hypotheses → ranked realization → ExperienceMoment[] → CinematicScene[]`
+`prompt → source evidence → world model → memory resolution → semantic event segmentation → evidence conservation → change/attention → creative hypotheses → ranked realization → ExperienceMoment[] → CinematicScene[]`
 
 ## Core law
 
@@ -31,19 +31,22 @@ Source facts are preserved before creative interpretation.
 
 Observed prompt evidence outranks derived interpretation. Creative language is presentation, not factual evidence. Semantic directives are never customer-facing facts.
 
-## Event segmentation
+## Semantic event segmentation
 
-A single human sentence may contain many events.
+A single human sentence may contain multiple kinds of reality.
+
+The splitter recognizes both action events and state/history events.
 
 Examples:
 
 - `Coco came in, loved the bath, stole a bow, and went home.`
 - `Alex and Sam went back to the restaurant and stayed until closing.`
 - `Maria cleaned the kitchen and bathrooms, then the living room surrendered.`
+- `This blue teapot has been in our family for forty years and appeared at every Thanksgiving.`
 
-The compiler must discover the individual event sequence rather than treating the entire sentence as one event.
+A memory does not need a conventional action verb to become a useful experience sequence. Historical state (`has been`, `was`, `remained`, etc.) is itself meaningful evidence.
 
-Segmentation is universal and evidence-based. It must not become a domain-specific parser.
+Semantic segmentation must remain universal and evidence-based. It must not become a domain-specific parser.
 
 ## Evidence conservation during realization
 
@@ -57,6 +60,7 @@ High-value event evidence includes:
 - explicit time/date
 - explicit temporal endpoint such as `until closing`
 - explicit relationship or recurrence
+- explicit historical duration such as `for forty years`
 
 A creative candidate that loses a high-value anchor is rejected or heavily penalized in ranking. Creativity must elaborate reality, not erase it.
 
@@ -159,4 +163,4 @@ Primary gate:
 
 `pnpm --filter @qre/engine test:universal-mind`
 
-A compiler change is not accepted merely because TypeScript builds. The generated experience must preserve source reality, form a meaningful sequence, avoid cognitive leakage, conserve high-value time/place/relationship evidence, use memory correctly, and demonstrate genuinely different creative performance when the lens changes.
+A compiler change is not accepted merely because TypeScript builds. The generated experience must preserve source reality, form a meaningful sequence, avoid cognitive leakage, conserve high-value time/place/relationship/history evidence, use memory correctly, and demonstrate genuinely different creative performance when the lens changes.
