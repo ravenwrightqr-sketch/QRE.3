@@ -1,1 +1,0 @@
-Quality gate: unseen-style creative prompts, evidence conservation, provenance, diversity, recurrence, adaptation.
