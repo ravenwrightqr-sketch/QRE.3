@@ -13,11 +13,6 @@ export type WorldModel = {
   events: WorldEvent[]; relations: WorldRelation[]; evidence: WorldEvidence[]; memoryMatches: string[]; entitiesByKind: ExperienceEntities;
 };
 
-/**
- * Only action/state recognition uses a bounded bootstrap lexicon. Real-world
- * entities and places are open-world mentions discovered from grammatical role,
- * context and evidence. There is intentionally no PLACE_WORDS dictionary.
- */
 const ACTIONS = ["arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened","surrendered","disappeared","appeared","continued","waited","lingered","kept","became"] as const;
 const ACTION_RE = new RegExp(`\\b(?:${ACTIONS.join("|")})\\b`, "i");
 const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked)\b/i;
@@ -52,6 +47,21 @@ function splitIndependentClauses(input: string): string[] {
   return out.length ? out : [text];
 }
 
+function splitCommaActionClauses(input: string): string[] {
+  const text = sentence(input); const parts: string[] = []; let start = 0;
+  for (const match of text.matchAll(/,\s+/g)) {
+    if (match.index === undefined) continue;
+    const right = text.slice(match.index + match[0].length).trim();
+    if (semanticIndex(right) === undefined) continue;
+    const left = sentence(text.slice(start, match.index));
+    if (left.length >= 5) parts.push(left);
+    start = match.index + match[0].length;
+  }
+  const tail = sentence(text.slice(start));
+  if (tail.length >= 5) parts.push(tail);
+  return parts.length > 1 ? parts : [text];
+}
+
 function splitCoordinatedActions(clause: string): string[] {
   const text = sentence(clause); const boundaries: Array<{ index: number; length: number }> = [];
   for (const match of text.matchAll(/\b(?:and|&)\b/gi)) {
@@ -68,7 +78,7 @@ function splitCoordinatedActions(clause: string): string[] {
 
 function splitPrompt(prompt: string): string[] {
   const sentences = clean(prompt).split(/(?<=[.!?])\s+|\n+/).map(sentence).filter(Boolean);
-  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCoordinatedActions)));
+  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCommaActionClauses).flatMap(splitCoordinatedActions)));
 }
 
 function properNames(text: string): string[] {
@@ -89,12 +99,8 @@ function spatialPhraseOf(text: string): string | undefined {
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
   const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "i");
   const match = text.match(pattern); if (!match?.[1]) return undefined;
-  let value = sentence(match[1]);
-  // Prepositional phrases can begin with "at" for both places and times.
-  // TIME_RE gets first right of refusal so "at 7 PM" cannot erase a remembered place.
-  if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
-  value = value.replace(/\s+(?:at|on|in|around|near)\s+.*$/i, "").trim();
-  return value || undefined;
+  const value = sentence(match[1]); if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
+  return value;
 }
 function subjectEntityOf(text: string, action?: string): string | undefined {
   if (!action) return undefined; const index = text.toLowerCase().indexOf(action.toLowerCase()); if (index <= 0) return undefined;
@@ -135,24 +141,15 @@ function eventFromChunk(raw: string, index: number, carryParticipants: string[],
 export function buildWorldModel(prompt: string, options: { memoryMatches?: string[]; memorySources?: string[]; creativePreferences?: string[]; eventParticipants?: string[]; locationLabel?: string; eventVenue?: string } = {}): WorldModel {
   const chunks = splitPrompt(prompt); const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = []; let carryParticipants = unique(options.eventParticipants ?? []); let carryPlace = options.locationLabel ?? options.eventVenue;
   chunks.forEach((raw, index) => { const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []); events.push(event); allEvidence.push(...event.evidence); if (event.participants.length) carryParticipants = event.participants; if (event.place) carryPlace = event.place; });
-  const participantsList = unique(events.flatMap((event) => event.participants));
-  const places = unique(events.map((event) => event.place ?? "")); const times = unique(events.map((event) => event.time ?? ""));
-  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details])); const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]);
-  const relations: WorldRelation[] = [];
+  const participantsList = unique(events.flatMap((event) => event.participants)); const places = unique(events.map((event) => event.place ?? "")); const times = unique(events.map((event) => event.time ?? ""));
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details])); const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]); const relations: WorldRelation[] = [];
   for (const event of events) {
     for (const participant of event.participants) {
       if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` });
       if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object-${event.object}` });
     }
-    for (let i = 0; i < event.participants.length; i += 1) for (let j = i + 1; j < event.participants.length; j += 1) {
-      const left = event.participants[i]!; const right = event.participants[j]!;
-      relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` });
-      relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` });
-    }
+    for (let i = 0; i < event.participants.length; i += 1) for (let j = i + 1; j < event.participants.length; j += 1) { const left = event.participants[i]!; const right = event.participants[j]!; relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` }); relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` }); }
   }
-  const entitiesByKind: ExperienceEntities = {
-    people: participantsList, places, organizations: [], dates: [], times, events: events.map((event) => event.raw), products: [],
-    objects, collections: [], concepts: [], other: [], urls: [], phones: [], media: [], emails: [], keywords: [],
-  };
+  const entitiesByKind: ExperienceEntities = { people: participantsList, places, organizations: [], dates: [], times, events: events.map((event) => event.raw), products: [], objects, collections: [], concepts: [], other: [], urls: [], phones: [], media: [], emails: [], keywords: [] };
   return { prompt, lens: lensOf(prompt, options.creativePreferences ?? []), entities, participants: participantsList, places, times, events, relations, evidence: allEvidence, memoryMatches: unique(options.memoryMatches ?? []), entitiesByKind };
 }
