@@ -20,8 +20,10 @@ function strings(context: UniversalMindContext): string[] {
   ]);
 }
 
-function memoryWorlds(entries: string[]) {
-  return entries.map((entry) => ({ entry, world: buildWorldModel(entry) }));
+function memoryEpisodes(entries: string[]) {
+  return entries
+    .map((entry, index) => ({ entry, index, world: buildWorldModel(entry) }))
+    .filter((episode) => episode.world.places.length > 0 || episode.world.events.length > 0);
 }
 
 function explicitPlaceFromPrompt(prompt: string): string | undefined {
@@ -45,38 +47,33 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
   const relevant = returning
     ? scored
     : scored.filter((item) => item.score > 0).slice(0, 6);
-  const top = relevant.slice(0, 12).map((item) => item.entry);
-  const worlds = memoryWorlds(top);
+  const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
 
-  const episodePlaces = worlds
-    .map((item) => ({ entry: item.entry, places: unique(item.world.places) }))
-    .filter((item) => item.places.length > 0);
-
-  const candidates = unique(episodePlaces.flatMap((item) => item.places));
+  const candidates = unique(episodes.flatMap((episode) => episode.world.places));
   const explicitPlace = explicitPlaceFromPrompt(prompt);
 
-  const place = explicitPlace
-    ? explicitPlace
-    : !returning && candidates.length === 1
-      ? candidates[0]
-      : returning && episodePlaces.length === 1 && candidates.length === 1
-        ? candidates[0]
-        : undefined;
+  let place: string | undefined;
+  if (explicitPlace) {
+    place = explicitPlace;
+  } else if (candidates.length === 1) {
+    place = candidates[0];
+  }
 
-  const questions = returning && !place && episodePlaces.length > 1
+  const questions = returning && candidates.length > 1 && !place
     ? ["Which place did you go back to?"]
-    : returning && !place && episodePlaces.length === 0
+    : returning && candidates.length === 0
       ? ["Where did you go back to?"]
       : [];
 
-  const participants = unique(top.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0])))
+  const topEntries = episodes.map((episode) => episode.entry);
+  const participants = unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0])))
     .filter((name) => !STOP_NAMES.test(name));
 
   return {
-    matches: top,
+    matches: topEntries,
     place,
     participants,
-    relatedTerms: unique(top.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40),
+    relatedTerms: unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40),
     questions,
   };
 }
