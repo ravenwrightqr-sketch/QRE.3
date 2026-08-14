@@ -4,7 +4,6 @@
  * =====================================================
  */
 
-export type { Moment, MomentMeta } from "./moment.js";
 export type { CinematicScene, CinematicSceneType, SceneAudio, SceneVisual, SceneTransition } from "./cinematic.js";
 export * from "./scan.js";
 export type { ScanResponse } from "./scanResponse.js";
