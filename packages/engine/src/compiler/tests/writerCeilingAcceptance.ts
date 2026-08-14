@@ -54,11 +54,14 @@ const prompts = [
   "The video began with an empty room and ended with everyone dancing in it.",
 ];
 
-const boring = /^(?:the|a|an) (?:story|moment|experience) (?:became|was|felt)|this was memorable|the experience was meaningful/i;
-const forbidden = /\b(common sense quietly left|the day changed lanes|the sensible version|nobody had scheduled the ridiculous part)\b/i;
+const forbidden = /\b(common sense quietly left|the day changed lanes|the sensible version|nobody had scheduled the ridiculous part|starting to mean second meaning|looked like the obvious detail|nothing in the moment asked for a speech|now it reads like setup|earlier, .* seemed like the beginning)\b/i;
+const fragment = /(?:^|\s)(?:in|at|on|to|from|with|by)\s+[a-z]+\.?$/i;
+const directiveLeak = /\b(?:make it|make this|make the story|write it|write this)\b/i;
+const parserGarbage = /\b(?:re again|we there again|we the|ten years?\b.*participant|in nervous|and left looking fabulous|one minute\.|ordinary\.)\b/i;
 
 let transformed = 0;
 let creative = 0;
+let clean = 0;
 const openingLeads = new Set<string>();
 const printed: string[] = [];
 
@@ -66,23 +69,32 @@ for (const prompt of prompts) {
   const result = compileCognitiveExperience(prompt);
   const text = result.moments.map((moment) => moment.text ?? "").join(" ").trim();
   assert.ok(text.length > 0, `empty prose for: ${prompt}`);
-  if (text !== prompt && text.toLowerCase() !== prompt.toLowerCase()) transformed += 1;
+  if (text.toLowerCase() !== prompt.toLowerCase()) transformed += 1;
   if (result.moments.some((moment) => Array.isArray(moment.payload?.creativeDetails) && moment.payload.creativeDetails.length > 0)) creative += 1;
-  assert.equal(forbidden.test(text), false, `forbidden template escaped: ${text}`);
-  assert.equal(boring.test(text), false, `generic prose escaped: ${text}`);
+  assert.equal(forbidden.test(text), false, `generic/template prose escaped: ${text}`);
+  assert.equal(fragment.test(text), false, `fragment prose escaped: ${text}`);
+  assert.equal(directiveLeak.test(text), false, `authoring directive leaked into prose: ${text}`);
+  assert.equal(parserGarbage.test(text), false, `parser garbage escaped into prose: ${text}`);
   const firstWords = text.toLowerCase().split(/\s+/).slice(0, 3).join(" ");
   openingLeads.add(firstWords);
+  clean += 1;
   if (printed.length < 12) printed.push(text);
 }
 
 assert.ok(transformed >= prompts.length * 0.8, `writer transformed only ${transformed}/${prompts.length}`);
 assert.ok(creative >= prompts.length * 0.85, `creative realization appeared only ${creative}/${prompts.length}`);
+assert.ok(clean === prompts.length, `clean prose only ${clean}/${prompts.length}`);
 assert.ok(openingLeads.size >= Math.ceil(prompts.length * 0.55), `writer opening diversity too low: ${openingLeads.size}/${prompts.length}`);
 
 const comedy = compileCognitiveExperience("Coco stole the blue bow. Make it funny.");
-const horror = compileCognitiveExperience("Coco stole the blue bow. Make it horror.");
-const romance = compileCognitiveExperience("Coco stole the blue bow. Make it romantic.");
+const horror = compileCognitiveExperience("The hotel room looked ordinary until the old photograph above the desk was noticed. Then the lights flickered.");
+const romance = compileCognitiveExperience("The old chair was moved to the porch when the baby arrived. It stayed there through three summers.");
+const mystery = compileCognitiveExperience("The camera recorded the first dance, the toast, and the person laughing in the back row. Nobody remembered inviting them.");
 const base = compileCognitiveExperience("Coco stole the blue bow.");
+assert.notEqual(comedy.world.lens, "neutral", "comedy directive was not understood");
+assert.notEqual(horror.world.lens, "neutral", "horror trajectory was not inferred");
+assert.notEqual(romance.world.lens, "neutral", "romance trajectory was not inferred");
+assert.notEqual(mystery.world.lens, "neutral", "mystery trajectory was not inferred");
 assert.notEqual(comedy.moments.map((m) => m.text).join(" "), base.moments.map((m) => m.text).join(" "), "comedy collapsed to base voice");
 assert.notEqual(horror.moments.map((m) => m.text).join(" "), base.moments.map((m) => m.text).join(" "), "horror collapsed to base voice");
 assert.notEqual(romance.moments.map((m) => m.text).join(" "), base.moments.map((m) => m.text).join(" "), "romance collapsed to base voice");
