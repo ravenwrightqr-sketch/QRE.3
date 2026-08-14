@@ -1,7 +1,7 @@
 # QRE Universal Cognitive Compiler
 
 ## STATUS
-CANONICAL CLEAN REBUILD. The legacy cognition/compiler generations were intentionally purged. This directory is the acceptance/documentation surface; the implementation lives in `packages/engine/src/cognition/universalMind.ts`.
+CANONICAL CLEAN REBUILD. The legacy cognition/compiler generations were intentionally purged. The implementation lives in `packages/engine/src/cognition/universalMind.ts`.
 
 ## Permanent invariant
 
@@ -45,7 +45,19 @@ For every input the brain internally asks:
 11. What should QRE remember?
 12. What might QRE notice next time?
 
-A person, pet, business, event, ticket, object, place, collectible, relationship, or government/public entity uses the same substrate.
+A person, pet, business, event, ticket, object, collectible, relationship, place, hotel room, restaurant table, anime convention, physical art, or public entity uses the same substrate.
+
+## Identity and participant conservation
+
+**Identity is conserved independently of grammatical subject.**
+
+A phrase such as `Alex and Sam went back...` is not one actor named `Alex and Sam`. It is one event with two participating identities.
+
+Participants are preserved independently through:
+
+`entity discovery → event binding → relationships → evidence → creative ranking → ExperienceMoment payload`
+
+The same rule applies to people, animals, organizations, objects, groups, events, and any persistent entity QRE can recognize.
 
 ## Evidence conservation
 
@@ -71,7 +83,7 @@ The brain receives lightweight memory/context and resolves references before ask
 - multiple plausible matches → ask one targeted question
 - no usable match → ask for the missing reality
 
-The user should never have to supply the creative idea merely because QRE lacks imagination.
+Memory is not a separate story mode. It is additional world evidence.
 
 ## Adaptive learning boundary
 
@@ -103,7 +115,7 @@ The brain generates multiple possible readings of the same reality and ranks the
 - lens fit
 - repetition penalties
 
-Comedy, horror, romance, wild, mystery, or future lenses are performance policies. They do not become separate compilers.
+Comedy, horror, romance, wild, mystery, and future lenses are performance policies. They do not become separate compilers.
 
 ## Anti-robot law
 
@@ -116,7 +128,28 @@ The brain must not repeatedly manufacture interchangeable prose such as:
 - generic “the story became…” language
 - visible compiler/semantic terminology
 
-Creative language must be earned by the specific event.
+Creative language must be earned by the specific event, relationship, object, place, or state change.
+
+## World accumulation
+
+An identity is allowed to outlive one interaction.
+
+The long-term model can conceptually accumulate:
+
+`identity + relationships + events + state + locations + media + history`
+
+A future compilation should be able to notice:
+
+- repeated people
+- repeated places
+- returning to meaningful places
+- recurring events
+- shared experiences
+- unusual intersections
+- changes over time
+- relationships strengthened by repeated events
+
+Do not create domain-specific engines for anime, collectibles, pets, weddings, cars, hotels, events, or businesses. Those are different worlds expressed through the same substrate.
 
 ## Runtime boundary
 
@@ -154,6 +187,7 @@ The mind must demonstrate:
 
 - reality fidelity
 - evidence conservation
+- participant/entity preservation
 - causality
 - temporal intelligence
 - memory resolution
