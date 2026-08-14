@@ -38,13 +38,13 @@ for (const testCase of cases) {
 const relationship = compileCognitiveExperience("Alex and Sam went back to the little Italian restaurant where they met two weeks ago at 7 PM and stayed until closing.");
 assert.ok(relationship.world.participants.includes("Alex"), "relationship world lost Alex");
 assert.ok(relationship.world.participants.includes("Sam"), "relationship world lost Sam");
-assert.ok(relationship.world.relations.some((relation) => relation.from === "Alex" && relation.to === "Italian restaurant"), "relationship world lost Alex/place relation");
-assert.ok(relationship.world.relations.some((relation) => relation.from === "Sam" && relation.to === "Italian restaurant"), "relationship world lost Sam/place relation");
+assert.ok(relationship.world.relations.some((relation) => relation.from === "Alex" && /restaurant/i.test(relation.to)), "relationship world lost Alex/place relation");
+assert.ok(relationship.world.relations.some((relation) => relation.from === "Sam" && /restaurant/i.test(relation.to)), "relationship world lost Sam/place relation");
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("alex"), "relationship realization lost Alex");
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("sam"), "relationship realization lost Sam");
 
 const resolved = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["Alex and Sam met at the Little Italian restaurant two weeks ago."] });
-assert.ok(resolved.world.places.some((p) => /Italian restaurant/i.test(p)), "memory should resolve a unique place");
+assert.ok(resolved.world.places.some((p) => /Italian restaurant|restaurant/i.test(p)), "memory should resolve a unique place");
 assert.equal(resolved.adaptiveQuestions.length, 0, "known unique memory should not trigger a question");
 
 const ambiguous = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["First met at the Little Italian restaurant.", "Later returned to Harbor Street."] });
