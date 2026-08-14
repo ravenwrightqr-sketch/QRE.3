@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { apiGet } from "../lib/api";
@@ -61,7 +61,7 @@ export default function LearningDashboard() {
           </Card>
 
           <Card title="Creative learning">
-            <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
               <Metric label="Acceptance rate" value={`${rate}%`} />
               <Metric label="Accepted" value={o.creativeAccepted ?? 0} />
               <Metric label="Rejected" value={o.creativeRejected ?? 0} />
@@ -114,6 +114,6 @@ const linkStyle = { color: "#fff", textDecoration: "none", border: "1px solid rg
 const gridStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 };
 const metricGrid = { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 };
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) { return <section style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 20 }}><h2 style={{ marginTop: 0 }}>{title}</h2>{children}</section>; }
-function Metric({ label, value }: { label: string; value: React.ReactNode }) { return <div style={{ padding: 14, background: "rgba(255,255,255,.035)", borderRadius: 12 }}><div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div><div style={{ opacity: .45, fontSize: 12 }}>{label}</div></div>; }
+function Card({ title, children }: { title: string; children: ReactNode }) { return <section style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 20 }}><h2 style={{ marginTop: 0 }}>{title}</h2>{children}</section>; }
+function Metric({ label, value }: { label: string; value: ReactNode }) { return <div style={{ padding: 14, background: "rgba(255,255,255,.035)", borderRadius: 12 }}><div style={{ fontSize: 26, fontWeight: 700 }}>{value}</div><div style={{ opacity: .45, fontSize: 12 }}>{label}</div></div>; }
 function TagList({ values, empty }: { values: string[]; empty: string }) { return values.length ? <div style={{ display: "grid", gap: 8 }}>{values.map((value) => <div key={value} style={{ padding: "10px 12px", background: "rgba(255,255,255,.035)", borderRadius: 10, lineHeight: 1.4 }}>{value}</div>)}</div> : <div style={{ opacity: .5 }}>{empty}</div>; }
