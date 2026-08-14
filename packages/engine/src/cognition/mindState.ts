@@ -6,6 +6,10 @@ import type { UniversalMindContext } from "./universalMindContext.js";
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
 const keyOf = (value: string) => clean(value).toLowerCase();
+const fingerprint = (value: string) => {
+  const words = clean(value).toLowerCase().split(/\W+/).filter((word) => word.length >= 4);
+  return words.slice(0, 9).join(" ");
+};
 
 export function hydrateMindState(context: UniversalMindContext): CognitiveMindState {
   const prior = context.state?.creativeLearning;
@@ -77,6 +81,9 @@ export function evolveMindState(state: CognitiveMindState, world: WorldModel, se
     }
   }
 
+  const selectedFingerprints = selected.map((candidate) => fingerprint(candidate.text)).filter(Boolean);
+  const selectedMoves = selected.flatMap((candidate) => candidate.creativeDetails);
+
   return {
     compileCount: state.compileCount + 1,
     entityStates: [...entityMap.values()],
@@ -87,8 +94,8 @@ export function evolveMindState(state: CognitiveMindState, world: WorldModel, se
       rejected: unique([...state.creativeLearning.rejected, ...rejected]).slice(-100),
       preferences: unique([...state.creativeLearning.preferences, ...(context.creativePreferences ?? [])]).slice(-100),
       successfulLenses: unique([...state.creativeLearning.successfulLenses, ...(lensAccepted ? [lensAccepted] : [])]),
-      avoidedPatterns: unique([...state.creativeLearning.avoidedPatterns, ...rejected]).slice(-100),
-      usedPhrases: unique([...state.creativeLearning.usedPhrases, ...selected.flatMap((candidate) => candidate.creativeDetails)]).slice(-100),
+      avoidedPatterns: unique([...state.creativeLearning.avoidedPatterns, ...rejected, ...selectedMoves.filter((move) => /template|generic|cliche/i.test(move))]).slice(-100),
+      usedPhrases: unique([...state.creativeLearning.usedPhrases, ...selectedFingerprints, ...selectedMoves]).slice(-150),
       noveltyPressure: Math.max(0.2, Math.min(0.95, state.creativeLearning.noveltyPressure + (rejected.length ? 0.08 : 0) - (accepted.length ? 0.03 : 0))),
     },
     lastLens: world.lens,
