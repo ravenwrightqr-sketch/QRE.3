@@ -105,11 +105,14 @@ function normalizePlace(value: string): string {
 function spatialPhraseOf(text: string): string | undefined {
   const prep = "at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards";
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
-  const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "i");
-  const match = text.match(pattern); if (!match?.[1]) return undefined;
-  const value = normalizePlace(match[1]);
-  if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
-  return value;
+  const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "gi");
+  for (const match of text.matchAll(pattern)) {
+    const value = normalizePlace(match[1] ?? "");
+    if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) continue;
+    if (/^\d/.test(value)) continue;
+    return value;
+  }
+  return undefined;
 }
 function subjectEntityOf(text: string, action?: string): string | undefined {
   if (!action) return undefined; const index = text.toLowerCase().indexOf(action.toLowerCase()); if (index <= 0) return undefined;
