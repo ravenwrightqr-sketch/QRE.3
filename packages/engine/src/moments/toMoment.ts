@@ -1,15 +1,16 @@
-import type { Moment } from "@qre/contracts";
+import type { ExperienceMoment } from "@qre/contracts";
 
-export function toMessageMoment(input: {
-  order: number;
-  text?: unknown;
-}): Moment | null {
+export function toMessageMoment(input: { order: number; text?: unknown }): ExperienceMoment | null {
   if (typeof input.text !== "string") return null;
-
   return {
     type: "message",
-    order: input.order,
+    component: "story",
+    title: input.text,
     text: input.text,
+    editable: false,
+    demo: false,
+    order: input.order,
+    payload: { text: input.text },
   };
 }
 
@@ -19,16 +20,23 @@ export function toActionMoment(input: {
   url?: unknown;
   label?: unknown;
   duration?: unknown;
-}): Moment | null {
-  const base: any = {
+}): ExperienceMoment | null {
+  const text = typeof input.text === "string" ? input.text : "Continue";
+  const url = typeof input.url === "string" ? input.url : undefined;
+  const label = typeof input.label === "string" ? input.label : text;
+  const duration = typeof input.duration === "number" ? input.duration : undefined;
+  return {
     type: "action",
+    component: "interaction",
+    title: text,
+    text,
+    action: "cta",
+    url,
+    label,
+    editable: false,
+    demo: false,
     order: input.order,
+    payload: { text, url, label, duration },
+    meta: { text, url, label, duration },
   };
-
-  if (typeof input.text === "string") base.text = input.text;
-  if (typeof input.url === "string") base.url = input.url;
-  if (typeof input.label === "string") base.label = input.label;
-  if (typeof input.duration === "number") base.duration = input.duration;
-
-  return base;
 }
