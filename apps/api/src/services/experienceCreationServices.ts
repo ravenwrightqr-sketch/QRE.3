@@ -57,6 +57,20 @@ function compiledFacts(compiled: any): string[] {
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 120);
 }
 
+function applyGenerativeDraft(compiled: any, draft: string) {
+  const cleanDraft = draft.replace(/\s+/g, " ").trim();
+  if (!cleanDraft || !Array.isArray(compiled?.moments) || !compiled.moments.length) return;
+  const first = compiled.moments[0];
+  compiled.moments[0] = { ...first, text: cleanDraft, description: cleanDraft };
+  if (compiled.blueprint && Array.isArray(compiled.blueprint.moments) && compiled.blueprint.moments.length) {
+    compiled.blueprint.moments[0] = { ...compiled.blueprint.moments[0], text: cleanDraft, description: cleanDraft };
+  }
+  if (Array.isArray(compiled.flowSteps) && compiled.flowSteps.length) {
+    const step = compiled.flowSteps[0];
+    compiled.flowSteps[0] = { ...step, payload: { ...(step.payload ?? {}), text: cleanDraft, description: cleanDraft, source: "generative-author" } };
+  }
+}
+
 export async function createExperience(input: CreateExperienceInput) {
   if (!input.assetId || !input.prompt.trim()) throw new Error("Asset and prompt required.");
 
@@ -75,6 +89,7 @@ export async function createExperience(input: CreateExperienceInput) {
       memoryContext: compiled.discoveries ?? [],
       audience: "customer-facing QRE experience",
     });
+    if (aiDraft) applyGenerativeDraft(compiled, aiDraft);
   } catch (error) {
     console.warn("AI author unavailable; preserving deterministic compilation:", error instanceof Error ? error.message : error);
   }
