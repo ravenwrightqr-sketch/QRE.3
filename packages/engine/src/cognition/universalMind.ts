@@ -3,6 +3,7 @@ import type { UniversalMindContext } from "./universalMindContext.js";
 import { resolveMemory } from "./memoryResolver.js";
 import { buildWorldModel, type WorldModel } from "./worldModel.js";
 import { sanitizeWorldModel } from "./worldSanitizer.js";
+import { surfaceCreativeText } from "./proseSurface.js";
 import { analyzeSignificance } from "./significanceEngine.js";
 import { generateCandidates, type CreativeCandidate } from "./creativePolicy.js";
 import { generateCompositionCandidates } from "./creativeComposition.js";
@@ -60,7 +61,8 @@ function conservedText(planned: ReturnType<typeof planExperience>["moments"][num
 function buildMoment(planned: ReturnType<typeof planExperience>["moments"][number], index: number, total: number, world: WorldModel): ExperienceMoment {
   const type = momentType(index, total);
   const creativeDetails = planned.event.evidence.filter((item) => item.source === "creative_realization").map((item) => item.detail);
-  const text = conservedText(planned);
+  const conserved = conservedText(planned);
+  const text = surfaceCreativeText(conserved, planned.event);
   return {
     type,
     component: "story",
