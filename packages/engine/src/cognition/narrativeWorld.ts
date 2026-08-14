@@ -5,7 +5,7 @@ const sentence = (value: string) => clean(value).replace(/[.!?]+$/, "");
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
 
 function sourceSentences(prompt: string): string[] {
-  return unique(clean(prompt).split(/(?<=[.!?])\s+|\n+/).filter(Boolean).filter((value) => !/^\s*(?:make|write|tell|show|turn)\s+(?:it|this|that|something)\b/i.test(value)));
+  return unique(clean(prompt).split(/(?<=[.!?])\s+|\n+/).filter(Boolean).filter((value) => !/^\s*(?:make|write|tell|show)\s+(?:it|this|that|something)\b/i.test(value)));
 }
 
 function tokenSet(value: string): Set<string> {
