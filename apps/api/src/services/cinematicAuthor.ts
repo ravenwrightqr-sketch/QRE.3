@@ -92,6 +92,8 @@ const CREATIVE_OPERATORS = [
   "mystery_turn",
   "transformation",
   "afterglow",
+  "voice",
+  "signature",
 ];
 
 function enabled() {
@@ -297,7 +299,6 @@ function inferDirection(input: CinematicAuthorInput): CreativeDirection {
 
 async function planDirection(input: CinematicAuthorInput, fallback: CreativeDirection): Promise<CreativeDirection> {
   if (!enabled()) return fallback;
-
   const result = await localModelGenerate([
     {
       role: "system",
@@ -334,14 +335,11 @@ async function planDirection(input: CinematicAuthorInput, fallback: CreativeDire
       }),
     },
   ], "json");
-
   const parsed = parseJson<CreativeDirection>(result.text);
   if (!parsed?.sequenceShape?.length || !parsed?.attentionGoal) return fallback;
-
   const selectedOperators = Array.isArray(parsed.selectedOperators)
     ? parsed.selectedOperators.filter((value) => CREATIVE_OPERATORS.includes(String(value))).slice(0, 7)
     : fallback.selectedOperators;
-
   return {
     ...fallback,
     ...parsed,
@@ -366,30 +364,23 @@ function normalizeSceneUnits(scene: AuthoredScene): AuthoredScene[] {
   const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9'"“])/).map(cleanText).filter(Boolean);
   const units = sentences.length > 1 ? sentences : [text];
   const out: AuthoredScene[] = [];
-
   for (const unit of units) {
     const words = unit.split(/\s+/).filter(Boolean);
     if (words.length <= 18) {
       out.push({ ...scene, text: unit });
       continue;
     }
-
     const short = words.slice(0, 18).join(" ").replace(/[,:;—-]+$/, "").trim();
     if (short) out.push({ ...scene, text: short });
   }
-
   return out;
 }
 
 function finalizeScenes(scenes: AuthoredScene[]): AuthoredScene[] {
-  const expanded = scenes
-    .flatMap(normalizeSceneUnits)
-    .filter((scene) => !isInstructionOnly(scene.text) && !containsMetaLanguage(scene.text));
-
+  const expanded = scenes.flatMap(normalizeSceneUnits).filter((scene) => !isInstructionOnly(scene.text) && !containsMetaLanguage(scene.text));
   return expanded.slice(0, 20).map((scene, index, all) => {
     const words = scene.text.split(/\s+/).length;
     const durationHintMs = scene.durationHintMs ?? Math.max(1500, Math.min(5600, 1100 + words * 150));
-
     return {
       ...scene,
       text: cleanText(scene.text),
@@ -402,7 +393,6 @@ function finalizeScenes(scenes: AuthoredScene[]): AuthoredScene[] {
 
 async function draftSequence(input: CinematicAuthorInput, direction: CreativeDirection): Promise<AuthoredScene[]> {
   const { min, max } = targetSceneCount(direction, input);
-
   const result = await localModelGenerate([
     {
       role: "system",
@@ -434,7 +424,7 @@ async function draftSequence(input: CinematicAuthorInput, direction: CreativeDir
         `ENDING MOVE: ${direction.endingMove}`,
         `STRONGEST DETAIL: ${direction.strongestDetail}`,
         `AVOID: ${direction.avoid.join(", ")}`,
-        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|setup|movement|discovery|escalation|transformation|realization|payoff|afterglow\",\"durationHintMs\":number,\"transitionHint\":\"none|fade|slide|zoom|cinematic|flash\",\"audioMood\":\"...\",\"visualHint\":\"...\"}]}. ",
+        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|setup|movement|discovery|escalation|transformation|realization|payoff|afterglow\",\"durationHintMs\":number,\"transitionHint\":\"none|fade|slide|zoom|cinematic|flash\",\"audioMood\":\"...\",\"visualHint\":\"...\"}]}.",
       ].join(" "),
     },
     {
@@ -450,20 +440,16 @@ async function draftSequence(input: CinematicAuthorInput, direction: CreativeDir
       }),
     },
   ], "json");
-
   const parsed = parseJson<SceneDraft>(result.text);
   const scenes = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
-
-  return finalizeScenes(
-    scenes.map((scene) => ({
-      text: cleanText(scene?.text),
-      kind: cleanText(scene?.kind) || "movement",
-      durationHintMs: typeof scene?.durationHintMs === "number" ? scene.durationHintMs : undefined,
-      transitionHint: cleanText(scene?.transitionHint) as AuthoredScene["transitionHint"],
-      audioMood: cleanText(scene?.audioMood) || undefined,
-      visualHint: cleanText(scene?.visualHint) || undefined,
-    })),
-  ).slice(0, max);
+  return finalizeScenes(scenes.map((scene) => ({
+    text: cleanText(scene?.text),
+    kind: cleanText(scene?.kind) || "movement",
+    durationHintMs: typeof scene?.durationHintMs === "number" ? scene.durationHintMs : undefined,
+    transitionHint: cleanText(scene?.transitionHint) as AuthoredScene["transitionHint"],
+    audioMood: cleanText(scene?.audioMood) || undefined,
+    visualHint: cleanText(scene?.visualHint) || undefined,
+  }))).slice(0, max);
 }
 
 async function critiqueSequence(input: CinematicAuthorInput, direction: CreativeDirection, scenes: AuthoredScene[]): Promise<SceneCritique | null> {
@@ -484,16 +470,9 @@ async function critiqueSequence(input: CinematicAuthorInput, direction: Creative
     },
     {
       role: "user",
-      content: JSON.stringify({
-        direction,
-        prompt: input.prompt,
-        facts: unique(input.facts, 40),
-        sourceMoments: unique(input.sourceMoments, 24),
-        scenes,
-      }),
+      content: JSON.stringify({ direction, prompt: input.prompt, facts: unique(input.facts, 40), sourceMoments: unique(input.sourceMoments, 24), scenes }),
     },
   ], "json");
-
   return parseJson<SceneCritique>(result.text);
 }
 
@@ -519,35 +498,23 @@ async function reviseSequence(input: CinematicAuthorInput, direction: CreativeDi
     },
     {
       role: "user",
-      content: JSON.stringify({
-        direction,
-        prompt: input.prompt,
-        facts: unique(input.facts, 40),
-        sourceMoments: unique(input.sourceMoments, 24),
-        scenes,
-        critique,
-      }),
+      content: JSON.stringify({ direction, prompt: input.prompt, facts: unique(input.facts, 40), sourceMoments: unique(input.sourceMoments, 24), scenes, critique }),
     },
   ], "json");
-
   const parsed = parseJson<SceneDraft>(result.text);
   const revised = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
-
-  return finalizeScenes(
-    revised.map((scene) => ({
-      text: cleanText(scene?.text),
-      kind: cleanText(scene?.kind) || "movement",
-      durationHintMs: typeof scene?.durationHintMs === "number" ? scene.durationHintMs : undefined,
-      transitionHint: cleanText(scene?.transitionHint) as AuthoredScene["transitionHint"],
-      audioMood: cleanText(scene?.audioMood) || undefined,
-      visualHint: cleanText(scene?.visualHint) || undefined,
-    })),
-  );
+  return finalizeScenes(revised.map((scene) => ({
+    text: cleanText(scene?.text),
+    kind: cleanText(scene?.kind) || "movement",
+    durationHintMs: typeof scene?.durationHintMs === "number" ? scene.durationHintMs : undefined,
+    transitionHint: cleanText(scene?.transitionHint) as AuthoredScene["transitionHint"],
+    audioMood: cleanText(scene?.audioMood) || undefined,
+    visualHint: cleanText(scene?.visualHint) || undefined,
+  })));
 }
 
 function localQualityGate(scenes: AuthoredScene[]): { pass: boolean; score: number; reasons: string[] } {
   if (scenes.length < 3) return { pass: false, score: 0, reasons: ["fewer_than_three_scenes"] };
-
   const wordCounts = scenes.map((scene) => scene.text.split(/\s+/).filter(Boolean).length);
   const longScenes = wordCounts.filter((count) => count > 18).length;
   const genericHits = scenes.reduce((total, scene) => total + genericLanguageScore(scene.text), 0);
@@ -556,7 +523,6 @@ function localQualityGate(scenes: AuthoredScene[]): { pass: boolean; score: numb
     const previous = scenes[index].text.split(/\s+/).slice(0, 2).join(" ").toLowerCase();
     return total + (current === previous ? 1 : 0);
   }, 0);
-
   const score = Math.max(0, 10 - longScenes * 1.2 - genericHits * 1.4 - duplicateStarts * 1.5);
   const reasons: string[] = [];
   if (longScenes) reasons.push(`${longScenes}_long_scenes`);
@@ -567,7 +533,6 @@ function localQualityGate(scenes: AuthoredScene[]): { pass: boolean; score: numb
 
 export async function authorCinematicSequence(input: CinematicAuthorInput): Promise<AuthoredScene[]> {
   if (!enabled()) return [];
-
   const fallback = inferDirection(input);
   const direction = await planDirection(input, fallback);
   let scenes = await draftSequence(input, direction);
@@ -575,20 +540,17 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
 
   const firstGate = localQualityGate(scenes);
   const critique = await critiqueSequence(input, direction, scenes);
-  const critiqueNeedsRevision = Boolean(
-    critique
-      && (
-        critique.score < 8
-        || critique.problems.length
-        || critique.repeats.length
-        || critique.instructionLeaks.length
-        || critique.unsupportedDetails.length
-        || critique.weakScenes.length
-        || Boolean(critique.genericLanguage?.length)
-        || Boolean(critique.weakTransitions?.length)
-        || Boolean(critique.missingMoves?.length)
-      ),
-  );
+  const critiqueNeedsRevision = Boolean(critique && (
+    critique.score < 8
+    || critique.problems.length
+    || critique.repeats.length
+    || critique.instructionLeaks.length
+    || critique.unsupportedDetails.length
+    || critique.weakScenes.length
+    || Boolean(critique.genericLanguage?.length)
+    || Boolean(critique.weakTransitions?.length)
+    || Boolean(critique.missingMoves?.length)
+  ));
 
   if (critiqueNeedsRevision || !firstGate.pass) {
     const revised = await reviseSequence(input, direction, scenes, critique ?? {
@@ -600,12 +562,10 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
       weakScenes: [],
       revision: firstGate.reasons,
     });
-
     if (revised.length >= 3) scenes = revised;
   }
 
   const finalGate = localQualityGate(scenes);
-
   if (!finalGate.pass && enabled()) {
     const repaired = await reviseSequence(input, direction, scenes, {
       score: finalGate.score,
