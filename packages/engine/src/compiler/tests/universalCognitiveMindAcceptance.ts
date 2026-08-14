@@ -29,11 +29,20 @@ for (const testCase of cases) {
   const text = result.moments.map((m) => m.text ?? m.description ?? m.title ?? "").join(" ");
   for (const anchor of testCase.anchors) assert.ok(text.toLowerCase().includes(anchor.toLowerCase()), `${testCase.name}: missing '${anchor}'`);
   for (const forbidden of testCase.forbidden ?? []) assert.ok(!text.toLowerCase().includes(forbidden.toLowerCase()), `${testCase.name}: invented '${forbidden}'`);
+  // A single coherent event is allowed to produce a single moment. Moment count is emergent.
   assert.ok(result.moments.length >= 1, `${testCase.name}: no experience moments`);
   assert.equal(result.moments.length, result.cinematicScenes.length, `${testCase.name}: moment/scene drift`);
   assert.ok(!LEAK.test(text), `${testCase.name}: cognitive leakage`);
   assert.ok(!ROBOTIC.test(text), `${testCase.name}: robotic generic realization`);
 }
+
+// Dynamic-count proof: multiple independently segmented events must be able to produce multiple moments.
+const multiEvent = compileCognitiveExperience("Alex arrived at the restaurant. Sam joined Alex. They stayed until closing.");
+assert.ok(multiEvent.world.events.length >= 2, "multi-event input should preserve multiple world events");
+assert.ok(multiEvent.moments.length >= 2, "multiple meaningful events should produce multiple experience moments");
+assert.equal(multiEvent.moments.length, multiEvent.cinematicScenes.length, "multi-event moment/scene drift");
+assert.ok(multiEvent.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("alex"), "multi-event realization lost Alex");
+assert.ok(multiEvent.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("sam"), "multi-event realization lost Sam");
 
 const relationship = compileCognitiveExperience("Alex and Sam went back to the little Italian restaurant where they met two weeks ago at 7 PM and stayed until closing.");
 assert.deepEqual(new Set(relationship.world.participants), new Set(["Alex", "Sam"]), "shared event must preserve both identities");
