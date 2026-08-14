@@ -16,6 +16,10 @@ const cases: readonly AcceptanceCase[] = [
   { name: "physical art", prompt: "This keychain traveled with us to Santa Monica, the desert, and the lake. The best memory happened at sunrise.", anchors: ["keychain", "Santa Monica", "desert", "lake", "sunrise"] },
   { name: "arbitrary named place", prompt: "Alex and Sam met at Disneyland in June, returned to Huntington Beach Pier in August, and left smiling.", anchors: ["Alex", "Sam", "Disneyland", "Huntington Beach Pier", "August"] },
   { name: "novel place phrase", prompt: "We waited beside the old observatory behind the abandoned rail depot until midnight.", anchors: ["old observatory", "abandoned rail depot", "midnight"] },
+  { name: "coupled concert QR", prompt: "Turn this concert QR into something people will remember.", anchors: ["concert", "QR", "remember"] },
+  { name: "cleaning documentation", prompt: "A housekeeper documents a client's home after a huge cleaning day.", anchors: ["housekeeper", "client", "home", "cleaning"] },
+  { name: "wedding tonight", prompt: "Make something fun for everyone at my wedding tonight.", anchors: ["wedding", "tonight"] },
+  { name: "object relationship", prompt: "My grandmother gave me this watch.", anchors: ["grandmother", "watch"] },
 ] as const;
 const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|mechanics|latent movie|internal state|generated output|result is available)\b/i;
 const ROBOTIC = /\b(?:approached .* compensation|negotiat(?:ed|ing) terms|arrived with opinions|entered like there was already a disagreement)\b/i;
@@ -93,5 +97,20 @@ assert.equal(single.moments.length, 1, "a single meaningful event should be allo
 
 const learning = compileCognitiveExperience("Coco stole the blue bow.", { creativePreferences: ["playful", "short sentences"], feedback: { accepted: ["absurd interpretation"], rejected: ["generic opener"] } });
 assert.ok(learning.learningSignals.some((s) => s.includes("accepted:absurd interpretation")), "learning signal missing");
+assert.equal(learning.state.compileCount, 1, "fresh compile should advance mind state");
+assert.ok(learning.state.creativeLearning.accepted.includes("absurd interpretation"), "accepted feedback must persist in mind state");
+assert.ok(learning.state.creativeLearning.rejected.includes("generic opener"), "rejected feedback must persist in mind state");
+assert.ok(learning.state.creativeLearning.noveltyPressure > 0.55, "rejection should increase novelty pressure");
+
+const firstPass = compileCognitiveExperience("Coco stole the blue bow.");
+const secondPass = compileCognitiveExperience("Coco stole the blue bow.", { state: firstPass.state, feedback: { accepted: ["comedy works"], rejected: ["generic phrasing"] } });
+assert.equal(secondPass.state.compileCount, 2, "passed state must evolve instead of resetting");
+assert.ok((secondPass.state.entityStates.find((entity) => /coco/i.test(entity.entity))?.appearances ?? 0) >= 2, "entity state must accumulate recurrence");
+assert.ok(secondPass.state.creativeLearning.successfulLenses.includes("comedy"), "accepted lens should be learned");
+assert.ok(secondPass.state.creativeLearning.noveltyPressure > firstPass.state.creativeLearning.noveltyPressure, "rejected phrasing should increase novelty pressure");
+
+const creativeProvenance = compileCognitiveExperience("Coco stole the blue bow. Make it funny.");
+assert.ok(creativeProvenance.moments.some((moment) => (Array.isArray(moment.payload.creativeDetails) && moment.payload.creativeDetails.length > 0)), "creative performance must expose creative provenance");
+assert.ok(creativeProvenance.world.events.some((event) => event.evidence.some((item) => item.source === "creative_realization")), "invented performance details must carry creative_realization provenance");
 
 console.log("UNIVERSAL COGNITIVE MIND ACCEPTANCE: PASS");
