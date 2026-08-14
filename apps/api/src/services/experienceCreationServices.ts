@@ -30,6 +30,35 @@ export type CreateExperienceInput = {
 
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
+function promptShape(prompt: string): string {
+  const words = prompt.trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 8) return "micro";
+  if (words <= 24) return "compact";
+  if (words <= 60) return "rich";
+  return "long-form";
+}
+
+function promptSignals(prompt: string): string[] {
+  const normalized = prompt.toLowerCase();
+  const signals: string[] = [];
+  const tests: Array<[string, RegExp]> = [
+    ["comedy-request", /\bfunny|comedy|hilarious|absurd|ridiculous\b/],
+    ["romance-request", /\bromantic|romance|love|intimate|tender\b/],
+    ["horror-request", /\bhorror|scary|terrifying|creepy|haunted|unsettling\b/],
+    ["mystery-request", /\bmystery|unknown|nobody knew|secret|clue\b/],
+    ["cinematic-request", /\bcinematic|movie|scene|film\b/],
+    ["memory-request", /\bmemory|remember|years later|again|returned|recurrence\b/],
+    ["place-centered", /\b(beach|pier|home|hotel|house|city|street|venue|park|restaurant|bar|club)\b/],
+    ["service-centered", /\b(cleaned|groomed|washed|repaired|installed|served|delivered|worked|service)\b/],
+    ["object-centered", /\b(keychain|chair|suitcase|photo|photograph|ticket|ring|clock|object|painting)\b/],
+    ["relationship-centered", /\bcouple|father|mother|dad|mom|friend|family|owner|wife|husband|partner\b/],
+    ["escalation-request", /\bescalat|bigger|wilder|chaos|increasing|eventually|then\b/],
+    ["understatement-request", /\bquiet|subtle|understated|restrained|intimate\b/],
+  ];
+  for (const [name, pattern] of tests) if (pattern.test(normalized)) signals.push(name);
+  return signals;
+}
+
 async function resolveExperienceEntity(assetId: string, prompt: string) {
   const rows = await db.$queryRaw<any[]>`
     SELECT id, kind, name, canonical_key, confidence
@@ -98,6 +127,15 @@ export async function createExperience(input: CreateExperienceInput) {
     console.warn("AI author unavailable; preserving deterministic compilation:", error instanceof Error ? error.message : error);
   }
 
+  const learningProfile = {
+    lens: compiledWorld?.lens ?? "neutral",
+    promptShape: promptShape(input.prompt),
+    promptSignals: promptSignals(input.prompt),
+    generativeAuthor: Boolean(aiDraft),
+    memoryAware: true,
+    autonomousLearningEnabled: true,
+  };
+
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
@@ -111,7 +149,12 @@ export async function createExperience(input: CreateExperienceInput) {
       generativeAuthor: Boolean(aiDraft),
       learningAware: true,
       learnedCreativePreferences: learningContextLines(learning),
+      autonomousLearning: {
+        enabled: true,
+        confidence: learning.autonomousConfidence,
+      },
     },
+    learningProfile,
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
     generativeDraft: aiDraft,
   };
@@ -121,7 +164,14 @@ export async function createExperience(input: CreateExperienceInput) {
     data: {
       name: experience.title ?? "Experience",
       version: 1,
-      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor, generativeAuthor: Boolean(aiDraft), learningAware: true },
+      actions: {
+        category: compiled.blueprint.type ?? "experience",
+        sourcePrompt: input.prompt.trim(),
+        sponsor,
+        generativeAuthor: Boolean(aiDraft),
+        learningAware: true,
+        learningProfile,
+      },
       steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
     },
     include: { steps: true },

@@ -7,7 +7,17 @@ type LearningResponse = {
   asset: { slug: string; displayName?: string | null };
   overview: Record<string, number>;
   eventCounts: Record<string, number>;
-  learned: { signals: string[]; acceptedPatterns: string[]; rejectedPatterns: string[]; recentFeedback: string[]; lines: string[] };
+  learned: {
+    signals: string[];
+    acceptedPatterns: string[];
+    rejectedPatterns: string[];
+    recentFeedback: string[];
+    lines: string[];
+    autonomousSignals: string[];
+    autonomousWinners: string[];
+    autonomousWeaknesses: string[];
+    autonomousConfidence: number;
+  };
   knowledge: Array<{ id: string; type: string; message: string; impact?: string | null; createdAt: string }>;
   locations: Array<{ id: string; lat: number; lng: number; label?: string | null; city?: string | null; region?: string | null; country?: string | null; source: string; createdAt: string }>;
   recentEvents: Array<{ id: string; type: string; createdAt: string; meta?: unknown; sessionId?: string | null; flowId?: string | null }>;
@@ -32,6 +42,7 @@ export default function LearningDashboard() {
 
   const o = data.overview;
   const rate = Math.round((o.creativeAcceptanceRate ?? 0) * 100);
+  const autoConfidence = Math.round((data.learned.autonomousConfidence ?? 0) * 100);
 
   return (
     <DashboardLayout>
@@ -71,17 +82,33 @@ export default function LearningDashboard() {
         </section>
 
         <section style={{ ...gridStyle, marginTop: 20 }}>
-          <Card title="What QRE currently believes you like">
-            <TagList values={data.learned.acceptedPatterns} empty="No accepted creative preferences recorded yet." />
+          <Card title="What you explicitly taught QRE">
+            <TagList values={data.learned.acceptedPatterns} empty="No explicit creative preferences recorded yet." />
           </Card>
-          <Card title="What QRE is learning to avoid">
-            <TagList values={data.learned.rejectedPatterns} empty="No rejected creative patterns recorded yet." />
+          <Card title="What real-world behavior taught QRE">
+            <div style={{ marginBottom: 12, opacity: .6, fontSize: 12 }}>AUTONOMOUS CONFIDENCE · {autoConfidence}%</div>
+            <TagList values={data.learned.autonomousWinners} empty="No behavioral winner is measurable yet. QRE needs real scans and outcomes." />
+          </Card>
+        </section>
+
+        <section style={{ ...gridStyle, marginTop: 20 }}>
+          <Card title="What you told QRE to avoid">
+            <TagList values={data.learned.rejectedPatterns} empty="No explicit rejected patterns recorded yet." />
+          </Card>
+          <Card title="What behavior says to avoid">
+            <TagList values={data.learned.autonomousWeaknesses} empty="No behavioral weakness is measurable yet." />
           </Card>
         </section>
 
         <section style={{ marginTop: 20 }}>
-          <Card title="Recent learning / feedback">
-            <TagList values={data.learned.recentFeedback} empty="No feedback recorded yet." />
+          <Card title="Recent autonomous signals">
+            <TagList values={data.learned.autonomousSignals} empty="QRE is waiting for real-world usage signals." />
+          </Card>
+        </section>
+
+        <section style={{ marginTop: 20 }}>
+          <Card title="Recent human feedback">
+            <TagList values={data.learned.recentFeedback} empty="No manual feedback recorded. That is okay — autonomous learning does not require it." />
           </Card>
         </section>
 
