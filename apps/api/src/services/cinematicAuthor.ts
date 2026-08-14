@@ -17,6 +17,31 @@ export type AuthoredScene = {
   kind?: string;
 };
 
+type CreativeDirection = {
+  intent: "memory" | "promotion" | "event" | "personal" | "artifact" | "unknown";
+  attentionGoal: string;
+  emotionalEngine: string;
+  strongestDetail: string;
+  sequenceShape: string[];
+  endingMove: string;
+  targetDensity: "compact" | "standard" | "deep" | "expansive";
+  avoid: string[];
+};
+
+type SceneDraft = {
+  scenes: AuthoredScene[];
+};
+
+type SceneCritique = {
+  score: number;
+  problems: string[];
+  repeats: string[];
+  instructionLeaks: string[];
+  unsupportedDetails: string[];
+  weakScenes: number[];
+  revision: string[];
+};
+
 function enabled() {
   return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";
 }
@@ -28,85 +53,90 @@ function cleanText(value: unknown): string {
     .trim();
 }
 
-function parseScenes(text: string): AuthoredScene[] {
+function unique(values: unknown[], limit: number): string[] {
+  return [...new Set(values.map(cleanText).filter(Boolean))].slice(0, limit);
+}
+
+function parseJson<T>(text: string): T | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
-    const parsed = JSON.parse(cleaned);
-    const scenes = Array.isArray(parsed) ? parsed : parsed?.scenes;
-    if (!Array.isArray(scenes)) return [];
-    return scenes
-      .map((scene: any) => ({ text: cleanText(scene?.text), kind: cleanText(scene?.kind) || "development" }))
-      .filter((scene: AuthoredScene) => scene.text.length > 0);
+    return JSON.parse(cleaned) as T;
   } catch {
-    return cleaned
-      .split(/\n+/)
-      .map(cleanText)
-      .filter(Boolean)
-      .slice(0, 10)
-      .map((text) => ({ text, kind: "development" }));
+    return null;
   }
 }
 
 function isInstructionOnly(text: string): boolean {
-  const normalized = text.toLowerCase().trim();
+  const normalized = cleanText(text).toLowerCase();
   return /^(create|make|write|build|generate|turn|produce|give|tell|show)\b/.test(normalized)
     || /\b(create|make|write|generate)\s+(a|an|the)?\s*(video|story|experience|memory|movie)\b/.test(normalized);
 }
 
-function isPromotionalBrief(prompt: string, lens?: string): boolean {
-  const normalized = `${prompt} ${lens ?? ""}`.toLowerCase();
-  return /\b(create|make|build|generate|produce|write|turn)\b/.test(normalized)
-    && /\b(video|ad|commercial|promo|promotion|marketing|business|brand|grooming|restaurant|salon|service)\b/.test(normalized);
+function containsMetaLanguage(text: string): boolean {
+  return /\b(ai|qre|prompt|compiler|cognition|metadata|model|generated|experience compiler|lens|instruction)\b/i.test(text);
 }
 
-function modeInstructions(prompt: string, lens?: string): string[] {
-  if (isPromotionalBrief(prompt, lens)) {
-    return [
-      "MODE: CREATIVE PROMOTIONAL CONCEPT.",
-      "This request is asking you to invent a compelling presentation, not document a verified historical event.",
-      "You MAY invent fictional scene actions, comedic situations, visual beats, metaphors, and narrative devices that communicate the service experience.",
-      "Do NOT invent real business claims, certifications, prices, guarantees, named customers, reviews, locations, awards, turnaround times, medical claims, or other factual claims about the business.",
-      "Make the concept feel like a real cinematic advertisement without pretending invented details are true business facts.",
-      "Default to attention-first pacing and a compact traversal. Prefer roughly 20–40 seconds of material unless the supplied brief clearly asks for something longer.",
-      "Find a memorable premise rather than simply saying what the business does.",
-    ];
+function inferDirection(input: CinematicAuthorInput): CreativeDirection {
+  const combined = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
+  const memory = /\b(memory|remember|wedding|anniversary|trip|rave|concert|family|grandma|childhood|vacation|pet)\b/.test(combined);
+  const promotion = /\b(create|make|build|generate|produce|write|turn)\b/.test(combined)
+    && /\b(video|ad|commercial|promo|promotion|marketing|business|brand|grooming|restaurant|salon|service|dispensary|realtor|real estate)\b/.test(combined);
+  const event = /\b(wedding|party|event|birthday|festival|ceremony|reunion)\b/.test(combined);
+
+  if (promotion) {
+    return {
+      intent: "promotion",
+      attentionGoal: "earn attention immediately, create a memorable transformation, and end with a clean desire or CTA-ready feeling",
+      emotionalEngine: input.lens || "funny, vivid, unexpected",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most distinctive service detail",
+      sequenceShape: ["hook", "movement", "surprise", "transformation", "payoff"],
+      endingMove: "land on the strongest memorable image or feeling without making unsupported business claims",
+      targetDensity: "compact",
+      avoid: ["generic ad copy", "feature lists", "sales slogans", "invented business claims", "long exposition"],
+    };
   }
 
-  return [
-    "MODE: GROUNDED MEMORY / EXPERIENCE.",
-    "Treat supplied facts as the factual world.",
-    "Do not invent concrete real-world claims, people, places, objects, events, dates, physical actions, or outcomes.",
-    "Creativity may come from interpretation, metaphor, personification, rhythm, contrast, escalation, understatement, callbacks, reversals, and earned payoff.",
-  ];
+  if (memory || event) {
+    return {
+      intent: event ? "event" : "memory",
+      attentionGoal: "make the viewer feel present, then deepen meaning through a few specific turns",
+      emotionalEngine: input.lens || "nostalgia, intimacy, surprise",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the smallest detail that makes the memory specific",
+      sequenceShape: input.trajectory?.length ? input.trajectory : ["arrival", "detail", "movement", "realization", "afterglow"],
+      endingMove: "leave the viewer with a detail or realization that means more after the sequence than before it",
+      targetDensity: input.sourceMoments.length + input.memoryContext?.length! > 12 ? "expansive" : "deep",
+      avoid: ["generic nostalgia", "fake scenery", "over-explaining emotion", "invented events", "repeating the same point"],
+    };
+  }
+
+  return {
+    intent: "personal",
+    attentionGoal: "turn ordinary material into an experience with movement and a satisfying final turn",
+    emotionalEngine: input.lens || "contrast, curiosity, personality",
+    strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most unusual supplied detail",
+    sequenceShape: input.trajectory?.length ? input.trajectory : ["hook", "movement", "discovery", "change", "payoff"],
+    endingMove: "earn a final line that changes how the viewer sees the opening",
+    targetDensity: "standard",
+    avoid: ["generic setup", "report-like prose", "instruction echo", "repetition", "filler"],
+  };
 }
 
-export async function authorCinematicSequence(input: CinematicAuthorInput): Promise<AuthoredScene[]> {
-  if (!enabled()) return [];
-
-  const facts = [...new Set(input.facts.map(cleanText).filter(Boolean))].slice(0, 40);
-  const sourceMoments = [...new Set(input.sourceMoments.map(cleanText).filter(Boolean))].slice(0, 24);
-  const memory = [...new Set((input.memoryContext ?? []).map(cleanText).filter(Boolean))].slice(0, 20);
-  const learning = [...new Set((input.creativeLearningContext ?? []).map(cleanText).filter(Boolean))].slice(0, 20);
-  const promotional = isPromotionalBrief(input.prompt, input.lens);
-
+async function planDirection(input: CinematicAuthorInput, fallback: CreativeDirection): Promise<CreativeDirection> {
+  if (!enabled()) return fallback;
   const result = await localModelGenerate([
     {
       role: "system",
       content: [
-        "You are QRE's cinematic author.",
-        "Your output is NOT a paragraph. Your output is a sequence of separate viewer-facing cinematic messages that play one after another like a miniature movie.",
-        ...modeInstructions(input.prompt, input.lens),
-        "The original prompt is an instruction. NEVER put an instruction such as 'create a video', 'make it funny', or 'make a wedding memory cinematic' into a scene.",
-        "Do not mechanically paraphrase the user's request.",
-        "Do not make every scene start with the subject's name.",
-        "Every scene should change the viewer's state: reveal something, escalate something, reframe something, create anticipation, create contrast, or land a payoff.",
-        "A good sequence should feel like it is moving somewhere, not like a list of facts.",
-        "Prefer sharp, specific, memorable language over generic cinematic language.",
-        "Do not mention AI, QRE, prompts, compilers, lenses, cognition, metadata, or your instructions.",
-        promotional
-          ? "For promotional concepts, sell the feeling and transformation of the service through a memorable fictionalized mini-story; do not claim invented facts about the real business."
-          : "For grounded experiences, stay faithful to the supplied world while using creative language and structure.",
-        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|setup|movement|discovery|escalation|transformation|payoff\"}] }.",
+        "You are QRE's senior creative director.",
+        "Plan a cinematic experience before the writer drafts it.",
+        "Do not write the scenes yet.",
+        "The user prompt is an instruction or creative brief, not viewer-facing dialogue.",
+        "Separate world truth from creative interpretation.",
+        "Concrete facts, people, places, dates, objects, actions, and outcomes must come from supplied evidence unless the mode is explicitly promotional concept mode.",
+        "In promotional concept mode, fictionalized scene actions may be invented to make the service compelling, but never invent real business claims, prices, reviews, awards, certifications, guarantees, locations, or named customers.",
+        "Choose a sequence shape that makes the material move. Do not force a fixed scene count.",
+        "The world may be tiny or enormous. Choose traversal density from the amount and importance of available material.",
+        "Return strict JSON: intent, attentionGoal, emotionalEngine, strongestDetail, sequenceShape, endingMove, targetDensity, avoid.",
       ].join(" "),
     },
     {
@@ -117,21 +147,163 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
         subject: input.subject ?? "",
         place: input.place ?? "",
         trajectory: input.trajectory ?? [],
-        sourceMoments,
-        facts,
-        memoryContext: memory,
-        learnedCreativePreferences: learning,
-        mode: promotional ? "promotional_concept" : "grounded_experience",
-        goal: promotional
-          ? "Create a compact attention-grabbing sequence that makes a customer want to experience the service."
-          : "Create the next meaningful cinematic traversal from the supplied reality.",
+        sourceMoments: unique(input.sourceMoments, 24),
+        facts: unique(input.facts, 40),
+        memoryContext: unique(input.memoryContext ?? [], 20),
+        learnedCreativePreferences: unique(input.creativeLearningContext ?? [], 20),
+        fallback,
       }),
     },
   ], "json");
 
-  const scenes = parseScenes(result.text)
-    .filter((scene) => !isInstructionOnly(scene.text))
-    .slice(0, promotional ? 7 : 10);
+  const parsed = parseJson<CreativeDirection>(result.text);
+  if (!parsed?.sequenceShape?.length || !parsed?.attentionGoal) return fallback;
+  return {
+    ...fallback,
+    ...parsed,
+    sequenceShape: parsed.sequenceShape.slice(0, 10),
+    avoid: Array.isArray(parsed.avoid) ? parsed.avoid.slice(0, 12) : fallback.avoid,
+  };
+}
 
-  return scenes.length >= 3 ? scenes : [];
+function targetSceneCount(direction: CreativeDirection, input: CinematicAuthorInput): { min: number; max: number } {
+  const evidence = input.sourceMoments.length + input.facts.length + (input.memoryContext?.length ?? 0);
+  if (direction.targetDensity === "compact") return { min: 3, max: Math.min(7, Math.max(4, Math.ceil(Math.max(evidence, 5) / 3))) };
+  if (direction.targetDensity === "deep") return { min: 4, max: Math.min(12, Math.max(6, Math.ceil(Math.max(evidence, 8) / 2))) };
+  if (direction.targetDensity === "expansive") return { min: 5, max: Math.min(16, Math.max(8, Math.ceil(Math.max(evidence, 12) / 2))) };
+  return { min: 4, max: Math.min(10, Math.max(5, Math.ceil(Math.max(evidence, 6) / 2))) };
+}
+
+async function draftSequence(input: CinematicAuthorInput, direction: CreativeDirection): Promise<AuthoredScene[]> {
+  const { min, max } = targetSceneCount(direction, input);
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's elite cinematic sequence author.",
+        "Write the experience as separate viewer-facing scene messages that play sequentially like a miniature film.",
+        `Create between ${min} and ${max} scenes. Do NOT optimize for a fixed count; stop when the story has earned its ending.`,
+        "Each scene is a moment, not a paragraph.",
+        "Typical scene text is 1–2 short sentences or one striking line. Prefer 5–18 words per scene; rarely exceed 28 words.",
+        "Every scene must change something: reveal, movement, anticipation, contrast, escalation, transformation, realization, or payoff.",
+        "Do not repeat the same subject-led sentence opening in consecutive scenes.",
+        "Do not write exposition that summarizes the whole story in scene one.",
+        "Do not place the original instruction into the scenes.",
+        "Do not mention QRE, AI, prompts, compilers, cognition, metadata, or the writing process.",
+        direction.intent === "promotion"
+          ? "PROMOTIONAL MODE: invent a memorable fictionalized mini-story around the service. No invented real business claims. Attention first, transformation second, clean ending third."
+          : "GROUNDED MODE: preserve supplied factual reality. Invent language and interpretation, not concrete factual events.",
+        "Use metaphor, personification, contrast, understatement, escalation, callbacks, reversals, and implication when they genuinely fit.",
+        "Do not decorate weak material with generic words like beautiful, magical, unforgettable, cinematic, incredible, or amazing unless the source itself supports the specific effect.",
+        "Do not explain the final line. Let it land.",
+        `SEQUENCE SHAPE: ${direction.sequenceShape.join(" → ")}`,
+        `EMOTIONAL ENGINE: ${direction.emotionalEngine}`,
+        `ATTENTION GOAL: ${direction.attentionGoal}`,
+        `ENDING MOVE: ${direction.endingMove}`,
+        `STRONGEST DETAIL: ${direction.strongestDetail}`,
+        `AVOID: ${direction.avoid.join(", ")}`,
+        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|setup|movement|discovery|escalation|transformation|realization|payoff|afterglow\"}]}.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        prompt: input.prompt,
+        subject: input.subject ?? "",
+        place: input.place ?? "",
+        facts: unique(input.facts, 40),
+        sourceMoments: unique(input.sourceMoments, 24),
+        memoryContext: unique(input.memoryContext ?? [], 20),
+        learnedCreativePreferences: unique(input.creativeLearningContext ?? [], 20),
+      }),
+    },
+  ], "json");
+
+  const parsed = parseJson<SceneDraft>(result.text);
+  const scenes = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
+  return scenes
+    .map((scene) => ({ text: cleanText(scene?.text), kind: cleanText(scene?.kind) || "movement" }))
+    .filter((scene) => scene.text.length > 0 && !isInstructionOnly(scene.text) && !containsMetaLanguage(scene.text))
+    .slice(0, max);
+}
+
+async function critiqueSequence(input: CinematicAuthorInput, direction: CreativeDirection, scenes: AuthoredScene[]): Promise<SceneCritique | null> {
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's ruthless cinematic editor.",
+        "Do not rewrite the scenes. Diagnose them.",
+        "Check for: instruction leakage, metadata leakage, unsupported concrete details in grounded mode, generic/cliche language, repeated openings, repeated ideas, weak pacing, missing turn, premature payoff, weak ending, and scenes that are too long to read as a cinematic slide.",
+        "A strong sequence should move. If two adjacent scenes merely restate each other, flag it.",
+        "A strong ending should feel earned from the material, not tacked on.",
+        "Return strict JSON: score, problems, repeats, instructionLeaks, unsupportedDetails, weakScenes, revision.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        direction,
+        prompt: input.prompt,
+        facts: unique(input.facts, 40),
+        sourceMoments: unique(input.sourceMoments, 24),
+        scenes,
+      }),
+    },
+  ], "json");
+  return parseJson<SceneCritique>(result.text);
+}
+
+async function reviseSequence(input: CinematicAuthorInput, direction: CreativeDirection, scenes: AuthoredScene[], critique: SceneCritique): Promise<AuthoredScene[]> {
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's elite revision editor.",
+        "Rewrite only as needed to make the sequence substantially stronger.",
+        "Preserve supported facts and strong existing lines.",
+        "Delete unsupported concrete details rather than replacing them with other invented concrete details in grounded mode.",
+        "Fix repeated openings and repeated ideas.",
+        "Shorten overlong scene text so each scene reads cleanly on a phone-sized cinematic screen.",
+        "Strengthen the trajectory: hook → movement → change → payoff, using the chosen sequence shape rather than mechanically forcing every step.",
+        "Do not explain jokes, emotions, metaphors, or the ending.",
+        "Do not introduce QRE/AI/compiler language.",
+        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"...\"}]}.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        direction,
+        prompt: input.prompt,
+        facts: unique(input.facts, 40),
+        sourceMoments: unique(input.sourceMoments, 24),
+        scenes,
+        critique,
+      }),
+    },
+  ], "json");
+
+  const parsed = parseJson<SceneDraft>(result.text);
+  const revised = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
+  return revised
+    .map((scene) => ({ text: cleanText(scene?.text), kind: cleanText(scene?.kind) || "movement" }))
+    .filter((scene) => scene.text.length > 0 && !isInstructionOnly(scene.text) && !containsMetaLanguage(scene.text));
+}
+
+export async function authorCinematicSequence(input: CinematicAuthorInput): Promise<AuthoredScene[]> {
+  if (!enabled()) return [];
+
+  const fallback = inferDirection(input);
+  const direction = await planDirection(input, fallback);
+  let scenes = await draftSequence(input, direction);
+  if (scenes.length < 3) return [];
+
+  const critique = await critiqueSequence(input, direction, scenes);
+  if (critique && (critique.score < 8 || critique.problems.length || critique.repeats.length || critique.instructionLeaks.length || critique.unsupportedDetails.length || critique.weakScenes.length)) {
+    const revised = await reviseSequence(input, direction, scenes, critique);
+    if (revised.length >= 3) scenes = revised;
+  }
+
+  return scenes;
 }
