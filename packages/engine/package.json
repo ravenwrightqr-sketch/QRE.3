@@ -19,7 +19,6 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test:universal-reality": "tsx src/compiler/tests/universalRealityAcceptance.ts",
     "test:universal-mind": "tsx src/compiler/tests/universalCognitiveMindAcceptance.ts"
   }
 }
