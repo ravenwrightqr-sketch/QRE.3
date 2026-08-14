@@ -4,6 +4,7 @@ import { db } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
 import { buildSponsorPolicy } from "@qre/engine";
+import { generateAiExperienceDraft } from "./aiProvider.js";
 
 export type SponsorInput = {
   enabled?: boolean;
@@ -45,6 +46,17 @@ async function resolveExperienceEntity(assetId: string, prompt: string) {
   return { id: entity.id, kind: entity.kind, name: entity.name, canonicalKey: entity.canonical_key, confidence: Number(entity.confidence), scope: "asset" };
 }
 
+function compiledFacts(compiled: any): string[] {
+  const world = compiled?.world;
+  return [
+    ...(world?.participants ?? []),
+    ...(world?.places ?? []),
+    ...(world?.times ?? []),
+    ...(world?.entities ?? []),
+    ...(compiled?.moments ?? []).map((moment: any) => typeof moment?.text === "string" ? moment.text : ""),
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 120);
+}
+
 export async function createExperience(input: CreateExperienceInput) {
   if (!input.assetId || !input.prompt.trim()) throw new Error("Asset and prompt required.");
 
@@ -53,12 +65,34 @@ export async function createExperience(input: CreateExperienceInput) {
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
   const sponsor = buildSponsorPolicy(input.sponsor ?? {});
 
+  let aiDraft: string | null = null;
+  try {
+    aiDraft = await generateAiExperienceDraft({
+      prompt: input.prompt.trim(),
+      lens: compiled.world?.lens,
+      sourceMoments: (compiled.moments ?? []).map((moment: any) => typeof moment?.text === "string" ? moment.text : "").filter(Boolean),
+      facts: compiledFacts(compiled),
+      memoryContext: compiled.discoveries ?? [],
+      audience: "customer-facing QRE experience",
+    });
+  } catch (error) {
+    console.warn("AI author unavailable; preserving deterministic compilation:", error instanceof Error ? error.message : error);
+  }
+
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
     sponsor,
-    authoring: { kind: "service_experience", authoredBy: input.userId ?? null, memoryAware: true, behaviorAware: true, sponsorAware: Boolean(sponsor) },
+    authoring: {
+      kind: "service_experience",
+      authoredBy: input.userId ?? null,
+      memoryAware: true,
+      behaviorAware: true,
+      sponsorAware: Boolean(sponsor),
+      generativeAuthor: Boolean(aiDraft),
+    },
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
+    generativeDraft: aiDraft,
   };
 
   const experience = await db.experience.create({ data: { assetId: input.assetId, title: input.title ?? compiled.title, blueprint } });
@@ -66,11 +100,11 @@ export async function createExperience(input: CreateExperienceInput) {
     data: {
       name: experience.title ?? "Experience",
       version: 1,
-      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor },
+      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor, generativeAuthor: Boolean(aiDraft) },
       steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
     },
     include: { steps: true },
   });
   await db.experience.update({ where: { id: experience.id }, data: { flow: { connect: { id: flow.id } } } });
-  return { experience, flow, compiled, entityMemory, sponsor };
+  return { experience, flow, compiled, entityMemory, sponsor, aiDraft };
 }
