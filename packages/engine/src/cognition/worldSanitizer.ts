@@ -5,26 +5,18 @@ const sentence = (value: string) => clean(value).replace(/^[,;:.!?]+|[,;:.!?]+$/
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
 const GENERIC_ACTOR_RE = /^(?:i|we|you|he|she|they|it|this|that|someone|something|everyone|nobody|somebody|guests|people|ten|one|two|three|four|five|six|seven|eight|nine|zero)$/i;
 const NON_PLACE_RE = /^(?:nervous|anxious|afraid|scared|fabulous|ordinary|quiet|loud|spotless|beautiful|ugly|tender|strange|weird|normal|empty|full|old|young|small|large|tiny|big|ready|late|early|alive|dead|missing|gone|there|here|back|again)$/i;
-const DIRECTIVE_RE = /^(?:make|write|tell|turn)\s+(?:it|this|that|the story|the experience)\b/i;
+const STYLE_DIRECTIVE_RE = /^(?:make|write|tell)\s+(?:it|this|that|the story|the experience)\b/i;
+const TURN_DIRECTIVE_RE = /^turn\s+(?:this|that|the)\b/i;
 const TIME_ONLY_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|\w+ years? later)$/i;
 const FRAGMENT_RE = /^(?:in|at|on|to|from|with|by|and|but|then|before|after|until|re)\s+/i;
 const ARTICLE_PLACE_RE = /^(?:the|a|an)\s+/i;
 const KNOWN_COMMON_ENTITY_RE = /^(?:dog|cat|puppy|kitten|family|couple|realtor|agent|chef|owner|homeowner|client|bride|groom|baby|dad|mom|father|mother|grandma|grandpa|crowd|team|group|concert|restaurant|salon|groomer|hotel|house|home|garage|porch|pier|beach|theater|kitchen|bathroom|living room|parking lot|camera|suitcase|ticket|guitar|chair|cake|ring|photo|photograph|bow|flower)$/i;
-const DIRECTIVE_STOPWORDS = new Set(["make", "write", "tell", "turn", "this", "that", "it", "the", "story", "experience", "into", "something", "people", "will", "would", "please", "for", "as", "an", "a", "and", "or", "to", "something"]);
-const STYLE_WORDS = new Set(["funny", "comedy", "romantic", "romance", "cinematic", "horror", "scary", "mysterious", "mystery", "wild", "chaotic", "playful", "beautiful", "tender"]);
 
 function isHumanLike(value: string): boolean {
   const v = sentence(value).replace(/^the\s+/i, "");
   if (!v || GENERIC_ACTOR_RE.test(v) || TIME_ONLY_RE.test(v)) return false;
   if (ARTICLE_PLACE_RE.test(value)) return KNOWN_COMMON_ENTITY_RE.test(v);
   return /^[A-Z][A-Za-z'’\-]*(?:\s+[A-Z][A-Za-z'’\-]*)?$/.test(v) || KNOWN_COMMON_ENTITY_RE.test(v);
-}
-
-function directivePayload(raw: string): string[] {
-  if (!DIRECTIVE_RE.test(raw)) return [];
-  const tokens = raw.toLowerCase().replace(/[^a-z0-9'’\s-]+/g, " ").split(/\s+/).filter(Boolean);
-  const payload = tokens.filter((token) => !DIRECTIVE_STOPWORDS.has(token) && !STYLE_WORDS.has(token) && token.length >= 3);
-  return unique(payload).filter((token) => !FRAGMENT_RE.test(token));
 }
 
 function inferLens(prompt: string, current: CognitiveLens): CognitiveLens {
@@ -39,7 +31,7 @@ function inferLens(prompt: string, current: CognitiveLens): CognitiveLens {
 }
 
 function cleanEventRaw(raw: string): string { return sentence(raw.replace(/^(?:then|and|but)\s+/i, "")); }
-function isDirective(raw: string): boolean { return DIRECTIVE_RE.test(sentence(raw)); }
+function isStyleDirective(raw: string): boolean { return STYLE_DIRECTIVE_RE.test(sentence(raw)) && !TURN_DIRECTIVE_RE.test(sentence(raw)); }
 function isLikelyFragment(raw: string): boolean {
   const value = cleanEventRaw(raw);
   if (!value || value.length < 3) return true;
@@ -59,7 +51,7 @@ function previousActor(events: WorldEvent[], index: number): string | undefined 
 function repairParticipant(event: WorldEvent, fallback?: string): WorldEvent {
   const participants = unique(event.participants).filter(isHumanLike);
   const raw = cleanEventRaw(event.raw);
-  const shouldCarry = !participants.length && fallback && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated|ended)\b/i.test(raw);
+  const shouldCarry = !participants.length && fallback && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated|ended|finished)\b/i.test(raw);
   return { ...event, raw, participants: shouldCarry ? [fallback] : participants };
 }
 
@@ -76,13 +68,7 @@ function absorbFragment(events: WorldEvent[]): WorldEvent[] {
   const out: WorldEvent[] = [];
   for (const original of events) {
     const raw = cleanEventRaw(original.raw);
-    if (isDirective(raw)) {
-      const payload = directivePayload(raw);
-      if (payload.length >= 2) {
-        out.push({ ...original, raw: payload.join(" "), details: unique([...original.details, ...payload]), evidence: original.evidence });
-      }
-      continue;
-    }
+    if (isStyleDirective(raw)) continue;
     if (isLikelyFragment(raw) && out.length) {
       const previous = out[out.length - 1]!;
       if (!previous.details.some((detail) => detail.toLowerCase() === raw.toLowerCase())) {
@@ -106,13 +92,12 @@ function repairFragments(events: WorldEvent[]): WorldEvent[] {
     const details = unique(event.details)
       .filter((detail) => !NON_PLACE_RE.test(detail))
       .filter((detail) => !GENERIC_ACTOR_RE.test(detail))
-      .filter((detail) => !isDirective(detail))
+      .filter((detail) => !isStyleDirective(detail))
       .filter((detail) => !TIME_ONLY_RE.test(detail))
-      .filter((detail) => !FRAGMENT_RE.test(detail))
-      .filter((detail) => !/^(?:we|i|he|she|it|they)\s+(?:the|a|an|again|there|here)\b/i.test(detail))
+      .filter((detail) => !/^(?:in|at|on|to|from|with|by|re)\s+/i.test(detail))
       .filter((detail) => !/^\s*(?:re|the|and|or|before|after|then)\s*$/i.test(detail));
     return { ...event, details };
-  }).filter((event) => event.raw.length >= 5);
+  }).filter((event) => !isStyleDirective(event.raw) && event.raw.length >= 5);
 }
 
 function repairPlaces(events: WorldEvent[]): WorldEvent[] {
