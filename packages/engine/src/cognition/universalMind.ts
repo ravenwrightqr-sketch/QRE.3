@@ -55,7 +55,7 @@ function learnedLens(world: WorldModel, state: CognitiveMindState): void {
 function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
   const body = sentence(planned.text).toLowerCase();
   const required = planned.event.evidence
-    .filter((item) => item.source !== "creative_realization" && item.salience >= 0.9)
+    .filter((item) => item.source !== "creative_realization" && item.salience >= 0.9 && !(item.kind === "event" && item.detail === planned.event.raw))
     .map((item) => item.detail.trim())
     .filter(Boolean);
   return required.every((anchor) => body.includes(anchor.toLowerCase())) ? planned.text : planned.event.raw;
