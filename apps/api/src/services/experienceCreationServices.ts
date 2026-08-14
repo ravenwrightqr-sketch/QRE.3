@@ -30,6 +30,14 @@ export type CreateExperienceInput = {
 
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
+function promptShape(prompt: string): string {
+  const words = prompt.trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 8) return "micro";
+  if (words <= 24) return "compact";
+  if (words <= 60) return "rich";
+  return "long-form";
+}
+
 async function resolveExperienceEntity(assetId: string, prompt: string) {
   const rows = await db.$queryRaw<any[]>`
     SELECT id, kind, name, canonical_key, confidence
@@ -98,6 +106,14 @@ export async function createExperience(input: CreateExperienceInput) {
     console.warn("AI author unavailable; preserving deterministic compilation:", error instanceof Error ? error.message : error);
   }
 
+  const learningProfile = {
+    lens: compiledWorld?.lens ?? "neutral",
+    promptShape: promptShape(input.prompt),
+    generativeAuthor: Boolean(aiDraft),
+    memoryAware: true,
+    autonomousLearningEnabled: true,
+  };
+
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
@@ -111,7 +127,12 @@ export async function createExperience(input: CreateExperienceInput) {
       generativeAuthor: Boolean(aiDraft),
       learningAware: true,
       learnedCreativePreferences: learningContextLines(learning),
+      autonomousLearning: {
+        enabled: true,
+        confidence: learning.autonomousConfidence,
+      },
     },
+    learningProfile,
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
     generativeDraft: aiDraft,
   };
@@ -121,7 +142,14 @@ export async function createExperience(input: CreateExperienceInput) {
     data: {
       name: experience.title ?? "Experience",
       version: 1,
-      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor, generativeAuthor: Boolean(aiDraft), learningAware: true },
+      actions: {
+        category: compiled.blueprint.type ?? "experience",
+        sourcePrompt: input.prompt.trim(),
+        sponsor,
+        generativeAuthor: Boolean(aiDraft),
+        learningAware: true,
+        learningProfile,
+      },
       steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
     },
     include: { steps: true },
