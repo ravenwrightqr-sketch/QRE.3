@@ -88,19 +88,31 @@ function normalizeProse(text: string): string {
     .trim();
 }
 
+function worldLockInstructions(): string[] {
+  return [
+    "SOURCE-WORLD LOCK: the supplied prompt, facts, sourceMoments, and memoryContext define the factual world.",
+    "Do not add concrete setting details that were not supplied. No new rooms, buildings, landscapes, weather, furniture, props, food, vehicles, people, animals, brands, times, dates, physical actions, purchases, or outcomes unless directly supported.",
+    "Do not add invented sensory details such as moonlight, shadows, smells, sounds, colors, textures, temperatures, clothing, facial expressions, or body positions unless the source provides them.",
+    "You may invent LANGUAGE, RHYTHM, METAPHOR, SIMILE, PERSONIFICATION, HUMOR, INTERPRETATION, SUBTEXT, and STRUCTURE when those are clearly figurative or interpretive rather than factual events.",
+    "Example: 'Coco left fierce' is an interpretation of 'fabulous'. Example: 'the house gave ground' is a battle metaphor for cleaning. These are allowed. 'Coco saw a cat' or 'the couple sat on a balcony' are not allowed without source evidence.",
+    "If the source is sparse, make the prose sharper rather than inventing scenery. Use implication, contrast, rhythm, omission, or a strong final turn.",
+  ];
+}
+
 function authorSystem(): string {
   return [
     "You are QRE's senior narrative author and editor.",
     "Write finished customer-facing prose from grounded source facts.",
+    ...worldLockInstructions(),
     "The source facts are the world truth. Never invent a person, place, brand, date, object, action, purchase, relationship, motive, physical setting, or outcome as if it were true.",
     "Do not turn a metaphor into a factual claim. Figurative language is allowed only when it is obviously figurative.",
     "Never mention prompts, models, AI, compilers, metadata, lenses, instructions, cognition, writing techniques, or internal reasoning.",
     "Do not mechanically restate the source sentence-by-sentence.",
     "Do not add generic filler, inspirational slogans, canned cinematic language, fake emotional conclusions, or stock internet humor.",
-    "Prefer a concrete detail, a surprising implication, character-specific humor, precise emotional understatement, sensory consequence, or a clean turn over explanation.",
+    "Prefer a concrete supplied detail, a surprising implication, character-specific humor, precise emotional understatement, consequence, tension, or a clean turn over scenery invention.",
     "Use sentence length and openings deliberately. Avoid starting multiple sentences with the same subject when the prose can flow naturally without it.",
     "Trust the reader. Show the implication; do not explain the joke or announce the meaning.",
-    "End on the strongest available beat. A final line may reframe an earlier detail, land a joke, reveal a realization, or leave a memorable image.",
+    "End on the strongest available beat. A final line may reframe an earlier detail, land a joke, reveal a realization, or leave a memorable image, but it must stay inside the source world.",
     "Treat learned preferences as soft guidance, never as facts and never as permission to copy previous prose.",
     "Return only the prose requested by the caller.",
   ].join(" ");
@@ -125,7 +137,7 @@ async function localCreativeBrief(input: AiAuthorInput): Promise<CreativeBrief> 
     strongestDetail: input.facts[0] ?? input.sourceMoments[0] ?? "the central detail",
     voice: input.lens ?? "specific, restrained, memorable",
     endingMove: "pay off the strongest concrete detail without explaining it",
-    avoid: ["invented facts", "cliches", "generic setup", "explaining the joke"],
+    avoid: ["invented facts", "cliches", "generic setup", "explaining the joke", "invented scenery"],
   };
   if (!localEnabled()) return fallback;
   const result = await localModelGenerate([
@@ -134,7 +146,9 @@ async function localCreativeBrief(input: AiAuthorInput): Promise<CreativeBrief> 
       content: [
         "You are QRE's creative director.",
         "Plan a piece of prose before the writer drafts it.",
+        ...worldLockInstructions(),
         "Use only the supplied facts. Find the strongest concrete detail, the emotional or comic engine, a distinctive voice, and the best ending move.",
+        "The creative engine may be battle, dance, romance, horror, escalation, mystery, absurdity, transformation, nostalgia, or another fitting interpretation, but the chosen engine must arise from the supplied facts.",
         "Learn from the supplied accepted/rejected preferences, but never copy them and never treat them as facts.",
         "Do not invent facts. Do not write the prose yet.",
         "Return strict JSON with keys: corePremise, emotionalEngine, strongestDetail, voice, endingMove, avoid.",
@@ -163,6 +177,7 @@ async function localDraft(input: AiAuthorInput, brief: CreativeBrief): Promise<s
           memoryContext: input.memoryContext ?? [],
         },
         target: "Prefer 2-6 purposeful sentences unless the source clearly benefits from a different length.",
+        hardConstraint: "Do not invent concrete scene details. Creativity must come from interpretation, structure, voice, metaphor, contrast, and implication.",
       }),
     },
   ]);
@@ -185,9 +200,11 @@ async function localCritique(input: AiAuthorInput, brief: CreativeBrief, draft: 
       content: [
         "You are QRE's ruthless literary and factual editor.",
         "Inspect a draft against the supplied source facts and learned preferences.",
-        "Reject hallucinated world details, generic cliches, explanatory humor, repeated sentence openings, weak abstractions, filler, and obvious template language.",
+        "Reject hallucinated concrete world details, generic cliches, explanatory humor, repeated sentence openings, weak abstractions, filler, and obvious template language.",
+        "A draft is grounded only when a reasonable reader can trace every concrete scene element to source evidence.",
+        "Treat moonlight, balconies, apple trees, mirrors, new rooms, invented weather, invented clothing, invented faces, invented physical gestures, and similar scene additions as invented facts unless supplied.",
+        "Do not reject figurative language merely because it is non-literal; reject it when it reads as an added factual event or generic filler.",
         "Identify the single strongest concrete detail and the strongest possible ending move.",
-        "Do not reject figurative language merely because it is non-literal; reject it only when it asserts an unsupported factual event or becomes generic filler.",
         "Return strict JSON with keys: strengths, violations, inventedClaims, cliches, weakLines, revisionPlan, score.",
         "Do not rewrite the prose in this step.",
       ].join(" "),
@@ -215,10 +232,12 @@ async function localRevision(input: AiAuthorInput, brief: CreativeBrief, draft: 
       content: JSON.stringify({
         task: "Rewrite the draft into the final version. Do not discuss the critique.",
         rules: [
+          ...worldLockInstructions(),
           "Keep every explicit source fact that is important to the experience.",
           "Remove every invented factual claim called out by the editor.",
+          "If a concrete scene detail is not supported, delete it rather than replacing it with another concrete scene detail.",
           "Do not replace bad writing with generic adjectives or stock phrases.",
-          "Use the strongest concrete detail as an anchor.",
+          "Use the strongest concrete source detail as an anchor.",
           "Vary sentence openings and rhythm.",
           "Let humor or emotion emerge from the situation instead of explaining it.",
           "Make the final sentence earn its place.",
@@ -242,11 +261,12 @@ async function localPolish(input: AiAuthorInput, draft: string): Promise<string>
       role: "system",
       content: [
         "You are QRE's final copy editor.",
+        ...worldLockInstructions(),
         "Perform a surgical polish only.",
         "Preserve meaning and facts.",
         "Remove awkward wording, accidental repetition, generic filler, fake certainty, and explanatory endings.",
         "Keep distinctive lines that work.",
-        "Never add new facts.",
+        "Never add new concrete scene facts during polishing.",
         "Return only the finished prose.",
       ].join(" "),
     },
