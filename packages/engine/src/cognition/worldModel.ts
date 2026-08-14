@@ -5,12 +5,31 @@ export type WorldKind = "entity" | "event" | "state" | "relationship" | "place" 
 export type WorldEvidence = CognitiveEvidence & { id: string; kind: WorldKind; salience: number };
 export type WorldRelation = { from: string; relation: string; to: string; evidenceId: string };
 export type WorldEvent = {
-  id: string; raw: string; participants: string[]; action?: string; state?: string; object?: string; place?: string; time?: string;
-  details: string[]; order: number; evidence: WorldEvidence[]; resolvedFromMemory?: boolean;
+  id: string;
+  raw: string;
+  participants: string[];
+  action?: string;
+  state?: string;
+  object?: string;
+  place?: string;
+  time?: string;
+  details: string[];
+  order: number;
+  evidence: WorldEvidence[];
+  resolvedFromMemory?: boolean;
 };
 export type WorldModel = {
-  prompt: string; lens: CognitiveLens; entities: string[]; participants: string[]; places: string[]; times: string[];
-  events: WorldEvent[]; relations: WorldRelation[]; evidence: WorldEvidence[]; memoryMatches: string[]; entitiesByKind: ExperienceEntities;
+  prompt: string;
+  lens: CognitiveLens;
+  entities: string[];
+  participants: string[];
+  places: string[];
+  times: string[];
+  events: WorldEvent[];
+  relations: WorldRelation[];
+  evidence: WorldEvidence[];
+  memoryMatches: string[];
+  entitiesByKind: ExperienceEntities;
 };
 
 /**
@@ -52,6 +71,27 @@ function splitIndependentClauses(input: string): string[] {
   return out.length ? out : [text];
 }
 
+function splitCommaEvents(clause: string): string[] {
+  const text = sentence(clause);
+  const pieces = text.split(/,\s+/).map(sentence).filter(Boolean);
+  if (pieces.length < 2) return [text];
+  const out: string[] = [];
+  let current = pieces[0]!;
+  for (let index = 1; index < pieces.length; index += 1) {
+    const piece = pieces[index]!;
+    const currentHasAction = semanticIndex(current) !== undefined;
+    const pieceHasAction = semanticIndex(piece.replace(/^(?:and|&|then|but)\s+/i, "")) !== undefined;
+    if (currentHasAction && pieceHasAction) {
+      out.push(current);
+      current = piece.replace(/^(?:and|&|then|but)\s+/i, "");
+    } else {
+      current = `${current}, ${piece}`;
+    }
+  }
+  if (current) out.push(current);
+  return out.length ? out : [text];
+}
+
 function splitCoordinatedActions(clause: string): string[] {
   const text = sentence(clause); const boundaries: Array<{ index: number; length: number }> = [];
   for (const match of text.matchAll(/\b(?:and|&)\b/gi)) {
@@ -68,7 +108,7 @@ function splitCoordinatedActions(clause: string): string[] {
 
 function splitPrompt(prompt: string): string[] {
   const sentences = clean(prompt).split(/(?<=[.!?])\s+|\n+/).map(sentence).filter(Boolean);
-  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCoordinatedActions)));
+  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCommaEvents).flatMap(splitCoordinatedActions)));
 }
 
 function properNames(text: string): string[] {
@@ -132,12 +172,25 @@ function eventFromChunk(raw: string, index: number, carryParticipants: string[],
 export function buildWorldModel(prompt: string, options: { memoryMatches?: string[]; memorySources?: string[]; creativePreferences?: string[]; eventParticipants?: string[]; locationLabel?: string; eventVenue?: string } = {}): WorldModel {
   const chunks = splitPrompt(prompt); const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = []; let carryParticipants = unique(options.eventParticipants ?? []); let carryPlace = options.locationLabel ?? options.eventVenue;
   chunks.forEach((raw, index) => { const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []); events.push(event); allEvidence.push(...event.evidence); if (event.participants.length) carryParticipants = event.participants; if (event.place) carryPlace = event.place; });
-  const participantsList = unique(events.flatMap((event) => event.participants)); const places = unique(events.map((event) => event.place ?? "").filter(Boolean)); const times = unique(events.map((event) => event.time ?? "").filter(Boolean)); const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]).filter(Boolean)); const entities = unique([...participantsList, ...places, ...objects, ...events.flatMap((event) => event.evidence.filter((item) => item.kind === "entity").map((item) => item.detail))]);
+  const participantsList = unique(events.flatMap((event) => event.participants));
+  const places = unique(events.map((event) => event.place ?? ""));
+  const times = unique(events.map((event) => event.time ?? ""));
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]));
+  const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]);
   const relations: WorldRelation[] = [];
   for (const event of events) {
-    for (const participant of event.participants) { if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` }); if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object-${event.object}` }); }
-    for (let i = 0; i < event.participants.length; i += 1) for (let j = i + 1; j < event.participants.length; j += 1) { const left = event.participants[i]!, right = event.participants[j]!; relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` }); relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` }); }
+    for (const participant of event.participants) {
+      if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` });
+      if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object` });
+    }
+    for (let i = 0; i < event.participants.length; i += 1) {
+      for (let j = i + 1; j < event.participants.length; j += 1) {
+        const left = event.participants[i]!; const right = event.participants[j]!;
+        relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` });
+        relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` });
+      }
+    }
   }
-  const entitiesByKind: ExperienceEntities = { people: participantsList, places, objects, events: events.map((event) => event.raw), media: [], collections: [], organizations: [], concepts: [], other: [], products: [], dates: [], times, urls: [], phones: [], emails: [], keywords: [] };
+  const entitiesByKind: ExperienceEntities = { people: participantsList, places, objects, events: events.map((event) => event.raw), media: [], collections: [], organizations: [], concepts: [], other: [] };
   return { prompt, lens: lensOf(prompt, options.creativePreferences ?? []), entities, participants: participantsList, places, times, events, relations, evidence: allEvidence, memoryMatches: unique(options.memoryMatches ?? []), entitiesByKind };
 }
