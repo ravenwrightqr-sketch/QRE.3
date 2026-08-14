@@ -5,7 +5,6 @@ import type {
   ExperienceMoment,
   ExperienceStory,
   ExperienceTone,
-  Moment,
   CinematicScene,
   StoryProvenance,
   StoryScenePlan,
@@ -17,18 +16,7 @@ import { compileExperienceV16 } from "./experienceCompilerV16.js";
 import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
 import { compileUniversalExperienceBrain } from "../compiler/universalExperienceBrain.js";
 
-/**
- * STATUS: ACTIVE / COMPILER-ONLY
- *
- * Canonical compiler bridge:
- *
- * prompt → cognition → universal experience brain → runtime moments → cinema
- *
- * V16 remains an artifact/memory substrate only. Its authoring `ExperienceMoment[]`
- * and blueprint are not confused with the runtime `Moment[]` emitted by the
- * canonical universal experience brain.
- */
-
+/** STATUS: CANONICAL compiler bridge. Prompt -> cognition -> universal brain -> ExperienceMoment -> cinema. */
 export type ExperienceObservation = {
   prompt: string;
   subject: string;
@@ -63,10 +51,7 @@ export type CognitiveCandidate = {
 
 type V16Substrate = ReturnType<typeof compileExperienceV16>;
 
-export type CognitiveCompiledExperience = Omit<
-  V16Substrate,
-  "blueprint" | "moments"
-> & {
+export type CognitiveCompiledExperience = Omit<V16Substrate, "blueprint" | "moments"> & {
   cognition: CognitiveExperienceState;
   observation: ExperienceObservation;
   situation: CognitiveSituation;
@@ -74,8 +59,10 @@ export type CognitiveCompiledExperience = Omit<
   story: ExperienceStory;
   scenePlan: StoryScenePlan[];
   blueprint: ExperienceBlueprint;
-  moments: Moment[];
+  moments: ExperienceMoment[];
   cinematicScenes: CinematicScene[];
+  adaptiveQuestions: string[];
+  discoveries: string[];
 };
 
 const unique = (values: string[]): string[] => [
@@ -98,10 +85,10 @@ function compose(
   substrate: V16Substrate,
   cognition: CognitiveExperienceState,
   prompt: string,
+  context: ExperienceCompilerContext,
 ) {
-  const universal = compileUniversalExperienceBrain(prompt, cognition.plan);
+  const universal = compileUniversalExperienceBrain(prompt, cognition.plan, context);
   const storyProvenance = provenance(cognition);
-
   const storyTone: ExperienceTone[] = [
     ...((substrate.blueprint?.tone ?? []) as readonly ExperienceTone[]),
   ];
@@ -117,7 +104,7 @@ function compose(
     provenance: storyProvenance,
   };
 
-  const moments: Moment[] = universal.moments;
+  const moments: ExperienceMoment[] = universal.moments;
 
   const scenePlan: StoryScenePlan[] = universal.beats.map((beat, index) => {
     const visual = universal.cinematicScenes[index]?.visual;
@@ -140,23 +127,21 @@ function compose(
   });
 
   const blueprintMoments: ExperienceMoment[] = moments.map((moment, index) => ({
-    type: index === 0
-      ? "introduction"
-      : index === moments.length - 1
-        ? "completion"
-        : "story",
+    ...moment,
+    type: index === 0 ? "introduction" : index === moments.length - 1 ? "completion" : "story",
     component: "story",
-    title: "",
+    title: moment.title ?? moment.text ?? "",
     subtitle: cognition.subject.value,
-    description: moment.type === "message" ? moment.text : "",
+    description: moment.description ?? moment.text,
     editable: true,
     demo: false,
     order: index,
     payload: {
+      ...moment.payload,
       source: "canonical-universal-experience-brain",
       beatId: universal.beats[index]?.id,
       realityEventId: moment.meta?.realityEventId,
-      place: moment.meta?.place,
+      place: moment.location?.label ?? moment.meta?.place,
       time: moment.meta?.time,
     },
   }));
@@ -171,9 +156,12 @@ function compose(
       dna: unique([
         ...(substrate.blueprint.metadata?.dna ?? []),
         "canonical-universal-experience-brain",
+        "canonical-experience-moment",
         "source-evidence-first",
         "explicit-participant-only",
         "location-time-preservation",
+        "memory-aware-resolution",
+        "adaptive-questioning",
         "creative-performance-after-reality",
       ]),
     },
@@ -185,6 +173,8 @@ function compose(
     scenePlan,
     cinematicScenes: universal.cinematicScenes,
     blueprint,
+    adaptiveQuestions: universal.adaptiveQuestions,
+    discoveries: universal.discoveries,
   };
 }
 
@@ -193,7 +183,6 @@ export function compileCognitiveExperience(
   context: ExperienceCompilerContext = {},
 ): CognitiveCompiledExperience {
   let cognition = understandExperience(prompt, context);
-
   const premise = buildCognitivePremise({
     prompt,
     subject: cognition.subject,
@@ -224,7 +213,7 @@ export function compileCognitiveExperience(
   };
 
   const substrate = compileExperienceV16(prompt, context);
-  const composed = compose(substrate, cognition, prompt);
+  const composed = compose(substrate, cognition, prompt, context);
   const storyProvenance = provenance(cognition);
 
   const observation: ExperienceObservation = {
@@ -248,8 +237,8 @@ export function compileCognitiveExperience(
     temporal: observation.temporal,
     social: cognition.participants.value.length > 0 ? "shared" : "unknown",
     purpose: cognition.plan.purpose,
-    change: "",
-    tension: "",
+    change: universalChange(composed.story.beats.map((beat) => beat.text)),
+    tension: universalTension(composed.story.beats.map((beat) => beat.text)),
   };
 
   const candidates: CognitiveCandidate[] = (cognition.plan.realization?.directives ?? []).map((directive, index) => ({
@@ -270,5 +259,15 @@ export function compileCognitiveExperience(
     blueprint: composed.blueprint,
     moments: composed.moments,
     cinematicScenes: composed.cinematicScenes,
+    adaptiveQuestions: composed.adaptiveQuestions,
+    discoveries: composed.discoveries,
   };
+}
+
+function universalChange(beats: string[]): string {
+  return beats.length > 1 ? `${beats[0] ?? ""} -> ${beats.at(-1) ?? ""}` : "";
+}
+
+function universalTension(beats: string[]): string {
+  return beats.find((beat) => /(?:but|until|suddenly|then|finally|despite|never|still|almost|unexpectedly)/i.test(beat)) ?? "";
 }
