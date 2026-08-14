@@ -1,29 +1,20 @@
 /**
- * QRE EXPERIENCE COMPILE ROUTE
+ * QRE EXPERIENCE ROUTES
  *
- * Human Prompt
- *      ↓
- * Durable Memory Context
- *      ↓
- * Cognitive Compiler
- *      ↓
- * Experience Blueprint
- *      ↓
- * Memory Consolidation
- *
- * API delivery boundary only. The engine remains database-agnostic.
+ * API delivery boundary only.
+ * Cognition owns interpretation and the WorldModel; API owns persistence.
  */
 
 import { Router } from "express";
 
-import {
-  buildMemoryWriteBatch,
-  compileCognitiveExperience,
-  memoryContextToCompilerMemories,
-} from "@qre/engine";
+import { compileCognitiveExperience } from "@qre/engine";
 
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience } from "../services/experienceService.js";
+import {
+  buildExperienceMemoryBatch,
+  memoryContextToCognitiveSummary,
+} from "../services/memoryProjection.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { loadEntityMemory } from "../services/entityMemoryService.js";
 
@@ -103,8 +94,6 @@ router.get("/entity/:assetId/:entityName", requireAuth, async (req, res) => {
       });
     }
 
-    // loadContext performs the canonical AccountUser → Asset authorization
-    // check before the entity-specific query is allowed to run.
     await createMemoryRepository().loadContext({
       assetId,
       userId: req.user?.userId,
@@ -132,8 +121,8 @@ router.get("/entity/:assetId/:entityName", requireAuth, async (req, res) => {
 /**
  * POST /experience/memory/:assetId
  *
- * Explicit "remember this" path. It parses the supplied statement through
- * the same cognition boundary but does not compile a new experience.
+ * Explicit "remember this" path. The statement is interpreted by the same
+ * universal cognition boundary, then projected into durable memory here.
  */
 router.post("/memory/:assetId", requireAuth, async (req, res) => {
   try {
@@ -154,14 +143,13 @@ router.post("/memory/:assetId", requireAuth, async (req, res) => {
     });
 
     const compiled = compileCognitiveExperience(prompt, {
-      memories: memoryContextToCompilerMemories(context),
+      memorySummary: memoryContextToCognitiveSummary(context),
     });
 
-    const batch = buildMemoryWriteBatch({
+    const batch = buildExperienceMemoryBatch({
       assetId,
       userId: req.user?.userId,
-      prompt,
-      plan: compiled.cognition.plan,
+      world: compiled.world,
       source: "user",
     });
 
