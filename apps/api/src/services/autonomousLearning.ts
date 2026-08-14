@@ -1,0 +1,158 @@
+import { db } from "@qre/db";
+
+export type AutonomousLearning = {
+  signals: string[];
+  winningPatterns: string[];
+  weakPatterns: string[];
+  confidence: number;
+  measuredExperiences: number;
+  measuredEvents: number;
+};
+
+type FlowActions = {
+  category?: unknown;
+  sourcePrompt?: unknown;
+  generativeAuthor?: unknown;
+  learningProfile?: {
+    lens?: unknown;
+    promptShape?: unknown;
+  };
+};
+
+const POSITIVE = new Set(["FLOW_COMPLETE", "EXPERIENCE_REPLAY", "EXPERIENCE_SAVED", "EXPERIENCE_SHARED"]);
+const NEGATIVE = new Set(["FLOW_ABANDON", "ERROR"]);
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function short(value: string, max = 180): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function groupKey(actions: FlowActions): string {
+  const lens = text(actions.learningProfile?.lens) || text(actions.category) || "neutral";
+  const shape = text(actions.learningProfile?.promptShape) || "general";
+  return `${lens} / ${shape}`;
+}
+
+export async function getAutonomousLearning(input: {
+  assetId: string;
+  userId?: string;
+  limit?: number;
+}): Promise<AutonomousLearning> {
+  const base = await db.asset.findUnique({
+    where: { id: input.assetId },
+    select: { id: true, accountId: true },
+  });
+  if (!base) return { signals: [], winningPatterns: [], weakPatterns: [], confidence: 0, measuredExperiences: 0, measuredEvents: 0 };
+
+  let assetIds = [base.id];
+  if (input.userId) {
+    const accountIds = base.accountId
+      ? [base.accountId]
+      : (await db.accountUser.findMany({ where: { userId: input.userId }, select: { accountId: true } })).map((row) => row.accountId);
+    const owned = await db.asset.findMany({
+      where: {
+        OR: [
+          { ownerId: input.userId },
+          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (owned.length) assetIds = owned.map((row) => row.id);
+  }
+
+  const take = Math.max(20, Math.min(500, input.limit ?? 240));
+  const flows = await db.flow.findMany({
+    where: { assetFlows: { some: { assetId: { in: assetIds }, active: true } } },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: { id: true, actions: true },
+  });
+
+  if (!flows.length) return { signals: [], winningPatterns: [], weakPatterns: [], confidence: 0, measuredExperiences: 0, measuredEvents: 0 };
+
+  const events = await db.analyticsEvent.findMany({
+    where: { assetId: { in: assetIds }, flowId: { in: flows.map((flow) => flow.id) } },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(4000, take * 16),
+    select: { flowId: true, type: true },
+  });
+
+  const byFlow = new Map<string, { actions: FlowActions; scans: number; positives: number; negatives: number; completes: number; replays: number; saves: number; shares: number; abandons: number; errors: number }>();
+  for (const flow of flows) {
+    byFlow.set(flow.id, {
+      actions: (flow.actions && typeof flow.actions === "object" ? flow.actions : {}) as FlowActions,
+      scans: 0,
+      positives: 0,
+      negatives: 0,
+      completes: 0,
+      replays: 0,
+      saves: 0,
+      shares: 0,
+      abandons: 0,
+      errors: 0,
+    });
+  }
+
+  for (const event of events) {
+    if (!event.flowId) continue;
+    const bucket = byFlow.get(event.flowId);
+    if (!bucket) continue;
+    if (event.type === "SCAN") bucket.scans += 1;
+    if (POSITIVE.has(event.type)) bucket.positives += 1;
+    if (NEGATIVE.has(event.type)) bucket.negatives += 1;
+    if (event.type === "FLOW_COMPLETE") bucket.completes += 1;
+    if (event.type === "EXPERIENCE_REPLAY") bucket.replays += 1;
+    if (event.type === "EXPERIENCE_SAVED") bucket.saves += 1;
+    if (event.type === "EXPERIENCE_SHARED") bucket.shares += 1;
+    if (event.type === "FLOW_ABANDON") bucket.abandons += 1;
+    if (event.type === "ERROR") bucket.errors += 1;
+  }
+
+  const groups = new Map<string, { flows: number; scans: number; completes: number; positives: number; negatives: number }>();
+  for (const bucket of byFlow.values()) {
+    if (!bucket.actions.generativeAuthor && !text(bucket.actions.sourcePrompt)) continue;
+    const key = groupKey(bucket.actions);
+    const group = groups.get(key) ?? { flows: 0, scans: 0, completes: 0, positives: 0, negatives: 0 };
+    group.flows += 1;
+    group.scans += bucket.scans;
+    group.completes += bucket.completes;
+    group.positives += bucket.positives;
+    group.negatives += bucket.negatives;
+    groups.set(key, group);
+  }
+
+  const candidates = [...groups.entries()].map(([key, value]) => {
+    const completionRate = value.scans > 0 ? value.completes / value.scans : 0;
+    const positivePerScan = value.scans > 0 ? value.positives / value.scans : 0;
+    const negativePerScan = value.scans > 0 ? value.negatives / value.scans : 0;
+    const score = completionRate + positivePerScan - negativePerScan;
+    return { key, ...value, completionRate, positivePerScan, negativePerScan, score };
+  }).filter((value) => value.scans >= 2 || value.flows >= 2).sort((a, b) => b.score - a.score);
+
+  const measuredExperiences = candidates.reduce((sum, value) => sum + value.flows, 0);
+  const measuredEvents = events.length;
+  const confidence = Math.min(1, Math.max(0, measuredEvents / 250));
+
+  const winningPatterns = candidates.slice(0, 6).map((value) =>
+    `BEHAVIORAL_WINNER: ${value.key} — ${(value.completionRate * 100).toFixed(0)}% completion, ${value.positivePerScan.toFixed(2)} positive actions/scan across ${value.scans} scans.`,
+  );
+  const weakPatterns = candidates.slice(-4).filter((value) => value.negativePerScan > 0 || value.completionRate < 0.35).map((value) =>
+    `BEHAVIORAL_WEAKNESS: ${value.key} — ${(value.completionRate * 100).toFixed(0)}% completion, ${value.negativePerScan.toFixed(2)} negative actions/scan.`,
+  );
+  const signals = candidates.slice(0, 10).map((value) =>
+    `AUTO_SIGNAL: ${value.key} | scans=${value.scans} completes=${value.completes} replays/saves/shares=${value.positives} abandons/errors=${value.negatives}`,
+  );
+
+  return {
+    signals: signals.map((value) => short(value, 260)),
+    winningPatterns,
+    weakPatterns,
+    confidence,
+    measuredExperiences,
+    measuredEvents,
+  };
+}
