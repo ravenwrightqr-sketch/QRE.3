@@ -9,12 +9,10 @@ type Props = { data: ScanResponse };
 export default function CinematicScanPlayer({ data }: Props) {
   const scenes: CinematicScene[] = (data.cinematicScenes ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const [index, setIndex] = useState(0);
-  const [musicStarted, setMusicStarted] = useState(false);
   const musicRef = useRef<MusicHandle | null>(null);
 
   useEffect(() => {
     setIndex(0);
-    setMusicStarted(false);
     musicRef.current?.stop();
     musicRef.current = null;
     return () => {
@@ -27,13 +25,12 @@ export default function CinematicScanPlayer({ data }: Props) {
     const startMusic = () => {
       if (musicRef.current) return;
       const music = startDefaultCinematicMusic();
-      if (music) {
-        musicRef.current = music;
-        setMusicStarted(true);
-      }
+      if (music) musicRef.current = music;
     };
+
     window.addEventListener("pointerdown", startMusic, { passive: true, once: true });
     window.addEventListener("keydown", startMusic, { once: true });
+
     return () => {
       window.removeEventListener("pointerdown", startMusic);
       window.removeEventListener("keydown", startMusic);
@@ -54,10 +51,7 @@ export default function CinematicScanPlayer({ data }: Props) {
     setIndex(0);
     if (!musicRef.current) {
       const music = startDefaultCinematicMusic();
-      if (music) {
-        musicRef.current = music;
-        setMusicStarted(true);
-      }
+      if (music) musicRef.current = music;
     }
   }
 
@@ -83,10 +77,7 @@ export default function CinematicScanPlayer({ data }: Props) {
       onPointerDown={() => {
         if (musicRef.current) return;
         const music = startDefaultCinematicMusic();
-        if (music) {
-          musicRef.current = music;
-          setMusicStarted(true);
-        }
+        if (music) musicRef.current = music;
       }}
       style={{ ...stage, background, animation: `${transition === "flash" ? "qreSceneFlash" : "qreSceneIn"} .75s ease both` }}
       aria-label="Cinematic experience"
@@ -99,24 +90,6 @@ export default function CinematicScanPlayer({ data }: Props) {
       <section style={sceneFrame}>
         <MomentRenderer moment={scene.moment} />
       </section>
-
-      {!musicStarted && (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            const music = startDefaultCinematicMusic();
-            if (music) {
-              musicRef.current = music;
-              setMusicStarted(true);
-            }
-          }}
-          style={soundButton}
-          aria-label="Start soundtrack"
-        >
-          SOUND
-        </button>
-      )}
     </main>
   );
 }
@@ -161,29 +134,14 @@ const progressTrack: CSSProperties = {
   left: 0,
   right: 0,
   height: 2,
-  background: "rgba(255,255,255,.08)",
+  background: "rgba(255,255,255,.06)",
   zIndex: 4,
 };
 
 const progressFill: CSSProperties = {
   height: "100%",
-  background: "rgba(255,255,255,.7)",
+  background: "rgba(255,255,255,.55)",
   transition: "width .25s ease",
-};
-
-const soundButton: CSSProperties = {
-  position: "fixed",
-  right: 16,
-  bottom: 16,
-  zIndex: 5,
-  border: "1px solid rgba(255,255,255,.16)",
-  background: "rgba(0,0,0,.28)",
-  color: "rgba(255,255,255,.62)",
-  borderRadius: 999,
-  padding: "8px 12px",
-  fontSize: 9,
-  letterSpacing: 1.5,
-  backdropFilter: "blur(12px)",
 };
 
 const sealedStage: CSSProperties = {
