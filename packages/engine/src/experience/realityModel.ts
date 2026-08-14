@@ -47,20 +47,20 @@ export function buildRealityModel(
   const subject = central || subjectValues[0]?.value || "the subject";
   const subjectName = generic.test(subject) ? slot(plan, premise, "participants")[0] || subject : subject;
 
-  const roleGroups: Array<[string, string]> = [
-    ["subject", subjectName],
-    ["participants", ""],
-    ["social", ""],
-    ["place", ""],
-    ["artifact", ""],
-    ["medium", ""],
-    ["event", ""],
+  const roleGroups: Array<[string, PremiseValue[]]> = [
+    ["subject", [{ value: subjectName, promptObserved: subjectValues.some((item) => item.value === subjectName && item.promptObserved), confidence: subjectValues[0]?.confidence ?? 1 }]],
+    ["participants", slotValues(plan, premise, "participants")],
+    ["social", slotValues(plan, premise, "social")],
+    ["place", slotValues(plan, premise, "place")],
+    ["artifact", slotValues(plan, premise, "artifact")],
+    ["medium", slotValues(plan, premise, "medium")],
+    ["event", slotValues(plan, premise, "event")],
   ];
 
   const entities: RealityEntity[] = [];
   const ids = new Map<string, string>();
-  const addEntity = (name: string, role: string) => {
-    const normalized = clean(name);
+  const addEntity = (item: PremiseValue, role: string) => {
+    const normalized = clean(item.value);
     if (!normalized || generic.test(normalized)) return undefined;
     const key = normalized.toLowerCase();
     const existing = ids.get(key);
@@ -71,18 +71,17 @@ export function buildRealityModel(
       id,
       name: normalized,
       kind: kindFor(normalized, role),
-      confidence: role === "subject" ? 1 : 0.9,
-      provenance: "prompt",
+      confidence: role === "subject" ? item.confidence : Math.min(item.confidence, item.promptObserved ? 0.98 : 0.82),
+      provenance: item.promptObserved ? "prompt" : "derived",
     });
     return id;
   };
 
-  for (const [role, explicit] of roleGroups) {
-    const names = explicit ? [explicit] : slot(plan, premise, role);
-    for (const name of names) addEntity(name, role);
+  for (const [role, items] of roleGroups) {
+    for (const item of items) addEntity(item, role);
   }
 
-  const subjectId = addEntity(subjectName, "subject") ?? "reality-subject";
+  const subjectId = ids.get(subjectName.toLowerCase()) ?? "reality-subject";
   const places = slot(plan, premise, "place");
   const temporal = slot(plan, premise, "temporal");
   const constraints = slot(plan, premise, "constraint");
@@ -100,7 +99,6 @@ export function buildRealityModel(
   const addObservation = (item: PremiseValue, order: number) => {
     const value = clean(item.value);
     if (!value) return;
-    const provenance: RealityObservation["provenance"] = item.promptObserved ? "prompt" : "derived";
     observations.push({
       id: `observation-${observations.length + 1}`,
       order,
@@ -108,7 +106,7 @@ export function buildRealityModel(
       subjectIds: subjectAndParticipants.length ? subjectAndParticipants : [subjectId],
       placeId: places[0] ? ids.get(places[0].toLowerCase()) : undefined,
       confidence: item.confidence,
-      provenance,
+      provenance: item.promptObserved ? "prompt" : "derived",
     });
   };
 
@@ -116,9 +114,7 @@ export function buildRealityModel(
   if (!eventValues.length) {
     transformationValues.forEach((item, index) => addObservation(item, index));
     outcomeValues.forEach((item, index) => addObservation(item, transformationValues.length + index));
-    if (!observations.length) {
-      slotValues(plan, premise, "artifact").forEach((item, index) => addObservation(item, index));
-    }
+    if (!observations.length) slotValues(plan, premise, "artifact").forEach((item, index) => addObservation(item, index));
   }
 
   const relations: RealityRelation[] = [];
