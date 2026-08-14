@@ -15,18 +15,18 @@ import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
 import { compileExperienceV16 } from "./experienceCompilerV16.js";
 import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
-import { compileUniversalRealityExperience } from "../compiler/universalRealityCompiler.js";
+import { compileUniversalExperienceBrain } from "../compiler/universalExperienceBrain.js";
 
 /**
  * STATUS: ACTIVE / COMPILER-ONLY
  *
  * Canonical compiler bridge:
  *
- * prompt → cognition → universal reality → runtime moments → cinema
+ * prompt → cognition → universal experience brain → runtime moments → cinema
  *
  * V16 remains an artifact/memory substrate only. Its authoring `ExperienceMoment[]`
  * and blueprint are not confused with the runtime `Moment[]` emitted by the
- * universal realization path.
+ * canonical universal experience brain.
  */
 
 export type ExperienceObservation = {
@@ -95,11 +95,11 @@ const provenance = (state: CognitiveExperienceState): StoryProvenance[] =>
   }));
 
 function compose(
-  prompt: string,
   substrate: V16Substrate,
   cognition: CognitiveExperienceState,
+  prompt: string,
 ) {
-  const universal = compileUniversalRealityExperience(prompt, cognition.plan);
+  const universal = compileUniversalExperienceBrain(prompt, cognition.plan);
   const storyProvenance = provenance(cognition);
 
   const storyTone: ExperienceTone[] = [
@@ -153,7 +153,7 @@ function compose(
     demo: false,
     order: index,
     payload: {
-      source: "canonical-universal-reality-compiler",
+      source: "canonical-universal-experience-brain",
       beatId: universal.beats[index]?.id,
       realityEventId: moment.meta?.realityEventId,
       place: moment.meta?.place,
@@ -170,10 +170,11 @@ function compose(
       ...substrate.blueprint.metadata,
       dna: unique([
         ...(substrate.blueprint.metadata?.dna ?? []),
-        "canonical-universal-reality-compiler",
+        "canonical-universal-experience-brain",
         "source-evidence-first",
         "explicit-participant-only",
         "location-time-preservation",
+        "creative-performance-after-reality",
       ]),
     },
   };
@@ -223,7 +224,7 @@ export function compileCognitiveExperience(
   };
 
   const substrate = compileExperienceV16(prompt, context);
-  const composed = compose(prompt, substrate, cognition);
+  const composed = compose(substrate, cognition, prompt);
   const storyProvenance = provenance(cognition);
 
   const observation: ExperienceObservation = {
