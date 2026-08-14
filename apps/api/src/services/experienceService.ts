@@ -6,6 +6,7 @@ import {
   buildExperienceMemoryBatch,
   memoryContextToCognitiveSummary,
 } from "./memoryProjection.js";
+import { authorCinematicSequence } from "./cinematicAuthor.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -38,6 +39,68 @@ export type CompiledExperienceResult = {
   warnings?: string[];
   [key: string]: unknown;
 };
+
+function applyCinematicAuthor(
+  compiled: any,
+  authoredScenes: Array<{ text: string; kind?: string }>,
+): any {
+  if (!authoredScenes.length) return compiled;
+
+  const templateScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
+  const templateMoments = Array.isArray(compiled.moments) ? compiled.moments : [];
+  const baseScene = templateScenes[0] ?? {
+    id: "cinematic-authored-1",
+    type: "action",
+    duration: 4000,
+    transition: "fade",
+    visual: { theme: "cinematic", animation: "parallax" },
+    meta: {},
+  };
+
+  const cinematicScenes = authoredScenes.map((authored, index) => {
+    const template = templateScenes[index] ?? baseScene;
+    const baseMoment = templateMoments[index] ?? template.moment ?? {
+      type: "message",
+      order: index,
+      meta: {},
+    };
+    const text = authored.text.trim();
+    return {
+      ...template,
+      id: `authored-cinematic-${index + 1}`,
+      order: index,
+      duration: template.duration ?? 4000,
+      type: index === 0 ? "intro" : index === authoredScenes.length - 1 ? "emotion" : "action",
+      transition: index === 0 ? "none" : index === authoredScenes.length - 1 ? "cinematic" : "fade",
+      moment: {
+        ...baseMoment,
+        type: "message",
+        order: index,
+        text,
+        title: undefined,
+        description: undefined,
+        meta: {
+          ...(baseMoment.meta ?? {}),
+          authoredBy: "qre-cinematic-author",
+          sequenceKind: authored.kind ?? "development",
+        },
+      },
+      meta: {
+        ...(template.meta ?? {}),
+        authoredBy: "qre-cinematic-author",
+        sequenceKind: authored.kind ?? "development",
+      },
+    };
+  });
+
+  return {
+    ...compiled,
+    moments: cinematicScenes.map((scene) => scene.moment),
+    cinematicScenes,
+    momentCount: cinematicScenes.length,
+    estimatedDuration: cinematicScenes.reduce((sum, scene) => sum + Number(scene.duration || 4000), 0),
+  };
+}
 
 export async function compileExperience(input: {
   prompt: string;
@@ -77,7 +140,7 @@ export async function compileExperience(input: {
   const analytics = summarizeCognitiveAnalytics(analyticsEvents);
   const geo = input.geoAnchor;
   const role = geo?.role ?? "experience_place";
-  const compiled = compileCognitiveExperience(prompt, {
+  let compiled: any = compileCognitiveExperience(prompt, {
     memorySummary,
     analytics,
     location: geo
@@ -100,6 +163,38 @@ export async function compileExperience(input: {
         }
       : undefined,
   });
+
+  try {
+    const authored = await authorCinematicSequence({
+      prompt,
+      lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
+      subject: String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? ""),
+      place: String(geo?.label ?? ""),
+      sourceMoments: [
+        ...(Array.isArray(compiled.moments) ? compiled.moments.map((moment: any) => String(moment?.text ?? moment?.description ?? "").trim()).filter(Boolean) : []),
+        ...(memorySummary as string[]),
+      ].slice(0, 24),
+      facts: [
+        ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
+        ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
+        ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
+        ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
+        ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
+      ],
+      memoryContext: memorySummary as string[],
+      creativeLearningContext: Array.isArray(compiled.learningSignals) ? compiled.learningSignals.slice(0, 20) : [],
+      trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
+    });
+
+    if (authored.length >= 3) {
+      compiled = applyCinematicAuthor(compiled, authored);
+    } else {
+      warnings.push("cinematic_author_fallback");
+    }
+  } catch (error) {
+    console.warn("[QRE][AUTHORING] Cinematic author unavailable; preserving deterministic sequence.", error);
+    warnings.push("cinematic_author_unavailable");
+  }
 
   const enrichedBlueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
