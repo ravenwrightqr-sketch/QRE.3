@@ -5,7 +5,7 @@ CANONICAL. This directory is the single compiler surface for customer-language e
 
 ## Canonical pipeline
 
-`prompt → source evidence → world model → memory resolution → event segmentation → change/attention → creative hypotheses → ranked realization → ExperienceMoment[] → CinematicScene[]`
+`prompt → source evidence → world model → memory resolution → event segmentation → evidence conservation → change/attention → creative hypotheses → ranked realization → ExperienceMoment[] → CinematicScene[]`
 
 ## Core law
 
@@ -44,6 +44,21 @@ Examples:
 The compiler must discover the individual event sequence rather than treating the entire sentence as one event.
 
 Segmentation is universal and evidence-based. It must not become a domain-specific parser.
+
+## Evidence conservation during realization
+
+Creative realization is not allowed to discard important source anchors merely because a more poetic candidate exists.
+
+High-value event evidence includes:
+
+- explicit participant/entity
+- explicit object/artifact
+- explicit place
+- explicit time/date
+- explicit temporal endpoint such as `until closing`
+- explicit relationship or recurrence
+
+A creative candidate that loses a high-value anchor is rejected or heavily penalized in ranking. Creativity must elaborate reality, not erase it.
 
 ## Memory-aware cognition
 
@@ -144,4 +159,4 @@ Primary gate:
 
 `pnpm --filter @qre/engine test:universal-mind`
 
-A compiler change is not accepted merely because TypeScript builds. The generated experience must preserve source reality, form a meaningful sequence, avoid cognitive leakage, use memory correctly, and demonstrate genuinely different creative performance when the lens changes.
+A compiler change is not accepted merely because TypeScript builds. The generated experience must preserve source reality, form a meaningful sequence, avoid cognitive leakage, conserve high-value time/place/relationship evidence, use memory correctly, and demonstrate genuinely different creative performance when the lens changes.
