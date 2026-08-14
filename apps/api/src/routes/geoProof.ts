@@ -5,23 +5,57 @@ import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
 
+async function ownedAsset(slug: string, userId: string) {
+  return db.asset.findFirst({
+    where: {
+      slug,
+      OR: [
+        { ownerId: userId },
+        { ownership: { userId } },
+      ],
+    },
+    select: { id: true },
+  });
+}
+
+router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const userId = req.user?.userId;
+    if (!slug || !userId) return res.status(400).json({ error: "Missing asset or user" });
+
+    const asset = await ownedAsset(slug, userId);
+    if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+    const location = await db.geoProof.findFirst({
+      where: { assetId: asset.id, source: "dashboard" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        lat: true,
+        lng: true,
+        label: true,
+        city: true,
+        region: true,
+        country: true,
+        source: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({ location });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load location" });
+  }
+});
+
 router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
   try {
     const slug = safeStringParam(req.params.slug);
     const userId = req.user?.userId;
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset or user" });
 
-    const asset = await db.asset.findFirst({
-      where: {
-        slug,
-        OR: [
-          { ownerId: userId },
-          { ownership: { userId } },
-        ],
-      },
-      select: { id: true },
-    });
-
+    const asset = await ownedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found" });
 
     const body = req.body ?? {};
