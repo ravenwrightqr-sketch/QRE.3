@@ -13,6 +13,7 @@ const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+
 const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
 const STOP_NAMES = /^(The|Then|At|And|My|Our|This|First|Later|Everyone|Grandma)$/i;
 const TEMPORAL_TAIL = /\s+(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this\s+(?:morning|afternoon|evening)|last\s+night|two\s+weeks?\s+ago|three\s+years?\s+later|until\s+closing|at\s+(?:sunrise|sunset)|for\s+\w+\s+(?:minutes|hours|days|weeks|years))\b.*$/i;
+const TEMPORAL_ONLY = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this\s+(?:morning|afternoon|evening)|last\s+night|two\s+weeks?\s+ago|three\s+years?\s+later|until\s+closing|at\s+(?:sunrise|sunset)|for\s+\w+\s+(?:minutes|hours|days|weeks|years))$/i;
 const MEMORY_PLACE_RE = /\b(?:at|in|inside|near|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8})/i;
 
 function strings(context: UniversalMindContext): string[] {
@@ -30,12 +31,18 @@ function normalizePlace(value: string): string {
     .trim();
 }
 
+function usablePlace(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const candidate = normalizePlace(value);
+  if (!candidate || TEMPORAL_ONLY.test(candidate)) return undefined;
+  return candidate;
+}
+
 function memoryPlaceEvidence(entry: string): string[] {
-  const worldPlaces = buildWorldModel(entry).places;
+  const worldPlaces = buildWorldModel(entry).places.filter((place) => !TEMPORAL_ONLY.test(clean(place)));
   if (worldPlaces.length) return worldPlaces;
   const match = entry.match(MEMORY_PLACE_RE);
-  if (!match?.[1]) return [];
-  const fallback = normalizePlace(match[1]);
+  const fallback = usablePlace(match?.[1]);
   return fallback ? [fallback] : [];
 }
 
@@ -50,9 +57,10 @@ function memoryEpisodes(entries: string[]) {
 
 function explicitPlaceFromPrompt(prompt: string): string | undefined {
   const world = buildWorldModel(prompt);
-  if (world.places.length === 1) return world.places[0];
+  const worldPlace = world.places.length === 1 ? usablePlace(world.places[0]) : undefined;
+  if (worldPlace) return worldPlace;
   const match = prompt.match(MEMORY_PLACE_RE);
-  return match?.[1] ? normalizePlace(match[1]) : undefined;
+  return usablePlace(match?.[1]);
 }
 
 export function resolveMemory(prompt: string, context: UniversalMindContext): MemoryResolution {
