@@ -21,6 +21,7 @@
     "build": "tsc -p tsconfig.json",
     "test:universal-mind": "tsx src/compiler/tests/universalCognitiveMindAcceptance.ts",
     "test:creative-superstar": "tsx src/compiler/tests/creativeSuperstarAcceptance.ts",
-    "test:all-cognition": "pnpm run test:universal-mind && pnpm run test:creative-superstar"
+    "test:runtime-cognition": "tsx src/compiler/tests/runtimeCognitionAcceptance.ts",
+    "test:all-cognition": "pnpm run test:universal-mind && pnpm run test:creative-superstar && pnpm run test:runtime-cognition"
   }
 }
