@@ -1,20 +1,4 @@
-export type CognitiveMindRuntimeState = {
-  compileCount?: number;
-  eventHistory?: string[];
-  entityStates?: Record<string, { appearances?: number; places?: string[]; relationships?: string[]; states?: string[] }>;
-  relationships?: Record<string, { relation: string; strength?: number; eventCount?: number }>;
-  creativeLearning?: {
-    accepted?: string[];
-    rejected?: string[];
-    preferences?: string[];
-    successfulLenses?: string[];
-    avoidedPatterns?: string[];
-    usedPhrases?: string[];
-    noveltyPressure?: number;
-  };
-  lastLens?: string;
-  lastMomentCount?: number;
-};
+import type { CognitiveMindState } from "@qre/contracts";
 
 export type UniversalMindContext = {
   memorySummary?: string[];
@@ -24,5 +8,5 @@ export type UniversalMindContext = {
   entityHints?: string[];
   creativePreferences?: string[];
   feedback?: { accepted?: string[]; rejected?: string[] };
-  state?: CognitiveMindRuntimeState;
+  state?: CognitiveMindState;
 };
