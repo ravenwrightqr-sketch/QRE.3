@@ -3,11 +3,23 @@ import { db } from "@qre/db";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { aiConfigured, aiProviderName, analyzeImageForKnowledge, generateAiExperienceDraft } from "../services/aiProvider.js";
 import { getCreativeLearningContext, learningContextLines, recordCreativeFeedback } from "../services/creativeLearning.js";
+import { buildCreativeSeedPlan } from "../services/creativeSeedEngine.js";
 
 const router = express.Router();
 
 router.get("/status", requireAuth, async (_req, res) => {
   return res.json({ configured: aiConfigured(), provider: aiProviderName() });
+});
+
+router.post("/seeds", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+    if (!prompt) return res.status(400).json({ error: "Prompt required." });
+    const plan = await buildCreativeSeedPlan(prompt);
+    return res.json({ plan });
+  } catch (error) {
+    return res.status(502).json({ error: error instanceof Error ? error.message : "Creative seed planning failed." });
+  }
 });
 
 router.post("/write", requireAuth, async (req: AuthRequest, res) => {
