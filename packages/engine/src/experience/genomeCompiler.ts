@@ -10,29 +10,19 @@ import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
  * QRE GENOME COMPILER — COMPATIBILITY BOUNDARY
  * ============================================================
  *
- * PURPOSE:
- *   Preserve the historical genome/world-shaped API while routing all
- *   prompt intelligence through the canonical cognitive compiler.
+ * STATUS: COMPATIBILITY ADAPTER ONLY.
  *
- * CANONICAL PIPELINE:
- *   PROMPT → COGNITION → PLAN → UNIVERSAL COMPILATION → GENOME / WORLD
- *
- * ARCHITECTURE RULE:
- *   THE COMPILER BECOMES SMARTER.
- *   IT DOES NOT INVENT ANOTHER ARCHITECTURE.
- *
- * CONTRACT RULE:
- *   ExperienceIntent comes only from @qre/contracts. This compatibility
- *   boundary must not create a second intent type.
- *
- * CONTINUITY RULE:
- *   This file is an adapter for old callers, not a competing compiler brain.
- *
+ * The canonical compiler is now the universal reality compiler. This file
+ * exists only because older callers still request a genome-shaped result.
+ * It must not maintain a second intelligence path and must not expect the
+ * removed `genome` / `model` fields from CognitiveCompiledExperience.
  * ============================================================
  */
 
 export type CompiledGenomeExperience = CognitiveCompiledExperience & {
   world: ExperienceWorld;
+  intent: ExperienceIntent[];
+  audience: string[];
 };
 
 function inferIntent(result: CognitiveCompiledExperience): ExperienceIntent[] {
@@ -66,7 +56,7 @@ function compatibilityWorld(result: CognitiveCompiledExperience): ExperienceWorl
   return {
     domain: "experience_world",
     archetype: "adaptive_story",
-    atmosphere: story.tone,
+    atmosphere: [...story.tone],
     journey: story.beats.map((beat) => beat.kind),
     atoms: [...new Set([
       observation.subject,
@@ -89,46 +79,11 @@ export function compileExperienceGenome(
   const result = compileCognitiveExperience(prompt, context);
   const intent = inferIntent(result);
   const audience = resolveAudience(result);
-  const directionConcept = result.cognition.plan.direction
-    ? [result.cognition.plan.direction]
-    : [];
 
   return {
     ...result,
-    genome: {
-      ...result.genome,
-      intent,
-      interpretation: {
-        ...result.genome.interpretation,
-        intent,
-        concepts: [...new Set([
-          ...result.genome.interpretation.concepts,
-          ...result.observation.context,
-          ...result.observation.affordances,
-          ...directionConcept,
-        ])],
-        confidence: result.genome.interpretation.confidence,
-      },
-      audience,
-      dna: [...new Set([
-        ...result.genome.dna,
-        "canonical-cognitive-compiler",
-        "universal-compiler-substrate",
-        ...result.cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
-        ...audience.map((value) => `audience:${value}`),
-      ])],
-    },
-    model: {
-      ...result.model,
-      metadata: {
-        ...result.model.metadata,
-        tags: [
-          ...((result.model.metadata?.tags ?? []) as string[]),
-          "canonical-cognitive-compiler",
-          "universal-compiler-substrate",
-        ],
-      },
-    },
+    intent,
+    audience,
     world: compatibilityWorld(result),
   };
 }
