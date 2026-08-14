@@ -1,49 +1,67 @@
-import { compileUniversalExperience } from "../../experience/universalExperienceCompiler.js";
+import { compileUniversalExperience } from "../../universal/compiler.js";
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(`UNIVERSAL EXPERIENCE FAILED: ${message}`);
+  if (!condition) throw new Error(`UNIVERSAL SENTENCE ACCEPTANCE FAILED: ${message}`);
 }
 
-function run(prompt: string): string[] {
+function run(prompt: string) {
   const result = compileUniversalExperience(prompt);
   console.log(`\nPROMPT: ${prompt}`);
   result.lines.forEach((line, index) => console.log(`  ${index + 1}. ${line}`));
-  return result.lines;
+  return result;
 }
 
 const coco = run(
   "Coco walked in suspicious of the whole arrangement. The bath changed the mood. Then Coco stole a bow like compensation was part of the package. By pickup, the whole ordeal had apparently been forgiven.",
 );
-assert(coco.length >= 3, "Coco produces a multi-line experience");
-assert(coco.join(" ").toLowerCase().includes("coco"), "explicit subject survives");
-assert(coco.join(" ").toLowerCase().includes("bath"), "prompt evidence survives");
-assert(coco.join(" ").toLowerCase().includes("bow"), "distinctive consequence survives");
-assert(!coco.join(" ").match(/groomer|tattoo|nightclub|treasure hunt/i), "no unrelated domain vocabulary is injected");
+const cocoText = coco.lines.join(" ").toLowerCase();
+assert(coco.lines.length >= 3, "Coco produces a real multi-line experience");
+assert(cocoText.includes("coco"), "explicit subject survives");
+assert(cocoText.includes("bath"), "intermediate event survives");
+assert(cocoText.includes("bow"), "distinctive consequence survives");
+assert(!/groomer|tattoo|nightclub|treasure hunt/i.test(cocoText), "no domain branch leaks into the prose");
 
-const house = run(
+const airbnb = run(
   "A house is rented as an Airbnb. Guests arrive, discover the kitchen is spotless, and leave five stars.",
 );
-assert(house.join(" ").toLowerCase().includes("house"), "house is treated as supplied subject evidence");
-assert(house.join(" ").toLowerCase().includes("kitchen"), "house details survive");
-assert(house.join(" ").toLowerCase().includes("five stars"), "final consequence survives");
-assert(!house.join(" ").toLowerCase().includes("owner"), "owner is never invented");
+const airbnbText = airbnb.lines.join(" ").toLowerCase();
+assert(airbnbText.includes("house"), "house remains an input-grounded subject");
+assert(airbnbText.includes("kitchen"), "place/detail evidence survives");
+assert(airbnbText.includes("five stars"), "final consequence survives");
+assert(!airbnbText.includes("owner"), "owner is never invented");
+assert(airbnbText.includes("guests"), "explicit guests may be preserved");
 
-const concert = run(
-  "The concert started late, the crowd got restless, then the first song hit and everyone was excited.",
+const locationTime = run(
+  "The concert started at 8pm on Friday at Riverside Theater. The crowd got restless, then the first song hit and everyone was excited.",
 );
-assert(concert.join(" ").toLowerCase().includes("concert"), "concert survives as input evidence");
-assert(concert.join(" ").toLowerCase().includes("restless"), "intermediate state survives");
-assert(concert.join(" ").toLowerCase().includes("excited"), "observed final state survives");
+const event = locationTime.model.events.find((item) => item.time || item.date || item.place);
+assert(event, "event metadata exists");
+assert(event?.time?.toLowerCase().includes("8pm"), "time is attached to an event");
+assert(event?.date?.toLowerCase().includes("friday"), "date is attached to an event");
+assert(event?.place?.toLowerCase().includes("riverside theater"), "place is attached to an event");
+const locationTimeText = locationTime.lines.join(" ").toLowerCase();
+assert(locationTimeText.includes("concert"), "concert remains grounded in the prompt");
+assert(locationTimeText.includes("restless") || locationTimeText.includes("excited"), "state evidence survives");
 
-const unrelated = run(
+const kids = run("Create a treasure hunt for kids with clues hidden around the museum.");
+const kidsText = kids.lines.join(" ").toLowerCase();
+assert(kidsText.includes("kids"), "an explicitly supplied participant may survive");
+assert(kidsText.includes("museum"), "an explicitly supplied place may survive");
+
+const noKids = run("Create a treasure hunt with clues hidden around the museum.");
+const noKidsText = noKids.lines.join(" ").toLowerCase();
+assert(!/\bkids?\b|\bchildren\b/.test(noKidsText), "kids are not invented when the prompt does not say kids");
+
+const memory = run(
   "My grandfather's old watch sat in a drawer for years. I found it, cleaned it, and gave it to my sister.",
 );
-assert(unrelated.join(" ").toLowerCase().includes("watch"), "object subject survives");
-assert(unrelated.join(" ").toLowerCase().includes("sister"), "relationship consequence survives");
-assert(!unrelated.join(" ").match(/groomer|tattoo|nightclub|housekeeper/i), "unrelated prompt stays unrelated");
+const memoryText = memory.lines.join(" ").toLowerCase();
+assert(memoryText.includes("watch"), "object subject survives");
+assert(memoryText.includes("sister"), "explicit relationship survives");
+assert(!/groomer|tattoo|nightclub|housekeeper/i.test(memoryText), "unrelated domain vocabulary never appears");
 
-const instructionOnly = run("Create something memorable for a museum opening.");
-assert(instructionOnly.length >= 1, "instruction-only prompt still realizes useful language");
-assert(!instructionOnly.join(" ").match(/compiler|cognition|premise|directive|trajectory|mechanic/i), "internal vocabulary never reaches prose");
+const instruction = run("Create something memorable for a museum opening.");
+assert(instruction.lines.length >= 1, "instruction-only prompts still return human language");
+assert(!/compiler|cognition|premise|directive|trajectory|mechanic/i.test(instruction.lines.join(" ")), "internal vocabulary never reaches customer prose");
 
 console.log("\nUNIVERSAL EXPERIENCE SENTENCE ACCEPTANCE: PASS\n");

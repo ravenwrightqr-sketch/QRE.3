@@ -1,11 +1,21 @@
 /**
- * Universal prompt reasoning contract.
+ * UNIVERSAL EXPERIENCE CONTRACT
  *
- * No business/domain vocabulary belongs here. Every prompt is reduced to the
- * same observable primitives before realization: subject, events, change,
- * relationships, consequence, and payoff.
+ * This contract intentionally contains no business-specific vocabulary.
+ * Prompts become observable evidence, events, relationships, change, and
+ * consequence. Presentation can then choose a human sentence without
+ * inventing unsupported facts.
  */
-export type UniversalEvidenceKind = "subject" | "action" | "object" | "state" | "place" | "time" | "participant" | "detail";
+export type UniversalEvidenceKind =
+  | "subject"
+  | "action"
+  | "object"
+  | "state"
+  | "place"
+  | "date"
+  | "time"
+  | "participant"
+  | "detail";
 
 export type UniversalEvidence = {
   id: string;
@@ -25,6 +35,9 @@ export type UniversalEvent = {
   object?: string;
   states: string[];
   details: string[];
+  place?: string;
+  date?: string;
+  time?: string;
   evidenceIds: string[];
   importance: number;
 };
@@ -32,7 +45,13 @@ export type UniversalEvent = {
 export type UniversalRelation = {
   fromEventId: string;
   toEventId: string;
-  kind: "sequence" | "state_change" | "consequence" | "contrast" | "escalation" | "resolution";
+  kind:
+    | "sequence"
+    | "state_change"
+    | "consequence"
+    | "contrast"
+    | "escalation"
+    | "resolution";
   strength: number;
   reason: string;
 };
@@ -51,6 +70,7 @@ export type UniversalConsequence = {
 };
 
 export type UniversalExperienceModel = {
+  prompt?: string;
   subject: string;
   evidence: UniversalEvidence[];
   events: UniversalEvent[];
