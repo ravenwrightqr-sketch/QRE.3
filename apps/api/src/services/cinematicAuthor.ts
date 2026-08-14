@@ -21,8 +21,21 @@ export type AuthoredScene = {
   visualHint?: string;
 };
 
+type CreativeIntent =
+  | "memory"
+  | "promotion"
+  | "service"
+  | "creator"
+  | "social"
+  | "artist"
+  | "person"
+  | "event"
+  | "artifact"
+  | "story"
+  | "unknown";
+
 type CreativeDirection = {
-  intent: "memory" | "promotion" | "event" | "personal" | "artifact" | "unknown";
+  intent: CreativeIntent;
   attentionGoal: string;
   emotionalEngine: string;
   strongestDetail: string;
@@ -76,21 +89,59 @@ function containsMetaLanguage(text: string): boolean {
 
 function inferDirection(input: CinematicAuthorInput): CreativeDirection {
   const combined = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
-  const memory = /\b(memory|remember|wedding|anniversary|trip|rave|concert|family|grandma|childhood|vacation|pet)\b/.test(combined);
-  const promotion = /\b(create|make|build|generate|produce|write|turn)\b/.test(combined)
-    && /\b(video|ad|commercial|promo|promotion|marketing|business|brand|grooming|restaurant|salon|service|dispensary|realtor|real estate)\b/.test(combined);
-  const event = /\b(wedding|party|event|birthday|festival|ceremony|reunion)\b/.test(combined);
+  const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(combined));
+  const memory = has(
+    /\bmemory|remember|years later|again|returned|recurrence|childhood|grandma|family|vacation|trip|rave|concert|pet\b/,
+    /\bwedding|anniversary|honeymoon|memorial\b/,
+  );
+  const service = has(/\bservice|client|customer|groom|grooming|clean|cleaning|repair|repaired|install|installed|barber|salon|plumber|landscap|mechanic|tattoo|restaurant\b/);
+  const promotion = has(/\bpromo|promotion|commercial|advert|marketing|sell|selling|brand|business\b/) ||
+    (/\bcreate|make|build|generate|produce|write|turn\b/.test(combined) && service);
+  const creator = has(/\bcreator|create content|youtube|tiktok|reels|shorts|content creator|influencer|personal brand\b/);
+  const social = has(/\bsocial|instagram|facebook|threads|post|caption|feed|followers|story post\b/);
+  const artist = has(/\bartist|artwork|painting|sculpture|music|musician|song|album|photographer|photography|illustrator|designer|gallery|studio\b/);
+  const person = has(/\babout me|about myself|my story|my life|my identity|personal profile|bio|portrait|self\b/);
+  const event = has(/\bevent|party|festival|ceremony|reunion|birthday|conference|opening|show\b/);
+  const artifact = has(/\bartifact|object|piece|plaque|keychain|sticker|tag|installation|physical art|qr art\b/);
+  const story = has(/\bstory|tale|scene|movie|film|short film|fiction\b/);
 
   if (promotion) {
     return {
-      intent: "promotion",
-      attentionGoal: "earn attention immediately, create a memorable transformation, and end with a clean desire or CTA-ready feeling",
+      intent: service ? "service" : "promotion",
+      attentionGoal: "earn attention immediately, create a memorable transformation, and finish on a strong image or desire without making unsupported commercial claims",
       emotionalEngine: input.lens || "funny, vivid, unexpected",
-      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most distinctive service detail",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most distinctive supplied detail",
       sequenceShape: ["hook", "movement", "surprise", "transformation", "payoff"],
-      endingMove: "land on the strongest memorable image or feeling without making unsupported business claims",
+      endingMove: "land on the strongest memorable image or feeling without turning the movie into generic ad copy",
       targetDensity: "compact",
       avoid: ["generic ad copy", "feature lists", "sales slogans", "invented business claims", "long exposition"],
+    };
+  }
+
+  if (service) {
+    return {
+      intent: "service",
+      attentionGoal: "make an ordinary job feel specific, human, and worth watching without overstating what happened",
+      emotionalEngine: input.lens || "personality, contrast, transformation",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most revealing service detail",
+      sequenceShape: ["arrival", "detail", "movement", "turn", "payoff"],
+      endingMove: "make the completed service feel like a satisfying change, not a report",
+      targetDensity: "compact",
+      avoid: ["checklist prose", "corporate language", "process narration", "feature dumping", "generic praise"],
+    };
+  }
+
+  if (creator || social || artist) {
+    const creativeIntent: CreativeIntent = artist ? "artist" : creator ? "creator" : "social";
+    return {
+      intent: creativeIntent,
+      attentionGoal: "make the viewer stop, feel a point of view, and want to see what comes next",
+      emotionalEngine: input.lens || "voice, curiosity, contrast, personality",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most distinctive point of view available",
+      sequenceShape: ["hook", "voice", "reveal", "turn", "signature"],
+      endingMove: "end on a line or image that feels unmistakably like this creator or artist",
+      targetDensity: "compact",
+      avoid: ["generic influencer language", "generic artist statements", "corporate slogans", "over-explaining the point", "copycat voice"],
     };
   }
 
@@ -107,9 +158,48 @@ function inferDirection(input: CinematicAuthorInput): CreativeDirection {
     };
   }
 
+  if (person) {
+    return {
+      intent: "person",
+      attentionGoal: "reveal a distinctive human truth instead of reciting a biography",
+      emotionalEngine: input.lens || "personality, intimacy, contradiction",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the smallest revealing personal detail",
+      sequenceShape: ["glimpse", "detail", "contrast", "reveal", "afterimage"],
+      endingMove: "end on a detail that makes the person feel larger and more specific",
+      targetDensity: "deep",
+      avoid: ["resume language", "biography dumps", "generic inspiration", "empty praise", "list-like facts"],
+    };
+  }
+
+  if (artifact) {
+    return {
+      intent: "artifact",
+      attentionGoal: "make the object feel like it carries a story, identity, or secret worth discovering",
+      emotionalEngine: input.lens || "mystery, meaning, personality",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most distinctive physical detail",
+      sequenceShape: ["object", "detail", "meaning", "reveal", "payoff"],
+      endingMove: "make the object mean more than it seemed to at the beginning",
+      targetDensity: "standard",
+      avoid: ["product spec sheets", "catalog copy", "generic luxury language", "feature dumping"],
+    };
+  }
+
+  if (story) {
+    return {
+      intent: "story",
+      attentionGoal: "create curiosity, movement, and a satisfying final turn from the available material",
+      emotionalEngine: input.lens || "curiosity, contrast, consequence",
+      strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most unusual supplied detail",
+      sequenceShape: input.trajectory?.length ? input.trajectory : ["hook", "movement", "discovery", "change", "payoff"],
+      endingMove: "earn a final line that changes how the viewer sees the opening",
+      targetDensity: "standard",
+      avoid: ["generic setup", "report-like prose", "instruction echo", "repetition", "filler"],
+    };
+  }
+
   return {
-    intent: "personal",
-    attentionGoal: "turn ordinary material into an experience with movement and a satisfying final turn",
+    intent: "unknown",
+    attentionGoal: "find the most interesting available angle and make the material move like a miniature film",
     emotionalEngine: input.lens || "contrast, curiosity, personality",
     strongestDetail: input.facts[0] || input.sourceMoments[0] || "the most unusual supplied detail",
     sequenceShape: input.trajectory?.length ? input.trajectory : ["hook", "movement", "discovery", "change", "payoff"],
@@ -129,11 +219,13 @@ async function planDirection(input: CinematicAuthorInput, fallback: CreativeDire
         "Plan a cinematic experience before the writer drafts it.",
         "Do not write the scenes yet.",
         "The user prompt is an instruction or creative brief, not viewer-facing dialogue.",
+        "Classify the actual creative job: service, promotion, creator/social content, artist work, person/profile, memory, event, physical artifact, story, or another grounded intent.",
+        "Do not collapse every non-memory request into advertising or generic personal writing.",
+        "Choose a sequence shape that matches the intent and source material.",
         "Separate world truth from creative interpretation.",
         "Concrete facts, people, places, dates, objects, actions, and outcomes must come from supplied evidence unless the mode is promotional concept mode.",
         "In promotional concept mode, fictionalized scene actions may be invented to make the service compelling, but never invent real business claims, prices, reviews, awards, certifications, guarantees, locations, or named customers.",
-        "Choose a sequence shape that makes the material move. Do not force a fixed scene count.",
-        "The world may be tiny or enormous. Choose traversal density from the amount and importance of available material.",
+        "Choose traversal density from the amount and importance of available material. Never force a fixed scene count.",
         "Return strict JSON: intent, attentionGoal, emotionalEngine, strongestDetail, sequenceShape, endingMove, targetDensity, avoid.",
       ].join(" "),
     },
@@ -178,7 +270,6 @@ function normalizeSceneUnits(scene: AuthoredScene): AuthoredScene[] {
       out.push({ ...scene, text: unit });
       continue;
     }
-    // Never make the player rescue a paragraph: keep only a clean front half and let the next beat carry the story.
     const short = unit.split(/\s+/).slice(0, 18).join(" ").replace(/[,:;—-]+$/, "").trim();
     if (short) out.push({ ...scene, text: short });
   }
@@ -217,10 +308,10 @@ async function draftSequence(input: CinematicAuthorInput, direction: CreativeDir
         "Do not summarize the entire experience in scene one.",
         "Do not put the original authoring instruction into any scene.",
         "Do not mention QRE, AI, prompts, compilers, cognition, metadata, models, or the writing process.",
-        direction.intent === "promotion"
-          ? "PROMOTIONAL MODE: invent a memorable fictionalized mini-story around the service. Never invent real business claims. Make it attention-grabbing without sounding like a generic ad."
-          : "GROUNDED MODE: preserve supplied factual reality. Invent language and interpretation, not concrete factual events.",
-        "Use metaphor, personification, contrast, understatement, escalation, callbacks, reversals, and implication when they genuinely fit.",
+        direction.intent === "service" || direction.intent === "promotion"
+          ? "BUSINESS/CREATOR ATTENTION MODE: invent a memorable fictionalized mini-story only where creative interpretation is allowed. Never invent real business claims. Make it feel observed, specific, and alive rather than like a generic ad."
+          : "GROUNDED MODE: preserve supplied factual reality. Invent language, framing, metaphor, and interpretation, not concrete factual events.",
+        "Use metaphor, personification, contrast, understatement, escalation, callbacks, reversals, implication, or voice when they genuinely fit.",
         "Avoid generic filler such as beautiful, magical, unforgettable, cinematic, amazing, incredible, or epic unless the specific supplied material earns it.",
         "Do not explain the joke, emotion, metaphor, or ending.",
         `SEQUENCE SHAPE: ${direction.sequenceShape.join(" → ")}`,
@@ -266,6 +357,7 @@ async function critiqueSequence(input: CinematicAuthorInput, direction: Creative
         "You are QRE's ruthless cinematic editor.",
         "Do not rewrite the scenes. Diagnose them.",
         "Check for instruction leakage, metadata leakage, unsupported concrete details in grounded mode, generic/cliche language, repeated openings, repeated ideas, weak pacing, missing turn, premature payoff, weak ending, and scenes too long to read as a cinematic slide.",
+        "For service, creator, social, artist, and promotion work, flag generic marketing or creator-speak such as 'luxury grooming', 'picture-perfect masterpiece', 'an unforgettable experience', 'level up your brand', or narration that merely explains the process.",
         "A strong sequence moves. If adjacent scenes only restate each other, flag them.",
         "A strong ending should feel earned from the material, not tacked on.",
         "Check the one-short-thought-per-scene rule explicitly.",
@@ -289,6 +381,7 @@ async function reviseSequence(input: CinematicAuthorInput, direction: CreativeDi
         "Fix repeated openings and repeated ideas.",
         "Break overlong prose into short screen-ready beats.",
         "Keep one thought per scene. Never create a paragraph scene.",
+        "Replace generic advertising, creator, influencer, artist-statement, or corporate language with concrete visual language and a point of view.",
         "Strengthen trajectory and make the final scene earn its place.",
         "Do not explain jokes, emotions, metaphors, or the ending.",
         "Return strict JSON with the same scene shape as the drafting call.",
