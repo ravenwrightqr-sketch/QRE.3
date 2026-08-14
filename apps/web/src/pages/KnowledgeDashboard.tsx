@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, Link } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
@@ -24,15 +24,7 @@ type KnowledgeResponse = {
   activity?: unknown[];
 };
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  background: "rgba(255,255,255,.05)",
-  border: "1px solid rgba(255,255,255,.12)",
-  borderRadius: 12,
-  color: "#fff",
-  padding: "12px 14px",
-};
+const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12, color: "#fff", padding: "12px 14px" };
 
 export default function KnowledgeDashboard() {
   const { slug = "" } = useParams();
@@ -47,24 +39,14 @@ export default function KnowledgeDashboard() {
   const [error, setError] = useState("");
 
   async function load() {
-    try {
-      setError("");
-      setData(await apiGet(`/api/knowledge/${encodeURIComponent(slug)}`));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Knowledge could not be loaded.");
-    }
+    try { setError(""); setData(await apiGet(`/api/knowledge/${encodeURIComponent(slug)}`)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Knowledge could not be loaded."); }
   }
-
   useEffect(() => { if (slug) void load(); }, [slug]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, KnowledgeItem[]>();
-    for (const item of data?.knowledge ?? []) {
-      const key = item.category || "general";
-      const group = groups.get(key) ?? [];
-      group.push(item);
-      groups.set(key, group);
-    }
+    for (const item of data?.knowledge ?? []) { const key = item.category || "general"; groups.set(key, [...(groups.get(key) ?? []), item]); }
     return [...groups.entries()];
   }, [data]);
 
@@ -73,41 +55,23 @@ export default function KnowledgeDashboard() {
     setSaving(true);
     try {
       await apiPost(`/api/knowledge/${encodeURIComponent(slug)}`, { label, value, category, source, notes, imageDataUrl: imageDataUrl || undefined });
-      setLabel(""); setValue(""); setNotes(""); setImageDataUrl("");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Knowledge could not be saved.");
-    } finally { setSaving(false); }
+      setLabel(""); setValue(""); setNotes(""); setImageDataUrl(""); await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Knowledge could not be saved."); }
+    finally { setSaving(false); }
   }
-
-  async function remove(id: string) {
-    await apiDelete(`/api/knowledge/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`);
-    await load();
-  }
-
-  async function handlePhoto(file?: File) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
-  }
+  async function remove(id: string) { await apiDelete(`/api/knowledge/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`); await load(); }
+  function handlePhoto(file?: File) { if (!file) return; const reader = new FileReader(); reader.onload = () => setImageDataUrl(typeof reader.result === "string" ? reader.result : ""); reader.readAsDataURL(file); }
 
   if (!data) return <DashboardLayout><main style={{ padding: 40, color: "#fff" }}>{error || "LOADING KNOWLEDGE..."}</main></DashboardLayout>;
-
   const metrics = data.metrics ?? {};
 
   return (
     <DashboardLayout>
       <main style={{ minHeight: "100vh", color: "#fff", padding: "42px 28px", maxWidth: 1180, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "flex-end", marginBottom: 30 }}>
-          <div>
-            <p style={{ opacity: .45, letterSpacing: 5, fontSize: 11, margin: 0 }}>QRE LIVING KNOWLEDGE</p>
-            <h1 style={{ margin: "8px 0 4px" }}>{data.asset.displayName || data.asset.slug}</h1>
-            <div style={{ opacity: .55 }}>Everything this QRE object knows, learns, and can accumulate.</div>
-          </div>
+          <div><p style={{ opacity: .45, letterSpacing: 5, fontSize: 11, margin: 0 }}>QRE LIVING KNOWLEDGE</p><h1 style={{ margin: "8px 0 4px" }}>{data.asset.displayName || data.asset.slug}</h1><div style={{ opacity: .55 }}>Everything this QRE object knows, learns, and can accumulate.</div></div>
           <Link to={`/dashboard/assets/${encodeURIComponent(slug)}`} style={{ color: "#fff", opacity: .7 }}>← Asset</Link>
         </div>
-
         {error && <div style={{ marginBottom: 18, padding: 14, borderRadius: 12, background: "rgba(255,80,80,.12)" }}>{error}</div>}
 
         <section style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 20, marginBottom: 28 }}>
@@ -117,63 +81,27 @@ export default function KnowledgeDashboard() {
             <div style={{ display: "grid", gap: 12 }}>
               <input style={inputStyle} placeholder="What is this? e.g. Kitchen wall paint" value={label} onChange={(e) => setLabel(e.target.value)} />
               <input style={inputStyle} placeholder="Value e.g. Sherwin-Williams Alabaster SW 7008" value={value} onChange={(e) => setValue(e.target.value)} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <input style={inputStyle} placeholder="Category e.g. materials" value={category} onChange={(e) => setCategory(e.target.value)} />
-                <input style={inputStyle} placeholder="Source e.g. builder" value={source} onChange={(e) => setSource(e.target.value)} />
-              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><input style={inputStyle} placeholder="Category e.g. materials" value={category} onChange={(e) => setCategory(e.target.value)} /><input style={inputStyle} placeholder="Source e.g. builder" value={source} onChange={(e) => setSource(e.target.value)} /></div>
               <textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <label style={{ border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "11px 14px", cursor: "pointer" }}>
-                  📷 Take / attach photo
-                  <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => handlePhoto(e.target.files?.[0])} />
-                </label>
+                <label style={{ border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "11px 14px", cursor: "pointer" }}>📷 Take / attach photo<input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => handlePhoto(e.target.files?.[0])} /></label>
                 {imageDataUrl && <span style={{ opacity: .65 }}>Photo attached</span>}
-                <button onClick={save} disabled={saving || !label.trim() || !value.trim()} style={{ marginLeft: "auto", border: 0, borderRadius: 12, padding: "12px 18px", cursor: "pointer" }}>
-                  {saving ? "SAVING…" : "ADD TO MEMORY"}
-                </button>
+                <button onClick={save} disabled={saving || !label.trim() || !value.trim()} style={{ marginLeft: "auto", border: 0, borderRadius: 12, padding: "12px 18px", cursor: "pointer" }}>{saving ? "SAVING…" : "ADD TO MEMORY"}</button>
               </div>
             </div>
           </div>
 
           <div style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>What is accumulating</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-              <Stat label="Knowledge items" value={data.knowledge.length} />
-              <Stat label="Categories" value={data.categories.length} />
-              <Stat label="Scans" value={Number(metrics.scans ?? metrics.totalScans ?? 0)} />
-              <Stat label="Completions" value={Number(metrics.completions ?? 0)} />
-            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}><Stat label="Knowledge items" value={data.knowledge.length} /><Stat label="Categories" value={data.categories.length} /><Stat label="Scans" value={Number(metrics.scans ?? metrics.totalScans ?? 0)} /><Stat label="Completions" value={Number(metrics.completions ?? 0)} /></div>
             <p style={{ marginTop: 18, opacity: .55 }}>Analytics and knowledge accumulate beside the experience so the asset becomes more useful over time instead of resetting on every scan.</p>
           </div>
         </section>
 
-        {grouped.map(([group, items]) => (
-          <section key={group} style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <h2 style={{ margin: 0, textTransform: "capitalize" }}>{group}</h2>
-              <span style={{ opacity: .45 }}>{items.length}</span>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {items.map((item) => (
-                <article key={item.id} style={{ display: "grid", gridTemplateColumns: item.imageDataUrl ? "92px 1fr auto" : "1fr auto", gap: 16, alignItems: "center", background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: 14 }}>
-                  {item.imageDataUrl && <img src={item.imageDataUrl} alt="Captured reference" style={{ width: 92, height: 72, objectFit: "cover", borderRadius: 10 }} />}
-                  <div>
-                    <strong>{item.label}</strong>
-                    <div style={{ marginTop: 4 }}>{item.value}</div>
-                    <div style={{ marginTop: 5, opacity: .45, fontSize: 12 }}>{item.source} · {new Date(item.createdAt).toLocaleString()}</div>
-                    {item.notes && <div style={{ marginTop: 6, opacity: .65 }}>{item.notes}</div>}
-                  </div>
-                  <button onClick={() => remove(item.id)} style={{ opacity: .55, background: "transparent", border: 0, color: "#fff", cursor: "pointer" }}>Remove</button>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
+        {grouped.map(([group, items]) => <section key={group} style={{ marginBottom: 24 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><h2 style={{ margin: 0, textTransform: "capitalize" }}>{group}</h2><span style={{ opacity: .45 }}>{items.length}</span></div><div style={{ display: "grid", gap: 10 }}>{items.map((item) => <article key={item.id} style={{ display: "grid", gridTemplateColumns: item.imageDataUrl ? "92px 1fr auto" : "1fr auto", gap: 16, alignItems: "center", background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: 14 }}>{item.imageDataUrl && <img src={item.imageDataUrl} alt="Captured reference" style={{ width: 92, height: 72, objectFit: "cover", borderRadius: 10 }} />}<div><strong>{item.label}</strong><div style={{ marginTop: 4 }}>{item.value}</div><div style={{ marginTop: 5, opacity: .45, fontSize: 12 }}>{item.source} · {new Date(item.createdAt).toLocaleString()}</div>{item.notes && <div style={{ marginTop: 6, opacity: .65 }}>{item.notes}</div>}</div><button onClick={() => remove(item.id)} style={{ opacity: .55, background: "transparent", border: 0, color: "#fff", cursor: "pointer" }}>Remove</button></article>)}</div></section>)}
       </main>
     </DashboardLayout>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return <div style={{ padding: 14, background: "rgba(255,255,255,.035)", borderRadius: 12 }}><div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div><div style={{ opacity: .45, fontSize: 12 }}>{label}</div></div>;
-}
+function Stat({ label, value }: { label: string; value: number }) { return <div style={{ padding: 14, background: "rgba(255,255,255,.035)", borderRadius: 12 }}><div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div><div style={{ opacity: .45, fontSize: 12 }}>{label}</div></div>; }
