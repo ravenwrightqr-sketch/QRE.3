@@ -12,9 +12,21 @@ const clean = (value: unknown): string => typeof value === "string" ? value.repl
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const generic = /^(?:the subject|situation|experience|interaction|can|new|old|it|this|that)$/i;
 
+type PremiseValue = { value: string; promptObserved: boolean; confidence: number };
+
+function slotValues(plan: CognitiveExperiencePlan | undefined, premise: CognitivePremise | undefined, role: string): PremiseValue[] {
+  const slots = premise?.slots.filter((item) => item.role === role) ??
+    plan?.premise?.slots.filter((item) => item.role === role) ?? [];
+
+  return slots.flatMap((item) => item.values.map((value) => ({
+    value: clean(value),
+    promptObserved: item.evidence.some((evidence) => evidence.source === "prompt" && evidence.confidence >= 0.8),
+    confidence: item.confidence,
+  }))).filter((item) => item.value);
+}
+
 function slot(plan: CognitiveExperiencePlan | undefined, premise: CognitivePremise | undefined, role: string): string[] {
-  return unique(premise?.slots.filter((item) => item.role === role).flatMap((item) => item.values) ??
-    plan?.premise?.slots.filter((item) => item.role === role).flatMap((item) => item.values) ?? []);
+  return unique(slotValues(plan, premise, role).map((item) => item.value));
 }
 
 function kindFor(name: string, role: string): RealityEntityKind {
@@ -30,7 +42,9 @@ export function buildRealityModel(
   plan?: CognitiveExperiencePlan,
   premise?: CognitivePremise,
 ): RealityModel {
-  const subject = clean(plan?.centralSubject) || slot(plan, premise, "subject")[0] || "the subject";
+  const subjectValues = slotValues(plan, premise, "subject");
+  const central = clean(plan?.centralSubject);
+  const subject = central || subjectValues[0]?.value || "the subject";
   const subjectName = generic.test(subject) ? slot(plan, premise, "participants")[0] || subject : subject;
 
   const roleGroups: Array<[string, string]> = [
@@ -72,9 +86,9 @@ export function buildRealityModel(
   const places = slot(plan, premise, "place");
   const temporal = slot(plan, premise, "temporal");
   const constraints = slot(plan, premise, "constraint");
-  const eventTexts = slot(plan, premise, "event");
-  const outcomes = slot(plan, premise, "outcome");
-  const transformations = slot(plan, premise, "transformation");
+  const eventValues = slotValues(plan, premise, "event");
+  const outcomeValues = slotValues(plan, premise, "outcome");
+  const transformationValues = slotValues(plan, premise, "transformation");
 
   const observations: RealityObservation[] = [];
   const subjectAndParticipants = unique([
@@ -83,28 +97,28 @@ export function buildRealityModel(
     ...slot(plan, premise, "social"),
   ]).map((name) => ids.get(name.toLowerCase())).filter(Boolean) as string[];
 
-  const addObservation = (text: string, order: number, provenance: RealityObservation["provenance"] = "prompt") => {
-    const value = clean(text);
+  const addObservation = (item: PremiseValue, order: number) => {
+    const value = clean(item.value);
     if (!value) return;
+    const provenance: RealityObservation["provenance"] = item.promptObserved ? "prompt" : "derived";
     observations.push({
       id: `observation-${observations.length + 1}`,
       order,
       text: value,
       subjectIds: subjectAndParticipants.length ? subjectAndParticipants : [subjectId],
       placeId: places[0] ? ids.get(places[0].toLowerCase()) : undefined,
-      confidence: provenance === "prompt" ? 0.98 : 0.84,
+      confidence: item.confidence,
       provenance,
     });
   };
 
-  eventTexts.forEach((event, index) => addObservation(event, index));
-  if (!eventTexts.length) {
-    const contextual = [
-      ...transformations,
-      ...outcomes,
-      ...slot(plan, premise, "artifact"),
-    ];
-    contextual.forEach((value, index) => addObservation(value, index));
+  eventValues.forEach(addObservation);
+  if (!eventValues.length) {
+    transformationValues.forEach((item, index) => addObservation(item, index));
+    outcomeValues.forEach((item, index) => addObservation(item, transformationValues.length + index));
+    if (!observations.length) {
+      slotValues(plan, premise, "artifact").forEach((item, index) => addObservation(item, index));
+    }
   }
 
   const relations: RealityRelation[] = [];
