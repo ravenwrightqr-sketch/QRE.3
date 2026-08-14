@@ -1,5 +1,4 @@
-import type { Moment } from "./runtimeMoment.js";
-
+import type { ExperienceMoment } from "./moment.js";
 import type { GeoStory } from "../geoStory.js";
 import type { CinematicScene } from "../cinematic.js";
 import type { MemorySnapshot } from "../memorySnapshot.js";
@@ -31,12 +30,13 @@ export type ExperienceMediaManifest = {
   audio: string[];
 };
 
+/** STATUS: CANONICAL EXPERIENCE RUNTIME */
 export type Experience = {
   sessionId: string | null;
   access: ExperienceAccess;
   preview: boolean;
   asset: AssetSummary | null;
-  moments: Moment[];
+  moments: ExperienceMoment[];
   geoStory: GeoStory | null;
   cinematicScenes: CinematicScene[];
   memorySnapshot: MemorySnapshot | null;
