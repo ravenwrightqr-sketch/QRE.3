@@ -3,9 +3,11 @@ import type { UniversalMindContext } from "./universalMindContext.js";
 import { resolveMemory } from "./memoryResolver.js";
 import { buildWorldModel, type WorldModel } from "./worldModel.js";
 import { sanitizeWorldModel } from "./worldSanitizer.js";
+import { collapseToNarrativeWorld } from "./narrativeWorld.js";
 import { surfaceCreativeText } from "./proseSurface.js";
 import { analyzeSignificance } from "./significanceEngine.js";
 import { generateCandidates, type CreativeCandidate } from "./creativePolicy.js";
+import { generateNarrativeCandidates } from "./narrativeWriter.js";
 import { generateCompositionCandidates } from "./creativeComposition.js";
 import { generateVoiceDrafts } from "./creativeVoiceEngine.js";
 import { reviseCreativeCandidate } from "./creativeRevision.js";
@@ -55,7 +57,9 @@ function learnedLens(world: WorldModel, state: CognitiveMindState): void {
 }
 function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
   const body = sentence(planned.text).toLowerCase();
-  const required = planned.event.evidence.filter((item) => item.source !== "creative_realization" && item.salience >= 0.9 && !(item.kind === "event" && item.detail === planned.event.raw)).map((item) => item.detail.trim()).filter(Boolean);
+  const required = [planned.event.raw, ...planned.event.participants, planned.event.object ?? "", planned.event.place ?? "", planned.event.time ?? ""]
+    .map((value) => sentence(value))
+    .filter(Boolean);
   return required.every((anchor) => body.includes(anchor.toLowerCase())) ? planned.text : planned.event.raw;
 }
 function buildMoment(planned: ReturnType<typeof planExperience>["moments"][number], index: number, total: number, world: WorldModel): ExperienceMoment {
@@ -136,16 +140,18 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   const mind = hydrateMindState(context);
   const memory = mergeMemoryContext(prompt, context);
   const rawWorld = buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue });
-  const world = preserveMemoryPlaces(sanitizeWorldModel(rawWorld), memory.resolved.places);
+  const world = preserveMemoryPlaces(collapseToNarrativeWorld(sanitizeWorldModel(rawWorld)), memory.resolved.places);
   learnedLens(world, mind);
   const learning = learningInput(mind, context);
   const significance = analyzeSignificance(world);
   const analytics = context.analytics;
-  const initialCandidates = [
+  const primaryCandidates = generateNarrativeCandidates(world);
+  const adaptiveCandidates = [
     ...generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases),
     ...generateCompositionCandidates(world),
     ...voiceCandidates(world),
   ];
+  const initialCandidates = [...primaryCandidates, ...adaptiveCandidates];
   const candidates = [...initialCandidates, ...reviseCandidates(world, initialCandidates)];
   const selected = selectCritically(world, candidates);
   creativeEvidence(selected, world);
@@ -162,7 +168,7 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
     moments,
     entities: world.entitiesByKind,
     cognitivePlan: planned.plan,
-    metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "analytics-informed", "creative-policy", "creative-composition", "creative-voice-ensemble", "iterative-revision", "critic-gated"] },
+    metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "analytics-informed", "creative-policy", "creative-composition", "creative-voice-ensemble", "narrative-world", "whole-scene-writer", "iterative-revision", "critic-gated"] },
   };
   const feedbackSignals = unique([...(context.feedback?.accepted ?? []).map((value) => `accepted:${value}`), ...(context.feedback?.rejected ?? []).map((value) => `rejected:${value}`), ...(context.creativePreferences ?? []).map((value) => `preference:${value}`), ...(analytics?.preferences ?? []).map((value) => `behavior-preference:${value}`), `compile:${nextState.compileCount}`, `novelty-pressure:${nextState.creativeLearning.noveltyPressure.toFixed(2)}`, `engagement:${(analytics?.engagement ?? 0).toFixed(2)}`, `friction:${(analytics?.friction ?? 0).toFixed(2)}`]);
   return { title: blueprint.title, blueprint, plan: planned.plan, flowSteps, moments, cinematicScenes, estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0), momentCount: moments.length, world, adaptiveQuestions: uniqueQuestions(memory.resolved.questions), discoveries: unique([...memory.resolved.matches.map((match) => `This experience connects to ${match}.`), ...significance.patterns, ...significance.continuations, ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : [])]), learningSignals: feedbackSignals, state: nextState };
