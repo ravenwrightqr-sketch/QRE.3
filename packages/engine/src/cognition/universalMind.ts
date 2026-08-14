@@ -5,6 +5,7 @@ import { buildWorldModel, type WorldModel } from "./worldModel.js";
 import { analyzeSignificance } from "./significanceEngine.js";
 import { generateCandidates, type CreativeCandidate } from "./creativePolicy.js";
 import { generateVoiceDrafts } from "./creativeVoiceEngine.js";
+import { reviseCreativeCandidate } from "./creativeRevision.js";
 import { selectCritically } from "./experienceCritic.js";
 import { planExperience } from "./experiencePlanner.js";
 import { evolveMindState, hydrateMindState, learningInput } from "./mindState.js";
@@ -112,22 +113,19 @@ function voiceCandidates(world: WorldModel): CreativeCandidate[] {
   for (const event of world.events) {
     const previous = world.events[event.order - 1];
     const next = world.events[event.order + 1];
-    for (const draft of generateVoiceDrafts(world, event, previous, next)) {
-      out.push({
-        eventId: event.id,
-        text: draft.text,
-        lens: world.lens,
-        creativity: Math.min(10, 6.5 + draft.details.length * 0.65),
-        evidenceCoverage: 1,
-        novelty: 0.92,
-        causalFit: previous ? 0.9 : 0.96,
-        attention: Math.min(1.5, 0.75 + (draft.details.length * 0.15)),
-        score: 72 + draft.details.length * 4,
-        creativeDetails: [`voice:${draft.strategy}`, ...draft.details],
-      });
-    }
+    for (const draft of generateVoiceDrafts(world, event, previous, next)) out.push({ eventId: event.id, text: draft.text, lens: world.lens, creativity: Math.min(10, 6.5 + draft.details.length * 0.65), evidenceCoverage: 1, novelty: 0.92, causalFit: previous ? 0.9 : 0.96, attention: Math.min(1.5, 0.75 + (draft.details.length * 0.15)), score: 72 + draft.details.length * 4, creativeDetails: [`voice:${draft.strategy}`, ...draft.details] });
   }
   return out;
+}
+
+function reviseCandidates(world: WorldModel, candidates: CreativeCandidate[]): CreativeCandidate[] {
+  const revised: CreativeCandidate[] = [];
+  for (const candidate of candidates) {
+    const event = world.events.find((item) => item.id === candidate.eventId);
+    if (!event || !candidate.creativeDetails.length) continue;
+    revised.push(...reviseCreativeCandidate(candidate, event));
+  }
+  return revised;
 }
 
 export function compileCognitiveExperience(prompt: string, context: UniversalMindContext = {}): UniversalMindResult {
@@ -137,7 +135,8 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   learnedLens(world, mind);
   const learning = learningInput(mind);
   const significance = analyzeSignificance(world);
-  const candidates = [...generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases), ...voiceCandidates(world)];
+  const initialCandidates = [...generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases), ...voiceCandidates(world)];
+  const candidates = [...initialCandidates, ...reviseCandidates(world, initialCandidates)];
   const selected = selectCritically(world, candidates);
   creativeEvidence(selected, world);
   const nextState = evolveMindState(mind, world, selected, context);
@@ -153,7 +152,7 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
     moments,
     entities: world.entitiesByKind,
     cognitivePlan: planned.plan,
-    metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "creative-policy", "creative-voice-ensemble", "critic-gated"] },
+    metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "creative-policy", "creative-voice-ensemble", "iterative-revision", "critic-gated"] },
   };
   const feedbackSignals = unique([...(context.feedback?.accepted ?? []).map((value) => `accepted:${value}`), ...(context.feedback?.rejected ?? []).map((value) => `rejected:${value}`), ...(context.creativePreferences ?? []).map((value) => `preference:${value}`), `compile:${nextState.compileCount}`, `novelty-pressure:${nextState.creativeLearning.noveltyPressure.toFixed(2)}`]);
   return { title: blueprint.title, blueprint, plan: planned.plan, flowSteps, moments, cinematicScenes, estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0), momentCount: moments.length, world, adaptiveQuestions: uniqueQuestions(memory.resolved.questions), discoveries: unique([...memory.resolved.matches.map((match) => `This experience connects to ${match}.`), ...significance.patterns, ...significance.continuations, ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : [])]), learningSignals: feedbackSignals, state: nextState };
