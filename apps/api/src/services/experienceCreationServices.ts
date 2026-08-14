@@ -1,5 +1,6 @@
 /** Production creation boundary: prompt → cognition → experience → flow. */
 
+import { randomUUID } from "node:crypto";
 import { db } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
@@ -102,7 +103,7 @@ export async function createExperience(input: CreateExperienceInput) {
     appendOnly: true,
     sceneRule: "one_short_thought_per_scene",
     clip: {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       createdAt: new Date().toISOString(),
       sourcePrompt: input.prompt.trim(),
       sceneCount: cinematicScenes.length,
