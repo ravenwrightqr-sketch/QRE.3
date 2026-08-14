@@ -94,7 +94,7 @@ model Ownership {
   userId          String?
   status          OwnershipStatus @default(CLAIMED)
   claimedAt       DateTime        @default(now())
-  updatedAt       DateTime         @updatedAt
+  updatedAt       DateTime        @updatedAt
   stripeSessionId String?         @unique
   paymentIntentId String?
   accountId       String?
@@ -300,7 +300,7 @@ model MemorySnapshot {
   completionWeight     Float    @default(0)
   ctaClickWeight       Float    @default(0)
   rewardScore          Float     @default(0)
-  confidence           Float    @default(0)
+  confidence           Float     @default(0)
   dominantLayer        String?
   createdAt            DateTime @default(now())
   dropOffPoints        Json     @default("{}")
@@ -348,7 +348,7 @@ model PresenceEvent {
   lng       Float?
   accuracy  Float?
   meta      Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
   @@index([assetId])
   @@index([sessionId])
   @@index([userId])
@@ -372,20 +372,20 @@ model PresenceSession {
 }
 
 model EventTicket {
-  id         String       @id @default(cuid())
-  assetId    String
-  userId     String?
-  eventId    String?
-  ticketCode String       @unique @default(cuid())
-  qrUrl      String?
-  qrSvg      String?
+  id           String       @id @default(cuid())
+  assetId      String
+  userId       String?
+  eventId      String?
+  ticketCode   String       @unique @default(cuid())
+  qrUrl        String?
+  qrSvg        String?
   attendeeName String?
-  status     TicketStatus @default(ACTIVE)
-  checkedInAt DateTime?
-  redeemedAt DateTime?
-  createdAt  DateTime     @default(now())
-  metadata   Json?
-  asset      Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  status       TicketStatus @default(ACTIVE)
+  checkedInAt  DateTime?
+  redeemedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  metadata     Json?
+  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
   @@index([assetId])
   @@index([userId])
   @@index([eventId])
@@ -420,7 +420,7 @@ model MerchantSignal {
   active     Boolean   @default(true)
   priority   Int       @default(50)
   startsAt   DateTime?
-  endsAt     DateTime?
+  endsAt      DateTime?
   isPublic   Boolean   @default(true)
   likes      Int       @default(0)
   views      Int       @default(0)
