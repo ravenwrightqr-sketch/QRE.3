@@ -314,6 +314,7 @@ async function planDirection(input: CinematicAuthorInput, fallback: CreativeDire
         "Create narrative pressure by leaving a small question or expectation for the next scene when appropriate.",
         "Grounded material may invent language, metaphor, personification, framing, and emotional interpretation, but not new concrete events, people, places, dates, or outcomes.",
         "Promotional concept mode may invent fictionalized scene actions for attention, but must not invent factual business claims, prices, reviews, awards, certifications, guarantees, locations, or named customers.",
+        "Sparse creator/social prompts are allowed to use the creator's supplied aspirations, voice, tension, and point of view as the dramatic material. Do not require a roster of concrete life events before writing a sequence.",
         "Return strict JSON: intent, attentionGoal, emotionalEngine, strongestDetail, sequenceShape, endingMove, targetDensity, avoid, cinematicGrammar, selectedOperators.",
         `OPERATOR LIBRARY: ${CREATIVE_OPERATORS.join(", ")}`,
         `GOLD GRAMMAR: ${CINEMATIC_GRAMMAR.join(" ")}`,
@@ -408,6 +409,7 @@ async function draftSequence(input: CinematicAuthorInput, direction: CreativeDir
         "Every adjacent pair should create movement: new image, physical move, new expectation, reveal, escalation, reversal, or emotional shift.",
         "Use the selected creative operators deliberately; do not randomly stack them.",
         "Do not force every requested fact into the movie. Choose the strongest details and let the sequence breathe.",
+        "For creator/social/artist/person prompts, sparse facts are not a blocker: build drama from supplied voice, aspiration, contradiction, desire, tension, and point of view. Invent no concrete life events.",
         "Do not repeat the same subject-led opening across adjacent scenes.",
         "Do not summarize the whole story in scene one.",
         "Do not put the original authoring instruction into any scene.",
@@ -450,6 +452,49 @@ async function draftSequence(input: CinematicAuthorInput, direction: CreativeDir
     audioMood: cleanText(scene?.audioMood) || undefined,
     visualHint: cleanText(scene?.visualHint) || undefined,
   }))).slice(0, max);
+}
+
+async function draftSparseSequence(input: CinematicAuthorInput, direction: CreativeDirection): Promise<AuthoredScene[]> {
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's rescue author for sparse creative briefs.",
+        "The user has intentionally supplied very little concrete material. That is not a failure condition.",
+        "Turn the prompt's aspiration, desire, contradiction, voice, or tension into a 3–5 scene miniature film.",
+        "Do not invent biographical events, achievements, customers, locations, dates, products, reviews, or other concrete facts.",
+        "You MAY creatively dramatize an abstract state: hunger, obsession, experimentation, doubt, curiosity, ambition, frustration, persistence, weirdness, or desire.",
+        "For creator prompts, make the creator feel like a character with a point of view, not a marketer describing a personal brand.",
+        "For social prompts, create a stop-scroll micro-story, not social-media advice.",
+        "For artist prompts, make the work feel like a world, not an artist statement.",
+        "For person prompts, reveal a human contradiction, not a biography.",
+        "Use the QRE gold grammar: sensory image → movement → reveal → reframe → payoff when supported by the prompt.",
+        "One scene = one short thought. Prefer 4–14 words.",
+        "Use attitude. Slightly mischievous or dangerous is welcome when appropriate.",
+        "Do not explain the metaphor, joke, or ending.",
+        "Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|movement|discovery|turn|payoff\"}]}.",
+        `INTENT: ${direction.intent}`,
+        `EMOTIONAL ENGINE: ${direction.emotionalEngine}`,
+        `OPERATORS: ${direction.selectedOperators.join(", ")}`,
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        prompt: input.prompt,
+        lens: input.lens ?? "neutral",
+        facts: unique(input.facts, 20),
+        sourceMoments: unique(input.sourceMoments, 12),
+        learnedCreativePreferences: unique(input.creativeLearningContext ?? [], 12),
+      }),
+    },
+  ], "json");
+  const parsed = parseJson<SceneDraft>(result.text);
+  const scenes = Array.isArray(parsed?.scenes) ? parsed.scenes : [];
+  return finalizeScenes(scenes.map((scene) => ({
+    text: cleanText(scene?.text),
+    kind: cleanText(scene?.kind) || "movement",
+  }))).slice(0, 5);
 }
 
 async function critiqueSequence(input: CinematicAuthorInput, direction: CreativeDirection, scenes: AuthoredScene[]): Promise<SceneCritique | null> {
@@ -536,6 +581,11 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
   const fallback = inferDirection(input);
   const direction = await planDirection(input, fallback);
   let scenes = await draftSequence(input, direction);
+
+  if (scenes.length < 3 && ["creator", "social", "artist", "person", "unknown"].includes(direction.intent)) {
+    scenes = await draftSparseSequence(input, direction);
+  }
+
   if (scenes.length < 3) return [];
 
   const firstGate = localQualityGate(scenes);
