@@ -2,10 +2,7 @@ import { compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/en
 import type { MemoryContext } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
-import {
-  buildExperienceMemoryBatch,
-  memoryContextToCognitiveSummary,
-} from "./memoryProjection.js";
+import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { authorCinematicSequence } from "./cinematicAuthor.js";
 
 export type GeoAnchorInput = {
@@ -42,7 +39,7 @@ export type CompiledExperienceResult = {
 
 function applyCinematicAuthor(
   compiled: any,
-  authoredScenes: Array<{ text: string; kind?: string }>,
+  authoredScenes: Array<{ text: string; kind?: string; durationHintMs?: number; transitionHint?: string; audioMood?: string; visualHint?: string }>,
 ): any {
   if (!authoredScenes.length) return compiled;
 
@@ -51,7 +48,7 @@ function applyCinematicAuthor(
   const baseScene = templateScenes[0] ?? {
     id: "cinematic-authored-1",
     type: "action",
-    duration: 4000,
+    duration: 3000,
     transition: "fade",
     visual: { theme: "cinematic", animation: "parallax" },
     meta: {},
@@ -59,36 +56,39 @@ function applyCinematicAuthor(
 
   const cinematicScenes = authoredScenes.map((authored, index) => {
     const template = templateScenes[index] ?? baseScene;
-    const baseMoment = templateMoments[index] ?? template.moment ?? {
-      type: "message",
-      order: index,
-      meta: {},
-    };
-    const text = authored.text.trim();
+    const baseMoment = templateMoments[index] ?? template.moment ?? { type: "message", order: index, meta: {} };
+    const duration = authored.durationHintMs ?? template.duration ?? 3000;
+    const transition = authored.transitionHint || (index === 0 ? "none" : index === authoredScenes.length - 1 ? "cinematic" : "fade");
     return {
       ...template,
       id: `authored-cinematic-${index + 1}`,
       order: index,
-      duration: template.duration ?? 4000,
+      duration,
       type: index === 0 ? "intro" : index === authoredScenes.length - 1 ? "emotion" : "action",
-      transition: index === 0 ? "none" : index === authoredScenes.length - 1 ? "cinematic" : "fade",
+      transition,
       moment: {
         ...baseMoment,
         type: "message",
         order: index,
-        text,
+        text: authored.text.trim(),
         title: undefined,
         description: undefined,
         meta: {
           ...(baseMoment.meta ?? {}),
           authoredBy: "qre-cinematic-author",
-          sequenceKind: authored.kind ?? "development",
+          sequenceKind: authored.kind ?? "movement",
+          sceneRule: "one_short_thought_per_scene",
+          audioMood: authored.audioMood ?? null,
+          visualHint: authored.visualHint ?? null,
         },
       },
       meta: {
         ...(template.meta ?? {}),
         authoredBy: "qre-cinematic-author",
-        sequenceKind: authored.kind ?? "development",
+        sequenceKind: authored.kind ?? "movement",
+        sceneRule: "one_short_thought_per_scene",
+        audioMood: authored.audioMood ?? null,
+        visualHint: authored.visualHint ?? null,
       },
     };
   });
@@ -98,7 +98,7 @@ function applyCinematicAuthor(
     moments: cinematicScenes.map((scene) => scene.moment),
     cinematicScenes,
     momentCount: cinematicScenes.length,
-    estimatedDuration: cinematicScenes.reduce((sum, scene) => sum + Number(scene.duration || 4000), 0),
+    estimatedDuration: cinematicScenes.reduce((sum, scene) => sum + Number(scene.duration || 3000), 0),
   };
 }
 
@@ -116,12 +116,8 @@ export async function compileExperience(input: {
   const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
-    try {
-      memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
-    } catch (error) {
-      console.warn("[QRE][AUTHORING] Memory context unavailable; continuing with prompt-only cognition.", error);
-      warnings.push("memory_context_unavailable");
-    }
+    try { memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId }); }
+    catch (error) { console.warn("[QRE][AUTHORING] Memory context unavailable; continuing with prompt-only cognition.", error); warnings.push("memory_context_unavailable"); }
   }
 
   const memorySummary = memoryContext ? memoryContextToCognitiveSummary(memoryContext) : [];
@@ -143,25 +139,8 @@ export async function compileExperience(input: {
   let compiled: any = compileCognitiveExperience(prompt, {
     memorySummary,
     analytics,
-    location: geo
-      ? {
-          label: geo.label,
-          city: geo.city,
-          region: geo.region,
-          country: geo.country,
-          latitude: geo.latitude,
-          longitude: geo.longitude,
-          role,
-          source: geo.source,
-        }
-      : undefined,
-    event: geo
-      ? {
-          venue: geo.label,
-          date: geo.time,
-          description: role === "physical_site" ? "Persistent physical site for this QRE asset." : undefined,
-        }
-      : undefined,
+    location: geo ? { label: geo.label, city: geo.city, region: geo.region, country: geo.country, latitude: geo.latitude, longitude: geo.longitude, role, source: geo.source } : undefined,
+    event: geo ? { venue: geo.label, date: geo.time, description: role === "physical_site" ? "Persistent physical site for this QRE asset." : undefined } : undefined,
   });
 
   try {
@@ -186,11 +165,8 @@ export async function compileExperience(input: {
       trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
     });
 
-    if (authored.length >= 3) {
-      compiled = applyCinematicAuthor(compiled, authored);
-    } else {
-      warnings.push("cinematic_author_fallback");
-    }
+    if (authored.length >= 3) compiled = applyCinematicAuthor(compiled, authored);
+    else warnings.push("cinematic_author_fallback");
   } catch (error) {
     console.warn("[QRE][AUTHORING] Cinematic author unavailable; preserving deterministic sequence.", error);
     warnings.push("cinematic_author_unavailable");
@@ -200,39 +176,22 @@ export async function compileExperience(input: {
     ...(compiled.blueprint as Record<string, unknown>),
     metadata: {
       ...((compiled.blueprint as any)?.metadata ?? {}),
-      geoAnchor: geo
-        ? {
-            role,
-            label: geo.label ?? null,
-            latitude: geo.latitude ?? null,
-            longitude: geo.longitude ?? null,
-            source: geo.source ?? "dashboard",
-            time: geo.time ?? null,
-          }
-        : null,
+      geoAnchor: geo ? { role, label: geo.label ?? null, latitude: geo.latitude ?? null, longitude: geo.longitude ?? null, source: geo.source ?? "dashboard", time: geo.time ?? null } : null,
+      cinematicAuthor: {
+        sceneRule: "one_short_thought_per_scene",
+        sequenceAppendsAllowed: true,
+        playerOwnsExactPresentation: true,
+      },
     },
   };
 
-  const result: CompiledExperienceResult = {
-    ...compiled,
-    blueprint: enrichedBlueprint,
-    geo: geo ?? null,
-    warnings,
-  };
+  const result: CompiledExperienceResult = { ...compiled, blueprint: enrichedBlueprint, geo: geo ?? null, warnings };
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({
-        assetId: input.assetId,
-        userId: input.userId,
-        world: compiled.world,
-        source: "prompt",
-      });
+      const batch = buildExperienceMemoryBatch({ assetId: input.assetId, userId: input.userId, world: compiled.world, source: "prompt" });
       await input.memoryRepository.writeBatch(batch);
-      return {
-        ...result,
-        memory: { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length },
-      };
+      return { ...result, memory: { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length } };
     } catch (error) {
       console.warn("[QRE][AUTHORING] Memory projection failed after compile; preserving generated experience.", error);
       warnings.push("memory_projection_failed");
