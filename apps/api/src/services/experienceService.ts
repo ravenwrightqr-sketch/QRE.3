@@ -79,7 +79,13 @@ export async function compileExperience(input: {
           source: geo.source,
         }
       : undefined,
-    event: geo?.label && role !== "physical_site" ? { venue: geo.label, date: geo.time } : undefined,
+    event: geo
+      ? {
+          venue: geo.label,
+          date: geo.time,
+          description: role === "physical_site" ? "Persistent physical site for this QRE asset." : undefined,
+        }
+      : undefined,
   });
 
   const enrichedBlueprint = {
