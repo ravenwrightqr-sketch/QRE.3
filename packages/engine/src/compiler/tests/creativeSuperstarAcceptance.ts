@@ -48,6 +48,7 @@ const cases: readonly StressCase[] = [
 const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|progression model|interaction model|discovery model|trajectory|latent movie|internal state|generated output)\b/i;
 const ROBOTIC = /\b(?:the experience became|this was memorable|the moment became|everything changed|turned into a journey|a meaningful experience)\b/i;
 const GENERIC = /\b(?:welcome to|discover the magic|make memories|unforgettable experience|one of a kind|journey of|worth remembering)\b/i;
+const TEMPLATE = /\b(?:common sense quietly left|the plan was still technically intact|nothing announced danger|it looked ordinary while it was happening|the sensible version|the day changed lanes|nobody had scheduled the ridiculous part)\b/i;
 
 const outputs: string[] = [];
 let creativeCount = 0;
@@ -63,6 +64,7 @@ for (const testCase of cases) {
   assert.ok(!LEAK.test(text), `${testCase.name}: cognitive leakage`);
   assert.ok(!ROBOTIC.test(text), `${testCase.name}: robotic realization`);
   assert.ok(!GENERIC.test(text), `${testCase.name}: generic phrase leakage`);
+  assert.ok(!TEMPLATE.test(text), `${testCase.name}: shared-template leakage`);
 
   const lowerText = text.toLowerCase();
   const covered = testCase.anchors.filter((anchor) => lowerText.includes(anchor.toLowerCase())).length;
@@ -78,9 +80,14 @@ for (const testCase of cases) {
 }
 
 const uniqueOutputs = new Set(outputs.map((value) => value.toLowerCase()));
-assert.ok(uniqueOutputs.size >= Math.floor(cases.length * 0.72), `creative output collapse: ${uniqueOutputs.size}/${cases.length} unique`);
+assert.ok(uniqueOutputs.size >= Math.floor(cases.length * 0.88), `creative output collapse: ${uniqueOutputs.size}/${cases.length} unique`);
 assert.ok(creativeCount >= 20, "stress corpus lost creative cases");
 assert.equal(provenanceCount, creativeCount, "every creative case must expose provenance");
+
+const sentenceLeads = outputs.flatMap((value) => value.split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim().split(/\s+/).slice(0, 3).join(" ").toLowerCase()).filter(Boolean));
+const leadCounts = new Map<string, number>();
+for (const lead of sentenceLeads) leadCounts.set(lead, (leadCounts.get(lead) ?? 0) + 1);
+assert.ok(Math.max(...leadCounts.values(), 0) <= 4, "creative prose is repeating the same sentence openings too often");
 
 const feedbackFirst = compileCognitiveExperience("Coco stole the bow.", { feedback: { accepted: ["comedy works"], rejected: ["flat phrasing"] } });
 const feedbackSecond = compileCognitiveExperience("Coco stole another bow.", { state: feedbackFirst.state });
