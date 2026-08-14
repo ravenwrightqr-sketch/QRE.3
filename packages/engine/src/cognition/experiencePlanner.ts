@@ -1,4 +1,4 @@
-import type { CognitiveExperiencePlan, CognitiveExperienceRealization, CognitiveBeatDirective, ExperienceMeaning, ExperienceType, ExperienceTone, ExperienceEntities, CognitivePremiseRole } from "@qre/contracts";
+import type { CognitiveExperiencePlan, CognitiveExperienceRealization, CognitiveBeatDirective, ExperienceMeaning, ExperienceType, ExperienceTone, ExperienceEntities, CognitivePremise, CognitivePremiseRole, CognitivePremiseRelation, CognitivePremiseSlot } from "@qre/contracts";
 import type { WorldModel, WorldEvent } from "./worldModel.js";
 import type { SignificanceResult } from "./significanceEngine.js";
 import type { CreativeCandidate } from "./creativePolicy.js";
@@ -54,7 +54,7 @@ function meaning(world: WorldModel): ExperienceMeaning {
   };
 }
 
-function premise(world: WorldModel) {
+function premise(world: WorldModel): CognitivePremise {
   const evidence = (values: string[]) => unique(values).map((detail) => ({ source: "prompt" as const, detail, confidence: 1 }));
   const slots: Array<{ role: CognitivePremiseRole; values: string[]; salience: number }> = [
     { role: "subject", values: world.participants.slice(0, 1), salience: 1 },
@@ -65,24 +65,24 @@ function premise(world: WorldModel) {
     { role: "temporal", values: world.times, salience: 1 },
     { role: "emotion", values: world.events.map((event) => event.state ?? ""), salience: 0.7 },
   ];
-  const filtered = slots
+  const premiseSlots: CognitivePremiseSlot[] = slots
     .filter((slot) => slot.values.length)
     .map((slot) => ({
       role: slot.role,
       values: unique(slot.values),
-      status: "observed" as const,
+      status: "observed",
       confidence: 1,
       salience: slot.salience,
       evidence: evidence(slot.values),
     }));
-  const relations = world.relations.map((relation) => ({
-    from: "participants" as const,
-    to: relation.relation === "experienced_at" ? "place" as const : relation.relation === "connected_to" ? "artifact" as const : "participants" as const,
+  const premiseRelations: CognitivePremiseRelation[] = world.relations.map((relation) => ({
+    from: "participants",
+    to: relation.relation === "experienced_at" ? "place" : relation.relation === "connected_to" ? "artifact" : "participants",
     relation: relation.relation,
     confidence: 1,
     evidence: evidence([relation.evidenceId]),
   }));
-  return { slots: filtered, relations };
+  return { slots: premiseSlots, relations: premiseRelations };
 }
 
 export function planExperience(world: WorldModel, significance: SignificanceResult, selected: CreativeCandidate[]): { moments: PlannedMoment[]; plan: CognitiveExperiencePlan; type: ExperienceType; tone: readonly ExperienceTone[]; meaning: ExperienceMeaning } {
