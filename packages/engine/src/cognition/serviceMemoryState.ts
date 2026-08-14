@@ -1,7 +1,7 @@
 import type { ExperienceMoment, MemorySnapshot, ServiceReceipt } from "@qre/contracts";
 
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
+const unique = (values: readonly unknown[]) => [...new Set(values.map(clean).filter(Boolean))];
 
 function momentText(moment: ExperienceMoment): string {
   const value = moment.text ?? moment.description ?? moment.title ?? moment.meta?.text ?? moment.location?.label ?? moment.type;
