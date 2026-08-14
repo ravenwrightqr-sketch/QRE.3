@@ -21,50 +21,33 @@ const unique = (values: readonly string[]) => [...new Set(values.map(clean).filt
 function subject(event: WorldEvent) {
   return event.participants.join(" and ") || event.object || event.place || "the moment";
 }
-
 function anchors(event: WorldEvent) {
   return unique([...event.participants, event.object ?? "", event.place ?? "", event.time ?? "", ...event.details]);
 }
-
 function coverage(text: string, event: WorldEvent): number {
-  const body = lower(text);
-  const values = anchors(event);
+  const body = lower(text); const values = anchors(event);
   if (!values.length) return 1;
   return values.filter((value) => body.includes(lower(value))).length / values.length;
 }
-
 function learnedBias(text: string, preferences: string[], accepted: string[], rejected: string[]): number {
-  const body = lower(text);
-  let score = 0;
+  const body = lower(text); let score = 0;
   for (const preference of preferences) if (body.includes(lower(preference))) score += 1.25;
   for (const value of accepted) if (body.includes(lower(value))) score += 1.5;
   for (const value of rejected) if (body.includes(lower(value))) score -= 3;
   return score;
 }
-
 function novelty(text: string, prior: string[]): number {
-  const body = lower(text);
-  if (!prior.length) return 1;
+  const body = lower(text); if (!prior.length) return 1;
   const words = new Set(body.split(/\W+/).filter((word) => word.length >= 4));
-  const overlaps = prior.map((item) => {
-    const set = new Set(lower(item).split(/\W+/).filter((word) => word.length >= 4));
-    return [...words].filter((word) => set.has(word)).length / Math.max(1, words.size);
-  });
+  const overlaps = prior.map((item) => { const set = new Set(lower(item).split(/\W+/).filter((word) => word.length >= 4)); return [...words].filter((word) => set.has(word)).length / Math.max(1, words.size); });
   return 1 - Math.max(...overlaps, 0);
 }
-
 function rhythm(event: WorldEvent): string {
-  const parts = [event.time, subject(event), event.action, event.object, event.place]
-    .filter(Boolean)
-    .join(" ");
-  return clean(parts);
+  return clean([event.time, subject(event), event.action, event.object, event.place].filter(Boolean).join(" "));
 }
-
 function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; detail: string } | undefined {
-  const s = subject(event);
-  const thing = event.object ?? event.place ?? event.details[0];
+  const s = subject(event); const thing = event.object ?? event.place ?? event.details[0];
   if (!s) return undefined;
-
   if (lens === "comedy") {
     const frames = [
       `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, carrying the energy of someone already preparing a defense`,
@@ -73,7 +56,6 @@ function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; 
     ];
     return { text: frames[event.order % frames.length]!, detail: "comedic personification/contrast" };
   }
-
   if (lens === "horror") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the familiar suddenly felt slightly wrong`,
@@ -82,7 +64,6 @@ function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; 
     ];
     return { text: frames[event.order % frames.length]!, detail: "horror atmosphere framing" };
   }
-
   if (lens === "romance") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the detail carried more history than it first appeared to`,
@@ -91,7 +72,6 @@ function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; 
     ];
     return { text: frames[event.order % frames.length]!, detail: "romantic significance framing" };
   }
-
   if (lens === "mysterious") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, leaving one detail that refused to explain itself`,
@@ -100,7 +80,6 @@ function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; 
     ];
     return { text: frames[event.order % frames.length]!, detail: "mystery emphasis framing" };
   }
-
   if (lens === "wild") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the whole thing picked up momentum fast`,
@@ -109,110 +88,53 @@ function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; 
     ];
     return { text: frames[event.order % frames.length]!, detail: "high-energy escalation framing" };
   }
-
   return undefined;
 }
 
+function universalMoves(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; detail: string }> {
+  const s = subject(event); const thing = event.object ?? event.details[0] ?? event.place; const priorThing = previous?.object ?? previous?.details[0] ?? previous?.place; const nextThing = next?.object ?? next?.details[0] ?? next?.place;
+  const moves: Array<{ text: string; detail: string }> = [];
+  if (thing && event.action) moves.push({ text: `${s} ${event.action} ${thing}, and that detail gave the moment its texture`, detail: "specificity spotlight" });
+  if (previous && thing && event.action) moves.push({ text: `After ${priorThing ?? "that"}, ${s} ${event.action} ${thing}; the story had a new direction`, detail: "causal consequence" });
+  if (nextThing && event.action) moves.push({ text: `${s} ${event.action}${thing ? ` ${thing}` : ""}, with ${nextThing} still waiting on the other side of the moment`, detail: "anticipatory tension" });
+  if (event.details.length >= 2) moves.push({ text: `${s} ${event.action ?? "carried on"}; ${event.details[0]} was the detail you could miss, while ${event.details[1]} was the one that changed the feel`, detail: "contrast between details" });
+  if (world.events.length >= 3 && event.order === Math.floor(world.events.length / 2)) moves.push({ text: `${s} ${event.action ?? "was there"}${thing ? ` ${thing}` : ""}; this was the point where the ordinary sequence started to feel like a story`, detail: "midpoint escalation" });
+  return moves;
+}
+
 function candidatesFor(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; creativeDetails: string[] }> {
-  const s = subject(event);
-  const out: Array<{ text: string; creativeDetails: string[] }> = [];
-  const direct = clean(event.raw);
+  const s = subject(event); const out: Array<{ text: string; creativeDetails: string[] }> = []; const direct = clean(event.raw);
   out.push({ text: direct, creativeDetails: [] });
-
-  const compact = rhythm(event);
-  if (compact && compact.toLowerCase() !== direct.toLowerCase()) {
-    out.push({ text: compact, creativeDetails: [] });
-  }
-
-  if (s && event.action && event.object) {
-    const suffix = [event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ");
-    out.push({
-      text: `${s} ${event.action} ${event.object}${suffix ? ` ${suffix}` : ""}`,
-      creativeDetails: [],
-    });
-  }
-
-  if (previous && event.order > 0) {
-    const previousAnchor = previous.object ?? previous.place ?? previous.action ?? previous.raw;
-    out.push({
-      text: `After ${clean(previousAnchor)}, ${direct.toLowerCase()}`,
-      creativeDetails: ["causal transition from adjacent event"],
-    });
-  }
-
-  if (next && event.order < world.events.length - 1 && event.action) {
-    const nextAnchor = next.object ?? next.place ?? next.action ?? next.raw;
-    out.push({
-      text: `${direct}; then ${lower(nextAnchor)} was still to come`,
-      creativeDetails: ["anticipatory transition from adjacent event"],
-    });
-  }
-
-  const frame = creativeFrame(world.lens, event);
-  if (frame) out.push(frame);
-
-  if (event.details.length > 1 && s) {
-    const detailLine = event.details.slice(0, 3).join(", ");
-    out.push({
-      text: `${s} ${event.action ?? "carried on"}; ${detailLine} stayed in the frame`,
-      creativeDetails: ["detail spotlight"],
-    });
-  }
-
+  const compact = rhythm(event); if (compact && lower(compact) !== lower(direct)) out.push({ text: compact, creativeDetails: [] });
+  if (s && event.action && event.object) out.push({ text: `${s} ${event.action} ${event.object}${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ") ? ` ${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ")}` : ""}`, creativeDetails: [] });
+  for (const move of universalMoves(event, world, previous, next)) out.push({ text: move.text, creativeDetails: [move.detail] });
+  if (previous && event.order > 0) out.push({ text: `After ${clean(previous.object ?? previous.place ?? previous.action ?? previous.raw)}, ${direct.toLowerCase()}`, creativeDetails: ["causal transition from adjacent event"] });
+  if (next && event.order < world.events.length - 1 && event.action) out.push({ text: `${direct}; then ${lower(next.object ?? next.place ?? next.action ?? next.raw)} was still to come`, creativeDetails: ["anticipatory transition from adjacent event"] });
+  const frame = creativeFrame(world.lens, event); if (frame) out.push({ text: frame.text, creativeDetails: [frame.detail] });
   return out.filter((item, index, values) => index === values.findIndex((candidate) => lower(candidate.text) === lower(item.text)));
 }
 
-export function generateCandidates(
-  world: WorldModel,
-  significance: SignificanceResult,
-  preferences: string[] = [],
-  accepted: string[] = [],
-  rejected: string[] = [],
-): CreativeCandidate[] {
-  const result: CreativeCandidate[] = [];
-  const prior: string[] = [];
-
+export function generateCandidates(world: WorldModel, significance: SignificanceResult, preferences: string[] = [], accepted: string[] = [], rejected: string[] = []): CreativeCandidate[] {
+  const result: CreativeCandidate[] = []; const prior: string[] = [];
   for (const event of world.events) {
-    const previous = world.events[event.order - 1];
-    const next = world.events[event.order + 1];
+    const previous = world.events[event.order - 1]; const next = world.events[event.order + 1];
     for (const candidate of candidatesFor(event, world, previous, next)) {
-      const evidenceCoverage = coverage(candidate.text, event);
-      const candidateNovelty = novelty(candidate.text, prior);
+      const evidenceCoverage = coverage(candidate.text, event); const candidateNovelty = novelty(candidate.text, prior);
       const causalFit = previous && candidate.text.toLowerCase().includes(lower(previous.object ?? previous.place ?? previous.action ?? previous.raw)) ? 1 : event.order === 0 ? 0.95 : 0.82;
       const attention = Math.min(1.5, (significance.scores.get(event.id) ?? 1) / 10);
-      const creativity = Math.min(10, Math.max(0, candidate.creativeDetails.length * 2 + candidate.text.length / 28));
-      const bias = learnedBias(candidate.text, preferences, accepted, rejected);
-      const rawPenalty = lower(candidate.text) === lower(event.raw) ? -6 : 0;
+      const creativity = Math.min(10, Math.max(0, candidate.creativeDetails.length * 2.5 + candidate.text.length / 30));
+      const bias = learnedBias(candidate.text, preferences, accepted, rejected); const rawPenalty = lower(candidate.text) === lower(event.raw) ? -8 : 0;
       const protectedScore = evidenceCoverage >= 1 ? 42 : -90;
-      const score = protectedScore + evidenceCoverage * 38 + candidateNovelty * 16 + causalFit * 11 + attention * 9 + creativity + bias + rawPenalty;
-      result.push({
-        eventId: event.id,
-        text: candidate.text,
-        lens: world.lens,
-        creativity,
-        evidenceCoverage,
-        novelty: candidateNovelty,
-        causalFit,
-        attention,
-        score,
-        creativeDetails: candidate.creativeDetails,
-      });
+      const score = protectedScore + evidenceCoverage * 38 + candidateNovelty * 18 + causalFit * 12 + attention * 10 + creativity * 2 + bias + rawPenalty;
+      result.push({ eventId: event.id, text: candidate.text, lens: world.lens, creativity, evidenceCoverage, novelty: candidateNovelty, causalFit, attention, score, creativeDetails: candidate.creativeDetails });
       prior.push(candidate.text);
     }
   }
-
   return result;
 }
 
 export function selectCreativeSequence(world: WorldModel, candidates: CreativeCandidate[]): CreativeCandidate[] {
-  const selected: CreativeCandidate[] = [];
-  const usedEvents = new Set<string>();
-  for (const candidate of [...candidates].sort((a, b) => b.score - a.score)) {
-    if (usedEvents.has(candidate.eventId)) continue;
-    selected.push(candidate);
-    usedEvents.add(candidate.eventId);
-  }
-  return world.events
-    .map((event) => selected.find((candidate) => candidate.eventId === event.id) ?? candidates.find((candidate) => candidate.eventId === event.id))
-    .filter(Boolean) as CreativeCandidate[];
+  const selected: CreativeCandidate[] = []; const usedEvents = new Set<string>();
+  for (const candidate of [...candidates].sort((a, b) => b.score - a.score)) { if (usedEvents.has(candidate.eventId)) continue; selected.push(candidate); usedEvents.add(candidate.eventId); }
+  return world.events.map((event) => selected.find((candidate) => candidate.eventId === event.id) ?? candidates.find((candidate) => candidate.eventId === event.id)).filter(Boolean) as CreativeCandidate[];
 }
