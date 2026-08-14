@@ -5,41 +5,27 @@ export type WorldKind = "entity" | "event" | "state" | "relationship" | "place" 
 export type WorldEvidence = CognitiveEvidence & { id: string; kind: WorldKind; salience: number };
 export type WorldRelation = { from: string; relation: string; to: string; evidenceId: string };
 export type WorldEvent = {
-  id: string;
-  raw: string;
-  participants: string[];
-  action?: string;
-  state?: string;
-  object?: string;
-  place?: string;
-  time?: string;
-  details: string[];
-  order: number;
-  evidence: WorldEvidence[];
-  resolvedFromMemory?: boolean;
+  id: string; raw: string; participants: string[]; action?: string; state?: string; object?: string; place?: string; time?: string;
+  details: string[]; order: number; evidence: WorldEvidence[]; resolvedFromMemory?: boolean;
 };
 export type WorldModel = {
-  prompt: string;
-  lens: CognitiveLens;
-  entities: string[];
-  participants: string[];
-  places: string[];
-  times: string[];
-  events: WorldEvent[];
-  relations: WorldRelation[];
-  evidence: WorldEvidence[];
-  memoryMatches: string[];
-  entitiesByKind: ExperienceEntities;
+  prompt: string; lens: CognitiveLens; entities: string[]; participants: string[]; places: string[]; times: string[];
+  events: WorldEvent[]; relations: WorldRelation[]; evidence: WorldEvidence[]; memoryMatches: string[]; entitiesByKind: ExperienceEntities;
 };
 
+/**
+ * Only action/state recognition uses a bounded bootstrap lexicon. Real-world
+ * entities and places are open-world mentions discovered from grammatical role,
+ * context and evidence. There is intentionally no PLACE_WORDS dictionary.
+ */
 const ACTIONS = ["arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened","surrendered","disappeared","appeared","continued","waited","lingered","kept","became"] as const;
 const ACTION_RE = new RegExp(`\\b(?:${ACTIONS.join("|")})\\b`, "i");
 const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked)\b/i;
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b/i;
+const SPATIAL_PREP_RE = /\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\b/i;
 const RETURN_RE = /\b(?:back|again|returned|returning|same place|there|here)\b/i;
 const STOPWORD_RE = /^(?:I|We|The|Then|At|And|My|Our|This|A|An|By|He|She|They|Guests|Everyone|Grandma|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday)$/i;
 const PRONOUN_RE = /^(?:I|we|you|he|she|they|it|this|that|these|those|someone|something|everyone|guests)$/i;
-const SPATIAL_PREP_RE = /\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\b/i;
 
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const sentence = (value: unknown) => clean(value).replace(/[.!?]+$/, "");
@@ -80,23 +66,9 @@ function splitCoordinatedActions(clause: string): string[] {
   return parts.length ? parts : [text];
 }
 
-function splitCommaIndependentActions(text: string): string[] {
-  const parts = text.split(/,\s+/).map(sentence).filter(Boolean);
-  if (parts.length <= 1) return [text];
-  const out: string[] = []; let current = parts[0]!;
-  for (const part of parts.slice(1)) {
-    const currentAction = semanticIndex(current);
-    const nextAction = semanticIndex(part.replace(/^(?:and|but|then)\s+/i, ""));
-    if (currentAction !== undefined && nextAction !== undefined) { out.push(current); current = part.replace(/^(?:and|but|then)\s+/i, ""); }
-    else current = `${current}, ${part}`;
-  }
-  if (current) out.push(current);
-  return out;
-}
-
 function splitPrompt(prompt: string): string[] {
   const sentences = clean(prompt).split(/(?<=[.!?])\s+|\n+/).map(sentence).filter(Boolean);
-  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCommaIndependentActions).flatMap(splitCoordinatedActions)));
+  return unique(sentences.flatMap((value) => splitIndependentClauses(value).flatMap(splitCoordinatedActions)));
 }
 
 function properNames(text: string): string[] {
@@ -111,23 +83,29 @@ function participants(text: string, carry: string[]): string[] {
 function timeOf(text: string) { return text.match(TIME_RE)?.[0]; }
 function actionOf(text: string) { return text.match(ACTION_RE)?.[0]; }
 function stateOf(text: string) { return text.match(STATE_RE)?.[0]; }
+
 function spatialPhraseOf(text: string): string | undefined {
   const prep = "at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards";
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
   const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "i");
   const match = text.match(pattern); if (!match?.[1]) return undefined;
-  const value = sentence(match[1]); return value && !PRONOUN_RE.test(value) ? value : undefined;
+  let value = sentence(match[1]);
+  // Prepositional phrases can begin with "at" for both places and times.
+  // TIME_RE gets first right of refusal so "at 7 PM" cannot erase a remembered place.
+  if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
+  value = value.replace(/\s+(?:at|on|in|around|near)\s+.*$/i, "").trim();
+  return value || undefined;
 }
 function subjectEntityOf(text: string, action?: string): string | undefined {
   if (!action) return undefined; const index = text.toLowerCase().indexOf(action.toLowerCase()); if (index <= 0) return undefined;
   const prefix = sentence(text.slice(0, index)).replace(/\b(?:finally|suddenly|just|already|still|now)\b/gi, " ").trim();
-  return prefix && !PRONOUN_RE.test(prefix) && prefix.length <= 100 ? prefix : undefined;
+  if (!prefix || PRONOUN_RE.test(prefix)) return undefined; return prefix.length <= 100 ? prefix : undefined;
 }
 function objectOf(text: string, action?: string): string | undefined {
   if (!action) return undefined; const match = text.match(new RegExp(`\\b${escapeRegExp(action)}\\b(?:\\s+to)?\\s+(?:the|a|an|my|our|your|his|her|their|this|that)?\\s*([^,.;]+)`, "i"));
   if (!match?.[1]) return undefined;
   const value = sentence(match[1]).replace(/\b(?:and|or|but|while|after|before|until|where|then)\b.*$/i, "").trim();
-  return value && value.length <= 100 && !PRONOUN_RE.test(value) && !TIME_RE.test(value) ? value : undefined;
+  if (!value || value.length > 100 || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined; return value;
 }
 function objectParts(value: string | undefined): string[] { return value ? value.split(/\s+(?:and|&|or)\s+/i).map(sentence).filter(Boolean) : []; }
 function detailCandidates(text: string, participantsList: string[], place: string | undefined, time: string | undefined, action: string | undefined, object: string | undefined, subject: string | undefined): string[] {
