@@ -102,7 +102,14 @@ function creativeEvidence(selected: CreativeCandidate[], world: WorldModel): voi
     if (!event) continue;
     for (const detail of candidate.creativeDetails) {
       if (!event.evidence.some((item) => item.source === "creative_realization" && item.detail === detail)) {
-        event.evidence.push({ source: "creative_realization", detail, confidence: Math.max(0.4, Math.min(0.95, candidate.creativity / 10)) });
+        event.evidence.push({
+          id: `creative-${event.id}-${detail.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          kind: "detail",
+          salience: Math.max(0.4, Math.min(1, candidate.creativity / 10)),
+          source: "creative_realization",
+          detail,
+          confidence: Math.max(0.4, Math.min(0.95, candidate.creativity / 10)),
+        });
       }
     }
   }
