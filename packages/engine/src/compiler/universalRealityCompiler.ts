@@ -7,17 +7,20 @@ import type {
 } from "@qre/contracts";
 
 /**
- * STATUS: CANONICAL
+ * STATUS: CANONICAL / UNIVERSAL COMPILER
  *
  * ROLE:
- * Turn arbitrary human input into a concrete reality model and then into
- * sequential customer-facing moments.
+ * Convert arbitrary user language into observable reality, discover a
+ * sequence inside that reality, and perform that sequence as runtime text.
  *
- * ARCHITECTURAL LAW:
- * Cognition may reason abstractly. Presentation must realize concrete source
- * evidence whenever it exists. Domain names are data, never compiler modes.
+ * MUST NOT:
+ * - classify prompts into domain-specific story engines
+ * - invent participants, owners, relationships, places, or events
+ * - expose cognitive/compiler vocabulary
+ * - use semantic labels such as "funny" or "horror" as customer prose
  *
- * This file intentionally contains NO groomer/wedding/rave/house/etc branches.
+ * CORE LAW:
+ * reality first -> causality second -> creative performance third.
  */
 
 export type RealityAtom = {
@@ -55,54 +58,128 @@ export type RealityModel = {
   explicitLenses: string[];
 };
 
-type Lens = "plain" | "comedy" | "dark" | "horror" | "romance" | "cinematic";
+type Lens = "plain" | "comedy" | "horror" | "romance" | "cinematic";
 
-const ACTION = /\b(?:arrive|arrived|arrives|enter|entered|walk|walked|walks|go|went|goes|come|came|comes|leave|left|leaves|return|returned|returns|find|found|finds|clean|cleaned|cleans|wash|washed|washes|repair|repaired|repairs|fix|fixed|fixes|restore|restored|restores|build|built|builds|make|made|makes|create|created|creates|design|designed|designs|write|wrote|writes|cook|cooked|cooks|serve|served|serves|prepare|prepared|prepares|open|opened|opens|close|closed|closes|visit|visited|visits|travel|traveled|travelled|drive|drove|drives|ride|rode|rides|paint|painted|paints|dance|danced|dances|sing|sang|sings|play|played|plays|choose|chose|chooses|pick|picked|picks|select|selected|selects|decide|decided|decides|touch|touched|touches|hold|held|holds|wear|wore|wears|taste|tasted|tastes|smell|smelled|smells|look|looked|looks|see|saw|sees|watch|watched|watches|share|shared|shares|give|gave|gives|take|took|takes|bring|brought|brings|receive|received|receives|check|checked|checks|inspect|inspected|inspects|test|tested|tests|measure|measured|measures|install|installed|installs|remove|removed|removes|change|changed|changes|turn|turned|turns|transform|transformed|transforms|finish|finished|finishes|complete|completed|completes|celebrate|celebrated|celebrates|marry|married|marries|photograph|photographed|photographs|capture|captured|captures|record|recorded|records|teach|taught|teaches|learn|learned|learns|discover|discovered|discovers|collect|collected|collects|organize|organized|organizes|decorate|decorated|decorates|style|styled|styles|trim|trimmed|trims|cut|cuts|brush|brushed|brushes|dry|dried|dries|massage|massaged|massages|relax|relaxed|relaxes|pamper|pampered|pampers|spoil|spoiled|spoils|treat|treated|treats|shake|shook|shakes|chew|chewed|chews|steal|stole|steals|tear|tore|tears|eat|ate|eats|run|ran|runs|call|called|calls|rent|rented|rents|document|documented|documents|start|started|starts|stop|stopped|stops|hit|hits|sit|sat|sits|stand|stood|stands|talk|talked|talks|meet|met|meets|stay|stayed|stays|sleep|slept|sleeps|practice|practiced|practices|win|won|lose|lost|break|broke|breaks)\b/i;
+const ACTION_WORDS = [
+  "arrive", "arrived", "arrives", "enter", "entered", "enters", "walk", "walked", "walks",
+  "go", "went", "goes", "come", "came", "comes", "leave", "left", "leaves", "return", "returned", "returns",
+  "find", "found", "finds", "clean", "cleaned", "cleans", "wash", "washed", "washes", "repair", "repaired", "repairs",
+  "fix", "fixed", "fixes", "restore", "restored", "restores", "build", "built", "builds", "make", "made", "makes",
+  "create", "created", "creates", "design", "designed", "designs", "write", "wrote", "writes", "cook", "cooked", "cooks",
+  "serve", "served", "serves", "prepare", "prepared", "prepares", "open", "opened", "opens", "close", "closed", "closes",
+  "visit", "visited", "visits", "travel", "traveled", "travelled", "drive", "drove", "drives", "ride", "rode", "rides",
+  "paint", "painted", "paints", "dance", "danced", "dances", "sing", "sang", "sings", "play", "played", "plays",
+  "choose", "chose", "chooses", "pick", "picked", "picks", "select", "selected", "selects", "decide", "decided", "decides",
+  "touch", "touched", "touches", "hold", "held", "holds", "wear", "wore", "wears", "taste", "tasted", "tastes",
+  "smell", "smelled", "smells", "look", "looked", "looks", "see", "saw", "sees", "watch", "watched", "watches",
+  "share", "shared", "shares", "give", "gave", "gives", "take", "took", "takes", "bring", "brought", "brings",
+  "receive", "received", "receives", "check", "checked", "checks", "inspect", "inspected", "inspects", "test", "tested", "tests",
+  "measure", "measured", "measures", "install", "installed", "installs", "remove", "removed", "removes", "change", "changed", "changes",
+  "turn", "turned", "turns", "transform", "transformed", "transforms", "finish", "finished", "finishes", "complete", "completed", "completes",
+  "celebrate", "celebrated", "celebrates", "marry", "married", "marries", "photograph", "photographed", "photographs", "capture", "captured", "captures",
+  "record", "recorded", "records", "teach", "taught", "teaches", "learn", "learned", "learns", "discover", "discovered", "discovers",
+  "collect", "collected", "collects", "organize", "organized", "organizes", "decorate", "decorated", "decorates", "style", "styled", "styles",
+  "trim", "trimmed", "trims", "cut", "cuts", "brush", "brushed", "brushes", "dry", "dried", "dries", "massage", "massaged", "massages",
+  "relax", "relaxed", "relaxes", "pamper", "pampered", "pampers", "spoil", "spoiled", "spoils", "treat", "treated", "treats",
+  "shake", "shook", "shakes", "chew", "chewed", "chews", "steal", "stole", "steals", "tear", "tore", "tears", "eat", "ate", "eats",
+  "run", "ran", "runs", "call", "called", "calls", "rent", "rented", "rents", "document", "documented", "documents",
+  "start", "started", "starts", "stop", "stopped", "stops", "hit", "hits", "sit", "sat", "sits", "stand", "stood", "stands",
+  "talk", "talked", "talks", "meet", "met", "meets", "stay", "stayed", "stays", "sleep", "slept", "sleeps", "practice", "practiced", "practices",
+  "win", "won", "wins", "lose", "lost", "loses", "break", "broke", "breaks",
+];
+
+const ACTION = new RegExp(`\\b(?:${ACTION_WORDS.join("|")})\\b`, "i");
 const CHANGE = /\b(?:but|then|until|after|before|finally|suddenly|however|instead|became|becomes|turned|changed|ended|left|arrived|hit|stole|found|lost|missing|wrong|broken|first|last|again|still|no longer)\b/i;
 const EMOTION = /\b(?:scared|afraid|happy|excited|angry|furious|sad|restless|nervous|suspicious|surprised|delighted|terrified|calm|proud|lonely|curious|relieved|embarrassed|annoyed|thrilled|romantic|tender|intimate|mysterious|strange|weird|wild|ridiculous|absurd)\b/i;
 const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|meaning context|progression model|interaction model|content model|discovery model|trajectory|mechanic|mechanics|latent state|internal state|dynamic behavior|result is available|current state|next experiential state|delivery pipeline|delivery layer|scan pipeline|qr pipeline|nfc pipeline|generated output|customer-facing)\b/i;
-const GENERIC = /^(?:the moment|the situation|the experience|things|something|the result|the difference|the story|the subject|the day|the main event|the work|the change|the next step)$/i;
-const STOP = new Set(["the","a","an","and","or","but","for","with","about","from","this","that","then","there","here","when","where","while","because","was","were","is","are","be","been","being","it","its","they","them","their","he","she","his","her","we","our","you","your","i","my","me","to","of","in","on","at","as","by","than","more","very","really","just","want","need","make","create","build","design","write","show","give","send","experience","story","people","will","can","should","could","would","like","some","everything","nothing"]);
-const PARTICIPANTS = new Set(["kids","children","guests","visitors","crowd","family","friends","fans","customers","clients","team","group","partner","sister","brother","mother","father","grandmother","grandfather","wife","husband","daughter","son","musician","artist","teacher","student","player","players","band","someone","somebody"]);
+const PARTICIPANTS = new Set(["kids", "children", "guests", "visitors", "crowd", "family", "friends", "fans", "customers", "clients", "team", "group", "partner", "sister", "brother", "mother", "father", "grandmother", "grandfather", "wife", "husband", "daughter", "son", "musician", "artist", "teacher", "student", "player", "players", "band", "someone", "somebody"]);
+const STOP = new Set(["the", "a", "an", "and", "or", "but", "for", "with", "about", "from", "this", "that", "then", "there", "here", "when", "where", "while", "because", "was", "were", "is", "are", "be", "been", "being", "it", "its", "they", "them", "their", "he", "she", "his", "her", "we", "our", "you", "your", "i", "my", "me", "to", "of", "in", "on", "at", "as", "by", "than", "more", "very", "really", "just", "want", "need", "make", "create", "build", "design", "write", "show", "give", "send", "experience", "story", "people", "will", "can", "should", "could", "would", "like", "some", "everything", "nothing"]);
 
-function clean(v: unknown): string { return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; }
-function sentence(v: unknown): string { return clean(v).replace(/[.!?]+$/, ""); }
-function lower(v: unknown): string { return sentence(v).toLowerCase(); }
-function unique(values: readonly string[]): string[] { return [...new Set(values.map(sentence).filter(Boolean))]; }
-function cap(v: string): string { const s = sentence(v); return s ? s[0]!.toUpperCase() + s.slice(1) : ""; }
-function hash(text: string): number { let h = 2166136261; for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-function choose<T>(values: readonly T[], seed: string): T | undefined { return values.length ? values[hash(seed) % values.length] : undefined; }
+const clean = (v: unknown): string => typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
+const sentence = (v: unknown): string => clean(v).replace(/[.!?]+$/, "");
+const lower = (v: unknown): string => sentence(v).toLowerCase();
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(sentence).filter(Boolean))];
+const cap = (v: string): string => {
+  const s = sentence(v);
+  return s ? s[0]!.toUpperCase() + s.slice(1) : "";
+};
+
+function hash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function splitSourceSentence(source: string): string[] {
+  const base = sentence(source);
+  if (!base) return [];
+
+  const pieces = base
+    .replace(/\s*;\s*/g, "|")
+    .replace(/\s+(?:and then|then suddenly|but then)\s+/gi, "|")
+    .replace(/,\s*(?=then\b)/gi, "|")
+    .split("|")
+    .flatMap((piece) => {
+      const text = sentence(piece);
+      if (!text) return [];
+
+      const parts = text.split(/,\s+(?=(?:and|but)\s+\w+\b)/i);
+      return parts.length === 1 ? [text] : parts.flatMap((part, index) => {
+        const p = sentence(part.replace(/^\s*(?:and|but)\s+/i, ""));
+        if (!p) return [];
+        if (index === 0) return [p];
+        return ACTION.test(p) ? [p] : [text];
+      });
+    });
+
+  return unique(pieces).filter((p) => p.length >= 3);
+}
 
 function clauses(prompt: string): string[] {
-  return unique(prompt.replace(/\r/g, "").split(/(?<=[.!?])\s+(?=[A-Z0-9\"'“])/).flatMap((s) => {
-    const base = sentence(s);
-    if (!base) return [];
-    const pieces = base.replace(/\s*;\s*/g, "|").replace(/\s+(?:and then|then suddenly|but then)\s+/gi, "|").split("|");
-    return pieces.map((p) => sentence(p.replace(/^\s*(?:and|but|then)\s+/i, ""))).filter((p) => p.length >= 3);
-  }));
+  return unique(
+    prompt
+      .replace(/\r/g, "")
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9\"'“])/)
+      .flatMap(splitSourceSentence),
+  );
 }
 
 function timeOf(text: string): string | undefined {
-  return text.match(/\b(?:at|around|by|before|after|on|during|since|from)\s+(?:the\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{4}|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{1,2})?)\b/i)?.[0];
+  const match = text.match(/\b(?:at|around|by|before|after|on|during|since|from)\s+(?:the\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{4}|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{1,2})?)\b/i);
+  return match?.[0];
 }
+
 function placeOf(text: string): string | undefined {
-  const explicit = text.match(/\b(?:at|in|inside|near|around|outside|on)\s+([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,5})/);
-  if (explicit?.[1] && !/^(?:the|a|an)\b/i.test(explicit[1])) return sentence(explicit[1]);
-  return text.match(/\b(?:theater|theatre|museum|park|beach|hotel|restaurant|bar|club|house|home|kitchen|living room|bedroom|garage|school|office|stadium|arena|shop|store|airport|station|road|street|city|town|warehouse|church|hall|studio|groomer|gym|spa|backyard|venue|riverside theater)\b/i)?.[0];
+  const explicit = text.match(/\b(?:at|in|inside|near|around|outside|on)\s+(?:the\s+)?([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,5})/);
+  if (explicit?.[1] && !/^(?:and|but|then)\b/i.test(explicit[1])) return sentence(explicit[1]);
+  return text.match(/\b(?:theater|theatre|museum|park|beach|hotel|restaurant|bar|club|house|home|kitchen|living room|bedroom|garage|school|office|stadium|arena|shop|store|airport|station|road|street|city|town|warehouse|church|hall|studio|groomer|gym|spa|backyard|venue)\b/i)?.[0];
 }
+
 function named(text: string): string[] {
   const proper = [...text.matchAll(/\b[A-Z][A-Za-z0-9'’-]*(?:\s+[A-Z][A-Za-z0-9'’-]*){0,4}\b/g)].map((m) => sentence(m[0] ?? ""));
   return unique(proper.filter((v) => !/^(?:Create|Make|Build|Turn|Generate|The|Then|And|At|By|For|This|That|My|Our|I|We)\b/i.test(v)));
 }
-function tokens(text: string): string[] { return sentence(text).toLowerCase().split(/[^a-z0-9'’-]+/).filter((w) => w.length > 2 && !STOP.has(w)); }
+
+function tokens(text: string): string[] {
+  return sentence(text).toLowerCase().split(/[^a-z0-9'’-]+/).filter((w) => w.length > 2 && !STOP.has(w));
+}
+
 function actorOf(text: string): string | undefined {
   const direct = sentence(text).match(/^(?:(?:my|our|the|a|an)\s+)?([A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9'’-]*){0,4})\s+(?=(?:arrived|arrives|entered|enters|walked|walks|went|goes|came|comes|left|leaves|returned|returns|found|finds|sat|sits|stood|stands|started|starts|was|were|is|are|had|has|began|begins)\b)/i);
   return sentence(direct?.[1]);
 }
-function actionOf(text: string): string | undefined { return text.match(ACTION)?.[0]; }
+
+function actionOf(text: string): string | undefined {
+  return text.match(ACTION)?.[0];
+}
+
 function objectOf(text: string, actor?: string): string | undefined {
-  const preferred = ["bath","bow","bubbles","kitchen","bathroom","recipe","watch","truck","guitar","pick","cake","door","window","lights","ring","clues","song","chairs","table","coffee","shoes","hat","photo","video","crowd","band","house","home","spa","tattoo","surfboard","wave","keys","phone","dress","restaurant"];
-  const ws = tokens(text).filter((w) => w !== lower(actor ?? "") && !ACTION.test(w));
+  const preferred = ["bath", "bow", "bubbles", "kitchen", "bathroom", "bathrooms", "recipe", "watch", "truck", "guitar", "pick", "cake", "door", "window", "lights", "ring", "clues", "song", "chairs", "table", "coffee", "shoes", "hat", "photo", "video", "crowd", "band", "house", "home", "spa", "tattoo", "surfboard", "wave", "keys", "phone", "dress", "restaurant"];
+  const actorWords = new Set(tokens(actor ?? ""));
+  const ws = tokens(text).filter((w) => !actorWords.has(w) && !ACTION.test(w));
   return ws.find((w) => preferred.includes(w)) ?? ws[0];
 }
 
@@ -150,16 +227,16 @@ export function buildRealityModel(prompt: string, plan?: CognitiveExperiencePlan
     if (object) add("entity", object, 6);
     if (place) { places.push(place); add("place", place, 7); }
     if (time) { times.push(time); add("time", time, 8); }
-    if (EMOTION.test(raw)) { const e = raw.match(EMOTION)?.[0]; if (e) { emotions.push(e); add("emotion", e, 6); } }
-
+    if (EMOTION.test(raw)) {
+      const e = raw.match(EMOTION)?.[0];
+      if (e) { emotions.push(e); add("emotion", e, 6); }
+    }
     for (const t of ws) if (PARTICIPANTS.has(t)) { participants.push(t); add("entity", t, 5); }
-    if (action || place || time || object || actor) events.push({ id: `event-${clause + 1}`, order: clause, raw, actor, action, object, place, time, atoms: atomIds, pressure, novelty });
-  });
 
-  const explicitLenses = unique([
-    ...(plan?.emotionalIntent ?? []),
-    ...(plan?.creativePossibilities ?? []),
-  ]).filter((x) => /\b(?:funny|playful|horror|terrifying|romantic|cinematic|mysterious|beautiful|dark|demented|absurd|wild)\b/i.test(x));
+    if (action || place || time || object || actor) {
+      events.push({ id: `event-${clause + 1}`, order: clause, raw, actor, action, object, place, time, atoms: atomIds, pressure, novelty });
+    }
+  });
 
   return {
     prompt,
@@ -170,81 +247,91 @@ export function buildRealityModel(prompt: string, plan?: CognitiveExperiencePlan
     places: unique(places),
     times: unique(times),
     emotions: unique(emotions),
-    explicitLenses,
+    explicitLenses: unique([...(plan?.emotionalIntent ?? []), ...(plan?.creativePossibilities ?? [])]),
   };
 }
 
 function topicFor(event: RealityEvent, world: RealityModel): string {
   return event.actor ?? event.object ?? event.place ?? world.subjects[0] ?? event.raw;
 }
+
 function cleanRaw(raw: string): string {
   return sentence(raw).replace(/^(?:create|make|build|design|write|turn|generate)\s+/i, "").trim();
 }
+
 function preserveLocationTime(text: string, event: RealityEvent): string {
   let value = sentence(text);
   if (event.place && !lower(value).includes(lower(event.place))) value = `${value} at ${event.place}`;
   if (event.time && !lower(value).includes(lower(event.time))) value = `${value} ${event.time}`;
   return value;
 }
-function candidateLines(event: RealityEvent, world: RealityModel, lens: Lens, index: number): string[] {
-  const topic = topicFor(event, world);
+
+function candidateLines(event: RealityEvent, world: RealityModel, lens: Lens): string[] {
   const raw = cleanRaw(event.raw);
   const object = event.object;
   const actor = event.actor;
+  const topic = topicFor(event, world);
   const candidates = [
     raw,
     actor && event.action && object ? `${cap(actor)} ${lower(event.action)} ${object}` : undefined,
     actor && event.action ? `${cap(actor)} ${lower(event.action)}.` : undefined,
     event.place && actor ? `At ${event.place}, ${raw.toLowerCase()}` : undefined,
-    event.time && actor ? `${cap(actor)} ${lower(event.action ?? "moved")}${event.place ? ` at ${event.place}` : ""}, ${event.time.toLowerCase()}` : undefined,
+    event.time && (actor || object) ? `${cap(actor ?? object ?? "It")} ${lower(event.action ?? "was")}, ${event.time.toLowerCase()}` : undefined,
   ].filter((v): v is string => Boolean(v));
 
-  if (lens === "comedy") {
-    if (actor && object) candidates.push(
-      `${cap(actor)} treated ${object} like it had personally created the problem.`,
-      `${cap(actor)} and ${object} appeared to be negotiating terms.`,
-      `Apparently, ${object} was not going to be a minor detail.`,
-    );
-    else if (object) candidates.push(`${cap(object)} somehow became everybody's business.`, `${cap(object)} had acquired more importance than anyone had ordered.`);
-    else if (actor) candidates.push(`${cap(actor)} arrived with the kind of confidence that usually means something is about to happen.`);
-  }
+  if (lens === "comedy" && actor && object) candidates.push(
+    `${cap(actor)} treated ${object} like it had personally created the problem.`,
+    `${cap(actor)} and ${object} appeared to be negotiating terms.`,
+  );
+  if (lens === "horror" && object) candidates.push(`Then ${object} became the detail that refused to feel ordinary.`);
+  if (lens === "romance" && actor && object) candidates.push(`${cap(actor)} stayed with ${object} a little longer than the moment required.`);
+  if (lens === "cinematic" && event.place && object) candidates.push(`At ${event.place}, ${object} became the detail the scene kept returning to.`);
+  if (lens === "cinematic" && !actor && topic) candidates.push(`${cap(topic)} became the point where the scattered details lined up.`);
 
-  if (lens === "horror") {
-    if (actor && object) candidates.push(`Then ${object} entered the story. ${cap(actor)} noticed.`);
-    else if (event.place) candidates.push(`At ${event.place}, one detail refused to feel ordinary.`);
-    else candidates.push(`Then something about the scene changed.`);
-  }
-
-  if (lens === "romance") {
-    if (actor && object) candidates.push(`${cap(actor)} stayed with ${object} a little longer than the moment required.`);
-    else if (actor) candidates.push(`${cap(actor)} had no reason to rush the moment.`);
-    else if (event.place) candidates.push(`${cap(event.place)} had become more than just a place by then.`);
-  }
-
-  if (lens === "cinematic") {
-    if (event.place && object) candidates.push(`At ${event.place}, ${object} became the detail the scene kept returning to.`);
-    else if (event.time && event.place) candidates.push(`${event.time} at ${event.place} gave the moment its shape.`);
-    else if (topic) candidates.push(`${cap(topic)} became the point where the scattered details lined up.`);
-  }
-
-  const result = unique(candidates).filter((v) => !LEAK.test(v) && !GENERIC.test(v));
-  return result.length ? result : [raw];
+  return unique(candidates).filter((v) => !LEAK.test(v));
 }
 
-function scoreCandidate(text: string, event: RealityEvent, world: RealityModel, usedTopics: Set<string>, usedText: Set<string>): number {
+function scoreCandidate(text: string, event: RealityEvent, usedText: Set<string>): number {
   const low = lower(text);
   let score = 0;
-  const evidence = [event.actor, event.object, event.place, event.time].filter(Boolean) as string[];
-  for (const e of evidence) if (low.includes(lower(e))) score += e === event.time || e === event.place ? 5 : 7;
+  for (const evidence of [event.actor, event.object, event.place, event.time].filter(Boolean) as string[]) {
+    if (low.includes(lower(evidence))) score += event.place === evidence || event.time === evidence ? 5 : 7;
+  }
   if (event.action && low.includes(lower(event.action))) score += 5;
-  if (event.pressure >= 3) score += 3;
-  if (event.novelty >= 2) score += 3;
-  if (text.length >= 32 && text.length <= 170) score += 2;
+  if (event.pressure >= 3) score += 2;
+  if (event.novelty >= 2) score += 2;
+  if (text.length >= 28 && text.length <= 180) score += 2;
   if (!usedText.has(low)) score += 5;
-  const topic = lower(event.actor ?? event.object ?? event.place ?? "");
-  if (topic && !usedTopics.has(topic)) score += 3;
-  if (world.times.some((t) => low.includes(lower(t)))) score += 1;
   return score;
+}
+
+function eventEvidenceExpansion(world: RealityModel, selected: Array<{ event: RealityEvent; text: string }>): Array<{ event: RealityEvent; text: string }> {
+  if (selected.length >= 3) return selected;
+
+  const used = new Set(selected.flatMap((entry) => [lower(entry.event.raw), lower(entry.event.object ?? ""), lower(entry.event.place ?? "")]));
+  const candidates: RealityEvent[] = [];
+
+  for (const event of world.events) {
+    for (const atom of world.atoms.filter((a) => a.clause === event.order && (a.kind === "entity" || a.kind === "place" || a.kind === "time"))) {
+      if (used.has(lower(atom.text))) continue;
+      candidates.push({
+        ...event,
+        id: `${event.id}-${atom.id}`,
+        raw: atom.text,
+        object: atom.kind === "entity" ? atom.text : event.object,
+        place: atom.kind === "place" ? atom.text : event.place,
+        time: atom.kind === "time" ? atom.text : event.time,
+        atoms: [atom.id],
+        pressure: event.pressure + 1,
+        novelty: event.novelty + 1,
+      });
+      used.add(lower(atom.text));
+      if (selected.length + candidates.length >= 3) break;
+    }
+    if (selected.length + candidates.length >= 3) break;
+  }
+
+  return [...selected, ...candidates.map((event) => ({ event, text: cleanRaw(event.raw) }))];
 }
 
 function kindFor(index: number, total: number): StoryBeatKind {
@@ -252,14 +339,13 @@ function kindFor(index: number, total: number): StoryBeatKind {
   if (index === total - 1) return "payoff";
   if (index === 1) return "encounter";
   if (index === total - 2) return "transformation";
-  return index % 3 === 0 ? "escalation" : "action";
+  return index % 2 === 0 ? "discovery" : "escalation";
 }
 
 function perform(text: string, event: RealityEvent, lens: Lens, index: number): string {
   const value = sentence(preserveLocationTime(text, event));
   if (index > 0 && !/^(?:then|and|by|at|looking|for|somewhere|eventually|after)\b/i.test(value)) {
-    if (lens === "comedy") return `Then ${value.toLowerCase()}`;
-    if (lens === "horror") return `Then ${value.toLowerCase()}`;
+    if (lens === "comedy" || lens === "horror") return `Then ${value.toLowerCase()}`;
     if (lens === "romance") return `And ${value.toLowerCase()}`;
   }
   return value;
@@ -268,45 +354,26 @@ function perform(text: string, event: RealityEvent, lens: Lens, index: number): 
 export function compileUniversalRealityExperience(prompt: string, plan?: CognitiveExperiencePlan) {
   const world = buildRealityModel(prompt, plan);
   const lens = lensOf(prompt, plan);
-  const usedTopics = new Set<string>();
   const usedText = new Set<string>();
-  const selected: Array<{ event: RealityEvent; text: string }> = [];
 
-  for (const event of world.events) {
-    const candidates = candidateLines(event, world, lens, event.order);
-    const ranked = [...candidates].sort((a, b) => scoreCandidate(b, event, world, usedTopics, usedText) - scoreCandidate(a, event, world, usedTopics, usedText));
-    const picked = ranked.find((line) => lower(line) !== lower(event.raw) || candidates.length === 1) ?? ranked[0];
-    if (!picked) continue;
-    const text = perform(picked, event, lens, selected.length);
-    selected.push({ event, text });
+  const selected = world.events.map((event) => {
+    const ranked = candidateLines(event, world, lens).sort((a, b) => scoreCandidate(b, event, usedText) - scoreCandidate(a, event, usedText));
+    const text = perform(ranked[0] ?? cleanRaw(event.raw), event, lens, event.order);
     usedText.add(lower(text));
-    const topic = lower(event.actor ?? event.object ?? event.place ?? "");
-    if (topic) usedTopics.add(topic);
-  }
+    return { event, text };
+  });
 
-  const maxScenes = Math.min(Math.max(3, world.events.length), 8);
-  const scenes = selected.slice(0, maxScenes);
-  if (scenes.length && scenes.length < 3 && lens !== "plain") {
-    const e = world.events[0];
-    const topic = topicFor(e, world);
-    const extra = lens === "comedy"
-      ? `${cap(topic)} somehow left with a little more personality than it arrived with.`
-      : lens === "horror"
-        ? `Something about ${topic} was still not quite settled.`
-        : lens === "romance"
-          ? `And that was the detail the memory kept.`
-          : `By then, ${topic} had become part of the memory.`;
-    scenes.push({ event: e, text: extra });
-  }
+  const expanded = eventEvidenceExpansion(world, selected);
+  const scenes = expanded.slice(0, 8);
 
   const beats: StoryBeat[] = scenes.map(({ event, text }, index) => ({
     id: `reality-${index + 1}`,
     kind: kindFor(index, scenes.length),
     order: index,
-    purpose: "realize concrete reality as a sequential experience",
-    text: `${sentence(text)}.`,
+    purpose: "realize concrete source reality as a sequential experience",
+    text: `${sentence(perform(text, event, lens, index))}.`,
     emotionalTarget: world.emotions[index] ?? plan?.emotionalIntent?.[index],
-    entities: unique([event.actor ?? "", event.object ?? "", event.place ?? "", ...(world.participants ?? [])]),
+    entities: unique([event.actor ?? "", event.object ?? "", event.place ?? "", ...world.participants]),
     provenance: [{ kind: "observed", source: "prompt", confidence: 1 }],
   }));
 
