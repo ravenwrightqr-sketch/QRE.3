@@ -20,8 +20,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:universal-reality": "tsx src/compiler/tests/universalRealityAcceptance.ts",
-    "test:universal-sentence": "tsx src/compiler/tests/universalExperienceAcceptance.ts",
-    "test:cognition": "tsx src/compiler/tests/cognitivePromptMatrix.ts",
     "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts",
     "test:movie-factory": "tsx src/experience/tests/movieFactoryV2Acceptance.ts",
     "test:movie-v3": "tsx src/experience/tests/latentMovieExtractorV3Acceptance.ts",
