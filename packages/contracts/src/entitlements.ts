@@ -42,60 +42,16 @@ export type AnalyticsTier =
   | "BUSINESS";
 
 export type Entitlement = {
-
-  /**
-   * Maximum assets this account may own.
-   * null = unlimited
-   */
   maxAssets: number | null;
-
-  /**
-   * Maximum flows that may be attached
-   * to a single asset.
-   * null = unlimited
-   */
   maxFlowsPerAsset: number | null;
-
-  /**
-   * Maximum moments inside one flow.
-   */
   maxMomentsPerFlow: number;
-
-  /**
-   * Maximum uploaded media items
-   * available to each asset.
-   */
   maxMediaItems: number;
-
-  /**
-   * Analytics level.
-   */
   analytics: AnalyticsTier;
-
-  /**
-   * Can transfer ownership of
-   * permanent assets.
-   */
   transferableAssets: boolean;
-
-  /**
-   * Can access Flow Library.
-   */
   flowLibrary: boolean;
-
-  /**
-   * Can detach and reattach flows.
-   */
   flowAttachDetach: boolean;
-
-  /**
-   * Can schedule flows.
-   */
   scheduledFlows: boolean;
-
-  /**
-   * Can use AI experience compiler.
-   */
   aiCompiler: boolean;
-
+  /** Allow anonymous/public contributors to submit memories for an asset. */
+  collaborativeMemory?: boolean;
 };
