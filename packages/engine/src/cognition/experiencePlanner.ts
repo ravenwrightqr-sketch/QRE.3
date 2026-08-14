@@ -1,4 +1,4 @@
-import type { CognitiveExperiencePlan, CognitiveExperienceRealization, CognitiveBeatDirective, ExperienceMeaning, ExperienceType, ExperienceTone, ExperienceEntities } from "@qre/contracts";
+import type { CognitiveExperiencePlan, CognitiveExperienceRealization, CognitiveBeatDirective, ExperienceMeaning, ExperienceType, ExperienceTone, ExperienceEntities, CognitivePremiseRole } from "@qre/contracts";
 import type { WorldModel, WorldEvent } from "./worldModel.js";
 import type { SignificanceResult } from "./significanceEngine.js";
 import type { CreativeCandidate } from "./creativePolicy.js";
@@ -21,11 +21,13 @@ function kind(index: number, total: number): CognitiveBeatDirective["kind"] {
   return index % 2 === 0 ? "discovery" : "escalation";
 }
 
+/**
+ * Experience type is an output classification, not a domain classifier.
+ * The cognitive core does not inspect industries/topics to choose a compiler.
+ */
 function chooseType(world: WorldModel): ExperienceType {
-  const text = world.prompt.toLowerCase();
-  if (/\b(?:wedding|rave|concert|festival|birthday|conference|convention|ticket|ceremony|party|event)\b/.test(text)) return "event";
-  if (/\b(?:remember|memory|anniversary|family|years ago|milestone|legacy)\b/.test(text)) return "memory";
-  if (/\b(?:collection|collectible|card|watch|coin|sneaker|guitar|artwork|surfboard)\b/.test(text)) return "collection";
+  if (world.events.length > 1) return "story";
+  if (world.memoryMatches.length > 0) return "memory";
   return "story";
 }
 
@@ -54,17 +56,33 @@ function meaning(world: WorldModel): ExperienceMeaning {
 
 function premise(world: WorldModel) {
   const evidence = (values: string[]) => unique(values).map((detail) => ({ source: "prompt" as const, detail, confidence: 1 }));
-  const slots = [
-    ["subject", world.participants.slice(0, 1), 1],
-    ["participants", world.participants, 1],
-    ["event", world.events.map((event) => event.action ?? event.raw), 0.95],
-    ["artifact", world.events.map((event) => event.object ?? ""), 0.9],
-    ["place", world.places, 1],
-    ["temporal", world.times, 1],
-    ["emotion", world.events.map((event) => event.state ?? ""), 0.7],
-  ].filter((entry) => (entry[1] as string[]).length).map(([role, values, salience]) => ({ role, values: unique(values as string[]), status: "observed" as const, confidence: 1, salience: salience as number, evidence: evidence(values as string[]) }));
-  const relations = world.relations.map((relation) => ({ from: "participants" as const, to: relation.relation === "experienced_at" ? "place" as const : relation.relation === "interacted_with" ? "artifact" as const : "participants" as const, relation: relation.relation, confidence: 1, evidence: evidence([relation.evidenceId]) }));
-  return { slots, relations };
+  const slots: Array<{ role: CognitivePremiseRole; values: string[]; salience: number }> = [
+    { role: "subject", values: world.participants.slice(0, 1), salience: 1 },
+    { role: "participants", values: world.participants, salience: 1 },
+    { role: "event", values: world.events.map((event) => event.action ?? event.raw), salience: 0.95 },
+    { role: "artifact", values: world.events.map((event) => event.object ?? ""), salience: 0.9 },
+    { role: "place", values: world.places, salience: 1 },
+    { role: "temporal", values: world.times, salience: 1 },
+    { role: "emotion", values: world.events.map((event) => event.state ?? ""), salience: 0.7 },
+  ];
+  const filtered = slots
+    .filter((slot) => slot.values.length)
+    .map((slot) => ({
+      role: slot.role,
+      values: unique(slot.values),
+      status: "observed" as const,
+      confidence: 1,
+      salience: slot.salience,
+      evidence: evidence(slot.values),
+    }));
+  const relations = world.relations.map((relation) => ({
+    from: "participants" as const,
+    to: relation.relation === "experienced_at" ? "place" as const : relation.relation === "connected_to" ? "artifact" as const : "participants" as const,
+    relation: relation.relation,
+    confidence: 1,
+    evidence: evidence([relation.evidenceId]),
+  }));
+  return { slots: filtered, relations };
 }
 
 export function planExperience(world: WorldModel, significance: SignificanceResult, selected: CreativeCandidate[]): { moments: PlannedMoment[]; plan: CognitiveExperiencePlan; type: ExperienceType; tone: readonly ExperienceTone[]; meaning: ExperienceMeaning } {
