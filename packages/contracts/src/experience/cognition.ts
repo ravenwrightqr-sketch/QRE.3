@@ -33,6 +33,19 @@ export type CognitiveExperiencePlan = {
   creativePossibilities: string[]; premise?: CognitivePremise; realization?: CognitiveExperienceRealization;
 };
 export type CognitiveCreativeLearning = { accepted: string[]; rejected: string[]; preferences: string[]; successfulLenses: string[]; avoidedPatterns: string[]; usedPhrases: string[]; noveltyPressure: number };
+export type CognitiveAnalyticsSignal = {
+  scans: number;
+  completions: number;
+  abandons: number;
+  replays: number;
+  ctaClicks: number;
+  errors: number;
+  engagement: number;
+  friction: number;
+  accepted: string[];
+  rejected: string[];
+  preferences: string[];
+};
 export type CognitiveEntityState = { entity: string; appearances: number; lastEventId?: string; places: string[]; relationships: string[]; states: string[] };
 export type CognitiveRelationshipState = { from: string; to: string; relation: string; strength: number; eventCount: number };
 export type CognitiveMindState = {
