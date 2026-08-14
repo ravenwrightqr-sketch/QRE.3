@@ -2,7 +2,9 @@ import type {
   CognitiveExperienceState,
   ExperienceBlueprint,
   ExperienceEntities,
+  ExperienceMoment,
   ExperienceStory,
+  ExperienceTone,
   Moment,
   CinematicScene,
   StoryProvenance,
@@ -18,9 +20,13 @@ import { compileUniversalRealityExperience } from "../compiler/universalRealityC
 /**
  * STATUS: ACTIVE / COMPILER-ONLY
  *
- * This adapter preserves the existing V16 artifact surface while delegating
- * all customer-language realization to the canonical universal reality
- * compiler. No beat templates, domain branches, or legacy realizers live here.
+ * Canonical compiler bridge:
+ *
+ * prompt → cognition → universal reality → runtime moments → cinema
+ *
+ * V16 remains an artifact/memory substrate only. Its authoring `ExperienceMoment[]`
+ * and blueprint are not confused with the runtime `Moment[]` emitted by the
+ * universal realization path.
  */
 
 export type ExperienceObservation = {
@@ -55,7 +61,12 @@ export type CognitiveCandidate = {
   rationale: string[];
 };
 
-export type CognitiveCompiledExperience = ReturnType<typeof compileExperienceV16> & {
+type V16Substrate = ReturnType<typeof compileExperienceV16>;
+
+export type CognitiveCompiledExperience = Omit<
+  V16Substrate,
+  "blueprint" | "moments"
+> & {
   cognition: CognitiveExperienceState;
   observation: ExperienceObservation;
   situation: CognitiveSituation;
@@ -85,11 +96,15 @@ const provenance = (state: CognitiveExperienceState): StoryProvenance[] =>
 
 function compose(
   prompt: string,
-  substrate: ReturnType<typeof compileExperienceV16>,
+  substrate: V16Substrate,
   cognition: CognitiveExperienceState,
 ) {
   const universal = compileUniversalRealityExperience(prompt, cognition.plan);
   const storyProvenance = provenance(cognition);
+
+  const storyTone: ExperienceTone[] = [
+    ...((substrate.blueprint?.tone ?? []) as readonly ExperienceTone[]),
+  ];
 
   const story: ExperienceStory = {
     title: substrate.title,
@@ -98,11 +113,12 @@ function compose(
     beats: universal.beats,
     ending: universal.beats.at(-1)?.text ?? substrate.title,
     continuation: universal.beats.at(-1)?.text,
-    tone: substrate.blueprint?.tone ?? [],
+    tone: storyTone,
     provenance: storyProvenance,
   };
 
   const moments: Moment[] = universal.moments;
+
   const scenePlan: StoryScenePlan[] = universal.beats.map((beat, index) => ({
     id: `universal-scene-${index + 1}`,
     order: index,
@@ -113,12 +129,19 @@ function compose(
     entities: beat.entities ?? [],
     duration: Number(moments[index]?.meta?.duration ?? 3800) / 1000,
     transition: universal.cinematicScenes[index]?.transition ?? "fade",
-    visual: universal.cinematicScenes[index]?.visual,
+    visual: universal.cinematicScenes[index]?.visual ?? {
+      theme: "cinematic",
+      animation: "none",
+    },
     provenance: beat.provenance ?? storyProvenance,
   }));
 
-  const blueprintMoments = moments.map((moment, index) => ({
-    type: index === 0 ? "introduction" : index === moments.length - 1 ? "completion" : "story",
+  const blueprintMoments: ExperienceMoment[] = moments.map((moment, index) => ({
+    type: index === 0
+      ? "introduction"
+      : index === moments.length - 1
+        ? "completion"
+        : "story",
     component: "story",
     title: "",
     subtitle: cognition.subject.value,
@@ -137,6 +160,7 @@ function compose(
 
   const blueprint: ExperienceBlueprint = {
     ...substrate.blueprint,
+    tone: [...storyTone],
     cognitivePlan: cognition.plan,
     moments: blueprintMoments,
     metadata: {
