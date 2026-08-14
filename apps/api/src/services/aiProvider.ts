@@ -18,6 +18,25 @@ export type AiVisionFact = {
   notes?: string;
 };
 
+type CreativeBrief = {
+  corePremise: string;
+  emotionalEngine: string;
+  strongestDetail: string;
+  voice: string;
+  endingMove: string;
+  avoid: string[];
+};
+
+type DraftCritique = {
+  strengths: string[];
+  violations: string[];
+  inventedClaims: string[];
+  cliches: string[];
+  weakLines: string[];
+  revisionPlan: string[];
+  score: number;
+};
+
 function localEnabled(): boolean {
   return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";
 }
@@ -60,20 +79,193 @@ function jsonFromText<T>(text: string): T | null {
   try { return JSON.parse(cleaned) as T; } catch { return null; }
 }
 
+function normalizeProse(text: string): string {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .replace(/([.!?])([A-Z])/g, "$1 $2")
+    .trim();
+}
+
 function authorSystem(): string {
   return [
-    "You are QRE's senior narrative author.",
-    "Write memorable customer-facing experience prose from grounded source facts.",
-    "Do not invent people, places, dates, objects, actions, purchases, feelings, or outcomes that are not supported by the supplied facts.",
-    "Do not mention prompts, models, AI, compilers, metadata, lenses, instructions, or writing techniques.",
-    "Preserve concrete facts exactly when they matter.",
-    "Prefer specificity, rhythm, subtext, surprise, restraint, distinct voice, concrete imagery, and a meaningful final turn over generic inspirational language.",
-    "The output should read like finished human-written prose, not a summary or a list of facts.",
+    "You are QRE's senior narrative author and editor.",
+    "Write finished customer-facing prose from grounded source facts.",
+    "The source facts are the world truth. Never invent a person, place, brand, date, object, action, purchase, relationship, motive, physical setting, or outcome as if it were true.",
+    "Do not turn a metaphor into a factual claim. Figurative language is allowed only when it is obviously figurative.",
+    "Never mention prompts, models, AI, compilers, metadata, lenses, instructions, cognition, writing techniques, or internal reasoning.",
+    "Do not mechanically restate the source sentence-by-sentence.",
+    "Do not add generic filler, inspirational slogans, canned cinematic language, fake emotional conclusions, or stock internet humor.",
+    "Prefer a concrete detail, a surprising implication, character-specific humor, precise emotional understatement, sensory consequence, or a clean turn over explanation.",
+    "Use sentence length and openings deliberately. Avoid starting multiple sentences with the same subject when the prose can flow naturally without it.",
+    "Trust the reader. Show the implication; do not explain the joke or announce the meaning.",
+    "End on the strongest available beat. A final line may reframe an earlier detail, land a joke, reveal a realization, or leave a memorable image.",
+    "Return only the prose requested by the caller.",
   ].join(" ");
+}
+
+function contextText(input: AiAuthorInput): string {
+  return JSON.stringify({
+    prompt: input.prompt,
+    requestedLens: input.lens ?? "neutral",
+    audience: input.audience ?? "customer",
+    sourceMoments: input.sourceMoments,
+    facts: input.facts,
+    memoryContext: input.memoryContext ?? [],
+  });
+}
+
+async function localCreativeBrief(input: AiAuthorInput): Promise<CreativeBrief> {
+  const fallback: CreativeBrief = {
+    corePremise: input.prompt,
+    emotionalEngine: input.lens ?? "natural observation",
+    strongestDetail: input.facts[0] ?? input.sourceMoments[0] ?? "the central detail",
+    voice: input.lens ?? "specific, restrained, memorable",
+    endingMove: "pay off the strongest concrete detail without explaining it",
+    avoid: ["invented facts", "cliches", "generic setup", "explaining the joke"],
+  };
+  if (!localEnabled()) return fallback;
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's creative director.",
+        "Plan a piece of prose before the writer drafts it.",
+        "Use only the supplied facts. Find the strongest concrete detail, the emotional or comic engine, a distinctive voice, and the best ending move.",
+        "Do not invent facts. Do not write the prose yet.",
+        "Return strict JSON with keys: corePremise, emotionalEngine, strongestDetail, voice, endingMove, avoid.",
+      ].join(" "),
+    },
+    { role: "user", content: contextText(input) },
+  ], "json");
+  return jsonFromText<CreativeBrief>(result.text) ?? fallback;
+}
+
+async function localDraft(input: AiAuthorInput, brief: CreativeBrief): Promise<string> {
+  const result = await localModelGenerate([
+    { role: "system", content: authorSystem() },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: "Write the first serious draft.",
+        creativeBrief: brief,
+        source: {
+          prompt: input.prompt,
+          lens: input.lens ?? "neutral",
+          audience: input.audience ?? "customer",
+          sourceMoments: input.sourceMoments,
+          facts: input.facts,
+          memoryContext: input.memoryContext ?? [],
+        },
+        target: "Prefer 2-6 purposeful sentences unless the source clearly benefits from a different length.",
+      }),
+    },
+  ]);
+  return normalizeProse(result.text);
+}
+
+async function localCritique(input: AiAuthorInput, brief: CreativeBrief, draft: string): Promise<DraftCritique> {
+  const fallback: DraftCritique = {
+    strengths: [],
+    violations: [],
+    inventedClaims: [],
+    cliches: [],
+    weakLines: [],
+    revisionPlan: ["preserve explicit facts", "remove unsupported details", "strengthen the final beat"],
+    score: 0,
+  };
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's ruthless literary and factual editor.",
+        "Inspect a draft against the supplied source facts.",
+        "Reject hallucinated world details, generic cliches, explanatory humor, repeated sentence openings, weak abstractions, filler, and obvious template language.",
+        "Identify the single strongest concrete detail and the strongest possible ending move.",
+        "Return strict JSON with keys: strengths, violations, inventedClaims, cliches, weakLines, revisionPlan, score.",
+        "Do not rewrite the prose in this step.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        creativeBrief: brief,
+        prompt: input.prompt,
+        facts: input.facts,
+        sourceMoments: input.sourceMoments,
+        draft,
+      }),
+    },
+  ], "json");
+  return jsonFromText<DraftCritique>(result.text) ?? fallback;
+}
+
+async function localRevision(input: AiAuthorInput, brief: CreativeBrief, draft: string, critique: DraftCritique): Promise<string> {
+  const result = await localModelGenerate([
+    { role: "system", content: authorSystem() },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: "Rewrite the draft into the final version. Do not discuss the critique.",
+        rules: [
+          "Keep every explicit source fact that is important to the experience.",
+          "Remove every invented factual claim called out by the editor.",
+          "Do not replace bad writing with generic adjectives or stock phrases.",
+          "Use the strongest concrete detail as an anchor.",
+          "Vary sentence openings and rhythm.",
+          "Let humor or emotion emerge from the situation instead of explaining it.",
+          "Make the final sentence earn its place.",
+        ],
+        creativeBrief: brief,
+        facts: input.facts,
+        sourceMoments: input.sourceMoments,
+        draft,
+        critique,
+      }),
+    },
+  ]);
+  return normalizeProse(result.text);
+}
+
+async function localPolish(input: AiAuthorInput, draft: string): Promise<string> {
+  const result = await localModelGenerate([
+    {
+      role: "system",
+      content: [
+        "You are QRE's final copy editor.",
+        "Perform a surgical polish only.",
+        "Preserve meaning and facts.",
+        "Remove awkward wording, accidental repetition, generic filler, fake certainty, and explanatory endings.",
+        "Keep distinctive lines that work.",
+        "Never add new facts.",
+        "Return only the finished prose.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        facts: input.facts,
+        sourceMoments: input.sourceMoments,
+        draft,
+      }),
+    },
+  ]);
+  return normalizeProse(result.text);
 }
 
 export async function generateAiExperienceDraft(input: AiAuthorInput): Promise<string | null> {
   if (!localEnabled() && !externalEnabled()) return null;
+  if (localEnabled()) {
+    const brief = await localCreativeBrief(input);
+    const draft = await localDraft(input, brief);
+    if (!draft) return null;
+    const critique = await localCritique(input, brief, draft);
+    const revised = await localRevision(input, brief, draft, critique);
+    if (!revised) return draft;
+    const polished = await localPolish(input, revised);
+    return polished || revised || draft;
+  }
+
   const userText = JSON.stringify({
     task: "Write the final customer-facing experience passage.",
     prompt: input.prompt,
@@ -83,15 +275,6 @@ export async function generateAiExperienceDraft(input: AiAuthorInput): Promise<s
     facts: input.facts,
     memoryContext: input.memoryContext ?? [],
   });
-
-  if (localEnabled()) {
-    const result = await localModelGenerate([
-      { role: "system", content: authorSystem() },
-      { role: "user", content: userText },
-    ]);
-    return result.text || null;
-  }
-
   const data = await responsesApi([
     { role: "system", content: [{ type: "input_text", text: authorSystem() }] },
     { role: "user", content: [{ type: "input_text", text: userText }] },
