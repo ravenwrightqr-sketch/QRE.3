@@ -38,6 +38,27 @@ function promptShape(prompt: string): string {
   return "long-form";
 }
 
+function promptSignals(prompt: string): string[] {
+  const normalized = prompt.toLowerCase();
+  const signals: string[] = [];
+  const tests: Array<[string, RegExp]> = [
+    ["comedy-request", /\bfunny|comedy|hilarious|absurd|ridiculous\b/],
+    ["romance-request", /\bromantic|romance|love|intimate|tender\b/],
+    ["horror-request", /\bhorror|scary|terrifying|creepy|haunted|unsettling\b/],
+    ["mystery-request", /\bmystery|unknown|nobody knew|secret|clue\b/],
+    ["cinematic-request", /\bcinematic|movie|scene|film\b/],
+    ["memory-request", /\bmemory|remember|years later|again|returned|recurrence\b/],
+    ["place-centered", /\b(beach|pier|home|hotel|house|city|street|venue|park|restaurant|bar|club)\b/],
+    ["service-centered", /\b(cleaned|groomed|washed|repaired|installed|served|delivered|worked|service)\b/],
+    ["object-centered", /\b(keychain|chair|suitcase|photo|photograph|ticket|ring|clock|object|painting)\b/],
+    ["relationship-centered", /\bcouple|father|mother|dad|mom|friend|family|owner|wife|husband|partner\b/],
+    ["escalation-request", /\bescalat|bigger|wilder|chaos|increasing|eventually|then\b/],
+    ["understatement-request", /\bquiet|subtle|understated|restrained|intimate\b/],
+  ];
+  for (const [name, pattern] of tests) if (pattern.test(normalized)) signals.push(name);
+  return signals;
+}
+
 async function resolveExperienceEntity(assetId: string, prompt: string) {
   const rows = await db.$queryRaw<any[]>`
     SELECT id, kind, name, canonical_key, confidence
@@ -109,6 +130,7 @@ export async function createExperience(input: CreateExperienceInput) {
   const learningProfile = {
     lens: compiledWorld?.lens ?? "neutral",
     promptShape: promptShape(input.prompt),
+    promptSignals: promptSignals(input.prompt),
     generativeAuthor: Boolean(aiDraft),
     memoryAware: true,
     autonomousLearningEnabled: true,
