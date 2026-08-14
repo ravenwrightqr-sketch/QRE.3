@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { compileCognitiveExperience } from "../../cognition/universalMind.js";
+import { resolveMemory } from "../../cognition/memoryResolver.js";
 
 type AcceptanceCase = { name: string; prompt: string; anchors: readonly string[]; forbidden?: readonly string[] };
 const cases: readonly AcceptanceCase[] = [
@@ -56,14 +57,20 @@ assert.ok(relationship.world.relations.some((relation) => relation.from === "Sam
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("alex"), "relationship realization lost Alex");
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("sam"), "relationship realization lost Sam");
 
-const resolved = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["Alex and Sam met at the Little Italian restaurant two weeks ago."] });
+const resolvedContext = { memorySummary: ["Alex and Sam met at the Little Italian restaurant two weeks ago."] };
+const resolvedMemory = resolveMemory("We went back two weeks later at 7 PM.", resolvedContext);
+assert.equal(resolvedMemory.questions.length, 0, `unique memory resolver unexpectedly asked: ${JSON.stringify(resolvedMemory)}`);
+const resolved = compileCognitiveExperience("We went back two weeks later at 7 PM.", resolvedContext);
 assert.equal(resolved.world.places.length, 1, "memory should rebuild one unique place into current world");
 assert.ok(/Little Italian restaurant/i.test(resolved.world.places[0] ?? ""), "memory should resolve the remembered place into current world");
 assert.ok(resolved.world.events.some((event) => /Little Italian restaurant/i.test(event.place ?? "")), "resolved memory place must attach to current event");
 assert.equal(resolved.adaptiveQuestions.length, 0, "known unique memory should not trigger a question");
 
-const ambiguous = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["First met at the Little Italian restaurant.", "Later returned to Harbor Street."] });
-assert.ok(ambiguous.adaptiveQuestions.includes("Which place did you go back to?"), "ambiguous memory should ask one targeted question");
+const ambiguousContext = { memorySummary: ["First met at the Little Italian restaurant.", "Later returned to Harbor Street."] };
+const resolvedAmbiguity = resolveMemory("We went back two weeks later at 7 PM.", ambiguousContext);
+assert.ok(resolvedAmbiguity.questions.includes("Which place did you go back to?"), `resolver ambiguity state incorrect: ${JSON.stringify(resolvedAmbiguity)}`);
+const ambiguous = compileCognitiveExperience("We went back two weeks later at 7 PM.", ambiguousContext);
+assert.ok(ambiguous.adaptiveQuestions.includes("Which place did you go back to?"), `compiler lost resolver ambiguity: ${JSON.stringify({ adaptiveQuestions: ambiguous.adaptiveQuestions, memoryMatches: ambiguous.world.memoryMatches, places: ambiguous.world.places })}`);
 
 const before = compileCognitiveExperience("Alex and Sam met at the Italian restaurant.");
 const after = compileCognitiveExperience("Alex and Sam returned to the Italian restaurant where they met.", { memorySummary: ["Alex and Sam met at the Italian restaurant."] });
