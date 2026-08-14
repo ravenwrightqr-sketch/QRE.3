@@ -48,22 +48,24 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
   const top = relevant.slice(0, 12).map((item) => item.entry);
   const worlds = memoryWorlds(top);
 
-  const candidateByEntry = worlds
-    .filter((item) => item.world.places.length > 0)
-    .map((item) => ({ entry: item.entry, places: item.world.places }));
+  const episodePlaces = worlds
+    .map((item) => ({ entry: item.entry, places: unique(item.world.places) }))
+    .filter((item) => item.places.length > 0);
 
-  const candidates = unique(candidateByEntry.flatMap((item) => item.places));
+  const candidates = unique(episodePlaces.flatMap((item) => item.places));
   const explicitPlace = explicitPlaceFromPrompt(prompt);
 
   const place = explicitPlace
     ? explicitPlace
-    : candidates.length === 1
+    : !returning && candidates.length === 1
       ? candidates[0]
-      : undefined;
+      : returning && episodePlaces.length === 1 && candidates.length === 1
+        ? candidates[0]
+        : undefined;
 
-  const questions = returning && candidates.length > 1 && !place
+  const questions = returning && !place && episodePlaces.length > 1
     ? ["Which place did you go back to?"]
-    : returning && candidates.length === 0
+    : returning && !place && episodePlaces.length === 0
       ? ["Where did you go back to?"]
       : [];
 
