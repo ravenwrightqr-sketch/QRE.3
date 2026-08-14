@@ -85,28 +85,62 @@ function splitClauses(input: string): string[] {
   return out.length ? out : [text];
 }
 
+/**
+ * Split coordinated actions without splitting coordinated subjects.
+ *
+ * "Alex and Sam went ... and stayed ..." becomes two events sharing the
+ * participants. "Alex and Sam" remains one subject phrase because there is
+ * no completed semantic action before that conjunction.
+ *
+ * This is intentionally structural: it reasons about semantic predicates,
+ * not names, industries, or example-specific vocabulary.
+ */
+function splitCoordinatedActions(clause: string): string[] {
+  const text = sentence(clause);
+  const boundaries: number[] = [];
+  for (const match of text.matchAll(/\b(?:and|&|then|but)\b/gi)) {
+    if (match.index === undefined) continue;
+    const left = text.slice(0, match.index);
+    const rightStart = match.index + match[0].length;
+    const right = text.slice(rightStart);
+    if (semanticIndex(left) !== undefined && semanticIndex(right) !== undefined) boundaries.push(match.index);
+  }
+  if (!boundaries.length) return [text];
+  const parts: string[] = [];
+  let start = 0;
+  for (const boundary of boundaries) {
+    const piece = sentence(text.slice(start, boundary));
+    if (piece.length >= 5) parts.push(piece);
+    start = boundary;
+  }
+  const tail = sentence(text.slice(start));
+  if (tail.length >= 5) parts.push(tail);
+  return parts.length ? parts.map((part) => sentence(part.replace(/^(?:and|&|then|but)\s+/i, ""))) : [text];
+}
+
 function splitPrompt(prompt: string): string[] {
   const sentences = clean(prompt).split(/\n+|(?<=[.!?])\s+/).map(sentence).filter(Boolean);
   const result: string[] = [];
   for (const value of sentences) {
-    const clauses = splitClauses(value);
-    for (const clause of clauses) {
+    for (const clause of splitClauses(value)) {
       const parts = clause.split(/,\s+/).map(sentence).filter(Boolean);
-      if (parts.length === 1) result.push(clause);
-      else {
-        let current = "";
-        for (const part of parts) {
-          const semantic = semanticIndex(part);
-          const currentSemantic = current ? semanticIndex(current) : undefined;
-          if (current && semantic !== undefined && currentSemantic !== undefined && /^and\s+/i.test(part)) {
-            result.push(current);
-            current = part.replace(/^and\s+/i, "");
-          } else {
-            current = current ? `${current}, ${part}` : part;
-          }
+      let current = "";
+      for (const part of parts) {
+        const semantic = semanticIndex(part);
+        const currentSemantic = current ? semanticIndex(current) : undefined;
+        if (current && semantic !== undefined && currentSemantic !== undefined) {
+          result.push(current);
+          current = part.replace(/^(?:and|&|then|but)\s+/i, "");
+        } else {
+          current = current ? `${current}, ${part}` : part;
         }
-        if (current) result.push(current);
       }
+      if (current) result.push(current);
+      // Now split semantic predicates joined without punctuation. This runs
+      // after comma handling so "Alex and Sam" can never be mistaken for two
+      // independent events.
+      const coordinated = splitCoordinatedActions(result.splice(result.length - (parts.length ? 1 : 0)) [0] ?? "");
+      if (coordinated.length > 1) result.push(...coordinated);
     }
   }
   return unique(result);
