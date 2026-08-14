@@ -2,13 +2,9 @@ import type {
   CognitiveExperienceState,
   ExperienceBlueprint,
   ExperienceEntities,
-  ExperienceGenome,
-  ExperienceModel,
-  ExperienceMoment,
   ExperienceStory,
   Moment,
   CinematicScene,
-  StoryBeat,
   StoryProvenance,
   StoryScenePlan,
 } from "@qre/contracts";
@@ -20,15 +16,11 @@ import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
 import { compileUniversalRealityExperience } from "../compiler/universalRealityCompiler.js";
 
 /**
- * CANONICAL COGNITIVE EXPERIENCE ADAPTER
- *
  * STATUS: ACTIVE / COMPILER-ONLY
  *
- * Cognition discovers meaning upstream. The universal reality compiler is the
- * sole customer-language authority. This adapter projects its output into the
- * existing ExperienceBlueprint/Moment/CinematicScene contracts.
- *
- * DO NOT add domain branches here. Domain vocabulary is input data.
+ * This adapter preserves the existing V16 artifact surface while delegating
+ * all customer-language realization to the canonical universal reality
+ * compiler. No beat templates, domain branches, or legacy realizers live here.
  */
 
 export type ExperienceObservation = {
@@ -63,21 +55,16 @@ export type CognitiveCandidate = {
   rationale: string[];
 };
 
-export type CognitiveCompiledExperience = {
+export type CognitiveCompiledExperience = ReturnType<typeof compileExperienceV16> & {
   cognition: CognitiveExperienceState;
   observation: ExperienceObservation;
   situation: CognitiveSituation;
   candidates: CognitiveCandidate[];
-  genome: ExperienceGenome;
   story: ExperienceStory;
   scenePlan: StoryScenePlan[];
-  model: ExperienceModel;
   blueprint: ExperienceBlueprint;
   moments: Moment[];
   cinematicScenes: CinematicScene[];
-  flow: ReturnType<typeof compileExperienceV16>["flow"];
-  geoStory: ReturnType<typeof compileExperienceV16>["geoStory"];
-  memorySnapshot: ReturnType<typeof compileExperienceV16>["memorySnapshot"];
 };
 
 const unique = (values: string[]): string[] => [
@@ -130,7 +117,7 @@ function compose(
     provenance: beat.provenance ?? storyProvenance,
   }));
 
-  const blueprintMoments: ExperienceMoment[] = moments.map((moment, index) => ({
+  const blueprintMoments = moments.map((moment, index) => ({
     type: index === 0 ? "introduction" : index === moments.length - 1 ? "completion" : "story",
     component: "story",
     title: "",
@@ -164,29 +151,12 @@ function compose(
     },
   };
 
-  const genome: ExperienceGenome = {
-    ...(substrate.genome as ExperienceGenome),
-    entities: cognition.entities,
-    environments: cognition.entities.places,
-    audience: unique([
-      ...cognition.participants.value,
-      ...cognition.plan.audience,
-    ]),
-  };
-
-  const model = {
-    ...(substrate.model as ExperienceModel),
-    moments: blueprintMoments,
-  } as ExperienceModel;
-
   return {
     story,
     moments,
     scenePlan,
     cinematicScenes: universal.cinematicScenes,
     blueprint,
-    genome,
-    model,
   };
 }
 
@@ -248,10 +218,10 @@ export function compileCognitiveExperience(
     activity: observation.activity,
     setting: cognition.entities.places,
     temporal: observation.temporal,
-    social: cognition.participants.value.length > 1 ? "shared" : cognition.participants.value.length === 1 ? "shared" : "unknown",
+    social: cognition.participants.value.length > 0 ? "shared" : "unknown",
     purpose: cognition.plan.purpose,
-    change: cognition.plan.transformation?.[0] ?? "",
-    tension: cognition.plan.realization?.tension ?? "",
+    change: "",
+    tension: "",
   };
 
   const candidates: CognitiveCandidate[] = (cognition.plan.realization?.directives ?? []).map((directive, index) => ({
@@ -267,15 +237,10 @@ export function compileCognitiveExperience(
     observation,
     situation,
     candidates,
-    genome: composed.genome,
     story: composed.story,
     scenePlan: composed.scenePlan,
-    model: composed.model,
     blueprint: composed.blueprint,
     moments: composed.moments,
     cinematicScenes: composed.cinematicScenes,
-    flow: substrate.flow,
-    geoStory: substrate.geoStory,
-    memorySnapshot: substrate.memorySnapshot,
   };
 }
