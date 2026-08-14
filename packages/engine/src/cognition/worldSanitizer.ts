@@ -8,9 +8,12 @@ const NON_PLACE_RE = /^(?:nervous|anxious|afraid|scared|fabulous|ordinary|quiet|
 const STYLE_DIRECTIVE_RE = /^(?:(?:make|write|tell)\s+(?:it|this|that|the story|the experience)\b|show\s+(?:it|this|that)\b)/i;
 const STYLE_WORD_RE = /\b(?:funny|comedy|humorous|hilarious|romantic|romance|horror|scary|creepy|mysterious|mystery|cinematic|tender|sweet|dramatic|wild|chaotic|playful|serious)\b/i;
 const TIME_ONLY_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|\w+ years? later)$/i;
+const TIME_FRAGMENT_RE = /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow)\b/i;
 const FRAGMENT_RE = /^(?:in|at|on|to|from|with|by|and|but|then|before|after|until|re)\s+/i;
 const ARTICLE_PLACE_RE = /^(?:the|a|an)\s+/i;
 const KNOWN_COMMON_ENTITY_RE = /^(?:dog|cat|puppy|kitten|family|couple|realtor|agent|chef|owner|homeowner|client|bride|groom|baby|dad|mom|father|mother|grandma|grandpa|crowd|team|group|concert|restaurant|salon|groomer|hotel|house|home|garage|porch|pier|beach|theater|kitchen|bathroom|living room|parking lot|camera|suitcase|ticket|guitar|chair|cake|ring|photo|photograph|bow|flower)$/i;
+const MALFORMED_DETAIL_RE = /^(?:t|the)\s+.*\b(?:at|in|on)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i;
+const NON_EVENT_STATE_RE = /^(?:am|pm)$/i;
 
 function isHumanLike(value: string): boolean {
   const v = sentence(value).replace(/^the\s+/i, "");
@@ -55,7 +58,8 @@ function repairParticipant(event: WorldEvent, fallback?: string): WorldEvent {
   const participants = unique(event.participants).filter(isHumanLike);
   const raw = cleanEventRaw(event.raw);
   const shouldCarry = !participants.length && fallback && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated|ended|finished)\b/i.test(raw);
-  return { ...event, raw, participants: shouldCarry ? [fallback] : participants };
+  const state = NON_EVENT_STATE_RE.test(sentence(event.state ?? "")) ? undefined : event.state;
+  return { ...event, raw, state, participants: shouldCarry ? [fallback] : participants };
 }
 
 function repairStandalonePlace(event: WorldEvent, previous: WorldEvent | undefined): WorldEvent {
@@ -97,6 +101,8 @@ function repairFragments(events: WorldEvent[]): WorldEvent[] {
       .filter((detail) => !GENERIC_ACTOR_RE.test(detail))
       .filter((detail) => !isStyleDirective(detail))
       .filter((detail) => !TIME_ONLY_RE.test(detail))
+      .filter((detail) => !TIME_FRAGMENT_RE.test(detail))
+      .filter((detail) => !MALFORMED_DETAIL_RE.test(detail))
       .filter((detail) => !FRAGMENT_RE.test(detail))
       .filter((detail) => !/^\s*(?:re|the|and|or|before|after|then)\s*$/i.test(detail));
     return { ...event, details };
@@ -117,6 +123,7 @@ export function sanitizeWorldModel(world: WorldModel): WorldModel {
   const places = unique(events.map((event) => event.place ?? "")).filter((place) => !NON_PLACE_RE.test(place) && !GENERIC_ACTOR_RE.test(place) && !TIME_ONLY_RE.test(place));
   const times = unique(events.map((event) => event.time ?? "")).filter(Boolean);
   const evidence = events.flatMap((event) => event.evidence).filter((item) => {
+    if (item.kind === "time" && NON_EVENT_STATE_RE.test(item.detail)) return false;
     if (item.kind === "place" && (NON_PLACE_RE.test(item.detail) || GENERIC_ACTOR_RE.test(item.detail))) return false;
     if (item.kind === "entity" && !isHumanLike(item.detail) && !places.some((place) => place.toLowerCase() === item.detail.toLowerCase())) return false;
     return true;
