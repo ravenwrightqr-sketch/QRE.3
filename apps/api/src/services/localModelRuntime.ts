@@ -19,8 +19,8 @@ function modelName() {
 }
 
 function timeoutMs() {
-  const raw = Number(process.env.QRE_LOCAL_MODEL_TIMEOUT_MS || 120000);
-  return Number.isFinite(raw) && raw > 0 ? raw : 120000;
+  const raw = Number(process.env.QRE_LOCAL_MODEL_TIMEOUT_MS || 600000);
+  return Number.isFinite(raw) && raw > 0 ? raw : 600000;
 }
 
 function stripDataUrl(value: string) {
