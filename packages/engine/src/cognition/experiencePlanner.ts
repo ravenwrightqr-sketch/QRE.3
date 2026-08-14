@@ -1,0 +1,107 @@
+import type { CognitiveExperiencePlan, CognitiveExperienceRealization, CognitiveBeatDirective, ExperienceMeaning, ExperienceType, ExperienceTone, ExperienceEntities } from "@qre/contracts";
+import type { WorldModel, WorldEvent } from "./worldModel.js";
+import type { SignificanceResult } from "./significanceEngine.js";
+import type { CreativeCandidate } from "./creativePolicy.js";
+
+export type PlannedMoment = {
+  event: WorldEvent;
+  text: string;
+  order: number;
+  kind: CognitiveBeatDirective["kind"];
+  evidence: string[];
+};
+
+const unique = (values: readonly string[]) => [...new Set(values.filter(Boolean))];
+
+function kind(index: number, total: number): CognitiveBeatDirective["kind"] {
+  if (total <= 1) return "payoff";
+  if (index === 0) return "orientation";
+  if (index === total - 1) return "payoff";
+  if (index === total - 2) return "transformation";
+  return index % 2 === 0 ? "discovery" : "escalation";
+}
+
+function chooseType(world: WorldModel): ExperienceType {
+  const text = world.prompt.toLowerCase();
+  if (/\b(?:wedding|rave|concert|festival|birthday|conference|convention|ticket|ceremony|party|event)\b/.test(text)) return "event";
+  if (/\b(?:remember|memory|anniversary|family|years ago|milestone|legacy)\b/.test(text)) return "memory";
+  if (/\b(?:collection|collectible|card|watch|coin|sneaker|guitar|artwork|surfboard)\b/.test(text)) return "collection";
+  return "story";
+}
+
+function tones(world: WorldModel): readonly ExperienceTone[] {
+  switch (world.lens) {
+    case "comedy": return ["humorous", "playful", "cinematic"];
+    case "horror": return ["dark", "mysterious", "cinematic"];
+    case "romance": return ["romantic", "emotional", "cinematic"];
+    case "wild": return ["energetic", "playful", "cinematic"];
+    case "mysterious": return ["mysterious", "cinematic"];
+    default: return ["cinematic"];
+  }
+}
+
+function meaning(world: WorldModel): ExperienceMeaning {
+  const subject = world.participants[0] ?? world.entities[0] ?? "the experience";
+  return {
+    why: "Turn supplied reality into an experience worth attention and memory.",
+    relationship: world.participants.length > 1 ? { subject: world.participants[0]!, object: world.participants[1]!, type: "shared_experience" } : undefined,
+    emotions: [world.lens],
+    memories: ["persistent", "continuation"],
+    desiredFeeling: [world.lens === "neutral" ? "memorable" : world.lens],
+    transformation: world.events.length > 1 ? "separate facts become a connected experience" : `supplied reality becomes an experience about ${subject}`,
+  };
+}
+
+function premise(world: WorldModel) {
+  const evidence = (values: string[]) => unique(values).map((detail) => ({ source: "prompt" as const, detail, confidence: 1 }));
+  const slots = [
+    ["subject", world.participants.slice(0, 1), 1],
+    ["participants", world.participants, 1],
+    ["event", world.events.map((event) => event.action ?? event.raw), 0.95],
+    ["artifact", world.events.map((event) => event.object ?? ""), 0.9],
+    ["place", world.places, 1],
+    ["temporal", world.times, 1],
+    ["emotion", world.events.map((event) => event.state ?? ""), 0.7],
+  ].filter((entry) => (entry[1] as string[]).length).map(([role, values, salience]) => ({ role, values: unique(values as string[]), status: "observed" as const, confidence: 1, salience: salience as number, evidence: evidence(values as string[]) }));
+  const relations = world.relations.map((relation) => ({ from: "participants" as const, to: relation.relation === "experienced_at" ? "place" as const : relation.relation === "interacted_with" ? "artifact" as const : "participants" as const, relation: relation.relation, confidence: 1, evidence: evidence([relation.evidenceId]) }));
+  return { slots, relations };
+}
+
+export function planExperience(world: WorldModel, significance: SignificanceResult, selected: CreativeCandidate[]): { moments: PlannedMoment[]; plan: CognitiveExperiencePlan; type: ExperienceType; tone: readonly ExperienceTone[]; meaning: ExperienceMeaning } {
+  const moments = selected.map((candidate, index) => {
+    const event = world.events.find((item) => item.id === candidate.eventId)!;
+    return { event, text: candidate.text, order: index, kind: kind(index, selected.length), evidence: event.evidence.map((item) => item.detail) };
+  });
+  const realization: CognitiveExperienceRealization = {
+    direction: selected.length > 1 ? "story" : "memory",
+    directives: moments.map((moment) => ({ kind: moment.kind, intent: "perform the highest-value truthful change or detail", subject: moment.event.participants.join(" and "), action: moment.event.action ?? moment.event.state ?? "", stateBefore: "", stateAfter: moment.event.state ?? "", relationalFocus: unique([...moment.event.participants, moment.event.object ?? "", moment.event.place ?? "", moment.event.time ?? ""]), evidence: moment.event.evidence.map((item) => ({ source: item.source, detail: item.detail, confidence: item.confidence })), confidence: 1 })),
+    semanticArc: world.events.map((event) => event.raw),
+    conservedRoles: ["subject", "participants", "event", "place", "temporal", "artifact"],
+    confidence: 1,
+  };
+  const plan: CognitiveExperiencePlan = {
+    direction: selected.length > 1 ? "story" : "memory",
+    centralSubject: world.participants[0] ?? world.entities[0] ?? "the experience",
+    audience: [],
+    whyInteract: ["experience the reality rather than read a report"],
+    emotionalIntent: [world.lens === "neutral" ? "memorable" : world.lens],
+    purpose: "turn reality into a causally ordered experience",
+    interactionModel: ["open or scan and play sequentially"],
+    storyStructure: moments.map((moment) => moment.kind),
+    memoryModel: ["preserve evidence", "connect history", "leave continuation space"],
+    geographicModel: world.places,
+    socialModel: world.participants,
+    discoveryModel: [...significance.patterns, "unusual details"],
+    rewardModel: [], commerceModel: [],
+    progressionModel: [...significance.changes, "new events can change meaning"],
+    contentModel: world.entities,
+    dynamicBehavior: ["resolve known memory before asking", "preserve identity independently of grammar", "adapt to accepted and rejected creative preferences"],
+    futureEvolution: significance.continuations,
+    creativePossibilities: ["contrast", "personification", "understatement", "escalation", "callback", "reveal", "earned payoff"],
+    premise: premise(world),
+    realization,
+  };
+  return { moments, plan, type: chooseType(world), tone: tones(world), meaning: meaning(world) };
+}
+
+export type PlannerEntities = ExperienceEntities;
