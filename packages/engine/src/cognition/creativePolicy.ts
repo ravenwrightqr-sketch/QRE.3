@@ -17,188 +17,93 @@ export type CreativeCandidate = {
 const clean = (value: string) => value.replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "");
 const lower = (value: string) => clean(value).toLowerCase();
 const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
+const GENERIC = /\b(?:the experience|this was memorable|a meaningful experience|worth remembering|discover the magic|make memories|unforgettable|one of a kind|journey of|gave the moment its texture|gave the moment a shape|made the moment meaningful)\b/i;
+const TEMPLATE = /\b(?:common sense quietly left|reasonab(?:le|ility) was|the plan survived.*dignity|ordinary.*stopped feeling ordinary|small in the moment.*larger in the memory|nothing had to announce|somewhere.*day changed lanes)\b/i;
 
-function subject(event: WorldEvent) {
-  return event.participants.join(" and ") || event.object || event.place || "the moment";
+function subject(event: WorldEvent) { return event.participants.join(" and ") || event.object || event.place || "the moment"; }
+function anchors(event: WorldEvent) { return unique([...event.participants, event.object ?? "", event.place ?? "", event.time ?? "", ...event.details]); }
+function coverage(text: string, event: WorldEvent): number { const body = lower(text); const values = anchors(event); return values.length ? values.filter((value) => body.includes(lower(value))).length / values.length : 1; }
+function phraseOverlap(text: string, prior: string[]): number {
+  const body = new Set(lower(text).split(/\W+/).filter((word) => word.length >= 4));
+  if (!prior.length || !body.size) return 0;
+  const ratios = prior.map((item) => { const other = new Set(lower(item).split(/\W+/).filter((word) => word.length >= 4)); return [...body].filter((word) => other.has(word)).length / Math.max(1, body.size); });
+  return Math.max(...ratios, 0);
 }
-function anchors(event: WorldEvent) {
-  return unique([...event.participants, event.object ?? "", event.place ?? "", event.time ?? "", ...event.details]);
-}
-function coverage(text: string, event: WorldEvent): number {
-  const body = lower(text); const values = anchors(event);
-  if (!values.length) return 1;
-  return values.filter((value) => body.includes(lower(value))).length / values.length;
-}
-function learnedBias(text: string, preferences: string[], accepted: string[], rejected: string[]): number {
+function learnedBias(text: string, preferences: string[], accepted: string[], rejected: string[], usedPhrases: string[]): number {
   const body = lower(text); let score = 0;
-  for (const preference of preferences) if (body.includes(lower(preference))) score += 1.25;
-  for (const value of accepted) if (body.includes(lower(value))) score += 1.5;
-  for (const value of rejected) if (body.includes(lower(value))) score -= 3;
+  for (const value of preferences) if (value && body.includes(lower(value))) score += 1.5;
+  for (const value of accepted) if (value && body.includes(lower(value))) score += 1;
+  for (const value of rejected) if (value && body.includes(lower(value))) score -= 3.5;
+  for (const value of usedPhrases) if (value && body.includes(lower(value))) score -= 1.75;
+  if (GENERIC.test(body)) score -= 8;
   return score;
 }
-function novelty(text: string, prior: string[]): number {
-  const body = lower(text); if (!prior.length) return 1;
-  const words = new Set(body.split(/\W+/).filter((word) => word.length >= 4));
-  const overlaps = prior.map((item) => { const set = new Set(lower(item).split(/\W+/).filter((word) => word.length >= 4)); return [...words].filter((word) => set.has(word)).length / Math.max(1, words.size); });
-  return 1 - Math.max(...overlaps, 0);
-}
-function rhythm(event: WorldEvent): string {
-  return clean([event.time, subject(event), event.action, event.object, event.place].filter(Boolean).join(" "));
-}
-function directPerformance(event: WorldEvent, lens: CognitiveLens): { text: string; detail: string } {
-  const direct = clean(event.raw);
-  if (lens === "comedy") {
-    const frames = [
-      `${direct}. Somewhere along the way, common sense quietly left the room.`,
-      `${direct}. Reasonable was apparently not on the guest list.`,
-      `${direct}. This was the moment the perfectly normal version of the day lost control of the narrative.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving comedic performance" };
+function thing(event: WorldEvent): string | undefined { return event.object ?? event.details[0] ?? event.place ?? event.time; }
+
+function lensTail(lens: CognitiveLens, event: WorldEvent, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; detail: string }> {
+  const t = thing(event); const prior = previous ? thing(previous) : undefined; const upcoming = next ? thing(next) : undefined; const out: Array<{ text: string; detail: string }> = [];
+  if (t) out.push({ text: `${t} became the detail nobody could quite ignore.`, detail: "detail elevation" });
+  if (t && event.action) out.push({ text: `${t} was small enough to overlook and specific enough to remember.`, detail: "specificity and memory" });
+  if (prior && t) out.push({ text: `After ${prior}, ${t} changed the shape of the sequence.`, detail: "causal turn" });
+  if (t && upcoming) out.push({ text: `${t} left ${upcoming} feeling like the next question.`, detail: "anticipatory tension" });
+  switch (lens) {
+    case "comedy":
+      if (t) out.push({ text: `${t} behaved like it had been waiting all day for one glorious entrance.`, detail: "comic agency" });
+      out.push({ text: "The plan was still technically intact. Its dignity was not.", detail: "comic reversal" });
+      out.push({ text: "Nobody had scheduled the ridiculous part. It arrived anyway.", detail: "comic surprise" });
+      break;
+    case "horror":
+      if (t) out.push({ text: `${t} was ordinary right up until it became the wrong kind of ordinary.`, detail: "horror reversal" });
+      out.push({ text: "Nothing announced danger. The familiar details simply stopped feeling friendly.", detail: "horror implication" });
+      if (prior) out.push({ text: `The unsettling part came after ${prior}, not before it.`, detail: "horror escalation" });
+      break;
+    case "romance":
+      if (t) out.push({ text: `${t} was the sort of little thing memory learns to keep.`, detail: "romantic significance" });
+      out.push({ text: "It looked ordinary while it was happening. Later, it would not.", detail: "romantic hindsight" });
+      break;
+    case "mysterious":
+      if (t) out.push({ text: `${t} was the detail that refused to explain itself.`, detail: "mystery residue" });
+      if (upcoming && t) out.push({ text: `${t} made ${upcoming} feel slightly less accidental.`, detail: "mystery linkage" });
+      break;
+    case "wild":
+      if (t) out.push({ text: `${t} was the hinge; after that, the plan had to keep up.`, detail: "wild escalation" });
+      if (upcoming && t) out.push({ text: `${t} opened the door for ${upcoming}, and neither waited politely.`, detail: "wild momentum" });
+      break;
+    default:
+      if (t) out.push({ text: `${t} is what makes this version belong to itself.`, detail: "distinctive specificity" });
   }
-  if (lens === "horror") {
-    const frames = [
-      `${direct}. The familiar details were still there. That was the problem.`,
-      `${direct}. Nothing had to announce the danger for the room to feel different.`,
-      `${direct}. The facts stayed ordinary; the atmosphere did not.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving horror performance" };
-  }
-  if (lens === "romance") {
-    const frames = [
-      `${direct}. Small in the moment, larger in the memory.`,
-      `${direct}. It was the sort of detail time knows how to keep.`,
-      `${direct}. Some moments ask for nothing and still become precious later.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving romantic performance" };
-  }
-  if (lens === "mysterious") {
-    const frames = [
-      `${direct}. Nothing was obviously wrong. That made it worse.`,
-      `${direct}. The explanation was missing from the room.`,
-      `${direct}. Every fact remained ordinary except for the feeling they created together.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving mystery performance" };
-  }
-  if (lens === "wild") {
-    const frames = [
-      `${direct}. That would have been enough, if the day had any interest in behaving.`,
-      `${direct}. From there, the sensible version of events was clearly outnumbered.`,
-      `${direct}. The plan survived. Its dignity did not.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving wild performance" };
-  }
-  const frames = [
-    `${direct}. It sounds simple until you notice what the detail is doing.`,
-    `${direct}. On paper, that is the whole event. In memory, it rarely is.`,
-    `${direct}. The facts are enough; the interesting part is what they leave behind.`,
-  ];
-  return { text: frames[event.order % frames.length]!, detail: "evidence-preserving narrative performance" };
+  return out;
 }
 
-function freshNeutral(event: WorldEvent): { text: string; detail: string } | undefined {
-  const s = subject(event); const thing = event.object ?? event.details[0] ?? event.place; const detail = event.details.find((value) => lower(value) !== lower(thing ?? ""));
-  if (!s || !event.action) return undefined;
-  const frames = [
-    `${s} ${event.action}${thing ? ` ${thing}` : ""}. On paper, that was the whole story. ${detail ? `It was ${detail} that gave the moment its edge.` : "The moment had more texture than the facts suggested."}`,
-    `${s} ${event.action}${thing ? ` ${thing}` : ""}. Nothing dramatic had to happen; ${detail ? `${detail} was enough to change the feel.` : "the detail was enough to make it stick."}`,
-    `${s} ${event.action}${thing ? ` ${thing}` : ""}. Then the small detail arrived and made the ordinary sequence feel less ordinary.`,
-  ];
-  return { text: frames[event.order % frames.length]!, detail: "narrative framing" };
+function performance(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; detail: string }> {
+  const direct = clean(event.raw); const out: Array<{ text: string; detail: string }> = [{ text: direct, detail: "truthful fallback" }];
+  for (const tail of lensTail(world.lens, event, previous, next)) out.push({ text: `${direct}. ${tail.text}`, detail: tail.detail });
+  if (event.object && event.action) out.push({ text: `${direct}. ${event.object} stole the scene.`, detail: "object personification" });
+  if (event.place && event.action && event.order > 0) out.push({ text: `${direct}. By then, ${event.place} was more than a backdrop.`, detail: "place significance" });
+  if (event.details.length >= 2) out.push({ text: `${direct}. ${event.details[0]} was easy to miss; ${event.details[1]} was not.`, detail: "detail contrast" });
+  return out.filter((candidate, index, values) => index === values.findIndex((item) => lower(item.text) === lower(candidate.text)));
 }
 
-function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; detail: string } | undefined {
-  const s = subject(event); const thing = event.object ?? event.place ?? event.details[0];
-  if (!s) return undefined;
-  if (lens === "comedy") {
-    const frames = [
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, carrying the energy of someone already preparing a defense`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}. Somewhere, common sense quietly left the building.`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, apparently unconcerned that this was becoming the part everyone would remember`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}. A perfectly normal plan had just developed a personality problem.`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}; the situation had officially become more ambitious than necessary`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "comedic personification/contrast" };
-  }
-  if (lens === "horror") {
-    const frames = [
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The familiar suddenly felt slightly wrong.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Nothing announced the danger; the atmosphere did it quietly.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, while the ordinary details started behaving like clues`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The silence after it did more work than the event itself.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the room still looked ordinary, which was precisely the problem`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "horror atmosphere framing" };
-  }
-  if (lens === "romance") {
-    const frames = [
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the detail carried more history than it first appeared to`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Small on the clock, larger in the memory.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the kind of detail time knows how to make precious`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, giving the moment a little more weight than the clock could explain`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Some moments become important only after you have lived past them.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "romantic significance framing" };
-  }
-  if (lens === "mysterious") {
-    const frames = [
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, leaving one detail that refused to explain itself`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Nothing was obviously wrong; that was what made it feel wrong.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the facts were ordinary enough, which made the strange part worse`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and suddenly the smallest detail had the loudest voice`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The explanation stayed one step behind the evidence.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "mystery emphasis framing" };
-  }
-  if (lens === "wild") {
-    const frames = [
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the whole thing picked up momentum fast`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. That would have been the end of it, if the day had any interest in behaving.`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the plan survived, but it did not stay quiet`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, with the kind of momentum that makes a normal day difficult to recover`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Somewhere between sensible and ridiculous, the day changed lanes.`,
-    ];
-    return { text: frames[event.order % frames.length]!, detail: "high-energy escalation framing" };
-  }
-  return freshNeutral(event);
-}
-
-function universalMoves(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; detail: string }> {
-  const s = subject(event); const thing = event.object ?? event.details[0] ?? event.place; const priorThing = previous?.object ?? previous?.details[0] ?? previous?.place; const nextThing = next?.object ?? next?.details[0] ?? next?.place;
-  const moves: Array<{ text: string; detail: string }> = [];
-  if (thing && event.action) moves.push({ text: `${s} ${event.action} ${thing}, and that detail gave the moment its texture`, detail: "specificity spotlight" });
-  if (previous && thing && event.action) moves.push({ text: `After ${priorThing ?? "that"}, ${s} ${event.action} ${thing}; the story had a new direction`, detail: "causal consequence" });
-  if (nextThing && event.action) moves.push({ text: `${s} ${event.action}${thing ? ` ${thing}` : ""}, with ${nextThing} still waiting on the other side of the moment`, detail: "anticipatory tension" });
-  if (event.details.length >= 2) moves.push({ text: `${s} ${event.action ?? "carried on"}; ${event.details[0]} was the detail you could miss, while ${event.details[1]} was the one that changed the feel`, detail: "contrast between details" });
-  if (world.events.length >= 3 && event.order === Math.floor(world.events.length / 2)) moves.push({ text: `${s} ${event.action ?? "was there"}${thing ? ` ${thing}` : ""}; this was the point where the ordinary sequence started to feel like a story`, detail: "midpoint escalation" });
-  return moves;
-}
-
-function candidatesFor(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; creativeDetails: string[] }> {
-  const s = subject(event); const out: Array<{ text: string; creativeDetails: string[] }> = []; const direct = clean(event.raw);
-  out.push({ text: direct, creativeDetails: [] });
-  const compact = rhythm(event); if (compact && lower(compact) !== lower(direct)) out.push({ text: compact, creativeDetails: [] });
-  if (s && event.action && event.object) out.push({ text: `${s} ${event.action} ${event.object}${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ") ? ` ${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ")}` : ""}`, creativeDetails: [] });
-  const performance = directPerformance(event, world.lens);
-  out.push({ text: performance.text, creativeDetails: [performance.detail] });
-  for (const move of universalMoves(event, world, previous, next)) out.push({ text: move.text, creativeDetails: [move.detail] });
-  if (previous && event.order > 0) out.push({ text: `After ${clean(previous.object ?? previous.place ?? previous.action ?? previous.raw)}, ${direct.toLowerCase()}`, creativeDetails: ["causal transition from adjacent event"] });
-  if (next && event.order < world.events.length - 1 && event.action) out.push({ text: `${direct}; then ${lower(next.object ?? next.place ?? next.action ?? next.raw)} was still to come`, creativeDetails: ["anticipatory transition from adjacent event"] });
-  const frame = creativeFrame(world.lens, event); if (frame) out.push({ text: frame.text, creativeDetails: [frame.detail] });
-  return out.filter((item, index, values) => index === values.findIndex((candidate) => lower(candidate.text) === lower(item.text)));
-}
-
-export function generateCandidates(world: WorldModel, significance: SignificanceResult, preferences: string[] = [], accepted: string[] = [], rejected: string[] = []): CreativeCandidate[] {
+export function generateCandidates(world: WorldModel, significance: SignificanceResult, preferences: string[] = [], accepted: string[] = [], rejected: string[] = [], usedPhrases: string[] = [], noveltyPressure = 0.55): CreativeCandidate[] {
   const result: CreativeCandidate[] = []; const prior: string[] = [];
   for (const event of world.events) {
     const previous = world.events[event.order - 1]; const next = world.events[event.order + 1];
-    for (const candidate of candidatesFor(event, world, previous, next)) {
-      const evidenceCoverage = coverage(candidate.text, event); const candidateNovelty = novelty(candidate.text, prior);
-      const causalFit = previous && candidate.text.toLowerCase().includes(lower(previous.object ?? previous.place ?? previous.action ?? previous.raw)) ? 1 : event.order === 0 ? 0.95 : 0.82;
+    for (const candidate of performance(event, world, previous, next)) {
+      const evidenceCoverage = coverage(candidate.text, event);
+      const overlap = phraseOverlap(candidate.text, [...prior, ...usedPhrases]);
+      const candidateNovelty = Math.max(0, 1 - overlap);
+      const previousAnchor = lower(previous?.object ?? previous?.place ?? previous?.action ?? previous?.raw ?? "");
+      const causalFit = previousAnchor && lower(candidate.text).includes(previousAnchor) ? 1 : event.order === 0 ? 0.96 : 0.84;
       const attention = Math.min(1.5, (significance.scores.get(event.id) ?? 1) / 10);
-      const creativity = Math.min(10, Math.max(0, candidate.creativeDetails.length * 2.5 + candidate.text.length / 30));
-      const bias = learnedBias(candidate.text, preferences, accepted, rejected); const rawPenalty = lower(candidate.text) === lower(event.raw) ? -10 : 0;
-      const protectedScore = evidenceCoverage >= 1 ? 42 : -90;
-      const score = protectedScore + evidenceCoverage * 38 + candidateNovelty * 18 + causalFit * 12 + attention * 10 + creativity * 2 + bias + rawPenalty;
+      const creativity = candidate.creativeDetails.length ? Math.min(10, 4 + candidate.creativeDetails.length * 2 + candidate.text.length / 60) : 0;
+      const learning = learnedBias(candidate.text, preferences, accepted, rejected, usedPhrases);
+      const raw = lower(candidate.text) === lower(event.raw);
+      const creativeSignal = candidate.creativeDetails.length ? 24 + noveltyPressure * 16 : 0;
+      const rawPenalty = raw ? -(8 + noveltyPressure * 14) : 0;
+      const genericPenalty = GENERIC.test(candidate.text) ? -12 : 0;
+      const templatePenalty = TEMPLATE.test(candidate.text) ? -9 : 0;
+      const evidenceScore = evidenceCoverage >= 1 ? 62 : -120;
+      const score = evidenceScore + evidenceCoverage * 42 + candidateNovelty * (22 + noveltyPressure * 16) + causalFit * 12 + attention * 10 + creativity * 2.5 + creativeSignal + learning + rawPenalty + genericPenalty + templatePenalty;
       result.push({ eventId: event.id, text: candidate.text, lens: world.lens, creativity, evidenceCoverage, novelty: candidateNovelty, causalFit, attention, score, creativeDetails: candidate.creativeDetails });
       prior.push(candidate.text);
     }
@@ -208,6 +113,9 @@ export function generateCandidates(world: WorldModel, significance: Significance
 
 export function selectCreativeSequence(world: WorldModel, candidates: CreativeCandidate[]): CreativeCandidate[] {
   const selected: CreativeCandidate[] = []; const usedEvents = new Set<string>();
-  for (const candidate of [...candidates].sort((a, b) => b.score - a.score)) { if (usedEvents.has(candidate.eventId)) continue; selected.push(candidate); usedEvents.add(candidate.eventId); }
+  for (const candidate of [...candidates].sort((a, b) => b.score - a.score)) {
+    if (usedEvents.has(candidate.eventId)) continue;
+    selected.push(candidate); usedEvents.add(candidate.eventId);
+  }
   return world.events.map((event) => selected.find((candidate) => candidate.eventId === event.id) ?? candidates.find((candidate) => candidate.eventId === event.id)).filter(Boolean) as CreativeCandidate[];
 }
