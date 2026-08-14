@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { compileCognitiveExperience } from "../universalMind.js";
+import { compileCognitiveExperience } from "../../cognition/universalMind.js";
 
 const cases = [
   {
