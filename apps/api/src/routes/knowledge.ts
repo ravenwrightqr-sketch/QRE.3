@@ -1,7 +1,9 @@
 import express from "express";
 import { db } from "@qre/db";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
-import { getDashboardMetrics, getRecentActivity, createAnalyticsRepository } from "@qre/engine";
+import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
+import { analyzeImageForKnowledge } from "../services/aiProvider.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
@@ -36,12 +38,12 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
       getRecentActivity(asset.id, analyticsRepository, 30),
     ]);
 
-    const knowledge = rows.flatMap((row) => {
+    const knowledge: Array<Record<string, unknown> & { id: string; createdAt: Date }> = rows.map((row) => {
       try {
         const parsed = JSON.parse(row.message) as Record<string, unknown>;
-        return [{ id: row.id, createdAt: row.createdAt, ...parsed }];
+        return { id: row.id, createdAt: row.createdAt, ...parsed };
       } catch {
-        return [{ id: row.id, createdAt: row.createdAt, label: row.message, value: row.impact ?? "", category: "general", source: "legacy" }];
+        return { id: row.id, createdAt: row.createdAt, label: row.message, value: row.impact ?? "", category: "general", source: "legacy" };
       }
     });
 
@@ -63,26 +65,39 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
 
     const label = normalizeValue(req.body?.label);
     const value = normalizeValue(req.body?.value);
-    if (!label || !value) return res.status(400).json({ error: "Label and value are required." });
+    const imageDataUrl = typeof req.body?.imageDataUrl === "string" ? req.body.imageDataUrl : "";
+    const autoAnalyze = req.body?.autoAnalyze !== false;
+    if (!label && !value && !imageDataUrl) return res.status(400).json({ error: "Add a fact or image." });
+
+    const requestedCategory = normalizeValue(req.body?.category) || "general";
+    const generatedFacts = autoAnalyze && imageDataUrl.startsWith("data:image/") && (!label || !value)
+      ? await analyzeImageForKnowledge(imageDataUrl, requestedCategory)
+      : [];
+    const selectedFact = generatedFacts[0];
+    const finalLabel = label || selectedFact?.label || "Image observation";
+    const finalValue = value || selectedFact?.value || "Image captured for later reference";
+    const finalCategory = normalizeValue(req.body?.category) || selectedFact?.category || "general";
+    const finalNotes = normalizeValue(req.body?.notes) || selectedFact?.notes || "";
 
     const payload = {
-      label,
-      value,
-      category: normalizeValue(req.body?.category) || "general",
-      unit: normalizeValue(req.body?.unit) || undefined,
-      source: normalizeValue(req.body?.source) || "owner",
-      notes: normalizeValue(req.body?.notes) || undefined,
-      imageDataUrl: typeof req.body?.imageDataUrl === "string" && req.body.imageDataUrl.length <= 2_500_000 ? req.body.imageDataUrl : undefined,
-      confidence: typeof req.body?.confidence === "number" ? Math.max(0, Math.min(1, req.body.confidence)) : 1,
+      label: finalLabel,
+      value: finalValue,
+      category: finalCategory,
+      unit: normalizeValue(req.body?.unit) || selectedFact?.unit || undefined,
+      source: normalizeValue(req.body?.source) || (generatedFacts.length ? "vision" : "owner"),
+      notes: finalNotes || undefined,
+      imageDataUrl: imageDataUrl && imageDataUrl.length <= 2_500_000 ? imageDataUrl : undefined,
+      confidence: typeof req.body?.confidence === "number" ? Math.max(0, Math.min(1, req.body.confidence)) : selectedFact?.confidence ?? 1,
+      extractedFacts: generatedFacts,
       updatedBy: userId,
     };
 
-    const row = await db.insight.create({ data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: value } });
-    await db.analyticsEvent.create({ data: { assetId: asset.id, type: "MEMORY_CREATED", meta: { source: "knowledge_capture", label, category: payload.category, hasPhoto: Boolean(payload.imageDataUrl) } } });
+    const row = await db.insight.create({ data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: finalValue } });
+    await db.analyticsEvent.create({ data: { assetId: asset.id, type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED", meta: { source: payload.source, category: finalCategory, label: finalLabel, confidence: payload.confidence } } });
     return res.status(201).json({ success: true, item: { id: row.id, createdAt: row.createdAt, ...payload } });
   } catch (error) {
     console.error("Knowledge write failed:", error);
-    return res.status(500).json({ error: "Knowledge write failed." });
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Knowledge write failed." });
   }
 });
 
