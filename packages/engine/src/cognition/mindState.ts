@@ -14,14 +14,21 @@ const fingerprint = (value: string) => {
 export function hydrateMindState(context: UniversalMindContext): CognitiveMindState {
   const prior = context.state?.creativeLearning;
   const analytics = context.analytics;
+  const feedbackRejected = context.feedback?.rejected ?? [];
+  const feedbackAccepted = context.feedback?.accepted ?? [];
+  const initialPressure = Math.max(
+    0.15,
+    Math.min(0.98, prior?.noveltyPressure ?? (0.5 + (analytics?.friction ?? 0) * 0.2)),
+  );
+  const feedbackPressure = feedbackRejected.length > 0 ? 0.12 : 0;
   const creativeLearning: CognitiveCreativeLearning = {
-    accepted: unique([...(prior?.accepted ?? []), ...(context.feedback?.accepted ?? []), ...(analytics?.accepted ?? [])]),
-    rejected: unique([...(prior?.rejected ?? []), ...(context.feedback?.rejected ?? []), ...(analytics?.rejected ?? [])]),
+    accepted: unique([...(prior?.accepted ?? []), ...feedbackAccepted, ...(analytics?.accepted ?? [])]),
+    rejected: unique([...(prior?.rejected ?? []), ...feedbackRejected, ...(analytics?.rejected ?? [])]),
     preferences: unique([...(prior?.preferences ?? []), ...(context.creativePreferences ?? []), ...(analytics?.preferences ?? [])]),
     successfulLenses: [...(prior?.successfulLenses ?? [])],
     avoidedPatterns: [...(prior?.avoidedPatterns ?? [])],
     usedPhrases: [...(prior?.usedPhrases ?? [])],
-    noveltyPressure: Math.max(0.15, Math.min(0.98, prior?.noveltyPressure ?? (0.5 + (analytics?.friction ?? 0) * 0.2))),
+    noveltyPressure: Math.max(0.15, Math.min(0.98, initialPressure + feedbackPressure)),
   };
   return {
     compileCount: context.state?.compileCount ?? 0,
@@ -100,7 +107,7 @@ export function evolveMindState(state: CognitiveMindState, world: WorldModel, se
       successfulLenses: unique([...state.creativeLearning.successfulLenses, ...(lensAccepted ? [lensAccepted] : [])]),
       avoidedPatterns: unique([...state.creativeLearning.avoidedPatterns, ...rejected, ...(analytics?.rejected ?? []), ...selectedMoves.filter((move) => /template|generic|cliche/i.test(move))]).slice(-100),
       usedPhrases: unique([...state.creativeLearning.usedPhrases, ...selectedFingerprints, ...selectedMoves]).slice(-150),
-      noveltyPressure: Math.max(0.2, Math.min(0.98, state.creativeLearning.noveltyPressure + (rejected.length ? 0.08 : 0) - (accepted.length ? 0.03 : 0) + behaviorPressure)),
+      noveltyPressure: Math.max(0.2, Math.min(0.98, state.creativeLearning.noveltyPressure + (rejected.length ? 0.12 : 0) - (accepted.length ? 0.03 : 0) + behaviorPressure)),
     },
     lastLens: world.lens,
     lastMomentCount: selected.length,
