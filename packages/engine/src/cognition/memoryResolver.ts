@@ -21,9 +21,7 @@ function strings(context: UniversalMindContext): string[] {
 }
 
 function memoryEpisodes(entries: string[]) {
-  return entries
-    .map((entry, index) => ({ entry, index, world: buildWorldModel(entry) }))
-    .filter((episode) => episode.world.places.length > 0 || episode.world.events.length > 0);
+  return entries.map((entry, index) => ({ entry, index, world: buildWorldModel(entry) }));
 }
 
 function explicitPlaceFromPrompt(prompt: string): string | undefined {
@@ -44,15 +42,13 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     return { entry, score: overlap, index };
   }).sort((a, b) => b.score - a.score || a.index - b.index);
 
-  const relevant = returning
-    ? scored
-    : scored.filter((item) => item.score > 0).slice(0, 6);
+  const relevant = returning ? scored : scored.filter((item) => item.score > 0).slice(0, 6);
   const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
-  const rememberedPlaces = unique(episodes.flatMap((episode) => episode.world.places));
+
+  const placeEvidence = episodes.flatMap((episode) => episode.world.places.map((place) => ({ place, episode: episode.entry })));
+  const distinctPlaces = unique(placeEvidence.map((item) => item.place));
   const explicitPlace = explicitPlaceFromPrompt(prompt);
 
-  // Explicit current-world place wins: "returned to Disneyland" is resolvable
-  // even when memory contains several other places.
   if (explicitPlace) {
     const topEntries = episodes.map((episode) => episode.entry);
     return {
@@ -64,14 +60,13 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     };
   }
 
-  // For implicit returning references, memory owns ambiguity. A single
-  // remembered place resolves; two or more distinct remembered places require
-  // a targeted question. Do not let the current prompt's lack of a place erase
-  // remembered spatial candidates.
-  const place = returning && rememberedPlaces.length === 1 ? rememberedPlaces[0] : !returning && rememberedPlaces.length === 1 ? rememberedPlaces[0] : undefined;
-  const questions = returning && rememberedPlaces.length > 1
+  // A returning reference is resolved against the full remembered spatial
+  // evidence. One distinct place is safe to resolve. Multiple distinct places
+  // are genuinely ambiguous and must surface a targeted question.
+  const place = distinctPlaces.length === 1 ? distinctPlaces[0] : undefined;
+  const questions = returning && distinctPlaces.length > 1
     ? ["Which place did you go back to?"]
-    : returning && rememberedPlaces.length === 0
+    : returning && distinctPlaces.length === 0
       ? ["Where did you go back to?"]
       : [];
 
