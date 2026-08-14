@@ -119,22 +119,25 @@ function compose(
 
   const moments: Moment[] = universal.moments;
 
-  const scenePlan: StoryScenePlan[] = universal.beats.map((beat, index) => ({
-    id: `universal-scene-${index + 1}`,
-    order: index,
-    beatId: beat.id,
-    purpose: "realize concrete source reality",
-    text: beat.text,
-    emotionalTarget: beat.emotionalTarget ?? "",
-    entities: beat.entities ?? [],
-    duration: Number(moments[index]?.meta?.duration ?? 3800) / 1000,
-    transition: universal.cinematicScenes[index]?.transition ?? "fade",
-    visual: universal.cinematicScenes[index]?.visual ?? {
-      theme: "cinematic",
-      animation: "none",
-    },
-    provenance: beat.provenance ?? storyProvenance,
-  }));
+  const scenePlan: StoryScenePlan[] = universal.beats.map((beat, index) => {
+    const visual = universal.cinematicScenes[index]?.visual;
+    return {
+      id: `universal-scene-${index + 1}`,
+      order: index,
+      beatId: beat.id,
+      purpose: "realize concrete source reality",
+      text: beat.text,
+      emotionalTarget: beat.emotionalTarget ?? "",
+      entities: beat.entities ?? [],
+      duration: Number(moments[index]?.meta?.duration ?? 3800) / 1000,
+      transition: universal.cinematicScenes[index]?.transition ?? "fade",
+      visual: {
+        theme: visual?.theme ?? "cinematic",
+        animation: visual?.animation ?? "none",
+      },
+      provenance: beat.provenance ?? storyProvenance,
+    };
+  });
 
   const blueprintMoments: ExperienceMoment[] = moments.map((moment, index) => ({
     type: index === 0
