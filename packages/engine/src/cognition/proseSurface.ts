@@ -5,15 +5,15 @@ const lower = (value: string) => clean(value).toLowerCase();
 const sentenceParts = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map((part) => clean(part)).filter(Boolean);
 const FRAGMENT_START_RE = /^(?:in|at|on|to|from|with|by|and|but|then|before|after|until|re)\s+/i;
 const INTERNAL_META_RE = /\b(?:second meaning|obvious detail|looked incidental|gave the moment its shape|made the larger moment stay|landed differently|reads like setup|next beat was|this was the hinge|background detail|co-conspirator)\b/i;
-const BROKEN_PHRASE_RE = /\b(?:in nervous|re again|we there again|we the|home to a spotless house|out the final plate|t midnight|re through)\b/i;
+const BROKEN_PHRASE_RE = /\b(?:in nervous|re again|we there again|we the|home to a spotless house|out the final plate|t midnight|re through|it there through)\b/i;
 
 function wordCount(value: string): number { return value.split(/\s+/).filter(Boolean).length; }
 function anchorsFor(event: WorldEvent): string[] {
-  return [event.raw, ...event.participants, event.object ?? "", event.place ?? "", event.time ?? "", ...event.details].filter(Boolean).map(clean);
+  return [event.raw, ...event.participants, event.object ?? "", event.place ?? "", event.time ?? ""].filter(Boolean).map(clean);
 }
 function isSourceSentence(text: string, event: WorldEvent): boolean {
   const body = lower(text).replace(/[.!?]+$/, "");
-  return anchorsFor(event).some((anchor) => body === lower(anchor).replace(/[.!?]+$/, ""));
+  return lower(event.raw).replace(/[.!?]+$/, "") === body || anchorsFor(event).slice(1).some((anchor) => body === lower(anchor).replace(/[.!?]+$/, ""));
 }
 function overlap(a: string, b: string): number {
   const left = new Set(lower(a).split(/\W+/).filter((w) => w.length >= 4));
@@ -35,7 +35,7 @@ export function surfaceCreativeText(text: string, event: WorldEvent): string {
     if (!sourceSentence && words < 4) continue;
     if (!sourceSentence && FRAGMENT_START_RE.test(normalized)) continue;
     if (!sourceSentence && BROKEN_PHRASE_RE.test(normalized)) continue;
-    if (!sourceSentence && /^(?:bath|dryer|ordinary|fabulous|nervous|pier|midnight|laughing|from|singing|inviting them|quiet for a second)\.?$/i.test(normalized)) continue;
+    if (!sourceSentence && /^(?:bath|dryer|ordinary|fabulous|nervous|pier|midnight|laughing|from|singing|inviting them|quiet for a second|re again)\.?$/i.test(normalized)) continue;
     if (kept.some((existing) => lower(existing) === lower(normalized))) continue;
     if (!sourceSentence && kept.length && overlap(existingLast(kept), normalized) >= 0.82) continue;
     if (!sourceSentence && INTERNAL_META_RE.test(normalized) && !/[,:;—]/.test(normalized) && words < 9) continue;
