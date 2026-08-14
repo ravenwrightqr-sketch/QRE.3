@@ -64,8 +64,42 @@ export async function getCreativeLearningContext(input: {
   limit?: number;
 }): Promise<CreativeLearningContext> {
   const limit = Math.max(10, Math.min(150, input.limit ?? 80));
+
+  const asset = await db.asset.findUnique({
+    where: { id: input.assetId },
+    select: { id: true, ownerId: true, accountId: true },
+  });
+
+  if (!asset) {
+    return { signals: [], acceptedPatterns: [], rejectedPatterns: [], recentFeedback: [] };
+  }
+
+  let scopeAssetIds = [asset.id];
+
+  if (input.userId) {
+    const accountIds = asset.accountId
+      ? [asset.accountId]
+      : (await db.accountUser.findMany({
+          where: { userId: input.userId },
+          select: { accountId: true },
+        })).map((row) => row.accountId);
+
+    const owned = await db.asset.findMany({
+      where: {
+        OR: [
+          { ownerId: input.userId },
+          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (owned.length) scopeAssetIds = owned.map((row) => row.id);
+  }
+
   const events = await db.analyticsEvent.findMany({
     where: {
+      assetId: { in: scopeAssetIds },
       type: {
         in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
       },
@@ -90,8 +124,8 @@ export async function getCreativeLearningContext(input: {
     const userId = clean(meta.userId);
     const sameUser = Boolean(input.userId && userId && userId === input.userId);
     const sameAsset = event.assetId === input.assetId;
-    const prefix = sameUser ? "your preference" : "observed preference";
-    const scope = sameAsset ? "this experience" : "other experience";
+    const prefix = sameUser ? "your preference" : "account preference";
+    const scope = sameAsset ? "this experience" : "another experience";
 
     if (event.type === "AI_CREATIVE_REJECTED") {
       if (feedback) rejected.push(`${prefix}: avoid ${feedback}`);
