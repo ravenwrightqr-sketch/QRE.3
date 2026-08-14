@@ -64,21 +64,36 @@ function slotValues(
   ).filter(safe);
 }
 
+/**
+ * ONLY an observed subject claim may become the grammatical subject.
+ *
+ * We intentionally do not fall back to:
+ * - centralSubject when it is merely inferred
+ * - participants
+ * - social actors
+ * - places
+ * - products
+ * - arbitrary beat entities
+ * - cognitive directives
+ *
+ * This is the enterprise boundary that prevents hidden domain assumptions.
+ */
 function explicitSubject(
   beat: StoryBeat,
   plan: CognitiveExperiencePlan,
 ): string {
+  void beat;
+
   const subjectSlot = plan.premise?.slots.find(
     (slot) => slot.role === "subject",
   );
 
-  const candidates = unique([
-    ...(subjectSlot?.values ?? []),
-    clean(plan.centralSubject),
-    clean(beat.directive?.subject),
-  ]).filter(safe);
+  if (subjectSlot && slotAuthority(subjectSlot) >= 80) {
+    const observed = subjectSlot.values.find(safe);
+    if (observed) return observed;
+  }
 
-  return candidates[0] ?? "the experience";
+  return "the experience";
 }
 
 function allObservedEvidence(
