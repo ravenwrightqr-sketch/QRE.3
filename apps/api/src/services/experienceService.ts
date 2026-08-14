@@ -1,10 +1,10 @@
-import {
-  buildMemoryWriteBatch,
-  compileCognitiveExperience,
-  memoryContextToCompilerMemories,
-} from "@qre/engine";
+import { compileCognitiveExperience } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
+import {
+  buildExperienceMemoryBatch,
+  memoryContextToCognitiveSummary,
+} from "./memoryProjection.js";
 
 export type CompiledExperienceResult = {
   title: string;
@@ -31,12 +31,14 @@ export type CompiledExperienceResult = {
  *   ↓
  * UNIVERSAL MIND
  *   ↓
- * EXPERIENCE BLUEPRINT / MOMENTS
+ * WORLD MODEL / EXPERIENCE BLUEPRINT
  *   ↓
- * FLOW
+ * API MEMORY PROJECTION
+ *   ↓
+ * MEMORY REPOSITORY
  *
- * Durable memory is loaded before cognition and written only after
- * successful compilation. The engine remains database-agnostic.
+ * Cognition remains database-agnostic. Persistence projection belongs at the
+ * application boundary, where the repository is available.
  */
 export async function compileExperience(input: {
   prompt: string;
@@ -56,17 +58,16 @@ export async function compileExperience(input: {
   }
 
   const memorySummary = memoryContext
-    ? memoryContextToCompilerMemories(memoryContext).map((memory) => memory.summary)
+    ? memoryContextToCognitiveSummary(memoryContext)
     : [];
 
   const compiled = compileCognitiveExperience(prompt, { memorySummary });
 
   if (input.assetId && input.memoryRepository) {
-    const batch = buildMemoryWriteBatch({
+    const batch = buildExperienceMemoryBatch({
       assetId: input.assetId,
       userId: input.userId,
-      prompt,
-      plan: compiled.plan,
+      world: compiled.world,
       source: "prompt",
     });
 
