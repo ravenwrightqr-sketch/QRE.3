@@ -30,11 +30,7 @@ export type UniversalMindResult = {
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const sentence = (value: string) => clean(value).replace(/[.!?]+$/, "");
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
-const question = (value: string) => {
-  const cleaned = clean(value);
-  if (!cleaned) return "";
-  return `${cleaned.replace(/[.!?]+$/, "")}?`;
-};
+const question = (value: string) => { const cleaned = clean(value); return cleaned ? `${cleaned.replace(/[.!?]+$/, "")}?` : ""; };
 const uniqueQuestions = (values: readonly string[]) => [...new Set(values.map(question).filter(Boolean))];
 
 function momentType(index: number, total: number): ExperienceMoment["type"] { if (total <= 1) return "completion"; if (index === 0) return "introduction"; if (index === total - 1) return "completion"; return "story"; }
@@ -54,10 +50,7 @@ function learnedLens(world: WorldModel, state: CognitiveMindState): void {
 }
 function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
   const body = sentence(planned.text).toLowerCase();
-  const required = planned.event.evidence
-    .filter((item) => item.source !== "creative_realization" && item.salience >= 0.9 && !(item.kind === "event" && item.detail === planned.event.raw))
-    .map((item) => item.detail.trim())
-    .filter(Boolean);
+  const required = planned.event.evidence.filter((item) => item.source !== "creative_realization" && item.salience >= 0.9 && !(item.kind === "event" && item.detail === planned.event.raw)).map((item) => item.detail.trim()).filter(Boolean);
   return required.every((anchor) => body.includes(anchor.toLowerCase())) ? planned.text : planned.event.raw;
 }
 function buildMoment(planned: ReturnType<typeof planExperience>["moments"][number], index: number, total: number, world: WorldModel): ExperienceMoment {
@@ -92,10 +85,7 @@ function buildMoment(planned: ReturnType<typeof planExperience>["moments"][numbe
 }
 function buildScenes(moments: ExperienceMoment[], world: WorldModel): CinematicScene[] { return moments.map((moment, index) => ({ id: `mind-scene-${index + 1}`, type: sceneType(index, moments.length), duration: Number(moment.meta?.duration ?? 3600), moment, order: index, transition: index === 0 ? "none" : world.lens === "horror" ? (index % 2 ? "fade" : "flash") : world.lens === "romance" ? "cinematic" : world.lens === "wild" ? "zoom" : "fade", visual: lensVisual(world.lens, index), preload: index < moments.length - 1 })); }
 function buildFlow(moments: ExperienceMoment[]): FlowStep[] { return moments.map((moment, index) => ({ id: `mind-step-${index + 1}`, order: index, type: index === 0 ? "introduction" : index === moments.length - 1 ? "completion" : "story", payload: moment.payload })); }
-function mergeMemoryContext(prompt: string, context: UniversalMindContext) {
-  const resolved = resolveMemory(prompt, context);
-  return { resolved, eventParticipants: unique([...(context.event?.participants ?? []), ...resolved.participants]), resolvedPlace: resolved.place };
-}
+function mergeMemoryContext(prompt: string, context: UniversalMindContext) { const resolved = resolveMemory(prompt, context); return { resolved, eventParticipants: unique([...(context.event?.participants ?? []), ...resolved.participants]), resolvedPlace: resolved.place }; }
 
 function preserveMemoryPlaces(world: WorldModel, places: readonly string[]) {
   const rememberedPlaces = unique(places);
@@ -103,9 +93,7 @@ function preserveMemoryPlaces(world: WorldModel, places: readonly string[]) {
   world.places = unique([...world.places, ...rememberedPlaces]);
   world.entities = unique([...world.entities, ...rememberedPlaces]);
   world.entitiesByKind = { ...world.entitiesByKind, places: unique([...world.entitiesByKind.places, ...rememberedPlaces]) };
-  for (const place of rememberedPlaces) {
-    if (!world.evidence.some((item) => item.kind === "place" && item.detail.toLowerCase() === place.toLowerCase())) world.evidence.push({ id: `memory-place-${place.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, detail: place, kind: "place", salience: 1, source: "memory", confidence: 1 });
-  }
+  for (const place of rememberedPlaces) if (!world.evidence.some((item) => item.kind === "place" && item.detail.toLowerCase() === place.toLowerCase())) world.evidence.push({ id: `memory-place-${place.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, detail: place, kind: "place", salience: 1, source: "memory", confidence: 1 });
   return world;
 }
 
@@ -114,18 +102,7 @@ function creativeEvidence(selected: CreativeCandidate[], world: WorldModel): voi
     if (!candidate.creativeDetails.length) continue;
     const event = world.events.find((item) => item.id === candidate.eventId);
     if (!event) continue;
-    for (const detail of candidate.creativeDetails) {
-      if (!event.evidence.some((item) => item.source === "creative_realization" && item.detail === detail)) {
-        event.evidence.push({
-          id: `creative-${event.id}-${detail.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-          kind: "detail",
-          salience: Math.max(0.4, Math.min(1, candidate.creativity / 10)),
-          source: "creative_realization",
-          detail,
-          confidence: Math.max(0.4, Math.min(0.95, candidate.creativity / 10)),
-        });
-      }
-    }
+    for (const detail of candidate.creativeDetails) if (!event.evidence.some((item) => item.source === "creative_realization" && item.detail === detail)) event.evidence.push({ id: `creative-${event.id}-${detail.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, kind: "detail", salience: Math.max(0.4, Math.min(1, candidate.creativity / 10)), source: "creative_realization", detail, confidence: Math.max(0.4, Math.min(0.95, candidate.creativity / 10)) });
   }
 }
 
@@ -136,7 +113,7 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   learnedLens(world, mind);
   const learning = learningInput(mind);
   const significance = analyzeSignificance(world);
-  const candidates = generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected);
+  const candidates = generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases, learning.noveltyPressure);
   const selected = selectCritically(world, candidates);
   creativeEvidence(selected, world);
   const nextState = evolveMindState(mind, world, selected, context);
@@ -152,38 +129,9 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
     moments,
     entities: world.entitiesByKind,
     cognitivePlan: planned.plan,
-    metadata: {
-      archetypes: [planned.type, world.lens, "universal_entity_experience"],
-      themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30),
-      dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "creative-policy", "critic-gated"],
-    },
+    metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "stateful", "creative-policy", "critic-gated"] },
   };
-  const feedbackSignals = unique([
-    ...(context.feedback?.accepted ?? []).map((value) => `accepted:${value}`),
-    ...(context.feedback?.rejected ?? []).map((value) => `rejected:${value}`),
-    ...(context.creativePreferences ?? []).map((value) => `preference:${value}`),
-    `compile:${nextState.compileCount}`,
-    `novelty-pressure:${nextState.creativeLearning.noveltyPressure.toFixed(2)}`,
-  ]);
-  return {
-    title: blueprint.title,
-    blueprint,
-    plan: planned.plan,
-    flowSteps,
-    moments,
-    cinematicScenes,
-    estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0),
-    momentCount: moments.length,
-    world,
-    adaptiveQuestions: uniqueQuestions(memory.resolved.questions),
-    discoveries: unique([
-      ...memory.resolved.matches.map((match) => `This experience connects to ${match}.`),
-      ...significance.patterns,
-      ...significance.continuations,
-      ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : []),
-    ]),
-    learningSignals: feedbackSignals,
-    state: nextState,
-  };
+  const feedbackSignals = unique([...(context.feedback?.accepted ?? []).map((value) => `accepted:${value}`), ...(context.feedback?.rejected ?? []).map((value) => `rejected:${value}`), ...(context.creativePreferences ?? []).map((value) => `preference:${value}`), `compile:${nextState.compileCount}`, `novelty-pressure:${nextState.creativeLearning.noveltyPressure.toFixed(2)}`]);
+  return { title: blueprint.title, blueprint, plan: planned.plan, flowSteps, moments, cinematicScenes, estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0), momentCount: moments.length, world, adaptiveQuestions: uniqueQuestions(memory.resolved.questions), discoveries: unique([...memory.resolved.matches.map((match) => `This experience connects to ${match}.`), ...significance.patterns, ...significance.continuations, ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : [])]), learningSignals: feedbackSignals, state: nextState };
 }
 export function messageText(moment: ExperienceMoment): string { return moment.text ?? moment.description ?? moment.title ?? (typeof moment.meta?.text === "string" ? moment.meta.text : ""); }
