@@ -49,9 +49,27 @@ function mergeMemoryContext(prompt: string, context: UniversalMindContext) {
   const resolved = resolveMemory(prompt, context);
   return { resolved, eventParticipants: unique([...(context.event?.participants ?? []), ...resolved.participants]), resolvedPlace: resolved.place };
 }
+
+function preserveMemoryPlaces(world: WorldModel, places: readonly string[]) {
+  const rememberedPlaces = unique(places);
+  if (!rememberedPlaces.length) return world;
+  world.places = unique([...world.places, ...rememberedPlaces]);
+  world.entities = unique([...world.entities, ...rememberedPlaces]);
+  world.entitiesByKind = {
+    ...world.entitiesByKind,
+    places: unique([...world.entitiesByKind.places, ...rememberedPlaces]),
+  };
+  for (const place of rememberedPlaces) {
+    if (!world.evidence.some((item) => item.kind === "place" && item.detail.toLowerCase() === place.toLowerCase())) {
+      world.evidence.push({ id: `memory-place-${place.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, detail: place, kind: "place", salience: 1, source: "memory", confidence: 1 });
+    }
+  }
+  return world;
+}
+
 export function compileCognitiveExperience(prompt: string, context: UniversalMindContext = {}): UniversalMindResult {
   const memory = mergeMemoryContext(prompt, context);
-  const world = buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue });
+  const world = preserveMemoryPlaces(buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue }), memory.resolved.places);
   const significance = analyzeSignificance(world);
   const candidates = generateCandidates(world, significance, context.creativePreferences ?? [], context.feedback?.accepted ?? [], context.feedback?.rejected ?? []);
   const selected = selectCritically(world, candidates);
