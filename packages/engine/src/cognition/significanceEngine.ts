@@ -1,3 +1,4 @@
+import type { CognitiveMindState } from "@qre/contracts";
 import type { WorldModel, WorldEvent } from "./worldModel.js";
 
 export type SignificanceResult = {
@@ -11,12 +12,14 @@ export type SignificanceResult = {
 const lower = (value: string) => value.toLowerCase();
 const unique = (values: readonly string[]) => [...new Set(values.filter(Boolean))];
 
-export function analyzeSignificance(world: WorldModel): SignificanceResult {
+export function analyzeSignificance(world: WorldModel, priorState?: CognitiveMindState): SignificanceResult {
   const scores = new Map<string, number>();
   const attention: string[] = [];
   const changes: string[] = [];
   const patterns: string[] = [];
   const continuations: string[] = [];
+  const entityState = new Map((priorState?.entityStates ?? []).map((entity) => [lower(entity.entity), entity]));
+  const relationshipState = priorState?.relationships ?? [];
 
   for (const event of world.events) {
     let score = 1;
@@ -27,10 +30,15 @@ export function analyzeSignificance(world: WorldModel): SignificanceResult {
     if (event.state) score += 2;
     if (event.details.length) score += Math.min(3, event.details.length);
     if (event.resolvedFromMemory) score += 2;
+    const recurringParticipants = event.participants.filter((participant) => (entityState.get(lower(participant))?.appearances ?? 0) > 0);
+    score += Math.min(3, recurringParticipants.length);
+    if (event.place && priorState?.entityStates.some((entity) => entity.places.some((place) => lower(place) === lower(event.place!)))) score += 2;
+    if (event.participants.length > 1 && relationshipState.some((relationship) => relationship.relation === "shared_event" && event.participants.some((p) => lower(p) === lower(relationship.from)) && event.participants.some((p) => lower(p) === lower(relationship.to)))) score += 2;
     scores.set(event.id, score);
 
     const subject = event.participants.join(" and ") || event.object || event.place || "the moment";
     if (event.state || event.action) changes.push(`${subject}: ${event.state ?? event.action ?? "changed"}`);
+    if (recurringParticipants.length) patterns.push(`${recurringParticipants.join(" and ")} recur from prior experience`);
     if (score >= 5) attention.push(event.id);
   }
 
@@ -46,6 +54,7 @@ export function analyzeSignificance(world: WorldModel): SignificanceResult {
   if (world.participants.length > 1) continuations.push("shared relationships can accumulate history");
   if (world.places.length) continuations.push("places can acquire recurring memories");
   if (world.entities.length) continuations.push("entities can persist beyond this experience");
+  if ((priorState?.compileCount ?? 0) > 0) continuations.push("this experience can change again when new evidence arrives");
 
   if (/\b(?:back|again|returned|returning)\b/i.test(world.prompt)) changes.push("a return connects the present event to prior history");
   if (world.events.some((event) => /\b(?:until|after|before|later|two weeks|years|every)\b/i.test(event.raw))) changes.push("time changes the meaning or sequence of events");
@@ -54,5 +63,5 @@ export function analyzeSignificance(world: WorldModel): SignificanceResult {
 }
 
 export function eventScore(world: WorldModel, event: WorldEvent, significance: SignificanceResult): number {
-  return significance.scores.get(event.id) ?? 1 + (world.lens === "neutral" ? 0 : 1);
+  return significance.scores.get(event.id) ?? (world.lens === "neutral" ? 1 : 2);
 }
