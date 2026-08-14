@@ -1,11 +1,11 @@
 import express from "express";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
-import { aiConfigured, analyzeImageForKnowledge, generateAiExperienceDraft } from "../services/aiProvider.js";
+import { aiConfigured, aiProviderName, analyzeImageForKnowledge, generateAiExperienceDraft } from "../services/aiProvider.js";
 
 const router = express.Router();
 
 router.get("/status", requireAuth, async (_req, res) => {
-  return res.json({ configured: aiConfigured(), provider: aiConfigured() ? "openai" : null });
+  return res.json({ configured: aiConfigured(), provider: aiProviderName() });
 });
 
 router.post("/write", requireAuth, async (req: AuthRequest, res) => {
