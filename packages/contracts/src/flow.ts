@@ -19,8 +19,6 @@ export type ActionContext = {
 export type FlowStepType =
   | "message"
   | "story"
-  | "introduction"
-  | "completion"
   | "hero"
   | "timeline"
   | "gallery"
@@ -51,17 +49,4 @@ export type FlowStep = {
   order: number;
   type: FlowStepType;
   payload: Record<string, unknown>;
-};
-
-export type Flow = {
-  id: string;
-  version: number;
-  tier?: ExperienceTier;
-  steps: FlowStep[];
-  edges?: Array<{
-    from: string;
-    to: string;
-    condition?: Record<string, unknown>;
-  }>;
-  metadata?: Record<string, unknown>;
 };
