@@ -39,7 +39,9 @@ function usablePlace(value: string | undefined): string | undefined {
 }
 
 function memoryPlaceEvidence(entry: string): string[] {
-  const worldPlaces = buildWorldModel(entry).places.filter((place) => !TEMPORAL_ONLY.test(clean(place)));
+  const worldPlaces = buildWorldModel(entry).places
+    .map(usablePlace)
+    .filter((place): place is string => Boolean(place));
   if (worldPlaces.length) return worldPlaces;
   const match = entry.match(MEMORY_PLACE_RE);
   const fallback = usablePlace(match?.[1]);
@@ -55,12 +57,10 @@ function memoryEpisodes(entries: string[]) {
   }));
 }
 
-function explicitPlaceFromPrompt(prompt: string): string | undefined {
-  const world = buildWorldModel(prompt);
-  const worldPlace = world.places.length === 1 ? usablePlace(world.places[0]) : undefined;
-  if (worldPlace) return worldPlace;
-  const match = prompt.match(MEMORY_PLACE_RE);
-  return usablePlace(match?.[1]);
+function currentWorldPlaces(prompt: string): string[] {
+  return buildWorldModel(prompt).places
+    .map(usablePlace)
+    .filter((place): place is string => Boolean(place));
 }
 
 export function resolveMemory(prompt: string, context: UniversalMindContext): MemoryResolution {
@@ -80,19 +80,29 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
   const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
   const placeBearingEpisodes = episodes.filter((episode) => episode.places.length > 0);
   const distinctPlaces = unique(placeBearingEpisodes.flatMap((episode) => episode.places));
-  const explicitPlace = explicitPlaceFromPrompt(prompt);
+  const currentPlaces = currentWorldPlaces(prompt);
   const topEntries = episodes.map((episode) => episode.entry);
   const participants = unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]))).filter((name) => !STOP_NAMES.test(name));
   const relatedTerms = unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40);
 
-  if (explicitPlace) return { matches: topEntries, place: explicitPlace, participants, relatedTerms, questions: [] };
+  // For a returning reference, a genuinely discovered current-world place is
+  // explicit; temporal-only fragments such as "at 7 PM" are not places and do
+  // not suppress memory ambiguity.
+  if (returning && currentPlaces.length > 0) {
+    return { matches: topEntries, place: currentPlaces[0], participants, relatedTerms, questions: [] };
+  }
 
   if (returning) {
-    if (placeBearingEpisodes.length >= 2) return { matches: topEntries, participants, relatedTerms, questions: ["Which place did you go back to?"] };
-    if (placeBearingEpisodes.length === 1) return { matches: topEntries, place: placeBearingEpisodes[0]!.places[0], participants, relatedTerms, questions: [] };
+    if (placeBearingEpisodes.length >= 2) {
+      return { matches: topEntries, participants, relatedTerms, questions: ["Which place did you go back to?"] };
+    }
+    if (placeBearingEpisodes.length === 1) {
+      return { matches: topEntries, place: placeBearingEpisodes[0]!.places[0], participants, relatedTerms, questions: [] };
+    }
     return { matches: topEntries, participants, relatedTerms, questions: ["Where did you go back to?"] };
   }
 
+  if (currentPlaces.length === 1) return { matches: topEntries, place: currentPlaces[0], participants, relatedTerms, questions: [] };
   if (distinctPlaces.length === 1) return { matches: topEntries, place: distinctPlaces[0], participants, relatedTerms, questions: [] };
   return { matches: topEntries, participants, relatedTerms, questions: [] };
 }
