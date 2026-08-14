@@ -54,6 +54,34 @@ function contextualNoun(event: WorldEvent): string {
   return event.object || event.place || event.details[0] || "the detail";
 }
 
+function leadVariants(event: WorldEvent, world: WorldModel): WriterDraft[] {
+  const drafts: WriterDraft[] = [];
+  const raw = clean(event.raw);
+  const subject = event.participants.join(" and ") || event.place || event.object || "the moment";
+  const object = dominantObject(event);
+  const place = event.place;
+  const time = event.time;
+  const detail = event.details[0];
+  const lens = world.lens;
+
+  const add = (text: string, move: WriterMove, ...details: string[]) => {
+    const value = clean(text);
+    if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details });
+  };
+
+  if (time && subject) add(`${time} was when ${subject} ${event.action ?? "was"}${object ? ` with ${object}` : ""}${place ? ` at ${place}` : ""}`, "director", "time-first opening", "cinematic anchoring");
+  if (place && subject) add(`${place} had the scene before ${subject} did`, "director", "place-first opening", "setting as character");
+  if (object && subject) add(`The ${object} was the easiest detail to notice about ${subject}`, "observer", "object-first opening", "attention redirection");
+  if (detail && detail !== object) add(`${detail} sounds incidental until the rest of the moment catches up with it`, "poet", "detail-first opening", "semantic reweighting");
+  if (lens === "comedy" && subject) add(`${subject} had apparently decided that ordinary was optional`, "trickster", "character-first opening", "comic personification");
+  if (lens === "horror" && place) add(`${place} was quiet in exactly the way quiet places sometimes become suspicious`, "suspense", "atmosphere-first opening", "horror implication");
+  if (lens === "romance" && object) add(`${object} was only an object until memory gave it a longer job`, "historian", "memory-first opening", "romantic object elevation");
+  if (lens === "mysterious" && detail) add(`${detail} was the detail that refused to stay in the background`, "suspense", "clue-first opening", "mystery emphasis");
+  if (lens === "wild" && event.action) add(`${subject}'s ${event.action} was the moment the day stopped pretending it had a quiet plan`, "trickster", "consequence-first opening", "escalation");
+
+  return drafts;
+}
+
 function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): WriterDraft[] {
   const raw = clean(event.raw);
   const noun = contextualNoun(event);
@@ -68,6 +96,8 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
     if (value && lower(value) !== lower(raw)) drafts.push({ text: `${value}.`, move, details });
   };
 
+  drafts.push(...leadVariants(event, world));
+
   if (kernel === "ornament") add(`${raw}. The ${noun} was technically an accessory; memory had clearly promoted it`, "poet", "object elevation", "specific association");
   if (kernel === "memory-artifact") add(`${raw}. The ${noun} had stopped being an object and started behaving like evidence`, "historian", "artifact-as-history", "memory framing");
   if (kernel === "voice") add(`${raw}. The ${noun} was doing what good witnesses do: saying more than the room did`, "poet", "object personification", "witness framing");
@@ -80,36 +110,16 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
 
   for (const move of moves) {
     switch (move) {
-      case "observer":
-        add(`${raw}. The interesting part was not that it happened, but which detail refused to disappear afterward`, move, "attention shift", "memorable detail");
-        break;
-      case "trickster":
-        add(`${raw}. The situation had quietly become more confident than anyone had authorized`, move, "comic incongruity", "personification");
-        break;
-      case "poet":
-        add(`${raw}. The smallest fact was carrying the largest shadow`, move, "compressed metaphor", "semantic compression");
-        break;
-      case "director":
-        add(`${raw}. Put the camera there: the scene was already telling on itself`, move, "cinematic attention", "visual direction");
-        break;
-      case "historian":
-        add(`${raw}. That detail changed the event from something that happened into something that could be remembered`, move, "memory conversion", "historical framing");
-        break;
-      case "comic":
-        add(`${raw}. Nobody had ordered the ridiculous version, but it had clearly arrived anyway`, move, "comic escalation", "surprise");
-        break;
-      case "suspense":
-        add(`${raw}. Everything made sense separately; together, the details were asking a different question`, move, "implication", "withheld explanation");
-        break;
-      case "tender":
-        add(`${raw}. It was small enough to miss and exact enough to become important later`, move, "emotional compression", "future-memory cue");
-        break;
-      case "reversal":
-        add(`${raw}. What looked like the point of the moment was only the setup for what it meant`, move, "reversal", "reinterpretation");
-        break;
-      case "understatement":
-        add(`${raw}. No fireworks required. The detail had already done its job`, move, "understatement", "restraint");
-        break;
+      case "observer": add(`${raw}. The interesting part was not that it happened, but which detail refused to disappear afterward`, move, "attention shift", "memorable detail"); break;
+      case "trickster": add(`${raw}. The situation had quietly become more confident than anyone had authorized`, move, "comic incongruity", "personification"); break;
+      case "poet": add(`${raw}. The smallest fact was carrying the largest shadow`, move, "compressed metaphor", "semantic compression"); break;
+      case "director": add(`${raw}. Put the camera there: the scene was already telling on itself`, move, "cinematic attention", "visual direction"); break;
+      case "historian": add(`${raw}. That detail changed the event from something that happened into something that could be remembered`, move, "memory conversion", "historical framing"); break;
+      case "comic": add(`${raw}. Nobody had ordered the ridiculous version, but it had clearly arrived anyway`, move, "comic escalation", "surprise"); break;
+      case "suspense": add(`${raw}. Everything made sense separately; together, the details were asking a different question`, move, "implication", "withheld explanation"); break;
+      case "tender": add(`${raw}. It was small enough to miss and exact enough to become important later`, move, "emotional compression", "future-memory cue"); break;
+      case "reversal": add(`${raw}. What looked like the point of the moment was only the setup for what it meant`, move, "reversal", "reinterpretation"); break;
+      case "understatement": add(`${raw}. No fireworks required. The detail had already done its job`, move, "understatement", "restraint"); break;
     }
   }
 
