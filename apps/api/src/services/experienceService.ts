@@ -1,6 +1,7 @@
-import { compileCognitiveExperience } from "@qre/engine";
+import { compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import {
   buildExperienceMemoryBatch,
   memoryContextToCognitiveSummary,
@@ -27,24 +28,22 @@ export type CompiledExperienceResult = {
 /**
  * Production authoring boundary.
  *
- * HUMAN LANGUAGE
+ * HUMAN LANGUAGE + DURABLE MEMORY + BEHAVIOR
  *   ↓
  * UNIVERSAL MIND
  *   ↓
- * WORLD MODEL / EXPERIENCE BLUEPRINT
+ * WORLD / EXPERIENCE BLUEPRINT
  *   ↓
- * API MEMORY PROJECTION
+ * MEMORY + ANALYTICS PROJECTION
  *   ↓
- * MEMORY REPOSITORY
- *
- * Cognition remains database-agnostic. Persistence projection belongs at the
- * application boundary, where the repository is available.
+ * NEXT COMPILE LEARNS
  */
 export async function compileExperience(input: {
   prompt: string;
   assetId?: string;
   userId?: string;
   memoryRepository?: MemoryRepository;
+  analyticsEvents?: unknown[];
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("Experience prompt required");
@@ -61,7 +60,17 @@ export async function compileExperience(input: {
     ? memoryContextToCognitiveSummary(memoryContext)
     : [];
 
-  const compiled = compileCognitiveExperience(prompt, { memorySummary });
+  let analyticsEvents = input.analyticsEvents ?? [];
+  if (input.assetId && analyticsEvents.length === 0) {
+    const analyticsRepository = createAnalyticsRepository();
+    analyticsEvents = await analyticsRepository.findEvents({ assetId: input.assetId, limit: 200 });
+  }
+
+  const analytics = summarizeCognitiveAnalytics(analyticsEvents);
+  const compiled = compileCognitiveExperience(prompt, {
+    memorySummary,
+    analytics,
+  });
 
   if (input.assetId && input.memoryRepository) {
     const batch = buildExperienceMemoryBatch({
