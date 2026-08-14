@@ -19,7 +19,10 @@ import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
  * ============================================================
  */
 
-export type CompiledGenomeExperience = CognitiveCompiledExperience & {
+export type CompiledGenomeExperience = Omit<
+  CognitiveCompiledExperience,
+  "intent"
+> & {
   world: ExperienceWorld;
   intent: ExperienceIntent[];
   audience: string[];
