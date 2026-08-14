@@ -20,8 +20,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:cognition": "tsx src/compiler/tests/cognitivePromptMatrix.ts",
-    "test:universal": "tsx src/compiler/tests/experienceCompiler.test.ts",
-    "test:realization": "tsx src/compiler/tests/premiseRealizerAcceptance.ts",
+    "test:universal": "tsx src/compiler/tests/compilerRealizationCheck.ts",
+    "test:universal-sentence": "tsx src/compiler/tests/universalExperienceAcceptance.ts",
+    "test:realization": "tsx src/compiler/tests/universalExperienceAcceptance.ts",
     "test:semantic-realization": "tsx src/compiler/tests/cognitiveRealizationAcceptance.ts",
     "test:super-cog": "tsx src/compiler/tests/superCogPremiseAcceptance.ts",
     "test:mechanics": "tsx src/compiler/tests/cognitiveMechanicsAcceptance.ts",
@@ -31,6 +32,7 @@
     "test:bodyguards": "tsx src/compiler/tests/superCogBodyguardsAcceptance.ts",
     "test:event-realization": "tsx src/compiler/tests/cognitiveEventRealizationAcceptance.ts",
     "test:memory": "tsx src/compiler/tests/memoryCompilerAcceptance.ts",
+    "test:provenance": "tsx src/compiler/tests/provenanceBoundaryAcceptance.ts",
     "test:story-lab": "tsx src/compiler/tests/superStoryLab.ts",
     "test:movie-factory": "tsx src/experience/tests/movieFactoryV2Acceptance.ts",
     "test:movie-v3": "tsx src/experience/tests/latentMovieExtractorV3Acceptance.ts",
@@ -41,6 +43,8 @@
     "test:experience-v8": "tsx src/experience/tests/experienceCompilerV8Acceptance.ts",
     "test:experience-v9": "tsx src/experience/tests/experienceCompilerV9Acceptance.ts",
     "test:experience-v10": "tsx src/experience/tests/experienceCompilerV10Acceptance.ts",
-    "test:experience-v11": "tsx src/experience/tests/experienceCompilerV11Acceptance.ts"
+    "test:experience-v11": "tsx src/experience/tests/experienceCompilerV11Acceptance.ts",
+    "test:experience-v15": "tsx src/experience/tests/experienceCompilerV15Acceptance.ts",
+    "test:experience-v16": "tsx src/experience/tests/experienceCompilerV16Acceptance.ts"
   }
 }

@@ -15,9 +15,6 @@ export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 
 export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
-export { compileStoryExperience } from "./experience/universalStoryCompiler.js";
-export { compileStoryExperience as compileBaseStoryExperience } from "./experience/universalStoryCompiler.js";
-export type { StoryCompilerContext, StoryCompilerMemory, StorySituation, StorySignal, ExperienceObservation, CompiledStoryExperience } from "./experience/universalStoryCompiler.js";
 
 export { buildExperienceEvent, buildExperienceEventWorld, eventRealizationHint } from "./experience/eventWorld.js";
 export { buildMemoryWriteBatch, buildScanMemoryBatch, memoryContextToCompilerMemories } from "./memory/memoryCompiler.js";
@@ -63,15 +60,19 @@ export {
   suggestCreativeStrategyV11,
   mergeCreativeLearningV11,
 } from "./experience/creativeLearningV11.js";
-export type {
-  CompiledExperienceV11,
-  ExperienceCompilerContextV11,
-} from "./experience/experienceCompilerV11.js";
-export type {
-  CreativeLearningObservationV11,
-  CreativeLearningSignalV11,
-  CreativeLearningProfileV11,
-} from "./experience/creativeLearningV11.js";
+export type { CompiledExperienceV11, ExperienceCompilerContextV11 } from "./experience/experienceCompilerV11.js";
+export type { CreativeLearningObservationV11, CreativeLearningSignalV11, CreativeLearningProfileV11 } from "./experience/creativeLearningV11.js";
+
+/** V15/V16 universal memory layers: foresight, exact physical points, and travel trails. */
+export { compileExperienceV15 } from "./experience/experienceCompilerV15.js";
+export { compileUniversalMemoryV15, memoryForesightSignalsV15 } from "./experience/universalMemoryV15.js";
+export type { CompiledExperienceV15, ExperienceCompilerContextV15 } from "./experience/experienceCompilerV15.js";
+export type { UniversalMemoryV15 } from "./experience/universalMemoryV15.js";
+
+export { compileExperienceV16 } from "./experience/experienceCompilerV16.js";
+export { compileUniversalMemoryV16, memorySpatialSignalsV16 } from "./experience/universalMemoryV16.js";
+export type { CompiledExperienceV16, ExperienceCompilerContextV16 } from "./experience/experienceCompilerV16.js";
+export type { UniversalMemoryV16 } from "./experience/universalMemoryV16.js";
 
 export { findLatentMovie } from "./experience/movieFactoryV2.js";
 export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
@@ -84,3 +85,4 @@ export { getPresenceReplay } from "./presence/getPresenceReplay.js";
 export { getPresenceMap } from "./presence/getPresenceMap.js";
 
 export type { AssetRepository, AssetRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
+

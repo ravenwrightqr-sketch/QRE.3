@@ -3,7 +3,7 @@ import {
   compileCognitiveExperience,
   type CognitiveCompiledExperience,
 } from "./cognitiveExperienceCompiler.js";
-import type { StoryCompilerContext } from "./universalStoryCompiler.js";
+import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
 
 /**
  * ============================================================
@@ -84,7 +84,7 @@ function compatibilityWorld(result: CognitiveCompiledExperience): ExperienceWorl
 
 export function compileExperienceGenome(
   prompt: string,
-  context: StoryCompilerContext = {},
+  context: ExperienceCompilerContext = {},
 ): CompiledGenomeExperience {
   const result = compileCognitiveExperience(prompt, context);
   const intent = inferIntent(result);

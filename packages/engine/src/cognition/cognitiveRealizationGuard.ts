@@ -1,118 +1,39 @@
 import type { CognitiveExperiencePlan, StoryBeat } from "@qre/contracts";
-import {
-  isGenericCompilerProse,
-  realizePremiseBeat,
-} from "../experience/premiseRealizer.js";
+import { realizeEnterpriseBeat } from "../experience/enterpriseEvidenceRealizer.js";
 
 /**
- * FINAL REALIZATION BODYGUARD
+ * FINAL REALIZATION GUARD
  *
- * This boundary is a validator/repair mechanism, not a second language brain.
- * If canonical realization produced semantic/meta prose, repair the beat by
- * invoking the same canonical premise realizer with the preserved evidence.
- *
- * Invariant:
- * mechanic vocabulary alone is never accepted as realization. A beat must
- * contain an observable action, condition, transition, consequence, or
- * preserved concrete detail.
+ * This module is intentionally not a second language brain. The enterprise
+ * realizer owns wording. This guard only decides whether text is admissible;
+ * when repair is necessary it calls the same realizer.
  */
 
-const ABSTRACT = [
-  /make .* matter(?: through| by| with)?[^.!?]*/i,
-  /make .* meaningful(?: through| by| with)?[^.!?]*/i,
-  /adapt to accumulated[^.!?]*/i,
-  /adapt to .* history[^.!?]*/i,
-  /allow participants to[^.!?]*/i,
-  /let participants[^.!?]*/i,
-  /enter living memory[^.!?]*/i,
-  /affect shared state[^.!?]*/i,
-  /change what can happen next[^.!?]*/i,
-  /determine what happens next[^.!?]*/i,
-  /carry .* into the present[^.!?]*/i,
-  /recognize what .* means[^.!?]*/i,
-  /create a reason to continue[^.!?]*/i,
-  /the intended experiential result[^.!?]*/i,
-  /the next supported condition/i,
-  /go further than before/i,
-  /increase the active condition/i,
-  /carry the preceding state/i,
-  /reach the result produced by what happened before/i,
-];
-
-const OBSERVABLE = /\b(?:arrives?|enters?|crosses?|encounters?|notices?|finds?|sees?|discovers?|handles?|touches?|uses?|opens?|closes?|moves?|returns?|adds?|shares?|gives?|brings?|takes?|shows?|records?|writes?|reads?|follows?|chooses?|responds?|inspects?|cleans?|washes?|grooms?|serves?|plays?|collects?|keeps?|preserves?|reaches?|earns?|claims?|owns?|changes?|reveals?|places?|leaves?|picks?|carries?|visits?|meets?|watches?|hears?|smells?|tastes?|looks?|holds?|builds?|repairs?|restores?|prepares?|delivers?|documents?|photographs?|saves?|stores?|remembers?|recognizes?|compares?|connects?|continues?)\b/i;
-const TRANSITIONAL = /\b(?:changes?|changed|becomes?|became|different|result|consequence|because|after|now|then|next|remains?|carries?|contains?|available|visible|unresolved|hidden|unknown|another|again|further|more|larger|bigger)\b/i;
-
-// Agency is only surfaced when cognition already selected agency-bearing
-// evidence such as participants, choice, ownership, or decision. The guard
-// never invents an agency mechanic; it only prevents that selected operation
-// from disappearing during language cleanup.
-const AGENCY_SIGNAL = /\b(?:agency|choice|choose|chooses|chosen|decide|decides|decision|determines|determined|participant|participants|owner|ownership|gets the move|gets to decide|gets to choose)\b/i;
-const AGENCY_PRESENTATION = /\b(?:choice|choose|chooses|chosen|decide|decides|decision|determines|determined|participant|participants|agency|own path|their path)\b/i;
+const META = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realization|realizer|experience plan|story structure|meaning context|progression model|interaction model|content model|discovery model|trajectory|mechanic|mechanics|latent state|internal state|future evolution|dynamic behavior)\b/i;
+const DELIVERY = /\b(?:customer-facing|delivery pipeline|delivery layer|scan pipeline|qr pipeline|nfc pipeline|generated output)\b/i;
+const ABSTRACT = /\b(?:the situation|the experience is static|the next state|the intended experiential result|the next supported condition|allow participants to|let participants|affect shared state|determine what happens next|create a reason to continue)\b/i;
+const OBSERVABLE = /\b(?:arriv|enter|walk|go|went|come|came|leave|left|return|groom|clean|wash|repair|fix|build|make|create|cook|bake|serve|prepare|open|close|visit|travel|drive|ride|paint|dance|sing|play|choose|pick|select|decide|touch|hold|wear|taste|smell|look|see|watch|share|give|take|bring|receive|check|inspect|test|measure|install|remove|change|turn|transform|upgrade|finish|complete|celebrat|marry|vow|photograph|capture|record|teach|learn|discover|find|collect|organize|organise|decorate|style|trim|cut|brush|dry|massage|relax|pamper|spoil|treat|shake|shook|chew|chewed|add|adding|remember|preserve|document)\w*\b/i;
+const TRANSITIONAL = /\b(?:changes?|changed|becomes?|became|different|because|after|now|then|next|remains?|carries?|contains?|available|visible|hidden|unknown|another|again|further|more|larger|bigger)\b/i;
 
 function clean(value: string): string { return value.replace(/\s+/g, " ").trim(); }
 function sentence(value: string): string { return clean(value).replace(/[.!?]+$/, ""); }
 
-function stripAbstract(text: string): string {
-  let result = clean(text);
-  for (const pattern of ABSTRACT) result = result.replace(pattern, " ");
-  return clean(result.replace(/\s+([,.])/g, "$1"));
-}
-
-function stillAbstract(text: string): boolean {
-  return ABSTRACT.some((pattern) => pattern.test(text));
-}
-
-function hasObservableEvent(text: string, beat: StoryBeat): boolean {
-  if (OBSERVABLE.test(text)) return true;
-  if (["transformation", "feedback", "reflection", "payoff", "continuation"].includes(beat.kind)) return TRANSITIONAL.test(text);
-  return false;
-}
-
-function needsRepair(beat: StoryBeat, text: string): boolean {
-  if (!text || isGenericCompilerProse(text) || stillAbstract(text)) return true;
-  if (!hasObservableEvent(text, beat)) return true;
-
-  switch (beat.kind) {
-    case "escalation": return !/\b(?:another|again|further|more|larger|bigger|adds?|changes?|intensif|exceed|beyond)\b/i.test(text);
-    case "transformation": return !/\b(?:changes?|becomes?|different|moves? from|after|now)\b/i.test(text);
-    case "contribution": return !/\b(?:adds?|shares?|gives?|contributes?|contains?|changes?|available)\b/i.test(text);
-    case "feedback": return !/\b(?:result|responds?|changes?|because|after|consequence)\b/i.test(text);
-    case "discovery":
-    case "reveal": return !/\b(?:finds?|discovers?|sees?|reveals?|appears?|shows?|uncovers?)\b/i.test(text);
-    default: return false;
-  }
-}
-
-function agencySource(
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
-  return [
-    beat.text,
-    plan?.interactionModel?.join(" "),
-    plan?.dynamicBehavior?.join(" "),
-    plan?.futureEvolution?.join(" "),
-    plan?.realization?.semanticArc?.join(" "),
-    ...(plan?.realization?.directives?.flatMap((directive) => [directive.intent, directive.action, directive.stateAfter]) ?? []),
+function hasConcreteAnchor(text: string, beat: StoryBeat, plan?: CognitiveExperiencePlan): boolean {
+  const hay = clean(text).toLowerCase();
+  const values = [
+    ...(plan?.premise?.slots.flatMap((slot) => slot.values) ?? []),
+    ...(beat.entities ?? []),
   ]
-    .filter(Boolean)
-    .join(" ");
+    .map((value) => clean(value).toLowerCase())
+    .filter((value) => value.length >= 2);
+
+  return values.some((value) => hay.includes(value));
 }
 
-function preserveAgency(
-  text: string,
-  beat: StoryBeat,
-  plan?: CognitiveExperiencePlan,
-): string {
-  const source = agencySource(beat, plan);
-
-  if (!AGENCY_SIGNAL.test(source) || AGENCY_PRESENTATION.test(text)) {
-    return text;
-  }
-
-  // This is a deterministic realization of already-selected agency. It does
-  // not add a domain fact; it makes the participant's decision point visible.
-  return `${sentence(text)} Participants choose what happens next, and that choice determines the available path.`;
+function needsRepair(beat: StoryBeat, text: string, plan?: CognitiveExperiencePlan): boolean {
+  if (!text || META.test(text) || DELIVERY.test(text) || ABSTRACT.test(text)) return true;
+  if (OBSERVABLE.test(text) || TRANSITIONAL.test(text) || hasConcreteAnchor(text, beat, plan)) return false;
+  return beat.kind !== "continuation";
 }
 
 export function guardCognitiveBeatText(
@@ -120,24 +41,19 @@ export function guardCognitiveBeatText(
   plan?: CognitiveExperiencePlan,
 ): string {
   const original = sentence(beat.text);
-  const stripped = stripAbstract(original);
-  let result: string;
+  const repaired = needsRepair(beat, original, plan)
+    ? sentence(realizeEnterpriseBeat(beat, plan) ?? original)
+    : original;
 
-  if (!needsRepair(beat, stripped)) {
-    result = `${stripped}.`;
-  } else {
-    // Repair through the canonical realization boundary. This keeps one language
-    // authority and makes the guard accountable to the same evidence rules.
-    const repaired = sentence(realizePremiseBeat(beat, plan));
-    result = `${repaired || stripped || original}.`;
-  }
-
-  return `${sentence(preserveAgency(result, beat, plan))}.`;
+  return repaired ? `${repaired}.` : "";
 }
 
 export function guardCognitiveStory(
   beats: StoryBeat[],
   plan?: CognitiveExperiencePlan,
 ): StoryBeat[] {
-  return beats.map((beat) => ({ ...beat, text: guardCognitiveBeatText(beat, plan) }));
+  return beats.map((beat) => ({
+    ...beat,
+    text: guardCognitiveBeatText(beat, plan),
+  }));
 }

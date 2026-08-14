@@ -1,366 +1,564 @@
 import type {
-  CognitiveEvidence,
+  CognitiveBeatDirective,
   CognitiveExperienceState,
   ExperienceBlueprint,
+  ExperienceEntities,
   ExperienceGenome,
+  ExperienceModel,
+  ExperienceMoment,
+  ExperienceStory,
+  Moment,
+  CinematicScene,
+  StoryBeat,
+  StoryBeatKind,
+  StoryProvenance,
+  StoryScenePlan,
 } from "@qre/contracts";
-
 import { understandExperience } from "../cognition/cognitiveEngine.js";
 import { buildCognitivePremise } from "../cognition/premiseBuilder.js";
 import { realizeCognitiveExperience } from "../cognition/cognitiveExperienceRealizer.js";
-import { guardCognitiveStory } from "../cognition/cognitiveRealizationGuard.js";
+import { composeCognitiveTrajectory } from "./cognitiveTrajectory.js";
+import { compileExperienceV16, type CompiledExperienceV16 } from "./experienceCompilerV16.js";
+import type { ExperienceCompilerContext } from "./experienceCompilerContext.js";
 import {
-  compileStoryExperience,
-  type CompiledStoryExperience,
-  type StoryCompilerContext,
-} from "./universalStoryCompiler.js";
+  createUniversalRealizationState,
+  realizeUniversalExperienceBeat,
+} from "./universalExperienceRealizer.js";
 
 /**
- * QRE COGNITIVE EXPERIENCE COMPILER
+ * COMPILER AUTHORITY
  *
- * PROMPT → COGNITION → PREMISE/EVIDENCE → SEMANTIC + CREATIVE REALIZATION
- * → UNIVERSAL STORY COMPILATION → BLUEPRINT/FLOW/MOMENTS/SCENES
+ * V16 remains the artifact substrate.
+ * This compiler owns cognition/planning orchestration.
+ * universalExperienceRealizer.ts is the ONLY customer-language authority.
  *
- * There is one downstream structure authority and one canonical language
- * authority. This boundary only composes them.
+ * Legacy narrative/creative/template realizers are deliberately excluded.
  */
 
-export type CognitiveCompiledExperience = CompiledStoryExperience & {
-  cognition: CognitiveExperienceState;
+export type ExperienceObservation = {
+  prompt: string;
+  subject: string;
+  activity: string;
+  context: string[];
+  entities: ExperienceEntities;
+  explicitEmotions: string[];
+  audience: string[];
+  temporal: string[];
+  affordances: string[];
+  evidence: StoryProvenance[];
 };
 
-function explicitNarrativeIntent(prompt: string): boolean {
-  return /\b(?:story|stories|narrative|tale|tell the story|storytelling)\b/i.test(prompt);
-}
+export type CognitiveSituation = {
+  subject: string;
+  actors: string[];
+  activity: string;
+  setting: string[];
+  temporal: string[];
+  social: "solo" | "shared" | "unknown";
+  purpose: string;
+  change: string;
+  tension: string;
+};
 
-function respectExplicitNarrativeIntent(
-  prompt: string,
-  cognition: CognitiveExperienceState,
-): CognitiveExperienceState {
-  if (!explicitNarrativeIntent(prompt)) return cognition;
-  if (cognition.selectedHypothesis.kind === "story") return cognition;
+export type CognitiveCandidate = {
+  id: string;
+  beats: StoryBeatKind[];
+  score: number;
+  rationale: string[];
+};
 
-  const evidence: CognitiveEvidence = {
-    source: "prompt",
-    detail: "explicit narrative/story request",
-    confidence: 0.99,
-  };
+export type CognitiveCompiledExperience = Omit<CompiledExperienceV16, "moments" | "cinematicScenes"> & {
+  cognition: CognitiveExperienceState;
+  observation: ExperienceObservation;
+  situation: CognitiveSituation;
+  candidates: CognitiveCandidate[];
+  genome: ExperienceGenome;
+  story: ExperienceStory;
+  scenePlan: StoryScenePlan[];
+  model: ExperienceModel;
+  moments: Moment[];
+  cinematicScenes: CinematicScene[];
+};
 
-  const selectedHypothesis = {
-    ...cognition.selectedHypothesis,
-    kind: "story" as const,
-    premise: `${cognition.subject.value} unfolds as a sequence of moments`,
-    rationale: "The prompt explicitly requests a story or narrative.",
-    evidence: [...cognition.selectedHypothesis.evidence, evidence],
-    score: Math.max(cognition.selectedHypothesis.score, 0.99),
-  };
+const unique = (values: string[]): string[] => [
+  ...new Set(values.map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean)),
+];
 
-  return {
-    ...cognition,
-    selectedHypothesis,
-    hypotheses: cognition.hypotheses.map((hypothesis) =>
-      hypothesis.kind === "story"
-        ? {
-            ...hypothesis,
-            score: Math.max(hypothesis.score, 0.99),
-            evidence: [...hypothesis.evidence, evidence],
-          }
-        : hypothesis,
-    ),
-  };
-}
-
-function canonicalizeCognition(cognition: CognitiveExperienceState): CognitiveExperienceState {
-  return {
-    ...cognition,
-    plan: {
-      ...cognition.plan,
-      direction: cognition.selectedHypothesis.kind,
-    },
-  };
-}
-
-function mergeGenome(genome: ExperienceGenome, cognition: CognitiveExperienceState): ExperienceGenome {
-  const selected = cognition.selectedHypothesis;
-  return {
-    ...genome,
-    intent: [...new Set([...genome.intent, selected.kind, ...cognition.motivations.value])],
-    archetypes: [...new Set([...genome.archetypes, selected.kind, ...cognition.hypotheses.map((item) => item.kind)])],
-    themes: [...new Set([...genome.themes, ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.interactionModel, ...cognition.plan.futureEvolution])],
-    emotions: [...new Set([...genome.emotions, ...cognition.emotionalIntent])],
-    memory: Math.max(genome.memory, selected.dimensions.memoryPotential),
-    discovery: Math.max(genome.discovery, selected.dimensions.discoveryPotential),
-    commerce: Math.max(genome.commerce, selected.dimensions.commercialPotential),
-    interaction: Math.max(genome.interaction, selected.dimensions.interactionNaturalness),
-    replay: Math.max(genome.replay, selected.dimensions.temporalPotential),
-    entities: cognition.entities,
-    audience: [...new Set([...genome.audience, ...cognition.participants.value, ...cognition.plan.audience])],
-    dna: [...new Set([
-      ...genome.dna,
-      "cognitive-experience-intelligence",
-      "evidence-aware",
-      "hypothesis-driven",
-      "cognitive-plan-directed",
-      "premise-conserved",
-      "semantic-realization",
-      "creative-realization",
-      "universal-compiler-substrate",
-      `hypothesis:${selected.kind}`,
-      ...cognition.affordances.map((value) => `affordance:${value}`),
-      ...cognition.plan.dynamicBehavior.map((value) => `dynamic:${value}`),
-      ...(cognition.plan.realization?.semanticArc.map((value) => `arc:${value}`) ?? []),
-    ])],
-  };
-}
-
-function mergeBlueprint(blueprint: ExperienceBlueprint, cognition: CognitiveExperienceState): ExperienceBlueprint {
-  return {
-    ...blueprint,
-    cognitivePlan: cognition.plan,
-    metadata: {
-      ...blueprint.metadata,
-      archetypes: [...new Set([...(blueprint.metadata?.archetypes ?? []), cognition.selectedHypothesis.kind, ...cognition.hypotheses.slice(0, 3).map((item) => item.kind)])],
-      themes: [...new Set([...(blueprint.metadata?.themes ?? []), ...cognition.emotionalIntent, ...cognition.affordances, ...cognition.plan.futureEvolution, ...cognition.plan.creativePossibilities])],
-      dna: [...new Set([...(blueprint.metadata?.dna ?? []), "evidence-aware", "hypothesis-driven", "cognitive-plan", "premise-conserved", "semantic-realization", "creative-realization", "adaptive-experience", "universal-compiler-substrate", ...cognition.assumptions.map(() => "assumption-explicit")])],
-    },
-  };
-}
-
-function directModel(compiled: CompiledStoryExperience, cognition: CognitiveExperienceState): CompiledStoryExperience["model"] {
-  return {
-    ...compiled.model,
-    title: compiled.title,
-    description: cognition.plan.purpose,
-    metadata: {
-      ...compiled.model.metadata,
-      tags: [
-        ...((compiled.model.metadata?.tags ?? []) as string[]),
-        "cognitive-experience-intelligence",
-        "cognitive-plan-directed",
-        "premise-conserved",
-        "semantic-realization",
-        "creative-realization",
-        "universal-compiler-substrate",
-        `selected:${cognition.selectedHypothesis.kind}`,
-        `subject:${cognition.subject.value}`,
-      ],
-    },
-  };
-}
-
-/** Propagate canonical beat text; never invoke a second language brain. */
-function propagateCanonicalLanguage(compiled: CompiledStoryExperience): CompiledStoryExperience {
-  const beatById = new Map(compiled.story.beats.map((beat) => [beat.id, beat]));
-  const story = {
-    ...compiled.story,
-    hook: compiled.story.beats[0]?.text ?? compiled.story.hook,
-    ending: compiled.story.beats.find((beat) => beat.kind === "payoff")?.text ?? compiled.story.beats.at(-1)?.text ?? compiled.story.ending,
-    continuation: compiled.story.beats.find((beat) => beat.kind === "continuation")?.text ?? compiled.story.continuation,
-  };
-
-  const blueprint = {
-    ...compiled.blueprint,
-    moments: compiled.blueprint.moments.map((moment) => {
-      const beatId = String((moment.payload as { beatId?: unknown } | undefined)?.beatId ?? "");
-      const beat = beatById.get(beatId);
-      return beat ? { ...moment, description: beat.text } : moment;
-    }),
-  };
-
-  const flowSteps = compiled.flowSteps.map((step) => {
-    const beatId = (step.payload as { beat?: { id?: string } } | undefined)?.beat?.id;
-    const beat = beatId ? beatById.get(beatId) : undefined;
-    return beat ? { ...step, payload: { ...step.payload, beat } } : step;
-  });
-
-  const moments = compiled.moments.map((moment) => {
-    const beatId = String((moment.meta as { beatId?: unknown } | undefined)?.beatId ?? "");
-    const beat = beatById.get(beatId);
-    return beat ? { ...moment, text: beat.text } : moment;
-  });
-
-  const scenePlan = compiled.scenePlan.map((scene) => {
-    const beat = beatById.get(scene.beatId);
-    return beat ? { ...scene, text: beat.text } : scene;
-  });
-
-  const cinematicScenes = compiled.cinematicScenes.map((scene, index) => ({
-    ...scene,
-    moment: moments[index] ?? scene.moment,
+const provenance = (state: CognitiveExperienceState): StoryProvenance[] =>
+  state.subject.evidence.map((evidence) => ({
+    kind:
+      evidence.source === "prompt"
+        ? "observed"
+        : evidence.source === "creative_realization"
+          ? "playful"
+          : "inferred",
+    source: evidence.source,
+    confidence: evidence.confidence,
   }));
 
-  return { ...compiled, story, blueprint, flowSteps, moments, scenePlan, cinematicScenes };
-}
+const names = (entities: ExperienceEntities, subject: string): string[] =>
+  unique([
+    subject,
+    ...entities.people,
+    ...entities.places,
+    ...entities.events,
+    ...entities.products,
+    ...entities.media,
+  ]);
 
-/** Extract a grammatical subject without creating noun-specific branches. */
-function grammaticalSubject(prompt: string): string | undefined {
-  const text = prompt.replace(/\s+/g, " ").trim();
-  const verbs = "documents?|clean(?:s|ed|ing)?|repairs?|restores?|records?|photographs?|writes?|builds?|creates?|designs?|runs?|owns?|manages?|prepares?|inspects?|visits?|helps?|takes?|makes?|finds?|grooms?|cooks?|sells?|buys?|teaches?|plays?|wears?|drives?|uses?|opens?|closes?|carries?|brings?|delivers?|serves?|hosts?|shares?|celebrates?|explores?|discovers?|collects?|organizes?|organises?|clears?|washes?|fixes?|tests?|checks?|shows?|tells?|turns?|handles?";
-
-  const declarative = text.match(new RegExp(
-    `^(?:a|an|the|my|our)?\\s*([\\p{L}][\\p{L}\\p{N}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{N}'’-]*){0,3})\\s+(?:${verbs})\\b`,
-    "iu",
-  ));
-  if (declarative?.[1]) return declarative[1].trim();
-
-  const imperative = text.match(
-    /^(?:make|create|build|design|turn|transform|treat)\s+(?:a|an|the|my|our)?\s*(.+?)(?=\s+(?:into|like|feel|become|as|a|an|for|so|that|which)\b|[.!?]|$)/i,
-  );
-  if (imperative?.[1]) return imperative[1].trim();
-
-  // "Teach someone how to make sourdough" -> "sourdough".
-  const instructional = text.match(
-    /\b(?:make|cook|bake|build|create|design|draw|write)\s+(?:a|an|the)?\s*([^,.!?]+?)(?=\s+(?:for|with|using|at|in|on|today|tonight)\b|[,.!?]|$)/i,
-  );
-  if (instructional?.[1]) {
-    const candidate = instructional[1].trim();
-    if (candidate && !/^(?:someone|something|people|how|how to)$/i.test(candidate)) return candidate;
+function repairOrdinarySubject(
+  prompt: string,
+  state: CognitiveExperienceState,
+): CognitiveExperienceState {
+  if (
+    state.subject.status === "observed" &&
+    state.subject.value.trim().split(/\s+/).length <= 5
+  ) {
+    return state;
   }
 
-  const objectFirst = text.match(
-    /^(?:turn|transform|make)\s+(?:a|an|the|my|our)?\s*(.+?)\s+(?:into|feel like|become)\b/i,
-  );
-  return objectFirst?.[1]?.trim();
-}
+  const actorVerb = /^(?:a|an|the)\s+([a-z][a-z0-9'’-]*(?:\s+[a-z][a-z0-9'’-]*){0,5})\s+(?:arrives?|arrived|enters?|entered|walks?|walked|goes?|went|comes?|came|leaves?|left|returns?|returned|grooms?|groomed|cleans?|cleaned|washes?|washed|repairs?|repaired|fixes?|fixed|restores?|restored|builds?|built|makes?|made|creates?|created|designs?|designed|writes?|wrote|cooks?|cooked|serves?|served|prepares?|prepared|opens?|opened|closes?|closed|visits?|visited|travels?|traveled|drives?|drove|rides?|rode|paints?|painted|dances?|danced|sings?|sang|plays?|played|chooses?|chose|picks?|picked|selects?|selected|decides?|decided|touches?|touched|holds?|held|wears?|wore|tastes?|tasted|smells?|smelled|looks?|looked|sees?|saw|watches?|watched|shares?|shared|gives?|gave|takes?|took|brings?|brought|receives?|received|checks?|checked|inspects?|inspected|tests?|tested|measures?|measured|installs?|installed|removes?|removed|changes?|changed|turns?|turned|transforms?|transformed|finishes?|finished|completes?|completed|photographs?|photographed|captures?|captured|records?|recorded|teaches?|taught|learns?|learned|discovers?|discovered|finds?|found|collects?|collected|organizes?|organized|decorates?|decorated|styles?|styled|trims?|trimmed|cuts?|cut|brushes?|brushed|dries?|dried|massages?|massaged|relaxes?|relaxed|pampers?|pampered|spoil(?:s|ed)?|treats?|treated|documents?|documented|shakes?|shook|chews?|chewed|runs?|ran|calls?|called)\b/i;
 
-function looksLikeInstructionSubject(value: string): boolean {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return /^(?:teach|teaching|make|making|create|creating|build|building|turn|turning|transform|transforming|how|how to|someone|something|people)\b/i.test(normalized)
-    || /\bhow to\b/i.test(normalized);
-}
-
-function enrichConcreteSubjectEvidence(prompt: string, cognition: CognitiveExperienceState): CognitiveExperienceState {
-  const candidate = grammaticalSubject(prompt);
-  const current = cognition.subject.value.trim();
-  const currentLooksMalformed = /^n\b/i.test(current);
-
-  if (!candidate || (!currentLooksMalformed && current && !looksLikeInstructionSubject(current))) return cognition;
-
-  const existingEvidence = cognition.subject.evidence ?? [];
-  const alreadyObserved = existingEvidence.some(
-    (evidence) => evidence.source === "prompt" && evidence.detail.toLowerCase().includes(candidate.toLowerCase()),
-  );
+  const match = prompt.trim().match(actorVerb);
+  const actor = match?.[1]?.replace(/\s+/g, " ").trim();
+  if (!actor || actor.length > 60) return state;
 
   return {
-    ...cognition,
+    ...state,
     subject: {
-      ...cognition.subject,
-      value: candidate,
+      ...state.subject,
+      value: actor,
       status: "observed",
-      confidence: Math.max(cognition.subject.confidence, 0.99),
-      evidence: alreadyObserved ? existingEvidence : [
-        ...existingEvidence,
-        {
-          source: "prompt",
-          detail: `concrete grammatical subject preserved from prompt: ${candidate}`,
-          confidence: 0.99,
-        },
+      confidence: Math.max(state.subject.confidence, 0.97),
+      evidence: [
+        ...state.subject.evidence,
+        { source: "prompt", detail: `ordinary actor subject: ${actor}`, confidence: 0.97 },
       ],
     },
-    plan: { ...cognition.plan, centralSubject: candidate },
   };
 }
 
-/**
- * Convert an explicit participant-choice request into a concrete action.
- *
- * The prompt is the authority here: we do not invent which option was chosen,
- * only preserve the observable fact that a participant chooses a path.
- * This keeps agency experiential instead of leaking the semantic directive
- * ("determine what happens next") into the rendered story.
- */
-function realizeExplicitAgency(
+function retainExplicitParticipants(
   prompt: string,
-  compiled: CompiledStoryExperience,
-): CompiledStoryExperience {
-  if (!/\b(?:choose|chooses|choice|choices|decide|decides|decision|choose their own path|pick|select)\b/i.test(prompt)) {
-    return compiled;
-  }
-
-  const actionIndex = compiled.story.beats.findIndex((beat) => beat.kind === "action");
-  if (actionIndex < 0) return compiled;
-
-  const subject = /\bparticipants?\b/i.test(prompt)
-    ? "Participants"
-    : compiled.observation.subject || "The participant";
-  const existing = compiled.story.beats[actionIndex];
-
-  if (/\b(?:choice|chooses?|decides?|selects?|picks?)\b/i.test(existing.text)) {
-    return compiled;
-  }
-
-  const actionBeat = {
-    ...existing,
-    text: `${subject} choose their own path, and that choice determines what they encounter next.`,
-  };
+  state: CognitiveExperienceState,
+): CognitiveExperienceState {
+  const corpus = prompt.toLowerCase();
+  const values = state.participants.value.filter((value) => {
+    const normalized = value.toLowerCase();
+    if (normalized === "owner") return /\bowners?\b/.test(corpus);
+    if (normalized === "kids") return /\b(?:kids?|children)\b/.test(corpus);
+    if (normalized === "musician") return /\bmusician\b/.test(corpus);
+    if (normalized === "artist") return /\bartist\b/.test(corpus);
+    if (normalized === "scanner") return /\b(?:scanner|visitor|user|someone)\b/.test(corpus);
+    if (normalized === "shared participants") {
+      return /\b(?:family|friends?|community|fans?|customers?|visitors?|guests?|crowd|people|team|group|everyone)\b/.test(corpus);
+    }
+    return corpus.includes(normalized);
+  });
 
   return {
-    ...compiled,
-    story: {
-      ...compiled.story,
-      beats: compiled.story.beats.map((beat, index) =>
-        index === actionIndex ? actionBeat : beat,
-      ),
+    ...state,
+    participants: {
+      ...state.participants,
+      value: values,
+      status: values.length ? "observed" : "unknown",
+      confidence: values.length ? state.participants.confidence : 0,
+      evidence: values.length ? state.participants.evidence : [],
     },
+  };
+}
+
+function orderedBeatKinds(
+  trajectory: readonly StoryBeatKind[],
+  directives: readonly CognitiveBeatDirective[] | undefined,
+): StoryBeatKind[] {
+  const phase: Record<string, number> = {
+    orientation: 0,
+    hook: 10,
+    need: 15,
+    threshold: 20,
+    origin: 20,
+    encounter: 30,
+    challenge: 35,
+    discovery: 40,
+    reveal: 45,
+    instruction: 45,
+    action: 50,
+    feedback: 55,
+    contribution: 55,
+    escalation: 60,
+    transformation: 70,
+    reflection: 75,
+    provenance: 78,
+    identity: 80,
+    milestone: 82,
+    unlock: 84,
+    earned_access: 84,
+    payoff: 90,
+    next_step: 95,
+    continuation: 100,
+  };
+
+  const result = [...trajectory];
+
+  for (const kind of directives?.map((directive) => directive.kind) ?? []) {
+    if (result.includes(kind)) continue;
+
+    const target = phase[kind] ?? 50;
+    let index = result.length;
+    for (let i = 0; i < result.length; i += 1) {
+      if ((phase[result[i] ?? ""] ?? 50) > target) {
+        index = i;
+        break;
+      }
+    }
+    result.splice(index, 0, kind);
+  }
+
+  return result;
+}
+
+function compose(
+  prompt: string,
+  substrate: CompiledExperienceV16,
+  state: CognitiveExperienceState,
+) {
+  const trajectory = composeCognitiveTrajectory({ plan: state.plan, prompt });
+  const beatKinds = orderedBeatKinds(
+    trajectory.beats,
+    state.plan.realization?.directives,
+  );
+  const storyProvenance = provenance(state);
+  const worldState = createUniversalRealizationState(prompt, state.plan);
+  const entities = names(
+    state.entities,
+    state.subject.value || substrate.movie.subject,
+  );
+
+  const beats: StoryBeat[] = beatKinds.map((kind, index) => {
+    const directive = state.plan.realization?.directives.find((item) => item.kind === kind);
+    const beat: StoryBeat = {
+      id: `cognitive-${index + 1}`,
+      kind,
+      order: index,
+      purpose: directive?.intent ?? kind,
+      text: "",
+      emotionalTarget:
+        state.emotionalIntent[index % (state.emotionalIntent.length || 1)],
+      entities,
+      provenance: storyProvenance,
+      directive,
+    };
+
+    beat.text =
+      realizeUniversalExperienceBeat(
+        beat,
+        state.plan,
+        prompt,
+        worldState,
+      ) ?? "";
+
+    return beat;
+  });
+
+  const rendered = beats.filter((beat) => beat.text.trim());
+  const story: ExperienceStory = {
+    title: substrate.title,
+    hook: rendered[0]?.text ?? substrate.title,
+    logline: rendered.map((beat) => beat.text).join(" "),
+    beats: rendered,
+    ending: rendered.at(-1)?.text ?? substrate.title,
+    continuation: rendered.at(-1)?.text,
+    tone: [...substrate.blueprint.tone],
+    provenance: storyProvenance,
+  };
+
+  const moments: Moment[] = rendered.map((beat, index) => ({
+    type: "message",
+    order: index,
+    text: beat.text,
+    meta: { beatId: beat.id, kind: beat.kind, duration: 4000 },
+  }));
+
+  const scenePlan: StoryScenePlan[] = rendered.map((beat, index) => ({
+    id: `cognitive-scene-${index + 1}`,
+    order: index,
+    beatId: beat.id,
+    purpose: beat.purpose,
+    text: beat.text,
+    emotionalTarget: beat.emotionalTarget,
+    entities: beat.entities,
+    duration: 4,
+    transition:
+      index === 0
+        ? "none"
+        : index === rendered.length - 1
+          ? "cinematic"
+          : "fade",
+    visual: {
+      theme: "cinematic",
+      animation: index === 0 ? "slow_zoom" : "parallax",
+    },
+    provenance: beat.provenance,
+  }));
+
+  const cinematicScenes: CinematicScene[] = moments.map((moment, index) => ({
+    id: `cognitive-cinematic-${index + 1}`,
+    type:
+      index === 0
+        ? "intro"
+        : index === rendered.length - 1
+          ? "emotion"
+          : "action",
+    duration: 4000,
+    moment,
+    order: index,
+    transition: scenePlan[index]?.transition,
+    visual: scenePlan[index]?.visual,
+    preload: index < moments.length - 1,
+    meta: {
+      beatId: rendered[index]?.id,
+      kind: rendered[index]?.kind,
+    },
+  }));
+
+  return {
+    story,
+    moments,
+    scenePlan,
+    cinematicScenes,
+    candidates: trajectory.candidates,
+  };
+}
+
+function blueprint(
+  base: ExperienceBlueprint,
+  state: CognitiveExperienceState,
+  moments: Moment[],
+): ExperienceBlueprint {
+  const compiledMoments: ExperienceMoment[] = moments.map((moment, index) => ({
+    type:
+      index === 0
+        ? "introduction"
+        : index === moments.length - 1
+          ? "completion"
+          : "story",
+    component: "story",
+    title:
+      index === 0
+        ? "The beginning"
+        : index === moments.length - 1
+          ? "The moment that stayed"
+          : "And then",
+    subtitle: state.subject.value,
+    description: moment.type === "message" ? moment.text : "",
+    editable: true,
+    demo: false,
+    order: index,
+    payload: {
+      beatId: moment.meta?.beatId,
+      source: "cognitive-experience",
+    },
+  }));
+
+  return {
+    ...base,
+    cognitivePlan: state.plan,
+    moments: compiledMoments,
+    metadata: {
+      ...base.metadata,
+      archetypes: unique([
+        ...(base.metadata?.archetypes ?? []),
+        state.selectedHypothesis.kind,
+      ]),
+      dna: unique([
+        ...(base.metadata?.dna ?? []),
+        "canonical-cognitive-compiler",
+        "premise-conserved",
+        "universal-evidence-realizer",
+        "prompt-authoritative-language",
+        "explicit-participant-only",
+        "location-time-preservation",
+      ]),
+    },
+  };
+}
+
+function makeGenome(
+  substrate: CompiledExperienceV16,
+  state: CognitiveExperienceState,
+): ExperienceGenome {
+  return {
+    intent: unique([state.selectedHypothesis.kind, substrate.intent.purpose]),
+    interpretation: {
+      intent: [state.selectedHypothesis.kind],
+      concepts: unique([state.subject.value, ...state.affordances]),
+      emotionalSignals: state.emotionalIntent,
+      worldSignals: [],
+      cognitiveSignals: unique([
+        ...state.plan.dynamicBehavior,
+        ...state.plan.futureEvolution,
+      ]),
+      confidence: state.selectedHypothesis.score,
+    },
+    archetypes: [state.selectedHypothesis.kind],
+    themes: state.emotionalIntent,
+    emotions: state.emotionalIntent,
+    meaning: substrate.blueprint.meaning,
+    relationships: [],
+    energy: "calm",
+    pacing: "medium",
+    social: state.participants.value.length > 1 ? "shared" : "solo",
+    journey: ["arrival", "discovery", "transformation", "peak"],
+    discovery: state.selectedHypothesis.dimensions.discoveryPotential,
+    memory: state.selectedHypothesis.dimensions.memoryPotential,
+    commerce: state.selectedHypothesis.dimensions.commercialPotential,
+    immersion: state.selectedHypothesis.dimensions.temporalPotential,
+    interaction: state.selectedHypothesis.dimensions.interactionNaturalness,
+    replay: state.selectedHypothesis.dimensions.temporalPotential,
+    entities: state.entities,
+    environments: state.entities.places,
+    audience: unique([
+      ...state.participants.value,
+      ...state.plan.audience,
+    ]),
+    dna: [
+      "canonical-cognitive-compiler",
+      "universal-evidence-realizer",
+      "prompt-authoritative-language",
+    ],
   };
 }
 
 export function compileCognitiveExperience(
   prompt: string,
-  context: StoryCompilerContext = {},
+  context: ExperienceCompilerContext = {},
 ): CognitiveCompiledExperience {
-  const cognitionBase = canonicalizeCognition(
-    enrichConcreteSubjectEvidence(
-      prompt,
-      respectExplicitNarrativeIntent(prompt, understandExperience(prompt, context)),
-    ),
+  let state = repairOrdinarySubject(
+    prompt,
+    understandExperience(prompt, context),
   );
+
+  state = retainExplicitParticipants(prompt, state);
+  state = {
+    ...state,
+    plan: {
+      ...state.plan,
+      direction: state.selectedHypothesis.kind,
+    },
+  };
 
   const premise = buildCognitivePremise({
     prompt,
-    subject: cognitionBase.subject,
-    participants: cognitionBase.participants,
-    entities: cognitionBase.entities,
-    affordances: cognitionBase.affordances,
-    emotionalIntent: cognitionBase.emotionalIntent,
-    plan: cognitionBase.plan,
+    subject: state.subject,
+    participants: state.participants,
+    entities: state.entities,
+    affordances: state.affordances,
+    emotionalIntent: state.emotionalIntent,
+    plan: state.plan,
     context,
   });
 
   const realization = realizeCognitiveExperience({
-    plan: cognitionBase.plan,
+    plan: state.plan,
     premise,
-    evidence: cognitionBase.subject.evidence,
-    hypothesisEvidence: cognitionBase.selectedHypothesis.evidence,
+    evidence: state.subject.evidence,
+    hypothesisEvidence: state.selectedHypothesis.evidence,
     prompt,
   });
 
-  const cognition: CognitiveExperienceState = {
-    ...cognitionBase,
-    plan: { ...cognitionBase.plan, premise, realization },
-  };
-
-  const compiled = compileStoryExperience(prompt, {
-    ...context,
-    cognitivePlan: cognition.plan,
-  });
-
-  const guarded = {
-    ...compiled,
-    story: {
-      ...compiled.story,
-      beats: guardCognitiveStory(compiled.story.beats, cognition.plan),
+  state = {
+    ...state,
+    plan: {
+      ...state.plan,
+      premise,
+      realization,
     },
   };
 
-  const realized = realizeExplicitAgency(prompt, guarded);
-  const canonical = propagateCanonicalLanguage(realized);
+  const substrate = compileExperienceV16(prompt, context);
+  const result = compose(prompt, substrate, state);
+  const compiledBlueprint = blueprint(
+    substrate.blueprint,
+    state,
+    result.moments,
+  );
+
+  const observation: ExperienceObservation = {
+    prompt,
+    subject: state.subject.value || substrate.movie.subject,
+    activity:
+      result.story.beats[0]?.text ??
+      substrate.intent.purpose,
+    context: unique([
+      substrate.intent.domain,
+      ...substrate.intent.signals,
+    ]),
+    entities: state.entities,
+    explicitEmotions: state.emotionalIntent,
+    audience: unique([
+      ...state.participants.value,
+      ...state.plan.audience,
+    ]),
+    temporal: unique([
+      ...state.entities.dates,
+      ...state.entities.times,
+    ]),
+    affordances: state.affordances,
+    evidence: provenance(state),
+  };
+
+  const model = {
+    title: substrate.title,
+    description: state.plan.purpose,
+    industry: "generic",
+    goal: "storytelling",
+    tone: [...substrate.blueprint.tone],
+    moments: compiledBlueprint.moments,
+  } as ExperienceModel;
 
   return {
-    ...canonical,
-    cognition,
-    genome: mergeGenome(canonical.genome, cognition),
-    blueprint: mergeBlueprint(canonical.blueprint, cognition),
-    model: directModel(canonical, cognition),
+    ...substrate,
+    cognition: state,
+    observation,
+    situation: {
+      subject: observation.subject,
+      actors: observation.audience,
+      activity: observation.activity,
+      setting: observation.context,
+      temporal: observation.temporal,
+      social:
+        observation.audience.length > 1
+          ? "shared"
+          : observation.audience.length
+            ? "solo"
+            : "unknown",
+      purpose: state.plan.purpose,
+      change:
+        state.plan.realization?.semanticArc.at(-1) ?? "progress",
+      tension: state.plan.storyStructure.join(" → "),
+    },
+    candidates: result.candidates,
+    genome: makeGenome(substrate, state),
+    story: result.story,
+    blueprint: compiledBlueprint,
+    flowSteps: result.story.beats.map((beat, index) => ({
+      id: `cognitive-flow-${index + 1}`,
+      order: index,
+      type: "message",
+      payload: {
+        beat,
+        beatId: beat.id,
+        subject: state.subject.value,
+        source: "cognitive-experience",
+      },
+    })),
+    moments: result.moments,
+    cinematicScenes: result.cinematicScenes,
+    scenePlan: result.scenePlan,
+    model,
+    title: result.story.title,
+    estimatedDuration: Math.max(8, result.story.beats.length * 4),
+    momentCount: result.story.beats.length,
   };
 }

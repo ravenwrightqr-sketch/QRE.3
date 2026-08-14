@@ -26,3 +26,4 @@ export type { SemanticInterpretation } from "./semantic.js";
 export * from "./indexV13.js";
 export * from "./memoryIntelligenceV14.js";
 export * from "./memoryForesightV15.js";
+export * from "./memorySpatialV16.js";
