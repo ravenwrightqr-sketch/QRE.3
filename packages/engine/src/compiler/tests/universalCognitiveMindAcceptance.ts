@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { compileCognitiveExperience } from "../../experience/cognitiveExperienceCompiler.js";
+import { messageText } from "../universalExperienceBrain.js";
 
 const cases = [
   {
@@ -67,11 +68,11 @@ const cases = [
   },
 ] as const;
 
-const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|latent movie|internal state|generated output|result is available)\b/i;
+const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|mechanics|latent movie|internal state|generated output|result is available)\b/i;
 
 for (const testCase of cases) {
   const result = compileCognitiveExperience(testCase.prompt);
-  const text = result.moments.map((moment) => moment.text).join(" ");
+  const text = result.moments.map(messageText).join(" ");
 
   for (const anchor of testCase.anchors) {
     assert.match(text.toLowerCase(), new RegExp(anchor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").toLowerCase()), `${testCase.name}: missing source anchor '${anchor}'`);
@@ -83,16 +84,16 @@ for (const testCase of cases) {
 
   console.log(`\n=== ${testCase.name} ===`);
   console.log(`PROMPT: ${testCase.prompt}`);
-  result.moments.forEach((moment, index) => console.log(`  ${index + 1}. ${moment.text}`));
+  result.moments.forEach((moment, index) => console.log(`  ${index + 1}. ${messageText(moment)}`));
 }
 
 const plain = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous.");
 const horror = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous. Make it horror.");
 const comedy = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous. Make it funny.");
 
-const plainText = plain.moments.map((m) => m.text).join(" ");
-const horrorText = horror.moments.map((m) => m.text).join(" ");
-const comedyText = comedy.moments.map((m) => m.text).join(" ");
+const plainText = plain.moments.map(messageText).join(" ");
+const horrorText = horror.moments.map(messageText).join(" ");
+const comedyText = comedy.moments.map(messageText).join(" ");
 
 assert.notEqual(horrorText, plainText, "horror lens did not materially change performance");
 assert.notEqual(comedyText, plainText, "comedy lens did not materially change performance");
