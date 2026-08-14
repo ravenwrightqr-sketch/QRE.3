@@ -69,10 +69,6 @@ export async function getCreativeLearningContext(input: {
       type: {
         in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
       },
-      OR: [
-        { assetId: input.assetId },
-        { assetId: { not: input.assetId } },
-      ],
     },
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -93,8 +89,9 @@ export async function getCreativeLearningContext(input: {
       : [];
     const userId = clean(meta.userId);
     const sameUser = Boolean(input.userId && userId && userId === input.userId);
-    const scope = event.assetId === input.assetId ? "this experience" : "other experience";
+    const sameAsset = event.assetId === input.assetId;
     const prefix = sameUser ? "your preference" : "observed preference";
+    const scope = sameAsset ? "this experience" : "other experience";
 
     if (event.type === "AI_CREATIVE_REJECTED") {
       if (feedback) rejected.push(`${prefix}: avoid ${feedback}`);
