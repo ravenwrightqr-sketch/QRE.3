@@ -1,10 +1,21 @@
 import type { CognitiveAnalyticsSignal, CognitiveMindState } from "@qre/contracts";
 
+export type GeoAnchorRole = "physical_site" | "experience_place" | "event_venue" | "memory_place" | "reference_place";
+
 export type UniversalMindContext = {
   memorySummary?: string[];
   memories?: unknown[];
   analytics?: CognitiveAnalyticsSignal;
-  location?: { label?: string; city?: string; country?: string; latitude?: number; longitude?: number };
+  location?: {
+    label?: string;
+    city?: string;
+    region?: string;
+    country?: string;
+    latitude?: number;
+    longitude?: number;
+    role?: GeoAnchorRole;
+    source?: string;
+  };
   event?: { name?: string; venue?: string; date?: string; description?: string; participants?: string[] };
   entityHints?: string[];
   creativePreferences?: string[];
