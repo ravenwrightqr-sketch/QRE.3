@@ -1,4 +1,5 @@
 import { db } from "@qre/db";
+import { getAutonomousLearning } from "./autonomousLearning.js";
 
 export type CreativeFeedbackDecision = "accepted" | "rejected" | "selected";
 
@@ -7,6 +8,10 @@ export type CreativeLearningContext = {
   acceptedPatterns: string[];
   rejectedPatterns: string[];
   recentFeedback: string[];
+  autonomousSignals: string[];
+  autonomousWinners: string[];
+  autonomousWeaknesses: string[];
+  autonomousConfidence: number;
 };
 
 function clean(value: unknown): string {
@@ -46,6 +51,7 @@ export async function recordCreativeFeedback(input: {
       type,
       meta: {
         userId: input.userId ?? null,
+        decisionSource: "human",
         prompt: clean(input.prompt).slice(0, 4000),
         draft: clean(input.draft).slice(0, 12000),
         feedback: clean(input.feedback).slice(0, 4000),
@@ -71,7 +77,7 @@ export async function getCreativeLearningContext(input: {
   });
 
   if (!asset) {
-    return { signals: [], acceptedPatterns: [], rejectedPatterns: [], recentFeedback: [] };
+    return { signals: [], acceptedPatterns: [], rejectedPatterns: [], recentFeedback: [], autonomousSignals: [], autonomousWinners: [], autonomousWeaknesses: [], autonomousConfidence: 0 };
   }
 
   let scopeAssetIds = [asset.id];
@@ -97,16 +103,19 @@ export async function getCreativeLearningContext(input: {
     if (owned.length) scopeAssetIds = owned.map((row) => row.id);
   }
 
-  const events = await db.analyticsEvent.findMany({
-    where: {
-      assetId: { in: scopeAssetIds },
-      type: {
-        in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
+  const [events, autonomous] = await Promise.all([
+    db.analyticsEvent.findMany({
+      where: {
+        assetId: { in: scopeAssetIds },
+        type: {
+          in: ["AI_CREATIVE_ACCEPTED", "AI_CREATIVE_REJECTED", "AI_VARIATION_SELECTED"],
+        },
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    getAutonomousLearning({ assetId: input.assetId, userId: input.userId, limit: Math.max(limit, 120) }),
+  ]);
 
   const accepted: string[] = [];
   const rejected: string[] = [];
@@ -126,6 +135,7 @@ export async function getCreativeLearningContext(input: {
     const sameAsset = event.assetId === input.assetId;
     const prefix = sameUser ? "your preference" : "account preference";
     const scope = sameAsset ? "this experience" : "another experience";
+    const source = clean(meta.decisionSource) || "human";
 
     if (event.type === "AI_CREATIVE_REJECTED") {
       if (feedback) rejected.push(`${prefix}: avoid ${feedback}`);
@@ -139,15 +149,23 @@ export async function getCreativeLearningContext(input: {
     }
 
     const timestamp = event.createdAt.toISOString();
-    if (draft) signals.push(`${event.type} at ${timestamp}: ${draft.slice(0, 350)}`);
-    if (feedback) recentFeedback.push(`${event.type}: ${feedback.slice(0, 350)}`);
+    if (draft) signals.push(`${source.toUpperCase()} ${event.type} at ${timestamp}: ${draft.slice(0, 350)}`);
+    if (feedback) recentFeedback.push(`${source.toUpperCase()} ${event.type}: ${feedback.slice(0, 350)}`);
   }
 
+  signals.push(...autonomous.signals);
+  accepted.push(...autonomous.winningPatterns);
+  rejected.push(...autonomous.weaknesses);
+
   return {
-    signals: unique(signals).slice(0, 30),
-    acceptedPatterns: unique(accepted).slice(0, 30),
-    rejectedPatterns: unique(rejected).slice(0, 30),
+    signals: unique(signals).slice(0, 40),
+    acceptedPatterns: unique(accepted).slice(0, 40),
+    rejectedPatterns: unique(rejected).slice(0, 40),
     recentFeedback: unique(recentFeedback).slice(0, 30),
+    autonomousSignals: unique(autonomous.signals).slice(0, 20),
+    autonomousWinners: unique(autonomous.winningPatterns).slice(0, 20),
+    autonomousWeaknesses: unique(autonomous.weakPatterns).slice(0, 20),
+    autonomousConfidence: autonomous.confidence,
   };
 }
 
@@ -155,7 +173,10 @@ export function learningContextLines(context: CreativeLearningContext): string[]
   return [
     ...context.acceptedPatterns.map((value) => `LEARNED_PREFERENCE: ${value}`),
     ...context.rejectedPatterns.map((value) => `LEARNED_AVOIDANCE: ${value}`),
+    ...context.autonomousWinners.map((value) => `AUTONOMOUS_LEARNING_WINNER: ${value}`),
+    ...context.autonomousWeaknesses.map((value) => `AUTONOMOUS_LEARNING_WEAKNESS: ${value}`),
     ...context.recentFeedback.map((value) => `RECENT_FEEDBACK: ${value}`),
-    ...context.signals.slice(0, 10).map((value) => `LEARNING_SIGNAL: ${value}`),
-  ].slice(0, 80);
+    ...context.signals.slice(0, 12).map((value) => `LEARNING_SIGNAL: ${value}`),
+    `AUTONOMOUS_CONFIDENCE: ${context.autonomousConfidence.toFixed(2)}`,
+  ].slice(0, 100);
 }
