@@ -1,0 +1,1 @@
+The benchmark measures QRE-specific cognitive behavior, not universal intelligence.
