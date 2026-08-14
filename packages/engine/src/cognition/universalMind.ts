@@ -113,7 +113,7 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   learnedLens(world, mind);
   const learning = learningInput(mind);
   const significance = analyzeSignificance(world);
-  const candidates = generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases, learning.noveltyPressure);
+  const candidates = generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected, learning.usedPhrases);
   const selected = selectCritically(world, candidates);
   creativeEvidence(selected, world);
   const nextState = evolveMindState(mind, world, selected, context);
