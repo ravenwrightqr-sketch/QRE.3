@@ -64,10 +64,10 @@ function candidate(event: WorldEvent, world: WorldModel, text: string, move: Nar
     lens: world.lens,
     creativity: Math.min(10, creativity),
     evidenceCoverage: 1,
-    novelty: 0.93,
-    causalFit: event.order === 0 ? 0.97 : 0.95,
-    attention: Math.min(1.5, 1.02 + details.length * 0.13),
-    score: 91 + creativity * 3 + details.length * 5,
+    novelty: 0.95,
+    causalFit: event.order === 0 ? 0.98 : 0.96,
+    attention: Math.min(1.5, 1.06 + details.length * 0.14),
+    score: 182 + creativity * 2 + details.length * 4,
     creativeDetails: [`narrative:${move}`, ...details],
   };
 }
@@ -79,35 +79,35 @@ function genericCandidates(event: WorldEvent, world: WorldModel): CreativeCandid
   const q = secondary(event, p);
   const out: CreativeCandidate[] = [candidate(event, world, raw, "quiet-payoff", ["source preserved"], 7.2)];
 
-  if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was the detail that kept the scene from becoming just another report`, "object-turn", ["specificity", "report-to-memory"], 8.2));
-  if (p && q) out.push(candidate(event, world, `${raw} ${sentence(p)} drew the eye; ${sentence(q)} was what gave the moment its shape`, "contrast-turn", ["foreground", "counterpoint"], 8.5));
-  if (event.place && p) out.push(candidate(event, world, `${raw} ${sentence(event.place)} was more than a backdrop; it was the room in which ${sentence(p)} changed meaning`, "setting-turn", ["setting-as-witness", "semantic-shift"], 8.7));
-  if (event.time && p) out.push(candidate(event, world, `${raw} ${sentence(event.time)} was only a timestamp until ${sentence(p)} gave it something worth remembering`, "time-turn", ["time-to-memory", "future-recall"], 8.7));
-  if (hasReturn(event.raw) && p) out.push(candidate(event, world, `${raw} Returning changed the detail: ${sentence(p)} was no longer just part of the place; it was part of the history there`, "return-payoff", ["recurrence", "memory-evolution"], 9.0));
-  if (hasLongMemory(event.raw) && p) out.push(candidate(event, world, `${raw} Years can change what an object means without changing the object at all; ${sentence(p)} had already crossed that line`, "memory-turn", ["long-memory", "reinterpretation"], 9.1));
+  if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was the detail that kept the scene from becoming just another report`, "object-turn", ["specificity", "report-to-memory"], 8.4));
+  if (p && q) out.push(candidate(event, world, `${raw} ${sentence(p)} drew the eye; ${sentence(q)} was what gave the moment its shape`, "contrast-turn", ["foreground", "counterpoint"], 8.7));
+  if (event.place && p) out.push(candidate(event, world, `${raw} ${sentence(event.place)} was more than a backdrop; it was the room in which ${sentence(p)} changed meaning`, "setting-turn", ["setting-as-witness", "semantic-shift"], 8.9));
+  if (event.time && p) out.push(candidate(event, world, `${raw} ${sentence(event.time)} was only a timestamp until ${sentence(p)} gave it something worth remembering`, "time-turn", ["time-to-memory", "future-recall"], 8.9));
+  if (hasReturn(event.raw) && p) out.push(candidate(event, world, `${raw} Returning changed the detail: ${sentence(p)} was no longer just part of the place; it was part of the history there`, "return-payoff", ["recurrence", "memory-evolution"], 9.2));
+  if (hasLongMemory(event.raw) && p) out.push(candidate(event, world, `${raw} Years can change what an object means without changing the object at all; ${sentence(p)} had already crossed that line`, "memory-turn", ["long-memory", "reinterpretation"], 9.3));
 
-  if (hasServiceShape(event.raw)) out.push(candidate(event, world, `${raw} The useful part was not the list of steps. It was the change the person could actually feel when the work was finished`, "service-payoff", ["service-outcome", "customer-facing-value"], 9.15));
+  if (hasServiceShape(event.raw)) out.push(candidate(event, world, `${raw} The useful part was not the list of steps. It was the change the person could actually feel when the work was finished`, "service-payoff", ["service-outcome", "customer-facing-value"], 9.35));
 
   switch (world.lens) {
     case "comedy":
-      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} behaved like it had been promoted to management without anyone remembering the interview`, "comic-turn", ["status-inversion", "personification"], 9.3));
-      else out.push(candidate(event, world, `${raw} The sensible interpretation was still available. The scene had simply decided not to use it`, "comic-turn", ["comic-contrast", "understatement"], 9.1));
+      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} behaved like it had been promoted to management without anyone remembering the interview`, "comic-turn", ["status-inversion", "personification"], 9.5));
+      else out.push(candidate(event, world, `${raw} The sensible interpretation was still available. The scene had simply decided not to use it`, "comic-turn", ["comic-contrast", "understatement"], 9.3));
       break;
     case "horror":
-      out.push(candidate(event, world, `${raw} Nothing in the facts needed to be impossible. The unsettling part was how neatly the details fit together`, "horror-turn", ["ordinary-ominous", "pattern-recognition"], 9.4));
-      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was ordinary on its own. In this arrangement, it became the detail nobody wanted to look at twice`, "horror-turn", ["ordinary-inversion", "avoidance"], 9.5));
+      out.push(candidate(event, world, `${raw} Nothing in the facts needed to be impossible. The unsettling part was how neatly the details fit together`, "horror-turn", ["ordinary-ominous", "pattern-recognition"], 9.6));
+      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was ordinary on its own. In this arrangement, it became the detail nobody wanted to look at twice`, "horror-turn", ["ordinary-inversion", "avoidance"], 9.7));
       break;
     case "romance":
-      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was small enough to miss in the moment and exact enough for memory to keep`, "romance-turn", ["tender-understatement", "memory-afterimage"], 9.4));
-      out.push(candidate(event, world, `${raw} The scene did not need to announce its importance. That is usually how the moments worth keeping arrive`, "romance-turn", ["emotional-understatement", "memory"], 9.2));
+      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was small enough to miss in the moment and exact enough for memory to keep`, "romance-turn", ["tender-understatement", "memory-afterimage"], 9.6));
+      out.push(candidate(event, world, `${raw} The scene did not need to announce its importance. That is usually how the moments worth keeping arrive`, "romance-turn", ["emotional-understatement", "memory"], 9.4));
       break;
     case "mysterious":
-      out.push(candidate(event, world, `${raw} Every detail had an explanation. The combination was what made the explanation feel incomplete`, "mystery-turn", ["assembled-implication", "open-question"], 9.4));
-      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was not strange by itself. It became strange when the rest of the scene refused to let it stay ordinary`, "mystery-turn", ["relational-strangeness", "tension"], 9.35));
+      out.push(candidate(event, world, `${raw} Every detail had an explanation. The combination was what made the explanation feel incomplete`, "mystery-turn", ["assembled-implication", "open-question"], 9.6));
+      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was not strange by itself. It became strange when the rest of the scene refused to let it stay ordinary`, "mystery-turn", ["relational-strangeness", "tension"], 9.55));
       break;
     case "wild":
-      out.push(candidate(event, world, `${raw} The plan was still technically alive; the night had simply stopped respecting it`, "wild-turn", ["escalation", "plan-versus-reality"], 9.25));
-      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was not the whole story. It was the part that made the next bad idea look inevitable`, "wild-turn", ["foreshadowing", "escalation"], 9.35));
+      out.push(candidate(event, world, `${raw} The plan was still technically alive; the night had simply stopped respecting it`, "wild-turn", ["escalation", "plan-versus-reality"], 9.45));
+      if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was not the whole story. It was the part that made the next bad idea look inevitable`, "wild-turn", ["foreshadowing", "escalation"], 9.55));
       break;
     default:
       break;
@@ -121,9 +121,9 @@ function sequenceCandidates(event: WorldEvent, world: WorldModel): CreativeCandi
   const previous = world.events[event.order - 1];
   const next = world.events[event.order + 1];
   const p = primary(event);
-  if (previous && p) out.push(candidate(event, world, `${safeRaw(event)} After ${sentence(primary(previous) || previous.raw)}, ${sentence(p)} landed differently`, "contrast-turn", ["sequence-memory", "state-change"], 9.0));
-  if (next && p) out.push(candidate(event, world, `${safeRaw(event)} ${sentence(p)} had one job for now: make the next beat feel worth waiting for`, "memory-turn", ["anticipation", "forward-pull"], 8.9));
-  if (!next && previous && p) out.push(candidate(event, world, `${safeRaw(event)} Earlier, ${sentence(primary(previous) || previous.raw)} looked like the important part. By the end, ${sentence(p)} had inherited the memory`, "memory-turn", ["callback", "payoff", "reinterpretation"], 9.5));
+  if (previous && p) out.push(candidate(event, world, `${safeRaw(event)} After ${sentence(primary(previous) || previous.raw)}, ${sentence(p)} landed differently`, "contrast-turn", ["sequence-memory", "state-change"], 9.25));
+  if (next && p) out.push(candidate(event, world, `${safeRaw(event)} ${sentence(p)} had one job for now: make the next beat feel worth waiting for`, "memory-turn", ["anticipation", "forward-pull"], 9.15));
+  if (!next && previous && p) out.push(candidate(event, world, `${safeRaw(event)} Earlier, ${sentence(primary(previous) || previous.raw)} looked like the important part. By the end, ${sentence(p)} had inherited the memory`, "memory-turn", ["callback", "payoff", "reinterpretation"], 9.65));
   return out;
 }
 
