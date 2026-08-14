@@ -36,6 +36,7 @@ export default function KnowledgeDashboard() {
   const [notes, setNotes] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
@@ -50,6 +51,25 @@ export default function KnowledgeDashboard() {
     return [...groups.entries()];
   }, [data]);
 
+  async function analyzePhoto(dataUrl: string) {
+    setAnalyzing(true);
+    setError("");
+    try {
+      const response = await apiPost("/api/ai/vision", { imageDataUrl: dataUrl, category });
+      const first = Array.isArray(response.facts) ? response.facts[0] : null;
+      if (first) {
+        setLabel(String(first.label ?? ""));
+        setValue(String(first.value ?? ""));
+        setCategory(String(first.category ?? category));
+        setNotes(String(first.notes ?? ""));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Photo analysis is unavailable. You can still enter the fact manually.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   async function save() {
     if (!label.trim() || !value.trim()) return;
     setSaving(true);
@@ -60,7 +80,16 @@ export default function KnowledgeDashboard() {
     finally { setSaving(false); }
   }
   async function remove(id: string) { await apiDelete(`/api/knowledge/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`); await load(); }
-  function handlePhoto(file?: File) { if (!file) return; const reader = new FileReader(); reader.onload = () => setImageDataUrl(typeof reader.result === "string" ? reader.result : ""); reader.readAsDataURL(file); }
+  function handlePhoto(file?: File) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setImageDataUrl(result);
+      if (result) void analyzePhoto(result);
+    };
+    reader.readAsDataURL(file);
+  }
 
   if (!data) return <DashboardLayout><main style={{ padding: 40, color: "#fff" }}>{error || "LOADING KNOWLEDGE..."}</main></DashboardLayout>;
   const metrics = data.metrics ?? {};
@@ -77,7 +106,7 @@ export default function KnowledgeDashboard() {
         <section style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 20, marginBottom: 28 }}>
           <div style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>Add anything</h2>
-            <p style={{ opacity: .55 }}>Paint color. Flooring. Appliance model. Warranty. Builder. Owner note. A place you returned to. Anything that should become part of the object's memory.</p>
+            <p style={{ opacity: .55 }}>Type a fact or photograph it. QRE can inspect the image, propose structured facts, and let you correct them before they become part of the object's memory.</p>
             <div style={{ display: "grid", gap: 12 }}>
               <input style={inputStyle} placeholder="What is this? e.g. Kitchen wall paint" value={label} onChange={(e) => setLabel(e.target.value)} />
               <input style={inputStyle} placeholder="Value e.g. Sherwin-Williams Alabaster SW 7008" value={value} onChange={(e) => setValue(e.target.value)} />
@@ -85,8 +114,9 @@ export default function KnowledgeDashboard() {
               <textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <label style={{ border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "11px 14px", cursor: "pointer" }}>📷 Take / attach photo<input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => handlePhoto(e.target.files?.[0])} /></label>
-                {imageDataUrl && <span style={{ opacity: .65 }}>Photo attached</span>}
-                <button onClick={save} disabled={saving || !label.trim() || !value.trim()} style={{ marginLeft: "auto", border: 0, borderRadius: 12, padding: "12px 18px", cursor: "pointer" }}>{saving ? "SAVING…" : "ADD TO MEMORY"}</button>
+                {analyzing && <span style={{ opacity: .7 }}>Analyzing photo…</span>}
+                {!analyzing && imageDataUrl && <span style={{ opacity: .65 }}>Photo analyzed — review the proposed fact.</span>}
+                <button onClick={save} disabled={saving || analyzing || !label.trim() || !value.trim()} style={{ marginLeft: "auto", border: 0, borderRadius: 12, padding: "12px 18px", cursor: "pointer" }}>{saving ? "SAVING…" : "ADD TO MEMORY"}</button>
               </div>
             </div>
           </div>
