@@ -1,5 +1,6 @@
 import type { CognitiveLens, WorldEvent, WorldModel } from "./worldModel.js";
 import type { SignificanceResult } from "./significanceEngine.js";
+import { generateWriterDrafts } from "./creativeWriter.js";
 
 export type CreativeCandidate = {
   eventId: string;
@@ -140,43 +141,21 @@ function contextualTurn(event: WorldEvent, lens: CognitiveLens): CandidateDraft[
   const secondary = secondaryDetail(event, primary);
   const corpus = lower(`${raw} ${event.details.join(" ")}`);
   const drafts: CandidateDraft[] = [];
-
   const add = (text: string, details: string[], move: string) => drafts.push({ text, creativeDetails: details, move });
 
-  if (/\bwedding\b/.test(corpus) || /\bvows?\b/.test(corpus)) {
-    add(`${raw}. The vows have a script; everything after them gets the dangerous freedom of a live night.`, ["semantic turn", "anticipation", "earned unpredictability"], "contextual-wedding");
-  } else if (/\b(first date|anniversary|nine years|years ago|grandmother|grandma|father|dad|mother|mom)\b/.test(corpus)) {
-    add(`${raw}. The calendar can measure the distance; it cannot measure what the detail kept alive.`, ["memory compression", "emotional implication"], "contextual-memory");
-  } else if (/\bconcert|rave|festival|crowd|sunrise\b/.test(corpus)) {
-    add(`${raw}. The event had a schedule; the atmosphere clearly had other plans.`, ["atmospheric contrast", "event momentum"], "contextual-event");
-  } else if (/\brestaurant|bakery|salon|groomer|hotel|housekeeper|client\b/.test(corpus)) {
-    add(`${raw}. Routine was the official description. The details were already making a better story.`, ["routine-to-story turn", "specificity"], "contextual-service");
-  } else if (/\bkeychain|watch|teapot|guitar|camera|suitcase|compass|ticket\b/.test(corpus)) {
-    add(`${raw}. The object stayed the same; the places around it kept changing what it meant.`, ["object continuity", "meaning evolution"], "contextual-object");
-  } else if (/\b(?:room|hallway|motel|hotel room|lights|chairs|door|window|ocean)\b/.test(corpus)) {
-    add(`${raw}. Nothing about the setting needed to announce itself. The arrangement was enough to change the feeling.`, ["setting inversion", "atmospheric implication"], "contextual-setting");
-  } else if (primary || secondary) {
-    const pivot = secondary && primary && lower(secondary) !== lower(primary)
-      ? `The ${primary} was the visible fact; ${secondary} was where the meaning started to move.`
-      : `The visible facts were simple. ${primary ? `${primary} gave them something to catch on.` : "One small detail gave them texture."}`;
-    add(`${raw}. ${pivot}`, ["detail hierarchy", "semantic turn"], "contextual-pivot");
-  }
+  if (/\bwedding\b/.test(corpus) || /\bvows?\b/.test(corpus)) add(`${raw}. The vows have a script; everything after them gets the dangerous freedom of a live night.`, ["semantic turn", "anticipation", "earned unpredictability"], "contextual-wedding");
+  else if (/\b(first date|anniversary|nine years|years ago|grandmother|grandma|father|dad|mother|mom)\b/.test(corpus)) add(`${raw}. The calendar can measure the distance; it cannot measure what the detail kept alive.`, ["memory compression", "emotional implication"], "contextual-memory");
+  else if (/\bconcert|rave|festival|crowd|sunrise\b/.test(corpus)) add(`${raw}. The event had a schedule; the atmosphere clearly had other plans.`, ["atmospheric contrast", "event momentum"], "contextual-event");
+  else if (/\brestaurant|bakery|salon|groomer|hotel|housekeeper|client\b/.test(corpus)) add(`${raw}. Routine was the official description. The details were already making a better story.`, ["routine-to-story turn", "specificity"], "contextual-service");
+  else if (/\bkeychain|watch|teapot|guitar|camera|suitcase|compass|ticket\b/.test(corpus)) add(`${raw}. The object stayed the same; the places around it kept changing what it meant.`, ["object continuity", "meaning evolution"], "contextual-object");
+  else if (/\b(?:room|hallway|motel|hotel room|lights|chairs|door|window|ocean)\b/.test(corpus)) add(`${raw}. Nothing about the setting needed to announce itself. The arrangement was enough to change the feeling.`, ["setting inversion", "atmospheric implication"], "contextual-setting");
+  else if (primary || secondary) add(`${raw}. ${primary && secondary && lower(primary) !== lower(secondary) ? `${primary} was the visible fact; ${secondary} was where the meaning started to move.` : `${primary ?? "One small detail"} gave the facts something to catch on to.`}`, ["detail hierarchy", "semantic turn"], "contextual-pivot");
 
-  if (lens === "comedy") {
-    add(`${raw}. The situation had somehow acquired more confidence than evidence.`, ["comic incongruity"], "contextual-comedy");
-  }
-  if (lens === "horror") {
-    add(`${raw}. The details remained ordinary. Their combination did not.`, ["horror implication", "ordinary-to-ominous"], "contextual-horror");
-  }
-  if (lens === "romance") {
-    add(`${raw}. It was small enough to overlook and precise enough for memory to keep.`, ["romantic compression", "memory spotlight"], "contextual-romance");
-  }
-  if (lens === "mysterious") {
-    add(`${raw}. Every fact had an explanation except the feeling they produced together.`, ["mystery implication", "withheld explanation"], "contextual-mystery");
-  }
-  if (lens === "wild") {
-    add(`${raw}. The sensible version of the day was still technically alive; it was simply losing ground.`, ["escalation", "comic momentum"], "contextual-wild");
-  }
+  if (lens === "comedy") add(`${raw}. The situation had somehow acquired more confidence than evidence.`, ["comic incongruity"], "contextual-comedy");
+  if (lens === "horror") add(`${raw}. The details remained ordinary. Their combination did not.`, ["horror implication", "ordinary-to-ominous"], "contextual-horror");
+  if (lens === "romance") add(`${raw}. It was small enough to overlook and precise enough for memory to keep.`, ["romantic compression", "memory spotlight"], "contextual-romance");
+  if (lens === "mysterious") add(`${raw}. Every fact had an explanation except the feeling they produced together.`, ["mystery implication", "withheld explanation"], "contextual-mystery");
+  if (lens === "wild") add(`${raw}. The sensible version of the day was still technically alive; it was simply losing ground.`, ["escalation", "comic momentum"], "contextual-wild");
 
   return drafts;
 }
@@ -190,6 +169,7 @@ function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent,
   const drafts: CandidateDraft[] = [{ text: raw, creativeDetails: [], move: "reality-anchor" }];
 
   drafts.push(...contextualTurn(event, world.lens));
+  drafts.push(...generateWriterDrafts(world, event, previous, next).map((draft) => ({ text: draft.text, creativeDetails: draft.details, move: `writer-${draft.move}` })));
 
   if (action && primary) drafts.push({
     text: `${s} ${action} ${primary}${event.place ? ` at ${event.place}` : ""}${event.time ? ` at ${event.time}` : ""}.`,
@@ -207,48 +187,15 @@ function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent,
     move: "spotlight",
   });
 
-  if (action && previous) drafts.push({
-    text: `After ${primaryDetail(previous) ?? clean(previous.raw)}, ${personify(s, action, primary)}. The sequence had changed direction.`,
-    creativeDetails: ["causal consequence", "turn"],
-    move: "cause-turn",
-  });
-
-  if (action && next) drafts.push({
-    text: `${personify(s, action, primary)}. ${sentenceOpenings(world.lens)[(event.order + 2) % sentenceOpenings(world.lens).length]} ${primaryDetail(next) ?? "something else"} was still coming.`,
-    creativeDetails: ["anticipation", "forward pull"],
-    move: "anticipation",
-  });
-
-  if (primary && secondary) drafts.push({
-    text: `${s} ${action ?? "was there"}. ${primary} was the obvious detail. ${secondary} was the one that stayed.`,
-    creativeDetails: ["contrast", "detail hierarchy"],
-    move: "contrast",
-  });
-
-  if (event.details.length >= 2) drafts.push({
-    text: `${s} ${action ?? "was there"}. ${event.details[0]} looked incidental; ${event.details[1]} gave the moment its shape.`,
-    creativeDetails: ["contrast", "detail hierarchy"],
-    move: "detail-contrast",
-  });
-
-  if (world.events.length >= 3 && event.order === Math.floor(world.events.length / 2)) drafts.push({
-    text: `${s} ${action ?? "was there"}${primary ? ` with ${primary}` : ""}. This was the point where the earlier details finally started to mean something together.`,
-    creativeDetails: ["midpoint synthesis", "callback"],
-    move: "midpoint",
-  });
+  if (action && previous) drafts.push({ text: `After ${primaryDetail(previous) ?? clean(previous.raw)}, ${personify(s, action, primary)}. The sequence had changed direction.`, creativeDetails: ["causal consequence", "turn"], move: "cause-turn" });
+  if (action && next) drafts.push({ text: `${personify(s, action, primary)}. ${sentenceOpenings(world.lens)[(event.order + 2) % sentenceOpenings(world.lens).length]} ${primaryDetail(next) ?? "something else"} was still coming.`, creativeDetails: ["anticipation", "forward pull"], move: "anticipation" });
+  if (primary && secondary) drafts.push({ text: `${s} ${action ?? "was there"}. ${primary} was the obvious detail. ${secondary} was the one that stayed.`, creativeDetails: ["contrast", "detail hierarchy"], move: "contrast" });
+  if (event.details.length >= 2) drafts.push({ text: `${s} ${action ?? "was there"}. ${event.details[0]} looked incidental; ${event.details[1]} gave the moment its shape.`, creativeDetails: ["contrast", "detail hierarchy"], move: "detail-contrast" });
+  if (world.events.length >= 3 && event.order === Math.floor(world.events.length / 2)) drafts.push({ text: `${s} ${action ?? "was there"}${primary ? ` with ${primary}` : ""}. This was the point where the earlier details finally started to mean something together.`, creativeDetails: ["midpoint synthesis", "callback"], move: "midpoint" });
 
   const frameEnds = endingMoves(world.lens, s, openWithDetail);
-  if (action && primary) drafts.push({
-    text: `${personify(s, action, primary)}. ${frameEnds[event.order % frameEnds.length]!}`,
-    creativeDetails: ["performance", "payoff"],
-    move: "payoff",
-  });
-
-  if (event.order > 0 && previous?.details.length) drafts.push({
-    text: `${s} ${action ?? "was there"}${primary ? ` ${primary}` : ""}. The earlier ${previous.details[0]} suddenly made more sense in hindsight.`,
-    creativeDetails: ["callback", "reinterpretation"],
-    move: "callback",
-  });
+  if (action && primary) drafts.push({ text: `${personify(s, action, primary)}. ${frameEnds[event.order % frameEnds.length]!}`, creativeDetails: ["performance", "payoff"], move: "payoff" });
+  if (event.order > 0 && previous?.details.length) drafts.push({ text: `${s} ${action ?? "was there"}${primary ? ` ${primary}` : ""}. The earlier ${previous.details[0]} suddenly made more sense in hindsight.`, creativeDetails: ["callback", "reinterpretation"], move: "callback" });
 
   if (world.lens === "comedy" && action) drafts.push(...[
     `${personify(s, action, primary)}. This was a bold strategy for a day that had done nothing to deserve one.`,
@@ -289,6 +236,10 @@ function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent,
 }
 
 function strategyValue(move: string): number {
+  if (move.startsWith("writer-")) {
+    const writerMove = move.slice("writer-".length);
+    return writerMove === "poet" || writerMove === "historian" || writerMove === "reversal" ? 2.35 : 2.15;
+  }
   switch (move) {
     case "reality-anchor": return 0;
     case "compressed-factual": return 0.2;
@@ -346,28 +297,9 @@ export function generateCandidates(
       const rawPenalty = draft.move === "reality-anchor" ? -7 : 0;
       const repetitionPenalty = prior.some((item) => lower(item) === lower(draft.text)) ? 12 : 0;
       const protectedScore = evidenceCoverage >= 1 ? 44 : evidenceCoverage >= 0.75 ? -25 : -110;
-      const score = protectedScore
-        + evidenceCoverage * 40
-        + candidateNovelty * 21
-        + causalFit * 13
-        + attention * 11
-        + creativity * 3
-        + learned
-        + rawPenalty
-        - repetitionPenalty;
+      const score = protectedScore + evidenceCoverage * 40 + candidateNovelty * 21 + causalFit * 13 + attention * 11 + creativity * 3 + learned + rawPenalty - repetitionPenalty;
 
-      result.push({
-        eventId: event.id,
-        text: draft.text,
-        lens: world.lens,
-        creativity,
-        evidenceCoverage,
-        novelty: candidateNovelty,
-        causalFit,
-        attention,
-        score,
-        creativeDetails: draft.creativeDetails,
-      });
+      result.push({ eventId: event.id, text: draft.text, lens: world.lens, creativity, evidenceCoverage, novelty: candidateNovelty, causalFit, attention, score, creativeDetails: draft.creativeDetails });
       prior.push(draft.text);
     }
   }
@@ -391,6 +323,5 @@ export function selectCreativeSequence(world: WorldModel, candidates: CreativeCa
     chosen.push(best);
     for (const detail of best.creativeDetails) usedMoves.add(detail);
   }
-
   return chosen;
 }
