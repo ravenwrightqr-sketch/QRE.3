@@ -85,16 +85,6 @@ function splitClauses(input: string): string[] {
   return out.length ? out : [text];
 }
 
-/**
- * Split coordinated actions without splitting coordinated subjects.
- *
- * "Alex and Sam went ... and stayed ..." becomes two events sharing the
- * participants. "Alex and Sam" remains one subject phrase because there is
- * no completed semantic action before that conjunction.
- *
- * This is intentionally structural: it reasons about semantic predicates,
- * not names, industries, or example-specific vocabulary.
- */
 function splitCoordinatedActions(clause: string): string[] {
   const text = sentence(clause);
   const boundaries: number[] = [];
@@ -136,10 +126,7 @@ function splitPrompt(prompt: string): string[] {
         }
       }
       if (current) result.push(current);
-      // Now split semantic predicates joined without punctuation. This runs
-      // after comma handling so "Alex and Sam" can never be mistaken for two
-      // independent events.
-      const coordinated = splitCoordinatedActions(result.splice(result.length - (parts.length ? 1 : 0)) [0] ?? "");
+      const coordinated = splitCoordinatedActions(result.splice(result.length - (parts.length ? 1 : 0))[0] ?? "");
       if (coordinated.length > 1) result.push(...coordinated);
     }
   }
@@ -175,11 +162,24 @@ function timeOf(text: string) { return text.match(TIME_RE)?.[0]; }
 function actionOf(text: string) { return text.match(ACTION_RE)?.[0]; }
 function stateOf(text: string) { return text.match(STATE_RE)?.[0]; }
 
-function concreteDetails(text: string, participantsList: string[], place?: string, time?: string): string[] {
+function objectOf(text: string, action?: string, place?: string): string | undefined {
+  if (!action) return undefined;
+  const escaped = action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`\\b${escaped}\\b(?:\\s+to)?\\s+(?:the|a|an|my|our|his|her|their|this|that)?\\s*([^,.;]+)`, "i"));
+  if (!match?.[1]) return undefined;
+  const value = sentence(match[1]).replace(/\b(?:and|or|but|while|after|before|until|where)\b.*$/i, "").trim();
+  if (!value || value.length > 80) return undefined;
+  if (place && value.toLowerCase() === place.toLowerCase()) return undefined;
+  if (TIME_RE.test(value)) return undefined;
+  return value;
+}
+
+function concreteDetails(text: string, participantsList: string[], place?: string, time?: string, object?: string): string[] {
   const withoutKnown = sentence(text)
     .replace(new RegExp(`\\b(?:${participantsList.map((x) => x.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")).join("|")})\\b`, "gi"), " ")
     .replace(place ? new RegExp(place.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ")
-    .replace(time ? new RegExp(time.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ");
+    .replace(time ? new RegExp(time.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ")
+    .replace(object ? new RegExp(object.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi") : /$^/, " ");
   const chunks = unique(withoutKnown.split(/\b(?:and|or|but|while|after|before|until|where)\b|,|;/i));
   return chunks.filter((chunk) => chunk.length >= 3 && !ACTION_RE.test(chunk) && !STATE_RE.test(chunk) && !PLACE_RE.test(chunk) && !TIME_RE.test(chunk)).slice(0, 6);
 }
@@ -211,7 +211,8 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
     const state = stateOf(raw);
     const place = placeOf(raw) ?? (RETURN_RE.test(raw) ? carryPlace : undefined);
     const time = timeOf(raw);
-    const detailList = concreteDetails(raw, eventParticipants, place, time);
+    const object = objectOf(raw, action, place);
+    const detailList = concreteDetails(raw, eventParticipants, place, time, object);
     if (eventParticipants.length) carryParticipants = eventParticipants;
     if (place) carryPlace = place;
     const items: WorldEvidence[] = [evidence(`event-${index}-raw`, raw, action ? "event" : "history", action || state ? 0.95 : 0.8, options.memorySources?.[index] ? "memory" : "prompt")];
@@ -219,8 +220,9 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
     if (place) items.push(evidence(`event-${index}-place`, place, "place", 1));
     if (time) items.push(evidence(`event-${index}-time`, time, "time", 1));
     if (state) items.push(evidence(`event-${index}-state`, state, "state", 0.85));
+    if (object) items.push(evidence(`event-${index}-object`, object, "detail", 0.95));
     detailList.forEach((value) => items.push(evidence(`event-${index}-detail-${value}`, value, "detail", 0.9)));
-    const event: WorldEvent = { id: `event-${index + 1}`, raw, participants: eventParticipants, action, state, place, time, details: detailList, order: index, evidence: items, resolvedFromMemory: Boolean(options.memoryMatches?.length) };
+    const event: WorldEvent = { id: `event-${index + 1}`, raw, participants: eventParticipants, action, state, object, place, time, details: detailList, order: index, evidence: items, resolvedFromMemory: Boolean(options.memoryMatches?.length) };
     events.push(event);
     allEvidence.push(...items);
   });
@@ -228,13 +230,14 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
   const participantsList = unique(events.flatMap((event) => event.participants));
   const places = unique(events.map((event) => event.place ?? ""));
   const times = unique(events.map((event) => event.time ?? ""));
-  const objects = unique(events.flatMap((event) => event.details).filter((value) => value.length <= 80));
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]).filter((value) => value.length <= 80));
   const entities = unique([...participantsList, ...places, ...objects]);
   const relations: WorldRelation[] = [];
   for (const event of events) {
     for (const person of event.participants) {
       if (event.place) relations.push({ from: person, relation: "experienced_at", to: event.place, evidenceId: event.id });
       for (const other of event.participants) if (other !== person) relations.push({ from: person, relation: "shared_event", to: other, evidenceId: event.id });
+      if (event.object) relations.push({ from: person, relation: "connected_to", to: event.object, evidenceId: event.id });
       for (const detail of event.details) relations.push({ from: person, relation: "connected_to", to: detail, evidenceId: event.id });
     }
   }
