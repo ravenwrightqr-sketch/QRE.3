@@ -55,5 +55,11 @@ jobs:
       - name: Universal reality acceptance
         run: pnpm --filter @qre/engine test:universal-reality
 
+      - name: Universal cognitive mind acceptance
+        run: pnpm --filter @qre/engine test:universal-mind
+
+      - name: Creative superstar acceptance
+        run: pnpm --filter @qre/engine test:creative-superstar
+
       - name: Durable memory compiler acceptance
         run: pnpm tsx packages/engine/src/experience/tests/latentMovieLearningV6Acceptance.ts
