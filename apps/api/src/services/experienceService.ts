@@ -33,8 +33,9 @@ export type CompiledExperienceResult = {
   discoveries?: string[];
   learningSignals?: string[];
   cognition?: unknown;
-  memory?: { entities: number; facts: number; relations: number; events: number };
+  memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
+  warnings?: string[];
   [key: string]: unknown;
 };
 
@@ -49,16 +50,28 @@ export async function compileExperience(input: {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("Experience prompt required");
 
+  const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
-    memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
+    try {
+      memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Memory context unavailable; continuing with prompt-only cognition.", error);
+      warnings.push("memory_context_unavailable");
+    }
   }
 
   const memorySummary = memoryContext ? memoryContextToCognitiveSummary(memoryContext) : [];
   let analyticsEvents = input.analyticsEvents ?? [];
   if (input.assetId && analyticsEvents.length === 0) {
-    const analyticsRepository = createAnalyticsRepository();
-    analyticsEvents = await analyticsRepository.findEvents({ assetId: input.assetId, limit: 200 });
+    try {
+      const analyticsRepository = createAnalyticsRepository();
+      analyticsEvents = await analyticsRepository.findEvents({ assetId: input.assetId, limit: 200 });
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Analytics context unavailable; continuing without historical analytics.", error);
+      analyticsEvents = [];
+      warnings.push("analytics_context_unavailable");
+    }
   }
 
   const analytics = summarizeCognitiveAnalytics(analyticsEvents);
@@ -105,21 +118,31 @@ export async function compileExperience(input: {
     },
   };
 
-  const result = { ...compiled, blueprint: enrichedBlueprint, geo: geo ?? null };
+  const result: CompiledExperienceResult = {
+    ...compiled,
+    blueprint: enrichedBlueprint,
+    geo: geo ?? null,
+    warnings,
+  };
 
   if (input.assetId && input.memoryRepository) {
-    const batch = buildExperienceMemoryBatch({
-      assetId: input.assetId,
-      userId: input.userId,
-      world: compiled.world,
-      source: "prompt",
-    });
-
-    await input.memoryRepository.writeBatch(batch);
-    return {
-      ...result,
-      memory: { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length },
-    };
+    try {
+      const batch = buildExperienceMemoryBatch({
+        assetId: input.assetId,
+        userId: input.userId,
+        world: compiled.world,
+        source: "prompt",
+      });
+      await input.memoryRepository.writeBatch(batch);
+      return {
+        ...result,
+        memory: { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length },
+      };
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Memory projection failed after compile; preserving generated experience.", error);
+      warnings.push("memory_projection_failed");
+      return { ...result, warnings };
+    }
   }
 
   return result;

@@ -23,6 +23,6 @@ export async function compileExperience(intent: ExperienceIntent): Promise<Exper
     ...(intent.assetId ? { assetId: intent.assetId } : {}),
     ...(intent.geo ? { geo: intent.geo } : {}),
   });
-  if (!result?.experience) throw new Error("Invalid compiler response");
+  if (!result?.experience) throw new Error(result?.details || result?.error || "Invalid compiler response");
   return result.experience as Experience;
 }
