@@ -6,6 +6,7 @@ export type AiAuthorInput = {
   sourceMoments: string[];
   facts: string[];
   memoryContext?: string[];
+  creativeLearningContext?: string[];
   audience?: string;
 };
 
@@ -100,6 +101,7 @@ function authorSystem(): string {
     "Use sentence length and openings deliberately. Avoid starting multiple sentences with the same subject when the prose can flow naturally without it.",
     "Trust the reader. Show the implication; do not explain the joke or announce the meaning.",
     "End on the strongest available beat. A final line may reframe an earlier detail, land a joke, reveal a realization, or leave a memorable image.",
+    "Treat learned preferences as soft guidance, never as facts and never as permission to copy previous prose.",
     "Return only the prose requested by the caller.",
   ].join(" ");
 }
@@ -112,6 +114,7 @@ function contextText(input: AiAuthorInput): string {
     sourceMoments: input.sourceMoments,
     facts: input.facts,
     memoryContext: input.memoryContext ?? [],
+    learnedCreativePreferences: input.creativeLearningContext ?? [],
   });
 }
 
@@ -132,6 +135,7 @@ async function localCreativeBrief(input: AiAuthorInput): Promise<CreativeBrief> 
         "You are QRE's creative director.",
         "Plan a piece of prose before the writer drafts it.",
         "Use only the supplied facts. Find the strongest concrete detail, the emotional or comic engine, a distinctive voice, and the best ending move.",
+        "Learn from the supplied accepted/rejected preferences, but never copy them and never treat them as facts.",
         "Do not invent facts. Do not write the prose yet.",
         "Return strict JSON with keys: corePremise, emotionalEngine, strongestDetail, voice, endingMove, avoid.",
       ].join(" "),
@@ -149,6 +153,7 @@ async function localDraft(input: AiAuthorInput, brief: CreativeBrief): Promise<s
       content: JSON.stringify({
         task: "Write the first serious draft.",
         creativeBrief: brief,
+        learnedCreativePreferences: input.creativeLearningContext ?? [],
         source: {
           prompt: input.prompt,
           lens: input.lens ?? "neutral",
@@ -179,9 +184,10 @@ async function localCritique(input: AiAuthorInput, brief: CreativeBrief, draft: 
       role: "system",
       content: [
         "You are QRE's ruthless literary and factual editor.",
-        "Inspect a draft against the supplied source facts.",
+        "Inspect a draft against the supplied source facts and learned preferences.",
         "Reject hallucinated world details, generic cliches, explanatory humor, repeated sentence openings, weak abstractions, filler, and obvious template language.",
         "Identify the single strongest concrete detail and the strongest possible ending move.",
+        "Do not reject figurative language merely because it is non-literal; reject it only when it asserts an unsupported factual event or becomes generic filler.",
         "Return strict JSON with keys: strengths, violations, inventedClaims, cliches, weakLines, revisionPlan, score.",
         "Do not rewrite the prose in this step.",
       ].join(" "),
@@ -190,6 +196,7 @@ async function localCritique(input: AiAuthorInput, brief: CreativeBrief, draft: 
       role: "user",
       content: JSON.stringify({
         creativeBrief: brief,
+        learnedCreativePreferences: input.creativeLearningContext ?? [],
         prompt: input.prompt,
         facts: input.facts,
         sourceMoments: input.sourceMoments,
@@ -215,8 +222,10 @@ async function localRevision(input: AiAuthorInput, brief: CreativeBrief, draft: 
           "Vary sentence openings and rhythm.",
           "Let humor or emotion emerge from the situation instead of explaining it.",
           "Make the final sentence earn its place.",
+          "Use learned preferences as guidance about taste, not as material to copy.",
         ],
         creativeBrief: brief,
+        learnedCreativePreferences: input.creativeLearningContext ?? [],
         facts: input.facts,
         sourceMoments: input.sourceMoments,
         draft,
@@ -244,6 +253,7 @@ async function localPolish(input: AiAuthorInput, draft: string): Promise<string>
     {
       role: "user",
       content: JSON.stringify({
+        learnedCreativePreferences: input.creativeLearningContext ?? [],
         facts: input.facts,
         sourceMoments: input.sourceMoments,
         draft,
@@ -274,6 +284,7 @@ export async function generateAiExperienceDraft(input: AiAuthorInput): Promise<s
     sourceMoments: input.sourceMoments,
     facts: input.facts,
     memoryContext: input.memoryContext ?? [],
+    learnedCreativePreferences: input.creativeLearningContext ?? [],
   });
   const data = await responsesApi([
     { role: "system", content: [{ type: "input_text", text: authorSystem() }] },
