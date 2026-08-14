@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - cognitive-superstar-final
+      - elite-universal-rebuild-v10
   pull_request:
 
 concurrency:
@@ -62,4 +63,7 @@ jobs:
         run: pnpm --filter @qre/engine test:universal-mind
 
       - name: Creative superstar acceptance
-        run: pnpm tsx packages/engine/src/compiler/tests/creativeSuperstarAcceptance.ts
+        run: pnpm --filter @qre/engine test:creative-superstar
+
+      - name: Runtime cognition acceptance
+        run: pnpm --filter @qre/engine test:runtime-cognition
