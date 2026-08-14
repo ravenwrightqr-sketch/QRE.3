@@ -49,6 +49,7 @@ export async function createRewardProgram(input: {
       active: true,
       priority: 50,
       isPublic: true,
+      updatedAt: now(),
       data: {
         sponsorName: input.sponsorName,
         rewardKind: "points",
