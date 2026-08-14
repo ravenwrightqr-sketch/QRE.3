@@ -29,15 +29,16 @@ for (const testCase of cases) {
   const text = result.moments.map((m) => m.text ?? m.description ?? m.title ?? "").join(" ");
   for (const anchor of testCase.anchors) assert.ok(text.toLowerCase().includes(anchor.toLowerCase()), `${testCase.name}: missing '${anchor}'`);
   for (const forbidden of testCase.forbidden ?? []) assert.ok(!text.toLowerCase().includes(forbidden.toLowerCase()), `${testCase.name}: invented '${forbidden}'`);
-  assert.ok(result.moments.length >= 2, `${testCase.name}: too few experience moments`);
+  assert.ok(result.moments.length >= 1, `${testCase.name}: no experience moments`);
   assert.equal(result.moments.length, result.cinematicScenes.length, `${testCase.name}: moment/scene drift`);
   assert.ok(!LEAK.test(text), `${testCase.name}: cognitive leakage`);
   assert.ok(!ROBOTIC.test(text), `${testCase.name}: robotic generic realization`);
 }
 
 const relationship = compileCognitiveExperience("Alex and Sam went back to the little Italian restaurant where they met two weeks ago at 7 PM and stayed until closing.");
-assert.ok(relationship.world.participants.includes("Alex"), "relationship world lost Alex");
-assert.ok(relationship.world.participants.includes("Sam"), "relationship world lost Sam");
+assert.deepEqual(new Set(relationship.world.participants), new Set(["Alex", "Sam"]), "shared event must preserve both identities");
+assert.ok(relationship.world.relations.some((relation) => relation.from === "Alex" && relation.relation === "shared_event" && relation.to === "Sam"), "missing Alex→Sam shared_event relationship");
+assert.ok(relationship.world.relations.some((relation) => relation.from === "Sam" && relation.relation === "shared_event" && relation.to === "Alex"), "missing Sam→Alex shared_event relationship");
 assert.ok(relationship.world.relations.some((relation) => relation.from === "Alex" && /restaurant/i.test(relation.to)), "relationship world lost Alex/place relation");
 assert.ok(relationship.world.relations.some((relation) => relation.from === "Sam" && /restaurant/i.test(relation.to)), "relationship world lost Sam/place relation");
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("alex"), "relationship realization lost Alex");
@@ -50,6 +51,12 @@ assert.equal(resolved.adaptiveQuestions.length, 0, "known unique memory should n
 const ambiguous = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["First met at the Little Italian restaurant.", "Later returned to Harbor Street."] });
 assert.ok(ambiguous.adaptiveQuestions.includes("Which place did you go back to?"), "ambiguous memory should ask one targeted question");
 
+const before = compileCognitiveExperience("Alex and Sam met at the Italian restaurant.");
+const after = compileCognitiveExperience("Alex and Sam returned to the Italian restaurant where they met.", { memorySummary: ["Alex and Sam met at the Italian restaurant."] });
+assert.ok(after.world.memoryMatches.length > 0, "new event must connect to history");
+assert.ok(after.discoveries.some((value) => /connects to/i.test(value)), "history connection should become a discovery");
+assert.ok(after.world.events.length >= before.world.events.length, "new event must not erase prior world structure");
+
 const plain = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous.");
 const comedy = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous. Make it funny.");
 const horror = compileCognitiveExperience("Coco came in nervous, got a bath, stole a bow, and left looking fabulous. Make it horror.");
@@ -59,6 +66,9 @@ const horrorText = horror.moments.map((m) => m.text ?? "").join(" ");
 assert.notEqual(comedyText, plainText, "comedy lens did not change performance");
 assert.notEqual(horrorText, plainText, "horror lens did not change performance");
 assert.ok(/Coco/i.test(comedyText) && /Coco/i.test(horrorText), "creative lens lost source identity");
+
+const single = compileCognitiveExperience("The keychain survived the trip.");
+assert.equal(single.moments.length, 1, "a single meaningful event should be allowed to produce one moment");
 
 const learning = compileCognitiveExperience("Coco stole the blue bow.", { creativePreferences: ["playful", "short sentences"], feedback: { accepted: ["absurd interpretation"], rejected: ["generic opener"] } });
 assert.ok(learning.learningSignals.some((s) => s.includes("accepted:absurd interpretation")), "learning signal missing");
