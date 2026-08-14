@@ -77,6 +77,7 @@ export default function AssetDashboard() {
           <p>STATUS: {asset.status}</p>
           <p>TIER: {asset.tier}</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+            <Link to={`/dashboard/assets/${asset.slug}/learning`} style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(0,255,200,.35)", borderRadius: 12, padding: "10px 14px" }}>COGNITION / LEARNING</Link>
             <Link to={`/dashboard/assets/${asset.slug}/knowledge`} style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "10px 14px" }}>KNOWLEDGE / MEMORY</Link>
             <Link to="/dashboard/info" style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "10px 14px" }}>WHAT QRE CAN DO</Link>
           </div>
