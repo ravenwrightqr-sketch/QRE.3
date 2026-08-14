@@ -1,8 +1,4 @@
-/**
- * =====================================================
- * QRE CONTRACTS PUBLIC API
- * =====================================================
- */
+/** QRE CONTRACTS PUBLIC API */
 
 export type { CinematicScene, CinematicSceneType, SceneAudio, SceneVisual, SceneTransition } from "./cinematic.js";
 export * from "./scan.js";
@@ -23,3 +19,4 @@ export * from "./experience/memoryIntelligenceV14.js";
 export * from "./experience/memoryForesightV15.js";
 export * from "./experience/memorySpatialV16.js";
 export type { MediaAsset, MediaType } from "./media.js";
+export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
