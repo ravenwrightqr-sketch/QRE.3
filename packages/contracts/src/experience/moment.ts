@@ -1,23 +1,32 @@
+import type { GeoLocation } from "../geoStory.js";
+import type { MediaAsset } from "../media.js";
+
+/**
+ * STATUS: CANONICAL
+ * ROLE: Single experience atom used by authoring, compiler output, runtime,
+ * cinematic scenes, memory, and delivery.
+ * INPUT: semantic experience information and/or runtime material.
+ * OUTPUT: one stable experience unit.
+ * MUST NOT: contain Prisma/database concerns or cognitive implementation details.
+ *
+ * This replaces the retired root contracts/moment.ts boundary. Runtime fields
+ * are optional so the same contract can move from authoring -> cognition ->
+ * runtime without introducing a second incompatible moment vocabulary.
+ */
 export type ExperienceMomentType =
-
-  // =================================
-  // CORE FLOW
-  // =================================
-
-  | "welcome"
+  // Runtime primitives
+  | "system"
   | "message"
+  | "action"
+  | "media"
+  // Core flow
+  | "welcome"
   | "story"
   | "introduction"
   | "education"
   | "reveal"
   | "completion"
-
-
-
-  // =================================
-  // BUSINESS
-  // =================================
-
+  // Business
   | "offer"
   | "product"
   | "booking"
@@ -29,34 +38,16 @@ export type ExperienceMomentType =
   | "menu"
   | "followup"
   | "interaction"
-
-
-
-  // =================================
-  // LOCATION / PRESENCE
-  // =================================
-
+  // Location / presence
   | "arrival"
   | "location"
   | "venue"
-
-
-
-  // =================================
-  // MEDIA
-  // =================================
-
+  // Media
   | "photos"
   | "video"
   | "soundtrack"
   | "replay"
-
-
-
-  // =================================
-  // MEMORY / STORYTELLING
-  // =================================
-
+  // Memory / storytelling
   | "memory"
   | "meeting"
   | "family"
@@ -67,13 +58,7 @@ export type ExperienceMomentType =
   | "milestone"
   | "timeline"
   | "legacy"
-
-
-
-  // =================================
-  // WEDDING
-  // =================================
-
+  // Wedding
   | "love_story"
   | "proposal"
   | "ceremony"
@@ -85,13 +70,7 @@ export type ExperienceMomentType =
   | "honeymoon"
   | "anniversary"
   | "time_capsule"
-
-
-
-  // =================================
-  // EVENTS / CULTURE
-  // =================================
-
+  // Events / culture
   | "performance"
   | "artist"
   | "setlist"
@@ -99,24 +78,12 @@ export type ExperienceMomentType =
   | "backstage"
   | "ticket"
   | "merch"
-
-
-
-  // =================================
-  // ENGAGEMENT
-  // =================================
-
+  // Engagement
   | "playful"
   | "share"
   | "reaction"
   | "excited"
-
-
-
-  // =================================
-  // CANNABIS / PRODUCT PASSPORT
-  // =================================
-
+  // Product passport
   | "strain_profile"
   | "product_passport"
   | "lab_results"
@@ -124,13 +91,7 @@ export type ExperienceMomentType =
   | "cultivation_story"
   | "batch_history"
   | "effects_guide"
-
-
-
-  // =================================
-  // PET / SAFETY / IDENTITY
-  // =================================
-
+  // Pet / safety / identity
   | "pet_profile"
   | "lost_pet"
   | "emergency_info"
@@ -142,59 +103,67 @@ export type ExperienceMomentType =
   | "pet_health"
   | "pet_birthday";
 
+export type ExperienceAction =
+  | "payment"
+  | "redirect"
+  | "unlock"
+  | "flow"
+  | "cta";
 
+export type ExperienceComponent =
+  | "hero"
+  | "story"
+  | "memory"
+  | "gallery"
+  | "video"
+  | "timeline"
+  | "geo_memory"
+  | "reward"
+  | "payment"
+  | "review"
+  | "profile"
+  | "social"
+  | "map"
+  | "menu"
+  | "product"
+  | "education"
+  | "countdown"
+  | "guestbook"
+  | "cta"
+  | "interaction"
+  | "system";
 
-
+export type ExperienceMomentMeta = Record<string, unknown> & {
+  duration?: number;
+  author?: string;
+  event?: string;
+  source?: string;
+  lens?: string;
+  realityEventId?: string;
+};
 
 export type ExperienceMoment = {
-
   type: ExperienceMomentType;
+  component?: ExperienceComponent;
 
-  component: ExperienceComponent;
-
-  title: string;
-
+  title?: string;
   subtitle?: string;
-
   description?: string;
-
+  text?: string;
   icon?: string;
-
   animation?: string;
 
   editable: boolean;
-
   demo: boolean;
-
   order: number;
 
   payload: Record<string, unknown>;
+  meta?: ExperienceMomentMeta;
 
+  action?: ExperienceAction;
+  url?: string;
+  label?: string;
+
+  location?: GeoLocation;
+  media?: MediaAsset[];
 };
-
-
-
-
-
-export type ExperienceComponent =
-
-    | "hero"
-    | "story"
-    | "memory"
-    | "gallery"
-    | "video"
-    | "timeline"
-    | "geo_memory"
-    | "reward"
-    | "payment"
-    | "review"
-    | "profile"
-    | "social"
-    | "map"
-    | "menu"
-    | "product"
-    | "education"
-    | "countdown"
-    | "guestbook"
-    | "cta"
-    | "interaction";
