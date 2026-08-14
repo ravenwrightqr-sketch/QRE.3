@@ -7,12 +7,15 @@ const GENERIC_ACTOR_RE = /^(?:i|we|you|he|she|they|it|this|that|someone|somethin
 const NON_PLACE_RE = /^(?:nervous|anxious|afraid|scared|fabulous|ordinary|quiet|loud|spotless|beautiful|ugly|tender|strange|weird|normal|empty|full|old|young|small|large|tiny|big|ready|late|early|alive|dead|missing|gone|there|here|back|again)$/i;
 const DIRECTIVE_RE = /^(?:make|write|tell|turn)\s+(?:it|this|that|the story|the experience)\b/i;
 const TIME_ONLY_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|\w+ years? later)$/i;
+const FRAGMENT_RE = /^(?:in|at|on|to|from|with|by|and|but|then|before|after|until|re)\s+/i;
+const ARTICLE_PLACE_RE = /^(?:the|a|an)\s+/i;
+const KNOWN_COMMON_ENTITY_RE = /^(?:dog|cat|puppy|kitten|family|couple|realtor|agent|chef|owner|homeowner|client|bride|groom|baby|dad|mom|father|mother|grandma|grandpa|crowd|team|group|concert|restaurant|salon|groomer|hotel|house|home|garage|porch|pier|beach|theater|kitchen|bathroom|living room|parking lot|camera|suitcase|ticket|guitar|chair|cake|ring|photo|photograph|bow|flower)$/i;
 
 function isHumanLike(value: string): boolean {
   const v = sentence(value).replace(/^the\s+/i, "");
   if (!v || GENERIC_ACTOR_RE.test(v) || TIME_ONLY_RE.test(v)) return false;
-  if (/^(?:the|a|an)\s+/i.test(value) && !/^(?:the|a|an)\s+(?:dog|cat|puppy|family|couple|realtor|agent|chef|owner|homeowner|client|bride|groom|baby|dad|mom|father|mother|grandma|grandpa|crowd|team|group)\b/i.test(value)) return false;
-  return /^[A-Z][A-Za-z'’\-]*(?:\s+[A-Z][A-Za-z'’\-]*)?$/.test(v) || /^(?:dog|cat|puppy|family|couple|realtor|agent|chef|owner|homeowner|client|bride|groom|baby|dad|mom|father|mother|grandma|grandpa|crowd|team|group)$/i.test(v);
+  if (ARTICLE_PLACE_RE.test(value)) return KNOWN_COMMON_ENTITY_RE.test(v);
+  return /^[A-Z][A-Za-z'’\-]*(?:\s+[A-Z][A-Za-z'’\-]*)?$/.test(v) || KNOWN_COMMON_ENTITY_RE.test(v);
 }
 
 function inferLens(prompt: string, current: CognitiveLens): CognitiveLens {
@@ -29,44 +32,72 @@ function inferLens(prompt: string, current: CognitiveLens): CognitiveLens {
 function cleanEventRaw(raw: string): string {
   return sentence(raw.replace(/^(?:then|and|but)\s+/i, ""));
 }
-
 function isDirective(raw: string): boolean { return DIRECTIVE_RE.test(sentence(raw)); }
 function isLikelyFragment(raw: string): boolean {
   const value = cleanEventRaw(raw);
   if (!value || value.length < 3) return true;
-  if (/^(?:in|at|on|to|from|with|by|and|but|then)\s+/i.test(value)) return true;
+  if (FRAGMENT_RE.test(value)) return true;
   if (/^(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+minutes?$/i.test(value)) return true;
   return false;
 }
 
-function repairParticipant(event: WorldEvent, previousParticipant?: string): WorldEvent {
-  let participants = unique(event.participants).filter(isHumanLike);
-  const raw = cleanEventRaw(event.raw);
-  if (!participants.length && previousParticipant && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|came|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated)\b/i.test(raw)) {
-    participants = [previousParticipant];
+function previousActor(events: WorldEvent[], index: number): string | undefined {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const actor = events[i]?.participants.find((value) => isHumanLike(value));
+    if (actor) return actor;
   }
-  return { ...event, raw, participants };
+  return undefined;
+}
+
+function repairParticipant(event: WorldEvent, fallback?: string): WorldEvent {
+  const participants = unique(event.participants).filter(isHumanLike);
+  const raw = cleanEventRaw(event.raw);
+  const shouldCarry = !participants.length && fallback && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated|ended|finished)\b/i.test(raw);
+  return { ...event, raw, participants: shouldCarry ? [fallback] : participants };
 }
 
 function repairStandalonePlace(event: WorldEvent, previous: WorldEvent | undefined): WorldEvent {
   if (event.place || event.participants.length || event.action || event.state || event.time) return event;
   const raw = cleanEventRaw(event.raw);
-  if (previous && /\b(?:again|there|back|returned|went|visited)\b/i.test(previous.raw) && /^[A-Z][A-Za-z'’\-]{2,30}$/.test(raw)) {
+  if (previous && /\b(?:again|there|back|returned|went|visited|came)\b/i.test(previous.raw) && /^[A-Z][A-Za-z'’\-]{2,40}(?:\s+[A-Z][A-Za-z'’\-]{2,40})?$/.test(raw)) {
     return { ...event, place: raw, details: unique([...event.details, raw]) };
   }
   return event;
 }
 
+function absorbFragment(events: WorldEvent[]): WorldEvent[] {
+  const out: WorldEvent[] = [];
+  for (const original of events) {
+    const raw = cleanEventRaw(original.raw);
+    if (isDirective(raw)) continue;
+    if (isLikelyFragment(raw) && out.length) {
+      const previous = out[out.length - 1]!;
+      if (!previous.details.some((detail) => detail.toLowerCase() === raw.toLowerCase())) {
+        out[out.length - 1] = { ...previous, details: unique([...previous.details, raw]), evidence: [...previous.evidence] };
+      }
+      continue;
+    }
+    out.push(original);
+  }
+  return out;
+}
+
 function repairFragments(events: WorldEvent[]): WorldEvent[] {
+  let working = events.map((original, index) => repairStandalonePlace(repairParticipant(original, previousActor(events, index)), events[index - 1]));
+  working = absorbFragment(working);
   let carry: string | undefined;
-  return events.map((original, index) => {
-    let event = repairParticipant(original, carry);
-    event = repairStandalonePlace(event, events[index - 1]);
+  return working.map((original) => {
+    let event = original;
+    if (!event.participants.length && carry && /^(?:got|stole|left|walked|went|came|returned|found|played|sang|laughed|watched|stayed|finished|cleaned|opened|closed|arrived|entered|danced|ran|sat|stood|waited|lingered|kept|looked|loved|hated|ended)\b/i.test(event.raw)) event = { ...event, participants: [carry] };
     if (event.participants[0] && isHumanLike(event.participants[0])) carry = event.participants[0];
-    if (isLikelyFragment(event.raw) && carry) event = { ...event, raw: `${carry} ${cleanEventRaw(event.raw)}` };
-    const details = unique(event.details).filter((detail) => !NON_PLACE_RE.test(detail) && !GENERIC_ACTOR_RE.test(detail) && !isDirective(detail) && !TIME_ONLY_RE.test(detail));
+    const details = unique(event.details)
+      .filter((detail) => !NON_PLACE_RE.test(detail))
+      .filter((detail) => !GENERIC_ACTOR_RE.test(detail))
+      .filter((detail) => !isDirective(detail))
+      .filter((detail) => !TIME_ONLY_RE.test(detail))
+      .filter((detail) => !/^\s*(?:re|the|and|or|before|after|then)\s*$/i.test(detail));
     return { ...event, details };
-  }).filter((event) => !isDirective(event.raw) && !isLikelyFragment(event.raw));
+  }).filter((event) => !isDirective(event.raw) && event.raw.length >= 5);
 }
 
 function repairPlaces(events: WorldEvent[]): WorldEvent[] {
