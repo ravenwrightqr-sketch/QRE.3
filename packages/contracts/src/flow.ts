@@ -19,6 +19,8 @@ export type ActionContext = {
 export type FlowStepType =
   | "message"
   | "story"
+  | "introduction"
+  | "completion"
   | "hero"
   | "timeline"
   | "gallery"
