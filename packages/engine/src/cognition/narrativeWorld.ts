@@ -5,7 +5,7 @@ const sentence = (value: string) => clean(value).replace(/[.!?]+$/, "");
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
 
 function sourceSentences(prompt: string): string[] {
-  return unique(clean(prompt).split(/(?<=[.!?])\s+|\n+/).filter(Boolean));
+  return unique(clean(prompt).split(/(?<=[.!?])\s+|\n+/).filter(Boolean).filter((value) => !/^\s*(?:make|write|tell|show|turn)\s+(?:it|this|that|something)\b/i.test(value)));
 }
 
 function tokenSet(value: string): Set<string> {
@@ -61,7 +61,7 @@ function mergeEvents(events: WorldEvent[], raw: string, order: number): WorldEve
 }
 
 function rebuildRelations(world: WorldModel, events: WorldEvent[]) {
-  const relations = [] as WorldModel["relations"];
+  const relations = [...world.relations] as WorldModel["relations"];
   for (const event of events) {
     for (const participant of event.participants) {
       if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `${event.id}-place` });
