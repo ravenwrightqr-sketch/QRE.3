@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { compileCognitiveExperience } from "../../cognition/universalMind.js";
 
-const cases = [
+type AcceptanceCase = {
+  name: string;
+  prompt: string;
+  anchors: readonly string[];
+  forbidden?: readonly string[];
+};
+
+const cases: readonly AcceptanceCase[] = [
   {
     name: "pet comedy",
     prompt: "Coco came to the groomer at 9 AM, loved the bath, stole a blue bow, and went home.",
