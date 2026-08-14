@@ -47,6 +47,11 @@ function lensVisual(lens: WorldModel["lens"], index: number): NonNullable<Cinema
   if (lens === "comedy") return { theme: "cinematic", animation: "parallax" };
   return { theme: "cinematic", animation: index === 0 ? "slow_zoom" : "parallax" };
 }
+function learnedLens(world: WorldModel, state: CognitiveMindState): void {
+  if (world.lens !== "neutral") return;
+  const preferred = state.creativeLearning.successfulLenses.at(-1);
+  if (preferred === "comedy" || preferred === "horror" || preferred === "romance" || preferred === "wild" || preferred === "mysterious") world.lens = preferred;
+}
 function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
   const body = sentence(planned.text).toLowerCase();
   const required = planned.event.evidence
@@ -128,6 +133,7 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   const mind = hydrateMindState(context);
   const memory = mergeMemoryContext(prompt, context);
   const world = preserveMemoryPlaces(buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue }), memory.resolved.places);
+  learnedLens(world, mind);
   const learning = learningInput(mind);
   const significance = analyzeSignificance(world);
   const candidates = generateCandidates(world, significance, learning.preferences, learning.accepted, learning.rejected);
