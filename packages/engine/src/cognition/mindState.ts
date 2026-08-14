@@ -13,14 +13,15 @@ const fingerprint = (value: string) => {
 
 export function hydrateMindState(context: UniversalMindContext): CognitiveMindState {
   const prior = context.state?.creativeLearning;
+  const analytics = context.analytics;
   const creativeLearning: CognitiveCreativeLearning = {
-    accepted: unique([...(prior?.accepted ?? []), ...(context.feedback?.accepted ?? [])]),
-    rejected: unique([...(prior?.rejected ?? []), ...(context.feedback?.rejected ?? [])]),
-    preferences: unique([...(prior?.preferences ?? []), ...(context.creativePreferences ?? [])]),
+    accepted: unique([...(prior?.accepted ?? []), ...(context.feedback?.accepted ?? []), ...(analytics?.accepted ?? [])]),
+    rejected: unique([...(prior?.rejected ?? []), ...(context.feedback?.rejected ?? []), ...(analytics?.rejected ?? [])]),
+    preferences: unique([...(prior?.preferences ?? []), ...(context.creativePreferences ?? []), ...(analytics?.preferences ?? [])]),
     successfulLenses: [...(prior?.successfulLenses ?? [])],
     avoidedPatterns: [...(prior?.avoidedPatterns ?? [])],
     usedPhrases: [...(prior?.usedPhrases ?? [])],
-    noveltyPressure: Math.max(0.15, Math.min(0.95, prior?.noveltyPressure ?? 0.55)),
+    noveltyPressure: Math.max(0.15, Math.min(0.98, prior?.noveltyPressure ?? (0.5 + (analytics?.friction ?? 0) * 0.2))),
   };
   return {
     compileCount: context.state?.compileCount ?? 0,
@@ -33,19 +34,21 @@ export function hydrateMindState(context: UniversalMindContext): CognitiveMindSt
   };
 }
 
-export function learningInput(state: CognitiveMindState) {
+export function learningInput(state: CognitiveMindState, context?: UniversalMindContext) {
+  const analytics = context?.analytics;
   return {
-    preferences: state.creativeLearning.preferences,
-    accepted: state.creativeLearning.accepted,
-    rejected: state.creativeLearning.rejected,
+    preferences: unique([...state.creativeLearning.preferences, ...(analytics?.preferences ?? [])]),
+    accepted: unique([...state.creativeLearning.accepted, ...(analytics?.accepted ?? [])]),
+    rejected: unique([...state.creativeLearning.rejected, ...(analytics?.rejected ?? [])]),
     usedPhrases: state.creativeLearning.usedPhrases,
-    noveltyPressure: state.creativeLearning.noveltyPressure,
+    noveltyPressure: Math.max(state.creativeLearning.noveltyPressure, analytics?.friction ?? 0),
   };
 }
 
 export function evolveMindState(state: CognitiveMindState, world: WorldModel, selected: CreativeCandidate[], context: UniversalMindContext): CognitiveMindState {
   const accepted = context.feedback?.accepted ?? [];
   const rejected = context.feedback?.rejected ?? [];
+  const analytics = context.analytics;
   const lensAccepted = accepted.some((v) => /comedy|funny|humor|playful|absurd/i.test(v)) ? "comedy"
     : accepted.some((v) => /horror|scary|creepy|dark/i.test(v)) ? "horror"
       : accepted.some((v) => /romance|romantic|love|tender/i.test(v)) ? "romance"
@@ -83,6 +86,7 @@ export function evolveMindState(state: CognitiveMindState, world: WorldModel, se
 
   const selectedFingerprints = selected.map((candidate) => fingerprint(candidate.text)).filter(Boolean);
   const selectedMoves = selected.flatMap((candidate) => candidate.creativeDetails);
+  const behaviorPressure = analytics ? (analytics.friction * 0.12) - (analytics.engagement * 0.05) : 0;
 
   return {
     compileCount: state.compileCount + 1,
@@ -90,13 +94,13 @@ export function evolveMindState(state: CognitiveMindState, world: WorldModel, se
     relationships: [...relationshipMap.values()],
     eventHistory: unique([...state.eventHistory, ...world.events.map((event) => event.raw)]).slice(-100),
     creativeLearning: {
-      accepted: unique([...state.creativeLearning.accepted, ...accepted]).slice(-100),
-      rejected: unique([...state.creativeLearning.rejected, ...rejected]).slice(-100),
-      preferences: unique([...state.creativeLearning.preferences, ...(context.creativePreferences ?? [])]).slice(-100),
+      accepted: unique([...state.creativeLearning.accepted, ...accepted, ...(analytics?.accepted ?? [])]).slice(-100),
+      rejected: unique([...state.creativeLearning.rejected, ...rejected, ...(analytics?.rejected ?? [])]).slice(-100),
+      preferences: unique([...state.creativeLearning.preferences, ...(context.creativePreferences ?? []), ...(analytics?.preferences ?? [])]).slice(-100),
       successfulLenses: unique([...state.creativeLearning.successfulLenses, ...(lensAccepted ? [lensAccepted] : [])]),
-      avoidedPatterns: unique([...state.creativeLearning.avoidedPatterns, ...rejected, ...selectedMoves.filter((move) => /template|generic|cliche/i.test(move))]).slice(-100),
+      avoidedPatterns: unique([...state.creativeLearning.avoidedPatterns, ...rejected, ...(analytics?.rejected ?? []), ...selectedMoves.filter((move) => /template|generic|cliche/i.test(move))]).slice(-100),
       usedPhrases: unique([...state.creativeLearning.usedPhrases, ...selectedFingerprints, ...selectedMoves]).slice(-150),
-      noveltyPressure: Math.max(0.2, Math.min(0.95, state.creativeLearning.noveltyPressure + (rejected.length ? 0.08 : 0) - (accepted.length ? 0.03 : 0))),
+      noveltyPressure: Math.max(0.2, Math.min(0.98, state.creativeLearning.noveltyPressure + (rejected.length ? 0.08 : 0) - (accepted.length ? 0.03 : 0) + behaviorPressure)),
     },
     lastLens: world.lens,
     lastMomentCount: selected.length,
