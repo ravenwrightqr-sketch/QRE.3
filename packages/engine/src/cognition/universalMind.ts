@@ -47,16 +47,25 @@ function lensVisual(lens: WorldModel["lens"], index: number): NonNullable<Cinema
   if (lens === "comedy") return { theme: "cinematic", animation: "parallax" };
   return { theme: "cinematic", animation: index === 0 ? "slow_zoom" : "parallax" };
 }
+function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
+  const body = sentence(planned.text).toLowerCase();
+  const required = planned.event.evidence
+    .filter((item) => item.source !== "creative_realization" && item.salience >= 0.9)
+    .map((item) => item.detail.trim())
+    .filter(Boolean);
+  return required.every((anchor) => body.includes(anchor.toLowerCase())) ? planned.text : planned.event.raw;
+}
 function buildMoment(planned: ReturnType<typeof planExperience>["moments"][number], index: number, total: number, world: WorldModel): ExperienceMoment {
   const type = momentType(index, total);
   const creativeDetails = planned.event.evidence.filter((item) => item.source === "creative_realization").map((item) => item.detail);
+  const text = conservedText(planned);
   return {
     type,
     component: "story",
     title: index === 0 ? `${world.participants.length > 1 ? world.participants.join(" + ") : world.participants[0] ?? world.entities[0] ?? "Experience"}${world.places[0] ? ` at ${world.places[0]}` : ""}` : undefined,
     subtitle: index === 0 && world.participants.length > 1 ? world.participants.join(" and ") : undefined,
-    text: `${sentence(planned.text)}.`,
-    description: `${sentence(planned.text)}.`,
+    text: `${sentence(text)}.`,
+    description: `${sentence(text)}.`,
     editable: true,
     demo: false,
     order: index,
