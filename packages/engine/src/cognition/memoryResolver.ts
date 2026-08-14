@@ -53,8 +53,6 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     return { entry, score: overlap + recencyBonus, index };
   }).sort((a, b) => b.score - a.score || a.index - b.index);
 
-  // A returning/implicit-reference query must retain multiple viable memories.
-  // Otherwise ranking one vaguely related memory can hide a genuine ambiguity.
   const relevant = returning
     ? scored.filter((item) => item.score > 0)
     : scored.filter((item) => item.score > 0).slice(0, 6);
@@ -62,13 +60,14 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
   const candidates = unique(placeMentions(top));
   const references = referencedPlaces(prompt);
   const explicitReference = references.find((reference) => !/^(there|here|the same place|that place|the place)$/i.test(reference));
-  const place = !returning && candidates.length === 1
+
+  const place = candidates.length === 1
     ? candidates[0]
-    : explicitReference && candidates.some((candidate) => candidate.toLowerCase().includes(explicitReference.toLowerCase()))
+    : explicitReference
       ? candidates.find((candidate) => candidate.toLowerCase().includes(explicitReference.toLowerCase()))
       : undefined;
 
-  const questions = returning && candidates.length > 1
+  const questions = returning && candidates.length > 1 && !place
     ? ["Which place did you go back to?"]
     : returning && candidates.length === 0
       ? ["Where did you go back to?"]
