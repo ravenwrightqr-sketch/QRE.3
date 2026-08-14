@@ -45,50 +45,72 @@ function novelty(text: string, prior: string[]): number {
 function rhythm(event: WorldEvent): string {
   return clean([event.time, subject(event), event.action, event.object, event.place].filter(Boolean).join(" "));
 }
+
+function freshNeutral(event: WorldEvent): { text: string; detail: string } | undefined {
+  const s = subject(event); const thing = event.object ?? event.details[0] ?? event.place; const detail = event.details.find((value) => lower(value) !== lower(thing ?? ""));
+  if (!s || !event.action) return undefined;
+  const frames = [
+    `${s} ${event.action}${thing ? ` ${thing}` : ""}. On paper, that was the whole story. ${detail ? `It was ${detail} that gave the moment its edge.` : "The moment had more texture than the facts suggested."}`,
+    `${s} ${event.action}${thing ? ` ${thing}` : ""}. Nothing dramatic had to happen; ${detail ? `${detail} was enough to change the feel.` : "the detail was enough to make it stick."}`,
+    `${s} ${event.action}${thing ? ` ${thing}` : ""}. Then the small detail arrived and made the ordinary sequence feel less ordinary.`,
+  ];
+  return { text: frames[event.order % frames.length]!, detail: "narrative framing" };
+}
+
 function creativeFrame(lens: CognitiveLens, event: WorldEvent): { text: string; detail: string } | undefined {
   const s = subject(event); const thing = event.object ?? event.place ?? event.details[0];
   if (!s) return undefined;
   if (lens === "comedy") {
     const frames = [
       `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, carrying the energy of someone already preparing a defense`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, as though the ordinary version of this plan had already been rejected`,
-      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, and somehow the situation already felt bigger than it needed to be`,
+      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}. Somewhere, common sense quietly left the building.`,
+      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}, apparently unconcerned that this was becoming the part everyone would remember`,
+      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}. A perfectly normal plan had just developed a personality problem.`,
+      `${s} ${event.action ?? "showed up"}${thing ? ` with ${thing}` : ""}; the situation had officially become more ambitious than necessary`,
     ];
     return { text: frames[event.order % frames.length]!, detail: "comedic personification/contrast" };
   }
   if (lens === "horror") {
     const frames = [
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the familiar suddenly felt slightly wrong`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; nothing had to announce the danger for the atmosphere to change`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The familiar suddenly felt slightly wrong.`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Nothing announced the danger; the atmosphere did it quietly.`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, while the ordinary details started behaving like clues`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The silence after it did more work than the event itself.`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the room still looked ordinary, which was precisely the problem`,
     ];
     return { text: frames[event.order % frames.length]!, detail: "horror atmosphere framing" };
   }
   if (lens === "romance") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the detail carried more history than it first appeared to`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Small on the clock, larger in the memory.`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the kind of detail time knows how to make precious`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, giving the moment a little more weight than the clock could explain`,
-      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; some moments feel ordinary until you know what they will mean later`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Some moments become important only after you have lived past them.`,
     ];
     return { text: frames[event.order % frames.length]!, detail: "romantic significance framing" };
   }
   if (lens === "mysterious") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, leaving one detail that refused to explain itself`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Nothing was obviously wrong; that was what made it feel wrong.`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the facts were ordinary enough, which made the strange part worse`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and suddenly the smallest detail had the loudest voice`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. The explanation stayed one step behind the evidence.`,
     ];
     return { text: frames[event.order % frames.length]!, detail: "mystery emphasis framing" };
   }
   if (lens === "wild") {
     const frames = [
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, and the whole thing picked up momentum fast`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. That would have been the end of it, if the day had any interest in behaving.`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}; the plan survived, but it did not stay quiet`,
       `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}, with the kind of momentum that makes a normal day difficult to recover`,
+      `${s} ${event.action ?? "was there"}${thing ? ` with ${thing}` : ""}. Somewhere between sensible and ridiculous, the day changed lanes.`,
     ];
     return { text: frames[event.order % frames.length]!, detail: "high-energy escalation framing" };
   }
-  return undefined;
+  return freshNeutral(event);
 }
 
 function universalMoves(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): Array<{ text: string; detail: string }> {
