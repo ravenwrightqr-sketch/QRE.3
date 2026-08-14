@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { getUserAssets } from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LocationPicker from "../components/dashboard/LocationPicker";
@@ -27,11 +27,7 @@ async function authenticatedGeoRequest(path: string, options: RequestInit = {}) 
   const token = localStorage.getItem("token");
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) },
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Location request failed");
@@ -50,7 +46,6 @@ export default function AssetDashboard() {
       const assets = response.assets ?? response;
       const found = assets.find((item: Asset) => item.slug === slug);
       setAsset(found ?? null);
-
       if (slug) {
         const geo = await authenticatedGeoRequest(`/api/dashboard-geoproof/${encodeURIComponent(slug)}`);
         setLocation(geo.location ?? null);
@@ -62,38 +57,16 @@ export default function AssetDashboard() {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, [slug]);
+  useEffect(() => { void load(); }, [slug]);
 
   async function saveLocation(next: LocationValue) {
     if (!slug) throw new Error("Missing asset slug");
-    const response = await authenticatedGeoRequest(`/api/dashboard-geoproof/${encodeURIComponent(slug)}`, {
-      method: "POST",
-      body: JSON.stringify(next),
-    });
+    const response = await authenticatedGeoRequest(`/api/dashboard-geoproof/${encodeURIComponent(slug)}`, { method: "POST", body: JSON.stringify(next) });
     setLocation(response.location ?? next);
   }
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)", letterSpacing: 3 }}>
-          LOADING EXPERIENCE...
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!asset) {
-    return (
-      <DashboardLayout>
-        <div style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "#fff" }}>
-          <h2>Object not found</h2>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  if (loading) return <DashboardLayout><div style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)", letterSpacing: 3 }}>LOADING EXPERIENCE...</div></DashboardLayout>;
+  if (!asset) return <DashboardLayout><div style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "#fff" }}><h2>Object not found</h2></div></DashboardLayout>;
 
   return (
     <DashboardLayout>
@@ -103,15 +76,17 @@ export default function AssetDashboard() {
           <h1>{asset.slug}</h1>
           <p>STATUS: {asset.status}</p>
           <p>TIER: {asset.tier}</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+            <Link to={`/dashboard/assets/${asset.slug}/knowledge`} style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "10px 14px" }}>KNOWLEDGE / MEMORY</Link>
+            <Link to="/dashboard/info" style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "10px 14px" }}>WHAT QRE CAN DO</Link>
+          </div>
         </section>
 
         <LocationPicker initial={location} onSave={saveLocation} />
 
         <section style={{ marginTop: 60 }}>
           <h2>Connected Experiences</h2>
-          <p style={{ opacity: .55, maxWidth: 500 }}>
-            Experiences are created from the QRE compiler and connected to this object automatically.
-          </p>
+          <p style={{ opacity: .55, maxWidth: 500 }}>Experiences are created from the QRE compiler and connected to this object automatically.</p>
         </section>
       </main>
     </DashboardLayout>
