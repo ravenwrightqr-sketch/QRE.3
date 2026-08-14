@@ -6,7 +6,6 @@ import type {
   ExperienceGenome,
   ExperienceModel,
   ExperienceMoment,
-  ExperienceObservation,
   ExperienceStory,
   Moment,
   CinematicScene,
@@ -106,13 +105,6 @@ const names = (entities: ExperienceEntities, subject: string): string[] =>
     ...entities.products,
     ...entities.media,
   ]);
-
-function directiveText(directive: CognitiveBeatDirective | undefined): string | undefined {
-  const value = typeof directive?.action === "string"
-    ? directive.action.replace(/\s+/g, " ").trim()
-    : "";
-  return value || undefined;
-}
 
 function repairOrdinarySubject(
   prompt: string,
