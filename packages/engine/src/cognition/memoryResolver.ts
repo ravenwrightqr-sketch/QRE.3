@@ -20,19 +20,13 @@ function strings(context: UniversalMindContext): string[] {
   ]);
 }
 
-function extractMemoryPlaces(entry: string): string[] {
-  return buildWorldModel(entry).places;
+function memoryWorlds(entries: string[]) {
+  return entries.map((entry) => ({ entry, world: buildWorldModel(entry) }));
 }
 
-function memoryCandidates(entries: string[]): Array<{ entry: string; places: string[] }> {
-  return entries
-    .map((entry) => ({ entry, places: extractMemoryPlaces(entry) }))
-    .filter((item) => item.places.length > 0);
-}
-
-function explicitPlaceReference(prompt: string): string | undefined {
+function explicitPlaceFromPrompt(prompt: string): string | undefined {
   const world = buildWorldModel(prompt);
-  return world.places[0];
+  return world.places.length === 1 ? world.places[0] : undefined;
 }
 
 export function resolveMemory(prompt: string, context: UniversalMindContext): MemoryResolution {
@@ -48,23 +42,24 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     return { entry, score: overlap, index };
   }).sort((a, b) => b.score - a.score || a.index - b.index);
 
-  // Returning references preserve every memory entry that could plausibly
-  // contribute a place. For non-returning input we can safely narrow first.
   const relevant = returning
-    ? scored.filter((item) => item.score >= 0)
+    ? scored
     : scored.filter((item) => item.score > 0).slice(0, 6);
-  const top = relevant.slice(0, 6).map((item) => item.entry);
-  const spatial = memoryCandidates(top);
-  const candidates = unique(spatial.flatMap((item) => item.places));
-  const explicitPlace = explicitPlaceReference(prompt);
+  const top = relevant.slice(0, 12).map((item) => item.entry);
+  const worlds = memoryWorlds(top);
 
-  let place: string | undefined;
-  if (explicitPlace) {
-    const exact = candidates.find((candidate) => candidate.toLowerCase() === explicitPlace.toLowerCase());
-    place = exact ?? explicitPlace;
-  } else if (candidates.length === 1) {
-    place = candidates[0];
-  }
+  const candidateByEntry = worlds
+    .filter((item) => item.world.places.length > 0)
+    .map((item) => ({ entry: item.entry, places: item.world.places }));
+
+  const candidates = unique(candidateByEntry.flatMap((item) => item.places));
+  const explicitPlace = explicitPlaceFromPrompt(prompt);
+
+  const place = explicitPlace
+    ? explicitPlace
+    : candidates.length === 1
+      ? candidates[0]
+      : undefined;
 
   const questions = returning && candidates.length > 1 && !place
     ? ["Which place did you go back to?"]
