@@ -2,7 +2,6 @@ import type {
   Experience,
   MemoryContext,
   MemoryEntityKind,
-  MemoryFactKind,
   MemoryFactWrite,
   MemoryEventWrite,
   MemoryRelationWrite,
@@ -82,6 +81,9 @@ function buildEntities(assetId: string, world: WorldModel) {
   for (const event of world.events) {
     addEntity(entities, assetId, "event", event.raw, 0.95, { worldRole: "event", eventId: event.id });
     if (event.object) addEntity(entities, assetId, "object", event.object, 0.9, { worldRole: "object" });
+    for (const detail of event.details) {
+      addEntity(entities, assetId, "object", detail, 0.8, { worldRole: "detail", eventId: event.id });
+    }
   }
 
   return [...entities.values()];
@@ -104,7 +106,7 @@ function buildFacts(
       const predicate = event.action ?? event.state ?? "occurred";
       facts.push({
         entityId: entity,
-        kind: (event.action ? "event" : "context") as MemoryFactKind,
+        kind: event.action ? "event" : "context",
         predicate,
         value: event.raw,
         confidence: 1,
@@ -193,6 +195,8 @@ function buildEvents(
       ...event.participants.map((value) => entityId(assetId, "person", value)),
       ...(event.place ? [entityId(assetId, "place", event.place)] : []),
       entityId(assetId, "event", event.raw),
+      ...(event.object ? [entityId(assetId, "object", event.object)] : []),
+      ...event.details.map((detail) => entityId(assetId, "object", detail)),
     ],
     sessionId,
     metadata: {
