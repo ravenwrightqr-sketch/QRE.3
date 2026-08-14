@@ -28,6 +28,12 @@ export type UniversalMindResult = {
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 const sentence = (value: string) => clean(value).replace(/[.!?]+$/, "");
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
+const question = (value: string) => {
+  const cleaned = clean(value);
+  if (!cleaned) return "";
+  return `${cleaned.replace(/[.!?]+$/, "")}?`;
+};
+const uniqueQuestions = (values: readonly string[]) => [...new Set(values.map(question).filter(Boolean))];
 
 function momentType(index: number, total: number): ExperienceMoment["type"] { if (total <= 1) return "completion"; if (index === 0) return "introduction"; if (index === total - 1) return "completion"; return "story"; }
 function sceneType(index: number, total: number): CinematicScene["type"] { if (index === 0) return "intro"; if (index === total - 1) return "emotion"; return "action"; }
@@ -78,6 +84,6 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   const cinematicScenes = buildScenes(moments, world); const flowSteps = buildFlow(moments); const entities = world.entitiesByKind;
   const blueprint: ExperienceBlueprint = { title: planned.type === "story" && world.places[0] ? `${world.participants.length > 1 ? world.participants.join(" + ") : world.participants[0] ?? "Experience"} at ${world.places[0]}` : world.participants.length > 1 ? world.participants.join(" + ") : world.participants[0] ?? world.entities[0] ?? "This Experience", type: planned.type, tone: planned.tone, meaning: planned.meaning, moments, entities, cognitivePlan: planned.plan, metadata: { archetypes: [planned.type, world.lens, "universal_entity_experience"], themes: unique([...world.participants, ...world.places, ...world.times, ...significance.patterns]).slice(0, 30), dna: ["reality-first", "evidence-conserving", "memory-aware", "participant-preserving", "adaptive", "dynamic-moment-count", "critic-gated"] } };
   const feedbackSignals = unique([...(context.feedback?.accepted ?? []).map((value) => `accepted:${value}`), ...(context.feedback?.rejected ?? []).map((value) => `rejected:${value}`), ...(context.creativePreferences ?? []).map((value) => `preference:${value}`)]);
-  return { title: blueprint.title, blueprint, plan: planned.plan, flowSteps, moments, cinematicScenes, estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0), momentCount: moments.length, world, adaptiveQuestions: unique(memory.resolved.questions), discoveries: unique([...memory.resolved.matches.map((match) => `This experience connects to ${match}.`), ...significance.patterns, ...significance.continuations, ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : [])]), learningSignals: feedbackSignals };
+  return { title: blueprint.title, blueprint, plan: planned.plan, flowSteps, moments, cinematicScenes, estimatedDuration: moments.reduce((sum, moment) => sum + Number(moment.meta?.duration ?? 3600), 0), momentCount: moments.length, world, adaptiveQuestions: uniqueQuestions(memory.resolved.questions), discoveries: unique([...memory.resolved.matches.map((match) => `This experience connects to ${match}.`), ...significance.patterns, ...significance.continuations, ...(world.participants.length > 1 ? [`Shared experience between ${world.participants.join(" and ")}.`] : [])]), learningSignals: feedbackSignals };
 }
 export function messageText(moment: ExperienceMoment): string { return moment.text ?? moment.description ?? moment.title ?? (typeof moment.meta?.text === "string" ? moment.meta.text : ""); }
