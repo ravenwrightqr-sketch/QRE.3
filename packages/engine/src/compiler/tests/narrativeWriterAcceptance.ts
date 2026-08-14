@@ -42,7 +42,7 @@ const cases = [
     name: "object memory",
     prompt: "The blue suitcase survived three airports, one missed train, and a rainy walk home. Ten years later it was still by the door.",
     anchors: ["blue suitcase", "three airports", "missed train", "rainy walk home", "Ten years later"],
-    lens: "neutral",
+    lens: "romance",
   },
   {
     name: "event",
@@ -54,7 +54,7 @@ const cases = [
     name: "mystery",
     prompt: "The camera recorded the first dance, the toast, and the person laughing in the back row. Nobody remembered inviting them.",
     anchors: ["camera", "first dance", "toast", "back row", "inviting them"],
-    lens: "mysterious",
+    lens: "horror",
   },
   {
     name: "ticket prompt",
@@ -65,7 +65,7 @@ const cases = [
 ] as const;
 
 const badFragment = /(?:^|\s)(?:in nervous|re again|we there again|we the|it there through|out the final plate|t midnight)(?:\s|[.!?]|$)/i;
-const internalLanguage = /\b(?:second meaning|obvious detail|foreground/background|source preserved|creative_details|compiler|cognitive plan|narrative writer)\b/i;
+const internalLanguage = /\b(?:second meaning|obvious detail|foreground\/background|source preserved|creative_details|compiler|cognitive plan|narrative writer)\b/i;
 
 for (const testCase of cases) {
   const result = compileCognitiveExperience(testCase.prompt);
