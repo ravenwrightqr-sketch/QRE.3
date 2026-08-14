@@ -134,6 +134,53 @@ function personify(subjectText: string, action: string | undefined, detail?: str
   return `${subjectText} ${action}${object}`;
 }
 
+function contextualTurn(event: WorldEvent, lens: CognitiveLens): CandidateDraft[] {
+  const raw = clean(event.raw);
+  const primary = primaryDetail(event);
+  const secondary = secondaryDetail(event, primary);
+  const corpus = lower(`${raw} ${event.details.join(" ")}`);
+  const drafts: CandidateDraft[] = [];
+
+  const add = (text: string, details: string[], move: string) => drafts.push({ text, creativeDetails: details, move });
+
+  if (/\bwedding\b/.test(corpus) || /\bvows?\b/.test(corpus)) {
+    add(`${raw}. The vows have a script; everything after them gets the dangerous freedom of a live night.`, ["semantic turn", "anticipation", "earned unpredictability"], "contextual-wedding");
+  } else if (/\b(first date|anniversary|nine years|years ago|grandmother|grandma|father|dad|mother|mom)\b/.test(corpus)) {
+    add(`${raw}. The calendar can measure the distance; it cannot measure what the detail kept alive.`, ["memory compression", "emotional implication"], "contextual-memory");
+  } else if (/\bconcert|rave|festival|crowd|sunrise\b/.test(corpus)) {
+    add(`${raw}. The event had a schedule; the atmosphere clearly had other plans.`, ["atmospheric contrast", "event momentum"], "contextual-event");
+  } else if (/\brestaurant|bakery|salon|groomer|hotel|housekeeper|client\b/.test(corpus)) {
+    add(`${raw}. Routine was the official description. The details were already making a better story.`, ["routine-to-story turn", "specificity"], "contextual-service");
+  } else if (/\bkeychain|watch|teapot|guitar|camera|suitcase|compass|ticket\b/.test(corpus)) {
+    add(`${raw}. The object stayed the same; the places around it kept changing what it meant.`, ["object continuity", "meaning evolution"], "contextual-object");
+  } else if (/\b(?:room|hallway|motel|hotel room|lights|chairs|door|window|ocean)\b/.test(corpus)) {
+    add(`${raw}. Nothing about the setting needed to announce itself. The arrangement was enough to change the feeling.`, ["setting inversion", "atmospheric implication"], "contextual-setting");
+  } else if (primary || secondary) {
+    const pivot = secondary && primary && lower(secondary) !== lower(primary)
+      ? `The ${primary} was the visible fact; ${secondary} was where the meaning started to move.`
+      : `The visible facts were simple. ${primary ? `${primary} gave them something to catch on.` : "One small detail gave them texture."}`;
+    add(`${raw}. ${pivot}`, ["detail hierarchy", "semantic turn"], "contextual-pivot");
+  }
+
+  if (lens === "comedy") {
+    add(`${raw}. The situation had somehow acquired more confidence than evidence.`, ["comic incongruity"], "contextual-comedy");
+  }
+  if (lens === "horror") {
+    add(`${raw}. The details remained ordinary. Their combination did not.`, ["horror implication", "ordinary-to-ominous"], "contextual-horror");
+  }
+  if (lens === "romance") {
+    add(`${raw}. It was small enough to overlook and precise enough for memory to keep.`, ["romantic compression", "memory spotlight"], "contextual-romance");
+  }
+  if (lens === "mysterious") {
+    add(`${raw}. Every fact had an explanation except the feeling they produced together.`, ["mystery implication", "withheld explanation"], "contextual-mystery");
+  }
+  if (lens === "wild") {
+    add(`${raw}. The sensible version of the day was still technically alive; it was simply losing ground.`, ["escalation", "comic momentum"], "contextual-wild");
+  }
+
+  return drafts;
+}
+
 function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent, next?: WorldEvent): CandidateDraft[] {
   const s = subject(event);
   const primary = primaryDetail(event);
@@ -141,6 +188,8 @@ function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent,
   const action = event.action;
   const raw = clean(event.raw);
   const drafts: CandidateDraft[] = [{ text: raw, creativeDetails: [], move: "reality-anchor" }];
+
+  drafts.push(...contextualTurn(event, world.lens));
 
   if (action && primary) drafts.push({
     text: `${s} ${action} ${primary}${event.place ? ` at ${event.place}` : ""}${event.time ? ` at ${event.time}` : ""}.`,
@@ -251,6 +300,18 @@ function strategyValue(move: string): number {
     case "midpoint": return 1.5;
     case "payoff": return 1.65;
     case "callback": return 1.7;
+    case "contextual-wedding": return 2.25;
+    case "contextual-memory": return 2.15;
+    case "contextual-event": return 2.1;
+    case "contextual-service": return 2.0;
+    case "contextual-object": return 2.1;
+    case "contextual-setting": return 2.15;
+    case "contextual-pivot": return 2.0;
+    case "contextual-comedy": return 2.1;
+    case "contextual-horror": return 2.1;
+    case "contextual-romance": return 2.1;
+    case "contextual-mystery": return 2.1;
+    case "contextual-wild": return 2.1;
     case "comedy": return 1.9;
     case "horror": return 1.9;
     case "romance": return 1.9;
