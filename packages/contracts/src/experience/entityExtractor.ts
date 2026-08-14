@@ -14,6 +14,13 @@ export type ExperienceEntities = {
 
   products: string[];
 
+  /**
+   * Universal concrete entities that are not inherently products.
+   * This must remain open-world: values are discovered from evidence,
+   * not constrained to a finite domain vocabulary.
+   */
+  objects: string[];
+
   urls: string[];
 
   phones: string[];
