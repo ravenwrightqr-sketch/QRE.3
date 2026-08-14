@@ -2,6 +2,7 @@ import type { CinematicScene, ExperienceBlueprint, ExperienceMoment, FlowStep, C
 import type { UniversalMindContext } from "./universalMindContext.js";
 import { resolveMemory } from "./memoryResolver.js";
 import { buildWorldModel, type WorldModel } from "./worldModel.js";
+import { sanitizeWorldModel } from "./worldSanitizer.js";
 import { analyzeSignificance } from "./significanceEngine.js";
 import { generateCandidates, type CreativeCandidate } from "./creativePolicy.js";
 import { generateCompositionCandidates } from "./creativeComposition.js";
@@ -132,7 +133,8 @@ function reviseCandidates(world: WorldModel, candidates: CreativeCandidate[]): C
 export function compileCognitiveExperience(prompt: string, context: UniversalMindContext = {}): UniversalMindResult {
   const mind = hydrateMindState(context);
   const memory = mergeMemoryContext(prompt, context);
-  const world = preserveMemoryPlaces(buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue }), memory.resolved.places);
+  const rawWorld = buildWorldModel(prompt, { memoryMatches: memory.resolved.matches, memorySources: memory.resolved.matches.map(() => "memory"), creativePreferences: context.creativePreferences, eventParticipants: memory.eventParticipants, locationLabel: memory.resolvedPlace ?? context.location?.label, eventVenue: context.event?.venue });
+  const world = preserveMemoryPlaces(sanitizeWorldModel(rawWorld), memory.resolved.places);
   learnedLens(world, mind);
   const learning = learningInput(mind, context);
   const significance = analyzeSignificance(world);
