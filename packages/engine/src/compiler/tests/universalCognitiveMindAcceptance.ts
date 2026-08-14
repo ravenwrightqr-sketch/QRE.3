@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import { compileCognitiveExperience } from "../../cognition/universalMind.js";
 
-type AcceptanceCase = {
-  name: string;
-  prompt: string;
-  anchors: readonly string[];
-  forbidden?: readonly string[];
-};
-
+type AcceptanceCase = { name: string; prompt: string; anchors: readonly string[]; forbidden?: readonly string[] };
 const cases: readonly AcceptanceCase[] = [
   { name: "pet comedy", prompt: "Coco came to the groomer at 9 AM, loved the bath, stole a blue bow, and went home.", anchors: ["Coco", "groomer", "bath", "blue bow"] },
   { name: "home service", prompt: "Maria cleaned the kitchen and bathrooms at 9:04 AM, then the living room finally surrendered.", anchors: ["Maria", "kitchen", "bathrooms", "living room"] },
@@ -22,7 +16,6 @@ const cases: readonly AcceptanceCase[] = [
   { name: "arbitrary named place", prompt: "Alex and Sam met at Disneyland in June, returned to Huntington Beach Pier in August, and left smiling.", anchors: ["Alex", "Sam", "Disneyland", "Huntington Beach Pier", "August"] },
   { name: "novel place phrase", prompt: "We waited beside the old observatory behind the abandoned rail depot until midnight.", anchors: ["old observatory", "abandoned rail depot", "midnight"] },
 ] as const;
-
 const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|mechanics|latent movie|internal state|generated output|result is available)\b/i;
 const ROBOTIC = /\b(?:approached .* compensation|negotiat(?:ed|ing) terms|arrived with opinions|entered like there was already a disagreement)\b/i;
 
@@ -41,7 +34,6 @@ const homeService = compileCognitiveExperience("Maria cleaned the kitchen and ba
 assert.ok(homeService.world.entities.some((value) => /living room/i.test(value)), "world model must preserve unseen location-like entities");
 assert.ok(homeService.world.evidence.some((item) => /living room/i.test(item.detail)), "location evidence must survive into world evidence");
 
-// Open-world place proof: neither place is allowed to be a preloaded vocabulary item.
 const arbitraryPlaces = compileCognitiveExperience("Alex and Sam met at Disneyland in June, returned to Huntington Beach Pier in August, and left smiling.");
 assert.ok(arbitraryPlaces.world.places.some((place) => /Disneyland/i.test(place)), "Disneyland must be discovered as a place from context");
 assert.ok(arbitraryPlaces.world.places.some((place) => /Huntington Beach Pier/i.test(place)), "Huntington Beach Pier must be discovered as a place from context");
@@ -65,7 +57,9 @@ assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().
 assert.ok(relationship.moments.map((m) => m.text ?? "").join(" ").toLowerCase().includes("sam"), "relationship realization lost Sam");
 
 const resolved = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["Alex and Sam met at the Little Italian restaurant two weeks ago."] });
-assert.ok(resolved.world.places.some((p) => /Italian restaurant|restaurant/i.test(p)), "memory should resolve a unique place");
+assert.equal(resolved.world.places.length, 1, "memory should rebuild one unique place into current world");
+assert.ok(/Little Italian restaurant/i.test(resolved.world.places[0] ?? ""), "memory should resolve the remembered place into current world");
+assert.ok(resolved.world.events.some((event) => /Little Italian restaurant/i.test(event.place ?? "")), "resolved memory place must attach to current event");
 assert.equal(resolved.adaptiveQuestions.length, 0, "known unique memory should not trigger a question");
 
 const ambiguous = compileCognitiveExperience("We went back two weeks later at 7 PM.", { memorySummary: ["First met at the Little Italian restaurant.", "Later returned to Harbor Street."] });
