@@ -5,8 +5,8 @@ const sentence = (value: string) => clean(value).replace(/^[,;:.!?]+|[,;:.!?]+$/
 const unique = (values: readonly string[]) => [...new Set(values.map(sentence).filter(Boolean))];
 const GENERIC_ACTOR_RE = /^(?:i|we|you|he|she|they|it|this|that|someone|something|everyone|nobody|somebody|guests|people|ten|one|two|three|four|five|six|seven|eight|nine|zero)$/i;
 const NON_PLACE_RE = /^(?:nervous|anxious|afraid|scared|fabulous|ordinary|quiet|loud|spotless|beautiful|ugly|tender|strange|weird|normal|empty|full|old|young|small|large|tiny|big|ready|late|early|alive|dead|missing|gone|there|here|back|again)$/i;
-const STYLE_DIRECTIVE_RE = /^(?:make|write|tell)\s+(?:it|this|that|the story|the experience)\b/i;
-const TURN_DIRECTIVE_RE = /^turn\s+(?:this|that|the)\b/i;
+const STYLE_DIRECTIVE_RE = /^(?:(?:make|write|tell)\s+(?:it|this|that|the story|the experience)\b|show\s+(?:it|this|that)\b)/i;
+const STYLE_WORD_RE = /\b(?:funny|comedy|humorous|hilarious|romantic|romance|horror|scary|creepy|mysterious|mystery|cinematic|tender|sweet|dramatic|wild|chaotic|playful|serious)\b/i;
 const TIME_ONLY_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|\w+ years? later)$/i;
 const FRAGMENT_RE = /^(?:in|at|on|to|from|with|by|and|but|then|before|after|until|re)\s+/i;
 const ARTICLE_PLACE_RE = /^(?:the|a|an)\s+/i;
@@ -31,7 +31,10 @@ function inferLens(prompt: string, current: CognitiveLens): CognitiveLens {
 }
 
 function cleanEventRaw(raw: string): string { return sentence(raw.replace(/^(?:then|and|but)\s+/i, "")); }
-function isStyleDirective(raw: string): boolean { return STYLE_DIRECTIVE_RE.test(sentence(raw)) && !TURN_DIRECTIVE_RE.test(sentence(raw)); }
+function isStyleDirective(raw: string): boolean {
+  const value = sentence(raw);
+  return STYLE_DIRECTIVE_RE.test(value) && value.split(/\s+/).length <= 9 && STYLE_WORD_RE.test(value);
+}
 function isLikelyFragment(raw: string): boolean {
   const value = cleanEventRaw(raw);
   if (!value || value.length < 3) return true;
@@ -94,7 +97,7 @@ function repairFragments(events: WorldEvent[]): WorldEvent[] {
       .filter((detail) => !GENERIC_ACTOR_RE.test(detail))
       .filter((detail) => !isStyleDirective(detail))
       .filter((detail) => !TIME_ONLY_RE.test(detail))
-      .filter((detail) => !/^(?:in|at|on|to|from|with|by|re)\s+/i.test(detail))
+      .filter((detail) => !FRAGMENT_RE.test(detail))
       .filter((detail) => !/^\s*(?:re|the|and|or|before|after|then)\s*$/i.test(detail));
     return { ...event, details };
   }).filter((event) => !isStyleDirective(event.raw) && event.raw.length >= 5);
