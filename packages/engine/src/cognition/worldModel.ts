@@ -54,6 +54,7 @@ const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|b
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b/i;
 const PLACE_WORDS = ["restaurant","bar","club","museum","theater","theatre","park","beach","hotel","house","home","kitchen","bathroom","bathrooms","living room","bedroom","garage","school","office","stadium","arena","shop","store","airport","station","road","street","city","town","warehouse","church","hall","studio","groomer","gym","spa","backyard","venue","pier","lake","mountain","forest","farm","garden","downtown","desert","convention","expo"];
 const PLACE_RE = new RegExp(`\\b(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
+const PLACE_PHRASE_RE = new RegExp(`\\b(?:[A-Za-z][A-Za-z'’-]*\\s+){0,3}(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
 const RETURN_RE = /\b(?:back|again|returned|returning|same place|there)\b/i;
 
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -148,12 +149,14 @@ function participants(text: string, carry: string[]): string[] {
 }
 
 function placeOf(text: string): string | undefined {
-  const explicit = text.match(/\b(?:at|in|inside|near|around|outside|on|to)\s+(?:the\s+)?([^,.;]+)/i)?.[1];
-  if (explicit) {
-    const value = sentence(explicit);
-    const words = value.split(/\s+/);
-    if (words.length > 2 && PLACE_RE.test(words[words.length - 1] ?? "")) return words.slice(-3).join(" ");
-    if (PLACE_RE.test(value)) return value;
+  // Preserve the smallest useful noun phrase around the universal place token.
+  // This handles "living room finally surrendered" and "Riverside Theater"
+  // without encoding any domain-specific location grammar.
+  const phrase = text.match(PLACE_PHRASE_RE)?.[0];
+  if (phrase) {
+    const cleaned = sentence(phrase).replace(/^(?:the|a|an)\s+/i, "");
+    const actionIndex = semanticIndex(cleaned);
+    return sentence(actionIndex === undefined ? cleaned : cleaned.slice(0, actionIndex));
   }
   return text.match(PLACE_RE)?.[0];
 }
@@ -230,24 +233,47 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
   const participantsList = unique(events.flatMap((event) => event.participants));
   const places = unique(events.map((event) => event.place ?? ""));
   const times = unique(events.map((event) => event.time ?? ""));
-  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]).filter((value) => value.length <= 80));
-  const entities = unique([...participantsList, ...places, ...objects]);
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]));
+  const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]);
   const relations: WorldRelation[] = [];
   for (const event of events) {
-    for (const person of event.participants) {
-      if (event.place) relations.push({ from: person, relation: "experienced_at", to: event.place, evidenceId: event.id });
-      for (const other of event.participants) if (other !== person) relations.push({ from: person, relation: "shared_event", to: other, evidenceId: event.id });
-      if (event.object) relations.push({ from: person, relation: "connected_to", to: event.object, evidenceId: event.id });
-      for (const detail of event.details) relations.push({ from: person, relation: "connected_to", to: detail, evidenceId: event.id });
+    for (const participant of event.participants) {
+      if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` });
+      if (event.object) relations.push({ from: participant, relation: "acted_on", to: event.object, evidenceId: `event-${event.order}-object` });
+    }
+    for (let i = 0; i < event.participants.length; i += 1) {
+      for (let j = i + 1; j < event.participants.length; j += 1) {
+        const left = event.participants[i]!;
+        const right = event.participants[j]!;
+        relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` });
+        relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` });
+      }
     }
   }
 
-  const people = participantsList;
-  const entityModel: ExperienceEntities = {
-    people, places, organizations: [], dates: times.filter((t) => /\b\d{4}\b|monday|tuesday|wednesday|thursday|friday|saturday|sunday/i.test(t)),
-    times: times.filter((t) => /\b(?:am|pm|sunrise|sunset|closing)\b/i.test(t)), events: unique(events.map((event) => event.raw)),
-    products: objects, urls: [], phones: [], media: [], emails: [], keywords: unique(entities.flatMap((value) => value.split(/\W+/))).filter((v) => v.length >= 5).slice(0, 100),
+  const entitiesByKind: ExperienceEntities = {
+    people: participantsList,
+    places,
+    objects,
+    events: events.map((event) => event.raw),
+    media: [],
+    collections: [],
+    organizations: [],
+    concepts: [],
+    other: [],
   };
 
-  return { prompt, lens: lensOf(prompt, options.creativePreferences ?? []), entities, participants: participantsList, places, times, events, relations, evidence: allEvidence, memoryMatches: unique(options.memoryMatches ?? []), entitiesByKind: entityModel };
+  return {
+    prompt,
+    lens: lensOf(prompt, options.creativePreferences ?? []),
+    entities,
+    participants: participantsList,
+    places,
+    times,
+    events,
+    relations,
+    evidence: allEvidence,
+    memoryMatches: unique(options.memoryMatches ?? []),
+    entitiesByKind,
+  };
 }
