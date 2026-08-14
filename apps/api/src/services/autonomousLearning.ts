@@ -66,7 +66,7 @@ export async function getAutonomousLearning(input: {
 
   const take = Math.max(20, Math.min(500, input.limit ?? 240));
   const flows = await db.flow.findMany({
-    where: { assetFlows: { some: { assetId: { in: assetIds }, active: true } } },
+    where: { experiences: { some: { assetId: { in: assetIds } } } },
     orderBy: { createdAt: "desc" },
     take,
     select: { id: true, actions: true },
@@ -144,7 +144,7 @@ export async function getAutonomousLearning(input: {
     `BEHAVIORAL_WEAKNESS: ${value.key} — ${(value.completionRate * 100).toFixed(0)}% completion, ${value.negativePerScan.toFixed(2)} negative actions/scan.`,
   );
   const signals = candidates.slice(0, 10).map((value) =>
-    `AUTO_SIGNAL: ${value.key} | scans=${value.scans} completes=${value.completes} replays/saves/shares=${value.positives} abandons/errors=${value.negatives}`,
+    `AUTO_SIGNAL: ${value.key} | scans=${value.scans} completes=${value.completes} positive=${value.positives} negative=${value.negatives}`,
   );
 
   return {
