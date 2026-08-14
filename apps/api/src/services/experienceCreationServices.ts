@@ -1,23 +1,32 @@
-/**
- * Production creation boundary.
- *
- * Business prompt → cognition → experience → flow.
- */
+/** Production creation boundary: prompt → cognition → experience → flow. */
 
 import { db } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
+import { buildSponsorPolicy } from "@qre/engine";
+
+export type SponsorInput = {
+  enabled?: boolean;
+  name?: string;
+  role?: string;
+  profileUrl?: string;
+  brandMarkUrl?: string;
+  usefulCta?: { label: string; url: string };
+  placements?: any[];
+  frequency?: "once" | "end_only" | "contextual";
+  maxExposures?: number;
+  disclosure?: "sponsored_by" | "created_by" | "hosted_by";
+};
 
 export type CreateExperienceInput = {
   assetId: string;
   prompt: string;
   title?: string;
   userId?: string;
+  sponsor?: SponsorInput;
 };
 
-function normalize(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
+function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
 async function resolveExperienceEntity(assetId: string, prompt: string) {
   const rows = await db.$queryRaw<any[]>`
@@ -40,41 +49,28 @@ export async function createExperience(input: CreateExperienceInput) {
   if (!input.assetId || !input.prompt.trim()) throw new Error("Asset and prompt required.");
 
   const memoryRepository = createMemoryRepository();
-  const compiled = await compileExperience({
-    prompt: input.prompt.trim(),
-    assetId: input.assetId,
-    userId: input.userId,
-    memoryRepository,
-  });
-
+  const compiled = await compileExperience({ prompt: input.prompt.trim(), assetId: input.assetId, userId: input.userId, memoryRepository });
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
+  const sponsor = buildSponsorPolicy(input.sponsor ?? {});
+
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
-    authoring: {
-      kind: "service_experience",
-      authoredBy: input.userId ?? null,
-      memoryAware: true,
-      behaviorAware: true,
-    },
+    sponsor,
+    authoring: { kind: "service_experience", authoredBy: input.userId ?? null, memoryAware: true, behaviorAware: true, sponsorAware: Boolean(sponsor) },
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
   };
 
-  const experience = await db.experience.create({
-    data: { assetId: input.assetId, title: input.title ?? compiled.title, blueprint },
-  });
-
+  const experience = await db.experience.create({ data: { assetId: input.assetId, title: input.title ?? compiled.title, blueprint } });
   const flow = await db.flow.create({
     data: {
       name: experience.title ?? "Experience",
       version: 1,
-      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim() },
+      actions: { category: compiled.blueprint.type ?? "experience", sourcePrompt: input.prompt.trim(), sponsor },
       steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
     },
     include: { steps: true },
   });
-
   await db.experience.update({ where: { id: experience.id }, data: { flow: { connect: { id: flow.id } } } });
-
-  return { experience, flow, compiled, entityMemory };
+  return { experience, flow, compiled, entityMemory, sponsor };
 }
