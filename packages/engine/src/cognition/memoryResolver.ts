@@ -45,26 +45,38 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
   if (!memory.length) return { matches: [], participants: [], relatedTerms: [], questions: [] };
 
   const promptWords = new Set(prompt.toLowerCase().split(/\W+/).filter((word) => word.length >= 4));
-  const scored = memory.map((entry) => {
+  const returning = /\b(?:back|again|returned|returning|same place|there|here)\b/i.test(prompt);
+  const scored = memory.map((entry, index) => {
     const words = entry.toLowerCase().split(/\W+/).filter((word) => word.length >= 4);
     const overlap = words.reduce((score, word) => score + (promptWords.has(word) ? 1 : 0), 0);
-    const recencyBonus = /\b(?:back|again|returned|returning|same place|there|here)\b/i.test(prompt) ? 0.5 : 0;
-    return { entry, score: overlap + recencyBonus };
-  }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+    const recencyBonus = returning ? 0.5 : 0;
+    return { entry, score: overlap + recencyBonus, index };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
 
-  const top = scored.slice(0, 6).map((item) => item.entry);
-  const candidates = placeMentions(top);
+  // A returning/implicit-reference query must retain multiple viable memories.
+  // Otherwise ranking one vaguely related memory can hide a genuine ambiguity.
+  const relevant = returning
+    ? scored.filter((item) => item.score > 0)
+    : scored.filter((item) => item.score > 0).slice(0, 6);
+  const top = relevant.slice(0, 6).map((item) => item.entry);
+  const candidates = unique(placeMentions(top));
   const references = referencedPlaces(prompt);
-  const returning = references.length > 0 || /\b(?:back|again|returned|returning)\b/i.test(prompt);
-  const uniqueCandidates = candidates.length === 1 ? candidates : unique(candidates);
-  const place = uniqueCandidates.length === 1 ? uniqueCandidates[0] : undefined;
-  const questions = returning && uniqueCandidates.length > 1
+  const explicitReference = references.find((reference) => !/^(there|here|the same place|that place|the place)$/i.test(reference));
+  const place = !returning && candidates.length === 1
+    ? candidates[0]
+    : explicitReference && candidates.some((candidate) => candidate.toLowerCase().includes(explicitReference.toLowerCase()))
+      ? candidates.find((candidate) => candidate.toLowerCase().includes(explicitReference.toLowerCase()))
+      : undefined;
+
+  const questions = returning && candidates.length > 1
     ? ["Which place did you go back to?"]
-    : returning && uniqueCandidates.length === 0
+    : returning && candidates.length === 0
       ? ["Where did you go back to?"]
       : [];
 
-  const participants = unique(top.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]))).filter((name) => !/^(The|Then|At|And|My|Our|This|First|Later|Everyone|Grandma)$/i.test(name));
+  const participants = unique(top.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0])))
+    .filter((name) => !/^(The|Then|At|And|My|Our|This|First|Later|Everyone|Grandma)$/i.test(name));
+
   return {
     matches: top,
     place,
