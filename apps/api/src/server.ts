@@ -1,9 +1,7 @@
 import "dotenv/config";
-
 import express, { Request, Response } from "express";
 import cors from "cors";
 
-/** ROUTERS */
 import userRouter from "./routes/user.js";
 import adminRouter from "./routes/admin.js";
 import analyticsRouter from "./routes/analytics.js";
@@ -20,51 +18,19 @@ import debugRouter from "./routes/debug.js";
 import experienceRouter from "./routes/experience.js";
 import assetGenerateRouter from "./routes/assets.generate.js";
 import geoProofRouter from "./routes/geoProof.js";
-
-/** AUTH + FLOW */
+import ticketRouter from "./routes/tickets.js";
 import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 
 const app = express();
-
-if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET is missing");
-}
-
-const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("CORS origin denied"));
-    },
-    credentials: true,
-  }),
-);
-
-app.use(
-  "/api/stripe/webhook",
-  express.raw({
-    type: "application/json",
-  }),
-);
-
+if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
+const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173").split(",").map((origin) => origin.trim()).filter(Boolean);
+app.use(cors({ origin(origin, callback) { if (!origin) return callback(null, true); if (corsOrigins.includes(origin)) return callback(null, true); return callback(new Error("CORS origin denied")); }, credentials: true }));
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
-
 authRoutes(app);
-
-app.use(
-  "/api/assets",
-  requireAuth,
-  assetGenerateRouter,
-);
-
+app.use("/api/assets", requireAuth, assetGenerateRouter);
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/analytics", analyticsRouter);
@@ -76,21 +42,12 @@ app.use("/api/flow", flowRouter);
 app.use("/api/presence", presenceRoutes);
 app.use("/api/debug", debugRouter);
 app.use("/experience", experienceRouter);
+app.use("/api/tickets", ticketRouter);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/dashboard-geoproof", geoProofRouter);
 app.use("/api/master-dashboard", masterDashboardRoutes);
 app.use("/api/stripe", stripeWebhookRouter);
 app.use("/api/stripe", stripeTestRouter);
-
-app.get("/", (_req: Request, res: Response) => {
-  res.json({
-    status: "ok",
-    service: "qre-api",
-  });
-});
-
+app.get("/", (_req: Request, res: Response) => res.json({ status: "ok", service: "qre-api" }));
 const PORT = Number(process.env.PORT || 3000);
-
-app.listen(PORT, () => {
-  console.log(`⚡ QRE API running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));
