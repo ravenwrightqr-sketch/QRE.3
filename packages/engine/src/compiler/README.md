@@ -2,7 +2,7 @@
 
 ## Status
 
-Canonical clean rebuild. The legacy cognition/compiler generations were intentionally purged. The implementation lives in `packages/engine/src/cognition/universalMind.ts`.
+Canonical clean rebuild. Legacy cognition/compiler generations were intentionally purged. The public cognitive entry point is `packages/engine/src/cognition/universalMind.ts`.
 
 ## Permanent invariant
 
@@ -10,31 +10,81 @@ Canonical clean rebuild. The legacy cognition/compiler generations were intentio
 
 QRE may creatively perform supplied reality, but it must not erase, contradict, or silently fabricate the world the user supplied.
 
-## Canonical path
+## Canonical cognitive path
 
-`prompt → reality extraction → world model → memory resolution → causality/time → attention/significance → creative performance → reality guard → ExperienceMoment[] → CinematicScene[]`
+`prompt → world model → memory resolution → significance/change → creative policy → critic → experience planner → ExperienceMoment[] → CinematicScene[]`
 
 The cognitive core is universal. It is not an industry classifier, template selector, or collection of domain story engines.
 
+## Layer boundaries
+
+### World model
+
+`worldModel.ts` is the durable semantic substrate for cognition. It records identity, entities, participants, events, states, relationships, places, time, history, evidence, and concrete details.
+
+The parser may use broad linguistic cues, but those cues are extraction aids only. They are never permission to create domain-specific behavior.
+
+### Memory resolver
+
+`memoryResolver.ts` determines whether current language connects to existing context.
+
+- one strong match → resolve it
+- multiple plausible matches → ask one targeted question
+- no usable match → ask for the missing reality
+
+Memory is world evidence, not a separate story generator.
+
+### Significance engine
+
+`significanceEngine.ts` identifies recurrence, relationships, change, temporal importance, location recurrence, and continuation opportunities. It produces attention signals but does not write prose.
+
+### Creative policy
+
+`creativePolicy.ts` generates multiple readings of the same world. Creative lenses are policies, not domain templates.
+
+The same world may therefore be performed as comedy, horror, romance, mystery, wild, or neutral without changing the underlying facts.
+
+Future learned policy can use accepted/rejected outputs and creative preferences to alter ranking without adding domain branches.
+
+### Experience critic
+
+`experienceCritic.ts` is a hard gate between imagination and output.
+
+Candidates are rejected or heavily penalized when they lose high-value evidence, leak cognitive terminology, or fall into generic interchangeable prose.
+
+### Experience planner
+
+`experiencePlanner.ts` decides what deserves an experience unit and how the sequence should move. It does **not** assume a fixed number of moments.
+
+Moments are dynamically sized around attention, significance, causality, change, payoff, and available evidence.
+
+`ExperienceMoment` is a runtime atom, not a cognitive atom.
+
 ## Universal world substrate
 
-The brain reasons over:
+The same substrate can represent:
 
-- identity
-- entities
-- participants
-- events
-- states
+- people
+- pets
 - relationships
-- places
-- time
-- history
-- evidence
-- concrete details
-- memory
-- media/context
+- businesses
+- physical QR assets
+- collectibles
+- anime conventions
+- cards
+- cars
+- guitars
+- surfboards
+- hotel rooms
+- restaurant tables
+- weddings
+- raves
+- tickets
+- public entities
+- family history
+- ongoing memories
 
-A pet, person, business, collectible, anime convention, restaurant table, hotel room, ticket, wedding, car, guitar, public entity, or physical QR asset uses the same substrate.
+These are examples used for acceptance and capability testing. They must **never** become compiler branches.
 
 ## Identity and participant conservation
 
@@ -52,75 +102,45 @@ Relationships are first-class world facts. Repeated events can strengthen, exten
 
 Concrete nouns and details inside state clauses are evidence too.
 
-Examples:
+- `the chairs were circled around us` → `chairs` is conserved
+- `the lights went out` → `lights` is conserved
+- `the teapot has been in the family for forty years` → `teapot`, `family`, and `forty years` are conserved
 
-- `the chairs were circled around us` → `chairs` is a conserved entity/detail
-- `the lights went out` → `lights` is a conserved entity/detail
-- `the teapot has been in the family for forty years` → `teapot`, `family`, and `forty years` are conserved evidence
+Creative candidates cannot win merely because they sound better. If a candidate discards a high-salience participant, object, detail, place, time, recurrence, duration, or outcome, it loses the ranking competition.
 
-Creative candidates cannot win merely because they sound better. If a candidate discards a high-salience participant, object, detail, place, time, recurrence, duration, or outcome, it loses the ranking competition and the faithful candidate wins.
+## Creative exemplar rule
 
-High-value anchors include:
+Extreme showcase examples are **tests and learning exemplars, never runtime rules**.
 
-- participants and named entities
-- objects/artifacts and concrete state subjects
-- places
-- exact/relative times
-- temporal boundaries such as `until closing` or `at sunrise`
-- duration/history such as `for forty years`
-- recurrence such as `again`, `returned`, or `every Thanksgiving`
-- explicit outcomes
+A Coco example teaches the desired capability of personification/comedic agency; it does not teach a `Coco` branch.
 
-## Memory intelligence
+An anime example teaches entity + event + collection + social memory; it does not create an anime engine.
 
-Memory/context is additional world evidence, not a separate story mode.
+A wedding example teaches long-lived memory and relationship continuity; it does not create a wedding compiler.
 
-- unique prior match → resolve automatically
-- multiple plausible matches → ask one targeted question
-- no usable match → ask for the missing reality
+The goal is to learn **general cognitive mechanisms from examples**, not memorize topics.
 
-The user should not have to invent the creative idea merely because QRE lacks imagination.
+## Adaptive / learned boundary
 
-## Creative performance
+The pure cognitive engine may consume and emit:
 
-Creative lenses are performance policies, not compilers:
+- memory context
+- creative preferences
+- accepted/rejected feedback
+- adaptive questions
+- discoveries
+- learning signals
+- provenance
 
-- comedy
-- horror
-- romance
-- wild
-- mystery
-- future/continuation
+Persistence and actual model training remain outside the pure engine. The architecture is intentionally ready for a learned ranking/policy layer later without requiring a rewrite of the world model or runtime.
 
-The system should generate more than one possible reading internally and rank candidates by evidence coverage, causal coherence, novelty, emotional fit, relationship significance, transformation, attention value, lens fit, and repetition.
+## State and memory model
 
-Creative language must be earned by the specific reality.
-
-## Anti-robot law
-
-Reject generic interchangeable prose, including:
-
-- `approached ... compensation`
-- `negotiated terms`
-- `arrived with opinions`
-- compiler/semantic terminology
-- vague `the story became...` filler
-
-The objective is not to explain the experience. The objective is to make the experience happen.
-
-## World accumulation
-
-An identity can outlive a single interaction. The long-term world can accumulate:
+A durable entity is expected to accumulate:
 
 `identity + relationships + events + state + locations + media + history`
 
-Future compilation should be able to notice repeated people, repeated places, returning to meaningful places, recurring events, shared experiences, unusual intersections, changes over time, and relationships strengthened by repetition.
-
-Do not create separate engines for anime, collectibles, pets, weddings, cars, hotels, businesses, or events.
-
-## Adaptive boundary
-
-The pure cognitive engine can consume/emit memory context, creative preferences, accepted/rejected feedback, adaptive questions, discoveries, learning signals, and provenance. Persistence remains outside the pure engine.
+New events should update the world rather than merely append prose. Future compilation can therefore notice repeated people, repeated places, returning to meaningful places, recurring events, shared experiences, unusual intersections, state changes, and relationships strengthened by repetition.
 
 ## Runtime boundary
 
@@ -132,7 +152,23 @@ Primary gate:
 
 `pnpm --filter @qre/engine test:universal-mind`
 
-Passing TypeScript is necessary but not sufficient. The mind must demonstrate reality fidelity, participant/entity preservation, detail/evidence conservation, causality, temporal intelligence, memory resolution, ambiguity handling, creative lens variation, sequencing, learning signals, no cognitive leakage, and no robotic generic realization.
+Passing TypeScript is necessary but not sufficient. The mind must demonstrate:
+
+- reality fidelity
+- participant/entity preservation
+- detail/evidence conservation
+- causality
+- temporal intelligence
+- memory resolution
+- ambiguity handling
+- relationship continuity
+- creative lens variation
+- dynamic moment sizing
+- novelty
+- sequencing
+- learning signals
+- no cognitive leakage
+- no robotic generic realization
 
 ## Documentation rule
 
