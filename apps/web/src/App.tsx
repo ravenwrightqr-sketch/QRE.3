@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import AssetDashboard from "./pages/AssetDashboard";
 import KnowledgeDashboard from "./pages/KnowledgeDashboard";
+import LearningDashboard from "./pages/LearningDashboard";
 import QreInfo from "./pages/QreInfo";
 import ExperiencePreview from "./pages/ExperiencePreview";
 import ExperienceBuilder from "./pages/ExperienceBuilder";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/dashboard/info" element={isAuthed ? <QreInfo /> : <Navigate to="/login" />} />
         <Route path="/dashboard/assets/:slug" element={isAuthed ? <AssetDashboard /> : <Navigate to="/login" />} />
         <Route path="/dashboard/assets/:slug/knowledge" element={isAuthed ? <KnowledgeDashboard /> : <Navigate to="/login" />} />
+        <Route path="/dashboard/assets/:slug/learning" element={isAuthed ? <LearningDashboard /> : <Navigate to="/login" />} />
         <Route path="/experience/preview" element={isAuthed ? <ExperiencePreview /> : <Navigate to="/login" />} />
         <Route path="/experience/create" element={isAuthed ? <ExperienceCreator /> : <Navigate to="/login" />} />
         <Route path="/experience/builder" element={isAuthed ? <ExperienceBuilder /> : <Navigate to="/login" />} />
