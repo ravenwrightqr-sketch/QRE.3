@@ -1,17 +1,21 @@
-# QRE Universal Compiler
+# QRE Universal Cognitive Compiler
 
 ## STATUS
-CANONICAL. This directory is the single compiler surface for customer-language experience creation.
+CANONICAL CLEAN REBUILD. The legacy cognition/compiler generations were intentionally purged. This directory is the acceptance/documentation surface; the implementation lives in `packages/engine/src/cognition/universalMind.ts`.
 
-## Canonical pipeline
+## Permanent invariant
 
-`prompt → source evidence → world model → memory resolution → semantic event segmentation → evidence conservation → change/attention → creative hypotheses → ranked realization → ExperienceMoment[] → CinematicScene[]`
+**MORE IMAGINATIVE, NEVER LESS FAITHFUL.**
 
-## Core law
+QRE may reinterpret supplied reality creatively. It must not erase, contradict, or silently fabricate the world the user supplied.
 
-**Universal prompting does not mean universal vocabulary. It means universal reasoning over whatever the prompt actually contains.**
+## Canonical architecture
 
-The compiler reasons over open-ended reality primitives:
+`prompt → reality extraction → world model → memory resolution → causal/temporal understanding → attention/significance → creative hypotheses → reality guard → experience plan → ExperienceMoment[] → CinematicScene[]`
+
+The brain is not an industry classifier and not a template selector.
+
+It reasons over universal reality primitives:
 
 - entities
 - events
@@ -19,143 +23,124 @@ The compiler reasons over open-ended reality primitives:
 - relationships
 - places
 - times
-- emotions
+- history
+- evidence
+- memory
 - media/context
-- source evidence
 
-No industry, business, animal, relationship, wedding, horror, comedy, service, event, or government-specific compiler is allowed here.
+## World understanding
 
-## Reality conservation
+For every input the brain internally asks:
 
-Source facts are preserved before creative interpretation.
+1. What exists?
+2. What happened?
+3. What changed?
+4. What connects to what?
+5. What happened before?
+6. What is new?
+7. What is unusual?
+8. What matters?
+9. What could be interesting?
+10. What should the user experience?
+11. What should QRE remember?
+12. What might QRE notice next time?
 
-Observed prompt evidence outranks derived interpretation. Creative language is presentation, not factual evidence. Semantic directives are never customer-facing facts.
+A person, pet, business, event, ticket, object, place, collectible, relationship, or government/public entity uses the same substrate.
 
-## Semantic event segmentation
+## Evidence conservation
 
-A single human sentence may contain multiple kinds of reality.
+Important observed anchors receive hard protection during realization:
 
-The splitter recognizes both action events and state/history events.
+- participants
+- named entities
+- objects/artifacts
+- places
+- exact or relative times
+- temporal boundaries (`until closing`, `at sunrise`)
+- duration/history (`for forty years`)
+- recurrence (`again`, `returned`, `every Thanksgiving`)
+- explicit outcomes
 
-Examples:
+A creative candidate that drops high-value evidence is rejected or heavily penalized.
 
-- `Coco came in, loved the bath, stole a bow, and went home.`
-- `Alex and Sam went back to the restaurant and stayed until closing.`
-- `Maria cleaned the kitchen and bathrooms, then the living room surrendered.`
-- `This blue teapot has been in our family for forty years and appeared at every Thanksgiving.`
+## Memory intelligence
 
-A memory does not need a conventional action verb to become a useful experience sequence. Historical state (`has been`, `was`, `remained`, etc.) is itself meaningful evidence.
+The brain receives lightweight memory/context and resolves references before asking the user.
 
-Semantic segmentation must remain universal and evidence-based. It must not become a domain-specific parser.
+- one unique prior match → resolve automatically
+- multiple plausible matches → ask one targeted question
+- no usable match → ask for the missing reality
 
-## Evidence conservation during realization
+The user should never have to supply the creative idea merely because QRE lacks imagination.
 
-Creative realization is not allowed to discard important source anchors merely because a more poetic candidate exists.
+## Adaptive learning boundary
 
-High-value event evidence includes:
+The pure engine can consume and emit:
 
-- explicit participant/entity
-- explicit object/artifact
-- explicit place
-- explicit time/date
-- explicit temporal endpoint such as `until closing`
-- explicit relationship or recurrence
-- explicit historical duration such as `for forty years`
+- memory context
+- creative preferences
+- accepted/rejected feedback
+- adaptive questions
+- discoveries
+- learning signals
+- provenance
 
-A creative candidate that loses a high-value anchor is rejected or heavily penalized in ranking. Creativity must elaborate reality, not erase it.
+Persistence remains outside the pure engine.
 
-## Memory-aware cognition
+The next compilation can therefore be better because the world is richer, not because another template was added.
 
-Before asking the user for missing information, the compiler checks available context and memory.
+## Creative cognition
 
-Examples:
+The brain generates multiple possible readings of the same reality and ranks them using:
 
-- known unique place → resolve automatically
-- multiple plausible places → ask one targeted question
-- no usable place → ask where
-- known participant/entity → reuse it rather than asking again
-
-**Ask for missing reality. Never ask the user to invent the creativity.**
-
-## Creative law
-
-Tone is a lens, not vocabulary.
-
-Comedy, horror, romance, dark, wild, cinematic, or any future lens must alter the performance of the same underlying reality rather than replace reality with a template.
-
-The creative engine should search for:
-
-- contrast
-- agency
-- surprise
-- escalation
-- transformation
+- evidence coverage
+- causal coherence
+- novelty
+- emotional fit
 - relationship significance
-- memorable details
-- callbacks
-- unusual consequences
-- strong closing images
+- transformation
+- attention value
+- lens fit
+- repetition penalties
 
-Generic reusable sentence families are actively penalized.
+Comedy, horror, romance, wild, mystery, or future lenses are performance policies. They do not become separate compilers.
 
 ## Anti-robot law
 
-Do not turn every object into the same joke.
+The brain must not repeatedly manufacture interchangeable prose such as:
 
-Do not repeatedly use:
+- approached everything
+- negotiated terms
+- compensation was part of the package
+- arrived with opinions
+- generic “the story became…” language
+- visible compiler/semantic terminology
 
-- `approached ...`
-- `compensation ...`
-- `negotiating terms ...`
-- generic `arrived with opinions ...`
-- generic `the moment became ...`
-- generic `the story moved ...`
-
-A creative line must earn its place from the event's actual evidence and causal meaning.
-
-## Memory / continuity
-
-The compiler may resolve references such as:
-
-- back
-- again
-- returned
-- same place
-- there
-- later
-- after
-- before
-
-from known context and memory.
-
-The same mechanism must support pets, people, relationships, businesses, events, objects, places, physical QR art, tickets, and future entity types.
+Creative language must be earned by the specific event.
 
 ## Runtime boundary
 
-`ExperienceMoment` is the canonical experience atom.
+`ExperienceMoment` is the only canonical experience atom.
 
-The retired root `Moment` contract is not part of the canonical compiler surface.
+The cognitive layer decides what the experience is.
 
-The compiler must not create a parallel runtime architecture.
+The cinematic runtime executes it.
 
-## Learning / adaptation
+The scan engine resolves and runs it.
 
-The compiler can emit:
+The runtime must not become another cognitive system.
 
-- adaptive questions
-- discoveries
-- memory resolutions
-- creative signals
-- provenance
-- lens information
+## Purge rule
 
-Persistence belongs outside the pure engine. Future compilations can feed learned creative preferences and accumulated world memory back through compiler context.
+Do not recreate V7/V8/V9/V10/V11/V12/V13/V14/V15/V16 compiler variants, parallel realizers, parallel latent-movie systems, or domain-specific story engines.
+
+New behavior belongs in the canonical universal mind unless it is clearly a contract/runtime concern.
 
 ## Documentation rule
 
-**Every meaningful cognitive/compiler upgrade must update this README in the same change.**
+**Every meaningful cognitive/compiler change must update this README in the same change.**
 
-Document the new reasoning behavior, invariants, migration decisions, and acceptance expectations so the architecture does not have to be rediscovered later.
+Document the reasoning principle that changed, the invariant it protects, and the new acceptance expectation.
 
 ## Acceptance gate
 
@@ -163,4 +148,21 @@ Primary gate:
 
 `pnpm --filter @qre/engine test:universal-mind`
 
-A compiler change is not accepted merely because TypeScript builds. The generated experience must preserve source reality, form a meaningful sequence, avoid cognitive leakage, conserve high-value time/place/relationship/history evidence, use memory correctly, and demonstrate genuinely different creative performance when the lens changes.
+TypeScript green is necessary, not sufficient.
+
+The mind must demonstrate:
+
+- reality fidelity
+- evidence conservation
+- causality
+- temporal intelligence
+- memory resolution
+- ambiguity handling
+- creative hypothesis generation
+- novelty
+- lens variation
+- meaningful sequencing
+- discovery
+- learning signals
+- no cognitive leakage
+- no robotic generic realization

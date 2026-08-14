@@ -1,10 +1,9 @@
 import {
   buildMemoryWriteBatch,
-  compileExperienceV7,
+  compileCognitiveExperience,
   memoryContextToCompilerMemories,
 } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
-
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 
 export type CompiledExperienceResult = {
@@ -15,13 +14,13 @@ export type CompiledExperienceResult = {
   cinematicScenes: any[];
   estimatedDuration: number;
   momentCount: number;
+  plan: unknown;
+  world?: unknown;
+  adaptiveQuestions?: string[];
+  discoveries?: string[];
+  learningSignals?: string[];
   cognition?: unknown;
-  memory?: {
-    entities: number;
-    facts: number;
-    relations: number;
-    events: number;
-  };
+  memory?: { entities: number; facts: number; relations: number; events: number };
   [key: string]: unknown;
 };
 
@@ -30,19 +29,14 @@ export type CompiledExperienceResult = {
  *
  * HUMAN LANGUAGE
  *   ↓
- * V7 INTENT
+ * UNIVERSAL MIND
  *   ↓
- * COGNITION
- *   ↓
- * EXPERIENCE BLUEPRINT
- *   ↓
- * LATENT MOVIE / CREATIVE REALIZATION
+ * EXPERIENCE BLUEPRINT / MOMENTS
  *   ↓
  * FLOW
  *
- * The old StoryCompiler is no longer on the production experience-creation
- * path. Durable memory is still loaded before cognition and written only after
- * successful compilation.
+ * Durable memory is loaded before cognition and written only after
+ * successful compilation. The engine remains database-agnostic.
  */
 export async function compileExperience(input: {
   prompt: string;
@@ -61,20 +55,18 @@ export async function compileExperience(input: {
     });
   }
 
-  const compilerMemories = memoryContext
-    ? memoryContextToCompilerMemories(memoryContext)
+  const memorySummary = memoryContext
+    ? memoryContextToCompilerMemories(memoryContext).map((memory) => memory.summary)
     : [];
 
-  const compiled = compileExperienceV7(prompt, {
-    memorySummary: compilerMemories.map((memory) => memory.summary),
-  });
+  const compiled = compileCognitiveExperience(prompt, { memorySummary });
 
   if (input.assetId && input.memoryRepository) {
     const batch = buildMemoryWriteBatch({
       assetId: input.assetId,
       userId: input.userId,
       prompt,
-      plan: compiled.cognition.plan,
+      plan: compiled.plan,
       source: "prompt",
     });
 
@@ -88,8 +80,8 @@ export async function compileExperience(input: {
         relations: batch.relations.length,
         events: batch.events.length,
       },
-    } as CompiledExperienceResult;
+    };
   }
 
-  return compiled as unknown as CompiledExperienceResult;
+  return compiled;
 }

@@ -1,4 +1,4 @@
-/** QRE engine public boundary. Runtime and compiler are intentionally separate. */
+/** QRE engine public boundary. Runtime and cognition are intentionally separate. */
 
 export { scanEngine } from "./scanEngine.js";
 export { runFlowActions } from "./flowOrchestrator.js";
@@ -13,51 +13,9 @@ export * from "./geo/geoStoryCompiler.js";
 export { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
-
-export { compileExperienceGenome, genomeCompiler, experienceCompiler } from "./experience/genomeCompiler.js";
-export { buildExperienceEvent, buildExperienceEventWorld, eventRealizationHint } from "./experience/eventWorld.js";
 export { buildMemoryWriteBatch, buildScanMemoryBatch, memoryContextToCompilerMemories } from "./memory/memoryCompiler.js";
-export { compileCognitiveExperience } from "./experience/cognitiveExperienceCompiler.js";
-export type { CognitiveCompiledExperience } from "./experience/cognitiveExperienceCompiler.js";
-
-export { compileExperienceV7 } from "./experience/experienceCompilerV7.js";
-export { inferExperienceIntentV7 } from "./experience/experienceIntentV7.js";
-export { realizeLatentMovieV7 } from "./experience/creativeRealizerV7.js";
-export type { CompiledExperienceV7, ExperienceCompilerContextV7 } from "./experience/experienceCompilerV7.js";
-export type { ExperienceIntentV7 } from "./experience/experienceIntentV7.js";
-
-export { compileExperienceV8 } from "./experience/experienceCompilerV8.js";
-export { designExperienceV8 } from "./experience/experienceDesignV8.js";
-export { realizeLatentMovieV8 } from "./experience/creativeRealizerV8.js";
-export type { CompiledExperienceV8 } from "./experience/experienceCompilerV8.js";
-export type { ExperienceDesignV8, ExperienceTrajectoryV8, ExperienceVoiceV8 } from "./experience/experienceDesignV8.js";
-
-export { compileExperienceV9 } from "./experience/experienceCompilerV9.js";
-export { realizeLatentMovieV9 } from "./experience/creativeRealizerV9.js";
-export { detectCreativeOpportunitiesV9 } from "./experience/creativeOpportunityV9.js";
-export { inventPhraseV9 } from "./experience/phraseInventorV9.js";
-export type { CompiledExperienceV9, RealizedMovieV9, CreativeOpportunityV9, CreativeOpportunitySetV9, CreativeOpportunityKindV9, PhraseInventionV9 } from "./experience/experienceCompilerV9.js";
-
-export { compileExperienceV10 } from "./experience/experienceCompilerV10.js";
-export { realizeLatentMovieV10 } from "./experience/creativeRealizerV10.js";
-export { inventPhraseV10, extractCreativeLearningV10 } from "./experience/phraseInventorV10.js";
-export type { CompiledExperienceV10, RealizedMovieV10, PhraseInventionV10 } from "./experience/experienceCompilerV10.js";
-
-export { compileExperienceV11 } from "./experience/experienceCompilerV11.js";
-export { createCreativeLearningProfileV11, observeCreativeInventionV11, learnFromInventionsV11, suggestCreativeStrategyV11, mergeCreativeLearningV11 } from "./experience/creativeLearningV11.js";
-export type { CompiledExperienceV11, ExperienceCompilerContextV11, CreativeLearningObservationV11, CreativeLearningSignalV11, CreativeLearningProfileV11 } from "./experience/experienceCompilerV11.js";
-
-export { compileExperienceV15 } from "./experience/experienceCompilerV15.js";
-export { compileUniversalMemoryV15, memoryForesightSignalsV15 } from "./experience/universalMemoryV15.js";
-export type { CompiledExperienceV15, ExperienceCompilerContextV15 } from "./experience/experienceCompilerV15.js";
-export type { UniversalMemoryV15 } from "./experience/universalMemoryV15.js";
-export { compileExperienceV16 } from "./experience/experienceCompilerV16.js";
-export { compileUniversalMemoryV16, memorySpatialSignalsV16 } from "./experience/universalMemoryV16.js";
-export type { CompiledExperienceV16, ExperienceCompilerContextV16 } from "./experience/experienceCompilerV16.js";
-export type { UniversalMemoryV16 } from "./experience/universalMemoryV16.js";
-export { findLatentMovie } from "./experience/movieFactoryV2.js";
-export type { MovieFactoryResult, MovieStyle } from "./experience/movieFactoryV2.js";
-export * from "./cognition/index.js";
+export { compileCognitiveExperience } from "./cognition/universalMind.js";
+export type { UniversalMindContext, UniversalMindResult } from "./cognition/universalMind.js";
 export * from "./intelligence/index.js";
 export * from "./world/index.js";
 export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
