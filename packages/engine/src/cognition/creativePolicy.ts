@@ -45,6 +45,55 @@ function novelty(text: string, prior: string[]): number {
 function rhythm(event: WorldEvent): string {
   return clean([event.time, subject(event), event.action, event.object, event.place].filter(Boolean).join(" "));
 }
+function directPerformance(event: WorldEvent, lens: CognitiveLens): { text: string; detail: string } {
+  const direct = clean(event.raw);
+  if (lens === "comedy") {
+    const frames = [
+      `${direct}. Somewhere along the way, common sense quietly left the room.`,
+      `${direct}. Reasonable was apparently not on the guest list.`,
+      `${direct}. This was the moment the perfectly normal version of the day lost control of the narrative.`,
+    ];
+    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving comedic performance" };
+  }
+  if (lens === "horror") {
+    const frames = [
+      `${direct}. The familiar details were still there. That was the problem.`,
+      `${direct}. Nothing had to announce the danger for the room to feel different.`,
+      `${direct}. The facts stayed ordinary; the atmosphere did not.`,
+    ];
+    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving horror performance" };
+  }
+  if (lens === "romance") {
+    const frames = [
+      `${direct}. Small in the moment, larger in the memory.`,
+      `${direct}. It was the sort of detail time knows how to keep.`,
+      `${direct}. Some moments ask for nothing and still become precious later.`,
+    ];
+    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving romantic performance" };
+  }
+  if (lens === "mysterious") {
+    const frames = [
+      `${direct}. Nothing was obviously wrong. That made it worse.`,
+      `${direct}. The explanation was missing from the room.`,
+      `${direct}. Every fact remained ordinary except for the feeling they created together.`,
+    ];
+    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving mystery performance" };
+  }
+  if (lens === "wild") {
+    const frames = [
+      `${direct}. That would have been enough, if the day had any interest in behaving.`,
+      `${direct}. From there, the sensible version of events was clearly outnumbered.`,
+      `${direct}. The plan survived. Its dignity did not.`,
+    ];
+    return { text: frames[event.order % frames.length]!, detail: "evidence-preserving wild performance" };
+  }
+  const frames = [
+    `${direct}. It sounds simple until you notice what the detail is doing.`,
+    `${direct}. On paper, that is the whole event. In memory, it rarely is.`,
+    `${direct}. The facts are enough; the interesting part is what they leave behind.`,
+  ];
+  return { text: frames[event.order % frames.length]!, detail: "evidence-preserving narrative performance" };
+}
 
 function freshNeutral(event: WorldEvent): { text: string; detail: string } | undefined {
   const s = subject(event); const thing = event.object ?? event.details[0] ?? event.place; const detail = event.details.find((value) => lower(value) !== lower(thing ?? ""));
@@ -129,6 +178,8 @@ function candidatesFor(event: WorldEvent, world: WorldModel, previous?: WorldEve
   out.push({ text: direct, creativeDetails: [] });
   const compact = rhythm(event); if (compact && lower(compact) !== lower(direct)) out.push({ text: compact, creativeDetails: [] });
   if (s && event.action && event.object) out.push({ text: `${s} ${event.action} ${event.object}${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ") ? ` ${[event.place ? `at ${event.place}` : "", event.time ? `at ${event.time}` : ""].filter(Boolean).join(" ")}` : ""}`, creativeDetails: [] });
+  const performance = directPerformance(event, world.lens);
+  out.push({ text: performance.text, creativeDetails: [performance.detail] });
   for (const move of universalMoves(event, world, previous, next)) out.push({ text: move.text, creativeDetails: [move.detail] });
   if (previous && event.order > 0) out.push({ text: `After ${clean(previous.object ?? previous.place ?? previous.action ?? previous.raw)}, ${direct.toLowerCase()}`, creativeDetails: ["causal transition from adjacent event"] });
   if (next && event.order < world.events.length - 1 && event.action) out.push({ text: `${direct}; then ${lower(next.object ?? next.place ?? next.action ?? next.raw)} was still to come`, creativeDetails: ["anticipatory transition from adjacent event"] });
@@ -145,7 +196,7 @@ export function generateCandidates(world: WorldModel, significance: Significance
       const causalFit = previous && candidate.text.toLowerCase().includes(lower(previous.object ?? previous.place ?? previous.action ?? previous.raw)) ? 1 : event.order === 0 ? 0.95 : 0.82;
       const attention = Math.min(1.5, (significance.scores.get(event.id) ?? 1) / 10);
       const creativity = Math.min(10, Math.max(0, candidate.creativeDetails.length * 2.5 + candidate.text.length / 30));
-      const bias = learnedBias(candidate.text, preferences, accepted, rejected); const rawPenalty = lower(candidate.text) === lower(event.raw) ? -8 : 0;
+      const bias = learnedBias(candidate.text, preferences, accepted, rejected); const rawPenalty = lower(candidate.text) === lower(event.raw) ? -10 : 0;
       const protectedScore = evidenceCoverage >= 1 ? 42 : -90;
       const score = protectedScore + evidenceCoverage * 38 + candidateNovelty * 18 + causalFit * 12 + attention * 10 + creativity * 2 + bias + rawPenalty;
       result.push({ eventId: event.id, text: candidate.text, lens: world.lens, creativity, evidenceCoverage, novelty: candidateNovelty, causalFit, attention, score, creativeDetails: candidate.creativeDetails });
