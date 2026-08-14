@@ -48,20 +48,30 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     ? scored
     : scored.filter((item) => item.score > 0).slice(0, 6);
   const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
-
-  const candidates = unique(episodes.flatMap((episode) => episode.world.places));
+  const rememberedPlaces = unique(episodes.flatMap((episode) => episode.world.places));
   const explicitPlace = explicitPlaceFromPrompt(prompt);
 
-  let place: string | undefined;
+  // Explicit current-world place wins: "returned to Disneyland" is resolvable
+  // even when memory contains several other places.
   if (explicitPlace) {
-    place = explicitPlace;
-  } else if (candidates.length === 1) {
-    place = candidates[0];
+    const topEntries = episodes.map((episode) => episode.entry);
+    return {
+      matches: topEntries,
+      place: explicitPlace,
+      participants: unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]))).filter((name) => !STOP_NAMES.test(name)),
+      relatedTerms: unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40),
+      questions: [],
+    };
   }
 
-  const questions = returning && candidates.length > 1 && !place
+  // For implicit returning references, memory owns ambiguity. A single
+  // remembered place resolves; two or more distinct remembered places require
+  // a targeted question. Do not let the current prompt's lack of a place erase
+  // remembered spatial candidates.
+  const place = returning && rememberedPlaces.length === 1 ? rememberedPlaces[0] : !returning && rememberedPlaces.length === 1 ? rememberedPlaces[0] : undefined;
+  const questions = returning && rememberedPlaces.length > 1
     ? ["Which place did you go back to?"]
-    : returning && candidates.length === 0
+    : returning && rememberedPlaces.length === 0
       ? ["Where did you go back to?"]
       : [];
 
