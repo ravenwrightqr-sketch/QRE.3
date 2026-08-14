@@ -1,94 +1,12 @@
-/**
- * =====================================================
- * QRE ENGINE REPOSITORY CONTRACTS
- * =====================================================
- *
- * The engine NEVER imports Prisma.
- * Adapters translate persistence models into these runtime contracts.
- */
-
-export type FlowStepRecord = { id: string; order: number; type: string; payload: unknown };
-export type FlowRecord = { id: string; steps: FlowStepRecord[] };
-
-export type AssetExperienceRecord = {
-  id: string;
-  title: string | null;
-  sourcePrompt: string | null;
-  blueprint: unknown;
-};
-
-export type AssetRecord = {
-  id: string;
-  slug: string;
-  accountId: string | null;
-  paid: boolean;
-  category: string | null;
-  flow: FlowRecord | null;
-  experience?: AssetExperienceRecord | null;
-};
-
-export interface AssetRepository {
-  findBySlug(slug: string): Promise<AssetRecord | null>;
-}
-
-export interface SessionRepository {
-  create(input: { assetId: string; flowId?: string | null }): Promise<{ id: string }>;
-  update(sessionId: string, data: Record<string, unknown>): Promise<void>;
-}
-
-export interface AccessRepository {
-  findAssetAccessState(assetId: string): Promise<{
-    id: string;
-    slug: string;
-    paid: boolean;
-    accountId: string | null;
-    ownershipStatus: string | null;
-    ownerTier: string;
-  } | null>;
-}
-
-export interface UserRepository {
-  findUserContext(userId: string): Promise<{ id: string; tier: string } | null>;
-}
-
-export interface StoryDeliveryRepository {
-  findAsset(assetId: string): Promise<{ id: string; accountId: string | null } | null>;
-  findExistingStory(input: { assetId: string; sessionId: string }): Promise<{ id: string } | null>;
-  createStorySnapshot(input: { assetId: string; sessionId: string; moments: unknown; geoStory: unknown; cinematicScenes: unknown }): Promise<{ id: string }>;
-}
-
-export interface AnalyticsRepository {
-  trackEvent(input: { assetId: string; sessionId?: string | null; flowId?: string | null; stepIndex?: number | null; type: string; meta?: unknown }): Promise<void>;
-  findEvents(input: { assetId: string; limit: number }): Promise<unknown[]>;
-  countByType(assetId: string): Promise<Record<string, number>>;
-  getDashboardMetrics(assetId: string): Promise<unknown>;
-}
-
-export type GeoProofRecord = {
-  assetId: string;
-  sessionId: string | null;
-  userId: string | null;
-  lat: number;
-  lng: number;
-  accuracy: number | null;
-  source: string;
-  label: string | null;
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  createdAt: Date;
-};
-
-export interface GeoMemoryRepository {
-  findGeoProof(assetId: string): Promise<GeoProofRecord[]>;
-  createMemorySnapshot(input: { assetId: string; sessionId?: string | null; scanWeight: number; rewardScore: number; confidence: number; dominantLayer: string; data: unknown }): Promise<{ id: string }>;
-}
-
-export interface PresenceRepository {
-  upsertSession(input: { id: string; assetId: string; userId?: string | null; status: string; enteredAt?: Date; geoLat?: number | null; geoLng?: number | null; accuracy?: number | null }): Promise<unknown>;
-  createGeoProof(input: { assetId: string; sessionId: string; userId?: string | null; lat: number; lng: number; accuracy?: number | null; source: string; label?: string | null; city?: string | null; region?: string | null; country?: string | null }): Promise<void>;
-  checkOut(input: { sessionId: string; exitedAt?: Date }): Promise<unknown>;
-  getPresenceMap(assetId: string): Promise<unknown[]>;
-  getPresenceReplay(assetId: string, sessionId?: string): Promise<unknown[]>;
-  getPresenceTimeline(assetId: string): Promise<unknown[]>;
-}
+/** QRE ENGINE REPOSITORY CONTRACTS */
+export type FlowStepRecord={id:string;order:number;type:string;payload:unknown};export type FlowRecord={id:string;steps:FlowStepRecord[]};
+export type AssetExperienceRecord={id:string;title:string|null;sourcePrompt:string|null;blueprint:unknown;createdAt?:string};
+export type AssetRecord={id:string;slug:string;accountId:string|null;paid:boolean;category:string|null;flow:FlowRecord|null;experience?:AssetExperienceRecord|null;experiences?:AssetExperienceRecord[]};
+export interface AssetRepository{findBySlug(slug:string):Promise<AssetRecord|null>}
+export interface SessionRepository{create(input:{assetId:string;flowId?:string|null}):Promise<{id:string}>;update(sessionId:string,data:Record<string,unknown>):Promise<void>}
+export interface AccessRepository{findAssetAccessState(assetId:string):Promise<{id:string;slug:string;paid:boolean;accountId:string|null;ownershipStatus:string|null;ownerTier:string}|null>}
+export interface UserRepository{findUserContext(userId:string):Promise<{id:string;tier:string}|null>}
+export interface StoryDeliveryRepository{findAsset(assetId:string):Promise<{id:string;accountId:string|null}|null>;findExistingStory(input:{assetId:string;sessionId:string}):Promise<{id:string}|null>;createStorySnapshot(input:{assetId:string;sessionId:string;moments:unknown;geoStory:unknown;cinematicScenes:unknown}):Promise<{id:string}>}
+export interface AnalyticsRepository{trackEvent(input:{assetId:string;sessionId?:string|null;flowId?:string|null;stepIndex?:number|null;type:string;meta?:unknown}):Promise<void>;findEvents(input:{assetId:string;limit:number}):Promise<unknown[]>;countByType(assetId:string):Promise<Record<string,number>>;getDashboardMetrics(assetId:string):Promise<unknown>}
+export type GeoProofRecord={assetId:string;sessionId:string|null;userId:string|null;lat:number;lng:number;accuracy:number|null;source:string;label:string|null;city:string|null;region:string|null;country:string|null;createdAt:Date};export interface GeoMemoryRepository{findGeoProof(assetId:string):Promise<GeoProofRecord[]>;createMemorySnapshot(input:{assetId:string;sessionId?:string|null;scanWeight:number;rewardScore:number;confidence:number;dominantLayer:string;data:unknown}):Promise<{id:string}>}
+export interface PresenceRepository{upsertSession(input:{id:string;assetId:string;userId?:string|null;status:string;enteredAt?:Date;geoLat?:number|null;geoLng?:number|null;accuracy?:number|null}):Promise<unknown>;createGeoProof(input:{assetId:string;sessionId:string;userId?:string|null;lat:number;lng:number;accuracy?:number|null;source:string;label?:string|null;city?:string|null;region?:string|null;country?:string|null}):Promise<void>;checkOut(input:{sessionId:string;exitedAt?:Date}):Promise<unknown>;getPresenceMap(assetId:string):Promise<unknown[]>;getPresenceReplay(assetId:string,sessionId?:string):Promise<unknown[]>;getPresenceTimeline(assetId:string):Promise<unknown[]>}
