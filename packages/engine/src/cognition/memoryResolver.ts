@@ -11,7 +11,7 @@ export type MemoryResolution = {
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "") : "";
 const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
 const PRONOUN_RE = /^(?:I|we|you|he|she|they|it|this|that|these|those|someone|something|everyone|guests)$/i;
-const TIMEISH_RE = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|every \w+)$/i;
+const TEMPORAL_TAIL_RE = /\s+(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|today|tonight|yesterday|tomorrow|this\s+(?:morning|afternoon|evening)|last\s+night|two\s+weeks?\s+ago|three\s+years?\s+later|for\s+\w+\s+(?:minutes|hours|days|weeks|years)|every\s+\w+)\b.*$/i;
 
 function strings(context: UniversalMindContext): string[] {
   return unique([
@@ -20,19 +20,29 @@ function strings(context: UniversalMindContext): string[] {
   ]);
 }
 
-function placeMentions(values: string[]): string[] {
+function normalizePlace(value: string): string {
+  return clean(value)
+    .replace(/^(?:the|a|an|my|our|your|his|her|their|this|that)\s+/i, "")
+    .replace(TEMPORAL_TAIL_RE, "")
+    .replace(/\s+(?:where|when|because|while|after|before)\b.*$/i, "")
+    .trim();
+}
+
+function placeMentions(value: string): string[] {
   const prep = "at|in|inside|near|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards";
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
   const result: string[] = [];
-  for (const value of values) {
-    const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.\u0000]|$)`, "gi");
-    for (const match of value.matchAll(pattern)) {
-      const candidate = clean(match[1]);
-      if (!candidate || PRONOUN_RE.test(candidate) || TIMEISH_RE.test(candidate)) continue;
-      result.push(candidate);
-    }
+  const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "i");
+  const match = value.match(pattern);
+  if (match?.[1]) {
+    const candidate = normalizePlace(match[1]);
+    if (candidate && !PRONOUN_RE.test(candidate)) result.push(candidate);
   }
   return unique(result);
+}
+
+function spatialCandidatesFromEntries(entries: string[]): Array<{ entry: string; place: string }> {
+  return entries.flatMap((entry) => placeMentions(entry).map((place) => ({ entry, place })));
 }
 
 function referencedPlaces(prompt: string): string[] {
@@ -40,10 +50,6 @@ function referencedPlaces(prompt: string): string[] {
   const pattern = /\b(?:the same place|that place|there|here|the place|the pier|the house|the hotel|the restaurant|the beach|the park|the studio|the venue)\b/gi;
   for (const match of prompt.matchAll(pattern)) result.push(clean(match[0]));
   return unique(result);
-}
-
-function spatialCandidatesFromEntries(entries: string[]): Array<{ entry: string; place: string }> {
-  return entries.flatMap((entry) => unique(placeMentions([entry])).map((place) => ({ entry, place })));
 }
 
 export function resolveMemory(prompt: string, context: UniversalMindContext): MemoryResolution {
@@ -64,7 +70,11 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
     : scored.filter((item) => item.score > 0).slice(0, 6);
   const top = relevant.slice(0, 6).map((item) => item.entry);
   const spatial = spatialCandidatesFromEntries(top);
-  const candidates = unique(spatial.map((item) => item.place));
+  const candidateByEntry = new Map<string, string>();
+  for (const item of spatial) {
+    if (!candidateByEntry.has(item.entry)) candidateByEntry.set(item.entry, item.place);
+  }
+  const candidates = unique([...candidateByEntry.values()]);
   const references = referencedPlaces(prompt);
   const explicitReference = references.find((reference) => !/^(there|here|the same place|that place|the place)$/i.test(reference));
 
