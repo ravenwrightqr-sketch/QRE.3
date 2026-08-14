@@ -98,4 +98,10 @@ export type Entitlement = {
    */
   aiCompiler: boolean;
 
+  /**
+   * Can enable collaborative memory contributions
+   * on eligible assets.
+   */
+  collaborativeMemory: boolean;
+
 };
