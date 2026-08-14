@@ -16,10 +16,20 @@ type FlowActions = {
   learningProfile?: {
     lens?: unknown;
     promptShape?: unknown;
+    promptSignals?: unknown;
   };
 };
 
-const POSITIVE = new Set(["FLOW_COMPLETE", "EXPERIENCE_REPLAY", "EXPERIENCE_SAVED", "EXPERIENCE_SHARED"]);
+const POSITIVE = new Set([
+  "FLOW_COMPLETE",
+  "EXPERIENCE_REPLAY",
+  "EXPERIENCE_SAVED",
+  "EXPERIENCE_SHARED",
+  "CTA_CLICK",
+  "REWARD_EARNED",
+  "PAYMENT_COMPLETE",
+  "MEMORY_RECOMMENDATION_SELECTED",
+]);
 const NEGATIVE = new Set(["FLOW_ABANDON", "ERROR"]);
 
 function text(value: unknown): string {
@@ -33,7 +43,10 @@ function short(value: string, max = 180): string {
 function groupKey(actions: FlowActions): string {
   const lens = text(actions.learningProfile?.lens) || text(actions.category) || "neutral";
   const shape = text(actions.learningProfile?.promptShape) || "general";
-  return `${lens} / ${shape}`;
+  const signals = Array.isArray(actions.learningProfile?.promptSignals)
+    ? actions.learningProfile?.promptSignals.map(text).filter(Boolean).slice(0, 4).sort().join("+")
+    : "";
+  return `${lens} / ${shape}${signals ? ` / ${signals}` : ""}`;
 }
 
 export async function getAutonomousLearning(input: {
@@ -77,7 +90,7 @@ export async function getAutonomousLearning(input: {
   const events = await db.analyticsEvent.findMany({
     where: { assetId: { in: assetIds }, flowId: { in: flows.map((flow) => flow.id) } },
     orderBy: { createdAt: "desc" },
-    take: Math.min(4000, take * 16),
+    take: Math.min(5000, take * 20),
     select: { flowId: true, type: true },
   });
 
