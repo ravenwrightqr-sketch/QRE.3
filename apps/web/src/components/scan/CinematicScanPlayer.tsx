@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import MomentRenderer from "./MomentRenderer";
 import { startDefaultCinematicMusic, type MusicHandle } from "./defaultCinematicMusic";
@@ -121,7 +121,7 @@ export default function CinematicScanPlayer({ data }: Props) {
   );
 }
 
-const stage: React.CSSProperties = {
+const stage: CSSProperties = {
   position: "fixed",
   inset: 0,
   width: "100vw",
@@ -136,14 +136,14 @@ const stage: React.CSSProperties = {
   touchAction: "manipulation",
 };
 
-const vignette: React.CSSProperties = {
+const vignette: CSSProperties = {
   position: "absolute",
   inset: 0,
   pointerEvents: "none",
   background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,.48) 100%)",
 };
 
-const sceneFrame: React.CSSProperties = {
+const sceneFrame: CSSProperties = {
   position: "relative",
   zIndex: 2,
   width: "100%",
@@ -155,7 +155,7 @@ const sceneFrame: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const progressTrack: React.CSSProperties = {
+const progressTrack: CSSProperties = {
   position: "fixed",
   top: 0,
   left: 0,
@@ -165,13 +165,13 @@ const progressTrack: React.CSSProperties = {
   zIndex: 4,
 };
 
-const progressFill: React.CSSProperties = {
+const progressFill: CSSProperties = {
   height: "100%",
   background: "rgba(255,255,255,.7)",
   transition: "width .25s ease",
 };
 
-const soundButton: React.CSSProperties = {
+const soundButton: CSSProperties = {
   position: "fixed",
   right: 16,
   bottom: 16,
@@ -186,7 +186,7 @@ const soundButton: React.CSSProperties = {
   backdropFilter: "blur(12px)",
 };
 
-const sealedStage: React.CSSProperties = {
+const sealedStage: CSSProperties = {
   position: "fixed",
   inset: 0,
   width: "100vw",
@@ -198,21 +198,21 @@ const sealedStage: React.CSSProperties = {
   zIndex: 9999,
 };
 
-const sealedCard: React.CSSProperties = {
+const sealedCard: CSSProperties = {
   display: "grid",
   justifyItems: "center",
   gap: 22,
   padding: 30,
 };
 
-const sealedTitle: React.CSSProperties = {
+const sealedTitle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(30px, 8vw, 68px)",
   fontWeight: 500,
   letterSpacing: "-2px",
 };
 
-const reliveButton: React.CSSProperties = {
+const reliveButton: CSSProperties = {
   border: "1px solid rgba(255,255,255,.22)",
   background: "rgba(255,255,255,.04)",
   color: "#fff",
