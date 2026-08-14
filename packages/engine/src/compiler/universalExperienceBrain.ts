@@ -2,21 +2,22 @@ import type {
   CinematicScene,
   CognitiveBeatDirective,
   CognitiveExperiencePlan,
-  Moment,
+  ExperienceMoment,
   StoryBeat,
   StoryBeatKind,
 } from "@qre/contracts";
+import type { ExperienceCompilerContext } from "../experience/experienceCompilerContext.js";
 
 /**
  * STATUS: CANONICAL
- * ROLE: Universal cognitive/creative bridge for compiler input.
- * INPUT: raw human prompt + optional cognitive plan.
- * OUTPUT: source world, creative scene candidates, runtime moments, cinematic scenes.
- * MUST NOT: classify domains, invent factual participants/owners/places/events, expose cognitive vocabulary.
- * ARCHITECTURE: reality -> memory/context -> attention -> creative candidates -> ranked performance -> runtime.
+ * ROLE: Universal cognitive + creative realization brain.
  *
- * This is intentionally not a story-template engine. The same machinery handles pets,
- * weddings, businesses, events, people, objects, places, memories, tickets, and arbitrary input.
+ * Pipeline:
+ * input -> evidence -> world -> memory resolution -> change/attention ->
+ * creative hypotheses -> ranked realization -> ExperienceMoment -> cinema.
+ *
+ * MUST NOT: classify domains, invent factual participants, invent owners,
+ * expose internal cognition language, or turn templates into facts.
  */
 
 type Lens = "qre" | "comedy" | "horror" | "romance" | "wild";
@@ -31,6 +32,7 @@ type SourceEvent = {
   place?: string;
   time?: string;
   emotion?: string;
+  resolvedFromMemory?: string;
 };
 
 type World = {
@@ -42,36 +44,27 @@ type World = {
   times: string[];
   lens: Lens;
   signals: string[];
+  memoryMatches: string[];
 };
 
 export type UniversalBrainResult = {
   world: World;
   beats: StoryBeat[];
-  moments: Moment[];
+  moments: ExperienceMoment[];
   cinematicScenes: CinematicScene[];
+  adaptiveQuestions: string[];
+  discoveries: string[];
 };
 
 const ACTIONS = new Set([
-  "arrived", "entered", "walked", "went", "came", "left", "returned", "found", "cleaned", "washed", "groomed",
-  "repaired", "fixed", "restored", "built", "made", "created", "designed", "wrote", "cooked", "served", "prepared",
-  "opened", "closed", "visited", "traveled", "travelled", "drove", "rode", "painted", "danced", "sang", "played",
-  "chose", "picked", "selected", "decided", "held", "wore", "tasted", "smelled", "looked", "saw", "watched",
-  "shared", "gave", "took", "brought", "received", "checked", "inspected", "tested", "installed", "removed", "changed",
-  "turned", "transformed", "finished", "completed", "celebrated", "married", "photographed", "captured", "recorded",
-  "taught", "learned", "discovered", "collected", "organized", "decorated", "styled", "trimmed", "cut", "brushed",
-  "dried", "massaged", "relaxed", "pampered", "spoiled", "treated", "shook", "chewed", "stole", "tore", "ate", "ran",
-  "called", "rented", "documented", "started", "stopped", "hit", "sat", "stood", "talked", "met", "stayed", "slept",
-  "practiced", "won", "lost", "broke", "rescued", "adopted", "graduated", "performed", "settled", "cried", "laughed",
-  "loved", "hated", "feared", "remembered", "forgot", "returned", "crossed",
+  "arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened",
 ]);
-
 const ACTION_RE = new RegExp(`\\b(?:${[...ACTIONS].join("|")})\\b`, "i");
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years))\b/i;
 const EMOTION_RE = /\b(?:nervous|suspicious|scared|afraid|excited|happy|sad|angry|furious|restless|delighted|terrified|calm|proud|lonely|curious|relieved|embarrassed|annoyed|thrilled|tender|intimate|weird|strange|wild|ridiculous|absurd|beautiful|romantic)\b/i;
 const PLACE_WORDS = /\b(?:restaurant|bar|club|museum|theater|theatre|park|beach|hotel|house|home|kitchen|bathroom|bathrooms|living room|bedroom|garage|school|office|stadium|arena|shop|store|airport|station|road|street|city|town|warehouse|church|hall|studio|groomer|gym|spa|backyard|venue|pier|lake|mountain|forest|farm|garden|downtown|desert)\b/i;
-const LENS_RE = /\b(?:funny|humor|humour|comedy|playful|absurd|ridiculous|silly|cheeky|witty|hilarious|horror|terrifying|scary|haunted|creepy|sinister|romantic|romance|intimate|tender|wild|demented|dark)\b/i;
 const LEAK_RE = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|mechanics|latent movie|latent state|internal state|generated output|result is available|next experiential state|delivery pipeline|scan pipeline|customer-facing)\b/i;
-const STOP = new Set(["the", "a", "an", "and", "or", "but", "for", "with", "about", "from", "this", "that", "then", "there", "here", "when", "where", "while", "because", "was", "were", "is", "are", "be", "been", "being", "it", "its", "they", "them", "their", "he", "she", "his", "her", "we", "our", "you", "your", "i", "my", "me", "to", "of", "in", "on", "at", "as", "by", "than", "more", "very", "really", "just", "want", "need", "make", "create", "build", "turn", "write", "show", "give", "send", "story", "experience", "something", "anything"]);
+const STOP = new Set(["the","a","an","and","or","but","for","with","about","from","this","that","then","there","here","when","where","while","because","was","were","is","are","be","been","being","it","its","they","them","their","he","she","his","her","we","our","you","your","i","my","me","to","of","in","on","at","as","by","than","more","very","really","just","want","need","make","create","build","turn","write","show","give","send","story","experience","something","anything"]);
 
 const clean = (v: unknown): string => typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
 const sentence = (v: unknown): string => clean(v).replace(/[.!?]+$/, "");
@@ -92,73 +85,65 @@ function hash(text: string): number {
 }
 
 function splitPrompt(prompt: string): string[] {
-  const source = sentence(prompt);
+  const source = clean(prompt);
   if (!source) return [];
-  const sentences = source.split(/(?<=[.!?])\s+/).map(sentence).filter(Boolean);
-  const pieces: string[] = [];
+  const coarse = source
+    .split(/\n+|\s*·\s*|(?<=[.!?])\s+/)
+    .map(sentence)
+    .filter(Boolean);
 
-  for (const s of sentences) {
-    const commaParts = s.split(/,\s+/).map(sentence).filter(Boolean);
-    if (commaParts.length < 2) {
-      pieces.push(s);
+  const pieces: string[] = [];
+  for (const chunk of coarse) {
+    const parts = chunk.split(/,\s+/).map(sentence).filter(Boolean);
+    if (parts.length === 1) {
+      pieces.push(chunk);
       continue;
     }
-
-    let current: string[] = [];
-    const flush = () => {
-      if (current.length) {
-        pieces.push(sentence(current.join(", ")));
-        current = [];
-      }
-    };
-
-    for (const part of commaParts) {
-      const candidate = part.replace(/^(?:and|but|then)\s+/i, "");
-      const hasAction = ACTION_RE.test(candidate) || EMOTION_RE.test(candidate);
-      if (hasAction) {
-        if (current.length && ACTION_RE.test(current.join(" "))) flush();
-        current.push(candidate);
+    let current = "";
+    for (const part of parts) {
+      const hasAction = ACTION_RE.test(part) || EMOTION_RE.test(part);
+      if (hasAction && current && ACTION_RE.test(current)) {
+        pieces.push(sentence(current));
+        current = part;
       } else {
-        current.push(candidate);
+        current = current ? `${current}, ${part}` : part;
       }
     }
-    flush();
+    if (current) pieces.push(sentence(current));
   }
-
   return unique(pieces);
 }
 
-function words(text: string): string[] {
-  return sentence(text).split(/[^A-Za-z0-9'’-]+/).map((v) => v.toLowerCase()).filter((v) => v.length > 2 && !STOP.has(v));
-}
-
 function actorOf(text: string): string | undefined {
-  const m = sentence(text).match(/^((?:my|our|the|a|an)?\s*[A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9'’-]+){0,3})\s+(?=\w)/i);
-  if (!m?.[1]) return undefined;
-  const candidate = sentence(m[1].replace(/^(?:my|our|the|a|an)\s+/i, ""));
-  return candidate && !ACTION_RE.test(candidate) ? candidate : undefined;
-}
-
-function actionOf(text: string): string | undefined {
-  return text.match(ACTION_RE)?.[0];
-}
-
-function objectOf(text: string, action?: string): string | undefined {
+  const action = actionOf(text);
   if (!action) return undefined;
-  const after = text.match(new RegExp(`\\b${action}\\b\\s+(?:the|a|an)?\\s*([A-Za-z0-9'’-]+(?:\\s+[A-Za-z0-9'’-]+){0,2})`, "i"));
-  if (after?.[1]) return sentence(after[1]);
-  const preferred = /\b(?:blue bow|bath|bubbles|kitchen|bathrooms?|living room|watch|truck|guitar pick|recipe|cake|door|window|lights|ring|clues|song|chairs|table|coffee|shoes|photo|video|crowd|band|house|home|surfboard|dress|restaurant|laundry set)\b/i;
-  return text.match(preferred)?.[0];
+  const prefix = sentence(text).slice(0, lower(text).indexOf(lower(action))).trim();
+  const candidate = sentence(prefix.replace(/^(?:my|our|the|a|an)\s+/i, ""));
+  if (!candidate || candidate.length > 60 || ACTION_RE.test(candidate)) return undefined;
+  return candidate;
 }
 
+function actionOf(text: string): string | undefined { return text.match(ACTION_RE)?.[0]; }
 function placeOf(text: string): string | undefined {
-  const explicit = text.match(/\b(?:at|in|inside|near|around|outside|on)\s+(?:the\s+)?([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,4})/);
+  const explicit = text.match(/\b(?:at|in|inside|near|around|outside|on)\s+(?:the\s+)?([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,5})/);
   if (explicit?.[1] && !/^(?:and|but|then|first|last)\b/i.test(explicit[1])) return sentence(explicit[1]);
   return text.match(PLACE_WORDS)?.[0];
 }
+function timeOf(text: string): string | undefined { return text.match(TIME_RE)?.[0]; }
+function objectOf(text: string, action?: string): string | undefined {
+  if (!action) return undefined;
+  const explicit = text.match(new RegExp(`\\b${action}\\b(?:\\s+(?:the|a|an))?\\s+([A-Za-z0-9'’-]+(?:\\s+[A-Za-z0-9'’-]+){0,3})`, "i"));
+  return explicit?.[1] ? sentence(explicit[1]) : undefined;
+}
 
-function timeOf(text: string): string | undefined {
-  return text.match(TIME_RE)?.[0];
+function memoryStrings(context?: ExperienceCompilerContext): string[] {
+  const values: string[] = [...(context?.memorySummary ?? [])];
+  for (const item of context?.memories ?? []) {
+    if (typeof item === "string") values.push(item);
+    else if (item && typeof item === "object") values.push(JSON.stringify(item));
+  }
+  if (context?.event) values.push(JSON.stringify(context.event));
+  return values.map(clean).filter(Boolean);
 }
 
 function lensOf(prompt: string, plan?: CognitiveExperiencePlan): Lens {
@@ -170,24 +155,65 @@ function lensOf(prompt: string, plan?: CognitiveExperiencePlan): Lens {
   return "qre";
 }
 
-function extractWorld(prompt: string, plan?: CognitiveExperiencePlan): World {
+function resolveFromMemory(event: SourceEvent, memories: string[], knownPlaces: string[]): { event: SourceEvent; matches: string[]; question?: string } {
+  const raw = lower(event.raw);
+  const backRef = /\b(?:back|again|returned|returning|same place|there)\b/i.test(raw);
+  if (!backRef || event.place) return { event, matches: [] };
+
+  const placeCandidates = unique([...knownPlaces, ...memories.flatMap((m) => m.match(new RegExp(PLACE_WORDS.source, "ig")) ?? [])]);
+  if (placeCandidates.length === 1) {
+    return {
+      event: { ...event, place: placeCandidates[0], resolvedFromMemory: placeCandidates[0] },
+      matches: [placeCandidates[0]],
+    };
+  }
+  if (placeCandidates.length > 1) return { event, matches: placeCandidates.slice(0, 5), question: "Which place did you go back to?" };
+  return { event, matches: [], question: "Where did you go back to?" };
+}
+
+function extractWorld(prompt: string, plan?: CognitiveExperiencePlan, context?: ExperienceCompilerContext): { world: World; adaptiveQuestions: string[] } {
+  const memories = memoryStrings(context);
   const clauses = splitPrompt(prompt);
-  const events: SourceEvent[] = clauses.map((raw, index) => ({
-    id: `event-${index + 1}`,
-    order: index,
-    raw,
-    actor: actorOf(raw),
-    action: actionOf(raw),
-    object: objectOf(raw, actionOf(raw)),
-    place: placeOf(raw),
-    time: timeOf(raw),
-    emotion: raw.match(EMOTION_RE)?.[0],
-  }));
+  const baseEvents: SourceEvent[] = clauses.map((raw, index) => {
+    const action = actionOf(raw);
+    return {
+      id: `event-${index + 1}`,
+      order: index,
+      raw,
+      actor: actorOf(raw),
+      action,
+      object: objectOf(raw, action),
+      place: placeOf(raw),
+      time: timeOf(raw),
+      emotion: raw.match(EMOTION_RE)?.[0],
+    };
+  });
+
+  const knownPlaces = unique([
+    ...(plan?.premise?.slots.filter((s) => s.role === "place").flatMap((s) => s.values) ?? []),
+    ...(context?.location?.label ? [context.location.label] : []),
+    ...(context?.event?.venue ? [context.event.venue] : []),
+  ]);
+
+  const adaptiveQuestions: string[] = [];
+  const memoryMatches: string[] = [];
+  const events = baseEvents.map((event) => {
+    const resolved = resolveFromMemory(event, memories, knownPlaces);
+    memoryMatches.push(...resolved.matches);
+    if (resolved.question) adaptiveQuestions.push(resolved.question);
+    return resolved.event;
+  });
 
   let carryActor: string | undefined;
+  let carryPlace: string | undefined;
+  let carryTime: string | undefined;
   for (const event of events) {
     if (event.actor) carryActor = event.actor;
     else if (carryActor && event.action) event.actor = carryActor;
+    if (event.place) carryPlace = event.place;
+    else if (carryPlace && /\b(?:there|same place|back|again)\b/i.test(event.raw)) event.place = carryPlace;
+    if (event.time) carryTime = event.time;
+    else if (carryTime && /\b(?:then|later|after|until)\b/i.test(event.raw)) event.time = carryTime;
   }
 
   const entities = unique([
@@ -199,7 +225,7 @@ function extractWorld(prompt: string, plan?: CognitiveExperiencePlan): World {
     ...events.map((e) => e.actor ?? ""),
   ]);
   const places = unique([
-    ...(plan?.premise?.slots.filter((s) => s.role === "place").flatMap((s) => s.values) ?? []),
+    ...knownPlaces,
     ...events.map((e) => e.place ?? ""),
   ]);
   const times = unique([
@@ -208,23 +234,36 @@ function extractWorld(prompt: string, plan?: CognitiveExperiencePlan): World {
   ]);
 
   return {
-    prompt,
-    events: events.length ? events : [{ id: "event-1", order: 0, raw: sentence(prompt) }],
-    entities,
-    participants,
-    places,
-    times,
-    lens: lensOf(prompt, plan),
-    signals: unique([...(plan?.creativePossibilities ?? []), ...(plan?.emotionalIntent ?? [])]),
+    adaptiveQuestions: unique(adaptiveQuestions),
+    world: {
+      prompt,
+      events: events.length ? events : [{ id: "event-1", order: 0, raw: sentence(prompt) }],
+      entities,
+      participants,
+      places,
+      times,
+      lens: lensOf(prompt, plan),
+      signals: unique([...(plan?.creativePossibilities ?? []), ...(plan?.emotionalIntent ?? [])]),
+      memoryMatches: unique(memoryMatches),
+    },
   };
 }
 
 function creativeLines(event: SourceEvent, world: World): string[] {
   const actor = event.actor;
   const object = event.object;
-  const action = event.action;
+  const action = lower(event.action ?? "");
+  const place = event.place;
   const raw = sentence(event.raw);
-  const lines: string[] = [raw];
+  const lines = [raw];
+
+  if (/\breturned\b|\bback\b|\bagain\b/.test(action + " " + lower(raw))) {
+    if (actor && place) lines.push(`${cap(actor)} was back at ${place}, which meant the place had officially become part of the story.`);
+    else if (place) lines.push(`Back at ${place}, the old details suddenly had company.`);
+  }
+  if (/\b(?:stole|chewed|broke|tore)\b/.test(action) && actor && object) lines.push(`${cap(actor)} appeared to regard ${object} as negotiable property.`);
+  if (/\b(?:talked|stayed|met)\b/.test(action) && actor && place) lines.push(`The talking lasted long enough for ${place} to start disappearing around them.`);
+  if (/\b(?:cleaned|groomed|washed|restored|repaired|transformed)\b/.test(action) && actor) lines.push(`${cap(actor)} started with a mess and somehow ended with evidence that the plan had worked.`);
 
   if (world.lens === "comedy" || world.lens === "wild" || world.lens === "qre") {
     if (actor && object) lines.push(
@@ -235,31 +274,17 @@ function creativeLines(event: SourceEvent, world: World): string[] {
     else if (actor) lines.push(
       `${cap(actor)} arrived with opinions and apparently intended to keep them.`,
       `${cap(actor)} had the unmistakable energy of someone preparing a complaint.`,
-      `${cap(actor)} seemed determined to make the ordinary portion of the day more interesting.`,
     );
-    else if (object) lines.push(
-      `${cap(object)} suddenly mattered more than anyone had planned.`,
-      `Nobody had planned on ${object} becoming the main character.`,
-    );
+    else if (object) lines.push(`${cap(object)} suddenly mattered more than anyone had planned.`);
   }
 
   if (world.lens === "horror") {
-    if (object) lines.push(
-      `${cap(object)} was the first detail that felt slightly wrong.`,
-      `Then ${object} became difficult to ignore.`,
-      `The strange part was how ordinary ${object} looked at first.`,
-    );
-    else if (event.place) lines.push(`At ${event.place}, something about the moment stopped feeling ordinary.`);
+    if (object) lines.push(`${cap(object)} was the first detail that felt slightly wrong.`, `Then ${object} became difficult to ignore.`);
+    else if (place) lines.push(`At ${place}, something about the moment stopped feeling ordinary.`);
   }
-
   if (world.lens === "romance") {
-    if (actor && event.place) lines.push(`${cap(actor)} was back at ${event.place}, and the place remembered more than the night did.`);
+    if (actor && place) lines.push(`${cap(actor)} was back at ${place}, and the place carried the memory with it.`);
     else if (actor && object) lines.push(`${cap(actor)} stayed with ${object} a little longer than the moment required.`);
-    else if (event.place) lines.push(`${cap(event.place)} became part of the memory rather than just the setting.`);
-  }
-
-  if (event.place && event.time && action) {
-    lines.push(`${cap(event.place)} was where it happened ${event.time.toLowerCase()}.`);
   }
 
   return unique(lines).filter((line) => !LEAK_RE.test(line));
@@ -267,15 +292,17 @@ function creativeLines(event: SourceEvent, world: World): string[] {
 
 function score(line: string, event: SourceEvent, used: Set<string>, world: World): number {
   const value = lower(line);
-  let score = 0;
+  const raw = lower(event.raw);
+  let scoreValue = 0;
   for (const evidence of [event.actor, event.action, event.object, event.place, event.time].filter(Boolean) as string[]) {
-    if (value.includes(lower(evidence))) score += evidence === event.actor ? 4 : 6;
+    if (value.includes(lower(evidence))) scoreValue += evidence === event.actor ? 3 : 5;
   }
-  if (line.length >= 32 && line.length <= 170) score += 4;
-  if (world.lens !== "qre" && value !== lower(event.raw)) score += 6;
-  if (used.has(value)) score -= 20;
-  if (LEAK_RE.test(line)) score -= 100;
-  return score;
+  if (value !== raw) scoreValue += 7;
+  if (value !== raw && world.lens === "qre") scoreValue += 4;
+  if (line.length >= 36 && line.length <= 180) scoreValue += 3;
+  if (used.has(value)) scoreValue -= 100;
+  if (LEAK_RE.test(line)) scoreValue -= 100;
+  return scoreValue;
 }
 
 function beatKind(index: number, total: number): StoryBeatKind {
@@ -287,25 +314,18 @@ function beatKind(index: number, total: number): StoryBeatKind {
   return index % 2 === 0 ? "discovery" : "escalation";
 }
 
-function directiveFor(event: SourceEvent, kind: StoryBeatKind, index: number, total: number): CognitiveBeatDirective {
+function directiveFor(event: SourceEvent, kind: StoryBeatKind): CognitiveBeatDirective {
   return {
     kind,
-    intent: "realize the strongest supported change or detail in this source event",
+    intent: "realize the strongest supported change, relationship, or memorable detail in this event",
     subject: event.actor ?? event.object ?? event.place ?? "",
     action: event.action ?? "",
-    stateBefore: index === 0 ? event.raw : "",
-    stateAfter: index === total - 1 ? event.raw : "",
+    stateBefore: "",
+    stateAfter: "",
     relationalFocus: unique([event.object ?? "", event.place ?? "", event.time ?? ""]),
-    evidence: [{ source: "prompt", detail: event.raw, confidence: 1 }],
+    evidence: [{ source: event.resolvedFromMemory ? "memory" : "prompt", detail: event.raw, confidence: 1 }],
     confidence: 1,
   };
-}
-
-function messageText(moment: Moment): string {
-  if (moment.type === "message" || moment.type === "system") return moment.text;
-  if (moment.type === "action") return moment.text ?? "";
-  if (moment.type === "media") return moment.meta?.text ?? "";
-  return "";
 }
 
 function transition(lens: Lens, index: number): "none" | "fade" | "slide" | "zoom" | "cinematic" | "flash" {
@@ -325,23 +345,32 @@ function visual(lens: Lens, index: number) {
 
 function normalize(line: string, index: number, lens: Lens): string {
   const value = sentence(line);
-  if (!value) return "";
-  if (index === 0) return value;
+  if (!value || index === 0) return value;
   if (/^(?:then|and|at|by|back|eventually|later|for|looking|somewhere)\b/i.test(value)) return value;
   if (lens === "horror" || lens === "comedy" || lens === "wild") return `Then ${value.toLowerCase()}`;
   if (lens === "romance") return `And ${value.toLowerCase()}`;
   return value;
 }
 
-export function compileUniversalExperienceBrain(prompt: string, plan?: CognitiveExperiencePlan): UniversalBrainResult {
-  const world = extractWorld(prompt, plan);
+function messageText(moment: ExperienceMoment): string {
+  return moment.text ?? moment.description ?? moment.title ?? (typeof moment.meta?.text === "string" ? moment.meta.text : "");
+}
+
+export function compileUniversalExperienceBrain(
+  prompt: string,
+  plan?: CognitiveExperiencePlan,
+  context?: ExperienceCompilerContext,
+): UniversalBrainResult {
+  const { world, adaptiveQuestions } = extractWorld(prompt, plan, context);
   const used = new Set<string>();
-  const sourceEvents = world.events.slice(0, 12);
+  const sourceEvents = world.events.slice(0, 16);
 
   const beats: StoryBeat[] = sourceEvents.map((event, index) => {
     const candidates = creativeLines(event, world);
-    const ranked = candidates.sort((a, b) => score(b, event, used, world) - score(a, event, used, world));
-    const chosen = normalize(ranked[0] ?? event.raw, index, world.lens);
+    const ranked = candidates
+      .map((candidate) => ({ candidate, score: score(candidate, event, used, world) }))
+      .sort((a, b) => b.score - a.score || hash(`${prompt}:${event.id}:${a.candidate}`) - hash(`${prompt}:${event.id}:${b.candidate}`));
+    const chosen = normalize(ranked[0]?.candidate ?? event.raw, index, world.lens);
     used.add(lower(chosen));
     const kind = beatKind(index, sourceEvents.length);
     return {
@@ -352,8 +381,8 @@ export function compileUniversalExperienceBrain(prompt: string, plan?: Cognitive
       text: `${sentence(chosen)}.`,
       emotionalTarget: event.emotion,
       entities: unique([event.actor ?? "", event.object ?? "", event.place ?? ""]),
-      provenance: [{ kind: "observed", source: "prompt", confidence: 1 }],
-      directive: directiveFor(event, kind, index, sourceEvents.length),
+      provenance: [{ kind: "observed", source: event.resolvedFromMemory ? "memory" : "prompt", confidence: 1 }],
+      directive: directiveFor(event, kind),
     };
   });
 
@@ -366,22 +395,46 @@ export function compileUniversalExperienceBrain(prompt: string, plan?: Cognitive
       text: `${sentence(prompt)}.`,
       entities: [],
       provenance: [{ kind: "observed", source: "prompt", confidence: 1 }],
+      directive: directiveFor({ id: "fallback", order: 0, raw: sentence(prompt) }, "payoff"),
     });
   }
 
-  const moments: Moment[] = beats.map((beat, index) => ({
-    type: "message",
-    order: index,
-    text: beat.text,
-    meta: {
-      source: "canonical_universal_experience_brain",
-      lens: world.lens,
-      realityEventId: sourceEvents[index]?.id,
-      place: sourceEvents[index]?.place,
-      time: sourceEvents[index]?.time,
-      duration: index === beats.length - 1 ? 5200 : 3600,
-    },
-  }));
+  const moments: ExperienceMoment[] = beats.map((beat, index) => {
+    const event = sourceEvents[index];
+    const text = beat.text;
+    return {
+      type: "message",
+      component: "story",
+      title: text,
+      text,
+      description: text,
+      editable: true,
+      demo: false,
+      order: index,
+      payload: {
+        source: "canonical-universal-experience-brain",
+        beatId: beat.id,
+        realityEventId: event?.id,
+        place: event?.place,
+        time: event?.time,
+        resolvedFromMemory: event?.resolvedFromMemory,
+      },
+      meta: {
+        source: "canonical-universal-experience-brain",
+        lens: world.lens,
+        realityEventId: event?.id,
+        place: event?.place,
+        time: event?.time,
+        resolvedFromMemory: event?.resolvedFromMemory,
+        duration: index === beats.length - 1 ? 5200 : 3600,
+      },
+    };
+  });
+
+  const discoveries = unique([
+    ...world.memoryMatches.map((place) => `This experience connects to ${place}.`),
+    ...(world.events.filter((e) => /\b(?:returned|back|again)\b/i.test(e.raw)).map((e) => `A return to ${e.place ?? "a known place"} may be part of an emerging pattern.`)),
+  ]);
 
   const cinematicScenes: CinematicScene[] = moments.map((moment, index) => ({
     id: `brain-scene-${index + 1}`,
@@ -394,7 +447,7 @@ export function compileUniversalExperienceBrain(prompt: string, plan?: Cognitive
     preload: index < moments.length - 1,
   }));
 
-  return { world, beats, moments, cinematicScenes };
+  return { world, beats, moments, cinematicScenes, adaptiveQuestions, discoveries };
 }
 
 export { messageText };
