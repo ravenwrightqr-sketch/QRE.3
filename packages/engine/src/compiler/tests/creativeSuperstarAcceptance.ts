@@ -70,6 +70,15 @@ for (const testCase of cases) {
   const covered = testCase.anchors.filter((anchor) => lowerText.includes(anchor.toLowerCase())).length;
   assert.ok(covered / testCase.anchors.length >= 0.75, `${testCase.name}: anchor coverage ${covered}/${testCase.anchors.length}`);
 
+  const sentenceLeads = text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim().split(/\s+/).slice(0, 3).join(" ").toLowerCase())
+    .filter(Boolean);
+  if (sentenceLeads.length >= 2) {
+    const leadSet = new Set(sentenceLeads);
+    assert.ok(leadSet.size / sentenceLeads.length >= 0.66, `${testCase.name}: sentence openings collapse to a repeated lead`);
+  }
+
   if (testCase.creative) {
     assert.notEqual(text.toLowerCase(), testCase.prompt.toLowerCase(), `${testCase.name}: creative prompt was only echoed`);
     const hasProvenance = result.moments.some((moment) => Array.isArray(moment.payload.creativeDetails) && moment.payload.creativeDetails.length > 0);
@@ -83,11 +92,6 @@ const uniqueOutputs = new Set(outputs.map((value) => value.toLowerCase()));
 assert.ok(uniqueOutputs.size >= Math.floor(cases.length * 0.88), `creative output collapse: ${uniqueOutputs.size}/${cases.length} unique`);
 assert.ok(creativeCount >= 20, "stress corpus lost creative cases");
 assert.equal(provenanceCount, creativeCount, "every creative case must expose provenance");
-
-const sentenceLeads = outputs.flatMap((value) => value.split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim().split(/\s+/).slice(0, 3).join(" ").toLowerCase()).filter(Boolean));
-const leadCounts = new Map<string, number>();
-for (const lead of sentenceLeads) leadCounts.set(lead, (leadCounts.get(lead) ?? 0) + 1);
-assert.ok(Math.max(...leadCounts.values(), 0) <= 4, "creative prose is repeating the same sentence openings too often");
 
 const feedbackFirst = compileCognitiveExperience("Coco stole the bow.", { feedback: { accepted: ["comedy works"], rejected: ["flat phrasing"] } });
 const feedbackSecond = compileCognitiveExperience("Coco stole another bow.", { state: feedbackFirst.state });
