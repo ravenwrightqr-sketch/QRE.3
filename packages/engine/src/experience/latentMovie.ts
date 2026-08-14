@@ -12,7 +12,7 @@ function slotValues(plan: CognitiveExperiencePlan | undefined, role: string): Pr
   return (plan?.premise?.slots.filter((slot) => slot.role === role).flatMap((slot) =>
     slot.values.map((value) => ({
       value: clean(value),
-      observed: slot.evidence.some((evidence) => evidence.source === "prompt" || evidence.source === "memory" || evidence.source === "event" || evidence.source === "history" || evidence.source === "location"),
+      observed: slot.evidence.some((evidence) => evidence.source === "prompt" || evidence.source === "memory" || evidence.source === "history" || evidence.source === "location"),
       confidence: slot.confidence,
     })),
   ) ?? []).filter((item) => item.value);
@@ -68,7 +68,7 @@ export function buildLatentMovie(plan?: CognitiveExperiencePlan, beats: StoryBea
   const subject = bestSubject(plan);
   const participants = unique(
     reality.entities
-      .filter((entity) => entity.id !== reality.subjectId && (entity.provenance === "prompt" || entity.provenance === "memory" || entity.provenance === "event" || entity.provenance === "geo"))
+      .filter((entity) => entity.id !== reality.subjectId && (entity.provenance === "prompt" || entity.provenance === "memory" || entity.provenance === "geo"))
       .map((entity) => entity.name),
   );
   const places = unique([
