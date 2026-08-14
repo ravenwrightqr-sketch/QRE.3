@@ -17,6 +17,7 @@ const ACTIONS = ["arrived","entered","walked","went","came","left","returned","f
 const ACTION_RE = new RegExp(`\\b(?:${ACTIONS.join("|")})\\b`, "i");
 const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked)\b/i;
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b/i;
+const TEMPORAL_TAIL_RE = /\s+(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b.*$/i;
 const SPATIAL_PREP_RE = /\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\b/i;
 const RETURN_RE = /\b(?:back|again|returned|returning|same place|there|here)\b/i;
 const STOPWORD_RE = /^(?:I|We|The|Then|At|And|My|Our|This|A|An|By|He|She|They|Guests|Everyone|Grandma|Friday|Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday)$/i;
@@ -94,12 +95,20 @@ function timeOf(text: string) { return text.match(TIME_RE)?.[0]; }
 function actionOf(text: string) { return text.match(ACTION_RE)?.[0]; }
 function stateOf(text: string) { return text.match(STATE_RE)?.[0]; }
 
+function normalizePlace(value: string): string {
+  return sentence(value)
+    .replace(/^(?:the|a|an|my|our|your|his|her|their|this|that)\s+/i, "")
+    .replace(TEMPORAL_TAIL_RE, "")
+    .trim();
+}
+
 function spatialPhraseOf(text: string): string | undefined {
   const prep = "at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards";
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
   const pattern = new RegExp(`\\b(?:${prep})\\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8}?)(?=\\s+(?:${stop})\\b|[,;.]|$)`, "i");
   const match = text.match(pattern); if (!match?.[1]) return undefined;
-  const value = sentence(match[1]); if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
+  const value = normalizePlace(match[1]);
+  if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value)) return undefined;
   return value;
 }
 function subjectEntityOf(text: string, action?: string): string | undefined {
