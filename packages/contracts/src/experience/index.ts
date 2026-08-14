@@ -2,7 +2,6 @@ export * from "./industry.js";
 export * from "./goal.js";
 export * from "./tone.js";
 export * from "./moment.js";
-export * from "./runtimeMoment.js";
 export * from "./experienceType.js";
 export * from "./entityExtractor.js";
 export * from "./context.js";
