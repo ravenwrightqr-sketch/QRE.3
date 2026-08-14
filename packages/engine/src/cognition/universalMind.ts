@@ -41,6 +41,7 @@ type RealityEvent = {
   state?: string;
   order: number;
   evidence: Evidence[];
+  resolvedFromMemory?: boolean;
 };
 
 type World = {
@@ -108,9 +109,6 @@ function stateAt(text: string, start = 0): { word: string; index: number } | und
 function splitSemanticClauses(chunk: string): string[] {
   const value = sentence(chunk);
   const cuts: number[] = [];
-  for (const marker of /\b(?:and|then|but|while|after|before)\b/gi) {
-    void marker;
-  }
   const joinRe = /\b(?:and|then|but|while|after|before)\b/gi;
   for (const match of value.matchAll(joinRe)) {
     if (typeof match.index !== "number") continue;
@@ -200,8 +198,13 @@ function lensOf(prompt: string, context?: UniversalMindContext): Lens {
 }
 
 function memoryPlaces(memories: string[], known: string[]): string[] {
-  const found = memories.flatMap((m) => [m.match(/\b(?:at|in|near|on)\s+([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,5})/g) ?? [], m.match(PLACE_RE)?.[0] ?? "");
-  return unique([...known, ...found.map(clean).flatMap((v) => v.split(/\s+at\s+|\s+in\s+/i).slice(-1))]);
+  const found: string[] = [];
+  for (const m of memories) {
+    found.push(...(m.match(/\b(?:at|in|near|on)\s+([A-Z][A-Za-z0-9'’-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’-]*){0,5})/g) ?? []));
+    const place = m.match(PLACE_RE)?.[0];
+    if (place) found.push(place);
+  }
+  return unique([...known, ...found.flatMap((v) => v.split(/\s+at\s+|\s+in\s+/i).slice(-1))]);
 }
 
 function resolveMemory(text: string, memories: string[], knownPlaces: string[]): { place?: string; matches: string[]; question?: string } {
@@ -243,7 +246,7 @@ function buildEvents(prompt: string, context?: UniversalMindContext) {
     if (time) eventEvidence.push(evidence(`ev-${index}-time`, time, "time", 1));
     if (object) eventEvidence.push(evidence(`ev-${index}-object`, object, "entity", 0.95));
     if (subject) eventEvidence.push(evidence(`ev-${index}-subject`, subject, "entity", 1));
-    events.push({ id: `event-${index + 1}`, raw, actor: subject, action, object, place, time, state, order: index, evidence: eventEvidence });
+    events.push({ id: `event-${index + 1}`, raw, actor: subject, action, object, place, time, state, order: index, evidence: eventEvidence, resolvedFromMemory: Boolean(resolved.place) });
   });
 
   return { events, adaptiveQuestions: unique(adaptiveQuestions), memoryMatches: unique(memoryMatches) };
