@@ -13,18 +13,18 @@ export type PlannedMoment = {
 
 const unique = (values: readonly string[]) => [...new Set(values.filter(Boolean))];
 
-function kind(index: number, total: number): CognitiveBeatDirective["kind"] {
+function kind(index: number, total: number, candidate: CreativeCandidate): CognitiveBeatDirective["kind"] {
+  const moves = candidate.creativeDetails.map((value) => value.toLowerCase()).join(" ");
   if (total <= 1) return "payoff";
   if (index === 0) return "orientation";
-  if (index === total - 1) return "payoff";
+  if (/payoff|earned payoff/.test(moves) || index === total - 1) return "payoff";
+  if (/callback|reinterpretation|midpoint synthesis/.test(moves)) return "discovery";
+  if (/causal consequence|turn|escalation|forward pull/.test(moves)) return "escalation";
+  if (/contrast|detail hierarchy|specificity/.test(moves)) return "transformation";
   if (index === total - 2) return "transformation";
   return index % 2 === 0 ? "discovery" : "escalation";
 }
 
-/**
- * Experience type is an output classification, not a domain classifier.
- * The cognitive core does not inspect industries/topics to choose a compiler.
- */
 function chooseType(world: WorldModel): ExperienceType {
   if (world.events.length > 1) return "story";
   if (world.memoryMatches.length > 0) return "memory";
@@ -65,30 +65,15 @@ function premise(world: WorldModel): CognitivePremise {
     { role: "temporal", values: world.times, salience: 1 },
     { role: "emotion", values: world.events.map((event) => event.state ?? ""), salience: 0.7 },
   ];
-  const premiseSlots: CognitivePremiseSlot[] = slots
-    .filter((slot) => slot.values.length)
-    .map((slot) => ({
-      role: slot.role,
-      values: unique(slot.values),
-      status: "observed",
-      confidence: 1,
-      salience: slot.salience,
-      evidence: evidence(slot.values),
-    }));
-  const premiseRelations: CognitivePremiseRelation[] = world.relations.map((relation) => ({
-    from: "participants",
-    to: relation.relation === "experienced_at" ? "place" : relation.relation === "connected_to" ? "artifact" : "participants",
-    relation: relation.relation,
-    confidence: 1,
-    evidence: evidence([relation.evidenceId]),
-  }));
+  const premiseSlots: CognitivePremiseSlot[] = slots.filter((slot) => slot.values.length).map((slot) => ({ role: slot.role, values: unique(slot.values), status: "observed", confidence: 1, salience: slot.salience, evidence: evidence(slot.values) }));
+  const premiseRelations: CognitivePremiseRelation[] = world.relations.map((relation) => ({ from: "participants", to: relation.relation === "experienced_at" ? "place" : relation.relation === "connected_to" ? "artifact" : "participants", relation: relation.relation, confidence: 1, evidence: evidence([relation.evidenceId]) }));
   return { slots: premiseSlots, relations: premiseRelations };
 }
 
 export function planExperience(world: WorldModel, significance: SignificanceResult, selected: CreativeCandidate[]): { moments: PlannedMoment[]; plan: CognitiveExperiencePlan; type: ExperienceType; tone: readonly ExperienceTone[]; meaning: ExperienceMeaning } {
   const moments = selected.map((candidate, index) => {
     const event = world.events.find((item) => item.id === candidate.eventId)!;
-    return { event, text: candidate.text, order: index, kind: kind(index, selected.length), evidence: event.evidence.map((item) => item.detail) };
+    return { event, text: candidate.text, order: index, kind: kind(index, selected.length, candidate), evidence: event.evidence.map((item) => item.detail) };
   });
   const realization: CognitiveExperienceRealization = {
     direction: selected.length > 1 ? "story" : "memory",
