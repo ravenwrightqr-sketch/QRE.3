@@ -44,41 +44,36 @@ export function resolveMemory(prompt: string, context: UniversalMindContext): Me
 
   const relevant = returning ? scored : scored.filter((item) => item.score > 0).slice(0, 6);
   const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
-
   const placeEvidence = episodes.flatMap((episode) => episode.world.places.map((place) => ({ place, episode: episode.entry })));
   const distinctPlaces = unique(placeEvidence.map((item) => item.place));
+  const placeBearingEpisodes = episodes.filter((episode) => episode.world.places.length > 0);
   const explicitPlace = explicitPlaceFromPrompt(prompt);
-
-  if (explicitPlace) {
-    const topEntries = episodes.map((episode) => episode.entry);
-    return {
-      matches: topEntries,
-      place: explicitPlace,
-      participants: unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]))).filter((name) => !STOP_NAMES.test(name)),
-      relatedTerms: unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40),
-      questions: [],
-    };
-  }
-
-  // A returning reference is resolved against the full remembered spatial
-  // evidence. One distinct place is safe to resolve. Multiple distinct places
-  // are genuinely ambiguous and must surface a targeted question.
-  const place = distinctPlaces.length === 1 ? distinctPlaces[0] : undefined;
-  const questions = returning && distinctPlaces.length > 1
-    ? ["Which place did you go back to?"]
-    : returning && distinctPlaces.length === 0
-      ? ["Where did you go back to?"]
-      : [];
 
   const topEntries = episodes.map((episode) => episode.entry);
   const participants = unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0])))
     .filter((name) => !STOP_NAMES.test(name));
+  const relatedTerms = unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40);
 
-  return {
-    matches: topEntries,
-    place,
-    participants,
-    relatedTerms: unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40),
-    questions,
-  };
+  if (explicitPlace) {
+    return { matches: topEntries, place: explicitPlace, participants, relatedTerms, questions: [] };
+  }
+
+  // Implicit returning references are resolved from remembered episodes. Two
+  // place-bearing episodes are competing hypotheses even if their normalized
+  // strings collide; one place-bearing episode is uniquely resolvable.
+  if (returning) {
+    if (placeBearingEpisodes.length >= 2) {
+      return { matches: topEntries, participants, relatedTerms, questions: ["Which place did you go back to?"] };
+    }
+    if (placeBearingEpisodes.length === 1) {
+      return { matches: topEntries, place: placeBearingEpisodes[0]!.world.places[0], participants, relatedTerms, questions: [] };
+    }
+    return { matches: topEntries, participants, relatedTerms, questions: ["Where did you go back to?"] };
+  }
+
+  if (distinctPlaces.length === 1) {
+    return { matches: topEntries, place: distinctPlaces[0], participants, relatedTerms, questions: [] };
+  }
+
+  return { matches: topEntries, participants, relatedTerms, questions: [] };
 }
