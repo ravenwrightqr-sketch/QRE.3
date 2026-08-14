@@ -30,6 +30,7 @@ The brain reasons over:
 - time
 - history
 - evidence
+- concrete details
 - memory
 - media/context
 
@@ -47,20 +48,28 @@ Participants must survive:
 
 Relationships are first-class world facts. Repeated events can strengthen, extend, or reveal relationships over time.
 
-## Evidence conservation
+## Detail and evidence conservation
 
-High-value observed anchors receive hard protection during realization:
+Concrete nouns and details inside state clauses are evidence too.
+
+Examples:
+
+- `the chairs were circled around us` → `chairs` is a conserved entity/detail
+- `the lights went out` → `lights` is a conserved entity/detail
+- `the teapot has been in the family for forty years` → `teapot`, `family`, and `forty years` are conserved evidence
+
+Creative candidates cannot win merely because they sound better. If a candidate discards a high-salience participant, object, detail, place, time, recurrence, duration, or outcome, it loses the ranking competition and the faithful candidate wins.
+
+High-value anchors include:
 
 - participants and named entities
-- objects/artifacts
+- objects/artifacts and concrete state subjects
 - places
 - exact/relative times
 - temporal boundaries such as `until closing` or `at sunrise`
 - duration/history such as `for forty years`
 - recurrence such as `again`, `returned`, or `every Thanksgiving`
 - explicit outcomes
-
-A creative candidate that drops important evidence must lose the ranking competition or be repaired.
 
 ## Memory intelligence
 
@@ -123,7 +132,7 @@ Primary gate:
 
 `pnpm --filter @qre/engine test:universal-mind`
 
-Passing TypeScript is necessary but not sufficient. The mind must demonstrate reality fidelity, participant/entity preservation, evidence conservation, causality, temporal intelligence, memory resolution, ambiguity handling, creative lens variation, sequencing, learning signals, no cognitive leakage, and no robotic generic realization.
+Passing TypeScript is necessary but not sufficient. The mind must demonstrate reality fidelity, participant/entity preservation, detail/evidence conservation, causality, temporal intelligence, memory resolution, ambiguity handling, creative lens variation, sequencing, learning signals, no cognitive leakage, and no robotic generic realization.
 
 ## Documentation rule
 
