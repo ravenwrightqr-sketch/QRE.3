@@ -19,6 +19,8 @@ const cases: readonly AcceptanceCase[] = [
   { name: "horror lens", prompt: "We returned to the restaurant where we met. The chairs were suddenly circled around us and the lights went out. Make it horror.", anchors: ["restaurant", "chairs", "lights"] },
   { name: "rescue", prompt: "Luna came home from the shelter terrified, hid under the table, and finally ate from my hand that night.", anchors: ["Luna", "shelter", "terrified", "table", "ate"] },
   { name: "physical art", prompt: "This keychain traveled with us to Santa Monica, the desert, and the lake. The best memory happened at sunrise.", anchors: ["keychain", "Santa Monica", "desert", "lake", "sunrise"] },
+  { name: "arbitrary named place", prompt: "Alex and Sam met at Disneyland in June, returned to Huntington Beach Pier in August, and left smiling.", anchors: ["Alex", "Sam", "Disneyland", "Huntington Beach Pier", "August"] },
+  { name: "novel place phrase", prompt: "We waited beside the old observatory behind the abandoned rail depot until midnight.", anchors: ["old observatory", "abandoned rail depot", "midnight"] },
 ] as const;
 
 const LEAK = /\b(?:cognitive|compiler|premise|directive|hypothesis|semantic|realizer|experience plan|story structure|progression model|interaction model|discovery model|trajectory|mechanic|mechanics|latent movie|internal state|generated output|result is available)\b/i;
@@ -29,14 +31,23 @@ for (const testCase of cases) {
   const text = result.moments.map((m) => m.text ?? m.description ?? m.title ?? "").join(" ");
   for (const anchor of testCase.anchors) assert.ok(text.toLowerCase().includes(anchor.toLowerCase()), `${testCase.name}: missing '${anchor}'`);
   for (const forbidden of testCase.forbidden ?? []) assert.ok(!text.toLowerCase().includes(forbidden.toLowerCase()), `${testCase.name}: invented '${forbidden}'`);
-  // A single coherent event is allowed to produce a single moment. Moment count is emergent.
   assert.ok(result.moments.length >= 1, `${testCase.name}: no experience moments`);
   assert.equal(result.moments.length, result.cinematicScenes.length, `${testCase.name}: moment/scene drift`);
   assert.ok(!LEAK.test(text), `${testCase.name}: cognitive leakage`);
   assert.ok(!ROBOTIC.test(text), `${testCase.name}: robotic generic realization`);
 }
 
-// Dynamic-count proof: multiple independently segmented events must be able to produce multiple moments.
+const homeService = compileCognitiveExperience("Maria cleaned the kitchen and bathrooms at 9:04 AM, then the living room finally surrendered.");
+assert.ok(homeService.world.entities.some((value) => /living room/i.test(value)), "world model must preserve unseen location-like entities");
+assert.ok(homeService.world.evidence.some((item) => /living room/i.test(item.detail)), "location evidence must survive into world evidence");
+
+// Open-world place proof: neither place is allowed to be a preloaded vocabulary item.
+const arbitraryPlaces = compileCognitiveExperience("Alex and Sam met at Disneyland in June, returned to Huntington Beach Pier in August, and left smiling.");
+assert.ok(arbitraryPlaces.world.places.some((place) => /Disneyland/i.test(place)), "Disneyland must be discovered as a place from context");
+assert.ok(arbitraryPlaces.world.places.some((place) => /Huntington Beach Pier/i.test(place)), "Huntington Beach Pier must be discovered as a place from context");
+assert.ok(arbitraryPlaces.world.relations.some((relation) => relation.from === "Alex" && relation.relation === "experienced_at" && /Disneyland/i.test(relation.to)), "Alex/Disneyland relation missing");
+assert.ok(arbitraryPlaces.world.relations.some((relation) => relation.from === "Sam" && relation.relation === "experienced_at" && /Huntington Beach Pier/i.test(relation.to)), "Sam/pier relation missing");
+
 const multiEvent = compileCognitiveExperience("Alex arrived at the restaurant. Sam joined Alex. They stayed until closing.");
 assert.ok(multiEvent.world.events.length >= 2, "multi-event input should preserve multiple world events");
 assert.ok(multiEvent.moments.length >= 2, "multiple meaningful events should produce multiple experience moments");
