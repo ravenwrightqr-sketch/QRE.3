@@ -23,5 +23,6 @@ export type ExperienceBlueprint = {
     archetypes?: string[];
     themes?: string[];
     dna?: string[];
+    behavior?: unknown;
   };
 };
