@@ -1,260 +1,224 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import MomentRenderer from "./MomentRenderer";
 import { startDefaultCinematicMusic, type MusicHandle } from "./defaultCinematicMusic";
+import type { ScanResponse, CinematicScene } from "@qre/contracts";
 
-import type {
-  ScanResponse,
-  CinematicScene,
-} from "@qre/contracts";
+type Props = { data: ScanResponse };
 
+export default function CinematicScanPlayer({ data }: Props) {
+  const scenes: CinematicScene[] = (data.cinematicScenes ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const [index, setIndex] = useState(0);
+  const [musicStarted, setMusicStarted] = useState(false);
+  const musicRef = useRef<MusicHandle | null>(null);
 
-type Props = {
-
-  data: ScanResponse;
-
-};
-
-export default function CinematicScanPlayer({
-
-  data,
-
-}:Props){
-
-
-const scenes: CinematicScene[] =
-  data.cinematicScenes ?? [];
-
-
-const [
-index,
-setIndex
-]=useState(0);
-
-const [
-  musicStarted,
-  setMusicStarted,
-]=useState(false);
-
-const musicRef = useRef<MusicHandle | null>(null);
-
-
-useEffect(()=>{
-
-setIndex(0);
-setMusicStarted(false);
-
-if (musicRef.current) {
-  musicRef.current.stop();
-  musicRef.current = null;
-}
-
-return () => {
-  if (musicRef.current) {
-    musicRef.current.stop();
+  useEffect(() => {
+    setIndex(0);
+    setMusicStarted(false);
+    musicRef.current?.stop();
     musicRef.current = null;
-  }
-};
+    return () => {
+      musicRef.current?.stop();
+      musicRef.current = null;
+    };
+  }, [data]);
 
-},[data]);
-
-
-useEffect(()=>{
-
-const startMusic = () => {
-  if (musicRef.current) return;
-  const music = startDefaultCinematicMusic();
-  if (music) {
-    musicRef.current = music;
-    setMusicStarted(true);
-  }
-};
-
-window.addEventListener("pointerdown", startMusic, { passive: true, once: true });
-window.addEventListener("keydown", startMusic, { once: true });
-
-return () => {
-  window.removeEventListener("pointerdown", startMusic);
-  window.removeEventListener("keydown", startMusic);
-};
-
-}, [data]);
-
-
-const scene =
-scenes[index];
-
-
-useEffect(()=>{
-
-if(!scene)
-return;
-
-
-const timer =
-window.setTimeout(()=>{
-setIndex(
-current =>
-Math.min(
-current + 1,
-scenes.length
-)
-);
-},
-scene.duration ?? 3000);
-
-
-return()=>{
-window.clearTimeout(timer);
-};
-
-},[
-scene,
-scenes.length
-]);
-
-
-function restart(){
-setIndex(0);
-if (!musicRef.current) {
-  const music = startDefaultCinematicMusic();
-  if (music) {
-    musicRef.current = music;
-    setMusicStarted(true);
-  }
-}
-}
-
-
-if(!scene){
-
-if (musicRef.current) {
-  musicRef.current.stop();
-  musicRef.current = null;
-}
-
-return (
-
-<div
-style={{
-minHeight:"100vh",
-display:"grid",
-placeItems:"center",
-background:"#030305",
-color:"#fff",
-textAlign:"center",
-padding:40
-}}
->
-
-<div>
-
-<h1>
-Memory Sealed
-</h1>
-
-<p
-style={{
-opacity:.6
-}}
->
-This experience has completed.
-</p>
-
-<button
-onClick={restart}
-style={{
-marginTop:25,
-padding:"14px 35px",
-borderRadius:999,
-background:"transparent",
-border:"1px solid rgba(255,255,255,.35)",
-color:"#fff",
-cursor:"pointer"
-}}
->
-RELIVE
-</button>
-
-</div>
-
-</div>
-);
-}
-
-
-return (
-
-<div
-onPointerDown={() => {
-  if (musicRef.current) return;
-  const music = startDefaultCinematicMusic();
-  if (music) {
-    musicRef.current = music;
-    setMusicStarted(true);
-  }
-}}
-style={{
-minHeight:"100vh",
-width:"100%",
-display:"flex",
-alignItems:"center",
-justifyContent:"center",
-background:"#030305",
-color:"#fff",
-padding:"40px 20px",
-position:"relative",
-}}
->
-
-<div
-style={{
-width:"min(1200px,100%)",
-}}
->
-
-<MomentRenderer
-moment={scene.moment}
-/>
-
-</div>
-
-{!musicStarted && (
-  <button
-    type="button"
-    onClick={(event) => {
-      event.stopPropagation();
+  useEffect(() => {
+    const startMusic = () => {
+      if (musicRef.current) return;
       const music = startDefaultCinematicMusic();
       if (music) {
         musicRef.current = music;
         setMusicStarted(true);
       }
-    }}
-    style={{
-      position: "fixed",
-      right: 18,
-      bottom: 18,
-      padding: "10px 14px",
-      borderRadius: 999,
-      border: "1px solid rgba(255,255,255,.2)",
-      background: "rgba(0,0,0,.55)",
-      color: "#fff",
-      backdropFilter: "blur(12px)",
-      cursor: "pointer",
-      fontSize: 12,
-      letterSpacing: 1,
-    }}
-  >
-    SOUND ON
-  </button>
-)}
+    };
+    window.addEventListener("pointerdown", startMusic, { passive: true, once: true });
+    window.addEventListener("keydown", startMusic, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", startMusic);
+      window.removeEventListener("keydown", startMusic);
+    };
+  }, [data]);
 
-</div>
-);
+  const scene = scenes[index];
 
+  useEffect(() => {
+    if (!scene) return;
+    const timer = window.setTimeout(() => {
+      setIndex((current) => Math.min(current + 1, scenes.length));
+    }, Math.max(scene.duration ?? 3000, 1200));
+    return () => window.clearTimeout(timer);
+  }, [scene, scenes.length]);
 
+  function restart() {
+    setIndex(0);
+    if (!musicRef.current) {
+      const music = startDefaultCinematicMusic();
+      if (music) {
+        musicRef.current = music;
+        setMusicStarted(true);
+      }
+    }
+  }
+
+  if (!scene) {
+    musicRef.current?.stop();
+    musicRef.current = null;
+    return (
+      <main style={sealedStage} aria-label="Experience complete">
+        <div style={sealedCard}>
+          <h1 style={sealedTitle}>Memory Sealed</h1>
+          <button type="button" onClick={restart} style={reliveButton}>RELIVE</button>
+        </div>
+      </main>
+    );
+  }
+
+  const visual = scene.visual;
+  const background = visual?.background || "radial-gradient(circle at 50% 50%, rgba(70,255,220,.06), transparent 42%), #030305";
+  const transition = scene.transition ?? "cinematic";
+
+  return (
+    <main
+      onPointerDown={() => {
+        if (musicRef.current) return;
+        const music = startDefaultCinematicMusic();
+        if (music) {
+          musicRef.current = music;
+          setMusicStarted(true);
+        }
+      }}
+      style={{ ...stage, background, animation: `${transition === "flash" ? "qreSceneFlash" : "qreSceneIn"} .75s ease both` }}
+      aria-label="Cinematic experience"
+    >
+      <div style={vignette} />
+      <div style={progressTrack} aria-hidden="true">
+        <div style={{ ...progressFill, width: `${((index + 1) / scenes.length) * 100}%` }} />
+      </div>
+
+      <section style={sceneFrame}>
+        <MomentRenderer moment={scene.moment} />
+      </section>
+
+      {!musicStarted && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            const music = startDefaultCinematicMusic();
+            if (music) {
+              musicRef.current = music;
+              setMusicStarted(true);
+            }
+          }}
+          style={soundButton}
+          aria-label="Start soundtrack"
+        >
+          SOUND
+        </button>
+      )}
+    </main>
+  );
 }
+
+const stage: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  width: "100vw",
+  height: "100dvh",
+  minHeight: "100dvh",
+  overflow: "hidden",
+  display: "grid",
+  placeItems: "center",
+  color: "#fff",
+  backgroundColor: "#030305",
+  zIndex: 9999,
+  touchAction: "manipulation",
+};
+
+const vignette: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+  background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,.48) 100%)",
+};
+
+const sceneFrame: CSSProperties = {
+  position: "relative",
+  zIndex: 2,
+  width: "100%",
+  maxWidth: 980,
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  padding: "clamp(28px, 7vw, 88px) clamp(20px, 7vw, 100px)",
+  boxSizing: "border-box",
+};
+
+const progressTrack: CSSProperties = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 2,
+  background: "rgba(255,255,255,.08)",
+  zIndex: 4,
+};
+
+const progressFill: CSSProperties = {
+  height: "100%",
+  background: "rgba(255,255,255,.7)",
+  transition: "width .25s ease",
+};
+
+const soundButton: CSSProperties = {
+  position: "fixed",
+  right: 16,
+  bottom: 16,
+  zIndex: 5,
+  border: "1px solid rgba(255,255,255,.16)",
+  background: "rgba(0,0,0,.28)",
+  color: "rgba(255,255,255,.62)",
+  borderRadius: 999,
+  padding: "8px 12px",
+  fontSize: 9,
+  letterSpacing: 1.5,
+  backdropFilter: "blur(12px)",
+};
+
+const sealedStage: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  width: "100vw",
+  height: "100dvh",
+  display: "grid",
+  placeItems: "center",
+  background: "#030305",
+  color: "#fff",
+  zIndex: 9999,
+};
+
+const sealedCard: CSSProperties = {
+  display: "grid",
+  justifyItems: "center",
+  gap: 22,
+  padding: 30,
+};
+
+const sealedTitle: CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(30px, 8vw, 68px)",
+  fontWeight: 500,
+  letterSpacing: "-2px",
+};
+
+const reliveButton: CSSProperties = {
+  border: "1px solid rgba(255,255,255,.22)",
+  background: "rgba(255,255,255,.04)",
+  color: "#fff",
+  borderRadius: 999,
+  padding: "11px 18px",
+  fontSize: 10,
+  letterSpacing: 2,
+  cursor: "pointer",
+};
