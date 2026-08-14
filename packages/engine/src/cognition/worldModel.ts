@@ -3,19 +3,8 @@ import type { CognitiveEvidence, ExperienceEntities } from "@qre/contracts";
 export type CognitiveLens = "neutral" | "comedy" | "horror" | "romance" | "wild" | "mysterious";
 export type WorldKind = "entity" | "event" | "state" | "relationship" | "place" | "time" | "history" | "detail";
 
-export type WorldEvidence = CognitiveEvidence & {
-  id: string;
-  kind: WorldKind;
-  salience: number;
-};
-
-export type WorldRelation = {
-  from: string;
-  relation: string;
-  to: string;
-  evidenceId: string;
-};
-
+export type WorldEvidence = CognitiveEvidence & { id: string; kind: WorldKind; salience: number };
+export type WorldRelation = { from: string; relation: string; to: string; evidenceId: string };
 export type WorldEvent = {
   id: string;
   raw: string;
@@ -30,7 +19,6 @@ export type WorldEvent = {
   evidence: WorldEvidence[];
   resolvedFromMemory?: boolean;
 };
-
 export type WorldModel = {
   prompt: string;
   lens: CognitiveLens;
@@ -48,13 +36,12 @@ export type WorldModel = {
 const ACTIONS = [
   "arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened","surrendered","disappeared","appeared","continued","waited","lingered","kept","became"
 ] as const;
-
 const ACTION_RE = new RegExp(`\\b(?:${ACTIONS.join("|")})\\b`, "i");
-const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked|seemed)\b/i;
+const STATE_RE = /\b(?:has been|have been|had been|was|were|is|are|am|remained|became|kept|seemed|felt|stayed|looked)\b/i;
 const TIME_RE = /\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this morning|this afternoon|this evening|last night|two weeks ago|three years later|until closing|at sunrise|at sunset|for \w+ (?:minutes|hours|days|weeks|years)|for forty years|every [A-Za-z]+)\b/i;
 const PLACE_WORDS = ["restaurant","bar","club","museum","theater","theatre","park","beach","hotel","house","home","kitchen","bathroom","bathrooms","living room","bedroom","garage","school","office","stadium","arena","shop","store","airport","station","road","street","city","town","warehouse","church","hall","studio","groomer","gym","spa","backyard","venue","pier","lake","mountain","forest","farm","garden","downtown","desert","convention","expo"];
 const PLACE_RE = new RegExp(`\\b(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
-const PLACE_PHRASE_RE = new RegExp(`\\b(?:[A-Za-z][A-Za-z'’-]*\\s+){0,3}(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")})\\b`, "i");
+const EXPLICIT_PLACE_RE = new RegExp(`\\b(?:at|in|inside|near|around|outside|on|to)\\s+(?:the\\s+)?((?:[A-Za-z][A-Za-z'’-]*\\s+){0,3}(?:${PLACE_WORDS.map((v) => v.replace(/ /g, "\\s+")).join("|")}))\\b`, "i");
 const RETURN_RE = /\b(?:back|again|returned|returning|same place|there)\b/i;
 
 const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -92,8 +79,7 @@ function splitCoordinatedActions(clause: string): string[] {
   for (const match of text.matchAll(/\b(?:and|&|then|but)\b/gi)) {
     if (match.index === undefined) continue;
     const left = text.slice(0, match.index);
-    const rightStart = match.index + match[0].length;
-    const right = text.slice(rightStart);
+    const right = text.slice(match.index + match[0].length);
     if (semanticIndex(left) !== undefined && semanticIndex(right) !== undefined) boundaries.push(match.index);
   }
   if (!boundaries.length) return [text];
@@ -122,9 +108,7 @@ function splitPrompt(prompt: string): string[] {
         if (current && semantic !== undefined && currentSemantic !== undefined) {
           result.push(current);
           current = part.replace(/^(?:and|&|then|but)\s+/i, "");
-        } else {
-          current = current ? `${current}, ${part}` : part;
-        }
+        } else current = current ? `${current}, ${part}` : part;
       }
       if (current) result.push(current);
       const coordinated = splitCoordinatedActions(result.splice(result.length - (parts.length ? 1 : 0))[0] ?? "");
@@ -149,15 +133,8 @@ function participants(text: string, carry: string[]): string[] {
 }
 
 function placeOf(text: string): string | undefined {
-  // Preserve the smallest useful noun phrase around the universal place token.
-  // This handles "living room finally surrendered" and "Riverside Theater"
-  // without encoding any domain-specific location grammar.
-  const phrase = text.match(PLACE_PHRASE_RE)?.[0];
-  if (phrase) {
-    const cleaned = sentence(phrase).replace(/^(?:the|a|an)\s+/i, "");
-    const actionIndex = semanticIndex(cleaned);
-    return sentence(actionIndex === undefined ? cleaned : cleaned.slice(0, actionIndex));
-  }
+  const explicit = text.match(EXPLICIT_PLACE_RE)?.[1];
+  if (explicit) return sentence(explicit).replace(/^(?:the|a|an)\s+/i, "");
   return text.match(PLACE_RE)?.[0];
 }
 
@@ -225,8 +202,7 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
     if (state) items.push(evidence(`event-${index}-state`, state, "state", 0.85));
     if (object) items.push(evidence(`event-${index}-object`, object, "detail", 0.95));
     detailList.forEach((value) => items.push(evidence(`event-${index}-detail-${value}`, value, "detail", 0.9)));
-    const event: WorldEvent = { id: `event-${index + 1}`, raw, participants: eventParticipants, action, state, object, place, time, details: detailList, order: index, evidence: items, resolvedFromMemory: Boolean(options.memoryMatches?.length) };
-    events.push(event);
+    events.push({ id: `event-${index + 1}`, raw, participants: eventParticipants, action, state, object, place, time, details: detailList, order: index, evidence: items, resolvedFromMemory: Boolean(options.memoryMatches?.length) });
     allEvidence.push(...items);
   });
 
