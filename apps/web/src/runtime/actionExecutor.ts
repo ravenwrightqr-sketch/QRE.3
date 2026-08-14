@@ -1,24 +1,23 @@
-import type { Moment } from "@qre/contracts";
+import type { ExperienceMoment } from "@qre/contracts";
 
-export function executeAction(moment: Moment) {
+export function executeAction(moment: ExperienceMoment) {
   if (moment.type !== "action") return;
+  const url = moment.url ?? (typeof moment.meta?.url === "string" ? moment.meta.url : undefined);
+  const text = moment.text ?? moment.title ?? (typeof moment.meta?.text === "string" ? moment.meta.text : "");
 
   switch (moment.action) {
     case "redirect":
-      if (moment.meta?.url) {
-        window.location.href = moment.meta.url;
-      }
-      break;
-
     case "payment":
-      if (moment.meta?.url) {
-        window.location.href = moment.meta.url;
-      }
+      if (url) window.location.href = url;
       break;
-
     case "unlock":
-      // v1: just UI signal (later upgrade to state engine)
-      console.log("UNLOCK:", moment.meta?.text);
+      console.log("UNLOCK:", text);
+      break;
+    case "flow":
+    case "cta":
+      if (url) window.location.href = url;
+      break;
+    default:
       break;
   }
 }
