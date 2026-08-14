@@ -19,6 +19,7 @@ import presenceRoutes from "./routes/presence.js";
 import debugRouter from "./routes/debug.js";
 import experienceRouter from "./routes/experience.js";
 import assetGenerateRouter from "./routes/assets.generate.js";
+import geoProofRouter from "./routes/geoProof.js";
 
 /** AUTH + FLOW */
 import { authRoutes } from "./routes/auth.js";
@@ -39,22 +40,14 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http
 app.use(
   cors({
     origin(origin, callback) {
-      // Non-browser clients and direct QR requests do not send an Origin.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (corsOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
+      if (!origin) return callback(null, true);
+      if (corsOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("CORS origin denied"));
     },
     credentials: true,
   }),
 );
 
-/** Stripe webhook must receive the raw body before JSON parsing. */
 app.use(
   "/api/stripe/webhook",
   express.raw({
@@ -84,6 +77,7 @@ app.use("/api/presence", presenceRoutes);
 app.use("/api/debug", debugRouter);
 app.use("/experience", experienceRouter);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/dashboard-geoproof", geoProofRouter);
 app.use("/api/master-dashboard", masterDashboardRoutes);
 app.use("/api/stripe", stripeWebhookRouter);
 app.use("/api/stripe", stripeTestRouter);
