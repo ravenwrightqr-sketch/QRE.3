@@ -1,7 +1,8 @@
 import { localModelGenerate } from "./localModelRuntime.js";
 
 type Input={prompt:string;lens?:string;subject?:string;facts:string[];sourceMoments:string[];memoryContext?:string[];creativeLearningContext?:string[];trajectory?:string[]};
-type Plan={angle:string;tension:string;movement:string;payoff:string;antiRepeat:string;beatCount:number};
+type BeatJob={job:string;attention:string;grounding:string;payoffLink:string};
+type Plan={angle:string;tension:string;movement:string;payoff:string;antiRepeat:string;beatCount:number;beatJobs:BeatJob[]};
 type Scene={text:string;kind?:string};
 
 const GENERIC=[/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/quick zoom/i,/camera pulls back/i,/final shot/i,/eyes? (?:widen|sparkle)/i,/the power of (?:affection|love|friendship)/i,/transformation and affection/i,/a symbol of (?:love|bravery|affection|friendship)/i,/new routine/i,/cherished memory/i,/in (?:her|his|their) world/i];
@@ -22,46 +23,52 @@ function normalize(scenes:Scene[],input:Input){return scenes.map(s=>({text:clean
 export async function authorFast(input:Input):Promise<{plan:Plan;scenes:Scene[]}>{
  const source={prompt:input.prompt,lens:input.lens??"",subject:input.subject??"",facts:uniq(input.facts),sourceMoments:uniq(input.sourceMoments),memoryContext:uniq(input.memoryContext??[]),creativeLearningContext:uniq(input.creativeLearningContext??[]),trajectory:uniq(input.trajectory??[])};
  const planResult=await localModelGenerate([{role:"system",content:[
-  "You are QRE's senior creative director. Find the latent movie inside supplied reality before writing prose.",
-  "The character/subject is the center of gravity. The input is the world they experience. Make the character's personality, contradiction, attitude, relationship, choice, or consequence the creative engine.",
-  "Privately generate genuinely different interpretations, then attack them for genericness, unsupported invention, repetition, weak dramatic movement, and predictable payoff. Choose ONE champion.",
-  "The champion angle must be specific to this character/world. Never return an abstract one-word angle such as transformation, affection, love, happiness, adventure, memory, or connection.",
-  "A strong angle identifies a relationship or game: rivalry, recurring friction, status negotiation, private ritual, contradiction, obsession, escalation, unexpected tenderness, or a character-specific rule.",
-  "Do not confuse a theme with an angle. 'Transformation' is a theme. 'The bow keeps reopening a negotiation this character refuses to lose' is an angle-shaped problem.",
+  "You are QRE's senior creative director and beat architect. Find the latent movie inside supplied reality before prose.",
+  "The character/subject is the center of gravity. The input is the world they experience. Make personality, contradiction, attitude, relationship, choice, consequence, or recurring history the creative engine.",
+  "Privately generate genuinely different interpretations, attack them for genericness, unsupported invention, repetition, weak movement, and predictable payoff, then choose ONE champion.",
+  "The champion angle must be specific to this character/world. Never use a one-word theme such as transformation, affection, love, happiness, adventure, memory, or connection.",
+  "Think in relationship/game terms: recurring rivalry, friction, status negotiation, private ritual, contradiction, obsession, escalation, unexpected tenderness, or a character-specific rule.",
+  "Then architect the sequence beat-by-beat. Each beat must have a distinct DRAMATIC JOB and a reason the viewer wants the next cut.",
+  "Beat jobs should be concrete, such as: establish the charged situation, raise the question, sharpen the character's stance, change the terms, reverse the power, exploit a supplied detail, trigger the payoff, land the character consequence.",
+  "Do NOT write candidate prose in the plan. Define the jobs the mouth must solve.",
   "Hard reality: gender/pronouns, people, relationships, locations, actions, outcomes, timestamps, and physical events are usable only when supplied. Never infer them.",
-  "A boring job can become entertaining through the real person's perspective, attitude, rhythm, relationship, contrast, or meaning. Never invent events to improve it.",
-  "Return JSON only: {angle,tension,movement,payoff,antiRepeat,beatCount}.",
+  "Return JSON only with angle,tension,movement,payoff,antiRepeat,beatCount,beatJobs. beatJobs is an array with exactly beatCount objects: {job,attention,grounding,payoffLink}.",
  ].join(" ")},{role:"user",content:JSON.stringify(source)}],"json");
  debug("PLAN",planResult.text);
- const fallback:Plan={angle:"character-specific contradiction",tension:"the character meets the recurring situation on different terms",movement:"hook → complication → character turn → consequence",payoff:"the character gets the last word",antiRepeat:"generic transformation language, mechanical name repetition, unsupported events",beatCount:input.prompt.toLowerCase().includes("living memory")||input.prompt.toLowerCase().includes("chapter")?4:5};
+ const fallback:Plan={angle:"character-specific contradiction",tension:"the character meets the recurring situation on different terms",movement:"hook → pressure → character turn → consequence",payoff:"the character gets the last word",antiRepeat:"generic transformation language, mechanical name repetition, unsupported events",beatCount:input.prompt.toLowerCase().includes("living memory")||input.prompt.toLowerCase().includes("chapter")?4:5,beatJobs:[
+  {job:"establish the charged character situation",attention:"create immediate curiosity",grounding:"use only supplied reality",payoffLink:"plant the final consequence"},
+  {job:"sharpen the conflict or question",attention:"make the next cut necessary",grounding:"do not invent an event",payoffLink:"increase pressure"},
+  {job:"change the terms",attention:"deliver surprise or character turn",grounding:"transform supplied material, do not fabricate it",payoffLink:"set up payoff"},
+  {job:"land the character-specific payoff",attention:"make the ending satisfying",grounding:"earned from the supplied world",payoffLink:"final consequence"},
+ ]};
  const parsedPlan=json<Partial<Plan>>(planResult.text)??{};
- const plan:Plan={...fallback,...parsedPlan,angle:ABSTRACT_ANGLE.test(clean(parsedPlan.angle))?fallback.angle:clean(parsedPlan.angle||fallback.angle)};
+ const jobs=Array.isArray(parsedPlan.beatJobs)?parsedPlan.beatJobs.map((j)=>({job:clean(j?.job),attention:clean(j?.attention),grounding:clean(j?.grounding),payoffLink:clean(j?.payoffLink)})).filter(j=>j.job&&j.attention&&j.grounding&&j.payoffLink):[];
+ const plan:Plan={...fallback,...parsedPlan,angle:ABSTRACT_ANGLE.test(clean(parsedPlan.angle))?fallback.angle:clean(parsedPlan.angle||fallback.angle),beatJobs:jobs.length?jobs:fallback.beatJobs};
  plan.beatCount=Math.max(4,Math.min(6,Number(plan.beatCount)||fallback.beatCount));
+ plan.beatJobs=plan.beatJobs.slice(0,plan.beatCount);
+ while(plan.beatJobs.length<plan.beatCount)plan.beatJobs.push(fallback.beatJobs[Math.min(plan.beatJobs.length,fallback.beatJobs.length-1)]);
  const draftResult=await localModelGenerate([{role:"system",content:[
   "You are QRE's elite micro-beat mouth. HARD MODE.",
-  `Write EXACTLY ${plan.beatCount} beats as one coherent attention sequence.`,
+  `Write EXACTLY ${plan.beatCount} lines as one coherent attention sequence.`,
   "This is a short-form living-memory experience. It is NOT a novel, essay, receipt, poem, or screenplay.",
-  "Your job is to keep attention alive from line to line: LINE → PULL → LINE → PULL → PAYOFF.",
-  "Think in individual lines, not sentences in a paragraph. Each line should either hook, sharpen, complicate, turn, or pay.",
-  "LINE RHYTHM MATTERS. A killer short line can be 2–4 words. A fuller line can be 5–12+ words when it carries the idea better. Mix lengths intentionally. Do not compress everything into fragments and do not pad everything into prose.",
-  "Examples of rhythm, not templates: 'The monster appeared.' / 'Pink bows everywhere.' Or 'Bows? Again?' followed by a fuller line that exploits the same question. The exact words must come from the supplied world.",
-  "A short line succeeds because it creates pressure or curiosity. A fuller line succeeds because it delivers a meaningful development. Never use length as a quality metric by itself.",
-  "EVERY CUT MUST DO SOMETHING: create a question, sharpen a conflict, expose attitude, change the terms, reveal a consequence, reverse expectations, deepen a relationship, trigger a callback, or pay something off.",
-  "DO NOT WRITE A DESCRIPTION OF THE EVENT. Write the character's relationship to the event.",
-  "DO NOT INVENT THE MISSING MOVIE. Use only supplied evidence. Attitude, implication, tension, metaphor, and meaning may be inferred; concrete people, actions, placements, relationships, gender/pronouns, locations, timestamps, and physical events may not.",
-  "If the source says 'pink bow', the line may transform that supplied object through the character's perspective. It may NOT invent who placed it, where it was placed, or what physical action happened.",
-  "CHARACTER GRAVITY WITHOUT NAME ABUSE: the character should dominate through attitude, choice, resistance, consequence, and history. Do not repeat the subject's name mechanically.",
-  "ONE MOVIE ONLY. Every line must belong to the same champion angle. Do not switch from rivalry to tenderness to transformation simply because each sounds nice.",
-  "NO CAMERA LANGUAGE. No camera, zoom, close-up, final shot, scene opens, cut to, screen directions, or decorative cinematography.",
-  "NO AI CHEESE. No tiny paws, heart softens, eyes sparkle, cherished memory, symbol of love/bravery, power of affection, not so bad, sudden emotional resolution, or similar filler.",
-  "NO RECEIPT WRITING. Never merely list timestamps, rooms, jobs, likes, dislikes, or steps.",
-  "NO THEME ANNOUNCEMENT. Do not tell the viewer 'this is about transformation' or 'the dog tag is a cherished memory'. Make the sequence earn the meaning.",
-  "THE PAYOFF MUST LAND. End on a character-specific consequence, reversal, victory, joke, sting, realization, callback, or memorable image earned by the champion angle. Never end with a generic observation or goodbye.",
+  "Your job is LINE → PULL → LINE → PULL → PAYOFF. The viewer should feel an unanswered question or pressure after nearly every cut.",
+  "CRITICAL: the planner already selected the movie and assigned a job to each beat. Do NOT invent a new angle. Solve the supplied beat jobs in order.",
+  "Each line must perform its assigned dramatic job. Do not merely mention the nouns involved in the job.",
+  "LANGUAGE RHYTHM: a killer short line may be 2–4 words. A fuller line may be 5–12+ words when it carries the dramatic job. Mix lengths intentionally. The rhythm should feel authored, not mechanically compressed.",
+  "A good line can transform a supplied detail through the character's lens: fact → attitude, object → threat, routine → game, place → memory marker, ordinary work → personality. Do not invent a concrete event while doing this.",
+  "The character is the center of gravity. Keep them present through attitude, resistance, choices, consequences, and history. Do not mechanically repeat the subject name.",
+  "A hook like 'Bows? Again?' is only useful if the next line answers, complicates, escalates, or reframes that exact question. Do not abandon the hook.",
+  "Do not turn the input into a chronological receipt. Do not list facts as beats.",
+  "HARD REALITY: never invent gender/pronouns, people, relationships, locations, actions, outcomes, timestamps, weather, object placement, or physical events absent from the source.",
+  "NO CAMERA LANGUAGE. No camera, zoom, close-up, final shot, scene opens, screen directions, or decorative cinematography.",
+  "NO AI CHEESE. No tiny paws, heart softens, eyes sparkle, cherished memory, symbol of love/bravery, power of affection, not so bad, sudden emotional resolution, or vague theme announcements.",
+  "NO GENERIC ENDING. The payoff must be a consequence, reversal, joke, sting, victory, realization, callback, or memorable image earned by the champion angle.",
   `CHAMPION ANGLE: ${plan.angle}`,
   `TENSION: ${plan.tension}`,
   `MOVEMENT: ${plan.movement}`,
   `PAYOFF: ${plan.payoff}`,
   `ANTI-REPEAT: ${plan.antiRepeat}`,
+  `BEAT JOBS: ${JSON.stringify(plan.beatJobs)}`,
   "Return JSON only: {scenes:[{text,kind}]}.",
  ].join(" ")},{role:"user",content:JSON.stringify(source)}],"json");
  debug("DRAFT",draftResult.text);
