@@ -54,8 +54,10 @@ function outputText(data: any): string {
 
 export async function localModelGenerate(messages: LocalModelMessage[], format?: "json"): Promise<LocalModelResult> {
   const fast = process.env.QRE_AUTHOR_FAST === "true";
-  const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.45 : 0.8));
-  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 96 : 512));
+  const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.35 : 0.8));
+  // The fast mouth only needs a tiny JSON envelope. Keep the ceiling tight so an
+  // accidental prose dump cannot spend tens of seconds generating unused tokens.
+  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 64 : 512));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
 
   const data = await request("/api/chat", {
