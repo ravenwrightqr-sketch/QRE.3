@@ -13,6 +13,7 @@ ONE CANONICAL CUT POLICY
 ONE ACCEPTANCE HARNESS
 ONE SHARED SEMANTIC BOUNDARY
 ONE AUTOMATIC ARCHITECTURE GUARD
+ONE MAGNET CIRCLE
 ```
 
 No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
@@ -34,7 +35,9 @@ UNIVERSAL COGNITION
         ↓
 SIGNIFICANCE + CREATIVE SEARCH
         ↓
-VIEWER MOMENTUM / SEQUENCE PLAY
+VIEWER MOMENTUM / MAGNET CIRCLE
+        ↓
+SEQUENCE PLAY
         ↓
 UNIVERSAL AUTHOR BRAIN
         ↓
@@ -46,6 +49,23 @@ CINEMATIC RUNTIME
         ↓
 LEARNING / MEMORY
 ```
+
+The Magnet Circle is the universal sequence primitive:
+
+```text
+novelty
+→ uncertainty
+→ information value
+→ attention
+→ tension
+→ information seeking
+→ narrative engagement
+→ discovery / reframe / payoff
+→ new uncertainty
+↺
+```
+
+Style is downstream realization. The magnet is the invariant.
 
 ## 3. MASTER AUTHOR
 
@@ -62,6 +82,7 @@ creative implication
 relationship compression
 sequence selection
 cut realization input
+magnet-aware sequence diagnostics
 ```
 
 It does not own upstream world modeling, memory persistence, or runtime projection.
@@ -170,6 +191,7 @@ callback
 consequence
 escalation
 compression
+attitude shift
 ```
 
 A candidate is a hypothesis. It is not source truth.
@@ -189,6 +211,8 @@ packages/contracts/src/realityModel.ts
 packages/contracts/src/cognition.ts
 packages/contracts/src/experience/authoring.ts
 ```
+
+`ViewerMomentum` now contains `MagnetCircle`. Do not create a parallel magnet/attention contract.
 
 Do not create another sequence/momentum version without a demonstrated capability gap and explicit replacement/deletion plan.
 
@@ -241,6 +265,9 @@ one cut = one attention moment
 next cut must earn itself
 recurrence requires evidence
 sparse world → smaller invented-world surface
+magnet strength > beat count
+remove a cut → if the information-seeking trajectory weakens, it mattered
+creative style is downstream realization, not the universal objective
 ```
 
 ## 13. DRIFT GUARD
@@ -310,3 +337,7 @@ Full audit:
 Master Goal:
 
 `docs/QRE_AUTHOR_GOAL.md`
+
+Magnet Circle:
+
+`docs/QRE_MAGNET_CIRCLE.md`
