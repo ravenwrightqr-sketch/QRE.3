@@ -24,6 +24,8 @@ export * from "./premise.js";
 export * from "./memoryContext.js";
 export * from "./latentMovie.js";
 export * from "./realityModel.js";
+export * from "./subjectTruth.js";
+export * from "./authorBrain.js";
 export type { SemanticInterpretation } from "./semantic.js";
 export * from "./indexV13.js";
 export * from "./memoryIntelligenceV14.js";
