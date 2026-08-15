@@ -156,6 +156,8 @@ finished scenes
 
 The fast bridge may supply **creative relation candidates** from `apps/api/src/services/creativeRelationOps.ts`. These are search hints only; the Universal Author decides whether to use, transform, reject, or ignore them.
 
+**SPARSE-WORLD RULE:** creative latitude applies to interpretation and juxtaposition, not to evidence. When source evidence is thin, the author should reduce invented-world surface area rather than compensating with hidden backstory, new people, new objects, new events, or new outcomes.
+
 The previous numbered Momentum implementations are **legacy / rollback / audit only** and should be deleted after dependency tracing confirms no production/test dependency remains:
 
 ```text
@@ -239,6 +241,10 @@ source-state → generic emotional arc
         ↓
 specific relationship / implication search
 
+sparse world → invented backstory
+        ↓
+compressed interpretation under uncertainty budget
+
 canned prose generators
         ↓
 creative competition + Universal Author Brain
@@ -254,9 +260,9 @@ subject/world gravity
 
 ## 12. CREATIVE RELATION OPERATIONS
 
-The new relation operation layer is deliberately generic.
+The relation operation layer is deliberately generic.
 
-It may derive candidate expressions from relationships such as:
+It may derive optional candidate expressions from explicit relationships such as:
 
 ```text
 preference ↔ preference
@@ -274,6 +280,8 @@ Canonical rule:
 
 A useful operation must transfer across unrelated worlds. For example, a recurrence operation may discover a compact returning detail in Coco, a wedding, a restaurant, travel, a product history, or horror without hardcoding the domain.
 
+Recurrence must never be inferred merely from a dislike, preference, or single mention. Actual memory, trajectory, or repeated evidence is required.
+
 ## 13. DIAGNOSTIC RULE
 
 Classify failures before changing code:
@@ -288,13 +296,16 @@ F. VALIDATION / PARSING
 G. RUNTIME / MODEL-BUDGET
 ```
 
-Recent failures were primarily **E + F**:
+Recent failures exposed a recurring pattern:
 
-- the model understood the sequence vocabulary but leaked hidden questions into finished cuts;
-- source states were still being overused as generic transformation arcs;
-- a valid sequence could be discarded because a duplicate output field or narrow mouth validator failed.
+- emotional state was being mistaken for plot direction;
+- the local model invented unsupported physical performances;
+- hidden viewer questions leaked into the mouth;
+- duplicate output fields created unnecessary failure modes;
+- sparse input encouraged speculative backstory;
+- model schema synonyms such as `resolution` or `unrevealed_information` could cause otherwise useful cuts to be discarded.
 
-The current direction addresses this by separating hidden cognition from mouth realization and by providing generalized creative-relation search hints.
+The canonical path now addresses these by separating hidden cognition from finished language, enforcing grounded creative search, normalizing harmless model vocabulary drift, and preserving validated sequence cut text as the authoritative mouth source.
 
 ## 14. DEVELOPMENT LAW
 
