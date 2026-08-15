@@ -22,6 +22,9 @@ export type AuthorBrainTruth = {
   place?: string;
   subjectTruth?: SubjectTruth;
   cognitivePlan?: CognitiveExperiencePlan;
+  returning?: boolean;
+  visitNumber?: number;
+  presenceSummary?: string[];
   facts: string[];
   sourceMoments: string[];
   memoryContext: string[];
