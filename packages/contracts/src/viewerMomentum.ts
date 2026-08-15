@@ -23,6 +23,23 @@ export type MagnetCircle = {
 };
 
 /**
+ * Memory re-entry is the experience-side complement to information seeking.
+ * It asks which supplied detail can make the viewer feel the remembered world
+ * again rather than merely naming the event category.
+ */
+export type MemoryReentryMagnet = {
+  sensorySignature: string;
+  emotionalSignature: string;
+  socialSignature: string;
+  identitySignature: string;
+  specificity: number;
+  reentryStrength: number;
+  genericityPenalty: number;
+  unresolved?: string;
+  nextNeed?: string;
+};
+
+/**
  * Persistent subject-space held in the viewer's working model.
  * Once established, the subject remains active without requiring repeated
  * naming. Re-identification is spent only when the reference itself carries
@@ -62,6 +79,8 @@ export type ViewerMomentum = {
   payoffDebt?: string;
   /** Cognitive magnet governing why another cut is wanted. */
   magnet?: MagnetCircle;
+  /** Memory re-entry magnet for living-memory experiences. */
+  memoryReentry?: MemoryReentryMagnet;
   /** Persistent subject-space held in working memory across cuts. */
   subjectContinuity?: SubjectContinuity;
   /** The highest-value unresolved information frontier at this moment. */
