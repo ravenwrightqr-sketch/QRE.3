@@ -4,8 +4,8 @@
  * LIVING REALIZATION POLICY.
  * This is intentionally semantic rather than phrase-blacklist driven.
  * It evaluates whether a finished cut preserves the intended cognitive move,
- * stays grounded, and uses the smallest useful language surface.
- * Expand this policy when a general realization law is discovered.
+ * stays grounded, spends the information frontier well, and uses the smallest
+ * useful language surface.
  */
 
 export type CutWorld = {
@@ -26,6 +26,8 @@ export type CutIntent = {
   change?: string;
   next?: string;
   text?: string;
+  subjectEstablished?: boolean;
+  informationFrontier?: string;
 };
 
 export type CutPolicyResult = {
@@ -41,6 +43,8 @@ export type CutPolicyResult = {
     inventionRisk: number;
     repetition: number;
     compression: number;
+    subjectReferenceCost: number;
+    frontierValue: number;
   };
 };
 
@@ -54,6 +58,7 @@ const EXPLANATION = /\b(?:because|therefore|which means|this means|so that|in ot
 const DIRECT_ADDRESS = /\b(?:you|your|viewer|audience)\b/i;
 const FUTURE_CLAIM = /\b(?:from now on|will always|will never|forever|ever again|in the future)\b/i;
 const GENERIC_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
+const SUBJECT_REFERENCE = /\b(?:he|she|they|it|him|her|them|his|her|their|its)\b/i;
 const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -102,7 +107,7 @@ function implicationScore(text: string): number {
   let score = 0;
   if (text.length <= 28) score += 0.3;
   if (/:/.test(text)) score += 0.15;
-  if (/\b(?:again|already|still|yet|apparently|finally|only|just|even|apparently)\b/i.test(text)) score += 0.2;
+  if (/\b(?:again|already|still|yet|apparently|finally|only|just|even)\b/i.test(text)) score += 0.2;
   if (/\b(?:no|yes|me|mine|ours|back|same|different)\b/i.test(text)) score += 0.15;
   if (!EXPLANATION.test(text)) score += 0.2;
   return Math.min(1, score);
@@ -149,6 +154,28 @@ function compressionScore(text: string): number {
   return 0;
 }
 
+function subjectReferenceCost(text: string, world: CutWorld, priorCuts: readonly string[], subjectEstablished: boolean): number {
+  const subject = clean(world.subject);
+  if (!subject || !subjectEstablished) return 0;
+  const explicit = new RegExp(`\\b${subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(text);
+  const pronoun = SUBJECT_REFERENCE.test(text);
+  if (!explicit && !pronoun) return 0;
+  if (explicit && priorCuts.some((cut) => new RegExp(`\\b${subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(cut))) return 0.55;
+  if (explicit) return 0.35;
+  if (pronoun) return 0.1;
+  return 0;
+}
+
+function frontierValue(text: string, intent: CutIntent, priorCuts: readonly string[]): number {
+  const frontier = clean(intent.informationFrontier);
+  if (!frontier) return 0.35;
+  const candidate = new Set(contentWords(text));
+  const frontierWords = new Set(contentWords(frontier));
+  const hits = [...candidate].filter((word) => frontierWords.has(word)).length;
+  const novelty = noveltyScore(text, priorCuts);
+  return Math.min(1, (hits / Math.max(1, frontierWords.size)) * 0.65 + novelty * 0.35);
+}
+
 export function evaluateCut(
   textInput: string,
   world: CutWorld,
@@ -166,6 +193,8 @@ export function evaluateCut(
   const invention = inventionRisk(text, world);
   const repetition = repetitionScore(text, priorCuts);
   const compression = compressionScore(text);
+  const referenceCost = subjectReferenceCost(text, world, priorCuts, Boolean(intent.subjectEstablished));
+  const frontier = frontierValue(text, intent, priorCuts);
 
   if (!text) reasons.push("empty");
   if (wordCount > 14) reasons.push("too-long");
@@ -177,11 +206,13 @@ export function evaluateCut(
   if (explanation >= 0.75) reasons.push("explanation-heavy");
   if (grounded < 0.25 && wordCount > 3) reasons.push("weak-grounding");
   if (repetition >= 0.9 && priorCuts.length) reasons.push("repetition");
+  if (referenceCost >= 0.5) reasons.push("wasted-subject-reference");
 
   // Intent-aware tightening: payoff/reframe cuts may legitimately be longer,
   // while hooks and compressed discoveries should usually be denser.
   if (["hook", "reframe", "callback"].includes(clean(intent.role)) && compression < 0.35) reasons.push("low-impact-density");
   if (clean(intent.gainKind) === "question" && questionLeak) reasons.push("cognitive-question-in-mouth");
+  if (frontier < 0.15 && novelty < 0.2 && wordCount > 2) reasons.push("frontier-starvation");
 
   return {
     accepted: reasons.length === 0,
@@ -196,6 +227,8 @@ export function evaluateCut(
       inventionRisk: Number(invention.toFixed(3)),
       repetition: Number(repetition.toFixed(3)),
       compression: Number(compression.toFixed(3)),
+      subjectReferenceCost: Number(referenceCost.toFixed(3)),
+      frontierValue: Number(frontier.toFixed(3)),
     },
   };
 }
