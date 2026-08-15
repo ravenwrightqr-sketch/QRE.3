@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 const root = resolve(process.cwd());
@@ -6,6 +6,7 @@ const failures = [];
 const warnings = [];
 
 const canonical = "apps/api/src/services/authorBrainUniversal.ts";
+const cutPolicy = "apps/api/src/services/authorCutPolicy.ts";
 const acceptance = "apps/api/author-acceptance-suite.ts";
 
 const forbiddenFiles = [
@@ -57,6 +58,7 @@ function walk(dir, out = []) {
 }
 
 if (!existsSync(join(root, canonical))) fail(`Missing canonical Master Author: ${canonical}`);
+if (!existsSync(join(root, cutPolicy))) fail(`Missing canonical cut policy: ${cutPolicy}`);
 if (!existsSync(join(root, acceptance))) fail(`Missing canonical acceptance harness: ${acceptance}`);
 
 for (const path of forbiddenFiles) {
@@ -82,16 +84,27 @@ if (/authorFastCore|authorBrain\.js|authorBrainMomentum|creativeRelationOps/.tes
   fail("Acceptance harness contains a forbidden author bridge or legacy author import");
 }
 
+const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
+if (!/from\s+["'][^"']*authorCutPolicy\.js["']/.test(canonicalSource)) {
+  fail("Master Author must import the canonical authorCutPolicy directly");
+}
+if (!/\bevaluateCut\s*\(/.test(canonicalSource)) {
+  fail("Master Author must evaluate cuts through the canonical authorCutPolicy");
+}
+if (/function\s+validCut\s*\(/.test(canonicalSource)) {
+  fail("Master Author contains a forbidden duplicate local validCut() validator");
+}
+
 const sourceFiles = walk(join(root, "apps/api/src")).filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 let masterAuthorImports = 0;
 for (const file of sourceFiles) {
   const body = readFileSync(file, "utf8");
   const rel = relative(root, file).replaceAll("\\", "/");
 
-  if (/from\s+[\"'][^\"']*authorBrainUniversal\.js[\"']/.test(body)) masterAuthorImports += 1;
+  if (/from\s+["'][^"']*authorBrainUniversal\.js["']/.test(body)) masterAuthorImports += 1;
 
   for (const forbidden of ["authorBrain.js", "authorBrainMomentum", "authorFastCore", "creativeRelationOps"]) {
-    if (new RegExp(`from\\s+[\\\"'][^\\\"']*${forbidden}[^\\\"']*[\\\"']`).test(body)) {
+    if (new RegExp(`from\\s+[\\"'][^\\"']*${forbidden}[^\\"']*[\\"']`).test(body)) {
       fail(`Forbidden author dependency import in ${rel}: ${forbidden}`);
     }
   }
@@ -111,6 +124,7 @@ if (existsSync(apiServices)) {
 
 console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
 console.log(`MASTER AUTHOR: ${canonical}`);
+console.log(`CANONICAL CUT POLICY: ${cutPolicy}`);
 console.log(`ACCEPTANCE: ${acceptance}`);
 console.log(`MASTER AUTHOR IMPORTS: ${masterAuthorImports}`);
 
@@ -122,4 +136,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH");
+console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH · ONE CUT POLICY");
