@@ -1,5 +1,6 @@
 import type { AuthorBrainTruth } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
+import { deriveCreativeRelationCandidates } from "./creativeRelationOps.js";
 
 /**
  * QRE FAST AUTHOR LEARNING BRIDGE · CANONICAL
@@ -22,12 +23,20 @@ const SEQUENCE_PRINCIPLES = [
   "Service roles are usually stage context, not protagonists.",
   "One cut is one attention moment. Prefer implication over explanation when context supports it.",
   "Use recurrence compression only when recurrence is supported by memory, trajectory, or repeated supplied evidence.",
+  "Cognitive questions are hidden controls. Finished cuts should express the discovery rather than explain the question.",
 ];
 
 export async function authorFast(input: AuthorBrainTruth) {
   const learned = [...SEQUENCE_PRINCIPLES, ...(input.creativeLearningContext ?? [])];
+  const relationCandidates = deriveCreativeRelationCandidates(input);
+  const candidateLines = relationCandidates.map((scene) => scene.text);
+
   return authorBrainUniversal({
     ...input,
-    creativeLearningContext: learned,
+    creativeLearningContext: [
+      ...learned,
+      "OPTIONAL CREATIVE RELATION CANDIDATES — treat these as search hints, not facts or mandatory output:",
+      ...candidateLines,
+    ],
   });
 }
