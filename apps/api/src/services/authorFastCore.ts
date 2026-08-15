@@ -1,23 +1,19 @@
 import type { AuthorBrainTruth } from "@qre/contracts";
-import { authorBrain } from "./authorBrain.js";
+import { authorBrain } from "./authorBrainMomentum.js";
 
 const SEQUENCE_PRINCIPLES = [
-  "Goal 1: create a compelling sequence from the supplied world. Do not write a fact inventory.",
-  "Identity and established facts are baseline world state. They are not attention gains unless the identity itself is the surprise.",
-  "Sequence roles are attention roles only: arrival, hook, question, pressure, reframe, escalation, discovery, consequence, release, payoff, callback, continuation.",
-  "Never use a person, service role, or subject name as a sequence role.",
-  "Allowed gain kinds: baseline, new_fact, surprise, question, escalation, reframe, discovery, consequence, callback, payoff.",
-  "Do not invent a premise, event, participant, object placement, action, outcome, or emotional state. A premise must be directly supported by supplied facts and moments.",
-  "The sequence should move the viewer. Each cut earns its place by changing expectation, question, tension, meaning, or payoff pressure.",
-  "Keep sequence cognition compact. Spend output budget on the actual scenes after the essential sequence logic is established.",
+  "Goal 1: discover the strongest valid sequence hidden inside supplied reality.",
+  "Identity and established facts are baseline world state. They do not earn attention cuts unless the identity itself is the surprise.",
+  "A cut earns existence only when it changes the viewer's mental model or future desire.",
+  "Before every cut privately test expectation, curiosity gap, prediction shift, subject relevance, next desire, unrevealed information, and counterfactual necessity.",
+  "Do not invent reality. Reframe and compress supplied material instead.",
+  "Sequence roles are viewer-attention jobs only. Never use actor or service roles as sequence roles.",
+  "Spend output budget on the actual finished cuts. Sequence cognition must stay compact.",
 ];
 
 export async function authorFast(input: AuthorBrainTruth) {
-  return authorBrain(
-    {
-      ...input,
-      creativeLearningContext: [...(input.creativeLearningContext ?? []), ...SEQUENCE_PRINCIPLES],
-    },
-    { fast: true },
-  );
+  return authorBrain({
+    ...input,
+    creativeLearningContext: [...(input.creativeLearningContext ?? []), ...SEQUENCE_PRINCIPLES],
+  });
 }
