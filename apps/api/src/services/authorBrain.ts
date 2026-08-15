@@ -8,6 +8,8 @@ const DIALOGUE = /[“”]/;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const MULTI_CUT_PUNCT = /[,;]/;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
+const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|alarming|relieved|anxious|delighted|worried|calm|proud)\b/i;
+const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
@@ -48,15 +50,42 @@ function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
   return Boolean(truth?.pronouns && ["explicit","memory","runtime"].includes(truth.provenance));
 }
 
-function unsupportedEmotion(text: string): boolean {
-  return /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken)\b/i.test(text);
+function knownWorldText(input: AuthorBrainTruth): string {
+  return [
+    input.prompt,
+    input.subject,
+    input.place,
+    ...input.facts,
+    ...input.sourceMoments,
+    ...(input.memoryContext ?? []),
+    ...(input.trajectory ?? []),
+    ...(input.presenceSummary ?? []),
+  ].filter(Boolean).join(" ");
+}
+
+function unknownNamedEntity(text: string, input: AuthorBrainTruth): boolean {
+  const world = knownWorldText(input).toLowerCase();
+  const subjectName = clean(input.subject).toLowerCase();
+  for (const match of text.matchAll(NAMED_ENTITY)) {
+    const candidate = clean(match[0]);
+    if (!candidate) continue;
+    if (candidate.toLowerCase() === subjectName) continue;
+    if (!world.includes(candidate.toLowerCase())) return true;
+  }
+  return false;
+}
+
+function unsupportedEmotion(text: string, input: AuthorBrainTruth): boolean {
+  if (!INFERRED_EMOTION.test(text)) return false;
+  return !INFERRED_EMOTION.test(input.prompt);
 }
 
 function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (!text || META.test(text) || GENERIC.some((pattern) => pattern.test(text))) return true;
   if (CAMERA.test(text) || DIALOGUE.test(text)) return true;
   if (MULTI_CUT_PUNCT.test(text)) return true;
-  if (unsupportedEmotion(text) && !/\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken)\b/i.test(input.prompt)) return true;
+  if (unsupportedEmotion(text, input)) return true;
+  if (unknownNamedEntity(text, input)) return true;
   if (!pronounsAllowed(text, input.subjectTruth)) return true;
   const service = /\b(service|groom|grooming|clean|cleaning|housekeeping|pool|maintenance|barber|salon|repair|mechanic|client|customer)\b/i.test(`${input.prompt} ${input.lens ?? ""}`);
   if (service && PROVIDER.test(text) && !input.facts.concat(input.sourceMoments).some((fact) => PROVIDER.test(fact))) return true;
@@ -104,7 +133,7 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
     payoff: clean(plan?.futureEvolution?.[0]) || "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit","short","short","hit"] : ["hit","short","standard","short","hit"],
-    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries"],
+    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries","unestablished named entities"],
   };
 }
 
@@ -132,7 +161,9 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
         "Once the subject is established, assume the viewer already knows who we are watching. Do not waste cuts repeating the subject name unless the name itself creates a deliberate effect.",
         "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence makes the subject's world more interesting. Database relationship labels such as owner or customer are not cinematic language unless explicitly meaningful in the source.",
         "A raw action is not automatically a beat. A report such as 'Coco barks' or 'owner fixes bow' is footage, not authorship. Prefer the charged implication, relationship, contradiction, image, callback, status shift, or unexpected consequence hiding inside the fact.",
-        "Do not manufacture emotions. Show character through what is observable, specific, or established in memory. Never infer a private emotional state merely because an action seems happy, sad, nervous, or afraid.",
+        "Do not manufacture emotions. Show character through what is observable, specific, or established in memory. Never infer a private emotional state merely because an action seems happy, sad, nervous, afraid, alarmed, or calm.",
+        "Do not invent a named person. A named person or relationship may appear only if that person or relationship is explicitly present in the supplied world or memory field. Never create a staff member, owner name, groomer name, friend, spouse, parent, or technician to make a scene work.",
+        "The supplied world is closed. If a person is not explicitly in it, they do not exist in the sequence. If a placement, object, action, outcome, or relationship is not explicitly supported, leave it out.",
         "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, dialogue, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
         "ONE LINE = ONE ATTENTION MOMENT. A cut should add NEW information or change the meaning of what came before.",
         "The strongest cuts may be very short: 'The monster appeared.' 'Pink bows everywhere.' The power is implication, not word count.",
