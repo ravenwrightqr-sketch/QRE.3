@@ -87,7 +87,7 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
     META_RE.test(text) ? "meta-language" : "",
     CAMERA_RE.test(text) ? "camera-direction" : "",
     MULTI_CUT_PUNCT_RE.test(text) ? "multiple-cuts-in-one-line" : "",
-    PRONOUN_RE.test(text) && !event.participants.some((participant) => new RegExp(`\\b${participant}\\b`, "i").test(event.raw)) ? "unverified-pronoun-risk" : "",
+    PRONOUN_RE.test(text) && event.participants.length === 0 ? "unverified-pronoun-risk" : "",
     duplicateSentencePenalty(text) > 0 ? "duplicate-sentence" : "",
   ].filter(Boolean);
 
@@ -98,7 +98,6 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
   const score = candidate.score + coverageBonus - violations.length * 45 - repetitionPenalty;
 
   return {
-    // Creativity may deliberately show only one supplied detail. Truth checking is about grounding, not fact-list coverage.
     accepted: missingEvidence.length === 0 && violations.length === 0,
     score,
     missingEvidence,
@@ -113,18 +112,12 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
   };
 }
 
-export function selectCritically(_world: WorldModel, candidates: CreativeCandidate[]): CreativeCandidate[] {
+export function selectCritically(world: WorldModel, candidates: CreativeCandidate[]): CreativeCandidate[] {
   const selected: CreativeCandidate[] = [];
-  const grouped = new Map<string, CreativeCandidate[]>();
-  for (const candidate of candidates) {
-    const bucket = grouped.get(candidate.eventId) ?? [];
-    bucket.push(candidate);
-    grouped.set(candidate.eventId, bucket);
-  }
-
-  for (const options of grouped.values()) {
-    const viable = options
-      .map((candidate) => ({ candidate, critique: critiqueCandidate(candidate, ({ raw: candidate.text, participants: [], object: undefined, place: undefined, time: undefined, details: [], evidence: [], id: candidate.eventId, order: 0 } as WorldEvent), selected) }))
+  for (const event of world.events) {
+    const viable = candidates
+      .filter((candidate) => candidate.eventId === event.id)
+      .map((candidate) => ({ candidate, critique: critiqueCandidate(candidate, event, selected) }))
       .sort((a, b) => Number(b.critique.accepted) - Number(a.critique.accepted) || b.critique.score - a.critique.score);
     if (viable[0]) selected.push(viable[0].candidate);
   }
