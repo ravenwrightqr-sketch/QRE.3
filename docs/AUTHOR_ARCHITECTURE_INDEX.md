@@ -141,7 +141,7 @@ If removal damage is negligible, delete the cut.
 ```text
 apps/api/src/services/authorFastCore.ts
         ↓
-apps/api/src/services/authorBrainMomentum.ts
+apps/api/src/services/authorBrainMomentumV2.ts
         ↓
 compact sequence spine
         ↓
@@ -150,7 +150,9 @@ QRE reconstructs ViewerMomentum / SequencePlay diagnostics
 finished scenes
 ```
 
-**Important architecture rule:** the local model should output a compact creative sequence spine, not a giant cognitive state object. QRE code reconstructs diagnostic state around the result.
+**CANONICAL IMPLEMENTATION RULE:** `authorBrainMomentumV2.ts` is the active fast-production author. It is intentionally a living intelligence core and should be expanded or tuned when stronger general laws are discovered. Do not preserve weaker implementations merely for compatibility.
+
+The previous `authorBrainMomentum.ts` is now **legacy / rollback / audit only** until dependency tracing proves it can be removed.
 
 The compact model output is:
 
@@ -185,6 +187,7 @@ These are still candidates for removal after dependency tracing:
 
 ```text
 apps/api/src/services/authorBrain.ts
+apps/api/src/services/authorBrainMomentum.ts
 packages/engine/src/cognition/creativeWriter.ts
 packages/engine/src/cognition/creativeComposition.ts
 packages/engine/src/cognition/creativeVoiceEngine.ts
@@ -218,6 +221,10 @@ large cognitive JSON from the model
         ↓
 compact sequence spine + programmatic diagnostics
 
+old Momentum author
+        ↓
+Momentum V2
+
 canned prose generators
         ↓
 creative competition + Momentum Author
@@ -245,7 +252,13 @@ F. VALIDATION / PARSING
 G. RUNTIME / MODEL-BUDGET
 ```
 
-The latest failure was primarily **F/G plus representation design**: the model collapsed the structured sequence field into a phrase because the requested cognitive JSON was too large and expensive relative to the local model budget.
+The current failure pattern is primarily **author realization + grounding + mouth recovery**:
+
+- abstract emotional states were being converted into unsupported physical actions;
+- hidden viewer questions were leaking into finished cuts;
+- comma repair was destroying multi-clause output into fragments.
+
+The V2 brain addresses these at the generation boundary rather than relying on destructive cleanup.
 
 ## 13. DEVELOPMENT LAW
 
