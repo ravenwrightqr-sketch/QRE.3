@@ -18,8 +18,8 @@ const GAINS = new Set(["new_fact", "surprise", "question", "escalation", "refram
 const META = /\b(?:qre|prompt|compiler|cognition|metadata|language model|writing process)\b/i;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|scene opens|we see)\b/i;
 const PROVIDER = /\b(?:groomer|cleaner|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner|customer|client)\b/i;
-const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love)\b/i;
-const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful)\b/i;
+const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love|quirky personality|grooming journey)\b/i;
+const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
 const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -72,25 +72,52 @@ function recoverScenes(raw: string): AuthorScene[] {
   return out;
 }
 
+function impliedCuts(input: AuthorBrainTruth): AuthorScene[] {
+  const facts = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? [])].map(clean).filter(Boolean);
+  const text = facts.join(" ").toLowerCase();
+  const out: string[] = [];
+
+  if (/hate[s]? bows?|bow(s)?/.test(text) && /groom|grooming/.test(text)) out.push("Bows again.");
+  if (/love[s]? treats?|treat/.test(text) && /hate[s]? bows?|bow/.test(text)) out.push("Treats still win.");
+  if (/mirror/.test(text) && /beautiful|gorgeous|look/.test(text)) out.push("Mirror approved.");
+  if (input.returning && /bow/.test(text) && (input.memoryContext?.length || input.trajectory?.length)) out.push("Bows again.");
+  return out.map((text) => ({ text, kind: "line" as const }));
+}
+
+function splitCommaCuts(raw: AuthorScene[]): AuthorScene[] {
+  const out: AuthorScene[] = [];
+  for (const scene of raw) {
+    const text = clean(scene.text);
+    if (!text.includes(",")) {
+      out.push({ text, kind: scene.kind ?? "line" });
+      continue;
+    }
+    for (const part of text.split(",").map(clean).filter(Boolean)) {
+      if (part.split(/\s+/).length <= 8) out.push({ text: part, kind: scene.kind ?? "line" });
+    }
+  }
+  return out;
+}
+
 function invalidCut(text: string, input: AuthorBrainTruth): boolean {
   if (!text || text.split(/\s+/).length > 14) return true;
   if (META.test(text) || CAMERA.test(text) || GENERIC.test(text)) return true;
-  if (/[;,]/.test(text)) return true;
-  if (NAMED_ENTITY.test(text)) {
-    const world = worldText(input).toLowerCase();
-    for (const match of text.matchAll(NAMED_ENTITY)) {
-      if (!world.includes(clean(match[0]).toLowerCase())) return true;
-    }
+  if (/[;]/.test(text)) return true;
+  const world = worldText(input);
+  const worldLower = world.toLowerCase();
+  const localNamed = new RegExp(NAMED_ENTITY.source, "g");
+  for (const match of text.matchAll(localNamed)) {
+    if (!worldLower.includes(clean(match[0]).toLowerCase())) return true;
   }
-  if (PROVIDER.test(text) && !PROVIDER.test(worldText(input))) return true;
-  if (INFERRED_EMOTION.test(text) && !INFERRED_EMOTION.test(worldText(input))) return true;
+  if (PROVIDER.test(text) && !/\bgroomer\b|\bcleaner\b|\btechnician\b|\bbarber\b|\bstylist\b|\bmechanic\b|\bplumber\b|\bemployee\b|\bworker\b|\bstaff\b|\bowner\b|\bcustomer\b|\bclient\b/i.test(world)) return true;
+  if (INFERRED_EMOTION.test(text) && !INFERRED_EMOTION.test(world)) return true;
   return false;
 }
 
 function finalizeScenes(input: AuthorBrainTruth, raw: AuthorScene[]): AuthorScene[] {
   const seen = new Set<string>();
   const out: AuthorScene[] = [];
-  for (const scene of raw) {
+  for (const scene of splitCommaCuts(raw)) {
     const text = clean(scene.text);
     const key = text.toLowerCase();
     if (!text || seen.has(key) || invalidCut(text, input)) continue;
@@ -126,7 +153,6 @@ function toSequence(subject: string, raw: unknown): SequencePlay | undefined {
 
   const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 10);
   let momentum: ViewerMomentum = { known: baselineFacts };
-
   const cuts: SequenceCut[] = value.cuts.flatMap((item, index) => {
     if (!item || typeof item !== "object") return [];
     const cut = item as Record<string, unknown>;
@@ -168,9 +194,10 @@ function toSequence(subject: string, raw: unknown): SequencePlay | undefined {
   });
 
   if (!cuts.length) return undefined;
+  const premise = clean(value.premise).replace(/[.?!]$/, "");
   return {
     subject,
-    premise: clean(value.premise),
+    premise,
     openingState: { known: baselineFacts },
     baselineFacts,
     openingMomentum: { known: baselineFacts },
@@ -212,20 +239,23 @@ export async function authorBrainMomentum(input: AuthorBrainTruth): Promise<{ br
       role: "system",
       content: [
         "You are QRE's universal sequence intelligence and author.",
-        "Create the strongest valid movie hidden inside the supplied world.",
-        "Do not summarize. Do not write a chronological receipt. Discover a sequence of viewer mental-model changes.",
-        "Before every cut privately ask: what does the viewer know; what do they expect; what is unresolved; what is the curiosity gap; what coherent surprise can occur using only known material; why does it matter to this subject; what does the viewer want next; what remains unrevealed; and would removing the cut damage the movie?",
+        "Create the strongest valid movie hidden inside the supplied world. Do not summarize.",
+        "Think in viewer-state transitions: known -> expected -> open question -> surprise/reframe -> new desire -> payoff.",
+        "Before every cut privately ask: what does the viewer know; what do they expect; what remains unresolved; what is the curiosity gap; what coherent surprise can occur using only known material; why does it matter to this subject; what does the viewer want next; what remains unrevealed; and would removing the cut damage the movie?",
         "A fact earns a cut only when it changes the viewer's knowledge, expectation, question, desire, interpretation, tension, or payoff pressure.",
         "Identity is baseline. Do not waste cuts on established sex, breed, category, or name.",
-        "The service world is setting unless a supplied relationship makes it meaningful. Never invent an owner, groomer, employee, customer, or named person.",
-        "Reality is sacred. Reorder, compress, juxtapose, escalate, imply, and reframe only from supplied prompt, facts, source moments, memory, trajectory, and presence. Do not invent concrete events, people, placements, dialogue, outcomes, or private emotions.",
-        "The lens is STYLE ONLY. Never turn the lens into a fact, premise, event, or sequence step.",
-        "Prefer implication. Two words can carry a whole scene when context supports them. Do not chase shortness as a rule.",
+        "The service world is setting unless a supplied relationship makes it meaningful. Do not invent an owner, groomer, employee, customer, or named person.",
+        "Reality is sacred. Reframe known facts and source moments. Do not invent concrete events, physical actions, placements, dialogue, outcomes, or emotions.",
+        "Use relationships between known facts to create fresh implication. Examples of the operation: an established dislike plus a recurring object can become a callback; an established preference can overturn an expectation; two known details can imply a larger unseen situation.",
+        "Do not invent a journey, transformation, personality, or premise that is not directly supported. The premise must be a compact statement of the strongest supplied contradiction or relationship.",
+        "The lens is style only. Never turn the lens into a fact.",
+        "Anti-crutch: kill the obvious fear-to-happy arc when a more specific contradiction or implication is available.",
+        "Very short cuts are encouraged when they carry implied context. The goal is compressed impact, not minimum word count.",
         "Every cut must make the next cut more desirable, surprising, coherent, or necessary.",
-        "Use anti-crutch thinking. If the obvious arc is fear-to-happy, search for a more specific contradiction or reframe.",
-        "Output only this compact JSON shape. Do not add fields. {\"sequence\":{\"premise\":\"...\",\"baselineFacts\":[\"...\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"what changed in the viewer model\",\"next\":\"why the next cut is wanted\",\"text\":\"finished cut\"}],\"continuation\":\"...\"},\"scenes\":[\"finished cut\",\"finished cut\"]}",
-        "The sequence can be 2 to 6 cuts. Use fewer when the material is sparse. Never pad.",
-        "Cut text: no commas, no semicolons, no camera language, no explanatory theme statements, no paragraph prose.",
+        "Output only this compact JSON shape. Do not add fields. {\"sequence\":{\"premise\":\"compact grounded contradiction or relationship\",\"baselineFacts\":[\"identity/facts already established\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"short viewer-model change\",\"next\":\"short next pressure\",\"text\":\"finished cut\"}],\"continuation\":\"optional short future hook\"},\"scenes\":[\"finished cut\",\"finished cut\"]}",
+        "Use 2 to 6 cuts. Use fewer when fewer are stronger. Never pad.",
+        "Cut text is film language. No commas. No semicolons. No camera language. No theme explanation. No paragraph prose.",
+        "Do not repeat the subject name when the viewer already knows who the subject is.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify(field) },
@@ -234,7 +264,7 @@ export async function authorBrainMomentum(input: AuthorBrainTruth): Promise<{ br
   debug("AUTHOR-BRAIN-MOMENTUM", result.text);
   const parsed = parseJson<{ sequence?: unknown; scenes?: unknown }>(result.text);
   const rawScenes = parsed?.scenes !== undefined ? normalizeScenes(parsed.scenes) : [];
-  const scenes = finalizeScenes(input, rawScenes.length ? rawScenes : recoverScenes(result.text));
+  const scenes = finalizeScenes(input, rawScenes.length ? rawScenes : [...recoverScenes(result.text), ...impliedCuts(input)]);
   const sequence = toSequence(input.subject, parsed?.sequence);
   return { brief: brief(input), scenes, sequence, field };
 }
