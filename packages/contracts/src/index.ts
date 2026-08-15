@@ -1,6 +1,7 @@
 /** QRE CONTRACTS PUBLIC API */
 
 export type { CinematicScene, CinematicSceneType, SceneAudio, SceneVisual, SceneTransition } from "./cinematic.js";
+export type { SequencePlay, SequenceCut, SequenceCut as SequenceBeat, ViewerState, ViewerAttentionRole } from "./sequencePlay.js";
 export * from "./scan.js";
 export type { ScanResponse } from "./scanResponse.js";
 export type { ScanEvent } from "./scanEvent.js";
