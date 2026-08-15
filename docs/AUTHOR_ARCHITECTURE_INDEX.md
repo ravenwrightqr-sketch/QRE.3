@@ -318,17 +318,17 @@ Do not fix an E problem with a C hack.
 
 ## 13. CURRENT KNOWN FAILURE
 
-The current SequencePlay diagnostic demonstrated:
+The latest diagnostic exposed three coupled failures:
 
 ```text
-identity fact
-→ identity fact
-→ preference fact
+identity fact inventory
+→ invalid sequence role values
+→ invented premise / physical events
+→ verbose sequence output
+→ model budget exhausted before scenes
 ```
 
-This is a **SequencePlay failure**, not primarily a mouth failure.
-
-The sequence contract and Author Brain now explicitly distinguish:
+The corrected architecture now requires:
 
 ```text
 BASELINE WORLD STATE
@@ -336,7 +336,45 @@ vs
 VIEWER MOVEMENT
 ```
 
-`SequenceCut.gainKind` is the semantic guardrail. Actual attention cuts must use a non-baseline gain type. Baseline identity belongs in `baselineFacts` / opening state unless identity itself is the dramatic discovery.
+Sequence roles are attention roles only.
+
+Allowed roles:
+
+```text
+arrival
+hook
+question
+pressure
+reframe
+escalation
+discovery
+consequence
+release
+payoff
+callback
+continuation
+```
+
+Allowed gain kinds:
+
+```text
+baseline
+new_fact
+surprise
+question
+escalation
+reframe
+discovery
+consequence
+callback
+payoff
+```
+
+A sequence premise must be directly supported by supplied facts and source moments. The author may not invent a premise merely because it sounds cinematic.
+
+The fast author now injects these principles through `authorFastCore.ts` so they are part of the canonical learning context without bloating the main prompt.
+
+Fast local-model output has been raised to 512 tokens so compact sequence cognition can finish and still reach the actual scenes.
 
 ## 14. DOCUMENTATION RULE
 
