@@ -22,8 +22,21 @@ type Plan = {
 
 type Scene = { text: string; kind?: string };
 
-const GENERIC = [/still here/i, /something changes/i, /then it shifts/i, /see you next time/i, /quick zoom/i, /camera pulls back/i, /final shot/i, /eyes? (?:widen|sparkle)/i];
+const GENERIC = [
+  /still here/i,
+  /something changes/i,
+  /then it shifts/i,
+  /see you next time/i,
+  /quick zoom/i,
+  /camera pulls back/i,
+  /final shot/i,
+  /eyes? (?:widen|sparkle)/i,
+  /the power of (?:affection|love|friendship)/i,
+  /transformation and affection/i,
+];
 const META = /\b(ai|qre|prompt|compiler|cognition|metadata|model|instruction)\b/i;
+const ABSTRACT_ANGLE = /^(transformation|affection|love|friendship|happiness|joy|adventure|memory|fun|fear|emotion|connection|journey)$/i;
+const CHOPPED = /^(?:\w+[,!]?\s*){1,3}$/;
 
 const clean = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
 const uniq = (xs: unknown[]) => [...new Set(xs.map(clean).filter(Boolean))];
@@ -40,9 +53,17 @@ function unsupportedPronoun(text: string, input: Input): boolean {
   return /\b(he|him|his|she|her|hers)\b/i.test(text);
 }
 function generic(text: string) { return GENERIC.some((p) => p.test(text)); }
+function weakFragment(text: string) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length >= 4) return false;
+  if (/[?!.]$/.test(text) && words.length >= 2) return false;
+  return CHOPPED.test(text);
+}
 function normalize(scenes: Scene[], input: Input): Scene[] {
-  return scenes.map((s) => ({ text: clean(s.text), kind: clean(s.kind) || "movement" }))
+  return scenes
+    .map((s) => ({ text: clean(s.text), kind: clean(s.kind) || "movement" }))
     .filter((s) => s.text && !META.test(s.text) && !generic(s.text) && !unsupportedPronoun(s.text, input))
+    .filter((s) => !weakFragment(s.text))
     .filter((s, i, all) => all.findIndex((x) => x.text.toLowerCase() === s.text.toLowerCase()) === i)
     .slice(0, 6);
 }
@@ -61,37 +82,49 @@ export async function authorFast(input: Input): Promise<{ plan: Plan; scenes: Sc
 
   const planResult = await localModelGenerate([
     { role: "system", content: [
-      "You are QRE's senior creative director.",
-      "Find the movie inside the supplied reality before any prose is written.",
-      "The character/subject is the center of gravity. The input is what they experience, encounter, resist, desire, reveal, or transform.",
-      "Privately generate competing interpretations: comedy, contradiction, status inversion, tenderness, ritual, mystery, escalation, understatement, identity, callback, or transformation where supported. Choose one champion; do not merely rewrite the same angle.",
-      "A boring job can become interesting through the worker's/client's perspective, attitude, relationship, rhythm, or meaning. Never fabricate events to make it interesting.",
+      "You are QRE's senior creative director. Find the latent movie inside supplied reality before writing prose.",
+      "The character/subject is the center of gravity. The input is the world they experience. Make the character's personality, contradiction, attitude, relationship, choice, or consequence the creative engine.",
+      "Privately generate genuinely different interpretations, then attack them for genericness, unsupported invention, repetition, weak visual/dramatic movement, and predictable payoff. Choose ONE champion.",
+      "The champion angle must be specific to the supplied character/world. Do NOT use an abstract one-word angle such as transformation, affection, love, happiness, adventure, memory, or connection.",
+      "For Coco, 'recurring bow rivalry' is a specific angle; 'transformation' is not. For Maria's housekeeping, a worker/client attitude or recurring ritual can be an angle; 'cleaning' is not.",
+      "A short hook may be 2-3 words when it has real tension or curiosity. Do not make the whole sequence telegraphic. The normal line should have enough language to express a complete thought.",
       "HARD REALITY: gender/pronouns, people, relationships, locations, actions, outcomes, timestamps, and physical events are usable only when supplied. Never infer them.",
-      "Reject generic premises like transformation and affection unless they are made specific by evidence.",
-      "The champion must define angle, tension, movement, payoff, and what to avoid repeating from history.",
+      "A boring job can become entertaining through the real person's perspective, attitude, rhythm, relationship, contrast, or meaning. Never invent events to improve it.",
       "Return JSON only: {angle,tension,movement,payoff,antiRepeat,beatCount}.",
     ].join(" ") },
     { role: "user", content: JSON.stringify(source) },
   ], "json");
   debug("PLAN", planResult.text);
-  const fallback: Plan = { angle: "character-first interpretation", tension: "character versus the situation", movement: "attention → complication → turn → payoff", payoff: "a character-specific consequence", antiRepeat: "generic AI language and repeated motifs", beatCount: input.prompt.toLowerCase().includes("living memory") || input.prompt.toLowerCase().includes("chapter") ? 4 : 5 };
-  const plan = { ...fallback, ...(json<Partial<Plan>>(planResult.text) ?? {}) };
+  const fallback: Plan = {
+    angle: "character-specific contradiction",
+    tension: "the character meets the recurring situation on different terms",
+    movement: "hook → complication → character turn → consequence",
+    payoff: "the character gets the last word",
+    antiRepeat: "generic transformation language, mechanical name repetition, and recycled motifs",
+    beatCount: input.prompt.toLowerCase().includes("living memory") || input.prompt.toLowerCase().includes("chapter") ? 4 : 5,
+  };
+  const parsedPlan = json<Partial<Plan>>(planResult.text) ?? {};
+  const plan: Plan = {
+    ...fallback,
+    ...parsedPlan,
+    angle: ABSTRACT_ANGLE.test(clean(parsedPlan.angle)) ? fallback.angle : clean(parsedPlan.angle || fallback.angle),
+  };
   plan.beatCount = Math.max(4, Math.min(6, Number(plan.beatCount) || fallback.beatCount));
 
   const draftResult = await localModelGenerate([
     { role: "system", content: [
-      "You are QRE's rapid-attention cinematic author.",
+      "You are QRE's cinematic micro-beat author. Write an attention-grabbing living memory, not a novel and not a poem.",
       `Write EXACTLY ${plan.beatCount} beats.`,
-      "This is NOT a novel. It is an attention loop: GRAB → DEVELOP → GRAB → TURN → PAYOFF.",
-      "Each beat must create pressure, curiosity, attitude, surprise, contrast, consequence, or a reason to see the next cut.",
-      "The character is the movie. The supplied input is the world/material around them.",
-      "Do not repeat the character's name mechanically. Keep the character present through attitude, decisions, reactions, implications, callbacks, and consequences.",
-      "Length is not the goal. Two words can be perfect; a longer line is correct when the creative job needs it. Never pad a line just to sound cinematic.",
+      "Use a rhythm like: sharp hook → development → sharper hook/complication → character turn → earned payoff. Four beats may omit one stage when that makes the sequence stronger.",
+      "IMPORTANT: 2-3 words can be a killer hook, but do NOT make every beat 2-3 words. Prefer compact complete thoughts, often roughly 4-10 words, when the idea needs them. Variety in length is part of the rhythm.",
+      "A beat should feel like a cut worth watching: it should create curiosity, reveal character, introduce a meaningful change, sharpen a conflict, reverse expectations, or pay something off.",
+      "The character is the movie. Do not mechanically repeat the subject's name. Keep them present through attitude, resistance, choices, reactions, history, and consequences.",
+      "A short hook like 'Bows again?' is valuable because it raises a question. The next beat must answer or complicate THAT question, not start a different movie.",
+      "Do not turn facts into a receipt. Do not simply list timestamps, rooms, tasks, likes, or dislikes. Make the character's relationship to those facts do the work.",
+      "Do not invent gender/pronouns, people, actions, relationships, locations, outcomes, timestamps, weather, or physical events absent from the supplied source. Inference of attitude is allowed; invention of concrete events is not.",
       "Do not write camera directions, zooms, final shots, or decorative cinematography.",
-      "Do not invent gender/pronouns, people, actions, relationships, locations, outcomes, timestamps, or physical events absent from the supplied source.",
-      "Do not turn facts into a chronological receipt. Find the character's relationship to them.",
-      "All beats must belong to the SAME champion angle. Do not switch movies halfway through.",
-      "The final beat must pay off the character and angle. No generic goodbye.",
+      "Do not use generic endings such as 'See you next time', 'happily ever after', or vague emotional labels.",
+      "Do not explain the joke. Let the viewer connect it.",
       `CHAMPION ANGLE: ${plan.angle}`,
       `TENSION: ${plan.tension}`,
       `MOVEMENT: ${plan.movement}`,
