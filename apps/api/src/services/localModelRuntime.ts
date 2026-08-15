@@ -54,10 +54,10 @@ function outputText(data: any): string {
 
 export async function localModelGenerate(messages: LocalModelMessage[], format?: "json"): Promise<LocalModelResult> {
   const fast = process.env.QRE_AUTHOR_FAST === "true";
-  const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.35 : 0.8));
-  // Keep enough room for a complete JSON scene envelope. 64 tokens was fast but
-  // can truncate the JSON before the closing braces, which becomes BEATS: 0.
-  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 128 : 512));
+  // 0.75 preserves the exploratory behavior that produced stronger creative cuts.
+  // Fast mode remains bounded by the compact JSON output contract below.
+  const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
+  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 192 : 512));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
 
   const data = await request("/api/chat", {
