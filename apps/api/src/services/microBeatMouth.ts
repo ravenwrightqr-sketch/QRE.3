@@ -1,19 +1,15 @@
 import type { AuthorBrainTruth, ExperienceBeat, ExperiencePresenceContext } from "@qre/contracts";
-import { authorBrain } from "./authorBrain.js";
+import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 export type MicroBeatMouthInput = AuthorBrainTruth & {
   presence?: ExperiencePresenceContext;
   round?: number;
 };
 
-function beatCount(input: MicroBeatMouthInput): number {
-  if (input.presence?.isReturning || input.returning || (input.round ?? 1) > 1) return 4;
-  const text = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
-  return /\b(?:service|receipt|clean|cleaning|groom|grooming|horror|dinner|knife|knives|glass|door|rave|concert|festival|event)\b/i.test(text) ? 5 : 4;
-}
+const MAX_CUTS = 6;
 
 function kindFor(index: number, total: number): ExperienceBeat["kind"] {
-  if (index === total - 1) return "payoff";
+  if (total <= 1 || index === total - 1) return "payoff";
   if (index === total - 2) return "turn";
   if (index === 1) return "reveal";
   return "jolt";
@@ -26,7 +22,6 @@ function sceneText(value: string): string {
 export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<ExperienceBeat[]> {
   if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return [];
 
-  const target = beatCount(input);
   const brainInput: AuthorBrainTruth = {
     prompt: input.prompt,
     lens: input.lens,
@@ -47,14 +42,14 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     trajectory: input.trajectory ?? [],
     creativeLearningContext: [
       ...(input.creativeLearningContext ?? []),
-      input.presence?.isReturning ? "returning chapter: callback must evolve meaning rather than restart" : "first known chapter: plant one detail worth remembering",
+      input.presence?.isReturning
+        ? "returning chapter: callback must evolve meaning rather than restart"
+        : "first known chapter: plant one detail worth remembering",
     ],
   };
 
-  const result = await authorBrain(brainInput, { fast: process.env.QRE_AUTHOR_FAST === "true" });
-  const scenes = result.scenes.slice(0, target);
-
-  if (scenes.length < target && process.env.QRE_AUTHOR_FAST !== "true") return [];
+  const result = await authorBrainUniversal(brainInput);
+  const scenes = result.scenes.slice(0, MAX_CUTS);
   if (!scenes.length) return [];
 
   return scenes.map((scene, index, all) => ({
