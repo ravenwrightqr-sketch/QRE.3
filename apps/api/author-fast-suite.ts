@@ -49,10 +49,12 @@ if (!test) {
 }
 
 process.env.QRE_AUTHOR_FAST = "true";
+process.env.QRE_AUTHOR_DEBUG_RAW = "true";
 const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE AUTHOR FAST · ${requested}`);
 console.log("REAL UNIVERSAL AUTHOR · PLAN + DRAFT · NO CRITIQUE/REPAIR");
+console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
 try {
@@ -62,6 +64,7 @@ try {
   scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "movement"} · ${scene.text}`));
   if (!scenes.length) {
     console.error("FAIL: universal author returned zero scenes");
+    console.error("The raw model response above is the diagnostic source of truth.");
     process.exitCode = 1;
   }
 } catch (error) {
