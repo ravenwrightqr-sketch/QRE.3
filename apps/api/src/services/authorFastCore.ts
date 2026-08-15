@@ -1,11 +1,11 @@
 import type { AuthorBrainTruth } from "@qre/contracts";
-import { authorBrainMomentumV3 } from "./authorBrainMomentumV3.js";
+import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 /**
  * QRE FAST AUTHOR LEARNING BRIDGE · CANONICAL
  *
- * The live universal-author learning channel. Extend only with generalized
- * laws that improve the whole author across unrelated domains.
+ * This is the live universal-author learning channel.
+ * Add only generalized intelligence laws that survive unrelated-domain tests.
  */
 const SEQUENCE_PRINCIPLES = [
   "Goal 1: discover the strongest valid sequence hidden inside supplied reality.",
@@ -17,6 +17,7 @@ const SEQUENCE_PRINCIPLES = [
   "Abstract source states do not authorize concrete physical performances unless the source supports that behavior.",
   "Questions belong in hidden viewer cognition. Do not make the narrator ask literal questions unless the source explicitly calls for question language.",
   "A creative implication may arise from the relationship between known facts without inventing a new physical event.",
+  "Predicate-to-attitude compression may turn a supplied dislike, love, status, history, recurrence, or contradiction into a sharp line.",
   "Search contradiction, recurrence, image, status shift, implication, callback, consequence, or withheld meaning before defaulting to transformation.",
   "Service roles are usually stage context, not protagonists.",
   "One cut is one attention moment. Prefer implication over explanation when context supports it.",
@@ -25,7 +26,7 @@ const SEQUENCE_PRINCIPLES = [
 
 export async function authorFast(input: AuthorBrainTruth) {
   const learned = [...SEQUENCE_PRINCIPLES, ...(input.creativeLearningContext ?? [])];
-  return authorBrainMomentumV3({
+  return authorBrainUniversal({
     ...input,
     creativeLearningContext: learned,
   });
