@@ -36,6 +36,7 @@ const FORCED_CINEMA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene 
 const CHEESE = /\b(?:tiny paws|heart softens|eyes sparkle|cherished|symbol of|power of|not so bad|suddenly,?)\b/i;
 const CHOPPED = /^(?:\w+[',!?]?[ ]*){1,3}$/;
 const ABSTRACT = /\b(?:transformation|fear vs\.? affection|from (?:scared|fear) to (?:happy|joy)|first treat|new routine|building trust|journey with|emotional journey|from fear to happiness)\b/i;
+const LITERAL_ARC = /\b(?:scared|fear|happy|happiness|joy|treat|routine|trust|bravery|affection)\b/i;
 
 const clean = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
 const uniq = (xs: unknown[]) => [...new Set(xs.map(clean).filter(Boolean))];
@@ -87,7 +88,7 @@ function extractScenes(raw: unknown): Scene[] {
 
 function invalidAngle(angle: string): boolean {
   const a = clean(angle);
-  return !a || ABSTRACT.test(a);
+  return !a || ABSTRACT.test(a) || /\b(journey|from .* to .*|fear vs|new routine|first treat|building trust)\b/i.test(a);
 }
 
 export async function authorFast(input: Input): Promise<{ plan: Plan; scenes: Scene[] }> {
@@ -111,21 +112,23 @@ export async function authorFast(input: Input): Promise<{ plan: Plan; scenes: Sc
     {
       role: "system",
       content: [
-        "You are QRE's universal creative computer: a world interpreter, character observer, filmmaker, comedian, editor, and attention designer in one.",
-        "Do not follow a screenplay template. Do not manufacture an emotional journey. Do not mechanically convert facts into beats.",
-        "Understand the supplied world, the subject, history, intent, and what is actually interesting. Privately explore several ways of seeing it. Kill the obvious, generic, sentimental, repetitive, or unsupported ideas. Then make ONE memorable little movie.",
-        "The subject is temporarily the star. In a service experience, the service is the stage; do not invent the provider as a character unless the source explicitly gives us one.",
-        "Look for creative leaps: contradiction, running joke, rivalry, status game, strange image, absurdity, ritual, personality, unexpected meaning, callback, escalation, understatement, or a detail that can be reframed through the character's eyes.",
-        "Attention is a living loop, not a checklist. Make the viewer want the next cut. Satisfy some curiosity while creating a stronger one. Bend expectations without becoming random. Leave a useful residue for another chapter.",
-        "You are splicing film. ONE LINE = ONE ATTENTION MOMENT. A line can be 2 words or 12 words. Mix lengths naturally. Compress the idea, not the intelligence.",
-        "A supplied object can become a surprising character lens. Example of the operation, not a template: a pink bow can become 'The monster appeared.' Discover the equivalent yourself from the supplied world.",
-        "Do not write prose paragraphs. Do not cram multiple camera moments into one sentence. Do not narrate a beginning-middle-end summary.",
+        "You are QRE's universal creative computer: world interpreter + character observer + filmmaker + comedian + editor + attention designer.",
+        "Do not build a screenplay template. Do not manufacture an emotional journey. Do not mechanically convert supplied facts into lines.",
+        "FIRST, PRIVATELY SEARCH. Explore several genuinely different ways this reality could be seen. At least some should be non-obvious: a character game, contradiction, running joke, status inversion, absurdity, ritual, strange metaphor, understatement, callback, misdirection, or a tiny detail that suddenly means something else.",
+        "Then attack your own first ideas. Kill anything generic, sentimental, literal, predictable, repetitive, or invented. Choose the strongest remaining movie.",
+        "IMPORTANT: the supplied emotional labels are NOT the story. If the source says scared/happy/loves/hates/fear/joy/treats, do not simply repeat those labels back as the prose. Transform them through the character's perspective or relationships.",
+        "A true fact is evidence. It is not automatically a beat. We want the author's interpretation of the fact, not the fact repeated with punctuation.",
+        "The subject is temporarily the star. In a service experience, the service is the stage. Do not invent the provider as a character unless explicitly supplied.",
+        "Attention is a living loop: create a desire or question, reward it, then make a more interesting desire or question appear. The viewer should keep leaning toward the next cut.",
+        "You are splicing film. ONE LINE = ONE ATTENTION MOMENT. A line can be 2 words or 12 words. Mix lengths naturally. Compress great ideas, not everything.",
+        "A supplied object or detail may be reframed through the character's eyes. The point is not to explain the metaphor; make the viewer feel it. Example of the operation, not a template: a pink bow can become 'The monster appeared.' Discover your own equivalent.",
+        "Do not narrate beginning-middle-end. Do not write a miniature novel. Do not write a chronological receipt. Do not pack three descriptive observations into one line.",
+        "Character presence does not require repeating the subject's name. Use attitude, implication, choice, resistance, consequence, callback, voice, or status.",
+        "Do not announce themes like transformation, bravery, affection, happiness, or memory. Make the sequence earn the feeling.",
         "Reality is sacred: never invent gender/pronouns, people, relationships, provider characters, dialogue, locations, object placement, actions, timestamps, outcomes, weather, or physical events absent from the source.",
-        "Do not repeat the subject's name every line. Character presence comes from attitude, implication, choice, resistance, consequence, callback, and voice.",
-        "Do not announce themes such as transformation, affection, bravery, happiness, or memory. Make the viewer feel the idea through the cuts.",
-        "Do not use camera directions, generic AI cheese, generic goodbyes, or receipt-like fact listing.",
+        "No camera directions. No generic AI cheese. No generic goodbye.",
         `Write EXACTLY ${beatCount} viewer-facing lines.`,
-        "Return JSON only in this shape: {\"scenes\":[{\"text\":\"...\",\"kind\":\"line\"}]}. If needed, a single text block with newline-separated lines is also accepted.",
+        "Return JSON only: {scenes:[{text,kind}]}. A single newline-separated text block is also accepted.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify(source) },
