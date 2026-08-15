@@ -8,12 +8,7 @@ const cases = {
       name: "Coco",
       kind: "animal" as const,
       sex: "male" as const,
-      pronouns: {
-        subject: "he" as const,
-        object: "him" as const,
-        possessive: "his" as const,
-        reflexive: "himself" as const,
-      },
+      pronouns: { subject: "he" as const, object: "him" as const, possessive: "his" as const, reflexive: "himself" as const },
       provenance: "explicit" as const,
       identityFacts: ["Coco is male", "Coco is a poodle"],
     },
@@ -31,12 +26,7 @@ const cases = {
       name: "Coco",
       kind: "animal" as const,
       sex: "male" as const,
-      pronouns: {
-        subject: "he" as const,
-        object: "him" as const,
-        possessive: "his" as const,
-        reflexive: "himself" as const,
-      },
+      pronouns: { subject: "he" as const, object: "him" as const, possessive: "his" as const, reflexive: "himself" as const },
       provenance: "memory" as const,
       identityFacts: ["Coco is male", "Coco is a poodle"],
     },
@@ -92,8 +82,8 @@ process.env.QRE_AUTHOR_DEBUG_RAW = "true";
 const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE AUTHOR FAST · ${requested}`);
-console.log("UNIVERSAL AUTHOR BRAIN · ONE COGNITIVE PASS");
-console.log("CUT MOUTH · HIGH-DENSITY ATTENTION · CANONICAL SUBJECT TRUTH");
+console.log("UNIVERSAL AUTHOR BRAIN · SEQUENCE PLAY + CUT MOUTH");
+console.log("VIEWER-STATE TRAJECTORY · HIGH-DENSITY ATTENTION · CANONICAL SUBJECT TRUTH");
 console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
@@ -112,6 +102,18 @@ try {
   console.log(`QUESTION: ${result.brief.question}`);
   console.log(`IMAGE: ${result.brief.strongestImage}`);
   console.log(`PAYOFF: ${result.brief.payoff}`);
+
+  if (result.sequence) {
+    console.log("\n--- QRE SEQUENCE PLAY ---");
+    console.log(`PREMISE: ${result.sequence.premise}`);
+    result.sequence.cuts.forEach((cut) => {
+      console.log(`[${cut.order}] ${cut.role} · GAIN: ${cut.informationGain}`);
+      console.log(`    ATTENTION: ${cut.attentionDelta}`);
+      if (cut.nextPromise) console.log(`    NEXT: ${cut.nextPromise}`);
+    });
+    console.log("--- END QRE SEQUENCE PLAY ---\n");
+  }
+
   console.log(`BEATS: ${result.scenes.length}`);
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "line"} · ${scene.text}`));
   if (!result.scenes.length) {
