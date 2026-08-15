@@ -1,4 +1,4 @@
-import { authorMicroBeats } from "./src/services/microBeatMouth.js";
+import { authorCinematicSequence } from "./src/services/cinematicAuthor.js";
 
 const cases = {
   COCO: {
@@ -14,11 +14,11 @@ const cases = {
     facts: ["Coco is a poodle", "hates bows", "loves treats", "scared at first"],
     sourceMoments: ["bath was faster today", "pink bow offered again", "Coco walked out proud"],
     lens: "callback comedy",
-    round: 2,
-    presence: { visitNumber: 2, isReturning: true, summary: ["returning visit"], places: ["groomer"], firstSeenAt: null, lastSeenAt: null },
+    trajectory: ["Chapter 1: Coco resisted the bow and left happy."],
   },
   MARIA: {
     prompt: "Make a short new-world receipt for Maria's cleaning visit.",
+    subject: "Maria",
     facts: ["Maria arrived at 9:04 AM", "bathrooms", "kitchen", "laundry", "finished at 11:47 AM"],
     sourceMoments: ["one cleaning visit"],
     lens: "service receipt with attitude",
@@ -34,7 +34,7 @@ const cases = {
     facts: ["rave", "friends dancing", "bass", "late night", "we stayed"],
     sourceMoments: ["attendance at the event"],
     lens: "specific, kinetic, memorable",
-    presence: { visitNumber: 1, isReturning: false, summary: ["presence at rave"], places: ["event venue"], firstSeenAt: null, lastSeenAt: null },
+    trajectory: ["First presence at this event."],
   },
 } as const;
 
@@ -52,14 +52,18 @@ process.env.QRE_AUTHOR_FAST = "true";
 const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE AUTHOR FAST · ${requested}`);
-console.log("ONE REAL OLLAMA GENERATION · NO REPAIR RETRY");
+console.log("REAL UNIVERSAL AUTHOR · PLAN + DRAFT · NO CRITIQUE/REPAIR");
 console.log("=".repeat(80));
 
 try {
-  const beats = await authorMicroBeats(test);
+  const scenes = await authorCinematicSequence(test);
   console.log(`TIME: ${((Date.now() - started) / 1000).toFixed(3)}s`);
-  console.log(`BEATS: ${beats.length}`);
-  beats.forEach((beat, index) => console.log(`[${index + 1}] ${beat.kind} · ${beat.text}`));
+  console.log(`BEATS: ${scenes.length}`);
+  scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "movement"} · ${scene.text}`));
+  if (!scenes.length) {
+    console.error("FAIL: universal author returned zero scenes");
+    process.exitCode = 1;
+  }
 } catch (error) {
   console.error("AUTHOR ERROR:", error instanceof Error ? error.message : error);
   process.exitCode = 1;
