@@ -22,8 +22,6 @@ UNDERSTAND WORLD
 → LEARN FROM THE RESULT
 ```
 
-The domain may be a pet, person, business, home, event, memory, product, place, service, or organization. The cognition remains universal.
-
 ## 2. CANONICAL LIVE LAYERS
 
 ```text
@@ -46,27 +44,23 @@ CUT MOUTH
 CINEMATIC RUNTIME
 ```
 
-### Current canonical concepts
-
 | Layer | Canonical role | Status |
 |---|---|---|
 | SubjectTruth | Explicit identity truth | KEEP |
 | AuthorBrainTruth | Author input boundary | KEEP |
-| Source Ledger | Typed provenance for author input | KEEP / EVOLVE |
-| Creative Operations | Non-prose creative search primitives | KEEP / EVOLVE |
+| Source Ledger | Typed provenance | KEEP / EVOLVE |
+| Creative Operations | Non-prose creative search | KEEP / EVOLVE |
 | ViewerMomentum | Compact viewer cognitive state | KEEP |
-| SequencePlay | Viewer-state trajectory and transition model | KEEP / EVOLVE |
-| Universal Author Brain | Final creative realization brain | KEEP |
-| Cut Mouth | Language realization of selected sequence | KEEP |
-| Living Memory | Cross-chapter continuity and creative history | KEEP |
+| SequencePlay | Viewer-state trajectory | KEEP / EVOLVE |
+| Universal Author Brain | Final creative realization | KEEP |
+| Cut Mouth | Language realization | KEEP |
+| Living Memory | Cross-chapter continuity | KEEP |
 
 Canonical viewer-momentum protocol:
 
 `docs/AUTHOR_VIEWER_MOMENTUM_PROTOCOL.md`
 
-## 3. CRITICAL DISTINCTION
-
-### Reality is not Sequence
+## 3. REALITY IS NOT SEQUENCE
 
 Reality answers:
 
@@ -92,34 +86,11 @@ Why does another cut feel desirable or necessary?
 
 A fact being true does **not** make it an attention beat.
 
-Example failure:
-
-```text
-Coco is male.
-Coco is a poodle.
-Coco loves treats.
-```
-
-These may be valid world facts. They are not automatically three cinematic cuts.
-
 ## 4. SEQUENCE PLAY RULE
 
-SequencePlay is NOT a fixed beat template.
+SequencePlay is not a fixed beat template.
 
-It is an internal model of **viewer-state change over time**.
-
-The sweet spot is determined by the material:
-
-```text
-2 cuts
-3 cuts
-4 cuts
-7 cuts
-```
-
-All are valid when earned.
-
-The sequence should feel like spliced film:
+The sequence is a trajectory of viewer-state changes. The sweet spot may be 2 cuts, 3 cuts, 4 cuts, or more when earned.
 
 ```text
 MENTAL MODEL
@@ -132,23 +103,7 @@ MENTAL MODEL
 → CUT
 ```
 
-Do not turn SequencePlay into a fact checklist or event inventory.
-
-### 4.1 BASELINE IS NOT A CUT
-
-Established identity and stable world facts belong to **baseline state**, not attention movement.
-
-Examples:
-
-```text
-Coco is male.
-Coco is a poodle.
-The property is a house.
-The business is a restaurant.
-The wedding is for the couple.
-```
-
-These may establish truth upstream. They should not consume sequence cuts unless the identity/fact itself becomes a dramatic discovery, contradiction, or reframe.
+Identity and stable facts are baseline. They should not consume attention cuts unless the identity itself becomes the discovery, contradiction, or reframe.
 
 ## 5. VIEWER MOMENTUM RULE
 
@@ -167,94 +122,54 @@ forward pull
 payoff debt
 ```
 
-The master question is:
+Master question:
 
 > **Given everything the viewer currently believes, what is the strongest valid change QRE can make to that mental model right now that makes the next cut desirable, surprising, or necessary?**
 
-## 6. CUT NECESSITY
+## 6. COUNTERFACTUAL NECESSITY
 
-Every candidate cut should survive a counterfactual test:
+A candidate cut should survive:
 
 > **If this cut disappears, what becomes weaker?**
 
-Strong removal damage includes:
+Strong removal damage includes setup collapse, question loss, random surprise, weaker escalation, broken reframe, or unearned payoff.
 
-```text
-setup collapses
-question disappears
-surprise becomes random
-escalation loses pressure
-reframe loses meaning
-payoff becomes unearned
-```
+If removal damage is negligible, delete the cut.
 
-A cut with no meaningful removal damage is a candidate for deletion.
-
-## 7. AUTHOR MOUTH RULES
-
-The mouth is downstream from sequence intelligence.
-
-It should prefer:
-
-```text
-new information
-implication
-character gravity
-reframe
-contrast
-callback
-status shift
-surprise
-consequence
-```
-
-It should avoid:
-
-```text
-subject-name repetition
-identity reintroduction
-database relationship labels
-raw action reporting
-emotion narration
-comma-stuffed multi-shots
-invented physical events
-invented participants
-padding
-```
-
-Examples of the desired compression behavior:
-
-> The monster appeared.
->
-> Pink bows everywhere.
-
-or:
-
-> Bows again.
->
-> Bow re-adjusted.
->
-> For now.
-
-The power is **new meaning per cut**, not a specific word count.
-
-## 8. ACTIVE AUTHOR PATH
+## 7. ACTIVE AUTHOR PATH
 
 ```text
 apps/api/src/services/authorFastCore.ts
         ↓
 apps/api/src/services/authorBrainMomentum.ts
         ↓
-ViewerMomentum + SequencePlay
+compact sequence spine
+        ↓
+QRE reconstructs ViewerMomentum / SequencePlay diagnostics
         ↓
 finished scenes
 ```
 
-`authorBrainMomentum.ts` is the current fast-production author.
+**Important architecture rule:** the local model should output a compact creative sequence spine, not a giant cognitive state object. QRE code reconstructs diagnostic state around the result.
 
-`authorBrain.ts` remains temporarily for migration/rollback and is a **replacement candidate**, not the preferred new implementation.
+The compact model output is:
 
-## 9. ACTIVE SUPPORT FILES
+```text
+sequence
+  premise
+  baselineFacts
+  cuts[]
+    role
+    gainKind
+    change
+    next
+    text
+scenes[]
+```
+
+This preserves creative budget for the actual cuts.
+
+## 8. ACTIVE SUPPORT FILES
 
 ```text
 apps/api/src/services/localModelRuntime.ts
@@ -264,35 +179,20 @@ packages/contracts/src/viewerMomentum.ts
 packages/contracts/src/index.ts
 ```
 
-## 10. ACTIVE COGNITION FILES
+## 9. LEGACY / JUNK WATCHLIST
 
-These are useful source-of-truth cognition components. They are candidates for simplification, but not automatically junk:
-
-```text
-packages/engine/src/cognition/mindState.ts
-packages/engine/src/cognition/memoryResolver.ts
-packages/engine/src/cognition/memoryRecommendations.ts
-packages/engine/src/cognition/experiencePlanner.ts
-packages/engine/src/cognition/experienceCritic.ts
-packages/engine/src/cognition/creativePolicy.ts
-packages/engine/src/cognition/creativeRevision.ts
-```
-
-They must eventually feed the same universal Brain rather than becoming parallel authors.
-
-## 11. LEGACY / JUNK WATCHLIST
-
-These files are **not automatically safe to delete yet**, but they are under active audit because they contain prose-generation behavior or duplicate creative realization:
+These are still candidates for removal after dependency tracing:
 
 ```text
+apps/api/src/services/authorBrain.ts
 packages/engine/src/cognition/creativeWriter.ts
 packages/engine/src/cognition/creativeComposition.ts
 packages/engine/src/cognition/creativeVoiceEngine.ts
 ```
 
-## 12. LEGACY CONTRACT WATCHLIST
+Do not delete until production imports, tests, and unique capabilities are traced.
 
-The repo contains versioned experience contracts such as:
+## 10. LEGACY CONTRACT WATCHLIST
 
 ```text
 packages/contracts/src/experience/indexV13.ts
@@ -301,11 +201,9 @@ packages/contracts/src/experience/memoryForesightV15.ts
 packages/contracts/src/experience/memorySpatialV16.ts
 ```
 
-These are **not automatically canonical** just because they are exported.
+Do not create another version until capability, replacement, consumers, and deletion path are documented.
 
-Do not create another version until the capability, replacement, consumers, and deletion path are documented.
-
-## 13. REPLACEMENT MAP
+## 11. REPLACEMENT MAP
 
 ```text
 LatentMovie / raw event inventory
@@ -316,9 +214,13 @@ beat-count planning
         ↓
 ViewerMomentum + SequencePlay
 
-canned creative prose generators
+large cognitive JSON from the model
         ↓
-Creative Operations + Momentum Author
+compact sequence spine + programmatic diagnostics
+
+canned prose generators
+        ↓
+creative competition + Momentum Author
 
 phrase blacklist growth
         ↓
@@ -329,37 +231,23 @@ provider/service as protagonist
 subject/world gravity
 ```
 
-## 14. DELETION RULE
+## 12. DIAGNOSTIC RULE
 
-A file is a deletion candidate when all are true:
-
-```text
-no production imports
-no contract dependency
-no test dependency
-no unique intelligence not represented elsewhere
-replacement is documented
-```
-
-Never delete merely because a file is ugly. Delete when it is obsolete.
-
-## 15. DIAGNOSTIC RULE
-
-When a test is bad, classify the failure before changing code:
+Classify failures before changing code:
 
 ```text
-A. WORLD / TRUTH FAILURE
-B. MEMORY / CONTINUITY FAILURE
-C. SIGNIFICANCE FAILURE
-D. VIEWER-MOMENTUM / SEQUENCE FAILURE
-E. AUTHOR REALIZATION FAILURE
-F. VALIDATION / PARSING FAILURE
-G. RUNTIME / MODEL-BUDGET FAILURE
+A. WORLD / TRUTH
+B. MEMORY / CONTINUITY
+C. SIGNIFICANCE
+D. VIEWER-MOMENTUM / SEQUENCE
+E. AUTHOR REALIZATION
+F. VALIDATION / PARSING
+G. RUNTIME / MODEL-BUDGET
 ```
 
-Do not fix an E problem with a C hack.
+The latest failure was primarily **F/G plus representation design**: the model collapsed the structured sequence field into a phrase because the requested cognitive JSON was too large and expensive relative to the local model budget.
 
-## 16. DEVELOPMENT LAW
+## 13. DEVELOPMENT LAW
 
 ```text
 failure
@@ -384,7 +272,7 @@ WHAT REPLACES IT?
 WHAT IS THE NEXT HYPOTHESIS?
 ```
 
-## 17. CLEAN REPO PRINCIPLE
+## 14. CLEAN REPO PRINCIPLE
 
 QRE should become easier to understand as intelligence increases.
 
