@@ -1,6 +1,7 @@
+/// <reference types="node" />
+
 import { authorCinematicSequence } from "./src/services/cinematicAuthor.js";
 import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
-import { buildAttentionBeatPlan } from "./src/services/attentionBeatGrammar.js";
 
 type Case = {
   name: string;
@@ -28,7 +29,11 @@ const cases: Case[] = [
     facts: ["Coco", "poodle", "sweet", "scared at first", "happy after", "hates bows", "loves treats"],
     sourceMoments: ["grooming visit", "pink bow"],
     lens: "funny, affectionate, slightly fierce; treat Coco as a character, not a generic cute dog",
-    creativeLearningContext: ["Use personality contrast and status shifts.", "Look for negotiation, attitude, recurring quirks, and a memorable payoff.", "Do not default to nervous -> comfort -> happy pet-commercial progression."],
+    creativeLearningContext: [
+      "Use personality contrast and status shifts.",
+      "Look for negotiation, attitude, recurring quirks, and a memorable payoff.",
+      "Do not default to nervous -> comfort -> happy pet-commercial progression.",
+    ],
     round: 1,
   },
   {
@@ -38,7 +43,10 @@ const cases: Case[] = [
     facts: ["Coco", "poodle", "sweet", "scared at first", "happy after", "hates bows"],
     sourceMoments: ["today Coco tolerated the bath faster", "pink bow was offered again", "Coco walked out proud"],
     lens: "recurring character comedy; chapter two should build on history rather than restart",
-    creativeLearningContext: ["Permanent identity and historical quirks are callbacks, not fresh exposition.", "Today's details should become the new movement and payoff."],
+    creativeLearningContext: [
+      "Permanent identity and historical quirks are callbacks, not fresh exposition.",
+      "Today's details should become the new movement and payoff.",
+    ],
     round: 2,
   },
   {
@@ -48,7 +56,10 @@ const cases: Case[] = [
     facts: ["Coco", "poodle", "scared at first", "happy after", "hates bows"],
     sourceMoments: ["today's grooming visit", "Coco tried to avoid the pink bow"],
     lens: "service receipt with attitude; celebrate the client without sounding like an advertisement",
-    creativeLearningContext: ["Make the ordinary service feel specific through personality.", "The finished service is the factual anchor; humor comes from the character."],
+    creativeLearningContext: [
+      "Make the ordinary service feel specific through personality.",
+      "The finished service is the factual anchor; humor comes from the character.",
+    ],
     round: 1,
   },
   {
@@ -58,7 +69,10 @@ const cases: Case[] = [
     facts: ["Bobo", "bulldog", "runs in", "kisses everyone", "scared in water", "happy after", "loves balls"],
     sourceMoments: ["first grooming visit"],
     lens: "high-energy character comedy; do not make Bobo behave like Coco",
-    creativeLearningContext: ["Use the strongest contradiction: fearless entrance versus water fear.", "Love of balls is a character engine and possible payoff object."],
+    creativeLearningContext: [
+      "Use the strongest contradiction: fearless entrance versus water fear.",
+      "Love of balls is a character engine and possible payoff object.",
+    ],
     round: 1,
   },
   {
@@ -68,7 +82,10 @@ const cases: Case[] = [
     facts: ["dog tag", "Coco", "poodle", "living world"],
     sourceMoments: [],
     lens: "mystery, playful, warm; physical object as doorway",
-    creativeLearningContext: ["Object-to-world transition.", "The artifact can feel mysterious without claiming unsupported physical mechanics."],
+    creativeLearningContext: [
+      "Object-to-world transition.",
+      "The artifact can feel mysterious without claiming unsupported physical mechanics.",
+    ],
     round: 1,
   },
   {
@@ -77,7 +94,10 @@ const cases: Case[] = [
     facts: ["completed service", "client identity exists", "one memorable detail from today"],
     sourceMoments: ["today's appointment"],
     lens: "universal service receipt; warm, specific, clever, never corporate",
-    creativeLearningContext: ["Works for groomers, barbers, salons, mechanics, cleaners, tattoo artists, detailers, and contractors.", "Do not invent a specific service outcome not supplied."],
+    creativeLearningContext: [
+      "Works for groomers, barbers, salons, mechanics, cleaners, tattoo artists, detailers, and contractors.",
+      "Do not invent a specific service outcome not supplied.",
+    ],
     round: 1,
   },
   {
@@ -88,7 +108,11 @@ const cases: Case[] = [
     facts: ["$50 million home", "Malibu", "cliffside", "ocean view", "red door", "family gatherings", "library"],
     sourceMoments: ["family gathered there", "home was restored"],
     lens: "prestige without generic luxury language; history and ownership matter more than price",
-    creativeLearningContext: ["Price is context, not the story.", "Find meaning in provenance, place, architecture, ritual, and memory.", "Avoid luxury-cliche vocabulary."],
+    creativeLearningContext: [
+      "Price is context, not the story.",
+      "Find meaning in provenance, place, architecture, ritual, and memory.",
+      "Avoid luxury-cliche vocabulary.",
+    ],
     round: 1,
   },
   {
@@ -98,7 +122,11 @@ const cases: Case[] = [
     facts: ["142 feet", "blue hull", "first voyage 2019", "Mediterranean", "Sardinia", "captain's chair is inherited"],
     sourceMoments: ["voyages through the Mediterranean"],
     lens: "provenance, travel, ownership; object with history rather than brochure copy",
-    creativeLearningContext: ["Use the inherited chair as the strongest human anchor.", "Let geography and voyages create motion.", "Do not reduce value to wealth."],
+    creativeLearningContext: [
+      "Use the inherited chair as the strongest human anchor.",
+      "Let geography and voyages create motion.",
+      "Do not reduce value to wealth.",
+    ],
     round: 1,
   },
   {
@@ -118,7 +146,10 @@ const cases: Case[] = [
     facts: ["vintage watch", "inherited", "scratched case", "still keeps time"],
     sourceMoments: ["passed down in the family"],
     lens: "provenance, memory, quiet mystery",
-    creativeLearningContext: ["Use the scratches and inheritance as narrative evidence.", "Make time itself part of the metaphor without inventing who owned it before."],
+    creativeLearningContext: [
+      "Use the scratches and inheritance as narrative evidence.",
+      "Make time itself part of the metaphor without inventing who owned it before.",
+    ],
     round: 1,
   },
   {
@@ -149,7 +180,10 @@ const cases: Case[] = [
     facts: ["Sandy", "Jim", "Friday January 1 2099", "9 PM", "Belmont Shore", "Long Beach, CA", "beach theme"],
     sourceMoments: [],
     lens: "romantic, intimate, nighttime beach; moonlight and shoreline reality should matter",
-    creativeLearningContext: ["9 PM means night; exploit night affordances such as moonlight, reflected water, tide, shoreline lights, and night air.", "Do not invent sunrise, sunset, altar, crowd, vows, gown, or other wedding events unless supplied."],
+    creativeLearningContext: [
+      "9 PM means night; exploit night affordances such as moonlight, reflected water, tide, shoreline lights, and night air.",
+      "Do not invent sunrise, sunset, altar, crowd, vows, gown, or other wedding events unless supplied.",
+    ],
     round: 1,
   },
   {
@@ -168,7 +202,12 @@ const cases: Case[] = [
     facts: ["dinner", "wine", "conversation"],
     sourceMoments: [],
     lens: "calm human behavior while reality breaks",
-    creativeLearningContext: ["Start ordinary.", "Choose one impossible environmental violation and escalate it.", "Doors slam, glass breaks, knives fly, chairs move to the ceiling while conversation continues.", "Prefer spatial contradiction and calm reactions over ghosts and generic gothic imagery."],
+    creativeLearningContext: [
+      "Start ordinary.",
+      "Choose one impossible environmental violation and escalate it.",
+      "Doors slam, glass breaks, knives fly, chairs move to the ceiling while conversation continues.",
+      "Prefer spatial contradiction and calm reactions over ghosts and generic gothic imagery.",
+    ],
     round: 1,
   },
   {
@@ -177,7 +216,10 @@ const cases: Case[] = [
     facts: ["I make unusual things", "I keep experimenting", "I care about attention"],
     sourceMoments: ["my creative life"],
     lens: "voice, ambition, contradiction, obsession, point of view",
-    creativeLearningContext: ["Do not invent an audience, career history, awards, failures, or future success.", "Build from the supplied creative identity and the tension of making unusual things."],
+    creativeLearningContext: [
+      "Do not invent an audience, career history, awards, failures, or future success.",
+      "Build from the supplied creative identity and the tension of making unusual things.",
+    ],
     round: 1,
   },
   {
@@ -187,7 +229,10 @@ const cases: Case[] = [
     facts: ["physical artwork", "strong visual language", "the work feels strange and beautiful"],
     sourceMoments: ["gallery viewing"],
     lens: "mysterious threshold; original visual world rather than stock fantasy gallery language",
-    creativeLearningContext: ["Use material, texture, signature, and viewer perspective.", "Avoid defaulting to gallery-as-portal cliches unless the artwork supports it."],
+    creativeLearningContext: [
+      "Use material, texture, signature, and viewer perspective.",
+      "Avoid defaulting to gallery-as-portal cliches unless the artwork supports it.",
+    ],
     round: 1,
   },
   {
@@ -197,7 +242,10 @@ const cases: Case[] = [
     facts: ["polished wood", "QR art", "physical object"],
     sourceMoments: ["someone discovers the object"],
     lens: "mystery, tactile discovery, portal",
-    creativeLearningContext: ["Treat the object as a doorway into a living digital world.", "Concept mode may use impossible imagery, but grounded mode must not claim the wood physically opens or vibrates unless supplied."],
+    creativeLearningContext: [
+      "Treat the object as a doorway into a living digital world.",
+      "Concept mode may use impossible imagery, but grounded mode must not claim the wood physically opens or vibrates unless supplied.",
+    ],
     round: 1,
   },
   {
@@ -217,7 +265,10 @@ const cases: Case[] = [
     facts: [],
     sourceMoments: [],
     lens: "meaning, surprise, identity",
-    creativeLearningContext: ["Do not invent a biography for the owner.", "Invent a compelling conceptual question or visual transformation around why ordinary things can matter."],
+    creativeLearningContext: [
+      "Do not invent a biography for the owner.",
+      "Invent a compelling conceptual question or visual transformation around why ordinary things can matter.",
+    ],
     round: 1,
   },
 ];
@@ -244,21 +295,19 @@ for (const test of cases) {
       round: test.round,
     });
 
-    const beatPlan = buildAttentionBeatPlan(test.round ?? 1);
+    const rhythmRule = cognition.sceneRules.find((rule) => rule.includes("JOLT")) ?? "JOLT → JOLT → JOLT → PAYOFF";
 
     console.log("ATTENTION:", cognition.chosenAttentionStrategy);
     console.log("CONTRADICTIONS:", cognition.contradictions.join(" | ") || "none");
     console.log("OPERATORS:", cognition.operatorMix.join(", "));
-    console.log("RHYTHM:", beatPlan.rhythm.join(" → "));
+    console.log("RHYTHM:", rhythmRule);
 
     const learningContext = [
       ...(test.creativeLearningContext ?? []),
       ...cognition.authorBrief,
       ...cognition.antiRepetitionRules,
       ...cognition.sceneRules,
-      ...beatPlan.beatRules,
-      ...beatPlan.payoffRules,
-      `ATTENTION RHYTHM: ${beatPlan.rhythm.join(" → ")}`,
+      `ATTENTION RHYTHM: ${rhythmRule}`,
     ];
 
     const result = await authorCinematicSequence({
