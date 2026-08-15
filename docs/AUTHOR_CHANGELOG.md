@@ -13,12 +13,13 @@ Historical entries remain below, but the latest **CURRENT TRUTH** section overri
 - Learn general mechanisms, not phrase blacklists.
 - Never weaken quality gates to make tests green.
 - After 2–4 meaningful experiments, update this file and the architecture index.
+- **Creative capability may multiply. Author authorities may not.**
 
 ---
 
 ## CURRENT TRUTH — 2026-08-15
 
-### One brain / one path / one acceptance harness
+### One brain / one path / one acceptance harness / guarded
 
 The author architecture is now intentionally consolidated:
 
@@ -34,6 +35,33 @@ author-acceptance-suite
 ```
 
 Both paths enter the **same Master Author**.
+
+### Architecture drift guard
+
+`scripts/verify-author-architecture.mjs`
+
+The guard is now part of the repository build and CI path.
+
+It fails when it detects:
+
+```text
+missing Master Author
+missing canonical acceptance harness
+legacy author files reintroduced
+legacy author test pile reintroduced
+acceptance imports a bridge instead of the Master Author
+production imports deleted author paths
+```
+
+The root build begins with:
+
+```text
+pnpm author:guard
+```
+
+CI runs the same guard before package builds.
+
+This means architectural drift is now a **machine-enforced failure**, not a memory task.
 
 ### Master Author
 
