@@ -1,5 +1,6 @@
 import { authorCinematicSequence } from "./src/services/cinematicAuthor.js";
 import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
+import { buildAttentionBeatPlan } from "./src/services/attentionBeatGrammar.js";
 
 type Case = {
   name: string;
@@ -243,15 +244,21 @@ for (const test of cases) {
       round: test.round,
     });
 
+    const beatPlan = buildAttentionBeatPlan(test.round ?? 1);
+
     console.log("ATTENTION:", cognition.chosenAttentionStrategy);
     console.log("CONTRADICTIONS:", cognition.contradictions.join(" | ") || "none");
     console.log("OPERATORS:", cognition.operatorMix.join(", "));
+    console.log("RHYTHM:", beatPlan.rhythm.join(" → "));
 
     const learningContext = [
       ...(test.creativeLearningContext ?? []),
       ...cognition.authorBrief,
       ...cognition.antiRepetitionRules,
       ...cognition.sceneRules,
+      ...beatPlan.beatRules,
+      ...beatPlan.payoffRules,
+      `ATTENTION RHYTHM: ${beatPlan.rhythm.join(" → ")}`,
     ];
 
     const result = await authorCinematicSequence({
