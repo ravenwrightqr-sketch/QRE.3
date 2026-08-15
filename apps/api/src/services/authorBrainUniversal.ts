@@ -11,6 +11,11 @@
  * strongest valid sequence of attention-changing cuts. The mouth is the final
  * realization layer. The world remains the source of truth.
  *
+ * MAGNET CIRCLE:
+ * novelty → uncertainty → information value → attention → tension →
+ * information seeking → narrative engagement.
+ * This is the universal sequence primitive. Style is downstream realization.
+ *
  * Important general laws:
  * - A source state is evidence, not a mandatory story arc.
  * - Identity is baseline unless identity itself is the discovery.
@@ -32,6 +37,7 @@ import type {
   ViewerAttentionRole,
   ViewerMomentum,
   ViewerState,
+  MagnetCircle,
 } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
@@ -62,6 +68,84 @@ const STOP = new Set("the a an and or but for to of in on at with from this that
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20): string[] => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+const metric = (value: number): number => Number(clamp01(value).toFixed(3));
+
+function meaningfulWords(value: string): Set<string> {
+  return new Set(
+    clean(value)
+      .toLowerCase()
+      .split(/[^a-z0-9'-]+/i)
+      .filter((word) => word.length >= 4 && !STOP.has(word)),
+  );
+}
+
+function overlapRatio(a: Set<string>, b: Set<string>): number {
+  if (!a.size) return 0;
+  let hits = 0;
+  for (const word of a) if (b.has(word)) hits += 1;
+  return hits / a.size;
+}
+
+function magnetCircle(
+  before: ViewerMomentum,
+  change: string,
+  next: string,
+  role: ViewerAttentionRole,
+  gain: string,
+): MagnetCircle {
+  const known = meaningfulWords(before.known.join(" "));
+  const changeWords = meaningfulWords(change);
+  const nextWords = meaningfulWords(next);
+  const novelty = metric(1 - overlapRatio(changeWords, known));
+
+  const genericNext = /^(?:what happens next|what will happen next|something else|the next step|more to come)[.?]?$/.test(next.toLowerCase());
+  const uncertainty = metric(
+    (nextWords.size ? 0.55 : 0.15) +
+    (before.unresolved || before.curiosityGap ? 0.2 : 0) +
+    (gain === "question" || gain === "surprise" ? 0.2 : 0) -
+    (genericNext ? 0.45 : 0),
+  );
+
+  const informationValue = metric(
+    novelty * 0.45 +
+    (changeWords.size ? 0.2 : 0) +
+    (nextWords.size ? 0.15 : 0) +
+    (["surprise", "discovery", "reframe", "consequence", "payoff", "callback"].includes(gain) ? 0.2 : 0),
+  );
+
+  const attention = metric(novelty * 0.4 + informationValue * 0.6);
+  const tension = metric(uncertainty * informationValue);
+  const informationSeeking = metric(
+    nextWords.size * 0.08 +
+    (next ? 0.25 : 0) +
+    (before.unresolved ? 0.2 : 0) +
+    (before.forwardPull ? 0.15 : 0),
+  );
+  const narrativeEngagement = metric((attention + tension + informationSeeking) / 3);
+  const magnetStrength = metric(
+    novelty * 0.15 +
+    uncertainty * 0.15 +
+    informationValue * 0.2 +
+    attention * 0.15 +
+    tension * 0.2 +
+    informationSeeking * 0.1 +
+    narrativeEngagement * 0.05,
+  );
+
+  return {
+    novelty,
+    uncertainty,
+    informationValue,
+    attention,
+    tension,
+    informationSeeking,
+    narrativeEngagement,
+    magnetStrength,
+    unresolved: next || change || before.unresolved,
+    nextNeed: next || before.forwardPull,
+  };
+}
 
 function canonicalGain(value: unknown): string {
   const normalized = clean(value).toLowerCase();
@@ -141,7 +225,19 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   if (!Array.isArray(value.cuts)) return undefined;
 
   const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 10);
-  let momentum: ViewerMomentum = { known: baselineFacts };
+  let momentum: ViewerMomentum = {
+    known: baselineFacts,
+    magnet: {
+      novelty: 0,
+      uncertainty: 0,
+      informationValue: 0,
+      attention: 0,
+      tension: 0,
+      informationSeeking: 0,
+      narrativeEngagement: 0,
+      magnetStrength: 0,
+    },
+  };
   const cuts: SequenceCut[] = [];
 
   for (const [index, item] of value.cuts.entries()) {
@@ -154,6 +250,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
     const text = clean(c.text);
     const change = clean(c.change);
     const next = clean(c.next);
+    const magnet = magnetCircle(momentum, change, next, role as ViewerAttentionRole, gain);
     const after: ViewerMomentum = {
       known: momentum.known,
       expected: next || undefined,
@@ -161,9 +258,10 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
       curiosityGap: next || momentum.curiosityGap,
       predictionShift: change || undefined,
       currentWant: next || undefined,
-      unresolved: next || change || undefined,
-      forwardPull: next || undefined,
+      unresolved: magnet.unresolved,
+      forwardPull: magnet.nextNeed,
       payoffDebt: momentum.payoffDebt,
+      magnet,
     };
 
     cuts.push({
@@ -189,8 +287,15 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
         recentChange: after.predictionShift,
       } satisfies ViewerState,
       momentum: { before: momentum, change, after, nextPressure: next },
-      necessity: { necessary: true, reason: next || change },
+      necessity: {
+        necessary: magnet.magnetStrength >= 0.35 || Boolean(next),
+        reason: next || change,
+        removalDamage: magnet.magnetStrength >= 0.35
+          ? `Weakens the information-seeking magnet (${magnet.magnetStrength.toFixed(2)})`
+          : "Cut does not yet carry enough forward pull",
+      },
       nextPromise: next || undefined,
+      noveltyScore: magnet.novelty,
       confidence: 0.8,
       ...(text ? { text } : {}),
     } as SequenceCut & { text?: string });
@@ -204,7 +309,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
     premise: clean(value.premise).replace(/[.?!]$/, ""),
     openingState: { known: baselineFacts },
     baselineFacts,
-    openingMomentum: { known: baselineFacts },
+    openingMomentum: { known: baselineFacts, magnet: momentum.magnet },
     cuts,
     closingMomentum: momentum,
     continuity: [],
@@ -230,7 +335,7 @@ function brief(input: AuthorBrainTruth): AuthorCreativeBrief {
     engine: "viewer-momentum sequence discovery",
     question: "what changes the viewer's mental model next?",
     strongestImage: input.facts[0] ?? input.sourceMoments[0] ?? "the strongest supplied detail",
-    tension: "curiosity versus expectation",
+    tension: "information seeking through uncertainty",
     payoff: "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: ["hit", "variable", "hit", "payoff"],
@@ -258,19 +363,20 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
       content: [
         "You are QRE's universal creative author.",
         "Discover the strongest short movie hidden inside the supplied world. Do not summarize it.",
+        "The universal attention primitive is the MAGNET CIRCLE: novelty → uncertainty → information value → attention → tension → information seeking → narrative engagement.",
+        "A strong cut increases or meaningfully resolves the current magnet, then creates the next magnet. Do not create a cut unless it changes the viewer's mental model or leaves a valuable unresolved state.",
         "A source state is evidence, not a story instruction. Emotion labels do not automatically become the plot arc.",
         "First find the strongest specific relationship already present: contradiction, recurrence, implication, status shift, image, mismatch, callback, consequence, or withheld meaning.",
-        "Then make each cut change the viewer's mental model enough to create forward pull.",
-        "Privately test: what does the viewer know, what do they expect, what is unresolved, what can change without inventing reality, why is the change specific here, what will they want next, and what breaks if the cut disappears?",
+        "Privately track: what is known, what is new, what is uncertain, how valuable the missing information is, why attention should move there, what the viewer seeks next, and what makes the next cut necessary.",
         "Identity and stable facts are baseline. Do not spend cuts reintroducing the subject or listing traits.",
         "Use predicate-to-attitude compression: supplied dislike, love, status, history, recurrence, or contradiction may become a sharp line without inventing a physical event.",
         "A creative implication can emerge from the relationship between supplied facts. Reframe, juxtapose, contrast, compress, withhold, escalate, and callback without inventing events.",
         "Do not invent physical behavior, dialogue, participants, roles, relationships, locations, placements, or outcomes.",
         "A source state like scared does not authorize trembling, hiding, crying, jumping, or similar physical performance. A source state like happy does not authorize wagging, smiling, cheering, or leaping.",
-        "Questions stay inside hidden viewer cognition. Never make the narrator ask literal questions unless supplied.",
+        "Questions stay inside hidden cognition. Never make the narrator ask literal questions unless supplied.",
         "The provider or service is usually stage context. Keep the supplied subject as the temporary star unless the provider is explicitly significant.",
         "Do not explain the joke. Let the viewer close the gap.",
-        "Short is not the goal. Compressed impact is the goal. Use as few words as the cognitive job allows.",
+        "Short is not the goal. Compressed impact is the goal. A two-word cut can be stronger than a sentence when it carries more implied information.",
         "Use recurrence only when supported by memory, trajectory, or repeated supplied evidence.",
         "Sparse-world rule: creative latitude applies to interpretation and juxtaposition, not to evidence. The less source evidence available, the smaller the invented-world surface must become.",
         "If evidence is sparse, prefer a compact implication, contrast, or image over adding hidden history, new people, objects, or events.",
@@ -292,6 +398,15 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     .filter((scene, index, all) => all.findIndex((candidate) => candidate.text.toLowerCase() === scene.text.toLowerCase()) === index)
     .slice(0, 6);
 
+  const magnetValues = sequence?.cuts
+    .map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0)
+    .filter((value) => Number.isFinite(value)) ?? [];
+  const magnetAverage = magnetValues.length
+    ? magnetValues.reduce((sum, value) => sum + value, 0) / magnetValues.length
+    : 0;
+  const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
+  const magnetFloor = magnetValues.length ? Math.min(...magnetValues) : 0;
+
   return {
     brief: brief(input),
     scenes,
@@ -303,6 +418,10 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
       recoveredTextsAttempted: recovered.length,
       recoveredTextsRejected: recovered.length - recoveredValid.length,
       finalScenes: scenes.length,
+      magnetAverage: metric(magnetAverage),
+      magnetPeak: metric(magnetPeak),
+      magnetFloor: metric(magnetFloor),
+      magnetCutsMeasured: magnetValues.length,
     },
   };
 }
