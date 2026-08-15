@@ -15,7 +15,10 @@ export type AuthorCreativeBrief = {
 };
 
 export type AuthorBrainTruth = {
+  prompt: string;
+  lens?: string;
   subject?: string;
+  place?: string;
   subjectTruth?: SubjectTruth;
   facts: string[];
   sourceMoments: string[];
