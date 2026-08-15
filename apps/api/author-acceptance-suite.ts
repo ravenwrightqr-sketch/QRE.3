@@ -1,4 +1,4 @@
-import { authorFast } from "./src/services/authorFastCore.js";
+import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
 
 const cases = {
   COCO: {
@@ -77,18 +77,17 @@ if (!test) {
   process.exit(1);
 }
 
-process.env.QRE_AUTHOR_FAST = "true";
 process.env.QRE_AUTHOR_DEBUG_RAW = "true";
 const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE UNIVERSAL AUTHOR ACCEPTANCE · ${requested}`);
-console.log("ONE CANONICAL AUTHOR · ONE SEQUENCE PATH");
+console.log("ONE MASTER BRAIN · ONE AUTHOR PATH");
 console.log("VIEWER MOMENTUM · SOURCE TRUTH · CUT NECESSITY");
 console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
 try {
-  const result = await authorFast({
+  const result = await authorBrainUniversal({
     ...test,
     facts: [...test.facts],
     sourceMoments: [...test.sourceMoments],
@@ -120,7 +119,7 @@ try {
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "line"} · ${scene.text}`));
 
   if (!result.sequence || !result.scenes.length) {
-    console.error("FAIL: canonical Universal Author produced no usable sequence/scenes");
+    console.error("FAIL: master Universal Author produced no usable sequence/scenes");
     process.exitCode = 1;
   }
 } catch (error) {
