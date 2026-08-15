@@ -5,6 +5,7 @@ import { createAnalyticsRepository } from "../repositories/analyticsRepository.j
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { authorMicroBeats } from "./microBeatMouth.js";
+import { resolveSubjectTruth } from "./authorTruth.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -180,12 +181,16 @@ export async function compileExperience(input: {
     } : undefined,
   });
 
+  const subject = String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? "").trim();
+  const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
+
   try {
     const beats = await authorMicroBeats({
       prompt,
       lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
-      subject: String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? ""),
+      subject,
       place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+      subjectTruth,
       cognitivePlan: compiled?.plan,
       facts: [
         ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
