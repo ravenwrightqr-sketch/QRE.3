@@ -80,6 +80,7 @@ const GENERIC_PATTERNS = [
   /beautiful transformation/i, /magical moment/i, /amazing transformation/i,
   /as we move/i, /a transformation begins/i, /the experience unfolds/i,
   /the final reveal/i, /level up/i, /incredible journey/i,
+  /still here/i, /something changes/i, /then it shifts/i, /see you next time/i,
 ];
 
 const META_PATTERN = /\b(ai|qre|prompt|compiler|cognition|metadata|model|writing process|instruction)\b/i;
@@ -235,15 +236,19 @@ async function planDirection(input: CinematicAuthorInput, fallback: CreativeDire
           "You are QRE's senior creative director and cognitive planner.",
           "Do not draft prose or scenes. Design the movie before the mouth speaks.",
           "The subject/object/place is the STAR. Find what is uniquely watchable about THIS thing in THIS world.",
-          "Generate competing interpretations internally, then choose the least generic interpretation justified by the evidence.",
+          "CREATIVE COMPETITION IS REQUIRED: privately generate several genuinely different interpretations before selecting one champion. They must differ in what the memory means, not merely in wording.",
+          "Compete across character comedy, contradiction, status inversion, tenderness, ritual, identity, mystery, escalation, understatement, transformation, sensory immersion, and unexpected callback where evidence supports them.",
+          "ATTACK THE CANDIDATES: reject anything generic, already overused in memoryContext/creativeLearningContext, unsupported by evidence, visually weak, predictable, explanatory, or too thin to justify the requested cuts.",
+          "The champion must identify an actual creative problem: ANGLE, CONTRADICTION/TENSION, MOVEMENT, PAYOFF, and WHAT NOT TO REPEAT.",
+          "If prior chapters exist, treat their used motifs and jokes as creative history. Prefer evolution, subversion, or a new facet over replaying the same joke.",
           "Hunt contradictions, callbacks, recurring traits, status inversions, small details with large meaning, and unresolved tension.",
           "The output is a FAST-CUT sequence: each beat is a separate screen-sized thought, like a film cut or musical beat.",
           "A beat is not defined by having an action verb. A fact, image, recognition, interruption, reversal, or tiny line can be a beat if it changes the next cut.",
           "Do not force a fixed five-part template. Choose 4–6 beats based on material density and attention potential.",
           "Reality is hard outside concept mode. Time and place are authoritative. Never contradict them.",
-          "If the supplied time is 9 PM, the world is night; never introduce sunrise, dawn, daylight, morning, or golden-hour imagery unless explicitly supplied.",
           "Sparse inputs must remain sparse in factual claims. Do not fabricate biography. Use point of view, tension, object personality, or concept-level invention where appropriate.",
           "Return strict JSON: intent, mode, attentionGoal, emotionalEngine, strongestDetail, hiddenPremise, sequenceShape, beatRhythm, beatCount, endingMove, targetDensity, selectedOperators.",
+          "Pack the champion's ANGLE, CONTRADICTION, MOVEMENT, PAYOFF, and anti-repeat decision into hiddenPremise/attentionGoal/emotionalEngine/sequenceShape/endingMove. Do not output candidate prose.",
           `OPERATORS: ${OPERATORS.join(", ")}`,
         ].join(" "),
       },
@@ -252,8 +257,8 @@ async function planDirection(input: CinematicAuthorInput, fallback: CreativeDire
         content: JSON.stringify({
           prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "",
           facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24),
-          memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 20),
-          world, fallback,
+          memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 30),
+          trajectory: uniq(input.trajectory ?? [], 20), world, fallback,
         }),
       },
     ], "json");
@@ -293,7 +298,6 @@ function finalize(raw: AuthoredScene[], world: WorldState): AuthoredScene[] {
   for (const scene of raw) {
     const text = clean(scene?.text).replace(/^(?:hook|jolt|turn|payoff|afterglow|movement|discovery)\s*[:|-]\s*/i, "");
     if (!text) continue;
-    // One model item is one beat. Do not silently turn punctuation into extra cuts.
     const words = text.split(/\s+/).filter(Boolean);
     const short = words.length <= 18 ? text : words.slice(0, 18).join(" ").replace(/[,:;—-]+$/g, "");
     if (short && !META_PATTERN.test(short)) out.push({ ...scene, text: short });
@@ -305,6 +309,18 @@ function finalize(raw: AuthoredScene[], world: WorldState): AuthoredScene[] {
     durationHintMs: scene.durationHintMs ?? Math.max(700, Math.min(2200, 700 + scene.text.split(/\s+/).length * 95)),
     transitionHint: scene.transitionHint ?? (index === 0 ? "none" : index === all.length - 1 ? "flash" : "fade"),
   }));
+}
+
+function fitBeatCount(scenes: AuthoredScene[], target: number): AuthoredScene[] {
+  if (scenes.length <= target) return scenes;
+  if (target >= 6) return scenes.slice(0, target);
+  const ranked = scenes.map((scene, index) => ({ scene, index, generic: genericHits(scene.text), words: scene.text.split(/\s+/).length }));
+  const keep = ranked
+    .sort((a, b) => (a.generic - b.generic) || (a.index === 0 ? -1 : b.index === 0 ? 1 : a.index - b.index))
+    .slice(0, target)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.scene);
+  return keep;
 }
 
 function localGate(scenes: AuthoredScene[], world: WorldState): boolean {
@@ -345,8 +361,12 @@ async function draft(input: CinematicAuthorInput, direction: CreativeDirection, 
         "Never invent a concrete event, person, location, action, outcome, weather condition, or relationship in grounded/living_memory/service modes.",
         "Never label beats for the viewer. No 'Jolt:', 'Turn:', etc.",
         "No generic filler, no decorative cinematic clichés, no explanation of the joke or emotion.",
+        "Do not turn a paragraph into five line breaks. Each beat must have a distinct dramatic job: setup, pressure, reveal, turn, consequence, or payoff.",
+        "A static fact is acceptable only when its placement changes what the viewer expects next. Otherwise transform the fact into a relationship, contrast, implication, or consequence.",
         modeInstruction,
-        `HIDDEN MOVIE: ${direction.hiddenPremise}`,
+        `CHAMPION ANGLE / HIDDEN MOVIE: ${direction.hiddenPremise}`,
+        `ATTENTION GOAL: ${direction.attentionGoal}`,
+        `EMOTIONAL ENGINE: ${direction.emotionalEngine}`,
         `BEAT RHYTHM: ${direction.beatRhythm.join(" → ")}`,
         `SEQUENCE JOBS: ${direction.sequenceShape.join(" → ")}`,
         `AFFORDANCES: ${world.creativeAffordances.join(" | ")}`,
@@ -361,8 +381,8 @@ async function draft(input: CinematicAuthorInput, direction: CreativeDirection, 
       content: JSON.stringify({
         prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "",
         facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24),
-        memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 20),
-        world,
+        memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 30),
+        trajectory: uniq(input.trajectory ?? [], 20), world,
       }),
     },
   ], "json");
@@ -380,9 +400,12 @@ async function critique(input: CinematicAuthorInput, direction: CreativeDirectio
         content: [
           "You are QRE's ruthless cinematic editor.",
           "Judge this as a FAST-CUT FILM, not prose.",
-          "Ask: Is the subject the star? Does each square earn its cut? Does each adjacent beat create forward pull? Is the rhythm alive? Is the payoff earned?",
+          "Ask: Is the subject the star? Does each cut earn its place? Does each adjacent beat create forward pull? Is the rhythm alive? Is the payoff earned?",
           "Also judge visuality, specificity, novelty, generic language, repetition, and reality integrity.",
           "A noun or fact can be a valid beat if its placement changes the sequence. Do not demand action verbs.",
+          "Detect PARAGRAPH CHOPPING: if the beats are merely chronological fragments of one sentence-shaped summary, flag weakTransitions.",
+          "Detect CREATIVE REPETITION: compare against memoryContext and creativeLearningContext and flag an angle/joke/motif that has already been exhausted.",
+          "Ask whether the sequence exploits the champion angle rather than merely restating facts.",
           "In grounded/living_memory/service modes, flag concrete events, actions, people, places, times, or outcomes not supported by the source.",
           "Flag any contradiction with explicit time or place. A 9 PM scene cannot contain sunrise, dawn, daylight, morning, golden-hour, or sunlight imagery unless explicitly supplied.",
           "Return strict JSON: score, problems, repeats, instructionLeaks, unsupportedDetails, weakScenes, genericLanguage, weakTransitions.",
@@ -390,7 +413,7 @@ async function critique(input: CinematicAuthorInput, direction: CreativeDirectio
       },
       {
         role: "user",
-        content: JSON.stringify({ prompt: input.prompt, direction, world, facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24), scenes }),
+        content: JSON.stringify({ prompt: input.prompt, direction, world, facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24), memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 30), scenes }),
       },
     ], "json");
     return parseJson<Critique>(result.text);
@@ -410,7 +433,10 @@ async function repair(input: CinematicAuthorInput, direction: CreativeDirection,
           "Do not replace an unsupported detail with another invented concrete detail in grounded/living_memory/service modes.",
           "Keep 3–12 words when possible, never above 18.",
           "Respect explicit time and place. If the world says 9 PM, do not add sunrise, dawn, daylight, morning, golden hour, or sunlight.",
-          "Do not add beat labels to viewer-facing text.",
+          "Remove generic filler such as Still here, Something changes, Then it shifts, and See you next time.",
+          "If a static fact is weak, realize the same grounded fact through contrast, implication, character, tension, or consequence. Do not invent a new event.",
+          "Do not repeat a previously used joke or motif merely because it is easy. If the old motif is required for continuity, evolve or subvert it.",
+          `TARGET BEAT COUNT: ${direction.beatCount}`,
           `WORLD: ${JSON.stringify(world)}`,
           `DIRECTION: ${JSON.stringify(direction)}`,
           `CRITIQUE: ${JSON.stringify(critiqueResult)}`,
@@ -419,7 +445,7 @@ async function repair(input: CinematicAuthorInput, direction: CreativeDirection,
       },
       {
         role: "user",
-        content: JSON.stringify({ prompt: input.prompt, facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24), scenes }),
+        content: JSON.stringify({ prompt: input.prompt, facts: uniq(input.facts, 40), sourceMoments: uniq(input.sourceMoments, 24), memoryContext: uniq(input.memoryContext ?? [], 20), creativeLearningContext: uniq(input.creativeLearningContext ?? [], 30), scenes }),
       },
     ], "json");
     const parsed = parseJson<SceneDraft>(result.text);
@@ -434,9 +460,32 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
   const worldState = buildWorldState(input, intent);
   const fallback = fallbackDirection(input, intent, worldState);
   const direction = await planDirection(input, fallback, worldState);
-  let scenes = await draft(input, direction, worldState);
-  if (scenes.length < 3) scenes = await draft(input, direction, worldState);
-  if (scenes.length < 3) return [];
+  const targetBeats = direction.beatCount;
+
+  // Three independent draft attempts give the author a real chance to escape a bad local generation.
+  // We do not blindly accept the first valid JSON payload.
+  let scenes: AuthoredScene[] = [];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidate = fitBeatCount(await draft(input, direction, worldState), targetBeats);
+    if (candidate.length === targetBeats && localGate(candidate, worldState)) {
+      scenes = candidate;
+      break;
+    }
+    if (candidate.length > scenes.length) scenes = candidate;
+  }
+
+  // Never collapse a real author result to zero because a later gate became stricter.
+  if (scenes.length < 3) {
+    const recovery = await repair(input, direction, worldState, scenes, {
+      score: 4,
+      problems: ["insufficient_candidate_sequence", "recover_without_zeroing_experience"],
+      repeats: [], instructionLeaks: [], unsupportedDetails: [], weakScenes: [],
+      genericLanguage: [], weakTransitions: [],
+    });
+    if (recovery.length >= 3) scenes = fitBeatCount(recovery, targetBeats);
+  }
+  if (scenes.length < 3) return scenes;
+
   const critiqueResult = await critique(input, direction, worldState, scenes);
   if (critiqueResult && (
     critiqueResult.score < 8 || critiqueResult.problems?.length || critiqueResult.repeats?.length ||
@@ -444,14 +493,23 @@ export async function authorCinematicSequence(input: CinematicAuthorInput): Prom
     critiqueResult.weakScenes?.length || critiqueResult.genericLanguage?.length || critiqueResult.weakTransitions?.length
   )) {
     const repaired = await repair(input, direction, worldState, scenes, critiqueResult);
-    if (repaired.length >= 3) scenes = repaired;
+    if (repaired.length >= 3) {
+      const repairedSized = fitBeatCount(repaired, targetBeats);
+      if (repairedSized.length >= 3) scenes = repairedSized;
+    }
   }
+
   if (!localGate(scenes, worldState)) {
     const repaired = await repair(input, direction, worldState, scenes, {
       score: 6,
       problems: ["local_quality_or_reality_gate"], repeats: [], instructionLeaks: [], unsupportedDetails: [], weakScenes: [],
+      genericLanguage: [], weakTransitions: [],
     });
-    if (repaired.length >= 3 && localGate(repaired, worldState)) scenes = repaired;
+    if (repaired.length >= 3) {
+      const repairedSized = fitBeatCount(repaired, targetBeats);
+      if (repairedSized.length >= 3 && localGate(repairedSized, worldState)) scenes = repairedSized;
+    }
   }
+
   return scenes;
 }
