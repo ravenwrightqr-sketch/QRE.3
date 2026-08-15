@@ -35,6 +35,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Verify author architecture
+        run: pnpm author:guard
+
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
 
