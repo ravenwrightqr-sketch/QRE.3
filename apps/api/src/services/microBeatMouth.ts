@@ -46,10 +46,7 @@ function words(text: string): string[] {
 }
 
 function sentenceParts(text: string): string[] {
-  return clean(text)
-    .split(/(?<=[.!?])\s+/)
-    .map((part) => part.replace(/^[\[\](){}]+|[.!?]+$/g, "").trim())
-    .filter(Boolean);
+  return clean(text).split(/(?<=[.!?])\s+/).map((part) => part.replace(/^[\[\](){}]+|[.!?]+$/g, "").trim()).filter(Boolean);
 }
 
 function trimToWordCeiling(text: string, maxWords = 7): string {
@@ -65,7 +62,7 @@ function normalizeKind(kind: unknown, index: number, total: number): ExperienceB
   if (ALLOWED_KINDS.has(normalized)) return normalized as ExperienceBeat["kind"];
   if (index === total - 1) return "payoff";
   if (index === total - 2) return "turn";
-  return index === 0 ? "jolt" : "jolt";
+  return "jolt";
 }
 
 function isReturning(input: MicroBeatMouthInput): boolean {
@@ -73,7 +70,6 @@ function isReturning(input: MicroBeatMouthInput): boolean {
 }
 
 function desiredBeatCount(input: MicroBeatMouthInput): number {
-  // Returning chapters stay compact. Domain keywords must not inflate them.
   if (isReturning(input)) return 4;
   const value = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
   return /\b(?:service|receipt|clean|cleaning|groom|grooming|horror|dinner|knife|knives|glass|door|rave|concert|festival|event)\b/i.test(value) ? 5 : 4;
@@ -137,7 +133,6 @@ function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
   const facts = input.facts.map(clean).filter(Boolean);
   const moments = input.sourceMoments.map(clean).filter(Boolean);
   const candidates: string[] = [];
-
   if (subject) candidates.push(signatureBeat(input) ?? subject);
   for (const fact of facts) {
     const beat = factToBeat(fact);
@@ -147,91 +142,57 @@ function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
     const beat = factToBeat(moment);
     if (beat && !candidates.includes(beat)) candidates.push(beat);
   }
-
   if (subject && facts.some((fact) => /\bhates?\s+(?:the\s+)?bows?\b/i.test(fact))) {
     candidates.unshift(signatureBeat(input) ?? subject);
     candidates.push(`${subject} still hates bows`);
   }
-
   const selected = candidates.filter((value, index, all) => validBeat(value, input) && all.indexOf(value) === index).slice(0, needed - 1);
   if (selected.length < needed - 1) return [];
-
-  const payoff = returning
-    ? (subject ? `${subject} leaves undefeated.` : "We came back different.")
-    : subject ? `${subject} leaves a mark.` : "It stays with us.";
-
+  const payoff = returning ? (subject ? `${subject} leaves undefeated.` : "We came back different.") : subject ? `${subject} leaves a mark.` : "It stays with us.";
   return [...selected, payoff].slice(0, needed).map((text, index, all) => ({
-    id: `micro-beat-${index + 1}`,
-    text,
+    id: `micro-beat-${index + 1}`, text,
     kind: index === all.length - 1 ? "payoff" : index === all.length - 2 ? "turn" : "jolt",
-    order: index,
-    attentionRole: index === all.length - 1 ? "payoff" : "attention_jolt",
+    order: index, attentionRole: index === all.length - 1 ? "payoff" : "attention_jolt",
     operator: index === all.length - 1 ? "payoff" : "compression",
     callback: returning && (index === 0 || /\bagain|still|returns?\b/i.test(text)),
     durationHintMs: index === all.length - 1 ? 1800 : 1100,
-    meta: {
-      wordCount: words(text).length,
-      round: input.round ?? (returning ? 2 : 1),
-      returning,
-      visitNumber: input.presence?.visitNumber ?? null,
-      source: "micro-beat-mouth",
-      stretchMode: needed > 4,
-    },
+    meta: { wordCount: words(text).length, round: input.round ?? (returning ? 2 : 1), returning, visitNumber: input.presence?.visitNumber ?? null, source: "micro-beat-mouth", stretchMode: needed > 4 },
   }));
 }
 
 async function generateBeats(input: MicroBeatMouthInput, beatCount: number, rejected: string[] = []): Promise<BeatDraft | null> {
   const returning = isReturning(input);
   const result = await localModelGenerate([
-    {
-      role: "system",
-      content: [
-        "You are QRE's final micro-beat mouth.",
-        "The cognitive system already chose the angle. You are the editor who makes the latent movie visible one cut at a time.",
-        `Write exactly ${beatCount} beats.`,
-        beatCount > 4 ? "Rhythm: JOLT → JOLT → JOLT → TURN → PAYOFF." : "Rhythm: JOLT → JOLT → JOLT → PAYOFF.",
-        "The object, person, place, or event is the STAR.",
-        "Each beat is a fast film cut, not a sentence from a paragraph.",
-        "Target 2–5 words. Hard ceiling 7.",
-        "Every cut must change information, expectation, tension, status, relationship, movement, or meaning.",
-        "Do not list supplied facts. Transform them into screen language.",
-        "Do not turn identity into taxonomy. Instead of 'Coco is a poodle', use a signature entrance, attitude, contradiction, or memorable framing such as 'Coco. The one and only.' when justified.",
-        "Do not spend a beat on generic connective tissue: 'Something changes', 'Then it shifts', 'Still here', 'See you next time'.",
-        "Use exact supplied timestamps as factual anchors when they matter. A timestamp can be a deliberate hard cut.",
-        "Grounded reality is sacred: never invent concrete events, people, places, weather, outcomes, or actions not supported by the supplied material.",
-        "Creative language may interpret facts, but may not manufacture facts.",
-        returning ? "This is a RETURNING chapter. Do not reintroduce taxonomy. Callback to an established trait, object, phrase, behavior, or prior beat. At least one beat must make the return meaningful." : "",
-        "Static lines are allowed only when they create tension or character: 'Coco hates bows', 'Everyone keeps talking', 'Nobody looks up'.",
-        "A beat may be a fragment or question if it creates forward pull.",
-        "Final beat must pay off the thread established by the opening beats and must not be a generic sign-off.",
-        rejected.length ? `Rejected drafts to avoid: ${rejected.join(" | ")}` : "",
-        "Return strict JSON only: {\"beats\":[{\"text\":\"...\",\"kind\":\"jolt|reveal|turn|payoff|afterglow\",\"attentionRole\":\"...\",\"operator\":\"...\",\"callback\":true}]}",
-      ].join(" "),
-    },
-    {
-      role: "user",
-      content: JSON.stringify({
-        prompt: clean(input.prompt),
-        subject: clean(input.subject),
-        place: clean(input.place),
-        lens: clean(input.lens),
-        facts: input.facts.map(clean).filter(Boolean).slice(0, 40),
-        sourceMoments: input.sourceMoments.map(clean).filter(Boolean).slice(0, 24),
-        memoryContext: (input.memoryContext ?? []).map(clean).filter(Boolean).slice(0, 24),
-        creativeLearningContext: (input.creativeLearningContext ?? []).map(clean).filter(Boolean).slice(0, 24),
-        trajectory: (input.trajectory ?? []).map(clean).filter(Boolean).slice(0, 24),
-        presence: {
-          returning,
-          visitNumber: input.presence?.visitNumber ?? null,
-          summary: (input.presence?.summary ?? []).slice(0, 12),
-          places: (input.presence?.places ?? []).slice(0, 12),
-          firstSeenAt: input.presence?.firstSeenAt ?? null,
-          lastSeenAt: input.presence?.lastSeenAt ?? null,
-        },
-        round: input.round ?? (returning ? 2 : 1),
-        requestedBeatCount: beatCount,
-      }),
-    },
+    { role: "system", content: [
+      "You are QRE's final micro-beat mouth.",
+      "The cognitive system already chose the angle. You are the editor who makes the latent movie visible one cut at a time.",
+      `Write exactly ${beatCount} beats.`,
+      beatCount > 4 ? "Rhythm: JOLT → JOLT → JOLT → TURN → PAYOFF." : "Rhythm: JOLT → JOLT → JOLT → PAYOFF.",
+      "The object, person, place, or event is the STAR.",
+      "Each beat is a fast film cut, not a sentence from a paragraph.",
+      "Target 2–5 words. Hard ceiling 7.",
+      "Every cut must change information, expectation, tension, status, relationship, movement, or meaning.",
+      "Do not list supplied facts. Transform them into screen language.",
+      "Do not turn identity into taxonomy. Instead of 'Coco is a poodle', use a signature entrance, attitude, contradiction, or memorable framing such as 'Coco. The one and only.' when justified.",
+      "Do not spend a beat on generic connective tissue: 'Something changes', 'Then it shifts', 'Still here', 'See you next time'.",
+      "Use exact supplied timestamps as factual anchors when they matter. A timestamp can be a deliberate hard cut.",
+      "Grounded reality is sacred: never invent concrete events, people, places, weather, outcomes, or actions not supported by the supplied material.",
+      "Creative language may interpret facts, but may not manufacture facts.",
+      returning ? "This is a RETURNING chapter. Do not reintroduce taxonomy. Callback to an established trait, object, phrase, behavior, or prior beat. At least one beat must make the return meaningful." : "",
+      "Static lines are allowed only when they create tension or character.",
+      "A beat may be a fragment or question if it creates forward pull.",
+      "Final beat must pay off the thread established by the opening beats and must not be a generic sign-off.",
+      rejected.length ? `Rejected drafts to avoid: ${rejected.join(" | ")}` : "",
+      "Return strict JSON only: {\"beats\":[{\"text\":\"...\",\"kind\":\"jolt|reveal|turn|payoff|afterglow\",\"attentionRole\":\"...\",\"operator\":\"...\",\"callback\":true}]}",
+    ].join(" ") },
+    { role: "user", content: JSON.stringify({
+      prompt: clean(input.prompt), subject: clean(input.subject), place: clean(input.place), lens: clean(input.lens),
+      facts: input.facts.map(clean).filter(Boolean).slice(0, 40), sourceMoments: input.sourceMoments.map(clean).filter(Boolean).slice(0, 24),
+      memoryContext: (input.memoryContext ?? []).map(clean).filter(Boolean).slice(0, 24), creativeLearningContext: (input.creativeLearningContext ?? []).map(clean).filter(Boolean).slice(0, 24),
+      trajectory: (input.trajectory ?? []).map(clean).filter(Boolean).slice(0, 24),
+      presence: { returning, visitNumber: input.presence?.visitNumber ?? null, summary: (input.presence?.summary ?? []).slice(0, 12), places: (input.presence?.places ?? []).slice(0, 12), firstSeenAt: input.presence?.firstSeenAt ?? null, lastSeenAt: input.presence?.lastSeenAt ?? null },
+      round: input.round ?? (returning ? 2 : 1), requestedBeatCount: beatCount,
+    }) },
   ], "json");
   return parseJsonDraft(result.text);
 }
@@ -240,35 +201,12 @@ function normalizeDraft(input: MicroBeatMouthInput, parsed: BeatDraft | null, be
   const raw = Array.isArray(parsed?.beats) ? parsed.beats : [];
   const returning = isReturning(input);
   const round = input.round ?? (returning ? input.presence?.visitNumber ?? 2 : 1);
-
-  return raw
-    .map((beat, index) => ({
-      text: trimToWordCeiling(beat.text ?? "", 7),
-      kind: normalizeKind(beat.kind, index, raw.length || beatCount),
-      attentionRole: clean(beat.attentionRole) || undefined,
-      operator: clean(beat.operator) || undefined,
-      callback: beat.callback === true,
-      order: index,
-    }))
-    .filter((beat) => validBeat(beat.text, input))
-    .slice(0, beatCount)
+  return raw.map((beat, index) => ({ text: trimToWordCeiling(beat.text ?? "", 7), kind: normalizeKind(beat.kind, index, raw.length || beatCount), attentionRole: clean(beat.attentionRole) || undefined, operator: clean(beat.operator) || undefined, callback: beat.callback === true, order: index }))
+    .filter((beat) => validBeat(beat.text, input)).slice(0, beatCount)
     .map((beat, index, all) => ({
-      id: `micro-beat-${index + 1}`,
-      text: beat.text,
-      kind: index === all.length - 1 ? "payoff" : index === all.length - 2 && beatCount > 4 ? "turn" : beat.kind,
-      order: index,
-      attentionRole: beat.attentionRole,
-      operator: beat.operator,
-      callback: beat.callback || (returning && index === 0),
-      durationHintMs: index === all.length - 1 ? 1800 : 1100,
-      meta: {
-        wordCount: words(beat.text).length,
-        round,
-        returning,
-        visitNumber: input.presence?.visitNumber ?? null,
-        source: "micro-beat-mouth",
-        stretchMode: beatCount > 4,
-      },
+      id: `micro-beat-${index + 1}`, text: beat.text, kind: index === all.length - 1 ? "payoff" : index === all.length - 2 && beatCount > 4 ? "turn" : beat.kind,
+      order: index, attentionRole: beat.attentionRole, operator: beat.operator, callback: beat.callback || (returning && index === 0), durationHintMs: index === all.length - 1 ? 1800 : 1100,
+      meta: { wordCount: words(beat.text).length, round, returning, visitNumber: input.presence?.visitNumber ?? null, source: "micro-beat-mouth", stretchMode: beatCount > 4 },
     }));
 }
 
@@ -289,6 +227,10 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
   const first = normalizeDraft(input, await generateBeats(input, beatCount), beatCount);
   const firstFailures = first.length === beatCount ? qualityFailures(input, first) : ["wrong beat count"];
   if (first.length === beatCount && firstFailures.length === 0) return first;
+
+  // FAST is deliberately a development mode: one real Ollama generation, no repair retry.
+  // It exists to make mouth/validator experiments cheap. Full suites still exercise repair.
+  if (process.env.QRE_AUTHOR_FAST === "true") return first;
 
   const rejected = first.map((beat) => beat.text).filter(Boolean);
   const repaired = normalizeDraft(input, await generateBeats(input, beatCount, rejected), beatCount);
