@@ -37,6 +37,8 @@ PROMPT / MEDIA / MEMORY / PRESENCE / ANALYTICS
                     ↓
              CHOOSE THE MOVIE
                     ↓
+              SEQUENCE PLAY
+                    ↓
            UNIVERSAL AUTHOR BRAIN
                     ↓
               CUT MOUTH
@@ -48,7 +50,7 @@ PROMPT / MEDIA / MEMORY / PRESENCE / ANALYTICS
 
 ### Architectural rule
 
-**One Brain. Many specialists. One author. One mouth.**
+**One Brain. Many specialists. One author. One mouth. One sequence model.**
 
 Pet, groomer, wedding, event, home, etc. may eventually supply domain knowledge, vocabulary, actions, and constraints. They must not become separate cognition systems.
 
@@ -109,7 +111,101 @@ wrong chapter
 
 Then it chooses one movie and stays loyal to it.
 
-## 4. CHARACTER GRAVITY
+## 4. REALITY IS NOT SEQUENCE
+
+This is now canonical.
+
+Reality answers:
+
+```text
+What exists?
+What happened?
+Who is involved?
+What is explicitly known?
+What happened before?
+```
+
+Sequence Play answers:
+
+```text
+What does the viewer know now?
+What do they expect next?
+What just changed?
+What question is alive?
+What should the next cut cause?
+What can pay off later?
+```
+
+A true fact is **not automatically a beat**.
+
+Example:
+
+```text
+Coco is male.
+Coco is a poodle.
+Coco loves treats.
+```
+
+These may be valuable world facts. They are not three attention cuts merely because they add information.
+
+Identity should live upstream in canonical subject truth. It enters the sequence only when identity itself is the dramatic discovery.
+
+## 5. SEQUENCE PLAY — HOW THE SHOW ACTUALLY PLAYS
+
+QRE is authoring **a sequence over time**, not generating isolated lines.
+
+The sequence model is a model of **viewer-state movement**.
+
+For each cut, the Brain should reason privately about:
+
+```text
+viewerBefore
+what the viewer now understands
+informationGain
+attentionShift
+what remains unresolved
+nextPromise
+payoffConnection
+viewerAfter
+```
+
+But those fields are not the show. They are the **control system behind the show**.
+
+The author should discover the sweet spot of:
+
+```text
+how long the sequence needs to be
+where to cut
+when to withhold
+when to reveal
+when to reframe
+when to accelerate
+when to stop
+```
+
+There is no permanent 4-beat or 5-beat requirement.
+
+The sequence may earn 2, 3, 4, 7, or more cuts.
+
+### The ideal behavior
+
+```text
+CUT 1
+→ viewer notices something
+
+CUT 2
+→ meaning changes / curiosity rises
+
+CUT 3
+→ new implication or escalation
+
+CUT 4
+→ payoff / callback / image / consequence
+```
+
+The exact pattern must emerge from the material.
+
+## 6. CHARACTER GRAVITY
 
 The subject is the temporary star.
 
@@ -141,7 +237,7 @@ Coco
 
 The name can disappear for several cuts while the character remains obvious.
 
-## 5. SERVICE-STAGE RULE
+## 7. SERVICE-STAGE RULE
 
 A boring job is not boring material.
 
@@ -159,7 +255,7 @@ concert service → attendee becomes the story
 
 Never manufacture staff dialogue, behavior, personality, or physical actions.
 
-## 6. REALITY IS SACRED
+## 8. REALITY IS SACRED
 
 Creative framing is allowed.
 Creative facts are not.
@@ -202,7 +298,32 @@ This applies to:
 - physical actions
 - outcomes
 
-## 7. CUT GRAMMAR
+## 9. SOURCE LEDGER
+
+Author input must preserve provenance instead of flattening everything into one bag of strings.
+
+Canonical buckets:
+
+```text
+IDENTITY
+FACTS
+SOURCE MOMENTS
+MEMORY
+TRAJECTORY
+PRESENCE
+PREFERENCES / CREATIVE LEARNING
+```
+
+The purpose is to prevent the author from converting:
+
+```text
+creative guidance → fact
+inference → fact
+context → physical event
+role label → cinematic character
+```
+
+## 10. CUT GRAMMAR
 
 The author is splicing film.
 
@@ -265,8 +386,11 @@ Prefer the ideas to become separate cuts.
 - no automatic theme announcements
 - no generic farewell
 - no mechanical subject repetition
+- no invented physical events
+- no invented named participants
+- no unsupported emotional claims
 
-## 8. ATTENTION ENGINE
+## 11. ATTENTION ENGINE
 
 Every cut should do at least one of these:
 
@@ -300,7 +424,7 @@ These are **creative operations**, not templates.
 
 The author must discover which relationship belongs to the material.
 
-## 9. LIVING MEMORY
+## 12. LIVING MEMORY
 
 QRE must accumulate a world rather than regenerate isolated stories.
 
@@ -333,7 +457,7 @@ Example principle:
 
 > If bows have carried three chapters, stop using bows as the creative crutch unless today's reality gives them new meaning.
 
-## 10. THE AUTHOR MUST LEARN
+## 13. THE AUTHOR MUST LEARN
 
 Creative learning should accumulate at the world/entity level and author level.
 
@@ -354,7 +478,7 @@ But learning must not become a phrase blacklist that slowly strangles creativity
 
 Learning should change **search behavior**, not just wording.
 
-## 11. EDITORIAL STANDARD
+## 14. EDITORIAL STANDARD
 
 A sequence is not good because:
 
@@ -386,7 +510,7 @@ The payoff feels earned
 
 Never confuse level 1 with level 3.
 
-## 12. FAST DEVELOPMENT LOOP
+## 15. FAST DEVELOPMENT LOOP
 
 The fast loop exists to make experimentation cheap.
 
@@ -395,7 +519,7 @@ ONE MEANINGFUL CHANGE
         ↓
 ONE REAL OLLAMA RUN
         ↓
-READ THE ACTUAL CUTS
+READ THE ACTUAL SEQUENCE + CUTS
         ↓
 DECIDE WHAT BEHAVIOR CHANGED
         ↓
@@ -420,22 +544,22 @@ argue about the output
 ```text
 change one hypothesis
 run one case
-inspect the output
+inspect sequence play and cuts
 learn
 repeat
 ```
 
-## 13. BENCHMARK LADDER
+## 16. BENCHMARK LADDER
 
 Do not rely on Coco alone.
 
-### Level 1 — Character
+### Level 1 — Universal character
 
 ```text
 COCO
 ```
 
-Tests personality, recurring motifs, callback, subject gravity.
+Tests personality, recurring motifs, subject gravity.
 
 ### Level 2 — Ordinary life
 
@@ -474,9 +598,49 @@ OBJECT
 
 Tests whether QRE can discover an interesting world from little information without fabricating facts.
 
-## 14. WHAT WE SHOULD BUILD NEXT
+### Important benchmark separation
 
-### NEXT WORLD 1 — Creative Search Depth
+`COCO` is the **universal creator baseline**.
+
+`COCO-RETURN` is a **living-memory / second-chapter test**.
+
+Do not use a returning chapter's special continuity requirements to judge whether the universal baseline author is correct.
+
+## 17. WHAT WE SHOULD BUILD NEXT
+
+### NEXT WORLD 1 — Sequence Intelligence
+
+The current SequencePlay diagnostic exposed a failure:
+
+```text
+identity fact
+→ identity fact
+→ preference fact
+```
+
+That is a fact checklist, not a show.
+
+Next change:
+
+```text
+WORLD STATE
+        ↓
+what is interesting now?
+        ↓
+viewer expectation
+        ↓
+change / reveal / contradiction / implication
+        ↓
+next expectation
+        ↓
+payoff
+```
+
+Identity and descriptive facts should normally establish the world **before** sequence selection.
+
+Sequence selection must optimize for **viewer movement**, not information accumulation.
+
+### NEXT WORLD 2 — Creative Search Depth
 
 Make internal competition genuinely different.
 
@@ -495,7 +659,7 @@ attention potential
 payoff potential
 ```
 
-### NEXT WORLD 2 — Movement Intelligence
+### NEXT WORLD 3 — Movement Intelligence
 
 Teach the Brain to distinguish:
 
@@ -510,13 +674,13 @@ payoff
 
 A fact may be true but still belong nowhere in the sequence.
 
-### NEXT WORLD 3 — Anti-Crutch Intelligence
+### NEXT WORLD 4 — Anti-Crutch Intelligence
 
 Track recurring motifs per subject and per world.
 
 The author should know when a successful device has become a crutch.
 
-### NEXT WORLD 4 — Attention State
+### NEXT WORLD 5 — Attention State
 
 The Brain should maintain a tiny internal state:
 
@@ -530,7 +694,7 @@ what the next cut could do
 
 This should guide the sequence without becoming a rigid beat template.
 
-### NEXT WORLD 5 — Creative Memory
+### NEXT WORLD 6 — Creative Memory
 
 Store not only facts but **creative history**:
 
@@ -543,7 +707,7 @@ what the subject tends to do
 what the author has already overused
 ```
 
-### NEXT WORLD 6 — Specialist Intelligence
+### NEXT WORLD 7 — Specialist Intelligence
 
 Only after the universal author is excellent.
 
@@ -559,7 +723,7 @@ opportunities
 
 They plug into the same Brain.
 
-## 15. WHAT WE MUST NOT DO
+## 18. WHAT WE MUST NOT DO
 
 Do not solve weak creativity by adding:
 
@@ -572,11 +736,12 @@ more hardcoded Coco logic
 more word-count rules
 more regexes
 more fixed emotional arcs
+more versioned contracts without a replacement map
 ```
 
-Those are signs that the cognition/mouth seam is weak.
+Those are signs that the cognition/mouth seam or sequence model is weak.
 
-## 16. DEFINITION OF DONE
+## 19. DEFINITION OF DONE
 
 The author is not done when the tests are green.
 
@@ -590,6 +755,8 @@ QRE understands it
 QRE notices something interesting
       ↓
 QRE discovers a specific angle
+      ↓
+QRE knows how the show should play
       ↓
 QRE creates clean cuts
       ↓
@@ -606,7 +773,7 @@ And we can look at a boring service like housekeeping or pool cleaning and say:
 
 > **That should have been boring. Somehow it wasn't.**
 
-## 17. CHANGE LOGGING RULE
+## 20. CHANGE LOGGING RULE
 
 Update this file after every **2–4 meaningful author experiments**, not every tiny code edit.
 
@@ -621,4 +788,6 @@ WHAT IS NOW CANONICAL?
 WHAT IS THE NEXT HYPOTHESIS?
 ```
 
-`AUTHOR_CHANGELOG.md` keeps the detailed historical record. This file keeps the current strategic truth.
+`AUTHOR_CHANGELOG.md` keeps the detailed historical record.
+`AUTHOR_ARCHITECTURE_INDEX.md` is the live keep/legacy/delete map.
+This file keeps the current strategic truth.
