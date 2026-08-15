@@ -30,6 +30,8 @@ const META = /\b(?:qre|ai|prompt|compiler|cognition|metadata|model|instruction|s
 const CHAIN = /[|;]/;
 const MOOD_ONLY = /^(?:electric magic|late-night vibes|happy heart|grooming terror|pink bow panic|treats soothe|proud walk|new normal|pure joy|breathtaking bass|magical moment|beautiful moment|unforgettable moment|good vibes|happy ending|so much fun|love wins|dream come true|full of joy|full of magic|pure magic)$/i;
 const ACTION_WORDS = /\b(?:arrives?|returns?|enters?|spots?|sees?|freezes?|stops?|turns?|moves?|slams?|breaks?|flies?|lands?|falls?|runs?|jumps?|dances?|spins?|conquers?|defeats?|surrenders?|loses?|wins?|changes?|shifts?|opens?|closes?|keeps?|continues?|ignores?|refuses?|accepts?|reconsiders?|backs?|stays?|leaves?|appears?|vanishes?|hits?|shakes?|barks?|wags?|sniffs?|blinks?|laughs?|talks?|drinks?|pours?|spills?|cracks?|rings?|echoes?)\b/i;
+const STATUS_WORDS = /\b(?:again|back|next|ready|gone|still|finally|already|proud|quiet|louder|closer|farther|faster|slower|caught|free|safe|stuck|waiting|winning|losing|defeated|conquered|surrendered|refused|accepted|changed|different)\b/i;
+const NOUN_ONLY = /^(?:dinner|wine|conversation|rave|bass|bathrooms?|kitchen|laundry|grooming|bow|bows|treats?|fear|joy|magic|vibes?|night|morning|afternoon|evening|house|home|water|glass|knives?|chairs?|mirror|party|friends?|music|salon|poodle|dog|tag)$/i;
 
 function clean(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -75,22 +77,26 @@ function desiredBeatCount(input: MicroBeatMouthInput): number {
 function validBeat(text: string): boolean {
   const value = clean(text);
   const count = words(value).length;
-  if (!value || count < 1 || count > 7 || CHAIN.test(value) || META.test(value)) return false;
+  if (!value || count > 7 || CHAIN.test(value) || META.test(value)) return false;
   if (MOOD_ONLY.test(value)) return false;
-  return count <= 2 || ACTION_WORDS.test(value) || /[!?]/.test(value);
+  if (count === 1) return ACTION_WORDS.test(value) && !NOUN_ONLY.test(value);
+  if (count === 2) return ACTION_WORDS.test(value) || STATUS_WORDS.test(value) || /[!?]/.test(value);
+  return ACTION_WORDS.test(value) || STATUS_WORDS.test(value) || /[!?]/.test(value);
 }
 
 function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
   const source = [...input.sourceMoments, ...input.facts, ...(input.memoryContext ?? [])]
     .map(clean)
     .filter(Boolean);
-  const candidates = source.flatMap(sentenceParts).map((value) => trimToWordCeiling(value, 5));
+  const candidates = source
+    .flatMap(sentenceParts)
+    .map((value) => trimToWordCeiling(value, 5));
   const unique = [...new Set(candidates)].filter(validBeat);
   const needed = desiredBeatCount(input);
   const subject = clean(input.subject);
   const seed = unique.slice(0, Math.max(needed - 1, 3));
-  if (subject && seed.length < 3) seed.unshift(`${subject} returns`);
-  while (seed.length < needed - 1) seed.push(seed.length === 0 ? "Something changes" : "Then it shifts");
+  if (subject && seed.length < 3 && validBeat(`${subject} returns`)) seed.unshift(`${subject} returns`);
+  if (seed.length < needed - 1) return [];
   const payoff = input.presence?.isReturning ? "We're back." : "See you next time.";
   return [...seed.slice(0, needed - 1), payoff].map((text, index, all) => ({
     id: `micro-beat-${index + 1}`,
@@ -104,15 +110,11 @@ function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
   }));
 }
 
-export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<ExperienceBeat[]> {
-  if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return fallbackBeats(input);
-
+async function generateBeats(input: MicroBeatMouthInput, beatCount: number, stretch: boolean, rejected: string[] = []): Promise<BeatDraft | null> {
   const presenceSummary = input.presence?.summary ?? [];
   const returning = input.presence?.isReturning === true;
   const visitNumber = input.presence?.visitNumber;
   const round = input.round ?? (returning ? visitNumber ?? 2 : 1);
-  const beatCount = desiredBeatCount(input);
-  const stretch = beatCount > 4;
 
   const result = await localModelGenerate([
     {
@@ -121,7 +123,7 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
         "You are QRE's final micro-beat mouth.",
         "The cognitive system has already decided the angle. You do NOT invent a new premise.",
         "Your job is compression, timing, attitude, continuity, concrete change, and payoff.",
-        `Write exactly ${beatCount} beats: JOLT → ${beatCount > 4 ? "JOLT → JOLT → TURN → PAYOFF" : "JOLT → JOLT → PAYOFF"}.`,
+        `Write exactly ${beatCount} beats: ${beatCount > 4 ? "JOLT → JOLT → JOLT → TURN → PAYOFF" : "JOLT → JOLT → JOLT → PAYOFF"}.`,
         "Each beat is ONE thought and ONE perceptible change.",
         "Target 2–4 words per beat.",
         "Hard ceiling: 7 words per beat.",
@@ -130,14 +132,15 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
         "Do not narrate what an uploaded image already makes obvious.",
         "Use text for attitude, tension, timing, contrast, callback, meaning, action, or surprise.",
         "Never spend a beat merely naming a noun, timestamp, place, or mood when it can perform a change.",
-        "Reject vague mood-only language such as 'electric magic', 'late-night vibes', 'happy heart', 'grooming terror', or 'breathtaking bass'.",
+        "Reject vague mood-only language.",
         "Compress the sentence, NOT the idea.",
         "Every beat must change physical state, status, information, expectation, relationship, or trajectory.",
         "Use the strongest contradiction instead of generic emotional progression.",
         "Round 2+ means history exists: callback to a known quirk instead of reintroducing the character.",
         "Presence history may establish return, place, or time. Never invent an exact location or event that is not supplied by Presence or source facts.",
         "GROUNDING RULE: never turn a creative affordance into a concrete factual event.",
-        stretch ? "STRETCH MODE: this domain may use the fifth beat to land an action or escalation; keep every beat tight." : "COMPACT MODE: four strong beats are preferred.",
+        stretch ? "STRETCH MODE: use the fifth beat only when it creates a real escalation or needed service/horror/event substance." : "COMPACT MODE: four strong beats are preferred.",
+        rejected.length ? `REJECTED OUTPUTS — replace these with concrete state changes: ${rejected.join(" | ")}` : "",
         "PAYOFF must land the same thread created by the first beats.",
         "The final line can be extremely short.",
         "Return strict JSON only.",
@@ -170,44 +173,60 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     },
   ], "json");
 
-  let parsed: BeatDraft | null = null;
   try {
-    parsed = JSON.parse(result.text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim()) as BeatDraft;
+    return JSON.parse(result.text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim()) as BeatDraft;
   } catch {
-    parsed = null;
+    return null;
   }
+}
 
+function normalizeDraft(input: MicroBeatMouthInput, parsed: BeatDraft | null, beatCount: number): ExperienceBeat[] {
   const raw = Array.isArray(parsed?.beats) ? parsed.beats : [];
-  const beats = raw
+  const returning = input.presence?.isReturning === true;
+  const round = input.round ?? (returning ? input.presence?.visitNumber ?? 2 : 1);
+  return raw
     .map((beat, index) => ({
       text: trimToWordCeiling(beat.text ?? "", 7),
       kind: normalizeKind(beat.kind, index, raw.length || beatCount),
       attentionRole: clean(beat.attentionRole) || undefined,
       operator: clean(beat.operator) || undefined,
       callback: beat.callback === true,
+      order: index,
     }))
-    .filter((beat) => validBeat(beat.text));
+    .filter((beat) => validBeat(beat.text))
+    .slice(0, beatCount)
+    .map((beat, index, all) => ({
+      id: `micro-beat-${index + 1}`,
+      text: beat.text,
+      kind: index === all.length - 1 ? "payoff" : index === all.length - 2 && beatCount > 4 ? "turn" : beat.kind,
+      order: index,
+      attentionRole: beat.attentionRole,
+      operator: beat.operator,
+      callback: beat.callback || (returning && index === 0),
+      durationHintMs: index === all.length - 1 ? 1800 : 1200,
+      meta: {
+        wordCount: words(beat.text).length,
+        round,
+        returning,
+        visitNumber: input.presence?.visitNumber ?? null,
+        source: "micro-beat-mouth",
+        stretchMode: beatCount > 4,
+      },
+    }));
+}
 
-  const candidate = beats.slice(0, beatCount);
-  const repaired = candidate.length >= beatCount ? candidate : fallbackBeats(input);
-  const final = repaired.length >= beatCount ? repaired.slice(0, beatCount) : fallbackBeats(input).slice(0, beatCount);
+export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<ExperienceBeat[]> {
+  if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return fallbackBeats(input);
 
-  return final.map((beat, index, all) => ({
-    id: `micro-beat-${index + 1}`,
-    text: trimToWordCeiling(beat.text, 7),
-    kind: index === all.length - 1 ? "payoff" : index === all.length - 2 && beatCount > 4 ? "turn" : beat.kind,
-    order: index,
-    attentionRole: beat.attentionRole,
-    operator: beat.operator,
-    callback: beat.callback === true || (returning && index === 0),
-    durationHintMs: index === all.length - 1 ? 1800 : 1200,
-    meta: {
-      wordCount: words(beat.text).length,
-      round,
-      returning,
-      visitNumber: visitNumber ?? null,
-      source: "micro-beat-mouth",
-      stretchMode: stretch,
-    },
-  }));
+  const beatCount = desiredBeatCount(input);
+  const stretch = beatCount > 4;
+
+  const first = normalizeDraft(input, await generateBeats(input, beatCount, stretch), beatCount);
+  if (first.length === beatCount) return first;
+
+  const rejected = first.map((beat) => beat.text).filter(Boolean);
+  const repaired = normalizeDraft(input, await generateBeats(input, beatCount, stretch, rejected), beatCount);
+  if (repaired.length === beatCount) return repaired;
+
+  return fallbackBeats(input);
 }
