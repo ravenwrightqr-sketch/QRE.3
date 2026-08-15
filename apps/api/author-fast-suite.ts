@@ -1,4 +1,4 @@
-import { authorCinematicSequence } from "./src/services/cinematicAuthor.js";
+import { authorFast } from "./src/services/authorFastCore.js";
 
 const cases = {
   COCO: {
@@ -54,17 +54,20 @@ const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE AUTHOR FAST · ${requested}`);
 console.log("REAL UNIVERSAL AUTHOR · PLAN + DRAFT · NO CRITIQUE/REPAIR");
+console.log("CHARACTER-FIRST · EVIDENCE-GATED · CHAMPION-ANGLE LOCK");
 console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
 try {
-  const scenes = await authorCinematicSequence(test);
+  const result = await authorFast(test);
   console.log(`TIME: ${((Date.now() - started) / 1000).toFixed(3)}s`);
-  console.log(`BEATS: ${scenes.length}`);
-  scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "movement"} · ${scene.text}`));
-  if (!scenes.length) {
-    console.error("FAIL: universal author returned zero scenes");
-    console.error("The raw model response above is the diagnostic source of truth.");
+  console.log(`ANGLE: ${result.plan.angle}`);
+  console.log(`TENSION: ${result.plan.tension}`);
+  console.log(`PAYOFF: ${result.plan.payoff}`);
+  console.log(`BEATS: ${result.scenes.length}`);
+  result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.kind ?? "movement"} · ${scene.text}`));
+  if (!result.scenes.length) {
+    console.error("FAIL: fast author returned zero scenes");
     process.exitCode = 1;
   }
 } catch (error) {
