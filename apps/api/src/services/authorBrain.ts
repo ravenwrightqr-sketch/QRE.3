@@ -1,4 +1,13 @@
-import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorScene, SubjectTruth } from "@qre/contracts";
+import type {
+  AuthorBrainTruth,
+  AuthorCreativeBrief,
+  AuthorScene,
+  SequencePlay,
+  SequenceCut,
+  SubjectTruth,
+  ViewerAttentionRole,
+  ViewerState,
+} from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const GENERIC = [/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/beautiful transformation/i,/magical moment/i,/unforgettable experience/i,/incredible journey/i,/new routine/i,/power of (?:love|affection|friendship)/i,/symbol of (?:love|bravery|affection|friendship)/i,/eyes sparkle/i,/heart softens/i,/tiny paws/i,/happy now/i,/happily now/i,/looks happy/i,/feels happy/i];
@@ -10,6 +19,7 @@ const MULTI_CUT_PUNCT = /[,;]/;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
 const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|alarming|relieved|anxious|delighted|worried|calm|proud|uneasy|unease|surprised|surprise|softening|cautious|cautiously|gracefully|happily)\b/i;
 const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
+const ROLES: ViewerAttentionRole[] = ["arrival","hook","question","pressure","reframe","escalation","discovery","consequence","release","payoff","callback","continuation"];
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
@@ -30,9 +40,7 @@ function recoverPartialScenes(raw: string): AuthorScene[] {
   for (const match of raw.matchAll(objectPattern)) {
     try { out.push({ text: clean(JSON.parse(`"${match[1]}"`)), kind: "line" }); } catch { /* ignore */ }
   }
-  if (out.length) return out;
-  const strings = raw.match(/"([^"]{2,120})"/g)?.map((x) => x.slice(1, -1)) ?? [];
-  return strings.filter((x) => !/^scenes?$|^text$|^line$/i.test(x)).slice(0, 8).map((text) => ({ text: clean(text), kind: "line" }));
+  return out;
 }
 
 function normalizeScenes(raw: unknown): AuthorScene[] {
@@ -43,6 +51,52 @@ function normalizeScenes(raw: unknown): AuthorScene[] {
   if (Array.isArray(value.lines)) return value.lines.map((line) => ({ text: clean(line), kind: "line" as const }));
   if (typeof value.text === "string") return value.text.split(/\n+/).filter(Boolean).map((line) => ({ text: clean(line), kind: "line" as const }));
   return [];
+}
+
+function normalizeState(raw: unknown): ViewerState {
+  if (!raw || typeof raw !== "object") return { known: [] };
+  const value = raw as Partial<ViewerState>;
+  return {
+    known: uniq(value.known, 8),
+    expected: clean(value.expected) || undefined,
+    unresolved: clean(value.unresolved) || undefined,
+    currentWant: clean(value.currentWant) || undefined,
+    recentChange: clean(value.recentChange) || undefined,
+  };
+}
+
+function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<SequencePlay> & { cuts?: unknown };
+  if (!Array.isArray(value.cuts)) return undefined;
+  const cuts: SequenceCut[] = value.cuts.map((item, index) => {
+    const cut = (item && typeof item === "object" ? item : {}) as Partial<SequenceCut>;
+    const role = ROLES.includes(cut.role as ViewerAttentionRole) ? cut.role as ViewerAttentionRole : index === 0 ? "hook" : "continuation";
+    return {
+      id: clean(cut.id) || `cut-${index + 1}`,
+      order: Number.isFinite(cut.order) ? Number(cut.order) : index + 1,
+      role,
+      sourceIds: uniq(cut.sourceIds, 8),
+      informationGain: clean(cut.informationGain),
+      attentionDelta: clean(cut.attentionDelta),
+      viewerBefore: normalizeState(cut.viewerBefore),
+      viewerAfter: normalizeState(cut.viewerAfter),
+      nextPromise: clean(cut.nextPromise) || undefined,
+      payoffConnection: clean(cut.payoffConnection) || undefined,
+      noveltyScore: typeof cut.noveltyScore === "number" ? cut.noveltyScore : undefined,
+      confidence: typeof cut.confidence === "number" ? cut.confidence : 0.8,
+    };
+  }).filter((cut) => Boolean(cut.informationGain || cut.attentionDelta));
+  return {
+    subject: clean(value.subject) || subject,
+    premise: clean(value.premise),
+    openingState: normalizeState(value.openingState),
+    cuts,
+    closingState: value.closingState ? normalizeState(value.closingState) : undefined,
+    continuity: uniq(value.continuity, 6),
+    antiCrutch: uniq(value.antiCrutch, 6),
+    continuation: clean(value.continuation) || undefined,
+  };
 }
 
 function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
@@ -122,22 +176,6 @@ function finalizeScenes(input: AuthorBrainTruth, scenes: AuthorScene[], targetMa
   return out.slice(0, targetMax);
 }
 
-function compactPlan(input: AuthorBrainTruth) {
-  const plan = input.cognitivePlan;
-  if (!plan) return {};
-  return {
-    direction: plan.direction ?? null,
-    purpose: clean(plan.purpose),
-    why: uniq(plan.whyInteract, 4),
-    emotion: uniq(plan.emotionalIntent, 4),
-    story: uniq(plan.storyStructure, 5),
-    memory: uniq(plan.memoryModel, 4),
-    discovery: uniq(plan.discoveryModel, 4),
-    possibilities: uniq(plan.creativePossibilities, 8),
-    future: uniq(plan.futureEvolution, 4),
-  };
-}
-
 function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
   const plan = input.cognitivePlan;
   return {
@@ -153,7 +191,7 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
   };
 }
 
-export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boolean } = {}): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; field: Record<string, unknown> }> {
+export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boolean } = {}): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown> }> {
   const brief = fallbackBrief(input);
   const sourceLedger = buildSourceLedger(input);
   const field = {
@@ -164,7 +202,7 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
     returning: input.returning ?? false,
     visit: input.visitNumber ?? null,
     presence: uniq(input.presenceSummary, 5),
-    plan: compactPlan(input),
+    plan: input.cognitivePlan ?? null,
     sourceLedger,
   };
 
@@ -172,32 +210,34 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
     {
       role: "system",
       content: [
-        "You are QRE's universal author.",
-        "Think deeply but output only the finished cuts. Privately compete between genuinely different interpretations. Kill the obvious, generic, sentimental, repetitive, literal action-report, and fact-list versions.",
-        "Your job is not to summarize what happened. Find the most specific movie hidden inside what happened.",
-        "The viewer already knows the established subject. Do not reintroduce the subject with a name plus breed, sex, category, or other identity label. Identity belongs to the world model. The mouth spends its limited attention budget on NEW information.",
-        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence makes the subject's world more interesting. Database relationship labels such as owner, customer, groomer, employee, or technician are not cinematic characters unless the supplied world explicitly makes them relevant.",
-        "RAW ACTION IS NOT AUTHORSHIP. A source fact such as 'Coco barks' is usable material, not automatically a cut. Look for the interesting relationship, contradiction, image, implication, callback, status shift, or consequence that is already supportable by the world.",
-        "CREATIVE FREEDOM HAS A HARD BOUNDARY: you may compress, reorder, juxtapose, reframe, personify an established object, or imply meaning from known history. You may NOT invent a new physical event, new action, new person, new object placement, new outcome, or new participant just to make the sequence more dramatic.",
-        "Use the source ledger as the authority. Identity is canonical. Facts are observed truth. Source moments are supplied context. Memory is history. Trajectory is continuity. Preferences are creative guidance only and are never facts.",
-        "Do not manufacture emotions or interpretive body language. Observable action is allowed. Private emotion is not unless explicitly established. Do not turn barking, wagging, staring, sniffing, smiling, or similar behavior into a claim about what the subject feels.",
-        "Do not invent named people. Do not invent staff. Do not invent the owner. Do not invent a groomer. Do not invent dialogue. If a service is the setting, let the subject's world carry the experience unless the provider is explicitly part of the supplied world.",
-        "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
-        "ONE LINE = ONE ATTENTION MOMENT. A cut should add NEW information or change the meaning of what came before.",
-        "The strongest cuts may be very short: 'The monster appeared.' 'Pink bows everywhere.' The power is implication, not word count.",
-        "Prefer implied subject + new information over explicit subject + narrated action when the subject is already established.",
-        "Prefer one observable or supportable idea per cut. No comma chains. No semicolon chains. No 'then X and Y' constructions. Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
-        "Do not write a miniature novel. Do not announce themes. Do not explain the character to the viewer. Make the viewer discover the character through the cut sequence.",
-        input.returning ? "Returning chapter: evolve history. A callback must change meaning, stakes, or relationship." : "",
-        "Do not pad. Return only as many cuts as the supplied world actually earns. Two excellent cuts beat four padded cuts. Maximum four cuts.",
-        "JSON ONLY: {\"scenes\":[{\"text\":\"...\",\"kind\":\"line\"}]}",
+        "You are QRE's universal experience author and sequence director.",
+        "Think deeply before writing. First decide how the experience should PLAY from cut to cut. Then realize that sequence into the finished cuts. Output only compact JSON.",
+        "A sequence is not a list of events. It is a chain of viewer-state changes. For every cut ask: what does the viewer know now, what do they expect now, what remains unresolved, what do they want next, and what changed because of this cut?",
+        "Privately compete between genuinely different interpretations of the supplied world. Kill the obvious, generic, sentimental, repetitive, literal action-report, fact-list, and padded versions.",
+        "The viewer already knows the established subject. Do not reintroduce the subject with a name plus breed, sex, category, or identity label. Identity belongs to the world model. The mouth spends attention on NEW information.",
+        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence changes that world meaningfully. Database roles such as owner, customer, groomer, employee, or technician are not cinematic characters unless explicitly relevant in the supplied world.",
+        "RAW ACTION IS NOT AUTHORSHIP. A fact is source material. The sequence must choose which detail earns screen time and what that detail causes the viewer to think or want next.",
+        "CREATIVE FREEDOM HAS A HARD BOUNDARY: compress, reorder, juxtapose, reframe, exploit contradiction, change the meaning of known history, and create implication from known facts. Do NOT invent new physical events, actions, people, placements, outcomes, dialogue, or participants.",
+        "Use the source ledger as authority. Identity is canonical. Facts are observed truth. Source moments are supplied context. Memory is history. Trajectory is continuity. Preferences are guidance, never facts.",
+        "Do not manufacture private emotion or interpretive body language. Observable action is allowed. Emotion claims require explicit evidence or memory.",
+        "ONE CUT = ONE ATTENTION MOMENT. A cut should change the viewer state. Two excellent cuts beat four padded cuts. The sequence earns its length.",
+        "Very short cuts can be powerful because of implication: 'The monster appeared.' 'Pink bows everywhere.' The goal is information density and next-cut pressure, not minimum words.",
+        "Prefer implied subject + new information after identity is established.",
+        "No comma chains. No semicolon chains. No multi-shot 'then X and Y' constructions. Never use commas or semicolons in cut text. A colon is allowed for supplied factual times such as 9:04 AM.",
+        "Do not write a miniature novel. Do not explain themes. Do not explain the character. Make the viewer discover the world through the sequence.",
+        "Returning chapter: if true, evolve prior meaning. A callback should change meaning, stakes, or relationship instead of replaying the previous chapter.",
+        "Return JSON with exactly two top-level keys: sequence and scenes.",
+        "sequence must contain subject, premise, openingState, cuts, optional closingState, continuity, antiCrutch, continuation.",
+        "Each sequence cut must contain role, informationGain, attentionDelta, viewerBefore, viewerAfter, optional nextPromise and payoffConnection, plus confidence. Keep state descriptions compact.",
+        "scenes must contain only the actual finished cut lines. The scenes realize the sequence. Do not put explanations in scenes.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify({ prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "", field }) },
   ], "json");
 
   debug("AUTHOR-BRAIN", result.text);
-  const parsed = parseJson<{ scenes?: unknown }>(result.text);
-  const raw = parsed?.scenes !== undefined ? normalizeScenes(parsed.scenes) : recoverPartialScenes(result.text);
-  return { brief, scenes: finalizeScenes(input, raw, 4), field };
+  const parsed = parseJson<{ sequence?: unknown; scenes?: unknown }>(result.text);
+  const rawScenes = parsed?.scenes !== undefined ? normalizeScenes(parsed.scenes) : recoverPartialScenes(result.text);
+  const sequence = normalizeSequence(parsed?.sequence, input.subject);
+  return { brief, scenes: finalizeScenes(input, rawScenes, 4), sequence, field };
 }
