@@ -44,6 +44,7 @@ export type ViewerState = {
 };
 
 export type ViewerMomentum = import("./viewerMomentum.js").ViewerMomentum;
+export type MagnetCircle = import("./viewerMomentum.js").MagnetCircle;
 export type CutNecessity = import("./viewerMomentum.js").CutNecessity;
 export type SequenceTransition = import("./viewerMomentum.js").SequenceTransition;
 
