@@ -51,6 +51,8 @@ legacy author files reintroduced
 legacy author test pile reintroduced
 acceptance imports a bridge instead of the Master Author
 production imports deleted author paths
+Master Author recreates a local validCut() validator
+Master Author stops importing the canonical authorCutPolicy
 ```
 
 The root build begins with:
@@ -68,6 +70,16 @@ This means architectural drift is now a **machine-enforced failure**, not a memo
 `apps/api/src/services/authorBrainUniversal.ts`
 
 This is the only Goal-1 creative author authority.
+
+The Master Author now carries:
+
+```text
+Magnet Circle
+Subject Continuity
+Information Frontier
+Sequence Necessity
+Canonical Cut Policy evaluation
+```
 
 It must remain a living intelligence core: expand it when a general creative law is discovered; never reintroduce domain-specific or benchmark-specific author branches.
 
@@ -89,7 +101,7 @@ FACT
 ↺
 ```
 
-The shared contract now exposes `MagnetCircle`, and the Master Author computes it for every sequence transition.
+The shared contract exposes `MagnetCircle`, and the Master Author computes it for every sequence transition.
 
 Diagnostics expose:
 
@@ -102,11 +114,38 @@ magnetCutsMeasured
 
 The magnet is the invariant; creative style is downstream realization. Comedy, horror, romance, swagger, mystery, tenderness, absurdity, and other lenses can realize the same cognitive magnet differently.
 
-Reference behaviors such as `Lawyer informed.`, `Pink bows everywhere.`, `Coco flaunts the tag.`, and `Fear smear, baby.` are **latent operation examples**, not literal phrase templates.
+### SUBJECT CONTINUITY + INFORMATION FRONTIER
 
-Canonical definition:
+Once the viewer knows the subject, the subject remains active in working memory.
 
-`docs/QRE_MAGNET_CIRCLE.md`
+```text
+SUBJECT ESTABLISHED
+→ PERSISTENT SUBJECT-SPACE
+→ SPEND WORDS ON THE INFORMATION FRONTIER
+```
+
+The author should reference the subject again only when that reference itself carries information. Otherwise the next cut should spend its language on the newest valuable edge of the viewer's model.
+
+The `InformationFrontier` contract tracks:
+
+```text
+known
+frontier
+novelty
+uncertainty
+informationValue
+tension
+nextNeed
+```
+
+The canonical cut policy measures:
+
+```text
+subjectReferenceCost
+frontierValue
+```
+
+This is a universal law, not a Coco-specific rule.
 
 ### Production adapters
 
@@ -183,11 +222,26 @@ packages/engine/src/cognition/mindState.ts
 
 These provide world understanding, significance, creative candidate search, planning, and learning. They are upstream cognition, not competing mouths.
 
-### Cut policy
+### Cut policy convergence — COMPLETE
 
-`apps/api/src/services/authorCutPolicy.ts` is the intended single semantic cut evaluator.
+`apps/api/src/services/authorCutPolicy.ts` is now the **single semantic cut evaluator**.
 
-The next implementation task is to converge Universal Author validation on this service and eliminate remaining duplicate cut-validation logic.
+`authorBrainUniversal.ts` no longer owns a duplicate `validCut()` implementation. The Master Author passes candidate cuts through the canonical policy with prior-cut context and exposes rejection reasons for diagnostics.
+
+The canonical evaluator owns:
+
+```text
+groundedness
+novelty
+implication
+explanation
+question leakage
+invention risk
+repetition
+compression
+subject reference cost
+information frontier value
+```
 
 ### Core creative laws
 
@@ -200,6 +254,8 @@ creative interpretation ≠ invented event
 questions belong in hidden cognition
 provider/service is usually stage context
 subject/world gravity
+persistent subject-space after establishment
+information frontier outranks identity repetition
 compressed impact > word-count fetish
 one cut = one attention moment
 next cut must earn itself
@@ -218,7 +274,19 @@ A benchmark is an observer. The Master Author is the authority.
 
 ### Next engineering target
 
-Converge every semantic cut-validation call onto `authorCutPolicy.ts`, then run the same acceptance matrix through both the direct harness and the actual production compile path.
+Now that the path and semantic judge are converged, the next intelligence pass is **creative search**:
+
+```text
+WORLD FACTS
+→ RELATION GRAPH
+→ MULTIPLE MAGNET CANDIDATES
+→ COUNTER-OBVIOUS ATTACK
+→ MAGNET RANKING
+→ SEQUENCE
+→ THEATRICAL REALIZATION
+```
+
+The objective is not better wording first. The objective is to discover the highest-value information frontier before realizing it as language.
 
 After that, evolve `creativePolicy.ts` away from domain-specific prose templates toward reusable creative operations that search the Magnet Circle instead of choosing wording first.
 
