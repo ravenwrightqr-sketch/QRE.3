@@ -53,6 +53,50 @@ nextNeed
 
 These values describe the cognitive state around a cut. They are not prose instructions.
 
+## Subject continuity
+
+Once the subject is established, the viewer holds a **persistent subject-space** in working memory.
+
+The author should not repeatedly spend attention re-establishing the subject unless the reference itself carries information.
+
+```text
+SUBJECT ESTABLISHED
+        ↓
+PERSISTENT SUBJECT-SPACE
+        ↓
+SPEND WORDS ON THE INFORMATION FRONTIER
+```
+
+The rule is not simply "use fewer names." It is:
+
+> **Reference the established subject only when that reference itself carries information. Otherwise write toward the frontier.**
+
+This generalizes across pets, people, brands, places, products, events, and organizations.
+
+## Information frontier
+
+At every cut the author should distinguish:
+
+```text
+ALREADY KNOWN
+        vs.
+NEW / REFRAMED / UNRESOLVED
+```
+
+The **information frontier** is the highest-value unresolved edge of the viewer's current model.
+
+A strong next cut moves the frontier. A weak cut merely describes the current state again.
+
+The frontier should therefore outrank:
+
+```text
+identity repetition
+fact restatement
+generic emotion
+provider chatter
+summary language
+```
+
 ## Sequence law
 
 A cut earns its place when removing it damages the information-seeking trajectory.
@@ -100,13 +144,15 @@ generic emotional transformation
 invented physical choreography
 invented backstory
 style template
+identity repetition after establishment
+frontier-starved filler
 ```
 
 A supplied emotional state is evidence, not automatic plot.
 
 ## Measurement discipline
 
-The Master Author now exposes:
+The Master Author exposes:
 
 ```text
 magnetAverage
@@ -115,7 +161,20 @@ magnetFloor
 magnetCutsMeasured
 ```
 
-These are diagnostics first. They must become selection signals only through demonstrated, cross-domain experiments.
+Cut evaluation also tracks:
+
+```text
+subjectReferenceCost
+frontierValue
+```
+
+These are diagnostics first. They become selection signals only through demonstrated, cross-domain experiments.
+
+## Current convergence task
+
+`apps/api/src/services/authorCutPolicy.ts` is the **single semantic cut evaluator**.
+
+`authorBrainUniversal.ts` still contains a legacy local `validCut()` implementation and must be migrated to call the canonical evaluator. No second validator should be introduced.
 
 ## Evolution rule
 
