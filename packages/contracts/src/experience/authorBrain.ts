@@ -23,3 +23,8 @@ export type AuthorBrainTruth = {
   trajectory: string[];
   creativeLearningContext: string[];
 };
+
+export type AuthorScene = {
+  text: string;
+  kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow";
+};
