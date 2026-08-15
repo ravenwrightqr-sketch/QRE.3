@@ -17,6 +17,197 @@ It records author experiments, hypotheses, observed outputs, benchmark changes, 
 
 ---
 
+## 2026-08-15 — UNIVERSAL AUTHOR BRAIN CONSOLIDATION
+
+### Major finding
+
+The biggest problem was architectural duplication.
+
+QRE had multiple author surfaces:
+
+- the universal cognition system in `packages/engine/src/cognition/universalMind.ts`
+- the production `microBeatMouth.ts`
+- `cinematicAuthor.ts`
+- the fast author laboratory
+
+The production path was calling `compileCognitiveExperience`, then flattening much of its intelligence into strings before calling the mouth. The mouth therefore had to rediscover information that the Brain had already understood.
+
+### New architecture
+
+```text
+PROMPT / MEDIA / MEMORY / PRESENCE / ANALYTICS
+                    ↓
+             UNIVERSAL COGNITION
+                    ↓
+       WORLD + RELATIONSHIPS + MEMORY
+                    ↓
+      CREATIVE CANDIDATES / SIGNIFICANCE
+                    ↓
+             COGNITIVE PLAN
+                    ↓
+            UNIVERSAL AUTHOR BRAIN
+              ↙               ↘
+     creative competition       reality truth
+              ↓
+        LATENT MOVIE
+              ↓
+          CUT MOUTH
+              ↓
+       CINEMATIC EXPERIENCE
+```
+
+`apps/api/src/services/authorBrain.ts` is now the shared author realization layer.
+
+Both `cinematicAuthor.ts` and `microBeatMouth.ts` are adapters around that same Brain. The fast author calls the same Brain instead of maintaining a separate experimental author.
+
+### The Brain is deliberately NOT a rigid screenplay template
+
+The upstream cognitive plan is treated as a **search field**, not a script. The Brain can exploit its contradictions, creative possibilities, memory, social model, and future evolution without mechanically copying beat jobs or forcing a fixed sequence shape.
+
+The Brain privately competes between interpretations and attacks the obvious answer before choosing the strongest movie.
+
+### Attention discovery
+
+The strongest short cuts were not good because they had few words. They were good because they removed explanation and left a charged piece for the viewer to complete.
+
+Reference behavior:
+
+```text
+The monster appeared.
+Pink bows everywhere.
+```
+
+This is a reusable **creative operation**, not a Coco template:
+
+```text
+SUPPLIED REALITY
+    ↓
+CHARACTER LENS
+    ↓
+SURPRISING FRAME
+    ↓
+CLEAN CUT
+    ↓
+NEW IMPLICATION
+```
+
+The Brain should discover equivalents for weddings, raves, travel, cleaning, pool service, real estate, artifacts, people, horror, and ordinary life.
+
+### Cut grammar
+
+- One line = one attention moment.
+- A line may be 2–4 words, but shortness is not the objective.
+- Longer lines are allowed when the extra words add real dramatic information.
+- Commas and semicolons are currently rejected in scene text because they repeatedly hid multiple visual thoughts inside one sentence.
+- Chained `then / while / after / as` constructions are discouraged when they conceal a second cut.
+- A cut should create wanting for the next cut.
+- Compression means deleting explanation while preserving the strongest idea.
+
+### Service-stage rule
+
+The business/service is the **stage and economic engine**. The customer, pet, couple, person, or other subject temporarily becomes the star.
+
+Do not invent groomers, cleaners, technicians, staff, owners, dialogue, or provider actions unless the source explicitly establishes them.
+
+This is universal. The same rule works for:
+
+```text
+housekeeping → resident/guest becomes the story
+pool cleaning → homeowner/property becomes the story
+pet grooming → pet becomes the story
+wedding service → couple/guest becomes the story
+concert/event → attendee becomes the story
+```
+
+### Subject truth
+
+Created canonical `SubjectTruth` contract.
+
+Identity is now treated as world truth rather than a string-regex guess.
+
+```text
+SOURCE / MEMORY / RUNTIME
+        ↓
+ EXPLICIT SUBJECT TRUTH
+        ↓
+ AUTHOR MAY USE PRONOUN / SEX / IDENTITY
+```
+
+Absent explicit truth, the author remains neutral. The author may never promote its own inference into canonical identity.
+
+Coco's current benchmark truth explicitly establishes male/he-him.
+
+### Cognitive seam repaired
+
+`experienceService.ts` now passes `compiled.plan` into `authorMicroBeats` as `cognitivePlan`.
+
+This is critical. The previous implementation sent the mouth facts and context but discarded the universal cognition plan that had already discovered significance, story structure, creative possibilities, memory model, dynamic behavior, and future evolution.
+
+The Brain now consumes that plan as upstream intelligence without being forced to obey it literally.
+
+### Runtime tuning
+
+The fast Ollama temperature was restored from `0.35` to `0.75`.
+
+Reason: the earlier low-temperature fast mode produced repetitive literal paraphrase (`Bows? Yuck! / Treats... / Scared? / Happy...`) instead of exploratory creative framing.
+
+Fast output budget is `192` tokens with model keep-alive enabled so the lab remains rapid without aggressively truncating the JSON envelope.
+
+### Current architectural goal
+
+Do not keep adding mouth regexes to compensate for weak cognition.
+
+The correct order is:
+
+```text
+UNDERSTAND
+↓
+REMEMBER
+↓
+DISCOVER SIGNIFICANCE
+↓
+COMPETE
+↓
+CHOOSE THE MOVIE
+↓
+AUTHOR
+↓
+SPLICE CUTS
+↓
+EDIT
+```
+
+The author should become more intelligent primarily by getting **better world understanding, better history, better creative competition, better novelty pressure, better significance discovery, and better learning**—not by accumulating hundreds of phrase bans.
+
+### Next benchmark objective
+
+Run the shared Brain against:
+
+```powershell
+pnpm author:fast -- COCO
+pnpm author:fast -- MARIA
+pnpm author:fast -- HORROR
+pnpm author:fast -- RAVE
+```
+
+Then test the real production path.
+
+The first success criterion is not `FAILURES: 0`.
+
+It is:
+
+> **Read cut 1. Want cut 2. Read cut 2. Want cut 3.**
+
+The universal author has to make ordinary reality feel unexpectedly worth watching.
+
+---
+
+## Previous findings
+
+The existing entries below are preserved as historical record. They are not necessarily the current implementation.
+
+---
+
 ## 2026-08-15 — Character-First Rapid-Attention Author
 
 ### What we learned
@@ -36,27 +227,9 @@ It records author experiments, hypotheses, observed outputs, benchmark changes, 
 
 ### Architecture change
 
-Added `apps/api/src/services/authorFastCore.ts` as a dedicated rapid development path:
+Added `apps/api/src/services/authorFastCore.ts` as a dedicated rapid development path.
 
-```text
-WORLD / FACTS
-      ↓
-CHARACTER + CONTEXT
-      ↓
-COMPETING CREATIVE ANGLES
-      ↓
-ATTACK / CHOOSE CHAMPION
-      ↓
-ANGLE + TENSION + MOVEMENT + PAYOFF
-      ↓
-RAPID-ATTENTION DRAFT
-```
-
-It performs one real planning generation followed by one real drafting generation. The purpose is fast cognitive iteration, not production repair.
-
-`apps/api/author-fast-suite.ts` now uses this path and reports the selected angle, tension, payoff, beat count, and raw model output.
-
-`cinematicAuthor.ts` was also strengthened with character-first, evidence-gated instructions and champion-angle fields.
+The later consolidation supersedes the two-stage planner/draft structure here.
 
 ### Current author rules
 
@@ -71,174 +244,14 @@ It performs one real planning generation followed by one real drafting generatio
 9. **Payoff belongs to the character/angle.** No generic farewell.
 10. **History matters.** Reuse can be callback; repetition without evolution is failure.
 
-### Benchmark evidence behind these rules
-
-- Maria's timestamp/room list proved that fact preservation alone creates a receipt, not a living memory.
-- Coco's `hates bows / loves treats` output proved that semantic facts can still be weak cinematic beats.
-- Generic `Still here / Something changes / Then it shifts / See you next time` proved connective filler must be rejected.
-- Repeated model outputs invented groomer actions and gendered pronouns. These are now explicit evidence-gated failures.
-- Multiple zero-beat runs showed that malformed/truncated structured output must be visible through raw diagnostics instead of silently becoming `BEATS: 0`.
-
-### Next benchmark loop
-
-Use the rapid cases while tuning:
-
-```powershell
-pnpm author:fast -- COCO
-pnpm author:fast -- MARIA
-pnpm author:fast -- HORROR
-```
-
-Inspect the actual angle and sequence before running the full suite. The target is not merely green JSON; it is a first beat that creates a real desire to see the next cut.
-
 ---
 
 ## 2026-08-15 — Fast Author Iteration Loop
 
-Commits: `d61d9996981fc5c8f2ffb423ee4443feb61ec902`, `2a30bcb9e00e2a3289e80468444f858a4fcc1d0d`, `0bd4c4a6b2f3563d6ed61e2544d8d0e248a7c366`
-
-### Problem
-
-The full mouth suite was taking roughly 67–98 seconds per case because a failed first Ollama generation triggered a second repair generation. Running five cases made creative iteration too slow.
-
-### Change
-
-Added a deliberate fast development mode to `microBeatMouth.ts`:
-
-```text
-QRE_AUTHOR_FAST=true
-```
-
-Fast mode performs **one real Ollama generation** and returns the normalized first result. It does not run the repair retry. The normal author path and full suite retain repair behavior.
-
-Added:
-
-```text
-apps/api/author-fast-suite.ts
-```
-
-The fast suite runs one selected real Ollama case at a time.
-
-### Purpose
-
-This is **not a quality bypass for production**. It is an experimental loop so we can rapidly tune the mouth, validator, and creative realization without paying for a repair retry on every experiment.
-
-### Iteration Model
-
-```text
-small code change
-      ↓
-pnpm author:fast -- COCO
-      ↓
-inspect actual sequence
-      ↓
-small code change
-      ↓
-repeat
-      ↓
-pnpm author:full
-      ↓
-full validation
-```
+The fast loop exists to accelerate experiments. It is intentionally not a production quality bypass.
 
 ---
 
 ## 2026-08-15 — Creative Competition + Sequence Safety
 
-Commit: `d7082e85f76b7728a287117910dd781c327b1cfb`
-
-### Hypothesis
-
-The author already had useful world understanding and creative operators, but one weak interpretation could flow directly into drafting. The result was fact serialization and generic fallback prose.
-
-### Changes
-
-Strengthened the existing `cinematicAuthor.ts` architecture so planning explicitly performs creative competition, attacks candidates, selects a champion, injects creative history, and passes a real creative problem to the mouth.
-
-Also strengthened sequence safety, beat-count fitting, generic filler rejection, paragraph-chopping detection, and non-zero recovery behavior.
-
-### Important Boundary
-
-This is intentionally **not** a hardcoded Coco solution. The goal is universal author cognition: competition → attack → champion → realization → critique → repair.
-
----
-
-## 2026-08-15 — Establish Author Experiment Memory
-
-### Context
-
-The current `cinematicAuthor` already contains the intended architecture: `CreativeDirection`, hidden premise, operators, affordances, hard constraints, planning, drafting, critique, repair, and local gating.
-
-The current work is to make those layers actually exercise their intelligence instead of relying on the final mouth to rescue weak planning.
-
-### What We Observed
-
-The creative-superstar preflight produced useful signals including personality contrast, tenderness vs resistance, sensory hook, personification, contrast, status inversion, comic turn, callback, and payoff. The problem was that useful planning signals were not consistently surviving into realized beats.
-
-### Core Failure Model
-
-There are three distinct quality levels:
-
-1. **Semantic validity** — grounded and factually supportable.
-2. **Cinematic movement** — changes story state or advances what we are watching.
-3. **Creative quality** — distinctive, surprising, characterful, and worth seeing as the next cut.
-
-A line can be semantically valid while still being weak cinematic material.
-
-### Architectural Hypothesis
-
-The missing seam is between latent creative planning and beat realization:
-
-```text
-WORLD FACTS
-    ↓
-UNDERSTANDING
-    ↓
-LATENT MOVIE DISCOVERY
-    ↓
-CANDIDATE BEATS
-    ↓
-CINEMATIC MOVEMENT GATE
-    ↓
-SEQUENCE
-    ↓
-MICRO-BEAT MOUTH
-    ↓
-CRITIC / REPAIR
-```
-
-### Safety Invariant
-
-Validation may reject a candidate, but it must never destroy the whole experience. The author pipeline must preserve required beat count through repair/replacement/degradation rather than ending with `BEATS: 0`.
-
-### Benchmark Policy
-
-Primary creative cases:
-
-- COCO
-- COCO-RETURN
-- MARIA
-- HORROR
-- RAVE
-
-The benchmark measures creative properties and invariants rather than memorized prose.
-
-### Iteration Protocol
-
-```text
-change ONE meaningful behavior
-        ↓
-run real Ollama runtime
-        ↓
-inspect planner + actual sequence
-        ↓
-run benchmark suite
-        ↓
-record result here
-        ↓
-commit coherent change
-        ↓
-form next hypothesis
-```
-
-The objective is not merely `FAILURES: 0`. The objective is an author that repeatedly produces grounded sequences where the next beat creates genuine curiosity: **I want to see the next cut.**
+The author should use competing interpretations, attack them, select a champion, and protect continuity. This remains valid, but implementation now belongs in the universal Brain rather than duplicated planning layers.
