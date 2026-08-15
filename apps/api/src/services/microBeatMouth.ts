@@ -29,8 +29,14 @@ const ALLOWED_KINDS = new Set(["jolt", "reveal", "turn", "payoff", "afterglow"])
 const META = /\b(?:qre|ai|prompt|compiler|cognition|metadata|model|instruction|scene rule|beat rule)\b/i;
 const CHAIN = /[|;]/;
 const MOOD_ONLY = /^(?:electric magic|late-night vibes|happy heart|grooming terror|pink bow panic|treats soothe|proud walk|new normal|pure joy|breathtaking bass|magical moment|beautiful moment|unforgettable moment|good vibes|happy ending|so much fun|love wins|dream come true|full of joy|full of magic|pure magic)$/i;
-const ACTION_WORDS = /\b(?:arrives?|returns?|enters?|spots?|sees?|freezes?|stops?|turns?|moves?|slams?|breaks?|flies?|lands?|falls?|runs?|jumps?|dances?|spins?|conquers?|defeats?|surrenders?|loses?|wins?|changes?|shifts?|opens?|closes?|keeps?|continues?|ignores?|refuses?|accepts?|reconsiders?|backs?|stays?|leaves?|appears?|vanishes?|hits?|shakes?|barks?|wags?|sniffs?|blinks?|laughs?|talks?|drinks?|pours?|spills?|cracks?|rings?|echoes?)\b/i;
-const STATUS_WORDS = /\b(?:again|back|next|ready|gone|still|finally|already|proud|quiet|louder|closer|farther|faster|slower|caught|free|safe|stuck|waiting|winning|losing|defeated|conquered|surrendered|refused|accepted|changed|different)\b/i;
+
+// The mouth is not a part-of-speech parser. These are deliberately broad
+// semantic signals: physical action, perception, thought, relationship,
+// possession, change, recurrence, and state all count as movement when they
+// alter what the viewer knows, expects, or feels.
+const MOVEMENT_WORDS = /\b(?:am|are|be|became|becomes|been|being|breaks?|barks?|backs?|blinks?|caught|changes?|changed|closes?|conquers?|cracks?|dances?|defeats?|disappears?|drinks?|echoes?|enters?|falls?|feels?|flies?|freezes?|gets?|gives?|goes?|grabs?|hates?|has|have|hits?|jumps?|keeps?|knows?|lands?|laughs?|leaves?|likes?|loves?|loses?|looks?|meets?|moves?|opens?|passes?|pours?|pulls?|refuses?|remembers?|returns?|rings?|runs?|sees?|shakes?|shifts?|sits?|slams?|sniffs?|spills?|spots?|stares?|stays?|steals?|stops?|talks?|takes?|turns?|waits?|walks?|wants?|watches?|wags?|wins?|works?|appears?|vanishes?|surrenders?|accepts?|reconsiders?|continues?|ignores?|rejects?|offers?|starts?|keeps?|holds?|finds?|loses?|reveals?|follows?|follows?|fades?|rises?|drops?|keeps?|still|again|back|next|ready|gone|finally|already|proud|quiet|louder|closer|farther|faster|slower|caught|free|safe|stuck|waiting|winning|losing|defeated|conquered|surrendered|refused|accepted|different|afraid|nervous|calm|suspicious|angry|relieved|late|early|alive|dead)\b/i;
+const VERB_LIKE = /\b(?:is|was|are|were|am|be|became|becomes|has|have|had|hates?|loves?|likes?|wants?|needs?|keeps?|stays?|leaves?|returns?|arrives?|enters?|spots?|sees?|finds?|steals?|walks?|runs?|dances?|moves?|turns?|breaks?|flies?|lands?|falls?|changes?|shifts?|opens?|closes?|refuses?|accepts?|remembers?|reveals?|waits?|watches?|talks?|laughs?|drinks?|pours?|spills?|cracks?|rings?|echoes?|slams?|throws?|grabs?|holds?|offers?|starts?|stops?|continues?|ignores?|appears?|vanishes?|barks?|wags?|sniffs?|blinks?|shakes?|jumps?|wins?|loses?|keeps?)\b/i;
+const STATUS_WORDS = /\b(?:again|back|next|ready|gone|still|finally|already|proud|quiet|louder|closer|farther|faster|slower|caught|free|safe|stuck|waiting|winning|losing|defeated|conquered|surrendered|refused|accepted|changed|different|afraid|nervous|calm|suspicious|relieved|late|early|alive|dead)\b/i;
 const NOUN_ONLY = /^(?:dinner|wine|conversation|rave|bass|bathrooms?|kitchen|laundry|grooming|bow|bows|treats?|fear|joy|magic|vibes?|night|morning|afternoon|evening|house|home|water|glass|knives?|chairs?|mirror|party|friends?|music|salon|poodle|dog|tag)$/i;
 
 function clean(value: unknown): string {
@@ -74,14 +80,45 @@ function desiredBeatCount(input: MicroBeatMouthInput): number {
   return isStretchDomain(input) ? 5 : 4;
 }
 
+function hasMovement(value: string): boolean {
+  if (VERB_LIKE.test(value)) return true;
+  if (STATUS_WORDS.test(value)) return true;
+  if (MOVEMENT_WORDS.test(value)) return true;
+  if (/[!?]$/.test(value) && words(value).length <= 4) return true;
+  return false;
+}
+
 function validBeat(text: string): boolean {
   const value = clean(text);
   const count = words(value).length;
   if (!value || count > 7 || CHAIN.test(value) || META.test(value)) return false;
-  if (MOOD_ONLY.test(value)) return false;
-  if (count === 1) return ACTION_WORDS.test(value) && !NOUN_ONLY.test(value);
-  if (count === 2) return ACTION_WORDS.test(value) || STATUS_WORDS.test(value) || /[!?]/.test(value);
-  return ACTION_WORDS.test(value) || STATUS_WORDS.test(value) || /[!?]/.test(value);
+  if (MOOD_ONLY.test(value) || NOUN_ONLY.test(value)) return false;
+
+  // A one-word beat can work when it actually changes the state: "Again."
+  // or "Gone." are meaningful. Bare nouns are not.
+  if (count === 1) return hasMovement(value);
+
+  // Two-word beats can be compressed fragments when the semantic movement is
+  // obvious: "Bow returns", "Still dancing", "Knives fly".
+  return hasMovement(value);
+}
+
+function parseJsonDraft(text: string): BeatDraft | null {
+  const cleaned = clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    return JSON.parse(cleaned) as BeatDraft;
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1)) as BeatDraft;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
 }
 
 function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
@@ -94,8 +131,21 @@ function fallbackBeats(input: MicroBeatMouthInput): ExperienceBeat[] {
   const unique = [...new Set(candidates)].filter(validBeat);
   const needed = desiredBeatCount(input);
   const subject = clean(input.subject);
+
+  // Prefer supplied semantic actions/states. Do not manufacture a whole story
+  // just to satisfy a count; use tiny grounded repairs instead.
   const seed = unique.slice(0, Math.max(needed - 1, 3));
-  if (subject && seed.length < 3 && validBeat(`${subject} returns`)) seed.unshift(`${subject} returns`);
+  const groundedRepairs = [
+    subject && input.sourceMoments[0] ? `${subject} returns` : "Still here",
+    subject && input.facts.some((fact) => /hates?/i.test(fact)) ? `${subject} still hates bows` : "Something changes",
+    input.sourceMoments.length > 1 ? trimToWordCeiling(input.sourceMoments[1], 5) : "Then it shifts",
+  ].filter(validBeat);
+
+  for (const repair of groundedRepairs) {
+    if (seed.length >= needed - 1) break;
+    if (!seed.includes(repair)) seed.push(repair);
+  }
+
   if (seed.length < needed - 1) return [];
   const payoff = input.presence?.isReturning ? "We're back." : "See you next time.";
   return [...seed.slice(0, needed - 1), payoff].map((text, index, all) => ({
@@ -124,7 +174,7 @@ async function generateBeats(input: MicroBeatMouthInput, beatCount: number, stre
         "The cognitive system has already decided the angle. You do NOT invent a new premise.",
         "Your job is compression, timing, attitude, continuity, concrete change, and payoff.",
         `Write exactly ${beatCount} beats: ${beatCount > 4 ? "JOLT → JOLT → JOLT → TURN → PAYOFF" : "JOLT → JOLT → JOLT → PAYOFF"}.`,
-        "Each beat is ONE thought and ONE perceptible change.",
+        "The sequence must MOVE. Each beat must alter physical state, information, expectation, relationship, status, or trajectory.",
         "Target 2–4 words per beat.",
         "Hard ceiling: 7 words per beat.",
         "Never exceed 7 words.",
@@ -134,15 +184,16 @@ async function generateBeats(input: MicroBeatMouthInput, beatCount: number, stre
         "Never spend a beat merely naming a noun, timestamp, place, or mood when it can perform a change.",
         "Reject vague mood-only language.",
         "Compress the sentence, NOT the idea.",
-        "Every beat must change physical state, status, information, expectation, relationship, or trajectory.",
-        "Use the strongest contradiction instead of generic emotional progression.",
+        "Use the strongest supplied contradiction instead of generic emotional progression.",
+        "Static states are allowed when they create tension or contrast: 'Coco hates bows', 'Everyone keeps talking', 'Nobody looks up'.",
+        "A beat does not need a dramatic action verb to move; perception, refusal, recurrence, contradiction, and changed expectation count.",
         "Round 2+ means history exists: callback to a known quirk instead of reintroducing the character.",
         "Presence history may establish return, place, or time. Never invent an exact location or event that is not supplied by Presence or source facts.",
         "GROUNDING RULE: never turn a creative affordance into a concrete factual event.",
         stretch ? "STRETCH MODE: use the fifth beat only when it creates a real escalation or needed service/horror/event substance." : "COMPACT MODE: four strong beats are preferred.",
-        rejected.length ? `REJECTED OUTPUTS — replace these with concrete state changes: ${rejected.join(" | ")}` : "",
+        rejected.length ? `REJECTED OUTPUTS — replace these with stronger semantic movement, not synonyms: ${rejected.join(" | ")}` : "",
         "PAYOFF must land the same thread created by the first beats.",
-        "The final line can be extremely short.",
+        "The final line can be extremely short, but it must feel earned rather than generic.",
         "Return strict JSON only.",
         "Schema: {\"beats\":[{\"text\":\"...\",\"kind\":\"jolt|reveal|turn|payoff|afterglow\",\"attentionRole\":\"...\",\"operator\":\"...\",\"callback\":true}]}.",
       ].join(" "),
@@ -173,11 +224,7 @@ async function generateBeats(input: MicroBeatMouthInput, beatCount: number, stre
     },
   ], "json");
 
-  try {
-    return JSON.parse(result.text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim()) as BeatDraft;
-  } catch {
-    return null;
-  }
+  return parseJsonDraft(result.text);
 }
 
 function normalizeDraft(input: MicroBeatMouthInput, parsed: BeatDraft | null, beatCount: number): ExperienceBeat[] {
