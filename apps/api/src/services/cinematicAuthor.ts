@@ -1,4 +1,4 @@
-import type { AuthorBrainTruth, AuthorRenderedScene } from "@qre/contracts";
+import type { AuthorBrainTruth, AuthorRenderedScene, AuthorScene } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 export type CinematicAuthorInput = AuthorBrainTruth;
@@ -8,7 +8,7 @@ function enabled(): boolean {
   return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";
 }
 
-function renderScenes(scenes: Array<{ text: string; kind?: string }>): AuthoredScene[] {
+function renderScenes(scenes: AuthorScene[]): AuthoredScene[] {
   return scenes.map((scene, index, all) => ({
     text: scene.text,
     kind: scene.kind ?? (index === 0 ? "hook" : index === all.length - 1 ? "payoff" : "line"),
