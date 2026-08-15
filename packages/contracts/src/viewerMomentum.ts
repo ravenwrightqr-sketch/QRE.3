@@ -22,6 +22,34 @@ export type MagnetCircle = {
   nextNeed?: string;
 };
 
+/**
+ * Persistent subject-space held in the viewer's working model.
+ * Once established, the subject remains active without requiring repeated
+ * naming. Re-identification is spent only when the reference itself carries
+ * new information or restores clarity after a meaningful shift.
+ */
+export type SubjectContinuity = {
+  established: boolean;
+  subject: string;
+  referenceMode: "name" | "pronoun" | "implicit" | "object";
+  referenceCost: number;
+  lastExplicitReference?: number;
+};
+
+/**
+ * The information frontier is the edge of what the viewer already knows and
+ * what is now worth discovering next.
+ */
+export type InformationFrontier = {
+  known: string[];
+  frontier: string;
+  novelty: number;
+  uncertainty: number;
+  informationValue: number;
+  tension: number;
+  nextNeed?: string;
+};
+
 export type ViewerMomentum = {
   known: string[];
   expected?: string;
@@ -34,6 +62,10 @@ export type ViewerMomentum = {
   payoffDebt?: string;
   /** Cognitive magnet governing why another cut is wanted. */
   magnet?: MagnetCircle;
+  /** Persistent subject-space held in working memory across cuts. */
+  subjectContinuity?: SubjectContinuity;
+  /** The highest-value unresolved information frontier at this moment. */
+  informationFrontier?: InformationFrontier;
 };
 
 export type CutNecessity = {
