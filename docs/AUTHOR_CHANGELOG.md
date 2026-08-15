@@ -19,32 +19,27 @@ This file is the permanent experimental memory for the QRE author system.
 
 ## CURRENT TRUTH — 2026-08-15
 
-### The architecture is NOT yet fully converged
+### Production author convergence: first step complete
 
-A full-repository influence audit found that the Fast Author laboratory and the actual production authoring path are different:
+The production micro-beat adapter now calls the canonical Universal Author directly:
 
 ```text
-FAST LAB
-author-fast-suite
-→ authorFastCore
-→ authorBrainUniversal
-→ SequencePlay / ViewerMomentum
-→ validated cuts
-
-PRODUCTION
-experience route
-→ experienceService
-→ engine universalMind / compileCognitiveExperience
+experienceService
 → microBeatMouth
-→ OLD authorBrain
-→ experience scene projection
+→ authorBrainUniversal
 ```
 
-Therefore:
+The legacy `authorBrain.ts` is no longer the production author called by `microBeatMouth.ts`.
 
-> **Goal 1 is not finished until both paths use the same canonical author intelligence.**
+Production sequence length is now **earned**, not forced to 4 or 5 cuts. The adapter caps output at six cuts for runtime safety, while allowing two-cut sequences to be valid.
 
-The previous claim that `apps/api/src/services/authorBrain.ts` was the shared canonical author is historical and is no longer current truth.
+### Remaining production convergence
+
+`cinematicAuthor.ts` still calls legacy `authorBrain.ts` and may run a separate critique/repair author loop.
+
+`authorCutPolicy.ts` is richer than the Universal Author's duplicated local validator and should become the canonical semantic cut policy.
+
+These are the next convergence targets.
 
 ### Canonical creative expansion surface
 
@@ -91,44 +86,6 @@ packages/contracts/src/cognition.ts
 
 Do not create another sequence or viewer-state contract without a demonstrated capability gap.
 
-### Canonical cut-policy target
-
-`apps/api/src/services/authorCutPolicy.ts` already contains richer semantic evaluation than the Universal Author's local validation logic.
-
-The architecture should converge to one semantic cut policy rather than maintain multiple independent validators.
-
-### Production adapters
-
-```text
-apps/api/src/services/microBeatMouth.ts
-apps/api/src/services/cinematicAuthor.ts
-```
-
-These may remain as runtime/render adapters, but they must not remain independent author authorities.
-
-`microBeatMouth.ts` currently calls old `authorBrain.ts`.  
-`cinematicAuthor.ts` currently calls old `authorBrain.ts` and can run a separate critique/repair loop.
-
-These are explicit migration targets.
-
-### Benchmark rule
-
-The following are observers/benchmarks, not production creative authorities:
-
-```text
-apps/api/author-fast-suite.ts
-apps/api/author-beat-presence-suite.ts
-apps/api/author-beat-presence-master-suite.ts
-apps/api/author-ceiling-benchmark.ts
-apps/api/author-ceiling-test.ts
-apps/api/author-creative-superstar-suite.ts
-apps/api/author-mouth-quality-suite.ts
-apps/api/author-universal-ceiling-suite.ts
-apps/api/creative-learning-readout.ts
-apps/api/local-author-test.ts
-apps/api/one-pass-test.ts
-```
-
 ### Sparse-world law
 
 Less evidence means less invented-world surface area, not less creativity.
@@ -166,33 +123,31 @@ Shortness is not the objective. Compressed impact is.
 
 ### Critical discovery
 
-Multiple complete cognition/author systems coexist in the repository. The full influence map is now maintained at:
+Multiple complete cognition/author systems coexist in the repository. The full influence map is maintained at:
 
 `docs/QRE_FULL_REPO_INFLUENCE_MAP.md`
 
 Key conflicts discovered:
 
 ```text
-old authorBrain reachable in production
-Universal Author active in fast lab
+old authorBrain
+Universal Author
 AuthorCognition heuristic modes
-AuthorCutPolicy semantic mouth policy
-UniversalMind full cognition stack
-CreativePolicy / creativeWriter candidate stack
-CinematicAuthor critique/repair author
-MicroBeatMouth beat-count/projection adapter
+AuthorCutPolicy
+UniversalMind
+CreativePolicy / creativeWriter
+CinematicAuthor critique/repair
+MicroBeatMouth projection adapter
 ```
 
-### Engineering decision
+The audit concluded that the repository needs **convergence**, not another parallel brain.
 
-Do not continue adding creative behavior until the production author seam is converged or explicitly isolated.
+### Engineering order
 
-The next engineering order is:
-
-1. Route production authoring through the canonical Universal Author.
+1. Route production authoring through Universal Author. **DONE for microBeatMouth.**
 2. Unify semantic cut evaluation around `authorCutPolicy` or one replacement.
 3. Keep UniversalMind/significance/memory as upstream cognition.
-4. Remove beat-count logic from creative authority.
+4. Remove beat-count logic from creative authority. **DONE for microBeatMouth.**
 5. Convert critique/repair into editing of the canonical sequence, not a second author.
 6. Dependency-trace old brains.
 7. Delete unused legacy brains/contracts.
