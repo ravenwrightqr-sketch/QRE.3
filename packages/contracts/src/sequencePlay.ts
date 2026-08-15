@@ -43,6 +43,10 @@ export type ViewerState = {
   recentChange?: string;
 };
 
+export type ViewerMomentum = import("./viewerMomentum.js").ViewerMomentum;
+export type CutNecessity = import("./viewerMomentum.js").CutNecessity;
+export type SequenceTransition = import("./viewerMomentum.js").SequenceTransition;
+
 export type SequenceCut = {
   id: string;
   order: number;
@@ -54,6 +58,10 @@ export type SequenceCut = {
   attentionDelta: string;
   viewerBefore: ViewerState;
   viewerAfter: ViewerState;
+  /** Cognitive transition that makes this cut earn its place. */
+  momentum?: SequenceTransition;
+  /** Whether removing this cut damages curiosity, coherence, surprise, escalation, or payoff. */
+  necessity?: CutNecessity;
   nextPromise?: string;
   payoffConnection?: string;
   noveltyScore?: number;
@@ -66,7 +74,11 @@ export type SequencePlay = {
   openingState: ViewerState;
   /** Facts/identity established before the actual attention sequence begins. */
   baselineFacts?: string[];
+  /** Current viewer momentum at the sequence entrance. */
+  openingMomentum?: ViewerMomentum;
   cuts: SequenceCut[];
+  /** Final viewer momentum after the payoff/release. */
+  closingMomentum?: ViewerMomentum;
   closingState?: ViewerState;
   continuity?: string[];
   antiCrutch?: string[];
