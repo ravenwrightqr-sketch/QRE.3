@@ -20,6 +20,8 @@ const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)
 const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|alarming|relieved|anxious|delighted|worried|calm|proud|uneasy|unease|surprised|surprise|softening|cautious|cautiously|gracefully|happily)\b/i;
 const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
 const ROLES: ViewerAttentionRole[] = ["arrival","hook","question","pressure","reframe","escalation","discovery","consequence","release","payoff","callback","continuation"];
+const GAIN_KINDS = new Set(["new_fact","surprise","question","escalation","reframe","discovery","consequence","callback","payoff"]);
+const BASELINE_DESCRIPTOR = /\b(?:male|female|boy|girl|poodle|dog|cat|pet|person|man|woman|couple|child|baby|business|company|home|house)\b/i;
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
@@ -67,15 +69,18 @@ function normalizeState(raw: unknown): ViewerState {
 
 function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const value = raw as Partial<SequencePlay> & { cuts?: unknown };
+  const value = raw as Partial<SequencePlay> & { cuts?: unknown; baselineFacts?: unknown };
   if (!Array.isArray(value.cuts)) return undefined;
+
   const cuts: SequenceCut[] = value.cuts.map((item, index) => {
     const cut = (item && typeof item === "object" ? item : {}) as Partial<SequenceCut>;
     const role = ROLES.includes(cut.role as ViewerAttentionRole) ? cut.role as ViewerAttentionRole : index === 0 ? "hook" : "continuation";
+    const gainKind = typeof cut.gainKind === "string" && GAIN_KINDS.has(cut.gainKind) ? cut.gainKind : undefined;
     return {
       id: clean(cut.id) || `cut-${index + 1}`,
       order: Number.isFinite(cut.order) ? Number(cut.order) : index + 1,
       role,
+      gainKind,
       sourceIds: uniq(cut.sourceIds, 8),
       informationGain: clean(cut.informationGain),
       attentionDelta: clean(cut.attentionDelta),
@@ -86,11 +91,14 @@ function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefi
       noveltyScore: typeof cut.noveltyScore === "number" ? cut.noveltyScore : undefined,
       confidence: typeof cut.confidence === "number" ? cut.confidence : 0.8,
     };
-  }).filter((cut) => Boolean(cut.informationGain || cut.attentionDelta));
+  })
+    .filter((cut) => GAIN_KINDS.has(String(cut.gainKind)) && Boolean(cut.informationGain || cut.attentionDelta));
+
   return {
     subject: clean(value.subject) || subject,
     premise: clean(value.premise),
     openingState: normalizeState(value.openingState),
+    baselineFacts: uniq(value.baselineFacts as unknown[] | undefined, 10),
     cuts,
     closingState: value.closingState ? normalizeState(value.closingState) : undefined,
     continuity: uniq(value.continuity, 6),
@@ -134,8 +142,15 @@ function repeatsEstablishedIdentity(text: string, input: AuthorBrainTruth): bool
   const subject = clean(input.subject);
   if (!subject) return false;
   if (!text.toLowerCase().includes(subject.toLowerCase())) return false;
-  const establishedDescriptor = /\b(?:male|female|boy|girl|poodle|dog|cat|pet|person|man|woman|couple|child|baby|business|company|home|house)\b/i;
-  return establishedDescriptor.test(text.replace(new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}`,"i"), "").trim());
+  return BASELINE_DESCRIPTOR.test(text.replace(new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}`,"i"), "").trim());
+}
+
+function isBaselineRestatement(text: string, input: AuthorBrainTruth): boolean {
+  const normalized = clean(text).toLowerCase();
+  const subject = clean(input.subject).toLowerCase();
+  if (!subject || !normalized.includes(subject)) return false;
+  const identityTerms = (input.subjectTruth?.identityFacts ?? []).map(clean).filter(Boolean);
+  return identityTerms.some((fact) => normalized === fact.toLowerCase() || normalized.includes(fact.toLowerCase().replace(`${subject} `, "")));
 }
 
 function buildSourceLedger(input: AuthorBrainTruth) {
@@ -157,6 +172,7 @@ function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (unsupportedEmotion(text, input)) return true;
   if (unknownNamedEntity(text, input)) return true;
   if (repeatsEstablishedIdentity(text, input)) return true;
+  if (isBaselineRestatement(text, input)) return true;
   if (!pronounsAllowed(text, input.subjectTruth)) return true;
   if (PROVIDER.test(text) && !explicitProviderKnown(input)) return true;
   return false;
@@ -187,7 +203,7 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
     payoff: clean(plan?.futureEvolution?.[0]) || "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: ["hit","short","variable","short","hit"],
-    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries","unestablished named entities","database-role narration","padding to reach a beat count"],
+    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries","unestablished named entities","database-role narration","padding to reach a beat count","identity facts as sequence cuts"],
   };
 }
 
@@ -212,7 +228,10 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
       content: [
         "You are QRE's universal experience author and sequence director.",
         "Think deeply before writing. First decide how the experience should PLAY from cut to cut. Then realize that sequence into the finished cuts. Output only compact JSON.",
-        "A sequence is not a list of events. It is a chain of viewer-state changes. For every cut ask: what does the viewer know now, what do they expect now, what remains unresolved, what do they want next, and what changed because of this cut?",
+        "A sequence is NOT a list of facts and NOT a chronology. It is a chain of viewer-state changes.",
+        "For every candidate cut ask: what does the viewer know now, what do they expect now, what remains unresolved, what do they want next, and what changed because of this cut? If those answers do not materially change, the candidate is not a sequence cut.",
+        "IDENTITY IS BASELINE. Established name, sex, species, breed, business category, location identity, or other canonical descriptors belong in openingState/baselineFacts. Do NOT spend attention cuts revealing baseline identity unless the reveal itself creates a new question, contradiction, or reframe.",
+        "Do not turn 'Coco is male', 'Coco is a poodle', or similar identity facts into separate sequence cuts. Those are already known world state.",
         "Privately compete between genuinely different interpretations of the supplied world. Kill the obvious, generic, sentimental, repetitive, literal action-report, fact-list, and padded versions.",
         "The viewer already knows the established subject. Do not reintroduce the subject with a name plus breed, sex, category, or identity label. Identity belongs to the world model. The mouth spends attention on NEW information.",
         "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence changes that world meaningfully. Database roles such as owner, customer, groomer, employee, or technician are not cinematic characters unless explicitly relevant in the supplied world.",
@@ -227,8 +246,8 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
         "Do not write a miniature novel. Do not explain themes. Do not explain the character. Make the viewer discover the world through the sequence.",
         "Returning chapter: if true, evolve prior meaning. A callback should change meaning, stakes, or relationship instead of replaying the previous chapter.",
         "Return JSON with exactly two top-level keys: sequence and scenes.",
-        "sequence must contain subject, premise, openingState, cuts, optional closingState, continuity, antiCrutch, continuation.",
-        "Each sequence cut must contain role, informationGain, attentionDelta, viewerBefore, viewerAfter, optional nextPromise and payoffConnection, plus confidence. Keep state descriptions compact.",
+        "sequence must contain subject, premise, openingState, optional baselineFacts, cuts, optional closingState, continuity, antiCrutch, continuation.",
+        "Each sequence cut must contain role, gainKind, informationGain, attentionDelta, viewerBefore, viewerAfter, optional nextPromise and payoffConnection, plus confidence. gainKind must never be baseline for a cut. Use baseline facts separately.",
         "scenes must contain only the actual finished cut lines. The scenes realize the sequence. Do not put explanations in scenes.",
       ].join(" "),
     },
