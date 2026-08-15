@@ -30,6 +30,12 @@ const ROLES: readonly ViewerAttentionRole[] = [
   "arrival", "hook", "question", "pressure", "reframe", "escalation",
   "discovery", "consequence", "release", "payoff", "callback", "continuation",
 ];
+const ROLE_ALIASES: Record<string, ViewerAttentionRole> = {
+  setup: "arrival",
+  hypothesis: "pressure",
+  turn: "reframe",
+  reveal: "discovery",
+};
 const GAINS = new Set([
   "new_fact", "surprise", "question", "escalation", "reframe",
   "discovery", "consequence", "callback", "payoff",
@@ -41,6 +47,10 @@ const GAIN_ALIASES: Record<string, SequenceCut["gainKind"]> = {
   hidden_information: "discovery",
   turn: "reframe",
   reversal: "reframe",
+  emotional_state: "new_fact",
+  anticipation: "question",
+  information: "new_fact",
+  emotion: "reframe",
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -62,9 +72,21 @@ function debug(raw: string): void {
   console.log(`\n--- QRE RAW MODEL OUTPUT · AUTHOR-BRAIN-UNIVERSAL ---\n${raw}\n--- END RAW MODEL OUTPUT ---\n`);
 }
 
+function canonicalRole(value: unknown): string {
+  const normalized = clean(value).toLowerCase();
+  return ROLE_ALIASES[normalized] ?? normalized;
+}
+
 function canonicalGain(value: unknown): string {
   const normalized = clean(value).toLowerCase();
   return GAIN_ALIASES[normalized] ?? normalized;
+}
+
+function normalizeBaselineFacts(value: unknown): string[] {
+  if (Array.isArray(value)) return uniq(value, 12);
+  if (!value || typeof value !== "object") return [];
+  const record = value as Record<string, unknown>;
+  return uniq(Object.entries(record).filter(([, state]) => Boolean(state)).map(([fact]) => fact), 12);
 }
 
 function world(input: AuthorBrainTruth): CutWorld {
@@ -171,7 +193,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   const value = raw as { premise?: unknown; baselineFacts?: unknown; cuts?: unknown; continuation?: unknown };
   if (!Array.isArray(value.cuts)) return undefined;
 
-  const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 12);
+  const baselineFacts = normalizeBaselineFacts(value.baselineFacts);
   let momentum: ViewerMomentum = {
     known: baselineFacts,
     subjectContinuity: { established: false, subject, referenceMode: "implicit", referenceCost: 0 },
@@ -183,7 +205,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   for (const [index, item] of value.cuts.entries()) {
     if (!item || typeof item !== "object") continue;
     const c = item as Record<string, unknown>;
-    const role = clean(c.role);
+    const role = canonicalRole(c.role);
     const gain = canonicalGain(c.gainKind);
     if (!ROLES.includes(role as ViewerAttentionRole) || !GAINS.has(gain)) continue;
 
@@ -318,34 +340,33 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
       role: "system",
       content: [
         "You are QRE's universal creative author and sequence-discovery brain.",
-        "Do not write a generic story summary. Discover the strongest information-seeking sequence hidden inside the supplied world.",
+        "Your job is not to write a conventional story, summarize facts, or produce a generic emotional arc. Your job is to discover the strongest information-seeking movie hidden in the supplied world.",
         "The universal attention primitive is the MAGNET CIRCLE: novelty → uncertainty → information value → attention → tension → information seeking → narrative engagement → discovery/reframe/payoff → new uncertainty.",
-        "The viewer holds a persistent subject-space after the subject is established. Do not waste later cuts re-naming or re-describing the subject unless the reference itself carries information.",
-        "Always write toward the INFORMATION FRONTIER: what is newly valuable, unresolved, recontextualized, implied, connected, contradicted, recurring, or consequential from what is already known?",
-        "Identity and stable facts are baseline. Do not spend cuts reintroducing the subject or listing traits.",
-        "A fact can be known and still be narratively inert. Seek relationships among known facts that create a higher-value unresolved state.",
-        "Prioritize contradiction, recurrence, implication, status shift, detail hierarchy, callback, consequence, withholding, reframe, compression, and attitude shifts.",
-        "Creative realization is relative. The magnet is universal; the lens may become comedy, horror, romance, swagger, absurdity, tenderness, mystery, or another fitting expression.",
-        "Learn the latent operation behind strong outputs. Do not imitate phrases as templates.",
-        "Predicate-to-attitude compression may turn supplied dislike, love, status, history, recurrence, or contradiction into a sharp line without inventing a physical event.",
-        "Do not invent physical behavior, dialogue, participants, roles, relationships, locations, placements, objects, or outcomes.",
-        "A supplied state such as scared does not authorize trembling, hiding, crying, jumping, or other physical choreography. A supplied state such as happy does not authorize wagging, smiling, cheering, or leaping.",
-        "Questions belong in hidden cognition. Never put a literal viewer question in the finished cut unless that question is supplied source language.",
-        "The provider or service is usually stage context. Keep the supplied subject as the temporary star unless the provider is explicitly significant.",
-        "Do not resolve the emotion with a moral or wholesome lesson. Let attitude, implication, contrast, or a compact image carry the feeling.",
-        "Shortness alone is not the objective. Cognitive density is. A two-word cut can beat a sentence when it carries more implied information.",
-        "Stop when the payoff earns itself. The sequence may be 2 to 6 cuts.",
-        "Optional relation candidates are hypotheses. Use, alter, combine, or reject them. Never promote them to canonical facts.",
-        "Output only JSON with sequence.premise, baselineFacts, cuts, and optional continuation.",
-        "Each cut must have role, gainKind, change, next, and text.",
+        "Treat every supplied fact as world memory, not as a required sentence or beat.",
+        "Build a mental FACT GRAPH first: which known facts contradict, recur, recontextualize, imply, constrain, or collide with one another? The strongest relationship is usually more valuable than any single fact.",
+        "Prefer a surprising relationship among known facts over a predictable event chain.",
+        "Never turn 'scared at first' + 'happy after' into the default fear→treat→happiness plot unless the relationship itself is genuinely the highest-value magnet.",
+        "Never invent a physical event merely to dramatize an emotional state. Do not turn scared into trembling, hiding, crying, jumping, staring, etc. Do not turn happy into wagging, smiling, licking, leaping, cheering, etc.",
+        "Do not invent tag text, hidden history, new objects, new participants, owners, groomers, dialogue, locations, or future outcomes unless supplied evidence supports them.",
+        "The provider or service is usually stage context. The supplied subject owns the temporary stage unless the provider is itself the significant relationship.",
+        "Once the subject is established, hold the subject in working memory. Repeating the name is a cost. Spend the next cut on the INFORMATION FRONTIER instead.",
+        "Information frontier means the highest-value thing that is newly uncertain, newly meaningful, newly connected, newly contrasted, newly consequential, or newly recontextualized.",
+        "A cut should create or advance a valuable unresolved state. If removing the cut would barely change what the viewer seeks next, do not spend a cut on it.",
+        "Favor compressed implication, attitude, status shift, contradiction, recurrence, callback, juxtaposition, withheld explanation, escalation, reframe, and theatrical framing.",
+        "Do not explain the feeling, the joke, or the lesson. Let the viewer infer it.",
+        "Creative style is downstream of cognition. Choose whatever lens best realizes the magnet; do not force wholesome, sentimental, or generic feel-good behavior.",
+        "Two-word or fragment cuts are allowed when they carry more information than a sentence. Compression is cognitive density, not mere brevity.",
+        "Output ONLY this exact JSON shape. baselineFacts MUST be an array of strings. cuts MUST be 2 to 6 objects. role MUST be one of: arrival, hook, question, pressure, reframe, escalation, discovery, consequence, release, payoff, callback, continuation. gainKind MUST be one of: new_fact, surprise, question, escalation, reframe, discovery, consequence, callback, payoff. Every cut MUST contain role, gainKind, change, next, text.",
+        "Do not output booleans, alternate schemas, commentary, or an optional continuation object. continuation, when used, must be a string.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify(field) },
   ], "json");
 
   debug(result.text);
-  const parsed = parseJson<{ sequence?: unknown }>(result.text);
-  const sequence = buildSequence(input.subject, parsed?.sequence);
+  const parsed = parseJson<{ sequence?: unknown; baselineFacts?: unknown; cuts?: unknown }>(result.text);
+  const sequenceRaw = parsed?.sequence ?? parsed;
+  const sequence = buildSequence(input.subject, sequenceRaw);
   const sequenceResult = scenesFromSequence(sequence, input);
   const worldValue = world(input);
   const recovered = recoveredTexts(result.text);
