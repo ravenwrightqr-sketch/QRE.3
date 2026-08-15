@@ -137,9 +137,11 @@ Absent explicit truth, the author remains neutral. The author may never promote 
 
 Coco's current benchmark truth explicitly establishes male/he-him.
 
+Production now also resolves subject identity from prompt text and **subject-owned active memory facts** through `apps/api/src/services/authorTruth.ts`. Memory facts are scoped by entity ID where available so another person's identity cannot leak into the current subject.
+
 ### Cognitive seam repaired
 
-`experienceService.ts` now passes `compiled.plan` into `authorMicroBeats` as `cognitivePlan`.
+`experienceService.ts` now passes `compiled.plan` into `authorMicroBeats` as `cognitivePlan` and passes the production `SubjectTruth` into the same Brain.
 
 This is critical. The previous implementation sent the mouth facts and context but discarded the universal cognition plan that had already discovered significance, story structure, creative possibilities, memory model, dynamic behavior, and future evolution.
 
@@ -152,6 +154,10 @@ The fast Ollama temperature was restored from `0.35` to `0.75`.
 Reason: the earlier low-temperature fast mode produced repetitive literal paraphrase (`Bows? Yuck! / Treats... / Scared? / Happy...`) instead of exploratory creative framing.
 
 Fast output budget is `192` tokens with model keep-alive enabled so the lab remains rapid without aggressively truncating the JSON envelope.
+
+### Safety invariant
+
+Identity and factual truth must never be inferred by the author from absence or wording accidents. Truth comes from explicit prompt evidence, user/runtime facts, or subject-owned memory facts. Creative framing can reinterpret truth; it cannot manufacture truth.
 
 ### Current architectural goal
 
