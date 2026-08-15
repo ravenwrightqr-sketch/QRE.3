@@ -1,184 +1,179 @@
 # QRE Author Changelog
 
-This file is the permanent experimental memory for the QRE author system.
+This is the permanent experimental memory for the QRE Author.
 
-**Important:** this file contains historical entries. The latest "Current Truth" section overrides older implementation claims.
+Historical entries remain below, but the latest **CURRENT TRUTH** section overrides stale implementation claims.
 
 ## Working Rules
 
-- Change one meaningful author behavior at a time whenever practical.
 - Trace the full influence graph before changing author/cognition/compiler behavior.
+- One canonical change at a time.
 - Run the real Ollama runtime after meaningful changes.
-- Inspect actual sequences, raw output, validated output, and production-path output.
-- Keep creative benchmarks focused on capabilities, not exact prose.
-- Record why a rule exists and what subsystem owns it.
-- Never weaken a benchmark merely to make it green.
-- After 2–4 meaningful experiments, update the strategic documentation.
+- Inspect raw output, validated output, and production-path output.
+- Learn general mechanisms, not phrase blacklists.
+- Never weaken quality gates to make tests green.
+- After 2–4 meaningful experiments, update this file and the architecture index.
 
 ---
 
 ## CURRENT TRUTH — 2026-08-15
 
-### Production author convergence: first step complete
+### One brain / one path / one acceptance harness
 
-The production micro-beat adapter now calls the canonical Universal Author directly:
+The author architecture is now intentionally consolidated:
 
 ```text
+PRODUCTION
 experienceService
-→ microBeatMouth
+→ microBeatMouth / cinematicAuthor adapters
+→ authorBrainUniversal
+
+ACCEPTANCE
+author-acceptance-suite
 → authorBrainUniversal
 ```
 
-The legacy `authorBrain.ts` is no longer the production author called by `microBeatMouth.ts`.
+Both paths enter the **same Master Author**.
 
-Production sequence length is now **earned**, not forced to 4 or 5 cuts. The adapter caps output at six cuts for runtime safety, while allowing two-cut sequences to be valid.
-
-### Remaining production convergence
-
-`cinematicAuthor.ts` still calls legacy `authorBrain.ts` and may run a separate critique/repair author loop.
-
-`authorCutPolicy.ts` is richer than the Universal Author's duplicated local validator and should become the canonical semantic cut policy.
-
-These are the next convergence targets.
-
-### Canonical creative expansion surface
+### Master Author
 
 `apps/api/src/services/authorBrainUniversal.ts`
 
-This is the current Goal-1 author surface for creative sequence intelligence.
+This is the only Goal-1 creative author authority.
 
-It should consume upstream world truth, significance, memory, creative candidates, relation hypotheses, learning, and viewer momentum. It should not re-create those systems.
+It must remain a living intelligence core: expand it when a general creative law is discovered; never reintroduce domain-specific or benchmark-specific author branches.
 
-### Upstream cognition that should be preserved
+### Production adapters
 
-`packages/engine/src/cognition/universalMind.ts` already owns major cognition:
+`apps/api/src/services/microBeatMouth.ts`
+
+- projection/runtime adapter only
+- no independent author
+- no fixed creative beat count
+
+`apps/api/src/services/cinematicAuthor.ts`
+
+- rendering adapter only
+- no independent author
+- no critique/repair author loop
+- no fixed creative beat count
+
+### Canonical acceptance harness
+
+`apps/api/author-acceptance-suite.ts`
+
+Cases currently preserved:
 
 ```text
-memory resolution
-world model
-sanitization
-narrative-world collapse
-significance
-creative candidates
-composition candidates
-voice candidates
-revision
-critical selection
-experience planning
-mind-state learning
+COCO
+COCO-RETURN
+MARIA
+HORROR
+RAVE
 ```
 
-This is not junk. The convergence task is to make this upstream cognition feed one canonical Universal Author instead of maintaining a second author path.
+Run with:
 
-### Canonical semantic boundary
+```powershell
+pnpm author:fast -- COCO
+```
+
+The harness calls `authorBrainUniversal` directly. There is no test-only author bridge and no test-only creative prompt enrichment.
+
+### Deleted author junk
+
+Removed:
+
+```text
+apps/api/src/services/authorBrain.ts
+apps/api/src/services/authorBrainMomentum.ts
+apps/api/src/services/authorBrainMomentumV2.ts
+apps/api/src/services/authorBrainMomentumV3.ts
+apps/api/src/services/authorFastCore.ts
+apps/api/src/services/creativeRelationOps.ts
+```
+
+### Deleted test junk
+
+Removed the accumulated one-off API author benchmark scripts.
+
+The single replacement is:
+
+```text
+apps/api/author-acceptance-suite.ts
+```
+
+### Upstream cognition remains authoritative
 
 Keep and evolve:
 
 ```text
-packages/contracts/src/sequencePlay.ts
-packages/contracts/src/viewerMomentum.ts
-packages/contracts/src/subjectTruth.ts
-packages/contracts/src/world.ts
-packages/contracts/src/realityModel.ts
-packages/contracts/src/authoring.ts
-packages/contracts/src/cognition.ts
+packages/engine/src/cognition/universalMind.ts
+packages/engine/src/cognition/worldModel.ts
+packages/engine/src/cognition/significanceEngine.ts
+packages/engine/src/cognition/creativePolicy.ts
+packages/engine/src/cognition/experiencePlanner.ts
+packages/engine/src/cognition/mindState.ts
 ```
 
-Do not create another sequence or viewer-state contract without a demonstrated capability gap.
+These provide world understanding, significance, creative candidate search, planning, and learning. They are upstream cognition, not competing mouths.
 
-### Sparse-world law
+### Cut policy
 
-Less evidence means less invented-world surface area, not less creativity.
+`apps/api/src/services/authorCutPolicy.ts` is the intended single semantic cut evaluator.
 
-Creative interpretation, juxtaposition, compression, implication, and reframe are allowed. New people, relationships, dialogue, physical events, object placement, locations, dates, and outcomes require evidence.
+The next implementation task is to converge Universal Author validation on this service and eliminate remaining duplicate cut-validation logic.
 
-### Sequence law
-
-A fact can be true without being an attention cut.
-
-The author must continually transform the viewer's mental model:
+### Core creative laws
 
 ```text
-known
-→ expectation
-→ gap
-→ valid surprise / reframe / implication
-→ new desire
-→ payoff
+identity is baseline
+truth ≠ attention
+source state ≠ plot instruction
+emotion ≠ automatic story arc
+creative interpretation ≠ invented event
+questions belong in hidden cognition
+provider/service is usually stage context
+subject/world gravity
+compressed impact > word-count fetish
+one cut = one attention moment
+next cut must earn itself
+recurrence requires evidence
+sparse world → smaller invented-world surface
 ```
 
-No fixed beat count.
+### Test integrity invariant
 
-### Mouth law
+> **The test must not influence the production path, and the production path must not use a different author from the test.**
 
-The mouth is realization, not discovery.
+A benchmark is an observer. The Master Author is the authority.
 
-Questions are hidden cognition unless supplied as source language.
+### Next engineering target
 
-Shortness is not the objective. Compressed impact is.
+Converge every semantic cut-validation call onto `authorCutPolicy.ts`, then run the same acceptance matrix through both the direct harness and the actual production compile path.
 
 ---
 
-## 2026-08-15 — FULL REPO INFLUENCE AUDIT
+## HISTORICAL ENTRIES
 
-### Critical discovery
+Older experiments are retained as evidence of discovered creative laws. They are not implementation authority.
 
-Multiple complete cognition/author systems coexist in the repository. The full influence map is maintained at:
+Key durable findings include:
 
+- QRE is splicing film, not writing a conventional paragraph.
+- Two-word cuts can be powerful when they carry high implied context.
+- Shortness itself is not the objective.
+- A fact can be true without earning an attention cut.
+- Emotional states are evidence, not automatic plot structure.
+- Generic transformation arcs are a common failure mode.
+- Service providers are usually stage context rather than protagonists.
+- Questions belong in hidden cognition unless they are supplied source language.
+- Sparse inputs should produce tighter creative implication rather than fabricated backstory.
+- Returning chapters must change meaning rather than replay earlier chapters.
+- `Lawyer informed.` and `Pink bows everywhere.` are reference behaviors for compressed implication, not literal templates.
+
+See:
+
+`docs/QRE_AUTHOR_GOAL.md`
+`docs/AUTHOR_ARCHITECTURE_INDEX.md`
 `docs/QRE_FULL_REPO_INFLUENCE_MAP.md`
-
-Key conflicts discovered:
-
-```text
-old authorBrain
-Universal Author
-AuthorCognition heuristic modes
-AuthorCutPolicy
-UniversalMind
-CreativePolicy / creativeWriter
-CinematicAuthor critique/repair
-MicroBeatMouth projection adapter
-```
-
-The audit concluded that the repository needs **convergence**, not another parallel brain.
-
-### Engineering order
-
-1. Route production authoring through Universal Author. **DONE for microBeatMouth.**
-2. Unify semantic cut evaluation around `authorCutPolicy` or one replacement.
-3. Keep UniversalMind/significance/memory as upstream cognition.
-4. Remove beat-count logic from creative authority. **DONE for microBeatMouth.**
-5. Convert critique/repair into editing of the canonical sequence, not a second author.
-6. Dependency-trace old brains.
-7. Delete unused legacy brains/contracts.
-8. Run COCO, MARIA, HORROR, RAVE through the same production author path.
-9. Run COCO-RETURN as a memory-evolution test.
-
----
-
-## Historical entries below are retained as evidence
-
-Older entries may describe implementation states that have since been replaced. Do not use them as current architecture truth without checking the latest section above and the architecture index.
-
----
-
-## 2026-08-15 — Character-First Rapid-Attention Author
-
-Important discoveries retained:
-
-- QRE is not writing a novel. It is splicing rapid attention cuts.
-- Dramatic information density + next-cut pressure matters more than minimum word count.
-- `The monster appeared. / Pink bows everywhere.` is a reusable behavior pattern, not a Coco phrase template.
-- Character/world gravity matters. The subject temporarily becomes the star; the service is usually stage context.
-- `Coco is a poodle` can be true baseline knowledge without being an attention cut.
-- Mechanical `Coco Coco Coco` repetition is weak because identity is already established.
-- Generic AI-cinematic wording is not a substitute for creative movement.
-- Grounded reality must not be replaced by invented people, relationships, actions, outcomes, or provider behavior.
-
-## 2026-08-15 — Fast Author Iteration Loop
-
-The fast loop exists to accelerate experiments. It is not itself the production architecture.
-
-## 2026-08-15 — Creative Competition + Sequence Safety
-
-The author should compete among interpretations, attack the obvious answer, choose a champion angle, preserve truth, and build a sequence whose next cut earns its existence.
