@@ -1,7 +1,7 @@
 import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorScene, SubjectTruth } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-const GENERIC = [/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/beautiful transformation/i,/magical moment/i,/unforgettable experience/i,/incredible journey/i,/new routine/i,/power of (?:love|affection|friendship)/i,/symbol of (?:love|bravery|affection|friendship)/i,/eyes sparkle/i,/heart softens/i,/tiny paws/i];
+const GENERIC = [/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/beautiful transformation/i,/magical moment/i,/unforgettable experience/i,/incredible journey/i,/new routine/i,/power of (?:love|affection|friendship)/i,/symbol of (?:love|bravery|affection|friendship)/i,/eyes sparkle/i,/heart softens/i,/tiny paws/i,/happy now/i,/happily now/i,/looks happy/i,/feels happy/i];
 const META = /\b(ai|qre|prompt|compiler|cognition|metadata|model|instruction|writing process)\b/i;
 const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner’s|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner)\b/i;
 const DIALOGUE = /[“”]/;
@@ -48,10 +48,15 @@ function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
   return Boolean(truth?.pronouns && ["explicit","memory","runtime"].includes(truth.provenance));
 }
 
+function unsupportedEmotion(text: string): boolean {
+  return /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken)\b/i.test(text);
+}
+
 function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (!text || META.test(text) || GENERIC.some((pattern) => pattern.test(text))) return true;
   if (CAMERA.test(text) || DIALOGUE.test(text)) return true;
   if (MULTI_CUT_PUNCT.test(text)) return true;
+  if (unsupportedEmotion(text) && !/\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken)\b/i.test(input.prompt)) return true;
   if (!pronounsAllowed(text, input.subjectTruth)) return true;
   const service = /\b(service|groom|grooming|clean|cleaning|housekeeping|pool|maintenance|barber|salon|repair|mechanic|client|customer)\b/i.test(`${input.prompt} ${input.lens ?? ""}`);
   if (service && PROVIDER.test(text) && !input.facts.concat(input.sourceMoments).some((fact) => PROVIDER.test(fact))) return true;
@@ -99,7 +104,7 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
     payoff: clean(plan?.futureEvolution?.[0]) || "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit","short","short","hit"] : ["hit","short","standard","short","hit"],
-    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose"],
+    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries"],
   };
 }
 
@@ -122,15 +127,20 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
       role: "system",
       content: [
         "You are QRE's universal author.",
-        "Think deeply but output only the finished cuts. Privately compete between interpretations. Kill the obvious, generic, sentimental, repetitive, or fact-list version. Find the most character-specific movie hidden in the supplied reality and history.",
-        "The subject is temporarily the star. Service, business, job, event, place, and object are stage and raw material unless explicitly established as characters.",
+        "Think deeply but output only the finished cuts. Privately compete between genuinely different interpretations. Kill the obvious, generic, sentimental, repetitive, literal action-report, and fact-list versions.",
+        "Your job is not to summarize what happened. Find the most specific movie hidden inside what happened.",
+        "Once the subject is established, assume the viewer already knows who we are watching. Do not waste cuts repeating the subject name unless the name itself creates a deliberate effect.",
+        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence makes the subject's world more interesting. Database relationship labels such as owner or customer are not cinematic language unless explicitly meaningful in the source.",
+        "A raw action is not automatically a beat. A report such as 'Coco barks' or 'owner fixes bow' is footage, not authorship. Prefer the charged implication, relationship, contradiction, image, callback, status shift, or unexpected consequence hiding inside the fact.",
+        "Do not manufacture emotions. Show character through what is observable, specific, or established in memory. Never infer a private emotional state merely because an action seems happy, sad, nervous, or afraid.",
         "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, dialogue, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
-        "ONE LINE = ONE ATTENTION MOMENT. Every cut should make the next cut desirable.",
-        "Compression means removing explanation, not making every line tiny. Use 2–4 words when that hits harder. Use longer lines only when they add real dramatic information.",
-        "Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
-        "Do not repeat the subject name mechanically. Do not announce themes. Do not narrate multiple actions inside one cut.",
+        "ONE LINE = ONE ATTENTION MOMENT. A cut should add NEW information or change the meaning of what came before.",
+        "The strongest cuts may be very short: 'The monster appeared.' 'Pink bows everywhere.' The power is implication, not word count.",
+        "Prefer implied subject + new information over explicit subject + narrated action when the subject is already established.",
+        "Do not narrate multiple shots inside one line. Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
+        "Do not write a miniature novel. Do not announce themes. Do not explain the character to the viewer. Make the viewer discover the character through the cut sequence.",
         input.returning ? "Returning chapter: evolve history. A callback must change meaning, stakes, or relationship." : "",
-        `Return EXACTLY ${target} scenes. JSON ONLY: {"scenes":[{"text":"...","kind":"line"}]}`,
+        `Return EXACTLY ${target} scenes. JSON ONLY: {\"scenes\":[{\"text\":\"...\",\"kind\":\"line\"}]}`,
       ].join(" "),
     },
     { role: "user", content: JSON.stringify({ prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "", field }) },
