@@ -141,7 +141,7 @@ If removal damage is negligible, delete the cut.
 ```text
 apps/api/src/services/authorFastCore.ts
         ↓
-apps/api/src/services/authorBrainMomentumV2.ts
+apps/api/src/services/authorBrainUniversal.ts
         ↓
 compact sequence spine
         ↓
@@ -150,9 +150,16 @@ QRE reconstructs ViewerMomentum / SequencePlay diagnostics
 finished scenes
 ```
 
-**CANONICAL IMPLEMENTATION RULE:** `authorBrainMomentumV2.ts` is the active fast-production author. It is intentionally a living intelligence core and should be expanded or tuned when stronger general laws are discovered. Do not preserve weaker implementations merely for compatibility.
+**CANONICAL IMPLEMENTATION RULE:** `authorBrainUniversal.ts` is the active fast-production author and the canonical expansion surface. It is intentionally designed to be expanded or tuned when stronger general laws are discovered. Do not preserve weaker implementations merely for compatibility.
 
-The previous `authorBrainMomentum.ts` is now **legacy / rollback / audit only** until dependency tracing proves it can be removed.
+The previous numbered Momentum implementations are **legacy / rollback / audit only** and should be deleted after dependency tracing confirms no production/test dependency remains:
+
+```text
+apps/api/src/services/authorBrainMomentumV2.ts
+apps/api/src/services/authorBrainMomentumV3.ts
+```
+
+The older `authorBrainMomentum.ts` and `authorBrain.ts` remain legacy candidates as well.
 
 The compact model output is:
 
@@ -166,10 +173,9 @@ sequence
     change
     next
     text
-scenes[]
 ```
 
-This preserves creative budget for the actual cuts.
+The mouth is recovered directly from validated sequence cut text. A malformed duplicate `scenes[]` field must never erase a valid sequence.
 
 ## 8. ACTIVE SUPPORT FILES
 
@@ -183,11 +189,11 @@ packages/contracts/src/index.ts
 
 ## 9. LEGACY / JUNK WATCHLIST
 
-These are still candidates for removal after dependency tracing:
-
 ```text
 apps/api/src/services/authorBrain.ts
 apps/api/src/services/authorBrainMomentum.ts
+apps/api/src/services/authorBrainMomentumV2.ts
+apps/api/src/services/authorBrainMomentumV3.ts
 packages/engine/src/cognition/creativeWriter.ts
 packages/engine/src/cognition/creativeComposition.ts
 packages/engine/src/cognition/creativeVoiceEngine.ts
@@ -221,13 +227,13 @@ large cognitive JSON from the model
         ↓
 compact sequence spine + programmatic diagnostics
 
-old Momentum author
+numbered Momentum brains
         ↓
-Momentum V2
+canonical Universal Author Brain
 
 canned prose generators
         ↓
-creative competition + Momentum Author
+creative competition + Universal Author Brain
 
 phrase blacklist growth
         ↓
@@ -252,13 +258,14 @@ F. VALIDATION / PARSING
 G. RUNTIME / MODEL-BUDGET
 ```
 
-The current failure pattern is primarily **author realization + grounding + mouth recovery**:
+The recent failure pattern was primarily **author realization + representation**:
 
-- abstract emotional states were being converted into unsupported physical actions;
-- hidden viewer questions were leaking into finished cuts;
-- comma repair was destroying multi-clause output into fragments.
+- emotional state was being mistaken for plot direction;
+- the local model invented unsupported physical performances;
+- hidden viewer questions leaked into the mouth;
+- duplicate output fields created unnecessary failure modes.
 
-The V2 brain addresses these at the generation boundary rather than relying on destructive cleanup.
+The canonical Universal Author now treats sequence cut text as the authoritative mouth source and keeps viewer cognition separate from finished language.
 
 ## 13. DEVELOPMENT LAW
 
