@@ -143,6 +143,8 @@ apps/api/src/services/authorFastCore.ts
         ↓
 apps/api/src/services/authorBrainUniversal.ts
         ↓
+creative relation operations
+        ↓
 compact sequence spine
         ↓
 QRE reconstructs ViewerMomentum / SequencePlay diagnostics
@@ -152,14 +154,15 @@ finished scenes
 
 **CANONICAL IMPLEMENTATION RULE:** `authorBrainUniversal.ts` is the active fast-production author and the canonical expansion surface. It is intentionally designed to be expanded or tuned when stronger general laws are discovered. Do not preserve weaker implementations merely for compatibility.
 
+The fast bridge may supply **creative relation candidates** from `apps/api/src/services/creativeRelationOps.ts`. These are search hints only; the Universal Author decides whether to use, transform, reject, or ignore them.
+
 The previous numbered Momentum implementations are **legacy / rollback / audit only** and should be deleted after dependency tracing confirms no production/test dependency remains:
 
 ```text
+apps/api/src/services/authorBrainMomentum.ts
 apps/api/src/services/authorBrainMomentumV2.ts
 apps/api/src/services/authorBrainMomentumV3.ts
 ```
-
-The older `authorBrainMomentum.ts` and `authorBrain.ts` remain legacy candidates as well.
 
 The compact model output is:
 
@@ -182,6 +185,7 @@ The mouth is recovered directly from validated sequence cut text. A malformed du
 ```text
 apps/api/src/services/localModelRuntime.ts
 apps/api/author-fast-suite.ts
+apps/api/src/services/creativeRelationOps.ts
 packages/contracts/src/sequencePlay.ts
 packages/contracts/src/viewerMomentum.ts
 packages/contracts/src/index.ts
@@ -231,6 +235,10 @@ numbered Momentum brains
         ↓
 canonical Universal Author Brain
 
+source-state → generic emotional arc
+        ↓
+specific relationship / implication search
+
 canned prose generators
         ↓
 creative competition + Universal Author Brain
@@ -244,7 +252,29 @@ provider/service as protagonist
 subject/world gravity
 ```
 
-## 12. DIAGNOSTIC RULE
+## 12. CREATIVE RELATION OPERATIONS
+
+The new relation operation layer is deliberately generic.
+
+It may derive candidate expressions from relationships such as:
+
+```text
+preference ↔ preference
+positive ↔ negative
+status ↔ history
+recurrence ↔ present context
+contradiction ↔ consequence
+```
+
+These candidates are **not finished prose and not facts**. They are a search surface for the Universal Author.
+
+Canonical rule:
+
+> **Generate possibilities programmatically. Let the Brain decide what the movie is.**
+
+A useful operation must transfer across unrelated worlds. For example, a recurrence operation may discover a compact returning detail in Coco, a wedding, a restaurant, travel, a product history, or horror without hardcoding the domain.
+
+## 13. DIAGNOSTIC RULE
 
 Classify failures before changing code:
 
@@ -258,16 +288,15 @@ F. VALIDATION / PARSING
 G. RUNTIME / MODEL-BUDGET
 ```
 
-The recent failure pattern was primarily **author realization + representation**:
+Recent failures were primarily **E + F**:
 
-- emotional state was being mistaken for plot direction;
-- the local model invented unsupported physical performances;
-- hidden viewer questions leaked into the mouth;
-- duplicate output fields created unnecessary failure modes.
+- the model understood the sequence vocabulary but leaked hidden questions into finished cuts;
+- source states were still being overused as generic transformation arcs;
+- a valid sequence could be discarded because a duplicate output field or narrow mouth validator failed.
 
-The canonical Universal Author now treats sequence cut text as the authoritative mouth source and keeps viewer cognition separate from finished language.
+The current direction addresses this by separating hidden cognition from mouth realization and by providing generalized creative-relation search hints.
 
-## 13. DEVELOPMENT LAW
+## 14. DEVELOPMENT LAW
 
 ```text
 failure
@@ -292,7 +321,7 @@ WHAT REPLACES IT?
 WHAT IS THE NEXT HYPOTHESIS?
 ```
 
-## 14. CLEAN REPO PRINCIPLE
+## 15. CLEAN REPO PRINCIPLE
 
 QRE should become easier to understand as intelligence increases.
 
