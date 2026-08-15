@@ -25,7 +25,6 @@ const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner�
 const PROVIDER_SPOKEN = /\b(?:says?|asks?|replies?|answers?|sighs?|laughs?|smiles?|whispers?|shouts?|yells?)\b|[“”]/i;
 const FORCED_CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const CHEESE = /\b(?:tiny paws|heart softens|eyes sparkle|cherished|symbol of|power of|magical moment|beautiful transformation)\b/i;
-const ABSTRACT_ANGLE = /\b(?:transformation|fear vs\.? affection|from (?:scared|fear) to (?:happy|joy)|first treat|new routine|building trust|journey with|emotional journey)\b/i;
 
 const clean = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
 const uniq = (xs: unknown[]) => [...new Set(xs.map(clean).filter(Boolean))];
@@ -59,11 +58,22 @@ function splitText(text: string): Scene[] {
     .map((line) => ({ text: line, kind: "line" }));
 }
 function extractScenes(raw: unknown): Scene[] {
-  if (Array.isArray(raw)) return raw as Scene[];
+  if (Array.isArray(raw)) {
+    return raw.flatMap((item) => {
+      if (typeof item === "string") return [{ text: clean(item), kind: "line" }];
+      if (item && typeof item === "object") {
+        const value = item as { text?: unknown; kind?: unknown };
+        return typeof value.text === "string"
+          ? [{ text: clean(value.text), kind: clean(value.kind) || "line" }]
+          : [];
+      }
+      return [];
+    });
+  }
   if (!raw || typeof raw !== "object") return [];
   const value = raw as { scenes?: unknown; text?: unknown; lines?: unknown[] };
-  if (Array.isArray(value.scenes)) return value.scenes as Scene[];
-  if (Array.isArray(value.lines)) return value.lines.map((line) => ({ text: clean(line), kind: "line" }));
+  if (Array.isArray(value.scenes)) return extractScenes(value.scenes);
+  if (Array.isArray(value.lines)) return value.lines.flatMap((line) => typeof line === "string" ? [{ text: clean(line), kind: "line" }] : []);
   if (typeof value.text === "string") return splitText(value.text);
   return [];
 }
@@ -107,7 +117,7 @@ export async function authorFast(input: Input): Promise<{ plan: Plan; scenes: Sc
         "REALITY IS SACRED: never invent gender/pronouns, people, relationships, provider characters, dialogue, locations, object placement, actions, timestamps, outcomes, weather, or physical events absent from the evidence.",
         "Do not use camera directions, AI cheese, sentimental filler, generic goodbyes, or receipt-like fact listing.",
         `Create EXACTLY ${beatCount} lines.`,
-        "Return JSON only: {scenes:[{text,kind:'line'}]}. A newline-separated text block is also acceptable.",
+        "Return JSON only: {scenes:[{text,kind:'line'}]}. A newline-separated text block is also accepted. Never return scenes as bare strings; use the object form.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify(source) },
