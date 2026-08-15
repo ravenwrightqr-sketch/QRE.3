@@ -43,26 +43,30 @@ const GAINS = new Set([
   "new_fact", "surprise", "question", "escalation", "reframe",
   "discovery", "consequence", "callback", "payoff",
 ]);
-const GAIN_ALIASES: Record<string, string> = {
+const GAIN_ALIASES: Record<string, SequenceCut["gainKind"]> = {
   resolution: "payoff",
   reveal: "discovery",
-  hidden_information: "discovery",
   unrevealed_information: "discovery",
-  implication: "discovery",
+  hidden_information: "discovery",
   turn: "reframe",
   reversal: "reframe",
 };
 const META = /\b(?:qre|prompt|compiler|cognition|metadata|language model|writing process)\b/i;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|scene opens|we see|fade to)\b/i;
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love|quirky personality|grooming journey|positive transformation|emotional journey)\b/i;
-const LITERAL_QUESTION = /^(?:what|why|how|when|where|who|will|did|is|can|could|should)\b[^.?!]*\?$/i;
+const ANY_QUESTION = /\?/;
 const PROVIDER = /\b(?:groomer|cleaner|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner|customer|client)\b/i;
-const UNSUPPORTED_ACTION = /\b(?:trembles|trembling|shakes|shaking|leaps|jumped|jumps|hides|hiding|cries|crying|smiles|smiling|wags|wagging|runs|running|grabs|grabbed|throws|threw|places|placed|removes|removed|approaches|approached|walks|walked|laughs|laughed|chews|chewed|licks|licked|bites|bit|drops|dropped)\b/i;
+const UNSUPPORTED_ACTION = /\b(?:trembles|trembling|shakes|shaking|leaps|jumped|jumps|hides|hiding|cries|crying|smiles|smiling|wags|wagging|runs|running|grabs|grabbed|throws|threw|places|placed|removes|removed|approaches|approached|walks|walked|laughs|laughed|chews|chewed|licks|licked|bites|bit|drops|dropped|widens|widened|pulls|pulled|picks|picked)\b/i;
 const EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
 const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20): string[] => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
+
+function canonicalGain(value: unknown): string {
+  const normalized = clean(value).toLowerCase();
+  return GAIN_ALIASES[normalized] ?? normalized;
+}
 
 function parseJson<T>(raw: string): T | null {
   const text = String(raw ?? "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
@@ -107,29 +111,19 @@ function groundedEnough(text: string, input: AuthorBrainTruth): boolean {
   return hits.length >= Math.max(1, Math.ceil(words.length * 0.25));
 }
 
+function sourceBackedQuestion(text: string, input: AuthorBrainTruth): boolean {
+  return sourceFragments(input).some((fragment) => fragment.includes(text));
+}
+
 function validCut(text: string, input: AuthorBrainTruth): boolean {
   if (!text || text.split(/\s+/).length > 14) return false;
   if (META.test(text) || CAMERA.test(text) || GENERIC.test(text)) return false;
-  if (LITERAL_QUESTION.test(text)) return false;
+  if (ANY_QUESTION.test(text) && !sourceBackedQuestion(text, input)) return false;
   if (PROVIDER.test(text) && !PROVIDER.test(worldText(input))) return false;
   if (UNSUPPORTED_ACTION.test(text) && !UNSUPPORTED_ACTION.test(worldText(input))) return false;
   if (EMOTION.test(text) && !EMOTION.test(worldText(input))) return false;
   if (text.split(/\s+/).length > 3 && !groundedEnough(text, input)) return false;
   return true;
-}
-
-function normalizeScenes(raw: unknown): AuthorScene[] {
-  if (Array.isArray(raw)) {
-    return raw.flatMap((item) => {
-      if (typeof item === "string") return [{ text: clean(item), kind: "line" as const }];
-      if (item && typeof item === "object" && typeof (item as AuthorScene).text === "string") {
-        return [{ text: clean((item as AuthorScene).text), kind: "line" as const }];
-      }
-      return [];
-    });
-  }
-  if (typeof raw === "string") return raw.split(/\n+/).map(clean).filter(Boolean).map((text) => ({ text, kind: "line" as const }));
-  return [];
 }
 
 function recoveredTexts(raw: string): string[] {
@@ -139,11 +133,6 @@ function recoveredTexts(raw: string): string[] {
     try { out.push(clean(JSON.parse(`"${match[1]}"`))); } catch { /* ignore */ }
   }
   return out;
-}
-
-function canonicalGain(value: unknown): string {
-  const normalized = clean(value).toLowerCase();
-  return GAIN_ALIASES[normalized] ?? normalized;
 }
 
 function buildSequence(subject: string, raw: unknown): SequencePlay | undefined {
@@ -224,13 +213,15 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   };
 }
 
-function scenesFromSequence(sequence: SequencePlay | undefined, input: AuthorBrainTruth): AuthorScene[] {
-  if (!sequence) return [];
-  return sequence.cuts
+function scenesFromSequence(sequence: SequencePlay | undefined, input: AuthorBrainTruth): { scenes: AuthorScene[]; attempted: number; rejected: number } {
+  if (!sequence) return { scenes: [], attempted: 0, rejected: 0 };
+  const attempted = sequence.cuts.length;
+  const scenes = sequence.cuts
     .map((cut) => clean((cut as SequenceCut & { text?: string }).text ?? ""))
     .filter(Boolean)
     .filter((text) => validCut(text, input))
     .map((text) => ({ text, kind: "line" as const }));
+  return { scenes, attempted, rejected: attempted - scenes.length };
 }
 
 function brief(input: AuthorBrainTruth): AuthorCreativeBrief {
@@ -247,7 +238,7 @@ function brief(input: AuthorBrainTruth): AuthorCreativeBrief {
   };
 }
 
-export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown> }> {
+export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown>; diagnostics: Record<string, unknown> }> {
   const learning = uniq(input.creativeLearningContext, 20);
   const field = {
     identity: uniq(input.subjectTruth?.identityFacts, 8),
@@ -294,11 +285,24 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
   debug(result.text);
   const parsed = parseJson<{ sequence?: unknown }>(result.text);
   const sequence = buildSequence(input.subject, parsed?.sequence);
-  const sequenceScenes = scenesFromSequence(sequence, input);
-  const recoveredScenes = recoveredTexts(result.text).map((text) => ({ text, kind: "line" as const }));
-  const scenes = [...sequenceScenes, ...recoveredScenes]
+  const sequenceResult = scenesFromSequence(sequence, input);
+  const recovered = recoveredTexts(result.text).map((text) => ({ text, kind: "line" as const }));
+  const recoveredValid = recovered.filter((scene) => validCut(scene.text, input));
+  const scenes = [...sequenceResult.scenes, ...recoveredValid]
     .filter((scene, index, all) => all.findIndex((candidate) => candidate.text.toLowerCase() === scene.text.toLowerCase()) === index)
     .slice(0, 6);
 
-  return { brief: brief(input), scenes, sequence, field };
+  return {
+    brief: brief(input),
+    scenes,
+    sequence,
+    field,
+    diagnostics: {
+      sequenceCutsAttempted: sequenceResult.attempted,
+      sequenceCutsRejected: sequenceResult.rejected,
+      recoveredTextsAttempted: recovered.length,
+      recoveredTextsRejected: recovered.length - recoveredValid.length,
+      finalScenes: scenes.length,
+    },
+  };
 }
