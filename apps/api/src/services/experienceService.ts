@@ -1,7 +1,8 @@
-import { compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
+import { buildPresenceContext, compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
 import type { MemoryContext } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
+import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { authorCinematicSequence } from "./cinematicAuthor.js";
 
@@ -33,6 +34,7 @@ export type CompiledExperienceResult = {
   cognition?: unknown;
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
+  presence?: unknown;
   warnings?: string[];
   [key: string]: unknown;
 };
@@ -133,11 +135,23 @@ export async function compileExperience(input: {
     }
   }
 
+  let presenceContext: Awaited<ReturnType<typeof buildPresenceContext>> | undefined;
+  if (input.assetId) {
+    try {
+      presenceContext = await buildPresenceContext(input.assetId, createPresenceRepository());
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Presence context unavailable; continuing without presence history.", error);
+      warnings.push("presence_context_unavailable");
+    }
+  }
+
   const analytics = summarizeCognitiveAnalytics(analyticsEvents);
   const geo = input.geoAnchor;
   const role = geo?.role ?? "experience_place";
+  const presenceSummary = presenceContext?.summary ?? [];
   let compiled: any = compileCognitiveExperience(prompt, {
-    memorySummary,
+    memorySummary: [...memorySummary, ...presenceSummary],
+    presence: presenceContext,
     analytics,
     location: geo ? { label: geo.label, city: geo.city, region: geo.region, country: geo.country, latitude: geo.latitude, longitude: geo.longitude, role, source: geo.source } : undefined,
     event: geo ? { venue: geo.label, date: geo.time, description: role === "physical_site" ? "Persistent physical site for this QRE asset." : undefined } : undefined,
@@ -148,20 +162,24 @@ export async function compileExperience(input: {
       prompt,
       lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
       subject: String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? ""),
-      place: String(geo?.label ?? ""),
+      place: String(geo?.label ?? presenceContext?.places?.[0] ?? ""),
       sourceMoments: [
         ...(Array.isArray(compiled.moments) ? compiled.moments.map((moment: any) => String(moment?.text ?? moment?.description ?? "").trim()).filter(Boolean) : []),
         ...(memorySummary as string[]),
-      ].slice(0, 24),
+        ...presenceSummary,
+      ].slice(0, 32),
       facts: [
         ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
         ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
         ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
         ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
         ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
-      ],
-      memoryContext: memorySummary as string[],
-      creativeLearningContext: Array.isArray(compiled.learningSignals) ? compiled.learningSignals.slice(0, 20) : [],
+        ...presenceContext?.places?.slice(0, 12) ?? [],
+        presenceContext?.visitNumber ? `visit ${presenceContext.visitNumber}` : "",
+        presenceContext?.isReturning ? "returning visit" : "first known visit",
+      ].filter(Boolean),
+      memoryContext: [...memorySummary, ...presenceSummary],
+      creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
       trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
     });
 
@@ -177,6 +195,7 @@ export async function compileExperience(input: {
     metadata: {
       ...((compiled.blueprint as any)?.metadata ?? {}),
       geoAnchor: geo ? { role, label: geo.label ?? null, latitude: geo.latitude ?? null, longitude: geo.longitude ?? null, source: geo.source ?? "dashboard", time: geo.time ?? null } : null,
+      presence: presenceContext ?? null,
       cinematicAuthor: {
         sceneRule: "one_short_thought_per_scene",
         sequenceAppendsAllowed: true,
@@ -185,7 +204,7 @@ export async function compileExperience(input: {
     },
   };
 
-  const result: CompiledExperienceResult = { ...compiled, blueprint: enrichedBlueprint, geo: geo ?? null, warnings };
+  const result: CompiledExperienceResult = { ...compiled, blueprint: enrichedBlueprint, geo: geo ?? null, presence: presenceContext ?? null, warnings };
 
   if (input.assetId && input.memoryRepository) {
     try {
