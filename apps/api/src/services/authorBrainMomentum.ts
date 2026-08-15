@@ -1,3 +1,33 @@
+/**
+ * QRE UNIVERSAL AUTHOR BRAIN · LIVING INTELLIGENCE CORE
+ *
+ * This file is a canonical creative-intelligence surface for Goal 1:
+ * discover compelling, grounded sequences from arbitrary worlds.
+ *
+ * It is intentionally designed to be EXPANDED, REFINED, and TUNED as QRE
+ * learns stronger general laws of attention, sequence, implication, memory,
+ * creativity, and cross-domain authoring.
+ *
+ * Preserve the underlying universal behavior. Prefer principled improvement
+ * over accumulating domain-specific hacks, phrase lists, or one-off fixes.
+ *
+ * IMPORTANT LEARNING LAW:
+ * A successful Coco behavior is valuable only when the underlying operation
+ * generalizes to other worlds. Example: recurrence compression may yield
+ * "Bow again." for Coco, while the same operation may surface a returning
+ * wedding detail, a restaurant recipe, a recurring travel location, a product
+ * flaw, a person's habit, or a horror clue.
+ *
+ * Every meaningful experiment should improve the reusable intelligence of the
+ * whole author. New discoveries belong here as general mechanisms, not as
+ * literal Coco rules.
+ *
+ * This file may be changed when better cognition demands it. Do not freeze
+ * today's implementation merely to preserve compatibility with a weaker
+ * author model. Document major architectural replacements in the author
+ * architecture index and master goal.
+ */
+
 import type {
   AuthorBrainTruth,
   AuthorCreativeBrief,
