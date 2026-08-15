@@ -1,5 +1,5 @@
 import type { AuthorBrainTruth } from "@qre/contracts";
-import { authorBrain } from "./authorBrainMomentum.js";
+import { authorBrainMomentum } from "./authorBrainMomentum.js";
 
 const SEQUENCE_PRINCIPLES = [
   "Goal 1: discover the strongest valid sequence hidden inside supplied reality.",
@@ -12,7 +12,7 @@ const SEQUENCE_PRINCIPLES = [
 ];
 
 export async function authorFast(input: AuthorBrainTruth) {
-  return authorBrain({
+  return authorBrainMomentum({
     ...input,
     creativeLearningContext: [...(input.creativeLearningContext ?? []), ...SEQUENCE_PRINCIPLES],
   });
