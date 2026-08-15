@@ -17,6 +17,84 @@ It records author experiments, hypotheses, observed outputs, benchmark changes, 
 
 ---
 
+## 2026-08-15 — Fast Author Iteration Loop
+
+Commits: `d61d9996981fc5c8f2ffb423ee4443feb61ec902`, `2a30bcb9e00e2a3289e80468444f858a4fcc1d0d`, `0bd4c4a6b2f3563d6ed61e2544d8d0e248a7c366`
+
+### Problem
+
+The full mouth suite was taking roughly 67–98 seconds per case because a failed first Ollama generation triggered a second repair generation. Running five cases made creative iteration too slow.
+
+### Change
+
+Added a deliberate fast development mode to `microBeatMouth.ts`:
+
+```text
+QRE_AUTHOR_FAST=true
+```
+
+Fast mode performs **one real Ollama generation** and returns the normalized first result. It does not run the repair retry. The normal author path and full suite retain repair behavior.
+
+Added:
+
+```text
+apps/api/author-fast-suite.ts
+```
+
+The fast suite runs one selected real Ollama case at a time. Default is COCO; a case can be selected as the first argument or with `QRE_AUTHOR_CASE`.
+
+Added API scripts:
+
+```text
+pnpm author:fast
+pnpm author:full
+```
+
+Examples:
+
+```text
+pnpm author:fast
+pnpm author:fast -- COCO-RETURN
+pnpm author:fast -- HORROR
+pnpm author:full
+```
+
+### Purpose
+
+This is **not a quality bypass for production**. It is an experimental loop so we can rapidly tune the mouth, validator, and creative realization without paying for a repair retry on every single experiment.
+
+The full suite remains the authoritative regression/creative check.
+
+### Iteration Model
+
+```text
+small code change
+      ↓
+pnpm author:fast -- COCO
+      ↓
+inspect actual sequence
+      ↓
+small code change
+      ↓
+repeat
+      ↓
+pnpm author:full
+      ↓
+full validation
+```
+
+### Important Lesson
+
+Do not optimize the author by making the benchmark weaker. Optimize the **development loop** so we can afford to run many experiments.
+
+### Status
+
+**IMPLEMENTED. LOCAL OLLAMA TIMING REQUIRED.**
+
+The connected GitHub environment cannot execute the user's local Ollama runtime, so the actual speedup still needs to be measured locally.
+
+---
+
 ## 2026-08-15 — Creative Competition + Sequence Safety
 
 Commit: `d7082e85f76b7728a287117910dd781c327b1cfb`
@@ -103,8 +181,9 @@ The GitHub-connected environment cannot execute the user's local Ollama runtime,
 Run locally:
 
 ```text
-pnpm exec tsx .\\author-creative-superstar-suite.ts
-pnpm exec tsx .\\author-mouth-quality-suite.ts
+pnpm author:fast -- COCO
+pnpm author:fast -- COCO-RETURN
+pnpm author:full
 ```
 
 Inspect the full COCO, COCO-RETURN, MARIA, HORROR, and RAVE sequences. Record the actual outputs and verdict here before making the next author change.
