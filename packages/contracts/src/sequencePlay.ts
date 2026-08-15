@@ -47,7 +47,8 @@ export type SequenceCut = {
   id: string;
   order: number;
   role: ViewerAttentionRole;
-  gainKind: SequenceGainKind;
+  /** Explicit classification. Optional only during migration of legacy producers. */
+  gainKind?: SequenceGainKind;
   sourceIds: string[];
   informationGain: string;
   attentionDelta: string;
@@ -63,6 +64,7 @@ export type SequencePlay = {
   subject: string;
   premise: string;
   openingState: ViewerState;
+  /** Facts/identity established before the actual attention sequence begins. */
   baselineFacts?: string[];
   cuts: SequenceCut[];
   closingState?: ViewerState;
