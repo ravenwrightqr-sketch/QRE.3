@@ -74,22 +74,26 @@ function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
         description: undefined,
         meta: {
           ...(baseMoment.meta ?? {}),
-          authoredBy: "qre-micro-beat-mouth",
+          authoredBy: "qre-universal-author",
           beatId: beat.id,
           beatKind: beat.kind,
           attentionRole: beat.attentionRole ?? null,
           operator: beat.operator ?? null,
           callback: beat.callback ?? false,
           sceneRule: "one_micro_thought_per_beat",
+          creativeAngle: beat.meta?.creativeAngle ?? null,
+          creativeEngine: beat.meta?.creativeEngine ?? null,
         },
       },
       meta: {
         ...(template.meta ?? {}),
-        authoredBy: "qre-micro-beat-mouth",
+        authoredBy: "qre-universal-author",
         beatId: beat.id,
         beatKind: beat.kind,
         callback: beat.callback ?? false,
         sceneRule: "one_micro_thought_per_beat",
+        creativeAngle: beat.meta?.creativeAngle ?? null,
+        creativeEngine: beat.meta?.creativeEngine ?? null,
       },
     };
   });
@@ -182,6 +186,7 @@ export async function compileExperience(input: {
       lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
       subject: String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? ""),
       place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+      cognitivePlan: compiled?.plan,
       facts: [
         ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
         ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
@@ -200,6 +205,9 @@ export async function compileExperience(input: {
       memoryContext: [...memorySummary, ...presenceSummary],
       creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
       trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
+      returning: presence?.isReturning ?? false,
+      visitNumber: presence?.visitNumber,
+      presenceSummary,
       presence: presence ?? undefined,
       round: presence?.visitNumber ?? 1,
     });
@@ -227,8 +235,8 @@ export async function compileExperience(input: {
       cinematicAuthor: {
         authoringAtom: "experience_beat",
         sceneRule: "one_micro_thought_per_beat",
-        targetWords: "2-4",
-        hardWordCeiling: 7,
+        presentation: "adaptive_line_rhythm",
+        hardPunctuationRule: "no_comma_or_semicolon_scene_cuts",
         playerOwnsExactPresentation: true,
       },
     },
