@@ -19,7 +19,7 @@ const GENERIC = [
 ];
 const META = /\b(ai|qre|prompt|compiler|cognition|metadata|model|instruction|writing process)\b/i;
 const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner’s|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner)\b/i;
-const SPOKEN = /\b(?:says?|asks?|replies?|answers?|sighs?|laughs?|smiles?|whispers?|shouts?|yells?)\b|[“”]/i;
+const DIALOGUE = /[“”]/;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const MULTI_CUT_PUNCT = /[,;]/;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
@@ -134,9 +134,7 @@ function subjectTruthText(truth?: SubjectTruth): string {
 }
 
 function normalizeScenes(raw: unknown): AuthorScene[] {
-  if (Array.isArray(raw)) {
-    return raw.map((item) => typeof item === "string" ? ({ text: item, kind: "line" as const }) : item as AuthorScene);
-  }
+  if (Array.isArray(raw)) return raw.map((item) => typeof item === "string" ? ({ text: item, kind: "line" as const }) : item as AuthorScene);
   if (!raw || typeof raw !== "object") return [];
   const value = raw as { scenes?: unknown; text?: unknown; lines?: unknown[] };
   if (Array.isArray(value.scenes)) return normalizeScenes(value.scenes);
@@ -152,7 +150,7 @@ function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
 
 function hardInvalid(text: string, input: AuthorBrainTruth): boolean {
   if (!text || META.test(text) || GENERIC.some((pattern) => pattern.test(text))) return true;
-  if (CAMERA.test(text) || SPOKEN.test(text)) return true;
+  if (CAMERA.test(text) || DIALOGUE.test(text)) return true;
   if (MULTI_CUT_PUNCT.test(text)) return true;
   if (PRONOUN.test(text) && !pronounsAllowed(text, input.subjectTruth)) return true;
   if (/\bserviceLike\b|\bbeat job\b|\bviewer want\b/i.test(text)) return true;
@@ -217,7 +215,7 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
         "CUT GRAMMAR: ONE LINE = ONE ATTENTION MOMENT. One strong thought. One image. One attitude. One question. Or one consequence.",
         "SHORT-CUT BEHAVIOR: a 2–4 word line can be powerful because it leaves a gap for the viewer to fill. Use that compression when it strengthens the idea. Do not shorten weak writing just to hit a word count.",
         "RHYTHM: let cuts breathe and spike. Short → short → fuller → hit is good. So is short → long → short → long. Choose rhythm from the material.",
-        "PUNCTUATION: NEVER use commas or semicolons in scene text. If two thoughts need to coexist, they are two cuts.",
+        "PUNCTUATION: NEVER use commas or semicolons in scene text. A colon may be used when the source itself contains a factual time like 9:04 AM.",
         "Do not mechanically repeat the subject name. Character presence can persist through voice, attitude, choice, resistance, implication, callback, and consequence.",
         "Do not narrate multiple actions in one line. Avoid chained 'then', 'while', 'after', or 'as' constructions when they hide another shot.",
         "Do not announce transformation, happiness, bravery, affection, memory, or other themes. Make the cuts imply them.",
