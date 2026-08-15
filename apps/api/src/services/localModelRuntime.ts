@@ -55,9 +55,9 @@ function outputText(data: any): string {
 export async function localModelGenerate(messages: LocalModelMessage[], format?: "json"): Promise<LocalModelResult> {
   const fast = process.env.QRE_AUTHOR_FAST === "true";
   const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.35 : 0.8));
-  // The fast mouth only needs a tiny JSON envelope. Keep the ceiling tight so an
-  // accidental prose dump cannot spend tens of seconds generating unused tokens.
-  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 64 : 512));
+  // Keep enough room for a complete JSON scene envelope. 64 tokens was fast but
+  // can truncate the JSON before the closing braces, which becomes BEATS: 0.
+  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 128 : 512));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
 
   const data = await request("/api/chat", {
@@ -75,7 +75,13 @@ export async function localModelGenerate(messages: LocalModelMessage[], format?:
       num_predict: numPredict,
     },
   });
-  return { text: outputText(data), model: modelName(), provider: "local" };
+
+  const text = outputText(data);
+  if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+    console.log("\n--- QRE RAW MODEL OUTPUT ---\n" + text + "\n--- END RAW MODEL OUTPUT ---\n");
+  }
+
+  return { text, model: modelName(), provider: "local" };
 }
 
 export async function localModelHealthy(): Promise<boolean> {
