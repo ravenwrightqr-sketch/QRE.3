@@ -22,12 +22,11 @@ const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner�
 const SPOKEN = /\b(?:says?|asks?|replies?|answers?|sighs?|laughs?|smiles?|whispers?|shouts?|yells?)\b|[“”]/i;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const MULTI_CUT_PUNCT = /[,;]/;
-const CHAIN = /\b(?:and then|then|while|after|before|as|finally|suddenly)\b/i;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
 const STOP = new Set(["the","a","an","and","or","but","with","for","from","into","that","this","today","after","before","very","just","was","were","is","are","to","of","in","on","at","it","its"]);
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
-const uniq = (values: unknown[], limit = 40) => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+const uniq = (values: readonly unknown[] | undefined, limit = 40) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
 
 function json<T>(text: string): T | null {
   const value = String(text ?? "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
@@ -45,16 +44,16 @@ function tokens(text: string): string[] {
 
 function recurringDetails(input: AuthorBrainTruth): string[] {
   const current = new Set(tokens([...input.facts, ...input.sourceMoments].join(" ")));
-  const history = new Set(tokens([...input.memoryContext, ...input.trajectory].join(" ")));
+  const history = new Set(tokens([...(input.memoryContext ?? []), ...(input.trajectory ?? [])].join(" ")));
   return [...current].filter((token) => history.has(token)).slice(0, 12);
 }
 
 function contradictions(input: AuthorBrainTruth): string[] {
-  const text = [...input.facts, ...input.sourceMoments, ...input.memoryContext].join(" ").toLowerCase();
+  const text = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? [])].join(" ").toLowerCase();
   const out: string[] = [];
   const tests: Array<[RegExp, string]> = [
     [/hates? .*loves?|loves? .*hates?/, "rejection versus desire"],
-    [/scared|nervous/, "resistance or fear versus what the subject still wants"],
+    [/scared|nervous/, "resistance versus what the subject still wants"],
     [/happy|joy|excited/, "emotion versus the thing that caused it"],
     [/old|worn|scratched|faded|vintage/, "wear versus continued value"],
     [/new|brand new|pristine|first/, "newness versus uncertainty or possibility"],
@@ -64,6 +63,27 @@ function contradictions(input: AuthorBrainTruth): string[] {
   ];
   for (const [pattern, label] of tests) if (pattern.test(text)) out.push(label);
   return uniq(out, 8);
+}
+
+function cognitiveField(input: AuthorBrainTruth) {
+  const plan = input.cognitivePlan;
+  if (!plan) return null;
+  return {
+    direction: plan.direction ?? null,
+    centralSubject: plan.centralSubject,
+    whyInteract: uniq(plan.whyInteract, 8),
+    emotionalIntent: uniq(plan.emotionalIntent, 8),
+    purpose: plan.purpose,
+    interactionModel: uniq(plan.interactionModel, 10),
+    storyStructure: uniq(plan.storyStructure, 10),
+    memoryModel: uniq(plan.memoryModel, 10),
+    geographicModel: uniq(plan.geographicModel, 8),
+    socialModel: uniq(plan.socialModel, 8),
+    discoveryModel: uniq(plan.discoveryModel, 8),
+    dynamicBehavior: uniq(plan.dynamicBehavior, 10),
+    futureEvolution: uniq(plan.futureEvolution, 10),
+    creativePossibilities: uniq(plan.creativePossibilities, 16),
+  };
 }
 
 function creativeSearchField(input: AuthorBrainTruth) {
@@ -76,8 +96,12 @@ function creativeSearchField(input: AuthorBrainTruth) {
     subject: input.subject ?? "",
     place: input.place ?? "",
     strongestRawMaterial: uniq([...input.facts, ...input.sourceMoments], 16),
-    history: uniq([...input.memoryContext, ...input.trajectory], 16),
+    history: uniq([...(input.memoryContext ?? []), ...(input.trajectory ?? [])], 16),
     learning: uniq(input.creativeLearningContext, 20),
+    cognitiveField: cognitiveField(input),
+    returning: input.returning ?? false,
+    visitNumber: input.visitNumber ?? null,
+    presenceSummary: uniq(input.presenceSummary, 12),
     serviceStage: service,
     creativeSearches: [
       "character contradiction",
@@ -160,14 +184,15 @@ function finalizeScenes(input: AuthorBrainTruth, scenes: AuthorScene[], beatCoun
 }
 
 function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
+  const plan = input.cognitivePlan;
   return {
-    angle: "find the subject's most specific contradiction or relationship",
-    engine: "character lens over supplied reality",
-    question: "what is unexpectedly interesting here?",
+    angle: plan?.creativePossibilities?.[0] ?? "find the subject's most specific contradiction or relationship",
+    engine: plan?.purpose ?? "character lens over supplied reality",
+    question: plan?.whyInteract?.[0] ?? "what is unexpectedly interesting here?",
     strongestImage: input.facts[0] ?? input.sourceMoments[0] ?? "the strongest supplied detail",
-    tension: "something the subject makes personal",
-    payoff: "a character-specific consequence or reframe",
-    callback: input.memoryContext[0] ?? input.trajectory[0] ?? "none yet",
+    tension: plan?.emotionalIntent?.[0] ?? "something the subject makes personal",
+    payoff: plan?.futureEvolution?.[0] ?? "a character-specific consequence or reframe",
+    callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit", "short", "short", "hit"] : ["hit", "short", "standard", "short", "hit"],
     avoid: ["literal fact list", "generic emotional journey", "invented concrete events", "provider as protagonist", "paragraph prose"],
   };
@@ -184,6 +209,7 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
       content: [
         "You are QRE's UNIVERSAL AUTHOR BRAIN and CUT MOUTH in one pass.",
         "You are not a novelist. You are not a receipt writer. You are not a screenplay formatter. You are a creative computer that finds the latent movie inside reality and splices it into addictive cuts.",
+        "The upstream cognitive plan is intelligence you may exploit. It is NOT a script. Do not copy its labels or obey its beat structure literally. Extract the strongest relationship, contradiction, opportunity, memory, or future possibility and turn that into your own movie.",
         "Privately compete: explore several genuinely different ways to see the material. Attack your own first idea for being generic, obvious, sentimental, repetitive, or merely a paraphrase of the facts. Choose the idea that is most specific to this subject and this history.",
         "The subject is temporarily the star. A service, business, job, event, place, or object is the stage and raw material. In service experiences, do not invent the provider as a story character unless explicitly supplied.",
         "The strongest creative move is often: supplied reality → character lens → surprising framing. A detail can become a metaphor, status game, running joke, mystery, rivalry, ritual, or strange image without inventing a concrete physical event.",
@@ -197,13 +223,29 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
         "Do not announce transformation, happiness, bravery, affection, memory, or other themes. Make the cuts imply them.",
         "REALITY IS SACRED. Use pronouns only when the subject truth explicitly establishes them. Never invent people, relationships, provider actions, dialogue, locations, object placement, physical actions, timestamps, weather, or outcomes.",
         "Metaphor and perspective are creative framing. They do not create a new factual event.",
+        `This is ${input.returning ? "a returning chapter" : "the current known chapter"}. Returning chapters should evolve an established detail instead of restarting the story.`,
         `Create exactly ${beatCount} lines.`,
         "Return JSON with a compact creativeBrief plus scenes: {creativeBrief:{angle,engine,question,strongestImage,tension,payoff,callback,rhythm,avoid},scenes:[{text,kind}]}.",
         `SUBJECT TRUTH: ${subjectTruthText(input.subjectTruth)}`,
         `CREATIVE SEARCH FIELD: ${JSON.stringify(field)}`,
       ].join(" "),
     },
-    { role: "user", content: JSON.stringify(input) },
+    { role: "user", content: JSON.stringify({
+      prompt: input.prompt,
+      lens: input.lens ?? "",
+      subject: input.subject ?? "",
+      place: input.place ?? "",
+      subjectTruth: input.subjectTruth ?? null,
+      cognitivePlan: cognitiveField(input),
+      returning: input.returning ?? false,
+      visitNumber: input.visitNumber ?? null,
+      presenceSummary: uniq(input.presenceSummary, 12),
+      facts: uniq(input.facts, 40),
+      sourceMoments: uniq(input.sourceMoments, 24),
+      memoryContext: uniq(input.memoryContext, 24),
+      trajectory: uniq(input.trajectory, 24),
+      creativeLearningContext: uniq(input.creativeLearningContext, 24),
+    }) },
   ], "json");
 
   debug("AUTHOR-BRAIN", result.text);
