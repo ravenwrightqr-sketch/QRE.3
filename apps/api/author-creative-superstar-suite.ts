@@ -1,4 +1,5 @@
 import { authorCinematicSequence } from "./src/services/cinematicAuthor.js";
+import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
 
 type Case = {
   name: string;
@@ -9,6 +10,7 @@ type Case = {
   sourceMoments: string[];
   lens?: string;
   creativeLearningContext?: string[];
+  round?: number;
 };
 
 function assertRuntime(): void {
@@ -26,6 +28,7 @@ const cases: Case[] = [
     sourceMoments: ["grooming visit", "pink bow"],
     lens: "funny, affectionate, slightly fierce; treat Coco as a character, not a generic cute dog",
     creativeLearningContext: ["Use personality contrast and status shifts.", "Look for negotiation, attitude, recurring quirks, and a memorable payoff.", "Do not default to nervous -> comfort -> happy pet-commercial progression."],
+    round: 1,
   },
   {
     name: "DOG-VISIT-2",
@@ -35,6 +38,7 @@ const cases: Case[] = [
     sourceMoments: ["today Coco tolerated the bath faster", "pink bow was offered again", "Coco walked out proud"],
     lens: "recurring character comedy; chapter two should build on history rather than restart",
     creativeLearningContext: ["Permanent identity and historical quirks are callbacks, not fresh exposition.", "Today's details should become the new movement and payoff."],
+    round: 2,
   },
   {
     name: "DOG-SERVICE",
@@ -44,6 +48,7 @@ const cases: Case[] = [
     sourceMoments: ["today's grooming visit", "Coco tried to avoid the pink bow"],
     lens: "service receipt with attitude; celebrate the client without sounding like an advertisement",
     creativeLearningContext: ["Make the ordinary service feel specific through personality.", "The finished service is the factual anchor; humor comes from the character."],
+    round: 1,
   },
   {
     name: "BOBO-DOG",
@@ -53,6 +58,7 @@ const cases: Case[] = [
     sourceMoments: ["first grooming visit"],
     lens: "high-energy character comedy; do not make Bobo behave like Coco",
     creativeLearningContext: ["Use the strongest contradiction: fearless entrance versus water fear.", "Love of balls is a character engine and possible payoff object."],
+    round: 1,
   },
   {
     name: "DOG-TAG",
@@ -62,6 +68,7 @@ const cases: Case[] = [
     sourceMoments: [],
     lens: "mystery, playful, warm; physical object as doorway",
     creativeLearningContext: ["Object-to-world transition.", "The artifact can feel mysterious without claiming unsupported physical mechanics."],
+    round: 1,
   },
   {
     name: "SERVICE-RECEIPT-GENERIC",
@@ -70,6 +77,7 @@ const cases: Case[] = [
     sourceMoments: ["today's appointment"],
     lens: "universal service receipt; warm, specific, clever, never corporate",
     creativeLearningContext: ["Works for groomers, barbers, salons, mechanics, cleaners, tattoo artists, detailers, and contractors.", "Do not invent a specific service outcome not supplied."],
+    round: 1,
   },
   {
     name: "REAL-ESTATE",
@@ -80,6 +88,7 @@ const cases: Case[] = [
     sourceMoments: ["family gathered there", "home was restored"],
     lens: "prestige without generic luxury language; history and ownership matter more than price",
     creativeLearningContext: ["Price is context, not the story.", "Find meaning in provenance, place, architecture, ritual, and memory.", "Avoid luxury-cliche vocabulary."],
+    round: 1,
   },
   {
     name: "YACHT",
@@ -89,6 +98,7 @@ const cases: Case[] = [
     sourceMoments: ["voyages through the Mediterranean"],
     lens: "provenance, travel, ownership; object with history rather than brochure copy",
     creativeLearningContext: ["Use the inherited chair as the strongest human anchor.", "Let geography and voyages create motion.", "Do not reduce value to wealth."],
+    round: 1,
   },
   {
     name: "SKATEBOARD",
@@ -98,6 +108,7 @@ const cases: Case[] = [
     sourceMoments: ["learned first tricks on it"],
     lens: "nostalgic, funny, rebellious; scars are evidence of a life",
     creativeLearningContext: ["Prefer provenance and lived use over object-description.", "Find what the damage means."],
+    round: 1,
   },
   {
     name: "VINTAGE-WATCH",
@@ -107,6 +118,7 @@ const cases: Case[] = [
     sourceMoments: ["passed down in the family"],
     lens: "provenance, memory, quiet mystery",
     creativeLearningContext: ["Use the scratches and inheritance as narrative evidence.", "Make time itself part of the metaphor without inventing who owned it before."],
+    round: 1,
   },
   {
     name: "VINTAGE-CAR",
@@ -116,6 +128,7 @@ const cases: Case[] = [
     sourceMoments: ["family Sunday drives"],
     lens: "nostalgia, motion, provenance, family ritual",
     creativeLearningContext: ["Use recurring ritual and visible wear as anchors."],
+    round: 1,
   },
   {
     name: "NEW-OBJECT",
@@ -125,6 +138,7 @@ const cases: Case[] = [
     sourceMoments: ["first use"],
     lens: "anticipation and possibility; newness should feel like an open chapter",
     creativeLearningContext: ["Do not invent the owner's future. Make possibility itself the creative material."],
+    round: 1,
   },
   {
     name: "WEDDING",
@@ -135,6 +149,7 @@ const cases: Case[] = [
     sourceMoments: [],
     lens: "romantic, intimate, nighttime beach; moonlight and shoreline reality should matter",
     creativeLearningContext: ["9 PM means night; exploit night affordances such as moonlight, reflected water, tide, shoreline lights, and night air.", "Do not invent sunrise, sunset, altar, crowd, vows, gown, or other wedding events unless supplied."],
+    round: 1,
   },
   {
     name: "RELATIONSHIP",
@@ -144,6 +159,7 @@ const cases: Case[] = [
     sourceMoments: ["a quiet night together"],
     lens: "intimate, specific, understated; shared meaning over grand declarations",
     creativeLearningContext: ["Favor small private details that gain meaning through repetition."],
+    round: 1,
   },
   {
     name: "HORROR-CALM",
@@ -152,6 +168,7 @@ const cases: Case[] = [
     sourceMoments: [],
     lens: "calm human behavior while reality breaks",
     creativeLearningContext: ["Start ordinary.", "Choose one impossible environmental violation and escalate it.", "Doors slam, glass breaks, knives fly, chairs move to the ceiling while conversation continues.", "Prefer spatial contradiction and calm reactions over ghosts and generic gothic imagery."],
+    round: 1,
   },
   {
     name: "CREATOR",
@@ -160,6 +177,7 @@ const cases: Case[] = [
     sourceMoments: ["my creative life"],
     lens: "voice, ambition, contradiction, obsession, point of view",
     creativeLearningContext: ["Do not invent an audience, career history, awards, failures, or future success.", "Build from the supplied creative identity and the tension of making unusual things."],
+    round: 1,
   },
   {
     name: "ARTIST",
@@ -169,6 +187,7 @@ const cases: Case[] = [
     sourceMoments: ["gallery viewing"],
     lens: "mysterious threshold; original visual world rather than stock fantasy gallery language",
     creativeLearningContext: ["Use material, texture, signature, and viewer perspective.", "Avoid defaulting to gallery-as-portal cliches unless the artwork supports it."],
+    round: 1,
   },
   {
     name: "ARTIFACT",
@@ -178,6 +197,7 @@ const cases: Case[] = [
     sourceMoments: ["someone discovers the object"],
     lens: "mystery, tactile discovery, portal",
     creativeLearningContext: ["Treat the object as a doorway into a living digital world.", "Concept mode may use impossible imagery, but grounded mode must not claim the wood physically opens or vibrates unless supplied."],
+    round: 1,
   },
   {
     name: "DOG-TAG-ARTEFACT",
@@ -187,6 +207,7 @@ const cases: Case[] = [
     sourceMoments: [],
     lens: "small object, enormous meaning",
     creativeLearningContext: ["Scale contrast: tiny physical artifact, large emotional world."],
+    round: 1,
   },
   {
     name: "WILDCARD",
@@ -196,6 +217,7 @@ const cases: Case[] = [
     sourceMoments: [],
     lens: "meaning, surprise, identity",
     creativeLearningContext: ["Do not invent a biography for the owner.", "Invent a compelling conceptual question or visual transformation around why ordinary things can matter."],
+    round: 1,
   },
 ];
 
@@ -210,6 +232,28 @@ for (const test of cases) {
   console.log("PROMPT:", test.prompt);
 
   try {
+    const cognition = buildAuthorCognitivePlan({
+      prompt: test.prompt,
+      subject: test.subject,
+      place: test.place,
+      lens: test.lens,
+      facts: test.facts,
+      sourceMoments: test.sourceMoments,
+      memoryContext: [],
+      round: test.round,
+    });
+
+    console.log("ATTENTION:", cognition.chosenAttentionStrategy);
+    console.log("CONTRADICTIONS:", cognition.contradictions.join(" | ") || "none");
+    console.log("OPERATORS:", cognition.operatorMix.join(", "));
+
+    const learningContext = [
+      ...(test.creativeLearningContext ?? []),
+      ...cognition.authorBrief,
+      ...cognition.antiRepetitionRules,
+      ...cognition.sceneRules,
+    ];
+
     const result = await authorCinematicSequence({
       prompt: test.prompt,
       subject: test.subject ?? "",
@@ -217,9 +261,9 @@ for (const test of cases) {
       facts: test.facts,
       sourceMoments: test.sourceMoments,
       lens: test.lens,
-      memoryContext: [],
-      creativeLearningContext: test.creativeLearningContext ?? [],
-      trajectory: [],
+      memoryContext: cognition.permanentTruths,
+      creativeLearningContext: learningContext,
+      trajectory: [cognition.chosenAttentionStrategy, ...cognition.operatorMix, ...cognition.callbackTargets],
     });
 
     console.log("TIME:", ((Date.now() - started) / 1000).toFixed(3), "s");
