@@ -3,6 +3,7 @@ export * from "./goal.js";
 export * from "./tone.js";
 export * from "./moment.js";
 export * from "./beat.js";
+export * from "./presence.js";
 export * from "./experienceType.js";
 export * from "./entityExtractor.js";
 export * from "./context.js";
