@@ -27,9 +27,9 @@ export type AuthorBrainTruth = {
   presenceSummary?: string[];
   facts: string[];
   sourceMoments: string[];
-  memoryContext: string[];
-  trajectory: string[];
-  creativeLearningContext: string[];
+  memoryContext?: string[];
+  trajectory?: string[];
+  creativeLearningContext?: string[];
 };
 
 export type AuthorScene = {
