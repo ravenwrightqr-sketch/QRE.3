@@ -1,144 +1,71 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
-**Status:** ACTIVE  
-**Branch:** `elite-universal-rebuild-v10`  
-**Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author/cognition/compiler behavior.
+**Status:** ACTIVE / CLEAN
+**Branch:** `elite-universal-rebuild-v10`
+**Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author, cognition, compiler, sequence, contracts, or diagnostics.
 
-## 1. NORTH STAR
-
-QRE is a universal experience compiler.
+## 1. MASTER RULE
 
 ```text
-UNDERSTAND WORLD
-→ PRESERVE TRUTH
-→ UNDERSTAND HISTORY
-→ FIND SIGNIFICANCE
-→ CREATIVE SEARCH
-→ CHOOSE THE MOVIE
-→ MOVE THE VIEWER'S MENTAL MODEL
-→ AUTHOR THE CUTS
-→ LEARN
+ONE MASTER AUTHOR
+ONE PRODUCTION AUTHOR PATH
+ONE CANONICAL CUT POLICY
+ONE ACCEPTANCE HARNESS
+ONE SHARED SEMANTIC BOUNDARY
 ```
 
-The author is a system, not a file.
+No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
 
-## 2. CANONICAL SEMANTIC LAYERS
+## 2. CANONICAL INTELLIGENCE STACK
 
 ```text
-SOURCE / PROMPT / MEDIA / RUNTIME
+INPUT / PROMPT / MEDIA / RUNTIME
         ↓
-REALITY + PROVENANCE
+SOURCE TRUTH / PROVENANCE
         ↓
 WORLD / ENTITY / RELATIONSHIP MODEL
         ↓
 MEMORY + PRESENCE + ANALYTICS
         ↓
-SIGNIFICANCE
+UNIVERSAL COGNITION
         ↓
-CREATIVE OPERATIONS / CANDIDATE SEARCH
+SIGNIFICANCE + CREATIVE SEARCH
         ↓
 VIEWER MOMENTUM / SEQUENCE PLAY
         ↓
-UNIVERSAL AUTHOR
+UNIVERSAL AUTHOR BRAIN
         ↓
 CANONICAL CUT POLICY
         ↓
 MOUTH / EXPERIENCE MOMENTS
         ↓
 CINEMATIC RUNTIME
+        ↓
+LEARNING / MEMORY
 ```
 
-| Layer | Canonical role | Status |
-|---|---|---|
-| SubjectTruth | Explicit identity truth | KEEP |
-| AuthorBrainTruth | Author input boundary | KEEP |
-| Source Ledger / World Model | Reality + provenance | KEEP / EVOLVE |
-| Significance | Why details matter | KEEP / EVOLVE |
-| Creative Operations | Non-prose creative search | KEEP / EVOLVE |
-| ViewerMomentum | Compact viewer cognitive state | KEEP |
-| SequencePlay | Viewer-state trajectory | KEEP / EVOLVE |
-| Universal Author | Final sequence intelligence | KEEP / CONVERGE |
-| AuthorCutPolicy | Canonical semantic mouth gate | KEEP / UNIFY |
-| Living Memory | Cross-chapter continuity | KEEP |
+## 3. MASTER AUTHOR
 
-## 3. REALITY IS NOT SEQUENCE
+`apps/api/src/services/authorBrainUniversal.ts`
 
-Reality answers:
+This is the **only Goal-1 author authority**.
+
+It owns:
 
 ```text
-What exists?
-What happened?
-Who is involved?
-What is explicitly known?
-What happened before?
+sequence discovery
+viewer-state movement
+creative implication
+relationship compression
+sequence selection
+cut realization input
 ```
 
-Sequence answers:
+It does not own upstream world modeling, memory persistence, or runtime projection.
 
-```text
-What does the viewer already know?
-What do they expect?
-What question is alive?
-What changed their mental model?
-What do they want now?
-What remains unresolved?
-Why does another cut feel desirable or necessary?
-```
+It is explicitly a **living intelligence core**: expand and tune it when a general law is discovered; do not add domain-specific hacks.
 
-Truth is necessary. Truth alone is not a sequence.
-
-## 4. VIEWER MOMENTUM
-
-Before every cut, the Brain should privately consider:
-
-```text
-known
-expected
-active question
-curiosity gap
-prediction shift
-subject relevance
-current want
-unresolved value
-forward pull
-payoff debt
-```
-
-Master question:
-
-> **Given everything the viewer currently believes, what is the strongest valid change QRE can make to that mental model right now that makes the next cut desirable, surprising, or necessary?**
-
-## 5. CUT NECESSITY
-
-Every candidate should survive:
-
-> **If this cut disappears, what becomes weaker?**
-
-If removing it does not materially damage setup, curiosity, escalation, reframe, coherence, or payoff, remove it.
-
-## 6. CURRENT FAST LAB PATH
-
-```text
-apps/api/author-fast-suite.ts
-        ↓
-apps/api/src/services/authorFastCore.ts
-        ↓
-apps/api/src/services/creativeRelationOps.ts
-        ↓
-apps/api/src/services/authorBrainUniversal.ts
-        ↓
-SequencePlay / ViewerMomentum
-        ↓
-validated cut text
-```
-
-`authorBrainUniversal.ts` is the canonical **Goal-1 creative expansion surface**.
-
-It may be expanded or tuned when a general creative law is discovered. It must not become a benchmark-specific phrase generator.
-
-## 7. ACTUAL PRODUCTION PATH
-
-The production route currently does **not** use the fast lab path directly.
+## 4. PRODUCTION PATH
 
 ```text
 apps/api/src/routes/experience.ts
@@ -149,44 +76,51 @@ apps/api/src/services/experienceService.ts
         ↓
 packages/engine/src/cognition/universalMind.ts
         ↓
-world + significance + creative candidates + planner + learning
-        ↓
-experienceService flattens cognition into AuthorBrainTruth
+world + memory + significance + creative candidates + planning + learning
         ↓
 apps/api/src/services/microBeatMouth.ts
         ↓
-apps/api/src/services/authorBrain.ts   ← LEGACY AUTHOR
+apps/api/src/services/authorBrainUniversal.ts
+        ↓
+experience moments / cinematic scenes
 ```
 
-**This is the central convergence task.**
+`microBeatMouth.ts` is a **projection adapter only**. It must never become a second author.
 
-Goal 1 is not complete until the production path and fast benchmark path use the same canonical author intelligence.
+`cinematicAuthor.ts` is also an adapter only and now calls the Universal Author directly. It no longer runs an independent critique/repair author loop.
 
-## 8. UPSTREAM COGNITION THAT MUST NOT BE DUPLICATED
+## 5. FAST ACCEPTANCE PATH
 
-`packages/engine/src/cognition/universalMind.ts` already provides:
+The fast test is the same author intelligence, not a competing brain:
 
 ```text
-memory resolution
-world model
-world sanitation
-significance
-creative candidates
-composition candidates
-voice candidates
-revision
-critical selection
-experience planning
-mind state / learning
+apps/api/author-acceptance-suite.ts
+        ↓
+apps/api/src/services/authorFastCore.ts
+        ↓
+creative relation candidates
+        ↓
+apps/api/src/services/authorBrainUniversal.ts
 ```
 
-This is upstream intelligence, not junk.
+Run:
 
-The Universal Author should consume that intelligence through typed boundaries instead of rebuilding it from flattened strings.
+```powershell
+pnpm author:fast -- COCO
+pnpm author:fast -- COCO-RETURN
+pnpm author:fast -- MARIA
+pnpm author:fast -- HORROR
+pnpm author:fast -- RAVE
+```
 
-Related canonical upstream systems:
+The harness is an observer. It does not define production rules.
+
+## 6. UPSTREAM COGNITION
+
+Keep and evolve:
 
 ```text
+packages/engine/src/cognition/universalMind.ts
 packages/engine/src/cognition/worldModel.ts
 packages/engine/src/cognition/significanceEngine.ts
 packages/engine/src/cognition/creativePolicy.ts
@@ -194,61 +128,37 @@ packages/engine/src/cognition/experiencePlanner.ts
 packages/engine/src/cognition/mindState.ts
 ```
 
-## 9. CUT POLICY CONVERGENCE
+These are upstream intelligence layers. Do not duplicate their responsibilities inside the author.
 
-`apps/api/src/services/authorCutPolicy.ts` already contains richer semantic measures than the Universal Author's duplicated local gate:
+## 7. CANONICAL CUT POLICY
+
+`apps/api/src/services/authorCutPolicy.ts`
+
+This is the intended **single semantic cut evaluator**.
+
+It measures:
 
 ```text
 groundedness
 novelty
 implication
 explanation
-question leak
+question leakage
 invention risk
 repetition
 compression
 impact density
 ```
 
-**Do not create a third cut validator.**
+Do not create another independent validator. Migrate the Universal Author and adapters toward this policy until only one evaluator owns semantic acceptance.
 
-Converge Universal Author, legacy adapter, and production mouth onto one semantic cut policy.
+## 8. CREATIVE RELATION OPERATIONS
 
-## 10. LEGACY AUTHOR / ADAPTER SURFACE
+`apps/api/src/services/creativeRelationOps.ts`
 
-These remain reachable or potentially reachable and therefore cannot be deleted casually:
+This is search infrastructure, not author authority.
 
-```text
-apps/api/src/services/authorBrain.ts
-apps/api/src/services/cinematicAuthor.ts
-apps/api/src/services/microBeatMouth.ts
-apps/api/src/services/authorBrainMomentum.ts
-apps/api/src/services/authorBrainMomentumV2.ts
-apps/api/src/services/authorBrainMomentumV3.ts
-```
-
-Status:
-
-- `authorBrain.ts` = legacy production author; replace first, delete after dependency proof.
-- `microBeatMouth.ts` = production projection adapter; preserve projection responsibility, replace author call.
-- `cinematicAuthor.ts` = critique/repair/rendering adapter; preserve editor/render responsibility, remove second author authority.
-- numbered Momentum brains = rollback/audit only; delete after dependency proof.
-
-## 11. OTHER COGNITION SURFACES
-
-`apps/api/src/services/authorCognition.ts` contains heuristic signal/mode selection.
-
-Its strategies are useful as **search signals**, but it must not become a second plot-authoring system.
-
-`packages/engine/src/cognition/creativeWriter.ts`, `creativeComposition.ts`, and `creativeVoiceEngine.ts` are candidate-generation infrastructure. They must produce possibilities, not silently define the final movie.
-
-## 12. CREATIVE RELATION OPERATIONS
-
-`apps/api/src/services/creativeRelationOps.ts` is generic candidate search.
-
-Candidates are hypotheses, not facts.
-
-Examples of transferable operations:
+Candidates are hypotheses only:
 
 ```text
 preference ↔ preference
@@ -258,11 +168,11 @@ recurrence ↔ present context
 contradiction ↔ consequence
 ```
 
-Recurrence requires actual memory, trajectory, or repeated evidence. A single dislike or preference does not imply recurrence.
+Recurrence requires actual history, trajectory, or repeated evidence.
 
-## 13. SEQUENCE CONTRACTS
+## 9. CANONICAL CONTRACTS
 
-Canonical shared contracts:
+Keep and evolve these shared boundaries:
 
 ```text
 packages/contracts/src/sequencePlay.ts
@@ -270,47 +180,53 @@ packages/contracts/src/viewerMomentum.ts
 packages/contracts/src/subjectTruth.ts
 packages/contracts/src/world.ts
 packages/contracts/src/realityModel.ts
-packages/contracts/src/authoring.ts
 packages/contracts/src/cognition.ts
+packages/contracts/src/experience/authoring.ts
 ```
 
-Do not create another versioned sequence/momentum contract without proving a capability gap and documenting replacement/deletion.
+Do not create another sequence/momentum version without a demonstrated capability gap and explicit replacement/deletion plan.
 
-## 14. LEGACY CONTRACT WATCHLIST
+## 10. CLEANUP COMPLETED
+
+Removed from `apps/api`:
 
 ```text
-packages/contracts/src/experience/indexV13.ts
-packages/contracts/src/experience/memoryIntelligenceV14.ts
-packages/contracts/src/experience/memoryForesightV15.ts
-packages/contracts/src/experience/memorySpatialV16.ts
-packages/contracts/src/experience/memoryWorldV13.ts
-packages/contracts/src/experience/memoryWorldV13.ts.tmp
-packages/contracts/src/experience/latentMovie.ts
+author-fast-suite.ts
+author-beat-presence-suite.ts
+author-beat-presence-master-suite.ts
+author-ceiling-benchmark.ts
+author-ceiling-test.ts
+author-creative-superstar-suite.ts
+author-mouth-quality-suite.ts
+author-universal-ceiling-suite.ts
+creative-learning-readout.ts
+local-author-test.ts
+one-pass-test.ts
 ```
 
-No new version pile. Trace, replace, delete.
-
-## 15. BENCHMARK RULE
-
-These are test/observer surfaces, not production author authorities:
+Removed legacy author brains:
 
 ```text
-apps/api/author-fast-suite.ts
-apps/api/author-beat-presence-suite.ts
-apps/api/author-beat-presence-master-suite.ts
-apps/api/author-ceiling-benchmark.ts
-apps/api/author-ceiling-test.ts
-apps/api/author-creative-superstar-suite.ts
-apps/api/author-mouth-quality-suite.ts
-apps/api/author-universal-ceiling-suite.ts
-apps/api/creative-learning-readout.ts
-apps/api/local-author-test.ts
-apps/api/one-pass-test.ts
+apps/api/src/services/authorBrain.ts
+apps/api/src/services/authorBrainMomentum.ts
+apps/api/src/services/authorBrainMomentumV2.ts
+apps/api/src/services/authorBrainMomentumV3.ts
 ```
 
-A benchmark may define a capability target. It must not secretly define production behavior.
+The single replacement test harness is:
 
-## 16. CREATIVE LAWS CURRENTLY CANONICAL
+`apps/api/author-acceptance-suite.ts`
+
+## 11. REMAINING ADAPTERS
+
+```text
+apps/api/src/services/microBeatMouth.ts
+apps/api/src/services/cinematicAuthor.ts
+```
+
+These are projection/render adapters. They may not introduce independent creative selection, beat counts, critique loops, or hidden fallback authors.
+
+## 12. CREATIVE LAWS
 
 ```text
 identity is baseline
@@ -319,60 +235,61 @@ source state ≠ plot instruction
 emotion ≠ automatic story arc
 creative interpretation ≠ invented event
 questions belong in hidden cognition
-service/provider is usually stage context
+provider/service is usually stage context
 subject/world gravity
 compressed impact > word-count fetish
 one cut = one attention moment
 next cut must earn itself
 recurrence requires evidence
 sparse world → smaller invented-world surface
-benchmark ≠ production architecture
 ```
 
-## 17. DEVELOPMENT LOOP
+## 13. TEST DISCIPLINE
+
+Every author experiment follows:
 
 ```text
 ONE HYPOTHESIS
 ↓
-TRACE INFLUENCE GRAPH
+TRACE THE LIVE PATH
 ↓
 ONE CANONICAL CHANGE
 ↓
-REAL OLLAMA TEST
+RUN THE CANONICAL ACCEPTANCE HARNESS
 ↓
-INSPECT RAW + VALIDATED OUTPUT
+RUN THE REAL PRODUCTION PATH
 ↓
 CLASSIFY FAILURE
 ↓
-GENERALIZE THE LAW
+GENERALIZE THE LESSON
 ↓
 DOCUMENT
 ↓
-DELETE / REPLACE STALE PATHS WHEN PROVEN UNUSED
+DELETE STALE PATHS
 ```
 
-After 2–4 meaningful experiments, update this index/changelog.
+A green benchmark is not success if production uses a different brain.
 
-## 18. CLEAN REPO LAW
+## 14. REPO HYGIENE
 
-QRE should become easier to understand as intelligence increases.
+QRE should get simpler as intelligence increases.
 
-Never allow:
+Never accumulate:
 
 ```text
 duplicate authors
 duplicate mouths
 duplicate validators
-hidden benchmark behavior
-stale "canonical" notes
+benchmark-specific production code
 version piles
-hardcoded domain hacks
+stale "canonical" notes
+unreferenced contracts
 ```
 
-Full influence audit:
+Full audit:
 
 `docs/QRE_FULL_REPO_INFLUENCE_MAP.md`
 
-Master mission:
+Master Goal:
 
 `docs/QRE_AUTHOR_GOAL.md`
