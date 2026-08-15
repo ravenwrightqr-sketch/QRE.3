@@ -17,6 +17,7 @@ UNDERSTAND WORLD
 → FIND SIGNIFICANCE
 → CHOOSE A SUBJECT/WORLD LENS
 → DESIGN HOW THE SHOW PLAYS
+→ MOVE THE VIEWER'S MENTAL MODEL
 → AUTHOR THE CUTS
 → LEARN FROM THE RESULT
 ```
@@ -36,7 +37,7 @@ SIGNIFICANCE + MEMORY + LEARNING
         ↓
 CREATIVE COMPETITION
         ↓
-SEQUENCE PLAY
+VIEWER MOMENTUM / SEQUENCE PLAY
         ↓
 UNIVERSAL AUTHOR BRAIN
         ↓
@@ -53,10 +54,15 @@ CINEMATIC RUNTIME
 | AuthorBrainTruth | Author input boundary | KEEP |
 | Source Ledger | Typed provenance for author input | KEEP / EVOLVE |
 | Creative Operations | Non-prose creative search primitives | KEEP / EVOLVE |
-| SequencePlay | Viewer-state trajectory for how the show plays | KEEP / EVOLVE |
+| ViewerMomentum | Compact viewer cognitive state | KEEP |
+| SequencePlay | Viewer-state trajectory and transition model | KEEP / EVOLVE |
 | Universal Author Brain | Final creative realization brain | KEEP |
 | Cut Mouth | Language realization of selected sequence | KEEP |
 | Living Memory | Cross-chapter continuity and creative history | KEEP |
+
+Canonical viewer-momentum protocol:
+
+`docs/AUTHOR_VIEWER_MOMENTUM_PROTOCOL.md`
 
 ## 3. CRITICAL DISTINCTION
 
@@ -75,12 +81,13 @@ What happened before?
 Sequence answers:
 
 ```text
-What does the viewer know now?
-What do they expect next?
-What just changed?
+What does the viewer already know?
+What do they expect?
 What question is alive?
-What should the next cut cause?
-What can pay off later?
+What changed their mental model?
+What do they want now?
+What remains unresolved?
+Why does another cut feel desirable or necessary?
 ```
 
 A fact being true does **not** make it an attention beat.
@@ -115,12 +122,13 @@ All are valid when earned.
 The sequence should feel like spliced film:
 
 ```text
-CUT
-→ changed viewer state
-→ next pressure / promise
+MENTAL MODEL
+→ CUT
+→ changed expectation / question / desire
+→ next pressure
 → CUT
 → changed meaning
-→ next pressure / promise
+→ next pressure
 → CUT
 ```
 
@@ -142,9 +150,47 @@ The wedding is for the couple.
 
 These may establish truth upstream. They should not consume sequence cuts unless the identity/fact itself becomes a dramatic discovery, contradiction, or reframe.
 
-`SequenceCut.gainKind` exists to make this distinction explicit. During migration it may be omitted by legacy producers, but new producers must use a non-`baseline` gain kind for actual cuts.
+## 5. VIEWER MOMENTUM RULE
 
-## 5. AUTHOR MOUTH RULES
+Before every cut the Brain privately evaluates:
+
+```text
+known
+expected
+active question
+curiosity gap
+prediction shift
+subject relevance
+current want
+unresolved value
+forward pull
+payoff debt
+```
+
+The master question is:
+
+> **Given everything the viewer currently believes, what is the strongest valid change QRE can make to that mental model right now that makes the next cut desirable, surprising, or necessary?**
+
+## 6. CUT NECESSITY
+
+Every candidate cut should survive a counterfactual test:
+
+> **If this cut disappears, what becomes weaker?**
+
+Strong removal damage includes:
+
+```text
+setup collapses
+question disappears
+surprise becomes random
+escalation loses pressure
+reframe loses meaning
+payoff becomes unearned
+```
+
+A cut with no meaningful removal damage is a candidate for deletion.
+
+## 7. AUTHOR MOUTH RULES
 
 The mouth is downstream from sequence intelligence.
 
@@ -192,20 +238,33 @@ or:
 
 The power is **new meaning per cut**, not a specific word count.
 
-## 6. ACTIVE AUTHOR FILES
-
-These are the first files to inspect when changing author behavior:
+## 8. ACTIVE AUTHOR PATH
 
 ```text
-apps/api/src/services/authorBrain.ts
 apps/api/src/services/authorFastCore.ts
+        ↓
+apps/api/src/services/authorBrainMomentum.ts
+        ↓
+ViewerMomentum + SequencePlay
+        ↓
+finished scenes
+```
+
+`authorBrainMomentum.ts` is the current fast-production author.
+
+`authorBrain.ts` remains temporarily for migration/rollback and is a **replacement candidate**, not the preferred new implementation.
+
+## 9. ACTIVE SUPPORT FILES
+
+```text
 apps/api/src/services/localModelRuntime.ts
 apps/api/author-fast-suite.ts
 packages/contracts/src/sequencePlay.ts
+packages/contracts/src/viewerMomentum.ts
 packages/contracts/src/index.ts
 ```
 
-## 7. ACTIVE COGNITION FILES
+## 10. ACTIVE COGNITION FILES
 
 These are useful source-of-truth cognition components. They are candidates for simplification, but not automatically junk:
 
@@ -221,7 +280,7 @@ packages/engine/src/cognition/creativeRevision.ts
 
 They must eventually feed the same universal Brain rather than becoming parallel authors.
 
-## 8. LEGACY / JUNK WATCHLIST
+## 11. LEGACY / JUNK WATCHLIST
 
 These files are **not automatically safe to delete yet**, but they are under active audit because they contain prose-generation behavior or duplicate creative realization:
 
@@ -231,13 +290,7 @@ packages/engine/src/cognition/creativeComposition.ts
 packages/engine/src/cognition/creativeVoiceEngine.ts
 ```
 
-Rule:
-
-> A new architecture must name its replacement before a legacy file is deleted.
-
-When an old file no longer has production references, delete it instead of leaving it as archaeological baggage.
-
-## 9. LEGACY CONTRACT WATCHLIST
+## 12. LEGACY CONTRACT WATCHLIST
 
 The repo contains versioned experience contracts such as:
 
@@ -250,19 +303,9 @@ packages/contracts/src/experience/memorySpatialV16.ts
 
 These are **not automatically canonical** just because they are exported.
 
-Before adding another version:
+Do not create another version until the capability, replacement, consumers, and deletion path are documented.
 
-1. identify the capability it adds
-2. decide whether the capability belongs in an existing universal contract
-3. identify the production consumers
-4. mark the old contract ACTIVE / LEGACY / DELETE CANDIDATE
-5. remove dead versions once consumers are migrated
-
-Do not create V17/V18-style accumulation without a cleanup decision.
-
-## 10. REPLACEMENT MAP
-
-Current direction:
+## 13. REPLACEMENT MAP
 
 ```text
 LatentMovie / raw event inventory
@@ -271,22 +314,22 @@ Reality Graph / Source Ledger
 
 beat-count planning
         ↓
-SequencePlay / viewer-state trajectory
+ViewerMomentum + SequencePlay
 
 canned creative prose generators
         ↓
-Creative Operations + Universal Author Brain
+Creative Operations + Momentum Author
 
 phrase blacklist growth
         ↓
-search-behavior learning + novelty pressure
+search-behavior learning + counterfactual necessity
 
 provider/service as protagonist
         ↓
 subject/world gravity
 ```
 
-## 11. DELETION RULE
+## 14. DELETION RULE
 
 A file is a deletion candidate when all are true:
 
@@ -300,7 +343,7 @@ replacement is documented
 
 Never delete merely because a file is ugly. Delete when it is obsolete.
 
-## 12. DIAGNOSTIC RULE
+## 15. DIAGNOSTIC RULE
 
 When a test is bad, classify the failure before changing code:
 
@@ -308,7 +351,7 @@ When a test is bad, classify the failure before changing code:
 A. WORLD / TRUTH FAILURE
 B. MEMORY / CONTINUITY FAILURE
 C. SIGNIFICANCE FAILURE
-D. SEQUENCE-PLAY FAILURE
+D. VIEWER-MOMENTUM / SEQUENCE FAILURE
 E. AUTHOR REALIZATION FAILURE
 F. VALIDATION / PARSING FAILURE
 G. RUNTIME / MODEL-BUDGET FAILURE
@@ -316,69 +359,20 @@ G. RUNTIME / MODEL-BUDGET FAILURE
 
 Do not fix an E problem with a C hack.
 
-## 13. CURRENT KNOWN FAILURE
-
-The latest diagnostic exposed three coupled failures:
+## 16. DEVELOPMENT LAW
 
 ```text
-identity fact inventory
-→ invalid sequence role values
-→ invented premise / physical events
-→ verbose sequence output
-→ model budget exhausted before scenes
+failure
+→ mechanism
+→ reusable law
+→ cross-domain test
+→ architecture
+→ documentation
 ```
 
-The corrected architecture now requires:
+Never turn every failure into another phrase blacklist.
 
-```text
-BASELINE WORLD STATE
-vs
-VIEWER MOVEMENT
-```
-
-Sequence roles are attention roles only.
-
-Allowed roles:
-
-```text
-arrival
-hook
-question
-pressure
-reframe
-escalation
-discovery
-consequence
-release
-payoff
-callback
-continuation
-```
-
-Allowed gain kinds:
-
-```text
-baseline
-new_fact
-surprise
-question
-escalation
-reframe
-discovery
-consequence
-callback
-payoff
-```
-
-A sequence premise must be directly supported by supplied facts and source moments. The author may not invent a premise merely because it sounds cinematic.
-
-The fast author now injects these principles through `authorFastCore.ts` so they are part of the canonical learning context without bloating the main prompt.
-
-Fast local-model output has been raised to 512 tokens so compact sequence cognition can finish and still reach the actual scenes.
-
-## 14. DOCUMENTATION RULE
-
-After every 2–4 meaningful architecture/author experiments:
+After 2–4 meaningful experiments document:
 
 ```text
 WHAT DID WE TEST?
@@ -390,11 +384,7 @@ WHAT REPLACES IT?
 WHAT IS THE NEXT HYPOTHESIS?
 ```
 
-Update `docs/AUTHOR_NEXT_WORLD.md` for strategic truth.
-Update `docs/AUTHOR_CHANGELOG.md` for historical detail.
-Update this file when files/contracts are created, replaced, deprecated, or deleted.
-
-## 15. CLEAN REPO PRINCIPLE
+## 17. CLEAN REPO PRINCIPLE
 
 QRE should become easier to understand as intelligence increases.
 
