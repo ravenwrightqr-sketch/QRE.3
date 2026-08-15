@@ -43,6 +43,15 @@ const GAINS = new Set([
   "new_fact", "surprise", "question", "escalation", "reframe",
   "discovery", "consequence", "callback", "payoff",
 ]);
+const GAIN_ALIASES: Record<string, string> = {
+  resolution: "payoff",
+  reveal: "discovery",
+  hidden_information: "discovery",
+  unrevealed_information: "discovery",
+  implication: "discovery",
+  turn: "reframe",
+  reversal: "reframe",
+};
 const META = /\b(?:qre|prompt|compiler|cognition|metadata|language model|writing process)\b/i;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|scene opens|we see|fade to)\b/i;
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love|quirky personality|grooming journey|positive transformation|emotional journey)\b/i;
@@ -132,6 +141,11 @@ function recoveredTexts(raw: string): string[] {
   return out;
 }
 
+function canonicalGain(value: unknown): string {
+  const normalized = clean(value).toLowerCase();
+  return GAIN_ALIASES[normalized] ?? normalized;
+}
+
 function buildSequence(subject: string, raw: unknown): SequencePlay | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as { premise?: unknown; baselineFacts?: unknown; cuts?: unknown; continuation?: unknown };
@@ -145,7 +159,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
     if (!item || typeof item !== "object") continue;
     const c = item as Record<string, unknown>;
     const role = clean(c.role);
-    const gain = clean(c.gainKind);
+    const gain = canonicalGain(c.gainKind);
     if (!ROLES.includes(role as ViewerAttentionRole) || !GAINS.has(gain)) continue;
 
     const text = clean(c.text);
@@ -267,6 +281,9 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
         "Do not explain the joke. Let the viewer close the gap.",
         "Short is not the goal. Compressed impact is the goal. Use as few words as the cognitive job allows.",
         "Use recurrence only when supported by memory, trajectory, or repeated supplied evidence.",
+        "Sparse-world rule: creative latitude applies to interpretation and juxtaposition, not to evidence. The less source evidence available, the smaller the invented-world surface must become.",
+        "If evidence is sparse, prefer a compact implication, contrast, or image over adding hidden history, new people, objects, or events.",
+        "Optional relation candidates are search hypotheses. Use, alter, combine, or reject them. Never promote them to canonical facts.",
         "Stop when the payoff earns itself. The sequence can be 2 to 6 cuts.",
         "Output only JSON: {\"sequence\":{\"premise\":\"grounded relationship\",\"baselineFacts\":[\"...\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"short mental-model change\",\"next\":\"short forward pressure\",\"text\":\"one finished cut\"}],\"continuation\":\"optional\"}}.",
       ].join(" "),
@@ -279,10 +296,8 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
   const sequence = buildSequence(input.subject, parsed?.sequence);
   const sequenceScenes = scenesFromSequence(sequence, input);
   const recoveredScenes = recoveredTexts(result.text).map((text) => ({ text, kind: "line" as const }));
-  const explicitScenes = normalizeScenes((parsed as { scenes?: unknown } | null)?.scenes);
-  const scenes = [...sequenceScenes, ...explicitScenes, ...recoveredScenes]
-    .filter((scene, index, all) => all.findIndex((x) => x.text.toLowerCase() === scene.text.toLowerCase()) === index)
-    .filter((scene) => validCut(scene.text, input))
+  const scenes = [...sequenceScenes, ...recoveredScenes]
+    .filter((scene, index, all) => all.findIndex((candidate) => candidate.text.toLowerCase() === scene.text.toLowerCase()) === index)
     .slice(0, 6);
 
   return { brief: brief(input), scenes, sequence, field };
