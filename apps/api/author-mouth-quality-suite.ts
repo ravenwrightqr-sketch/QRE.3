@@ -62,7 +62,8 @@ const cases: Case[] = [
 ];
 
 const moodOnly = /^(?:electric magic|late-night vibes|happy heart|grooming terror|pink bow panic|treats soothe|proud walk|new normal|pure joy|breathtaking bass|magical moment|beautiful moment|unforgettable moment|good vibes|happy ending|so much fun|love wins|dream come true|full of joy|full of magic|pure magic)$/i;
-const actionWords = /\b(?:arrives?|returns?|enters?|spots?|sees?|freezes?|stops?|turns?|moves?|slams?|breaks?|flies?|lands?|falls?|runs?|jumps?|dances?|spins?|conquers?|defeats?|surrenders?|loses?|wins?|changes?|shifts?|opens?|closes?|keeps?|continues?|ignores?|refuses?|accepts?|reconsiders?|backs?|stays?|leaves?|appears?|vanishes?|hits?|shakes?|barks?|wags?|sniffs?|blinks?|laughs?|talks?|drinks?|pours?|spills?|cracks?|rings?|echoes?)\b/i;
+const nounOnly = /^(?:dinner|wine|conversation|rave|bass|bathrooms?|kitchen|laundry|grooming|bow|bows|treats?|fear|joy|magic|vibes?|night|morning|afternoon|evening|house|home|water|glass|knives?|chairs?|mirror|party|friends?|music|salon|poodle|dog|tag)$/i;
+const semanticMovement = /\b(?:am|are|be|became|becomes|been|being|breaks?|barks?|backs?|blinks?|caught|changes?|changed|closes?|conquers?|cracks?|dances?|defeats?|disappears?|drinks?|echoes?|enters?|falls?|feels?|flies?|freezes?|gets?|gives?|goes?|grabs?|hates?|has|have|hits?|jumps?|keeps?|knows?|lands?|laughs?|leaves?|likes?|loves?|loses?|looks?|meets?|moves?|opens?|passes?|pours?|pulls?|refuses?|remembers?|returns?|rings?|runs?|sees?|shakes?|shifts?|sits?|slams?|sniffs?|spills?|spots?|stares?|stays?|steals?|stops?|talks?|takes?|turns?|waits?|walks?|wants?|watches?|wags?|wins?|works?|appears?|vanishes?|accepts?|reconsiders?|continues?|ignores?|offers?|starts?|finds?|reveals?|follows?|fades?|rises?|drops?|still|again|back|next|ready|gone|finally|already|proud|quiet|louder|closer|farther|faster|slower|caught|free|safe|stuck|waiting|winning|losing|different|afraid|nervous|calm|suspicious|relieved|late|early|alive|dead)\b/i;
 
 let failures = 0;
 
@@ -108,9 +109,13 @@ for (const test of cases) {
         failures += 1;
         console.error(`FAIL mood-only beat: ${text}`);
       }
-      if (count >= 3 && !actionWords.test(text) && !/[!?]/.test(text)) {
+      if (nounOnly.test(text)) {
         failures += 1;
-        console.error(`FAIL weak semantic action: ${text}`);
+        console.error(`FAIL noun-only beat: ${text}`);
+      }
+      if (count >= 2 && !semanticMovement.test(text) && !/[!?]$/.test(text)) {
+        failures += 1;
+        console.error(`FAIL weak semantic movement: ${text}`);
       }
     });
 
