@@ -1,3 +1,4 @@
+import type { CognitiveExperiencePlan } from "./cognition.js";
 import type { SubjectTruth } from "./subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
@@ -20,6 +21,7 @@ export type AuthorBrainTruth = {
   subject?: string;
   place?: string;
   subjectTruth?: SubjectTruth;
+  cognitivePlan?: CognitiveExperiencePlan;
   facts: string[];
   sourceMoments: string[];
   memoryContext: string[];
