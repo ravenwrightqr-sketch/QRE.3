@@ -24,4 +24,5 @@ export * from "./world/index.js";
 export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
 export { getPresenceReplay } from "./presence/getPresenceReplay.js";
 export { getPresenceMap } from "./presence/getPresenceMap.js";
+export { buildPresenceContext } from "./presence/buildPresenceContext.js";
 export type { AssetRepository, AssetRecord, AssetExperienceRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
