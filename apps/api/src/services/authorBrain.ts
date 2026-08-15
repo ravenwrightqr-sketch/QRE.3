@@ -3,12 +3,12 @@ import { localModelGenerate } from "./localModelRuntime.js";
 
 const GENERIC = [/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/beautiful transformation/i,/magical moment/i,/unforgettable experience/i,/incredible journey/i,/new routine/i,/power of (?:love|affection|friendship)/i,/symbol of (?:love|bravery|affection|friendship)/i,/eyes sparkle/i,/heart softens/i,/tiny paws/i,/happy now/i,/happily now/i,/looks happy/i,/feels happy/i];
 const META = /\b(ai|qre|prompt|compiler|cognition|metadata|model|instruction|writing process)\b/i;
-const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner’s|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner)\b/i;
+const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner’s|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner|customer|client)\b/i;
 const DIALOGUE = /[“”]/;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const MULTI_CUT_PUNCT = /[,;]/;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
-const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|alarming|relieved|anxious|delighted|worried|calm|proud)\b/i;
+const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|alarming|relieved|anxious|delighted|worried|calm|proud|uneasy|unease|surprised|surprise|softening|cautious|cautiously|gracefully|happily)\b/i;
 const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -51,16 +51,7 @@ function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
 }
 
 function knownWorldText(input: AuthorBrainTruth): string {
-  return [
-    input.prompt,
-    input.subject,
-    input.place,
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-    ...(input.trajectory ?? []),
-    ...(input.presenceSummary ?? []),
-  ].filter(Boolean).join(" ");
+  return [input.prompt,input.subject,input.place,...input.facts,...input.sourceMoments,...(input.memoryContext ?? []),...(input.trajectory ?? []),...(input.presenceSummary ?? [])].filter(Boolean).join(" ");
 }
 
 function unknownNamedEntity(text: string, input: AuthorBrainTruth): boolean {
@@ -80,15 +71,28 @@ function unsupportedEmotion(text: string, input: AuthorBrainTruth): boolean {
   return !INFERRED_EMOTION.test(input.prompt);
 }
 
+function explicitProviderKnown(input: AuthorBrainTruth): boolean {
+  const explicit = [input.prompt,input.subject,input.place,...input.facts,...input.sourceMoments,...(input.memoryContext ?? []),...(input.trajectory ?? []),...(input.presenceSummary ?? [])].filter(Boolean).join(" ");
+  return PROVIDER.test(explicit);
+}
+
+function repeatsEstablishedIdentity(text: string, input: AuthorBrainTruth): boolean {
+  const subject = clean(input.subject);
+  if (!subject) return false;
+  if (!text.toLowerCase().includes(subject.toLowerCase())) return false;
+  const establishedDescriptor = /\b(?:male|female|boy|girl|poodle|dog|cat|pet|person|man|woman|couple|child|baby|business|company|home|house)\b/i;
+  return establishedDescriptor.test(text.replace(new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}`,"i"), "").trim());
+}
+
 function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (!text || META.test(text) || GENERIC.some((pattern) => pattern.test(text))) return true;
   if (CAMERA.test(text) || DIALOGUE.test(text)) return true;
   if (MULTI_CUT_PUNCT.test(text)) return true;
   if (unsupportedEmotion(text, input)) return true;
   if (unknownNamedEntity(text, input)) return true;
+  if (repeatsEstablishedIdentity(text, input)) return true;
   if (!pronounsAllowed(text, input.subjectTruth)) return true;
-  const service = /\b(service|groom|grooming|clean|cleaning|housekeeping|pool|maintenance|barber|salon|repair|mechanic|client|customer)\b/i.test(`${input.prompt} ${input.lens ?? ""}`);
-  if (service && PROVIDER.test(text) && !input.facts.concat(input.sourceMoments).some((fact) => PROVIDER.test(fact))) return true;
+  if (PROVIDER.test(text) && !explicitProviderKnown(input)) return true;
   return false;
 }
 
@@ -133,7 +137,7 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
     payoff: clean(plan?.futureEvolution?.[0]) || "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit","short","short","hit"] : ["hit","short","standard","short","hit"],
-    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries","unestablished named entities"],
+    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose","subject-name repetition","action plus emotion summaries","unestablished named entities","database-role narration"],
   };
 }
 
@@ -158,17 +162,16 @@ export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boo
         "You are QRE's universal author.",
         "Think deeply but output only the finished cuts. Privately compete between genuinely different interpretations. Kill the obvious, generic, sentimental, repetitive, literal action-report, and fact-list versions.",
         "Your job is not to summarize what happened. Find the most specific movie hidden inside what happened.",
-        "Once the subject is established, assume the viewer already knows who we are watching. Do not waste cuts repeating the subject name unless the name itself creates a deliberate effect.",
-        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence makes the subject's world more interesting. Database relationship labels such as owner or customer are not cinematic language unless explicitly meaningful in the source.",
-        "A raw action is not automatically a beat. A report such as 'Coco barks' or 'owner fixes bow' is footage, not authorship. Prefer the charged implication, relationship, contradiction, image, callback, status shift, or unexpected consequence hiding inside the fact.",
-        "Do not manufacture emotions. Show character through what is observable, specific, or established in memory. Never infer a private emotional state merely because an action seems happy, sad, nervous, afraid, alarmed, or calm.",
-        "Do not invent a named person. A named person or relationship may appear only if that person or relationship is explicitly present in the supplied world or memory field. Never create a staff member, owner name, groomer name, friend, spouse, parent, or technician to make a scene work.",
-        "The supplied world is closed. If a person is not explicitly in it, they do not exist in the sequence. If a placement, object, action, outcome, or relationship is not explicitly supported, leave it out.",
-        "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, dialogue, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
+        "The viewer already knows the established subject. Do not reintroduce the subject with a name plus breed, sex, category, or other identity label. Identity belongs to the world model. The mouth spends its limited attention budget on NEW information.",
+        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence makes the subject's world more interesting. Database relationship labels such as owner, customer, groomer, employee, or technician are not cinematic characters unless the supplied world explicitly makes them relevant.",
+        "A raw action is not automatically a beat. 'Coco barks' is footage, not authorship. Prefer the charged detail, relationship, contradiction, image, callback, status shift, or unexpected consequence hiding inside the fact.",
+        "Do not manufacture emotions or interpretive body language. Observable action is allowed. Private emotion is not unless explicitly established. Do not turn barking, wagging, staring, sniffing, smiling, or similar behavior into a claim about what the subject feels.",
+        "Do not invent named people. Do not invent staff. Do not invent the owner. Do not invent a groomer. Do not invent dialogue. If a service is the setting, let the subject's world carry the experience unless the provider is explicitly part of the supplied world.",
+        "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
         "ONE LINE = ONE ATTENTION MOMENT. A cut should add NEW information or change the meaning of what came before.",
         "The strongest cuts may be very short: 'The monster appeared.' 'Pink bows everywhere.' The power is implication, not word count.",
         "Prefer implied subject + new information over explicit subject + narrated action when the subject is already established.",
-        "Do not narrate multiple shots inside one line. Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
+        "Prefer one observable idea per cut. No comma chains. No semicolon chains. No 'then X and Y' constructions. Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
         "Do not write a miniature novel. Do not announce themes. Do not explain the character to the viewer. Make the viewer discover the character through the cut sequence.",
         input.returning ? "Returning chapter: evolve history. A callback must change meaning, stakes, or relationship." : "",
         `Return EXACTLY ${target} scenes. JSON ONLY: {\"scenes\":[{\"text\":\"...\",\"kind\":\"line\"}]}`,
