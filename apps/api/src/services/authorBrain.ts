@@ -1,34 +1,18 @@
 import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorScene, SubjectTruth } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-const GENERIC = [
-  /still here/i,
-  /something changes/i,
-  /then it shifts/i,
-  /see you next time/i,
-  /beautiful transformation/i,
-  /magical moment/i,
-  /unforgettable experience/i,
-  /incredible journey/i,
-  /new routine/i,
-  /power of (?:love|affection|friendship)/i,
-  /symbol of (?:love|bravery|affection|friendship)/i,
-  /eyes sparkle/i,
-  /heart softens/i,
-  /tiny paws/i,
-];
+const GENERIC = [/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/beautiful transformation/i,/magical moment/i,/unforgettable experience/i,/incredible journey/i,/new routine/i,/power of (?:love|affection|friendship)/i,/symbol of (?:love|bravery|affection|friendship)/i,/eyes sparkle/i,/heart softens/i,/tiny paws/i];
 const META = /\b(ai|qre|prompt|compiler|cognition|metadata|model|instruction|writing process)\b/i;
 const PROVIDER = /\b(?:groomer|groomer's|groomer’s|cleaner|cleaner's|cleaner’s|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner)\b/i;
 const DIALOGUE = /[“”]/;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|screen|scene opens|we see)\b/i;
 const MULTI_CUT_PUNCT = /[,;]/;
 const PRONOUN = /\b(he|him|his|she|her|hers|they|them|their|themself|themselves)\b/i;
-const STOP = new Set(["the","a","an","and","or","but","with","for","from","into","that","this","today","after","before","very","just","was","were","is","are","to","of","in","on","at","it","its"]);
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
-const uniq = (values: readonly unknown[] | undefined, limit = 40) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
+const uniq = (values: readonly unknown[] | undefined, limit = 20) => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
 
-function json<T>(text: string): T | null {
+function parseJson<T>(text: string): T | null {
   const value = String(text ?? "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try { return JSON.parse(value) as T; } catch { return null; }
 }
@@ -38,105 +22,21 @@ function debug(label: string, text: string): void {
   console.log(`\n--- QRE RAW MODEL OUTPUT · ${label} ---\n${text}\n--- END RAW MODEL OUTPUT ---\n`);
 }
 
-function tokens(text: string): string[] {
-  return text.toLowerCase().match(/[a-z][a-z'-]{2,}/g)?.filter((token) => !STOP.has(token)) ?? [];
-}
-
-function recurringDetails(input: AuthorBrainTruth): string[] {
-  const current = new Set(tokens([...input.facts, ...input.sourceMoments].join(" ")));
-  const history = new Set(tokens([...(input.memoryContext ?? []), ...(input.trajectory ?? [])].join(" ")));
-  return [...current].filter((token) => history.has(token)).slice(0, 12);
-}
-
-function contradictions(input: AuthorBrainTruth): string[] {
-  const text = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? [])].join(" ").toLowerCase();
-  const out: string[] = [];
-  const tests: Array<[RegExp, string]> = [
-    [/hates? .*loves?|loves? .*hates?/, "rejection versus desire"],
-    [/scared|nervous/, "resistance versus what the subject still wants"],
-    [/happy|joy|excited/, "emotion versus the thing that caused it"],
-    [/old|worn|scratched|faded|vintage/, "wear versus continued value"],
-    [/new|brand new|pristine|first/, "newness versus uncertainty or possibility"],
-    [/quiet|calm/, "calm surface versus hidden pressure"],
-    [/funny|comedy|ridiculous|absurd/, "ordinary reality versus comic interpretation"],
-    [/horror|knife|glass|door|dark/, "ordinary behavior versus reality breaking"],
-  ];
-  for (const [pattern, label] of tests) if (pattern.test(text)) out.push(label);
-  return uniq(out, 8);
-}
-
-function cognitiveField(input: AuthorBrainTruth) {
-  const plan = input.cognitivePlan;
-  if (!plan) return null;
-  return {
-    direction: plan.direction ?? null,
-    centralSubject: plan.centralSubject,
-    whyInteract: uniq(plan.whyInteract, 8),
-    emotionalIntent: uniq(plan.emotionalIntent, 8),
-    purpose: plan.purpose,
-    interactionModel: uniq(plan.interactionModel, 10),
-    storyStructure: uniq(plan.storyStructure, 10),
-    memoryModel: uniq(plan.memoryModel, 10),
-    geographicModel: uniq(plan.geographicModel, 8),
-    socialModel: uniq(plan.socialModel, 8),
-    discoveryModel: uniq(plan.discoveryModel, 8),
-    dynamicBehavior: uniq(plan.dynamicBehavior, 10),
-    futureEvolution: uniq(plan.futureEvolution, 10),
-    creativePossibilities: uniq(plan.creativePossibilities, 16),
-  };
-}
-
-function creativeSearchField(input: AuthorBrainTruth) {
-  const recurring = recurringDetails(input);
-  const tension = contradictions(input);
-  const service = /\b(service|groom|grooming|clean|cleaning|housekeeping|pool|maintenance|barber|salon|repair|mechanic|client|customer)\b/i.test(`${input.prompt} ${input.lens ?? ""}`);
-  return {
-    recurringDetails: recurring,
-    contradictions: tension,
-    subject: input.subject ?? "",
-    place: input.place ?? "",
-    strongestRawMaterial: uniq([...input.facts, ...input.sourceMoments], 16),
-    history: uniq([...(input.memoryContext ?? []), ...(input.trajectory ?? [])], 16),
-    learning: uniq(input.creativeLearningContext, 20),
-    cognitiveField: cognitiveField(input),
-    returning: input.returning ?? false,
-    visitNumber: input.visitNumber ?? null,
-    presenceSummary: uniq(input.presenceSummary, 12),
-    serviceStage: service,
-    creativeSearches: [
-      "character contradiction",
-      "running relationship or game",
-      "status shift",
-      "unexpected framing",
-      "personification",
-      "understatement",
-      "scale contrast",
-      "callback with changed meaning",
-      "ordinary detail made strangely important",
-      "small reversal",
-      "pattern break",
-      "earned after-image",
-    ],
-  };
-}
-
-function subjectTruthText(truth?: SubjectTruth): string {
-  if (!truth) return "IDENTITY STATUS: unresolved. Do not invent sex, gender, or pronouns.";
-  const parts = [
-    truth.name ? `name=${truth.name}` : "",
-    truth.kind ? `kind=${truth.kind}` : "",
-    truth.sex && truth.sex !== "unknown" ? `sex=${truth.sex}` : "",
-    truth.pronouns ? `pronouns=${truth.pronouns.subject}/${truth.pronouns.object}/${truth.pronouns.possessive}` : "pronouns=unknown",
-    truth.provenance ? `provenance=${truth.provenance}` : "",
-    ...(truth.identityFacts ?? []).map((fact) => `identity_fact=${clean(fact)}`),
-  ];
-  return parts.filter(Boolean).join(" | ");
+function recoverPartialScenes(raw: string): AuthorScene[] {
+  const out: AuthorScene[] = [];
+  const objectPattern = /"text"\s*:\s*"((?:\\.|[^"\\])*)"/g;
+  for (const match of raw.matchAll(objectPattern)) {
+    try { out.push({ text: clean(JSON.parse(`"${match[1]}"`)), kind: "line" }); } catch { /* ignore */ }
+  }
+  if (out.length) return out;
+  const strings = raw.match(/"([^"]{2,120})"/g)?.map((x) => x.slice(1, -1)) ?? [];
+  return strings.filter((x) => !/^scenes?$|^text$|^line$/i.test(x)).slice(0, 8).map((text) => ({ text: clean(text), kind: "line" }));
 }
 
 function normalizeScenes(raw: unknown): AuthorScene[] {
   if (Array.isArray(raw)) return raw.map((item) => typeof item === "string" ? ({ text: item, kind: "line" as const }) : item as AuthorScene);
   if (!raw || typeof raw !== "object") return [];
-  const value = raw as { scenes?: unknown; text?: unknown; lines?: unknown[] };
+  const value = raw as { scenes?: unknown; lines?: unknown[]; text?: unknown };
   if (Array.isArray(value.scenes)) return normalizeScenes(value.scenes);
   if (Array.isArray(value.lines)) return value.lines.map((line) => ({ text: clean(line), kind: "line" as const }));
   if (typeof value.text === "string") return value.text.split(/\n+/).filter(Boolean).map((line) => ({ text: clean(line), kind: "line" as const }));
@@ -145,115 +45,99 @@ function normalizeScenes(raw: unknown): AuthorScene[] {
 
 function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
   if (!PRONOUN.test(text)) return true;
-  return Boolean(truth?.pronouns && (truth.provenance === "explicit" || truth.provenance === "memory" || truth.provenance === "runtime"));
+  return Boolean(truth?.pronouns && ["explicit","memory","runtime"].includes(truth.provenance));
 }
 
-function hardInvalid(text: string, input: AuthorBrainTruth): boolean {
+function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (!text || META.test(text) || GENERIC.some((pattern) => pattern.test(text))) return true;
   if (CAMERA.test(text) || DIALOGUE.test(text)) return true;
   if (MULTI_CUT_PUNCT.test(text)) return true;
-  if (PRONOUN.test(text) && !pronounsAllowed(text, input.subjectTruth)) return true;
-  if (/\bserviceLike\b|\bbeat job\b|\bviewer want\b/i.test(text)) return true;
+  if (!pronounsAllowed(text, input.subjectTruth)) return true;
   const service = /\b(service|groom|grooming|clean|cleaning|housekeeping|pool|maintenance|barber|salon|repair|mechanic|client|customer)\b/i.test(`${input.prompt} ${input.lens ?? ""}`);
   if (service && PROVIDER.test(text) && !input.facts.concat(input.sourceMoments).some((fact) => PROVIDER.test(fact))) return true;
   return false;
 }
 
-function weakLine(text: string): boolean {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  if (words.length > 14) return true;
-  if (words.length >= 4) return false;
-  if (/[?!\.]/.test(text)) return false;
-  return words.length === 1;
-}
-
-function finalizeScenes(input: AuthorBrainTruth, scenes: AuthorScene[], beatCount: number): AuthorScene[] {
-  const output: AuthorScene[] = [];
+function finalizeScenes(input: AuthorBrainTruth, scenes: AuthorScene[], target: number): AuthorScene[] {
+  const out: AuthorScene[] = [];
   const seen = new Set<string>();
   for (const scene of scenes) {
     const text = clean(scene.text);
+    if (!text || text.split(/\s+/).length > 14 || invalid(text, input)) continue;
     const key = text.toLowerCase();
-    if (hardInvalid(text, input) || weakLine(text) || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
-    output.push({ text, kind: scene.kind ?? "line" });
+    out.push({ text, kind: scene.kind ?? "line" });
   }
-  return output.slice(0, beatCount);
+  return out.slice(0, target);
+}
+
+function compactPlan(input: AuthorBrainTruth) {
+  const plan = input.cognitivePlan;
+  if (!plan) return {};
+  return {
+    direction: plan.direction ?? null,
+    purpose: clean(plan.purpose),
+    why: uniq(plan.whyInteract, 4),
+    emotion: uniq(plan.emotionalIntent, 4),
+    story: uniq(plan.storyStructure, 5),
+    memory: uniq(plan.memoryModel, 4),
+    discovery: uniq(plan.discoveryModel, 4),
+    possibilities: uniq(plan.creativePossibilities, 8),
+    future: uniq(plan.futureEvolution, 4),
+  };
 }
 
 function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
   const plan = input.cognitivePlan;
   return {
-    angle: plan?.creativePossibilities?.[0] ?? "find the subject's most specific contradiction or relationship",
-    engine: plan?.purpose ?? "character lens over supplied reality",
-    question: plan?.whyInteract?.[0] ?? "what is unexpectedly interesting here?",
+    angle: clean(plan?.creativePossibilities?.[0]) || "the subject's most specific contradiction or relationship",
+    engine: clean(plan?.purpose) || "character lens over supplied reality",
+    question: clean(plan?.whyInteract?.[0]) || "what is unexpectedly interesting here?",
     strongestImage: input.facts[0] ?? input.sourceMoments[0] ?? "the strongest supplied detail",
-    tension: plan?.emotionalIntent?.[0] ?? "something the subject makes personal",
-    payoff: plan?.futureEvolution?.[0] ?? "a character-specific consequence or reframe",
+    tension: clean(plan?.emotionalIntent?.[0]) || "something the subject makes personal",
+    payoff: clean(plan?.futureEvolution?.[0]) || "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
-    rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit", "short", "short", "hit"] : ["hit", "short", "standard", "short", "hit"],
-    avoid: ["literal fact list", "generic emotional journey", "invented concrete events", "provider as protagonist", "paragraph prose"],
+    rhythm: /living memory|chapter/i.test(input.prompt) ? ["hit","short","short","hit"] : ["hit","short","standard","short","hit"],
+    avoid: ["literal fact list","generic emotional journey","invented concrete events","provider as protagonist","paragraph prose"],
   };
 }
 
-export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boolean } = {}): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; field: ReturnType<typeof creativeSearchField> }> {
-  const beatCount = /living memory|chapter/i.test(input.prompt) ? 4 : 5;
-  const field = creativeSearchField(input);
-  const fallback = fallbackBrief(input);
+export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boolean } = {}): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; field: Record<string, unknown> }> {
+  const target = /living memory|chapter/i.test(input.prompt) ? 4 : 5;
+  const brief = fallbackBrief(input);
+  const field = {
+    truth: input.subjectTruth ?? null,
+    current: uniq([...input.facts, ...input.sourceMoments], 12),
+    history: uniq([...(input.memoryContext ?? []), ...(input.trajectory ?? [])], 8),
+    learning: uniq(input.creativeLearningContext, 6),
+    returning: input.returning ?? false,
+    visit: input.visitNumber ?? null,
+    presence: uniq(input.presenceSummary, 5),
+    plan: compactPlan(input),
+  };
 
   const result = await localModelGenerate([
     {
       role: "system",
       content: [
-        "You are QRE's UNIVERSAL AUTHOR BRAIN and CUT MOUTH in one pass.",
-        "You are not a novelist. You are not a receipt writer. You are not a screenplay formatter. You are a creative computer that finds the latent movie inside reality and splices it into addictive cuts.",
-        "The upstream cognitive plan is intelligence you may exploit. It is NOT a script. Do not copy its labels or obey its beat structure literally. Extract the strongest relationship, contradiction, opportunity, memory, or future possibility and turn that into your own movie.",
-        "Privately compete: explore several genuinely different ways to see the material. Attack your own first idea for being generic, obvious, sentimental, repetitive, or merely a paraphrase of the facts. Choose the idea that is most specific to this subject and this history.",
-        "The subject is temporarily the star. A service, business, job, event, place, or object is the stage and raw material. In service experiences, do not invent the provider as a story character unless explicitly supplied.",
-        "The strongest creative move is often: supplied reality → character lens → surprising framing. A detail can become a metaphor, status game, running joke, mystery, rivalry, ritual, or strange image without inventing a concrete physical event.",
-        "ATTENTION IS WANTING. Give the viewer a reason to lean forward. Then make the next cut change what they expect. Do not explain the cleverness.",
-        "CUT GRAMMAR: ONE LINE = ONE ATTENTION MOMENT. One strong thought. One image. One attitude. One question. Or one consequence.",
-        "SHORT-CUT BEHAVIOR: a 2–4 word line can be powerful because it leaves a gap for the viewer to fill. Use that compression when it strengthens the idea. Do not shorten weak writing just to hit a word count.",
-        "RHYTHM: let cuts breathe and spike. Short → short → fuller → hit is good. So is short → long → short → long. Choose rhythm from the material.",
-        "PUNCTUATION: NEVER use commas or semicolons in scene text. A colon may be used when the source itself contains a factual time like 9:04 AM.",
-        "Do not mechanically repeat the subject name. Character presence can persist through voice, attitude, choice, resistance, implication, callback, and consequence.",
-        "Do not narrate multiple actions in one line. Avoid chained 'then', 'while', 'after', or 'as' constructions when they hide another shot.",
-        "Do not announce transformation, happiness, bravery, affection, memory, or other themes. Make the cuts imply them.",
-        "REALITY IS SACRED. Use pronouns only when the subject truth explicitly establishes them. Never invent people, relationships, provider actions, dialogue, locations, object placement, physical actions, timestamps, weather, or outcomes.",
-        "Metaphor and perspective are creative framing. They do not create a new factual event.",
-        `This is ${input.returning ? "a returning chapter" : "the current known chapter"}. Returning chapters should evolve an established detail instead of restarting the story.`,
-        `Create exactly ${beatCount} lines.`,
-        "Return JSON with a compact creativeBrief plus scenes: {creativeBrief:{angle,engine,question,strongestImage,tension,payoff,callback,rhythm,avoid},scenes:[{text,kind}]}.",
-        `SUBJECT TRUTH: ${subjectTruthText(input.subjectTruth)}`,
-        `CREATIVE SEARCH FIELD: ${JSON.stringify(field)}`,
+        "You are QRE's universal author.",
+        "Think deeply but output only the finished cuts. Privately compete between interpretations. Kill the obvious, generic, sentimental, repetitive, or fact-list version. Find the most character-specific movie hidden in the supplied reality and history.",
+        "The subject is temporarily the star. Service, business, job, event, place, and object are stage and raw material unless explicitly established as characters.",
+        "Reality is sacred. Explicit subject truth controls pronouns and identity. Do not invent people, relationships, dialogue, locations, actions, timestamps, object placement, weather, outcomes, or provider behavior.",
+        "ONE LINE = ONE ATTENTION MOMENT. Every cut should make the next cut desirable.",
+        "Compression means removing explanation, not making every line tiny. Use 2–4 words when that hits harder. Use longer lines only when they add real dramatic information.",
+        "Never use commas or semicolons in scene text. A colon is allowed for a supplied factual time such as 9:04 AM.",
+        "Do not repeat the subject name mechanically. Do not announce themes. Do not narrate multiple actions inside one cut.",
+        input.returning ? "Returning chapter: evolve history. A callback must change meaning, stakes, or relationship." : "",
+        `Return EXACTLY ${target} scenes. JSON ONLY: {"scenes":[{"text":"...","kind":"line"}]}`,
       ].join(" "),
     },
-    { role: "user", content: JSON.stringify({
-      prompt: input.prompt,
-      lens: input.lens ?? "",
-      subject: input.subject ?? "",
-      place: input.place ?? "",
-      subjectTruth: input.subjectTruth ?? null,
-      cognitivePlan: cognitiveField(input),
-      returning: input.returning ?? false,
-      visitNumber: input.visitNumber ?? null,
-      presenceSummary: uniq(input.presenceSummary, 12),
-      facts: uniq(input.facts, 40),
-      sourceMoments: uniq(input.sourceMoments, 24),
-      memoryContext: uniq(input.memoryContext, 24),
-      trajectory: uniq(input.trajectory, 24),
-      creativeLearningContext: uniq(input.creativeLearningContext, 24),
-    }) },
+    { role: "user", content: JSON.stringify({ prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "", field }) },
   ], "json");
 
   debug("AUTHOR-BRAIN", result.text);
-  const parsed = json<{ creativeBrief?: Partial<AuthorCreativeBrief>; scenes?: unknown; text?: string }>(result.text) ?? {};
-  const brief: AuthorCreativeBrief = {
-    ...fallback,
-    ...(parsed.creativeBrief ?? {}),
-    rhythm: Array.isArray(parsed.creativeBrief?.rhythm) ? parsed.creativeBrief!.rhythm! : fallback.rhythm,
-    avoid: Array.isArray(parsed.creativeBrief?.avoid) ? parsed.creativeBrief!.avoid! : fallback.avoid,
-  };
-  const rawScenes = normalizeScenes(parsed.scenes ?? (typeof parsed.text === "string" ? { text: parsed.text } : []));
-  return { brief, scenes: finalizeScenes(input, rawScenes, beatCount), field };
+  const parsed = parseJson<{ scenes?: unknown }>(result.text);
+  const raw = parsed?.scenes !== undefined ? normalizeScenes(parsed.scenes) : recoverPartialScenes(result.text);
+  return { brief, scenes: finalizeScenes(input, raw, target), field };
 }
