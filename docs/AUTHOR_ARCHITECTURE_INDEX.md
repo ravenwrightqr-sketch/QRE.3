@@ -1,7 +1,7 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
-**Status:** ACTIVE / CLEAN
-**Branch:** `elite-universal-rebuild-v10`
+**Status:** ACTIVE / CLEAN / GUARDED  
+**Branch:** `elite-universal-rebuild-v10`  
 **Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author, cognition, compiler, sequence, contracts, or diagnostics.
 
 ## 1. MASTER RULE
@@ -12,9 +12,12 @@ ONE PRODUCTION AUTHOR PATH
 ONE CANONICAL CUT POLICY
 ONE ACCEPTANCE HARNESS
 ONE SHARED SEMANTIC BOUNDARY
+ONE AUTOMATIC ARCHITECTURE GUARD
 ```
 
 No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
+
+The architecture guard is `scripts/verify-author-architecture.mjs` and is mandatory before builds/acceptance in CI.
 
 ## 2. CANONICAL INTELLIGENCE STACK
 
@@ -87,18 +90,14 @@ experience moments / cinematic scenes
 
 `microBeatMouth.ts` is a **projection adapter only**. It must never become a second author.
 
-`cinematicAuthor.ts` is also an adapter only and now calls the Universal Author directly. It no longer runs an independent critique/repair author loop.
+`cinematicAuthor.ts` is also an adapter only and calls the Universal Author directly. It has no independent critique/repair author loop.
 
-## 5. FAST ACCEPTANCE PATH
+## 5. ACCEPTANCE PATH
 
-The fast test is the same author intelligence, not a competing brain:
+The acceptance test uses the exact same Master Author directly:
 
 ```text
 apps/api/author-acceptance-suite.ts
-        ↓
-apps/api/src/services/authorFastCore.ts
-        ↓
-creative relation candidates
         ↓
 apps/api/src/services/authorBrainUniversal.ts
 ```
@@ -113,7 +112,7 @@ pnpm author:fast -- HORROR
 pnpm author:fast -- RAVE
 ```
 
-The harness is an observer. It does not define production rules.
+The harness is an observer. It does not define production rules and must never gain a separate creative bridge.
 
 ## 6. UPSTREAM COGNITION
 
@@ -152,21 +151,28 @@ impact density
 
 Do not create another independent validator. Migrate the Universal Author and adapters toward this policy until only one evaluator owns semantic acceptance.
 
-## 8. CREATIVE RELATION OPERATIONS
+## 8. CREATIVE SEARCH
 
-`apps/api/src/services/creativeRelationOps.ts`
+Creative search belongs upstream of final realization. It should produce **semantic possibilities**, not domain phrase libraries.
 
-This is search infrastructure, not author authority.
-
-Candidates are hypotheses only:
+Preferred reusable operations include:
 
 ```text
-preference ↔ preference
-positive ↔ negative
-status ↔ history
-recurrence ↔ present context
-contradiction ↔ consequence
+contrast
+recurrence
+status shift
+relationship change
+detail hierarchy
+implication
+withholding
+reframe
+callback
+consequence
+escalation
+compression
 ```
+
+A candidate is a hypothesis. It is not source truth.
 
 Recurrence requires actual history, trajectory, or repeated evidence.
 
@@ -188,34 +194,27 @@ Do not create another sequence/momentum version without a demonstrated capabilit
 
 ## 10. CLEANUP COMPLETED
 
-Removed from `apps/api`:
+Removed the legacy API author-test pile and legacy author brains.
 
-```text
-author-fast-suite.ts
-author-beat-presence-suite.ts
-author-beat-presence-master-suite.ts
-author-ceiling-benchmark.ts
-author-ceiling-test.ts
-author-creative-superstar-suite.ts
-author-mouth-quality-suite.ts
-author-universal-ceiling-suite.ts
-creative-learning-readout.ts
-local-author-test.ts
-one-pass-test.ts
-```
-
-Removed legacy author brains:
-
-```text
-apps/api/src/services/authorBrain.ts
-apps/api/src/services/authorBrainMomentum.ts
-apps/api/src/services/authorBrainMomentumV2.ts
-apps/api/src/services/authorBrainMomentumV3.ts
-```
-
-The single replacement test harness is:
+The only author acceptance harness is:
 
 `apps/api/author-acceptance-suite.ts`
+
+The deleted experimental bridges included:
+
+```text
+authorFastCore.ts
+creativeRelationOps.ts
+```
+
+The deleted legacy author authorities included:
+
+```text
+authorBrain.ts
+authorBrainMomentum.ts
+authorBrainMomentumV2.ts
+authorBrainMomentumV3.ts
+```
 
 ## 11. REMAINING ADAPTERS
 
@@ -244,7 +243,25 @@ recurrence requires evidence
 sparse world → smaller invented-world surface
 ```
 
-## 13. TEST DISCIPLINE
+## 13. DRIFT GUARD
+
+`scripts/verify-author-architecture.mjs` enforces the following automatically:
+
+```text
+canonical Master Author exists
+canonical acceptance harness exists
+legacy author files remain deleted
+legacy author tests remain deleted
+author:fast points to the canonical acceptance harness
+acceptance imports the Master Author directly
+production imports do not reference deleted author paths
+```
+
+The guard runs before the repository build and in CI.
+
+If any of these conditions drift, **the build stops**.
+
+## 14. TEST DISCIPLINE
 
 Every author experiment follows:
 
@@ -270,7 +287,7 @@ DELETE STALE PATHS
 
 A green benchmark is not success if production uses a different brain.
 
-## 14. REPO HYGIENE
+## 15. REPO HYGIENE
 
 QRE should get simpler as intelligence increases.
 
