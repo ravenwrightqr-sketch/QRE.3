@@ -8,78 +8,171 @@ type Case = {
   sourceMoments: string[];
 };
 
+function requireAuthorRuntime(): void {
+  const aiEnabled = process.env.QRE_AI_ENABLED === "true";
+  const externalEnabled = process.env.QRE_EXTERNAL_AI_ENABLED === "true";
+  const modelUrl = process.env.QRE_LOCAL_MODEL_URL ?? "";
+  const model = process.env.QRE_LOCAL_MODEL ?? "";
+
+  console.log("\n" + "=".repeat(100));
+  console.log("QRE AUTHOR PREFLIGHT");
+  console.log("AI ENABLED:", process.env.QRE_AI_ENABLED ?? "(missing)");
+  console.log("EXTERNAL AI:", process.env.QRE_EXTERNAL_AI_ENABLED ?? "(missing)");
+  console.log("LOCAL MODEL:", model || "(missing)");
+  console.log("LOCAL MODEL URL:", modelUrl || "(missing)");
+  console.log("TIMEOUT MS:", process.env.QRE_LOCAL_MODEL_TIMEOUT_MS ?? "(missing)");
+
+  if (!aiEnabled) {
+    console.error("\nQRE AUTHOR PREFLIGHT FAILED");
+    console.error("QRE_AI_ENABLED is not true.");
+    console.error("The author benchmark was NOT RUN.");
+    process.exit(1);
+  }
+
+  if (externalEnabled) {
+    console.error("\nQRE AUTHOR PREFLIGHT FAILED");
+    console.error("QRE_EXTERNAL_AI_ENABLED is true.");
+    console.error("This benchmark is intended to exercise the local author runtime.");
+    process.exit(1);
+  }
+
+  if (!modelUrl) {
+    console.error("\nQRE AUTHOR PREFLIGHT FAILED");
+    console.error("QRE_LOCAL_MODEL_URL is missing.");
+    process.exit(1);
+  }
+
+  if (!model) {
+    console.error("\nQRE AUTHOR PREFLIGHT FAILED");
+    console.error("QRE_LOCAL_MODEL is missing.");
+    process.exit(1);
+  }
+
+  console.log("STATUS: READY");
+  console.log("=".repeat(100) + "\n");
+}
+
 const cases: Case[] = [
   {
     name: "DOG-SERVICE",
     prompt: "Make a short cinematic experience for a dog groomer's client.",
     lens: "funny",
-    facts: ["Coco is a poodle", "nervous at first", "loves treats", "a little fierce", "picked up after grooming"],
+    facts: [
+      "Coco is a poodle",
+      "nervous at first",
+      "loves treats",
+      "a little fierce",
+      "picked up after grooming",
+    ],
     sourceMoments: ["today's grooming visit"],
   },
   {
     name: "HOUSEKEEPER",
     prompt: "Turn Maria's cleaning job into a funny quiet battle for control of the house.",
     lens: "comedy",
-    facts: ["Maria arrived at 9:04 AM", "bathroom", "living room", "kitchen", "finished at 11:47 AM"],
+    facts: [
+      "Maria arrived at 9:04 AM",
+      "bathroom",
+      "living room",
+      "kitchen",
+      "finished at 11:47 AM",
+    ],
     sourceMoments: ["one housecleaning visit"],
   },
   {
     name: "CREATOR",
     prompt: "Turn my life as a creator into something people want to follow.",
     lens: "bold",
-    facts: ["I make unusual things", "I keep experimenting", "I care about attention"],
+    facts: [
+      "I make unusual things",
+      "I keep experimenting",
+      "I care about attention",
+    ],
     sourceMoments: ["my creative life"],
   },
   {
     name: "SOCIAL",
     prompt: "Make a social sequence people stop scrolling for.",
     lens: "chaotic",
-    facts: ["unexpected reveal", "fast energy", "strong personality"],
+    facts: [
+      "unexpected reveal",
+      "fast energy",
+      "strong personality",
+    ],
     sourceMoments: ["one ordinary moment"],
   },
   {
     name: "ARTIST",
     prompt: "Introduce this artist's work like entering another world.",
     lens: "mysterious",
-    facts: ["physical artwork", "strong visual language", "the work feels strange and beautiful"],
+    facts: [
+      "physical artwork",
+      "strong visual language",
+      "the work feels strange and beautiful",
+    ],
     sourceMoments: ["gallery viewing"],
   },
   {
     name: "PERSON",
     prompt: "Make a cinematic portrait of me that feels human rather than like a biography.",
     lens: "intimate",
-    facts: ["I chase ideas", "I notice details", "I want to build something unusual"],
+    facts: [
+      "I chase ideas",
+      "I notice details",
+      "I want to build something unusual",
+    ],
     sourceMoments: ["an ordinary day"],
   },
   {
     name: "WEDDING-MEMORY",
     prompt: "Make a wedding memory cinematic.",
     lens: "romantic",
-    facts: ["beach wedding", "Long Beach, California", "Tower 3", "people we love"],
+    facts: [
+      "beach wedding",
+      "Long Beach, California",
+      "Tower 3",
+      "people we love",
+    ],
     sourceMoments: ["the wedding day"],
   },
   {
     name: "ARTIFACT",
     prompt: "Make this physical QR art feel like it contains a secret.",
     lens: "mysterious",
-    facts: ["physical wood art", "it scans", "it opens a living experience"],
+    facts: [
+      "physical wood art",
+      "it scans",
+      "it opens a living experience",
+    ],
     sourceMoments: ["someone discovers the object"],
   },
   {
     name: "STORY",
     prompt: "Turn an ordinary hotel room into a slow, unavoidable horror sequence.",
     lens: "horror",
-    facts: ["old photograph", "lights flicker", "ordinary hotel room"],
+    facts: [
+      "old photograph",
+      "lights flicker",
+      "ordinary hotel room",
+    ],
     sourceMoments: ["late at night"],
   },
   {
     name: "WILDCARD",
     prompt: "Take this ordinary thing and make people care about it.",
     lens: "surprising",
-    facts: ["ordinary object", "one strange detail", "no other context"],
+    facts: [
+      "ordinary object",
+      "one strange detail",
+      "no other context",
+    ],
     sourceMoments: [],
   },
 ];
+
+requireAuthorRuntime();
+
+let failures = 0;
 
 for (const test of cases) {
   console.log("\n" + "=".repeat(100));
@@ -102,13 +195,28 @@ for (const test of cases) {
 
     console.timeEnd(test.name);
     console.log("SCENES:", scenes.length);
+
+    if (scenes.length === 0) {
+      failures += 1;
+      console.error("AUTHOR FAILURE: zero scenes returned.");
+    }
+
     scenes.forEach((scene, index) => {
-      console.log(`[${index + 1}] ${scene.kind ?? "scene"} · ${scene.text}`);
+      console.log(
+        `[${index + 1}] ${scene.kind ?? "scene"} · ${scene.text}`,
+      );
     });
   } catch (error) {
+    failures += 1;
     console.timeEnd(test.name);
     console.error("AUTHOR ERROR:", error);
   }
 }
 
-console.log("\nUNIVERSAL AUTHOR CEILING SUITE COMPLETE");
+console.log("\n" + "=".repeat(100));
+console.log("UNIVERSAL AUTHOR CEILING SUITE COMPLETE");
+console.log("FAILURES:", failures);
+
+if (failures > 0) {
+  process.exitCode = 1;
+}
