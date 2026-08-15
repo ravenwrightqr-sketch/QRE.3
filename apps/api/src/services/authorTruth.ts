@@ -20,46 +20,53 @@ export function resolveSubjectTruth(subject: string | undefined, prompt: string,
   const name = clean(subject);
   if (!name) return undefined;
 
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nameRe = new RegExp(`\\b${escaped}\\b`, "i");
+  const explicitStatements = [prompt].map(clean).filter((value) => nameRe.test(value));
+
+  const subjectEntityIds = new Set(
+    (memory?.entities ?? [])
+      .filter((entity) => entity.canonicalKey?.toLowerCase() === name.toLowerCase() || entity.name?.toLowerCase() === name.toLowerCase())
+      .map((entity) => entity.id),
+  );
+
+  const memoryStatements = (memory?.facts ?? [])
+    .filter((fact) => fact.status === "active")
+    .filter((fact) => fact.kind === "identity" || fact.kind === "attribute")
+    .filter((fact) => !fact.entityId || subjectEntityIds.has(fact.entityId))
+    .map((fact) => `${fact.predicate}: ${fact.value}`)
+    .map(clean)
+    .filter(Boolean);
+
+  const explicitCorpus = explicitStatements.join(" | ");
+  const memoryCorpus = memoryStatements.join(" | ");
+  const corpus = [explicitCorpus, memoryCorpus].filter(Boolean).join(" | ");
+  if (!corpus) return undefined;
+
   const truth: SubjectTruth = {
     name,
     kind: undefined,
     sex: "unknown",
-    provenance: "explicit",
-    identityFacts: [],
+    provenance: explicitStatements.length ? "explicit" : "memory",
+    identityFacts: [...explicitStatements, ...memoryStatements].slice(0, 12),
   };
 
-  const explicit = [prompt];
-  const memoryFacts = (memory?.facts ?? [])
-    .filter((fact) => fact.status === "active")
-    .filter((fact) => fact.kind === "identity" || fact.kind === "attribute")
-    .map((fact) => `${fact.predicate}: ${fact.value}`);
+  const kindCorpus = [explicitCorpus, memoryCorpus].join(" ");
+  if (/\b(?:dog|poodle|puppy|cat|pet|animal)\b/i.test(kindCorpus)) truth.kind = "animal";
+  else if (/\b(?:woman|man|person|human)\b/i.test(kindCorpus)) truth.kind = "person";
 
-  const statements = [...explicit, ...memoryFacts].map(clean).filter(Boolean);
-  const corpus = statements.join(" | ");
-  const lower = corpus.toLowerCase();
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  if (new RegExp(`\\b${escaped}\\b`, "i").test(corpus)) {
-    if (/\b(?:dog|poodle|puppy|cat|pet|animal)\b/i.test(corpus)) truth.kind = "animal";
-    else if (/\b(?:woman|man|person|groom|bride|groom|human)\b/i.test(corpus)) truth.kind = "person";
-  }
-
-  const pronouns = pronounSet(corpus);
+  const explicitPronouns = pronounSet(explicitCorpus);
+  const memoryPronouns = pronounSet(memoryCorpus);
+  const pronouns = explicitPronouns ?? memoryPronouns;
   if (pronouns) {
     truth.pronouns = pronouns;
     truth.sex = pronouns.subject === "he" ? "male" : pronouns.subject === "she" ? "female" : "unknown";
   }
 
-  const explicitSex = lower.match(new RegExp(`\\b${escaped}\\b[^.\\n]{0,80}\\b(male|female|boy|girl|man|woman)\\b`, "i"));
-  if (explicitSex) {
-    truth.sex = /male|boy|man/i.test(explicitSex[1]) ? "male" : "female";
-  }
+  const explicitSex = explicitCorpus.match(/\b(?:male|female|boy|girl|man|woman)\b/i);
+  const memorySex = memoryCorpus.match(/\b(?:male|female|boy|girl|man|woman)\b/i);
+  const sex = explicitSex?.[0] ?? memorySex?.[0];
+  if (sex) truth.sex = /male|boy|man/i.test(sex) ? "male" : /female|girl|woman/i.test(sex) ? "female" : "unknown";
 
-  const facts = statements.filter((statement) => {
-    const value = statement.toLowerCase();
-    return value.includes(name.toLowerCase()) || /^(?:sex|gender|pronoun|pronouns|breed|species|identity)\s*:/i.test(statement);
-  });
-  truth.identityFacts = facts.slice(0, 12);
-
-  return truth.pronouns || truth.sex !== "unknown" || truth.identityFacts.length ? truth : undefined;
+  return truth;
 }
