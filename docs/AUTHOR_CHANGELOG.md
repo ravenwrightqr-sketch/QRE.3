@@ -17,6 +17,82 @@ It records author experiments, hypotheses, observed outputs, benchmark changes, 
 
 ---
 
+## 2026-08-15 — Character-First Rapid-Attention Author
+
+### What we learned
+
+- QRE is **not writing a novel**. It is creating rapid attention loops: grab → develop → grab → turn → payoff.
+- Beat length is not the objective. A two-word beat can be excellent when it carries high information and attitude; a longer beat is correct when its creative job requires it.
+- The correct optimization is **dramatic information density + next-cut pressure**, not minimum word count.
+- `Bows? Again?` is useful because it immediately creates a question. It is the beginning of a sequence, not a complete story by itself.
+- Different follow-up directions can be different movies. The author must choose a champion angle and keep the whole sequence loyal to it.
+- The character is the center of gravity. The input/event/service is the world the character experiences.
+- Character-first does **not** mean repeating `Coco` every beat. Character presence can come from attitude, decisions, reactions, implications, callbacks, and consequences.
+- `Coco is a poodle` is a true fact but is not automatically the strongest creative opportunity.
+- `Coco sniffs a bow` is an observation, not automatically a reason to continue watching and not an earned ending.
+- Generic AI-cinematic language (`quick zoom`, `final shot`, `eyes widen`, etc.) is not a substitute for creative movement.
+- Boring jobs such as housekeeping, pool cleaning, grooming, maintenance, or delivery are valid material. The author should find the human angle inside the actual work without fabricating events.
+- Grounded reality is hard: never infer gender/pronouns, people, relationships, locations, actions, outcomes, timestamps, weather, or physical events absent from the source.
+
+### Architecture change
+
+Added `apps/api/src/services/authorFastCore.ts` as a dedicated rapid development path:
+
+```text
+WORLD / FACTS
+      ↓
+CHARACTER + CONTEXT
+      ↓
+COMPETING CREATIVE ANGLES
+      ↓
+ATTACK / CHOOSE CHAMPION
+      ↓
+ANGLE + TENSION + MOVEMENT + PAYOFF
+      ↓
+RAPID-ATTENTION DRAFT
+```
+
+It performs one real planning generation followed by one real drafting generation. The purpose is fast cognitive iteration, not production repair.
+
+`apps/api/author-fast-suite.ts` now uses this path and reports the selected angle, tension, payoff, beat count, and raw model output.
+
+`cinematicAuthor.ts` was also strengthened with character-first, evidence-gated instructions and champion-angle fields.
+
+### Current author rules
+
+1. **Character first.**
+2. **Reality first.** No unsupported factual invention.
+3. **Attention repeats.** Every cut should create a reason for the next cut.
+4. **One champion angle per sequence.** Do not mix competing movies.
+5. **Length follows the creative job.** Never force two-word beats; never pad them either.
+6. **No mechanical subject repetition.**
+7. **No fake cinematography.**
+8. **Boring reality is usable.** Find the human angle without fabricating events.
+9. **Payoff belongs to the character/angle.** No generic farewell.
+10. **History matters.** Reuse can be callback; repetition without evolution is failure.
+
+### Benchmark evidence behind these rules
+
+- Maria's timestamp/room list proved that fact preservation alone creates a receipt, not a living memory.
+- Coco's `hates bows / loves treats` output proved that semantic facts can still be weak cinematic beats.
+- Generic `Still here / Something changes / Then it shifts / See you next time` proved connective filler must be rejected.
+- Repeated model outputs invented groomer actions and gendered pronouns. These are now explicit evidence-gated failures.
+- Multiple zero-beat runs showed that malformed/truncated structured output must be visible through raw diagnostics instead of silently becoming `BEATS: 0`.
+
+### Next benchmark loop
+
+Use the rapid cases while tuning:
+
+```powershell
+pnpm author:fast -- COCO
+pnpm author:fast -- MARIA
+pnpm author:fast -- HORROR
+```
+
+Inspect the actual angle and sequence before running the full suite. The target is not merely green JSON; it is a first beat that creates a real desire to see the next cut.
+
+---
+
 ## 2026-08-15 — Fast Author Iteration Loop
 
 Commits: `d61d9996981fc5c8f2ffb423ee4443feb61ec902`, `2a30bcb9e00e2a3289e80468444f858a4fcc1d0d`, `0bd4c4a6b2f3563d6ed61e2544d8d0e248a7c366`
@@ -41,29 +117,11 @@ Added:
 apps/api/author-fast-suite.ts
 ```
 
-The fast suite runs one selected real Ollama case at a time. Default is COCO; a case can be selected as the first argument or with `QRE_AUTHOR_CASE`.
-
-Added API scripts:
-
-```text
-pnpm author:fast
-pnpm author:full
-```
-
-Examples:
-
-```text
-pnpm author:fast
-pnpm author:fast -- COCO-RETURN
-pnpm author:fast -- HORROR
-pnpm author:full
-```
+The fast suite runs one selected real Ollama case at a time.
 
 ### Purpose
 
-This is **not a quality bypass for production**. It is an experimental loop so we can rapidly tune the mouth, validator, and creative realization without paying for a repair retry on every single experiment.
-
-The full suite remains the authoritative regression/creative check.
+This is **not a quality bypass for production**. It is an experimental loop so we can rapidly tune the mouth, validator, and creative realization without paying for a repair retry on every experiment.
 
 ### Iteration Model
 
@@ -83,16 +141,6 @@ pnpm author:full
 full validation
 ```
 
-### Important Lesson
-
-Do not optimize the author by making the benchmark weaker. Optimize the **development loop** so we can afford to run many experiments.
-
-### Status
-
-**IMPLEMENTED. LOCAL OLLAMA TIMING REQUIRED.**
-
-The connected GitHub environment cannot execute the user's local Ollama runtime, so the actual speedup still needs to be measured locally.
-
 ---
 
 ## 2026-08-15 — Creative Competition + Sequence Safety
@@ -101,96 +149,17 @@ Commit: `d7082e85f76b7728a287117910dd781c327b1cfb`
 
 ### Hypothesis
 
-The author already has useful world understanding and creative operators, but it was allowing one weak interpretation to flow directly into drafting. The result was fact serialization (`hates bows`, `loves treats`) and generic fallback prose. Separately, strict validation could collapse a failed generation to zero beats.
+The author already had useful world understanding and creative operators, but one weak interpretation could flow directly into drafting. The result was fact serialization and generic fallback prose.
 
 ### Changes
 
-Updated `apps/api/src/services/cinematicAuthor.ts` to strengthen the existing architecture without adding a second brain or a new product category.
+Strengthened the existing `cinematicAuthor.ts` architecture so planning explicitly performs creative competition, attacks candidates, selects a champion, injects creative history, and passes a real creative problem to the mouth.
 
-1. **Creative competition is now an explicit planning instruction.**
-   - The planner must privately generate genuinely different interpretations.
-   - It is instructed to compete across character comedy, contradiction, status inversion, tenderness, ritual, identity, mystery, escalation, understatement, transformation, sensory immersion, and callback where justified.
-   - Candidates are explicitly attacked for genericity, repetition, unsupported claims, weak visuality, predictability, explanation, or insufficient material for the requested cuts.
-   - The selected direction is treated as a champion rather than a first-draft idea.
-
-2. **Creative history is now more strongly injected into planning and critique.**
-   - `memoryContext`, `creativeLearningContext`, and `trajectory` are passed through the planner/drafter/critic more deliberately.
-   - Prior motifs are treated as history that should evolve or be subverted instead of automatically replayed.
-
-3. **The mouth now receives a real creative problem.**
-   - The drafting prompt carries the champion angle/hidden movie, attention goal, emotional engine, sequence jobs, operators, constraints, and payoff.
-   - Static facts are explicitly discouraged unless their placement changes the next cut.
-   - The mouth is told to transform facts through relationship, contrast, implication, character, tension, or consequence rather than merely list them.
-
-4. **Paragraph chopping is explicitly attacked.**
-   - The author is told that one JSON item is one cut-sized thought with a distinct dramatic job.
-   - The critic now checks whether line breaks merely disguise one chronological summary.
-
-5. **Generic fallback language is now locally blocked.**
-   - Added `Still here`, `Something changes`, `Then it shifts`, and `See you next time.` to the generic-language gate.
-
-6. **Generation now gets three candidate attempts.**
-   - We do not blindly accept the first syntactically valid model result.
-   - Candidates are sized and locally gated before acceptance.
-
-7. **Zero-beat collapse is prevented.**
-   - If generation fails, the pipeline attempts explicit recovery through repair.
-   - If later quality gates fail, the existing non-empty sequence is preserved rather than replaced with `[]`.
-
-8. **Target beat count is enforced more deliberately.**
-   - Candidates are fit to the selected target count instead of allowing an accidental fifth beat to survive a four-beat direction.
+Also strengthened sequence safety, beat-count fitting, generic filler rejection, paragraph-chopping detection, and non-zero recovery behavior.
 
 ### Important Boundary
 
-This is intentionally **not** a hardcoded Coco solution.
-
-We are strengthening the universal author mechanism: competition → attack → champion → realization → critique → repair.
-
-### Expected Effect
-
-For Coco, the system should move away from:
-
-```text
-Coco. The one and only.
-hates bows
-loves treats
-Coco leaves a mark.
-```
-
-toward a sequence whose underlying logic is closer to:
-
-```text
-character identity
-→ resistance / conflict
-→ changed negotiation
-→ earned status/payoff
-```
-
-without requiring those exact words.
-
-For living memories, the same mechanism should allow a wedding, rave, dog adventure, service visit, object history, or later chapter to discover a different angle from the same universal Brain.
-
-### Test Status
-
-**CODE CHANGE APPLIED. REAL OLLAMA BENCHMARK STILL REQUIRED.**
-
-The GitHub-connected environment cannot execute the user's local Ollama runtime, so no claim of green output is made here.
-
-### Next Test
-
-Run locally:
-
-```text
-pnpm author:fast -- COCO
-pnpm author:fast -- COCO-RETURN
-pnpm author:full
-```
-
-Inspect the full COCO, COCO-RETURN, MARIA, HORROR, and RAVE sequences. Record the actual outputs and verdict here before making the next author change.
-
-### Next Hypothesis
-
-If the outputs still serialize facts after the champion angle is supplied, the missing intelligence is not the mouth. It is candidate-beat realization: the planner must express the chosen contradiction as explicit beat jobs before prose generation.
+This is intentionally **not** a hardcoded Coco solution. The goal is universal author cognition: competition → attack → champion → realization → critique → repair.
 
 ---
 
@@ -204,88 +173,21 @@ The current work is to make those layers actually exercise their intelligence in
 
 ### What We Observed
 
-The author can already discover useful creative structure. The creative-superstar preflight produced:
+The creative-superstar preflight produced useful signals including personality contrast, tenderness vs resistance, sensory hook, personification, contrast, status inversion, comic turn, callback, and payoff. The problem was that useful planning signals were not consistently surviving into realized beats.
 
-- `ATTENTION: personality_contrast`
-- `CONTRADICTIONS: tenderness vs resistance`
-- `OPERATORS: sensory_hook, personification, contrast, status_inversion, comic_turn, callback, payoff`
-- `RHYTHM: JOLT → JOLT → JOLT → PAYOFF`
+### Core Failure Model
 
-This is the right kind of latent understanding. The problem is that the useful contradiction/operator plan is not consistently surviving into the realized beats.
+There are three distinct quality levels:
 
-### COCO Failure
+1. **Semantic validity** — grounded and factually supportable.
+2. **Cinematic movement** — changes story state or advances what we are watching.
+3. **Creative quality** — distinctive, surprising, characterful, and worth seeing as the next cut.
 
-The generated sequence included:
-
-- `Coco. The one and only.`
-- `hates bows`
-- `loves treats`
-- `Coco leaves a mark.`
-
-The system is therefore serializing facts instead of turning relationships between facts into a cinematic sequence.
-
-The desired distinction is:
-
-- **FACT:** `Coco hates bows.`
-- **CHARACTERIZED BEAT:** `Bows? Absolutely not.`
-- **RELATIONAL BEAT:** the bow becomes a negotiation.
-- **TURN:** treats change the terms.
-- **PAYOFF:** Coco leaves with her status intact.
-
-The exact wording is not the benchmark. The underlying transformation is.
-
-### COCO-RETURN Failure
-
-The returning-chapter run produced five beats when four were expected and included weak/static material such as:
-
-- `Bath is quicker today`
-- `Pink bow offered again`
-- `Coco walks out proud`
-- `Bath faster, bow pink`
-- `Coco loves treats`
-
-This shows that callback information exists but is not yet being converted into a strong evolving relationship between the previous chapter and today's update.
-
-### MARIA / HORROR / RAVE Failures
-
-One author-mouth run produced generic fallback material such as:
-
-- `Still here`
-- `Something changes`
-- `Then it shifts`
-- `See you next time.`
-
-A subsequent run over-rejected candidates and produced zero beats for Maria and Horror, with Rave also failing to complete cleanly.
-
-This revealed a second architectural problem: validation/repair must not be allowed to collapse an experience to zero beats.
-
-### Current Failure Model
-
-There are three distinct quality levels that must not be conflated:
-
-1. **Semantic validity** — the beat is grounded and factually supportable.
-2. **Cinematic movement** — the beat changes the story state or meaningfully advances what we are watching.
-3. **Creative quality** — the beat is distinctive, surprising, characterful, and worth seeing as the next cut.
-
-For example:
-
-`Coco loves treats.`
-
-can be semantically valid while still being weak cinematic material.
-
-The author needs to discover relationships such as:
-
-`resistance → conflict → changed terms → status/payoff`
-
-rather than merely outputting:
-
-`fact → fact → fact → generic payoff`.
+A line can be semantically valid while still being weak cinematic material.
 
 ### Architectural Hypothesis
 
-The missing seam is between latent creative planning and beat realization.
-
-The intended path is:
+The missing seam is between latent creative planning and beat realization:
 
 ```text
 WORLD FACTS
@@ -305,35 +207,11 @@ MICRO-BEAT MOUTH
 CRITIC / REPAIR
 ```
 
-The cinematic movement gate should distinguish static facts from beats that perform an actual story operation such as introduction, character behavior, opposition, escalation, reversal, recontextualization, callback, or payoff.
-
-The contradiction/operator information already discovered by the author should feed candidate generation and selection rather than remain planning metadata.
-
 ### Safety Invariant
 
-Validation may reject a candidate, but it must never destroy the whole experience.
-
-The author pipeline must preserve the required beat count through repair/replacement/degradation rather than ending with `BEATS: 0`.
-
-Conceptually:
-
-```text
-candidate
-  ↓
-validate
-  ↓
-repair
-  ↓
-replacement candidate if needed
-  ↓
-controlled fallback only as last resort
-  ↓
-required beat count
-```
+Validation may reject a candidate, but it must never destroy the whole experience. The author pipeline must preserve required beat count through repair/replacement/degradation rather than ending with `BEATS: 0`.
 
 ### Benchmark Policy
-
-The current author benchmarks are the proving ground, not obstacles to be weakened.
 
 Primary creative cases:
 
@@ -343,31 +221,9 @@ Primary creative cases:
 - HORROR
 - RAVE
 
-The benchmark should measure creative properties and invariants rather than require memorized lines.
-
-Regression expectations include things such as:
-
-- correct beat count
-- grounding of supplied facts
-- preservation of supplied timestamps when relevant
-- meaningful callbacks on returning chapters
-- rejection of generic filler
-- distinct cinematic beats
-
-Creative expectations include:
-
-- personality contrast
-- contradiction exploitation
-- operator diversity
-- cinematic movement
-- escalation or reversal where appropriate
-- earned payoff
-- subject-centered storytelling
-- short, screen-ready micro-beats
+The benchmark measures creative properties and invariants rather than memorized prose.
 
 ### Iteration Protocol
-
-For fast author development:
 
 ```text
 change ONE meaningful behavior
@@ -385,20 +241,4 @@ commit coherent change
 form next hypothesis
 ```
 
-The objective is not merely `FAILURES: 0`.
-
-The objective is an author that repeatedly produces grounded sequences where the next beat creates genuine curiosity: **I want to see the next cut.**
-
-### Initial Verdict
-
-**PARTIAL / CONTINUE**
-
-The author is demonstrating real creative planning signals, especially contradiction and operator discovery, but those signals are not yet reliably realized as cinematic beats. The mouth is also being asked to compensate for planning weaknesses, and the current validation/repair path can over-reject into zero beats.
-
-### Next Hypothesis
-
-Connect contradiction + selected creative operators to candidate beat realization, while introducing explicit cinematic-movement evaluation and a hard no-zero-beat invariant.
-
-Do not solve this by adding more generic movement words or by hardcoding desired Coco prose.
-
----
+The objective is not merely `FAILURES: 0`. The objective is an author that repeatedly produces grounded sequences where the next beat creates genuine curiosity: **I want to see the next cut.**
