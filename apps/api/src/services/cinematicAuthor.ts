@@ -1,59 +1,130 @@
+import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorRenderedScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { authorBrain } from "./authorBrain.js";
 
-export type CinematicAuthorInput = {
-  prompt: string;
-  lens?: string;
-  subject?: string;
-  place?: string;
-  sourceMoments: string[];
-  facts: string[];
-  memoryContext?: string[];
-  creativeLearningContext?: string[];
-  trajectory?: string[];
+export type CinematicAuthorInput = AuthorBrainTruth;
+export type AuthoredScene = AuthorRenderedScene;
+
+type Critique = {
+  score?: number;
+  problems?: string[];
+  repeats?: string[];
+  unsupportedDetails?: string[];
+  weakScenes?: number[];
+  genericLanguage?: string[];
 };
 
-export type AuthoredScene = {
-  text: string;
-  kind?: string;
-  durationHintMs?: number;
-  transitionHint?: "none" | "fade" | "slide" | "zoom" | "cinematic" | "flash";
-  audioMood?: string;
-  visualHint?: string;
+const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
+const parseJson = <T>(text: string): T | null => {
+  const value = String(text ?? "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try { return JSON.parse(value) as T; } catch { return null; }
 };
 
-type CreativeIntent = "memory" | "promotion" | "service" | "creator" | "social" | "artist" | "person" | "event" | "artifact" | "story" | "unknown";
-type AuthorMode = "concept" | "grounded" | "living_memory" | "service" | "voice_first";
+function enabled(): boolean {
+  return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";
+}
 
-type WorldState = { mode: AuthorMode; subject?: string; timeOfDay?: "dawn" | "morning" | "afternoon" | "evening" | "night" | "unknown"; place?: string; suppliedDetails: string[]; creativeAffordances: string[]; hardConstraints: string[] };
-type BeatJob = { job: string; attention: string; grounding: string; payoffLink: string };
-type CreativeDirection = { intent: CreativeIntent; mode: AuthorMode; attentionGoal: string; emotionalEngine: string; strongestDetail: string; hiddenPremise: string; championAngle: string; tension: string; movement: string; payoff: string; antiRepeat: string; sequenceShape: string[]; beatRhythm: string[]; beatCount: number; endingMove: string; targetDensity: "compact" | "standard" | "deep" | "expansive"; selectedOperators: string[]; creativeAffordances: string[]; hardConstraints: string[]; beatJobs: BeatJob[] };
-type SceneDraft = { scenes: AuthoredScene[] };
-type Critique = { score: number; problems: string[]; repeats: string[]; instructionLeaks: string[]; unsupportedDetails: string[]; weakScenes: number[]; genericLanguage?: string[]; weakTransitions?: string[] };
+function beatCount(prompt: string): number {
+  return /living memory|chapter/i.test(prompt) ? 4 : 5;
+}
 
-const OPERATORS = ["sensory_hook","physical_move","personification","understatement","contrast","micro_reveal","reversal","escalation","status_inversion","zoom_into_detail","callback","tender_turn","comic_turn","mystery_turn","transformation","afterglow","voice","signature"];
-const GENERIC_PATTERNS = [/picture-perfect/i,/luxury grooming/i,/unforgettable experience/i,/beautiful transformation/i,/magical moment/i,/amazing transformation/i,/the experience unfolds/i,/the final reveal/i,/incredible journey/i,/still here/i,/something changes/i,/then it shifts/i,/see you next time/i,/quick zoom/i,/camera pulls back/i,/final shot/i,/eyes? (?:widen|sparkle)/i,/tiny paws/i,/heart softens/i,/eyes sparkle/i,/cherished memory/i,/symbol of/i,/power of affection/i,/power of love/i,/new routine/i,/not so bad/i];
-const META_PATTERN=/\b(ai|qre|prompt|compiler|cognition|metadata|model|writing process|instruction)\b/i;
-const ABSTRACT_ANGLE=/^(transformation|affection|love|friendship|happiness|joy|adventure|memory|fun|fear|emotion|connection|journey)$/i;
+function renderScenes(scenes: AuthorRenderedScene[]): AuthoredScene[] {
+  return scenes.map((scene, index, all) => ({
+    ...scene,
+    kind: scene.kind ?? (index === 0 ? "hook" : index === all.length - 1 ? "payoff" : "line"),
+    durationHintMs: scene.durationHintMs ?? Math.max(650, Math.min(2100, 720 + scene.text.split(/\s+/).length * 85)),
+    transitionHint: scene.transitionHint ?? (index === 0 ? "none" : index === all.length - 1 ? "flash" : "fade"),
+  }));
+}
 
-function enabled(){return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";}
-function clean(v:unknown){return String(v??"").replace(/\s+/g," ").trim();}
-function uniq(values:unknown[],limit:number){return [...new Set(values.map(clean).filter(Boolean))].slice(0,limit);}
-function parseJson<T>(text:string):T|null{const cleaned=String(text??"").replace(/^```(?:json)?/i,"").replace(/```$/i,"").trim();try{return JSON.parse(cleaned) as T}catch{return null}}
-function rawDebug(label:string,text:string){if(process.env.QRE_AUTHOR_DEBUG_RAW!=="true")return;console.log(`\n--- QRE RAW MODEL OUTPUT · ${label} ---\n${text}\n--- END RAW MODEL OUTPUT ---\n`)}
-function genericHits(text:string){return GENERIC_PATTERNS.filter(p=>p.test(text)).length}
-function inferIntent(input:CinematicAuthorInput):CreativeIntent{const value=`${input.prompt} ${input.lens??""}`.toLowerCase();const has=(...p:RegExp[])=>p.some(x=>x.test(value));if(has(/\bservice|client|customer|groom|grooming|clean|cleaning|repair|barber|salon|plumber|mechanic|tattoo|restaurant\b/))return"service";if(has(/\bpromo|promotion|commercial|advert|marketing|sell|selling|business|brand\b/))return"promotion";if(has(/\bcreator|influencer|youtube|tiktok|reels|shorts|personal brand\b/))return"creator";if(has(/\bsocial|instagram|facebook|threads|post|caption|feed|followers\b/))return"social";if(has(/\bartist|artwork|painting|sculpture|musician|music|song|album|photographer|illustrator|designer|gallery|studio\b/))return"artist";if(has(/\babout me|about myself|my life|my story|my identity|portrait|bio\b/))return"person";if(has(/\bwedding|anniversary|honeymoon|memorial|birthday|family memory|remember|memory\b/))return"memory";if(has(/\bevent|party|festival|ceremony|reunion|conference|opening|show\b/))return"event";if(has(/\bartifact|object|piece|plaque|keychain|sticker|tag|installation|physical art|qr art\b/))return"artifact";if(has(/\bstory|tale|scene|movie|film|fiction|horror|romance\b/))return"story";return"unknown"}
-function inferMode(input:CinematicAuthorInput,intent:CreativeIntent):AuthorMode{const evidence=input.facts.length+input.sourceMoments.length+(input.memoryContext?.length??0);if(intent==="service")return evidence?"service":"concept";if(intent==="memory"||intent==="event")return evidence?"living_memory":"concept";if(intent==="creator"||intent==="social"||intent==="artist"||intent==="person")return evidence?"grounded":"voice_first";if(intent==="artifact")return evidence?"grounded":"concept";return evidence?"grounded":"concept"}
-function inferTimeOfDay(text:string):WorldState["timeOfDay"]{const v=text.toLowerCase();if(/\b(12|1|2|3|4|5)\s*(am|a\.m\.)\b/.test(v))return"night";if(/\b(6|7|8|9|10|11)\s*(am|a\.m\.)\b/.test(v))return"morning";if(/\b(12|1|2|3|4|5)\s*(pm|p\.m\.)\b/.test(v))return"afternoon";if(/\b(6|7|8|9|10|11)\s*(pm|p\.m\.)\b/.test(v))return"night";if(/\bdawn|sunrise\b/.test(v))return"dawn";if(/\bevening|sunset|dusk\b/.test(v))return"evening";return"unknown"}
-function buildWorld(input:CinematicAuthorInput,intent:CreativeIntent):WorldState{const details=uniq([...input.facts,...input.sourceMoments,...(input.memoryContext??[]),...(input.subject?[input.subject]:[]),...(input.place?[input.place]:[])],80);const combined=[...details,input.prompt].join(" ");const mode=inferMode(input,intent);const timeOfDay=inferTimeOfDay(combined);const hardConstraints=[...(input.subject?[`subject=${clean(input.subject)}; this subject is the temporary star of the experience; do not repeat its name mechanically`]:[]),...(input.place?[`place=${clean(input.place)}; do not relocate`]:[]),...(timeOfDay!=="unknown"?[`time_of_day=${timeOfDay}; do not contradict explicit time`]:[]),...(mode!=="concept"?["FACTUAL REALITY: do not invent gender, pronouns, people, relationships, locations, actions, outcomes, timestamps, weather, object placement, or physical events not supplied by the source"]:[])];const all=combined.toLowerCase();const affordances:string[]=[];if(intent==="service")affordances.push("service is the stage, not automatically a story character; center the client/subject; find attitude, friction, ritual, status, surprise, before/after, or personality in the real work");if(intent==="memory"||intent==="event")affordances.push("presence, recurrence, shared meaning, emotional residue, callbacks, after-image");if(intent==="person"||intent==="creator")affordances.push("voice, contradiction, desire, habit, private truth, point of view");if(/\bhome|house|room|kitchen|bathroom\b/.test(all))affordances.push("traces of the person, before/after contrast, objects with meaning");if(/\brave|festival|party|concert|music|bass\b/.test(all))affordances.push("energy, group behavior, escalation, sensory rhythm, aftermath");if(/\bwedding|couple|bride|groom\b/.test(all))affordances.push("relationship, anticipation, social energy, private moment, transformation");if(/\btravel|trip|road|airport|hotel|adventure\b/.test(all))affordances.push("expectation, discovery, mishap, place through the character, memory marker");return{mode,subject:input.subject,timeOfDay,place:input.place,suppliedDetails:details,creativeAffordances:[...new Set(affordances)].slice(0,12),hardConstraints}}
-function fallbackDirection(input:CinematicAuthorInput,intent:CreativeIntent,world:WorldState):CreativeDirection{const beatCount=world.mode==="living_memory"?4:5;const beatJobs:BeatJob[]=[{job:"establish the charged character situation",attention:"create immediate curiosity",grounding:"use only supplied reality",payoffLink:"plant the final consequence"},{job:"sharpen the conflict or question",attention:"make the next cut necessary",grounding:"do not invent an event",payoffLink:"increase pressure"},{job:"change the terms",attention:"deliver surprise or character turn",grounding:"transform supplied material without fabricating it",payoffLink:"set up payoff"},{job:"land the character-specific payoff",attention:"make the ending satisfying",grounding:"earned from supplied reality",payoffLink:"final consequence"}];return{intent,mode:world.mode,attentionGoal:"LINE → PULL → LINE → PULL → PAYOFF; each cut must create a reason to continue",emotionalEngine:input.lens||"character point of view, contrast, curiosity",strongestDetail:input.facts[0]||input.sourceMoments[0]||"the most distinctive supplied detail",hiddenPremise:"Find the latent movie inside the character and the supplied reality; never substitute generic plot",championAngle:"character-specific relationship or game",tension:"what the character wants, resists, notices, turns into a game, or makes personal",movement:"hook → complication → character turn → consequence",payoff:"a character-specific reversal, joke, sting, victory, realization, callback, or earned image",antiRepeat:"generic AI language, mechanical name repetition, unsupported events, exhausted motifs",sequenceShape:beatCount===4?["hook","pressure","turn","payoff"]:["hook","pressure","escalation","turn","payoff"],beatRhythm:beatCount===4?["jolt","jolt","turn","payoff"]:["jolt","jolt","jolt","turn","payoff"],beatCount,endingMove:"land on what the character does to the situation, not a generic farewell",targetDensity:"compact",selectedOperators:["contrast","micro_reveal","comic_turn","reversal","callback","signature"],creativeAffordances:world.creativeAffordances,hardConstraints:world.hardConstraints,beatJobs:beatJobs.slice(0,beatCount)}}
-async function planDirection(input:CinematicAuthorInput,fallback:CreativeDirection,world:WorldState):Promise<CreativeDirection>{if(!enabled())return fallback;try{const result=await localModelGenerate([{role:"system",content:["You are QRE's universal senior creative director and beat architect.","This plan becomes the shared intelligence for every domain: pet, person, wedding, rave, travel, home, service, event, business, or anything else. The subject is temporarily the star; the input/domain is the stage and source of reality.","SERVICE RULE: when the input is a service, the provider/business is usually an invisible stage rather than an invented story character. The product value comes from making the customer/subject the star for the duration of the memory.","Privately generate genuinely different interpretations and attack them for genericness, unsupported invention, repetition, weak movement, and predictable payoff. Choose ONE champion movie.","A champion angle must be a specific relationship, game, contradiction, ritual, status negotiation, obsession, escalation, or character-specific rule. Never settle for one-word themes such as transformation, affection, love, happiness, adventure, memory, fear, or connection.","Then architect explicit beat jobs. Each beat gets one dramatic job and one attention objective. The mouth will solve those jobs; it must not invent a different movie.","Use boring real work as creative material. Make the human/subject perspective interesting without inventing actions or people.","HARD REALITY: if gender/pronouns are not established, stay neutral. Never invent people, relationships, locations, actions, object placement, outcomes, timestamps, weather, or physical events.","Distinguish strongest fact from strongest creative opportunity. A true fact may be useful evidence without being the story.","Return strict JSON with intent, mode, attentionGoal, emotionalEngine, strongestDetail, hiddenPremise, championAngle, tension, movement, payoff, antiRepeat, sequenceShape, beatRhythm, beatCount, endingMove, targetDensity, selectedOperators, beatJobs. beatJobs must contain exactly beatCount objects with job, attention, grounding, payoffLink."].join(" ")},{role:"user",content:JSON.stringify({prompt:input.prompt,lens:input.lens??"",subject:input.subject??"",place:input.place??"",facts:uniq(input.facts,40),sourceMoments:uniq(input.sourceMoments,24),memoryContext:uniq(input.memoryContext??[],20),creativeLearningContext:uniq(input.creativeLearningContext??[],30),trajectory:uniq(input.trajectory??[],20),world,fallback})}],"json");rawDebug("PLAN",result.text);const parsed=parseJson<Partial<CreativeDirection>>(result.text);if(!parsed?.championAngle||!parsed.attentionGoal||!parsed.sequenceShape?.length)return fallback;const beatCount=world.mode==="living_memory"?4:Math.max(4,Math.min(6,Number(parsed.beatCount)||fallback.beatCount));const jobs=Array.isArray(parsed.beatJobs)?parsed.beatJobs.map((j)=>({job:clean(j?.job),attention:clean(j?.attention),grounding:clean(j?.grounding),payoffLink:clean(j?.payoffLink)})).filter(j=>j.job&&j.attention&&j.grounding&&j.payoffLink):fallback.beatJobs;return{...fallback,...parsed,mode:world.mode,beatCount,beatJobs:(jobs.slice(0,beatCount).length?jobs.slice(0,beatCount):fallback.beatJobs.slice(0,beatCount)),sequenceShape:parsed.sequenceShape.map(clean).filter(Boolean).slice(0,6),beatRhythm:Array.isArray(parsed.beatRhythm)&&parsed.beatRhythm.length?parsed.beatRhythm.map(clean).filter(Boolean).slice(0,6):fallback.beatRhythm,selectedOperators:Array.isArray(parsed.selectedOperators)?parsed.selectedOperators.filter((v)=>OPERATORS.includes(String(v))).slice(0,7):fallback.selectedOperators,creativeAffordances:world.creativeAffordances,hardConstraints:world.hardConstraints}}
-catch{return fallback}}
-function promptEcho(text:string,prompt:string){const a=clean(text).toLowerCase(),b=clean(prompt).toLowerCase();return a===b||(a.length>30&&b.includes(a))}
-function unsupportedPronoun(text:string,input:CinematicAuthorInput){if(input.facts.concat(input.sourceMoments).join(" ").match(/\b(he|him|his|she|her|hers|they|them|their)\b/i))return false;return /\b(he|him|his|her|hers)\b/i.test(text)}
-function finalize(raw:AuthoredScene[],world:WorldState,input:CinematicAuthorInput):AuthoredScene[]{const out:AuthoredScene[]=[];for(const scene of raw){const text=clean(scene?.text).replace(/^(?:hook|jolt|turn|payoff|afterglow|movement|discovery|line)\s*[:|-]\s*/i,"");if(!text||META_PATTERN.test(text)||promptEcho(text,input.prompt))continue;const words=text.split(/\s+/).filter(Boolean);if(words.length>20||genericHits(text)>0||unsupportedPronoun(text,input))continue;out.push({...scene,text})}return out.slice(0,6).map((scene,index,all)=>({...scene,kind:scene.kind||["hook","movement","discovery","turn","payoff","afterglow"][Math.min(index,5)],durationHintMs:scene.durationHintMs??Math.max(700,Math.min(2200,700+scene.text.split(/\s+/).length*90)),transitionHint:scene.transitionHint??(index===0?"none":index===all.length-1?"flash":"fade")}))}
-async function draft(input:CinematicAuthorInput,direction:CreativeDirection,world:WorldState):Promise<AuthoredScene[]>{const max=Math.max(4,Math.min(6,direction.beatCount||5));const modeInstruction=world.mode==="concept"?"CONCEPT: invention is allowed at the imagery/story level, but do not make real-world factual claims.":"GROUNDED: supplied reality is authoritative. Creative transformation is encouraged; invented concrete events are not.";const result=await localModelGenerate([{role:"system",content:["You are QRE's universal rapid-attention micro-beat author.",`Write EXACTLY ${max} viewer-facing lines as one coherent sequence.` ,"You are now the realization layer for the same author intelligence used across every QRE domain. Do not revert to generic domain templates.","The subject is temporarily the star. The input/service/event is the stage, context, evidence, pressure, or catalyst. Do not automatically turn a provider, groomer, cleaner, business, or staff member into a story character unless the source explicitly establishes them as one.","This is NOT a novel, essay, receipt, poem, or screenplay. It is a living-memory attention loop: LINE → PULL → LINE → PULL → TURN → PAYOFF.","The planner selected ONE movie and beat jobs. Solve those jobs in order. Do not invent a second movie halfway through.","Every line must earn the next cut: create a question, sharpen pressure, expose character, transform a supplied detail through the character's lens, change the terms, trigger a callback, reverse status, or pay something off.","Do not merely label or list the nouns/facts involved. If a supplied detail can become a charged image or character-specific metaphor without inventing a concrete event, prefer that transformation.","Example rhythm only: 'The monster appeared.' / 'Pink bows everywhere.' These are examples of compression and line-to-line pull, not text to copy.","Length follows the creative job. Two-to-four words can be a killer cut; other lines may need 5–12+ words. Mix lengths. Do not compress every beat and do not pad them.","Character gravity without name abuse: carry the subject through attitude, choices, resistance, consequences, callbacks, and implications rather than repeating the name.","Grounded reality: never invent gender/pronouns, people, relationships, locations, actions, object placement, timestamps, weather, physical events, or outcomes. Attitude, metaphor, and meaning may be inferred from supplied facts.","Do not use camera directions, generic cinematic language, theme announcements, or AI-cheese.",`ANGLE: ${direction.championAngle}`,`TENSION: ${direction.tension}`,`MOVEMENT: ${direction.movement}`,`PAYOFF: ${direction.payoff}`,`ANTI-REPEAT: ${direction.antiRepeat}`,`BEAT JOBS: ${JSON.stringify(direction.beatJobs)}`,`ATTENTION GOAL: ${direction.attentionGoal}`,`RHYTHM: ${direction.beatRhythm.join(" → ")}`,"Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|movement|discovery|turn|payoff|afterglow|line\"}]}."] .join(" ")},{role:"user",content:JSON.stringify({prompt:input.prompt,lens:input.lens??"",subject:input.subject??"",place:input.place??"",facts:uniq(input.facts,40),sourceMoments:uniq(input.sourceMoments,24),memoryContext:uniq(input.memoryContext??[],20),creativeLearningContext:uniq(input.creativeLearningContext??[],30),trajectory:uniq(input.trajectory??[],20),world})}],"json");rawDebug("DRAFT",result.text);const parsed=parseJson<SceneDraft>(result.text);return finalize(Array.isArray(parsed?.scenes)?parsed.scenes:[],world,input)}
-function fitBeatCount(scenes:AuthoredScene[],target:number){if(scenes.length<=target)return scenes;return scenes.slice(0,target)}
-function localGate(scenes:AuthoredScene[],world:WorldState,input:CinematicAuthorInput){if(scenes.length<3||scenes.length>6)return false;const seen=new Set<string>();for(const scene of scenes){if(genericHits(scene.text)>0||unsupportedPronoun(scene.text,input))return false;const k=scene.text.toLowerCase().replace(/[^a-z0-9 ]/g,"").trim();if(seen.has(k))return false;seen.add(k)}return true}
-async function critique(input:CinematicAuthorInput,direction:CreativeDirection,world:WorldState,scenes:AuthoredScene[]):Promise<Critique|null>{try{const result=await localModelGenerate([{role:"system",content:["You are QRE's ruthless universal editor. Judge as rapid attention, not prose.","Check character gravity, line-to-line pull, coherent champion movie, whether the service/input is used as stage rather than accidentally made into a character, novelty, evidence fidelity, repetition, paragraph chopping, and payoff.","Ask whether each line creates a reason for the next. Flag any theme announcement, generic AI-cheese, invented concrete event, or ending that merely summarizes.","Return strict JSON: score, problems, repeats, instructionLeaks, unsupportedDetails, weakScenes, genericLanguage, weakTransitions."].join(" ")},{role:"user",content:JSON.stringify({prompt:input.prompt,direction,world,facts:input.facts,sourceMoments:input.sourceMoments,memoryContext:input.memoryContext??[],creativeLearningContext:input.creativeLearningContext??[],scenes})}],"json");rawDebug("CRITIQUE",result.text);return parseJson<Critique>(result.text)}catch{return null}}
-async function repair(input:CinematicAuthorInput,direction:CreativeDirection,world:WorldState,scenes:AuthoredScene[],critiqueResult:Critique):Promise<AuthoredScene[]>{try{const result=await localModelGenerate([{role:"system",content:["You are QRE's universal repair editor. Preserve strong lines. Repair only what failed.","The subject remains the star; the service/event is the stage unless an explicitly supplied person belongs in the story.","Preserve the champion movie and beat jobs. Do not invent concrete events or relationships.","Compress good ideas instead of explaining them. A strong concept may become a short line; a short line may expand when needed for the dramatic job.","No camera language, AI-cheese, generic theme announcements, receipt listing, or generic farewell.",`BEAT JOBS: ${JSON.stringify(direction.beatJobs)}`,`DIRECTION: ${JSON.stringify(direction)}`,`CRITIQUE: ${JSON.stringify(critiqueResult)}`,"Return strict JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook|movement|discovery|turn|payoff|afterglow|line\"}]}."] .join(" ")},{role:"user",content:JSON.stringify({prompt:input.prompt,facts:input.facts,sourceMoments:input.sourceMoments,memoryContext:input.memoryContext??[],creativeLearningContext:input.creativeLearningContext??[],scenes})}],"json");const parsed=parseJson<SceneDraft>(result.text);return finalize(Array.isArray(parsed?.scenes)?parsed.scenes:[],world,input)}catch{return[]}}
-export async function authorCinematicSequence(input:CinematicAuthorInput):Promise<AuthoredScene[]>{if(!enabled())return[];const intent=inferIntent(input),world=buildWorld(input,intent),fallback=fallbackDirection(input,intent,world),direction=await planDirection(input,fallback,world);if(fastMode())return draft(input,direction,world);let scenes:AuthoredScene[]=[];for(let attempt=0;attempt<3;attempt++){const candidate=fitBeatCount(await draft(input,direction,world),direction.beatCount);if(candidate.length===direction.beatCount&&localGate(candidate,world,input)){scenes=candidate;break}if(candidate.length>scenes.length)scenes=candidate}if(scenes.length<3){const recovery=await repair(input,direction,world,scenes,{score:4,problems:["insufficient_candidate_sequence"],repeats:[],instructionLeaks:[],unsupportedDetails:[],weakScenes:[],genericLanguage:[],weakTransitions:[]});if(recovery.length>=3)scenes=fitBeatCount(recovery,direction.beatCount)}if(scenes.length<3)return scenes;const critiqueResult=await critique(input,direction,world,scenes);if(critiqueResult&&(critiqueResult.score<8||critiqueResult.problems?.length||critiqueResult.repeats?.length||critiqueResult.unsupportedDetails?.length||critiqueResult.weakScenes?.length||critiqueResult.genericLanguage?.length||critiqueResult.weakTransitions?.length)){const repaired=await repair(input,direction,world,scenes,critiqueResult);if(repaired.length>=3)scenes=fitBeatCount(repaired,direction.beatCount)}return scenes}
+async function critiqueSequence(input: CinematicAuthorInput, brief: AuthorCreativeBrief, scenes: AuthorRenderedScene[]): Promise<Critique | null> {
+  try {
+    const result = await localModelGenerate([
+      {
+        role: "system",
+        content: [
+          "You are QRE's ruthless creative editor.",
+          "Judge the sequence as rapid attention cuts rather than prose.",
+          "Ask whether the subject is the star, whether the lines belong to one movie, whether each line creates wanting for the next, whether the sequence discovers something rather than paraphrasing facts, and whether the ending lands.",
+          "Reject invented concrete events, unsupported identity, provider-as-protagonist, generic emotional arcs, comma-packed multi-shot lines, AI cheese, and generic endings.",
+          "Do not demand a specific beat formula. The author is allowed to surprise you.",
+          "Return JSON: {score,problems,repeats,unsupportedDetails,weakScenes,genericLanguage}.",
+        ].join(" "),
+      },
+      { role: "user", content: JSON.stringify({ input, brief, scenes }) },
+    ], "json");
+    return parseJson<Critique>(result.text);
+  } catch {
+    return null;
+  }
+}
+
+async function repairSequence(input: CinematicAuthorInput, brief: AuthorCreativeBrief, scenes: AuthorRenderedScene[], critique: Critique): Promise<AuthorRenderedScene[]> {
+  try {
+    const result = await localModelGenerate([
+      {
+        role: "system",
+        content: [
+          "You are QRE's senior repair author.",
+          "Preserve the strongest idea already present. Replace only weak cuts.",
+          "Do not restart into a generic emotional journey. Do not change the movie merely to make it prettier.",
+          "The subject remains the star. Service or business remains the stage unless explicitly established as a character.",
+          "One line equals one attention moment. No commas or semicolons in scene text. Short lines are welcome when they carry a strong idea. Longer lines are allowed when they earn their length.",
+          "Do not invent identity, people, relationships, provider actions, dialogue, locations, object placement, physical events, timestamps, weather, or outcomes.",
+          "Metaphor and perspective are allowed when they reinterpret supplied reality without creating a new factual event.",
+          "Return JSON only: {scenes:[{text,kind}]}.",
+          `CREATIVE BRIEF: ${JSON.stringify(brief)}`,
+          `CRITIQUE: ${JSON.stringify(critique)}`,
+        ].join(" "),
+      },
+      { role: "user", content: JSON.stringify({ input, scenes }) },
+    ], "json");
+    const parsed = parseJson<{ scenes?: AuthorRenderedScene[] }>(result.text);
+    return Array.isArray(parsed?.scenes) ? parsed!.scenes! : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function authorCinematicSequence(input: CinematicAuthorInput): Promise<AuthoredScene[]> {
+  if (!enabled()) return [];
+
+  const target = beatCount(input.prompt);
+  const brain = await authorBrain(input, { fast: process.env.QRE_AUTHOR_FAST === "true" });
+  let scenes = renderScenes(brain.scenes);
+
+  if (process.env.QRE_AUTHOR_FAST === "true") return scenes;
+
+  if (scenes.length !== target) {
+    const repaired = await repairSequence(input, brain.brief, scenes, {
+      score: 4,
+      problems: [`expected ${target} cuts but received ${scenes.length}`],
+      repeats: [],
+      unsupportedDetails: [],
+      weakScenes: [],
+      genericLanguage: [],
+    });
+    if (repaired.length) scenes = renderScenes(repaired).slice(0, target);
+  }
+
+  if (scenes.length < 3) return scenes;
+
+  const critique = await critiqueSequence(input, brain.brief, scenes);
+  const needsRepair = Boolean(
+    critique && (
+      Number(critique.score ?? 10) < 8 ||
+      critique.problems?.length ||
+      critique.repeats?.length ||
+      critique.unsupportedDetails?.length ||
+      critique.weakScenes?.length ||
+      critique.genericLanguage?.length
+    ),
+  );
+
+  if (needsRepair) {
+    const repaired = await repairSequence(input, brain.brief, scenes, critique!);
+    if (repaired.length >= 3) scenes = renderScenes(repaired).slice(0, target);
+  }
+
+  return scenes;
+}
