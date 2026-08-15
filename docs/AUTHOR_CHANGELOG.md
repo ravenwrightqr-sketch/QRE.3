@@ -71,6 +71,43 @@ This is the only Goal-1 creative author authority.
 
 It must remain a living intelligence core: expand it when a general creative law is discovered; never reintroduce domain-specific or benchmark-specific author branches.
 
+### MAGNET CIRCLE — CANONICAL SEQUENCE PRIMITIVE
+
+QRE's universal creative invariant is not a prose style. It is the **MAGNET CIRCLE** inside `ViewerMomentum`:
+
+```text
+FACT
+→ NOVELTY
+→ UNCERTAINTY
+→ INFORMATION VALUE
+→ ATTENTION
+→ TENSION
+→ INFORMATION SEEKING
+→ NARRATIVE ENGAGEMENT
+→ DISCOVERY / REFRAME / PAYOFF
+→ NEW UNCERTAINTY
+↺
+```
+
+The shared contract now exposes `MagnetCircle`, and the Master Author computes it for every sequence transition.
+
+Diagnostics expose:
+
+```text
+magnetAverage
+magnetPeak
+magnetFloor
+magnetCutsMeasured
+```
+
+The magnet is the invariant; creative style is downstream realization. Comedy, horror, romance, swagger, mystery, tenderness, absurdity, and other lenses can realize the same cognitive magnet differently.
+
+Reference behaviors such as `Lawyer informed.`, `Pink bows everywhere.`, `Coco flaunts the tag.`, and `Fear smear, baby.` are **latent operation examples**, not literal phrase templates.
+
+Canonical definition:
+
+`docs/QRE_MAGNET_CIRCLE.md`
+
 ### Production adapters
 
 `apps/api/src/services/microBeatMouth.ts`
@@ -168,6 +205,9 @@ one cut = one attention moment
 next cut must earn itself
 recurrence requires evidence
 sparse world → smaller invented-world surface
+magnet strength > beat count
+remove a cut → if the information-seeking trajectory weakens, it mattered
+creative style is downstream realization, not the universal objective
 ```
 
 ### Test integrity invariant
@@ -179,6 +219,8 @@ A benchmark is an observer. The Master Author is the authority.
 ### Next engineering target
 
 Converge every semantic cut-validation call onto `authorCutPolicy.ts`, then run the same acceptance matrix through both the direct harness and the actual production compile path.
+
+After that, evolve `creativePolicy.ts` away from domain-specific prose templates toward reusable creative operations that search the Magnet Circle instead of choosing wording first.
 
 ---
 
@@ -198,10 +240,11 @@ Key durable findings include:
 - Questions belong in hidden cognition unless they are supplied source language.
 - Sparse inputs should produce tighter creative implication rather than fabricated backstory.
 - Returning chapters must change meaning rather than replay earlier chapters.
-- `Lawyer informed.` and `Pink bows everywhere.` are reference behaviors for compressed implication, not literal templates.
+- `Lawyer informed.`, `Pink bows everywhere.`, `Coco flaunts the tag.`, and `Fear smear, baby.` are reference behaviors for compressed implication, not literal templates.
 
 See:
 
 `docs/QRE_AUTHOR_GOAL.md`
 `docs/AUTHOR_ARCHITECTURE_INDEX.md`
 `docs/QRE_FULL_REPO_INFLUENCE_MAP.md`
+`docs/QRE_MAGNET_CIRCLE.md`
