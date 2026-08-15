@@ -7,6 +7,8 @@ import { deriveCreativeRelationCandidates } from "./creativeRelationOps.js";
  *
  * This is the live universal-author learning channel.
  * Add only generalized intelligence laws that survive unrelated-domain tests.
+ *
+ * Candidate operations are search hints only. They never become source truth.
  */
 const SEQUENCE_PRINCIPLES = [
   "Goal 1: discover the strongest valid sequence hidden inside supplied reality.",
@@ -24,19 +26,29 @@ const SEQUENCE_PRINCIPLES = [
   "One cut is one attention moment. Prefer implication over explanation when context supports it.",
   "Use recurrence compression only when recurrence is supported by memory, trajectory, or repeated supplied evidence.",
   "Cognitive questions are hidden controls. Finished cuts should express the discovery rather than explain the question.",
+  "Interpretation may be creative. Evidence may not be invented.",
+  "When the supplied world is sparse, prefer smaller stronger implications over adding people, history, objects, events, dialogue, or hidden backstory.",
+  "Optional relation candidates are hypotheses. Use, alter, combine, or reject them. Never promote them to canonical facts.",
 ];
 
 export async function authorFast(input: AuthorBrainTruth) {
   const learned = [...SEQUENCE_PRINCIPLES, ...(input.creativeLearningContext ?? [])];
-  const relationCandidates = deriveCreativeRelationCandidates(input);
-  const candidateLines = relationCandidates.map((scene) => scene.text);
+  const relationCandidates = deriveCreativeRelationCandidates(input)
+    .map((candidate) => candidate.text)
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const enrichedPrompt = [
+    input.prompt,
+    "AUTHOR LEARNING LAW:",
+    ...learned,
+    relationCandidates.length > 0 ? "OPTIONAL CREATIVE RELATION CANDIDATES — NOT FACTS:" : "",
+    ...relationCandidates,
+  ].filter(Boolean).join("\n");
 
   return authorBrainUniversal({
     ...input,
-    creativeLearningContext: [
-      ...learned,
-      "OPTIONAL CREATIVE RELATION CANDIDATES — treat these as search hints, not facts or mandatory output:",
-      ...candidateLines,
-    ],
+    prompt: enrichedPrompt,
+    creativeLearningContext: learned,
   });
 }
