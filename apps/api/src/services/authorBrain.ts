@@ -71,7 +71,6 @@ function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefi
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as Partial<SequencePlay> & { cuts?: unknown; baselineFacts?: unknown };
   if (!Array.isArray(value.cuts)) return undefined;
-
   const cuts: SequenceCut[] = value.cuts.map((item, index) => {
     const cut = (item && typeof item === "object" ? item : {}) as Partial<SequenceCut>;
     const role = ROLES.includes(cut.role as ViewerAttentionRole) ? cut.role as ViewerAttentionRole : index === 0 ? "hook" : "continuation";
@@ -91,9 +90,7 @@ function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefi
       noveltyScore: typeof cut.noveltyScore === "number" ? cut.noveltyScore : undefined,
       confidence: typeof cut.confidence === "number" ? cut.confidence : 0.8,
     };
-  })
-    .filter((cut) => GAIN_KINDS.has(String(cut.gainKind)) && Boolean(cut.informationGain || cut.attentionDelta));
-
+  }).filter((cut) => GAIN_KINDS.has(String(cut.gainKind)) && Boolean(cut.informationGain || cut.attentionDelta));
   return {
     subject: clean(value.subject) || subject,
     premise: clean(value.premise),
@@ -107,13 +104,17 @@ function normalizeSequence(raw: unknown, subject: string): SequencePlay | undefi
   };
 }
 
-function pronounsAllowed(text: string, truth?: SubjectTruth): boolean {
-  if (!PRONOUN.test(text)) return true;
-  return Boolean(truth?.pronouns && ["explicit","memory","runtime"].includes(truth.provenance));
-}
-
 function knownWorldText(input: AuthorBrainTruth): string {
   return [input.prompt,input.subject,input.place,...input.facts,...input.sourceMoments,...(input.memoryContext ?? []),...(input.trajectory ?? []),...(input.presenceSummary ?? [])].filter(Boolean).join(" ");
+}
+
+function pronounsAllowed(text: string, input: AuthorBrainTruth, truth?: SubjectTruth): boolean {
+  if (!PRONOUN.test(text)) return true;
+  const world = knownWorldText(input).toLowerCase();
+  if (/\b(?:he|his|him)\b/i.test(text) && /\b(?:male|boy|man|he|his|him)\b/i.test(world)) return true;
+  if (/\b(?:she|her|hers)\b/i.test(text) && /\b(?:female|girl|woman|she|her|hers)\b/i.test(world)) return true;
+  if (/\b(?:they|them|their|themselves|themself)\b/i.test(text)) return true;
+  return Boolean(truth?.pronouns && ["explicit","memory","runtime"].includes(truth.provenance));
 }
 
 function unknownNamedEntity(text: string, input: AuthorBrainTruth): boolean {
@@ -130,12 +131,11 @@ function unknownNamedEntity(text: string, input: AuthorBrainTruth): boolean {
 
 function unsupportedEmotion(text: string, input: AuthorBrainTruth): boolean {
   if (!INFERRED_EMOTION.test(text)) return false;
-  return !INFERRED_EMOTION.test(input.prompt);
+  return !INFERRED_EMOTION.test(knownWorldText(input));
 }
 
 function explicitProviderKnown(input: AuthorBrainTruth): boolean {
-  const explicit = [input.prompt,input.subject,input.place,...input.facts,...input.sourceMoments,...(input.memoryContext ?? []),...(input.trajectory ?? []),...(input.presenceSummary ?? [])].filter(Boolean).join(" ");
-  return PROVIDER.test(explicit);
+  return PROVIDER.test(knownWorldText(input));
 }
 
 function repeatsEstablishedIdentity(text: string, input: AuthorBrainTruth): boolean {
@@ -173,7 +173,7 @@ function invalid(text: string, input: AuthorBrainTruth): boolean {
   if (unknownNamedEntity(text, input)) return true;
   if (repeatsEstablishedIdentity(text, input)) return true;
   if (isBaselineRestatement(text, input)) return true;
-  if (!pronounsAllowed(text, input.subjectTruth)) return true;
+  if (!pronounsAllowed(text, input, input.subjectTruth)) return true;
   if (PROVIDER.test(text) && !explicitProviderKnown(input)) return true;
   return false;
 }
@@ -210,47 +210,26 @@ function fallbackBrief(input: AuthorBrainTruth): AuthorCreativeBrief {
 export async function authorBrain(input: AuthorBrainTruth, options: { fast?: boolean } = {}): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown> }> {
   const brief = fallbackBrief(input);
   const sourceLedger = buildSourceLedger(input);
-  const field = {
-    truth: input.subjectTruth ?? null,
-    current: uniq([...input.facts, ...input.sourceMoments], 12),
-    history: uniq([...(input.memoryContext ?? []), ...(input.trajectory ?? [])], 8),
-    learning: uniq(input.creativeLearningContext, 6),
-    returning: input.returning ?? false,
-    visit: input.visitNumber ?? null,
-    presence: uniq(input.presenceSummary, 5),
-    plan: input.cognitivePlan ?? null,
-    sourceLedger,
-  };
+  const field = { truth: input.subjectTruth ?? null, current: uniq([...input.facts, ...input.sourceMoments], 12), history: uniq([...(input.memoryContext ?? []), ...(input.trajectory ?? [])], 8), learning: uniq(input.creativeLearningContext, 6), returning: input.returning ?? false, visit: input.visitNumber ?? null, presence: uniq(input.presenceSummary, 5), plan: input.cognitivePlan ?? null, sourceLedger };
 
   const result = await localModelGenerate([
-    {
-      role: "system",
-      content: [
-        "You are QRE's universal experience author and sequence director.",
-        "Think deeply before writing. First decide how the experience should PLAY from cut to cut. Then realize that sequence into the finished cuts. Output only compact JSON.",
-        "A sequence is NOT a list of facts and NOT a chronology. It is a chain of viewer-state changes.",
-        "For every candidate cut ask: what does the viewer know now, what do they expect now, what remains unresolved, what do they want next, and what changed because of this cut? If those answers do not materially change, the candidate is not a sequence cut.",
-        "IDENTITY IS BASELINE. Established name, sex, species, breed, business category, location identity, or other canonical descriptors belong in openingState/baselineFacts. Do NOT spend attention cuts revealing baseline identity unless the reveal itself creates a new question, contradiction, or reframe.",
-        "Do not turn 'Coco is male', 'Coco is a poodle', or similar identity facts into separate sequence cuts. Those are already known world state.",
-        "Privately compete between genuinely different interpretations of the supplied world. Kill the obvious, generic, sentimental, repetitive, literal action-report, fact-list, and padded versions.",
-        "The viewer already knows the established subject. Do not reintroduce the subject with a name plus breed, sex, category, or identity label. Identity belongs to the world model. The mouth spends attention on NEW information.",
-        "The subject is temporarily the star. The subject's world is the experience. Other entities may appear only when their presence changes that world meaningfully. Database roles such as owner, customer, groomer, employee, or technician are not cinematic characters unless explicitly relevant in the supplied world.",
-        "RAW ACTION IS NOT AUTHORSHIP. A fact is source material. The sequence must choose which detail earns screen time and what that detail causes the viewer to think or want next.",
-        "CREATIVE FREEDOM HAS A HARD BOUNDARY: compress, reorder, juxtapose, reframe, exploit contradiction, change the meaning of known history, and create implication from known facts. Do NOT invent new physical events, actions, people, placements, outcomes, dialogue, or participants.",
-        "Use the source ledger as authority. Identity is canonical. Facts are observed truth. Source moments are supplied context. Memory is history. Trajectory is continuity. Preferences are guidance, never facts.",
-        "Do not manufacture private emotion or interpretive body language. Observable action is allowed. Emotion claims require explicit evidence or memory.",
-        "ONE CUT = ONE ATTENTION MOMENT. A cut should change the viewer state. Two excellent cuts beat four padded cuts. The sequence earns its length.",
-        "Very short cuts can be powerful because of implication: 'The monster appeared.' 'Pink bows everywhere.' The goal is information density and next-cut pressure, not minimum words.",
-        "Prefer implied subject + new information after identity is established.",
-        "No comma chains. No semicolon chains. No multi-shot 'then X and Y' constructions. Never use commas or semicolons in cut text. A colon is allowed for supplied factual times such as 9:04 AM.",
-        "Do not write a miniature novel. Do not explain themes. Do not explain the character. Make the viewer discover the world through the sequence.",
-        "Returning chapter: if true, evolve prior meaning. A callback should change meaning, stakes, or relationship instead of replaying the previous chapter.",
-        "Return JSON with exactly two top-level keys: sequence and scenes.",
-        "sequence must contain subject, premise, openingState, optional baselineFacts, cuts, optional closingState, continuity, antiCrutch, continuation.",
-        "Each sequence cut must contain role, gainKind, informationGain, attentionDelta, viewerBefore, viewerAfter, optional nextPromise and payoffConnection, plus confidence. gainKind must never be baseline for a cut. Use baseline facts separately.",
-        "scenes must contain only the actual finished cut lines. The scenes realize the sequence. Do not put explanations in scenes.",
-      ].join(" "),
-    },
+    { role: "system", content: [
+      "You are QRE's universal experience author and sequence director.",
+      "Decide the smallest sequence that creates the strongest viewer movement. Then write the finished cuts. Output only compact JSON.",
+      "A sequence is NOT a list of facts and NOT a chronology. It is a chain of viewer-state changes.",
+      "IDENTITY IS BASELINE. Established name, sex, species, breed, business category, location identity, or other canonical descriptors belong in openingState/baselineFacts. Never spend a cut merely revealing them unless the reveal itself changes the viewer's question or expectation.",
+      "Every actual cut must have a non-baseline gainKind and must materially change what the viewer knows, expects, wants, wonders, or understands.",
+      "Use only supplied facts, source moments, memory, trajectory, and presence. Reframe, compress, juxtapose, escalate, and imply from them. Do not invent concrete events, people, names, locations, dialogue, placements, outcomes, or physical actions.",
+      "The subject is temporarily the star. Other entities appear only when they materially change the subject's world. Database labels are not cinematic roles.",
+      "Very short cuts are allowed. The target is compressed impact, not a word-count fetish. Prefer implication when the viewer can reconstruct the missing context.",
+      "No comma or semicolon chains in cut text.",
+      "Return JSON with exactly two top-level keys: sequence and scenes.",
+      "If you cannot form a meaningful sequence from the supplied world, use fewer cuts. Never pad.",
+      "sequence must be compact: subject, premise, openingState, optional baselineFacts, cuts, optional closingState, continuity, antiCrutch, continuation.",
+      "Each cut must contain role from [arrival,hook,question,pressure,reframe,escalation,discovery,consequence,release,payoff,callback,continuation], gainKind from [new_fact,surprise,question,escalation,reframe,discovery,consequence,callback,payoff], informationGain, attentionDelta, viewerBefore, viewerAfter, optional nextPromise/payoffConnection, confidence.",
+      "Do not use person names or roles in the role field. role means the viewer-attention job, not the actor.",
+      "scenes contains only the actual finished cut lines. Keep each line self-contained and compact.",
+    ].join(" ") },
     { role: "user", content: JSON.stringify({ prompt: input.prompt, lens: input.lens ?? "", subject: input.subject ?? "", place: input.place ?? "", field }) },
   ], "json");
 
