@@ -2,43 +2,28 @@
  * QRE UNIVERSAL AUTHOR BRAIN · CANONICAL
  *
  * LIVING INTELLIGENCE CORE.
- * Expand or tune this file when general creative laws are discovered.
- * Do not freeze weaker behavior for compatibility. Generalize lessons across
- * domains instead of adding benchmark-specific hacks.
+ * General laws belong here; benchmark hacks and domain-specific author
+ * branches do not.
  *
- * Primary objective:
- * Given a grounded world and the viewer's current mental model, discover the
- * strongest valid sequence of attention-changing cuts. The mouth is the final
- * realization layer. The world remains the source of truth.
- *
- * MAGNET CIRCLE:
- * novelty → uncertainty → information value → attention → tension →
- * information seeking → narrative engagement.
- * This is the universal sequence primitive. Style is downstream realization.
- *
- * Important general laws:
- * - A source state is evidence, not a mandatory story arc.
- * - Identity is baseline unless identity itself is the discovery.
- * - A cut must change the viewer's model, desire, expectation, or meaning.
- * - Relations between known facts may create fresh implication without
- *   inventing a physical event.
- * - Predicate-to-attitude compression may turn supplied preferences, status,
- *   recurrence, history, or contradiction into a sharp line.
- * - The same creative operation must work for pets, people, businesses,
- *   weddings, travel, products, horror, services, memories, and organizations.
- * - Questions belong in hidden cognition, not in the narrator's mouth.
+ * Core sequence primitive:
+ * MAGNET CIRCLE + SUBJECT CONTINUITY + INFORMATION FRONTIER.
+ * The world is truth. The sequence is viewer-state movement. The mouth is
+ * downstream realization.
  */
 import type {
   AuthorBrainTruth,
   AuthorCreativeBrief,
   AuthorScene,
+  InformationFrontier,
+  MagnetCircle,
   SequenceCut,
   SequencePlay,
+  SubjectContinuity,
   ViewerAttentionRole,
   ViewerMomentum,
   ViewerState,
-  MagnetCircle,
 } from "@qre/contracts";
+import { evaluateCut, type CutWorld } from "./authorCutPolicy.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const ROLES: readonly ViewerAttentionRole[] = [
@@ -57,26 +42,50 @@ const GAIN_ALIASES: Record<string, SequenceCut["gainKind"]> = {
   turn: "reframe",
   reversal: "reframe",
 };
-const META = /\b(?:qre|prompt|compiler|cognition|metadata|language model|writing process)\b/i;
-const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|scene opens|we see|fade to)\b/i;
-const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love|quirky personality|grooming journey|positive transformation|emotional journey)\b/i;
-const ANY_QUESTION = /\?/;
-const PROVIDER = /\b(?:groomer|cleaner|technician|barber|stylist|mechanic|plumber|employee|worker|staff|owner|customer|client)\b/i;
-const UNSUPPORTED_ACTION = /\b(?:trembles|trembling|shakes|shaking|leaps|jumped|jumps|hides|hiding|cries|crying|smiles|smiling|wags|wagging|runs|running|grabs|grabbed|throws|threw|places|placed|removes|removed|approaches|approached|walks|walked|laughs|laughed|chews|chewed|licks|licked|bites|bit|drops|dropped|widens|widened|pulls|pulled|picks|picked)\b/i;
-const EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
-const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const uniq = (values: readonly unknown[] | undefined, limit = 20): string[] => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
+const uniq = (values: readonly unknown[] | undefined, limit = 20): string[] =>
+  [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
 
+function parseJson<T>(raw: string): T | null {
+  const text = String(raw ?? "")
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  try { return JSON.parse(text) as T; } catch { return null; }
+}
+
+function debug(raw: string): void {
+  if (process.env.QRE_AUTHOR_DEBUG_RAW !== "true") return;
+  console.log(`\n--- QRE RAW MODEL OUTPUT · AUTHOR-BRAIN-UNIVERSAL ---\n${raw}\n--- END RAW MODEL OUTPUT ---\n`);
+}
+
+function canonicalGain(value: unknown): string {
+  const normalized = clean(value).toLowerCase();
+  return GAIN_ALIASES[normalized] ?? normalized;
+}
+
+function world(input: AuthorBrainTruth): CutWorld {
+  return {
+    prompt: clean(input.prompt),
+    subject: clean(input.subject),
+    place: clean(input.place),
+    identity: input.subjectTruth?.identityFacts ?? [],
+    facts: input.facts,
+    moments: input.sourceMoments,
+    memory: input.memoryContext ?? [],
+    trajectory: input.trajectory ?? [],
+    presence: input.presenceSummary ?? [],
+  };
+}
+
+const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
+
 function meaningfulWords(value: string): Set<string> {
   return new Set(
-    clean(value)
-      .toLowerCase()
-      .split(/[^a-z0-9'-]+/i)
-      .filter((word) => word.length >= 4 && !STOP.has(word)),
+    clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 4 && !STOP.has(word)),
   );
 }
 
@@ -87,127 +96,65 @@ function overlapRatio(a: Set<string>, b: Set<string>): number {
   return hits / a.size;
 }
 
-function magnetCircle(
-  before: ViewerMomentum,
-  change: string,
-  next: string,
-  role: ViewerAttentionRole,
-  gain: string,
-): MagnetCircle {
+function magnetCircle(before: ViewerMomentum, change: string, next: string, gain: string): MagnetCircle {
   const known = meaningfulWords(before.known.join(" "));
   const changeWords = meaningfulWords(change);
   const nextWords = meaningfulWords(next);
   const novelty = metric(1 - overlapRatio(changeWords, known));
-
   const genericNext = /^(?:what happens next|what will happen next|something else|the next step|more to come)[.?]?$/.test(next.toLowerCase());
   const uncertainty = metric(
     (nextWords.size ? 0.55 : 0.15) +
     (before.unresolved || before.curiosityGap ? 0.2 : 0) +
-    (gain === "question" || gain === "surprise" ? 0.2 : 0) -
+    (["question", "surprise"].includes(gain) ? 0.2 : 0) -
     (genericNext ? 0.45 : 0),
   );
-
   const informationValue = metric(
     novelty * 0.45 +
     (changeWords.size ? 0.2 : 0) +
     (nextWords.size ? 0.15 : 0) +
     (["surprise", "discovery", "reframe", "consequence", "payoff", "callback"].includes(gain) ? 0.2 : 0),
   );
-
   const attention = metric(novelty * 0.4 + informationValue * 0.6);
   const tension = metric(uncertainty * informationValue);
   const informationSeeking = metric(
-    nextWords.size * 0.08 +
+    (nextWords.size ? 0.3 : 0) +
     (next ? 0.25 : 0) +
     (before.unresolved ? 0.2 : 0) +
     (before.forwardPull ? 0.15 : 0),
   );
   const narrativeEngagement = metric((attention + tension + informationSeeking) / 3);
   const magnetStrength = metric(
-    novelty * 0.15 +
-    uncertainty * 0.15 +
-    informationValue * 0.2 +
-    attention * 0.15 +
-    tension * 0.2 +
-    informationSeeking * 0.1 +
+    novelty * 0.15 + uncertainty * 0.15 + informationValue * 0.2 +
+    attention * 0.15 + tension * 0.2 + informationSeeking * 0.1 +
     narrativeEngagement * 0.05,
   );
+  return { novelty, uncertainty, informationValue, attention, tension, informationSeeking, narrativeEngagement, magnetStrength, unresolved: next || change || before.unresolved, nextNeed: next || before.forwardPull };
+}
 
+function frontier(before: ViewerMomentum, change: string, next: string, magnet: MagnetCircle): InformationFrontier {
   return {
-    novelty,
-    uncertainty,
-    informationValue,
-    attention,
-    tension,
-    informationSeeking,
-    narrativeEngagement,
-    magnetStrength,
-    unresolved: next || change || before.unresolved,
+    known: before.known,
+    frontier: clean(next || change || before.unresolved || ""),
+    novelty: magnet.novelty,
+    uncertainty: magnet.uncertainty,
+    informationValue: magnet.informationValue,
+    tension: magnet.tension,
     nextNeed: next || before.forwardPull,
   };
 }
 
-function canonicalGain(value: unknown): string {
-  const normalized = clean(value).toLowerCase();
-  return GAIN_ALIASES[normalized] ?? normalized;
-}
-
-function parseJson<T>(raw: string): T | null {
-  const text = String(raw ?? "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  try { return JSON.parse(text) as T; } catch { return null; }
-}
-
-function debug(raw: string): void {
-  if (process.env.QRE_AUTHOR_DEBUG_RAW !== "true") return;
-  console.log(`\n--- QRE RAW MODEL OUTPUT · AUTHOR-BRAIN-UNIVERSAL ---\n${raw}\n--- END RAW MODEL OUTPUT ---\n`);
-}
-
-function worldText(input: AuthorBrainTruth): string {
-  return [
-    input.prompt,
-    input.subject,
-    input.place,
-    ...(input.subjectTruth?.identityFacts ?? []),
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-    ...(input.trajectory ?? []),
-    ...(input.presenceSummary ?? []),
-  ].filter(Boolean).join(" ");
-}
-
-function sourceFragments(input: AuthorBrainTruth): string[] {
-  return [
-    ...(input.subjectTruth?.identityFacts ?? []),
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-    ...(input.trajectory ?? []),
-    ...(input.presenceSummary ?? []),
-  ].map(clean).filter(Boolean);
-}
-
-function groundedEnough(text: string, input: AuthorBrainTruth): boolean {
-  const words = text.toLowerCase().split(/[^a-z0-9'-]+/i).filter((x) => x.length >= 4 && !STOP.has(x));
-  if (!words.length) return true;
-  const sources = sourceFragments(input).map((x) => x.toLowerCase());
-  const hits = words.filter((word) => sources.some((source) => source.includes(word)));
-  return hits.length >= Math.max(1, Math.ceil(words.length * 0.25));
-}
-
-function sourceBackedQuestion(text: string, input: AuthorBrainTruth): boolean {
-  return sourceFragments(input).some((fragment) => fragment.includes(text));
-}
-
-function validCut(text: string, input: AuthorBrainTruth): boolean {
-  if (!text || text.split(/\s+/).length > 14) return false;
-  if (META.test(text) || CAMERA.test(text) || GENERIC.test(text)) return false;
-  if (ANY_QUESTION.test(text) && !sourceBackedQuestion(text, input)) return false;
-  if (PROVIDER.test(text) && !PROVIDER.test(worldText(input))) return false;
-  if (UNSUPPORTED_ACTION.test(text) && !UNSUPPORTED_ACTION.test(worldText(input))) return false;
-  if (EMOTION.test(text) && !EMOTION.test(worldText(input))) return false;
-  if (text.split(/\s+/).length > 3 && !groundedEnough(text, input)) return false;
-  return true;
+function subjectContinuity(subject: string, established: boolean, text: string, cutOrder: number): SubjectContinuity {
+  const escaped = subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+  const explicit = Boolean(subject) && new RegExp(`\\b${escaped}\\b`, "i").test(text);
+  const pronoun = /\b(?:he|she|they|it|him|her|them|his|their|its)\b/i.test(text);
+  const referenceMode = explicit ? "name" : pronoun ? "pronoun" : "implicit";
+  return {
+    established: established || Boolean(subject),
+    subject,
+    referenceMode,
+    referenceCost: explicit && established ? 0.35 : pronoun && established ? 0.1 : 0,
+    lastExplicitReference: explicit ? cutOrder : undefined,
+  };
 }
 
 function recoveredTexts(raw: string): string[] {
@@ -224,21 +171,14 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   const value = raw as { premise?: unknown; baselineFacts?: unknown; cuts?: unknown; continuation?: unknown };
   if (!Array.isArray(value.cuts)) return undefined;
 
-  const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 10);
+  const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 12);
   let momentum: ViewerMomentum = {
     known: baselineFacts,
-    magnet: {
-      novelty: 0,
-      uncertainty: 0,
-      informationValue: 0,
-      attention: 0,
-      tension: 0,
-      informationSeeking: 0,
-      narrativeEngagement: 0,
-      magnetStrength: 0,
-    },
+    subjectContinuity: { established: false, subject, referenceMode: "implicit", referenceCost: 0 },
+    informationFrontier: { known: baselineFacts, frontier: "", novelty: 0, uncertainty: 0, informationValue: 0, tension: 0 },
   };
   const cuts: SequenceCut[] = [];
+  let subjectEstablished = false;
 
   for (const [index, item] of value.cuts.entries()) {
     if (!item || typeof item !== "object") continue;
@@ -250,7 +190,11 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
     const text = clean(c.text);
     const change = clean(c.change);
     const next = clean(c.next);
-    const magnet = magnetCircle(momentum, change, next, role as ViewerAttentionRole, gain);
+    const magnet = magnetCircle(momentum, change, next, gain);
+    const subjectState = subjectContinuity(subject, subjectEstablished, text, index + 1);
+    subjectEstablished = subjectEstablished || Boolean(subjectState.subject);
+    const frontierState = frontier(momentum, change, next, magnet);
+
     const after: ViewerMomentum = {
       known: momentum.known,
       expected: next || undefined,
@@ -262,6 +206,8 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
       forwardPull: magnet.nextNeed,
       payoffDebt: momentum.payoffDebt,
       magnet,
+      subjectContinuity: subjectState,
+      informationFrontier: frontierState,
     };
 
     cuts.push({
@@ -272,27 +218,13 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
       sourceIds: [],
       informationGain: change,
       attentionDelta: next,
-      viewerBefore: {
-        known: momentum.known,
-        expected: momentum.expected,
-        unresolved: momentum.unresolved,
-        currentWant: momentum.currentWant,
-        recentChange: momentum.predictionShift,
-      } satisfies ViewerState,
-      viewerAfter: {
-        known: after.known,
-        expected: after.expected,
-        unresolved: after.unresolved,
-        currentWant: after.currentWant,
-        recentChange: after.predictionShift,
-      } satisfies ViewerState,
+      viewerBefore: { known: momentum.known, expected: momentum.expected, unresolved: momentum.unresolved, currentWant: momentum.currentWant, recentChange: momentum.predictionShift },
+      viewerAfter: { known: after.known, expected: after.expected, unresolved: after.unresolved, currentWant: after.currentWant, recentChange: after.predictionShift },
       momentum: { before: momentum, change, after, nextPressure: next },
       necessity: {
         necessary: magnet.magnetStrength >= 0.35 || Boolean(next),
         reason: next || change,
-        removalDamage: magnet.magnetStrength >= 0.35
-          ? `Weakens the information-seeking magnet (${magnet.magnetStrength.toFixed(2)})`
-          : "Cut does not yet carry enough forward pull",
+        removalDamage: magnet.magnetStrength >= 0.35 ? `Weakens the information-seeking magnet (${magnet.magnetStrength.toFixed(2)})` : "Cut does not yet carry enough forward pull",
       },
       nextPromise: next || undefined,
       noveltyScore: magnet.novelty,
@@ -309,7 +241,7 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
     premise: clean(value.premise).replace(/[.?!]$/, ""),
     openingState: { known: baselineFacts },
     baselineFacts,
-    openingMomentum: { known: baselineFacts, magnet: momentum.magnet },
+    openingMomentum: momentum,
     cuts,
     closingMomentum: momentum,
     continuity: [],
@@ -318,40 +250,64 @@ function buildSequence(subject: string, raw: unknown): SequencePlay | undefined 
   };
 }
 
-function scenesFromSequence(sequence: SequencePlay | undefined, input: AuthorBrainTruth): { scenes: AuthorScene[]; attempted: number; rejected: number } {
-  if (!sequence) return { scenes: [], attempted: 0, rejected: 0 };
+function scenesFromSequence(sequence: SequencePlay | undefined, input: AuthorBrainTruth): { scenes: AuthorScene[]; attempted: number; rejected: number; rejectionReasons: Record<string, number> } {
+  if (!sequence) return { scenes: [], attempted: 0, rejected: 0, rejectionReasons: {} };
   const attempted = sequence.cuts.length;
-  const scenes = sequence.cuts
-    .map((cut) => clean((cut as SequenceCut & { text?: string }).text ?? ""))
-    .filter(Boolean)
-    .filter((text) => validCut(text, input))
-    .map((text) => ({ text, kind: "line" as const }));
-  return { scenes, attempted, rejected: attempted - scenes.length };
+  const prior: string[] = [];
+  const rejectionReasons: Record<string, number> = {};
+  const scenes: AuthorScene[] = [];
+
+  for (const cut of sequence.cuts) {
+    const text = clean((cut as SequenceCut & { text?: string }).text ?? "");
+    if (!text) continue;
+    const policy = evaluateCut(
+      text,
+      world(input),
+      {
+        role: cut.role,
+        gainKind: cut.gainKind,
+        change: cut.informationGain,
+        next: cut.nextPromise,
+        text,
+        subjectEstablished: Boolean(cut.order > 1),
+        informationFrontier: cut.viewerBefore.recentChange,
+      },
+      prior,
+    );
+    if (!policy.accepted) {
+      for (const reason of policy.reasons) rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
+      continue;
+    }
+    scenes.push({ text, kind: "line" as const });
+    prior.push(text);
+  }
+
+  return { scenes, attempted, rejected: attempted - scenes.length, rejectionReasons };
 }
 
 function brief(input: AuthorBrainTruth): AuthorCreativeBrief {
   return {
-    angle: "the most specific contradiction or relationship in the world",
-    engine: "viewer-momentum sequence discovery",
+    angle: "the strongest unresolved information frontier in the world",
+    engine: "viewer-momentum magnet discovery",
     question: "what changes the viewer's mental model next?",
     strongestImage: input.facts[0] ?? input.sourceMoments[0] ?? "the strongest supplied detail",
     tension: "information seeking through uncertainty",
     payoff: "a character-specific consequence or reframe",
     callback: input.memoryContext?.[0] ?? input.trajectory?.[0] ?? "none yet",
     rhythm: ["hit", "variable", "hit", "payoff"],
-    avoid: ["fact parade", "generic emotion arc", "invented reality", "literal viewer questions", "service-provider protagonist", "padding", "over-explaining"],
+    avoid: ["fact parade", "identity repetition after establishment", "generic emotion arc", "invented reality", "literal viewer questions", "service-provider protagonist", "padding", "over-explaining", "frontier-starved filler"],
   };
 }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown>; diagnostics: Record<string, unknown> }> {
   const learning = uniq(input.creativeLearningContext, 20);
   const field = {
-    identity: uniq(input.subjectTruth?.identityFacts, 8),
-    facts: uniq(input.facts, 16),
-    moments: uniq(input.sourceMoments, 12),
-    memory: uniq(input.memoryContext, 10),
-    trajectory: uniq(input.trajectory, 10),
-    presence: uniq(input.presenceSummary, 8),
+    identity: uniq(input.subjectTruth?.identityFacts, 10),
+    facts: uniq(input.facts, 20),
+    moments: uniq(input.sourceMoments, 16),
+    memory: uniq(input.memoryContext, 12),
+    trajectory: uniq(input.trajectory, 12),
+    presence: uniq(input.presenceSummary, 10),
     learning,
     lens: clean(input.lens),
     prompt: clean(input.prompt),
@@ -361,28 +317,27 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     {
       role: "system",
       content: [
-        "You are QRE's universal creative author.",
-        "Discover the strongest short movie hidden inside the supplied world. Do not summarize it.",
-        "The universal attention primitive is the MAGNET CIRCLE: novelty → uncertainty → information value → attention → tension → information seeking → narrative engagement.",
-        "A strong cut increases or meaningfully resolves the current magnet, then creates the next magnet. Do not create a cut unless it changes the viewer's mental model or leaves a valuable unresolved state.",
-        "A source state is evidence, not a story instruction. Emotion labels do not automatically become the plot arc.",
-        "First find the strongest specific relationship already present: contradiction, recurrence, implication, status shift, image, mismatch, callback, consequence, or withheld meaning.",
-        "Privately track: what is known, what is new, what is uncertain, how valuable the missing information is, why attention should move there, what the viewer seeks next, and what makes the next cut necessary.",
+        "You are QRE's universal creative author and sequence-discovery brain.",
+        "Do not write a generic story summary. Discover the strongest information-seeking sequence hidden inside the supplied world.",
+        "The universal attention primitive is the MAGNET CIRCLE: novelty → uncertainty → information value → attention → tension → information seeking → narrative engagement → discovery/reframe/payoff → new uncertainty.",
+        "The viewer holds a persistent subject-space after the subject is established. Do not waste later cuts re-naming or re-describing the subject unless the reference itself carries information.",
+        "Always write toward the INFORMATION FRONTIER: what is newly valuable, unresolved, recontextualized, implied, connected, contradicted, recurring, or consequential from what is already known?",
         "Identity and stable facts are baseline. Do not spend cuts reintroducing the subject or listing traits.",
-        "Use predicate-to-attitude compression: supplied dislike, love, status, history, recurrence, or contradiction may become a sharp line without inventing a physical event.",
-        "A creative implication can emerge from the relationship between supplied facts. Reframe, juxtapose, contrast, compress, withhold, escalate, and callback without inventing events.",
-        "Do not invent physical behavior, dialogue, participants, roles, relationships, locations, placements, or outcomes.",
-        "A source state like scared does not authorize trembling, hiding, crying, jumping, or similar physical performance. A source state like happy does not authorize wagging, smiling, cheering, or leaping.",
-        "Questions stay inside hidden cognition. Never make the narrator ask literal questions unless supplied.",
+        "A fact can be known and still be narratively inert. Seek relationships among known facts that create a higher-value unresolved state.",
+        "Prioritize contradiction, recurrence, implication, status shift, detail hierarchy, callback, consequence, withholding, reframe, compression, and attitude shifts.",
+        "Creative realization is relative. The magnet is universal; the lens may become comedy, horror, romance, swagger, absurdity, tenderness, mystery, or another fitting expression.",
+        "Learn the latent operation behind strong outputs. Do not imitate phrases as templates.",
+        "Predicate-to-attitude compression may turn supplied dislike, love, status, history, recurrence, or contradiction into a sharp line without inventing a physical event.",
+        "Do not invent physical behavior, dialogue, participants, roles, relationships, locations, placements, objects, or outcomes.",
+        "A supplied state such as scared does not authorize trembling, hiding, crying, jumping, or other physical choreography. A supplied state such as happy does not authorize wagging, smiling, cheering, or leaping.",
+        "Questions belong in hidden cognition. Never put a literal viewer question in the finished cut unless that question is supplied source language.",
         "The provider or service is usually stage context. Keep the supplied subject as the temporary star unless the provider is explicitly significant.",
-        "Do not explain the joke. Let the viewer close the gap.",
-        "Short is not the goal. Compressed impact is the goal. A two-word cut can be stronger than a sentence when it carries more implied information.",
-        "Use recurrence only when supported by memory, trajectory, or repeated supplied evidence.",
-        "Sparse-world rule: creative latitude applies to interpretation and juxtaposition, not to evidence. The less source evidence available, the smaller the invented-world surface must become.",
-        "If evidence is sparse, prefer a compact implication, contrast, or image over adding hidden history, new people, objects, or events.",
-        "Optional relation candidates are search hypotheses. Use, alter, combine, or reject them. Never promote them to canonical facts.",
-        "Stop when the payoff earns itself. The sequence can be 2 to 6 cuts.",
-        "Output only JSON: {\"sequence\":{\"premise\":\"grounded relationship\",\"baselineFacts\":[\"...\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"short mental-model change\",\"next\":\"short forward pressure\",\"text\":\"one finished cut\"}],\"continuation\":\"optional\"}}.",
+        "Do not resolve the emotion with a moral or wholesome lesson. Let attitude, implication, contrast, or a compact image carry the feeling.",
+        "Shortness alone is not the objective. Cognitive density is. A two-word cut can beat a sentence when it carries more implied information.",
+        "Stop when the payoff earns itself. The sequence may be 2 to 6 cuts.",
+        "Optional relation candidates are hypotheses. Use, alter, combine, or reject them. Never promote them to canonical facts.",
+        "Output only JSON with sequence.premise, baselineFacts, cuts, and optional continuation.",
+        "Each cut must have role, gainKind, change, next, and text.",
       ].join(" "),
     },
     { role: "user", content: JSON.stringify(field) },
@@ -392,18 +347,27 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
   const parsed = parseJson<{ sequence?: unknown }>(result.text);
   const sequence = buildSequence(input.subject, parsed?.sequence);
   const sequenceResult = scenesFromSequence(sequence, input);
-  const recovered = recoveredTexts(result.text).map((text) => ({ text, kind: "line" as const }));
-  const recoveredValid = recovered.filter((scene) => validCut(scene.text, input));
-  const scenes = [...sequenceResult.scenes, ...recoveredValid]
+  const worldValue = world(input);
+  const recovered = recoveredTexts(result.text);
+  const prior = [...sequenceResult.scenes.map((scene) => scene.text)];
+  const recoveredValid = recovered.filter((text) => evaluateCut(
+    text,
+    worldValue,
+    {
+      role: "continuation",
+      gainKind: "callback",
+      subjectEstablished: Boolean(input.subject),
+      informationFrontier: sequence?.closingMomentum?.informationFrontier?.frontier,
+      text,
+    },
+    prior,
+  ).accepted);
+  const scenes = [...sequenceResult.scenes, ...recoveredValid.map((text) => ({ text, kind: "line" as const }))]
     .filter((scene, index, all) => all.findIndex((candidate) => candidate.text.toLowerCase() === scene.text.toLowerCase()) === index)
     .slice(0, 6);
 
-  const magnetValues = sequence?.cuts
-    .map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0)
-    .filter((value) => Number.isFinite(value)) ?? [];
-  const magnetAverage = magnetValues.length
-    ? magnetValues.reduce((sum, value) => sum + value, 0) / magnetValues.length
-    : 0;
+  const magnetValues = sequence?.cuts.map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0).filter(Number.isFinite) ?? [];
+  const magnetAverage = magnetValues.length ? magnetValues.reduce((sum, value) => sum + value, 0) / magnetValues.length : 0;
   const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
   const magnetFloor = magnetValues.length ? Math.min(...magnetValues) : 0;
 
@@ -415,6 +379,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     diagnostics: {
       sequenceCutsAttempted: sequenceResult.attempted,
       sequenceCutsRejected: sequenceResult.rejected,
+      rejectionReasons: sequenceResult.rejectionReasons,
       recoveredTextsAttempted: recovered.length,
       recoveredTextsRejected: recovered.length - recoveredValid.length,
       finalScenes: scenes.length,
@@ -422,6 +387,8 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
       magnetPeak: metric(magnetPeak),
       magnetFloor: metric(magnetFloor),
       magnetCutsMeasured: magnetValues.length,
+      subjectSpaceEstablished: Boolean(sequence?.closingMomentum?.subjectContinuity?.established),
+      informationFrontier: sequence?.closingMomentum?.informationFrontier?.frontier ?? "",
     },
   };
 }
