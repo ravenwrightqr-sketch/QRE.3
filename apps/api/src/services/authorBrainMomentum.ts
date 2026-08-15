@@ -21,6 +21,7 @@ const PROVIDER = /\b(?:groomer|cleaner|technician|barber|stylist|mechanic|plumbe
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|new routine|power of love|symbol of love|quirky personality|grooming journey)\b/i;
 const INFERRED_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
 const NAMED_ENTITY = /\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)+\b/g;
+const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 20): string[] => [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
@@ -36,52 +37,26 @@ function debug(label: string, raw: string): void {
 }
 
 function worldText(input: AuthorBrainTruth): string {
-  return [
-    input.prompt,
-    input.subject,
-    input.place,
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-    ...(input.trajectory ?? []),
-    ...(input.presenceSummary ?? []),
-  ].filter(Boolean).join(" ");
+  return [input.prompt, input.subject, input.place, ...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? []), ...(input.presenceSummary ?? [])].filter(Boolean).join(" ");
 }
 
-function normalizeScenes(raw: unknown): AuthorScene[] {
-  if (Array.isArray(raw)) return raw.flatMap((item) => {
-    if (typeof item === "string") return [{ text: item, kind: "line" as const }];
-    if (item && typeof item === "object" && typeof (item as AuthorScene).text === "string") return [item as AuthorScene];
-    return [];
-  });
-  if (typeof raw === "string") return raw.split(/\n+/).filter(Boolean).map((text) => ({ text: clean(text), kind: "line" as const }));
-  if (!raw || typeof raw !== "object") return [];
-  const value = raw as { scenes?: unknown; lines?: unknown[]; text?: unknown };
-  if (Array.isArray(value.scenes)) return normalizeScenes(value.scenes);
-  if (Array.isArray(value.lines)) return normalizeScenes(value.lines);
-  if (typeof value.text === "string") return normalizeScenes(value.text);
-  return [];
-}
-
-function recoverScenes(raw: string): AuthorScene[] {
-  const out: AuthorScene[] = [];
-  const pattern = /"text"\s*:\s*"((?:\\.|[^"\\])*)"/g;
-  for (const match of raw.matchAll(pattern)) {
-    try { out.push({ text: clean(JSON.parse(`"${match[1]}"`)), kind: "line" }); } catch { /* ignore */ }
-  }
-  return out;
+function repeatedSalientTerm(input: AuthorBrainTruth): string | undefined {
+  const current = [...input.facts, ...input.sourceMoments].join(" ").toLowerCase();
+  const history = [...(input.memoryContext ?? []), ...(input.trajectory ?? [])].join(" ").toLowerCase();
+  if (!history) return undefined;
+  const terms = current
+    .split(/[^a-z0-9'-]+/i)
+    .map((token) => token.replace(/^['-]+|['-]+$/g, ""))
+    .filter((token) => token.length >= 4 && !STOP.has(token));
+  const unique = [...new Set(terms)].sort((a, b) => b.length - a.length);
+  return unique.find((term) => history.includes(term));
 }
 
 function impliedCuts(input: AuthorBrainTruth): AuthorScene[] {
-  const facts = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? [])].map(clean).filter(Boolean);
-  const text = facts.join(" ").toLowerCase();
-  const out: string[] = [];
-
-  if (/hate[s]? bows?|bow(s)?/.test(text) && /groom|grooming/.test(text)) out.push("Bows again.");
-  if (/love[s]? treats?|treat/.test(text) && /hate[s]? bows?|bow/.test(text)) out.push("Treats still win.");
-  if (/mirror/.test(text) && /beautiful|gorgeous|look/.test(text)) out.push("Mirror approved.");
-  if (input.returning && /bow/.test(text) && (input.memoryContext?.length || input.trajectory?.length)) out.push("Bows again.");
-  return out.map((text) => ({ text, kind: "line" as const }));
+  const repeated = repeatedSalientTerm(input);
+  if (!repeated) return [];
+  const term = repeated.charAt(0).toUpperCase() + repeated.slice(1);
+  return [{ text: `${term} again.`, kind: "line" as const }];
 }
 
 function splitCommaCuts(raw: AuthorScene[]): AuthorScene[] {
@@ -109,9 +84,33 @@ function invalidCut(text: string, input: AuthorBrainTruth): boolean {
   for (const match of text.matchAll(localNamed)) {
     if (!worldLower.includes(clean(match[0]).toLowerCase())) return true;
   }
-  if (PROVIDER.test(text) && !/\bgroomer\b|\bcleaner\b|\btechnician\b|\bbarber\b|\bstylist\b|\bmechanic\b|\bplumber\b|\bemployee\b|\bworker\b|\bstaff\b|\bowner\b|\bcustomer\b|\bclient\b/i.test(world)) return true;
+  if (PROVIDER.test(text) && !PROVIDER.test(world)) return true;
   if (INFERRED_EMOTION.test(text) && !INFERRED_EMOTION.test(world)) return true;
   return false;
+}
+
+function normalizeScenes(raw: unknown): AuthorScene[] {
+  if (Array.isArray(raw)) return raw.flatMap((item) => {
+    if (typeof item === "string") return [{ text: item, kind: "line" as const }];
+    if (item && typeof item === "object" && typeof (item as AuthorScene).text === "string") return [item as AuthorScene];
+    return [];
+  });
+  if (typeof raw === "string") return raw.split(/\n+/).filter(Boolean).map((text) => ({ text: clean(text), kind: "line" as const }));
+  if (!raw || typeof raw !== "object") return [];
+  const value = raw as { scenes?: unknown; lines?: unknown[]; text?: unknown };
+  if (Array.isArray(value.scenes)) return normalizeScenes(value.scenes);
+  if (Array.isArray(value.lines)) return normalizeScenes(value.lines);
+  if (typeof value.text === "string") return normalizeScenes(value.text);
+  return [];
+}
+
+function recoverScenes(raw: string): AuthorScene[] {
+  const out: AuthorScene[] = [];
+  const pattern = /"text"\s*:\s*"((?:\\.|[^"\\])*)"/g;
+  for (const match of raw.matchAll(pattern)) {
+    try { out.push({ text: clean(JSON.parse(`"${match[1]}"`)), kind: "line" }); } catch { /* ignore */ }
+  }
+  return out;
 }
 
 function finalizeScenes(input: AuthorBrainTruth, raw: AuthorScene[]): AuthorScene[] {
@@ -143,14 +142,8 @@ function momentumFrom(previous: ViewerMomentum | undefined, change: string, next
 
 function toSequence(subject: string, raw: unknown): SequencePlay | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const value = raw as {
-    premise?: unknown;
-    baselineFacts?: unknown;
-    cuts?: unknown;
-    continuation?: unknown;
-  };
+  const value = raw as { premise?: unknown; baselineFacts?: unknown; cuts?: unknown; continuation?: unknown };
   if (!Array.isArray(value.cuts)) return undefined;
-
   const baselineFacts = uniq(value.baselineFacts as unknown[] | undefined, 10);
   let momentum: ViewerMomentum = { known: baselineFacts };
   const cuts: SequenceCut[] = value.cuts.flatMap((item, index) => {
@@ -170,20 +163,8 @@ function toSequence(subject: string, raw: unknown): SequencePlay | undefined {
       sourceIds: [],
       informationGain: change,
       attentionDelta: next,
-      viewerBefore: {
-        known: momentum.known,
-        expected: momentum.expected,
-        unresolved: momentum.unresolved,
-        currentWant: momentum.currentWant,
-        recentChange: momentum.predictionShift,
-      } satisfies ViewerState,
-      viewerAfter: {
-        known: after.known,
-        expected: after.expected,
-        unresolved: after.unresolved,
-        currentWant: after.currentWant,
-        recentChange: after.predictionShift,
-      } satisfies ViewerState,
+      viewerBefore: { known: momentum.known, expected: momentum.expected, unresolved: momentum.unresolved, currentWant: momentum.currentWant, recentChange: momentum.predictionShift } satisfies ViewerState,
+      viewerAfter: { known: after.known, expected: after.expected, unresolved: after.unresolved, currentWant: after.currentWant, recentChange: after.predictionShift } satisfies ViewerState,
       momentum: { before: momentum, change, after, nextPressure: next },
       necessity: { necessary: true, reason: next || change },
       nextPromise: next || undefined,
@@ -192,12 +173,10 @@ function toSequence(subject: string, raw: unknown): SequencePlay | undefined {
     momentum = after;
     return [output];
   });
-
   if (!cuts.length) return undefined;
-  const premise = clean(value.premise).replace(/[.?!]$/, "");
   return {
     subject,
-    premise,
+    premise: clean(value.premise).replace(/[.?!]$/, ""),
     openingState: { known: baselineFacts },
     baselineFacts,
     openingMomentum: { known: baselineFacts },
@@ -240,19 +219,19 @@ export async function authorBrainMomentum(input: AuthorBrainTruth): Promise<{ br
       content: [
         "You are QRE's universal sequence intelligence and author.",
         "Create the strongest valid movie hidden inside the supplied world. Do not summarize.",
-        "Think in viewer-state transitions: known -> expected -> open question -> surprise/reframe -> new desire -> payoff.",
+        "Think in viewer-state transitions: known -> expected -> open question -> surprise or reframe -> new desire -> payoff.",
         "Before every cut privately ask: what does the viewer know; what do they expect; what remains unresolved; what is the curiosity gap; what coherent surprise can occur using only known material; why does it matter to this subject; what does the viewer want next; what remains unrevealed; and would removing the cut damage the movie?",
         "A fact earns a cut only when it changes the viewer's knowledge, expectation, question, desire, interpretation, tension, or payoff pressure.",
         "Identity is baseline. Do not waste cuts on established sex, breed, category, or name.",
         "The service world is setting unless a supplied relationship makes it meaningful. Do not invent an owner, groomer, employee, customer, or named person.",
         "Reality is sacred. Reframe known facts and source moments. Do not invent concrete events, physical actions, placements, dialogue, outcomes, or emotions.",
-        "Use relationships between known facts to create fresh implication. Examples of the operation: an established dislike plus a recurring object can become a callback; an established preference can overturn an expectation; two known details can imply a larger unseen situation.",
-        "Do not invent a journey, transformation, personality, or premise that is not directly supported. The premise must be a compact statement of the strongest supplied contradiction or relationship.",
+        "Use relationships between known facts to create fresh implication. Two known details can create a new meaning without inventing a new event.",
+        "Do not invent a journey, transformation, personality, or premise that is not directly supported. The premise must be a compact contradiction or relationship already present in the supplied world.",
         "The lens is style only. Never turn the lens into a fact.",
-        "Anti-crutch: kill the obvious fear-to-happy arc when a more specific contradiction or implication is available.",
+        "Anti-crutch: when a generic emotion arc is obvious, search for a more specific contradiction, callback, image, status shift, or implication grounded in known material.",
         "Very short cuts are encouraged when they carry implied context. The goal is compressed impact, not minimum word count.",
         "Every cut must make the next cut more desirable, surprising, coherent, or necessary.",
-        "Output only this compact JSON shape. Do not add fields. {\"sequence\":{\"premise\":\"compact grounded contradiction or relationship\",\"baselineFacts\":[\"identity/facts already established\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"short viewer-model change\",\"next\":\"short next pressure\",\"text\":\"finished cut\"}],\"continuation\":\"optional short future hook\"},\"scenes\":[\"finished cut\",\"finished cut\"]}",
+        "Output only this compact JSON shape. Do not add fields. {\"sequence\":{\"premise\":\"compact grounded contradiction or relationship\",\"baselineFacts\":[\"identity or facts already established\"],\"cuts\":[{\"role\":\"hook|question|pressure|reframe|escalation|discovery|consequence|payoff|callback|continuation\",\"gainKind\":\"new_fact|surprise|question|escalation|reframe|discovery|consequence|callback|payoff\",\"change\":\"short viewer-model change\",\"next\":\"short next pressure\",\"text\":\"finished cut\"}],\"continuation\":\"optional short future hook\"},\"scenes\":[\"finished cut\",\"finished cut\"]}",
         "Use 2 to 6 cuts. Use fewer when fewer are stronger. Never pad.",
         "Cut text is film language. No commas. No semicolons. No camera language. No theme explanation. No paragraph prose.",
         "Do not repeat the subject name when the viewer already knows who the subject is.",
@@ -264,7 +243,8 @@ export async function authorBrainMomentum(input: AuthorBrainTruth): Promise<{ br
   debug("AUTHOR-BRAIN-MOMENTUM", result.text);
   const parsed = parseJson<{ sequence?: unknown; scenes?: unknown }>(result.text);
   const rawScenes = parsed?.scenes !== undefined ? normalizeScenes(parsed.scenes) : [];
-  const scenes = finalizeScenes(input, rawScenes.length ? rawScenes : [...recoverScenes(result.text), ...impliedCuts(input)]);
+  const fallback = [...recoverScenes(result.text), ...impliedCuts(input)];
+  const scenes = finalizeScenes(input, rawScenes.length ? rawScenes : fallback);
   const sequence = toSequence(input.subject, parsed?.sequence);
   return { brief: brief(input), scenes, sequence, field };
 }
