@@ -217,10 +217,10 @@ export async function compileExperience(input: {
       round: presence?.visitNumber ?? 1,
     });
 
-    if (beats.length >= 3) compiled = applyMicroBeats(compiled, beats);
+    if (beats.length >= 2) compiled = applyMicroBeats(compiled, beats);
     else warnings.push("micro_beat_mouth_fallback");
   } catch (error) {
-    console.warn("[QRE][AUTHORING] Micro-beat mouth unavailable; preserving deterministic sequence.", error);
+    console.warn("[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.", error);
     warnings.push("micro_beat_mouth_unavailable");
   }
 
