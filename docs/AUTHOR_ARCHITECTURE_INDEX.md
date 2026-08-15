@@ -126,6 +126,24 @@ CUT
 
 Do not turn SequencePlay into a fact checklist or event inventory.
 
+### 4.1 BASELINE IS NOT A CUT
+
+Established identity and stable world facts belong to **baseline state**, not attention movement.
+
+Examples:
+
+```text
+Coco is male.
+Coco is a poodle.
+The property is a house.
+The business is a restaurant.
+The wedding is for the couple.
+```
+
+These may establish truth upstream. They should not consume sequence cuts unless the identity/fact itself becomes a dramatic discovery, contradiction, or reframe.
+
+`SequenceCut.gainKind` exists to make this distinction explicit. During migration it may be omitted by legacy producers, but new producers must use a non-`baseline` gain kind for actual cuts.
+
 ## 5. AUTHOR MOUTH RULES
 
 The mouth is downstream from sequence intelligence.
@@ -300,7 +318,7 @@ Do not fix an E problem with a C hack.
 
 ## 13. CURRENT KNOWN FAILURE
 
-The current SequencePlay diagnostic has demonstrated:
+The current SequencePlay diagnostic demonstrated:
 
 ```text
 identity fact
@@ -310,15 +328,15 @@ identity fact
 
 This is a **SequencePlay failure**, not primarily a mouth failure.
 
-The next sequence model must distinguish:
+The sequence contract and Author Brain now explicitly distinguish:
 
 ```text
-WORLD STATE
+BASELINE WORLD STATE
 vs
 VIEWER MOVEMENT
 ```
 
-Identity facts should establish canonical truth upstream and should only enter the sequence when identity itself is the dramatic discovery.
+`SequenceCut.gainKind` is the semantic guardrail. Actual attention cuts must use a non-baseline gain type. Baseline identity belongs in `baselineFacts` / opening state unless identity itself is the dramatic discovery.
 
 ## 14. DOCUMENTATION RULE
 
