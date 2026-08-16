@@ -17,19 +17,9 @@ const metric = (value: number): number => Number(clamp01(value).toFixed(3));
 const GENERIC_LENSES = ["comedy", "romance", "horror", "sentimental", "absurd", "neutral"] as const;
 type Lens = (typeof GENERIC_LENSES)[number];
 
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
+function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
 
-function eventById(graph: RealityGraph, id: string) {
-  return graph.events.find((event) => event.id === id);
-}
-
-function relationPairs(graph: RealityGraph, kind: RealityRelation["kind"]): Array<[string, string, number]> {
-  return graph.relations
-    .filter((relation) => relation.kind === kind)
-    .map((relation) => [relation.from, relation.to, relation.strength]);
-}
+function eventById(graph: RealityGraph, id: string) { return graph.events.find((event) => event.id === id); }
 
 function requestedLenses(lens?: string): Lens[] {
   const text = clean(lens).toLowerCase();
@@ -76,14 +66,7 @@ function buildTrajectory(graph: RealityGraph, anchors: string[], lens: Lens): La
   const first = anchors[0];
   const firstEvent = eventById(graph, first);
   if (!firstEvent) return steps;
-
-  steps.push({
-    order: 1,
-    operation: "establish",
-    eventIds: [first],
-    viewerChange: `Establish the specific reality: ${firstEvent.label}`,
-    nextQuestion: "What about this detail matters next?",
-  });
+  steps.push({ order: 1, operation: "establish", eventIds: [first], viewerChange: `Establish the specific reality: ${firstEvent.label}`, nextQuestion: "What about this detail matters next?" });
 
   const candidateRelations = relationEvidence(graph, anchors);
   const preferredKinds: RealityRelation["kind"][] = lens === "comedy"
@@ -96,51 +79,26 @@ function buildTrajectory(graph: RealityGraph, anchors: string[], lens: Lens): La
           ? ["recontextualizes", "repeats", "converges"]
           : ["contrasts", "recontextualizes", "converges", "changes"];
 
-  const chosenRelations = candidateRelations
-    .filter((relation) => preferredKinds.includes(relation.kind))
-    .sort((a, b) => b.strength - a.strength)
-    .slice(0, 3);
-
+  const chosenRelations = candidateRelations.filter((relation) => preferredKinds.includes(relation.kind)).sort((a, b) => b.strength - a.strength).slice(0, 3);
   for (const relation of chosenRelations) {
     const targetId = relation.from === first ? relation.to : relation.from;
     const target = eventById(graph, targetId);
     if (!target || steps.some((step) => step.eventIds.includes(targetId))) continue;
-    const operation = lensOperation(lens);
-    steps.push({
-      order: steps.length + 1,
-      operation,
-      eventIds: [first, targetId],
-      viewerChange: `${relation.kind} changes how the supplied detail is read: ${target.label}`,
-      nextQuestion: `What does the relationship between these details reveal?`,
-    });
+    steps.push({ order: steps.length + 1, operation: lensOperation(lens), eventIds: [first, targetId], viewerChange: `${relation.kind} changes how the supplied detail is read: ${target.label}`, nextQuestion: "What does the relationship between these details reveal?" });
   }
 
   const unused = anchors.find((id) => !steps.some((step) => step.eventIds.includes(id)));
   if (unused) {
     const event = eventById(graph, unused);
-    if (event) {
-      steps.push({
-        order: steps.length + 1,
-        operation: "converge",
-        eventIds: [unused],
-        viewerChange: `Bring a concrete secondary detail into the pattern: ${event.label}`,
-        nextQuestion: "Does this detail complete or overturn the pattern?",
-      });
-    }
+    if (event) steps.push({ order: steps.length + 1, operation: "converge", eventIds: [unused], viewerChange: `Bring a concrete secondary detail into the pattern: ${event.label}`, nextQuestion: "Does this detail complete or overturn the pattern?" });
   }
 
   const payoffIds = unique(steps.flatMap((step) => step.eventIds)).slice(-2);
-  steps.push({
-    order: steps.length + 1,
-    operation: "payoff",
-    eventIds: payoffIds,
-    viewerChange: "Pay off the discovered relationship without adding a new event.",
-    nextQuestion: "What meaning survives after the cut?",
-  });
+  steps.push({ order: steps.length + 1, operation: "payoff", eventIds: payoffIds, viewerChange: "Pay off the discovered relationship without adding a new event.", nextQuestion: "What meaning survives after the cut?" });
   return steps.slice(0, 6);
 }
 
-function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: Lens, rank: number): LatentMovieCandidate {
+function buildCandidate(graph: RealityGraph, lens: Lens, rank: number): LatentMovieCandidate {
   const anchors = chooseAnchors(graph, lens);
   const trajectory = buildTrajectory(graph, anchors, lens);
   const relations = relationEvidence(graph, anchors);
@@ -163,9 +121,7 @@ function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: 
   const repetitionRisk = metric(Math.max(0, (anchors.length - 3) * 0.1) + (graph.recurringSignals.length > 3 ? 0.12 : 0));
   const truthRisk = metric(0.04 + relations.filter((relation) => relation.strength < 0.5).length * 0.06);
   const lensFit = lens === "neutral" ? 0.5 : 0.1 + (contrastCount ? 0.2 : 0) + (recurrenceCount ? 0.12 : 0) + (graph.sensorySignals.length ? 0.08 : 0);
-  const score = metric(
-    novelty * 0.14 + uncertainty * 0.1 + informationValue * 0.16 + attentionPotential * 0.18 + consequencePotential * 0.12 + callbackPotential * 0.08 + compressionPotential * 0.1 + specificity * 0.08 + lensFit * 0.08 - repetitionRisk * 0.08 - truthRisk * 0.12,
-  );
+  const score = metric(novelty * 0.14 + uncertainty * 0.1 + informationValue * 0.16 + attentionPotential * 0.18 + consequencePotential * 0.12 + callbackPotential * 0.08 + compressionPotential * 0.1 + specificity * 0.08 + lensFit * 0.08 - repetitionRisk * 0.08 - truthRisk * 0.12);
 
   const payoff = lens === "comedy"
     ? "Let the strongest supplied contrast become the final reframe."
@@ -188,10 +144,7 @@ function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: 
     payoff,
     unresolvedQuestion: unresolved,
     evidence,
-    hypothesis: [
-      `The supplied relationships may support a ${lens} reading.`,
-      "This is a creative hypothesis, not a new fact.",
-    ],
+    hypothesis: [`The supplied relationships may support a ${lens} reading.`, "This is a creative hypothesis, not a new fact."],
     truthRisk,
     novelty,
     specificity,
@@ -206,21 +159,10 @@ function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: 
   };
 }
 
-/**
- * Generate competing movies from one immutable reality graph.
- * No candidate is allowed to manufacture an event, participant, place, outcome,
- * or emotional fact. The returned score is a search heuristic, not a truth score.
- */
-export function searchLatentMovieCandidates(input: {
-  graph: RealityGraph;
-  subject?: string;
-  lens?: string;
-  limit?: number;
-}): LatentMovieCandidate[] {
+/** Generate competing movies from one immutable reality graph. */
+export function searchLatentMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
   if (!input.graph.events.length) return [];
   const lenses = requestedLenses(input.lens);
-  const candidates = lenses.map((lens, index) => buildCandidate(input.graph, input.subject, lens, index + 1));
-  return candidates
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(input.limit ?? 6, 8)));
+  const candidates = lenses.map((lens, index) => buildCandidate(input.graph, lens, index + 1));
+  return candidates.sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(input.limit ?? 6, 8)));
 }
