@@ -43,7 +43,13 @@ export type RealityObservation = {
   provenance: RealityProvenance;
 };
 
-export type RealityRelation = {
+/**
+ * Legacy RealityModel-local relation shape.
+ *
+ * The canonical Author relation contract is RealityRelation from realityGraph.ts.
+ * This distinct name prevents two public contract owners for the same symbol.
+ */
+export type RealityModelRelation = {
   fromId: string;
   toId: string;
   type: string;
@@ -55,7 +61,7 @@ export type RealityModel = {
   subjectId: string;
   entities: RealityEntity[];
   observations: RealityObservation[];
-  relations: RealityRelation[];
+  relations: RealityModelRelation[];
   places: string[];
   temporal: string[];
   constraints: string[];
