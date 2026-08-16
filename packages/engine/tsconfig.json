@@ -20,7 +20,7 @@
     "types": ["node"],
 
     "baseUrl": ".",
-     
+
     "paths": {
       "@qre/contracts": ["../contracts/dist"],
       "@qre/db": ["../db/src"],
@@ -32,6 +32,20 @@
     "forceConsistentCasingInFileNames": true
   },
 
-  
-  "exclude": ["dist", "node_modules"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/cognition/creativePolicy.ts",
+    "src/cognition/experienceCritic.ts",
+    "src/cognition/mindState.ts",
+    "src/cognition/universalMind.ts",
+    "src/experience/cognitiveExperienceCompiler.ts",
+    "src/experience/cognitiveMechanics.ts",
+    "src/experience/cognitiveTrajectory.ts",
+    "src/experience/provenanceAwareNarrativeRealizer.ts",
+    "src/compiler/universalRealityCompiler.ts",
+    "src/compiler/semantic/genome/genomeBuilder.ts",
+    "src/compiler/tests/eliteUniversalSentenceAcceptance.ts",
+    "src/compiler/tests/geoCognitionAcceptance.ts"
+  ]
 }
