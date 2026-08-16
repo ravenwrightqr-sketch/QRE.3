@@ -1,23 +1,5 @@
 /**
- * =====================================================
  * QRE EXPERIENCE BLUEPRINT CONTRACT
- * =====================================================
- *
- * Genome
- *      ↓
- * Blueprint
- *      ↓
- * Flow
- *      ↓
- * Runtime
- *
- * Blueprint is the composed experience.
- *
- * NO DATABASE
- * NO PRISMA
- * NO EXECUTION
- *
- * =====================================================
  */
 
 import type { ExperienceTone } from "./tone.js";
@@ -26,6 +8,7 @@ import type { ExperienceMoment } from "./moment.js";
 import type { ExperienceEntities } from "./entityExtractor.js";
 import type { ExperienceMeaning } from "./meaning.js";
 import type { CognitiveExperiencePlan } from "./cognition.js";
+import type { SponsorPolicy } from "./sponsor.js";
 
 export type ExperienceBlueprint = {
   title: string;
@@ -34,14 +17,12 @@ export type ExperienceBlueprint = {
   meaning: ExperienceMeaning;
   moments: ExperienceMoment[];
   entities: ExperienceEntities;
-
-  /** Cognitive design discovered before runtime compilation. */
   cognitivePlan?: CognitiveExperiencePlan;
-
-  /** Optional semantic metadata. NEVER used as compiler logic. */
+  sponsor?: SponsorPolicy;
   metadata?: {
     archetypes?: string[];
     themes?: string[];
     dna?: string[];
+    behavior?: unknown;
   };
 };

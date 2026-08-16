@@ -1,0 +1,106 @@
+import type { UniversalMindContext } from "./universalMindContext.js";
+import { buildWorldModel } from "./worldModel.js";
+
+export type MemoryResolution = {
+  matches: string[];
+  places: string[];
+  place?: string;
+  participants: string[];
+  relatedTerms: string[];
+  questions: string[];
+};
+
+const clean = (value: unknown) => typeof value === "string" ? value.replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "") : "";
+const unique = (values: readonly string[]) => [...new Set(values.map(clean).filter(Boolean))];
+const STOP_NAMES = /^(The|Then|At|And|My|Our|This|First|Later|Everyone|Grandma)$/i;
+const TEMPORAL_TAIL = /\s+(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this\s+(?:morning|afternoon|evening)|last\s+night|two\s+weeks?\s+ago|three\s+years?\s+later|until\s+closing|at\s+(?:sunrise|sunset)|for\s+\w+\s+(?:minutes|hours|days|weeks|years))\b.*$/i;
+const TEMPORAL_ONLY = /^(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{4}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|tomorrow|this\s+(?:morning|afternoon|evening)|last\s+night|two\s+weeks?\s+ago|three\s+years?\s+later|until\s+closing|at\s+(?:sunrise|sunset)|for\s+\w+\s+(?:minutes|hours|days|weeks|years))$/i;
+const MEMORY_PLACE_RE = /\b(?:at|in|inside|near|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\s+)?([A-Za-z0-9][A-Za-z0-9'’&.-]*(?:\s+[A-Za-z0-9][A-Za-z0-9'’&.-]*){0,8})/i;
+
+function strings(context: UniversalMindContext): string[] {
+  return unique([
+    ...(context.memorySummary ?? []),
+    ...(context.memories ?? []).map((value) => typeof value === "string" ? value : JSON.stringify(value) ?? ""),
+  ]);
+}
+
+function normalizePlace(value: string): string {
+  return clean(value)
+    .replace(/^(?:the|a|an|my|our|your|his|her|their|this|that)\s+/i, "")
+    .replace(TEMPORAL_TAIL, "")
+    .replace(/\s+(?:where|when|because|while|after|before)\b.*$/i, "")
+    .trim();
+}
+
+function usablePlace(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const candidate = normalizePlace(value);
+  if (!candidate || TEMPORAL_ONLY.test(candidate)) return undefined;
+  return candidate;
+}
+
+function memoryPlaceEvidence(entry: string): string[] {
+  const worldPlaces = buildWorldModel(entry).places
+    .map(usablePlace)
+    .filter((place): place is string => Boolean(place));
+  if (worldPlaces.length) return worldPlaces;
+  const match = entry.match(MEMORY_PLACE_RE);
+  const fallback = usablePlace(match?.[1]);
+  return fallback ? [fallback] : [];
+}
+
+function memoryEpisodes(entries: string[]) {
+  return entries.map((entry, index) => ({
+    entry,
+    index,
+    places: memoryPlaceEvidence(entry),
+    world: buildWorldModel(entry),
+  }));
+}
+
+function currentWorldPlaces(prompt: string): string[] {
+  return buildWorldModel(prompt).places
+    .map(usablePlace)
+    .filter((place): place is string => Boolean(place));
+}
+
+export function resolveMemory(prompt: string, context: UniversalMindContext): MemoryResolution {
+  const memory = strings(context);
+  if (!memory.length) return { matches: [], places: [], participants: [], relatedTerms: [], questions: [] };
+
+  const promptWords = new Set(prompt.toLowerCase().split(/\W+/).filter((word) => word.length >= 4));
+  const returning = /\b(?:back|again|returned|returning|same place|there|here)\b/i.test(prompt);
+
+  const scored = memory.map((entry, index) => {
+    const words = entry.toLowerCase().split(/\W+/).filter((word) => word.length >= 4);
+    const overlap = words.reduce((score, word) => score + (promptWords.has(word) ? 1 : 0), 0);
+    return { entry, score: overlap, index };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const relevant = returning ? scored : scored.filter((item) => item.score > 0).slice(0, 6);
+  const episodes = memoryEpisodes(relevant.slice(0, 12).map((item) => item.entry));
+  const placeBearingEpisodes = episodes.filter((episode) => episode.places.length > 0);
+  const rememberedPlaces = unique(placeBearingEpisodes.flatMap((episode) => episode.places));
+  const currentPlaces = currentWorldPlaces(prompt);
+  const topEntries = episodes.map((episode) => episode.entry);
+  const participants = unique(topEntries.flatMap((entry) => [...entry.matchAll(/\b[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\b/g)].map((m) => m[0]))).filter((name) => !STOP_NAMES.test(name));
+  const relatedTerms = unique(topEntries.flatMap((entry) => entry.split(/\W+/).filter((word) => word.length >= 6))).slice(0, 40);
+
+  if (returning && currentPlaces.length > 0) {
+    return { matches: topEntries, places: rememberedPlaces, place: currentPlaces[0], participants, relatedTerms, questions: [] };
+  }
+
+  if (returning) {
+    if (placeBearingEpisodes.length >= 2) {
+      return { matches: topEntries, places: rememberedPlaces, participants, relatedTerms, questions: ["Which place did you go back to?"] };
+    }
+    if (placeBearingEpisodes.length === 1) {
+      return { matches: topEntries, places: rememberedPlaces, place: placeBearingEpisodes[0]!.places[0], participants, relatedTerms, questions: [] };
+    }
+    return { matches: topEntries, places: [], participants, relatedTerms, questions: ["Where did you go back to?"] };
+  }
+
+  if (currentPlaces.length === 1) return { matches: topEntries, places: rememberedPlaces, place: currentPlaces[0], participants, relatedTerms, questions: [] };
+  if (rememberedPlaces.length === 1) return { matches: topEntries, places: rememberedPlaces, place: rememberedPlaces[0], participants, relatedTerms, questions: [] };
+  return { matches: topEntries, places: rememberedPlaces, participants, relatedTerms, questions: [] };
+}

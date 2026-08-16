@@ -17,7 +17,6 @@ model User {
   createdAt        DateTime      @default(now())
   phone            String?
   AccountUser      AccountUser[]
-  // Legacy direct-user asset ownership. New assets are account-scoped.
   Asset            Asset[]
   Ownership        Ownership[]
   sessions         ScanSession[]
@@ -51,7 +50,6 @@ model Asset {
   accountId         String?
   analyticsEvents   AnalyticsEvent[]
   User              User?             @relation(fields: [ownerId], references: [id])
-  // Canonical tenant relationship for new assets.
   account           Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   template          Template?         @relation(fields: [templateId], references: [id])
   flows             AssetFlow[]
@@ -61,6 +59,7 @@ model Asset {
   ownership         Ownership?
   scanEvents        ScanEvent[]
   sessions          ScanSession[]
+  eventTickets      EventTicket[]
 
   @@index([slug])
   @@index([ownerId])
@@ -86,7 +85,6 @@ model AccountUser {
   role      String? @default("OWNER")
   Account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "accountuser_account_fkey")
   User      User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "accountuser_user_fkey")
-
   @@unique([accountId, userId], map: "accountuser_unique")
 }
 
@@ -103,24 +101,17 @@ model Ownership {
   account         Account?        @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
   User            User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@index([accountId])
   @@index([userId])
 }
 
-/// *
-/// * =========================
-/// * FLOW ENGINE
-/// * =========================
 model Flow {
   id         String  @id @default(cuid())
   name       String
   version    Int     @default(1)
   merchantId String?
   actions    Json
-
   data Json?
-
   createdAt       DateTime           @default(now())
   status          String             @default("DRAFT")
   publishedAt     DateTime?
@@ -129,9 +120,7 @@ model Flow {
   metrics         FlowMetricsDaily[]
   steps           FlowStep[]         @relation("FlowSteps")
   sessions        ScanSession[]
-
   experiences Experience[] @relation("ExperienceFlow")
-
   publishedExperiences Experience[] @relation("PublishedExperienceFlow")
 }
 
@@ -147,16 +136,11 @@ model AssetFlow {
   createdAt   DateTime  @default(now())
   asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
   flow        Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
-
   @@unique([assetId, flowId])
   @@index([assetId])
   @@index([flowId])
 }
 
-/// *
-/// * =========================
-/// * SCAN SESSION
-/// * =========================
 model ScanSession {
   id              String           @id @default(cuid())
   userId          String?
@@ -183,16 +167,11 @@ model ScanSession {
   asset           Asset            @relation(fields: [assetId], references: [id], onDelete: Cascade)
   flow            Flow?            @relation(fields: [flowId], references: [id])
   user            User?            @relation(fields: [userId], references: [id])
-
   @@index([assetId])
   @@index([flowId])
   @@index([userId])
 }
 
-/// *
-/// * =========================
-/// * SCAN EVENT
-/// * =========================
 model ScanEvent {
   id        String       @id @default(cuid())
   userId    String?
@@ -205,10 +184,6 @@ model ScanEvent {
   session   ScanSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
-/// *
-/// * =========================
-/// * ANALYTICS EVENTS
-/// * =========================
 model AnalyticsEvent {
   id        String             @id @default(cuid())
   assetId   String
@@ -221,7 +196,6 @@ model AnalyticsEvent {
   asset     Asset              @relation(fields: [assetId], references: [id], onDelete: Cascade)
   flow      Flow?              @relation(fields: [flowId], references: [id])
   session   ScanSession?       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
   @@index([assetId])
   @@index([flowId])
   @@index([sessionId])
@@ -229,10 +203,6 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
-/// *
-/// * =========================
-/// * ADMIN SETTINGS
-/// * =========================
 model AdminSetting {
   id        String   @id @default(cuid())
   key       String   @unique
@@ -240,20 +210,12 @@ model AdminSetting {
   updatedAt DateTime @updatedAt
 }
 
-/// *
-/// * =========================
-/// * STRIPE EVENT DEDUP
-/// * =========================
 model StripeEvent {
   id        String   @id
   type      String
   createdAt DateTime @default(now())
 }
 
-/// *
-/// * =========================
-/// * FLOW EXECUTION TRACKING
-/// * =========================
 model FlowExecution {
   id        String   @id @default(cuid())
   sessionId String
@@ -261,16 +223,11 @@ model FlowExecution {
   assetId   String
   status    String   @default("running")
   createdAt DateTime @default(now())
-
   @@unique([sessionId, flowId])
   @@index([assetId])
   @@index([flowId])
 }
 
-/// *
-/// * =========================
-/// * FLOW METRICS
-/// * =========================
 model FlowMetricsDaily {
   id                String   @id @default(cuid())
   flowId            String
@@ -287,15 +244,10 @@ model FlowMetricsDaily {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   flow              Flow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
-
   @@unique([flowId, date])
   @@index([date])
 }
 
-/// *
-/// * =========================
-/// * CLAIM
-/// * =========================
 model Claim {
   id        String      @id @default(cuid())
   assetId   String
@@ -305,15 +257,10 @@ model Claim {
   createdAt DateTime    @default(now())
   expiresAt DateTime
   asset     Asset       @relation(fields: [assetId], references: [id])
-
   @@index([assetId])
   @@index([userId])
 }
 
-/// *
-/// * =========================
-/// * TEMPLATE SYSTEM (FIXED)
-/// * =========================
 model Template {
   id                 String           @id @default(cuid())
   name               String
@@ -330,7 +277,6 @@ model Template {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   assets             Asset[]
-
   @@index([category])
 }
 
@@ -341,7 +287,6 @@ model Insight {
   message   String
   impact    String?
   createdAt DateTime @default(now())
-
   @@index([assetId])
 }
 
@@ -354,13 +299,12 @@ model MemorySnapshot {
   flowEngagementWeight Float    @default(0)
   completionWeight     Float    @default(0)
   ctaClickWeight       Float    @default(0)
-  rewardScore          Float    @default(0)
-  confidence           Float    @default(0)
+  rewardScore          Float     @default(0)
+  confidence           Float     @default(0)
   dominantLayer        String?
   createdAt            DateTime @default(now())
   dropOffPoints        Json     @default("{}")
   asset                Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
   @@index([assetId, createdAt])
   @@index([assetId])
   @@index([createdAt])
@@ -373,7 +317,6 @@ model FlowStep {
   type    String
   payload Json
   flow    Flow   @relation("FlowSteps", fields: [flowId], references: [id], onDelete: Cascade)
-
   @@index([flowId])
 }
 
@@ -391,7 +334,6 @@ model GeoProof {
   city      String?
   region    String?
   country   String?
-
   @@index([assetId])
   @@index([sessionId])
 }
@@ -406,8 +348,7 @@ model PresenceEvent {
   lng       Float?
   accuracy  Float?
   meta      Json?
-  createdAt DateTime @default(now())
-
+  createdAt DateTime     @default(now())
   @@index([assetId])
   @@index([sessionId])
   @@index([userId])
@@ -425,22 +366,30 @@ model PresenceSession {
   accuracy  Float?
   createdAt DateTime       @default(now())
   sessionId String?
-
   @@index([assetId])
   @@index([sessionId])
   @@index([userId])
 }
 
 model EventTicket {
-  id         String       @id @default(cuid())
-  assetId    String
-  userId     String?
-  status     TicketStatus @default(ACTIVE)
-  redeemedAt DateTime?
-  createdAt  DateTime     @default(now())
-
+  id           String       @id @default(cuid())
+  assetId      String
+  userId       String?
+  eventId      String?
+  ticketCode   String       @unique @default(cuid())
+  qrUrl        String?
+  qrSvg        String?
+  attendeeName String?
+  status       TicketStatus @default(ACTIVE)
+  checkedInAt  DateTime?
+  redeemedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  metadata     Json?
+  asset        Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
   @@index([assetId])
   @@index([userId])
+  @@index([eventId])
+  @@index([status])
 }
 
 model EventAttendance {
@@ -449,13 +398,14 @@ model EventAttendance {
   userId    String?
   sessionId String?
   eventId   String?
+  ticketId  String?
   status    String
   meta      Json?
   createdAt DateTime @default(now())
-
   @@index([assetId])
   @@index([sessionId])
   @@index([userId])
+  @@index([ticketId])
 }
 
 model MerchantSignal {
@@ -470,60 +420,35 @@ model MerchantSignal {
   active     Boolean   @default(true)
   priority   Int       @default(50)
   startsAt   DateTime?
-  endsAt     DateTime?
+  endsAt      DateTime?
   isPublic   Boolean   @default(true)
   likes      Int       @default(0)
   views      Int       @default(0)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime
-
   @@index([active])
   @@index([assetId])
   @@index([merchantId])
   @@index([startsAt, endsAt])
 }
 
-/// *
-/// * =========================
-/// * EXPERIENCE SOURCE
-/// * =========================
-/// *
-/// * Creative truth layer.
-/// *
-/// * Stores:
-/// * - Genome
-/// * - World
-/// * - Blueprint
-/// *
-/// * Compiles into Flow.
-/// *
 model Experience {
   id        String  @id @default(cuid())
   assetId   String
   title     String?
   blueprint Json
-
   flowId          String?
   publishedFlowId String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   asset Asset @relation(fields: [assetId], references: [id])
-
   flow Flow? @relation("ExperienceFlow", fields: [flowId], references: [id])
-
   publishedFlow Flow? @relation("PublishedExperienceFlow", fields: [publishedFlowId], references: [id])
-
   @@index([assetId])
   @@index([flowId])
   @@index([publishedFlowId])
 }
 
-/// *
-/// * =========================
-/// * TEMPLATE CATEGORY (SINGLE SOURCE OF TRUTH)
-/// * =========================
 enum TemplateCategory {
   PERSONAL
   GENERIC
@@ -536,34 +461,22 @@ enum TemplateCategory {
   BUSINESS
   ARTIST
 }
-
-/// *
-/// * =========================
-/// * ACTIVATION METHOD
-/// * =========================
 enum ActivationMethod {
   NFC
   SLUG
   HYBRID
 }
-
 enum OwnershipStatus {
   CLAIMED
   ACTIVE
   REVOKED
   REFUNDED
 }
-
 enum SaleChannel {
   RETAIL
   ONLINE
   ADMIN
 }
-
-/// *
-/// * =========================
-/// * ANALYTICS EVENT TYPES
-/// * =========================
 enum AnalyticsEventType {
   SCAN
   SESSION_START
@@ -574,6 +487,13 @@ enum AnalyticsEventType {
   FLOW_ABANDON
   AI_MEMORY_USED
   AI_DECISION
+  AI_MEMORY_RECOMMENDED
+  AI_MEMORY_LEARNED
+  AI_CREATIVE_ACCEPTED
+  AI_CREATIVE_REJECTED
+  AI_VARIATION_SELECTED
+  AI_SIGNIFICANCE_SHIFT
+  AI_CINEMATIC_DECISION
   CTA_CLICK
   REDIRECT
   PAYMENT_REQUIRED
@@ -594,21 +514,36 @@ enum AnalyticsEventType {
   CHECK_OUT
   PRESENCE_JOIN
   PRESENCE_LEAVE
+  TICKET_CREATED
+  TICKET_VIEWED
+  TICKET_REDEEMED
+  TICKET_REJECTED
+  MEDIA_PLAY
+  MEDIA_COMPLETE
+  MEDIA_REPLAY
+  EXPERIENCE_REPLAY
+  EXPERIENCE_SHARED
+  EXPERIENCE_SAVED
+  MEMORY_CREATED
+  MEMORY_UPDATED
+  MEMORY_RECOMMENDATION_VIEWED
+  MEMORY_RECOMMENDATION_SELECTED
+  SPONSOR_IMPRESSION
+  SPONSOR_INTERACTION
+  SPONSOR_DISMISSED
+  SPONSOR_CTA_CLICK
 }
-
 enum ClaimStatus {
   PENDING
   PAID
   FAILED
   EXPIRED
 }
-
 enum PresenceStatus {
   ENTERED
   INSIDE
   LEFT
 }
-
 enum TicketStatus {
   ACTIVE
   REDEEMED

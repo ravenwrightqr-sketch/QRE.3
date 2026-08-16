@@ -1,0 +1,361 @@
+QRE CORE — FULL APP USAGE REFERENCE
+====================================
+
+This is the practical reference for using the finished QRE product.
+
+1. THE PHYSICAL QR ART IS THE PRODUCT
+-------------------------------------
+A customer can buy a physical QR art piece such as:
+- a weed-leaf QR keychain
+- custom wood QR art
+- acrylic QR art
+- dog tag QR
+- sticker QR
+- event QR artwork
+- real-estate plaque
+- business installation
+- large home wall installation
+
+The physical object contains a unique QR identity.
+The software asset is the digital identity and experience attached to that physical object.
+
+The same physical art can keep its identity while its digital experience changes over time.
+
+2. BASIC CUSTOMER FLOW
+----------------------
+BUY PHYSICAL QR ART
+    -> create QRE account
+    -> claim/connect the exact physical QR piece
+    -> see the available asset on the dashboard
+    -> enter a prompt or add information
+    -> optionally upload photos
+    -> optionally drop a location and name it
+    -> QRE compiles the experience
+    -> QRE creates the memory/knowledge layer
+    -> QRE generates the customer-facing experience
+    -> preview
+    -> publish
+    -> scan the physical QR art
+    -> analytics begin accumulating
+
+3. THE ONE-PROMPT EXPERIENCE
+----------------------------
+Example prompt:
+
+Coco came in nervous, got a bath, stole a blue bow, and left looking fabulous.
+Make it funny and memorable.
+
+QRE should understand:
+- Coco is a participant
+- nervous is an explicit state
+- bath happened
+- blue bow is important
+- fabulous is an outcome/description
+- humor is requested
+
+The creative writer may interpret fabulous as:
+- fierce
+- worth a billion bucks
+- ready to own the afternoon
+- a tiny fashion coup
+
+But it must NOT invent factual events such as a salon, a cat, an owner reaction, or an unprovided location.
+
+4. SERVICE EXPERIENCE / "SERVICE RECEIPT"
+------------------------------------------
+A QRE service receipt is not a traditional receipt.
+It is a customer-facing experience generated from service facts.
+
+Example:
+
+Maria arrived at 9:04 AM, cleaned the kitchen and two bathrooms, and finished at 11:47 AM.
+The homeowner came home to a spotless house.
+
+Possible creative trajectories:
+- battle
+- dance
+- conquest
+- transformation
+- invisible craftsmanship
+- mission
+- relief
+- comedy
+
+The system should make an ordinary job interesting without inventing what happened.
+
+5. HOME / PROPERTY QR ART
+-------------------------
+A large physical QR art installation can be permanently installed in a home.
+
+Example:
+
+HOME QR ART
+    -> builder information
+    -> original materials
+    -> paint colors
+    -> appliance information
+    -> warranties
+    -> installation notes
+    -> maintenance records
+    -> repairs
+    -> upgrades
+    -> owner memories
+    -> future owner information
+
+The builder can add knowledge first.
+The owner can add more later.
+Future owners can inherit and continue the record.
+
+6. PHOTO KNOWLEDGE INPUT
+------------------------
+On the dashboard, the user can photograph an object and let QRE inspect it.
+
+Examples:
+- paint can
+- appliance label
+- flooring package
+- fixture label
+- warranty label
+- product packaging
+- equipment plate
+
+QRE returns structured facts with confidence.
+The user reviews the proposed fact before saving it.
+
+Never treat an unreadable serial number, exact color, or hidden specification as confirmed.
+
+7. LOCATIONS
+-----------
+A user can save a location from the dashboard by:
+- clicking the map
+- dragging the pin
+- using their device GPS
+- entering coordinates manually
+- entering a human-friendly label
+
+Example:
+
+Latitude: 33.xxxxxx
+Longitude: -117.xxxxxx
+Label: Huntington Beach Pier
+City: Huntington Beach
+Region: California
+
+The named location becomes part of the QRE object's world and can later be used by cognition and memory.
+
+A user can therefore say:
+
+We went there again. Huntington.
+
+and QRE can connect the current memory to an existing stored location when evidence supports the connection.
+
+8. MEMORY
+---------
+QRE should accumulate:
+- people
+- places
+- events
+- objects
+- pets
+- services
+- homes
+- businesses
+- travel
+- weddings
+- concerts
+- raves
+- recurring activities
+- meaningful returns
+
+The goal is not to store only text.
+The goal is to preserve structured meaning plus source evidence.
+
+9. CREATIVE LEARNING
+--------------------
+User reactions are learning signals.
+
+Examples:
+- accepted
+- rejected
+- selected variation
+- explicit feedback
+- edited output
+- shared
+- replayed
+- saved
+- completed
+
+A user might say:
+
+I like fierce.
+
+or:
+
+That is generic as fuck.
+
+QRE should convert these into structured creative preferences instead of forgetting them.
+
+10. COGNITIVE LEARNING DASHBOARD
+-------------------------------
+Open:
+
+/dashboard/assets/<SLUG>/learning
+
+The page shows:
+- total analytics events
+- number of event types
+- knowledge accumulated
+- saved locations
+- memory-related events
+- experience events
+- creative acceptance rate
+- accepted creative patterns
+- rejected creative patterns
+- recent feedback
+- event intelligence
+- saved places
+- daily activity trajectory
+- recent cognitive telemetry
+
+This is the visible outcome of the learning system.
+
+11. ANALYTICS -> COGNITION
+--------------------------
+Analytics are not only reporting.
+They become signals for future decisions.
+
+Examples:
+- creative acceptance/rejection influences style preference
+- replay behavior can indicate memorable experiences
+- completion can indicate useful experience length
+- CTA behavior can indicate placement effectiveness
+- memory recommendations can become stronger when repeatedly selected
+- repeated locations can become recurring memories
+
+12. EVENT TICKETS
+-----------------
+QRE can create physical/digital event ticket experiences.
+
+A ticket can have:
+- event identity
+- attendee name
+- ticket code
+- QR URL
+- ticket state
+- redemption
+- check-in
+- attendance analytics
+- a post-scan QRE experience
+
+13. SPONSOR / REWARD RAIL
+-------------------------
+A sponsor can support a QRE physical art piece or campaign.
+
+Example:
+
+sponsor funds QR art
+    -> customer scans
+    -> customer uses experience
+    -> qualifying purchase occurs
+    -> attribution is recorded
+    -> customer receives points/reward
+    -> sponsor gets conversion evidence
+
+Sponsor treatment should remain subtle and relevant.
+The user experience stays primary.
+
+14. REAL ESTATE
+---------------
+An agent can buy/commission QRE physical art and connect it to a property.
+
+Possible uses:
+- property story
+- builder information
+- home knowledge
+- open house experience
+- closing gift
+- neighborhood information
+- property history
+- future-owner information
+
+The agent can have subtle attribution rather than taking over the experience with advertisements.
+
+15. PHYSICAL QR ART + DIGITAL LIFECYCLE
+--------------------------------------
+A physical QR piece can stay in place while the experience evolves.
+
+Example:
+
+YEAR 1: wedding memory
+YEAR 2: anniversary memory
+YEAR 5: family memories
+YEAR 10: home/family archive
+YEAR 20: inherited memory object
+
+The physical object is the persistent doorway.
+QRE is the evolving intelligence behind it.
+
+16. WHERE TO LOOK IN THE DASHBOARD
+----------------------------------
+Asset page:
+/dashboard/assets/<SLUG>
+
+Knowledge:
+/dashboard/assets/<SLUG>/knowledge
+
+Cognitive learning:
+/dashboard/assets/<SLUG>/learning
+
+The learning page is the first consolidated place to see what the system has accumulated and learned.
+
+17. DEVELOPMENT / LOCAL AI
+---------------------------
+During local development:
+
+QRE -> Ollama -> qwen2.5vl:7b
+
+Environment:
+QRE_AI_ENABLED=true
+QRE_EXTERNAL_AI_ENABLED=false
+QRE_LOCAL_MODEL=qwen2.5vl:7b
+QRE_LOCAL_MODEL_URL=http://127.0.0.1:11434
+
+The model is a provider underneath QRE's cognition and creative architecture.
+
+18. THE CENTRAL PRODUCT RULE
+----------------------------
+A physical object can become:
+
+identity
+knowledge
+experience
+memory
+analytics
+learning
+rewards
+recommendations
+
+The user should only have to tell QRE what they want.
+
+QRE handles the complexity underneath.
+
+19. THE BIG TEST
+----------------
+The system should be able to take a boring prompt, find the interesting thing already present, and turn it into attention-worthy experience without fabricating reality.
+
+Example:
+
+"Maria cleaned the house."
+
+should not simply become a boring summary.
+
+It might become:
+- a battle
+- a dance
+- a transformation
+- a quiet human story
+- a funny service memory
+
+The choice should be driven by the actual facts, requested tone, memory context, learned preferences, and analytics.
+
+END OF REFERENCE

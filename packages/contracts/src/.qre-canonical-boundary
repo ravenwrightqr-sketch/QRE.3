@@ -1,0 +1,5 @@
+CANONICAL: packages/contracts/src/experience/moment.ts
+RETIRED: packages/contracts/src/moment.ts
+RETIRED: packages/contracts/src/experience/runtimeMoment.ts
+
+All new compiler, runtime, cinematic, flow, memory, delivery, and UI code must use ExperienceMoment.

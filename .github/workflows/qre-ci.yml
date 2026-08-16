@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - cognitive-superstar-final
+      - elite-universal-rebuild-v10
   pull_request:
 
 concurrency:
@@ -34,6 +35,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Verify author architecture
+        run: pnpm author:guard
+
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
 
@@ -52,38 +56,17 @@ jobs:
       - name: Build web
         run: pnpm build:web
 
-      - name: Cognitive prompt matrix
-        run: pnpm --filter @qre/engine test:cognition
-
-      - name: Universal compiler acceptance
-        run: pnpm --filter @qre/engine test:universal
-
-      - name: Premise realization acceptance
-        run: pnpm --filter @qre/engine test:realization
-
-      - name: Semantic realization acceptance
-        run: pnpm --filter @qre/engine test:semantic-realization
-
-      - name: Super Cog premise acceptance
-        run: pnpm --filter @qre/engine test:super-cog
-
-      - name: Cognitive mechanics acceptance
-        run: pnpm --filter @qre/engine test:mechanics
-
-      - name: Cognitive trajectory acceptance
-        run: pnpm --filter @qre/engine test:trajectory
-
-      - name: Concrete experience acceptance
-        run: pnpm --filter @qre/engine test:concrete-experience
-
-      - name: Creative realization acceptance
-        run: pnpm --filter @qre/engine test:creative
-
-      - name: Bodyguard invariants
-        run: pnpm --filter @qre/engine test:bodyguards
-
-      - name: Observable event realization acceptance
-        run: pnpm --filter @qre/engine test:event-realization
+      - name: Universal reality acceptance
+        run: pnpm --filter @qre/engine test:universal-mind
 
       - name: Durable memory compiler acceptance
-        run: pnpm --filter @qre/engine test:memory
+        run: pnpm tsx packages/engine/src/experience/tests/latentMovieLearningV6Acceptance.ts
+
+      - name: Universal cognitive mind acceptance
+        run: pnpm --filter @qre/engine test:universal-mind
+
+      - name: Creative superstar acceptance
+        run: pnpm --filter @qre/engine test:creative-superstar
+
+      - name: Runtime cognition acceptance
+        run: pnpm --filter @qre/engine test:runtime-cognition

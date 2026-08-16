@@ -1,9 +1,6 @@
 import { Response } from "express";
 
-import {
-  buildScanMemoryBatch,
-  scanEngine,
-} from "@qre/engine";
+import { scanEngine } from "@qre/engine";
 
 import {
   createAssetRepository,
@@ -28,6 +25,8 @@ import {
 import {
   createMemoryRepository,
 } from "../repositories/memoryRepository.js";
+
+import { buildScanMemoryBatch } from "../services/memoryProjection.js";
 
 import type {
   AuthRequest,

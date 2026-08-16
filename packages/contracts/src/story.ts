@@ -1,17 +1,15 @@
-import { GeoStory } from "./geoStory.js";
-import { CinematicScene } from "./index.js";
-import { Moment } from "./moment.js";
+import type { GeoStory } from "./geoStory.js";
+import type { CinematicScene } from "./cinematic.js";
+import type { ExperienceMoment } from "./experience/moment.js";
 
 export type StoryDeliveryInput = {
   assetId: string;
   sessionId: string;
   userId?: string | null;
-
-  moments: Moment[];
+  moments: ExperienceMoment[];
   geoStory: GeoStory | null;
   cinematicScenes: CinematicScene[];
 };
-
 
 export type StoryDeliveryResult = {
   storyId: string;

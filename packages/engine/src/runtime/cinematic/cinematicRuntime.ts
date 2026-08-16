@@ -1,7 +1,7 @@
-import type { CinematicScene, Moment, GeoStory } from "@qre/contracts";
+import type { CinematicScene, ExperienceMoment, GeoStory } from "@qre/contracts";
 
 type CinematicInput = {
-  moments: Moment[];
+  moments: ExperienceMoment[];
   geoStory?: GeoStory | null;
 };
 
@@ -19,39 +19,46 @@ export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
       animation: index === 0 ? "slow_zoom" : "none",
     },
     preload: index < input.moments.length - 1,
-    meta: { source: "compiled_moment" },
+    meta: { source: "canonical_experience_moment" },
   }));
 
   if (input.geoStory?.scenes?.length) {
     for (const [index, geo] of input.geoStory.scenes.entries()) {
       const order = scenes.length + index;
+      const moment: ExperienceMoment = {
+        type: "location",
+        component: "geo_memory",
+        title: geo.location?.label ?? "Location",
+        editable: false,
+        demo: false,
+        order,
+        payload: {
+          source: "geo_context",
+          intensity: geo.intensity,
+          timestamp: geo.timestamp,
+        },
+        location: {
+          lat: geo.location?.lat ?? 0,
+          lng: geo.location?.lng ?? 0,
+          label: geo.location?.label,
+          city: geo.location?.city,
+          region: geo.location?.region,
+          country: geo.location?.country,
+        },
+        meta: {
+          intensity: geo.intensity,
+          timestamp: geo.timestamp,
+          source: "geo_context",
+        },
+      };
       scenes.push({
         id: `geo-${geo.id}`,
         type: "memory",
         duration: 2600,
         order,
         transition: "fade",
-        moment: {
-          type: "location",
-          order,
-          location: {
-            lat: geo.location?.lat ?? 0,
-            lng: geo.location?.lng ?? 0,
-            label: geo.location?.label,
-            city: geo.location?.city,
-            region: geo.location?.region,
-            country: geo.location?.country,
-          },
-          meta: {
-            intensity: geo.intensity,
-            timestamp: geo.timestamp,
-            source: "geo_context",
-          },
-        },
-        visual: {
-          theme: "cinematic",
-          animation: "parallax",
-        },
+        moment,
+        visual: { theme: "cinematic", animation: "parallax" },
         preload: false,
         meta: { source: "geo_context" },
       });
@@ -61,22 +68,19 @@ export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
   return scenes;
 }
 
-function sceneTypeFor(moment: Moment): CinematicScene["type"] {
+function sceneTypeFor(moment: ExperienceMoment): CinematicScene["type"] {
   switch (moment.type) {
-    case "system":
-      return "system";
-    case "action":
-      return "action";
+    case "system": return "system";
+    case "action": return "action";
     case "location":
-    case "media":
-      return "memory";
-    case "message":
-    default:
-      return "emotion";
+    case "media": return "memory";
+    case "memory":
+    case "timeline": return "memory";
+    default: return "emotion";
   }
 }
 
-function transitionFor(moment: Moment, index: number): CinematicScene["transition"] {
+function transitionFor(moment: ExperienceMoment, index: number): CinematicScene["transition"] {
   if (moment.type === "system") return "none";
   if (index === 0) return "zoom";
   if (moment.type === "action") return "slide";

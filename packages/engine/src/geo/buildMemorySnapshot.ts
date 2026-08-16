@@ -1,417 +1,74 @@
 import { nanoid } from "nanoid";
-
-import type {
-  Moment,
-  GeoStoryScene,
-  CinematicScene,
-  MemorySnapshot,
-} from "@qre/contracts";
-
+import type { ExperienceMoment, GeoStoryScene, CinematicScene, MemorySnapshot } from "@qre/contracts";
+import { evolveRuntimeMemory } from "../cognition/serviceMemoryState.js";
 
 type SnapshotInput = {
-
   assetId: string;
-
-  moments: Moment[];
-
-  geoStory:
-    {
-      scenes: GeoStoryScene[];
-      summary?: string;
-    }
-    | null;
-
-  cinematicScenes:
-    CinematicScene[];
-
+  moments: ExperienceMoment[];
+  geoStory: { scenes: GeoStoryScene[]; summary?: string } | null;
+  cinematicScenes: CinematicScene[];
+  prior?: MemorySnapshot | null;
 };
 
-
-
-
-function hasMomentType(
-  moments: Moment[],
-  types: string[]
-){
-
-  return moments.some(
-    (m)=>
-      types.includes(
-        String(m.type)
-      )
-  );
-
+function hasMomentType(moments: ExperienceMoment[], types: string[]) {
+  return moments.some((m) => types.includes(String(m.type)));
 }
 
-
-
-
-
-export function buildMemorySnapshot(
-  input: SnapshotInput
-): MemorySnapshot {
-
-
-  const id =
-    nanoid(12);
-
-
-
-  const {
-    moments,
-    geoStory,
-    cinematicScenes,
-  } =
-    input;
-
-
-
-  /**
-   * Detect experience characteristics
-   */
-
-  const hasLocation =
-    hasMomentType(
-      moments,
-      [
-        "location",
-        "arrival",
-      ]
-    );
-
-
-
-  const hasMedia =
-    hasMomentType(
-      moments,
-      [
-        "photos",
-        "video",
-        "soundtrack",
-        "replay",
-        "media",
-      ]
-    );
-
-
-
-  const hasStory =
-    hasMomentType(
-      moments,
-      [
-        "story",
-        "memory",
-        "timeline",
-      ]
-    );
-
-
-
-
-  let type:
-    MemorySnapshot["type"] =
-      "generic";
-
-
-
-
-  if (
-    hasLocation &&
-    hasMedia
-  ){
-
-    type =
-      "event";
-
-  }
-  else if(
-    hasLocation
-  ){
-
-    type =
-      "service";
-
-  }
-  else if(
-    hasStory
-  ){
-
-    type = "generic";
-
-  }
-
-
-
-
-
-  const sceneCount =
-    geoStory?.scenes.length ?? 0;
-
-
-
-  if(
-    sceneCount > 3
-  ){
-
-    type =
-      "memorial";
-
-  }
-
-
-
-
-
-  /**
-   * GEO MEMORY TAGS
-   */
-
-
-  const locationTags =
-    moments
-
-    .filter(
-      m =>
-        [
-          "location",
-          "arrival",
-        ]
-        .includes(
-          String(m.type)
-        )
-    )
-
-    .map(
-      m => {
-
-        const label =
-          m.meta?.label;
-
-
-        return typeof label === "string"
-          ? label
-          : "Unknown";
-
-      }
-
-    );
-
-
-
-
-
-
-
-  /**
-   * Timeline generation
-   *
-   * Later this will use
-   * real geoProof timestamps
-   */
-
-  const timeline =
-    moments.map(
-      (
-        m,
-        index
-      )=>{
-
-
-        const raw =
-          m.meta?.text ??
-          m.meta?.label ??
-          m.type;
-
-
-
-        return {
-
-          label:
-            typeof raw === "string"
-            ? raw
-            : String(m.type),
-
-
-          timestamp:
-            new Date(
-              Date.now()
-              +
-              index * 1000
-            )
-            .toISOString(),
-
-        };
-
-      }
-
-    );
-
-
-
-
-
-
-
-  let emotionalTone:
-    MemorySnapshot["emotionalTone"] =
-      "neutral";
-
-
-
-  if(
-    type === "memorial"
-  ){
-
-    emotionalTone =
-      "intense";
-
-  }
-  else if(
-    cinematicScenes.length > 0
-  ){
-
-    emotionalTone =
-      "mixed";
-
-  }
-  else if(
-    hasMedia
-  ){
-
-    emotionalTone =
-      "positive";
-
-  }
-
-
-
-
-
-
-
-  const highlights =
-    moments
-
-    .slice(
-      0,
-      5
-    )
-
-    .map(
-      m => {
-
-        const raw =
-          m.meta?.text ??
-          m.meta?.label ??
-          m.type;
-
-
-        return typeof raw === "string"
-          ? raw
-          : String(m.type);
-
-      }
-
-    );
-
-
-
-
-
-
-
-  let title =
-    "Memory Capsule";
-
-
-
-  switch(type){
-
-
-    case "memorial":
-
-      title =
-        "A Life Remembered";
-
-      break;
-
-
-
-    case "service":
-
-      title =
-        "Experience Record";
-
-      break;
-
-
-
-    case "event":
-
-      title =
-        "Shared Experience";
-
-      break;
-
-
-
-    case "generic":
-  title = "Memory Capsule";
-  break;
-
-
-  }
-
-
-
-
-
-
-
-  if(
-    geoStory?.summary
-  ){
-
-    title =
-      geoStory.summary.slice(
-        0,
-        40
-      );
-
-  }
-
-
-
-
-
-
+export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
+  const { moments, geoStory, cinematicScenes, prior } = input;
+  const hasLocation = hasMomentType(moments, ["location", "arrival"]);
+  const hasMedia = hasMomentType(moments, ["photos", "video", "soundtrack", "replay", "media"]);
+  const hasStory = hasMomentType(moments, ["story", "memory", "timeline"]);
+
+  let type: MemorySnapshot["type"] = "generic";
+  if (hasLocation && hasMedia) type = "event";
+  else if (hasLocation) type = "service";
+  else if (hasStory) type = "generic";
+  if ((geoStory?.scenes.length ?? 0) > 3) type = "memorial";
+
+  const locationTags = moments
+    .filter((m) => ["location", "arrival"].includes(String(m.type)))
+    .map((m) => {
+      const label = m.location?.label ?? m.meta?.label ?? m.payload?.place;
+      return typeof label === "string" ? label : "Unknown";
+    });
+
+  const timeline = moments.map((m, index) => {
+    const raw = m.text ?? m.description ?? m.meta?.text ?? m.location?.label ?? m.type;
+    return {
+      label: typeof raw === "string" ? raw : String(m.type),
+      timestamp: typeof m.meta?.time === "string" ? m.meta.time : new Date(Date.now() + index * 1000).toISOString(),
+    };
+  });
+
+  const evolved = evolveRuntimeMemory(moments, prior);
+  const evolvedType: MemorySnapshot["type"] = type === "generic" && hasStory ? "experience" : type;
+  const emotionalTone = type === "memorial" ? "intense" : evolved.emotionalTone;
+
+  let title = evolved.title || "Memory Capsule";
+  if (type === "memorial") title = "A Life Remembered";
+  else if (type === "service") title = "Experience Record";
+  else if (type === "event") title = "Shared Experience";
+  if (geoStory?.summary) title = geoStory.summary.slice(0, 80);
 
   return {
-
-    id,
-
-    type,
-
+    ...evolved,
+    id: prior?.id ?? nanoid(12),
+    type: prior?.type ?? evolvedType,
     title,
-
-
-    summary:
-      geoStory?.summary ??
-      `Captured ${moments.length} moments across experience.`,
-
-
-
+    summary: geoStory?.summary ?? evolved.summary ?? `Captured ${moments.length} moments across experience.`,
     emotionalTone,
-
-
-    highlights,
-
-
-    locationTags,
-
-
+    highlights: [...new Set([...evolved.highlights, ...timeline.map((item) => item.label)])].slice(-8),
+    locationTags: [...new Set([...evolved.locationTags, ...locationTags])],
     timeline,
-
+    meta: {
+      ...(evolved.meta ?? {}),
+      assetId: input.assetId,
+      cinematicSceneCount: cinematicScenes.length,
+      geoSceneCount: geoStory?.scenes.length ?? 0,
+      hasMedia,
+      hasLocation,
+      hasStory,
+    },
   };
-
 }
