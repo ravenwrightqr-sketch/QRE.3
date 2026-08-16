@@ -1,4 +1,5 @@
-import type { RealityGraph } from "@qre/contracts";
+import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+import { searchLatentMovieCandidates } from "./authorLatentMovieSearch.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -28,6 +29,7 @@ export type AuthorCognitivePlan = {
   currentEvidence: string[];
   contradictions: string[];
   attentionCandidates: AttentionCandidate[];
+  latentMovieCandidates: LatentMovieCandidate[];
   chosenAttentionStrategy: string;
   operatorMix: string[];
   callbackTargets: string[];
@@ -212,6 +214,9 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const currentEvidence = uniq([...input.sourceMoments, ...(input.realityGraph?.events.map((event) => event.label) ?? [])], 30);
   const contradictions = findContradictions([...permanentTruths, ...currentEvidence, input.prompt], input.realityGraph);
   const attentionCandidates = inferCandidates(input, combined);
+  const latentMovieCandidates = input.realityGraph
+    ? searchLatentMovieCandidates({ graph: input.realityGraph, subject: input.subject, lens: input.lens, limit: 6 })
+    : [];
   const chosen = chooseAttention(attentionCandidates, input);
   const operatorMix = makeOperatorMix(chosen, round, attentionCandidates);
   const callbackTargets = round > 1
@@ -245,11 +250,15 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const graphSummary = input.realityGraph
     ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations, tensions=${input.realityGraph.unresolvedTensions.join(" | ") || "none"}.`
     : "REALITY GRAPH: unavailable; rely on direct source evidence.";
+  const movieSummary = latentMovieCandidates.length
+    ? `LATENT MOVIES: ${latentMovieCandidates.slice(0, 4).map((candidate) => `${candidate.lens}=${candidate.score} [${candidate.evidence.slice(0, 2).join(" + ")}]`).join(" | ")}. Treat these as competing hypotheses, never facts.`
+    : "LATENT MOVIES: none; do not invent a movie.";
 
   const authorBrief = [
     `ROUND ${round}: ${round > 1 ? "continuation chapter; remember the world and change the meaning" : "origin chapter; establish identity and plant a memorable detail"}.`,
     `ATTENTION STRATEGY: ${chosen}. ${candidateReason(chosen)}`,
     graphSummary,
+    movieSummary,
     `CONTRADICTIONS: ${contradictions.join(" | ") || "none detected; use tension from the supplied relationships without inventing facts"}`,
     `OPERATOR MIX: ${operatorMix.join(", ")}. Treat these as private options, never as a forced sequence.`,
     `CALLBACK TARGETS: ${callbackTargets.join(" | ") || "none"}.`,
@@ -269,6 +278,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     currentEvidence,
     contradictions,
     attentionCandidates,
+    latentMovieCandidates,
     chosenAttentionStrategy: chosen,
     operatorMix,
     callbackTargets,
