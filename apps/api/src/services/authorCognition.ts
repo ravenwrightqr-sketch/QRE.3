@@ -1,3 +1,5 @@
+import type { RealityGraph } from "@qre/contracts";
+
 export type AuthorCognitionInput = {
   prompt: string;
   lens?: string;
@@ -5,6 +7,7 @@ export type AuthorCognitionInput = {
   place?: string;
   facts: string[];
   sourceMoments: string[];
+  realityGraph?: RealityGraph;
   memoryContext?: string[];
   priorScenes?: string[];
   priorStrategies?: string[];
@@ -31,6 +34,7 @@ export type AuthorCognitivePlan = {
   antiRepetitionRules: string[];
   sceneRules: string[];
   authorBrief: string[];
+  realityGraph?: RealityGraph;
 };
 
 const STOP_WORDS = new Set([
@@ -87,9 +91,10 @@ function scoreCandidate(strategy: string, input: AuthorCognitionInput, text: str
   let score = 46;
   const lower = text.toLowerCase();
   const lens = `${input.lens ?? ""}`.toLowerCase();
+  const graph = input.realityGraph;
   if (strategy === "personality_contrast" && /sweet|scared|fierce|hates|loves|goofy|stubborn/.test(lower)) score += 32;
   if (strategy === "provenance_and_history" && /inherited|vintage|family|restored|old/.test(lower)) score += 32;
-  if (strategy === "callback_and_continuity" && (input.round ?? 1) > 1) score += 38;
+  if (strategy === "callback_and_continuity" && ((input.round ?? 1) > 1 || Boolean(graph?.recurringSignals.length))) score += 38;
   if (strategy === "night_contrast" && /night|9 pm|moon|dark/.test(lower)) score += 28;
   if (strategy === "scale_and_place" && /beach|ocean|yacht|sea|shore/.test(lower)) score += 22;
   if (strategy === "space_as_character" && /house|home|room|kitchen|bathroom|estate|property/.test(lower)) score += 24;
@@ -102,11 +107,13 @@ function scoreCandidate(strategy: string, input: AuthorCognitionInput, text: str
   if (strategy === "status_to_meaning" && /million|expensive|luxury|wealth|premium|high-end|valuable|price/.test(lower)) score += 32;
   if (strategy === "possibility_and_firstness" && /new|brand new|pristine|first use|beginning/.test(lower)) score += 24;
   if (strategy === "private_meaning" && /relationship|love|wedding|anniversary|family|memory|inside joke|favorite/.test(lower)) score += 30;
+  if (graph && strategy === "private_meaning" && graph.relations.some((relation) => relation.kind === "involves" || relation.kind === "converges")) score += 12;
+  if (graph && strategy === "object_to_world" && graph.events.some((event) => event.entities.length > 1)) score += 8;
   if (input.round && input.round > 1) score += strategy === "callback_and_continuity" ? 12 : 0;
   return Math.min(score, 100);
 }
 
-function findContradictions(values: string[]): string[] {
+function findContradictions(values: string[], graph?: RealityGraph): string[] {
   const joined = values.join(" ").toLowerCase();
   const hits: string[] = [];
   const pairs: Array<[RegExp, RegExp, string]> = [
@@ -119,7 +126,8 @@ function findContradictions(values: string[]): string[] {
     [/service|client|customer|appointment/, /funny|fierce|quirky|hates|loves/, "routine service vs character personality"],
   ];
   for (const [a, b, label] of pairs) if (a.test(joined) && b.test(joined)) hits.push(label);
-  return uniq(hits, 8);
+  hits.push(...(graph?.unresolvedTensions ?? []));
+  return uniq(hits, 10);
 }
 
 function candidateReason(strategy: string): string {
@@ -189,16 +197,26 @@ function makeOperatorMix(chosen: string, round: number, candidates: AttentionCan
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
   const round = Math.max(1, input.round ?? 1);
-  const all = uniq([...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.priorScenes ?? [])], 80);
+  const graphText = input.realityGraph
+    ? [
+        ...input.realityGraph.events.map((event) => event.label),
+        ...input.realityGraph.unresolvedTensions,
+        ...input.realityGraph.recurringSignals,
+        ...input.realityGraph.sensorySignals,
+      ]
+    : [];
+  const all = uniq([...input.facts, ...input.sourceMoments, ...graphText, ...(input.memoryContext ?? []), ...(input.priorScenes ?? [])], 100);
   const combined = `${input.prompt} ${input.lens ?? ""} ${input.subject ?? ""} ${input.place ?? ""} ${all.join(" ")}`;
   const mode = inferMode(input);
   const permanentTruths = uniq([...input.facts, ...(input.memoryContext ?? [])], 30);
-  const currentEvidence = uniq(input.sourceMoments, 20);
-  const contradictions = findContradictions([...permanentTruths, ...currentEvidence, input.prompt]);
+  const currentEvidence = uniq([...input.sourceMoments, ...(input.realityGraph?.events.map((event) => event.label) ?? [])], 30);
+  const contradictions = findContradictions([...permanentTruths, ...currentEvidence, input.prompt], input.realityGraph);
   const attentionCandidates = inferCandidates(input, combined);
   const chosen = chooseAttention(attentionCandidates, input);
   const operatorMix = makeOperatorMix(chosen, round, attentionCandidates);
-  const callbackTargets = round > 1 ? uniq([...(input.priorScenes ?? []), ...permanentTruths], 10) : permanentTruths.slice(0, 5);
+  const callbackTargets = round > 1
+    ? uniq([...(input.priorScenes ?? []), ...(input.realityGraph?.recurringSignals ?? []), ...permanentTruths], 14)
+    : uniq([...(input.realityGraph?.recurringSignals ?? []), ...permanentTruths], 10);
 
   const antiRepetitionRules = [
     "Do not repeat the previous chapter's emotional trajectory if one exists.",
@@ -208,6 +226,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "Do not use the same opening image twice unless repetition itself is the point.",
     "If the subject already had a joke, escalate, invert, or mutate it rather than retelling it.",
     "Prefer the strongest two or three concrete details over complete coverage of the prompt.",
+    "Prefer events and relationships from the reality graph over isolated fact repetition.",
   ];
 
   const sceneRules = [
@@ -223,9 +242,14 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "Finish as soon as the payoff lands. Do not explain the lesson afterward.",
   ];
 
+  const graphSummary = input.realityGraph
+    ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations, tensions=${input.realityGraph.unresolvedTensions.join(" | ") || "none"}.`
+    : "REALITY GRAPH: unavailable; rely on direct source evidence.";
+
   const authorBrief = [
     `ROUND ${round}: ${round > 1 ? "continuation chapter; remember the world and change the meaning" : "origin chapter; establish identity and plant a memorable detail"}.`,
     `ATTENTION STRATEGY: ${chosen}. ${candidateReason(chosen)}`,
+    graphSummary,
     `CONTRADICTIONS: ${contradictions.join(" | ") || "none detected; use tension from the supplied relationships without inventing facts"}`,
     `OPERATOR MIX: ${operatorMix.join(", ")}. Treat these as private options, never as a forced sequence.`,
     `CALLBACK TARGETS: ${callbackTargets.join(" | ") || "none"}.`,
@@ -251,5 +275,6 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     antiRepetitionRules,
     sceneRules,
     authorBrief,
+    realityGraph: input.realityGraph,
   };
 }
