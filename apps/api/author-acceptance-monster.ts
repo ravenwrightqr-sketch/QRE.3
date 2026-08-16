@@ -27,4 +27,13 @@ console.log("--- END MONSTER MOUTH ---");
 console.log(`BEATS: ${monster.scenes.length}`);
 monster.scenes.forEach((scene, i) => console.log(`[${i + 1}] ${scene.text}`));
 console.log(`REJECTED: ${monster.rejected}`);
+console.log(`RETRIES: ${monster.retries}`);
+console.log(`TRUTH-ONLY FALLBACKS: ${monster.fallbacks}`);
 console.log(`SEQUENCE BEATS: ${result.sequence.cuts.length}`);
+
+if (monster.scenes.length !== result.sequence.cuts.length) {
+  throw new Error(`MONSTER INVARIANT FAILED: ${result.sequence.cuts.length} approved beats produced ${monster.scenes.length} lines`);
+}
+if (monster.rejected !== 0) {
+  throw new Error(`MONSTER INVARIANT FAILED: rejected=${monster.rejected}`);
+}
