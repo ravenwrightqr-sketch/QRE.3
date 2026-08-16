@@ -82,16 +82,114 @@ function prepareMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
   );
 }
 
+function parseUserObject(messages: LocalModelMessage[]): Record<string, unknown> | null {
+  const user = [...messages].reverse().find((message) => message.role === "user");
+  if (!user) return null;
+  try {
+    const value = JSON.parse(user.content);
+    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractOneText(raw: string): string {
+  try {
+    const value = JSON.parse(raw);
+    if (value && typeof value === "object") {
+      if (typeof value.text === "string") return value.text.trim();
+      if (Array.isArray(value.texts) && typeof value.texts[0] === "string") return value.texts[0].trim();
+      if (Array.isArray(value.scenes) && typeof value.scenes[0] === "string") return value.scenes[0].trim();
+    }
+  } catch {
+    // The canonical mouth requests JSON, but preserve raw text as a last-resort diagnostic value.
+  }
+  return String(raw ?? "").trim();
+}
+
+function isCanonicalMouth(messages: LocalModelMessage[], format?: "json") {
+  if (format !== "json") return false;
+  const system = messages.find((message) => message.role === "system")?.content ?? "";
+  return /QRE's theatrical mouth/i.test(system);
+}
+
+async function realizeMouthOneBeat(
+  messages: LocalModelMessage[],
+  beat: unknown,
+  options: LocalModelOptions,
+): Promise<string> {
+  const system = messages.find((message) => message.role === "system");
+  const user = [...messages].reverse().find((message) => message.role === "user");
+  if (!system || !user) return "";
+
+  const base = parseUserObject(messages) ?? {};
+  const singleBeatPayload = {
+    ...base,
+    beats: [beat],
+  };
+
+  const singleSystem: LocalModelMessage = {
+    ...system,
+    content: `${system.content}\n\nTHIS IS A SINGLE-BEAT REALIZATION CALL. Realize only the supplied beat. Output JSON exactly as {"text":"one viewer-facing line"}. Do not return an array. Do not mention planning machinery.`,
+  };
+  const singleUser: LocalModelMessage = {
+    ...user,
+    content: JSON.stringify(singleBeatPayload),
+  };
+
+  const prepared = prepareMessages([singleSystem, singleUser]);
+  const fast = process.env.QRE_AUTHOR_FAST === "true";
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 256 : 384));
+  const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
+
+  const data = await request("/api/chat", {
+    model: modelName(),
+    stream: false,
+    keep_alive: keepAlive,
+    format: "json",
+    messages: prepared.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
+    options: { temperature, num_predict: numPredict },
+  });
+
+  return extractOneText(outputText(data));
+}
+
 export async function localModelGenerate(
   messages: LocalModelMessage[],
   format?: "json",
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
+  const preparedMessages = prepareMessages(messages);
+
+  if (isCanonicalMouth(messages, format)) {
+    const payload = parseUserObject(messages);
+    const beats = Array.isArray(payload?.beats) ? payload.beats : [];
+    if (beats.length) {
+      const texts: string[] = [];
+      for (const beat of beats) {
+        const text = await realizeMouthOneBeat(messages, beat, options);
+        if (text) texts.push(text);
+        if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+          console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-BEAT ---\n${text}\n--- END RAW MODEL OUTPUT · MOUTH-BEAT ---\n`);
+        }
+      }
+      const combined = JSON.stringify({ texts });
+      if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+        console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n${combined}\n--- END RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n`);
+      }
+      return { text: combined, model: modelName(), provider: "local" };
+    }
+  }
+
   const fast = process.env.QRE_AUTHOR_FAST === "true";
   const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
   const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 512 : 512));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
-  const preparedMessages = prepareMessages(messages);
 
   const data = await request("/api/chat", {
     model: modelName(),
