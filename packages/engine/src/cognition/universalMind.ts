@@ -56,7 +56,11 @@ function learnedLens(world: WorldModel, state: CognitiveMindState): void {
   if (preferred === "comedy" || preferred === "horror" || preferred === "romance" || preferred === "wild" || preferred === "mysterious") world.lens = preferred;
 }
 function conservedText(planned: ReturnType<typeof planExperience>["moments"][number]): string {
-  const body = sentence(planned.text).toLowerCase();
+  const candidate = sentence(planned.text);
+  const body = candidate.toLowerCase();
+  const source = sentence(planned.event.raw).toLowerCase();
+  const creative = planned.event.evidence.some((item) => item.source === "creative_realization");
+  if (creative && candidate && body !== source) return planned.text;
   const required = [planned.event.raw, ...planned.event.participants, planned.event.object ?? "", planned.event.place ?? "", planned.event.time ?? ""]
     .map((value) => sentence(value))
     .filter(Boolean);
