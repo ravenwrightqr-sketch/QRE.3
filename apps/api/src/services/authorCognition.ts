@@ -39,10 +39,6 @@ export type AuthorCognitivePlan = {
   realityGraph?: RealityGraph;
 };
 
-const STOP_WORDS = new Set([
-  "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "is", "are", "was", "were", "this", "that", "it", "my", "your", "their", "our", "today", "one", "very", "just",
-]);
-
 const SIGNALS: Array<[RegExp, string]> = [
   [/\bnervous|scared|shy|fierce|sweet|wild|goofy|stubborn|obsessed|hates|loves\b/i, "personality_contrast"],
   [/\binherited|passed down|old|vintage|family|restored|years?\b/i, "provenance_and_history"],
@@ -61,24 +57,10 @@ const SIGNALS: Array<[RegExp, string]> = [
   [/\brelationship|love|wedding|anniversary|family|memory|inside joke|favorite\b/i, "private_meaning"],
 ];
 
-const GENERIC_BANS = [
-  "beautiful transformation",
-  "magical moment",
-  "unforgettable experience",
-  "incredible journey",
-  "luxury experience",
-  "perfect day",
-  "special moment",
-  "living world",
-];
+const GENERIC_BANS = ["beautiful transformation", "magical moment", "unforgettable experience", "incredible journey", "luxury experience", "perfect day", "special moment", "living world"];
 
-function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function uniq(values: string[], limit = 20): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
-}
+function clean(value: unknown): string { return String(value ?? "").replace(/\s+/g, " ").trim(); }
+function uniq(values: string[], limit = 20): string[] { return [...new Set(values.map(clean).filter(Boolean))].slice(0, limit); }
 
 function inferMode(input: AuthorCognitionInput): AuthorCognitivePlan["mode"] {
   const text = `${input.prompt} ${input.lens ?? ""} ${input.subject ?? ""}`.toLowerCase();
@@ -156,10 +138,7 @@ function candidateReason(strategy: string): string {
 function inferCandidates(input: AuthorCognitionInput, combined: string): AttentionCandidate[] {
   const matched = uniq(SIGNALS.filter(([pattern]) => pattern.test(combined)).map(([, signal]) => signal), 16);
   const pool = matched.length ? matched : ["meaning_reframe", "pattern_break", "sensory_specificity", "curiosity_gap"];
-  return pool
-    .map((strategy) => ({ strategy, reason: candidateReason(strategy), score: scoreCandidate(strategy, input, combined) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 7);
+  return pool.map((strategy) => ({ strategy, reason: candidateReason(strategy), score: scoreCandidate(strategy, input, combined) })).sort((a, b) => b.score - a.score).slice(0, 7);
 }
 
 function chooseAttention(candidates: AttentionCandidate[], input: AuthorCognitionInput): string {
@@ -199,14 +178,12 @@ function makeOperatorMix(chosen: string, round: number, candidates: AttentionCan
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
   const round = Math.max(1, input.round ?? 1);
-  const graphText = input.realityGraph
-    ? [
-        ...input.realityGraph.events.map((event) => event.label),
-        ...input.realityGraph.unresolvedTensions,
-        ...input.realityGraph.recurringSignals,
-        ...input.realityGraph.sensorySignals,
-      ]
-    : [];
+  const graphText = input.realityGraph ? [
+    ...input.realityGraph.events.map((event) => event.label),
+    ...input.realityGraph.unresolvedTensions,
+    ...input.realityGraph.recurringSignals,
+    ...input.realityGraph.sensorySignals,
+  ] : [];
   const all = uniq([...input.facts, ...input.sourceMoments, ...graphText, ...(input.memoryContext ?? []), ...(input.priorScenes ?? [])], 100);
   const combined = `${input.prompt} ${input.lens ?? ""} ${input.subject ?? ""} ${input.place ?? ""} ${all.join(" ")}`;
   const mode = inferMode(input);
@@ -214,9 +191,8 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const currentEvidence = uniq([...input.sourceMoments, ...(input.realityGraph?.events.map((event) => event.label) ?? [])], 30);
   const contradictions = findContradictions([...permanentTruths, ...currentEvidence, input.prompt], input.realityGraph);
   const attentionCandidates = inferCandidates(input, combined);
-  const latentMovieCandidates = input.realityGraph
-    ? searchLatentMovieCandidates({ graph: input.realityGraph, subject: input.subject, lens: input.lens, limit: 6 })
-    : [];
+  const latentMovieCandidates = input.realityGraph ? searchLatentMovieCandidates({ graph: input.realityGraph, subject: input.subject, lens: input.lens, limit: 6 }) : [];
+  if (input.realityGraph) input.realityGraph.latentMovieCandidates = latentMovieCandidates;
   const chosen = chooseAttention(attentionCandidates, input);
   const operatorMix = makeOperatorMix(chosen, round, attentionCandidates);
   const callbackTargets = round > 1
@@ -247,9 +223,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "Finish as soon as the payoff lands. Do not explain the lesson afterward.",
   ];
 
-  const graphSummary = input.realityGraph
-    ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations, tensions=${input.realityGraph.unresolvedTensions.join(" | ") || "none"}.`
-    : "REALITY GRAPH: unavailable; rely on direct source evidence.";
+  const graphSummary = input.realityGraph ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations, tensions=${input.realityGraph.unresolvedTensions.join(" | ") || "none"}.` : "REALITY GRAPH: unavailable; rely on direct source evidence.";
   const movieSummary = latentMovieCandidates.length
     ? `LATENT MOVIES: ${latentMovieCandidates.slice(0, 4).map((candidate) => `${candidate.lens}=${candidate.score} [${candidate.evidence.slice(0, 2).join(" + ")}]`).join(" | ")}. Treat these as competing hypotheses, never facts.`
     : "LATENT MOVIES: none; do not invent a movie.";
