@@ -7,8 +7,10 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 function parse(raw: string): string[] {
   const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
-    const value = JSON.parse(text) as { texts?: unknown };
-    return Array.isArray(value.texts) ? value.texts.map(clean).filter(Boolean).slice(0, 8) : [];
+    const value = JSON.parse(text) as { texts?: unknown; text?: unknown };
+    if (Array.isArray(value.texts)) return value.texts.map(clean).filter(Boolean).slice(0, 8);
+    if (typeof value.text === "string") return [clean(value.text)];
+    return [];
   } catch {
     return [];
   }
@@ -19,33 +21,74 @@ function sourceTokens(input: AuthorBrainTruth): Set<string> {
   return new Set(source.toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 4));
 }
 
+function tokenSet(value: string): Set<string> {
+  return new Set(value.toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 4));
+}
+
 function sourceOverlap(text: string, source: Set<string>): number {
-  const words = new Set(text.toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 4));
+  const words = tokenSet(text);
   if (!words.size || !source.size) return 0;
   let hits = 0;
   for (const word of words) if (source.has(word)) hits += 1;
   return hits / words.size;
 }
 
-function score(text: string, source: Set<string>): number {
-  const penalty = mouthQualityPenalty(text);
-  const overlap = sourceOverlap(text, source);
-  const words = text.split(/\s+/).filter(Boolean).length;
-  const compression = words >= 3 && words <= 7 ? 1 : 0;
-  return overlap * 0.55 + compression * 0.2 - penalty * 0.65;
+function beatOverlap(text: string, beat: Record<string, unknown>): number {
+  const beatWords = tokenSet([String(beat.change ?? ""), String(beat.frontier ?? ""), String(beat.nextNeed ?? "")].join(" "));
+  const words = tokenSet(text);
+  if (!beatWords.size || !words.size) return 0;
+  let hits = 0;
+  for (const word of words) if (beatWords.has(word)) hits += 1;
+  return hits / words.size;
 }
 
-/**
- * Evidence-first monster mouth.
- * The brain chooses the movie and beats. This layer only competes on sentence quality.
- */
+function unsupportedPronounPenalty(text: string, input: AuthorBrainTruth): number {
+  const source = [input.subject ?? "", ...input.facts, ...(input.sourceMoments ?? [])].join(" ").toLowerCase();
+  if (/\bmale\b|\bman\b|\bhe\b|\bhis\b/.test(source) && /\b(?:she|her|hers)\b/i.test(text)) return 0.5;
+  if (/\bfemale\b|\bwoman\b|\bshe\b|\bher\b/.test(source) && /\b(?:he|him|his)\b/i.test(text)) return 0.5;
+  return 0;
+}
+
+function vagueSummaryPenalty(text: string): number {
+  const value = text.toLowerCase();
+  let penalty = 0;
+  if (/\b(?:happy|fun|joyful|special|meaningful|magical|beautiful|emotional)\b/.test(value) && !/\b(?:bow|bows|ball|balls|tie|ties|return|returned|coco)\b/.test(value)) penalty += 0.35;
+  if (/\b(?:love|victorious|grace|smile|laugh|laughs|grin|grins)\b/.test(value) && !/\b(?:bow|bows|ball|balls|tie|ties|returned|coco)\b/.test(value)) penalty += 0.18;
+  return penalty;
+}
+
+function sentenceScore(text: string, input: AuthorBrainTruth, beat: Record<string, unknown>): number {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const source = sourceTokens(input);
+  const overlap = sourceOverlap(text, source);
+  const beatMatch = beatOverlap(text, beat);
+  const penalty = mouthQualityPenalty(text) + unsupportedPronounPenalty(text, input) + vagueSummaryPenalty(text);
+  const compression = words >= 3 && words <= 7 ? 1 : 0;
+  const evidenceBreadth = Math.min(1, tokenSet(text).size / 5);
+  const punctuationBonus = /[!?—,:;]/.test(text) ? 0.04 : 0;
+  return (
+    overlap * 0.38 +
+    beatMatch * 0.22 +
+    evidenceBreadth * 0.16 +
+    compression * 0.14 +
+    punctuationBonus -
+    penalty * 0.7
+  );
+}
+
+function candidateDirective(index: number): string {
+  if (index === 0) return "Write the cleanest, sharpest realization. Concrete first. No explanation.";
+  if (index === 1) return "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events.";
+  return "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
+}
+
+/** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer only competes on sentence quality. */
 export async function polishAuthorScenes(
   input: AuthorBrainTruth,
   sequence: SequencePlay,
   risk = "playful",
 ): Promise<{ scenes: AuthorScene[]; texts: string[]; rejected: number }> {
-  const source = sourceTokens(input);
-  const texts: string[] = [];
+  const chosenTexts: string[] = [];
 
   for (const cut of sequence.cuts) {
     const beat = {
@@ -59,40 +102,55 @@ export async function polishAuthorScenes(
       sourceIds: cut.sourceIds,
     };
 
-    const userContent = mouthCraftUser({
-      prompt: input.prompt,
-      lens: input.lens,
-      subject: input.subject,
-      subjectTruth: input.subjectTruth,
-      facts: input.facts,
-      moments: input.sourceMoments ?? [],
-      memory: input.memoryContext ?? [],
-      trajectory: input.trajectory ?? [],
-      beats: [beat],
-    });
+    const candidates: string[] = [];
+    for (let candidateIndex = 0; candidateIndex < 2; candidateIndex += 1) {
+      const userContent = mouthCraftUser({
+        prompt: input.prompt,
+        lens: input.lens,
+        subject: input.subject,
+        subjectTruth: input.subjectTruth,
+        facts: input.facts,
+        moments: input.sourceMoments ?? [],
+        memory: input.memoryContext ?? [],
+        trajectory: input.trajectory ?? [],
+        beats: [{ ...beat, candidateDirective: candidateDirective(candidateIndex) }],
+      });
 
-    const result = await localModelGenerate(
-      [
-        {
-          role: "system",
-          content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nThis request is realization only. The movie and beat are already approved. Never invent a new beat, event, setting, action, or outcome. Return exactly one line for this one approved beat.`,
-        },
-        { role: "user", content: userContent },
-      ],
-      "json",
-      { numPredict: 256, temperature: risk === "safe" ? 0.62 : 0.88 },
-    );
+      const result = await localModelGenerate(
+        [
+          {
+            role: "system",
+            content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved. Never invent a new beat, event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, or location.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
+          },
+          { role: "user", content: userContent },
+        ],
+        "json",
+        { numPredict: 192, temperature: candidateIndex === 0 ? 0.78 : 0.92 },
+      );
+      const candidate = parse(result.text)[0] ?? "";
+      if (candidate) candidates.push(candidate);
+    }
 
-    const candidate = parse(result.text)[0] ?? "";
-    if (candidate && score(candidate, source) >= 0.18) texts.push(candidate);
-    else texts.push("");
+    let best = "";
+    let bestScore = -Infinity;
+    for (const candidate of candidates) {
+      const value = sentenceScore(candidate, input, beat);
+      if (value > bestScore) {
+        best = candidate;
+        bestScore = value;
+      }
+    }
+    chosenTexts.push(bestScore >= 0.22 ? best : "");
   }
 
   const scenes: AuthorScene[] = [];
   for (let i = 0; i < sequence.cuts.length; i += 1) {
-    const text = texts[i];
+    const text = chosenTexts[i];
     if (!text) continue;
-    scenes.push({ text, kind: sequence.cuts[i].role === "hook" ? "hook" : sequence.cuts[i].role === "payoff" ? "payoff" : "line" });
+    scenes.push({
+      text,
+      kind: sequence.cuts[i].role === "hook" ? "hook" : sequence.cuts[i].role === "payoff" ? "payoff" : "line",
+    });
   }
-  return { scenes, texts, rejected: sequence.cuts.length - scenes.length };
+  return { scenes, texts: chosenTexts, rejected: sequence.cuts.length - scenes.length };
 }
