@@ -1,7 +1,7 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
-**Status:** ACTIVE / CLEAN / GUARDED  
-**Branch:** `elite-universal-rebuild-v10`  
+**Status:** ACTIVE / CLEAN / GUARDED / LATENT-MOVIE SEARCH ONLINE  
+**Branch:** `qre/latent-movie-search-v1`  
 **Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author, cognition, compiler, sequence, contracts, or diagnostics.
 
 ## 1. MASTER RULE
@@ -14,11 +14,11 @@ ONE ACCEPTANCE HARNESS
 ONE SHARED SEMANTIC BOUNDARY
 ONE AUTOMATIC ARCHITECTURE GUARD
 ONE MAGNET CIRCLE
+ONE REALITY GRAPH
+ONE LATENT MOVIE SEARCH
 ```
 
 No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
-
-The architecture guard is `scripts/verify-author-architecture.mjs` and is mandatory before builds/acceptance in CI.
 
 ## 2. CANONICAL INTELLIGENCE STACK
 
@@ -27,21 +27,17 @@ INPUT / PROMPT / MEDIA / RUNTIME
         ↓
 SOURCE TRUTH / PROVENANCE
         ↓
-WORLD / ENTITY / RELATIONSHIP MODEL
+REALITY GRAPH
         ↓
-MEMORY + PRESENCE + ANALYTICS
+LATENT MOVIE CANDIDATE SEARCH
         ↓
 UNIVERSAL COGNITION
         ↓
-SIGNIFICANCE + CREATIVE SEARCH
-        ↓
-VIEWER MOMENTUM / MAGNET CIRCLE
-        ↓
-SEQUENCE PLAY
-        ↓
-UNIVERSAL AUTHOR BRAIN
+TRAJECTORY SEARCH / VIEWER MOMENTUM
         ↓
 CANONICAL CUT POLICY
+        ↓
+UNIVERSAL AUTHOR BRAIN
         ↓
 MOUTH / EXPERIENCE MOMENTS
         ↓
@@ -50,7 +46,7 @@ CINEMATIC RUNTIME
 LEARNING / MEMORY
 ```
 
-The Magnet Circle is the universal sequence primitive:
+The Magnet Circle remains the universal sequence primitive:
 
 ```text
 novelty
@@ -67,7 +63,72 @@ novelty
 
 Style is downstream realization. The magnet is the invariant.
 
-## 3. MASTER AUTHOR
+## 3. REALITY GRAPH
+
+Canonical contract:
+
+`packages/contracts/src/experience/realityGraph.ts`
+
+Builder:
+
+`apps/api/src/services/authorRealityGraph.ts`
+
+RealityGraph owns:
+
+```text
+evidence
+events
+entities
+source provenance
+relationships
+contrasts
+recurrence signals
+sensory signals
+unresolved tensions
+```
+
+RealityGraph does **not** own creative truth. Derived candidate hypotheses are explicitly marked as derived.
+
+Chronology is earned. Comma/list order is never treated as temporal order.
+
+## 4. LATENT MOVIE SEARCH
+
+Canonical contract:
+
+`packages/contracts/src/experience/latentMovie.ts`
+
+Implementation:
+
+`apps/api/src/services/authorLatentMovieSearch.ts`
+
+Detailed reference:
+
+`docs/AUTHOR_LATENT_MOVIE_SEARCH.md`
+
+This is the missing layer between reality and story selection.
+
+```text
+REALITY GRAPH
+      ↓
+COMPETING MOVIE HYPOTHESES
+      ↓
+COGNITION
+```
+
+The search is domain-neutral. Initial lenses are:
+
+```text
+comedy
+romance
+horror
+sentimental
+absurd
+neutral
+```
+
+A candidate is never source truth. It carries explicit evidence, trajectory steps, truth risk, and multi-dimensional quality signals.
+
+## 5. MASTER AUTHOR
 
 `apps/api/src/services/authorBrainUniversal.ts`
 
@@ -89,7 +150,7 @@ It does not own upstream world modeling, memory persistence, or runtime projecti
 
 It is explicitly a **living intelligence core**: expand and tune it when a general law is discovered; do not add domain-specific hacks.
 
-## 4. PRODUCTION PATH
+## 6. PRODUCTION PATH
 
 ```text
 apps/api/src/routes/experience.ts
@@ -113,7 +174,7 @@ experience moments / cinematic scenes
 
 `cinematicAuthor.ts` is also an adapter only and calls the Universal Author directly. It has no independent critique/repair author loop.
 
-## 5. ACCEPTANCE PATH
+## 7. ACCEPTANCE PATH
 
 The acceptance test uses the exact same Master Author directly:
 
@@ -123,6 +184,8 @@ apps/api/author-acceptance-suite.ts
 apps/api/src/services/authorBrainUniversal.ts
 ```
 
+The harness now also prints the deterministic Latent Movie candidates before invoking the model.
+
 Run:
 
 ```powershell
@@ -131,11 +194,12 @@ pnpm author:fast -- COCO-RETURN
 pnpm author:fast -- MARIA
 pnpm author:fast -- HORROR
 pnpm author:fast -- RAVE
+pnpm exec tsx apps/api/author-acceptance-suite.ts "Coco, returned, happy, fun, bows, balls, ties, male"
 ```
 
 The harness is an observer. It does not define production rules and must never gain a separate creative bridge.
 
-## 6. UPSTREAM COGNITION
+## 8. UPSTREAM COGNITION
 
 Keep and evolve:
 
@@ -146,11 +210,13 @@ packages/engine/src/cognition/significanceEngine.ts
 packages/engine/src/cognition/creativePolicy.ts
 packages/engine/src/cognition/experiencePlanner.ts
 packages/engine/src/cognition/mindState.ts
+apps/api/src/services/authorCognition.ts
+apps/api/src/services/authorLatentMovieSearch.ts
 ```
 
-These are upstream intelligence layers. Do not duplicate their responsibilities inside the author.
+Cognition now consumes RealityGraph relationships and runs the canonical latent-movie search before final beat discovery.
 
-## 7. CANONICAL CUT POLICY
+## 9. CANONICAL CUT POLICY
 
 `apps/api/src/services/authorCutPolicy.ts`
 
@@ -170,11 +236,11 @@ compression
 impact density
 ```
 
-Do not create another independent validator. Migrate the Universal Author and adapters toward this policy until only one evaluator owns semantic acceptance.
+Do not create another independent validator.
 
-## 8. CREATIVE SEARCH
+## 10. CREATIVE SEARCH
 
-Creative search belongs upstream of final realization. It should produce **semantic possibilities**, not domain phrase libraries.
+Creative search belongs upstream of final realization. It produces **semantic possibilities**, not domain phrase libraries.
 
 Preferred reusable operations include:
 
@@ -198,7 +264,7 @@ A candidate is a hypothesis. It is not source truth.
 
 Recurrence requires actual history, trajectory, or repeated evidence.
 
-## 9. CANONICAL CONTRACTS
+## 11. CANONICAL CONTRACTS
 
 Keep and evolve these shared boundaries:
 
@@ -210,13 +276,15 @@ packages/contracts/src/world.ts
 packages/contracts/src/realityModel.ts
 packages/contracts/src/cognition.ts
 packages/contracts/src/experience/authoring.ts
+packages/contracts/src/experience/realityGraph.ts
+packages/contracts/src/experience/latentMovie.ts
 ```
 
-`ViewerMomentum` now contains `MagnetCircle`. Do not create a parallel magnet/attention contract.
+`ViewerMomentum` contains `MagnetCircle`. Do not create a parallel magnet/attention contract.
 
 Do not create another sequence/momentum version without a demonstrated capability gap and explicit replacement/deletion plan.
 
-## 10. CLEANUP COMPLETED
+## 12. CLEANUP COMPLETED
 
 Removed the legacy API author-test pile and legacy author brains.
 
@@ -240,7 +308,7 @@ authorBrainMomentumV2.ts
 authorBrainMomentumV3.ts
 ```
 
-## 11. REMAINING ADAPTERS
+## 13. REMAINING ADAPTERS
 
 ```text
 apps/api/src/services/microBeatMouth.ts
@@ -249,7 +317,7 @@ apps/api/src/services/cinematicAuthor.ts
 
 These are projection/render adapters. They may not introduce independent creative selection, beat counts, critique loops, or hidden fallback authors.
 
-## 12. CREATIVE LAWS
+## 14. CREATIVE LAWS
 
 ```text
 identity is baseline
@@ -268,9 +336,12 @@ sparse world → smaller invented-world surface
 magnet strength > beat count
 remove a cut → if the information-seeking trajectory weakens, it mattered
 creative style is downstream realization, not the universal objective
+candidate ≠ fact
+same reality → multiple valid movie hypotheses
+trajectory quality > isolated line quality
 ```
 
-## 13. DRIFT GUARD
+## 15. DRIFT GUARD
 
 `scripts/verify-author-architecture.mjs` enforces the following automatically:
 
@@ -288,7 +359,7 @@ The guard runs before the repository build and in CI.
 
 If any of these conditions drift, **the build stops**.
 
-## 14. TEST DISCIPLINE
+## 16. TEST DISCIPLINE
 
 Every author experiment follows:
 
@@ -314,7 +385,7 @@ DELETE STALE PATHS
 
 A green benchmark is not success if production uses a different brain.
 
-## 15. REPO HYGIENE
+## 17. REPO HYGIENE
 
 QRE should get simpler as intelligence increases.
 
@@ -328,6 +399,7 @@ benchmark-specific production code
 version piles
 stale "canonical" notes
 unreferenced contracts
+domain-specific movie branches
 ```
 
 Full audit:
@@ -341,3 +413,7 @@ Master Goal:
 Magnet Circle:
 
 `docs/QRE_MAGNET_CIRCLE.md`
+
+Latent Movie Search:
+
+`docs/AUTHOR_LATENT_MOVIE_SEARCH.md`
