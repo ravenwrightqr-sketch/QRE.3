@@ -77,7 +77,9 @@ function genericCandidates(event: WorldEvent, world: WorldModel): CreativeCandid
   const s = subject(event);
   const p = primary(event);
   const q = secondary(event, p);
-  const out: CreativeCandidate[] = [candidate(event, world, raw, "quiet-payoff", ["source preserved"], 7.2)];
+  const rawCandidate = candidate(event, world, raw, "quiet-payoff", ["source preserved"], 7.2);
+  if (world.lens !== "neutral") rawCandidate.score -= 45;
+  const out: CreativeCandidate[] = [rawCandidate];
 
   if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was the detail that kept the scene from becoming just another report`, "object-turn", ["specificity", "report-to-memory"], 8.4));
   if (p && q) out.push(candidate(event, world, `${raw} ${sentence(p)} drew the eye; ${sentence(q)} was what gave the moment its shape`, "contrast-turn", ["foreground", "counterpoint"], 8.7));
