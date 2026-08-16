@@ -1,6 +1,7 @@
 import type { AuthorBrainTruth, AuthorScene, SequencePlay } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { mouthCraftSystem, mouthCraftUser, mouthQualityPenalty } from "./authorMouthCraft.js";
+import { critiqueMouthCandidates } from "./authorMouthCritic.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 
@@ -13,17 +14,6 @@ function parse(raw: string): string[] {
     return [];
   } catch {
     return [];
-  }
-}
-
-function parseChoice(raw: string, count: number): number | null {
-  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  try {
-    const value = JSON.parse(text) as { bestIndex?: unknown };
-    const index = Number(value.bestIndex);
-    return Number.isInteger(index) && index >= 0 && index < count ? index : null;
-  } catch {
-    return null;
   }
 }
 
@@ -108,45 +98,6 @@ function candidateDirective(index: number): string {
   return "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
 }
 
-async function judgeCandidates(
-  input: AuthorBrainTruth,
-  beat: Record<string, unknown>,
-  candidates: string[],
-  risk: string,
-): Promise<number | null> {
-  if (candidates.length < 2) return candidates.length === 1 ? 0 : null;
-
-  const source = JSON.stringify({
-    prompt: input.prompt,
-    subject: input.subject ?? "",
-    facts: input.facts,
-    moments: input.sourceMoments ?? [],
-    memory: input.memoryContext ?? [],
-    subjectTruth: input.subjectTruth ?? null,
-  });
-
-  const prompt = [
-    "You are QRE's sentence judge.",
-    "The movie and beat are already approved. You MUST choose between supplied candidate lines; do not rewrite them.",
-    "Choose the line that is most specific, surprising, compressed, characterful, and faithful to source truth.",
-    "Reject any candidate that asserts an unsupported person, place, object, action, relationship, outcome, dialogue, setting, or gender interpretation.",
-    "Prefer a line that makes supplied details collide or change meaning without explaining the joke.",
-    "Do not reward generic cinematic atmosphere.",
-    `RISK DIAL: ${risk}.`,
-    `SOURCE=${source}`,
-    `APPROVED_BEAT=${JSON.stringify(beat)}`,
-    `CANDIDATES=${JSON.stringify(candidates)}`,
-    `Return JSON exactly: {"bestIndex":0} or {"bestIndex":1}.`,
-  ].join("\n");
-
-  const result = await localModelGenerate(
-    [{ role: "system", content: prompt }, { role: "user", content: "Choose the strongest candidate only." }],
-    "json",
-    { numPredict: 96, temperature: 0.15 },
-  );
-  return parseChoice(result.text, candidates.length);
-}
-
 /** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer only competes on sentence quality. */
 export async function polishAuthorScenes(
   input: AuthorBrainTruth,
@@ -197,15 +148,27 @@ export async function polishAuthorScenes(
     }
 
     const deterministicScores = candidates.map((candidate) => sentenceScore(candidate, input, beat));
-    const judgeIndex = await judgeCandidates(input, beat, candidates, risk);
+    const critic = await critiqueMouthCandidates({
+      prompt: input.prompt,
+      lens: input.lens,
+      subject: input.subject,
+      facts: input.facts,
+      moments: input.sourceMoments ?? [],
+      memory: input.memoryContext ?? [],
+      beat,
+      candidates,
+    });
+
     const deterministicBest = deterministicScores.length
       ? deterministicScores.reduce((bestIndex, value, index, scores) => value > scores[bestIndex] ? index : bestIndex, 0)
       : null;
-    const selectedIndex = judgeIndex !== null && deterministicScores[judgeIndex] >= 0.18
-      ? judgeIndex
-      : deterministicBest !== null && deterministicScores[deterministicBest] >= 0.22
-        ? deterministicBest
-        : null;
+
+    let selectedIndex: number | null = null;
+    if (critic.decision === "accept" && critic.bestIndex >= 0 && critic.bestIndex < candidates.length) {
+      selectedIndex = deterministicScores[critic.bestIndex] >= 0.16 ? critic.bestIndex : null;
+    } else if (critic.decision !== "retry" && deterministicBest !== null && deterministicScores[deterministicBest] >= 0.22) {
+      selectedIndex = deterministicBest;
+    }
 
     chosenTexts.push(selectedIndex === null ? "" : candidates[selectedIndex]);
   }
