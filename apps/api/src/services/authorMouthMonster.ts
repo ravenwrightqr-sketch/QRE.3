@@ -3,6 +3,7 @@ import { localModelGenerate } from "./localModelRuntime.js";
 import { mouthCraftSystem, mouthCraftUser, mouthQualityPenalty } from "./authorMouthCraft.js";
 import { critiqueMouthCandidates } from "./authorMouthCritic.js";
 
+const MAX_CRITIC_ATTEMPTS = 3;
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 
 function parse(raw: string): string[] {
@@ -57,12 +58,14 @@ function unsupportedConcretePenalty(text: string, input: AuthorBrainTruth): numb
   const unsupported = [
     "home", "room", "house", "door", "grandma", "grandmother", "clubhouse", "sunset", "sunrise", "golden", "light", "lights",
     "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion", "winks", "winked",
+    "hair", "pocket", "feet", "foot", "hands", "eyes", "bed", "yard", "outside", "inside", "everyone", "nobody",
   ];
   for (const word of unsupported) {
     if (new RegExp(`\\b${word}\\b`, "i").test(value) && !new RegExp(`\\b${word}\\b`, "i").test(source)) penalty += 0.16;
   }
   if (/\b(?:boy|girl|man|woman|male|female|gender|gender reveal|boys'|girls')\b/i.test(value) && !/\b(?:male|female|man|woman|boy|girl)\b/i.test(source)) penalty += 0.35;
-  return Math.min(0.65, penalty);
+  if (/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered)\b/i.test(value) && !/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered)\b/i.test(source)) penalty += 0.3;
+  return Math.min(0.85, penalty);
 }
 
 function vagueSummaryPenalty(text: string): number {
@@ -92,10 +95,19 @@ function sentenceScore(text: string, input: AuthorBrainTruth, beat: Record<strin
   );
 }
 
-function candidateDirective(index: number): string {
-  if (index === 0) return "Write the cleanest, sharpest realization. Concrete first. No explanation.";
-  if (index === 1) return "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events.";
-  return "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
+function candidateDirective(index: number, repair = ""): string {
+  const base = index === 0
+    ? "Write the cleanest, sharpest realization. Concrete first. No explanation."
+    : index === 1
+      ? "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events."
+      : "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
+  return repair ? `${base} CRITIC REPAIR: ${repair}` : base;
+}
+
+function safeFallback(beat: Record<string, unknown>): string {
+  const change = clean(beat.change);
+  if (!change) return "The approved beat lands.";
+  return change.split(/\s+/).slice(0, 7).join(" ").replace(/[,:;—-]+$/, "").trim();
 }
 
 /** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer only competes on sentence quality. */
@@ -103,8 +115,10 @@ export async function polishAuthorScenes(
   input: AuthorBrainTruth,
   sequence: SequencePlay,
   risk = "playful",
-): Promise<{ scenes: AuthorScene[]; texts: string[]; rejected: number }> {
+): Promise<{ scenes: AuthorScene[]; texts: string[]; rejected: number; retries: number; fallbacks: number }> {
   const chosenTexts: string[] = [];
+  let totalRetries = 0;
+  let fallbackCount = 0;
 
   for (const cut of sequence.cuts) {
     const beat = {
@@ -118,59 +132,82 @@ export async function polishAuthorScenes(
       sourceIds: cut.sourceIds,
     };
 
-    const candidates: string[] = [];
-    for (let candidateIndex = 0; candidateIndex < 2; candidateIndex += 1) {
-      const userContent = mouthCraftUser({
+    let chosen: string | null = null;
+    let previousFailure = "";
+    let lastCandidates: string[] = [];
+    let lastScores: number[] = [];
+
+    for (let attempt = 0; attempt < MAX_CRITIC_ATTEMPTS && !chosen; attempt += 1) {
+      if (attempt > 0) totalRetries += 1;
+      const candidates: string[] = [];
+
+      for (let candidateIndex = 0; candidateIndex < 2; candidateIndex += 1) {
+        const userContent = mouthCraftUser({
+          prompt: input.prompt,
+          lens: input.lens,
+          subject: input.subject,
+          subjectTruth: input.subjectTruth,
+          facts: input.facts,
+          moments: input.sourceMoments ?? [],
+          memory: input.memoryContext ?? [],
+          trajectory: input.trajectory ?? [],
+          beats: [{ ...beat, candidateDirective: candidateDirective(candidateIndex, previousFailure) }],
+        });
+
+        const result = await localModelGenerate(
+          [
+            {
+              role: "system",
+              content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved. Never invent a new beat, event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, or location.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
+            },
+            { role: "user", content: userContent },
+          ],
+          "json",
+          { numPredict: 192, temperature: candidateIndex === 0 ? 0.78 : 0.92 },
+        );
+        const candidate = parse(result.text)[0] ?? "";
+        if (candidate) candidates.push(candidate);
+      }
+
+      const deterministicScores = candidates.map((candidate) => sentenceScore(candidate, input, beat));
+      lastCandidates = candidates;
+      lastScores = deterministicScores;
+
+      const critic = await critiqueMouthCandidates({
         prompt: input.prompt,
         lens: input.lens,
         subject: input.subject,
-        subjectTruth: input.subjectTruth,
         facts: input.facts,
         moments: input.sourceMoments ?? [],
         memory: input.memoryContext ?? [],
-        trajectory: input.trajectory ?? [],
-        beats: [{ ...beat, candidateDirective: candidateDirective(candidateIndex) }],
+        beat,
+        candidates,
+        previousFailure,
       });
 
-      const result = await localModelGenerate(
-        [
-          {
-            role: "system",
-            content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved. Never invent a new beat, event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, or location.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
-          },
-          { role: "user", content: userContent },
-        ],
-        "json",
-        { numPredict: 192, temperature: candidateIndex === 0 ? 0.78 : 0.92 },
-      );
-      const candidate = parse(result.text)[0] ?? "";
-      if (candidate) candidates.push(candidate);
+      if (critic.decision === "accept" && critic.bestIndex >= 0 && critic.bestIndex < candidates.length) {
+        const score = deterministicScores[critic.bestIndex] ?? -Infinity;
+        if (score >= 0.16) chosen = candidates[critic.bestIndex];
+        else previousFailure = "The candidate failed QRE's deterministic grounding/quality gate. Remove unsupported concrete detail and tighten the line.";
+      } else {
+        previousFailure = critic.repairDirective || critic.reason || "Generate a more grounded, specific realization.";
+      }
     }
 
-    const deterministicScores = candidates.map((candidate) => sentenceScore(candidate, input, beat));
-    const critic = await critiqueMouthCandidates({
-      prompt: input.prompt,
-      lens: input.lens,
-      subject: input.subject,
-      facts: input.facts,
-      moments: input.sourceMoments ?? [],
-      memory: input.memoryContext ?? [],
-      beat,
-      candidates,
-    });
-
-    const deterministicBest = deterministicScores.length
-      ? deterministicScores.reduce((bestIndex, value, index, scores) => value > scores[bestIndex] ? index : bestIndex, 0)
-      : null;
-
-    let selectedIndex: number | null = null;
-    if (critic.decision === "accept" && critic.bestIndex >= 0 && critic.bestIndex < candidates.length) {
-      selectedIndex = deterministicScores[critic.bestIndex] >= 0.16 ? critic.bestIndex : null;
-    } else if (critic.decision !== "retry" && deterministicBest !== null && deterministicScores[deterministicBest] >= 0.22) {
-      selectedIndex = deterministicBest;
+    if (!chosen) {
+      const deterministicBest = lastScores.length
+        ? lastScores.reduce((bestIndex, value, index, scores) => value > scores[bestIndex] ? index : bestIndex, 0)
+        : null;
+      if (deterministicBest !== null && lastScores[deterministicBest] >= 0.16) {
+        chosen = lastCandidates[deterministicBest];
+        fallbackCount += 1;
+      } else {
+        chosen = safeFallback(beat);
+        fallbackCount += 1;
+      }
     }
 
-    chosenTexts.push(selectedIndex === null ? "" : candidates[selectedIndex]);
+    chosenTexts.push(chosen);
   }
 
   const scenes: AuthorScene[] = [];
@@ -182,5 +219,12 @@ export async function polishAuthorScenes(
       kind: sequence.cuts[i].role === "hook" ? "hook" : sequence.cuts[i].role === "payoff" ? "payoff" : "line",
     });
   }
-  return { scenes, texts: chosenTexts, rejected: sequence.cuts.length - scenes.length };
+
+  return {
+    scenes,
+    texts: chosenTexts,
+    rejected: sequence.cuts.length - scenes.length,
+    retries: totalRetries,
+    fallbacks: fallbackCount,
+  };
 }
