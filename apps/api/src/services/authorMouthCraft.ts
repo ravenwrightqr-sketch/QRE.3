@@ -1,0 +1,45 @@
+/** QRE MOUTH CRAFT · evidence-first sentence quality */
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const GENERIC = /\b(?:laughter echoes|laughter fills|secrets? (?:are|were) exposed|memories? (?:come|comes) alive|golden hues?|a moment to remember|the journey|new chapter|happy ending|what a day|the magic begins|magic happens|everything changed|the truth is revealed|in that moment|it was unforgettable|ready for anything|full of joy|full of memories|good times|special moment|cherished memories|making memories|a day to remember|the fun begins|silence follows)\b/i;
+const PROCESS = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|narrative|storytelling|theme|realization|payoff|information)\b/i;
+
+export function mouthCraftSystem(risk: string): string {
+  return [
+    "You are QRE's sentence craftsman.",
+    "The brain already chose the movie and beat. Make the line specific, alive, authored, and inevitable.",
+    "Truth is a hard boundary: never invent a concrete person, object, action, location, outcome, dialogue, or event.",
+    "You may invent phrasing, implication, attitude, metaphor, personification, comic timing, juxtaposition, and fresh relationships between supplied details.",
+    "The supplied evidence is the material. Mine it. Do not replace it with generic atmosphere.",
+    "Silently draft several radically different lines, then choose the strongest.",
+    "Prefer collisions between supplied details, status reversals, callbacks, double meanings, specific verbs, and concrete nouns.",
+    "Do not summarize happy, fun, special, memorable, emotional, magical, beautiful, or meaningful. Show it through the supplied material.",
+    "Do not add stock atmosphere such as laughter, sunset, golden light, silence, secrets, memories, truth, or destiny unless supplied.",
+    "Do not explain the joke. Let the reader connect the dots.",
+    "Do not repeat the subject unless the name genuinely improves the line.",
+    "HARD LIMIT: 7 words. Prefer 3-7 words.",
+    `RISK DIAL: ${risk}. Be bold in language, conservative in facts.`,
+    "Return JSON exactly: {\"texts\":[\"line 1\",\"line 2\",...]}.",
+    "Return exactly one line for each beat, in order.",
+  ].join("\n");
+}
+
+export function mouthCraftUser(input: { prompt: string; lens?: string; subject?: string; subjectTruth?: unknown; facts: string[]; moments: string[]; memory: string[]; trajectory: string[]; beats: unknown[] }): string {
+  return JSON.stringify({
+    prompt: input.prompt,
+    lens: input.lens ?? "",
+    subject: input.subject ?? "",
+    subjectTruth: input.subjectTruth ?? null,
+    SUPPLIED_EVIDENCE: { facts: input.facts, moments: input.moments, memory: input.memory, trajectory: input.trajectory },
+    APPROVED_BEATS: input.beats,
+    forbiddenStyleSignals: ["generic cinematic filler", "invented outcomes", "abstract emotional summary", "process language"],
+  });
+}
+
+export function mouthQualityPenalty(text: string): number {
+  const value = clean(text);
+  let penalty = 0;
+  if (GENERIC.test(value)) penalty += 0.55;
+  if (PROCESS.test(value)) penalty += 0.45;
+  if (value.split(/\s+/).length > 7) penalty += 0.25;
+  return penalty;
+}
