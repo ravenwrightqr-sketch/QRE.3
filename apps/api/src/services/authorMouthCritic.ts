@@ -6,6 +6,7 @@ export type MouthFailureCode =
   | "invented_reaction"
   | "invented_event"
   | "invented_identity"
+  | "beat_poisoned"
   | "weak_beat_fit"
   | "generic_summary"
   | "overexplained"
@@ -66,13 +67,15 @@ export async function critiqueMouthCandidates(input: {
   const system = [
     "You are QRE's AUTHOR CRITIC.",
     "You do not write, rewrite, or invent. You judge finished sentence candidates.",
-    "The movie and beat are already approved. Your only job is to decide whether a candidate deserves to exist.",
+    "The movie and beat are already approved, but the beat has passed through a Truth Gate.",
     "SOURCE TRUTH IS ABSOLUTE: reject any concrete person, object, action, location, setting, dialogue, outcome, body position, wardrobe placement, event, or social reaction not supported by supplied evidence.",
+    "TRUTH GATE BOUNDARY: approvedEvidence is the only material that may be asserted as concrete reality. forbiddenClaims are prohibited. creativeOpportunity is an interpretive search direction, not a fact.",
+    "If the upstream beat contains unsupported claims, ignore those claims rather than asking the mouth to realize them.",
     "Do not punish creative phrasing, metaphor, implication, juxtaposition, wordplay, or personification when it does not assert a new concrete fact.",
-    "Beat fit: the line must realize this beat, not merely mention one source noun.",
+    "Beat fit: the line must realize the grounded creativeOpportunity using approvedEvidence, not merely mention one source noun.",
     "Specificity: prefer lines that could only come from this source, not generic AI prose.",
     "Creative force: prefer a real collision, reversal, double meaning, character turn, comic timing, or emotional precision.",
-    "Compression: every word should earn space; prefer 3-7 words.",
+    "Compression: every word should earn space; prefer 3-9 words when possible.",
     "Character: preserve the specific subject and supplied identity without stereotyping.",
     "Surprise: reward a fresh but grounded turn.",
     "Afterimage: the line should leave a thought/image behind rather than explain itself.",
@@ -81,7 +84,7 @@ export async function critiqueMouthCandidates(input: {
     "A creative interpretation is allowed when it is clearly phrasing or implication rather than a newly asserted event or physical fact.",
     "If all candidates fail, use decision=retry and bestIndex=-1. Never choose the least-bad candidate merely because one must be selected.",
     "Return JSON exactly with decision, bestIndex, reason, failureCodes, repairDirective, and scores.",
-    "failureCodes must use only: invented_concrete_detail, invented_reaction, invented_event, invented_identity, weak_beat_fit, generic_summary, overexplained, repetitive, weak_specificity, weak_creative_force, weak_afterimage, too_long.",
+    "failureCodes must use only: invented_concrete_detail, invented_reaction, invented_event, invented_identity, beat_poisoned, weak_beat_fit, generic_summary, overexplained, repetitive, weak_specificity, weak_creative_force, weak_afterimage, too_long.",
     "repairDirective must be a short instruction for the next generation attempt, focused on the dominant failure.",
   ].join("\n");
 
@@ -91,7 +94,7 @@ export async function critiqueMouthCandidates(input: {
     subject: input.subject ?? "",
     moviePremise: input.moviePremise ?? "",
     SUPPLIED_EVIDENCE: { facts: input.facts, moments: input.moments, memory: input.memory },
-    APPROVED_BEAT: input.beat,
+    GROUNDED_BEAT: input.beat,
     CANDIDATES: input.candidates,
     PREVIOUS_FAILURE: input.previousFailure ?? "",
   });
@@ -110,6 +113,6 @@ export async function critiqueMouthCandidates(input: {
     bestIndex: -1,
     reason: "critic output could not be parsed",
     failureCodes: ["weak_specificity"],
-    repairDirective: "Generate a shorter, concrete line using only supplied evidence.",
+    repairDirective: "Generate a shorter, concrete line using only approved evidence and the grounded creative opportunity.",
   };
 }
