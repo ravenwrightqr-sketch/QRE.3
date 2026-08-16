@@ -103,6 +103,16 @@ function normalizePlace(value: string): string {
     .trim();
 }
 
+function properPlaceAfterPrep(text: string): string | undefined {
+  const pattern = /\b(?:at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards)\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\s+)?((?:[A-Z][A-Za-z0-9'’&.-]*)(?:\s+[A-Z][A-Za-z0-9'’&.-]*){0,7})(?=\s+(?:at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards)\b|\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|[,.;]|$)/g;
+  for (const match of text.matchAll(pattern)) {
+    const value = normalizePlace(match[1] ?? "");
+    if (!value || PRONOUN_RE.test(value) || TIME_RE.test(value) || /^\d/.test(value)) continue;
+    return value;
+  }
+  return undefined;
+}
+
 function spatialPhraseOf(text: string): string | undefined {
   const prep = "at|in|inside|near|around|outside|on|onto|under|underneath|behind|beside|between|across|through|within|from|to|toward|towards";
   const stop = "at|in|on|from|to|near|around|outside|under|underneath|behind|beside|between|across|through|within|toward|towards";
@@ -113,7 +123,7 @@ function spatialPhraseOf(text: string): string | undefined {
     if (/^\d/.test(value)) continue;
     return value;
   }
-  return undefined;
+  return properPlaceAfterPrep(text);
 }
 function subjectEntityOf(text: string, action?: string): string | undefined {
   if (!action) return undefined; const index = text.toLowerCase().indexOf(action.toLowerCase()); if (index <= 0) return undefined;
