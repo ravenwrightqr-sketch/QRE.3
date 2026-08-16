@@ -59,7 +59,14 @@ if (existsSync(join(root, acceptance))) {
   const body = read(acceptance);
   check("acceptance:master", /authorBrainUniversal/.test(body), "acceptance invokes the Master Author");
   check("acceptance:same-reality-lenses", /COUPLE-FUNNY/.test(body) && /COUPLE-HORROR/.test(body), "acceptance exercises same truth through multiple lenses");
-  check("acceptance:arbitrary-input", /process\.argv\[2\]/.test(body) && /Unknown case/.test(body) === false, "acceptance supports arbitrary user reality input");
+
+  const acceptsArgv = /process\.argv\.slice\(2\)/.test(body) || /process\.argv\[\d+\]/.test(body);
+  const hasArbitraryFallback = /splitReality\s*\(/.test(body) && /\?\?\s*\(\(\)\s*=>/.test(body);
+  check(
+    "acceptance:arbitrary-input",
+    acceptsArgv && hasArbitraryFallback,
+    "acceptance supports arbitrary user reality input"
+  );
 }
 
 console.log("=== QRE AUTHOR WIRING GUARD ===");
