@@ -23,6 +23,8 @@ import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { evaluateCut, type CutWorld } from "./authorCutPolicy.js";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { normalizeLatentMovieBeatPlan } from "./authorLatentMovieBeatAdapter.js";
+import { recoverBeatPlanFromLatentMovie } from "./authorBeatPlanRecovery.js";
 
 const ROLES: readonly ViewerAttentionRole[] = [
   "arrival", "hook", "question", "pressure", "reframe", "escalation",
@@ -192,7 +194,7 @@ function subjectContinuity(subject: string, established: boolean, text: string, 
   };
 }
 
-type AuthorBeat = { order: number; role: string; gainKind: string; change: string; next: string; frontier: string; necessity: string };
+type AuthorBeat = { order: number; role: string; gainKind: string; change: string; next: string; frontier: string; necessity: string; eventIds?: string[] };
 type BeatPlan = { premise: string; baselineFacts: string[]; beats: AuthorBeat[]; closing?: string };
 
 function normalizeBeatPlan(value: unknown): BeatPlan | undefined {
@@ -269,7 +271,7 @@ function buildViewerMomentum(subject: string, plan: BeatPlan): SequencePlay | un
       order: beat.order,
       role,
       gainKind,
-      sourceIds: [],
+      sourceIds: beat.eventIds ?? [],
       informationGain: beat.change,
       attentionDelta: safeFrontier || beat.change,
       viewerBefore: { known: momentum.known, expected: momentum.expected, unresolved: momentum.unresolved, currentWant: momentum.currentWant, recentChange: momentum.predictionShift },
@@ -483,7 +485,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
   const beatMessages = buildBeatMessages({ ...input, realityGraph }, cognition);
   let beatPlanResult = await localModelGenerate(beatMessages, "json", { numPredict: 768, temperature: risk === "safe" ? 0.55 : 0.78 });
   debug("BEAT-DISCOVERY", beatPlanResult.text);
-  let beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
+  let beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text)) ?? normalizeLatentMovieBeatPlan(parseJson<unknown>(beatPlanResult.text));
   let beatPlanRetries = 0;
 
   if (!beatPlan) {
@@ -495,13 +497,42 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     debug("BEAT-DISCOVERY-RETRY", beatPlanResult.text);
     beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
   }
+const recoveredBeatPlan = recoverBeatPlanFromLatentMovie(
+  cognition.latentMovieCandidates?.[0],
+  realityGraph,
+);
 
-  if (!beatPlan) {
-    return {
-      brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field,
-      diagnostics: { cognitionMode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, creativeRisk: risk, realityGraphEvents: realityGraph.events.length, realityGraphRelations: realityGraph.relations.length, realityGraphTensions: realityGraph.unresolvedTensions, beatCount: 0, beatPlan: [], beatPlanRetries, beatPlanParseFailed: true, sequenceCutsAttempted: 0, sequenceCutsRejected: 0, finalScenes: 0 },
-    };
-  }
+if (!beatPlan && recoveredBeatPlan) {
+  beatPlan = normalizeBeatPlan(recoveredBeatPlan);
+}
+
+if (!beatPlan) {
+  return {
+    brief: brief(input, cognition.chosenAttentionStrategy),
+    scenes: [],
+    sequence: undefined,
+    field,
+    diagnostics: {
+      cognitionMode: cognition.mode,
+      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
+      attentionCandidates: cognition.attentionCandidates,
+      contradictions: cognition.contradictions,
+      operatorMix: cognition.operatorMix,
+      creativeRisk: risk,
+      realityGraphEvents: realityGraph.events.length,
+      realityGraphRelations: realityGraph.relations.length,
+      realityGraphTensions: realityGraph.unresolvedTensions,
+      beatCount: 0,
+      beatPlan: [],
+      beatPlanRetries,
+      beatPlanParseFailed: true,
+      beatPlanRecovered: Boolean(recoveredBeatPlan),
+      sequenceCutsAttempted: 0,
+      sequenceCutsRejected: 0,
+      finalScenes: 0,
+    },
+  };
+}
 
   const sequence = buildViewerMomentum(subject, beatPlan);
   if (!sequence) {

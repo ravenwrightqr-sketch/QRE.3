@@ -34,27 +34,74 @@ function stripDataUrl(value: string) {
   const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
   return match ? match[1] : value;
 }
-
 async function request(path: string, body: unknown) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs());
+  const timer = setTimeout(() => {
+    console.log("QRE LOCAL MODEL TIMEOUT FIRING");
+    controller.abort();
+  }, timeoutMs());
+
+  const url = `${baseUrl()}${path}`;
+  const serializedBody = JSON.stringify(body);
+
+  console.log("QRE REQUEST START");
+  console.log("QRE REQUEST URL:", url);
+  console.log("QRE REQUEST MODEL:", (body as any)?.model);
+  console.log("QRE REQUEST FORMAT:", (body as any)?.format);
+  console.log(
+    "QRE REQUEST MESSAGE COUNT:",
+    Array.isArray((body as any)?.messages)
+      ? (body as any).messages.length
+      : "none",
+  );
+  console.log("QRE REQUEST BODY BYTES:", Buffer.byteLength(serializedBody, "utf8"));
+  console.log(
+    "QRE REQUEST CONTENT CHARS:",
+    Array.isArray((body as any)?.messages)
+      ? (body as any).messages.reduce(
+          (total: number, message: any) =>
+            total + String(message?.content ?? "").length,
+          0,
+        )
+      : "none",
+  );
+
   try {
-    const response = await fetch(`${baseUrl()}${path}`, {
+    console.log("QRE FETCH ENTER");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: serializedBody,
       signal: controller.signal,
     });
+
+    console.log("QRE FETCH RETURNED");
+    console.log("QRE RESPONSE STATUS:", response.status);
+
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`Local model failed (${response.status}): ${detail.slice(0, 300)}`);
+      console.log("QRE RESPONSE ERROR BODY:", detail);
+      throw new Error(
+        `Local model failed (${response.status}): ${detail.slice(0, 300)}`,
+      );
     }
-    return response.json() as Promise<any>;
+
+    console.log("QRE READING RESPONSE JSON");
+
+    const json = await response.json();
+
+    console.log("QRE RESPONSE JSON RECEIVED");
+
+    return json;
+  } catch (error) {
+    console.log("QRE LOCAL REQUEST ERROR:", error);
+    throw error;
   } finally {
     clearTimeout(timer);
+    console.log("QRE REQUEST FINISHED");
   }
 }
-
 function outputText(data: any): string {
   return String(data?.message?.content ?? data?.response ?? data?.choices?.[0]?.message?.content ?? "").trim();
 }
