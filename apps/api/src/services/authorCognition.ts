@@ -74,15 +74,6 @@ function uniq(values: string[], limit = 20): string[] {
   return [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
 }
 
-function tokens(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9'\- ]+/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((x) => !STOP_WORDS.has(x));
-}
-
 function inferMode(input: AuthorCognitionInput): AuthorCognitivePlan["mode"] {
   const text = `${input.prompt} ${input.lens ?? ""} ${input.subject ?? ""}`.toLowerCase();
   const evidence = input.facts.length + input.sourceMoments.length + (input.memoryContext?.length ?? 0);
@@ -136,45 +127,33 @@ function candidateReason(strategy: string): string {
     personality_contrast: "Make the subject's conflicting traits collide so the character feels specific.",
     provenance_and_history: "Use history and provenance as evidence of a life rather than exposition.",
     callback_and_continuity: "Make the current chapter remember earlier chapters and change their meaning.",
-    night_contrast: "Exploit the difference between darkness and the emotional material instead of inventing daylight.",
-    scale_and_place: "Let the place create cinematic scale while keeping the human subject central.",
+    night_contrast: "Exploit darkness and emotional material without inventing scenery.",
+    scale_and_place: "Let the place create scale while keeping the human subject central.",
     space_as_character: "Treat the built environment as an opponent, witness, archive, or participant.",
     wear_as_evidence: "Turn scratches, fading, scars, and wear into evidence rather than decoration.",
     service_personality: "Turn the routine job into a character-specific ritual or negotiation.",
-    calm_reality_break: "Keep people calm while the environment becomes impossible; escalate spatial contradictions.",
+    calm_reality_break: "Keep people calm while the environment becomes impossible.",
     comic_status_inversion: "Reverse who seems to be in control and let the joke emerge from status.",
-    voice_and_attention: "Use point of view, obsession, contradiction, and a pattern break instead of generic inspiration.",
-    object_to_world: "Make a small physical object imply a much larger persistent world.",
-    status_to_meaning: "Use price as context, then reveal the human reason the thing matters.",
-    possibility_and_firstness: "Treat newness as an opening rather than inventing a future biography.",
-    private_meaning: "Use small shared details that become more meaningful because they recur.",
+    voice_and_attention: "Use point of view, obsession, contradiction, and a pattern break.",
+    object_to_world: "Make a small physical object imply a larger persistent world.",
+    status_to_meaning: "Use price as context, then reveal why the thing matters.",
+    possibility_and_firstness: "Treat newness as an opening, not a fake future biography.",
+    private_meaning: "Use small shared details that become more meaningful when they recur.",
   };
-  return reasons[strategy] ?? "Reframe the subject so the viewer sees familiar material differently.";
+  return reasons[strategy] ?? "Reframe the subject so familiar material feels newly alive.";
 }
 
 function inferCandidates(input: AuthorCognitionInput, combined: string): AttentionCandidate[] {
-  const matched = uniq(
-    SIGNALS.filter(([pattern]) => pattern.test(combined)).map(([, signal]) => signal),
-    16,
-  );
-  const pool = matched.length
-    ? matched
-    : ["meaning_reframe", "pattern_break", "sensory_specificity", "curiosity_gap"];
-
+  const matched = uniq(SIGNALS.filter(([pattern]) => pattern.test(combined)).map(([, signal]) => signal), 16);
+  const pool = matched.length ? matched : ["meaning_reframe", "pattern_break", "sensory_specificity", "curiosity_gap"];
   return pool
-    .map((strategy) => ({
-      strategy,
-      reason: candidateReason(strategy),
-      score: scoreCandidate(strategy, input, combined),
-    }))
+    .map((strategy) => ({ strategy, reason: candidateReason(strategy), score: scoreCandidate(strategy, input, combined) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 7);
 }
 
 function chooseAttention(candidates: AttentionCandidate[], input: AuthorCognitionInput): string {
   const text = `${input.prompt} ${input.lens ?? ""} ${input.facts.join(" ")} ${input.sourceMoments.join(" ")}`.toLowerCase();
-
-  // Hard preferences for highly distinctive material.
   if (/horror|knives|glass|doors|ceiling|wine/.test(text)) return "calm_reality_break";
   if (input.round && input.round > 1 && candidates.some((x) => x.strategy === "callback_and_continuity")) return "callback_and_continuity";
   if (/nervous|scared|fierce|hates|loves|dog|poodle|bulldog/.test(text)) return "personality_contrast";
@@ -203,7 +182,6 @@ function makeOperatorMix(chosen: string, round: number, candidates: AttentionCan
     possibility_and_firstness: ["sensory_hook", "anticipation", "contrast", "micro_reveal", "open_loop", "afterglow"],
     private_meaning: ["sensory_hook", "specific_detail", "understatement", "callback", "tender_turn", "afterglow"],
   };
-
   const base = mixes[chosen] ?? ["pattern_break", "sensory_hook", "contrast", "micro_reveal", "reversal", "payoff"];
   const merged = secondary && round > 1 ? [...base, `secondary_${secondary}`] : base;
   return [...new Set(merged)].slice(0, 8);
@@ -217,50 +195,47 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const permanentTruths = uniq([...input.facts, ...(input.memoryContext ?? [])], 30);
   const currentEvidence = uniq(input.sourceMoments, 20);
   const contradictions = findContradictions([...permanentTruths, ...currentEvidence, input.prompt]);
-
   const attentionCandidates = inferCandidates(input, combined);
   const chosen = chooseAttention(attentionCandidates, input);
   const operatorMix = makeOperatorMix(chosen, round, attentionCandidates);
-
-  const callbackTargets = round > 1
-    ? uniq([...(input.priorScenes ?? []), ...permanentTruths], 10)
-    : permanentTruths.slice(0, 5);
+  const callbackTargets = round > 1 ? uniq([...(input.priorScenes ?? []), ...permanentTruths], 10) : permanentTruths.slice(0, 5);
 
   const antiRepetitionRules = [
     "Do not repeat the previous chapter's emotional trajectory if one exists.",
-    "Prefer a new operator mix each round unless a callback is intentionally paying something off.",
+    "Every new cut must earn a fresh viewer reaction or a meaningful callback.",
     "A callback must change meaning, not merely repeat wording.",
     "Do not restart the subject's biography on every chapter.",
-    "Do not use the same opening image twice unless the repetition itself is the point.",
-    "If the subject already had a joke, escalate or invert it rather than retelling it.",
+    "Do not use the same opening image twice unless repetition itself is the point.",
+    "If the subject already had a joke, escalate, invert, or mutate it rather than retelling it.",
+    "Prefer the strongest two or three concrete details over complete coverage of the prompt.",
   ];
 
   const sceneRules = [
-    "One scene = one perceivable beat = one thought.",
-    "4–14 words is the preferred range; exceed it only when earned.",
-    "Never pack multiple mini-scenes into one scene.",
-    "Never emit labels such as hook, micro-reveal, status inversion, or afterglow as viewer-facing prose.",
-    "Never use pipes, semicolon chains, or colon-led mini-lists to fake a single scene.",
-    "In grounded/service/living-memory modes, never invent concrete events, people, dates, locations, actions, outcomes, or objects.",
-    "Invent metaphor, attitude, framing, implication, and juxtaposition instead of unsupported factual events.",
-    "The final scene must pay off the chosen attention strategy, not merely conclude the plot.",
+    "A beat is a sentence cut: one perceivable movement of the film, then an immediate cut.",
+    "Viewer-facing text is normally 2-7 words; 3-6 is the sweet spot.",
+    "One beat carries one cognitive hit. Do not pack setup, reaction, explanation, and payoff together.",
+    "The image, when present, is a parallel layer. Text does not need to describe the image.",
+    "Do not enumerate every task in a service job. Select the moments that make the work feel alive.",
+    "Never emit labels such as hook, micro-reveal, status inversion, strategy, operator, or afterglow as viewer prose.",
+    "Never use paragraph-length text, stacked clauses, or mini-lists inside one cut.",
+    "Grounded modes preserve sourced reality; creativity may change framing, implication, juxtaposition, and attitude without inventing facts.",
+    "Funny should feel character-specific. Horror should make normality increasingly wrong. Romance should use private meaning. Demented should use sharp unexpected turns.",
+    "Finish as soon as the payoff lands. Do not explain the lesson afterward.",
   ];
 
   const authorBrief = [
     `ROUND ${round}: ${round > 1 ? "continuation chapter; remember the world and change the meaning" : "origin chapter; establish identity and plant a memorable detail"}.`,
     `ATTENTION STRATEGY: ${chosen}. ${candidateReason(chosen)}`,
-    `CONTRADICTIONS: ${contradictions.join(" | ") || "none detected; find subtle tension without inventing facts"}`,
-    `OPERATOR MIX: ${operatorMix.join(", ")}. Mix operators when justified; do not use them mechanically in sequence.`,
+    `CONTRADICTIONS: ${contradictions.join(" | ") || "none detected; use tension from the supplied relationships without inventing facts"}`,
+    `OPERATOR MIX: ${operatorMix.join(", ")}. Treat these as private options, never as a forced sequence.`,
     `CALLBACK TARGETS: ${callbackTargets.join(" | ") || "none"}.`,
-    `ATTENTION LADDER: recognition → pattern break → curiosity → escalation/meaning shift → payoff.`,
-    `TASTE RULE: prefer specific, mischievous, emotionally intelligent, visually concrete language over generic prettiness.`,
-    `HUMOR RULE: use humor when it emerges from personality, status, contradiction, or circumstance; do not force jokes into every world.`,
-    `DARK-HUMOR RULE: when darkness is requested, favor absurd calm, contradiction, and understatement before gore or stock horror.`,
-    `VALUE RULE: monetary value is context, never the story by itself; find ownership, provenance, craft, ritual, history, or meaning.`,
+    "ATTENTION LADDER: recognition → jolt → jolt → escalation/meaning shift → payoff.",
+    "TASTE RULE: prefer specific, mischievous, emotionally intelligent, visually concrete language over generic prettiness.",
+    "HUMOR RULE: use humor when it emerges from personality, status, contradiction, or circumstance; do not force jokes into every world.",
+    "DARK-HUMOR RULE: favor absurd calm, contradiction, and understatement before stock gore.",
+    "VALUE RULE: monetary value is context; find ownership, provenance, craft, ritual, history, or human meaning.",
     `GENERIC BANS: ${GENERIC_BANS.join(", ")}.`,
   ];
-
-  void tokens;
 
   return {
     round,
