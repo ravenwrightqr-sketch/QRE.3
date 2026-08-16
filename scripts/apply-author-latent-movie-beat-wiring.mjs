@@ -186,11 +186,19 @@ if (next.includes(mouthBeatsNeedle)) {
   );
 }
 
+const mouthPromptNeedle = '        "The line must realize the supplied beat, not summarize the whole story.",';
+if (next.includes(mouthPromptNeedle) && !next.includes('"Each beat includes truth-bound evidence labels; use them as the factual boundary."')) {
+  next = next.replace(
+    mouthPromptNeedle,
+    `${mouthPromptNeedle}\n        "Each beat includes truth-bound evidence labels; use them as the factual boundary. Never replace supplied evidence with invented concrete details.",`,
+  );
+}
+
 const mouthUserNeedle = '    { role: "user" as const, content: JSON.stringify({ prompt: input.prompt, lens: input.lens, subjectTruth: input.subjectTruth ?? null, memory: input.memoryContext ?? [], trajectory: input.trajectory ?? [], beats }) },';
 if (next.includes(mouthUserNeedle)) {
   next = next.replace(
     mouthUserNeedle,
-    '    { role: "user" as const, content: JSON.stringify({ prompt: input.prompt, lens: input.lens, subjectTruth: input.subjectTruth ?? null, memory: input.memoryContext ?? [], trajectory: input.trajectory ?? [], beats }) },',
+    mouthUserNeedle,
   );
 }
 
