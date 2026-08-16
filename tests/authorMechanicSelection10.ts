@@ -43,38 +43,45 @@ const system = [
   "sequenceRisk must identify the biggest way this frame could become a lame template.",
 ].join("\n");
 
-for (const test of cases) {
-  const result = await localModelGenerate(
-    [
-      { role: "system", content: system },
-      {
-        role: "user",
-        content: JSON.stringify({
-          reality: test.prompt,
-          candidateFrames: test.frames,
-          instruction: "Select the strongest frame only if it genuinely increases the experience. Otherwise return NONE.",
-        }),
-      },
-    ],
-    "json",
-    { numPredict: 180, temperature: 0.25 },
-  );
+async function main(): Promise<void> {
+  for (const test of cases) {
+    const result = await localModelGenerate(
+      [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: JSON.stringify({
+            reality: test.prompt,
+            candidateFrames: test.frames,
+            instruction: "Select the strongest frame only if it genuinely increases the experience. Otherwise return NONE.",
+          }),
+        },
+      ],
+      "json",
+      { numPredict: 180, temperature: 0.25 },
+    );
 
-  let selection: Selection;
-  try {
-    selection = JSON.parse(String(result.text ?? "").trim()) as Selection;
-  } catch {
-    selection = { frame: "NONE", confidence: 0, increase: "unparseable", why: "model output could not be parsed", sequenceRisk: "unknown" };
+    let selection: Selection;
+    try {
+      selection = JSON.parse(String(result.text ?? "").trim()) as Selection;
+    } catch {
+      selection = { frame: "NONE", confidence: 0, increase: "unparseable", why: "model output could not be parsed", sequenceRisk: "unknown" };
+    }
+
+    console.log(`\n[${test.id}] ${test.name}`);
+    console.log(`PROMPT: ${test.prompt}`);
+    console.log(`CANDIDATES: ${test.frames.join(" | ")}`);
+    console.log(`SELECTED: ${selection.frame ?? "NONE"}`);
+    console.log(`CONFIDENCE: ${Number(selection.confidence ?? 0).toFixed(2)}`);
+    console.log(`INCREASE: ${selection.increase ?? ""}`);
+    console.log(`WHY: ${selection.why ?? ""}`);
+    console.log(`SEQUENCE RISK: ${selection.sequenceRisk ?? ""}`);
   }
 
-  console.log(`\n[${test.id}] ${test.name}`);
-  console.log(`PROMPT: ${test.prompt}`);
-  console.log(`CANDIDATES: ${test.frames.join(" | ")}`);
-  console.log(`SELECTED: ${selection.frame ?? "NONE"}`);
-  console.log(`CONFIDENCE: ${Number(selection.confidence ?? 0).toFixed(2)}`);
-  console.log(`INCREASE: ${selection.increase ?? ""}`);
-  console.log(`WHY: ${selection.why ?? ""}`);
-  console.log(`SEQUENCE RISK: ${selection.sequenceRisk ?? ""}`);
+  console.log("\nFRAME TEST COMPLETE");
 }
 
-console.log("\nFRAME TEST COMPLETE");
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
