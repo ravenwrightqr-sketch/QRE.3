@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm author:guard && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
-    "author:guard": "node ./scripts/verify-author-architecture.mjs",
+    "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-contract-ownership.mjs",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
