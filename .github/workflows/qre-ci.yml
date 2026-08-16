@@ -57,7 +57,7 @@ jobs:
         run: pnpm build:web
 
       - name: Universal reality acceptance
-        run: pnpm --filter @qre/engine test:universal-reality
+        run: pnpm --filter @qre/engine test:universal-mind
 
       - name: Durable memory compiler acceptance
         run: pnpm tsx packages/engine/src/experience/tests/latentMovieLearningV6Acceptance.ts
