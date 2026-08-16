@@ -5,6 +5,8 @@
  * contrast, sequence, and revisit. Edges preserve temporal, causal,
  * relational, and recontextualization links without changing source truth.
  */
+import type { LatentMovieCandidate } from "./latentMovie.js";
+
 export type RealityEvidence = {
   id: string;
   text: string;
@@ -48,4 +50,6 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
+  /** Derived hypotheses only. Never promote these to source truth. */
+  latentMovieCandidates?: LatentMovieCandidate[];
 };
