@@ -31,7 +31,11 @@ if (existsSync(join(root, graphBuilder))) {
   const body = read(graphBuilder);
   check("graph:typed", /RealityGraph/.test(body), "graph builder uses the canonical RealityGraph contract");
   check("graph:provenance", /provenance/.test(body) && /sourceIds/.test(body), "graph events retain source provenance");
-  check("graph:relations", /relations/.test(body) && /contrasts/.test(body), "graph builder emits relations/contrasts");
+  check(
+    "graph:relations",
+    /relations/.test(body) && /addRelation\s*\(/.test(body) && /unresolvedTensions/.test(body),
+    "graph builder emits typed relations and tension signals"
+  );
 }
 if (existsSync(join(root, master))) {
   const body = read(master);
