@@ -1,5 +1,6 @@
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
+import { searchLatentMovieCandidates } from "./src/services/authorLatentMovieSearch.js";
 
 const COUPLE_FACTS = [
   "Mike and Joe recently met",
@@ -56,10 +57,11 @@ const cases = {
 } as const;
 
 function splitReality(value: string): string[] {
-  return value
-    .split(/[,\n.;•]+/)
-    .map((item) => item.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
-    .filter((item) => item.length >= 2);
+  return value.split(/[,\n.;•]+/).map((item) => item.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter((item) => item.length >= 2);
+}
+
+function hasExplicitClock(text: string): boolean {
+  return /\b(?:at\s*)?\d{1,2}:\d{2}\s*(?:am|pm)?\b/i.test(text);
 }
 
 const arg = process.argv.slice(2).join(" ").trim();
@@ -70,16 +72,7 @@ const test = cases[requested as keyof typeof cases] ?? (() => {
   const facts = splitReality(raw);
   const prompt = process.env.QRE_AUTHOR_PROMPT || "Make a living memory from this reality.";
   const lens = process.env.QRE_AUTHOR_LENS || "natural, specific, emotionally intelligent";
-  return {
-    prompt,
-    subject: undefined,
-    facts: facts.length ? facts : [raw],
-    sourceMoments: facts.length ? facts : [raw],
-    lens,
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  };
+  return { prompt, subject: undefined, facts: facts.length ? facts : [raw], sourceMoments: facts.length ? facts : [raw], lens, memoryContext: [], trajectory: [], creativeLearningContext: [] };
 })();
 
 process.env.QRE_AUTHOR_DEBUG_RAW = "true";
@@ -87,41 +80,49 @@ const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE UNIVERSAL AUTHOR ACCEPTANCE · ${requested}`);
 console.log("ONE MASTER BRAIN · ONE AUTHOR PATH");
+console.log("REALITY → CANDIDATE SEARCH → COGNITION → MAGNET → SEQUENCE → MOUTH");
 console.log("VIEWER MOMENTUM · SOURCE TRUTH · CUT NECESSITY");
 console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
 try {
-  const realityGraph = buildAuthorRealityGraph({
-    prompt: test.prompt,
-    subject: test.subject,
-    facts: [...test.facts],
-    sourceMoments: [...test.sourceMoments],
-    memoryContext: [...test.memoryContext],
-    trajectory: [...test.trajectory],
-  });
+  const realityGraph = buildAuthorRealityGraph({ prompt: test.prompt, subject: test.subject, facts: [...test.facts], sourceMoments: [...test.sourceMoments], memoryContext: [...test.memoryContext], trajectory: [...test.trajectory] });
 
   console.log("\n--- QRE REALITY GRAPH PREVIEW ---");
   console.log(`EVIDENCE: ${realityGraph.evidence.length}`);
   console.log(`EVENTS: ${realityGraph.events.length}`);
   realityGraph.events.slice(0, 12).forEach((event) => console.log(`  ${event.id}: ${event.label} · entities=${event.entities.join(", ")}`));
   console.log(`RELATIONS: ${realityGraph.relations.length}`);
-  realityGraph.relations.slice(0, 16).forEach((relation) => console.log(`  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`));
+  realityGraph.relations.slice(0, 24).forEach((relation) => console.log(`  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`));
   console.log(`TENSIONS: ${JSON.stringify(realityGraph.unresolvedTensions)}`);
   console.log(`RECURRING: ${JSON.stringify(realityGraph.recurringSignals)}`);
   console.log(`SENSORY: ${JSON.stringify(realityGraph.sensorySignals)}`);
   console.log("--- END QRE REALITY GRAPH PREVIEW ---\n");
 
-  if (!realityGraph.events.length) {
-    throw new Error("Reality Graph produced no events from supplied reality");
-  }
+  if (!realityGraph.events.length) throw new Error("Reality Graph produced no events from supplied reality");
 
-  const result = await authorBrainUniversal({
-    ...test,
-    facts: [...test.facts], sourceMoments: [...test.sourceMoments],
-    memoryContext: [...test.memoryContext], trajectory: [...test.trajectory],
-    creativeLearningContext: [...test.creativeLearningContext],
+  const invalidTemporalEdges = realityGraph.relations.filter((relation) => {
+    if (relation.kind !== "before" && relation.kind !== "after") return false;
+    const from = realityGraph.events.find((event) => event.id === relation.from)?.label ?? "";
+    const to = realityGraph.events.find((event) => event.id === relation.to)?.label ?? "";
+    return !hasExplicitClock(from) || !hasExplicitClock(to);
   });
+  if (invalidTemporalEdges.length) throw new Error(`Reality Graph invented chronology: ${invalidTemporalEdges.length} temporal edge(s) lack explicit clock evidence`);
+  console.log("GRAPH INVARIANT GREEN · chronology requires explicit clock evidence");
+
+  const latentMovies = searchLatentMovieCandidates({ graph: realityGraph, subject: test.subject, lens: test.lens, limit: 6 });
+  console.log("\n--- QRE LATENT MOVIE SEARCH ---");
+  latentMovies.forEach((candidate, index) => {
+    console.log(`[${index + 1}] ${candidate.lens} · SCORE=${candidate.score} · TRUTH-RISK=${candidate.truthRisk}`);
+    console.log(`    EVIDENCE: ${candidate.evidence.join(" | ")}`);
+    console.log(`    RELATIONS: ${candidate.supportingRelationKinds.join(", ") || "none"}`);
+    console.log(`    QUESTION: ${candidate.unresolvedQuestion}`);
+    console.log(`    TRAJECTORY: ${candidate.trajectory.map((step) => `${step.operation}:${step.eventIds.join("+")}`).join(" → ")}`);
+    console.log(`    PAYOFF: ${candidate.payoff}`);
+  });
+  console.log("--- END QRE LATENT MOVIE SEARCH ---\n");
+
+  const result = await authorBrainUniversal({ ...test, facts: [...test.facts], sourceMoments: [...test.sourceMoments], memoryContext: [...test.memoryContext], trajectory: [...test.trajectory], creativeLearningContext: [...test.creativeLearningContext] });
 
   console.log(`TIME: ${((Date.now() - started) / 1000).toFixed(3)}s`);
   console.log(`ANGLE: ${result.brief.angle}`);
