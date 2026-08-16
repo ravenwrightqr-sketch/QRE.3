@@ -6,6 +6,7 @@ const failures = [];
 const warnings = [];
 
 const canonical = "apps/api/src/services/authorBrainUniversal.ts";
+const cognition = "apps/api/src/services/authorCognition.ts";
 const cutPolicy = "apps/api/src/services/authorCutPolicy.ts";
 const acceptance = "apps/api/author-acceptance-suite.ts";
 
@@ -58,6 +59,7 @@ function walk(dir, out = []) {
 }
 
 if (!existsSync(join(root, canonical))) fail(`Missing canonical Master Author: ${canonical}`);
+if (!existsSync(join(root, cognition))) fail(`Missing canonical author cognition: ${cognition}`);
 if (!existsSync(join(root, cutPolicy))) fail(`Missing canonical cut policy: ${cutPolicy}`);
 if (!existsSync(join(root, acceptance))) fail(`Missing canonical acceptance harness: ${acceptance}`);
 
@@ -85,6 +87,12 @@ if (/authorFastCore|authorBrain\.js|authorBrainMomentum|creativeRelationOps/.tes
 }
 
 const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
+if (!/from\s+["'][^"']*authorCognition\.js["']/.test(canonicalSource)) {
+  fail("Master Author must import canonical authorCognition directly");
+}
+if (!/buildAuthorCognitivePlan\s*\(/.test(canonicalSource)) {
+  fail("Master Author must execute the canonical author cognition plan before realization");
+}
 if (!/from\s+["'][^"']*authorCutPolicy\.js["']/.test(canonicalSource)) {
   fail("Master Author must import the canonical authorCutPolicy directly");
 }
@@ -124,6 +132,7 @@ if (existsSync(apiServices)) {
 
 console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
 console.log(`MASTER AUTHOR: ${canonical}`);
+console.log(`CANONICAL COGNITION: ${cognition}`);
 console.log(`CANONICAL CUT POLICY: ${cutPolicy}`);
 console.log(`ACCEPTANCE: ${acceptance}`);
 console.log(`MASTER AUTHOR IMPORTS: ${masterAuthorImports}`);
@@ -136,4 +145,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH · ONE CUT POLICY");
+console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH · ONE COGNITION PLAN · ONE CUT POLICY");
