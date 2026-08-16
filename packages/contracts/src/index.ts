@@ -2,7 +2,7 @@
 
 export type { CinematicScene, CinematicSceneType, SceneAudio, SceneVisual, SceneTransition } from "./cinematic.js";
 export type { SequencePlay, SequenceCut, SequenceCut as SequenceBeat, ViewerState, ViewerAttentionRole, SequenceGainKind, ViewerMomentum, MagnetCircle, CutNecessity, SequenceTransition } from "./sequencePlay.js";
-export type { ViewerMomentum as ViewerMomentumContract, MagnetCircle as MagnetCircleContract, CutNecessity as CutNecessityContract, SequenceTransition as SequenceTransitionContract } from "./viewerMomentum.js";
+export type { ViewerMomentum as ViewerMomentumContract, MagnetCircle as MagnetCircleContract, MemoryReentryMagnet, SubjectContinuity, InformationFrontier, CutNecessity as CutNecessityContract, SequenceTransition as SequenceTransitionContract } from "./viewerMomentum.js";
 export * from "./scan.js";
 export type { ScanResponse } from "./scanResponse.js";
 export type { ScanEvent } from "./scanEvent.js";
