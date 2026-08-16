@@ -22,7 +22,7 @@ const grounded = await groundAuthorBeat({
     order: 1,
     role: "hook",
     gainKind: "reframe",
-    change: `Find the sharpest relationship inside the supplied reality.`,
+    change: "Find the sharpest relationship inside the supplied reality.",
     frontier: "What is unexpectedly interesting here?",
     nextNeed: "A fresh grounded turn.",
     necessity: "Reveal the strongest creative relationship.",
@@ -33,37 +33,48 @@ console.log(`APPROVED: ${grounded.approvedEvidence.join(" | ")}`);
 console.log(`OPPORTUNITY: ${grounded.creativeOpportunity}`);
 console.log(`FORBIDDEN: ${grounded.forbiddenClaims.join(" | ") || "none"}`);
 
-const generation = await localModelGenerate(
-  [
-    {
-      role: "system",
-      content: [
-        "You are QRE's fast creative mouth probe.",
-        "Generate 6 radically different candidate lines from the supplied evidence and creative opportunity.",
-        "Search different operators: direct, contrast, wordplay, understatement, reversal, character.",
-        "Do not invent a concrete event, location, object, physical placement, reaction, outcome, or second character.",
-        "Identity metadata is context, not a plot device unless explicitly made relevant.",
-        "Never explain the joke. Prefer 3-9 words per candidate.",
-        "Return JSON exactly: {\"texts\":[\"...\",\"...\"]}.",
-      ].join("\n"),
-    },
-    {
-      role: "user",
-      content: JSON.stringify({ SUBJECT: subject, APPROVED_EVIDENCE: grounded.approvedEvidence, CREATIVE_OPPORTUNITY: grounded.creativeOpportunity }),
-    },
-  ],
-  "json",
-  { numPredict: 420, temperature: 0.95 },
-);
+const operators = [
+  "DIRECT: state the sharpest concrete relationship plainly, with no flourish.",
+  "CONTRAST: place two supplied details against each other so the collision carries the line.",
+  "WORDPLAY: exploit a genuine double meaning, homonym, or semantic collision already present in the supplied words.",
+  "UNDERSTATEMENT: say less than the obvious interpretation and let the reader finish the thought.",
+  "REVERSAL: invert the expected framing without inventing an event or physical action.",
+  "CHARACTER: give the subject an attitude or comic voice that is clearly expressive framing, not a new factual event.",
+] as const;
 
-let candidates: string[] = [];
-try {
-  const parsed = JSON.parse(String(generation.text ?? "").trim()) as { texts?: unknown };
-  if (Array.isArray(parsed.texts)) candidates = parsed.texts.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 8);
-} catch {
-  candidates = [];
-}
+const candidateResults = await Promise.all(operators.map(async (operator) => {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE's fast creative mouth probe.",
+          "Generate exactly ONE candidate line.",
+          operator,
+          "Use only APPROVED_EVIDENCE as factual material.",
+          "Do not invent a concrete event, location, object, physical placement, reaction, outcome, second character, chronology, or wardrobe state.",
+          "Identity metadata is context, not a plot device unless explicitly made relevant.",
+          "Prefer 3-10 words. Never explain the joke.",
+          "Return JSON exactly: {\"text\":\"...\"}.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ SUBJECT: subject, APPROVED_EVIDENCE: grounded.approvedEvidence, CREATIVE_OPPORTUNITY: grounded.creativeOpportunity }),
+      },
+    ],
+    "json",
+    { numPredict: 120, temperature: 0.88 },
+  );
+  try {
+    const parsed = JSON.parse(String(result.text ?? "").trim()) as { text?: unknown };
+    return String(parsed.text ?? "").trim();
+  } catch {
+    return "";
+  }
+}));
 
+const candidates = candidateResults.filter(Boolean);
 console.log("CANDIDATES:");
 candidates.forEach((text, index) => console.log(`[${index + 1}] ${text}`));
 
