@@ -16,6 +16,17 @@ function parse(raw: string): string[] {
   }
 }
 
+function parseChoice(raw: string, count: number): number | null {
+  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    const value = JSON.parse(text) as { bestIndex?: unknown };
+    const index = Number(value.bestIndex);
+    return Number.isInteger(index) && index >= 0 && index < count ? index : null;
+  } catch {
+    return null;
+  }
+}
+
 function sourceTokens(input: AuthorBrainTruth): Set<string> {
   const source = [input.subject ?? "", ...input.facts, ...(input.sourceMoments ?? []), ...(input.memoryContext ?? [])].join(" ");
   return new Set(source.toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 4));
@@ -49,6 +60,21 @@ function unsupportedPronounPenalty(text: string, input: AuthorBrainTruth): numbe
   return 0;
 }
 
+function unsupportedConcretePenalty(text: string, input: AuthorBrainTruth): number {
+  const value = text.toLowerCase();
+  const source = [input.subject ?? "", ...input.facts, ...(input.sourceMoments ?? []), ...(input.memoryContext ?? [])].join(" ").toLowerCase();
+  let penalty = 0;
+  const unsupported = [
+    "home", "room", "house", "door", "grandma", "grandmother", "clubhouse", "sunset", "sunrise", "golden", "light", "lights",
+    "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion", "winks", "winked",
+  ];
+  for (const word of unsupported) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(value) && !new RegExp(`\\b${word}\\b`, "i").test(source)) penalty += 0.16;
+  }
+  if (/\b(?:boy|girl|man|woman|male|female|gender|gender reveal|boys'|girls')\b/i.test(value) && !/\b(?:male|female|man|woman|boy|girl)\b/i.test(source)) penalty += 0.35;
+  return Math.min(0.65, penalty);
+}
+
 function vagueSummaryPenalty(text: string): number {
   const value = text.toLowerCase();
   let penalty = 0;
@@ -62,17 +88,17 @@ function sentenceScore(text: string, input: AuthorBrainTruth, beat: Record<strin
   const source = sourceTokens(input);
   const overlap = sourceOverlap(text, source);
   const beatMatch = beatOverlap(text, beat);
-  const penalty = mouthQualityPenalty(text) + unsupportedPronounPenalty(text, input) + vagueSummaryPenalty(text);
+  const penalty = mouthQualityPenalty(text) + unsupportedPronounPenalty(text, input) + unsupportedConcretePenalty(text, input) + vagueSummaryPenalty(text);
   const compression = words >= 3 && words <= 7 ? 1 : 0;
   const evidenceBreadth = Math.min(1, tokenSet(text).size / 5);
   const punctuationBonus = /[!?—,:;]/.test(text) ? 0.04 : 0;
   return (
-    overlap * 0.38 +
-    beatMatch * 0.22 +
-    evidenceBreadth * 0.16 +
-    compression * 0.14 +
+    overlap * 0.36 +
+    beatMatch * 0.18 +
+    evidenceBreadth * 0.14 +
+    compression * 0.12 +
     punctuationBonus -
-    penalty * 0.7
+    penalty * 0.78
   );
 }
 
@@ -80,6 +106,45 @@ function candidateDirective(index: number): string {
   if (index === 0) return "Write the cleanest, sharpest realization. Concrete first. No explanation.";
   if (index === 1) return "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events.";
   return "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
+}
+
+async function judgeCandidates(
+  input: AuthorBrainTruth,
+  beat: Record<string, unknown>,
+  candidates: string[],
+  risk: string,
+): Promise<number | null> {
+  if (candidates.length < 2) return candidates.length === 1 ? 0 : null;
+
+  const source = JSON.stringify({
+    prompt: input.prompt,
+    subject: input.subject ?? "",
+    facts: input.facts,
+    moments: input.sourceMoments ?? [],
+    memory: input.memoryContext ?? [],
+    subjectTruth: input.subjectTruth ?? null,
+  });
+
+  const prompt = [
+    "You are QRE's sentence judge.",
+    "The movie and beat are already approved. You MUST choose between supplied candidate lines; do not rewrite them.",
+    "Choose the line that is most specific, surprising, compressed, characterful, and faithful to source truth.",
+    "Reject any candidate that asserts an unsupported person, place, object, action, relationship, outcome, dialogue, setting, or gender interpretation.",
+    "Prefer a line that makes supplied details collide or change meaning without explaining the joke.",
+    "Do not reward generic cinematic atmosphere.",
+    `RISK DIAL: ${risk}.`,
+    `SOURCE=${source}`,
+    `APPROVED_BEAT=${JSON.stringify(beat)}`,
+    `CANDIDATES=${JSON.stringify(candidates)}`,
+    `Return JSON exactly: {"bestIndex":0} or {"bestIndex":1}.`,
+  ].join("\n");
+
+  const result = await localModelGenerate(
+    [{ role: "system", content: prompt }, { role: "user", content: "Choose the strongest candidate only." }],
+    "json",
+    { numPredict: 96, temperature: 0.15 },
+  );
+  return parseChoice(result.text, candidates.length);
 }
 
 /** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer only competes on sentence quality. */
@@ -131,16 +196,18 @@ export async function polishAuthorScenes(
       if (candidate) candidates.push(candidate);
     }
 
-    let best = "";
-    let bestScore = -Infinity;
-    for (const candidate of candidates) {
-      const value = sentenceScore(candidate, input, beat);
-      if (value > bestScore) {
-        best = candidate;
-        bestScore = value;
-      }
-    }
-    chosenTexts.push(bestScore >= 0.22 ? best : "");
+    const deterministicScores = candidates.map((candidate) => sentenceScore(candidate, input, beat));
+    const judgeIndex = await judgeCandidates(input, beat, candidates, risk);
+    const deterministicBest = deterministicScores.length
+      ? deterministicScores.reduce((bestIndex, value, index, scores) => value > scores[bestIndex] ? index : bestIndex, 0)
+      : null;
+    const selectedIndex = judgeIndex !== null && deterministicScores[judgeIndex] >= 0.18
+      ? judgeIndex
+      : deterministicBest !== null && deterministicScores[deterministicBest] >= 0.22
+        ? deterministicBest
+        : null;
+
+    chosenTexts.push(selectedIndex === null ? "" : candidates[selectedIndex]);
   }
 
   const scenes: AuthorScene[] = [];
