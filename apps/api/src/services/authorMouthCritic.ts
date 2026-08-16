@@ -67,7 +67,10 @@ export async function critiqueMouthCandidates(input: {
   beat: unknown;
   candidates: string[];
   previousFailure?: string;
+  sequenceOrder?: number;
+  subjectAlreadyEstablished?: boolean;
 }): Promise<MouthCritique> {
+  const subjectAlreadyEstablished = input.subjectAlreadyEstablished ?? Boolean((input.sequenceOrder ?? 1) > 1);
   const system = [
     "You are QRE's AUTHOR CRITIC for short-form experience copy.",
     "You judge the finished line, not the architecture.",
@@ -84,8 +87,10 @@ export async function critiqueMouthCandidates(input: {
     "Source-specific wordplay is valuable, but do not force bows/balls/ties into a joke merely because they are available.",
     "Specificity: could this line plausibly have been written from this exact subject, personality, and situation?",
     "Creative force: reward status reversal, vivid social framing, double meaning, sly understatement, comic compression, or a memorable comparison.",
-    "Compression: prefer 4-8 words for short cinematic/service copy; allow up to 10 when the extra words materially improve the punch.",
-    "SUBJECT REFERENCE: after the subject is established, omission is preferred. Reusing the name is allowed when it itself makes the line hit harder.",
+    "Compression: prefer 3-8 words for short cinematic/service copy; allow up to 10 when the extra words materially improve the punch.",
+    "SEQUENCE CONTINUITY: line one may establish the subject. Once established, later lines should normally OMIT the subject's name and use the freed words for the new beat.",
+    "A later line repeating the subject name is a penalty unless the repetition itself creates a deliberate punch, escalation, callback, or reversal.",
+    "Do not restate the same subject + trait + noun pattern on every line. Each beat should change the movie.",
     "Reject generic summaries such as 'happy and fun', 'special moment', 'joyful experience', or 'what a day' when they merely restate supplied emotion.",
     "If a candidate is catchy, grounded, characterful, and memorable, prefer it over a blandly literal sentence.",
     "If all candidates fail, use decision=retry and bestIndex=-1. Never choose the least-bad candidate merely because one must be selected.",
@@ -98,6 +103,8 @@ export async function critiqueMouthCandidates(input: {
     prompt: input.prompt,
     lens: input.lens ?? "",
     subject: input.subject ?? "",
+    sequenceOrder: input.sequenceOrder ?? 1,
+    subjectAlreadyEstablished,
     moviePremise: input.moviePremise ?? "",
     SUPPLIED_EVIDENCE: { facts: input.facts, moments: input.moments, memory: input.memory },
     GROUNDED_BEAT: input.beat,
