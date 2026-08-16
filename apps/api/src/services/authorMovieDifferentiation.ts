@@ -61,9 +61,9 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
 }
 
 /**
- * Greedy diversity gate. Score matters, but score alone is forbidden from
- * selecting six near-identical movies. Every later candidate pays a duplicate
- * penalty against the strongest already-selected overlap.
+ * Greedy diversity gate. Candidate score matters, but score alone is forbidden
+ * from selecting six near-identical movies. Every later candidate pays a
+ * duplicate penalty against its most similar already-selected movie.
  */
 export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[], limit = 6): LatentMovieCandidate[] {
   const remaining = [...candidates];
@@ -77,7 +77,7 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
       const diversity = selected.length
         ? Math.min(...selected.map((prior) => movieCandidateDiversity(candidate, prior)))
         : 1;
-      const adjusted = metric(candidate.score * 0.72 + diversity * 0.28);
+      const adjusted = candidate.score * 0.72 + diversity * 0.28;
       if (adjusted > bestValue) {
         bestValue = adjusted;
         bestIndex = index;
@@ -86,10 +86,10 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
 
     const [winner] = remaining.splice(bestIndex, 1);
     if (!winner) break;
-    selected.push({
-      ...winner,
-      score: metric(winner.score * 0.72 + (selected.length === 1 ? 0.28 : Math.min(...selected.slice(0, -1).map((prior) => movieCandidateDiversity(winner, prior))) * 0.28)),
-    });
+    const distinctiveness = selected.length
+      ? Math.min(...selected.map((prior) => movieCandidateDiversity(winner, prior)))
+      : 1;
+    selected.push({ ...winner, distinctiveness: metric(distinctiveness) });
   }
 
   return selected;
