@@ -42,10 +42,7 @@ const allowedAuthorServices = new Set([
 
 function fail(message) { failures.push(message); }
 function warn(message) { warnings.push(message); }
-
-function read(path) {
-  return readFileSync(join(root, path), "utf8");
-}
+function read(path) { return readFileSync(join(root, path), "utf8"); }
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -92,6 +89,12 @@ if (!/from\s+["'][^"']*authorCognition\.js["']/.test(canonicalSource)) {
 }
 if (!/buildAuthorCognitivePlan\s*\(/.test(canonicalSource)) {
   fail("Master Author must execute the canonical author cognition plan before realization");
+}
+if (!/BEAT-DISCOVERY/.test(canonicalSource)) {
+  fail("Master Author must contain an explicit beat-discovery stage");
+}
+if (!/MOUTH-REALIZATION/.test(canonicalSource)) {
+  fail("Master Author must contain an explicit mouth-realization stage");
 }
 if (!/from\s+["'][^"']*authorCutPolicy\.js["']/.test(canonicalSource)) {
   fail("Master Author must import the canonical authorCutPolicy directly");
@@ -145,4 +148,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH · ONE COGNITION PLAN · ONE CUT POLICY");
+console.log("ARCHITECTURE GUARD GREEN · ONE MASTER AUTHOR PATH · ONE COGNITION PLAN · ONE BEAT PLAN · ONE MOUTH · ONE CUT POLICY");
