@@ -18,7 +18,6 @@ const GENERIC_LENSES = ["comedy", "romance", "horror", "sentimental", "absurd", 
 type Lens = (typeof GENERIC_LENSES)[number];
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
-
 function eventById(graph: RealityGraph, id: string) { return graph.events.find((event) => event.id === id); }
 
 function requestedLenses(lens?: string): Lens[] {
@@ -98,7 +97,7 @@ function buildTrajectory(graph: RealityGraph, anchors: string[], lens: Lens): La
   return steps.slice(0, 6);
 }
 
-function buildCandidate(graph: RealityGraph, lens: Lens, rank: number): LatentMovieCandidate {
+function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: Lens, rank: number): LatentMovieCandidate {
   const anchors = chooseAnchors(graph, lens);
   const trajectory = buildTrajectory(graph, anchors, lens);
   const relations = relationEvidence(graph, anchors);
@@ -144,7 +143,7 @@ function buildCandidate(graph: RealityGraph, lens: Lens, rank: number): LatentMo
     payoff,
     unresolvedQuestion: unresolved,
     evidence,
-    hypothesis: [`The supplied relationships may support a ${lens} reading.`, "This is a creative hypothesis, not a new fact."],
+    hypothesis: [`${subject ? `${subject}: ` : ""}the supplied relationships may support a ${lens} reading.`, "This is a creative hypothesis, not a new fact."],
     truthRisk,
     novelty,
     specificity,
@@ -163,6 +162,6 @@ function buildCandidate(graph: RealityGraph, lens: Lens, rank: number): LatentMo
 export function searchLatentMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
   if (!input.graph.events.length) return [];
   const lenses = requestedLenses(input.lens);
-  const candidates = lenses.map((lens, index) => buildCandidate(input.graph, lens, index + 1));
+  const candidates = lenses.map((lens, index) => buildCandidate(input.graph, input.subject, lens, index + 1));
   return candidates.sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(input.limit ?? 6, 8)));
 }
