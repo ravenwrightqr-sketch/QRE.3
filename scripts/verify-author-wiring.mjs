@@ -12,7 +12,10 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 
 const truth = "packages/contracts/src/experience/authorBrain.ts";
 const graphContract = "packages/contracts/src/experience/realityGraph.ts";
+const latentContract = "packages/contracts/src/experience/latentMovie.ts";
 const graphBuilder = "apps/api/src/services/authorRealityGraph.ts";
+const latentSearch = "apps/api/src/services/authorLatentMovieSearch.ts";
+const differentiation = "apps/api/src/services/authorMovieDifferentiation.ts";
 const master = "apps/api/src/services/authorBrainUniversal.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
 const mouth = "apps/api/src/services/localModelRuntime.ts";
@@ -20,7 +23,7 @@ const cutPolicy = "apps/api/src/services/authorCutPolicy.ts";
 const acceptance = "apps/api/author-acceptance-suite.ts";
 const wiringMap = "docs/AUTHOR_WIRING_MAP.md";
 
-for (const path of [truth, graphContract, graphBuilder, master, cognition, mouth, cutPolicy, acceptance, wiringMap]) {
+for (const path of [truth, graphContract, latentContract, graphBuilder, latentSearch, differentiation, master, cognition, mouth, cutPolicy, acceptance, wiringMap]) {
   check(`exists:${path}`, existsSync(join(root, path)), existsSync(join(root, path)) ? "canonical file present" : "required canonical file missing");
 }
 
@@ -31,11 +34,18 @@ if (existsSync(join(root, graphBuilder))) {
   const body = read(graphBuilder);
   check("graph:typed", /RealityGraph/.test(body), "graph builder uses the canonical RealityGraph contract");
   check("graph:provenance", /provenance/.test(body) && /sourceIds/.test(body), "graph events retain source provenance");
-  check(
-    "graph:relations",
-    /relations/.test(body) && /addRelation\s*\(/.test(body) && /unresolvedTensions/.test(body),
-    "graph builder emits typed relations and tension signals"
-  );
+  check("graph:relations", /relations/.test(body) && /addRelation\s*\(/.test(body) && /unresolvedTensions/.test(body), "graph builder emits typed relations and tension signals");
+}
+if (existsSync(join(root, latentSearch))) {
+  const body = read(latentSearch);
+  check("movie-search:graph-input", /RealityGraph/.test(body), "latent movie search consumes canonical RealityGraph");
+  check("movie-search:diversity-gate", /selectDistinctMovieCandidates/.test(body), "latent movie search passes candidates through diversity gate");
+  check("movie-search:truth-boundary", /truthRisk/.test(body) && /creative hypothesis/.test(body), "latent movie search preserves epistemic boundary");
+}
+if (existsSync(join(root, differentiation))) {
+  const body = read(differentiation);
+  check("movie-differentiation:diversity", /movieCandidateDiversity/.test(body) && /selectDistinctMovieCandidates/.test(body), "differentiation compares evidence, relations, trajectory and payoff");
+  check("movie-differentiation:material", /hasMaterialMovieDifference/.test(body) && /0\.25/.test(body), "material movie difference has an explicit acceptance threshold");
 }
 if (existsSync(join(root, master))) {
   const body = read(master);
@@ -63,14 +73,9 @@ if (existsSync(join(root, acceptance))) {
   const body = read(acceptance);
   check("acceptance:master", /authorBrainUniversal/.test(body), "acceptance invokes the Master Author");
   check("acceptance:same-reality-lenses", /COUPLE-FUNNY/.test(body) && /COUPLE-HORROR/.test(body), "acceptance exercises same truth through multiple lenses");
-
   const acceptsArgv = /process\.argv\.slice\(2\)/.test(body) || /process\.argv\[\d+\]/.test(body);
   const hasArbitraryFallback = /splitReality\s*\(/.test(body) && /\?\?\s*\(\(\)\s*=>/.test(body);
-  check(
-    "acceptance:arbitrary-input",
-    acceptsArgv && hasArbitraryFallback,
-    "acceptance supports arbitrary user reality input"
-  );
+  check("acceptance:arbitrary-input", acceptsArgv && hasArbitraryFallback, "acceptance supports arbitrary user reality input");
 }
 
 console.log("=== QRE AUTHOR WIRING GUARD ===");
@@ -79,4 +84,4 @@ if (failures.length) {
   console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length} wiring gap(s)`);
   process.exit(1);
 }
-console.log("AUTHOR WIRING GUARD GREEN · REALITY → COGNITION → MAGNET → SEQUENCE → MOUTH → CUT POLICY → ACCEPTANCE");
+console.log("AUTHOR WIRING GUARD GREEN · REALITY → MOVIE SEARCH → DIFFERENTIATION → COGNITION → MAGNET → SEQUENCE → MOUTH → CUT POLICY → ACCEPTANCE");
