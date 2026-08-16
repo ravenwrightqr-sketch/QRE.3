@@ -1,7 +1,7 @@
 /**
  * QRE UNIVERSAL AUTHOR BRAIN · CANONICAL
  *
- * truth → cognition → latent movie → beat discovery → magnet → mouth → cut policy
+ * truth → reality graph → cognition → latent movie → beat discovery → magnet → mouth → cut policy
  *
  * A beat is a sentence cut / moving message: one perceivable moment, then the
  * player advances. The discovered beat plan is the only source for SequencePlay.
@@ -20,6 +20,7 @@ import type {
   ViewerMomentum,
 } from "@qre/contracts";
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
+import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { evaluateCut, type CutWorld } from "./authorCutPolicy.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
@@ -409,126 +410,21 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
         `contradictions=${cognition.contradictions.slice(0, 4).join(" | ") || "none"}`,
       ].join("\n"),
     },
-    { role: "user" as const, content: JSON.stringify(compactWorld) },
+    { role: "user" as const, content: JSON.stringify({
+      prompt: input.prompt,
+      lens: input.lens,
+      subjectTruth: input.subjectTruth ?? null,
+      memory: input.memoryContext ?? [],
+      trajectory: input.trajectory ?? [],
+      realityGraph: input.realityGraph ?? null,
+      beats: sequence.cuts.map((cut, index) => ({
+        order: index + 1,
+        role: cut.role,
+        change: cut.informationGain,
+        frontier: cut.momentum?.after.informationFrontier?.frontier ?? "",
+        nextNeed: cut.nextPromise ?? "",
+        necessity: plan.beats[index]?.necessity ?? "",
+      })),
+    }) },
   ];
-}
-
-function buildMouthMessages(input: AuthorBrainTruth, sequence: SequencePlay, plan: BeatPlan) {
-  const beats = sequence.cuts.map((cut, index) => ({
-    order: index + 1,
-    role: cut.role,
-    change: cut.informationGain,
-    frontier: cut.momentum?.after.informationFrontier?.frontier ?? "",
-    nextNeed: cut.nextPromise ?? "",
-    necessity: plan.beats[index]?.necessity ?? "",
-  }));
-  return [
-    {
-      role: "system" as const,
-      content: [
-        "You are QRE's theatrical mouth.",
-        "The sequence is a film made of moving messages / sentence cuts.",
-        "Write ONE short viewer-facing line for ONE approved beat.",
-        "One line appears briefly, then cuts. Make it feel like a jolt, not a paragraph.",
-        "HARD LIMIT: 7 words maximum. Prefer 3-6 words.",
-        "The line must realize the supplied beat, not summarize the whole story.",
-        "Do not invent concrete facts or outcomes. Metaphor, attitude, implication, and personification are allowed when they do not assert new facts.",
-        "After the subject is established, spend the words on the new beat instead of repeating the name.",
-        "Funny: make the social situation or personality collide. Horror: preserve calm normality while reality slips. Romance: make the private meaning felt. Demented: take the supplied contradiction somewhere sharp without inventing a new event.",
-        "Never explain the joke, emotion, theme, or lesson.",
-        "Never mention beat, role, strategy, operator, frontier, cognition, planning, viewer, audience, or the writing process.",
-        "Never output emojis, headings, or quotation labels.",
-        "Output JSON exactly as {\"text\":\"one line\"}.",
-      ].join("\n"),
-    },
-    { role: "user" as const, content: JSON.stringify({ prompt: input.prompt, lens: input.lens, subjectTruth: input.subjectTruth ?? null, memory: input.memoryContext ?? [], trajectory: input.trajectory ?? [], beats }) },
-  ];
-}
-
-export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown>; diagnostics: Record<string, unknown> }> {
-  const subject = clean(input.subject) || "the subject";
-  const cognition = buildAuthorCognitivePlan({
-    prompt: clean(input.prompt), lens: clean(input.lens), subject, place: clean(input.place),
-    facts: [...input.facts], sourceMoments: [...input.sourceMoments], memoryContext: [...(input.memoryContext ?? [])],
-    priorScenes: [...(input.trajectory ?? [])], priorStrategies: [...(input.creativeLearningContext ?? [])], round: Math.max(1, input.trajectory?.length ? 2 : 1),
-  });
-
-  const risk = inferRiskDial(input, cognition);
-  const field: Record<string, unknown> = {
-    subjectTruth: input.subjectTruth ?? null,
-    facts: uniq(input.facts, 24),
-    moments: uniq(input.sourceMoments, 18),
-    memory: uniq(input.memoryContext, 14),
-    trajectory: uniq(input.trajectory, 14),
-    learning: uniq(input.creativeLearningContext, 20),
-    prompt: clean(input.prompt),
-    lens: clean(input.lens),
-    cognition: { mode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, callbackTargets: cognition.callbackTargets, sceneRules: cognition.sceneRules },
-    creativeRisk: risk,
-  };
-
-  const beatMessages = buildBeatMessages(input, cognition);
-  let beatPlanResult = await localModelGenerate(beatMessages, "json", { numPredict: 768, temperature: risk === "safe" ? 0.55 : 0.78 });
-  debug("BEAT-DISCOVERY", beatPlanResult.text);
-  let beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
-  let beatPlanRetries = 0;
-
-  if (!beatPlan) {
-    beatPlanRetries = 1;
-    beatPlanResult = await localModelGenerate([
-      beatMessages[0],
-      { role: "user", content: `${beatMessages[1].content}\nReturn ONLY JSON. Use exactly 4 beats. Keep change/frontier/next/necessity extremely short. No closing.` },
-    ], "json", { numPredict: 512, temperature: 0.5 });
-    debug("BEAT-DISCOVERY-RETRY", beatPlanResult.text);
-    beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
-  }
-
-  if (!beatPlan) {
-    return {
-      brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field,
-      diagnostics: { cognitionMode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, creativeRisk: risk, beatCount: 0, beatPlan: [], beatPlanRetries, beatPlanParseFailed: true, sequenceCutsAttempted: 0, sequenceCutsRejected: 0, finalScenes: 0 },
-    };
-  }
-
-  const sequence = buildViewerMomentum(subject, beatPlan);
-  if (!sequence) {
-    return { brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field, diagnostics: { cognitionMode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, creativeRisk: risk, beatCount: 0, beatPlanRetries, finalScenes: 0 } };
-  }
-
-  const realization = await localModelGenerate(buildMouthMessages(input, sequence, beatPlan), "json", { numPredict: 640, temperature: risk === "safe" ? 0.58 : 0.76 });
-  debug("MOUTH-REALIZATION", realization.text);
-  const texts = extractTexts(parseJson<unknown>(realization.text));
-  const sequenceResult = scenesFromSequence(sequence, texts, input);
-  const magnetValues = sequence.cuts.map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0).filter(Number.isFinite);
-  const magnetAverage = magnetValues.length ? magnetValues.reduce((a, b) => a + b, 0) / magnetValues.length : 0;
-  const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
-  const magnetFloor = magnetValues.length ? Math.min(...magnetValues) : 0;
-
-  return {
-    brief: brief(input, cognition.chosenAttentionStrategy), scenes: sequenceResult.scenes, sequence, field,
-    diagnostics: {
-      cognitionMode: cognition.mode,
-      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
-      attentionCandidates: cognition.attentionCandidates,
-      contradictions: cognition.contradictions,
-      operatorMix: cognition.operatorMix,
-      creativeRisk: risk,
-      beatCount: beatPlan.beats.length,
-      beatPlan: beatPlan.beats,
-      beatPlanRetries,
-      beatPlanParseFailed: false,
-      sequenceCutsAttempted: sequenceResult.attempted,
-      sequenceCutsRejected: sequenceResult.rejected,
-      rejectionReasons: sequenceResult.rejectionReasons,
-      realizationTexts: texts,
-      realizationCountMismatch: texts.length !== sequence.cuts.length,
-      finalScenes: sequenceResult.scenes.length,
-      magnetAverage: metric(magnetAverage),
-      magnetPeak: metric(magnetPeak),
-      magnetFloor: metric(magnetFloor),
-      magnetCutsMeasured: magnetValues.length,
-      subjectSpaceEstablished: Boolean(sequence.closingMomentum?.subjectContinuity?.established),
-      informationFrontier: sequence.closingMomentum?.informationFrontier?.frontier ?? "",
-    },
-  };
 }
