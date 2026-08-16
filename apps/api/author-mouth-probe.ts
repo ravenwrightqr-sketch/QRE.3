@@ -1,4 +1,6 @@
 import { localModelGenerate } from "./src/services/localModelRuntime.js";
+import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
+import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { groundAuthorBeat } from "./src/services/authorBeatTruthGate.js";
 import { critiqueMouthCandidates } from "./src/services/authorMouthCritic.js";
 
@@ -19,25 +21,52 @@ const facts = [subject, ...subjectContext, ...evidenceFacts];
 const explicitOverride = /\b(?:paragraph|essay|formal|report|list|bullet|caption|keep (?:this|it) (?:exactly|as written)|do not rewrite|plain facts)\b/i.test(raw);
 const visionLike = /\b(?:vision|dream|want to|goal|aspir|three[- ]year|next three years|someday|life i want|bucket list|mission|adventure)\b/i.test(raw);
 
+const realityGraph = buildAuthorRealityGraph({
+  prompt: raw,
+  subject,
+  place: "",
+  facts,
+  sourceMoments: evidenceFacts,
+  memoryContext: [],
+  trajectory: [],
+});
+const cognition = buildAuthorCognitivePlan({
+  prompt: raw,
+  lens: explicitType,
+  subject,
+  place: "",
+  facts,
+  sourceMoments: evidenceFacts,
+  memoryContext: [],
+  priorScenes: [],
+  priorStrategies: [],
+  round: 1,
+  realityGraph,
+});
+
 console.log("=== QRE UNIVERSAL MICRO-CINEMATIC MOUTH PROBE ===");
 console.log(`TYPE: ${experienceType}`);
 console.log(`SUBJECT: ${subject}`);
 console.log(`CONTEXT: ${subjectContext.join(" | ") || "none"}`);
 console.log(`SEED: ${raw}`);
 console.log(`MODE: ${explicitOverride ? "USER-OVERRIDE" : "MICRO-CINEMATIC-DEFAULT"}`);
+console.log(`COGNITIVE MODE: ${cognition.mode}`);
+console.log(`STRATEGY: ${cognition.chosenAttentionStrategy}`);
+console.log(`OPERATORS: ${cognition.operatorMix.join(" | ")}`);
+console.log(`MOVIES: ${cognition.latentMovieCandidates.slice(0, 3).map((movie) => movie.lens).join(" | ") || "none"}`);
 
 const grounded = await groundAuthorBeat({
   subject,
   facts,
-  moments: [],
+  moments: evidenceFacts,
   memory: [],
   beat: {
     order: 1,
     role: "hook",
     gainKind: visionLike ? "discovery" : "reframe",
     change: visionLike
-      ? "Find the larger life direction and the strongest sequence hidden inside the user's stated ambitions."
-      : `Find the strongest latent relationship in the supplied reality for a ${experienceType}.`,
+      ? "Find the larger life direction and strongest sequence hidden inside the user's stated ambitions."
+      : `Find the strongest latent relationship inside this ${experienceType}.`,
     frontier: visionLike ? "What life is being imagined here?" : "What makes this worth the next cut?",
     nextNeed: "A sharp characterful turn.",
     necessity: "Establish the strongest creative direction without inventing facts.",
@@ -48,30 +77,37 @@ console.log(`APPROVED: ${grounded.approvedEvidence.join(" | ")}`);
 console.log(`OPPORTUNITY: ${grounded.creativeOpportunity}`);
 console.log(`FORBIDDEN: ${grounded.forbiddenClaims.join(" | ") || "none"}`);
 
+const serviceLike = cognition.mode === "service" || /\b(?:service|receipt|groom|grooming|cleaning|repair|salon|barber|appointment|client)\b/i.test(`${experienceType} ${raw}`);
 const generation = await localModelGenerate(
   [
     {
       role: "system",
       content: [
         "You are QRE's universal micro-cinematic author.",
-        "Unless the user explicitly asks for another format, turn any supplied seed into a short sequence of viewer-facing sentence cuts.",
+        "Unless the user explicitly asks for another format, turn the seed into a short sequence of viewer-facing sentence cuts.",
         "Default product behavior: tiny movie, full-screen scene by scene, one short sentence at a time.",
         "Return exactly 5 beats when the seed supports it; return 3-5 when it is sparse.",
         "Each beat is 2-8 words whenever possible. One idea. One turn. Keep moving.",
         "Do not write a paragraph, recap, checklist, or fact dump.",
         "GLOBAL QUALITY: attention-grabbing, confident, specific, characterful, surprising, memorable, and playable.",
-        "Search the hidden character before the obvious nouns: attitude, social stance, status, friction, reaction, implication, personification, absurdity, tenderness, menace, or a tiny negotiation.",
-        "For visions, dreams, goals, missions, bucket lists, and future-life seeds: DO NOT reduce the idea to a comparison between two nouns. Find the larger arc, identity, escalation, recurring ritual, ambition, or future-world feeling. Treat each ambition as a possible beat in a life montage.",
-        "For visions, preserve the user's actual ambitions as anchors: rave, sushi, coffee, relationships, travel, etc. Turn them into vivid future scenes rather than generic motivational language.",
-        "Character-attitude is the preferred default. Example: 'Lawyer already called.' can frame a fierce dog entering a groomer without claiming a real lawyer exists.",
-        "Micro-interaction is allowed as cinematic interpretation. Do not present invented concrete events as sourced history.",
-        "Use supplied facts as anchors. Creative framing may exaggerate attitude or implication but may not invent literal people, objects, places, actions, dialogue, outcomes, or events.",
-        "Do not force conspicuous nouns into jokes. Bows, balls, ties, sushi, coffee, raves, weddings, houses, etc. are ingredients, not mandatory punchlines.",
+        "Use the COGNITIVE PLAN as private direction. It tells you what kind of creative search to perform; never expose strategy or operator names in viewer text.",
+        `CHOSEN STRATEGY: ${cognition.chosenAttentionStrategy}`,
+        `OPERATORS: ${cognition.operatorMix.join(" | ")}`,
+        `COGNITIVE BRIEF: ${cognition.authorBrief.join(" | ")}`,
+        "Search the hidden character and situation before obvious nouns: attitude, social stance, status, friction, reaction, implication, personification, absurdity, tenderness, menace, ritual, or a tiny negotiation.",
+        serviceLike
+          ? "SERVICE AUTHORING MODE: Never turn the service facts into a report. Find the tiny human movie inside the work. Time stamps can create rhythm or mission pressure. A task sequence can become a sense of conquest, craft, ritual, precision, speed, ownership, or controlled chaos. The final line should leave the customer with a feeling about the work, not a recap of every task. Never invent a customer reaction, tool, room detail, dialogue, or physical event not supplied."
+          : "NON-SERVICE MODE: Find the strongest latent relationship, then build the smallest sequence that makes that relationship feel alive.",
+        "For visions, dreams, goals, missions, bucket lists, and future-life seeds: do not collapse the prompt into a comparison between two nouns. Preserve the whole ambition and stage it as a future-facing montage: declaration → obsession → accumulation → life expansion → horizon. Do not pretend future events already happened.",
+        "For memory prompts: use recurrence, private meaning, changed context, and callbacks. For house/space prompts: let the space participate only when evidence supports it.",
+        "Character-attitude is preferred over adjective echoing. Do not simply repeat 'meticulous', 'fast', 'happy', 'fierce', 'cool', etc. Show what those traits mean in the situation.",
+        "A micro-interaction or social framing may be used as cinematic interpretation, but do not present invented concrete events as sourced history.",
+        "Do not force conspicuous nouns into jokes. Bows, balls, ties, sushi, coffee, raves, weddings, houses, kitchens, bathrooms, timestamps, etc. are ingredients, not mandatory punchlines.",
         "Repeat the quality, never the trick. Do not reuse a successful joke structure unless this seed independently earns it.",
         "After the subject is established, omit the name unless bringing it back makes the line hit harder.",
-        "Sequence rhythm: hook → turn → escalation/reframe → sharper turn → payoff/afterimage.",
-        "For future vision seeds, the rhythm can instead be: declaration → first obsession → accumulation → life expansion → unforgettable horizon.",
-        "Each line should make the next line more desirable.",
+        "SEQUENCE RHYTHM: establish → turn → deepen → sharper turn → payoff/afterimage. Vary sentence shape and do not repeat the same grammatical opening.",
+        "Every line must do one new thing. Do not restate the same evidence with different adjectives.",
+        "Prefer a small clever implication over an explanatory sentence.",
         explicitOverride
           ? "The user explicitly requested a different format. Obey that requested format instead of forcing the cinematic default. Preserve user-authored wording where applicable."
           : "No alternate format was requested. Use the micro-cinematic default.",
@@ -86,14 +122,25 @@ const generation = await localModelGenerate(
         SUBJECT_CONTEXT: subjectContext,
         USER_SEED: raw,
         VISION_LIKE: visionLike,
+        SERVICE_LIKE: serviceLike,
         SUPPLIED_EVIDENCE: grounded.approvedEvidence,
         CREATIVE_OPPORTUNITY: grounded.creativeOpportunity,
         FORBIDDEN_CLAIMS: grounded.forbiddenClaims,
+        REALITY_GRAPH: realityGraph,
+        COGNITIVE_PLAN: {
+          mode: cognition.mode,
+          strategy: cognition.chosenAttentionStrategy,
+          operators: cognition.operatorMix,
+          contradictions: cognition.contradictions,
+          sceneRules: cognition.sceneRules,
+          antiRepetitionRules: cognition.antiRepetitionRules,
+          latentMovies: cognition.latentMovieCandidates.slice(0, 4),
+        },
       }),
     },
   ],
   "json",
-  { numPredict: 560, temperature: explicitOverride ? 0.55 : 0.9 },
+  { numPredict: 600, temperature: explicitOverride ? 0.55 : 0.9 },
 );
 
 let sequence: string[] = [];
@@ -110,11 +157,12 @@ sequence.forEach((text, index) => console.log(`[${index + 1}] ${text}`));
 const judgments = await Promise.all(
   sequence.map((text, index) => critiqueMouthCandidates({
     prompt: experienceType,
-    lens: "micro-cinematic, short, catchy, characterful, attention-grabbing, surprising, memorable",
+    lens: `micro-cinematic, short, catchy, characterful, attention-grabbing, surprising, memorable; strategy=${cognition.chosenAttentionStrategy}; operators=${cognition.operatorMix.join(",")}`,
     subject,
     facts,
-    moments: [],
+    moments: evidenceFacts,
     memory: [],
+    moviePremise: cognition.latentMovieCandidates[0]?.hypothesis?.join(" ") ?? "",
     beat: {
       order: index + 1,
       role: index === 0 ? "hook" : index === sequence.length - 1 ? "payoff" : "reframe",
