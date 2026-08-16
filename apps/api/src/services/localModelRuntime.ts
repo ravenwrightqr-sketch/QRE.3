@@ -10,6 +10,11 @@ export type LocalModelResult = {
   provider: "local";
 };
 
+export type LocalModelOptions = {
+  numPredict?: number;
+  temperature?: number;
+};
+
 function baseUrl() {
   return (process.env.QRE_LOCAL_MODEL_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 }
@@ -54,22 +59,22 @@ function outputText(data: any): string {
 
 const UNIVERSAL_AUTHOR_COGNITION = [
   "QRE AUTHOR COGNITIVE DISCIPLINE · hidden planning, finished output only:",
-  "1. Treat supplied facts as world memory, not a checklist of sentences.",
-  "2. Search relationships among facts before choosing a sequence: contradiction, recurrence, recontextualization, implication, callback, status shift, convergence, mismatch, unresolved object, and detail hierarchy.",
-  "3. Select the strongest MAGNET, not the easiest story template. A magnet is valuable when the viewer knows enough to care but not enough to know what the relationship means next.",
-  "4. Keep an information frontier: every cut should move the viewer's model, create a meaningful information need, or pay off a previously earned promise. Repeating known identity/state is a cost.",
-  "5. For memory/living-memory inputs, prioritize re-entry into the actual memory: specific sensory, social, personal, temporal, object, or identity-bearing details supplied by the world. Do not substitute category shorthand for the memory and never invent sensory details.",
-  "6. Reject generic category associations as the creative center: an event name is not its feeling; a rave is not automatically bass/neon/dancing; a grooming visit is not automatically fear/treat/happiness.",
-  "7. Do not turn supplied emotional states into invented choreography. Emotion may be expressed through attitude, implication, contrast, or supplied action; do not manufacture physical behavior.",
-  "8. When the subject is established, keep it in working memory and spend language on what is newly valuable. Use the name again only when the reference itself changes meaning or restores necessary clarity.",
-  "9. Do not explain the feeling, lesson, joke, or significance when a sharper implication can make the viewer infer it.",
-  "10. Prefer high information density over adjective density. The output should feel discovered, specific, and alive—not like a generic summary of the source.",
+  "Treat supplied facts as world memory, not a checklist of sentences.",
+  "Search relationships among facts before choosing a sequence: contradiction, recurrence, recontextualization, implication, callback, status shift, convergence, mismatch, unresolved object, and detail hierarchy.",
+  "Select the strongest MAGNET, not the easiest story template.",
+  "Keep an information frontier: every cut should move the viewer's model, create meaningful information need, or pay off a promise.",
+  "Identity and established facts belong to baseline world state; do not spend cuts repeating them unless meaning changes.",
+  "For memory, restore the actual supplied sensory/social/personal fingerprint. Never replace it with category shorthand.",
+  "Do not invent concrete facts, people, actions, locations, dates, dialogue, objects, or outcomes.",
+  "Do not explain the feeling, joke, or significance when implication can carry it.",
 ].join("\n");
 
 function prepareMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
   const firstSystem = messages.find((message) => message.role === "system");
   if (!firstSystem) return messages;
-  if (!/QRE's universal creative author/i.test(firstSystem.content)) return messages;
+  if (!/QRE's universal creative author|QRE's universal latent-movie discovery brain|QRE's theatrical mouth/i.test(firstSystem.content)) {
+    return messages;
+  }
   return messages.map((message) =>
     message === firstSystem
       ? { ...message, content: `${UNIVERSAL_AUTHOR_COGNITION}\n\n${message.content}` }
@@ -77,11 +82,14 @@ function prepareMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
   );
 }
 
-export async function localModelGenerate(messages: LocalModelMessage[], format?: "json"): Promise<LocalModelResult> {
+export async function localModelGenerate(
+  messages: LocalModelMessage[],
+  format?: "json",
+  options: LocalModelOptions = {},
+): Promise<LocalModelResult> {
   const fast = process.env.QRE_AUTHOR_FAST === "true";
-  // Fast mode stays exploratory but leaves enough headroom to finish compact sequence metadata + cuts.
-  const temperature = Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
-  const numPredict = Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 512 : 512));
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 512 : 512));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
   const preparedMessages = prepareMessages(messages);
 
