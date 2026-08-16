@@ -1,6 +1,6 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
-**Status:** ACTIVE / CLEAN / GUARDED / LATENT-MOVIE SEARCH ONLINE  
+**Status:** ACTIVE / CLEAN / GUARDED / LATENT-MOVIE SEARCH + DIFFERENTIATION ONLINE  
 **Branch:** `qre/latent-movie-search-v1`  
 **Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author, cognition, compiler, sequence, contracts, or diagnostics.
 
@@ -16,6 +16,7 @@ ONE AUTOMATIC ARCHITECTURE GUARD
 ONE MAGNET CIRCLE
 ONE REALITY GRAPH
 ONE LATENT MOVIE SEARCH
+ONE MOVIE DIFFERENTIATION GATE
 ```
 
 No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
@@ -30,6 +31,8 @@ SOURCE TRUTH / PROVENANCE
 REALITY GRAPH
         ↓
 LATENT MOVIE CANDIDATE SEARCH
+        ↓
+MOVIE DIFFERENTIATION / DUPLICATE PRUNING
         ↓
 UNIVERSAL COGNITION
         ↓
@@ -112,6 +115,8 @@ REALITY GRAPH
       ↓
 COMPETING MOVIE HYPOTHESES
       ↓
+DIFFERENTIATION GATE
+      ↓
 COGNITION
 ```
 
@@ -128,7 +133,35 @@ neutral
 
 A candidate is never source truth. It carries explicit evidence, trajectory steps, truth risk, and multi-dimensional quality signals.
 
-## 5. MASTER AUTHOR
+## 5. MOVIE DIFFERENTIATION GATE
+
+Implementation:
+
+`apps/api/src/services/authorMovieDifferentiation.ts`
+
+The first candidate search revealed a critical failure mode: different lens labels could produce the same evidence, same relationships, same trajectory, and same payoff. That is not real creative search.
+
+Canonical invariant:
+
+```text
+lens label difference ≠ movie difference
+```
+
+The gate compares:
+
+```text
+34% anchor/evidence difference
+20% relationship difference
+30% trajectory difference
+12% payoff difference
+ 4% lens-label difference
+```
+
+It greedily balances candidate quality against diversity and exposes `distinctiveness` for diagnostics.
+
+Weak graph relations are uncertainty. They are not automatically truth-risk or invention. Unsupported events are what raise truth risk.
+
+## 6. MASTER AUTHOR
 
 `apps/api/src/services/authorBrainUniversal.ts`
 
@@ -150,7 +183,7 @@ It does not own upstream world modeling, memory persistence, or runtime projecti
 
 It is explicitly a **living intelligence core**: expand and tune it when a general law is discovered; do not add domain-specific hacks.
 
-## 6. PRODUCTION PATH
+## 7. PRODUCTION PATH
 
 ```text
 apps/api/src/routes/experience.ts
@@ -174,32 +207,35 @@ experience moments / cinematic scenes
 
 `cinematicAuthor.ts` is also an adapter only and calls the Universal Author directly. It has no independent critique/repair author loop.
 
-## 7. ACCEPTANCE PATH
+## 8. ACCEPTANCE PATH
 
 The acceptance test uses the exact same Master Author directly:
 
 ```text
 apps/api/author-acceptance-suite.ts
         ↓
+RealityGraph
+        ↓
+Latent Movie Search
+        ↓
+Movie Differentiation
+        ↓
 apps/api/src/services/authorBrainUniversal.ts
 ```
-
-The harness now also prints the deterministic Latent Movie candidates before invoking the model.
 
 Run:
 
 ```powershell
-pnpm author:fast -- COCO
-pnpm author:fast -- COCO-RETURN
-pnpm author:fast -- MARIA
-pnpm author:fast -- HORROR
-pnpm author:fast -- RAVE
+pnpm author:wiring
+pnpm --filter @qre/contracts build
+pnpm --filter @qre/engine build
+pnpm --filter @qre/api build
 pnpm exec tsx apps/api/author-acceptance-suite.ts "Coco, returned, happy, fun, bows, balls, ties, male"
 ```
 
 The harness is an observer. It does not define production rules and must never gain a separate creative bridge.
 
-## 8. UPSTREAM COGNITION
+## 9. UPSTREAM COGNITION
 
 Keep and evolve:
 
@@ -212,11 +248,12 @@ packages/engine/src/cognition/experiencePlanner.ts
 packages/engine/src/cognition/mindState.ts
 apps/api/src/services/authorCognition.ts
 apps/api/src/services/authorLatentMovieSearch.ts
+apps/api/src/services/authorMovieDifferentiation.ts
 ```
 
 Cognition now consumes RealityGraph relationships and runs the canonical latent-movie search before final beat discovery.
 
-## 9. CANONICAL CUT POLICY
+## 10. CANONICAL CUT POLICY
 
 `apps/api/src/services/authorCutPolicy.ts`
 
@@ -238,182 +275,55 @@ impact density
 
 Do not create another independent validator.
 
-## 10. CREATIVE SEARCH
+## 11. CHANGE RULES
 
-Creative search belongs upstream of final realization. It produces **semantic possibilities**, not domain phrase libraries.
-
-Preferred reusable operations include:
+Before adding a new service named `author*`, ask:
 
 ```text
-contrast
-recurrence
-status shift
-relationship change
-detail hierarchy
-implication
-withholding
-reframe
-callback
-consequence
-escalation
-compression
-attitude shift
+Does this own a new semantic authority?
 ```
 
-A candidate is a hypothesis. It is not source truth.
+If yes, stop. Extend the existing canonical owner instead.
 
-Recurrence requires actual history, trajectory, or repeated evidence.
-
-## 11. CANONICAL CONTRACTS
-
-Keep and evolve these shared boundaries:
+The current canonical ownership is:
 
 ```text
-packages/contracts/src/sequencePlay.ts
-packages/contracts/src/viewerMomentum.ts
-packages/contracts/src/subjectTruth.ts
-packages/contracts/src/world.ts
-packages/contracts/src/realityModel.ts
-packages/contracts/src/cognition.ts
-packages/contracts/src/experience/authoring.ts
-packages/contracts/src/experience/realityGraph.ts
-packages/contracts/src/experience/latentMovie.ts
+RealityGraph              → authorRealityGraph.ts
+Latent Movie Search       → authorLatentMovieSearch.ts
+Movie Differentiation     → authorMovieDifferentiation.ts
+Cognition                 → authorCognition.ts
+Master Author             → authorBrainUniversal.ts
+Mouth                     → localModelRuntime.ts / canonical mouth path
+Cut Policy                → authorCutPolicy.ts
+Acceptance                → author-acceptance-suite.ts
 ```
 
-`ViewerMomentum` contains `MagnetCircle`. Do not create a parallel magnet/attention contract.
+The architecture guard exists to make accidental divergence fail loudly.
 
-Do not create another sequence/momentum version without a demonstrated capability gap and explicit replacement/deletion plan.
+## 12. NEXT WORLD
 
-## 12. CLEANUP COMPLETED
+The next major intelligence layer is **trajectory-level search**.
 
-Removed the legacy API author-test pile and legacy author brains.
-
-The only author acceptance harness is:
-
-`apps/api/author-acceptance-suite.ts`
-
-The deleted experimental bridges included:
+It should search complete viewer-state paths rather than selecting isolated beats:
 
 ```text
-authorFastCore.ts
-creativeRelationOps.ts
+candidate movie
+      ↓
+expand possible next cuts
+      ↓
+score viewer-state change
+      ↓
+measure information gain / uncertainty / tension
+      ↓
+penalize repetition / explanation / invention
+      ↓
+prune
+      ↓
+continue
+      ↓
+BEST COMPLETE TRAJECTORY
+      ↓
+MOUTH
 ```
 
-The deleted legacy author authorities included:
-
-```text
-authorBrain.ts
-authorBrainMomentum.ts
-authorBrainMomentumV2.ts
-authorBrainMomentumV3.ts
-```
-
-## 13. REMAINING ADAPTERS
-
-```text
-apps/api/src/services/microBeatMouth.ts
-apps/api/src/services/cinematicAuthor.ts
-```
-
-These are projection/render adapters. They may not introduce independent creative selection, beat counts, critique loops, or hidden fallback authors.
-
-## 14. CREATIVE LAWS
-
-```text
-identity is baseline
-truth ≠ attention
-source state ≠ plot instruction
-emotion ≠ automatic story arc
-creative interpretation ≠ invented event
-questions belong in hidden cognition
-provider/service is usually stage context
-subject/world gravity
-compressed impact > word-count fetish
-one cut = one attention moment
-next cut must earn itself
-recurrence requires evidence
-sparse world → smaller invented-world surface
-magnet strength > beat count
-remove a cut → if the information-seeking trajectory weakens, it mattered
-creative style is downstream realization, not the universal objective
-candidate ≠ fact
-same reality → multiple valid movie hypotheses
-trajectory quality > isolated line quality
-```
-
-## 15. DRIFT GUARD
-
-`scripts/verify-author-architecture.mjs` enforces the following automatically:
-
-```text
-canonical Master Author exists
-canonical acceptance harness exists
-legacy author files remain deleted
-legacy author tests remain deleted
-author:fast points to the canonical acceptance harness
-acceptance imports the Master Author directly
-production imports do not reference deleted author paths
-```
-
-The guard runs before the repository build and in CI.
-
-If any of these conditions drift, **the build stops**.
-
-## 16. TEST DISCIPLINE
-
-Every author experiment follows:
-
-```text
-ONE HYPOTHESIS
-↓
-TRACE THE LIVE PATH
-↓
-ONE CANONICAL CHANGE
-↓
-RUN THE CANONICAL ACCEPTANCE HARNESS
-↓
-RUN THE REAL PRODUCTION PATH
-↓
-CLASSIFY FAILURE
-↓
-GENERALIZE THE LESSON
-↓
-DOCUMENT
-↓
-DELETE STALE PATHS
-```
-
-A green benchmark is not success if production uses a different brain.
-
-## 17. REPO HYGIENE
-
-QRE should get simpler as intelligence increases.
-
-Never accumulate:
-
-```text
-duplicate authors
-duplicate mouths
-duplicate validators
-benchmark-specific production code
-version piles
-stale "canonical" notes
-unreferenced contracts
-domain-specific movie branches
-```
-
-Full audit:
-
-`docs/QRE_FULL_REPO_INFLUENCE_MAP.md`
-
-Master Goal:
-
-`docs/QRE_AUTHOR_GOAL.md`
-
-Magnet Circle:
-
-`docs/QRE_MAGNET_CIRCLE.md`
-
-Latent Movie Search:
-
-`docs/AUTHOR_LATENT_MOVIE_SEARCH.md`
+Do not skip movie differentiation and jump directly from lens labels to trajectory search. Otherwise QRE will optimize duplicate movies.
