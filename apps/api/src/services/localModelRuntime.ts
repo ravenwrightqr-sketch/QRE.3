@@ -34,6 +34,7 @@ function stripDataUrl(value: string) {
   const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
   return match ? match[1] : value;
 }
+
 async function request(path: string, body: unknown) {
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -59,8 +60,7 @@ async function request(path: string, body: unknown) {
     "QRE REQUEST CONTENT CHARS:",
     Array.isArray((body as any)?.messages)
       ? (body as any).messages.reduce(
-          (total: number, message: any) =>
-            total + String(message?.content ?? "").length,
+          (total: number, message: any) => total + String(message?.content ?? "").length,
           0,
         )
       : "none",
@@ -82,17 +82,12 @@ async function request(path: string, body: unknown) {
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
       console.log("QRE RESPONSE ERROR BODY:", detail);
-      throw new Error(
-        `Local model failed (${response.status}): ${detail.slice(0, 300)}`,
-      );
+      throw new Error(`Local model failed (${response.status}): ${detail.slice(0, 300)}`);
     }
 
     console.log("QRE READING RESPONSE JSON");
-
     const json = await response.json();
-
     console.log("QRE RESPONSE JSON RECEIVED");
-
     return json;
   } catch (error) {
     console.log("QRE LOCAL REQUEST ERROR:", error);
@@ -102,6 +97,7 @@ async function request(path: string, body: unknown) {
     console.log("QRE REQUEST FINISHED");
   }
 }
+
 function outputText(data: any): string {
   return String(data?.message?.content ?? data?.response ?? data?.choices?.[0]?.message?.content ?? "").trim();
 }
@@ -250,6 +246,22 @@ function mouthAcceptable(text: string): boolean {
   return true;
 }
 
+function mouthSourceTruth(base: Record<string, unknown>): string {
+  const source = {
+    prompt: typeof base.prompt === "string" ? base.prompt : "",
+    subject: typeof base.subject === "string" ? base.subject : "",
+    place: typeof base.place === "string" ? base.place : "",
+    facts: Array.isArray(base.facts) ? base.facts.map(String).slice(0, 24) : [],
+    moments: Array.isArray(base.moments) ? base.moments.map(String).slice(0, 18) : [],
+    sourceMoments: Array.isArray(base.sourceMoments) ? base.sourceMoments.map(String).slice(0, 18) : [],
+    memory: Array.isArray(base.memory) ? base.memory.map(String).slice(0, 14) : [],
+    trajectory: Array.isArray(base.trajectory) ? base.trajectory.map(String).slice(0, 14) : [],
+    subjectTruth: base.subjectTruth ?? null,
+    realityGraph: base.realityGraph ?? null,
+  };
+  return JSON.stringify(source);
+}
+
 async function realizeMouthOneBeat(
   messages: LocalModelMessage[],
   beat: unknown,
@@ -261,6 +273,7 @@ async function realizeMouthOneBeat(
 
   const base = parseUserObject(messages) ?? {};
   const singleBeatPayload = { ...base, beats: [beat] };
+  const sourceTruth = mouthSourceTruth(base);
   const fast = process.env.QRE_AUTHOR_FAST === "true";
   const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.78 : 0.82));
   const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 192 : 256));
@@ -269,10 +282,10 @@ async function realizeMouthOneBeat(
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const retryInstruction = attempt === 0
       ? ""
-      : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. 2-7 words. Make the next thing happen or become newly meaningful. No summary. No explanation. No conclusion unless this is payoff.`;
+      : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. 2-7 words. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
     const singleSystem: LocalModelMessage = {
       ...system,
-      content: `${system.content}\n\nQRE MOUTH · MOVING MESSAGE MODE:\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse 2-7 words. Prefer 3-6.\nOne line = one hit: a concrete action, sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
+      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse 2-7 words. Prefer 3-6.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
     };
     const singleUser: LocalModelMessage = { ...user, content: JSON.stringify(singleBeatPayload) };
     const prepared = prepareMessages([singleSystem, singleUser]);
