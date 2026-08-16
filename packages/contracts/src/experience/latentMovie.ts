@@ -1,9 +1,11 @@
 /**
- * Universal semantic movie hidden inside an experience.
+ * QRE LATENT MOVIE CONTRACT · CANONICAL HYPOTHESIS LAYER
  *
- * This is deliberately domain-neutral. A groomer, wedding, gym session,
- * house, vehicle, relationship, animal, event, or place all reduce to the
- * same observable structure before language realization begins.
+ * Universal semantic structures discovered from immutable RealityGraph data.
+ * This contract is domain-neutral: groomers, weddings, services, people,
+ * places, events, animals, and ordinary life all use the same representation.
+ *
+ * IMPORTANT: Latent Movie data is interpretation, not source truth.
  */
 export type LatentMovieEvent = {
   id: string;
@@ -42,6 +44,8 @@ export type LatentMovieCandidate = {
   unresolvedQuestion: string;
   evidence: string[];
   hypothesis: string[];
+
+  /** Epistemic / creative diagnostics. */
   truthRisk: number;
   novelty: number;
   specificity: number;
@@ -52,6 +56,9 @@ export type LatentMovieCandidate = {
   callbackPotential: number;
   compressionPotential: number;
   repetitionRisk: number;
+
+  /** How materially this movie differs from the other candidates in the same search. */
+  distinctiveness: number;
   score: number;
 };
 
