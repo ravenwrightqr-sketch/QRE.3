@@ -1,4 +1,5 @@
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
+import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 
 const COUPLE_FACTS = [
   "Mike and Joe recently met",
@@ -56,7 +57,7 @@ const cases = {
 
 function splitReality(value: string): string[] {
   return value
-    .split(/[\n.;]+/)
+    .split(/[,\n.;•]+/)
     .map((item) => item.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
     .filter((item) => item.length >= 2);
 }
@@ -91,6 +92,30 @@ console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
 
 try {
+  const realityGraph = buildAuthorRealityGraph({
+    prompt: test.prompt,
+    subject: test.subject,
+    facts: [...test.facts],
+    sourceMoments: [...test.sourceMoments],
+    memoryContext: [...test.memoryContext],
+    trajectory: [...test.trajectory],
+  });
+
+  console.log("\n--- QRE REALITY GRAPH PREVIEW ---");
+  console.log(`EVIDENCE: ${realityGraph.evidence.length}`);
+  console.log(`EVENTS: ${realityGraph.events.length}`);
+  realityGraph.events.slice(0, 12).forEach((event) => console.log(`  ${event.id}: ${event.label} · entities=${event.entities.join(", ")}`));
+  console.log(`RELATIONS: ${realityGraph.relations.length}`);
+  realityGraph.relations.slice(0, 16).forEach((relation) => console.log(`  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`));
+  console.log(`TENSIONS: ${JSON.stringify(realityGraph.unresolvedTensions)}`);
+  console.log(`RECURRING: ${JSON.stringify(realityGraph.recurringSignals)}`);
+  console.log(`SENSORY: ${JSON.stringify(realityGraph.sensorySignals)}`);
+  console.log("--- END QRE REALITY GRAPH PREVIEW ---\n");
+
+  if (!realityGraph.events.length) {
+    throw new Error("Reality Graph produced no events from supplied reality");
+  }
+
   const result = await authorBrainUniversal({
     ...test,
     facts: [...test.facts], sourceMoments: [...test.sourceMoments],
