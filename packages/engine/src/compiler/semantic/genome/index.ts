@@ -1,8 +1,6 @@
 export {
   buildExperienceGenome,
-  genomeBuilder,
 } from "./genomeBuilder.js";
-
 
 export type {
   ExperienceGenome,
