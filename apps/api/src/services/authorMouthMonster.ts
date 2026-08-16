@@ -2,6 +2,7 @@ import type { AuthorBrainTruth, AuthorScene, SequencePlay } from "@qre/contracts
 import { localModelGenerate } from "./localModelRuntime.js";
 import { mouthCraftSystem, mouthCraftUser, mouthQualityPenalty } from "./authorMouthCraft.js";
 import { critiqueMouthCandidates } from "./authorMouthCritic.js";
+import { groundAuthorBeat, type GroundedBeat } from "./authorBeatTruthGate.js";
 
 const MAX_CRITIC_ATTEMPTS = 3;
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -36,7 +37,10 @@ function sourceOverlap(text: string, source: Set<string>): number {
 }
 
 function beatOverlap(text: string, beat: Record<string, unknown>): number {
-  const beatWords = tokenSet([String(beat.change ?? ""), String(beat.frontier ?? ""), String(beat.nextNeed ?? "")].join(" "));
+  const beatWords = tokenSet([
+    String(beat.creativeOpportunity ?? ""),
+    ...(Array.isArray(beat.approvedEvidence) ? beat.approvedEvidence.map(String) : []),
+  ].join(" "));
   const words = tokenSet(text);
   if (!beatWords.size || !words.size) return 0;
   let hits = 0;
@@ -59,6 +63,7 @@ function unsupportedConcretePenalty(text: string, input: AuthorBrainTruth): numb
     "home", "room", "house", "door", "grandma", "grandmother", "clubhouse", "sunset", "sunrise", "golden", "light", "lights",
     "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion", "winks", "winked",
     "hair", "pocket", "feet", "foot", "hands", "eyes", "bed", "yard", "outside", "inside", "everyone", "nobody",
+    "disco", "roar", "sparkle", "sparkles", "twirl", "twirls", "prance", "prances", "pranced",
   ];
   for (const word of unsupported) {
     if (new RegExp(`\\b${word}\\b`, "i").test(value) && !new RegExp(`\\b${word}\\b`, "i").test(source)) penalty += 0.16;
@@ -72,7 +77,7 @@ function vagueSummaryPenalty(text: string): number {
   const value = text.toLowerCase();
   let penalty = 0;
   if (/\b(?:happy|fun|joyful|special|meaningful|magical|beautiful|emotional)\b/.test(value) && !/\b(?:bow|bows|ball|balls|tie|ties|return|returned|coco)\b/.test(value)) penalty += 0.35;
-  if (/\b(?:love|victorious|grace|smile|laugh|laughs|grin|grins)\b/.test(value) && !/\b(?:bow|bows|ball|balls|tie|ties|returned|coco)\b/.test(value)) penalty += 0.18;
+  if (/\b(?:love|victorious|grace|smile|laugh|laughs|grin|grins)\b/.test(value) && !/\b(?:bow|bows|ball|balls|ties|returned|coco)\b/.test(value)) penalty += 0.18;
   return penalty;
 }
 
@@ -82,7 +87,7 @@ function sentenceScore(text: string, input: AuthorBrainTruth, beat: Record<strin
   const overlap = sourceOverlap(text, source);
   const beatMatch = beatOverlap(text, beat);
   const penalty = mouthQualityPenalty(text) + unsupportedPronounPenalty(text, input) + unsupportedConcretePenalty(text, input) + vagueSummaryPenalty(text);
-  const compression = words >= 3 && words <= 7 ? 1 : 0;
+  const compression = words >= 3 && words <= 9 ? 1 : 0;
   const evidenceBreadth = Math.min(1, tokenSet(text).size / 5);
   const punctuationBonus = /[!?—,:;]/.test(text) ? 0.04 : 0;
   return (
@@ -104,13 +109,17 @@ function candidateDirective(index: number, repair = ""): string {
   return repair ? `${base} CRITIC REPAIR: ${repair}` : base;
 }
 
-function safeFallback(beat: Record<string, unknown>): string {
-  const change = clean(beat.change);
-  if (!change) return "The approved beat lands.";
-  return change.split(/\s+/).slice(0, 7).join(" ").replace(/[,:;—-]+$/, "").trim();
+function safeFallback(beat: GroundedBeat, subject?: string): string {
+  const evidence = beat.approvedEvidence.slice(0, 6).filter(Boolean);
+  if (subject && evidence.length) {
+    const withoutSubject = evidence.filter((item) => item.toLowerCase() !== subject.toLowerCase());
+    if (withoutSubject.length) return `${subject} — ${withoutSubject.slice(0, 4).join(", ")}.`;
+  }
+  if (evidence.length) return evidence.slice(0, 5).join(", ") + ".";
+  return "The approved evidence holds.";
 }
 
-/** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer only competes on sentence quality. */
+/** Evidence-first Monster Mouth. The brain chooses the movie and beats; this layer grounds each beat before competing on sentence quality. */
 export async function polishAuthorScenes(
   input: AuthorBrainTruth,
   sequence: SequencePlay,
@@ -121,7 +130,7 @@ export async function polishAuthorScenes(
   let fallbackCount = 0;
 
   for (const cut of sequence.cuts) {
-    const beat = {
+    const rawBeat = {
       order: cut.order,
       role: cut.role,
       gainKind: cut.gainKind,
@@ -129,7 +138,19 @@ export async function polishAuthorScenes(
       frontier: cut.momentum?.after.informationFrontier?.frontier ?? "",
       nextNeed: cut.nextPromise ?? "",
       necessity: cut.necessity?.reason ?? "",
-      sourceIds: cut.sourceIds,
+    };
+
+    const grounded = await groundAuthorBeat({
+      subject: input.subject,
+      facts: input.facts,
+      moments: input.sourceMoments ?? [],
+      memory: input.memoryContext ?? [],
+      beat: rawBeat,
+    });
+
+    const beat: Record<string, unknown> = {
+      ...grounded,
+      candidateBoundary: "Only approvedEvidence may be asserted as concrete reality.",
     };
 
     let chosen: string | null = null;
@@ -158,7 +179,7 @@ export async function polishAuthorScenes(
           [
             {
               role: "system",
-              content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved. Never invent a new beat, event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, or location.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
+              content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved, but the beat has passed through QRE's Truth Gate.\nSOURCE BOUNDARY: only approvedEvidence may become a concrete factual claim. creativeOpportunity is an invitation to explore a relationship, not a fact. forbiddenClaims must not be realized.\nNever invent a new event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, location, body position, wardrobe placement, or social reaction.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
             },
             { role: "user", content: userContent },
           ],
@@ -194,17 +215,11 @@ export async function polishAuthorScenes(
       }
     }
 
+    // A rejected candidate is NEVER promoted to final copy. If bounded search
+    // fails, fall back to a deliberately plain, evidence-only line.
     if (!chosen) {
-      const deterministicBest = lastScores.length
-        ? lastScores.reduce((bestIndex, value, index, scores) => value > scores[bestIndex] ? index : bestIndex, 0)
-        : null;
-      if (deterministicBest !== null && lastScores[deterministicBest] >= 0.16) {
-        chosen = lastCandidates[deterministicBest];
-        fallbackCount += 1;
-      } else {
-        chosen = safeFallback(beat);
-        fallbackCount += 1;
-      }
+      chosen = safeFallback(grounded, input.subject);
+      fallbackCount += 1;
     }
 
     chosenTexts.push(chosen);
@@ -212,8 +227,15 @@ export async function polishAuthorScenes(
 
   const scenes: AuthorScene[] = [];
   for (let i = 0; i < sequence.cuts.length; i += 1) {
-    const text = chosenTexts[i];
-    if (!text) continue;
+    const text = chosenTexts[i] || safeFallback({
+      order: sequence.cuts[i].order,
+      role: sequence.cuts[i].role,
+      gainKind: sequence.cuts[i].gainKind,
+      approvedEvidence: [input.subject ?? "", ...input.facts].filter(Boolean),
+      creativeOpportunity: "",
+      forbiddenClaims: [],
+      sourceBoundary: "",
+    }, input.subject);
     scenes.push({
       text,
       kind: sequence.cuts[i].role === "hook" ? "hook" : sequence.cuts[i].role === "payoff" ? "payoff" : "line",
@@ -222,8 +244,8 @@ export async function polishAuthorScenes(
 
   return {
     scenes,
-    texts: chosenTexts,
-    rejected: sequence.cuts.length - scenes.length,
+    texts: scenes.map((scene) => scene.text),
+    rejected: Math.max(0, sequence.cuts.length - scenes.length),
     retries: totalRetries,
     fallbacks: fallbackCount,
   };
