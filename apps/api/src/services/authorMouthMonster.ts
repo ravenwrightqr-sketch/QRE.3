@@ -56,25 +56,28 @@ function unsupportedPronounPenalty(text: string, input: AuthorBrainTruth): numbe
 }
 
 function unsupportedConcretePenalty(text: string, input: AuthorBrainTruth): number {
-  const value = text.toLowerCase();
-  const source = [input.subject ?? "", ...input.facts, ...(input.sourceMoments ?? []), ...(input.memoryContext ?? [])].join(" ").toLowerCase();
+  const valueTokens = tokenSet(text);
+  const sourceTokensSet = sourceTokens(input);
   let penalty = 0;
-  const unsupported = [
+  // These are high-risk physical/world-building additions. They are intentionally
+  // separate from creative status language such as lawyer, case, negotiation,
+  // peace, approval, rebellion, or mission, which can be metaphorical and are allowed.
+  const unsupportedPhysical = new Set([
     "home", "room", "house", "door", "grandma", "grandmother", "clubhouse", "sunset", "sunrise", "golden", "light", "lights",
-    "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion", "winks", "winked",
+    "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion",
     "hair", "pocket", "feet", "foot", "hands", "eyes", "bed", "yard", "outside", "inside", "everyone", "nobody",
     "disco", "roar", "sparkle", "sparkles", "twirl", "twirls", "prance", "prances", "pranced",
     "shadow", "shadows", "moonlight", "moon", "sunlight", "fading", "glow", "glows", "glowing", "whisper", "whispers", "whispered",
     "sweat", "tears", "tear", "smile", "smiles", "grin", "grins", "laugh", "laughs", "laughter", "music", "melody", "sound", "sounds",
     "bubbled", "bubble", "ripples", "ripple", "towel", "brow", "secret", "secrets", "mystery", "clue", "clues", "ghostly", "ominous", "ominously",
-    "boot", "boots", "footsteps", "steps", "audience", "crowd", "altar", "wedding", "ceremony", "audience", "camera", "shot", "focus", "slow-motion",
+    "boot", "boots", "footsteps", "steps", "audience", "crowd", "altar", "wedding", "ceremony", "camera", "shot", "focus", "slow-motion",
     "yellowed", "faded", "finger", "fingers", "record-scratch", "scratch", "scratchy", "dawn", "dusk",
-  ];
-  for (const word of unsupported) {
-    if (new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(value) && !new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(source)) penalty += 0.18;
+  ]);
+  for (const word of unsupportedPhysical) {
+    if (valueTokens.has(word) && !sourceTokensSet.has(word)) penalty += 0.25;
   }
-  if (/\b(?:boy|girl|man|woman|male|female|gender|gender reveal|boys'|girls')\b/i.test(value) && !/\b(?:male|female|man|woman|boy|girl)\b/i.test(source)) penalty += 0.35;
-  if (/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test(value) && !/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test(source)) penalty += 0.3;
+  if (/\b(?:boy|girl|man|woman|male|female|gender|gender reveal)\b/i.test(text) && !/\b(?:male|female|man|woman|boy|girl)\b/i.test([input.subject ?? "", ...input.facts].join(" "))) penalty += 0.35;
+  if (/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test(text) && !/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test([input.subject ?? "", ...input.facts, ...(input.sourceMoments ?? [])].join(" "))) penalty += 0.35;
   return Math.min(1, penalty);
 }
 
@@ -207,9 +210,11 @@ export async function polishAuthorScenes(
       });
 
       if (critic.decision === "accept" && critic.bestIndex >= 0 && critic.bestIndex < candidates.length) {
+        const candidate = candidates[critic.bestIndex];
         const score = deterministicScores[critic.bestIndex] ?? -Infinity;
-        if (score >= 0.18) chosen = candidates[critic.bestIndex];
-        else previousFailure = "Hard reject: unsupported concrete detail, generic atmosphere, or weak source grounding. Shorten and make the supplied detail do the work.";
+        const hardPhysicalPenalty = unsupportedConcretePenalty(candidate, input);
+        if (hardPhysicalPenalty < 0.25 && score >= 0.18) chosen = candidate;
+        else previousFailure = "Hard reject: invented physical/world detail or generic atmosphere. Keep the creative attitude, but make the supplied detail do the work.";
       } else {
         previousFailure = critic.repairDirective || critic.reason || "Generate a shorter, source-specific realization with a clever turn and no invented physical detail.";
       }
