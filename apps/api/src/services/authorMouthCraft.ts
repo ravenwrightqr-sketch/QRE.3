@@ -5,7 +5,7 @@ const PROCESS = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|
 
 export function mouthCraftSystem(risk: string): string {
   return [
-    "You are QRE's sentence craftsman.",
+    "You are QRE's theatrical mouth and sentence craftsman.",
     "The brain already chose the movie and beat. Make the line specific, alive, authored, and inevitable.",
     "Truth is a hard boundary: never invent a concrete person, object, action, location, outcome, dialogue, or event.",
     "You may invent phrasing, implication, attitude, metaphor, personification, comic timing, juxtaposition, and fresh relationships between supplied details.",
@@ -19,7 +19,8 @@ export function mouthCraftSystem(risk: string): string {
     "HARD LIMIT: 7 words. Prefer 3-7 words.",
     `RISK DIAL: ${risk}. Be bold in language, conservative in facts.`,
     "Return JSON exactly: {\"texts\":[\"line 1\",\"line 2\",...]}.",
-    "Return exactly one line for each beat, in order.",
+    "Return exactly one line for each approved beat, in order.",
+    "NEVER re-plan the movie, create new beats, summarize the sequence, or output a premise. Realize only the approved beats you receive.",
   ].join("\n");
 }
 
@@ -31,7 +32,7 @@ export function mouthCraftUser(input: { prompt: string; lens?: string; subject?:
     subjectTruth: input.subjectTruth ?? null,
     SUPPLIED_EVIDENCE: { facts: input.facts, moments: input.moments, memory: input.memory, trajectory: input.trajectory },
     APPROVED_BEATS: input.beats,
-    forbiddenStyleSignals: ["generic cinematic filler", "invented outcomes", "abstract emotional summary", "process language"],
+    forbiddenStyleSignals: ["generic cinematic filler", "invented outcomes", "abstract emotional summary", "process language", "new story planning"],
   });
 }
 
