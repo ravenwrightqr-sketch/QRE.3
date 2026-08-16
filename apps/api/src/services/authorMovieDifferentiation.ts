@@ -18,6 +18,10 @@ import type { LatentMovieCandidate } from "@qre/contracts";
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
 
+// A candidate that is merely a relabeling of an existing movie must not survive.
+// Fewer strong movies are preferable to a large pile of cosmetic alternatives.
+const MIN_MATERIAL_DIVERSITY = 0.34;
+
 function jaccard(a: string[], b: string[]): number {
   const aa = new Set(a);
   const bb = new Set(b);
@@ -61,28 +65,39 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
 }
 
 /**
- * Greedy diversity gate. Candidate score matters, but score alone is forbidden
- * from selecting six near-identical movies. Every later candidate pays a
- * duplicate penalty against its most similar already-selected movie.
+ * Greedy diversity gate.
+ *
+ * This is intentionally a HARD gate, not a ranking preference. Candidate score
+ * can decide which surviving movie wins, but it cannot rescue a near-duplicate.
+ * If a candidate is too similar to any selected movie, it is rejected and the
+ * next candidate gets the slot. This makes "six lenses" mean "up to six movies",
+ * not "six labels around one movie".
  */
 export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[], limit = 6): LatentMovieCandidate[] {
   const remaining = [...candidates];
   const selected: LatentMovieCandidate[] = [];
 
   while (remaining.length && selected.length < Math.max(1, limit)) {
-    let bestIndex = 0;
+    let bestIndex = -1;
     let bestValue = -Infinity;
 
     remaining.forEach((candidate, index) => {
       const diversity = selected.length
         ? Math.min(...selected.map((prior) => movieCandidateDiversity(candidate, prior)))
         : 1;
+
+      // Hard rejection: no amount of raw score makes a duplicate a new movie.
+      if (selected.length && diversity < MIN_MATERIAL_DIVERSITY) return;
+
       const adjusted = candidate.score * 0.72 + diversity * 0.28;
       if (adjusted > bestValue) {
         bestValue = adjusted;
         bestIndex = index;
       }
     });
+
+    // No remaining candidate is materially different enough to earn another slot.
+    if (bestIndex < 0) break;
 
     const [winner] = remaining.splice(bestIndex, 1);
     if (!winner) break;
@@ -97,5 +112,5 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
 
 /** Acceptance invariant: lenses cannot manufacture diversity by label alone. */
 export function hasMaterialMovieDifference(a: LatentMovieCandidate, b: LatentMovieCandidate): boolean {
-  return movieCandidateDiversity(a, b) >= 0.25;
+  return movieCandidateDiversity(a, b) >= MIN_MATERIAL_DIVERSITY;
 }
