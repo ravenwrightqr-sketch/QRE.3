@@ -45,6 +45,8 @@ export type CutPolicyResult = {
     compression: number;
     subjectReferenceCost: number;
     frontierValue: number;
+    semanticDensity: number;
+    factRestatement: number;
   };
 };
 
@@ -59,6 +61,7 @@ const DIRECT_ADDRESS = /\b(?:you|your|viewer|audience)\b/i;
 const FUTURE_CLAIM = /\b(?:from now on|will always|will never|forever|ever again|in the future)\b/i;
 const GENERIC_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
 const SUBJECT_REFERENCE = /\b(?:he|she|they|it|him|her|them|his|her|their|its)\b/i;
+const EMOJI_ONLY_OR_DECORATION = /^[^A-Za-z0-9]*[A-Za-z0-9_-]{0,10}[^A-Za-z0-9]*$/;
 const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/));
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -128,10 +131,6 @@ function inventionRisk(text: string, world: CutWorld): number {
   if (PHYSICAL_ACTION.test(text) && !PHYSICAL_ACTION.test(worldTextValue)) risk += 0.5;
   if (PROVIDER.test(text) && !PROVIDER.test(worldTextValue)) risk += 0.35;
   if (FUTURE_CLAIM.test(text)) risk += 0.35;
-  if (/\b(?:late|previous|former|secret|hidden|inside|under|bag|table|chair|mirror|room|owner|friend|mother|father|husband|wife)\b/i.test(text)) {
-    const token = contentWords(text).find((word) => /^(late|previous|former|secret|hidden|inside|bag|table|chair|mirror|room|owner|friend|mother|father|husband|wife)$/.test(word));
-    if (token && !worldTextValue.toLowerCase().includes(token)) risk += 0.25;
-  }
   return Math.min(1, risk);
 }
 
@@ -151,6 +150,32 @@ function compressionScore(text: string): number {
   if (words <= 8) return 0.75;
   if (words <= 11) return 0.55;
   if (words <= 14) return 0.35;
+  return 0;
+}
+
+function semanticDensity(text: string): number {
+  const raw = clean(text);
+  const words = contentWords(raw);
+  if (!words.length) return 0;
+  let value = 0.15;
+  if (words.length >= 2) value += 0.2;
+  if (words.length >= 4) value += 0.15;
+  if (PHYSICAL_ACTION.test(raw)) value += 0.15;
+  if (/\b(?:again|already|still|yet|only|even|back|different|same|but|except|until|before|after)\b/i.test(raw)) value += 0.15;
+  if (/[,:;]/.test(raw)) value += 0.05;
+  if (GENERIC_EMOTION.test(raw)) value -= 0.1;
+  if (EMOJI_ONLY_OR_DECORATION.test(raw) && /[\u{1F300}-\u{1FAFF}]/u.test(raw)) value -= 0.4;
+  return Math.max(0, Math.min(1, value));
+}
+
+function factRestatement(text: string, world: CutWorld): number {
+  const normalized = clean(text).toLowerCase().replace(/[.!?,]+$/g, "");
+  if (!normalized) return 1;
+  const known = sourceText(world).map((item) => item.toLowerCase().replace(/[.!?,]+$/g, ""));
+  if (known.includes(normalized)) return 1;
+  const compactKnown = new Set(known.flatMap(contentWords));
+  const candidate = contentWords(text);
+  if (candidate.length === 1 && compactKnown.has(candidate[0])) return 0.95;
   return 0;
 }
 
@@ -195,6 +220,8 @@ export function evaluateCut(
   const compression = compressionScore(text);
   const referenceCost = subjectReferenceCost(text, world, priorCuts, Boolean(intent.subjectEstablished));
   const frontier = frontierValue(text, intent, priorCuts);
+  const density = semanticDensity(text);
+  const restatement = factRestatement(text, world);
 
   if (!text) reasons.push("empty");
   if (wordCount > 14) reasons.push("too-long");
@@ -207,9 +234,11 @@ export function evaluateCut(
   if (grounded < 0.25 && wordCount > 3) reasons.push("weak-grounding");
   if (repetition >= 0.9 && priorCuts.length) reasons.push("repetition");
   if (referenceCost >= 0.5) reasons.push("wasted-subject-reference");
+  if (wordCount === 1 && density < 0.5) reasons.push("subject-or-label-only");
+  if (restatement >= 0.9) reasons.push("known-fact-restatement");
+  if (density < 0.25 && wordCount <= 3) reasons.push("low-semantic-density");
+  if (/^[\p{Emoji}\p{Extended_Pictographic}\s\p{Punctuation}]+$/u.test(text)) reasons.push("emoji-or-symbol-only");
 
-  // Intent-aware tightening: payoff/reframe cuts may legitimately be longer,
-  // while hooks and compressed discoveries should usually be denser.
   if (["hook", "reframe", "callback"].includes(clean(intent.role)) && compression < 0.35) reasons.push("low-impact-density");
   if (clean(intent.gainKind) === "question" && questionLeak) reasons.push("cognitive-question-in-mouth");
   if (frontier < 0.15 && novelty < 0.2 && wordCount > 2) reasons.push("frontier-starvation");
@@ -229,6 +258,8 @@ export function evaluateCut(
       compression: Number(compression.toFixed(3)),
       subjectReferenceCost: Number(referenceCost.toFixed(3)),
       frontierValue: Number(frontier.toFixed(3)),
+      semanticDensity: Number(density.toFixed(3)),
+      factRestatement: Number(restatement.toFixed(3)),
     },
   };
 }
