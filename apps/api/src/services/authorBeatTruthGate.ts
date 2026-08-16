@@ -47,19 +47,6 @@ function normalizeIndices(value: unknown, size: number): number[] {
     .filter((item) => Number.isInteger(item) && item >= 0 && item < size))];
 }
 
-function rankEvidence(evidence: string[], beat: { change?: string; frontier?: string; nextNeed?: string; necessity?: string }): number[] {
-  const query = words([beat.change ?? "", beat.frontier ?? "", beat.nextNeed ?? "", beat.necessity ?? ""].join(" "));
-  const ranked = evidence.map((text, index) => {
-    const candidate = words(text);
-    let overlap = 0;
-    for (const word of query) if (candidate.has(word)) overlap += 1;
-    return { index, score: overlap / Math.max(1, candidate.size) };
-  });
-  ranked.sort((a, b) => b.score - a.score || a.index - b.index);
-  const useful = ranked.filter((item) => item.score > 0).slice(0, 4).map((item) => item.index);
-  return useful.length ? useful : evidence.slice(0, Math.min(3, evidence.length)).map((_, index) => index);
-}
-
 function normalizeEvidence(evidence: string[]): string[] {
   return [...new Set(evidence.map(clean).filter(Boolean))].slice(0, 16);
 }
@@ -79,29 +66,25 @@ export async function groundAuthorBeat(input: {
     necessity?: string;
   };
 }): Promise<GroundedBeat> {
-  // Subject attributes such as gender are identity metadata, not independent
-  // story entities. They remain true about the subject but do not become a
-  // creative relationship unless the actual prompt/memory explicitly makes
-  // that attribute narratively relevant.
+  // Stable identity attributes remain attached to the subject. They do not
+  // become independent story entities unless the actual prompt/memory makes
+  // the attribute narratively relevant.
   const genderPattern = /^(?:male|female|man|woman|boy|girl|gender|he|she|him|her|his|hers)$/i;
   const rawEvidence = normalizeEvidence([...input.facts, ...input.moments, ...input.memory]);
-  const narrativeEvidence = rawEvidence.filter((item) => !genderPattern.test(item));
   const identityEvidence = rawEvidence.filter((item) => genderPattern.test(item));
-  const evidence = narrativeEvidence.length ? narrativeEvidence : rawEvidence;
-
-  const fallbackIndices = rankEvidence(evidence, input.beat);
-  const fallbackEvidence = fallbackIndices.map((index) => evidence[index]).filter(Boolean);
+  const narrativeEvidence = rawEvidence.filter((item) => !genderPattern.test(item));
 
   const system = [
     "You are QRE's AUTHOR BEAT TRUTH GATE.",
     "This is an epistemic firewall between a generative movie planner and the final author.",
     "The upstream beat is a HYPOTHESIS, never evidence. Treat every concrete claim inside it as untrusted until licensed by SUPPLIED_EVIDENCE.",
     "You MUST select evidence only by integer index from SUPPLIED_EVIDENCE. Never create, merge, embellish, or paraphrase a new fact.",
+    "Do not use the gate to delete source evidence. SUPPLIED_EVIDENCE is the complete available truth set. The creative author decides which evidence matters for a specific line.",
     "SUBJECT IDENTITY RULE: gender/sex labels are neutral subject metadata by default, not a second character, plot device, theme, conflict, or creative relationship. Never invent a 'male character', 'female character', 'male pride', 'female energy', romance, masquerade, or identity conflict from a gender attribute alone.",
     "If the prompt does not explicitly make gender narratively meaningful, ignore it for creative search. The subject remains fully itself regardless of gender.",
     "Breed, coat color, name, size, or other stable identity metadata should likewise remain subject context unless the supplied reality or prompt makes the attribute materially relevant to the chosen movie.",
     "Classify unsupported upstream claims as forbiddenClaims. Examples: 'returns in a bow tie' is unsupported if the source separately says returned, bows, ties but never says they are worn together; 'dances with a ball' is unsupported if no dance is supplied; 'everyone is surprised' is unsupported if no reaction is supplied.",
-    "CreativeOpportunity is NOT a scene description. It must be a relationship between selected narrative evidence items: collision, contrast, double meaning, juxtaposition, status tension, repetition, callback, or character-specific absurdity.",
+    "CreativeOpportunity is NOT a scene description. It must be a relationship between narrative evidence items: collision, contrast, double meaning, juxtaposition, status tension, repetition, callback, or character-specific absurdity.",
     "CreativeOpportunity must NOT assert an action, event, location, body position, wardrobe placement, reaction, outcome, dialogue, chronology, or causal explanation.",
     "Good creativeOpportunity: 'bows + balls create a comic word collision'. Good: 'returned + happy gives the arrival a buoyant tone'. Good: 'ties + bows create a double-meaning opportunity'.",
     "Bad creativeOpportunity: 'Coco dances with a ball'. Bad: 'Coco wears a bow tie'. Bad: 'everyone is surprised'. Bad: 'male pride'. Bad: 'male character'.",
@@ -112,7 +95,8 @@ export async function groundAuthorBeat(input: {
 
   const user = JSON.stringify({
     SUBJECT: input.subject ?? "",
-    SUPPLIED_EVIDENCE: evidence.map((text, index) => ({ index, text })),
+    SUPPLIED_EVIDENCE: rawEvidence.map((text, index) => ({ index, text })),
+    NARRATIVE_EVIDENCE: narrativeEvidence,
     IDENTITY_METADATA: identityEvidence,
     UPSTREAM_BEAT: input.beat,
   });
@@ -127,16 +111,20 @@ export async function groundAuthorBeat(input: {
   );
 
   const parsed = parse(result.text);
-  const indices = normalizeIndices(parsed?.evidenceIndices, evidence.length);
-  const selectedIndices = indices.length ? indices : fallbackIndices;
-  const approvedEvidence = selectedIndices.map((index) => evidence[index]).filter(Boolean).slice(0, 5);
+  const indices = normalizeIndices(parsed?.evidenceIndices, rawEvidence.length);
+  const approvedEvidence = rawEvidence;
+  const selectedNarrative = indices
+    .map((index) => rawEvidence[index])
+    .filter(Boolean)
+    .filter((item) => !genderPattern.test(item));
 
   const modelOpportunity = clean(parsed?.creativeOpportunity);
   const forbiddenIdentityPattern = /\b(?:male|female|man|woman|boy|girl|gender|masquerade|pride|traditional|modern|camaraderie|romantic relationship|male character|female character)\b/i;
   const concreteClaimPattern = /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|returns? in|comes? home|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties? (?:a|the) knot)\b/i;
+  const fallbackPool = selectedNarrative.length ? selectedNarrative : narrativeEvidence;
   const creativeOpportunity = modelOpportunity && !concreteClaimPattern.test(modelOpportunity) && !forbiddenIdentityPattern.test(modelOpportunity)
     ? modelOpportunity
-    : `Find the sharpest relationship among: ${approvedEvidence.join("; ")}`;
+    : `Find the sharpest relationship among: ${fallbackPool.join("; ")}`;
 
   const forbiddenClaims = Array.isArray(parsed?.forbiddenClaims)
     ? parsed!.forbiddenClaims.map(clean).filter(Boolean).slice(0, 16)
@@ -149,6 +137,6 @@ export async function groundAuthorBeat(input: {
     approvedEvidence,
     creativeOpportunity,
     forbiddenClaims,
-    sourceBoundary: "Only approved narrative evidence may become a concrete factual claim. Stable identity metadata is subject context by default, not an independent character or plot driver. The upstream beat is never evidence. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, or outcomes.",
+    sourceBoundary: "Approved evidence is the complete supplied truth set. Stable identity metadata is subject context by default, not an independent character or plot driver. The upstream beat is never evidence. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, or outcomes.",
   };
 }
