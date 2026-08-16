@@ -74,17 +74,20 @@ export function critiqueCandidate(candidate: CreativeCandidate, event: WorldEven
     duplicateSentencePenalty(candidate.text) > 0 ? "duplicate-sentence" : "",
   ].filter(Boolean);
   const coverageRatio = required.length === 0 ? 1 : 1 - missingEvidence.length / Math.max(1, required.length);
+  const creativeMode = candidate.lens !== "neutral";
+  const provenanceAllowed = creativeMode && candidate.creativeDetails.length > 0 && candidate.evidenceCoverage >= 0.7;
   const leadPenalty = leadRepetitionPenalty(candidate, prior);
   const sourceEcho = sourceEchoPenalty(candidate, event);
   const repetitionPenalty = leadPenalty + Math.max(0, wordOverlap(candidate.text, prior.at(-1)?.text ?? "") - 0.72) * 16 + duplicateSentencePenalty(candidate.text) + sourceEcho;
-  const score = candidate.score + coverageRatio * 20 - violations.length * 65 - repetitionPenalty;
+  const evidencePenalty = provenanceAllowed ? Math.max(0, (0.7 - candidate.evidenceCoverage) * 40) : 0;
+  const score = candidate.score + coverageRatio * 20 + candidate.evidenceCoverage * (provenanceAllowed ? 8 : 20) - violations.length * 65 - repetitionPenalty - evidencePenalty;
   return {
-    accepted: missingEvidence.length === 0 && violations.length === 0,
+    accepted: (missingEvidence.length === 0 || provenanceAllowed) && violations.length === 0,
     score,
     missingEvidence,
     violations,
     reasons: [
-      missingEvidence.length ? `missing evidence: ${missingEvidence.join(", ")}` : "explicit evidence conserved",
+      missingEvidence.length ? (provenanceAllowed ? `creative evidence coverage: ${candidate.evidenceCoverage.toFixed(2)}` : `missing evidence: ${missingEvidence.join(", ")}`) : "explicit evidence conserved",
       violations.length ? violations.join(", ") : "no generic realization leak",
       sourceEcho ? "source sentence echoed instead of transformed" : "source phrasing is transformed",
       leadPenalty ? "repeated sentence lead penalized heavily" : "sentence lead remains distinct",
