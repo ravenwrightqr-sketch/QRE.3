@@ -1,10 +1,10 @@
 /**
  * QRE AUTHOR BEAT TRUTH GATE
  *
- * The upstream movie planner is a hypothesis generator. It is NOT a source of
- * facts. This gate converts a beat from free-form narrative claims into a
- * licensed evidence set plus a creative relationship. The mouth is allowed to
- * be inventive only inside that boundary.
+ * The upstream movie planner is a hypothesis generator, never a source of
+ * facts. This gate also keeps subject attributes (for example `male`) attached
+ * to the subject instead of allowing them to become a second character,
+ * object, or free-floating creative theme.
  */
 import { localModelGenerate } from "./localModelRuntime.js";
 
@@ -13,17 +13,45 @@ export type GroundedBeat = {
   role: string;
   gainKind: string;
   approvedEvidence: string[];
+  subjectAttributes: string[];
   creativeOpportunity: string;
   forbiddenClaims: string[];
   sourceBoundary: string;
 };
 
+const SUBJECT_ATTRIBUTES = new Set([
+  "male", "female", "man", "woman", "boy", "girl", "he", "she", "his", "her",
+]);
+
 function clean(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function key(value: string): string {
+  return clean(value).toLowerCase().replace(/[“”‘’]/g, "'");
+}
+
 function words(value: string): Set<string> {
-  return new Set(clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 3));
+  return new Set(key(value).split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 3));
+}
+
+function isSubjectAttribute(value: string, subject: string): boolean {
+  const normalized = key(value);
+  if (SUBJECT_ATTRIBUTES.has(normalized)) return true;
+  const subjectKey = key(subject);
+  return Boolean(subjectKey) && new RegExp(`^${subjectKey}\\s+(?:is|was|(?:a|the)\\s+)?(?:male|female|man|woman|boy|girl)$`, "i").test(normalized);
+}
+
+function dedupe(values: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values.map(clean).filter(Boolean)) {
+    const normalized = key(value);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    output.push(value);
+  }
+  return output;
 }
 
 function parse(raw: string): {
@@ -47,7 +75,7 @@ function normalizeIndices(value: unknown, size: number): number[] {
     .filter((item) => Number.isInteger(item) && item >= 0 && item < size))];
 }
 
-function rankEvidence(evidence: string[], beat: GroundedBeat["order"] extends number ? { change?: string; frontier?: string; nextNeed?: string; necessity?: string } : never): number[] {
+function rankEvidence(evidence: string[], beat: { change?: string; frontier?: string; nextNeed?: string; necessity?: string }): number[] {
   const query = words([beat.change ?? "", beat.frontier ?? "", beat.nextNeed ?? "", beat.necessity ?? ""].join(" "));
   const ranked = evidence.map((text, index) => {
     const candidate = words(text);
@@ -75,31 +103,35 @@ export async function groundAuthorBeat(input: {
     necessity?: string;
   };
 }): Promise<GroundedBeat> {
-  const evidence = [...input.facts, ...input.moments, ...input.memory]
-    .map(clean)
-    .filter(Boolean);
+  const subject = clean(input.subject);
+  const evidence = dedupe([...input.facts, ...input.moments, ...input.memory]);
+  const subjectAttributes = dedupe(evidence.filter((item) => isSubjectAttribute(item, subject)));
+  const creativeEvidence = evidence.filter((item) => !isSubjectAttribute(item, subject));
 
-  const fallbackIndices = rankEvidence(evidence, input.beat);
-  const fallbackEvidence = fallbackIndices.map((index) => evidence[index]).filter(Boolean);
+  const fallbackIndices = rankEvidence(creativeEvidence.length ? creativeEvidence : evidence, input.beat);
+  const fallbackPool = creativeEvidence.length ? creativeEvidence : evidence;
+  const fallbackEvidence = fallbackIndices.map((index) => fallbackPool[index]).filter(Boolean).slice(0, 5);
 
   const system = [
     "You are QRE's AUTHOR BEAT TRUTH GATE.",
     "This is an epistemic firewall between a generative movie planner and the final author.",
     "The upstream beat is a HYPOTHESIS, never evidence. Treat every concrete claim inside it as untrusted until licensed by SUPPLIED_EVIDENCE.",
-    "You MUST select evidence only by integer index from SUPPLIED_EVIDENCE. Never create, merge, embellish, or paraphrase a new fact.",
-    "Classify unsupported upstream claims as forbiddenClaims. Examples: 'returns in a bow tie' is unsupported if the source separately says returned, bows, ties but never says they are worn together; 'dances with a ball' is unsupported if no dance is supplied; 'everyone is surprised' is unsupported if no reaction is supplied.",
-    "CreativeOpportunity is NOT a scene description. It must be a relationship between selected evidence items: collision, contrast, double meaning, juxtaposition, status tension, repetition, callback, or character-specific absurdity.",
-    "CreativeOpportunity must NOT assert an action, event, location, body position, wardrobe placement, reaction, outcome, dialogue, chronology, or causal explanation.",
-    "Good creativeOpportunity: 'bows + balls create a comic word collision'. Good: 'male identity changes how bows and ties read'. Good: 'returned + happy gives the arrival a buoyant tone'.",
-    "Bad creativeOpportunity: 'Coco dances with a ball'. Bad: 'Coco wears a bow tie'. Bad: 'everyone is surprised'.",
-    "Do not judge the final sentence. Preserve the strongest creative possibility that remains true.",
-    "If the upstream beat is poisoned, discard the poisoned claim. Do NOT try to rescue it by guessing what probably happened.",
+    "The SUBJECT is one entity. SUBJECT_ATTRIBUTES describe that entity. Never reinterpret a standalone attribute such as 'male' as a second person, character, relationship, event, or theme.",
+    "Creative evidence is the material the mouth should search. Subject attributes are metadata and should remain quiet unless the approved beat genuinely benefits from the subject's identity.",
+    "You MUST select creative evidence only by integer index from CREATIVE_EVIDENCE. Never create, merge, embellish, or paraphrase a new fact.",
+    "Unsupported upstream claims belong in forbiddenClaims.",
+    "CreativeOpportunity is NOT a scene description. It must be a compact relationship between supplied creative evidence. It may reference a subject attribute only as a modifier of the subject; never as another character.",
+    "Allowed relationship types: collision, contrast, double meaning, juxtaposition, repetition, callback, status tension, character-specific absurdity, or recontextualization.",
+    "Do NOT invent celebrations, traditions, symbolism, themes, emotional journeys, social reactions, causes, settings, or events unless explicitly supplied.",
+    "Bad: 'Coco and the male character...' because male is an attribute of Coco. Bad: 'traditional vs modern' when no such categories were supplied.",
+    "Good: 'bows + balls create a comic word collision'. Good: 'returned + bows make the arrival newly specific'.",
     "Return JSON with evidenceIndices, creativeOpportunity, forbiddenClaims.",
   ].join("\n");
 
   const user = JSON.stringify({
-    SUBJECT: input.subject ?? "",
-    SUPPLIED_EVIDENCE: evidence.map((text, index) => ({ index, text })),
+    SUBJECT: subject,
+    SUBJECT_ATTRIBUTES: subjectAttributes,
+    CREATIVE_EVIDENCE: fallbackPool.map((text, index) => ({ index, text })),
     UPSTREAM_BEAT: input.beat,
   });
 
@@ -109,22 +141,23 @@ export async function groundAuthorBeat(input: {
       { role: "user", content: user },
     ],
     "json",
-    { numPredict: 360, temperature: 0.05 },
+    { numPredict: 320, temperature: 0.03 },
   );
 
   const parsed = parse(result.text);
-  const indices = normalizeIndices(parsed?.evidenceIndices, evidence.length);
+  const indices = normalizeIndices(parsed?.evidenceIndices, fallbackPool.length);
   const selectedIndices = indices.length ? indices : fallbackIndices;
-  const approvedEvidence = selectedIndices.map((index) => evidence[index]).filter(Boolean).slice(0, 5);
+  const approvedEvidence = selectedIndices.map((index) => fallbackPool[index]).filter(Boolean).slice(0, 5);
 
   const modelOpportunity = clean(parsed?.creativeOpportunity);
+  const forbiddenOpportunity = /\b(?:male character|female character|celebration|significant event|traditional|modern|symbolic|symbolism|emotional journey|camaraderie|mutual interest|thematic contrast|theme)\b/i.test(modelOpportunity);
   const concreteClaimPattern = /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|returns? in|comes? home|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties? (?:a|the) knot)\b/i;
-  const creativeOpportunity = modelOpportunity && !concreteClaimPattern.test(modelOpportunity)
+  const creativeOpportunity = modelOpportunity && !forbiddenOpportunity && !concreteClaimPattern.test(modelOpportunity)
     ? modelOpportunity
     : `Find the sharpest relationship among: ${approvedEvidence.join("; ")}`;
 
   const forbiddenClaims = Array.isArray(parsed?.forbiddenClaims)
-    ? parsed!.forbiddenClaims.map(clean).filter(Boolean).slice(0, 16)
+    ? dedupe(parsed!.forbiddenClaims.map(clean).filter(Boolean)).slice(0, 16)
     : [];
 
   return {
@@ -132,8 +165,9 @@ export async function groundAuthorBeat(input: {
     role: input.beat.role,
     gainKind: input.beat.gainKind,
     approvedEvidence,
+    subjectAttributes,
     creativeOpportunity,
     forbiddenClaims,
-    sourceBoundary: "Only approved evidence may become a concrete factual claim. The upstream beat is never evidence. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, or outcomes.",
+    sourceBoundary: "The subject is one entity. Subject attributes modify that entity and do not create new characters. Only approved creative evidence may become concrete factual claims. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, settings, or outcomes.",
   };
 }
