@@ -90,7 +90,8 @@ function participants(text: string, carry: string[]): string[] {
   const prefix = sentence(text.slice(0, index).replace(/^(?:then|but|and)\s+/i, ""));
   const pair = prefix.match(/^([A-Z][A-Za-z'’-]*)\s+(?:and|&)\s+([A-Z][A-Za-z'’-]*)$/);
   const names = pair ? unique([pair[1]!, pair[2]!]) : properNames(prefix);
-  return names.filter((name) => !/^(?:The|A|An)\s+/i.test(name) && !PRONOUN_RE.test(name));
+  const filtered = names.filter((name) => !/^(?:The|A|An)\s+/i.test(name) && !PRONOUN_RE.test(name));
+  return filtered.length ? filtered : carry;
 }
 function timeOf(text: string) { return text.match(TIME_RE)?.[0]; }
 function actionOf(text: string) { return text.match(ACTION_RE)?.[0]; }
