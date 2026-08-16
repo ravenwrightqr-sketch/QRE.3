@@ -93,12 +93,12 @@ export function collapseToNarrativeWorld(world: WorldModel): WorldModel {
     .map((raw, index) => mergeEvents(buckets[index] ?? [], raw, index))
     .filter((event) => event.raw.length >= 5);
 
-  const participants = unique(events.flatMap((event) => event.participants));
-  const places = unique(events.flatMap((event) => [event.place ?? ""]));
-  const times = unique(events.flatMap((event) => [event.time ?? ""]));
-  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details]));
-  const entities = unique([...participants, ...places, ...objects]);
-  const evidence = events.flatMap((event) => event.evidence);
+  const participants = unique([...world.participants, ...events.flatMap((event) => event.participants)]);
+  const places = unique([...world.places, ...events.flatMap((event) => [event.place ?? ""])]);
+  const times = unique([...world.times, ...events.flatMap((event) => [event.time ?? ""])]);
+  const objects = unique([...world.entitiesByKind.objects, ...events.flatMap((event) => [event.object ?? "", ...event.details])]);
+  const entities = unique([...world.entities, ...participants, ...places, ...objects]);
+  const evidence = [...world.evidence, ...events.flatMap((event) => event.evidence)].filter((item, index, all) => index === all.findIndex((other) => other.id === item.id));
 
   return {
     ...world,
