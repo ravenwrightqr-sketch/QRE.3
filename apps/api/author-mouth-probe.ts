@@ -3,23 +3,26 @@ import { groundAuthorBeat } from "./src/services/authorBeatTruthGate.js";
 import { critiqueMouthCandidates } from "./src/services/authorMouthCritic.js";
 
 const raw = process.argv.slice(2).join(" ").trim();
-if (!raw) throw new Error('Usage: pnpm exec tsx apps/api/author-mouth-probe.ts "Dog grooming service receipt | Coco, poodle, fierce, cool | returned happy, bows, balls, ties"');
+if (!raw) throw new Error('Usage: pnpm exec tsx apps/api/author-mouth-probe.ts "anything you want QRE to turn into a short cinematic sequence"');
 
-const [typePart, subjectPart, evidencePart] = raw.split("|").map((x) => x.trim());
-const experienceType = typePart || "short-form experience copy";
-const subjectBlock = subjectPart || "the subject";
-const evidenceBlock = evidencePart || "";
+const parts = raw.split("|").map((x) => x.trim());
+const explicitType = parts.length >= 3 ? parts[0] : "";
+const subjectBlock = parts.length >= 3 ? parts[1] : "";
+const evidenceBlock = parts.length >= 3 ? parts.slice(2).join(" | ") : raw;
+const experienceType = explicitType || "universal QRE experience";
 const subjectParts = subjectBlock.split(/[,;]+/).map((x) => x.trim()).filter(Boolean);
 const subject = subjectParts[0] || "the subject";
 const subjectContext = subjectParts.slice(1);
-const evidenceFacts = evidenceBlock.split(/[,\n.;•]+/).map((x) => x.trim()).filter(Boolean);
+const evidenceFacts = evidenceBlock.split(/[,\n.;•|]+/).map((x) => x.trim()).filter(Boolean);
 const facts = [subject, ...subjectContext, ...evidenceFacts];
+const explicitOverride = /\b(?:paragraph|essay|formal|report|list|bullet|caption|keep (?:this|it) (?:exactly|as written)|do not rewrite|plain facts)\b/i.test(raw);
 
-console.log("=== QRE FAST MOUTH PROBE ===");
+console.log("=== QRE UNIVERSAL MICRO-CINEMATIC MOUTH PROBE ===");
 console.log(`TYPE: ${experienceType}`);
 console.log(`SUBJECT: ${subject}`);
 console.log(`CONTEXT: ${subjectContext.join(" | ") || "none"}`);
-console.log(`EVIDENCE: ${[...subjectContext, ...evidenceFacts].join(" | ")}`);
+console.log(`SEED: ${raw}`);
+console.log(`MODE: ${explicitOverride ? "USER-OVERRIDE" : "MICRO-CINEMATIC-DEFAULT"}`);
 
 const grounded = await groundAuthorBeat({
   subject,
@@ -30,10 +33,10 @@ const grounded = await groundAuthorBeat({
     order: 1,
     role: "hook",
     gainKind: "reframe",
-    change: `Find the sharpest relationship inside the supplied reality for a ${experienceType}.`,
-    frontier: "What is unexpectedly interesting here?",
-    nextNeed: "A fresh grounded turn.",
-    necessity: "Reveal the strongest creative relationship.",
+    change: `Find the strongest latent relationship in the supplied reality for a ${experienceType}.`,
+    frontier: "What makes this worth the next cut?",
+    nextNeed: "A sharp characterful turn.",
+    necessity: "Establish the strongest creative direction without inventing facts.",
   },
 });
 
@@ -46,23 +49,26 @@ const generation = await localModelGenerate(
     {
       role: "system",
       content: [
-        "You are QRE's fast creative mouth probe.",
-        `The output is a ${experienceType}.`,
-        "Generate 6 genuinely different candidate lines, not six paraphrases.",
-        "The goal is an attention-grabbing, delightful line that feels authored specifically for this subject and situation.",
-        "Search the supplied CREATIVE_OPPORTUNITY first. It is a grounded direction for interpretation, not a literal event.",
-        "Priority 1: character attitude — turn supplied traits + situation into a vivid comparison, stance, personification, or social framing.",
-        "Priority 2: micro-interaction — if the context includes a service relationship, imagine the smallest social exchange that communicates the attitude, but write it as a playful scene/comparison rather than a claim of historical fact unless supplied.",
-        "Priority 3: status inversion or negotiation framing.",
-        "Priority 4: contrast and understatement.",
-        "Priority 5: wordplay/double meaning. Use nouns as anchors, not as the entire joke.",
-        "Example target shape: 'Walked in like her lawyer was already on retainer.' This is figurative characterization, not a literal legal event.",
-        "Another target shape: 'One eyebrow went up. Negotiations began.' This is cinematic interpretation, not a claim that an actual negotiation occurred.",
-        "Do NOT force bows, balls, or ties into every candidate.",
-        "Use the subject name only when it makes the line hit harder; otherwise leave it implied after establishment.",
-        "Do not invent a concrete event, location, object, physical placement, reaction, outcome, or second character as literal factual history.",
-        "Never explain the joke. Prefer 4-10 words.",
-        "Return JSON exactly: {\"texts\":[\"...\",\"...\"]}.",
+        "You are QRE's universal micro-cinematic author.",
+        "Unless the user explicitly asks for another format, turn any supplied seed into a short sequence of viewer-facing sentence cuts.",
+        "Default product behavior: tiny movie, full-screen scene by scene, one short sentence at a time.",
+        "Return exactly 5 beats when the seed supports it; return 3-5 when it is sparse.",
+        "Each beat is 2-8 words whenever possible. One idea. One turn. Keep moving.",
+        "Do not write a paragraph, recap, checklist, or fact dump.",
+        "GLOBAL QUALITY: attention-grabbing, confident, specific, characterful, surprising, memorable, and playable.",
+        "Search the hidden character before the obvious nouns: attitude, social stance, status, friction, reaction, implication, personification, absurdity, tenderness, menace, or a tiny negotiation.",
+        "Character-attitude is the preferred default. Example: 'Lawyer already called.' can frame a fierce dog entering a groomer without claiming a real lawyer exists.",
+        "Micro-interaction is allowed as cinematic interpretation. Do not present invented concrete events as sourced history.",
+        "Use supplied facts as anchors. Creative framing may exaggerate attitude or implication but may not invent literal people, objects, places, actions, dialogue, outcomes, or events.",
+        "Do not force conspicuous nouns into jokes. Bows, balls, ties, sushi, coffee, raves, weddings, houses, etc. are ingredients, not mandatory punchlines.",
+        "Repeat the quality, never the trick. Do not reuse a successful joke structure unless this seed independently earns it.",
+        "After the subject is established, omit the name unless bringing it back makes the line hit harder.",
+        "Sequence rhythm: hook → turn → escalation/reframe → sharper turn → payoff/afterimage.",
+        "Each line should make the next line more desirable.",
+        explicitOverride
+          ? "The user explicitly requested a different format. Obey that requested format instead of forcing the cinematic default. Preserve user-authored wording where applicable."
+          : "No alternate format was requested. Use the micro-cinematic default.",
+        "Return JSON exactly: {\"texts\":[\"line 1\",\"line 2\",\"line 3\",\"line 4\",\"line 5\"]}.",
       ].join("\n"),
     },
     {
@@ -71,39 +77,56 @@ const generation = await localModelGenerate(
         EXPERIENCE_TYPE: experienceType,
         SUBJECT: subject,
         SUBJECT_CONTEXT: subjectContext,
-        APPROVED_EVIDENCE: grounded.approvedEvidence,
+        USER_SEED: raw,
+        SUPPLIED_EVIDENCE: grounded.approvedEvidence,
         CREATIVE_OPPORTUNITY: grounded.creativeOpportunity,
-        SOURCE_BOUNDARY: grounded.sourceBoundary,
+        FORBIDDEN_CLAIMS: grounded.forbiddenClaims,
       }),
     },
   ],
   "json",
-  { numPredict: 520, temperature: 1.02 },
+  { numPredict: 560, temperature: explicitOverride ? 0.55 : 0.9 },
 );
 
-let candidates: string[] = [];
+let sequence: string[] = [];
 try {
   const parsed = JSON.parse(String(generation.text ?? "").trim()) as { texts?: unknown };
-  if (Array.isArray(parsed.texts)) candidates = parsed.texts.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 8);
+  if (Array.isArray(parsed.texts)) sequence = parsed.texts.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 5);
 } catch {
-  candidates = [];
+  sequence = [];
 }
 
-console.log("CANDIDATES:");
-candidates.forEach((text, index) => console.log(`[${index + 1}] ${text}`));
+console.log("SEQUENCE:");
+sequence.forEach((text, index) => console.log(`[${index + 1}] ${text}`));
 
-const critique = await critiqueMouthCandidates({
-  prompt: experienceType,
-  lens: "short, catchy, funny, specific, surprising, affectionate, characterful, socially observant",
-  subject,
-  facts,
-  moments: [],
-  memory: [],
-  beat: grounded,
-  candidates,
+const judgments = await Promise.all(
+  sequence.map((text, index) => critiqueMouthCandidates({
+    prompt: experienceType,
+    lens: "micro-cinematic, short, catchy, characterful, attention-grabbing, surprising, memorable",
+    subject,
+    facts,
+    moments: [],
+    memory: [],
+    beat: {
+      order: index + 1,
+      role: index === 0 ? "hook" : index === sequence.length - 1 ? "payoff" : "reframe",
+      gainKind: index === 0 ? "new_fact" : index === sequence.length - 1 ? "payoff" : "surprise",
+      change: text,
+      frontier: sequence[index + 1] ?? "",
+      nextNeed: sequence[index + 1] ?? "",
+      necessity: "This line earns its place by changing the feel or meaning of the sequence.",
+      approvedEvidence: grounded.approvedEvidence,
+      creativeOpportunity: grounded.creativeOpportunity,
+      forbiddenClaims: grounded.forbiddenClaims,
+    },
+    candidates: [text],
+  })),
+);
+
+console.log("JUDGMENT:");
+judgments.forEach((critique, index) => {
+  console.log(`[${index + 1}] ${critique.decision.toUpperCase()} · ${sequence[index]}`);
+  if (critique.failureCodes?.length) console.log(`    FAIL: ${critique.failureCodes.join(" | ")}`);
 });
-
-console.log(`CRITIC: ${critique.decision}`);
-console.log(`WINNER: ${critique.bestIndex >= 0 ? candidates[critique.bestIndex] ?? "none" : "none"}`);
-console.log(`FAILURES: ${critique.failureCodes?.join(" | ") || "none"}`);
-console.log(`REPAIR: ${critique.repairDirective || critique.reason}`);
+const accepted = judgments.filter((critique) => critique.decision === "accept").length;
+console.log(`ACCEPTED: ${accepted}/${sequence.length}`);
