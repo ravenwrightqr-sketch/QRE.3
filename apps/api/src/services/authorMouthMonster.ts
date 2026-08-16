@@ -64,13 +64,18 @@ function unsupportedConcretePenalty(text: string, input: AuthorBrainTruth): numb
     "rain", "street", "car", "chair", "table", "floor", "garden", "park", "school", "suit", "fashion", "winks", "winked",
     "hair", "pocket", "feet", "foot", "hands", "eyes", "bed", "yard", "outside", "inside", "everyone", "nobody",
     "disco", "roar", "sparkle", "sparkles", "twirl", "twirls", "prance", "prances", "pranced",
+    "shadow", "shadows", "moonlight", "moon", "sunlight", "fading", "glow", "glows", "glowing", "whisper", "whispers", "whispered",
+    "sweat", "tears", "tear", "smile", "smiles", "grin", "grins", "laugh", "laughs", "laughter", "music", "melody", "sound", "sounds",
+    "bubbled", "bubble", "ripples", "ripple", "towel", "brow", "secret", "secrets", "mystery", "clue", "clues", "ghostly", "ominous", "ominously",
+    "boot", "boots", "footsteps", "steps", "audience", "crowd", "altar", "wedding", "ceremony", "audience", "camera", "shot", "focus", "slow-motion",
+    "yellowed", "faded", "finger", "fingers", "record-scratch", "scratch", "scratchy", "dawn", "dusk",
   ];
   for (const word of unsupported) {
-    if (new RegExp(`\\b${word}\\b`, "i").test(value) && !new RegExp(`\\b${word}\\b`, "i").test(source)) penalty += 0.16;
+    if (new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(value) && !new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(source)) penalty += 0.18;
   }
   if (/\b(?:boy|girl|man|woman|male|female|gender|gender reveal|boys'|girls')\b/i.test(value) && !/\b(?:male|female|man|woman|boy|girl)\b/i.test(source)) penalty += 0.35;
-  if (/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered)\b/i.test(value) && !/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered)\b/i.test(source)) penalty += 0.3;
-  return Math.min(0.85, penalty);
+  if (/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test(value) && !/\b(?:caught|catching|surprised|surprise|shocked|stared|staring|watched|watching|laughed|laughing|clapped|cheered|cried|crying)\b/i.test(source)) penalty += 0.3;
+  return Math.min(1, penalty);
 }
 
 function vagueSummaryPenalty(text: string): number {
@@ -87,16 +92,16 @@ function sentenceScore(text: string, input: AuthorBrainTruth, beat: Record<strin
   const overlap = sourceOverlap(text, source);
   const beatMatch = beatOverlap(text, beat);
   const penalty = mouthQualityPenalty(text) + unsupportedPronounPenalty(text, input) + unsupportedConcretePenalty(text, input) + vagueSummaryPenalty(text);
-  const compression = words >= 3 && words <= 9 ? 1 : 0;
+  const compression = words >= 3 && words <= 7 ? 1 : 0;
   const evidenceBreadth = Math.min(1, tokenSet(text).size / 5);
   const punctuationBonus = /[!?—,:;]/.test(text) ? 0.04 : 0;
   return (
-    overlap * 0.36 +
+    overlap * 0.34 +
     beatMatch * 0.18 +
-    evidenceBreadth * 0.14 +
-    compression * 0.12 +
+    evidenceBreadth * 0.12 +
+    compression * 0.16 +
     punctuationBonus -
-    penalty * 0.78
+    penalty * 0.94
   );
 }
 
@@ -104,8 +109,8 @@ function candidateDirective(index: number, repair = ""): string {
   const base = index === 0
     ? "Write the cleanest, sharpest realization. Concrete first. No explanation."
     : index === 1
-      ? "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events."
-      : "Write a sly, characterful realization with a hard turn. Make the supplied details do the work.";
+      ? "Write a stranger, funnier, more compressed realization. Use a collision or double meaning between supplied details. Still no invented events or atmosphere."
+      : "Write a sly, characterful realization with a hard turn. Make the supplied details do the work. Never add a physical event just to make it cinematic.";
   return repair ? `${base} CRITIC REPAIR: ${repair}` : base;
 }
 
@@ -155,8 +160,6 @@ export async function polishAuthorScenes(
 
     let chosen: string | null = null;
     let previousFailure = "";
-    let lastCandidates: string[] = [];
-    let lastScores: number[] = [];
 
     for (let attempt = 0; attempt < MAX_CRITIC_ATTEMPTS && !chosen; attempt += 1) {
       if (attempt > 0) totalRetries += 1;
@@ -179,7 +182,7 @@ export async function polishAuthorScenes(
           [
             {
               role: "system",
-              content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved, but the beat has passed through QRE's Truth Gate.\nSOURCE BOUNDARY: only approvedEvidence may become a concrete factual claim. creativeOpportunity is an invitation to explore a relationship, not a fact. forbiddenClaims must not be realized.\nNever invent a new event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, location, body position, wardrobe placement, or social reaction.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
+              content: `${mouthCraftSystem(risk)}\nQRE's theatrical mouth.\nREALIZATION ONLY. The movie, sequence, and beat are already approved, but the beat has passed through QRE's Truth Gate.\nSOURCE BOUNDARY: only approvedEvidence may become a concrete factual claim. creativeOpportunity is an invitation to explore a relationship, not a fact. forbiddenClaims must not be realized.\nA frame can change the attitude or implication of the line, but cannot supply a new physical world.\nNever invent a new event, setting, action, person, dialogue, outcome, weather, lighting, time-of-day, location, body position, wardrobe placement, object, sound, crowd reaction, or camera direction.\nThe candidate directive is only a stylistic request; source truth wins.\nReturn exactly one line for this one approved beat.`,
             },
             { role: "user", content: userContent },
           ],
@@ -191,9 +194,6 @@ export async function polishAuthorScenes(
       }
 
       const deterministicScores = candidates.map((candidate) => sentenceScore(candidate, input, beat));
-      lastCandidates = candidates;
-      lastScores = deterministicScores;
-
       const critic = await critiqueMouthCandidates({
         prompt: input.prompt,
         lens: input.lens,
@@ -208,15 +208,13 @@ export async function polishAuthorScenes(
 
       if (critic.decision === "accept" && critic.bestIndex >= 0 && critic.bestIndex < candidates.length) {
         const score = deterministicScores[critic.bestIndex] ?? -Infinity;
-        if (score >= 0.16) chosen = candidates[critic.bestIndex];
-        else previousFailure = "The candidate failed QRE's deterministic grounding/quality gate. Remove unsupported concrete detail and tighten the line.";
+        if (score >= 0.18) chosen = candidates[critic.bestIndex];
+        else previousFailure = "Hard reject: unsupported concrete detail, generic atmosphere, or weak source grounding. Shorten and make the supplied detail do the work.";
       } else {
-        previousFailure = critic.repairDirective || critic.reason || "Generate a more grounded, specific realization.";
+        previousFailure = critic.repairDirective || critic.reason || "Generate a shorter, source-specific realization with a clever turn and no invented physical detail.";
       }
     }
 
-    // A rejected candidate is NEVER promoted to final copy. If bounded search
-    // fails, fall back to a deliberately plain, evidence-only line.
     if (!chosen) {
       chosen = safeFallback(grounded, input.subject);
       fallbackCount += 1;
