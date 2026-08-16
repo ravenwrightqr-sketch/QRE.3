@@ -8,17 +8,18 @@ if (!raw) throw new Error('Usage: pnpm exec tsx apps/api/author-mouth-probe.ts "
 const [typePart, subjectPart, evidencePart] = raw.split("|").map((x) => x.trim());
 const experienceType = typePart || "short-form experience copy";
 const subjectBlock = subjectPart || "the subject";
-const evidenceBlock = evidencePart || subjectPart || "";
+const evidenceBlock = evidencePart || "";
 const subjectParts = subjectBlock.split(/[,;]+/).map((x) => x.trim()).filter(Boolean);
 const subject = subjectParts[0] || "the subject";
 const subjectContext = subjectParts.slice(1);
-const facts = [subject, ...evidenceBlock.split(/[,\n.;•]+/).map((x) => x.trim()).filter(Boolean)];
+const evidenceFacts = evidenceBlock.split(/[,\n.;•]+/).map((x) => x.trim()).filter(Boolean);
+const facts = [subject, ...subjectContext, ...evidenceFacts];
 
 console.log("=== QRE FAST MOUTH PROBE ===");
 console.log(`TYPE: ${experienceType}`);
 console.log(`SUBJECT: ${subject}`);
 console.log(`CONTEXT: ${subjectContext.join(" | ") || "none"}`);
-console.log(`EVIDENCE: ${facts.slice(1).join(" | ")}`);
+console.log(`EVIDENCE: ${[...subjectContext, ...evidenceFacts].join(" | ")}`);
 
 const grounded = await groundAuthorBeat({
   subject,
@@ -48,19 +49,19 @@ const generation = await localModelGenerate(
         "You are QRE's fast creative mouth probe.",
         `The output is a ${experienceType}.`,
         "Generate 6 genuinely different candidate lines, not six paraphrases.",
-        "IMPORTANT: search for the hidden CHARACTER and SOCIAL SITUATION before touching wordplay.",
-        "Priority 1: character attitude — turn a supplied trait plus situation into a vivid comparison, stance, or personification.",
-        "Priority 2: micro-interaction — if the supplied world contains multiple people/agents or a service relationship, search for a tiny look, pause, eyebrow, negotiation, challenge, or counter-move only when clearly framed as creative interpretation, not a literal reported event.",
-        "Priority 3: status inversion or social framing — who seems to be in charge, who has attitude, who is negotiating?",
-        "Priority 4: contrast, understatement, then wordplay/double meaning.",
-        "Do NOT force the nouns (bows, balls, ties, etc.) into a joke simply because they are available.",
-        "A comparison such as 'like her lawyer was already on retainer' is allowed as creative framing when it clearly reads as metaphor/personification rather than a factual claim.",
-        "Search these six modes: character_attitude, micro_interaction, status_inversion, contrast, understatement, wordplay.",
-        "One strong relationship is enough. Do not force every fact into the line.",
+        "The goal is an attention-grabbing, delightful line that feels authored specifically for this subject and situation.",
+        "Search the supplied CREATIVE_OPPORTUNITY first. It is a grounded direction for interpretation, not a literal event.",
+        "Priority 1: character attitude — turn supplied traits + situation into a vivid comparison, stance, personification, or social framing.",
+        "Priority 2: micro-interaction — if the context includes a service relationship, imagine the smallest social exchange that communicates the attitude, but write it as a playful scene/comparison rather than a claim of historical fact unless supplied.",
+        "Priority 3: status inversion or negotiation framing.",
+        "Priority 4: contrast and understatement.",
+        "Priority 5: wordplay/double meaning. Use nouns as anchors, not as the entire joke.",
+        "Example target shape: 'Walked in like her lawyer was already on retainer.' This is figurative characterization, not a literal legal event.",
+        "Another target shape: 'One eyebrow went up. Negotiations began.' This is cinematic interpretation, not a claim that an actual negotiation occurred.",
+        "Do NOT force bows, balls, or ties into every candidate.",
         "Use the subject name only when it makes the line hit harder; otherwise leave it implied after establishment.",
-        "Do not invent a concrete event, location, object, physical placement, reaction, outcome, or second character as literal fact.",
-        "Idioms, metaphor, personification, double meaning, and wordplay are encouraged when grounded in supplied language and clearly nonliteral.",
-        "Never explain the joke. Prefer 3-9 words.",
+        "Do not invent a concrete event, location, object, physical placement, reaction, outcome, or second character as literal factual history.",
+        "Never explain the joke. Prefer 4-10 words.",
         "Return JSON exactly: {\"texts\":[\"...\",\"...\"]}.",
       ].join("\n"),
     },
@@ -72,11 +73,12 @@ const generation = await localModelGenerate(
         SUBJECT_CONTEXT: subjectContext,
         APPROVED_EVIDENCE: grounded.approvedEvidence,
         CREATIVE_OPPORTUNITY: grounded.creativeOpportunity,
+        SOURCE_BOUNDARY: grounded.sourceBoundary,
       }),
     },
   ],
   "json",
-  { numPredict: 420, temperature: 0.95 },
+  { numPredict: 520, temperature: 1.02 },
 );
 
 let candidates: string[] = [];
