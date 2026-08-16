@@ -76,4 +76,7 @@ async function main(): Promise<void> {
   console.log("\nSEQUENCE TEST COMPLETE");
 }
 
-await main();
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
