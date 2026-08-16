@@ -121,6 +121,57 @@ When choosing the next engineering change, prefer this order:
 
 Truth is a floor, not a tradeable score.
 
+## Pass 3 — Mouth Grounding Law
+
+The current highest-leverage failure is downstream of discovery: the Mouth can receive a valid semantic beat but still write a generic line because the realization payload does not contain enough source material to realize that beat precisely.
+
+**Pass 3 rule:** the Mouth must be given the concrete source world needed to write the selected beat, and every realized line must remain anchored to that world.
+
+The realization payload should carry, at minimum:
+
+```text
+prompt
+lens
+subject
+place
+facts
+source moments
+memory
+trajectory
+reality graph / beat source event IDs
+selected beat
+previous realized lines
+```
+
+The Mouth is not allowed to solve missing source material by inventing atmosphere, setting, action, objects, outcomes, or emotional events.
+
+### Pass 3 failure signature
+
+These are evidence of a failed realization path:
+
+```text
+valid beat → generic line
+valid source → invented imagery
+valid movie → unrelated sentiment
+valid event → unsupported setting
+```
+
+For example, a source containing `Coco / returned / happy / fun / bows / balls / ties / male` should not suddenly produce an unsupported image such as a sunset or an invented homecoming scene.
+
+### Pass 3 acceptance test
+
+A successful run should show:
+
+1. the chosen movie survives into the beat plan;
+2. the beat retains source event IDs where available;
+3. the Mouth receives the source evidence for that beat;
+4. the line uses at least one concrete source-grounded element or a clearly grounded relationship;
+5. the line does not merely paraphrase the planner;
+6. cut policy accepts the line without weakening truth;
+7. the final sequence is materially better to a human reader.
+
+**Do not add another brain for this. Do not add a template. Do not add domain-specific prose. Fix the existing path from selected beat → source evidence → Mouth → cut policy.**
+
 ## What We Are Explicitly NOT Doing
 
 Do not solve weak creativity by automatically adding:
