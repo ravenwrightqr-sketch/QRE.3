@@ -62,6 +62,10 @@ function splitReality(value: string): string[] {
     .filter((item) => item.length >= 2);
 }
 
+function hasExplicitClock(text: string): boolean {
+  return /\b(?:at\s*)?\d{1,2}:\d{2}\s*(?:am|pm)?\b/i.test(text);
+}
+
 const arg = process.argv.slice(2).join(" ").trim();
 const raw = (arg || process.env.QRE_AUTHOR_CASE || "COCO").trim();
 const requested = raw.toUpperCase();
@@ -106,15 +110,26 @@ try {
   console.log(`EVENTS: ${realityGraph.events.length}`);
   realityGraph.events.slice(0, 12).forEach((event) => console.log(`  ${event.id}: ${event.label} · entities=${event.entities.join(", ")}`));
   console.log(`RELATIONS: ${realityGraph.relations.length}`);
-  realityGraph.relations.slice(0, 16).forEach((relation) => console.log(`  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`));
+  realityGraph.relations.slice(0, 24).forEach((relation) => console.log(`  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`));
   console.log(`TENSIONS: ${JSON.stringify(realityGraph.unresolvedTensions)}`);
   console.log(`RECURRING: ${JSON.stringify(realityGraph.recurringSignals)}`);
   console.log(`SENSORY: ${JSON.stringify(realityGraph.sensorySignals)}`);
   console.log("--- END QRE REALITY GRAPH PREVIEW ---\n");
 
-  if (!realityGraph.events.length) {
-    throw new Error("Reality Graph produced no events from supplied reality");
+  if (!realityGraph.events.length) throw new Error("Reality Graph produced no events from supplied reality");
+
+  // Fundamental graph invariant: shorthand/list order is not chronology. A temporal
+  // edge is only valid when both endpoint observations carry explicit clock evidence.
+  const invalidTemporalEdges = realityGraph.relations.filter((relation) => {
+    if (relation.kind !== "before" && relation.kind !== "after") return false;
+    const from = realityGraph.events.find((event) => event.id === relation.from)?.label ?? "";
+    const to = realityGraph.events.find((event) => event.id === relation.to)?.label ?? "";
+    return !hasExplicitClock(from) || !hasExplicitClock(to);
+  });
+  if (invalidTemporalEdges.length) {
+    throw new Error(`Reality Graph invented chronology: ${invalidTemporalEdges.length} temporal edge(s) lack explicit clock evidence`);
   }
+  console.log("GRAPH INVARIANT GREEN · chronology requires explicit clock evidence");
 
   const result = await authorBrainUniversal({
     ...test,
