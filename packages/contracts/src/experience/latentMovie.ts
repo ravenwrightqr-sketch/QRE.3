@@ -30,3 +30,44 @@ export type LatentMovie = {
   memoryPotential: string[];
   continuation?: string;
 };
+
+/** A semantic hypothesis discovered from RealityGraph. It is never source truth. */
+export type LatentMovieCandidate = {
+  id: string;
+  lens: string;
+  anchorEventIds: string[];
+  supportingRelationKinds: string[];
+  trajectory: LatentMovieTrajectoryStep[];
+  payoff: string;
+  unresolvedQuestion: string;
+  evidence: string[];
+  hypothesis: string[];
+  truthRisk: number;
+  novelty: number;
+  specificity: number;
+  informationValue: number;
+  uncertainty: number;
+  attentionPotential: number;
+  consequencePotential: number;
+  callbackPotential: number;
+  compressionPotential: number;
+  repetitionRisk: number;
+  score: number;
+};
+
+export type LatentMovieTrajectoryStep = {
+  order: number;
+  operation:
+    | "establish"
+    | "contrast"
+    | "recur"
+    | "reframe"
+    | "escalate"
+    | "converge"
+    | "reveal"
+    | "consequence"
+    | "payoff";
+  eventIds: string[];
+  viewerChange: string;
+  nextQuestion: string;
+};
