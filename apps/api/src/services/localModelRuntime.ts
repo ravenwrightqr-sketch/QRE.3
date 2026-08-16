@@ -1,3 +1,5 @@
+import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
+
 export type LocalModelMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -108,14 +110,53 @@ function prepareMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
   );
 }
 
+function parseUserObject(messages: LocalModelMessage[]): Record<string, unknown> | null {
+  const user = [...messages].reverse().find((message) => message.role === "user");
+  if (!user) return null;
+  try {
+    const value = JSON.parse(user.content);
+    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
 function preparePlannerMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
   const prepared = prepareMessages(messages);
   const system = prepared.find((message) => message.role === "system");
   if (!system || !META_PLANNER.test(system.content)) return prepared;
+
+  const source = parseUserObject(prepared);
+  const realityGraph = source
+    ? buildAuthorRealityGraph({
+        prompt: String(source.prompt ?? ""),
+        subject: String(source.subject ?? ""),
+        place: String(source.place ?? ""),
+        facts: Array.isArray(source.facts) ? source.facts.map(String) : [],
+        sourceMoments: Array.isArray(source.moments) ? source.moments.map(String) : [],
+        memoryContext: Array.isArray(source.memory) ? source.memory.map(String) : [],
+        trajectory: Array.isArray(source.trajectory) ? source.trajectory.map(String) : [],
+      })
+    : undefined;
+
+  const graphContext = realityGraph
+    ? [
+        "\nQRE REALITY GRAPH · SOURCE-TRUTH CONTEXT:",
+        "Use this graph to discover relationships before inventing narrative structure.",
+        `events=${JSON.stringify(realityGraph.events.slice(0, 10))}`,
+        `relations=${JSON.stringify(realityGraph.relations.slice(0, 16))}`,
+        `tensions=${JSON.stringify(realityGraph.unresolvedTensions)}`,
+        `recurring=${JSON.stringify(realityGraph.recurringSignals)}`,
+        `sensory=${JSON.stringify(realityGraph.sensorySignals)}`,
+        "Every grounded beat must be traceable to evidence/events or to a clearly marked creative interpretation of those events.",
+        "Do not invent concrete objects, people, places, dates, actions, dialogue, or outcomes in reality-locked mode.",
+      ].join("\n")
+    : "";
+
   return prepared.map((message) => message === system
     ? {
         ...message,
-        content: `${message.content}\n\n${FILM_CUT_PLANNER}\n\nPLANNER OUTPUT RULES:\n- 3 to 6 beats.\n- Each beat is one sentence-cut opportunity, not a paragraph.\n- ` +
+        content: `${message.content}\n\n${FILM_CUT_PLANNER}${graphContext}\n\nPLANNER OUTPUT RULES:\n- 3 to 6 beats.\n- Each beat is one sentence-cut opportunity, not a paragraph.\n- ` +
           "`change`, `next`, `frontier`, and `necessity` must describe supplied reality or a safe interpretive relationship.\n" +
           "- `change` should normally be 3-12 words.\n" +
           "- `frontier` should normally be 2-10 words.\n" +
@@ -126,17 +167,6 @@ function preparePlannerMessages(messages: LocalModelMessage[]): LocalModelMessag
       }
     : message,
   );
-}
-
-function parseUserObject(messages: LocalModelMessage[]): Record<string, unknown> | null {
-  const user = [...messages].reverse().find((message) => message.role === "user");
-  if (!user) return null;
-  try {
-    const value = JSON.parse(user.content);
-    return value && typeof value === "object" ? value as Record<string, unknown> : null;
-  } catch {
-    return null;
-  }
 }
 
 function extractOneText(raw: string): string {
