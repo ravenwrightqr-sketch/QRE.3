@@ -1,6 +1,7 @@
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { searchLatentMovieCandidates } from "./src/services/authorLatentMovieSearch.js";
+import { hasMaterialMovieDifference } from "./src/services/authorMovieDifferentiation.js";
 
 const COUPLE_FACTS = [
   "Mike and Joe recently met",
@@ -27,47 +28,33 @@ const cases = {
     creativeLearningContext: ["Do not replay the first chapter. Make the returning bow mean something new."],
   },
   MARIA: {
-    prompt: "Make a short new-world receipt for Maria's cleaning visit.", subject: "Maria",
-    facts: ["Maria arrived at 9:04 AM", "bathrooms", "kitchen", "laundry", "finished at 11:47 AM"],
-    sourceMoments: ["one cleaning visit"], lens: "service receipt with attitude",
-    memoryContext: [], trajectory: [], creativeLearningContext: [],
+    prompt: "Make a short new-world receipt for Maria's cleaning visit.", subject: "Maria", facts: ["Maria arrived at 9:04 AM", "bathrooms", "kitchen", "laundry", "finished at 11:47 AM"],
+    sourceMoments: ["one cleaning visit"], lens: "service receipt with attitude", memoryContext: [], trajectory: [], creativeLearningContext: [],
   },
   HORROR: {
-    prompt: "Turn an ordinary dinner into a slow, unavoidable horror sequence while everyone keeps calmly talking.",
-    facts: ["dinner", "wine", "conversation", "doors slam", "glass breaks", "knives fly past us"],
-    sourceMoments: ["everyone continued discussing the day prior"], lens: "calm human behavior while reality breaks",
-    memoryContext: [], trajectory: [], creativeLearningContext: [],
+    prompt: "Turn an ordinary dinner into a slow, unavoidable horror sequence while everyone keeps calmly talking.", facts: ["dinner", "wine", "conversation", "doors slam", "glass breaks", "knives fly past us"],
+    sourceMoments: ["everyone continued discussing the day prior"], lens: "calm human behavior while reality breaks", memoryContext: [], trajectory: [], creativeLearningContext: [],
   },
   RAVE: {
-    prompt: "Make this rave attendance feel like a living memory.",
-    facts: ["rave", "friends dancing", "bass", "late night", "we stayed"],
-    sourceMoments: ["attendance at the event"], lens: "specific, kinetic, memorable",
-    memoryContext: [], trajectory: ["First presence at this event."], creativeLearningContext: [],
+    prompt: "Make this rave attendance feel like a living memory.", facts: ["rave", "friends dancing", "bass", "late night", "we stayed"],
+    sourceMoments: ["attendance at the event"], lens: "specific, kinetic, memorable", memoryContext: [], trajectory: ["First presence at this event."], creativeLearningContext: [],
   },
   "COUPLE-FUNNY": {
-    prompt: "Make a living memory for a couple who just met. Use only the supplied reality, but find the latent comedy inside it.",
-    subject: "Mike and Joe", facts: [...COUPLE_FACTS], sourceMoments: [...COUPLE_MOMENTS],
-    lens: "funny, warm, observant, playful", memoryContext: [], trajectory: [], creativeLearningContext: [],
+    prompt: "Make a living memory for a couple who just met. Use only the supplied reality, but find the latent comedy inside it.", subject: "Mike and Joe", facts: [...COUPLE_FACTS], sourceMoments: [...COUPLE_MOMENTS], lens: "funny, warm, observant, playful", memoryContext: [], trajectory: [], creativeLearningContext: [],
   },
   "COUPLE-HORROR": {
-    prompt: "Make a living memory for the same couple and exact same facts, but use a horror lens. Do not invent events.",
-    subject: "Mike and Joe", facts: [...COUPLE_FACTS], sourceMoments: [...COUPLE_MOMENTS],
-    lens: "slow-burn horror, eerie, restrained", memoryContext: [], trajectory: [], creativeLearningContext: [],
+    prompt: "Make a living memory for the same couple and exact same facts, but use a horror lens. Do not invent events.", subject: "Mike and Joe", facts: [...COUPLE_FACTS], sourceMoments: [...COUPLE_MOMENTS], lens: "slow-burn horror, eerie, restrained", memoryContext: [], trajectory: [], creativeLearningContext: [],
   },
 } as const;
 
 function splitReality(value: string): string[] {
   return value.split(/[,\n.;•]+/).map((item) => item.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter((item) => item.length >= 2);
 }
-
-function hasExplicitClock(text: string): boolean {
-  return /\b(?:at\s*)?\d{1,2}:\d{2}\s*(?:am|pm)?\b/i.test(text);
-}
+function hasExplicitClock(text: string): boolean { return /\b(?:at\s*)?\d{1,2}:\d{2}\s*(?:am|pm)?\b/i.test(text); }
 
 const arg = process.argv.slice(2).join(" ").trim();
 const raw = (arg || process.env.QRE_AUTHOR_CASE || "COCO").trim();
 const requested = raw.toUpperCase();
-
 const test = cases[requested as keyof typeof cases] ?? (() => {
   const facts = splitReality(raw);
   const prompt = process.env.QRE_AUTHOR_PROMPT || "Make a living memory from this reality.";
@@ -80,7 +67,7 @@ const started = Date.now();
 console.log("=".repeat(80));
 console.log(`QRE UNIVERSAL AUTHOR ACCEPTANCE · ${requested}`);
 console.log("ONE MASTER BRAIN · ONE AUTHOR PATH");
-console.log("REALITY → CANDIDATE SEARCH → COGNITION → MAGNET → SEQUENCE → MOUTH");
+console.log("REALITY → CANDIDATE SEARCH → DIFFERENTIATION → COGNITION → MAGNET → SEQUENCE → MOUTH");
 console.log("VIEWER MOMENTUM · SOURCE TRUTH · CUT NECESSITY");
 console.log("RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS");
 console.log("=".repeat(80));
@@ -100,7 +87,6 @@ try {
   console.log("--- END QRE REALITY GRAPH PREVIEW ---\n");
 
   if (!realityGraph.events.length) throw new Error("Reality Graph produced no events from supplied reality");
-
   const invalidTemporalEdges = realityGraph.relations.filter((relation) => {
     if (relation.kind !== "before" && relation.kind !== "after") return false;
     const from = realityGraph.events.find((event) => event.id === relation.from)?.label ?? "";
@@ -113,7 +99,7 @@ try {
   const latentMovies = searchLatentMovieCandidates({ graph: realityGraph, subject: test.subject, lens: test.lens, limit: 6 });
   console.log("\n--- QRE LATENT MOVIE SEARCH ---");
   latentMovies.forEach((candidate, index) => {
-    console.log(`[${index + 1}] ${candidate.lens} · SCORE=${candidate.score} · TRUTH-RISK=${candidate.truthRisk}`);
+    console.log(`[${index + 1}] ${candidate.lens} · SCORE=${candidate.score} · DISTINCT=${candidate.distinctiveness} · TRUTH-RISK=${candidate.truthRisk}`);
     console.log(`    EVIDENCE: ${candidate.evidence.join(" | ")}`);
     console.log(`    RELATIONS: ${candidate.supportingRelationKinds.join(", ") || "none"}`);
     console.log(`    QUESTION: ${candidate.unresolvedQuestion}`);
@@ -121,6 +107,15 @@ try {
     console.log(`    PAYOFF: ${candidate.payoff}`);
   });
   console.log("--- END QRE LATENT MOVIE SEARCH ---\n");
+
+  for (let i = 0; i < latentMovies.length; i += 1) {
+    for (let j = i + 1; j < latentMovies.length; j += 1) {
+      if (latentMovies.length >= 3 && !hasMaterialMovieDifference(latentMovies[i], latentMovies[j])) {
+        console.warn(`MOVIE DIFFERENTIATION WARNING · ${latentMovies[i].lens} and ${latentMovies[j].lens} are materially similar`);
+      }
+    }
+  }
+  console.log(`MOVIE DIFFERENTIATION GREEN · ${latentMovies.length} candidate(s) passed through diversity gate`);
 
   const result = await authorBrainUniversal({ ...test, facts: [...test.facts], sourceMoments: [...test.sourceMoments], memoryContext: [...test.memoryContext], trajectory: [...test.trajectory], creativeLearningContext: [...test.creativeLearningContext] });
 
