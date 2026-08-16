@@ -101,7 +101,7 @@ function recoverLatentMovieBeatPlan(
       .map((eventId) => realityGraph.events.find((event) => event.id === eventId)?.label)
       .filter(Boolean);
     const nextNeed = nextLabels.length
-      ? `What changes with ${nextLabels.join(" + ")}?`
+      ? "What changes with " + nextLabels.join(" + ") + "?"
       : step.nextQuestion;
 
     return {
