@@ -107,6 +107,10 @@ function extractOneText(raw: string): string {
   return String(raw ?? "").trim();
 }
 
+function wordCount(value: string): number {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
 function isCanonicalMouth(messages: LocalModelMessage[], format?: "json") {
   if (format !== "json") return false;
   const system = messages.find((message) => message.role === "system")?.content ?? "";
@@ -123,40 +127,40 @@ async function realizeMouthOneBeat(
   if (!system || !user) return "";
 
   const base = parseUserObject(messages) ?? {};
-  const singleBeatPayload = {
-    ...base,
-    beats: [beat],
-  };
-
-  const singleSystem: LocalModelMessage = {
-    ...system,
-    content: `${system.content}\n\nTHIS IS A SINGLE-BEAT REALIZATION CALL. Realize only the supplied beat. Output JSON exactly as {"text":"one viewer-facing line"}. Do not return an array. Do not mention planning machinery.`,
-  };
-  const singleUser: LocalModelMessage = {
-    ...user,
-    content: JSON.stringify(singleBeatPayload),
-  };
-
-  const prepared = prepareMessages([singleSystem, singleUser]);
+  const singleBeatPayload = { ...base, beats: [beat] };
   const fast = process.env.QRE_AUTHOR_FAST === "true";
   const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
   const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 256 : 384));
   const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
 
-  const data = await request("/api/chat", {
-    model: modelName(),
-    stream: false,
-    keep_alive: keepAlive,
-    format: "json",
-    messages: prepared.map((message) => ({
-      role: message.role,
-      content: message.content,
-      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
-    })),
-    options: { temperature, num_predict: numPredict },
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const maxWords = 7;
+    const retryInstruction = attempt === 0
+      ? ""
+      : `\nRETRY ${attempt}: Previous line violated the hard attention contract. Rewrite it. MAXIMUM ${maxWords} WORDS. Prefer 3-7 words. Keep the same beat. No summary.`;
+    const singleSystem: LocalModelMessage = {
+      ...system,
+      content: `${system.content}\n\nTHIS IS A SINGLE-BEAT REALIZATION CALL. Realize only the supplied beat. Output JSON exactly as {"text":"one viewer-facing line"}. Do not return an array.\nHARD FORMAT: ${maxWords} WORDS MAXIMUM. Short, dense, immediately playable. One beat, one attention hit.${retryInstruction}`,
+    };
+    const singleUser: LocalModelMessage = { ...user, content: JSON.stringify(singleBeatPayload) };
+    const prepared = prepareMessages([singleSystem, singleUser]);
+    const data = await request("/api/chat", {
+      model: modelName(),
+      stream: false,
+      keep_alive: keepAlive,
+      format: "json",
+      messages: prepared.map((message) => ({
+        role: message.role,
+        content: message.content,
+        ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+      })),
+      options: { temperature, num_predict: numPredict },
+    });
+    const text = extractOneText(outputText(data));
+    if (text && wordCount(text) <= maxWords) return text;
+  }
 
-  return extractOneText(outputText(data));
+  return "";
 }
 
 export async function localModelGenerate(
