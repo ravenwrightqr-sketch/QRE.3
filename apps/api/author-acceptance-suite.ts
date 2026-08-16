@@ -1,5 +1,19 @@
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
 
+const COUPLE_FACTS = [
+  "Mike and Joe recently met",
+  "they met at Luigi's Italian Restaurant",
+  "they talked until closing",
+  "they connected",
+  "they both knew it was the start of something great",
+];
+const COUPLE_MOMENTS = [
+  "first meeting",
+  "Luigi's Italian Restaurant",
+  "talked until closing",
+  "connection",
+];
+
 const cases = {
   COCO: {
     prompt: "Make a living memory story for Coco's dog tag.",
@@ -63,6 +77,26 @@ const cases = {
     lens: "specific, kinetic, memorable",
     memoryContext: [],
     trajectory: ["First presence at this event."],
+    creativeLearningContext: [],
+  },
+  "COUPLE-FUNNY": {
+    prompt: "Make a living memory for a couple who just met. Use only the supplied reality, but find the latent comedy inside it.",
+    subject: "Mike and Joe",
+    facts: [...COUPLE_FACTS],
+    sourceMoments: [...COUPLE_MOMENTS],
+    lens: "funny, warm, observant, playful",
+    memoryContext: [],
+    trajectory: [],
+    creativeLearningContext: [],
+  },
+  "COUPLE-HORROR": {
+    prompt: "Make a living memory for the same couple and exact same facts, but use a horror lens. Do not invent events.",
+    subject: "Mike and Joe",
+    facts: [...COUPLE_FACTS],
+    sourceMoments: [...COUPLE_MOMENTS],
+    lens: "slow-burn horror, eerie, restrained",
+    memoryContext: [],
+    trajectory: [],
     creativeLearningContext: [],
   },
 } as const;
