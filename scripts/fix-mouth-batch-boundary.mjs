@@ -29,8 +29,8 @@ const newParser = `function parseMouthBatch(
   expected: number,
 ): string[] {
   const text = raw
-    .replace(/^\\`\\`\\`(?:json)?/i, "")
-    .replace(/\\`\\`\\`$/i, "")
+    .replace(/^(?:\u0060{3})(?:json)?/i, "")
+    .replace(/(?:\u0060{3})$/i, "")
     .trim();
 
   try {
@@ -53,7 +53,10 @@ const newParser = `function parseMouthBatch(
 
 `;
 
-if (text.includes("function parseMouthBatch(") && text.includes("async function canonicalMouthRequest(")) {
+if (
+  text.includes("function parseMouthBatch(") &&
+  text.includes("async function canonicalMouthRequest(")
+) {
   text = replaceBetween(
     text,
     "function parseMouthBatch(",
@@ -62,7 +65,9 @@ if (text.includes("function parseMouthBatch(") && text.includes("async function 
     "parseMouthBatch",
   );
 } else {
-  throw new Error("PATCH MISS [parseMouthBatch]: canonical function boundaries not found");
+  throw new Error(
+    "PATCH MISS [parseMouthBatch]: canonical function boundaries not found",
+  );
 }
 
 const oldFallback = `  return {
@@ -95,8 +100,13 @@ const preservedFallback = `  // Preserve usable model output. The canonical auth
 
 if (text.includes(oldFallback)) {
   text = text.replace(oldFallback, preservedFallback);
-} else if (text.includes("retryParsed.length > 0") && text.includes("parsed.length > 0")) {
-  console.log("canonical mouth fallback already patched; preserving current state");
+} else if (
+  text.includes("retryParsed.length > 0") &&
+  text.includes("parsed.length > 0")
+) {
+  console.log(
+    "canonical mouth fallback already patched; preserving current state",
+  );
 } else {
   throw new Error(
     "PATCH MISS [canonical mouth fallback]: neither the known old fallback nor the already-patched fallback was found",
