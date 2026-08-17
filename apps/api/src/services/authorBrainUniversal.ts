@@ -25,6 +25,7 @@ import { evaluateCut, type CutWorld } from "./authorCutPolicy.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { normalizeLatentMovieBeatPlan } from "./authorLatentMovieBeatAdapter.js";
 import { recoverBeatPlanFromLatentMovie } from "./authorBeatPlanRecovery.js";
+import { editAttentionSequence, buildAttentionRewritePrompt } from "./authorAttentionEditor.js";
 
 const ROLES: readonly ViewerAttentionRole[] = [
   "arrival", "hook", "question", "pressure", "reframe", "escalation",
@@ -54,7 +55,8 @@ const GAIN_ALIASES: Record<string, NonNullable<SequenceCut["gainKind"]>> = {
 const BAD_INTERNAL = /\b(?:attention strategy|operator(?: mix|s)?|build from beat|round\s*\d|cognitive(?: plan| brain)?|cognition|preserve forward|land the chosen|find subtle tension|contradictions?:\s*none|why this beat|viewer-facing|writing process|information frontier|narrative engagement)\b/i;
 const BAD_SUMMARY = /\b(?:discover .*backstory|build (?:the |viewer|character)|provide closure|highlight the theme|journey from .* to|transformation from .* to|true character|eventual happiness|viewers?['’] interest|customer satisfaction|cleaning process|closing remarks|thank you for choosing)\b/i;
 const BAD_VAGUE = /^(?:the unexpected|the unknown|unseen chaos|hidden intentions|coco['’]s feelings?|coco['’]s reaction|the next step|what happens next|more to come|details? of .*|the end|closure|a new identity|viewer interest|information seeking)$/i;
-
+const BAD_INTERPRETIVE_EXPLANATION =
+  /\b(?:the viewer|this reveals|this means|which means|in this context|is now transformed into|was a cover for|reveals? that|symbolizes?|represents?|the mystery|what does .* mean|why does .* mean|the supplied (?:relationship|relationships|detail|details).*may support|may support (?:a|the) .* reading|the supplied .* reading|support (?:a|the) .* reading|relationships? may support)\b/i;
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly unknown[] | undefined, limit = 24): string[] =>
   [...new Set((values ?? []).map(clean).filter(Boolean))].slice(0, limit);
@@ -193,10 +195,89 @@ function subjectContinuity(subject: string, established: boolean, text: string, 
     lastExplicitReference: explicit ? order : undefined,
   };
 }
+type AttentionFunction =
+  | "hook"
+  | "question"
+  | "turn"
+  | "escalation"
+  | "reframe"
+  | "callback"
+  | "payoff"
+  | "release";
 
-type AuthorBeat = { order: number; role: string; gainKind: string; change: string; next: string; frontier: string; necessity: string; eventIds?: string[] };
-type BeatPlan = { premise: string; baselineFacts: string[]; beats: AuthorBeat[]; closing?: string };
+type CreativeMove =
+  | "contrast"
+  | "status_inversion"
+  | "understatement"
+  | "double_meaning"
+  | "personification"
+  | "callback"
+  | "recontextualization"
+  | "implication"
+  | "none";
 
+type AuthorBeat = {
+  order: number;
+  role: string;
+  gainKind: string;
+  change: string;
+  next: string;
+  frontier: string;
+  necessity: string;
+  eventIds?: string[];
+
+  attentionFunction?: AttentionFunction;
+  setsUp?: string[];
+  paysOff?: string[];
+  creativeMove?: CreativeMove;
+  nextBeatPullTarget?: number;
+};
+
+type BeatPlan = {
+  premise: string;
+  baselineFacts: string[];
+  attentionArc?: string;
+  beats: AuthorBeat[];
+  closing?: string;
+};
+function normalizeAttentionFunction(value: unknown): AttentionFunction {
+  const normalized = clean(value).toLowerCase().replace(/\s+/g, "_");
+
+  const allowed: readonly AttentionFunction[] = [
+    "hook",
+    "question",
+    "turn",
+    "escalation",
+    "reframe",
+    "callback",
+    "payoff",
+    "release",
+  ];
+
+  return allowed.includes(normalized as AttentionFunction)
+    ? normalized as AttentionFunction
+    : "reframe";
+}
+
+function normalizeCreativeMove(value: unknown): CreativeMove {
+  const normalized = clean(value).toLowerCase().replace(/\s+/g, "_");
+
+  const allowed: readonly CreativeMove[] = [
+    "contrast",
+    "status_inversion",
+    "understatement",
+    "double_meaning",
+    "personification",
+    "callback",
+    "recontextualization",
+    "implication",
+    "none",
+  ];
+
+  return allowed.includes(normalized as CreativeMove)
+    ? normalized as CreativeMove
+    : "none";
+}
 function normalizeBeatPlan(value: unknown): BeatPlan | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
@@ -210,28 +291,78 @@ function normalizeBeatPlan(value: unknown): BeatPlan | undefined {
     const frontierValue = clean(item.frontier || item.informationFrontier);
     const necessity = clean(item.necessity || item.whyNext);
     if (!change) continue;
-    if (BAD_INTERNAL.test(change) || BAD_SUMMARY.test(change)) continue;
-    if (BAD_INTERNAL.test(next) || BAD_SUMMARY.test(next)) continue;
-    if (BAD_INTERNAL.test(frontierValue) || BAD_SUMMARY.test(frontierValue)) continue;
-    if (BAD_VAGUE.test(frontierValue)) continue;
+
+if (BAD_INTERPRETIVE_EXPLANATION.test(change)) continue;
+
+if (
+  BAD_INTERNAL.test(change) ||
+  BAD_SUMMARY.test(change)
+) continue;
+
+if (
+  BAD_INTERNAL.test(next) ||
+  BAD_SUMMARY.test(next)
+) continue;
+
+if (
+  BAD_INTERPRETIVE_EXPLANATION.test(next)
+) continue;
+
+if (
+  BAD_INTERPRETIVE_EXPLANATION.test(
+    necessity,
+  )
+) continue;
+
+if (
+  BAD_INTERNAL.test(frontierValue) ||
+  BAD_SUMMARY.test(frontierValue)
+) continue;
+
+if (
+  BAD_VAGUE.test(frontierValue)
+) continue;
     if (change.split(/\s+/).length > 14 || frontierValue.split(/\s+/).length > 10) continue;
     beats.push({
-      order: index + 1,
-      role: clean(item.role) || "discovery",
-      gainKind: clean(item.gainKind) || "discovery",
-      change,
-      next,
-      frontier: frontierValue || next,
-      necessity: necessity || "This moment makes the next moment more interesting.",
-    });
+  order: beats.length + 1,
+  role: clean(item.role) || "discovery",
+  gainKind: clean(item.gainKind) || "discovery",
+  change,
+  next,
+  frontier: frontierValue || next,
+  necessity:
+    necessity || "This moment makes the next moment more interesting.",
+
+  attentionFunction: normalizeAttentionFunction(item.attentionFunction),
+
+  setsUp: Array.isArray(item.setsUp)
+    ? uniq(item.setsUp, 6)
+    : [],
+
+  paysOff: Array.isArray(item.paysOff)
+    ? uniq(item.paysOff, 6)
+    : [],
+
+  creativeMove: normalizeCreativeMove(item.creativeMove),
+
+  nextBeatPullTarget:
+    typeof item.nextBeatPullTarget === "number"
+      ? metric(item.nextBeatPullTarget)
+      : 0.5,
+});
   }
   if (!beats.length) return undefined;
   return {
-    premise: clean(record.premise),
-    baselineFacts: normalizeFacts(record.baselineFacts),
-    beats: beats.slice(0, 6),
-    closing: clean(record.closing || record.continuation),
-  };
+  premise: clean(record.premise),
+  baselineFacts: normalizeFacts(record.baselineFacts),
+  attentionArc: clean(
+    record.attentionArc ||
+    record.attention ||
+    record.arc,
+  ),
+  beats: beats.slice(0, 6),
+  closing: clean(record.closing || record.continuation),
+};
 }
 
 function buildViewerMomentum(subject: string, plan: BeatPlan): SequencePlay | undefined {
@@ -372,7 +503,42 @@ characterFrames: cognition.characterRead?.creativeFrames?.map((frame) => frame.f
   }
   return { scenes, attempted, rejected: attempted - scenes.length, rejectionReasons };
 }
+function buildAttentionBeatInputs(
+  sequence: SequencePlay,
+  texts: string[],
+  plan: BeatPlan,
+) {
+return sequence.cuts.map((cut, index) => {
+  const beat = plan.beats[index];
 
+  return {
+    order: index + 1,
+    role: cut.role,
+    gainKind: cut.gainKind,
+    text: clean(texts[index] ?? ""),
+    change: cut.informationGain,
+    next: cut.nextPromise,
+    frontier:
+      cut.momentum?.after.informationFrontier?.frontier,
+    sourceIds: cut.sourceIds,
+
+    attentionFunction:
+      beat?.attentionFunction,
+
+    setsUp:
+      beat?.setsUp ?? [],
+
+    paysOff:
+      beat?.paysOff ?? [],
+
+    creativeMove:
+      beat?.creativeMove,
+
+    nextBeatPullTarget:
+      beat?.nextBeatPullTarget,
+  };
+});
+}
 function brief(input: AuthorBrainTruth, strategy: string): AuthorCreativeBrief {
   return {
     angle: `attention strategy: ${strategy}`,
@@ -486,11 +652,19 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
 
         "Prefer the strongest available latent relationship:",
         "contradiction, status reversal, recurring object, private meaning, sensory fingerprint, ritual, spatial contradiction, calm-vs-danger, callback with changed meaning, or character-specific absurdity.",
-
         "A beat is ONE perceivable change in the viewer's mental model.",
         "It appears briefly, then the experience advances.",
-        "Think JOLT ? JOLT ? JOLT ? PAYOFF.",
+        "Think JOLT → JOLT → JOLT → PAYOFF.",
         "Every beat must make the next beat more desirable.",
+        "",
+       "IMPORTANT SEPARATION:",
+       "The beat's change is NOT an explanation of the movie.",
+       "The beat's change is NOT a question.",
+       "The beat's change is NOT a summary of the character.",
+       "The beat's change is the smallest meaningful shift that makes the next beat desirable.",
+       "Questions belong in next/frontier metadata, not in change.",
+       "Do not write phrases such as 'the viewer sees', 'this reveals', 'this means', 'the mystery deepens', or 'what does this mean'.",
+        "Do not explain why a beat matters. Encode why it matters through its function, setup, payoff, and creative move.",
 
         "Do not spend beats stating who or what the viewer already knows.",
         "Establish identity in baseline; spend beats on what changes.",
@@ -530,9 +704,32 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
         "A beat's change may be a memorable interpretive statement.",
         "It does not have to describe a new physical event.",
         "The best beat can reveal what the supplied reality suddenly means.",
-
-        "Output JSON only:",
-        "{premise:string,baselineFacts:string[],beats:[{role,gainKind,change,next,frontier,necessity}]}."
+        "ATTENTION ARC REQUIREMENT:",
+"Before writing the beat prose, discover the sequence's attention arc.",
+"Every beat must have a job in the movie.",
+"Do not create five summaries of the same fact.",
+"Do not make every beat a discovery.",
+"At minimum, the sequence should contain a hook, a meaningful turn or reframe, and a payoff.",
+"Whenever the evidence supports it, plant something early that changes meaning later.",
+"A payoff should pay something that an earlier beat established.",
+"A turn should change the interpretation of what the viewer already knows.",
+"An escalation should increase consequence, status tension, uncertainty, or emotional pressure.",
+"A release should reduce pressure only after something meaningful has been earned.",
+"Each beat must either set something up, pay something off, or transform the viewer's interpretation.",
+"Each beat must identify a creative move or explicitly use 'none'.",
+"nextBeatPullTarget is the planner's estimate of how strongly this beat makes the next beat desirable, from 0 to 1.",
+"Do not use nextBeatPullTarget to fake drama; it must be supported by a real unresolved relationship, object, status shift, consequence, or meaning change.",
+"CREATIVE REALIZATION RULE:",
+"For each beat, first decide its dramatic job, then express only the changed meaning.",
+"Do not narrate the analyst's conclusion.",
+"Do not explain the relationship between facts.",
+"Let the relationship become the beat.",
+"Example:",
+"BAD: 'Coco's nervousness was a cover for fierce determination.'",
+"BETTER INTERNAL JOB: status inversion between vulnerability and attitude.",
+"GOOD MOUTH POSSIBILITY: 'Coco arrived ready to negotiate.'",
+"Return JSON only:",
+"{premise:string,baselineFacts:string[],attentionArc:string,beats:[{role,gainKind,change,next,frontier,necessity,attentionFunction,setsUp:string[],paysOff:string[],creativeMove,nextBeatPullTarget:number}]}.",
       ].join("\n"),
     },
     {
@@ -557,81 +754,137 @@ function buildMouthMessages(
     frontier: cut.momentum?.after.informationFrontier?.frontier ?? "",
     nextNeed: cut.nextPromise ?? "",
     necessity: plan.beats[index]?.necessity ?? "",
+
+    attentionFunction:
+      plan.beats[index]?.attentionFunction ?? "reframe",
+
+    setsUp:
+      plan.beats[index]?.setsUp ?? [],
+
+    paysOff:
+      plan.beats[index]?.paysOff ?? [],
+
+    creativeMove:
+      plan.beats[index]?.creativeMove ?? "none",
+
+    nextBeatPullTarget:
+      plan.beats[index]?.nextBeatPullTarget ?? 0.5,
   }));
 
   return [
-  {
-    role: "system" as const,
-    content: [
-      "You are QRE's theatrical mouth and character writer.",
-  "You receive an APPROVED SEQUENCE of sentence cuts.",
-  `Return exactly ${targetCount} viewer-facing lines, one line for each beat, in beat order.`,
-  "Do not collapse the beats into one summary.",
-  "Do not skip a beat.",
-  "Do not invent a new physical event.",
-  "The sequence beat is a hypothesis about the movie, not independent evidence.",
-  "The supplied facts, source moments, memory, subject truth, and character signals are the concrete reality.",
-  "",
-  "CORE CREATIVE INVARIANT:",
-  "Find a memorable interpretive statement whose meaning is completely recoverable from supplied reality, while introducing no new concrete event.",
-  "",
-  "Do NOT merely paraphrase the supplied event.",
-  "First identify what the supplied event means inside the character's personality, contradiction, status, relationship, or situation.",
-  "Then compress that meaning into a line that feels discovered rather than explained.",
-  "",
-  "INTERPRETATION IS ALLOWED:",
-  "metaphor, personification, status language, implication, double meaning, comic framing, understatement, reversal, rhetorical game language, character-specific exaggeration, and recontextualization.",
-  "These are interpretations, not new facts, when their meaning is recoverable from supplied reality.",
-  "",
-  "For example, if supplied reality says a nervous but fierce character came in, an interpretive line may frame that arrival as someone who 'already called her lawyer'.",
-  "That does NOT mean a lawyer actually existed or was actually called.",
-  "It means the supplied nervous + fierce contradiction is being expressed through status language.",
-  "",
-  "Likewise, a supplied theft followed by an exit can become a compressed interpretive payoff such as 'Peace, temporarily.'",
-  "Do not add another event. Change the meaning of the supplied events.",
-  "",
-  "THE THREE TESTS FOR EVERY LINE:",
-  "1. Could every concrete implication be traced back to supplied reality?",
-  "2. Does the line add interpretation rather than merely repeat the fact?",
-  "3. Does the line make the supplied character or moment feel more specific?",
-  "",
-  "If a line could appear in any generic grooming, wedding, cleaning, or service story, reject it and find a character-specific interpretation.",
-  "",
-  "Use contradictions aggressively when supported.",
-  "A nervous + fierce character is not two adjectives to repeat; it is a relationship to exploit.",
-  "A routine service + unusual character behavior is not a summary; it is a source of comic or dramatic tension.",
-  "A supplied object can acquire changed meaning without acquiring new physical behavior.",
-  "",
-  "Prefer lines with an implicit movie behind them.",
-  "The viewer should be able to think: 'Oh. THAT is what this was.'",
-  "",
-  "Do not explain the interpretation.",
-  "Do not say what the metaphor means.",
-  "Do not announce the joke.",
-  "Do not summarize the character.",
-  "Make the interpretation itself carry the meaning.",
-  "",
-  "Do not mechanically repeat the subject name.",
-  "Establish identity once, then spend words on attitude, change, relationship, or consequence.",
-  "",
-  "Use supplied objects and moments when they carry meaning.",
-  "Do not invent props, people, dialogue, locations, actions, outcomes, or physical reactions.",
-  "",
-  "Prefer 3-7 words per line. Maximum 7 words.",
-  "The final line may be extremely compressed if the supplied sequence supports it.",
-  "",
-  "Do not use generic mascot language such as 'Poodle power', 'so fabulous', 'good girl', or 'what a day'.",
-  "Do not use generic emotional summaries.",
-  "Do not output labels such as 'the contrast' or 'the unexpected'.",
-  "Do not output planning language.",
-  "Do not output questions unless the supplied reality itself genuinely requires one.",
-  "",
-  "The goal is NOT prettier narration.",
-  "The goal is a tiny interpretive movie.",
-  "",
-  "Return JSON only in exactly this shape:",
-  `{"texts":["line 1","line 2"${targetCount >= 3 ? ', "line 3"' : ""}${targetCount >= 4 ? ', "line 4"' : ""}${targetCount >= 5 ? ', "line 5"' : ""}${targetCount >= 6 ? ', "line 6"' : ""}]}`,
-].join("\n"),
+    {
+      role: "system" as const,
+      content: [
+        "You are QRE's theatrical mouth and character writer.",
+        "You receive an APPROVED SEQUENCE of sentence cuts and its internal Beat Graph.",
+        `Return exactly ${targetCount} viewer-facing lines, one line for each beat, in beat order.`,
+        "Do not collapse the beats into one summary.",
+        "Do not skip a beat.",
+        "Do not invent a new physical event.",
+        "The sequence beat is a hypothesis about the movie, not independent evidence.",
+        "The supplied facts, source moments, memory, subject truth, and character signals are the concrete reality.",
+
+        "",
+
+        "ATTENTION ARC / BEAT GRAPH:",
+        "The attention arc is an internal authoring map and must never become viewer-facing text.",
+        "Each beat has a dramatic function, setup, payoff relationship, creative move, and next-beat pull target.",
+        "Use those fields to decide what the line must accomplish.",
+        "Do not print field names, scores, planning language, or explanations.",
+        "A hook must create immediate interest.",
+        "A question must preserve a meaningful unresolved want.",
+        "A turn or reframe must change the meaning of something already established.",
+        "An escalation must increase pressure, consequence, uncertainty, or status tension.",
+        "A callback must reuse an earlier supplied detail with changed meaning.",
+        "A release should feel earned rather than merely ending the sequence.",
+        "A payoff must pay something that the sequence already planted.",
+        "If creativeMove is not 'none', realize that move in the smallest possible language.",
+        "Treat nextBeatPullTarget as a pressure signal, not permission to invent drama.",
+
+        "EXECUTION RULE:",
+        "Do not merely describe the approved beat.",
+        "Execute the beat's dramatic job through the line.",
+        "If the planner established a setup, do not spend the line restating the setup.",
+        "If the planner established a payoff, make the line pay it.",
+        "If the planner established a reframe, change the meaning rather than repeating the fact.",
+        "If the planner established a callback, make the earlier detail feel different now.",
+
+        "",
+        "CORE CREATIVE INVARIANT:",
+        "Find a memorable interpretive statement whose meaning is completely recoverable from supplied reality, while introducing no new concrete event.",
+
+        "",
+        "Do NOT merely paraphrase the supplied event.",
+        "First identify what the supplied event means inside the character's personality, contradiction, status, relationship, or situation.",
+        "Then compress that meaning into a line that feels discovered rather than explained.",
+
+        "",
+        "INTERPRETATION IS ALLOWED:",
+        "metaphor, personification, status language, implication, double meaning, comic framing, understatement, reversal, rhetorical game language, character-specific exaggeration, and recontextualization.",
+        "These are interpretations, not new facts, when their meaning is recoverable from supplied reality.",
+
+        "",
+        "For example, if supplied reality says a nervous but fierce character came in, an interpretive line may frame that arrival as someone who 'already called her lawyer'.",
+        "That does NOT mean a lawyer actually existed or was actually called.",
+        "It means the supplied nervous + fierce contradiction is being expressed through status language.",
+
+        "",
+        "Likewise, a supplied theft followed by an exit can become a compressed interpretive payoff such as 'Peace, temporarily.'",
+        "Do not add another event. Change the meaning of the supplied events.",
+
+        "",
+        "THE THREE TESTS FOR EVERY LINE:",
+        "1. Could every concrete implication be traced back to supplied reality?",
+        "2. Does the line add interpretation rather than merely repeat the fact?",
+        "3. Does the line make the supplied character or moment feel more specific?",
+
+        "",
+        "If a line could appear in any generic grooming, wedding, cleaning, or service story, reject it and find a character-specific interpretation.",
+
+        "",
+        "Use contradictions aggressively when supported.",
+        "A nervous + fierce character is not two adjectives to repeat; it is a relationship to exploit.",
+        "A routine service + unusual character behavior is not a summary; it is a source of comic or dramatic tension.",
+        "A supplied object can acquire changed meaning without acquiring new physical behavior.",
+
+        "",
+        "Prefer lines with an implicit movie behind them.",
+        "The viewer should be able to think: 'Oh. THAT is what this was.'",
+
+        "",
+        "Do not explain the interpretation.",
+        "Do not say what the metaphor means.",
+        "Do not announce the joke.",
+        "Do not summarize the character.",
+        "Make the interpretation itself carry the meaning.",
+
+        "",
+        "Do not mechanically repeat the subject name.",
+        "Establish identity once, then spend words on attitude, change, relationship, or consequence.",
+
+        "",
+        "Use supplied objects and moments when they carry meaning.",
+        "Do not invent props, people, dialogue, locations, actions, outcomes, or physical reactions.",
+
+        "",
+        "Prefer 3-7 words per line. Maximum 7 words.",
+        "The final line may be extremely compressed if the supplied sequence supports it.",
+
+        "",
+        "Do not use generic mascot language such as 'Poodle power', 'so fabulous', 'good girl', or 'what a day'.",
+        "Do not use generic emotional summaries.",
+        "Do not output labels such as 'the contrast' or 'the unexpected'.",
+        "Do not output planning language.",
+        "Do not output questions unless the supplied reality itself genuinely requires one.",
+
+        "",
+        "The goal is NOT prettier narration.",
+        "The goal is a tiny interpretive movie.",
+
+        "",
+        "Return JSON only in exactly this shape:",
+        `{"texts":["line 1","line 2"${targetCount >= 3 ? ', "line 3"' : ""}${targetCount >= 4 ? ', "line 4"' : ""}${targetCount >= 5 ? ', "line 5"' : ""}${targetCount >= 6 ? ', "line 6"' : ""}]}`,
+      ].join("\n"),
     },
     {
       role: "user" as const,
@@ -648,14 +901,22 @@ function buildMouthMessages(
         contradictions: cognition.contradictions,
         chosenAttentionStrategy: cognition.chosenAttentionStrategy,
         latentMovieCandidates: cognition.latentMovieCandidates.slice(0, 4),
+        attentionArc: plan.attentionArc ?? "",
         beats,
       }),
     },
   ];
 }
 
-export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ brief: AuthorCreativeBrief; scenes: AuthorScene[]; sequence?: SequencePlay; field: Record<string, unknown>; diagnostics: Record<string, unknown> }> {
+export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{
+  brief: AuthorCreativeBrief;
+  scenes: AuthorScene[];
+  sequence?: SequencePlay;
+  field: Record<string, unknown>;
+  diagnostics: Record<string, unknown>;
+}> {
   const subject = clean(input.subject) || "the subject";
+
   const realityGraph = input.realityGraph ?? buildAuthorRealityGraph({
     prompt: clean(input.prompt),
     subject,
@@ -665,14 +926,26 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     memoryContext: [...(input.memoryContext ?? [])],
     trajectory: [...(input.trajectory ?? [])],
   });
+
   const cognition = buildAuthorCognitivePlan({
-    prompt: clean(input.prompt), lens: clean(input.lens), subject, place: clean(input.place),
-    facts: [...input.facts], sourceMoments: [...input.sourceMoments], memoryContext: [...(input.memoryContext ?? [])],
-    priorScenes: [...(input.trajectory ?? [])], priorStrategies: [...(input.creativeLearningContext ?? [])], round: Math.max(1, input.trajectory?.length ? 2 : 1),
+    prompt: clean(input.prompt),
+    lens: clean(input.lens),
+    subject,
+    place: clean(input.place),
+    facts: [...input.facts],
+    sourceMoments: [...input.sourceMoments],
+    memoryContext: [...(input.memoryContext ?? [])],
+    priorScenes: [...(input.trajectory ?? [])],
+    priorStrategies: [...(input.creativeLearningContext ?? [])],
+    round: Math.max(
+      1,
+      input.trajectory?.length ? 2 : 1,
+    ),
     realityGraph,
   });
 
   const risk = inferRiskDial(input, cognition);
+
   const field: Record<string, unknown> = {
     subjectTruth: input.subjectTruth ?? null,
     realityGraph,
@@ -683,129 +956,513 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     learning: uniq(input.creativeLearningContext, 20),
     prompt: clean(input.prompt),
     lens: clean(input.lens),
-    cognition: { mode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, characterRead: cognition.characterRead, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, callbackTargets: cognition.callbackTargets, sceneRules: cognition.sceneRules },
+    cognition: {
+      mode: cognition.mode,
+      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
+      characterRead: cognition.characterRead,
+      attentionCandidates: cognition.attentionCandidates,
+      contradictions: cognition.contradictions,
+      operatorMix: cognition.operatorMix,
+      callbackTargets: cognition.callbackTargets,
+      sceneRules: cognition.sceneRules,
+    },
     creativeRisk: risk,
   };
 
-  const beatMessages = buildBeatMessages({ ...input, realityGraph }, cognition);
-  let beatPlanResult = await localModelGenerate(beatMessages, "json", { numPredict: 768, temperature: risk === "safe" ? 0.55 : 0.78 });
-  debug("BEAT-DISCOVERY", beatPlanResult.text);
-  let beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text)) ?? normalizeLatentMovieBeatPlan(parseJson<unknown>(beatPlanResult.text));
+  const beatMessages = buildBeatMessages(
+    { ...input, realityGraph },
+    cognition,
+  );
+
+  let beatPlanResult = await localModelGenerate(
+    beatMessages,
+    "json",
+    {
+      numPredict: 1536,
+      temperature:
+        risk === "safe"
+          ? 0.55
+          : 0.78,
+    },
+  );
+
+  debug(
+    "BEAT-DISCOVERY",
+    beatPlanResult.text,
+  );
+
+  let beatPlan =
+    normalizeBeatPlan(
+      parseJson<unknown>(
+        beatPlanResult.text,
+      ),
+    ) ??
+    normalizeLatentMovieBeatPlan(
+      parseJson<unknown>(
+        beatPlanResult.text,
+      ),
+    );
+
+  const minimumBeatCount =
+    risk === "safe"
+      ? 4
+      : 5;
+
+  if (
+    !beatPlan ||
+    beatPlan.beats.length <
+      minimumBeatCount
+  ) {
+    beatPlan = undefined;
+  }
+
   let beatPlanRetries = 0;
 
   if (!beatPlan) {
     beatPlanRetries = 1;
-    beatPlanResult = await localModelGenerate([
-      beatMessages[0],
-      { role: "user", content: `${beatMessages[1].content}\nReturn ONLY JSON. Use exactly 4 beats. Keep change/frontier/next/necessity extremely short. No closing.` },
-    ], "json", { numPredict: 512, temperature: 0.5 });
-    debug("BEAT-DISCOVERY-RETRY", beatPlanResult.text);
-    beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
+
+    beatPlanResult =
+      await localModelGenerate(
+        [
+          beatMessages[0],
+          {
+            role: "user",
+            content:
+              `${beatMessages[1].content}\n` +
+              `Return ONLY JSON. Use exactly ${minimumBeatCount} beats. ` +
+              "Every beat must have a real dramatic job. " +
+              "Keep change/frontier/next/necessity extremely short. " +
+              "Do not explain the movie. " +
+              "Do not output analyst prose. " +
+              "Do not output a beat explaining the writing process. " +
+              "No closing.",
+          },
+        ],
+        "json",
+        {
+          numPredict: 1536,
+          temperature: 0.45,
+        },
+      );
+
+    debug(
+      "BEAT-DISCOVERY-RETRY",
+      beatPlanResult.text,
+    );
+
+    beatPlan =
+      normalizeBeatPlan(
+        parseJson<unknown>(
+          beatPlanResult.text,
+        ),
+      ) ?? undefined;
+
+    if (
+      beatPlan &&
+      beatPlan.beats.length <
+        minimumBeatCount
+    ) {
+      beatPlan = undefined;
+    }
   }
-const recoveredBeatPlan = recoverBeatPlanFromLatentMovie(
-  cognition.latentMovieCandidates?.[0],
-  realityGraph,
-);
 
-if (!beatPlan && recoveredBeatPlan) {
-  beatPlan = normalizeBeatPlan(recoveredBeatPlan);
-}
+  const recoveredBeatPlan =
+    recoverBeatPlanFromLatentMovie(
+      cognition.latentMovieCandidates?.[0],
+      realityGraph,
+    );
 
-if (!beatPlan) {
-  return {
-    brief: brief(input, cognition.chosenAttentionStrategy),
-    scenes: [],
-    sequence: undefined,
-    field,
-    diagnostics: {
-      cognitionMode: cognition.mode,
-      characterRead: cognition.characterRead,
-      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
-      attentionCandidates: cognition.attentionCandidates,
-      contradictions: cognition.contradictions,
-      operatorMix: cognition.operatorMix,
-      creativeRisk: risk,
-      realityGraphEvents: realityGraph.events.length,
-      realityGraphRelations: realityGraph.relations.length,
-      realityGraphTensions: realityGraph.unresolvedTensions,
-      beatCount: 0,
-      beatPlan: [],
-      beatPlanRetries,
-      beatPlanParseFailed: true,
-      beatPlanRecovered: Boolean(recoveredBeatPlan),
-      sequenceCutsAttempted: 0,
-      sequenceCutsRejected: 0,
-      finalScenes: 0,
-    },
-  };
-}
+  if (
+    !beatPlan &&
+    recoveredBeatPlan
+  ) {
+    const recovered =
+      normalizeBeatPlan(
+        recoveredBeatPlan,
+      );
 
-  const sequence = buildViewerMomentum(subject, beatPlan);
+    if (
+      recovered &&
+      recovered.beats.length >=
+        minimumBeatCount
+    ) {
+      beatPlan = recovered;
+    }
+  }
+
+  if (!beatPlan) {
+    return {
+      brief: brief(
+        input,
+        cognition.chosenAttentionStrategy,
+      ),
+      scenes: [],
+      sequence: undefined,
+      field,
+      diagnostics: {
+        cognitionMode: cognition.mode,
+        characterRead:
+          cognition.characterRead,
+        chosenAttentionStrategy:
+          cognition.chosenAttentionStrategy,
+        attentionCandidates:
+          cognition.attentionCandidates,
+        contradictions:
+          cognition.contradictions,
+        operatorMix:
+          cognition.operatorMix,
+        creativeRisk: risk,
+        realityGraphEvents:
+          realityGraph.events.length,
+        realityGraphRelations:
+          realityGraph.relations.length,
+        realityGraphTensions:
+          realityGraph.unresolvedTensions,
+        beatCount: 0,
+        beatPlan: [],
+        beatPlanRetries,
+        beatPlanParseFailed: true,
+        beatPlanRecovered:
+          Boolean(recoveredBeatPlan),
+        sequenceCutsAttempted: 0,
+        sequenceCutsRejected: 0,
+        finalScenes: 0,
+      },
+    };
+  }
+
+  const sequence =
+    buildViewerMomentum(
+      subject,
+      beatPlan,
+    );
+
   if (!sequence) {
-    return { brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field, diagnostics: { cognitionMode: cognition.mode,
-      characterRead: cognition.characterRead, chosenAttentionStrategy: cognition.chosenAttentionStrategy, creativeRisk: risk, realityGraphEvents: realityGraph.events.length, realityGraphRelations: realityGraph.relations.length, beatCount: 0, beatPlanRetries, finalScenes: 0 } };
+    return {
+      brief: brief(
+        input,
+        cognition.chosenAttentionStrategy,
+      ),
+      scenes: [],
+      sequence: undefined,
+      field,
+      diagnostics: {
+        cognitionMode: cognition.mode,
+        characterRead:
+          cognition.characterRead,
+        chosenAttentionStrategy:
+          cognition.chosenAttentionStrategy,
+        creativeRisk: risk,
+        realityGraphEvents:
+          realityGraph.events.length,
+        realityGraphRelations:
+          realityGraph.relations.length,
+        beatCount: 0,
+        beatPlanRetries,
+        finalScenes: 0,
+      },
+    };
   }
 
-   debug(
+  debug(
     "INTERPRETIVE-MOUTH",
     JSON.stringify({
-      invariant: "recoverable meaning + no new concrete event",
-      characterRead: cognition.characterRead,
-      contradictions: cognition.contradictions,
+      invariant:
+        "recoverable meaning + no new concrete event",
+      characterRead:
+        cognition.characterRead,
+      contradictions:
+        cognition.contradictions,
     }),
   );
 
-  const realization = await localModelGenerate(
-    buildMouthMessages({ ...input, realityGraph }, sequence, beatPlan, cognition),
-    "json",
-    { numPredict: 640, temperature: risk === "safe" ? 0.58 : 0.76 },
+  const mouthMessages =
+    buildMouthMessages(
+      { ...input, realityGraph },
+      sequence,
+      beatPlan,
+      cognition,
+    );
+
+  let realization =
+    await localModelGenerate(
+      mouthMessages,
+      "json",
+      {
+        numPredict: 640,
+        temperature:
+          risk === "safe"
+            ? 0.58
+            : 0.76,
+      },
+    );
+
+  debug(
+    "MOUTH-REALIZATION",
+    realization.text,
   );
-  debug("MOUTH-REALIZATION", realization.text);
-  const texts = extractTexts(parseJson<unknown>(realization.text));
-  const sequenceResult = scenesFromSequence(
-  sequence,
-  texts,
-  { ...input, realityGraph },
-  cognition,
-);
-  const magnetValues = sequence.cuts.map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0).filter(Number.isFinite);
-  const magnetAverage = magnetValues.length ? magnetValues.reduce((a, b) => a + b, 0) / magnetValues.length : 0;
-  const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
-  const magnetFloor = magnetValues.length ? Math.min(...magnetValues) : 0;
+
+  let texts =
+    extractTexts(
+      parseJson<unknown>(
+        realization.text,
+      ),
+    );
+
+  const attentionEvidence = [
+    ...input.facts,
+    ...input.sourceMoments,
+    ...(input.memoryContext ?? []),
+  ];
+
+  let attentionEdit =
+    editAttentionSequence({
+      beats:
+        buildAttentionBeatInputs(
+          sequence,
+          texts,
+          beatPlan,
+        ),
+      evidence:
+        attentionEvidence,
+    });
+
+  let attentionRetry = 0;
+
+  /*
+   * The critic is an editor, not a second author.
+   *
+   * One bounded rewrite is allowed when the generated lines are structurally
+   * valid but fail the attention test. The rewrite receives the critic's
+   * concrete diagnosis and must preserve the approved beat sequence.
+   */
+  if (
+    attentionEdit.rewriteNeeded
+  ) {
+    attentionRetry = 1;
+
+    const rewriteFeedback = [
+      buildAttentionRewritePrompt(
+        attentionEdit,
+      ),
+      texts.length !==
+      sequence.cuts.length
+        ? `Return exactly ${sequence.cuts.length} lines.`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const retryMessages =
+      buildMouthMessages(
+        { ...input, realityGraph },
+        sequence,
+        beatPlan,
+        cognition,
+      );
+
+    const lastMessage =
+      retryMessages[
+        retryMessages.length - 1
+      ];
+
+    if (
+      !lastMessage ||
+      lastMessage.role !==
+        "user"
+    ) {
+      throw new Error(
+        "Canonical mouth retry lost its user message.",
+      );
+    }
+
+    retryMessages[
+      retryMessages.length - 1
+    ] = {
+      ...lastMessage,
+      content:
+        `${lastMessage.content}\n\n${rewriteFeedback}`,
+    };
+
+    realization =
+      await localModelGenerate(
+        retryMessages,
+        "json",
+        {
+          numPredict: 640,
+          temperature:
+            risk === "safe"
+              ? 0.62
+              : 0.8,
+        },
+      );
+
+    debug(
+      "MOUTH-ATTENTION-REWRITE",
+      realization.text,
+    );
+
+    const retryTexts =
+      extractTexts(
+        parseJson<unknown>(
+          realization.text,
+        ),
+      );
+
+    const retryAttention =
+      editAttentionSequence({
+        beats:
+          buildAttentionBeatInputs(
+            sequence,
+            retryTexts,
+            beatPlan,
+          ),
+        evidence:
+          attentionEvidence,
+      });
+
+    /*
+     * Never accept a rewrite merely because it changed.
+     * Keep the original when the retry does not improve attention.
+     */
+    const retryImproved =
+      retryTexts.length ===
+        sequence.cuts.length &&
+      (
+        retryAttention.accepted ||
+        retryAttention.sequenceScore >
+          attentionEdit.sequenceScore
+      );
+
+    if (retryImproved) {
+      texts = retryTexts;
+      attentionEdit =
+        retryAttention;
+    }
+  }
+
+  debug(
+    "ATTENTION-EDITOR",
+    JSON.stringify(
+      attentionEdit,
+    ),
+  );
+
+  const sequenceResult =
+    scenesFromSequence(
+      sequence,
+      texts,
+      { ...input, realityGraph },
+      cognition,
+    );
+
+  const magnetValues =
+    sequence.cuts
+      .map(
+        (cut) =>
+          cut.momentum?.after
+            .magnet
+            ?.magnetStrength ?? 0,
+      )
+      .filter(Number.isFinite);
+
+  const magnetAverage =
+    magnetValues.length
+      ? magnetValues.reduce(
+          (a, b) => a + b,
+          0,
+        ) / magnetValues.length
+      : 0;
+
+  const magnetPeak =
+    magnetValues.length
+      ? Math.max(...magnetValues)
+      : 0;
+
+  const magnetFloor =
+    magnetValues.length
+      ? Math.min(...magnetValues)
+      : 0;
 
   return {
-    brief: brief(input, cognition.chosenAttentionStrategy), scenes: sequenceResult.scenes, sequence, field,
+    brief: brief(
+      input,
+      cognition.chosenAttentionStrategy,
+    ),
+    scenes:
+      sequenceResult.scenes,
+    sequence,
+    field,
     diagnostics: {
-      cognitionMode: cognition.mode,
-      characterRead: cognition.characterRead,
-      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
-      attentionCandidates: cognition.attentionCandidates,
-      contradictions: cognition.contradictions,
-      operatorMix: cognition.operatorMix,
-      creativeRisk: risk,
-      realityGraphEvents: realityGraph.events.length,
-      realityGraphRelations: realityGraph.relations.length,
-      realityGraphTensions: realityGraph.unresolvedTensions,
-      realityGraphRecurring: realityGraph.recurringSignals,
-      realityGraphSensory: realityGraph.sensorySignals,
-      beatCount: beatPlan.beats.length,
-      beatPlan: beatPlan.beats,
+      cognitionMode:
+        cognition.mode,
+      characterRead:
+        cognition.characterRead,
+      chosenAttentionStrategy:
+        cognition.chosenAttentionStrategy,
+      attentionCandidates:
+        cognition.attentionCandidates,
+      contradictions:
+        cognition.contradictions,
+      operatorMix:
+        cognition.operatorMix,
+      creativeRisk:
+        risk,
+      realityGraphEvents:
+        realityGraph.events.length,
+      realityGraphRelations:
+        realityGraph.relations.length,
+      realityGraphTensions:
+        realityGraph.unresolvedTensions,
+      realityGraphRecurring:
+        realityGraph.recurringSignals,
+      realityGraphSensory:
+        realityGraph.sensorySignals,
+      beatCount:
+        beatPlan.beats.length,
+      beatPlan:
+        beatPlan.beats,
+      attentionArc:
+  "attentionArc" in beatPlan
+    ? beatPlan.attentionArc ?? ""
+    : "",
       beatPlanRetries,
-      beatPlanParseFailed: false,
-      sequenceCutsAttempted: sequenceResult.attempted,
-      sequenceCutsRejected: sequenceResult.rejected,
-      rejectionReasons: sequenceResult.rejectionReasons,
-      realizationTexts: texts,
-      realizationCountMismatch: texts.length !== sequence.cuts.length,
-      finalScenes: sequenceResult.scenes.length,
-      magnetAverage: metric(magnetAverage),
-      magnetPeak: metric(magnetPeak),
-      magnetFloor: metric(magnetFloor),
-      magnetCutsMeasured: magnetValues.length,
-      subjectSpaceEstablished: Boolean(sequence.closingMomentum?.subjectContinuity?.established),
-      informationFrontier: sequence.closingMomentum?.informationFrontier?.frontier ?? "",
+      beatPlanParseFailed:
+        false,
+      sequenceCutsAttempted:
+        sequenceResult.attempted,
+      sequenceCutsRejected:
+        sequenceResult.rejected,
+      rejectionReasons:
+        sequenceResult.rejectionReasons,
+      realizationTexts:
+        texts,
+      realizationCountMismatch:
+        texts.length !==
+        sequence.cuts.length,
+      attentionEditor:
+        attentionEdit,
+      attentionRetry,
+      finalScenes:
+        sequenceResult.scenes.length,
+      magnetAverage:
+        metric(magnetAverage),
+      magnetPeak:
+        metric(magnetPeak),
+      magnetFloor:
+        metric(magnetFloor),
+      magnetCutsMeasured:
+        magnetValues.length,
+      subjectSpaceEstablished:
+        Boolean(
+          sequence.closingMomentum
+            ?.subjectContinuity
+            ?.established,
+        ),
+      informationFrontier:
+        sequence.closingMomentum
+          ?.informationFrontier
+          ?.frontier ?? "",
     },
   };
 }
-
-

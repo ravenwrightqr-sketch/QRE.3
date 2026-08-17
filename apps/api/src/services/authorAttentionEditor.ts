@@ -2,8 +2,37 @@
  * QRE ATTENTION EDITOR · CANONICAL
  *
  * Deterministic editorial layer over an already-discovered beat sequence.
- * It never creates facts. It measures whether each beat moves the viewer,
- * creates a reason to continue, and contributes to a setup/payoff arc.
+ *
+ * It never creates facts.
+ *
+ * It measures:
+ *   factuality
+ *   specificity
+ *   attention
+ *   novelty
+ *   status change
+ *   next-beat pull
+ *   creative movement
+ *   repetition
+ *   cinematicity
+ *   setup/payoff contribution
+ *   invention risk
+ *   mouth usability
+ *
+ * The editor is intentionally downstream of authoring:
+ *
+ *   REALITY
+ *      ↓
+ *   MOVIE / BEAT DISCOVERY
+ *      ↓
+ *   MOUTH
+ *      ↓
+ *   ATTENTION EDITOR
+ *      ↓
+ *   CUT POLICY
+ *
+ * The editor does not invent a better story.
+ * It tells the mouth exactly why a line is weak and permits one bounded rewrite.
  */
 
 export type AttentionBeatInput = {
@@ -15,6 +44,12 @@ export type AttentionBeatInput = {
   next?: string;
   frontier?: string;
   sourceIds?: string[];
+
+  attentionFunction?: string;
+  setsUp?: string[];
+  paysOff?: string[];
+  creativeMove?: string;
+  nextBeatPullTargetTarget?: number;
 };
 
 export type AttentionBeatScore = {
@@ -31,6 +66,7 @@ export type AttentionBeatScore = {
   payoffContribution: number;
   setupValue: number;
   inventionRisk: number;
+  mouthUsability: number;
   score: number;
   keep: boolean;
   reasons: string[];
@@ -45,168 +81,734 @@ export type AttentionEdit = {
   rewriteInstructions: string[];
 };
 
-const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
-const metric = (value: number): number => Number(clamp01(value).toFixed(3));
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clamp01 = (value: number): number =>
+  Math.max(0, Math.min(1, value));
+
+const metric = (value: number): number =>
+  Number(clamp01(value).toFixed(3));
+
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
 const STOP = new Set(
-  "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten more".split(/\s+/),
+  "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten more".split(
+    /\s+/,
+  ),
 );
 
-const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|so fabulous|poodle power|good girl)\b/i;
-const PROCESS = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|narrative|realization|attention editor|information seeking|next beat)\b/i;
-const INTERPRETIVE = /\b(?:lawyer|boss|ceo|diva|celebrity|negotiat(?:e|ion|or)|rebel|rebellion|evidence|case|trial|court|verdict|terms|deal|contract|royalty|queen|king|status|in charge|mission|operation|suspect|legend|undefeated|called the shots|peace|protest|formal complaint|under protest)\b/i;
-const MOVE_WORDS = /\b(?:again|already|still|yet|only|just|then|back|except|until|before|after|temporarily|apparently|suddenly|instead|finally|now|once)\b/i;
-const ACTION = /\b(?:walk(?:s|ed)?|run(?:s|ning|ran)?|jump(?:s|ed)?|leap(?:s|ed)?|grab(?:s|bed)?|steal(?:s|ing|stole)?|take(?:s|n|ing|took)?|put(?:s|ting)?|place(?:s|d)?|remove(?:s|d)?|pick(?:s|ed)?|throw(?:s|w|ing|ew)?|break(?:s|ing|broke)?|tie(?:s|d|ing)?|pull(?:s|ed)?|push(?:es|ed)?|sit(?:s|ting|sat)?|stand(?:s|ing|stood)?|laugh(?:s|ed)?|cry(?:s|ing|cried)?|smile(?:s|d)?|wag(?:s|ged)?|bite(?:s|bit)?|lick(?:s|ed)?|chew(?:s|ed)?)\b/i;
+const GENERIC =
+  /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|so fabulous|poodle power|good girl)\b/i;
+
+const PROCESS =
+  /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|narrative|realization|attention editor|information seeking|next beat)\b/i;
+
+const INTERPRETIVE =
+  /\b(?:lawyer|boss|ceo|diva|celebrity|negotiat(?:e|ion|or)|rebel|rebellion|evidence|case|trial|court|verdict|terms|deal|contract|royalty|queen|king|status|in charge|mission|operation|suspect|legend|undefeated|called the shots|peace|protest|formal complaint|under protest)\b/i;
+
+const MOVE_WORDS =
+  /\b(?:again|already|still|yet|only|just|then|back|except|until|before|after|temporarily|apparently|suddenly|instead|finally|now|once)\b/i;
+
+const ACTION =
+  /\b(?:walk(?:s|ed)?|run(?:s|ning|ran)?|jump(?:s|ed)?|leap(?:s|ed)?|grab(?:s|bed)?|steal(?:s|ing|stole)?|take(?:s|n|ing|took)?|put(?:s|ting)?|place(?:s|d)?|remove(?:s|d)?|pick(?:s|ed)?|throw(?:s|w|ing|ew)?|break(?:s|ing|broke)?|tie(?:s|d|ing)?|pull(?:s|ed)?|push(?:es|ed)?|sit(?:s|ting|sat)?|stand(?:s|ing|stood)?|laugh(?:s|ed)?|cry(?:s|ing|cried)?|smile(?:s|d)?|wag(?:s|ged)?|bite(?:s|bit)?|lick(?:s|ed)?|chew(?:s|ed)?)\b/i;
+
+const EXPLANATION =
+  /\b(?:because|therefore|which means|this means|the reason|shows that|represents?|symbolizes?|in other words|in this context|was a cover for|reveals? that)\b/i;
+
+const META_VIEWER =
+  /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
+
+const LABEL_LIKE =
+  /^(?:the contrast|the unexpected|the transformation|the mystery|the payoff|the reframe|the reveal|the twist|the journey|the answer)$/i;
 
 function words(text: string): string[] {
   return clean(text)
     .toLowerCase()
     .split(/[^a-z0-9'-]+/i)
-    .filter((word) => word.length >= 3 && !STOP.has(word));
+    .filter(
+      (word) =>
+        word.length >= 3 &&
+        !STOP.has(word),
+    );
 }
 
 function set(text: string): Set<string> {
   return new Set(words(text));
 }
 
-function overlap(a: Set<string>, b: Set<string>): number {
+function overlap(
+  a: Set<string>,
+  b: Set<string>,
+): number {
   if (!a.size) return 0;
+
   let hits = 0;
-  for (const token of a) if (b.has(token)) hits += 1;
+
+  for (const token of a) {
+    if (b.has(token)) hits += 1;
+  }
+
   return hits / a.size;
 }
 
-function factuality(text: string, evidence: string[]): number {
+function factuality(
+  text: string,
+  evidence: string[],
+): number {
   if (!text) return 0;
+
   const candidate = set(text);
-  const source = set(evidence.join(" "));
-  if (!candidate.size || !source.size) return 0.1;
-  const literal = overlap(candidate, source);
-  const interpretive = INTERPRETIVE.test(text) ? 0.34 : 0;
-  return metric(Math.max(literal, interpretive));
+  const source = set(
+    evidence.join(" "),
+  );
+
+  if (!candidate.size || !source.size) {
+    return 0.1;
+  }
+
+  const literal = overlap(
+    candidate,
+    source,
+  );
+
+  const interpretive =
+    INTERPRETIVE.test(text)
+      ? 0.34
+      : 0;
+
+  return metric(
+    Math.max(
+      literal,
+      interpretive,
+    ),
+  );
 }
 
 function specificity(text: string): number {
   const tokenCount = words(text).length;
-  let score = tokenCount >= 2 ? 0.25 : 0.08;
-  if (tokenCount >= 4) score += 0.15;
-  if (/\b(?:blue|bath|bow|box|kitchen|bathroom|time|minute|receipt|poodle|wedding|song|record|door|room|car|house)\b/i.test(text)) score += 0.25;
-  if (INTERPRETIVE.test(text)) score += 0.2;
-  if (!GENERIC.test(text)) score += 0.15;
+
+  let score =
+    tokenCount >= 2
+      ? 0.25
+      : 0.08;
+
+  if (tokenCount >= 4) {
+    score += 0.15;
+  }
+
+  if (
+    /\b(?:blue|bath|bow|box|kitchen|bathroom|time|minute|receipt|poodle|wedding|song|record|door|room|car|house)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.25;
+  }
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.2;
+  }
+
+  if (!GENERIC.test(text)) {
+    score += 0.15;
+  }
+
+  if (LABEL_LIKE.test(text)) {
+    score -= 0.25;
+  }
+
   return metric(score);
 }
 
-function novelty(text: string, prior: string[]): number {
+function novelty(
+  text: string,
+  prior: string[],
+): number {
   if (!prior.length) return 1;
+
   const current = set(text);
-  const previous = set(prior.join(" "));
+  const previous = set(
+    prior.join(" "),
+  );
+
   if (!current.size) return 0;
-  return metric(1 - overlap(current, previous));
+
+  return metric(
+    1 -
+      overlap(
+        current,
+        previous,
+      ),
+  );
 }
 
-function statusChange(text: string): number {
+function statusChange(
+  text: string,
+): number {
   let score = 0.1;
-  if (INTERPRETIVE.test(text)) score += 0.5;
-  if (/\b(?:fierce|defiant|guarded|power|control|in charge|under protest|negotiat|rebel|boss|lawyer|peace|terms|evidence)\b/i.test(text)) score += 0.25;
-  if (/\b(?:but|yet|still|instead|apparently|temporarily)\b/i.test(text)) score += 0.15;
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.5;
+  }
+
+  if (
+    /\b(?:fierce|defiant|guarded|power|control|in charge|under protest|negotiat|rebel|boss|lawyer|peace|terms|evidence)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.25;
+  }
+
+  if (
+    /\b(?:but|yet|still|instead|apparently|temporarily)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.15;
+  }
+
   return metric(score);
 }
 
-function creativeMove(text: string): number {
+function creativeMove(
+  text: string,
+): number {
   let score = 0.12;
-  if (INTERPRETIVE.test(text)) score += 0.38;
-  if (MOVE_WORDS.test(text)) score += 0.18;
-  if (/\b(?:but|yet|still|apparently|temporarily|under protest|already)\b/i.test(text)) score += 0.17;
-  if (ACTION.test(text)) score += 0.05;
-  if (!GENERIC.test(text) && !PROCESS.test(text)) score += 0.1;
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.38;
+  }
+
+  if (MOVE_WORDS.test(text)) {
+    score += 0.18;
+  }
+
+  if (
+    /\b(?:but|yet|still|apparently|temporarily|under protest|already)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.17;
+  }
+
+  if (ACTION.test(text)) {
+    score += 0.05;
+  }
+
+  if (
+    !GENERIC.test(text) &&
+    !PROCESS.test(text)
+  ) {
+    score += 0.1;
+  }
+
+  if (LABEL_LIKE.test(text)) {
+    score -= 0.25;
+  }
+
+  if (EXPLANATION.test(text)) {
+    score -= 0.12;
+  }
+
   return metric(score);
 }
 
-function nextBeatPull(text: string, next: string | undefined, role: string | undefined): number {
-  const nextText = clean(next);
-  let score = 0.08;
-  if (nextText) score += 0.28;
-  if (nextText.includes("?")) score += 0.2;
-  if (/\b(?:what|why|how|who|will|can|does|did|where|which)\b/i.test(nextText)) score += 0.14;
-  if (/\b(?:again|still|now|next|after|then|finally|temporarily|until|before)\b/i.test(nextText)) score += 0.1;
-  if (INTERPRETIVE.test(text)) score += 0.12;
-  if (["hook", "pressure", "escalation", "reframe", "question"].includes(clean(role))) score += 0.08;
-  if (GENERIC.test(text) || PROCESS.test(text)) score -= 0.16;
+function nextBeatPull(
+  text: string,
+  nextText: string | undefined,
+  nextFrontier: string | undefined,
+  role: string | undefined,
+): number {
+  const current = set(text);
+  const upcoming = set(
+    clean(nextText),
+  );
+  const frontier = set(
+    clean(nextFrontier),
+  );
+
+  let score = 0.05;
+
+  if (clean(nextText)) {
+    score += 0.18;
+  }
+
+  if (clean(nextFrontier)) {
+    score += 0.16;
+  }
+
+  /*
+   * A real continuation should either:
+   *
+   * 1. introduce new information,
+   * 2. resolve/reframe something planted here,
+   * 3. escalate a relationship,
+   * 4. carry forward a meaningful object/status.
+   */
+  const lexicalCarry =
+    overlap(
+      upcoming,
+      current,
+    ) * 0.22 +
+    overlap(
+      frontier,
+      current,
+    ) * 0.18;
+
+  score += lexicalCarry;
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.12;
+  }
+
+  if (
+    /\b(?:why|what|who|how|will|can|does|did|where|which)\b/i.test(
+      clean(nextText),
+    )
+  ) {
+    score += 0.12;
+  }
+
+  if (
+    /\b(?:again|still|now|next|after|then|finally|temporarily|until|before)\b/i.test(
+      clean(nextText),
+    )
+  ) {
+    score += 0.08;
+  }
+
+  if (
+    [
+      "hook",
+      "pressure",
+      "escalation",
+      "reframe",
+      "question",
+    ].includes(clean(role))
+  ) {
+    score += 0.05;
+  }
+
+  /*
+   * A line that simply concludes the current state should
+   * not receive a high pull score just because a frontier exists.
+   */
+  if (
+    /\b(?:is|was|looks|seems|reveals?|shows?|means?|becomes?|remains?)\b/i.test(
+      clean(text),
+    ) &&
+    !INTERPRETIVE.test(text)
+  ) {
+    score -= 0.08;
+  }
+
+  if (
+    GENERIC.test(text) ||
+    PROCESS.test(text) ||
+    LABEL_LIKE.test(text)
+  ) {
+    score -= 0.2;
+  }
+
+  if (EXPLANATION.test(text)) {
+    score -= 0.12;
+  }
+
   return metric(score);
 }
 
-function cinematicity(text: string): number {
+function cinematicity(
+  text: string,
+): number {
   const count = words(text).length;
-  let score = count <= 7 && count >= 2 ? 0.36 : 0.12;
-  if (INTERPRETIVE.test(text)) score += 0.28;
-  if (ACTION.test(text)) score += 0.12;
-  if (MOVE_WORDS.test(text)) score += 0.1;
-  if (GENERIC.test(text) || PROCESS.test(text)) score -= 0.3;
+
+  let score =
+    count <= 7 && count >= 2
+      ? 0.36
+      : 0.12;
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.28;
+  }
+
+  if (ACTION.test(text)) {
+    score += 0.12;
+  }
+
+  if (MOVE_WORDS.test(text)) {
+    score += 0.1;
+  }
+
+  if (
+    GENERIC.test(text) ||
+    PROCESS.test(text) ||
+    LABEL_LIKE.test(text)
+  ) {
+    score -= 0.3;
+  }
+
+  if (EXPLANATION.test(text)) {
+    score -= 0.12;
+  }
+
   return metric(score);
 }
 
-function repetition(text: string, prior: string[]): number {
+function repetition(
+  text: string,
+  prior: string[],
+): number {
   if (!prior.length) return 0;
-  return metric(overlap(set(text), set(prior.join(" "))));
+
+  return metric(
+    overlap(
+      set(text),
+      set(prior.join(" ")),
+    ),
+  );
 }
 
-function inventionRisk(text: string, evidence: string[]): number {
+function inventionRisk(
+  text: string,
+  evidence: string[],
+): number {
   const source = evidence.join(" ");
+
   let score = 0;
-  if (ACTION.test(text) && !ACTION.test(source)) score += 0.45;
-  if (/\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(text) && !/\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(source)) score += 0.2;
-  if (/\b(?:will always|forever|ever again|from now on)\b/i.test(text)) score += 0.25;
+
+  if (
+    ACTION.test(text) &&
+    !ACTION.test(source)
+  ) {
+    score += 0.45;
+  }
+
+  if (
+    /\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(
+      text,
+    ) &&
+    !/\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(
+      source,
+    )
+  ) {
+    score += 0.2;
+  }
+
+  if (
+    /\b(?:will always|forever|ever again|from now on)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.25;
+  }
+
   return metric(score);
 }
 
-function setupContribution(text: string, role: string | undefined): number {
+/*
+ * Mouth usability is intentionally stricter than general prose quality.
+ *
+ * The downstream cut policy currently wants short micro-film lines:
+ * 3-7 words is ideal, 7 words is the hard target.
+ *
+ * A beautiful 9-word sentence that the cut policy immediately rejects
+ * is not useful to the pipeline, so the attention editor must see that
+ * failure before the final gate.
+ */
+function mouthUsability(
+  text: string,
+): number {
+  const value = clean(text);
+
+  if (!value) return 0;
+
+  const count = words(value).length;
+
+  let score = 1;
+
+  if (count <= 7) {
+    score += 0;
+  } else if (count === 8) {
+    score -= 0.55;
+  } else if (count === 9) {
+    score -= 0.75;
+  } else {
+    score -= 1;
+  }
+
+  if (value.includes("?")) {
+    score -= 0.3;
+  }
+
+  if (EXPLANATION.test(value)) {
+    score -= 0.25;
+  }
+
+  if (META_VIEWER.test(value)) {
+    score -= 0.4;
+  }
+
+  if (GENERIC.test(value)) {
+    score -= 0.3;
+  }
+
+  if (PROCESS.test(value)) {
+    score -= 0.4;
+  }
+
+  if (LABEL_LIKE.test(value)) {
+    score -= 0.25;
+  }
+
+  return metric(score);
+}
+
+function setupContribution(
+  text: string,
+  role: string | undefined,
+): number {
   let score = 0.08;
-  if (["hook", "question", "pressure"].includes(clean(role))) score += 0.28;
-  if (INTERPRETIVE.test(text)) score += 0.22;
-  if (/\b(?:why|what|who|how|will|can)\b/i.test(text)) score += 0.18;
-  if (MOVE_WORDS.test(text)) score += 0.12;
+
+  if (
+    [
+      "hook",
+      "question",
+      "pressure",
+    ].includes(clean(role))
+  ) {
+    score += 0.28;
+  }
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.22;
+  }
+
+  if (
+    /\b(?:why|what|who|how|will|can)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.18;
+  }
+
+  if (MOVE_WORDS.test(text)) {
+    score += 0.12;
+  }
+
   return metric(score);
 }
 
-function payoffContribution(text: string, role: string | undefined, prior: string[]): number {
-  let score = ["payoff", "release", "callback", "consequence"].includes(clean(role)) ? 0.42 : 0.06;
-  if (INTERPRETIVE.test(text)) score += 0.2;
-  if (prior.length && /\b(?:again|back|still|temporarily|finally|now|then)\b/i.test(text)) score += 0.16;
-  if (prior.length && overlap(set(text), set(prior.join(" "))) > 0.15) score += 0.12;
+function payoffContribution(
+  text: string,
+  role: string | undefined,
+  prior: string[],
+): number {
+  let score = [
+    "payoff",
+    "release",
+    "callback",
+    "consequence",
+  ].includes(clean(role))
+    ? 0.42
+    : 0.06;
+
+  if (INTERPRETIVE.test(text)) {
+    score += 0.2;
+  }
+
+  if (
+    prior.length &&
+    /\b(?:again|back|still|temporarily|finally|now|then)\b/i.test(
+      text,
+    )
+  ) {
+    score += 0.16;
+  }
+
+  if (
+    prior.length &&
+    overlap(
+      set(text),
+      set(prior.join(" ")),
+    ) > 0.15
+  ) {
+    score += 0.12;
+  }
+
   return metric(score);
 }
 
-export function scoreAttentionBeat(input: AttentionBeatInput, priorTexts: string[], evidence: string[]): AttentionBeatScore {
-  const factual = factuality(input.text, evidence);
-  const specific = specificity(input.text);
-  const novel = novelty(input.text, priorTexts);
-  const status = statusChange(input.text);
-  const creative = creativeMove(input.text);
-  const pull = nextBeatPull(input.text, input.next ?? input.frontier, input.role);
-  const repeated = repetition(input.text, priorTexts);
-  const cine = cinematicity(input.text);
-  const payoff = payoffContribution(input.text, input.role, priorTexts);
-  const setup = setupContribution(input.text, input.role);
-  const invention = inventionRisk(input.text, evidence);
+export function scoreAttentionBeat(
+  input: AttentionBeatInput,
+  priorTexts: string[],
+  evidence: string[],
+): AttentionBeatScore {
+  const factual = factuality(
+    input.text,
+    evidence,
+  );
+
+  const specific = specificity(
+    input.text,
+  );
+
+  const novel = novelty(
+    input.text,
+    priorTexts,
+  );
+
+  const status = statusChange(
+    input.text,
+  );
+
+  const creative = creativeMove(
+    input.text,
+  );
+
+  const pull = nextBeatPull(
+    input.text,
+    input.next,
+    input.frontier,
+    input.role,
+  );
+
+  const repeated = repetition(
+    input.text,
+    priorTexts,
+  );
+
+  const cine = cinematicity(
+    input.text,
+  );
+
+  const payoff = payoffContribution(
+    input.text,
+    input.role,
+    priorTexts,
+  );
+
+  const setup = setupContribution(
+    input.text,
+    input.role,
+  );
+
+  const invention = inventionRisk(
+    input.text,
+    evidence,
+  );
+
+  const usability = mouthUsability(
+    input.text,
+  );
 
   const attention = metric(
-    specific * 0.16 + novel * 0.12 + status * 0.14 + creative * 0.13 + pull * 0.22 + cine * 0.1 + payoff * 0.07 + setup * 0.06 - repeated * 0.07,
+    specific * 0.14 +
+      novel * 0.1 +
+      status * 0.13 +
+      creative * 0.12 +
+      pull * 0.24 +
+      cine * 0.08 +
+      payoff * 0.07 +
+      setup * 0.05 +
+      usability * 0.12 -
+      repeated * 0.07,
   );
 
   const score = metric(
-    factual * 0.22 + specific * 0.12 + attention * 0.28 + status * 0.1 + pull * 0.12 + creative * 0.09 + payoff * 0.07 - invention * 0.18 - repeated * 0.05,
+    factual * 0.2 +
+      specific * 0.11 +
+      attention * 0.27 +
+      status * 0.1 +
+      pull * 0.12 +
+      creative * 0.08 +
+      payoff * 0.06 +
+      usability * 0.06 -
+      invention * 0.18 -
+      repeated * 0.05,
   );
 
   const reasons: string[] = [];
-  if (factual < 0.28 && !INTERPRETIVE.test(input.text)) reasons.push("weak-factual-anchor");
-  if (specific < 0.38) reasons.push("weak-specificity");
-  if (pull < 0.35) reasons.push("weak-next-beat-pull");
-  if (creative < 0.3) reasons.push("weak-creative-move");
-  if (repeated > 0.72) reasons.push("repetitive");
-  if (invention > 0.45) reasons.push("high-invention-risk");
-  if (GENERIC.test(input.text)) reasons.push("generic-language");
-  if (PROCESS.test(input.text)) reasons.push("process-language");
+
+  if (
+    factual < 0.28 &&
+    !INTERPRETIVE.test(input.text)
+  ) {
+    reasons.push(
+      "weak-factual-anchor",
+    );
+  }
+
+  if (specific < 0.38) {
+    reasons.push(
+      "weak-specificity",
+    );
+  }
+
+  if (pull < 0.35) {
+    reasons.push(
+      "weak-next-beat-pull",
+    );
+  }
+
+  if (creative < 0.3) {
+    reasons.push(
+      "weak-creative-move",
+    );
+  }
+
+  if (repeated > 0.72) {
+    reasons.push(
+      "repetitive",
+    );
+  }
+
+  if (invention > 0.45) {
+    reasons.push(
+      "high-invention-risk",
+    );
+  }
+
+  if (usability < 0.65) {
+    reasons.push(
+      "mouth-usability",
+    );
+  }
+
+  if (GENERIC.test(input.text)) {
+    reasons.push(
+      "generic-language",
+    );
+  }
+
+  if (PROCESS.test(input.text)) {
+    reasons.push(
+      "process-language",
+    );
+  }
+
+  if (META_VIEWER.test(input.text)) {
+    reasons.push(
+      "viewer-language",
+    );
+  }
+
+  if (EXPLANATION.test(input.text)) {
+    reasons.push(
+      "explanation-heavy",
+    );
+  }
+
+  if (LABEL_LIKE.test(input.text)) {
+    reasons.push(
+      "label-like",
+    );
+  }
+
+  /*
+   * A line should never survive solely because it has a strong
+   * factuality score. It must still function as a film cut.
+   */
+  const keep =
+    reasons.length === 0 &&
+    score >= 0.48;
 
   return {
     order: input.order,
@@ -222,69 +824,140 @@ export function scoreAttentionBeat(input: AttentionBeatInput, priorTexts: string
     payoffContribution: payoff,
     setupValue: setup,
     inventionRisk: invention,
+    mouthUsability: usability,
     score,
-    keep: reasons.length === 0 && score >= 0.48,
+    keep,
     reasons,
   };
 }
 
-export function editAttentionSequence(input: {
-  beats: AttentionBeatInput[];
-  evidence: string[];
-}): AttentionEdit {
+export function editAttentionSequence(
+  input: {
+    beats: AttentionBeatInput[];
+    evidence: string[];
+  },
+): AttentionEdit {
   const scores: AttentionBeatScore[] = [];
   const prior: string[] = [];
 
   for (const beat of input.beats) {
-    const score = scoreAttentionBeat(beat, prior, input.evidence);
+    const score = scoreAttentionBeat(
+      beat,
+      prior,
+      input.evidence,
+    );
+
     scores.push(score);
     prior.push(beat.text);
   }
 
   if (scores.length >= 2) {
     const first = scores[0];
-    const last = scores[scores.length - 1];
+    const last =
+      scores[scores.length - 1];
+
     if (first) {
-      first.setupValue = metric(first.setupValue + (scores.some((item) => item.payoffContribution > 0.5) ? 0.08 : 0));
+      first.setupValue = metric(
+        first.setupValue +
+          (scores.some(
+            (item) =>
+              item.payoffContribution >
+              0.5,
+          )
+            ? 0.08
+            : 0),
+      );
     }
-    if (last && last.payoffContribution < 0.35) {
-      last.reasons.push("weak-payoff");
+
+    if (
+      last &&
+      last.payoffContribution <
+        0.35
+    ) {
+      last.reasons.push(
+        "weak-payoff",
+      );
       last.keep = false;
     }
   }
 
-  const weakBeats = scores.filter((score) => !score.keep).map((score) => score.order);
+  const weakBeats = scores
+    .filter(
+      (score) => !score.keep,
+    )
+    .map(
+      (score) => score.order,
+    );
+
   const sequenceScore = metric(
     scores.length
-      ? scores.reduce((sum, score) => sum + score.score, 0) / scores.length
+      ? scores.reduce(
+          (sum, score) =>
+            sum + score.score,
+          0,
+        ) / scores.length
       : 0,
   );
 
-  const rewriteInstructions = [...new Set(
-    scores.flatMap((score) => score.reasons.map((reason) => `Beat ${score.order}: ${reason}`)),
-  )];
+  const rewriteInstructions = [
+    ...new Set(
+      scores.flatMap((score) =>
+        score.reasons.map(
+          (reason) =>
+            `Beat ${score.order}: ${reason}`,
+        ),
+      ),
+    ),
+  ];
 
   return {
-    accepted: weakBeats.length === 0 && sequenceScore >= 0.52,
+    accepted:
+      weakBeats.length === 0 &&
+      sequenceScore >= 0.52,
+
     sequenceScore,
+
     beats: scores,
+
     weakBeats,
-    rewriteNeeded: weakBeats.length > 0 || sequenceScore < 0.52,
+
+    rewriteNeeded:
+      weakBeats.length > 0 ||
+      sequenceScore < 0.52,
+
     rewriteInstructions,
   };
 }
 
-export function buildAttentionRewritePrompt(edit: AttentionEdit): string {
-  if (!edit.rewriteNeeded) return "";
+export function buildAttentionRewritePrompt(
+  edit: AttentionEdit,
+): string {
+  if (!edit.rewriteNeeded) {
+    return "";
+  }
+
   return [
     "ATTENTION EDITOR FEEDBACK:",
     `Sequence score: ${edit.sequenceScore}`,
-    `Weak beats: ${edit.weakBeats.join(", ") || "none"}`,
+    `Weak beats: ${
+      edit.weakBeats.join(", ") ||
+      "none"
+    }`,
     ...edit.rewriteInstructions,
+    "",
+    "REWRITE RULES:",
     "Rewrite only the weak lines.",
-    "Preserve beat order and supplied facts.",
+    "Preserve beat order.",
+    "Preserve supplied facts.",
     "Do not invent a concrete event.",
-    "Prefer a tiny interpretive move that creates a reason to continue.",
+    "Do not turn a fact into a checklist.",
+    "Do not explain the character or the joke.",
+    "Prefer a tiny interpretive move.",
+    "Prefer 3-7 words.",
+    "Do not exceed 7 words unless absolutely unavoidable.",
+    "Do not use questions as viewer-facing lines.",
+    "Do not use planning language.",
     "Do not make the prose longer to compensate for weak movement.",
+    "The replacement must create a reason to continue or pay something off.",
   ].join("\n");
 }
