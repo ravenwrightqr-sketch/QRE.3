@@ -40,8 +40,7 @@ function parseInput(raw: string): AuthorTestInput {
   const realityBlock =
     sections.slice(2).join(" | ");
 
-  const subjectParts =
-    splitFacts(subjectBlock);
+  const subjectParts = splitFacts(subjectBlock);
 
   const subject =
     subjectParts.shift() ||
@@ -50,8 +49,7 @@ function parseInput(raw: string): AuthorTestInput {
 
   const attributes = subjectParts;
 
-  const realityFacts =
-    splitFacts(realityBlock);
+  const realityFacts = splitFacts(realityBlock);
 
   return {
     prompt,
@@ -207,6 +205,31 @@ console.log(
 );
 
 console.log(
+  `ATTENTION ACCEPTED: ${String(
+    (result.diagnostics.attentionEditor as { accepted?: boolean } | undefined)?.accepted ??
+      false,
+  )}`,
+);
+
+console.log(
+  `ATTENTION SCORE: ${String(
+    (result.diagnostics.attentionEditor as { sequenceScore?: number } | undefined)?.sequenceScore ??
+      0,
+  )}`,
+);
+
+console.log(
+  `ATTENTION WEAK BEATS: ${JSON.stringify(
+    (result.diagnostics.attentionEditor as { weakBeats?: number[] } | undefined)?.weakBeats ??
+      [],
+  )}`,
+);
+
+console.log(
+  `COMPLETE: ${String(result.diagnostics.complete ?? false)}`,
+);
+
+console.log(
   `MAGNET AVG: ${String(
     result.diagnostics.magnetAverage ??
       0,
@@ -221,6 +244,12 @@ console.log(
 );
 
 console.log("=".repeat(80));
+
+if (!result.diagnostics.complete) {
+  throw new Error(
+    "MONSTER INVARIANT FAILED: canonical author path did not complete all gates",
+  );
+}
 
 if (
   result.scenes.length !==
@@ -240,6 +269,36 @@ if (
   throw new Error(
     `MONSTER INVARIANT FAILED: sequenceCutsRejected=${String(
       result.diagnostics.sequenceCutsRejected,
+    )}`,
+  );
+}
+
+const attention =
+  result.diagnostics.attentionEditor as
+    | {
+        accepted?: boolean;
+        sequenceScore?: number;
+        weakBeats?: number[];
+      }
+    | undefined;
+
+if (!attention?.accepted) {
+  throw new Error(
+    `MONSTER INVARIANT FAILED: attention editor rejected sequence score=${String(
+      attention?.sequenceScore ?? 0,
+    )} weakBeats=${JSON.stringify(
+      attention?.weakBeats ?? [],
+    )}`,
+  );
+}
+
+if (
+  Number(attention.sequenceScore ?? 0) <
+  0.6
+) {
+  throw new Error(
+    `MONSTER INVARIANT FAILED: attention score below production floor: ${String(
+      attention.sequenceScore,
     )}`,
   );
 }
