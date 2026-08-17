@@ -30,8 +30,8 @@ const newParser = [
   "  expected: number,",
   "): string[] {",
   "  const text = raw",
-  "    .replace(/^(?:```)(?:json)?/i, \"\")",
-  "    .replace(/(?:```)$/i, \"\")",
+  "    .replace(/^```(?:json)?/i, \"\")",
+  "    .replace(/```$/i, \"\")",
   "    .trim();",
   "",
   "  try {",
@@ -77,31 +77,44 @@ const newValidation =
 
 if (text.includes(oldValidation)) {
   text = text.replace(oldValidation, newValidation);
-} else if (text.includes(newValidation)) {
-  console.log("canonical mouth exact-count validation already patched");
-} else {
+} else if (!text.includes(newValidation)) {
   throw new Error(
     "PATCH MISS [canonical mouth validation]: expected valid predicate not found",
   );
 }
 
-const oldFallback = [
-  "  return {",
-  "    text: JSON.stringify({",
-  "      texts: Array.from(",
-  "        { length: beats.length },",
-  "        () => \"\",",
-  "      ),",
-  "    }),",
-  "    model: modelName(),",
-  "    provider: \"local\",",
-  "  };",
-  "}",
-].join("\n");
+const fallbackStart =
+  "  if (\n    retryParsed.length === beats.length\n  ) {";
+const fallbackEnd = "\n}\n\nexport async function localModelGenerate(";
 
-const preservedFallback = [
-  "  // Preserve usable model output. The canonical author brain owns",
-  "  // exact-count repair and final acceptance downstream.",
+const start = text.indexOf(fallbackStart);
+if (start < 0) {
+  throw new Error(
+    "PATCH MISS [canonical mouth fallback]: retry/fallback boundary not found",
+  );
+}
+
+const end = text.indexOf(fallbackEnd, start);
+if (end < 0) {
+  throw new Error(
+    "PATCH MISS [canonical mouth fallback]: canonicalMouthRequest end boundary not found",
+  );
+}
+
+const retryAndFallback = [
+  "  if (retryParsed.length === beats.length) {",
+  "    return {",
+  "      text: JSON.stringify({",
+  "        texts: retryParsed,",
+  "      }),",
+  "      model: modelName(),",
+  "      provider: \"local\",",
+  "    };",
+  "  }",
+  "",
+  "  // Never erase usable model output. The author brain owns exact-count",
+  "  // acceptance downstream; this transport layer must preserve evidence",
+  "  // for repair instead of manufacturing an array of empty strings.",
   "  return {",
   "    text: JSON.stringify({",
   "      texts:",
@@ -114,21 +127,24 @@ const preservedFallback = [
   "    model: modelName(),",
   "    provider: \"local\",",
   "  };",
-  "}",
 ].join("\n");
 
-if (text.includes(oldFallback)) {
-  text = text.replace(oldFallback, preservedFallback);
-} else if (
-  text.includes("retryParsed.length > 0") &&
-  text.includes("parsed.length > 0")
-) {
-  console.log(
-    "canonical mouth fallback already patched; preserving current state",
-  );
-} else {
+text =
+  text.slice(0, start) +
+  retryAndFallback +
+  text.slice(end);
+
+if (!text.includes(newValidation)) {
   throw new Error(
-    "PATCH MISS [canonical mouth fallback]: neither the known old fallback nor the already-patched fallback was found",
+    "PATCH VERIFY [canonical mouth validation]: exact-count validation missing after patch",
+  );
+}
+
+if (
+  text.includes("texts: Array.from(\n        { length: beats.length },")
+) {
+  throw new Error(
+    "PATCH VERIFY [canonical mouth fallback]: empty-string fallback still present",
   );
 }
 
