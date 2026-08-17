@@ -360,24 +360,10 @@ function preparePlannerMessages(
         prompt: String(source.prompt ?? ""),
         subject: String(source.subject ?? ""),
         place: String(source.place ?? ""),
-        facts: Array.isArray(source.facts)
-          ? source.facts.map(String)
-          : [],
-        sourceMoments: Array.isArray(
-          source.moments,
-        )
-          ? source.moments.map(String)
-          : [],
-        memoryContext: Array.isArray(
-          source.memory,
-        )
-          ? source.memory.map(String)
-          : [],
-        trajectory: Array.isArray(
-          source.trajectory,
-        )
-          ? source.trajectory.map(String)
-          : [],
+        facts: Array.isArray(source.facts) ? source.facts.map(String) : [],
+        sourceMoments: Array.isArray(source.moments) ? source.moments.map(String) : [],
+        memoryContext: Array.isArray(source.memory) ? source.memory.map(String) : [],
+        trajectory: Array.isArray(source.trajectory) ? source.trajectory.map(String) : [],
       })
     : undefined;
 
@@ -385,21 +371,11 @@ function preparePlannerMessages(
     ? [
         "QRE REALITY GRAPH · SOURCE-TRUTH CONTEXT:",
         "Use this graph to discover relationships before inventing narrative structure.",
-        `events=${JSON.stringify(
-          realityGraph.events.slice(0, 10),
-        )}`,
-        `relations=${JSON.stringify(
-          realityGraph.relations.slice(0, 16),
-        )}`,
-        `tensions=${JSON.stringify(
-          realityGraph.unresolvedTensions,
-        )}`,
-        `recurring=${JSON.stringify(
-          realityGraph.recurringSignals,
-        )}`,
-        `sensory=${JSON.stringify(
-          realityGraph.sensorySignals,
-        )}`,
+        `events=${JSON.stringify(realityGraph.events.slice(0, 10))}`,
+        `relations=${JSON.stringify(realityGraph.relations.slice(0, 16))}`,
+        `tensions=${JSON.stringify(realityGraph.unresolvedTensions)}`,
+        `recurring=${JSON.stringify(realityGraph.recurringSignals)}`,
+        `sensory=${JSON.stringify(realityGraph.sensorySignals)}`,
         "Every grounded beat must be traceable to evidence/events or to a clearly marked creative interpretation of those events.",
         "Do not invent concrete objects, people, places, dates, actions, dialogue, or outcomes in reality-locked mode.",
       ].join("\n")
@@ -427,10 +403,7 @@ function preparePlannerMessages(
 }
 
 function wordCount(value: string): number {
-  return value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function isCanonicalMouth(
@@ -439,35 +412,17 @@ function isCanonicalMouth(
 ): boolean {
   if (format !== "json") return false;
 
-  const system =
-    messages.find(
-      (message) => message.role === "system",
-    )?.content ?? "";
-
+  const system = messages.find((message) => message.role === "system")?.content ?? "";
   return /QRE's theatrical mouth/i.test(system);
 }
 
 function mouthAcceptable(text: string): boolean {
   const words = wordCount(text);
-
-  if (!text || words < 2 || words > 9) {
-    return false;
-  }
-
+  if (!text || words < 2 || words > 9) return false;
   if (META_LANGUAGE.test(text)) return false;
   if (GENERIC_PROSE.test(text)) return false;
-  if (/^[A-Z][A-Z _-]{5,}:/.test(text)) {
-    return false;
-  }
-
-  if (
-    /\b(?:what happens next|what will happen next|more to come|this beat|this scene|the viewer)\b/i.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-
+  if (/^[A-Z][A-Z _-]{5,}:/.test(text)) return false;
+  if (/\b(?:what happens next|what will happen next|more to come|this beat|this scene|the viewer)\b/i.test(text)) return false;
   return true;
 }
 
@@ -475,46 +430,22 @@ function canonicalMouthPrompt(
   messages: LocalModelMessage[],
   beatCount: number,
 ): LocalModelMessage[] {
-  const system = messages.find(
-    (message) => message.role === "system",
-  );
-
+  const system = messages.find((message) => message.role === "system");
   if (!system) return messages;
 
-  const user = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
-
+  const user = [...messages].reverse().find((message) => message.role === "user");
   if (!user) return messages;
 
   const source = parseUserObject(messages) ?? {};
 
   const compactTruth = {
-    subject:
-      typeof source.subject === "string"
-        ? source.subject
-        : "",
-    prompt:
-      typeof source.prompt === "string"
-        ? source.prompt
-        : "",
-    facts: Array.isArray(source.facts)
-      ? source.facts.map(String).slice(0, 24)
-      : [],
-    moments: Array.isArray(source.moments)
-      ? source.moments.map(String).slice(0, 18)
-      : [],
-    sourceMoments: Array.isArray(
-      source.sourceMoments,
-    )
-      ? source.sourceMoments.map(String).slice(0, 18)
-      : [],
-    memory: Array.isArray(source.memory)
-      ? source.memory.map(String).slice(0, 14)
-      : [],
-    trajectory: Array.isArray(source.trajectory)
-      ? source.trajectory.map(String).slice(0, 14)
-      : [],
+    subject: typeof source.subject === "string" ? source.subject : "",
+    prompt: typeof source.prompt === "string" ? source.prompt : "",
+    facts: Array.isArray(source.facts) ? source.facts.map(String).slice(0, 24) : [],
+    moments: Array.isArray(source.moments) ? source.moments.map(String).slice(0, 18) : [],
+    sourceMoments: Array.isArray(source.sourceMoments) ? source.sourceMoments.map(String).slice(0, 18) : [],
+    memory: Array.isArray(source.memory) ? source.memory.map(String).slice(0, 14) : [],
+    trajectory: Array.isArray(source.trajectory) ? source.trajectory.map(String).slice(0, 14) : [],
     subjectTruth: source.subjectTruth ?? null,
   };
 
@@ -523,27 +454,14 @@ function canonicalMouthPrompt(
     ...compactTruth.moments,
     ...compactTruth.sourceMoments,
     ...compactTruth.memory,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  ].filter(Boolean).join(" | ");
 
   const characterHint =
-    /\bnervous\b/i.test(compactFacts) &&
-    /\bfierce\b/i.test(compactFacts)
+    /\bnervous\b/i.test(compactFacts) && /\bfierce\b/i.test(compactFacts)
       ? "Private character read: guarded but defiant. Use that as attitude, not literal fact."
-      : /\bmissing\b|\blost\b|\bvanished\b/i.test(
-          compactFacts,
-        ) &&
-        /\bpacked\b|\bmoved\b|\bfinished\b/i.test(
-          compactFacts,
-        )
+      : /\bmissing\b|\blost\b|\bvanished\b/i.test(compactFacts) && /\bpacked\b|\bmoved\b|\bfinished\b/i.test(compactFacts)
       ? "Private character read: apparently complete, with an unresolved absence."
-      : /\bsame\b|\bagain\b|\breturned\b|\bback\b/i.test(
-          compactFacts,
-        ) &&
-        /\bdifferent\b|\bchanged\b|\bnew\b/i.test(
-          compactFacts,
-        )
+      : /\bsame\b|\bagain\b|\breturned\b|\bback\b/i.test(compactFacts) && /\bdifferent\b|\bchanged\b|\bnew\b/i.test(compactFacts)
       ? "Private character read: repetition now carries changed meaning."
       : "Private character read: make the strongest supplied contradiction or relationship affect the attitude of the line.";
 
@@ -582,33 +500,22 @@ function canonicalMouthPrompt(
   ];
 }
 
-function parseMouthBatch(
-  raw: string,
-  expected: number,
-): string[] {
+function parseMouthBatch(raw: string, expected: number): string[] {
   const text = raw
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
 
   try {
-    const value = JSON.parse(text) as {
-      texts?: unknown;
-    };
-
-    if (!Array.isArray(value.texts)) {
-      return [];
-    }
+    const value = JSON.parse(text) as { texts?: unknown };
+    if (!Array.isArray(value.texts)) return [];
 
     const texts = value.texts
       .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
       .slice(0, expected);
 
-    if (texts.length !== expected) {
-      return [];
-    }
-
-    return texts;
+    return texts.length === expected ? texts : [];
   } catch {
     return [];
   }
@@ -619,40 +526,19 @@ async function canonicalMouthRequest(
   options: LocalModelOptions,
 ): Promise<LocalModelResult> {
   const payload = parseUserObject(messages);
-  const beats = Array.isArray(payload?.beats)
-    ? payload.beats
-    : [];
+  const beats = Array.isArray(payload?.beats) ? payload.beats : [];
 
   if (!beats.length) {
     return {
-      text: JSON.stringify({
-        texts: [],
-      }),
+      text: JSON.stringify({ texts: [] }),
       model: modelName(),
       provider: "local",
     };
   }
 
-  const temperature =
-    options.temperature ??
-    Number(
-      process.env.QRE_LOCAL_MODEL_TEMPERATURE ||
-        (process.env.QRE_AUTHOR_FAST === "true"
-          ? 0.72
-          : 0.8),
-    );
-
-  const numPredict =
-    options.numPredict ??
-    Number(
-      process.env.QRE_LOCAL_MODEL_NUM_PREDICT ||
-        384,
-    );
-
-  const prepared = canonicalMouthPrompt(
-    messages,
-    beats.length,
-  );
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (process.env.QRE_AUTHOR_FAST === "true" ? 0.72 : 0.8));
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 384);
+  const prepared = canonicalMouthPrompt(messages, beats.length);
 
   const data = await request("/api/chat", {
     model: modelName(),
@@ -662,13 +548,7 @@ async function canonicalMouthRequest(
     messages: prepared.map((message) => ({
       role: message.role,
       content: message.content,
-      ...(message.images?.length
-        ? {
-            images: message.images.map(
-              stripDataUrl,
-            ),
-          }
-        : {}),
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
     })),
     options: {
       temperature,
@@ -678,28 +558,16 @@ async function canonicalMouthRequest(
 
   const text = outputText(data);
 
-  if (
-    process.env.QRE_AUTHOR_DEBUG_RAW === "true"
-  ) {
-    console.log(
-      "\n--- QRE RAW MODEL OUTPUT · MOUTH-BATCH ---\n" +
-        text +
-        "\n--- END RAW MODEL OUTPUT · MOUTH-BATCH ---\n",
-    );
+  if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+    console.log("\n--- QRE RAW MODEL OUTPUT · MOUTH-BATCH ---\n" + text + "\n--- END RAW MODEL OUTPUT · MOUTH-BATCH ---\n");
   }
 
-  const parsed = parseMouthBatch(
-    text,
-    beats.length,
-  );
-
-  const valid = parsed.every(mouthAcceptable);
+  const parsed = parseMouthBatch(text, beats.length);
+  const valid = parsed.length === beats.length && parsed.every(mouthAcceptable);
 
   if (valid) {
     return {
-      text: JSON.stringify({
-        texts: parsed,
-      }),
+      text: JSON.stringify({ texts: parsed }),
       model: modelName(),
       provider: "local",
     };
@@ -717,50 +585,28 @@ async function canonicalMouthRequest(
     beats.length,
   );
 
-  const retryData = await request(
-    "/api/chat",
-    {
-      model: modelName(),
-      stream: false,
-      keep_alive: keepAlive(),
-      format: "json",
-      messages: retryMessages.map((message) => ({
-        role: message.role,
-        content: message.content,
-        ...(message.images?.length
-          ? {
-              images: message.images.map(
-                stripDataUrl,
-              ),
-            }
-          : {}),
-      })),
-      options: {
-        temperature: Math.max(
-          0.55,
-          temperature - 0.12,
-        ),
-        num_predict: Math.min(
-          numPredict,
-          256,
-        ),
-      },
+  const retryData = await request("/api/chat", {
+    model: modelName(),
+    stream: false,
+    keep_alive: keepAlive(),
+    format: "json",
+    messages: retryMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
+    options: {
+      temperature: Math.max(0.55, temperature - 0.12),
+      num_predict: Math.min(numPredict, 256),
     },
-  );
+  });
 
   const retryText = outputText(retryData);
-  const retryParsed = parseMouthBatch(
-    retryText,
-    beats.length,
-  );
+  const retryParsed = parseMouthBatch(retryText, beats.length);
 
-  if (
-    retryParsed.length === beats.length
-  ) {
+  if (retryParsed.length === beats.length) {
     return {
-      text: JSON.stringify({
-        texts: retryParsed,
-      }),
+      text: JSON.stringify({ texts: retryParsed }),
       model: modelName(),
       provider: "local",
     };
@@ -768,10 +614,12 @@ async function canonicalMouthRequest(
 
   return {
     text: JSON.stringify({
-      texts: Array.from(
-        { length: beats.length },
-        () => "",
-      ),
+      texts:
+        retryParsed.length > 0
+          ? retryParsed
+          : parsed.length > 0
+          ? parsed
+          : [],
     }),
     model: modelName(),
     provider: "local",
@@ -784,10 +632,7 @@ export async function localModelGenerate(
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
   if (isCanonicalMouth(messages, format)) {
-    return canonicalMouthRequest(
-      messages,
-      options,
-    );
+    return canonicalMouthRequest(messages, options);
   }
 
   const planner = messages.some(
@@ -800,42 +645,20 @@ export async function localModelGenerate(
     ? preparePlannerMessages(messages)
     : prepareMessages(messages);
 
-  const fast =
-    process.env.QRE_AUTHOR_FAST ===
-    "true";
-
-  const temperature =
-    options.temperature ??
-    Number(
-      process.env.QRE_LOCAL_MODEL_TEMPERATURE ||
-        (fast ? 0.75 : 0.8),
-    );
-
-  const numPredict =
-    options.numPredict ??
-    Number(
-      process.env.QRE_LOCAL_MODEL_NUM_PREDICT ||
-        512,
-    );
+  const fast = process.env.QRE_AUTHOR_FAST === "true";
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 512);
 
   const data = await request("/api/chat", {
     model: modelName(),
     stream: false,
     keep_alive: keepAlive(),
     format,
-    messages: preparedMessages.map(
-      (message) => ({
-        role: message.role,
-        content: message.content,
-        ...(message.images?.length
-          ? {
-              images: message.images.map(
-                stripDataUrl,
-              ),
-            }
-          : {}),
-      }),
-    ),
+    messages: preparedMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
     options: {
       temperature,
       num_predict: numPredict,
@@ -844,14 +667,8 @@ export async function localModelGenerate(
 
   const text = outputText(data);
 
-  if (
-    process.env.QRE_AUTHOR_DEBUG_RAW === "true"
-  ) {
-    console.log(
-      "\n--- QRE RAW MODEL OUTPUT ---\n" +
-        text +
-        "\n--- END RAW MODEL OUTPUT ---\n",
-    );
+  if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+    console.log("\n--- QRE RAW MODEL OUTPUT ---\n" + text + "\n--- END RAW MODEL OUTPUT ---\n");
   }
 
   return {
@@ -863,12 +680,9 @@ export async function localModelGenerate(
 
 export async function localModelHealthy(): Promise<boolean> {
   try {
-    const response = await fetch(
-      `${baseUrl()}/api/tags`,
-      {
-        signal: AbortSignal.timeout(3000),
-      },
-    );
+    const response = await fetch(`${baseUrl()}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
     return response.ok;
   } catch {
     return false;
