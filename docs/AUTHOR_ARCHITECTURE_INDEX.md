@@ -1,55 +1,127 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
-**Status:** ACTIVE / CLEAN / GUARDED / LATENT-MOVIE SEARCH + DIFFERENTIATION ONLINE  
-**Branch:** `qre/latent-movie-search-v1`  
-**Rule:** Read this and `docs/QRE_FULL_REPO_INFLUENCE_MAP.md` before changing author, cognition, compiler, sequence, contracts, or diagnostics.
+**Status:** CURRENT / CANONICAL
+**Branch:** `author/enterprise-mouth-rewire`
+**Primary reference:** `docs/AUTHOR_CURRENT_STATE.md`
+
+Read `AUTHOR_CURRENT_STATE.md` first. This file is the architecture index; detailed historical experiments are not implementation authority.
 
 ## 1. MASTER RULE
 
+> **NO GAPS IN THE PIPELINE.**
+
 ```text
-ONE MASTER AUTHOR
-ONE PRODUCTION AUTHOR PATH
-ONE CANONICAL CUT POLICY
-ONE ACCEPTANCE HARNESS
-ONE SHARED SEMANTIC BOUNDARY
-ONE AUTOMATIC ARCHITECTURE GUARD
-ONE MAGNET CIRCLE
-ONE REALITY GRAPH
+ONE REALITY MODEL
 ONE LATENT MOVIE SEARCH
-ONE MOVIE DIFFERENTIATION GATE
+ONE MASTER AUTHOR
+ONE CANONICAL BEAT GRAPH
+ONE MOUTH PATH
+ONE ATTENTION EDITOR
+ONE TRUTH / CUT GATE
+ONE ACCEPTANCE PATH
 ```
 
-No duplicate author brains. No benchmark-defined production behavior. No stale compatibility author left reachable by accident.
+Creative capability may multiply. Semantic authorities may not.
 
-## 2. CANONICAL INTELLIGENCE STACK
+## 2. LIVE AUTHOR STACK
 
 ```text
-INPUT / PROMPT / MEDIA / RUNTIME
-        ↓
-SOURCE TRUTH / PROVENANCE
-        ↓
+SOURCE TRUTH
+   ↓
 REALITY GRAPH
-        ↓
-LATENT MOVIE CANDIDATE SEARCH
-        ↓
-MOVIE DIFFERENTIATION / DUPLICATE PRUNING
-        ↓
-UNIVERSAL COGNITION
-        ↓
-TRAJECTORY SEARCH / VIEWER MOMENTUM
-        ↓
-CANONICAL CUT POLICY
-        ↓
-UNIVERSAL AUTHOR BRAIN
-        ↓
-MOUTH / EXPERIENCE MOMENTS
-        ↓
-CINEMATIC RUNTIME
-        ↓
-LEARNING / MEMORY
+   ↓
+COGNITION / CHARACTER READ
+   ↓
+LATENT MOVIE SEARCH
+   ↓
+MOVIE DIFFERENTIATION
+   ↓
+BEAT DISCOVERY
+   ↓
+CANONICAL BEAT GRAPH
+   ↓
+VIEWER MOMENTUM / MAGNET
+   ↓
+MOUTH REALIZATION
+   ↓
+ATTENTION EDITOR
+   ↓
+TRUTH / CUT POLICY
+   ↓
+BOUNDED REPAIR
+   ↓
+FINAL SCENES
 ```
 
-The Magnet Circle remains the universal sequence primitive:
+## 3. REALITY GRAPH
+
+Owner: `apps/api/src/services/authorRealityGraph.ts`
+
+Contract: `packages/contracts/src/experience/realityGraph.ts`
+
+Owns evidence, events, entities, relationships, recurrence, sensory signals, unresolved tensions, and provenance.
+
+RealityGraph does not create source truth. Creative hypotheses remain derived.
+
+## 4. LATENT MOVIE SEARCH
+
+Owners:
+
+```text
+apps/api/src/services/authorLatentMovieSearch.ts
+apps/api/src/services/authorMovieDifferentiation.ts
+```
+
+The system must compare genuinely different movie hypotheses. Tone labels alone are not differentiation.
+
+A selected movie is still a hypothesis, not concrete reality.
+
+## 5. MASTER AUTHOR
+
+Owner: `apps/api/src/services/authorBrainUniversal.ts`
+
+This is the production author authority. It is responsible for sequence discovery, Beat Graph construction, viewer momentum, mouth orchestration, attention editing, final cut gating, and author diagnostics.
+
+It must not contain domain-specific story branches or a duplicate cut validator.
+
+## 6. CANONICAL BEAT GRAPH
+
+Internal beat fields:
+
+```text
+order
+role
+gainKind
+change
+next
+frontier
+necessity
+attentionFunction
+setsUp
+paysOff
+creativeMove
+nextBeatPullTarget
+event/source IDs when available
+```
+
+Canonical attention functions:
+
+```text
+hook question turn escalation reframe callback payoff release
+```
+
+Canonical creative moves:
+
+```text
+contrast status_inversion understatement double_meaning
+personification callback recontextualization implication none
+```
+
+Unknown planner metadata must be rejected or intentionally normalized. Silent fallback that falsifies the graph is prohibited.
+
+## 7. VIEWER MOMENTUM / MAGNET
+
+The Magnet Circle remains the sequence primitive:
 
 ```text
 novelty
@@ -59,271 +131,43 @@ novelty
 → tension
 → information seeking
 → narrative engagement
-→ discovery / reframe / payoff
-→ new uncertainty
-↺
+→ next unresolved relationship
 ```
 
-Style is downstream realization. The magnet is the invariant.
+Magnet strength is not a substitute for good writing. It is an internal pressure model that helps select and score movement.
 
-## 3. REALITY GRAPH
+## 8. MOUTH + ATTENTION
 
-Canonical contract:
+The mouth receives the selected Beat Graph plus enough source evidence to realize it precisely.
 
-`packages/contracts/src/experience/realityGraph.ts`
+The Attention Editor judges the realized lines. It does not become a second author.
 
-Builder:
+Final truth/cut acceptance remains authoritative. Attention cannot override grounding.
 
-`apps/api/src/services/authorRealityGraph.ts`
+## 9. RECOVERY
 
-RealityGraph owns:
+`apps/api/src/services/authorBeatPlanRecovery.ts` and `authorLatentMovieBeatAdapter.ts` are structural recovery/adaptation layers only.
 
-```text
-evidence
-events
-entities
-source provenance
-relationships
-contrasts
-recurrence signals
-sensory signals
-unresolved tensions
-```
+They project an already-selected latent movie into the canonical Beat Graph shape. They must never invent an alternate story.
 
-RealityGraph does **not** own creative truth. Derived candidate hypotheses are explicitly marked as derived.
+## 10. PRODUCTION ADAPTERS
 
-Chronology is earned. Comma/list order is never treated as temporal order.
+`microBeatMouth.ts` and `cinematicAuthor.ts` are adapters/projections, not competing author brains.
 
-## 4. LATENT MOVIE SEARCH
+## 11. TEST / ACCEPTANCE PATH
 
-Canonical contract:
+The Monster and broader acceptance suites exercise the same `authorBrainUniversal.ts` path.
 
-`packages/contracts/src/experience/latentMovie.ts`
+A benchmark observes production behavior. It does not define production semantics.
 
-Implementation:
+## 12. HISTORICAL MATERIAL
 
-`apps/api/src/services/authorLatentMovieSearch.ts`
+Historical author experiments remain useful as evidence of discovered laws but are not current architecture authority.
 
-Detailed reference:
+For current implementation state, use:
 
-`docs/AUTHOR_LATENT_MOVIE_SEARCH.md`
+`docs/AUTHOR_CURRENT_STATE.md`
 
-This is the missing layer between reality and story selection.
+For decisions and engineering prioritization, use:
 
-```text
-REALITY GRAPH
-      ↓
-COMPETING MOVIE HYPOTHESES
-      ↓
-DIFFERENTIATION GATE
-      ↓
-COGNITION
-```
-
-The search is domain-neutral. Initial lenses are:
-
-```text
-comedy
-romance
-horror
-sentimental
-absurd
-neutral
-```
-
-A candidate is never source truth. It carries explicit evidence, trajectory steps, truth risk, and multi-dimensional quality signals.
-
-## 5. MOVIE DIFFERENTIATION GATE
-
-Implementation:
-
-`apps/api/src/services/authorMovieDifferentiation.ts`
-
-The first candidate search revealed a critical failure mode: different lens labels could produce the same evidence, same relationships, same trajectory, and same payoff. That is not real creative search.
-
-Canonical invariant:
-
-```text
-lens label difference ≠ movie difference
-```
-
-The gate compares:
-
-```text
-34% anchor/evidence difference
-20% relationship difference
-30% trajectory difference
-12% payoff difference
- 4% lens-label difference
-```
-
-It greedily balances candidate quality against diversity and exposes `distinctiveness` for diagnostics.
-
-Weak graph relations are uncertainty. They are not automatically truth-risk or invention. Unsupported events are what raise truth risk.
-
-## 6. MASTER AUTHOR
-
-`apps/api/src/services/authorBrainUniversal.ts`
-
-This is the **only Goal-1 author authority**.
-
-It owns:
-
-```text
-sequence discovery
-viewer-state movement
-creative implication
-relationship compression
-sequence selection
-cut realization input
-magnet-aware sequence diagnostics
-```
-
-It does not own upstream world modeling, memory persistence, or runtime projection.
-
-It is explicitly a **living intelligence core**: expand and tune it when a general law is discovered; do not add domain-specific hacks.
-
-## 7. PRODUCTION PATH
-
-```text
-apps/api/src/routes/experience.ts
-        ↓
-apps/api/src/services/experienceService.ts
-        ↓
-@qre/engine compileCognitiveExperience()
-        ↓
-packages/engine/src/cognition/universalMind.ts
-        ↓
-world + memory + significance + creative candidates + planning + learning
-        ↓
-apps/api/src/services/microBeatMouth.ts
-        ↓
-apps/api/src/services/authorBrainUniversal.ts
-        ↓
-experience moments / cinematic scenes
-```
-
-`microBeatMouth.ts` is a **projection adapter only**. It must never become a second author.
-
-`cinematicAuthor.ts` is also an adapter only and calls the Universal Author directly. It has no independent critique/repair author loop.
-
-## 8. ACCEPTANCE PATH
-
-The acceptance test uses the exact same Master Author directly:
-
-```text
-apps/api/author-acceptance-suite.ts
-        ↓
-RealityGraph
-        ↓
-Latent Movie Search
-        ↓
-Movie Differentiation
-        ↓
-apps/api/src/services/authorBrainUniversal.ts
-```
-
-Run:
-
-```powershell
-pnpm author:wiring
-pnpm --filter @qre/contracts build
-pnpm --filter @qre/engine build
-pnpm --filter @qre/api build
-pnpm exec tsx apps/api/author-acceptance-suite.ts "Coco, returned, happy, fun, bows, balls, ties, male"
-```
-
-The harness is an observer. It does not define production rules and must never gain a separate creative bridge.
-
-## 9. UPSTREAM COGNITION
-
-Keep and evolve:
-
-```text
-packages/engine/src/cognition/universalMind.ts
-packages/engine/src/cognition/worldModel.ts
-packages/engine/src/cognition/significanceEngine.ts
-packages/engine/src/cognition/creativePolicy.ts
-packages/engine/src/cognition/experiencePlanner.ts
-packages/engine/src/cognition/mindState.ts
-apps/api/src/services/authorCognition.ts
-apps/api/src/services/authorLatentMovieSearch.ts
-apps/api/src/services/authorMovieDifferentiation.ts
-```
-
-Cognition now consumes RealityGraph relationships and runs the canonical latent-movie search before final beat discovery.
-
-## 10. CANONICAL CUT POLICY
-
-`apps/api/src/services/authorCutPolicy.ts`
-
-This is the intended **single semantic cut evaluator**.
-
-It measures:
-
-```text
-groundedness
-novelty
-implication
-explanation
-question leakage
-invention risk
-repetition
-compression
-impact density
-```
-
-Do not create another independent validator.
-
-## 11. CHANGE RULES
-
-Before adding a new service named `author*`, ask:
-
-```text
-Does this own a new semantic authority?
-```
-
-If yes, stop. Extend the existing canonical owner instead.
-
-The current canonical ownership is:
-
-```text
-RealityGraph              → authorRealityGraph.ts
-Latent Movie Search       → authorLatentMovieSearch.ts
-Movie Differentiation     → authorMovieDifferentiation.ts
-Cognition                 → authorCognition.ts
-Master Author             → authorBrainUniversal.ts
-Mouth                     → localModelRuntime.ts / canonical mouth path
-Cut Policy                → authorCutPolicy.ts
-Acceptance                → author-acceptance-suite.ts
-```
-
-The architecture guard exists to make accidental divergence fail loudly.
-
-## 12. NEXT WORLD
-
-The next major intelligence layer is **trajectory-level search**.
-
-It should search complete viewer-state paths rather than selecting isolated beats:
-
-```text
-candidate movie
-      ↓
-expand possible next cuts
-      ↓
-score viewer-state change
-      ↓
-measure information gain / uncertainty / tension
-      ↓
-penalize repetition / explanation / invention
-      ↓
-prune
-      ↓
-continue
-      ↓
-BEST COMPLETE TRAJECTORY
-      ↓
-MOUTH
-```
-
-Do not skip movie differentiation and jump directly from lens labels to trajectory search. Otherwise QRE will optimize duplicate movies.
+`docs/AUTHOR_DECISION_LAW.md`

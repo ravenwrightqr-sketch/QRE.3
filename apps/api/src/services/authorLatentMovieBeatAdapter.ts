@@ -1,12 +1,31 @@
 /**
  * QRE AUTHOR LATENT-MOVIE → BEAT-PLAN ADAPTER · CANONICAL BOUNDARY
  *
- * No new author path. This is a deterministic semantic adapter between the
- * canonical LatentMovieCandidate trajectory and the existing BeatPlan shape.
- * It preserves RealityGraph event provenance and never invents viewer prose.
- *
- * RULE: no hardcoded domain facts, subjects, scenes, or outcomes.
+ * Deterministic semantic adapter between the canonical LatentMovieCandidate
+ * trajectory and the universal Beat Graph contract.
+ * No new facts, subjects, scenes, or viewer prose are invented here.
  */
+
+type BeatAttentionFunction =
+  | "hook"
+  | "question"
+  | "turn"
+  | "escalation"
+  | "reframe"
+  | "callback"
+  | "payoff"
+  | "release";
+
+type BeatCreativeMove =
+  | "contrast"
+  | "status_inversion"
+  | "understatement"
+  | "double_meaning"
+  | "personification"
+  | "callback"
+  | "recontextualization"
+  | "implication"
+  | "none";
 
 type TrajectoryStep = {
   order?: number;
@@ -35,16 +54,23 @@ type AdaptedBeat = {
   frontier: string;
   necessity: string;
   eventIds: string[];
+  attentionFunction: BeatAttentionFunction;
+  setsUp: string[];
+  paysOff: string[];
+  creativeMove: BeatCreativeMove;
+  nextBeatPullTarget: number;
 };
 
 type AdaptedBeatPlan = {
   premise: string;
   baselineFacts: string[];
+  attentionArc: string;
   beats: AdaptedBeat[];
   closing?: string;
 };
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
 const strings = (value: unknown, limit = 24): string[] => {
   if (!Array.isArray(value)) return [];
@@ -75,48 +101,112 @@ const GAIN_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
-/**
- * Accepts the canonical LatentMovieCandidate shape returned by latent movie
- * search and converts only its semantic trajectory into the BeatPlan shape.
- */
-export function normalizeLatentMovieBeatPlan(value: unknown): AdaptedBeatPlan | undefined {
+const ATTENTION_BY_OPERATION: Record<string, BeatAttentionFunction> = {
+  establish: "hook",
+  contrast: "reframe",
+  recur: "callback",
+  reframe: "reframe",
+  escalate: "escalation",
+  converge: "discovery" as BeatAttentionFunction,
+  reveal: "turn",
+  consequence: "release",
+  payoff: "payoff",
+};
+
+function eventIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.map(clean).filter(Boolean))].slice(0, 12)
+    : [];
+}
+
+function arc(beats: AdaptedBeat[]): string {
+  return beats.map((beat) => beat.attentionFunction).join(" → ");
+}
+
+export function normalizeLatentMovieBeatPlan(
+  value: unknown,
+): AdaptedBeatPlan | undefined {
   if (!value || typeof value !== "object") return undefined;
+
   const candidate = value as Candidate;
-  if (!Array.isArray(candidate.trajectory) || !candidate.trajectory.length) return undefined;
+  if (!Array.isArray(candidate.trajectory) || !candidate.trajectory.length) {
+    return undefined;
+  }
 
   const trajectory = candidate.trajectory
-    .filter((step): step is TrajectoryStep => Boolean(step) && typeof step === "object")
-    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+    .filter(
+      (step): step is TrajectoryStep =>
+        Boolean(step) && typeof step === "object",
+    )
+    .sort(
+      (a, b) =>
+        Number(a.order ?? 0) -
+        Number(b.order ?? 0),
+    );
 
   const beats: AdaptedBeat[] = [];
+
   for (const [index, step] of trajectory.entries()) {
     const operation = clean(step.operation).toLowerCase();
     const change = clean(step.viewerChange);
     const next = clean(step.nextQuestion);
+
     if (!operation || !change) continue;
 
     beats.push({
       order: index + 1,
-      role: ROLE_BY_OPERATION[operation] ?? "discovery",
-      gainKind: GAIN_BY_OPERATION[operation] ?? "discovery",
+      role:
+        ROLE_BY_OPERATION[operation] ??
+        "discovery",
+      gainKind:
+        GAIN_BY_OPERATION[operation] ??
+        "discovery",
       change,
       next,
       frontier: next,
-      necessity: next || change,
-      eventIds: strings(step.eventIds, 12),
+      necessity:
+        next ||
+        "Preserves the next change in the discovered movie.",
+      eventIds: eventIds(step.eventIds),
+      attentionFunction:
+        ATTENTION_BY_OPERATION[operation] ??
+        "reframe",
+      setsUp: [],
+      paysOff: [],
+      creativeMove:
+        operation === "contrast"
+          ? "contrast"
+          : operation === "reframe"
+            ? "recontextualization"
+            : "none",
+      nextBeatPullTarget: next ? 0.55 : 0.35,
     });
   }
 
   if (!beats.length) return undefined;
 
-  const hypothesis = strings(candidate.hypothesis, 1)[0];
+  const hypothesis = strings(
+    candidate.hypothesis,
+    1,
+  )[0];
   const payoff = clean(candidate.payoff);
-  const unresolved = clean(candidate.unresolvedQuestion);
+  const unresolved = clean(
+    candidate.unresolvedQuestion,
+  );
 
   return {
-    premise: hypothesis || clean(candidate.lens),
-    baselineFacts: strings(candidate.evidence, 16),
+    premise:
+      hypothesis ||
+      clean(candidate.lens),
+    baselineFacts: strings(
+      candidate.evidence,
+      16,
+    ),
+    attentionArc: arc(beats.slice(0, 6)),
     beats: beats.slice(0, 6),
-    closing: payoff || unresolved || undefined,
+    closing:
+      payoff ||
+      unresolved ||
+      undefined,
   };
 }

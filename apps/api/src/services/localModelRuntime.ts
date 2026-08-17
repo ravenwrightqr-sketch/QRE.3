@@ -1,3 +1,4 @@
+import { request as httpRequest } from "node:http";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 
 export type LocalModelMessage = {
@@ -17,50 +18,92 @@ export type LocalModelOptions = {
   temperature?: number;
 };
 
-function baseUrl() {
-  return (process.env.QRE_LOCAL_MODEL_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+function baseUrl(): string {
+  return (
+    process.env.QRE_LOCAL_MODEL_URL ||
+    "http://127.0.0.1:11434"
+  ).replace(/\/$/, "");
 }
 
-function modelName() {
-  return process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "qre-local";
+function modelName(): string {
+  return (
+    process.env.QRE_AUTHOR_FAST_MODEL ||
+    process.env.QRE_LOCAL_MODEL ||
+    "qre-local"
+  );
 }
 
-function timeoutMs() {
-  const raw = Number(process.env.QRE_LOCAL_MODEL_TIMEOUT_MS || 600000);
-  return Number.isFinite(raw) && raw > 0 ? raw : 600000;
+function timeoutMs(): number {
+  const raw = Number(
+    process.env.QRE_LOCAL_MODEL_TIMEOUT_MS ||
+      600000,
+  );
+  return Number.isFinite(raw) && raw > 0
+    ? raw
+    : 600000;
 }
 
-function stripDataUrl(value: string) {
-  const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
+function keepAlive(): string {
+  return (
+    process.env.QRE_LOCAL_MODEL_KEEP_ALIVE ||
+    (process.env.QRE_AUTHOR_FAST === "true"
+      ? "10m"
+      : "5m")
+  );
+}
+
+function stripDataUrl(value: string): string {
+  const match = /^data:[^;]+;base64,(.+)$/s.exec(
+    value,
+  );
   return match ? match[1] : value;
 }
 
-async function request(path: string, body: unknown) {
+async function request(
+  path: string,
+  body: unknown,
+): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => {
-    console.log("QRE LOCAL MODEL TIMEOUT FIRING");
+    console.log(
+      "QRE LOCAL MODEL TIMEOUT FIRING",
+    );
     controller.abort();
   }, timeoutMs());
 
   const url = `${baseUrl()}${path}`;
+  const parsedUrl = new URL(url);
   const serializedBody = JSON.stringify(body);
 
   console.log("QRE REQUEST START");
   console.log("QRE REQUEST URL:", url);
-  console.log("QRE REQUEST MODEL:", (body as any)?.model);
-  console.log("QRE REQUEST FORMAT:", (body as any)?.format);
+  console.log(
+    "QRE REQUEST MODEL:",
+    (body as any)?.model,
+  );
+  console.log(
+    "QRE REQUEST FORMAT:",
+    (body as any)?.format,
+  );
   console.log(
     "QRE REQUEST MESSAGE COUNT:",
     Array.isArray((body as any)?.messages)
       ? (body as any).messages.length
       : "none",
   );
-  console.log("QRE REQUEST BODY BYTES:", Buffer.byteLength(serializedBody, "utf8"));
+  console.log(
+    "QRE REQUEST BODY BYTES:",
+    Buffer.byteLength(serializedBody, "utf8"),
+  );
   console.log(
     "QRE REQUEST CONTENT CHARS:",
     Array.isArray((body as any)?.messages)
       ? (body as any).messages.reduce(
-          (total: number, message: any) => total + String(message?.content ?? "").length,
+          (total: number, message: any) =>
+            total +
+            String(
+              message?.content ?? "",
+            ).length,
           0,
         )
       : "none",
@@ -69,28 +112,132 @@ async function request(path: string, body: unknown) {
   try {
     console.log("QRE FETCH ENTER");
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: serializedBody,
-      signal: controller.signal,
+    const response = await new Promise<{
+      statusCode: number;
+      body: string;
+    }>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (
+        callback: () => void,
+      ): void => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+
+      const req = httpRequest(
+        {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port
+            ? Number(parsedUrl.port)
+            : 11434,
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(
+              serializedBody,
+              "utf8",
+            ),
+          },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+
+          res.on("data", (chunk: Buffer | string) => {
+            chunks.push(
+              Buffer.isBuffer(chunk)
+                ? chunk
+                : Buffer.from(chunk),
+            );
+          });
+
+          res.on("end", () => {
+            finish(() => {
+              resolve({
+                statusCode: res.statusCode ?? 0,
+                body: Buffer.concat(chunks).toString(
+                  "utf8",
+                ),
+              });
+            });
+          });
+
+          res.on("error", (error) => {
+            finish(() => reject(error));
+          });
+        },
+      );
+
+      req.on("error", (error) => {
+        finish(() => reject(error));
+      });
+
+      const abortRequest = (): void => {
+        if (settled) return;
+
+        req.destroy(
+          new Error(
+            "Local model request aborted.",
+          ),
+        );
+      };
+
+      if (controller.signal.aborted) {
+        abortRequest();
+        return;
+      }
+
+      controller.signal.addEventListener(
+        "abort",
+        abortRequest,
+        { once: true },
+      );
+
+      req.write(serializedBody);
+      req.end();
     });
 
     console.log("QRE FETCH RETURNED");
-    console.log("QRE RESPONSE STATUS:", response.status);
+    console.log(
+      "QRE RESPONSE STATUS:",
+      response.statusCode,
+    );
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.log("QRE RESPONSE ERROR BODY:", detail);
-      throw new Error(`Local model failed (${response.status}): ${detail.slice(0, 300)}`);
+    if (
+      response.statusCode < 200 ||
+      response.statusCode >= 300
+    ) {
+      console.log(
+        "QRE RESPONSE ERROR BODY:",
+        response.body,
+      );
+
+      throw new Error(
+        `Local model failed (${response.statusCode}): ${response.body.slice(0, 300)}`,
+      );
     }
 
-    console.log("QRE READING RESPONSE JSON");
-    const json = await response.json();
-    console.log("QRE RESPONSE JSON RECEIVED");
+    console.log(
+      "QRE READING RESPONSE JSON",
+    );
+
+    const json = JSON.parse(
+      response.body,
+    );
+
+    console.log(
+      "QRE RESPONSE JSON RECEIVED",
+    );
+
     return json;
   } catch (error) {
-    console.log("QRE LOCAL REQUEST ERROR:", error);
+    console.log(
+      "QRE LOCAL REQUEST ERROR:",
+      error,
+    );
     throw error;
   } finally {
     clearTimeout(timer);
@@ -99,7 +246,13 @@ async function request(path: string, body: unknown) {
 }
 
 function outputText(data: any): string {
-  return String(data?.message?.content ?? data?.response ?? data?.choices?.[0]?.message?.content ?? "").trim();
+  return String(
+    data?.message?.content ??
+      data?.response ??
+      data?.choices?.[0]?.message
+        ?.content ??
+      "",
+  ).trim();
 }
 
 const UNIVERSAL_AUTHOR_COGNITION = [
@@ -111,8 +264,11 @@ const UNIVERSAL_AUTHOR_COGNITION = [
   "Every cut must create a new viewer state: see something, notice something, suspect something, realize something, feel a reversal, or receive a payoff.",
   "Use novelty, uncertainty, prediction shift, information value, and consequence together. Engagement is the interaction of those forces, not a pile of adjectives.",
   "Identity and established facts belong to baseline world state; do not spend cuts repeating them unless the repetition itself changes meaning.",
-  "For memories, preserve the supplied sensory/social/personal fingerprint. Do not replace it with category shorthand or generic biography.",
+  "For memories, preserve the supplied sensory, social, and personal fingerprint. Do not replace it with category shorthand or generic biography.",
   "Creative lenses change framing, rhythm, metaphor, implication, and escalation; they do not authorize invented facts.",
+  "Character interpretation is allowed: infer attitude, status posture, contradiction, and social meaning from supplied relationships. Treat that interpretation as a private authoring lens, never as a new concrete fact.",
+  "Example of allowed interpretation: supplied nervous + fierce may support a guarded/defiant attitude. The line may express that attitude metaphorically without inventing a literal lawyer, negotiation, courtroom, or other event.",
+  "After identity is established, let behavior and objects reveal the character. Do not keep saying the subject's name plus a fact.",
   "Never expose planning vocabulary, strategy labels, operator names, beat metadata, or author instructions in viewer-facing text.",
   "Do not explain the joke, emotion, meaning, or cinematic intent when a concrete short line can imply it.",
 ].join("\n");
@@ -131,45 +287,74 @@ const FILM_CUT_PLANNER = [
   "For horror, keep ordinary behavior intact while reality becomes increasingly wrong.",
   "For romance, use private details, recurrence, restraint, and emotional consequence.",
   "For demented/chaotic styles, increase unpredictability and juxtaposition without inventing concrete events.",
-  "Every beat needs a compact `change`, a compact `frontier`, and a compact `necessity`.",
-  "Target 3-6 beats. Keep `change` and `frontier` short enough to realize as a single sentence cut.",
-  "Do not put strategy names or cognitive language into change/frontier/next/necessity.",
+  "Every beat needs a compact change, compact frontier, and compact necessity.",
+  "Target 3-6 beats. Keep change and frontier short enough to realize as a single sentence cut.",
+  "Do not put strategy names or cognitive language into change, frontier, next, or necessity.",
 ].join("\n");
 
 const META_LANGUAGE = /\b(?:attention strategy|operator(?: mix|s)?|build from beat|cognitive(?: plan| language)?|preserve forward information|land the chosen meaning|find subtle tension|viewer momentum|information frontier|beat plan|writing process|author brief|necessity of this beat|strategy names?)\b/i;
 const GENERIC_PROSE = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|positive outcome|newfound confidence|happy-go-lucky|tale of transformation|a testament to|satisfaction is our priority)\b/i;
-const META_PLANNER = /QRE's latent-movie planner|QRE FILM-CUT PLANNER|Output JSON only: \{premise:string/i;
+const META_PLANNER = /QRE's latent-movie planner|QRE FILM-CUT PLANNER/i;
+function prepareMessages(
+  messages: LocalModelMessage[],
+): LocalModelMessage[] {
+  const firstSystem = messages.find(
+    (message) => message.role === "system",
+  );
 
-function prepareMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
-  const firstSystem = messages.find((message) => message.role === "system");
   if (!firstSystem) return messages;
-  if (!/QRE's universal creative author|QRE's universal latent-movie discovery brain|QRE's theatrical mouth|QRE's latent-movie planner/i.test(firstSystem.content)) {
+
+  if (
+    !/QRE's universal creative author|QRE's universal latent-movie discovery brain|QRE's theatrical mouth|QRE's latent-movie planner/i.test(
+      firstSystem.content,
+    )
+  ) {
     return messages;
   }
+
   return messages.map((message) =>
     message === firstSystem
-      ? { ...message, content: `${UNIVERSAL_AUTHOR_COGNITION}\n\n${firstSystem.content}` }
+      ? {
+          ...message,
+          content: `${UNIVERSAL_AUTHOR_COGNITION}\n\n${firstSystem.content}`,
+        }
       : message,
   );
 }
 
-function parseUserObject(messages: LocalModelMessage[]): Record<string, unknown> | null {
-  const user = [...messages].reverse().find((message) => message.role === "user");
+function parseUserObject(
+  messages: LocalModelMessage[],
+): Record<string, unknown> | null {
+  const user = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
+
   if (!user) return null;
+
   try {
     const value = JSON.parse(user.content);
-    return value && typeof value === "object" ? value as Record<string, unknown> : null;
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
 }
 
-function preparePlannerMessages(messages: LocalModelMessage[]): LocalModelMessage[] {
+function preparePlannerMessages(
+  messages: LocalModelMessage[],
+): LocalModelMessage[] {
   const prepared = prepareMessages(messages);
-  const system = prepared.find((message) => message.role === "system");
-  if (!system || !META_PLANNER.test(system.content)) return prepared;
+  const system = prepared.find(
+    (message) => message.role === "system",
+  );
+
+  if (!system || !META_PLANNER.test(system.content)) {
+    return prepared;
+  }
 
   const source = parseUserObject(prepared);
+
   const realityGraph = source
     ? buildAuthorRealityGraph({
         prompt: String(source.prompt ?? ""),
@@ -184,7 +369,7 @@ function preparePlannerMessages(messages: LocalModelMessage[]): LocalModelMessag
 
   const graphContext = realityGraph
     ? [
-        "\nQRE REALITY GRAPH · SOURCE-TRUTH CONTEXT:",
+        "QRE REALITY GRAPH · SOURCE-TRUTH CONTEXT:",
         "Use this graph to discover relationships before inventing narrative structure.",
         `events=${JSON.stringify(realityGraph.events.slice(0, 10))}`,
         `relations=${JSON.stringify(realityGraph.relations.slice(0, 16))}`,
@@ -196,49 +381,44 @@ function preparePlannerMessages(messages: LocalModelMessage[]): LocalModelMessag
       ].join("\n")
     : "";
 
-  return prepared.map((message) => message === system
-    ? {
-        ...message,
-        content: `${message.content}\n\n${FILM_CUT_PLANNER}${graphContext}\n\nPLANNER OUTPUT RULES:\n- 3 to 6 beats.\n- Each beat is one sentence-cut opportunity, not a paragraph.\n- ` +
-          "`change`, `next`, `frontier`, and `necessity` must describe supplied reality or a safe interpretive relationship.\n" +
-          "- `change` should normally be 3-12 words.\n" +
-          "- `frontier` should normally be 2-10 words.\n" +
-          "- `necessity` should be one compact reason, not an explanation of the writing process.\n" +
-          "- Never output `ATTENTION STRATEGY:`, `OPERATOR MIX:`, `BUILD FROM BEAT`, `CONTRADICTIONS`, or similar internal language inside beat fields.\n" +
-          "- A service sequence should feel like a receipt that became a tiny film, not a checklist.\n" +
-          "- A successful sequence should read plausibly as separate short messages shown one after another.",
-      }
-    : message,
+  return prepared.map((message) =>
+    message === system
+      ? {
+          ...message,
+          content:
+            `${message.content}\n\n${FILM_CUT_PLANNER}${graphContext}\n\n` +
+            "PLANNER OUTPUT RULES:\n" +
+            "- 3 to 6 beats.\n" +
+            "- Each beat is one sentence-cut opportunity, not a paragraph.\n" +
+            "- `change`, `next`, `frontier`, and `necessity` must describe supplied reality or a safe interpretive relationship.\n" +
+            "- `change` should normally be 3-12 words.\n" +
+            "- `frontier` should normally be 2-10 words.\n" +
+            "- `necessity` should be one compact reason, not an explanation of the writing process.\n" +
+            "- Never output internal planning labels inside beat fields.\n" +
+            "- A service sequence should feel like a receipt that became a tiny film, not a checklist.\n" +
+            "- A successful sequence should read plausibly as separate short messages shown one after another.",
+        }
+      : message,
   );
-}
-
-function extractOneText(raw: string): string {
-  try {
-    const value = JSON.parse(raw);
-    if (value && typeof value === "object") {
-      if (typeof value.text === "string") return value.text.trim();
-      if (Array.isArray(value.texts) && typeof value.texts[0] === "string") return value.texts[0].trim();
-      if (Array.isArray(value.scenes) && typeof value.scenes[0] === "string") return value.scenes[0].trim();
-    }
-  } catch {
-    // Canonical mouth requests JSON; preserve raw text as a last-resort diagnostic value.
-  }
-  return String(raw ?? "").trim();
 }
 
 function wordCount(value: string): number {
   return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function isCanonicalMouth(messages: LocalModelMessage[], format?: "json") {
+function isCanonicalMouth(
+  messages: LocalModelMessage[],
+  format?: "json",
+): boolean {
   if (format !== "json") return false;
+
   const system = messages.find((message) => message.role === "system")?.content ?? "";
   return /QRE's theatrical mouth/i.test(system);
 }
 
 function mouthAcceptable(text: string): boolean {
   const words = wordCount(text);
-  if (!text || words < 2 || words > 7) return false;
+  if (!text || words < 2 || words > 9) return false;
   if (META_LANGUAGE.test(text)) return false;
   if (GENERIC_PROSE.test(text)) return false;
   if (/^[A-Z][A-Z _-]{5,}:/.test(text)) return false;
@@ -246,66 +426,204 @@ function mouthAcceptable(text: string): boolean {
   return true;
 }
 
-function mouthSourceTruth(base: Record<string, unknown>): string {
-  const source = {
-    prompt: typeof base.prompt === "string" ? base.prompt : "",
-    subject: typeof base.subject === "string" ? base.subject : "",
-    place: typeof base.place === "string" ? base.place : "",
-    facts: Array.isArray(base.facts) ? base.facts.map(String).slice(0, 24) : [],
-    moments: Array.isArray(base.moments) ? base.moments.map(String).slice(0, 18) : [],
-    sourceMoments: Array.isArray(base.sourceMoments) ? base.sourceMoments.map(String).slice(0, 18) : [],
-    memory: Array.isArray(base.memory) ? base.memory.map(String).slice(0, 14) : [],
-    trajectory: Array.isArray(base.trajectory) ? base.trajectory.map(String).slice(0, 14) : [],
-    subjectTruth: base.subjectTruth ?? null,
-    realityGraph: base.realityGraph ?? null,
+function canonicalMouthPrompt(
+  messages: LocalModelMessage[],
+  beatCount: number,
+): LocalModelMessage[] {
+  const system = messages.find((message) => message.role === "system");
+  if (!system) return messages;
+
+  const user = [...messages].reverse().find((message) => message.role === "user");
+  if (!user) return messages;
+
+  const source = parseUserObject(messages) ?? {};
+
+  const compactTruth = {
+    subject: typeof source.subject === "string" ? source.subject : "",
+    prompt: typeof source.prompt === "string" ? source.prompt : "",
+    facts: Array.isArray(source.facts) ? source.facts.map(String).slice(0, 24) : [],
+    moments: Array.isArray(source.moments) ? source.moments.map(String).slice(0, 18) : [],
+    sourceMoments: Array.isArray(source.sourceMoments) ? source.sourceMoments.map(String).slice(0, 18) : [],
+    memory: Array.isArray(source.memory) ? source.memory.map(String).slice(0, 14) : [],
+    trajectory: Array.isArray(source.trajectory) ? source.trajectory.map(String).slice(0, 14) : [],
+    subjectTruth: source.subjectTruth ?? null,
   };
-  return JSON.stringify(source);
+
+  const compactFacts = [
+    ...compactTruth.facts,
+    ...compactTruth.moments,
+    ...compactTruth.sourceMoments,
+    ...compactTruth.memory,
+  ].filter(Boolean).join(" | ");
+
+  const characterHint =
+    /\bnervous\b/i.test(compactFacts) && /\bfierce\b/i.test(compactFacts)
+      ? "Private character read: guarded but defiant. Use that as attitude, not literal fact."
+      : /\bmissing\b|\blost\b|\bvanished\b/i.test(compactFacts) && /\bpacked\b|\bmoved\b|\bfinished\b/i.test(compactFacts)
+      ? "Private character read: apparently complete, with an unresolved absence."
+      : /\bsame\b|\bagain\b|\breturned\b|\bback\b/i.test(compactFacts) && /\bdifferent\b|\bchanged\b|\bnew\b/i.test(compactFacts)
+      ? "Private character read: repetition now carries changed meaning."
+      : "Private character read: make the strongest supplied contradiction or relationship affect the attitude of the line.";
+
+  const batchInstruction = [
+    "QRE CANONICAL MOUTH BATCH MODE.",
+    `There are exactly ${beatCount} approved beats. Return exactly ${beatCount} viewer-facing lines in order.`,
+    'Ignore any earlier singular-output wording and use exactly: {"texts":["line 1","line 2",...]}',
+    "Each line is one film cut. 2-9 words, preferably 3-7.",
+    "Do not repeat subject + identity fact. Identity belongs to baseline unless it is the discovery.",
+    "Use the supplied beat and the nextNeed/frontier to make the viewer want the next cut.",
+    "Interpret supplied relationships instead of merely paraphrasing them.",
+    "Status language, metaphor, personification, double meaning, sly exaggeration, and character-specific absurdity are allowed.",
+    "A metaphorical frame is not a factual event. Do not literalize a lawyer, negotiation, heist, spy, case, mission, rebellion, or similar lens unless the source explicitly says it happened.",
+    "Never invent a new person, object, location, dialogue, weather, lighting, time-of-day, body position, physical reaction, sound, crowd reaction, or outcome.",
+    "Every line must be grounded in the supplied source details and approved beat.",
+    "Prefer a line that changes the social or emotional reading of the detail.",
+    "Avoid generic words such as beautiful, magical, special, meaningful, unforgettable, journey, transformation, or cinematic.",
+    characterHint,
+    `SOURCE TRUTH: ${JSON.stringify(compactTruth)}`,
+    "PRIVATE GUIDANCE: strategy names, contradictions, candidate lenses, and planning vocabulary are authoring controls only. Never print them.",
+  ].join("\n");
+
+  return [
+    {
+      ...system,
+      content: `${system.content}\n\n${batchInstruction}`,
+    },
+    {
+      ...user,
+      content: JSON.stringify({
+        ...source,
+        canonicalMouthBeatCount: beatCount,
+        canonicalMouthTruth: compactTruth,
+      }),
+    },
+  ];
 }
 
-async function realizeMouthOneBeat(
+function parseMouthBatch(raw: string, expected: number): string[] {
+  const text = raw
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  try {
+    const value = JSON.parse(text) as { texts?: unknown };
+    if (!Array.isArray(value.texts)) return [];
+
+    const texts = value.texts
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .slice(0, expected);
+
+    return texts.length === expected ? texts : [];
+  } catch {
+    return [];
+  }
+}
+
+async function canonicalMouthRequest(
   messages: LocalModelMessage[],
-  beat: unknown,
   options: LocalModelOptions,
-): Promise<string> {
-  const system = messages.find((message) => message.role === "system");
-  const user = [...messages].reverse().find((message) => message.role === "user");
-  if (!system || !user) return "";
+): Promise<LocalModelResult> {
+  const payload = parseUserObject(messages);
+  const beats = Array.isArray(payload?.beats) ? payload.beats : [];
 
-  const base = parseUserObject(messages) ?? {};
-  const singleBeatPayload = { ...base, beats: [beat] };
-  const sourceTruth = mouthSourceTruth(base);
-  const fast = process.env.QRE_AUTHOR_FAST === "true";
-  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.78 : 0.82));
-  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 192 : 256));
-  const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const retryInstruction = attempt === 0
-      ? ""
-      : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. 2-7 words. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
-    const singleSystem: LocalModelMessage = {
-      ...system,
-      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse 2-7 words. Prefer 3-6.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
-    };
-    const singleUser: LocalModelMessage = { ...user, content: JSON.stringify(singleBeatPayload) };
-    const prepared = prepareMessages([singleSystem, singleUser]);
-    const data = await request("/api/chat", {
+  if (!beats.length) {
+    return {
+      text: JSON.stringify({ texts: [] }),
       model: modelName(),
-      stream: false,
-      keep_alive: keepAlive,
-      format: "json",
-      messages: prepared.map((message) => ({
-        role: message.role,
-        content: message.content,
-        ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
-      })),
-      options: { temperature, num_predict: numPredict },
-    });
-    const text = extractOneText(outputText(data));
-    if (mouthAcceptable(text)) return text;
+      provider: "local",
+    };
   }
 
-  return "";
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (process.env.QRE_AUTHOR_FAST === "true" ? 0.72 : 0.8));
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 384);
+  const prepared = canonicalMouthPrompt(messages, beats.length);
+
+  const data = await request("/api/chat", {
+    model: modelName(),
+    stream: false,
+    keep_alive: keepAlive(),
+    format: "json",
+    messages: prepared.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
+    options: {
+      temperature,
+      num_predict: numPredict,
+    },
+  });
+
+  const text = outputText(data);
+
+  if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+    console.log("\n--- QRE RAW MODEL OUTPUT · MOUTH-BATCH ---\n" + text + "\n--- END RAW MODEL OUTPUT · MOUTH-BATCH ---\n");
+  }
+
+  const parsed = parseMouthBatch(text, beats.length);
+  const valid = parsed.length === beats.length && parsed.every(mouthAcceptable);
+
+  if (valid) {
+    return {
+      text: JSON.stringify({ texts: parsed }),
+      model: modelName(),
+      provider: "local",
+    };
+  }
+
+  const retryMessages = canonicalMouthPrompt(
+    [
+      ...messages,
+      {
+        role: "system",
+        content:
+          "RETRY: Previous mouth batch failed structural or style validation. Rewrite every beat. Preserve facts, improve character-specific interpretation, remove generic prose, and return exactly the required texts array.",
+      },
+    ],
+    beats.length,
+  );
+
+  const retryData = await request("/api/chat", {
+    model: modelName(),
+    stream: false,
+    keep_alive: keepAlive(),
+    format: "json",
+    messages: retryMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
+    options: {
+      temperature: Math.max(0.55, temperature - 0.12),
+      num_predict: Math.min(numPredict, 256),
+    },
+  });
+
+  const retryText = outputText(retryData);
+  const retryParsed = parseMouthBatch(retryText, beats.length);
+
+  if (retryParsed.length === beats.length) {
+    return {
+      text: JSON.stringify({ texts: retryParsed }),
+      model: modelName(),
+      provider: "local",
+    };
+  }
+
+  return {
+    text: JSON.stringify({
+      texts:
+        retryParsed.length > 0
+          ? retryParsed
+          : parsed.length > 0
+          ? parsed
+          : [],
+    }),
+    model: modelName(),
+    provider: "local",
+  };
 }
 
 export async function localModelGenerate(
@@ -313,58 +631,58 @@ export async function localModelGenerate(
   format?: "json",
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
-  const planner = messages.some((message) => message.role === "system" && META_PLANNER.test(message.content));
-  const preparedMessages = planner ? preparePlannerMessages(messages) : prepareMessages(messages);
-
   if (isCanonicalMouth(messages, format)) {
-    const payload = parseUserObject(messages);
-    const beats = Array.isArray(payload?.beats) ? payload.beats : [];
-    if (beats.length) {
-      const texts: string[] = [];
-      for (const beat of beats) {
-        const text = await realizeMouthOneBeat(messages, beat, options);
-        if (text) texts.push(text);
-        if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-          console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-BEAT ---\n${text}\n--- END RAW MODEL OUTPUT · MOUTH-BEAT ---\n`);
-        }
-      }
-      const combined = JSON.stringify({ texts });
-      if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-        console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n${combined}\n--- END RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n`);
-      }
-      return { text: combined, model: modelName(), provider: "local" };
-    }
+    return canonicalMouthRequest(messages, options);
   }
+
+  const planner = messages.some(
+    (message) =>
+      message.role === "system" &&
+      META_PLANNER.test(message.content),
+  );
+
+  const preparedMessages = planner
+    ? preparePlannerMessages(messages)
+    : prepareMessages(messages);
 
   const fast = process.env.QRE_AUTHOR_FAST === "true";
   const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
-  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 512 : 512));
-  const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 512);
 
   const data = await request("/api/chat", {
     model: modelName(),
     stream: false,
-    keep_alive: keepAlive,
+    keep_alive: keepAlive(),
     format,
     messages: preparedMessages.map((message) => ({
       role: message.role,
       content: message.content,
       ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
     })),
-    options: { temperature, num_predict: numPredict },
+    options: {
+      temperature,
+      num_predict: numPredict,
+    },
   });
 
   const text = outputText(data);
+
   if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
     console.log("\n--- QRE RAW MODEL OUTPUT ---\n" + text + "\n--- END RAW MODEL OUTPUT ---\n");
   }
 
-  return { text, model: modelName(), provider: "local" };
+  return {
+    text,
+    model: modelName(),
+    provider: "local",
+  };
 }
 
 export async function localModelHealthy(): Promise<boolean> {
   try {
-    const response = await fetch(`${baseUrl()}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${baseUrl()}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
     return response.ok;
   } catch {
     return false;

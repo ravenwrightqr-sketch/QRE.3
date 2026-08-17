@@ -1,86 +1,80 @@
 # QRE AUTHOR WIRING MAP
 
-Status: CANONICAL WIRING TRACKER
-Branch: `elite-universal-rebuild-v10`
-
-## Required production path
+**Status:** CANONICAL CURRENT WIRING
+**Branch:** `author/enterprise-mouth-rewire`
+**Primary reference:** `docs/AUTHOR_CURRENT_STATE.md`
 
 ```text
-experience input
-  → source truth
+SOURCE TRUTH
   → RealityGraph
-  → cognition
-  → latent-movie candidates
-  → Magnet / trajectory selection
-  → SequencePlay
-  → one-beat mouth realization
-  → canonical cut policy
-  → experience runtime
+  → Cognition / Character Read
+  → Latent Movie Search / Differentiation
+  → Beat Discovery
+  → Canonical Beat Graph
+  → Viewer Momentum / Magnet
+  → Mouth
+  → Attention Editor
+  → Truth / Cut Policy
+  → Bounded Repair
+  → Final Scenes
+  → Cinematic Runtime
 ```
 
 ## Canonical owners
 
-| Responsibility | Canonical owner | Required relationship |
-|---|---|---|
-| Master author | `apps/api/src/services/authorBrainUniversal.ts` | one production author |
-| Reality graph compiler | `apps/api/src/services/authorRealityGraph.ts` | deterministic truth-to-graph adapter |
-| Author cognition | `apps/api/src/services/authorCognition.ts` | consumes graph-derived relationships |
-| Sequence semantics | `packages/contracts/src/sequencePlay.ts` | source of SequencePlay / SequenceCut |
-| Magnet semantics | `packages/contracts/src/viewerMomentum.ts` | one MagnetCircle owner |
-| Cut acceptance | `apps/api/src/services/authorCutPolicy.ts` | one semantic cut evaluator |
-| Mouth runtime | `apps/api/src/services/localModelRuntime.ts` | one beat → one short realization |
-| Acceptance | `apps/api/author-acceptance-suite.ts` | exact Master Author path |
+| Responsibility | Owner |
+|---|---|
+| Reality graph | `apps/api/src/services/authorRealityGraph.ts` |
+| Cognition | `apps/api/src/services/authorCognition.ts` |
+| Latent movie search | `apps/api/src/services/authorLatentMovieSearch.ts` |
+| Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` |
+| Master Author | `apps/api/src/services/authorBrainUniversal.ts` |
+| Beat recovery | `apps/api/src/services/authorBeatPlanRecovery.ts` |
+| Latent beat adaptation | `apps/api/src/services/authorLatentMovieBeatAdapter.ts` |
+| Mouth realization | `apps/api/src/services/localModelRuntime.ts` + canonical author mouth craft |
+| Attention editor | `apps/api/src/services/authorAttentionEditor.ts` |
+| Truth gate | `apps/api/src/services/authorBeatTruthGate.ts` |
+| Cut policy | `apps/api/src/services/authorCutPolicy.ts` |
+| Model transport | `apps/api/src/services/localModelRuntime.ts` |
+| Acceptance | Monster + author acceptance suite |
+
+## Beat Graph
+
+A beat is one perceivable change in the viewer's mental model.
+
+```text
+role
+change
+next
+frontier
+necessity
+attentionFunction
+setsUp
+paysOff
+creativeMove
+nextBeatPullTarget
+source/event IDs
+```
+
+Metadata is private. It must never leak into viewer prose.
 
 ## Truth boundary
 
-`RealityGraph` may represent relationships, recurrence, contradiction, chronology, provenance, and sensory signals. It may not rewrite source truth.
-
-Creative lenses may change framing and interpretation. They may not silently create concrete facts in reality-locked mode.
-
-Explicit fictional/world-creation requests are a separate author mode and must be marked as such.
-
-## Sequence invariant
-
-A beat is a **sentence cut / moving message**: one perceivable moment appears briefly, then the player advances.
-
-Default text is short. Media is an independent sequence element.
-
-Target rhythm:
-
-```text
-jolt → jolt → jolt → payoff
-```
+Creative interpretation may change framing, attitude, implication, metaphor, status, and meaning. It may not create unsupported concrete reality in reality-locked mode.
 
 ## Acceptance invariants
 
-The live Author path must prove:
-
 ```text
 one Master Author
-one RealityGraph representation
-one cognition plan
-one SequencePlay representation
-one MagnetCircle representation
-one cut policy
-one mouth
-same truth → different lens → different experience
-
-no invented concrete fact in reality-locked mode
-no planning vocabulary in viewer text
-no paragraph-like text cuts
-no silent fallback author
+one Beat Graph shape
+one Magnet representation
+one mouth path
+one Attention Editor
+one truth/cut gate
+no planning prose
+no unsupported concrete invention
+no silent partial success
+no bypass recovery author
 ```
 
-## Wiring status
-
-- RealityGraph contract: GREEN
-- RealityGraph public export: GREEN
-- deterministic graph compiler: GREEN
-- AuthorBrainTruth graph field: GREEN
-- Master Author direct graph consumption: PENDING
-- Cognition direct graph consumption: PENDING
-- Beat provenance enforced from graph: PENDING
-- same-reality multi-lens acceptance: PRESENT
-- enterprise wiring guard: PENDING
-
-This document exists so a green build cannot be mistaken for a green intelligence path.
+Builds prove compilation. Monster/acceptance runs prove semantic integrity.

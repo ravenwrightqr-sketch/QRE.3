@@ -1,19 +1,32 @@
 /**
  * QRE CREATIVE ARCHITECTURE RULE
  *
- * NO HARD-CODED CREATIVE BEHAVIOR.
- *
- * This module is a deterministic execution fallback only. It may normalize
- * semantic decisions already discovered by the canonical RealityGraph /
- * LatentMovie layers, but it must never invent domain-specific story content,
- * canned prose, subject-specific jokes, or hidden facts.
- *
- * CANONICAL PATH:
- * REALITY → MOVIE → DIFFERENTIATION → COGNITION → BEAT PLAN → MAGNET
- *
- * A model formatting failure must not erase a valid semantic movie.
+ * Deterministic fallback only. Recovery projects an already-selected latent
+ * movie trajectory into the canonical Beat Graph contract. It never invents
+ * domain facts, viewer prose, or a new creative premise.
  */
 import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+
+type BeatAttentionFunction =
+  | "hook"
+  | "question"
+  | "turn"
+  | "escalation"
+  | "reframe"
+  | "callback"
+  | "payoff"
+  | "release";
+
+type BeatCreativeMove =
+  | "contrast"
+  | "status_inversion"
+  | "understatement"
+  | "double_meaning"
+  | "personification"
+  | "callback"
+  | "recontextualization"
+  | "implication"
+  | "none";
 
 export type RecoveredAuthorBeat = {
   order: number;
@@ -24,11 +37,17 @@ export type RecoveredAuthorBeat = {
   frontier: string;
   necessity: string;
   sourceIds: string[];
+  attentionFunction: BeatAttentionFunction;
+  setsUp: string[];
+  paysOff: string[];
+  creativeMove: BeatCreativeMove;
+  nextBeatPullTarget: number;
 };
 
 export type RecoveredBeatPlan = {
   premise: string;
   baselineFacts: string[];
+  attentionArc: string;
   beats: RecoveredAuthorBeat[];
   closing?: string;
   source: "latent_movie_recovery";
@@ -60,6 +79,18 @@ const GAIN_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
+const ATTENTION_BY_OPERATION: Record<string, BeatAttentionFunction> = {
+  establish: "hook",
+  contrast: "reframe",
+  recur: "callback",
+  reframe: "reframe",
+  escalate: "escalation",
+  converge: "reframe",
+  reveal: "turn",
+  consequence: "release",
+  payoff: "payoff",
+};
+
 function clean(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -70,22 +101,27 @@ function uniq(values: readonly string[], limit = 16): string[] {
 
 function compact(value: string, maxWords: number): string {
   const words = clean(value).split(/\s+/).filter(Boolean);
-  return words.length <= maxWords ? clean(value) : words.slice(0, maxWords).join(" ");
+  return words.length <= maxWords
+    ? clean(value)
+    : words.slice(0, maxWords).join(" ");
 }
 
-function eventIdsExist(graph: RealityGraph | undefined, ids: string[]): string[] {
+function eventIdsExist(
+  graph: RealityGraph | undefined,
+  ids: string[],
+): string[] {
   if (!graph) return [];
   const known = new Set(graph.events.map((event) => event.id));
   return ids.filter((id) => known.has(id));
 }
 
-/**
- * Recover an executable beat plan from an already-selected LatentMovie.
- *
- * This is deliberately not a second author. It performs semantic projection:
- * movie trajectory → canonical beat fields. No new facts or creative premises
- * are introduced here.
- */
+function canonicalArc(beats: RecoveredAuthorBeat[]): string {
+  return beats
+    .map((beat) => beat.attentionFunction)
+    .filter(Boolean)
+    .join(" → ");
+}
+
 export function recoverBeatPlanFromLatentMovie(
   candidate: LatentMovieCandidate | undefined,
   realityGraph?: RealityGraph,
@@ -93,30 +129,49 @@ export function recoverBeatPlanFromLatentMovie(
   if (!candidate?.trajectory?.length) return undefined;
 
   const beats: RecoveredAuthorBeat[] = candidate.trajectory
-    .map((step) => {
-      const change = compact(step.viewerChange, 14);
-      const next = compact(step.nextQuestion, 10);
+    .map((step, index): RecoveredAuthorBeat | undefined => {
+      const operation = clean(step.operation).toLowerCase();
+      const change = compact(step.viewerChange, 12);
+      const next = compact(step.nextQuestion, 8);
       if (!change) return undefined;
 
+      const role = ROLE_BY_OPERATION[operation] ?? "discovery";
+      const gainKind = GAIN_BY_OPERATION[operation] ?? "discovery";
+      const attentionFunction =
+        ATTENTION_BY_OPERATION[operation] ?? "reframe";
+
       return {
-        order: step.order,
-        role: ROLE_BY_OPERATION[step.operation] ?? "discovery",
-        gainKind: GAIN_BY_OPERATION[step.operation] ?? "discovery",
+        order: Number(step.order ?? index + 1),
+        role,
+        gainKind,
         change,
         next,
         frontier: next,
         necessity: "Preserves the next change in the discovered movie.",
         sourceIds: eventIdsExist(realityGraph, step.eventIds),
-      } satisfies RecoveredAuthorBeat;
+        attentionFunction,
+        setsUp: [],
+        paysOff: [],
+        creativeMove:
+          operation === "contrast"
+            ? "contrast"
+            : operation === "reframe"
+              ? "recontextualization"
+              : "none",
+        nextBeatPullTarget: next ? 0.55 : 0.35,
+      };
     })
-    .filter((beat): beat is RecoveredAuthorBeat => Boolean(beat));
+    .filter((beat): beat is RecoveredAuthorBeat => beat !== undefined)
+    .sort((a, b) => a.order - b.order)
+    .map((beat, index) => ({ ...beat, order: index + 1 }));
 
   if (!beats.length) return undefined;
 
   return {
     premise: clean(candidate.hypothesis[0] ?? candidate.unresolvedQuestion),
     baselineFacts: uniq(candidate.evidence),
-    beats,
+    attentionArc: canonicalArc(beats),
+    beats: beats.slice(0, 6),
     closing: clean(candidate.payoff),
     source: "latent_movie_recovery",
     candidateId: candidate.id,
