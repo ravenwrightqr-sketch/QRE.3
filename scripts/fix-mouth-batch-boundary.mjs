@@ -2,21 +2,40 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const target = path.join(root, "apps/api/src/services/localModelRuntime.ts");
+const target = path.join(
+  root,
+  "apps/api/src/services/localModelRuntime.ts",
+);
 const backup = `${target}.before-mouth-batch-boundary-${Date.now()}`;
 
 let text = fs.readFileSync(target, "utf8");
 fs.copyFileSync(target, backup);
 
-const oldParser = /function parseMouthBatch\(\n  raw: string,\n  expected: number,\n\): string\[\] \{[\s\S]*?\n\}\n\nasync function canonicalMouthRequest/;
+function replaceBetween(source, startMarker, endMarker, replacement, label) {
+  const start = source.indexOf(startMarker);
+  if (start < 0) {
+    throw new Error(`PATCH MISS [${label}]: start marker not found`);
+  }
 
-const newParser = String.raw`function parseMouthBatch(
+  const end = source.indexOf(endMarker, start);
+  if (end < 0) {
+    throw new Error(`PATCH MISS [${label}]: end marker not found`);
+  }
+
+  return (
+    source.slice(0, start) +
+    replacement +
+    source.slice(end)
+  );
+}
+
+const newParser = `function parseMouthBatch(
   raw: string,
   expected: number,
 ): string[] {
   const text = raw
-    .replace(/^\`\`\`(?:json)?/i, "")
-    .replace(/\`\`\`$/i, "")
+    .replace(/^(?:\\u0060\\u0060\\u0060)(?:json)?/i, "")
+    .replace(/(?:\\u0060\\u0060\\u0060)$/i, "")
     .trim();
 
   try {
@@ -37,18 +56,41 @@ const newParser = String.raw`function parseMouthBatch(
   }
 }
 
-async function canonicalMouthRequest`;
+`;
 
-if (!oldParser.test(text)) {
-  throw new Error("PATCH MISS: parseMouthBatch block not found");
+text = replaceBetween(
+  text,
+  "function parseMouthBatch(",
+  "async function canonicalMouthRequest(",
+  newParser,
+  "parseMouthBatch",
+);
+
+const fallbackStart = text.indexOf(
+  "  return {\n    text: JSON.stringify({\n      texts: Array.from(",
+);
+
+if (fallbackStart < 0) {
+  throw new Error(
+    "PATCH MISS [canonical mouth fallback]: old empty fallback not found",
+  );
 }
 
-text = text.replace(oldParser, newParser);
+const fallbackEndMarker =
+  "  };\n}\n\nexport async function localModelGenerate(";
+const fallbackEnd = text.indexOf(
+  fallbackEndMarker,
+  fallbackStart,
+);
 
-const oldFinal = /  return \{\n    text: JSON\.stringify\(\{\n      texts: Array\.from\(\n        \{ length: beats\.length \},\n        \(\) => "",\n      \),\n    \}\),\n    model: modelName\(\),\n    provider: "local",\n  \};/;
+if (fallbackEnd < 0) {
+  throw new Error(
+    "PATCH MISS [canonical mouth fallback]: end marker not found",
+  );
+}
 
-const newFinal = `  // Do not erase usable model output. The canonical author brain owns
-  // exact-count repair and final acceptance downstream.
+const newFallback = `  // Preserve any usable model output. The canonical author brain
+  // remains responsible for exact-count repair and final acceptance.
   return {
     text: JSON.stringify({
       texts:
@@ -60,14 +102,15 @@ const newFinal = `  // Do not erase usable model output. The canonical author br
     }),
     model: modelName(),
     provider: "local",
-  };`;
+`;
 
-if (!oldFinal.test(text)) {
-  throw new Error("PATCH MISS: canonical mouth empty fallback not found");
-}
+text =
+  text.slice(0, fallbackStart) +
+  newFallback +
+  text.slice(fallbackEnd);
 
-text = text.replace(oldFinal, newFinal);
 fs.writeFileSync(target, text, "utf8");
 
-console.log("PATCHED apps/api/src/services/localModelRuntime.ts");
-console.log(`Backup: ${backup}`);
+console.log("PATCHED localModelRuntime.ts: preserve usable mouth output");
+console.log(`BACKUP: ${backup}`);
+console.log("MOUTH BATCH BOUNDARY PATCH COMPLETE.");
