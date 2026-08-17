@@ -7,6 +7,27 @@
  */
 import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
+type BeatAttentionFunction =
+  | "hook"
+  | "question"
+  | "turn"
+  | "escalation"
+  | "reframe"
+  | "callback"
+  | "payoff"
+  | "release";
+
+type BeatCreativeMove =
+  | "contrast"
+  | "status_inversion"
+  | "understatement"
+  | "double_meaning"
+  | "personification"
+  | "callback"
+  | "recontextualization"
+  | "implication"
+  | "none";
+
 export type RecoveredAuthorBeat = {
   order: number;
   role: string;
@@ -16,10 +37,10 @@ export type RecoveredAuthorBeat = {
   frontier: string;
   necessity: string;
   sourceIds: string[];
-  attentionFunction: string;
+  attentionFunction: BeatAttentionFunction;
   setsUp: string[];
   paysOff: string[];
-  creativeMove: string;
+  creativeMove: BeatCreativeMove;
   nextBeatPullTarget: number;
 };
 
@@ -58,15 +79,15 @@ const GAIN_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
-const ATTENTION_BY_OPERATION: Record<string, string> = {
+const ATTENTION_BY_OPERATION: Record<string, BeatAttentionFunction> = {
   establish: "hook",
   contrast: "reframe",
   recur: "callback",
   reframe: "reframe",
   escalate: "escalation",
-  converge: "discovery",
+  converge: "reframe",
   reveal: "turn",
-  consequence: "consequence",
+  consequence: "release",
   payoff: "payoff",
 };
 
@@ -108,7 +129,7 @@ export function recoverBeatPlanFromLatentMovie(
   if (!candidate?.trajectory?.length) return undefined;
 
   const beats: RecoveredAuthorBeat[] = candidate.trajectory
-    .map((step) => {
+    .map((step, index): RecoveredAuthorBeat | undefined => {
       const operation = clean(step.operation).toLowerCase();
       const change = compact(step.viewerChange, 12);
       const next = compact(step.nextQuestion, 8);
@@ -116,10 +137,11 @@ export function recoverBeatPlanFromLatentMovie(
 
       const role = ROLE_BY_OPERATION[operation] ?? "discovery";
       const gainKind = GAIN_BY_OPERATION[operation] ?? "discovery";
-      const attentionFunction = ATTENTION_BY_OPERATION[operation] ?? "reframe";
+      const attentionFunction =
+        ATTENTION_BY_OPERATION[operation] ?? "reframe";
 
       return {
-        order: step.order,
+        order: Number(step.order ?? index + 1),
         role,
         gainKind,
         change,
@@ -130,11 +152,16 @@ export function recoverBeatPlanFromLatentMovie(
         attentionFunction,
         setsUp: [],
         paysOff: [],
-        creativeMove: operation === "contrast" ? "contrast" : operation === "reframe" ? "recontextualization" : "none",
+        creativeMove:
+          operation === "contrast"
+            ? "contrast"
+            : operation === "reframe"
+              ? "recontextualization"
+              : "none",
         nextBeatPullTarget: next ? 0.55 : 0.35,
-      } satisfies RecoveredAuthorBeat;
+      };
     })
-    .filter((beat): beat is RecoveredAuthorBeat => Boolean(beat))
+    .filter((beat): beat is RecoveredAuthorBeat => beat !== undefined)
     .sort((a, b) => a.order - b.order)
     .map((beat, index) => ({ ...beat, order: index + 1 }));
 
