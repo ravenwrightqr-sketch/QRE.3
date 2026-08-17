@@ -1,229 +1,360 @@
 # QRE AUTHOR — DECISION LAW
 
-**Status:** CANONICAL  
-**Purpose:** Prevent QRE's author architecture from growing without producing a measurable creative improvement.
+**Status:** CANONICAL CURRENT STATE  
+**Scope:** Universal author path in `apps/api`  
+**Invariant:** **NO GAPS IN THE PIPELINE.**
 
 ## The Law
 
-> **Every new component must demonstrably improve at least one of: discovery, differentiation, momentum, truth, or sentence quality. Otherwise we do not build it.**
+> **Every authoring component must improve discovery, differentiation, momentum, truth, or sentence quality — and that improvement must survive into the final viewer-facing sequence.**
 
-QRE is not currently constrained by a lack of architecture. The highest-leverage problem is making the existing brain **decisive**: notice the strongest relationship, choose a genuinely different movie, know how the sequence should move, preserve reality, and turn that decision into excellent lines.
+QRE is not trying to build a larger pile of author machinery. The goal is a decisive universal author that can take arbitrary supplied reality, discover the strongest latent movie inside it, realize that movie as short cinematic beats, protect truth, and deliver a complete sequence to the player.
 
-## Five Required Quality Dimensions
-
-### 1. Discovery
-
-Does the change cause QRE to notice a relationship, implication, contrast, callback, character trait, or possibility that the previous system missed?
-
-**Pass evidence:** a before/after case where the new system discovers materially better source-grounded material.
-
-### 2. Differentiation
-
-Does the change cause competing candidates to represent genuinely different interpretations of the same world rather than stylistic rewrites of one idea?
-
-**Pass evidence:** candidate movies differ in premise, relationship, trajectory, or payoff—not merely tone words.
-
-### 3. Momentum
-
-Does the sequence make the viewer want the next cut?
-
-For each cut ask:
+## Canonical Author Path
 
 ```text
-What does the viewer know now?
-What changed?
-What do they expect next?
-What remains unresolved?
-Why does the next cut need to exist?
+SUPPLIED REALITY
+      ↓
+REALITY GRAPH
+      ↓
+COGNITION / CHARACTER READ
+      ↓
+LATENT MOVIE SEARCH
+      ↓
+BEAT GRAPH
+      ↓
+VIEWER MOMENTUM / MAGNET
+      ↓
+MOUTH CRAFT
+      ↓
+ATTENTION EDITOR
+      ↓
+FINAL CUT / TRUTH GATE
+      ↓
+BOUNDED REPAIR
+      ↓
+FINAL SCENES
 ```
 
-**Pass evidence:** removing a cut damages the sequence, or the next cut creates a meaningful new viewer state.
+Every stage has an owner. No stage may silently replace the responsibility of another stage.
 
-### 4. Truth
+## Ownership Rules
 
-Does the change preserve source reality while allowing creative framing?
+### Reality
+
+Facts, source moments, memory, provenance, and reality-graph evidence are the only concrete world.
+
+Reality may be interpreted. Reality may not be rewritten.
+
+### Cognition
+
+Cognition discovers relationships, contradictions, character posture, callbacks, candidate lenses, and latent movies.
+
+Cognition is private authoring control. It never becomes viewer-facing prose.
+
+### Beat Graph
+
+The Beat Graph is the **single source of truth for SequencePlay**.
+
+Each beat carries:
 
 ```text
-FACT → CANONICAL TRUTH
-INFERENCE → CREATIVE INTERPRETATION
-UNKNOWN → UNKNOWN
+role
+gainKind
+change
+next
+frontier
+necessity
+attentionFunction
+setsUp
+paysOff
+creativeMove
+nextBeatPullTarget
+source/event provenance when available
 ```
 
-**Pass evidence:** no invented people, actions, objects, locations, dates, dialogue, outcomes, or identity claims.
+`change` is the smallest meaningful shift in viewer interpretation.
 
-### 5. Sentence Quality
+It is not an explanation, summary, question, or analyst conclusion.
 
-Does the final mouth produce a materially better line?
+### Attention Arc
 
-Judge the actual viewer-facing output—not the planner, graph, metrics, or JSON.
+The attention arc is an internal map of dramatic movement. It must describe what the sequence is doing, not decorate the prompt.
 
-A stronger sentence is typically:
-
-- more specific
-- less explanatory
-- more characterful
-- more surprising
-- more compressed
-- more imageable
-- more emotionally or comically precise
-- more connected to the chosen movie
-
-**Pass evidence:** human-readable before/after output where the improvement is visible without inspecting internal metadata.
-
-## The Critical Rule
-
-**Internal sophistication does not count unless it survives into the mouth.**
-
-These are not sufficient by themselves:
+Typical functional progression:
 
 ```text
-more graph relations
-higher discovery score
-more candidate metadata
-more beat fields
-more regex filters
-more templates
-more cognitive labels
-more elaborate prompts
+HOOK
+→ TURN / REFRAME
+→ ESCALATION / CALLBACK / CONSEQUENCE
+→ PAYOFF / RELEASE
 ```
 
-If the final writing does not improve, the component has not demonstrated value.
+The sequence does not have to use this exact shape when reality does not support it. But every beat must have a genuine job.
 
-## Development Loop
+### Mouth
+
+The Mouth receives an approved Beat Graph and concrete source truth.
+
+The Mouth does **not** re-plan the story.
+
+Its job is to compress the selected meaning into a short, character-specific, viewer-facing line.
+
+Allowed creativity includes metaphor, status language, double meaning, personification, understatement, recontextualization, implication, contrast, callback, and character-specific exaggeration — provided the meaning remains recoverable from supplied reality.
+
+The Mouth may not invent a new concrete event, person, object, location, dialogue, physical reaction, outcome, or unsupported causal fact.
+
+### Attention Editor
+
+The Attention Editor is an editorial layer, not a second author.
+
+It evaluates:
 
 ```text
-ONE HYPOTHESIS
+factuality
+specificity
+attention
+novelty
+status change
+next-beat pull
+creative move
+repetition
+cinematicity
+setup
+payoff
+invention risk
+mouth usability
+beat execution
+```
+
+It diagnoses weaknesses. It does not silently change the approved movie.
+
+### Final Cut Gate
+
+The final cut/truth gate is authoritative for viewer-facing acceptance.
+
+A beautiful line that invents reality is rejected.
+
+A technically grounded line that fails to execute its beat may also be rejected.
+
+Truth is a hard floor, never a tradeable score.
+
+## Beat Graph Validity
+
+Planner output is untrusted until normalized.
+
+Invalid planner metadata must not be silently converted into unrelated semantics.
+
+Canonical attention functions:
+
+```text
+hook
+question
+turn
+escalation
+reframe
+callback
+payoff
+release
+```
+
+Canonical creative moves:
+
+```text
+contrast
+status_inversion
+understatement
+double_meaning
+personification
+callback
+recontextualization
+implication
+none
+```
+
+Compatibility aliases are permitted only when they map unambiguously to a canonical meaning. Analyst labels such as `build curiosity`, `increase tension`, `reveal the joke`, or `conclude the scene` must never leak into the graph as viewer semantics.
+
+## Momentum Law
+
+Every beat must create a reason for the next beat.
+
+`nextBeatPullTarget` is a planner signal, not evidence of attention by itself.
+
+A high target does not rescue a beat with no unresolved relationship, object, status change, consequence, callback, or meaning shift.
+
+A question mark alone is not momentum.
+
+## Truth Law
+
+```text
+FACT       → available as concrete reality
+INFERENCE  → allowed only as grounded interpretation
+UNKNOWN    → remains unknown
+```
+
+Never infer:
+
+- new people
+- new objects
+- new locations
+- new physical actions
+- new reactions
+- new dialogue
+- new wardrobe placement
+- new chronology
+- new outcomes
+- identity-based character claims unsupported by the source
+
+A creative lens changes framing. It does not create the event implied by the lens.
+
+## Repair Law
+
+Repair exists to fix an already-selected beat, not to invent a new movie.
+
+A repair must preserve:
+
+```text
+beat order
+source truth
+attention function
+creative move
+setup/payoff intent
+```
+
+Repair should target failed lines rather than casually regenerating the entire sequence from scratch.
+
+A failed line must never be replaced by empty output and then allowed to disappear silently.
+
+## Completeness Law
+
+A successful author run means:
+
+```text
+beat count == realized line count == accepted scene count
+```
+
+Partial sequences are not successful author output.
+
+However, when completeness fails, diagnostics must preserve the actual failed lines, exact rejection reasons, and repair attempts so the failure is actionable rather than opaque.
+
+## Zero-Scene Failure Law
+
+`finalScenes: 0` is not a creative result. It is an author-path failure.
+
+When zero scenes occurs, inspect in this order:
+
+```text
+1. Beat Graph validity
+2. Mouth output count
+3. Attention Editor diagnostics
+4. Final Cut rejection reasons
+5. Repair output count
+6. Repair acceptance delta
+```
+
+The system must make it obvious which stage caused the failure.
+
+## What Counts as a Strong Line
+
+A strong line is usually:
+
+```text
+specific
+compressed
+character-specific
+surprising
+imageable
+interpretive rather than explanatory
+connected to the chosen movie
+```
+
+A line is weak when it merely paraphrases:
+
+```text
+Coco got a bath.
+Coco stole a bow.
+Coco left fabulous.
+```
+
+Those are facts. The Mouth's value is in changing the meaning of those facts without changing what actually happened.
+
+## What We Are Explicitly Not Building
+
+Do not solve weak output by adding:
+
+```text
+another domain writer
+another fixed story template
+another permanent emotional arc
+another scoring layer that never affects output
+another pile of phrase bans
+another hidden creative brain
+```
+
+The universal author should become better at **choosing and executing**, not merely better at producing more metadata.
+
+## Engineering Loop
+
+```text
+ONE FAILURE SIGNATURE
       ↓
-ONE SURGICAL CHANGE
+TRACE THE WHOLE PATH
       ↓
-ONE REAL ACCEPTANCE RUN
+IDENTIFY THE BROKEN CONTRACT
       ↓
-READ THE ACTUAL SEQUENCE + CUTS
+SURGICAL CHANGE
       ↓
-COMPARE BEFORE / AFTER
+TYPECHECK
       ↓
-KEEP OR KILL
+ACCEPTANCE RUN
+      ↓
+COMPARE FINAL VIEWER OUTPUT
+      ↓
+KEEP / REVERT
       ↓
 RECORD THE LEARNING
 ```
 
-Do not change seven systems and then guess what helped.
+Do not patch one symptom while leaving an upstream contract mismatch intact.
 
-## Current Priority Order
+## Required Acceptance Families
 
-When choosing the next engineering change, prefer this order:
-
-1. **Sentence quality** — if the mouth is weak, fix the path that produces the line.
-2. **Momentum** — if lines are individually good but the sequence is dead, fix viewer-state movement.
-3. **Discovery** — if the sequence has nothing interesting to work with, improve relationship discovery.
-4. **Differentiation** — if all movies feel alike, improve creative competition and attack.
-5. **Truth** — always a hard constraint; creative gains never justify factual invention.
-
-Truth is a floor, not a tradeable score.
-
-## Pass 3 — Mouth Grounding Law
-
-The current highest-leverage failure is downstream of discovery: the Mouth can receive a valid semantic beat but still write a generic line because the realization payload does not contain enough source material to realize that beat precisely.
-
-**Pass 3 rule:** the Mouth must be given the concrete source world needed to write the selected beat, and every realized line must remain anchored to that world.
-
-The realization payload should carry, at minimum:
+The author must eventually be exercised against:
 
 ```text
-prompt
-lens
-subject
-place
-facts
-source moments
-memory
-trajectory
-reality graph / beat source event IDs
-selected beat
-previous realized lines
+COCO          character/personality contrast
+COCO-RETURN   recurring memory / changed meaning
+MARIA         ordinary service / efficiency
+HORROR        dark reframing
+ROMANCE       intimate recurring detail
+SPARSE        little source material
+CHAOTIC       high creative risk, still reality-locked
 ```
 
-The Mouth is not allowed to solve missing source material by inventing atmosphere, setting, action, objects, outcomes, or emotional events.
+A change passes only when the intended dimension improves without materially regressing truth, momentum, differentiation, or sentence quality.
 
-### Pass 3 failure signature
-
-These are evidence of a failed realization path:
+## Definition of Success
 
 ```text
-valid beat → generic line
-valid source → invented imagery
-valid movie → unrelated sentiment
-valid event → unsupported setting
-```
-
-For example, a source containing `Coco / returned / happy / fun / bows / balls / ties / male` should not suddenly produce an unsupported image such as a sunset or an invented homecoming scene.
-
-### Pass 3 acceptance test
-
-A successful run should show:
-
-1. the chosen movie survives into the beat plan;
-2. the beat retains source event IDs where available;
-3. the Mouth receives the source evidence for that beat;
-4. the line uses at least one concrete source-grounded element or a clearly grounded relationship;
-5. the line does not merely paraphrase the planner;
-6. cut policy accepts the line without weakening truth;
-7. the final sequence is materially better to a human reader.
-
-**Do not add another brain for this. Do not add a template. Do not add domain-specific prose. Fix the existing path from selected beat → source evidence → Mouth → cut policy.**
-
-## What We Are Explicitly NOT Doing
-
-Do not solve weak creativity by automatically adding:
-
-- another domain-specific brain
-- another fixed template
-- another permanent beat count
-- another emotional arc
-- another pile of phrase bans
-- hardcoded subject behavior
-- more metadata that never reaches the mouth
-- complexity whose only proof is that the architecture looks more sophisticated
-
-The universal brain should become better at **choosing**, not merely better at producing more intermediate artifacts.
-
-## Acceptance Standard
-
-A meaningful author change should be evaluated against multiple benchmark classes, not only one Coco prompt:
-
-```text
-COCO              universal character baseline
-COCO-RETURN       living memory / changed-meaning callback
-MARIA             ordinary service / no invention
-HORROR            genre reframing
-RAVE              radically different energy
-SPARSE            little source material / truth discipline
-```
-
-The change passes only if it improves the intended dimension without materially regressing truth or another core dimension.
-
-## Definition of Rapid Advancement
-
-We are winning when this happens:
-
-```text
-ordinary source
-   ↓
+ordinary reality
+      ↓
 QRE notices something specific
-   ↓
-QRE chooses a strong interpretation
-   ↓
-QRE knows what the viewer should experience next
-   ↓
-QRE cuts aggressively
-   ↓
-QRE writes a line we would not have predicted from the raw prompt
-   ↓
-truth remains intact
-   ↓
-payoff feels earned
+      ↓
+QRE chooses a strong movie
+      ↓
+QRE knows what should change next
+      ↓
+QRE creates a short Beat Graph
+      ↓
+Mouth turns meaning into memorable lines
+      ↓
+critic cuts weakness
+      ↓
+truth gate protects reality
+      ↓
+repair fixes only what failed
+      ↓
+complete cinematic sequence reaches the player
 ```
 
-The goal is not a larger author system.
-
-**The goal is a more decisive author.**
+**The goal is not more architecture. The goal is a decisive author with no gaps in the pipeline.**
