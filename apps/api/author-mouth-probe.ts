@@ -1,3 +1,4 @@
+﻿/// <reference types="node" />
 import { localModelGenerate } from "./src/services/localModelRuntime.js";
 import { groundAuthorBeat } from "./src/services/authorBeatTruthGate.js";
 import { critiqueMouthCandidates } from "./src/services/authorMouthCritic.js";
@@ -5,7 +6,7 @@ import { critiqueMouthCandidates } from "./src/services/authorMouthCritic.js";
 const raw = process.argv.slice(2).join(" ").trim();
 if (!raw) throw new Error('Usage: pnpm exec tsx apps/api/author-mouth-probe.ts "Coco returned happy with bows, balls, ties"');
 
-const facts = raw.split(/[,\n.;•]+/).map((x) => x.trim()).filter(Boolean);
+const facts = raw.split(/[,\n.;â€¢]+/).map((x) => x.trim()).filter(Boolean);
 const subject = facts[0] ?? "the subject";
 const evidence = facts.slice(1);
 
@@ -93,3 +94,4 @@ console.log(`CRITIC: ${critique.decision}`);
 console.log(`WINNER: ${critique.bestIndex >= 0 ? candidates[critique.bestIndex] ?? "none" : "none"}`);
 console.log(`FAILURES: ${critique.failureCodes?.join(" | ") || "none"}`);
 console.log(`REPAIR: ${critique.repairDirective || critique.reason}`);
+

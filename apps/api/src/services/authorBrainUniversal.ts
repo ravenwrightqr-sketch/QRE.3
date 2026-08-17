@@ -381,7 +381,16 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
     moments: uniq(input.sourceMoments, 12),
     memory: uniq(input.memoryContext, 10),
     trajectory: uniq(input.trajectory, 10),
-    realityGraph: input.realityGraph ?? null,
+    realityGraph: input.realityGraph
+  ? {
+      events: input.realityGraph.events
+        .slice(0, 8)
+        .map((event) => event.label),
+      tensions: input.realityGraph.unresolvedTensions.slice(0, 6),
+      recurring: input.realityGraph.recurringSignals.slice(0, 6),
+      sensory: input.realityGraph.sensorySignals.slice(0, 6),
+    }
+  : null,
     returning: Boolean(input.returning),
     visitNumber: input.visitNumber,
   };

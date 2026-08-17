@@ -6,6 +6,7 @@
  * licensed evidence set plus a creative relationship. The mouth is allowed to
  * be inventive only inside that boundary.
  */
+
 import { localModelGenerate } from "./localModelRuntime.js";
 
 export type GroundedBeat = {
@@ -23,7 +24,12 @@ function clean(value: unknown): string {
 }
 
 function words(value: string): Set<string> {
-  return new Set(clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 3));
+  return new Set(
+    clean(value)
+      .toLowerCase()
+      .split(/[^a-z0-9'-]+/i)
+      .filter((word) => word.length >= 3),
+  );
 }
 
 function parse(raw: string): {
@@ -31,7 +37,11 @@ function parse(raw: string): {
   creativeOpportunity?: unknown;
   forbiddenClaims?: unknown;
 } | undefined {
-  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  const text = clean(raw)
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
   try {
     const value = JSON.parse(text) as Record<string, unknown>;
     return value && typeof value === "object" ? value : undefined;
@@ -42,9 +52,17 @@ function parse(raw: string): {
 
 function normalizeIndices(value: unknown, size: number): number[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value
-    .map((item) => Number(item))
-    .filter((item) => Number.isInteger(item) && item >= 0 && item < size))];
+
+  return [
+    ...new Set(
+      value
+        .map((item) => Number(item))
+        .filter(
+          (item) =>
+            Number.isInteger(item) && item >= 0 && item < size,
+        ),
+    ),
+  ];
 }
 
 function normalizeEvidence(evidence: string[]): string[] {
@@ -59,20 +77,42 @@ export async function groundAuthorBeat(input: {
   beat: {
     order: number;
     role: string;
-    gainKind: string;
+    gainKind?: string;
     change?: string;
     frontier?: string;
     nextNeed?: string;
     necessity?: string;
   };
 }): Promise<GroundedBeat> {
+  const normalizedBeat = {
+    order: input.beat.order,
+    role: clean(input.beat.role) || "discovery",
+    gainKind: clean(input.beat.gainKind) || "discovery",
+    change: clean(input.beat.change),
+    frontier: clean(input.beat.frontier),
+    nextNeed: clean(input.beat.nextNeed),
+    necessity: clean(input.beat.necessity),
+  };
+
   // Stable identity attributes remain attached to the subject. They do not
   // become independent story entities unless the actual prompt/memory makes
   // the attribute narratively relevant.
-  const genderPattern = /^(?:male|female|man|woman|boy|girl|gender|he|she|him|her|his|hers)$/i;
-  const rawEvidence = normalizeEvidence([...input.facts, ...input.moments, ...input.memory]);
-  const identityEvidence = rawEvidence.filter((item) => genderPattern.test(item));
-  const narrativeEvidence = rawEvidence.filter((item) => !genderPattern.test(item));
+  const genderPattern =
+    /^(?:male|female|man|woman|boy|girl|gender|he|she|him|her|his|hers)$/i;
+
+  const rawEvidence = normalizeEvidence([
+    ...input.facts,
+    ...input.moments,
+    ...input.memory,
+  ]);
+
+  const identityEvidence = rawEvidence.filter((item) =>
+    genderPattern.test(item),
+  );
+
+  const narrativeEvidence = rawEvidence.filter(
+    (item) => !genderPattern.test(item),
+  );
 
   const system = [
     "You are QRE's AUTHOR BEAT TRUTH GATE.",
@@ -95,10 +135,13 @@ export async function groundAuthorBeat(input: {
 
   const user = JSON.stringify({
     SUBJECT: input.subject ?? "",
-    SUPPLIED_EVIDENCE: rawEvidence.map((text, index) => ({ index, text })),
+    SUPPLIED_EVIDENCE: rawEvidence.map((text, index) => ({
+      index,
+      text,
+    })),
     NARRATIVE_EVIDENCE: narrativeEvidence,
     IDENTITY_METADATA: identityEvidence,
-    UPSTREAM_BEAT: input.beat,
+    UPSTREAM_BEAT: normalizedBeat,
   });
 
   const result = await localModelGenerate(
@@ -107,36 +150,62 @@ export async function groundAuthorBeat(input: {
       { role: "user", content: user },
     ],
     "json",
-    { numPredict: 360, temperature: 0.05 },
+    {
+      numPredict: 360,
+      temperature: 0.05,
+    },
   );
 
   const parsed = parse(result.text);
-  const indices = normalizeIndices(parsed?.evidenceIndices, rawEvidence.length);
+
+  const indices = normalizeIndices(
+    parsed?.evidenceIndices,
+    rawEvidence.length,
+  );
+
+  // Preserve the complete supplied truth set. The model's indices identify
+  // the strongest narrative evidence; they do not authorize deleting facts.
   const approvedEvidence = rawEvidence;
+
   const selectedNarrative = indices
     .map((index) => rawEvidence[index])
     .filter(Boolean)
     .filter((item) => !genderPattern.test(item));
 
   const modelOpportunity = clean(parsed?.creativeOpportunity);
-  const forbiddenIdentityPattern = /\b(?:male|female|man|woman|boy|girl|gender|masquerade|pride|traditional|modern|camaraderie|romantic relationship|male character|female character)\b/i;
-  const concreteClaimPattern = /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|returns? in|comes? home|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties? (?:a|the) knot)\b/i;
-  const fallbackPool = selectedNarrative.length ? selectedNarrative : narrativeEvidence;
-  const creativeOpportunity = modelOpportunity && !concreteClaimPattern.test(modelOpportunity) && !forbiddenIdentityPattern.test(modelOpportunity)
-    ? modelOpportunity
-    : `Find the sharpest relationship among: ${fallbackPool.join("; ")}`;
+
+  const forbiddenIdentityPattern =
+    /\b(?:male|female|man|woman|boy|girl|gender|masquerade|pride|traditional|modern|camaraderie|romantic relationship|male character|female character)\b/i;
+
+  const concreteClaimPattern =
+    /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|returns? in|comes? home|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties? (?:a|the) knot)\b/i;
+
+  const fallbackPool = selectedNarrative.length
+    ? selectedNarrative
+    : narrativeEvidence;
+
+  const creativeOpportunity =
+    modelOpportunity &&
+    !concreteClaimPattern.test(modelOpportunity) &&
+    !forbiddenIdentityPattern.test(modelOpportunity)
+      ? modelOpportunity
+      : `Find the sharpest relationship among: ${fallbackPool.join("; ")}`;
 
   const forbiddenClaims = Array.isArray(parsed?.forbiddenClaims)
-    ? parsed!.forbiddenClaims.map(clean).filter(Boolean).slice(0, 16)
+    ? parsed!.forbiddenClaims
+        .map(clean)
+        .filter(Boolean)
+        .slice(0, 16)
     : [];
 
   return {
-    order: input.beat.order,
-    role: input.beat.role,
-    gainKind: input.beat.gainKind,
+    order: normalizedBeat.order,
+    role: normalizedBeat.role,
+    gainKind: normalizedBeat.gainKind,
     approvedEvidence,
     creativeOpportunity,
     forbiddenClaims,
-    sourceBoundary: "Approved evidence is the complete supplied truth set. Stable identity metadata is subject context by default, not an independent character or plot driver. The upstream beat is never evidence. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, or outcomes.",
+    sourceBoundary:
+      "Approved evidence is the complete supplied truth set. Stable identity metadata is subject context by default, not an independent character or plot driver. The upstream beat is never evidence. Creative phrasing may reinterpret relationships but may not add concrete events, actions, physical states, reactions, or outcomes.",
   };
 }

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "strict": true,
+    "skipLibCheck": true,
+
+    "types": ["node"],
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true
+  },
+  "include": [
+    "./author-mouth-probe.ts",
+    "./author-acceptance-monster.ts",
+    "./author-acceptance-suite.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
