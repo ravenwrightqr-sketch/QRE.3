@@ -41,6 +41,7 @@ export type AttentionBeatScore = {
   inventionRisk: number;
   mouthUsability: number;
   beatExecution: number;
+  sourceCoverage: number;
   score: number;
   keep: boolean;
   reasons: string[];
@@ -63,13 +64,15 @@ const STOP = new Set(
   "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten more".split(/\s+/),
 );
 
-const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|so fabulous|poodle power|good girl|bathhouse|battle|fight|ritual of transformation)\b/i;
-const PROCESS = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|narrative|realization|attention editor|information seeking|next beat|writing process|movie plan)\b/i;
-const EXPLANATION = /\b(?:because|therefore|which means|this means|the reason|shows that|represents?|symbolizes?|in other words|in this context|was a cover for|reveals? that|the final revelation|the supplied .* reading)\b/i;
+const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|so fabulous|poodle power|good girl|bathhouse|battle|fight|ritual of transformation|mere formality|victory in grooming|turns glory)\b/i;
+const PROCESS = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|narrative|realization|attention editor|information seeking|next beat|writing process|movie plan|dramatic job|creative move)\b/i;
+const EXPLANATION = /\b(?:because|therefore|which means|this means|the reason|shows that|represents?|symbolizes?|in other words|in this context|was a cover for|reveals? that|the final revelation|the supplied .* reading|comedy of character contrasts)\b/i;
 const META_VIEWER = /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
-const LABEL_LIKE = /^(?:the contrast|the unexpected|the transformation|the mystery|the payoff|the reframe|the reveal|the twist|the journey|the answer|the joke)$/i;
-const INTERPRETIVE = /\b(?:lawyer|boss|ceo|diva|celebrity|negotiat(?:e|ion|or)|rebel|rebellion|defiant|defiance|evidence|case|trial|court|verdict|terms|deal|contract|royalty|queen|king|status|in charge|mission|operation|suspect|legend|undefeated|called the shots|peace|protest|under protest|guarded|attitude|upper hand|power)\b/i;
+const LABEL_LIKE = /^(?:the contrast|the unexpected|the transformation|the mystery|the payoff|the reframe|the reveal|the twist|the journey|the answer|the joke|the punchline)$/i;
+const INTERPRETIVE = /\b(?:lawyer|boss|ceo|diva|celebrity|negotiat(?:e|ion|or)|rebel|rebellion|defiant|defiance|evidence|case|trial|court|verdict|terms|deal|contract|royalty|queen|king|status|in charge|mission|operation|suspect|legend|undefeated|called the shots|peace|protest|under protest|guarded|attitude|upper hand|power|victory|victorious|mini[- ]?rebel|tiny rebel|not impressed|means business)\b/i;
 const ACTION = /\b(?:walk(?:s|ed)?|run(?:s|ning|ran)?|jump(?:s|ed)?|leap(?:s|ed)?|grab(?:s|bed)?|steal(?:s|ing|stole)?|take(?:s|n|ing|took)?|put(?:s|ting)?|place(?:s|d)?|remove(?:s|d)?|pick(?:s|ed)?|throw(?:s|w|ing|ew)?|break(?:s|ing|broke)?|tie(?:s|d|ing)?|pull(?:s|ed)?|push(?:es|ed)?|sit(?:s|ting|sat)?|stand(?:s|ing|stood)?|laugh(?:s|ed)?|cry(?:s|ing|cried)?|smile(?:s|d)?|wag(?:s|ged)?|bite(?:s|bit)?|lick(?:s|ed)?|chew(?:s|ed)?)\b/i;
+const BODY_OR_REACTION = /\b(?:tail|tails|eye|eyes|ear|ears|mouth|tongue|paw|paws|head|heart|face|smile|smiles|cringe|cringes|fury|tears|wags?|winking|blinks?|blush(?:es|ed)?|shivers?|trembles?|gasps?|stares?)\b/i;
+const COLLAGE_PUNCTUATION = /\b[^.!?]{1,40},\s*[^.!?]{1,40}(?:,\s*[^.!?]{1,40})+\b/;
 
 function words(text: string): string[] {
   return clean(text).toLowerCase().split(/[^a-z0-9'-]+/i).filter((word) => word.length >= 3 && !STOP.has(word));
@@ -92,8 +95,18 @@ function factuality(text: string, evidence: string[]): number {
   const source = set(evidence.join(" "));
   if (!candidate.size || !source.size) return 0.1;
   const literal = overlap(candidate, source);
-  const interpretive = INTERPRETIVE.test(text) ? 0.28 : 0;
+  const interpretive = INTERPRETIVE.test(text) && literal >= 0.16 ? 0.28 : 0;
   return metric(Math.max(literal, interpretive));
+}
+
+function sourceCoverage(input: AttentionBeatInput, text: string, evidence: string[]): number {
+  const source = set(evidence.join(" "));
+  const line = set(text);
+  const suppliedLabels = set([...(input.setsUp ?? []), ...(input.paysOff ?? [])].join(" "));
+  const literal = overlap(line, source);
+  const label = suppliedLabels.size ? overlap(line, suppliedLabels) : 0;
+  const interpretive = INTERPRETIVE.test(text) && literal >= 0.16 ? 0.3 : 0;
+  return metric(Math.max(literal * 0.65 + label * 0.35, interpretive));
 }
 
 function specificity(text: string): number {
@@ -123,8 +136,8 @@ function repetition(text: string, prior: string[]): number {
 function statusChange(text: string): number {
   let score = 0.1;
   if (INTERPRETIVE.test(text)) score += 0.42;
-  if (/\b(?:fierce|defiant|guarded|power|control|in charge|under protest|negotiat|rebel|boss|lawyer|peace|terms|evidence)\b/i.test(text)) score += 0.25;
-  if (/\b(?:but|yet|still|instead|apparently|temporarily|only|except|back)\b/i.test(text)) score += 0.15;
+  if (/\b(?:fierce|defiant|guarded|power|control|in charge|under protest|negotiat|rebel|boss|lawyer|peace|terms|evidence|victory|upper hand)\b/i.test(text)) score += 0.25;
+  if (/\b(?:but|yet|still|instead|apparently|temporarily|only|except|back|already)\b/i.test(text)) score += 0.15;
   return metric(score);
 }
 
@@ -133,7 +146,7 @@ function creativeMove(text: string): number {
   if (INTERPRETIVE.test(text)) score += 0.42;
   if (/\b(?:again|already|still|yet|only|just|then|back|except|until|before|after|temporarily|apparently|suddenly|instead|finally|now|once)\b/i.test(text)) score += 0.14;
   if (ACTION.test(text)) score += 0.05;
-  if (!GENERIC.test(text) && !PROCESS.test(text) && !LABEL_LIKE.test(text)) score += 0.12;
+  if (!GENERIC.test(text) && !PROCESS.test(text) && !LABEL_LIKE.test(text) && !COLLAGE_PUNCTUATION.test(text)) score += 0.12;
   if (EXPLANATION.test(text)) score -= 0.25;
   return metric(score);
 }
@@ -152,14 +165,12 @@ function nextBeatPull(
   let score = 0.05;
   if (clean(nextText)) score += 0.14;
   if (clean(nextFrontier)) score += 0.12;
-
   score += overlap(upcoming, current) * 0.18 + overlap(frontier, current) * 0.26;
 
   if (/\b(?:why|what|who|how|will|can|does|did|where|which)\b/i.test(clean(nextText))) score += 0.1;
   if (/\b(?:again|still|now|after|then|finally|until|before|back)\b/i.test(clean(nextText))) score += 0.08;
   if (["hook", "question", "pressure", "escalation", "reframe"].includes(clean(role))) score += 0.05;
-
-  if (/^(?:the unexpected|the unknown|hidden intentions|viewer interest|information seeking)$/i.test(clean(nextFrontier))) score -= 0.3;
+  if (/^(?:the unexpected|the unknown|hidden intentions|viewer interest|information seeking|event-\d+)$/i.test(clean(nextFrontier))) score -= 0.35;
   if (GENERIC.test(text) || PROCESS.test(text) || LABEL_LIKE.test(text)) score -= 0.2;
 
   const plannerTarget = typeof target === "number" ? clamp01(target) : 0.5;
@@ -181,6 +192,7 @@ function inventionRisk(text: string, evidence: string[]): number {
   const source = evidence.join(" ");
   let score = 0;
   if (ACTION.test(text) && !ACTION.test(source)) score += 0.35;
+  if (BODY_OR_REACTION.test(text) && !BODY_OR_REACTION.test(source)) score += 0.28;
   if (/\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(text) && !/\b(?:groomer|cleaner|worker|owner|customer|client|lawyer)\b/i.test(source)) score += 0.2;
   if (/\b(?:will always|forever|ever again|from now on)\b/i.test(text)) score += 0.3;
   if (GENERIC.test(text)) score += 0.1;
@@ -196,6 +208,8 @@ function mouthUsability(text: string): number {
   if (EXPLANATION.test(value)) score -= 0.3;
   if (META_VIEWER.test(value) || PROCESS.test(value)) score -= 0.4;
   if (GENERIC.test(value) || LABEL_LIKE.test(value)) score -= 0.35;
+  if (COLLAGE_PUNCTUATION.test(value)) score -= 0.28;
+  if (/\s[-–—]\s/.test(value)) score -= 0.08;
   return metric(score);
 }
 
@@ -226,6 +240,7 @@ function beatExecution(input: AttentionBeatInput, text: string): number {
   if (role === "callback" && (input.paysOff ?? []).length) score += 0.3;
   if (["payoff", "release"].includes(role) && (input.paysOff ?? []).length) score += 0.3;
   if ((input.creativeMove ?? "none") !== "none") score += 0.12;
+  if (sourceCoverage(input, text, [...(input.setsUp ?? []), ...(input.paysOff ?? [])]) >= 0.25) score += 0.12;
   if (GENERIC.test(text) || PROCESS.test(text) || EXPLANATION.test(text)) score -= 0.25;
   return metric(score);
 }
@@ -233,6 +248,7 @@ function beatExecution(input: AttentionBeatInput, text: string): number {
 export function scoreAttentionBeat(input: AttentionBeatInput, priorTexts: string[], evidence: string[]): AttentionBeatScore {
   const text = clean(input.text);
   const factual = factuality(text, evidence);
+  const coverage = sourceCoverage(input, text, evidence);
   const specific = specificity(text);
   const novel = novelty(text, priorTexts);
   const status = statusChange(text);
@@ -247,50 +263,57 @@ export function scoreAttentionBeat(input: AttentionBeatInput, priorTexts: string
   const execution = beatExecution(input, text);
 
   const attention = metric(
-    specific * 0.14 +
-      novel * 0.1 +
-      status * 0.13 +
-      creative * 0.14 +
-      pull * 0.2 +
-      cine * 0.09 +
+    specific * 0.13 +
+      novel * 0.09 +
+      status * 0.12 +
+      creative * 0.13 +
+      pull * 0.18 +
+      cine * 0.08 +
       payoff * 0.08 +
       setup * 0.06 +
-      execution * 0.06 -
+      execution * 0.08 +
+      coverage * 0.08 -
       repeated * 0.08,
   );
 
   const score = metric(
-    factual * 0.2 +
+    factual * 0.18 +
+      coverage * 0.12 +
       specific * 0.1 +
-      attention * 0.24 +
+      attention * 0.22 +
       status * 0.08 +
-      pull * 0.1 +
-      creative * 0.08 +
-      payoff * 0.06 +
-      execution * 0.08 +
-      usability * 0.06 -
-      invention * 0.2 -
+      pull * 0.08 +
+      creative * 0.07 +
+      payoff * 0.05 +
+      execution * 0.07 +
+      usability * 0.08 -
+      invention * 0.24 -
       repeated * 0.05,
   );
 
   const reasons: string[] = [];
   const count = words(text).length;
+  const role = clean(input.attentionFunction ?? input.role);
 
   if (!text) reasons.push("missing-text");
   if (count > 7) reasons.push("too-long");
-  if (factual < 0.28 && !INTERPRETIVE.test(text)) reasons.push("weak-factual-anchor");
+  if (factual < 0.26 && !INTERPRETIVE.test(text)) reasons.push("weak-factual-anchor");
   if (specific < 0.4) reasons.push("weak-specificity");
+  if (coverage < 0.16 && !INTERPRETIVE.test(text)) reasons.push("weak-source-coverage");
   if (creative < 0.4 && (input.creativeMove ?? "none") !== "none") reasons.push("weak-creative-move");
-  if (pull < 0.35) reasons.push("weak-next-beat-pull");
+  if (pull < 0.34) reasons.push("weak-next-beat-pull");
   if (repeated > 0.72) reasons.push("repetitive");
-  if (invention > 0.45) reasons.push("high-invention-risk");
+  if (invention > 0.4) reasons.push("high-invention-risk");
   if (GENERIC.test(text)) reasons.push("generic-language");
   if (PROCESS.test(text)) reasons.push("process-language");
   if (EXPLANATION.test(text)) reasons.push("explanatory-language");
   if (META_VIEWER.test(text)) reasons.push("viewer-language");
   if (LABEL_LIKE.test(text)) reasons.push("label-like");
-  if (usability < 0.55) reasons.push("mouth-unusable");
-  if (execution < 0.38) reasons.push("beat-execution-weak");
+  if (COLLAGE_PUNCTUATION.test(text)) reasons.push("keyword-collage");
+  if (BODY_OR_REACTION.test(text) && !BODY_OR_REACTION.test(evidence.join(" "))) reasons.push("unsupported-body-or-reaction");
+  if (usability < 0.58) reasons.push("mouth-unusable");
+  if (execution < 0.42) reasons.push("beat-execution-weak");
+  if ((role === "turn" || role === "reframe" || role === "callback" || role === "payoff") && coverage < 0.2) reasons.push("weak-recontextualization-anchor");
 
   return {
     order: input.order,
@@ -308,8 +331,9 @@ export function scoreAttentionBeat(input: AttentionBeatInput, priorTexts: string
     inventionRisk: invention,
     mouthUsability: usability,
     beatExecution: execution,
+    sourceCoverage: coverage,
     score,
-    keep: reasons.length === 0 && score >= 0.54,
+    keep: reasons.length === 0 && score >= 0.56,
     reasons,
   };
 }
@@ -341,11 +365,11 @@ export function editAttentionSequence(input: { beats: AttentionBeatInput[]; evid
   const rewriteInstructions = [...new Set(scores.flatMap((score) => score.reasons.map((reason) => `Beat ${score.order}: ${reason}`)))];
 
   return {
-    accepted: scores.length > 0 && weakBeats.length === 0 && sequenceScore >= 0.58,
+    accepted: scores.length > 0 && weakBeats.length === 0 && sequenceScore >= 0.6,
     sequenceScore,
     beats: scores,
     weakBeats,
-    rewriteNeeded: scores.length === 0 || weakBeats.length > 0 || sequenceScore < 0.58,
+    rewriteNeeded: scores.length === 0 || weakBeats.length > 0 || sequenceScore < 0.6,
     rewriteInstructions,
   };
 }
@@ -361,10 +385,13 @@ export function buildAttentionRewritePrompt(edit: AttentionEdit): string {
     "Rewrite only the weak lines.",
     "Preserve beat order and the approved Beat Graph.",
     "Preserve supplied facts and supplied character relationships.",
-    "Do not invent a concrete event, prop, person, location, reaction, sound, or outcome.",
-    "Execute the assigned attentionFunction and creativeMove instead of explaining them.",
+    "Do not invent a concrete event, prop, person, location, reaction, sound, body movement, or outcome.",
+    "Do not turn a metaphorical frame into a literal event.",
+    "Execute the assigned attentionFunction and creativeMove instead of naming or explaining them.",
+    "Write natural human language, not a keyword collage or receipt fragment.",
+    "Prefer one clean grammatical thought, or an intentionally sharp fragment with a clear implied relationship.",
     "Prefer 3-7 words; never exceed 7 words.",
-    "Use an object, relationship, contrast, or status implication already supported by the source.",
-    "Never use analyst language, generic emotional summaries, or labels such as 'the contrast' or 'the joke'.",
+    "Use an object, relationship, contrast, callback, or status implication already supported by the source.",
+    "Never use analyst language, generic emotional summaries, or labels such as 'the contrast', 'the joke', 'the punchline', or 'the transformation'.",
   ].join("\n");
 }
