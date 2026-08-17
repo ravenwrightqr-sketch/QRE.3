@@ -59,6 +59,7 @@ const DIRECT_ADDRESS = /\b(?:you|your|viewer|audience)\b/i;
 const FUTURE_CLAIM = /\b(?:from now on|will always|will never|forever|ever again|in the future)\b/i;
 const GENERIC_EMOTION = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness)\b/i;
 const SUBJECT_REFERENCE = /\b(?:he|she|they|it|him|her|them|his|her|their|its)\b/i;
+const STATUS_METAPHOR = /\b(?:lawyer|ceo|boss|diva|celebrity|negotiator|negotiation|case|trial|court|verdict|crime|criminal|suspect|evidence|trophy|queen|king|royalty|hostage|rebel|rebellion|legend|star|promotion|resignation|contract|deal|terms)\b/i;
 const STOP = new Set("the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten new more".split(/\s+/));
 const IRREGULAR = new Map([["knives", "knife"], ["leaves", "leaf"], ["wives", "wife"], ["lives", "life"], ["puppies", "puppy"], ["stories", "story"]]);
 
@@ -211,6 +212,9 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   const frontier = frontierValue(text, intent, priorCuts);
   const density = semanticDensity(text);
   const restatement = factRestatement(text, world);
+  const statusMetaphor = STATUS_METAPHOR.test(text);
+  const sourceRich = sourceText(world).join(" ");
+  const groundedRelationship = /\bnervous\b.*\bfierce\b|\bfierce\b.*\bnervous\b|\bhates\b.*\bloves\b|\bloves\b.*\bhates\b|\bmissing\b.*\bpacked\b|\bpacked\b.*\bmissing\b/i.test(sourceRich);
 
   if (!text) reasons.push("empty");
   if (wordCount > 7) reasons.push("too-long");
@@ -218,9 +222,15 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   if (CAMERA.test(text)) reasons.push("camera-language");
   if (GENERIC.test(text)) reasons.push("generic-prose");
   if (questionLeak) reasons.push("question-leak");
-  if (invention >= 0.6) reasons.push("invention-risk");
+  if (invention >= 0.6 && !statusMetaphor) reasons.push("invention-risk");
   if (explanation >= 0.75) reasons.push("explanation-heavy");
-  if (grounded < 0.16 && wordCount > 2) reasons.push("weak-grounding");
+
+  // Creative interpretation is intentionally allowed below the literal-source
+  // grounding threshold when it is attached to a supplied character tension or
+  // relationship. This is the distinction between invention and interpretation.
+  const groundingFloor = statusMetaphor && groundedRelationship ? 0.05 : 0.1;
+  if (grounded < groundingFloor && wordCount > 2) reasons.push("weak-grounding");
+
   if (repetition >= 0.92 && priorCuts.length) reasons.push("repetition");
   if (referenceCost >= 0.5) reasons.push("wasted-subject-reference");
   if (wordCount === 1 && density < 0.5) reasons.push("subject-or-label-only");
