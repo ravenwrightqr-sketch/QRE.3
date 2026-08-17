@@ -24,34 +24,35 @@ function replaceBetween(source, startMarker, endMarker, replacement, label) {
   return source.slice(0, start) + replacement + source.slice(end);
 }
 
-const newParser = `function parseMouthBatch(
-  raw: string,
-  expected: number,
-): string[] {
-  const text = raw
-    .replace(/^(?:\u0060{3})(?:json)?/i, "")
-    .replace(/(?:\u0060{3})$/i, "")
-    .trim();
-
-  try {
-    const value = JSON.parse(text) as {
-      texts?: unknown;
-    };
-
-    if (!Array.isArray(value.texts)) {
-      return [];
-    }
-
-    return value.texts
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean)
-      .slice(0, expected);
-  } catch {
-    return [];
-  }
-}
-
-`;
+const newParser = [
+  "function parseMouthBatch(",
+  "  raw: string,",
+  "  expected: number,",
+  "): string[] {",
+  "  const text = raw",
+  "    .replace(/^(?:```)(?:json)?/i, \"\")",
+  "    .replace(/(?:```)$/i, \"\")",
+  "    .trim();",
+  "",
+  "  try {",
+  "    const value = JSON.parse(text) as {",
+  "      texts?: unknown;",
+  "    };",
+  "",
+  "    if (!Array.isArray(value.texts)) {",
+  "      return [];",
+  "    }",
+  "",
+  "    return value.texts",
+  "      .map((value) => String(value ?? \"\").trim())",
+  "      .filter(Boolean)",
+  "      .slice(0, expected);",
+  "  } catch {",
+  "    return [];",
+  "  }",
+  "}",
+  "",
+].join("\n");
 
 if (
   text.includes("function parseMouthBatch(") &&
@@ -70,33 +71,51 @@ if (
   );
 }
 
-const oldFallback = `  return {
-    text: JSON.stringify({
-      texts: Array.from(
-        { length: beats.length },
-        () => "",
-      ),
-    }),
-    model: modelName(),
-    provider: "local",
-  };
-}`;
+const oldValidation = "  const valid = parsed.every(mouthAcceptable);";
+const newValidation =
+  "  const valid = parsed.length === beats.length && parsed.every(mouthAcceptable);";
 
-const preservedFallback = `  // Preserve usable model output. The canonical author brain owns
-  // exact-count repair and final acceptance downstream.
-  return {
-    text: JSON.stringify({
-      texts:
-        retryParsed.length > 0
-          ? retryParsed
-          : parsed.length > 0
-            ? parsed
-            : [],
-    }),
-    model: modelName(),
-    provider: "local",
-  };
-}`;
+if (text.includes(oldValidation)) {
+  text = text.replace(oldValidation, newValidation);
+} else if (text.includes(newValidation)) {
+  console.log("canonical mouth exact-count validation already patched");
+} else {
+  throw new Error(
+    "PATCH MISS [canonical mouth validation]: expected valid predicate not found",
+  );
+}
+
+const oldFallback = [
+  "  return {",
+  "    text: JSON.stringify({",
+  "      texts: Array.from(",
+  "        { length: beats.length },",
+  "        () => \"\",",
+  "      ),",
+  "    }),",
+  "    model: modelName(),",
+  "    provider: \"local\",",
+  "  };",
+  "}",
+].join("\n");
+
+const preservedFallback = [
+  "  // Preserve usable model output. The canonical author brain owns",
+  "  // exact-count repair and final acceptance downstream.",
+  "  return {",
+  "    text: JSON.stringify({",
+  "      texts:",
+  "        retryParsed.length > 0",
+  "          ? retryParsed",
+  "          : parsed.length > 0",
+  "            ? parsed",
+  "            : [],",
+  "    }),",
+  "    model: modelName(),",
+  "    provider: \"local\",",
+  "  };",
+  "}",
+].join("\n");
 
 if (text.includes(oldFallback)) {
   text = text.replace(oldFallback, preservedFallback);
