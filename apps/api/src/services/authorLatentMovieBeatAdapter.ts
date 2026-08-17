@@ -6,6 +6,27 @@
  * No new facts, subjects, scenes, or viewer prose are invented here.
  */
 
+type BeatAttentionFunction =
+  | "hook"
+  | "question"
+  | "turn"
+  | "escalation"
+  | "reframe"
+  | "callback"
+  | "payoff"
+  | "release";
+
+type BeatCreativeMove =
+  | "contrast"
+  | "status_inversion"
+  | "understatement"
+  | "double_meaning"
+  | "personification"
+  | "callback"
+  | "recontextualization"
+  | "implication"
+  | "none";
+
 type TrajectoryStep = {
   order?: number;
   operation?: string;
@@ -33,10 +54,10 @@ type AdaptedBeat = {
   frontier: string;
   necessity: string;
   eventIds: string[];
-  attentionFunction: string;
+  attentionFunction: BeatAttentionFunction;
   setsUp: string[];
   paysOff: string[];
-  creativeMove: string;
+  creativeMove: BeatCreativeMove;
   nextBeatPullTarget: number;
 };
 
@@ -80,15 +101,15 @@ const GAIN_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
-const ATTENTION_BY_OPERATION: Record<string, string> = {
+const ATTENTION_BY_OPERATION: Record<string, BeatAttentionFunction> = {
   establish: "hook",
   contrast: "reframe",
   recur: "callback",
   reframe: "reframe",
   escalate: "escalation",
-  converge: "discovery",
+  converge: "discovery" as BeatAttentionFunction,
   reveal: "turn",
-  consequence: "consequence",
+  consequence: "release",
   payoff: "payoff",
 };
 
