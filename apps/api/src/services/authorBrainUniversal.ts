@@ -305,12 +305,31 @@ function buildViewerMomentum(subject: string, plan: BeatPlan): SequencePlay | un
 
 function extractTexts(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
+
   const record = value as Record<string, unknown>;
-  const texts = Array.isArray(record.texts) ? record.texts : Array.isArray(record.scenes) ? record.scenes : [];
-  return texts.map(clean).filter(Boolean).slice(0, 6);
+
+  if (typeof record.text === "string") {
+    return [clean(record.text)].filter(Boolean);
+  }
+
+  const texts = Array.isArray(record.texts)
+    ? record.texts
+    : Array.isArray(record.scenes)
+      ? record.scenes
+      : [];
+
+  return texts
+    .map(clean)
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
-function scenesFromSequence(sequence: SequencePlay, texts: string[], input: AuthorBrainTruth) {
+function scenesFromSequence(
+  sequence: SequencePlay,
+  texts: string[],
+  input: AuthorBrainTruth,
+  cognition: ReturnType<typeof buildAuthorCognitivePlan>,
+) {
   const attempted = sequence.cuts.length;
   const scenes: AuthorScene[] = [];
   const prior: string[] = [];
@@ -327,14 +346,24 @@ function scenesFromSequence(sequence: SequencePlay, texts: string[], input: Auth
         role: cut.role,
         gainKind: cut.gainKind,
         change: cut.informationGain,
+        
         next: cut.nextPromise,
         text,
         subjectEstablished: Boolean(cut.momentum?.before.subjectContinuity?.established),
         informationFrontier: cut.momentum?.after.informationFrontier?.frontier,
+        characterTraits: cognition.characterRead?.coreTraits ?? [],
+characterContradictions: cognition.characterRead?.contradictions ?? [],
+characterStatusPosture: cognition.characterRead?.statusPosture ?? "",
+characterFrames: cognition.characterRead?.creativeFrames?.map((frame) => frame.frame) ?? [],
       },
       prior,
     );
     if (!policy.accepted) {
+      console.log(
+        `[CUT REJECTED ${i + 1}] ${text}\n` +
+        `  reasons=${policy.reasons.join(", ")}\n` +
+        `  metrics=${JSON.stringify(policy.metrics)}`
+      );
       for (const reason of policy.reasons) rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
       continue;
     }
@@ -372,6 +401,7 @@ function inferRiskDial(input: AuthorBrainTruth, cognition: ReturnType<typeof bui
 function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof buildAuthorCognitivePlan>) {
   const risk = inferRiskDial(input, cognition);
   const targetBeats = risk === "safe" ? 4 : 5;
+
   const compactWorld = {
     prompt: clean(input.prompt),
     lens: clean(input.lens),
@@ -381,80 +411,246 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
     moments: uniq(input.sourceMoments, 12),
     memory: uniq(input.memoryContext, 10),
     trajectory: uniq(input.trajectory, 10),
+
     realityGraph: input.realityGraph
-  ? {
-      events: input.realityGraph.events
-        .slice(0, 8)
-        .map((event) => event.label),
-      tensions: input.realityGraph.unresolvedTensions.slice(0, 6),
-      recurring: input.realityGraph.recurringSignals.slice(0, 6),
-      sensory: input.realityGraph.sensorySignals.slice(0, 6),
-    }
-  : null,
+      ? {
+          events: input.realityGraph.events
+            .slice(0, 12)
+            .map((event) => ({
+              id: event.id,
+              label: event.label,
+              
+            })),
+          tensions: input.realityGraph.unresolvedTensions.slice(0, 8),
+          recurring: input.realityGraph.recurringSignals.slice(0, 8),
+          sensory: input.realityGraph.sensorySignals.slice(0, 8),
+        }
+      : null,
+
     returning: Boolean(input.returning),
     visitNumber: input.visitNumber,
+
+    cognition: {
+      mode: cognition.mode,
+      chosenAttentionStrategy: cognition.chosenAttentionStrategy,
+      characterRead: cognition.characterRead,
+      contradictions: cognition.contradictions.slice(0, 8),
+      attentionCandidates: cognition.attentionCandidates.slice(0, 6),
+      callbackTargets: cognition.callbackTargets.slice(0, 8),
+      latentMovieCandidates: cognition.latentMovieCandidates.slice(0, 6),
+      allowedMoves: cognition.characterRead?.allowedMoves ?? [],
+      avoidedMoves: cognition.characterRead?.avoidedMoves ?? [],
+      creativeFrames: cognition.characterRead?.creativeFrames ?? [],
+      statusPosture: cognition.characterRead?.statusPosture ?? "",
+      emotionalPosture: cognition.characterRead?.emotionalPosture ?? "",
+      objectRelationships: cognition.characterRead?.objectRelationships ?? [],
+    },
   };
+
   return [
     {
       role: "system" as const,
       content: [
-        "You are QRE's latent-movie director. You are NOT a summarizer and NOT a novelist.",
+        "You are QRE's latent-movie director and creative realization planner.",
+        "You are NOT a summarizer and NOT a novelist.",
         "Find the strongest hidden movie inside the supplied reality, then break it into short moving-message / sentence-cut beats.",
-        "A beat is ONE perceivable moment. It appears briefly, then the experience advances. Think JOLT → JOLT → JOLT → PAYOFF.",
-        "Truth is immutable. Never invent a person, object, location, date, dialogue, action, or outcome that is not supported by the supplied reality or explicitly requested creative lens.",
-        "Creative risk changes framing, attitude, metaphor, juxtaposition, absurdity, and personification. It does not create facts.",
-        "Do not spend beats stating who/what the viewer already knows. Establish identity in baseline; spend beats on what changes.",
-        "Do not summarize feelings. Show a concrete behavior, object, reaction, spatial change, social shift, or recontextualization when possible.",
-        "Every beat must make the next beat more desirable. The frontier is what the viewer now wants to see, not a topic label.",
-        "Good frontier examples: 'Will the bow survive?', 'Who is actually in charge?', 'What just changed?', 'Why is this suddenly different?', 'How far does this go?'.",
-        "Bad frontier examples: 'Coco's reaction', 'the unexpected', 'hidden intentions', 'build character', 'viewer interest', 'closing remarks'.",
-        "Prefer latent relationships: contradiction, status reversal, recurring object, private meaning, sensory fingerprint, ritual, spatial contradiction, calm-vs-danger, callback with changed meaning, or character-specific absurdity.",
-        `CREATIVE RISK: ${risk}. Push the language this far, but never invent concrete reality.`,
+
+        "CORE CREATIVE INVARIANT:",
+        "Can this beat express a memorable interpretation whose meaning is completely recoverable from supplied reality while introducing NO new concrete event?",
+        "If yes, the interpretation is allowed.",
+        "If no, reject it or translate it into an interpretation that is supported by the supplied evidence.",
+
+        "Reality is immutable.",
+        "Facts, source moments, reality-graph events, and supplied subject truth are the concrete evidence.",
+        "A creative interpretation may change framing, attitude, metaphor, personification, status language, implication, juxtaposition, absurdity, understatement, reversal, or rhetorical game language.",
+        "A creative interpretation may NOT create a new person, object, location, date, dialogue, physical action, reaction, outcome, or event.",
+
+        "CRITICAL DISTINCTION:",
+        "Do not confuse an interpretation with an event.",
+        "Example of legal interpretation: 'Coco arrived ready to negotiate.'",
+        "Why legal: arrival is supplied, while 'ready to negotiate' interprets the supplied nervous + fierce + cool contradiction through a negotiation frame.",
+        "Example of legal interpretation: 'The bow became evidence.'",
+        "Why legal: the supplied bow theft can be reframed through the supplied rebellion relationship.",
+        "Example of illegal invention: 'Coco leaped onto the grooming table.'",
+        "Why illegal: no supplied evidence establishes that physical event.",
+        "Example of illegal invention: 'Coco tied the bow around the groomer's neck.'",
+        "Why illegal: no supplied evidence establishes that action or reaction.",
+
+        "When a planner hypothesis contains an invented concrete event, preserve the underlying meaning if possible and rewrite it as an evidence-grounded interpretation.",
+        "Do NOT throw away the creative opportunity merely because the first phrasing was too literal.",
+        "Translate invented action into character implication, status posture, tension, object meaning, or recontextualization.",
+
+        "The character read is a creative control signal, not new reality.",
+        "Use the supplied contradiction and character posture to discover the movie lens.",
+        "Character interpretation should emerge from the evidence rather than being pasted onto it.",
+
+        "Prefer the strongest available latent relationship:",
+        "contradiction, status reversal, recurring object, private meaning, sensory fingerprint, ritual, spatial contradiction, calm-vs-danger, callback with changed meaning, or character-specific absurdity.",
+
+        "A beat is ONE perceivable change in the viewer's mental model.",
+        "It appears briefly, then the experience advances.",
+        "Think JOLT ? JOLT ? JOLT ? PAYOFF.",
+        "Every beat must make the next beat more desirable.",
+
+        "Do not spend beats stating who or what the viewer already knows.",
+        "Establish identity in baseline; spend beats on what changes.",
+        "Do not summarize feelings.",
+        "Use concrete supplied evidence or an explicitly grounded interpretation of that evidence.",
+
+        "Good frontier examples:",
+        "'Who is actually in charge?'",
+        "'What just changed?'",
+        "'Why is this suddenly different?'",
+        "'What does the bow mean now?'",
+        "'How far does this attitude go?'",
+
+        "Bad frontier examples:",
+        "'Coco's reaction'",
+        "'the unexpected'",
+        "'hidden intentions'",
+        "'build character'",
+        "'viewer interest'",
+        "'closing remarks'",
+
+        `CREATIVE RISK: ${risk}. Push interpretation, framing, and character specificity this far, but never invent concrete reality.`,
         `Return exactly ${targetBeats} beats.`,
-        "Each change should be under 12 words. Each frontier should be under 8 words. Each next should be under 12 words. Each necessity should be under 12 words.",
-        "The final beat must land a consequence, reframe, image, exit, or afterglow. No moral, lesson, or summary afterward.",
+
+        "Each change should be under 12 words.",
+        "Each frontier should be under 8 words.",
+        "Each next should be under 12 words.",
+        "Each necessity should be under 12 words.",
+
+        "The final beat must land a consequence, reframe, image, exit, or afterglow.",
+        "No moral, lesson, or summary afterward.",
+
         "Use canonical viewer roles such as arrival, hook, pressure, reframe, escalation, discovery, consequence, callback, release, payoff.",
         "Never put strategy names, operator names, cognition language, or planning instructions inside change, next, frontier, or necessity.",
-        "Output JSON only: {premise:string,baselineFacts:string[],beats:[{role,gainKind,change,next,frontier,necessity}]}. No closing paragraph.",
-        `strategy=${cognition.chosenAttentionStrategy}`,
-        `candidates=${cognition.attentionCandidates.slice(0, 4).map((item) => item.strategy).join(", ")}`,
-        `callbacks=${cognition.callbackTargets.slice(0, 4).join(" | ") || "none"}`,
-        `contradictions=${cognition.contradictions.slice(0, 4).join(" | ") || "none"}`,
+
+        "IMPORTANT:",
+        "A beat's change may be a memorable interpretive statement.",
+        "It does not have to describe a new physical event.",
+        "The best beat can reveal what the supplied reality suddenly means.",
+
+        "Output JSON only:",
+        "{premise:string,baselineFacts:string[],beats:[{role,gainKind,change,next,frontier,necessity}]}."
       ].join("\n"),
     },
-    { role: "user" as const, content: JSON.stringify(compactWorld) },
+    {
+      role: "user" as const,
+      content: JSON.stringify(compactWorld),
+    },
   ];
 }
 
-function buildMouthMessages(input: AuthorBrainTruth, sequence: SequencePlay, plan: BeatPlan) {
+function buildMouthMessages(
+  input: AuthorBrainTruth,
+  sequence: SequencePlay,
+  plan: BeatPlan,
+  cognition: ReturnType<typeof buildAuthorCognitivePlan>,
+) {
+  const targetCount = sequence.cuts.length;
+
   const beats = sequence.cuts.map((cut, index) => ({
     order: index + 1,
     role: cut.role,
-    change: cut.informationGain,
+    plannerHypothesis: cut.informationGain,
     frontier: cut.momentum?.after.informationFrontier?.frontier ?? "",
     nextNeed: cut.nextPromise ?? "",
     necessity: plan.beats[index]?.necessity ?? "",
   }));
+
   return [
-    {
-      role: "system" as const,
-      content: [
-        "You are QRE's theatrical mouth.",
-        "The sequence is a film made of moving messages / sentence cuts.",
-        "Write ONE short viewer-facing line for ONE approved beat.",
-        "One line appears briefly, then cuts. Make it feel like a jolt, not a paragraph.",
-        "HARD LIMIT: 7 words maximum. Prefer 3-6 words.",
-        "The line must realize the supplied beat, not summarize the whole story.",
-        "Do not invent concrete facts or outcomes. Metaphor, attitude, implication, and personification are allowed when they do not assert new facts.",
-        "After the subject is established, spend the words on the new beat instead of repeating the name.",
-        "Funny: make the social situation or personality collide. Horror: preserve calm normality while reality slips. Romance: make the private meaning felt. Demented: take the supplied contradiction somewhere sharp without inventing a new event.",
-        "Never explain the joke, emotion, theme, or lesson.",
-        "Never mention beat, role, strategy, operator, frontier, cognition, planning, viewer, audience, or the writing process.",
-        "Never output emojis, headings, or quotation labels.",
-        "Output JSON exactly as {\"text\":\"one line\"}.",
-      ].join("\n"),
+  {
+    role: "system" as const,
+    content: [
+      "You are QRE's theatrical mouth and character writer.",
+  "You receive an APPROVED SEQUENCE of sentence cuts.",
+  `Return exactly ${targetCount} viewer-facing lines, one line for each beat, in beat order.`,
+  "Do not collapse the beats into one summary.",
+  "Do not skip a beat.",
+  "Do not invent a new physical event.",
+  "The sequence beat is a hypothesis about the movie, not independent evidence.",
+  "The supplied facts, source moments, memory, subject truth, and character signals are the concrete reality.",
+  "",
+  "CORE CREATIVE INVARIANT:",
+  "Find a memorable interpretive statement whose meaning is completely recoverable from supplied reality, while introducing no new concrete event.",
+  "",
+  "Do NOT merely paraphrase the supplied event.",
+  "First identify what the supplied event means inside the character's personality, contradiction, status, relationship, or situation.",
+  "Then compress that meaning into a line that feels discovered rather than explained.",
+  "",
+  "INTERPRETATION IS ALLOWED:",
+  "metaphor, personification, status language, implication, double meaning, comic framing, understatement, reversal, rhetorical game language, character-specific exaggeration, and recontextualization.",
+  "These are interpretations, not new facts, when their meaning is recoverable from supplied reality.",
+  "",
+  "For example, if supplied reality says a nervous but fierce character came in, an interpretive line may frame that arrival as someone who 'already called her lawyer'.",
+  "That does NOT mean a lawyer actually existed or was actually called.",
+  "It means the supplied nervous + fierce contradiction is being expressed through status language.",
+  "",
+  "Likewise, a supplied theft followed by an exit can become a compressed interpretive payoff such as 'Peace, temporarily.'",
+  "Do not add another event. Change the meaning of the supplied events.",
+  "",
+  "THE THREE TESTS FOR EVERY LINE:",
+  "1. Could every concrete implication be traced back to supplied reality?",
+  "2. Does the line add interpretation rather than merely repeat the fact?",
+  "3. Does the line make the supplied character or moment feel more specific?",
+  "",
+  "If a line could appear in any generic grooming, wedding, cleaning, or service story, reject it and find a character-specific interpretation.",
+  "",
+  "Use contradictions aggressively when supported.",
+  "A nervous + fierce character is not two adjectives to repeat; it is a relationship to exploit.",
+  "A routine service + unusual character behavior is not a summary; it is a source of comic or dramatic tension.",
+  "A supplied object can acquire changed meaning without acquiring new physical behavior.",
+  "",
+  "Prefer lines with an implicit movie behind them.",
+  "The viewer should be able to think: 'Oh. THAT is what this was.'",
+  "",
+  "Do not explain the interpretation.",
+  "Do not say what the metaphor means.",
+  "Do not announce the joke.",
+  "Do not summarize the character.",
+  "Make the interpretation itself carry the meaning.",
+  "",
+  "Do not mechanically repeat the subject name.",
+  "Establish identity once, then spend words on attitude, change, relationship, or consequence.",
+  "",
+  "Use supplied objects and moments when they carry meaning.",
+  "Do not invent props, people, dialogue, locations, actions, outcomes, or physical reactions.",
+  "",
+  "Prefer 3-7 words per line. Maximum 7 words.",
+  "The final line may be extremely compressed if the supplied sequence supports it.",
+  "",
+  "Do not use generic mascot language such as 'Poodle power', 'so fabulous', 'good girl', or 'what a day'.",
+  "Do not use generic emotional summaries.",
+  "Do not output labels such as 'the contrast' or 'the unexpected'.",
+  "Do not output planning language.",
+  "Do not output questions unless the supplied reality itself genuinely requires one.",
+  "",
+  "The goal is NOT prettier narration.",
+  "The goal is a tiny interpretive movie.",
+  "",
+  "Return JSON only in exactly this shape:",
+  `{"texts":["line 1","line 2"${targetCount >= 3 ? ', "line 3"' : ""}${targetCount >= 4 ? ', "line 4"' : ""}${targetCount >= 5 ? ', "line 5"' : ""}${targetCount >= 6 ? ', "line 6"' : ""}]}`,
+].join("\n"),
     },
-    { role: "user" as const, content: JSON.stringify({ prompt: input.prompt, lens: input.lens, subjectTruth: input.subjectTruth ?? null, memory: input.memoryContext ?? [], trajectory: input.trajectory ?? [], beats }) },
+    {
+      role: "user" as const,
+      content: JSON.stringify({
+        prompt: input.prompt,
+        lens: input.lens,
+        subject: input.subject,
+        subjectTruth: input.subjectTruth ?? null,
+        facts: input.facts,
+        sourceMoments: input.sourceMoments,
+        memory: input.memoryContext ?? [],
+        trajectory: input.trajectory ?? [],
+        characterRead: cognition.characterRead,
+        contradictions: cognition.contradictions,
+        chosenAttentionStrategy: cognition.chosenAttentionStrategy,
+        latentMovieCandidates: cognition.latentMovieCandidates.slice(0, 4),
+        beats,
+      }),
+    },
   ];
 }
 
@@ -487,7 +683,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{ b
     learning: uniq(input.creativeLearningContext, 20),
     prompt: clean(input.prompt),
     lens: clean(input.lens),
-    cognition: { mode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, callbackTargets: cognition.callbackTargets, sceneRules: cognition.sceneRules },
+    cognition: { mode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, characterRead: cognition.characterRead, attentionCandidates: cognition.attentionCandidates, contradictions: cognition.contradictions, operatorMix: cognition.operatorMix, callbackTargets: cognition.callbackTargets, sceneRules: cognition.sceneRules },
     creativeRisk: risk,
   };
 
@@ -523,6 +719,7 @@ if (!beatPlan) {
     field,
     diagnostics: {
       cognitionMode: cognition.mode,
+      characterRead: cognition.characterRead,
       chosenAttentionStrategy: cognition.chosenAttentionStrategy,
       attentionCandidates: cognition.attentionCandidates,
       contradictions: cognition.contradictions,
@@ -545,13 +742,32 @@ if (!beatPlan) {
 
   const sequence = buildViewerMomentum(subject, beatPlan);
   if (!sequence) {
-    return { brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field, diagnostics: { cognitionMode: cognition.mode, chosenAttentionStrategy: cognition.chosenAttentionStrategy, creativeRisk: risk, realityGraphEvents: realityGraph.events.length, realityGraphRelations: realityGraph.relations.length, beatCount: 0, beatPlanRetries, finalScenes: 0 } };
+    return { brief: brief(input, cognition.chosenAttentionStrategy), scenes: [], sequence: undefined, field, diagnostics: { cognitionMode: cognition.mode,
+      characterRead: cognition.characterRead, chosenAttentionStrategy: cognition.chosenAttentionStrategy, creativeRisk: risk, realityGraphEvents: realityGraph.events.length, realityGraphRelations: realityGraph.relations.length, beatCount: 0, beatPlanRetries, finalScenes: 0 } };
   }
 
-  const realization = await localModelGenerate(buildMouthMessages({ ...input, realityGraph }, sequence, beatPlan), "json", { numPredict: 640, temperature: risk === "safe" ? 0.58 : 0.76 });
+   debug(
+    "INTERPRETIVE-MOUTH",
+    JSON.stringify({
+      invariant: "recoverable meaning + no new concrete event",
+      characterRead: cognition.characterRead,
+      contradictions: cognition.contradictions,
+    }),
+  );
+
+  const realization = await localModelGenerate(
+    buildMouthMessages({ ...input, realityGraph }, sequence, beatPlan, cognition),
+    "json",
+    { numPredict: 640, temperature: risk === "safe" ? 0.58 : 0.76 },
+  );
   debug("MOUTH-REALIZATION", realization.text);
   const texts = extractTexts(parseJson<unknown>(realization.text));
-  const sequenceResult = scenesFromSequence(sequence, texts, { ...input, realityGraph });
+  const sequenceResult = scenesFromSequence(
+  sequence,
+  texts,
+  { ...input, realityGraph },
+  cognition,
+);
   const magnetValues = sequence.cuts.map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0).filter(Number.isFinite);
   const magnetAverage = magnetValues.length ? magnetValues.reduce((a, b) => a + b, 0) / magnetValues.length : 0;
   const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
@@ -561,6 +777,7 @@ if (!beatPlan) {
     brief: brief(input, cognition.chosenAttentionStrategy), scenes: sequenceResult.scenes, sequence, field,
     diagnostics: {
       cognitionMode: cognition.mode,
+      characterRead: cognition.characterRead,
       chosenAttentionStrategy: cognition.chosenAttentionStrategy,
       attentionCandidates: cognition.attentionCandidates,
       contradictions: cognition.contradictions,
@@ -590,3 +807,5 @@ if (!beatPlan) {
     },
   };
 }
+
+
