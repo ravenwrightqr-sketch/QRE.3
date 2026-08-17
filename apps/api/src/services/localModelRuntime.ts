@@ -1,3 +1,4 @@
+import { request as httpRequest } from "node:http";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 
 export type LocalModelMessage = {
@@ -71,6 +72,7 @@ async function request(
   }, timeoutMs());
 
   const url = `${baseUrl()}${path}`;
+  const parsedUrl = new URL(url);
   const serializedBody = JSON.stringify(body);
 
   console.log("QRE REQUEST START");
@@ -110,41 +112,126 @@ async function request(
   try {
     console.log("QRE FETCH ENTER");
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: serializedBody,
-      signal: controller.signal,
+    const response = await new Promise<{
+      statusCode: number;
+      body: string;
+    }>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (
+        callback: () => void,
+      ): void => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+
+      const req = httpRequest(
+        {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port
+            ? Number(parsedUrl.port)
+            : 11434,
+          path: `${parsedUrl.pathname}${parsedUrl.search}`,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(
+              serializedBody,
+              "utf8",
+            ),
+          },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+
+          res.on("data", (chunk: Buffer | string) => {
+            chunks.push(
+              Buffer.isBuffer(chunk)
+                ? chunk
+                : Buffer.from(chunk),
+            );
+          });
+
+          res.on("end", () => {
+            finish(() => {
+              resolve({
+                statusCode: res.statusCode ?? 0,
+                body: Buffer.concat(chunks).toString(
+                  "utf8",
+                ),
+              });
+            });
+          });
+
+          res.on("error", (error) => {
+            finish(() => reject(error));
+          });
+        },
+      );
+
+      req.on("error", (error) => {
+        finish(() => reject(error));
+      });
+
+      const abortRequest = (): void => {
+        if (settled) return;
+
+        req.destroy(
+          new Error(
+            "Local model request aborted.",
+          ),
+        );
+      };
+
+      if (controller.signal.aborted) {
+        abortRequest();
+        return;
+      }
+
+      controller.signal.addEventListener(
+        "abort",
+        abortRequest,
+        { once: true },
+      );
+
+      req.write(serializedBody);
+      req.end();
     });
 
     console.log("QRE FETCH RETURNED");
     console.log(
       "QRE RESPONSE STATUS:",
-      response.status,
+      response.statusCode,
     );
 
-    if (!response.ok) {
-      const detail = await response
-        .text()
-        .catch(() => "");
+    if (
+      response.statusCode < 200 ||
+      response.statusCode >= 300
+    ) {
       console.log(
         "QRE RESPONSE ERROR BODY:",
-        detail,
+        response.body,
       );
+
       throw new Error(
-        `Local model failed (${response.status}): ${detail.slice(0, 300)}`,
+        `Local model failed (${response.statusCode}): ${response.body.slice(0, 300)}`,
       );
     }
 
     console.log(
       "QRE READING RESPONSE JSON",
     );
-    const json = await response.json();
+
+    const json = JSON.parse(
+      response.body,
+    );
+
     console.log(
       "QRE RESPONSE JSON RECEIVED",
     );
+
     return json;
   } catch (error) {
     console.log(
@@ -207,8 +294,7 @@ const FILM_CUT_PLANNER = [
 
 const META_LANGUAGE = /\b(?:attention strategy|operator(?: mix|s)?|build from beat|cognitive(?: plan| language)?|preserve forward information|land the chosen meaning|find subtle tension|viewer momentum|information frontier|beat plan|writing process|author brief|necessity of this beat|strategy names?)\b/i;
 const GENERIC_PROSE = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|positive outcome|newfound confidence|happy-go-lucky|tale of transformation|a testament to|satisfaction is our priority)\b/i;
-const META_PLANNER = /QRE's latent-movie planner|QRE FILM-CUT PLANNER|Output JSON only: \{premise:string/i;
-
+const META_PLANNER = /QRE's latent-movie planner|QRE FILM-CUT PLANNER/i;
 function prepareMessages(
   messages: LocalModelMessage[],
 ): LocalModelMessage[] {
