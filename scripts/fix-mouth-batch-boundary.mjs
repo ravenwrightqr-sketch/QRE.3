@@ -10,13 +10,13 @@ fs.copyFileSync(target, backup);
 
 const oldParser = /function parseMouthBatch\(\n  raw: string,\n  expected: number,\n\): string\[\] \{[\s\S]*?\n\}\n\nasync function canonicalMouthRequest/;
 
-const newParser = `function parseMouthBatch(
+const newParser = String.raw`function parseMouthBatch(
   raw: string,
   expected: number,
 ): string[] {
   const text = raw
-    .replace(/^\\`\\`\\`(?:json)?/i, "")
-    .replace(/\\`\\`\\`$/i, "")
+    .replace(/^\`\`\`(?:json)?/i, "")
+    .replace(/\`\`\`$/i, "")
     .trim();
 
   try {
