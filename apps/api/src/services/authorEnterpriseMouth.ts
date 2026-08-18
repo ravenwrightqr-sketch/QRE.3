@@ -12,8 +12,7 @@
  *
  * Missing beats are recovered in ONE request, never one request per beat.
  */
-import type { RealityGraph } from "@qre/contracts";
-import type { AuthorCreativeCritique } from "@qre/contracts";
+import type { RealityGraph, AuthorCreativeCritique } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import {
@@ -226,9 +225,10 @@ async function recoverMissingBeatVariants(
         : ""),
   };
 
+  const requestedTemperature = input.temperature ?? policy.temperature;
   const result = await localModelGenerate(targetedMessages, "json", {
     numPredict: Math.max(128, Math.min(policy.numPredict || 768, 768)),
-    temperature: Math.max(0.4, Math.min(policy.temperature || 0.62, input.temperature ?? policy.temperature || 0.62)),
+    temperature: Math.max(0.4, Math.min(policy.temperature || 0.62, requestedTemperature)),
   });
 
   const parsed = parseMouthCandidateBatch(result.text);
@@ -360,18 +360,13 @@ export async function realizeEnterpriseMouth(
   });
   const canonicalBeats = canonicalizeBeats(input.beats).slice(0, policy.maxBeats);
 
-  const meaningSpine = buildMeaningSpine({
-    envelope,
-    beats: canonicalBeats,
-  });
-
+  const meaningSpine = buildMeaningSpine({ envelope, beats: canonicalBeats });
   const realizationSlots = buildRealizationSlots({
     envelope,
     beats: canonicalBeats,
     spine: meaningSpine,
     fast: policy.mode === "dev-fast",
   });
-
   const enterpriseIntelligence = buildEnterpriseIntelligence({
     graph: input.graph,
     subject: input.subject,
@@ -381,10 +376,6 @@ export async function realizeEnterpriseMouth(
 
   if (policy.mode === "no-model") {
     const cumulativeStates = buildCumulativeMeaningState(canonicalBeats, envelope);
-    const cumulativeMeaningScore = evaluateCumulativeMeaning(cumulativeStates);
-    const repairObjectives: MouthRepairObjective[] = [];
-    const creativeCritique = critiqueCreativeSelection("", []);
-
     return {
       texts: [],
       candidates: [],
@@ -393,28 +384,19 @@ export async function realizeEnterpriseMouth(
       envelope,
       meaningSpine,
       realizationSlots,
-      repairObjectives,
+      repairObjectives: [],
       policy,
       modelCallCount: 0,
       enterpriseIntelligence,
-      cumulativeMeaningScore,
-      creativeCritique,
+      cumulativeMeaningScore: evaluateCumulativeMeaning(cumulativeStates),
+      creativeCritique: critiqueCreativeSelection("", []),
       safetyViolations: [],
       groundedSurprise: 0,
     };
   }
 
-  let current = await generateBeam(
-    { ...input, beats: canonicalBeats },
-    envelope,
-    policy,
-  );
-  let failures = qualityFailures(
-    current.texts,
-    current.candidates,
-    canonicalBeats.length,
-    current.beamScore,
-  );
+  let current = await generateBeam({ ...input, beats: canonicalBeats }, envelope, policy);
+  let failures = qualityFailures(current.texts, current.candidates, canonicalBeats.length, current.beamScore);
   let modelCallCount = current.modelCalls;
 
   const repairObjectives = buildMouthRepairObjectives({
@@ -427,65 +409,68 @@ export async function realizeEnterpriseMouth(
     policy.maxRevisionCalls > 0 &&
     modelCallCount < policy.maxTotalModelCalls
   ) {
-    const revised = await generateBeam(
-      {
-        ...input,
-        beats: canonicalBeats,
-        priorTexts: current.texts,
-        revisionGuidance: [
-          ...(input.revisionGuidance ?? []),
-          ...compactRepairInstructions(repairObjectives, 8),
-          ...failures,
-          "QUALITY GATE FAILED. Do not merely paraphrase the previous candidates.",
-          "Meaning shifts must be grounded in actual graph relationships.",
-          "Concrete verbs are evidence-sensitive: use only supplied actions or direct universal equivalents.",
-          "Interpretation may change the reading of evidence, but may not create a new concrete action, object, person, setting, or reaction.",
-          "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
-        ],
-        temperature: Math.max(0.42, (input.temperature ?? policy.temperature) - 0.06),
-      },
-      envelope,
-      {
-        ...policy,
-        maxRecoveryCalls: Math.max(0, policy.maxRecoveryCalls - current.modelCalls + 1),
-        maxPrimaryCalls: 1,
-      },
-    );
+    const remainingCalls = policy.maxTotalModelCalls - modelCallCount;
+    const revisionPolicy: EnterpriseMouthExecutionPolicy = {
+      ...policy,
+      maxPrimaryCalls: remainingCalls > 0 ? 1 : 0,
+      maxRecoveryCalls: remainingCalls > 1 ? 1 : 0,
+      maxRevisionCalls: 0,
+      maxTotalModelCalls: remainingCalls,
+      beamWidth: policy.beamWidth,
+      beamCandidatesPerBeat: policy.beamCandidatesPerBeat,
+    };
 
-    const revisedFailures = qualityFailures(
-      revised.texts,
-      revised.candidates,
-      canonicalBeats.length,
-      revised.beamScore,
-    );
+    if (revisionPolicy.maxPrimaryCalls > 0) {
+      const revised = await generateBeam(
+        {
+          ...input,
+          beats: canonicalBeats,
+          priorTexts: current.texts,
+          revisionGuidance: [
+            ...(input.revisionGuidance ?? []),
+            ...compactRepairInstructions(repairObjectives, 8),
+            ...failures,
+            "QUALITY GATE FAILED. Do not merely paraphrase the previous candidates.",
+            "Meaning shifts must be grounded in actual graph relationships.",
+            "Concrete verbs are evidence-sensitive: use only supplied actions or direct universal equivalents.",
+            "Interpretation may change the reading of evidence, but may not create a new concrete action, object, person, setting, or reaction.",
+            "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
+          ],
+          temperature: Math.max(0.42, (input.temperature ?? policy.temperature) - 0.06),
+        },
+        envelope,
+        revisionPolicy,
+      );
 
-    modelCallCount += revised.modelCalls;
+      const revisedFailures = qualityFailures(
+        revised.texts,
+        revised.candidates,
+        canonicalBeats.length,
+        revised.beamScore,
+      );
 
-    if (
-      revisedFailures.length < failures.length ||
-      (revisedFailures.length === failures.length && revised.beamScore > current.beamScore)
-    ) {
-      current = revised;
-      failures = revisedFailures;
+      modelCallCount += revised.modelCalls;
+
+      if (
+        revisedFailures.length < failures.length ||
+        (revisedFailures.length === failures.length && revised.beamScore > current.beamScore)
+      ) {
+        current = revised;
+        failures = revisedFailures;
+      }
     }
   }
 
   const safetyViolations = [
     ...new Set(
       current.texts.flatMap((text) =>
-        detectAuthorSafetyViolations({
-          text,
-          envelope,
-        }),
+        detectAuthorSafetyViolations({ text, envelope }),
       ),
     ),
   ];
 
   const cumulativeStates = buildCumulativeMeaningState(canonicalBeats, envelope);
-  const cumulativeMeaningScore = evaluateCumulativeMeaning(cumulativeStates);
   const finalText = current.texts.join(" ");
-  const creativeCritique = critiqueCreativeSelection(finalText, []);
-  const groundedSurprise = surpriseScore(finalText, envelope);
 
   return {
     texts: current.texts,
@@ -499,9 +484,9 @@ export async function realizeEnterpriseMouth(
     policy,
     modelCallCount,
     enterpriseIntelligence,
-    cumulativeMeaningScore,
-    creativeCritique,
+    cumulativeMeaningScore: evaluateCumulativeMeaning(cumulativeStates),
+    creativeCritique: critiqueCreativeSelection(finalText, []),
     safetyViolations,
-    groundedSurprise,
+    groundedSurprise: surpriseScore(finalText, envelope),
   };
 }
