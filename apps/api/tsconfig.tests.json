@@ -17,7 +17,8 @@
   "include": [
     "./author-mouth-probe.ts",
     "./author-acceptance-monster.ts",
-    "./author-acceptance-suite.ts"
+    "./author-acceptance-suite.ts",
+    "./author-enterprise-realization-selfcheck.ts"
   ],
   "exclude": [
     "node_modules",
