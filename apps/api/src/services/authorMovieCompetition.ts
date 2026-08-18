@@ -36,21 +36,20 @@ function dominanceScore(candidate: MovieHypothesis): number {
 export function rankMovieHypotheses(
   hypotheses: readonly MovieHypothesis[],
 ): AuthorMovieAlternative[] {
-  const ranked = hypotheses
-    .map((candidate) => ({
-      id: candidate.id,
-      lens: candidate.lens,
-      hypothesis: clean(candidate.hypothesis),
-      score: dominanceScore(candidate),
-      strengths: [
-        candidate.grounding >= 0.75 ? "grounded" : "partially-grounded",
-        candidate.tension >= 0.6 ? "tension-rich" : "low-tension",
-        candidate.surprise >= 0.65 ? "surprising" : "predictable",
-      ],
-      weaknesses: [],
-      eventIds: [...candidate.eventIds],
-      dominated: false,
-    }));
+  const ranked: AuthorMovieAlternative[] = hypotheses.map((candidate) => ({
+    id: candidate.id,
+    lens: candidate.lens,
+    hypothesis: clean(candidate.hypothesis),
+    score: dominanceScore(candidate),
+    strengths: [
+      candidate.grounding >= 0.75 ? "grounded" : "partially-grounded",
+      candidate.tension >= 0.6 ? "tension-rich" : "low-tension",
+      candidate.surprise >= 0.65 ? "surprising" : "predictable",
+    ],
+    weaknesses: [] as string[],
+    eventIds: [...candidate.eventIds],
+    dominated: false,
+  }));
 
   for (const candidate of ranked) {
     candidate.dominated = ranked.some(
@@ -59,7 +58,9 @@ export function rankMovieHypotheses(
         other.score >= candidate.score + 0.1 &&
         other.eventIds.length >= candidate.eventIds.length,
     );
-    if (candidate.dominated) candidate.weaknesses.push("dominated-by-stronger-hypothesis");
+    if (candidate.dominated) {
+      candidate.weaknesses.push("dominated-by-stronger-hypothesis");
+    }
   }
 
   return ranked.sort((a, b) => b.score - a.score);
