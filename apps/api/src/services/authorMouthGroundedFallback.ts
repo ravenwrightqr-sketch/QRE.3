@@ -14,12 +14,14 @@ function labelsForBeat(
     ...(beat.paysOff ?? []),
   ].filter(Boolean);
 
-  const labels = ids
-    .map((id) => envelope.events.find((event) => event.id === id)?.label)
-    .filter((value): value is string => Boolean(value))
-    .map(clean);
-
-  return [...new Set(labels)];
+  return [
+    ...new Set(
+      ids
+        .map((id) => envelope.events.find((event) => event.id === id)?.label)
+        .filter((value): value is string => Boolean(value))
+        .map(clean),
+    ),
+  ];
 }
 
 function relationKindsForBeat(
@@ -51,26 +53,36 @@ function groundedVariants(
   const relations = relationKindsForBeat(beat, envelope);
   const variants: string[] = [];
 
-  if (subject && first) variants.push(`${subject} ${first}.`);
-  if (first) variants.push(`${first}.`);
+  if (subject && first) {
+    variants.push(`${subject} ${first}.`);
+  }
 
-  if ((attention === "hook" || role === "arrival" || role === "establish") && subject && first) {
-    variants.push(`${subject}, ${first}.`);
+  if (first && (attention === "hook" || role === "arrival" || role === "establish")) {
+    variants.push(`${first}.`);
   }
 
   if (second) {
     if (relations.includes("contrasts")) {
-      variants.push(`${first} with ${second}.`);
       variants.push(`${first}; ${second}.`);
+      variants.push(`${first}. ${second}.`);
     } else if (relations.includes("changes") || relations.includes("converges")) {
-      variants.push(`${first}, now ${second}.`);
-      variants.push(`${first} — now ${second}.`);
+      variants.push(`${first}; now ${second}.`);
+      variants.push(`${first}. Now ${second}.`);
     } else {
-      variants.push(`${first}, then ${second}.`);
+      variants.push(`${first}; ${second}.`);
     }
   }
 
+  if (attention === "callback" && first && second) {
+    variants.push(`Still ${first}; ${second}.`);
+  }
+
   if (endpoint && (attention === "payoff" || role === "payoff" || attention === "release")) {
+    if (labels.length >= 2) {
+      const prior = labels[labels.length - 2];
+      variants.push(`${prior}; ${endpoint}.`);
+      variants.push(`${prior}. ${endpoint}.`);
+    }
     if (subject) variants.push(`${subject} ${endpoint}.`);
     variants.push(`${endpoint}.`);
   }
