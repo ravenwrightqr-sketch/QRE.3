@@ -54,7 +54,7 @@ export type LatentMovieCandidate = {
   unresolvedQuestion: string;
   evidence: string[];
   hypothesis: string[];
-  storyThesis: LatentStoryThesis;
+  storyThesis?: LatentStoryThesis;
 
   /** Epistemic / creative diagnostics. */
   truthRisk: number;
