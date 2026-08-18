@@ -14,16 +14,6 @@ function metric(value: number): number {
   return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
 
-function requiredEventIds(
-  beat: MouthCandidateBeat,
-): string[] {
-  return [
-    ...(beat.eventIds ?? []),
-    ...(beat.setsUp ?? []),
-    ...(beat.paysOff ?? []),
-  ].filter(Boolean);
-}
-
 function relationMode(beat: MouthCandidateBeat): boolean {
   const mode = clean(
     beat.realizationMode,
@@ -175,11 +165,6 @@ export function adaptMouthCandidateQuality(input: {
   const isHook = hookOrEstablishment(beat);
   const isPayoff = payoffOrRelease(beat);
 
-  /*
-   * Semantic scoring is role-aware. A hook establishes evidence; it does not
-   * need to demonstrate a relation. A payoff must land supplied endpoint
-   * evidence; only relational middle beats require explicit transition proof.
-   */
   const baseMeaning = semanticExecutionBaseline(
     candidate,
     beat,
@@ -221,25 +206,33 @@ export function adaptMouthCandidateQuality(input: {
     ),
   );
 
-  const adaptedInvention = metric(
-    Math.max(
-      0,
-      Math.min(
+  /*
+   * The raw candidate risk remains useful as a diagnostic. Acceptance risk is
+   * re-derived from the evidence-aware language gate so safe universal
+   * equivalents such as "arrived" for supplied "came in" are not punished,
+   * while unsupported concrete language remains expensive.
+   */
+  const lexicalRisk = language.accepted
+    ? Math.min(0.25, language.supportedActionRisk * 0.8 + language.supportedEntityRisk * 0.5)
+    : Math.max(
+        language.supportedActionRisk,
+        language.supportedEntityRisk,
         candidate.inventionRisk,
-        Math.max(0, language.supportedActionRisk * 0.75),
-      ),
-    ),
+      );
+
+  const adaptedInvention = metric(
+    Math.max(0, Math.min(1, lexicalRisk)),
   );
 
   const score = metric(
-    candidate.score * 0.5 +
-      adaptedMeaning * 0.18 +
-      language.naturalness * 0.15 +
-      transition * 0.07 +
-      relationEvidence * 0.06 +
-      endpointBonus * 0.08 -
+    candidate.score * 0.42 +
+      adaptedMeaning * 0.24 +
+      language.naturalness * 0.17 +
+      transition * 0.06 +
+      relationEvidence * 0.05 +
+      endpointBonus * 0.06 -
       naturalnessPenalty * 0.12 -
-      meaningPenalty * 0.12,
+      meaningPenalty * 0.1,
   );
 
   const reasons = [
@@ -273,6 +266,10 @@ export function adaptMouthCandidateQuality(input: {
 
   if (isPayoff) {
     reasons.push("payoff-endpoint-priority");
+  }
+
+  if (candidate.inventionRisk > 0.45 && language.accepted) {
+    reasons.push("raw-model-risk-overridden-by-evidence-gate");
   }
 
   if (language.accepted === false) {
