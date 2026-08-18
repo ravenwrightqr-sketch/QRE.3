@@ -1,11 +1,3 @@
-/**
- * QRE ENTERPRISE MOUTH · ORCHESTRATION BOUNDARY
- *
- * Canonical path:
- * REALITY → MEANING SPINE → REALIZATION SLOTS → CANDIDATES → CRITIC → BEAM → REPAIR
- *
- * Qwen proposes language. QRE owns meaning, evidence, budgets, selection, and repair.
- */
 import type { RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
@@ -23,6 +15,11 @@ import { buildMeaningSpine, type MeaningSpine } from "./authorMeaningSpine.js";
 import { buildRealizationSlots, type RealizationSlot } from "./authorMouthRealizationSlot.js";
 import { buildMouthRepairObjectives, compactRepairInstructions } from "./authorMouthRepairPlanner.js";
 import { getEnterpriseMouthPolicy, type EnterpriseMouthExecutionPolicy } from "./authorEnterpriseMouthPolicy.js";
+import { buildEnterpriseIntelligence, type EnterpriseIntelligenceContext } from "./authorEnterpriseIntelligence.js";
+import { buildCumulativeMeaningState, evaluateCumulativeMeaning } from "./authorCumulativeMeaning.js";
+import { detectAuthorSafetyViolations } from "./authorEnterpriseSafety.js";
+import { critiqueCreativeSelection, surpriseScore } from "./authorCreativeSearch.js";
+import type { AuthorCreativeCritique } from "@qre/contracts";
 
 export type EnterpriseMouthInput = {
   graph: RealityGraph;
@@ -45,6 +42,11 @@ export type EnterpriseMouthResult = {
   repairObjectives: ReturnType<typeof buildMouthRepairObjectives>;
   policy: EnterpriseMouthExecutionPolicy;
   modelCallCount: number;
+  enterpriseIntelligence: EnterpriseIntelligenceContext;
+  cumulativeMeaningScore: number;
+  creativeCritique: AuthorCreativeCritique;
+  safetyViolations: string[];
+  groundedSurprise: number;
 };
 
 const QUALITY = {
@@ -138,7 +140,7 @@ async function recoverMissingBeatVariants(
   const recovered = new Map<number, string[]>();
   const messages = buildMouthCandidateMessages({
     envelope,
-    beats: missingBeats,
+    beats: [...missingBeats],
     priorTexts: input.priorTexts,
     lens: input.lens,
   });
@@ -183,7 +185,7 @@ async function generateBeam(
 
   const candidateMessages = buildMouthCandidateMessages({
     envelope,
-    beats: input.beats,
+    beats: [...input.beats],
     priorTexts: input.priorTexts,
     lens: input.lens,
   });
@@ -257,23 +259,20 @@ export async function realizeEnterpriseMouth(input: EnterpriseMouthInput): Promi
     throw new Error("ENTERPRISE MOUTH INVARIANT FAILED: no approved beats");
   }
 
-  const spine = buildMeaningSpine({ envelope, beats: canonicalBeats, premise: input.lens });
-  const slots = buildRealizationSlots({
-    envelope,
+  const enterpriseIntelligence = buildEnterpriseIntelligence({
+    graph: input.graph,
+    subject: input.subject,
+    lens: input.lens,
     beats: canonicalBeats,
-    spine,
-    fast: policy.mode === "dev-fast",
   });
 
-  const boundedInput: EnterpriseMouthInput = {
-    ...input,
-    beats: canonicalBeats,
-  };
+  const spine = buildMeaningSpine({ envelope, beats: canonicalBeats, premise: input.lens });
+  const slots = buildRealizationSlots({ envelope, beats: canonicalBeats, spine, fast: policy.mode === "dev-fast" });
+  const boundedInput: EnterpriseMouthInput = { ...input, beats: canonicalBeats };
 
   let current = await generateBeam(boundedInput, envelope, spine, slots, policy);
   let modelCallCount = current.modelCalls;
   let failures = qualityFailures(current.texts, current.candidates, canonicalBeats.length, current.beamScore);
-
   let repairObjectives = buildMouthRepairObjectives({ candidates: current.candidates, slots });
 
   if (failures.length > 0 && policy.maxRevisionCalls > 0 && modelCallCount < policy.maxTotalModelCalls && policy.mode !== "no-model") {
@@ -303,13 +302,29 @@ export async function realizeEnterpriseMouth(input: EnterpriseMouthInput): Promi
 
     modelCallCount += revised.modelCalls;
     const revisedFailures = qualityFailures(revised.texts, revised.candidates, canonicalBeats.length, revised.beamScore);
-
     if (revisedFailures.length < failures.length || (revisedFailures.length === failures.length && revised.beamScore > current.beamScore)) {
       current = revised;
       failures = revisedFailures;
       repairObjectives = buildMouthRepairObjectives({ candidates: current.candidates, slots });
     }
   }
+
+  const cumulativeStates = buildCumulativeMeaningState(canonicalBeats, envelope);
+  const cumulativeMeaningScore = evaluateCumulativeMeaning(cumulativeStates);
+  const selectedText = current.texts.join(" ");
+  const safetyViolations = detectAuthorSafetyViolations({ text: selectedText, envelope });
+  const alternatives = current.candidates.map((candidate) => ({
+    id: `candidate-${candidate.beatOrder}-${candidate.text.slice(0, 20)}`,
+    lens: enterpriseIntelligence.lens.kind,
+    hypothesis: candidate.text,
+    eventIds: candidate.supportedEventIds,
+    relationKinds: candidate.supportedRelationPairs,
+    localScore: candidate.score,
+  }));
+  const creativeCritique = critiqueCreativeSelection(selectedText, []);
+  const groundedSurprise = surpriseScore(selectedText, envelope);
+
+  void alternatives;
 
   return {
     texts: current.texts,
@@ -322,5 +337,10 @@ export async function realizeEnterpriseMouth(input: EnterpriseMouthInput): Promi
     repairObjectives,
     policy,
     modelCallCount,
+    enterpriseIntelligence,
+    cumulativeMeaningScore,
+    creativeCritique,
+    safetyViolations,
+    groundedSurprise,
   };
 }
