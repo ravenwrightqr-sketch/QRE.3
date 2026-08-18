@@ -93,59 +93,76 @@ function salvageCandidateEntries(raw) {
   return entries;
 }
 
-let candidateSource = read(candidatePath);
+function hardenCandidateParser(source) {
+  if (source.includes("salvageCandidateEntries")) {
+    return source;
+  }
 
-const parserPattern = /export function parseMouthCandidateBatch\([\s\S]*?\n}\n\nexport async function generateAndSelectMouthCandidates/;
+  const startMarker = "export function parseMouthCandidateBatch";
+  const endMarker = "export async function generateAndSelectMouthCandidates";
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
 
-const replacement = [
-  "export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {",
-  "  const text = clean(raw)",
-  "    .replace(/^```(?:json)?/i, \"\")",
-  "    .replace(/```$/i, \"\")",
-  "    .trim();",
-  "",
-  "  try {",
-  "    const value = JSON.parse(text) as { variantsByBeat?: unknown };",
-  "    if (!Array.isArray(value.variantsByBeat)) return undefined;",
-  "",
-  "    const variantsByBeat = value.variantsByBeat",
-  "      .filter((entry) => entry && typeof entry === \"object\")",
-  "      .map((entry) => {",
-  "        const item = entry as Record<string, unknown>;",
-  "        const variants = Array.isArray(item.variants)",
-  "          ? item.variants.map(clean).filter(Boolean).slice(0, 8)",
-  "          : [];",
-  "        return {",
-  "          order: Number(item.order ?? 0),",
-  "          variants,",
-  "        };",
-  "      })",
-  "      .filter((entry) => entry.order > 0 && entry.variants.length > 0);",
-  "",
-  "    return variantsByBeat.length ? { variantsByBeat } : undefined;",
-  "  } catch {",
-  "    const salvaged = salvageCandidateEntries(text);",
-  "    return salvaged.length ? { variantsByBeat: salvaged } : undefined;",
-  "  }",
-  "}",
-  "",
-  "export async function generateAndSelectMouthCandidates",
-].join("\n");
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error("Could not locate canonical mouth candidate parser boundaries.");
+  }
 
-if (!parserPattern.test(candidateSource)) {
-  throw new Error("Could not locate canonical mouth candidate parser.");
+  const replacement = [
+    "export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {",
+    "  const text = clean(raw)",
+    "    .replace(/^```(?:json)?/i, \"\")",
+    "    .replace(/```$/i, \"\")",
+    "    .trim();",
+    "",
+    "  try {",
+    "    const value = JSON.parse(text) as { variantsByBeat?: unknown };",
+    "    if (!Array.isArray(value.variantsByBeat)) return undefined;",
+    "",
+    "    const variantsByBeat = value.variantsByBeat",
+    "      .filter((entry) => entry && typeof entry === \"object\")",
+    "      .map((entry) => {",
+    "        const item = entry as Record<string, unknown>;",
+    "        const variants = Array.isArray(item.variants)",
+    "          ? item.variants.map(clean).filter(Boolean).slice(0, 8)",
+    "          : [];",
+    "        return {",
+    "          order: Number(item.order ?? 0),",
+    "          variants,",
+    "        };",
+    "      })",
+    "      .filter((entry) => entry.order > 0 && entry.variants.length > 0);",
+    "",
+    "    return variantsByBeat.length ? { variantsByBeat } : undefined;",
+    "  } catch {",
+    "    const salvaged = salvageCandidateEntries(text);",
+    "    return salvaged.length ? { variantsByBeat: salvaged } : undefined;",
+    "  }",
+    "}",
+    "",
+  ].join("\n");
+
+  return `${source.slice(0, start)}${replacement}${source.slice(end)}`;
 }
 
-candidateSource = candidateSource.replace(parserPattern, replacement);
-write(candidatePath, candidateSource);
+function hardenRuntimeFallback(source) {
+  const configured = 'process.env.QRE_LOCAL_MODEL ||\n    "qre-local"';
+  const replacement = 'process.env.QRE_LOCAL_MODEL ||\n    "qwen2.5vl:7b"';
 
-let runtimeSource = read(runtimePath);
-runtimeSource = runtimeSource.replace(
-  /process\.env\.QRE_LOCAL_MODEL\s*\|\|\s*\"qre-local\"/,
-  'process.env.QRE_LOCAL_MODEL ||\n    "qwen2.5vl:7b"',
-);
+  if (source.includes(replacement)) return source;
+  if (!source.includes(configured)) {
+    throw new Error("Could not locate canonical local-model fallback.");
+  }
+
+  return source.replace(configured, replacement);
+}
+
+const candidateSource = hardenCandidateParser(read(candidatePath));
+const runtimeSource = hardenRuntimeFallback(read(runtimePath));
+
+write(candidatePath, candidateSource);
 write(runtimePath, runtimeSource);
 
 console.log("Author production transport hardening applied.");
-console.log("- canonical JSON parser now salvages complete beat entries from truncated output");
+console.log("- canonical JSON parser salvages complete beat entries from truncated output");
+console.log("- missing beat orders remain recoverable by bounded orchestration recovery");
 console.log("- local Ollama fallback resolves to qwen2.5vl:7b");
