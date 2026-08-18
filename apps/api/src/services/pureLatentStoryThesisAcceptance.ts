@@ -67,6 +67,10 @@ const probes = [
   },
 ] as const;
 
+function normalize(value: string): string {
+  return value.replace(/\.\.+/g, ".").trim();
+}
+
 const results = probes.map((probe) => {
   const graph = buildAuthorRealityGraph({
     prompt: probe.name,
@@ -93,20 +97,44 @@ const results = probes.map((probe) => {
   }
 
   const thesis = deriveLatentStoryThesis(graph, candidate);
+  const endpointLabel = graph.events[graph.events.length - 1]?.label ?? "";
+  const turnText = normalize(thesis.semanticTurn);
+  const payoffText = normalize(thesis.payoffDependency);
+
+  const carrierSet = new Set(thesis.carrierEventIds);
+  const sealingOverlap = thesis.sealingEventIds.some((id) => carrierSet.has(id));
+
+  const turnLooksLikePayoff =
+    Boolean(endpointLabel) &&
+    turnText.toLowerCase().includes(endpointLabel.toLowerCase());
+
+  const passed =
+    Boolean(thesis.initialReading) &&
+    Boolean(thesis.semanticTurn) &&
+    thesis.carrierEventIds.length > 0 &&
+    thesis.sealingEventIds.length > 0 &&
+    !sealingOverlap &&
+    !turnLooksLikePayoff &&
+    Boolean(thesis.payoffDependency) &&
+    Boolean(payoffText) &&
+    thesis.counterfactualDependency > 0.25;
 
   return {
     name: probe.name,
-    passed:
-      Boolean(thesis.initialReading) &&
-      Boolean(thesis.semanticTurn) &&
-      thesis.carrierEventIds.length > 0 &&
-      thesis.sealingEventIds.length > 0 &&
-      Boolean(thesis.payoffDependency) &&
-      thesis.counterfactualDependency > 0,
+    passed,
     thesis,
     candidateScore: candidate.score,
     supportingRelationKinds: candidate.supportingRelationKinds,
     trajectoryLength: candidate.trajectory.length,
+    checks: {
+      turnIsNotPayoff: !turnLooksLikePayoff,
+      carrierExists: thesis.carrierEventIds.length > 0,
+      sealingExists: thesis.sealingEventIds.length > 0,
+      carrierAndSealDistinct: !sealingOverlap,
+      payoffDependencyExists: Boolean(payoffText),
+      counterfactualDependencyAboveFloor:
+        thesis.counterfactualDependency > 0.25,
+    },
   };
 });
 
