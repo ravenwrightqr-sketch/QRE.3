@@ -82,9 +82,17 @@ export function deriveRealizationStrategies(
 ): AuthorStrategyCandidate[] {
   const relationKinds = relationKindsForBeat(beat, envelope);
   const mode = clean(beat.realizationMode).toLowerCase();
+  const creativeMove = clean(beat.creativeMove).toLowerCase();
+  const attentionFunction = clean(beat.attentionFunction).toLowerCase();
   const required = new Set<AuthorRealizationStrategy>();
 
-  if (relationKinds.includes("contrasts") || mode.includes("contrast")) {
+  const contrastDriven =
+    creativeMove === "contrast" ||
+    attentionFunction === "reframe" ||
+    mode.includes("contrast") ||
+    relationKinds.includes("contrasts");
+
+  if (contrastDriven) {
     required.add("contrast");
     required.add("status_inversion");
     required.add("understatement");
@@ -107,14 +115,14 @@ export function deriveRealizationStrategies(
 
   if (
     mode.includes("double") ||
-    clean(beat.creativeMove).toLowerCase() === "double_meaning"
+    creativeMove === "double_meaning"
   ) {
     required.add("double_meaning");
   }
 
   if (
     mode.includes("payoff") ||
-    clean(beat.attentionFunction).toLowerCase() === "payoff"
+    attentionFunction === "payoff"
   ) {
     required.add("compression");
     required.add("callback");
@@ -123,7 +131,7 @@ export function deriveRealizationStrategies(
 
   if (
     mode.includes("person") ||
-    clean(beat.creativeMove).toLowerCase() === "personification"
+    creativeMove === "personification"
   ) {
     required.add("personification");
   }
@@ -154,12 +162,25 @@ export function selectSafeStrategies(
   envelope: RealityEnvelope,
   limit = 5,
 ): AuthorStrategyCandidate[] {
-  return deriveRealizationStrategies(beat, envelope)
+  const selected = deriveRealizationStrategies(beat, envelope)
     .filter((candidate) => candidate.safety >= 0.7)
     .sort(
       (left, right) =>
         right.safety * 0.7 + right.novelty * 0.3 -
         (left.safety * 0.7 + left.novelty * 0.3),
-    )
-    .slice(0, limit);
+    );
+
+  const contrastCandidate = selected.find(
+    (candidate) => candidate.strategy === "contrast",
+  );
+
+  if (contrastCandidate && !selected.slice(0, limit).some((candidate) => candidate.strategy === "contrast")) {
+    const head = selected.slice(0, Math.max(0, limit - 1));
+    return [
+      ...head,
+      contrastCandidate,
+    ];
+  }
+
+  return selected.slice(0, limit);
 }
