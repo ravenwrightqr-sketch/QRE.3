@@ -17,6 +17,231 @@ Historical entries remain below, but the latest **CURRENT TRUTH** section overri
 
 ---
 
+## CURRENT TRUTH — 2026-08-18
+
+### Whole-author alignment pass — IN PROGRESS / CANONICAL CONTRACTS CONVERGED
+
+The recent failures exposed a structural issue: QRE had the right cognitive concepts in multiple modules, but semantic contracts were not being enforced consistently at every downstream boundary.
+
+The canonical path is now treated as:
+
+```text
+SOURCE TRUTH
+→ RealityGraph
+→ Latent Movie Search
+→ Latent Story Thesis
+→ Meaning Spine
+→ Realization Slot
+→ Candidate Generation
+→ Candidate Semantic Gate
+→ Sequence Beam
+→ Critic / Repair
+→ Attention / Sequence Arc
+→ Final Cut
+```
+
+A stage may interpret information from the preceding stage, but it may not silently replace that stage's authority.
+
+### Discovery: semantic contracts were dying between modules
+
+The major discovered failure was:
+
+```text
+RealizationSlot
+  correctly contained:
+    obligations
+    relationKinds
+    sourceLabels
+    targetLabels
+    forbiddenMoves
+
+but downstream candidate selection treated those fields as prompt decoration
+rather than executable constraints.
+```
+
+This created the failure mode:
+
+```text
+supplied fact A
++
+supplied fact B
++
+graph relation exists
+=
+"meaningful" candidate
+```
+
+without proving that the sentence actually performed the relationship.
+
+### Candidate semantic boundary — HARD
+
+`authorMouthQualityAdapter.ts` now enforces semantic eligibility before sequence optimization.
+
+A candidate is rejected when it violates the canonical contract through:
+
+```text
+weak grounding
+weak meaning
+weak semantic transition
+incomplete transition coverage
+keyword / anchor collage
+analytic realization language
+language gate failure
+non-exact supplied endpoint
+high invention risk
+question leakage
+```
+
+An empty valid pool is an explicit recovery signal. Invalid language is never silently promoted just because it is the only remaining candidate.
+
+### Payoff authority — HARD
+
+The final supplied endpoint is no longer a creative suggestion.
+
+For payoff / release slots:
+
+```text
+supplied endpoint
+→ exact realization
+→ no prefix
+→ no suffix
+→ no appended earlier evidence
+→ no replacement ending
+```
+
+Earlier lines earn the ending. The ending itself is reality-owned.
+
+### Grounded fallback — serialization safety net only
+
+`authorMouthGroundedFallback.ts` is now explicitly a bounded serialization fallback.
+
+It may:
+
+```text
+compress supplied evidence
+connect already-supplied state/action signals
+serialize the exact supplied endpoint
+```
+
+It may not:
+
+```text
+invent an interpretation as fact
+create a second author
+concatenate source labels into a fake sentence
+prepend material before the endpoint
+append material after the endpoint
+```
+
+### Universal language gate — ENTITY NEUTRAL
+
+`authorMouthLanguageGate.ts` no longer contains domain-specific emotional / object examples.
+
+It now evaluates language structurally:
+
+```text
+naturalness
+fragment risk
+keyword assembly
+analytic language
+unsupported concrete language
+supported action/entity risk
+question leakage
+```
+
+One-word supplied anchors remain legal language rather than being rejected simply for being short.
+
+The unsupported-concrete calculation was also corrected so unsupported concrete terms are actually counted instead of being filtered out by the detection predicate.
+
+### Latent Movie → Beat adapter — repaired contract
+
+`authorLatentMovieBeatAdapter.ts` now preserves endpoint authority when projecting the selected movie into Beat Graph semantics.
+
+In particular:
+
+```text
+converge → turn
+payoff   → payoff
+payoff.paysOff → [candidate.payoff]
+```
+
+The adapter does not invent a new attention category that does not exist in the Beat Graph contract.
+
+### Critic — aligned to cognition instead of wording alone
+
+`authorMouthCritic.ts` now explicitly distinguishes:
+
+```text
+grounded candidate
+vs.
+semantically realized candidate
+```
+
+A relational candidate that merely lists two supplied anchors is considered `anchor_collage` rather than successful realization.
+
+A payoff candidate that does not exactly equal the supplied endpoint is `non_exact_endpoint` and cannot be accepted.
+
+### Repair Planner — hard failures propagate
+
+`authorMouthRepairPlanner.ts` now treats:
+
+```text
+non-exact endpoint
+semantic-contract-invalid
+```
+
+as critical repair conditions.
+
+Repair instructions remain bounded language objectives; they do not become a second creative authority.
+
+### Sequence Arc Gate — universalized
+
+`authorSequenceArcGate.ts` is now entity-neutral and rejects structural failures such as:
+
+```text
+anchor collage
+weak meaning transition
+generic summary
+weak setup continuity
+weak final payoff
+weak final transformation
+```
+
+Historical domain-specific vocabulary is not part of sequence semantics.
+
+### Adapter invariant
+
+`authorLatentMovieBeatAdapter`, `authorMeaningSpine`, `authorMouthRealizationSlot`, `authorMouthQualityAdapter`, `authorMouthCandidateSearch`, `authorMouthSequenceBeamSearch`, `authorMouthCritic`, and `authorMouthRepairPlanner` must preserve the same semantic meaning across the boundary.
+
+The adapter is not allowed to downgrade a semantic contract into free text.
+
+### Master Author remains the authority
+
+`authorBrainUniversal.ts` remains the sole upstream creative authority for the universal author path.
+
+The recent pure-universal acceptance suite remains green with unrelated reality probes. No domain-specific author branch is permitted to re-enter the cognitive path.
+
+### Proven cognitive milestones
+
+```text
+Pure Universal Cognition          PASS / 1.0
+Pure Latent Story Thesis          PASS / 1.0 / 4 of 4 probes
+Endpoint closure                  PASS
+Carrier / sealing distinction     PASS
+Counterfactual dependency         PASS
+Ollama local runtime              PASS / qwen2.5vl:7b
+```
+
+### New engineering law
+
+> **A cognitive concept is not real until every downstream consumer enforces the same contract.**
+
+This is now a permanent QRE author law.
+
+The system must not contain a clever Meaning Spine whose constraints disappear when candidates reach the Mouth.
+
+---
+
 ## CURRENT TRUTH — 2026-08-15
 
 ### One brain / one path / one acceptance harness / guarded
@@ -308,7 +533,7 @@ Key durable findings include:
 - Questions belong in hidden cognition unless they are supplied source language.
 - Sparse inputs should produce tighter creative implication rather than fabricated backstory.
 - Returning chapters must change meaning rather than replay earlier chapters.
-- `Lawyer informed.`, `Pink bows everywhere.`, `Coco flaunts the tag.`, and `Fear smear, baby.` are reference behaviors for compressed implication, not literal templates.
+- Older benchmark phrases are historical evidence only and must never be treated as production templates.
 
 See:
 
