@@ -2,13 +2,12 @@
  * QRE ENTERPRISE MOUTH · ORCHESTRATION BOUNDARY
  *
  * Qwen proposes variants. QRE derives the RealityEnvelope, scores every
- * candidate, then performs deterministic sequence-level beam selection.
+ * candidate, applies deterministic language/transition quality, then performs
+ * sequence-level beam selection.
  */
 import type { RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
-import {
-  buildAuthorRealityEnvelope,
-} from "./authorRealityEnvelope.js";
+import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import {
   buildMouthCandidateMessages,
   parseMouthCandidateBatch,
@@ -17,6 +16,9 @@ import {
   type MouthCandidateBeat,
   type MouthCandidateBatch,
 } from "./authorMouthCandidateSearch.js";
+import {
+  adaptMouthCandidatePool,
+} from "./authorMouthQualityAdapter.js";
 import {
   selectBestMouthSequence,
   type MouthCandidatePool,
@@ -42,7 +44,7 @@ export type EnterpriseMouthResult = {
 
 const QUALITY = {
   minimumGrounding: 0.42,
-  minimumMeaning: 0.24,
+  minimumMeaning: 0.4,
   maximumInventionRisk: 0.45,
   minimumCompression: 0.45,
   minimumBeamScore: 0.32,
@@ -81,13 +83,23 @@ function qualityFailures(
         `beat ${candidate.beatOrder}: poor-compression=${candidate.compressionScore}`,
       );
     }
+    if (
+      candidate.reasons.includes("language-quality-gate") ||
+      candidate.reasons.includes("weak-natural-language") ||
+      candidate.reasons.includes("keyword-assembly") ||
+      candidate.reasons.includes("analytic-language")
+    ) {
+      failures.push(
+        `beat ${candidate.beatOrder}: language-quality-failure`,
+      );
+    }
   }
 
   if (beamScore < QUALITY.minimumBeamScore) {
     failures.push(`beam-score=${beamScore}`);
   }
 
-  return failures;
+  return [...new Set(failures)];
 }
 
 function mergeCandidateBatches(
@@ -270,7 +282,7 @@ async function generateBeam(
         (item) => item.order === beat.order,
       );
 
-      const candidates = (entry?.variants ?? [])
+      const rawCandidates = (entry?.variants ?? [])
         .map((text) =>
           scoreMouthCandidate({
             text,
@@ -278,8 +290,13 @@ async function generateBeam(
             envelope,
             priorTexts: input.priorTexts ?? [],
           }),
-        )
-        .sort((a, b) => b.score - a.score);
+        );
+
+      const candidates = adaptMouthCandidatePool({
+        candidates: rawCandidates,
+        beat,
+        envelope,
+      });
 
       return {
         order: beat.order,
@@ -330,12 +347,13 @@ export async function realizeEnterpriseMouth(
           "Meaning shifts must be grounded in actual graph relationships.",
           "Concrete verbs are evidence-sensitive: use only supplied actions or direct universal equivalents.",
           "Interpretation may change the reading of evidence, but may not create a new concrete action, object, person, setting, or reaction.",
+          "Write natural language, not keyword fragments. A line like 'Coco nervous' or 'Fierce to bow' is not acceptable simply because its words are grounded.",
+          "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
         ],
-        temperature:
-          Math.max(
-            0.5,
-            (input.temperature ?? 0.72) - (attempt + 1) * 0.08,
-          ),
+        temperature: Math.max(
+          0.5,
+          (input.temperature ?? 0.72) - (attempt + 1) * 0.08,
+        ),
       },
       envelope,
     );
