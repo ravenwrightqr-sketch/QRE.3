@@ -4,28 +4,28 @@ import { scoreMouthCandidate } from "./authorMouthCandidateSearch.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 
-function infinitiveAction(label: string): string {
-  const value = clean(label);
-  const replacements: Array<[RegExp, string]> = [
-    [/^stole\b/i, "steal"],
-    [/^came\b/i, "come"],
-    [/^got\b/i, "get"],
-    [/^left\b/i, "leave"],
-  ];
-  for (const [pattern, replacement] of replacements) {
-    if (pattern.test(value)) return value.replace(pattern, replacement);
-  }
-  return value;
-}
-
 function labelsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const ids = [...(beat.eventIds ?? []), ...(beat.setsUp ?? []), ...(beat.paysOff ?? [])].filter(Boolean);
-  return [...new Set(ids.map((id) => envelope.events.find((event) => event.id === id)?.label).filter((value): value is string => Boolean(value)).map(clean))];
+  return [
+    ...new Set(
+      ids
+        .map((id) => envelope.events.find((event) => event.id === id)?.label)
+        .filter((value): value is string => Boolean(value))
+        .map(clean),
+    ),
+  ];
 }
 
 function relationKindsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const ids = new Set(beat.eventIds ?? []);
-  return [...new Set(envelope.relations.filter((relation) => ids.has(relation.from) || ids.has(relation.to)).sort((a, b) => b.strength - a.strength).map((relation) => relation.kind))];
+  return [
+    ...new Set(
+      envelope.relations
+        .filter((relation) => ids.has(relation.from) || ids.has(relation.to))
+        .sort((a, b) => b.strength - a.strength)
+        .map((relation) => relation.kind),
+    ),
+  ];
 }
 
 function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
@@ -35,7 +35,9 @@ function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelop
 
 function suppliedActionLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
   const actions = new Set(envelope.suppliedActions.map(clean).filter(Boolean));
-  return labels.filter((label) => actions.some((action) => clean(label).toLowerCase().includes(action.toLowerCase())));
+  return labels.filter((label) =>
+    [...actions].some((action: string) => clean(label).toLowerCase().includes(action.toLowerCase())),
+  );
 }
 
 function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
@@ -51,34 +53,36 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
   const actions = suppliedActionLabels(labels, envelope);
   const variants: string[] = [];
 
+  // The fallback may only reuse supplied language. It is deliberately
+  // domain-neutral: no grooming, wedding, restaurant, pet, or other
+  // industry-specific verbs/objects are authorized here.
   if (subject && first) variants.push(`${subject} ${first}.`);
   if (first && (attention === "hook" || role === "arrival" || role === "establish")) variants.push(`${first}.`);
 
   if (second) {
+    // Prefer exact supplied phrases and punctuation over fabricated grammar.
+    // The model remains responsible for polished natural-language realization.
     if (states.length >= 2 && (relations.includes("contrasts") || relations.includes("changes"))) {
-      variants.push(`${states[0]}, but ${states[1]}.`);
-      variants.push(`${states[1]} beneath ${states[0]}.`);
+      variants.push(`${states[0]}; ${states[1]}.`);
+      variants.push(`${states[1]}; ${states[0]}.`);
     }
     if (states.length >= 1 && actions.length >= 1) {
-      const state = states[0];
-      const action = infinitiveAction(actions[0]);
-      variants.push(`${state} enough to ${action}.`);
-      variants.push(`${actions[0]}; that was the attitude.`);
+      variants.push(`${states[0]}; ${actions[0]}.`);
+      variants.push(`${actions[0]}; ${states[0]}.`);
     }
-    if (relations.includes("contrasts")) {
+    if (relations.includes("contrasts") || relations.includes("changes") || relations.includes("converges")) {
       variants.push(`${first}; ${second}.`);
       variants.push(`${first}. ${second}.`);
-    } else if (relations.includes("changes") || relations.includes("converges")) {
-      variants.push(`${first}; now ${second}.`);
-      variants.push(`${first}. Now ${second}.`);
     } else {
       variants.push(`${first}; ${second}.`);
     }
   }
 
-  if (attention === "callback" && first && second) variants.push(`Still ${first}; ${second}.`);
+  if (attention === "callback" && first && second) variants.push(`${first}; ${second}.`);
 
   if (endpoint && (attention === "payoff" || role === "payoff" || attention === "release")) {
+    // The endpoint is an exact supplied reality anchor. Never append invented
+    // language after it and never replace it with a generated synonym.
     if (labels.length >= 2) {
       const prior = labels[labels.length - 2];
       variants.push(`${prior}; ${endpoint}.`);
@@ -91,6 +95,17 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
   return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 8);
 }
 
-export function buildGroundedFallbackCandidates(input: { beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate[] {
-  return groundedVariants(input.beat, input.envelope).map((text) => scoreMouthCandidate({ text, beat: input.beat, envelope: input.envelope, priorTexts: input.priorTexts ?? [] }));
+export function buildGroundedFallbackCandidates(input: {
+  beat: MouthCandidateBeat;
+  envelope: RealityEnvelope;
+  priorTexts?: readonly string[];
+}): MouthCandidate[] {
+  return groundedVariants(input.beat, input.envelope).map((text) =>
+    scoreMouthCandidate({
+      text,
+      beat: input.beat,
+      envelope: input.envelope,
+      priorTexts: input.priorTexts ?? [],
+    }),
+  );
 }
