@@ -1,13 +1,14 @@
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
+import { searchLatentMovieCandidates } from "./src/services/authorLatentMovieSearch.js";
 import { realizeEnterpriseMouth } from "./src/services/authorEnterpriseMouth.js";
 
 const prompt = process.argv[2] ?? "Dog grooming service receipt";
 const subject = process.argv[3] ?? "Coco";
-const facts = (process.argv[4] ?? "poodle,nervous,fierce,cool,came in nervous,got a bath,stole a blue bow,left looking fabulous")
+const facts = (process.argv[4] ?? "poodle|nervous|fierce|cool|came in nervous|got a bath|stole a blue bow|left looking fabulous")
   .split("|")
   .map((value) => value.trim())
   .filter(Boolean);
-const moments = (process.argv[5] ?? "came in nervous,got a bath,stole a blue bow,left looking fabulous")
+const moments = (process.argv[5] ?? "came in nervous|got a bath|stole a blue bow|left looking fabulous")
   .split("|")
   .map((value) => value.trim())
   .filter(Boolean);
@@ -22,34 +23,83 @@ const graph = buildAuthorRealityGraph({
   trajectory: [],
 });
 
-const beats = graph.events.map((event, index) => ({
-  order: index + 1,
-  role: index === 0 ? "arrival" : index === graph.events.length - 1 ? "payoff" : "reframe",
-  attentionFunction: index === 0 ? "hook" : index === graph.events.length - 1 ? "payoff" : "reframe",
-  creativeMove: index === graph.events.length - 1 ? "recontextualization" : "contrast",
-  realizationMode: index === 0 ? "direct_grounded_realization" : index === graph.events.length - 1 ? "payoff_compression" : "meaning_reframe",
-  eventIds: [event.id],
-  change: event.label,
-  next: "",
-  frontier: "",
-  setsUp: index > 0 ? [graph.events[index - 1]?.label ?? ""] : [event.label],
-  paysOff: index === graph.events.length - 1 ? [event.label] : [],
+const movie = searchLatentMovieCandidates({
+  graph,
+  subject,
+  limit: 1,
+})[0];
+
+if (!movie) {
+  throw new Error("ENTERPRISE MOUTH ACCEPTANCE FAILED: no latent movie candidate");
+}
+
+const labelFor = (id: string): string =>
+  graph.events.find((event) => event.id === id)?.label ?? id;
+
+const beats = movie.trajectory.map((step) => ({
+  order: step.order,
+  role:
+    step.operation === "establish"
+      ? "arrival"
+      : step.operation === "payoff"
+        ? "payoff"
+        : step.operation === "escalate"
+          ? "escalation"
+          : "reframe",
+  attentionFunction:
+    step.operation === "establish"
+      ? "hook"
+      : step.operation === "payoff"
+        ? "payoff"
+        : step.operation === "escalate"
+          ? "escalation"
+          : step.operation === "contrast"
+            ? "reframe"
+            : "turn",
+  creativeMove:
+    step.operation === "contrast"
+      ? "contrast"
+      : step.operation === "reframe"
+        ? "recontextualization"
+        : step.operation === "recur"
+          ? "callback"
+          : "none",
+  realizationMode:
+    step.operation === "establish"
+      ? "direct_grounded_realization"
+      : step.operation === "payoff"
+        ? "payoff_compression"
+        : step.operation === "contrast"
+          ? "semantic_contrast"
+          : step.operation === "reframe"
+            ? "meaning_reframe"
+            : "meaning_turn",
+  eventIds: [...step.eventIds],
+  change: step.viewerChange,
+  next: step.nextQuestion,
+  frontier: step.nextQuestion,
+  setsUp: step.eventIds.map(labelFor),
+  paysOff:
+    step.operation === "payoff"
+      ? [movie.payoff]
+      : [],
 }));
 
 console.log("=".repeat(80));
 console.log("QRE ENTERPRISE MOUTH ACCEPTANCE");
-console.log("REALITY → ENVELOPE → CANDIDATES → BEAM → SELECTED");
+console.log("REALITY → MOVIE → ENVELOPE → CANDIDATES → BEAM → SELECTED");
 console.log("=".repeat(80));
 console.log(`PROMPT: ${prompt}`);
 console.log(`SUBJECT: ${subject}`);
 console.log(`FACTS: ${facts.join(" | ")}`);
 console.log(`MOMENTS: ${moments.join(" | ")}`);
+console.log(`MOVIE: ${movie.id} · ${movie.lens}`);
 console.log("=".repeat(80));
 
 const result = await realizeEnterpriseMouth({
   graph,
   subject,
-  lens: "funny, specific, affectionate, slightly fierce",
+  lens: movie.lens,
   beats,
 });
 
@@ -66,6 +116,9 @@ result.candidates.forEach((candidate) => {
     `score=${candidate.score}`,
     `grounding=${candidate.groundingScore}`,
     `meaning=${candidate.meaningScore}`,
+    `cohesion=${candidate.cohesionScore}`,
+    `novelty=${candidate.noveltyScore}`,
+    `compression=${candidate.compressionScore}`,
     `invention=${candidate.inventionRisk}`,
     `repetition=${candidate.repetitionRisk}`,
   );
