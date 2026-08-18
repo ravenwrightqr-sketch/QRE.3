@@ -33,6 +33,10 @@ const STOP = new Set(
   "the a an and or but for to of in on at with from this that is are was were be been as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/),
 );
 
+const SEMANTIC_VERBS = new Set(
+  "mean means meant feel feels felt seem seems seemed read reads reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied".split(/\s+/),
+);
+
 const ANALYTIC = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transform(?:s|ed|ation)?|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the joke|the punchline|the payoff|the reveal|the answer)\b/i;
 const META = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
 const QUESTION = /\?/;
@@ -46,9 +50,7 @@ function metric(value: number): number {
 }
 
 function suppliedSet(envelope: RealityEnvelope): Set<string> {
-  return new Set(
-    envelope.suppliedTerms.map(stem),
-  );
+  return new Set(envelope.suppliedTerms.map(stem));
 }
 
 function entitySet(envelope: RealityEnvelope): Set<string> {
@@ -77,7 +79,12 @@ function unsupportedConcreteRisk(
 
   for (const raw of words) {
     const word = stem(raw);
-    if (STOP.has(word)) continue;
+    if (
+      STOP.has(word) ||
+      SEMANTIC_VERBS.has(word)
+    ) {
+      continue;
+    }
 
     const supported =
       source.has(word) ||
@@ -152,9 +159,7 @@ export function evaluateMouthLanguage(
     ? 0
     : metric(Math.max(0, unsupportedRisk * 0.6));
 
-  const naturalness = metric(
-    1 - languageRisk,
-  );
+  const naturalness = metric(1 - languageRisk);
 
   const reasons: string[] = [];
   if (languageRisk > 0.45) reasons.push("weak-natural-language");
