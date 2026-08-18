@@ -4,6 +4,13 @@
  * Qwen proposes variants. QRE derives the RealityEnvelope, scores every
  * candidate, applies deterministic language/transition quality, then performs
  * sequence-level beam selection.
+ *
+ * Performance law:
+ *   - one primary batch generation
+ *   - at most one batched recovery generation
+ *   - at most one final revision generation
+ *
+ * Missing beats are recovered in ONE request, never one request per beat.
  */
 import type { RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -64,24 +71,16 @@ function qualityFailures(
 
   for (const candidate of candidates) {
     if (candidate.groundingScore < QUALITY.minimumGrounding) {
-      failures.push(
-        `beat ${candidate.beatOrder}: weak-grounding=${candidate.groundingScore}`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: weak-grounding=${candidate.groundingScore}`);
     }
     if (candidate.meaningScore < QUALITY.minimumMeaning) {
-      failures.push(
-        `beat ${candidate.beatOrder}: weak-meaning=${candidate.meaningScore}`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: weak-meaning=${candidate.meaningScore}`);
     }
     if (candidate.inventionRisk > QUALITY.maximumInventionRisk) {
-      failures.push(
-        `beat ${candidate.beatOrder}: invention-risk=${candidate.inventionRisk}`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: invention-risk=${candidate.inventionRisk}`);
     }
     if (candidate.compressionScore < QUALITY.minimumCompression) {
-      failures.push(
-        `beat ${candidate.beatOrder}: poor-compression=${candidate.compressionScore}`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: poor-compression=${candidate.compressionScore}`);
     }
     if (
       candidate.reasons.includes("language-quality-gate") ||
@@ -89,9 +88,7 @@ function qualityFailures(
       candidate.reasons.includes("keyword-assembly") ||
       candidate.reasons.includes("analytic-language")
     ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: language-quality-failure`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: language-quality-failure`);
     }
   }
 
@@ -122,10 +119,7 @@ function mergeCandidateBatches(
         ]
           .map((value) => String(value ?? "").trim())
           .filter(Boolean)
-          .filter(
-            (value, index, values) =>
-              values.indexOf(value) === index,
-          )
+          .filter((value, index, values) => values.indexOf(value) === index)
           .slice(0, 8),
       };
     })
@@ -141,54 +135,45 @@ async function recoverMissingBeatVariants(
 ): Promise<ReadonlyMap<number, string[]>> {
   const recovered = new Map<number, string[]>();
 
+  if (!missingBeats.length) return recovered;
+
+  const targetedMessages = buildMouthCandidateMessages({
+    envelope,
+    beats: missingBeats,
+    priorTexts: input.priorTexts,
+    lens: input.lens,
+  });
+
+  targetedMessages[0] = {
+    ...targetedMessages[0],
+    content:
+      `${targetedMessages[0].content}\n\n` +
+      "BATCHED BEAT RECOVERY:\n" +
+      `Recover ONLY the missing beat orders: ${missingBeats.map((beat) => beat.order).join(", ")}.\n` +
+      "Return one variantsByBeat entry for each requested order and no others.\n" +
+      "Generate independent candidate sets in this single response.\n" +
+      "Use the supplied anchors for each beat.\n" +
+      "Do not describe the planning operation; perform the approved meaning shift.\n" +
+      (input.revisionGuidance?.length
+        ? input.revisionGuidance.slice(-10).map((item) => `- ${item}`).join("\n")
+        : ""),
+  };
+
+  const result = await localModelGenerate(
+    targetedMessages,
+    "json",
+    {
+      numPredict: 768,
+      temperature: Math.max(0.48, input.temperature ?? 0.72),
+    },
+  );
+
+  const parsed = parseMouthCandidateBatch(result.text);
+
   for (const beat of missingBeats) {
-    const targetedMessages = buildMouthCandidateMessages({
-      envelope,
-      beats: [beat],
-      priorTexts: input.priorTexts,
-      lens: input.lens,
-    });
-
-    targetedMessages[0] = {
-      ...targetedMessages[0],
-      content:
-        `${targetedMessages[0].content}\n\n` +
-        "TARGETED BEAT RECOVERY:\n" +
-        `Generate candidates for beat ${beat.order} ONLY.\n` +
-        "Return exactly one variantsByBeat entry with this beat order.\n" +
-        "Do not generate any other beat.\n" +
-        "Use the supplied anchors for this beat.\n" +
-        "Do not describe the planning operation; perform the approved meaning shift.\n" +
-        (input.revisionGuidance?.length
-          ? input.revisionGuidance
-              .slice(-10)
-              .map((item) => `- ${item}`)
-              .join("\n")
-          : ""),
-    };
-
-    const result = await localModelGenerate(
-      targetedMessages,
-      "json",
-      {
-        numPredict: 512,
-        temperature: Math.max(
-          0.48,
-          input.temperature ?? 0.72,
-        ),
-      },
-    );
-
-    const parsed = parseMouthCandidateBatch(result.text);
-    const entry = parsed?.variantsByBeat.find(
-      (item) => item.order === beat.order,
-    );
-
+    const entry = parsed?.variantsByBeat.find((item) => item.order === beat.order);
     if (entry?.variants.length) {
-      recovered.set(
-        beat.order,
-        entry.variants,
-      );
+      recovered.set(beat.order, entry.variants);
     }
   }
 
@@ -217,10 +202,7 @@ async function generateBeam(
       content:
         `${candidateMessages[0].content}\n\n` +
         "ENTERPRISE REVISION GUIDANCE:\n" +
-        input.revisionGuidance
-          .slice(0, 20)
-          .map((item) => `- ${item}`)
-          .join("\n") +
+        input.revisionGuidance.slice(0, 20).map((item) => `- ${item}`).join("\n") +
         "\nRegenerate candidates that address these failures. Preserve the approved reality and meaning spine.",
     };
   }
@@ -235,37 +217,19 @@ async function generateBeam(
   );
 
   const parsed = parseMouthCandidateBatch(result.text);
-  const expectedOrders = new Set(
-    input.beats.map((beat) => beat.order),
-  );
+  const expectedOrders = new Set(input.beats.map((beat) => beat.order));
+  const presentOrders = new Set(parsed?.variantsByBeat.map((item) => item.order) ?? []);
+  const missingBeats = input.beats.filter((beat) => !presentOrders.has(beat.order));
 
   const recovered = await recoverMissingBeatVariants(
     input,
     envelope,
-    input.beats.filter(
-      (beat) =>
-        !parsed?.variantsByBeat.some(
-          (item) => item.order === beat.order,
-        ),
-    ),
+    missingBeats,
   );
 
-  const merged = mergeCandidateBatches(
-    input.beats,
-    parsed,
-    recovered,
-  );
-
-  const coverageOrders = new Set(
-    merged.variantsByBeat.map(
-      (item) => item.order,
-    ),
-  );
-
-  const missingAfterRecovery =
-    [...expectedOrders].filter(
-      (order) => !coverageOrders.has(order),
-    );
+  const merged = mergeCandidateBatches(input.beats, parsed, recovered);
+  const coverageOrders = new Set(merged.variantsByBeat.map((item) => item.order));
+  const missingAfterRecovery = [...expectedOrders].filter((order) => !coverageOrders.has(order));
 
   if (missingAfterRecovery.length) {
     return {
@@ -278,19 +242,15 @@ async function generateBeam(
 
   const pools: MouthCandidatePool[] = input.beats
     .map((beat) => {
-      const entry = merged.variantsByBeat.find(
-        (item) => item.order === beat.order,
+      const entry = merged.variantsByBeat.find((item) => item.order === beat.order);
+      const rawCandidates = (entry?.variants ?? []).map((text) =>
+        scoreMouthCandidate({
+          text,
+          beat,
+          envelope,
+          priorTexts: input.priorTexts ?? [],
+        }),
       );
-
-      const rawCandidates = (entry?.variants ?? [])
-        .map((text) =>
-          scoreMouthCandidate({
-            text,
-            beat,
-            envelope,
-            priorTexts: input.priorTexts ?? [],
-          }),
-        );
 
       const candidates = adaptMouthCandidatePool({
         candidates: rawCandidates,
@@ -298,10 +258,7 @@ async function generateBeam(
         envelope,
       });
 
-      return {
-        order: beat.order,
-        candidates,
-      };
+      return { order: beat.order, candidates };
     })
     .sort((a, b) => a.order - b.order);
 
@@ -334,7 +291,9 @@ export async function realizeEnterpriseMouth(
     current.beamScore,
   );
 
-  for (let attempt = 0; attempt < 2 && failures.length > 0; attempt += 1) {
+  // Performance law: initial generation + at most one revision generation.
+  // Each generation may perform at most one batched recovery request.
+  if (failures.length > 0) {
     const revised = await generateBeam(
       {
         ...input,
@@ -350,10 +309,7 @@ export async function realizeEnterpriseMouth(
           "Write natural language, not keyword fragments. A line like 'Coco nervous' or 'Fierce to bow' is not acceptable simply because its words are grounded.",
           "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
         ],
-        temperature: Math.max(
-          0.5,
-          (input.temperature ?? 0.72) - (attempt + 1) * 0.08,
-        ),
+        temperature: Math.max(0.5, (input.temperature ?? 0.72) - 0.08),
       },
       envelope,
     );
@@ -367,8 +323,7 @@ export async function realizeEnterpriseMouth(
 
     if (
       revisedFailures.length < failures.length ||
-      (revisedFailures.length === failures.length &&
-        revised.beamScore > current.beamScore)
+      (revisedFailures.length === failures.length && revised.beamScore > current.beamScore)
     ) {
       current = revised;
       failures = revisedFailures;
