@@ -1,32 +1,9 @@
 /**
  * QRE SEQUENCE ARC / PAYOFF GATE · CANONICAL
  *
- * Deterministic sequence-level editorial gate.
- *
- * The Attention Editor asks:
- *   "Is each realized line good enough?"
- *
- * This gate asks:
- *   "Does the sequence become something?"
- *
- * It never invents meaning.
- * It evaluates the approved Beat Graph, realized mouth lines, and their
- * setup/payoff relationships as one accumulating sequence.
- *
- * Core invariant:
- *
- *   establishment
- *       →
- *   meaning transition
- *       →
- *   escalation / consequence
- *       →
- *   callback / payoff linkage
- *       →
- *   final transformation
- *
- * Not every story needs every role literally. The gate adapts to the
- * attention functions already approved by the Beat Graph.
+ * Deterministic sequence-level editorial gate over approved Beat Graph lines.
+ * It evaluates accumulation, meaning transition, linkage, and finality without
+ * inventing or assuming any domain-specific story vocabulary.
  */
 
 export type SequenceArcBeat = {
@@ -72,11 +49,10 @@ const clean = (value: unknown): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-const clamp01 = (value: number): number =>
-  Math.max(0, Math.min(1, value));
-
 const metric = (value: number): number =>
-  Number(clamp01(value).toFixed(3));
+  Number(
+    Math.max(0, Math.min(1, value)).toFixed(3),
+  );
 
 const STOP = new Set(
   "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten more"
@@ -86,14 +62,14 @@ const STOP = new Set(
 const TRANSITION =
   /\b(?:but|yet|still|instead|only|except|again|already|apparently|temporarily|after all|this time|once|now|then|after|finally|before)\b/i;
 
-const STATUS_INTERPRETATION =
-  /\b(?:lawyer|boss|ceo|diva|celebrity|negotiat(?:e|ion|or)|rebel|rebellion|defiance|evidence|case|trial|court|verdict|terms|deal|contract|royalty|queen|king|status|in charge|mission|operation|suspect|legend|undefeated|called the shots|peace|protest|under protest|upper hand|power|victory|victorious|mini[- ]?rebel|tiny rebel|not impressed|means business)\b/i;
-
-const RELATIONAL_INTERPRETATION =
-  /\b(?:but|yet|still|instead|only|except|again|already|apparently|temporarily|after all|this time|once|now)\b/i;
+const RELATIONAL =
+  /\b(?:reframe|recontextualize|contrast|callback|turn|change|shift|matter|means?|becomes?|became|makes?|made|leads?|follows?|reveals?|shows?)\b/i;
 
 const GENERIC =
-  /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|so fabulous|poodle power|good girl|mere formality|victory in grooming)\b/i;
+  /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|what a day|everything changed|the journey|new chapter|happy ending|a moment to remember|the magic begins|cinematic|meaningful experience)\b/i;
+
+const COLLAGE =
+  /\b[^.!?]{1,45},\s*[^.!?]{1,45}(?:,\s*[^.!?]{1,45})+\b/;
 
 function words(text: string): string[] {
   return clean(text)
@@ -106,7 +82,9 @@ function words(text: string): string[] {
     );
 }
 
-function tokenSet(text: string): Set<string> {
+function tokenSet(
+  text: string,
+): Set<string> {
   return new Set(words(text));
 }
 
@@ -114,7 +92,9 @@ function overlap(
   a: Set<string>,
   b: Set<string>,
 ): number {
-  if (!a.size || !b.size) return 0;
+  if (!a.size || !b.size) {
+    return 0;
+  }
 
   let hits = 0;
 
@@ -127,10 +107,12 @@ function overlap(
   return hits / a.size;
 }
 
-function interpretiveLine(text: string): boolean {
+function interpretiveLine(
+  text: string,
+): boolean {
   return (
-    STATUS_INTERPRETATION.test(text) ||
-    RELATIONAL_INTERPRETATION.test(text)
+    RELATIONAL.test(text) ||
+    TRANSITION.test(text)
   );
 }
 
@@ -138,7 +120,9 @@ function carryForward(
   current: string,
   prior: string[],
 ): number {
-  if (!prior.length) return 0.5;
+  if (!prior.length) {
+    return 0.5;
+  }
 
   return metric(
     overlap(
@@ -152,17 +136,17 @@ function setupLinkage(
   beat: SequenceArcBeat,
   priorBeats: SequenceArcBeat[],
 ): number {
-  const setup = new Set(
+  const setup = tokenSet(
     (beat.setsUp ?? [])
       .map(clean)
       .filter(Boolean)
-      .flatMap((value) =>
-        words(value),
-      ),
+      .join(" "),
   );
 
   if (!setup.size) {
-    return 0.2;
+    return priorBeats.length
+      ? 0.2
+      : 0.5;
   }
 
   const priorPayload = priorBeats
@@ -173,12 +157,11 @@ function setupLinkage(
     ])
     .join(" ");
 
-  const prior = tokenSet(
-    priorPayload,
-  );
-
   return metric(
-    overlap(setup, prior),
+    overlap(
+      setup,
+      tokenSet(priorPayload),
+    ),
   );
 }
 
@@ -186,13 +169,11 @@ function payoffLinkage(
   beat: SequenceArcBeat,
   priorBeats: SequenceArcBeat[],
 ): number {
-  const payoff = new Set(
+  const payoff = tokenSet(
     (beat.paysOff ?? [])
       .map(clean)
       .filter(Boolean)
-      .flatMap((value) =>
-        words(value),
-      ),
+      .join(" "),
   );
 
   if (!payoff.size) {
@@ -207,12 +188,11 @@ function payoffLinkage(
     ])
     .join(" ");
 
-  const prior = tokenSet(
-    planted,
-  );
-
   return metric(
-    overlap(payoff, prior),
+    overlap(
+      payoff,
+      tokenSet(planted),
+    ),
   );
 }
 
@@ -222,19 +202,17 @@ function hasMeaningTransition(
 ): number {
   const text = clean(beat.text);
 
-  if (!text) return 0;
+  if (!text) {
+    return 0;
+  }
 
   let score = 0.1;
 
-  if (
-    interpretiveLine(text)
-  ) {
-    score += 0.35;
+  if (interpretiveLine(text)) {
+    score += 0.3;
   }
 
-  if (
-    TRANSITION.test(text)
-  ) {
+  if (TRANSITION.test(text)) {
     score += 0.2;
   }
 
@@ -265,6 +243,10 @@ function hasMeaningTransition(
       "reframe"
   ) {
     score += 0.15;
+  }
+
+  if (COLLAGE.test(text)) {
+    score -= 0.22;
   }
 
   if (GENERIC.test(text)) {
@@ -363,7 +345,8 @@ function finalityValue(
 
   if (
     beat.text &&
-    !GENERIC.test(beat.text)
+    !GENERIC.test(beat.text) &&
+    !COLLAGE.test(beat.text)
   ) {
     score += 0.08;
   }
@@ -408,17 +391,15 @@ function scoreBeat(
       total,
     );
 
-  const setup =
-    setupLinkage(
-      beat,
-      priorBeats,
-    );
+  const setup = setupLinkage(
+    beat,
+    priorBeats,
+  );
 
-  const payoff =
-    payoffLinkage(
-      beat,
-      priorBeats,
-    );
+  const payoff = payoffLinkage(
+    beat,
+    priorBeats,
+  );
 
   const finality =
     index === total - 1
@@ -466,6 +447,18 @@ function scoreBeat(
     );
   }
 
+  if (COLLAGE.test(beat.text)) {
+    reasons.push(
+      "anchor-collage",
+    );
+  }
+
+  if (GENERIC.test(beat.text)) {
+    reasons.push(
+      "generic-summary",
+    );
+  }
+
   const score = metric(
     establishment * 0.16 +
       meaningTransition * 0.24 +
@@ -508,11 +501,9 @@ export function evaluateSequenceArc(
     };
   }
 
-  const ordered = [...beats]
-    .sort(
-      (a, b) =>
-        a.order - b.order,
-    );
+  const ordered = [...beats].sort(
+    (a, b) => a.order - b.order,
+  );
 
   const scores: SequenceArcScore[] = [];
   const priorBeats: SequenceArcBeat[] = [];
@@ -520,7 +511,6 @@ export function evaluateSequenceArc(
 
   for (let index = 0; index < ordered.length; index += 1) {
     const beat = ordered[index];
-
     const score = scoreBeat(
       beat,
       priorBeats,
@@ -542,46 +532,36 @@ export function evaluateSequenceArc(
   const first = scores[0];
   const last =
     scores[scores.length - 1];
-
   const middle = scores.slice(
     1,
-    Math.max(
-      1,
-      scores.length - 1,
-    ),
+    Math.max(1, scores.length - 1),
   );
 
-  const meaningTransition =
-    middle.length
-      ? metric(
-          middle.reduce(
-            (sum, beat) =>
-              sum +
-              beat.meaningTransition,
-            0,
-          ) /
-            middle.length,
-        )
-      : first?.meaningTransition ??
-        0;
+  const meaningTransition = middle.length
+    ? metric(
+        middle.reduce(
+          (sum, beat) =>
+            sum +
+            beat.meaningTransition,
+          0,
+        ) / middle.length,
+      )
+    : first?.meaningTransition ?? 0;
 
-  const escalation =
-    middle.length
-      ? metric(
-          Math.max(
-            ...middle.map(
-              (beat) =>
-                beat.escalation,
-            ),
+  const escalation = middle.length
+    ? metric(
+        Math.max(
+          ...middle.map(
+            (beat) => beat.escalation,
           ),
-        )
-      : 0;
+        ),
+      )
+    : 0;
 
   const payoffCandidates =
     scores.filter(
       (beat) =>
-        beat.payoffLinkage >=
-        0.18,
+        beat.payoffLinkage >= 0.18,
     );
 
   const payoffLinkage =
@@ -599,13 +579,12 @@ export function evaluateSequenceArc(
   const establishment =
     first?.establishment ?? 0;
 
-  const finalTransformation =
-    last
-      ? metric(
-          last.finality * 0.55 +
-            last.payoffLinkage * 0.45,
-        )
-      : 0;
+  const finalTransformation = last
+    ? metric(
+        last.finality * 0.55 +
+          last.payoffLinkage * 0.45,
+      )
+    : 0;
 
   const sequenceScore = metric(
     establishment * 0.18 +
@@ -671,18 +650,14 @@ export function evaluateSequenceArc(
 
   const weakBeats = scores
     .filter(
-      (beat) =>
-        beat.reasons.length > 0,
+      (beat) => beat.reasons.length > 0,
     )
-    .map(
-      (beat) => beat.order,
-    );
+    .map((beat) => beat.order);
 
   return {
     accepted:
       failures.length === 0 &&
       weakBeats.length === 0,
-
     sequenceScore,
     establishment,
     meaningTransition,
