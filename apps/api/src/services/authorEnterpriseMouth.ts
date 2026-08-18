@@ -28,6 +28,7 @@ import { adaptMouthCandidatePool } from "./authorMouthQualityAdapter.js";
 import { selectBestMouthSequence, type MouthCandidatePool } from "./authorMouthSequenceBeamSearch.js";
 import { buildMeaningSpine, type MeaningSpine } from "./authorMeaningSpine.js";
 import { buildRealizationSlots, type RealizationSlot } from "./authorMouthRealizationSlot.js";
+import { selectSafeStrategies } from "./authorRealizationStrategyLattice.js";
 import { buildMouthRepairObjectives, compactRepairInstructions, type MouthRepairObjective } from "./authorMouthRepairPlanner.js";
 import { getEnterpriseMouthPolicy, type EnterpriseMouthExecutionPolicy } from "./authorEnterpriseMouthPolicy.js";
 import { buildEnterpriseIntelligence, type EnterpriseIntelligenceContext } from "./authorEnterpriseIntelligence.js";
@@ -171,6 +172,38 @@ function latentStoryDirectives(input: {
   return directives;
 }
 
+function realizationSlotDirectives(input: {
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
+  beats: readonly MouthCandidateBeat[];
+  slots: readonly RealizationSlot[];
+}): string[] {
+  const directives: string[] = [
+    "REALIZATION SLOTS ARE THE AUTHORITATIVE CREATIVE JOBS.",
+    "Do not invent, merge, reorder, or skip slots. Solve each slot as its own bounded language problem.",
+    "For middle slots, the sentence must perform the required meaning movement; naming two anchors side-by-side is not enough.",
+    "Prefer implication, contrast, recontextualization, understatement, or compression when they make the relationship felt without explaining it.",
+  ];
+
+  for (const slot of slots) {
+    const beat = beats.find((candidate) => candidate.order === slot.order);
+    const endpoint = beat?.paysOff?.length ? beat.paysOff.join(" / ") : "";
+    const strategies = beat
+      ? selectSafeStrategies(beat, input.envelope, 5)
+          .map((candidate) => candidate.strategy)
+          .join(", ")
+      : "implication, compression";
+
+    directives.push(`SLOT ${slot.order}`);
+    directives.push(`kind=${slot.kind}; mode=${slot.mode}; source=${slot.sourceLabels.join(" | ") || "none"}; target=${slot.targetLabels.join(" | ") || "none"}`);
+    directives.push(`relations=${slot.relationKinds.join(" | ") || "none"}; strength=${slot.relationStrength}; strategies=${strategies}`);
+    directives.push(`obligations=${slot.obligations.join(" || ") || "ground the line in supplied evidence"}`);
+    directives.push(`forbidden=${slot.forbiddenMoves.join(" | ")}`);
+    if (endpoint) directives.push(`supplied ending anchor=${endpoint}; this slot must support the path into that ending, not replace it.`);
+  }
+
+  return directives;
+}
+
 function applyLatentStoryPenalty(candidate: MouthCandidate): MouthCandidate {
   const scaffold = candidate.reasons.includes("keyword-assembly") || candidate.reasons.includes("analytic-realization-language");
   if (!scaffold) return candidate;
@@ -186,6 +219,7 @@ async function recoverMissingBeatVariants(
   input: EnterpriseMouthInput,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
   missingBeats: readonly MouthCandidateBeat[],
+  slots: readonly RealizationSlot[],
   policy: EnterpriseMouthExecutionPolicy,
   spine: MeaningSpine,
 ): Promise<{ recovered: ReadonlyMap<number, string[]>; modelCalls: number }> {
@@ -198,9 +232,10 @@ async function recoverMissingBeatVariants(
     priorTexts: input.priorTexts ? [...input.priorTexts] : undefined,
     lens: input.lens,
   });
+  const scopedSlots = slots.filter((slot) => missingBeats.some((beat) => beat.order === slot.order));
   targetedMessages[0] = {
     ...targetedMessages[0],
-    content: `${targetedMessages[0].content}\n\nBATCHED BEAT RECOVERY:\nRecover ONLY the missing beat orders: ${missingBeats.map((beat) => beat.order).join(", ")}.\nReturn one variantsByBeat entry for each requested order and no others.\nMaximum variants per beat: ${policy.variantsPerBeat}.\nUse supplied anchors for each beat.\nDo not create new people, objects, locations, reactions, actions, or outcomes.\n${latentStoryDirectives({ envelope, beats: missingBeats, spine }).join("\n")}\n${input.revisionGuidance?.length ? input.revisionGuidance.slice(-10).map((item) => `- ${item}`).join("\n") : ""}`,
+    content: `${targetedMessages[0].content}\n\nBATCHED BEAT RECOVERY:\nRecover ONLY the missing beat orders: ${missingBeats.map((beat) => beat.order).join(", ")}.\nReturn one variantsByBeat entry for each requested order and no others.\nMaximum variants per beat: ${policy.variantsPerBeat}.\nUse supplied anchors for each beat.\nDo not create new people, objects, locations, reactions, actions, or outcomes.\n${realizationSlotDirectives({ envelope, beats: missingBeats, slots: scopedSlots }).join("\n")}\n${latentStoryDirectives({ envelope, beats: missingBeats, spine }).join("\n")}\n${input.revisionGuidance?.length ? input.revisionGuidance.slice(-10).map((item) => `- ${item}`).join("\n") : ""}`,
   };
 
   const requestedTemperature = input.temperature ?? policy.temperature;
@@ -220,6 +255,7 @@ async function recoverMissingBeatVariants(
 async function generateBeam(
   input: EnterpriseMouthInput,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  slots: readonly RealizationSlot[],
   policy: EnterpriseMouthExecutionPolicy,
   spine: MeaningSpine,
 ): Promise<{ resultText: string; texts: string[]; candidates: MouthCandidate[]; beamScore: number; modelCalls: number }> {
@@ -236,13 +272,13 @@ async function generateBeam(
 
   candidateMessages[0] = {
     ...candidateMessages[0],
-    content: `${candidateMessages[0].content}\n\nLATENT STORY REALIZATION CONTRACT:\n${latentStoryDirectives({ envelope, beats: input.beats, spine }).join("\n")}`,
+    content: `${candidateMessages[0].content}\n\nLATENT STORY REALIZATION CONTRACT:\n${latentStoryDirectives({ envelope, beats: input.beats, spine }).join("\n")}\n\n${realizationSlotDirectives({ envelope, beats: input.beats, slots }).join("\n")}`,
   };
 
   if (input.revisionGuidance?.length) {
     candidateMessages[0] = {
       ...candidateMessages[0],
-      content: `${candidateMessages[0].content}\n\nENTERPRISE REVISION GUIDANCE:\n${input.revisionGuidance.slice(0, 20).map((item) => `- ${item}`).join("\n")}\nRegenerate candidates that address these failures. Preserve approved reality, the Meaning Spine, and the non-negotiable endpoint.`,
+      content: `${candidateMessages[0].content}\n\nENTERPRISE REVISION GUIDANCE:\n${input.revisionGuidance.slice(0, 20).map((item) => `- ${item}`).join("\n")}\nRegenerate candidates that address these failures. Preserve approved reality, the Meaning Spine, the realization slot contracts, and the selected ending.`,
     };
   }
 
@@ -254,16 +290,14 @@ async function generateBeam(
   const parsed = parseMouthCandidateBatch(result.text);
   const missingBeats = input.beats.filter((beat) => !(parsed?.variantsByBeat.some((item) => item.order === beat.order) ?? false));
   let modelCalls = 1;
-  const recovery = await recoverMissingBeatVariants(input, envelope, missingBeats, policy, spine);
+  const recovery = await recoverMissingBeatVariants(input, envelope, missingBeats, slots, policy, spine);
   modelCalls += recovery.modelCalls;
 
   const merged = mergeCandidateBatches(input.beats, parsed, recovery.recovered, policy.variantsPerBeat);
 
-  // CRITICAL ARCHITECTURAL RULE:
-  // model coverage is diagnostic, not a prerequisite for realization.
-  // Every canonical beat gets a candidate pool. The quality adapter adds the
-  // deterministic evidence-locked fallback for any empty model slot. Only
-  // after fallback is applied do we declare a slot unrecoverable.
+  // Model coverage is diagnostic, not a prerequisite for realization.
+  // Every canonical beat gets a candidate pool. The quality adapter contributes
+  // deterministic evidence-locked recovery for any model gap.
   const pools: MouthCandidatePool[] = input.beats
     .map((beat) => {
       const entry = merged.variantsByBeat.find((item) => item.order === beat.order);
@@ -282,9 +316,7 @@ async function generateBeam(
     .sort((a, b) => a.order - b.order);
 
   const missingPools = pools.filter((pool) => pool.candidates.length === 0).map((pool) => pool.order);
-  if (missingPools.length) {
-    return { resultText: result.text, texts: [], candidates: [], beamScore: 0, modelCalls };
-  }
+  if (missingPools.length) return { resultText: result.text, texts: [], candidates: [], beamScore: 0, modelCalls };
 
   const beam = selectBestMouthSequence(pools, { width: policy.beamWidth, candidatesPerBeat: policy.beamCandidatesPerBeat });
   return { resultText: result.text, texts: beam.texts, candidates: beam.candidates, beamScore: beam.score, modelCalls };
@@ -308,7 +340,7 @@ export async function realizeEnterpriseMouth(input: EnterpriseMouthInput): Promi
     };
   }
 
-  let current = await generateBeam({ ...input, beats: canonicalBeats }, envelope, policy, meaningSpine);
+  let current = await generateBeam({ ...input, beats: canonicalBeats }, envelope, realizationSlots, policy, meaningSpine);
   let failures = qualityFailures(current.texts, current.candidates, canonicalBeats.length, current.beamScore);
   let modelCallCount = current.modelCalls;
 
@@ -341,11 +373,12 @@ export async function realizeEnterpriseMouth(input: EnterpriseMouthInput): Promi
             "Concrete verbs are evidence-sensitive: use only supplied actions or direct universal equivalents.",
             "Interpretation may change the reading of evidence, but may not create a new concrete action, object, person, setting, or reaction.",
             "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
-            "The final supplied endpoint is the end of the scene. Never continue beyond it.",
+            "The final supplied endpoint is the end of this source sequence. Do not continue beyond it or replace it with a new invented ending.",
           ],
           temperature: Math.max(0.42, (input.temperature ?? policy.temperature) - 0.06),
         },
         envelope,
+        realizationSlots,
         revisionPolicy,
         meaningSpine,
       );
