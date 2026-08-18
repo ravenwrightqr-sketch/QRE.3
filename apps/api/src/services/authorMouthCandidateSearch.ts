@@ -6,12 +6,12 @@ export type MouthCandidateBeat = {
   attentionFunction?: string;
   creativeMove?: string;
   realizationMode?: string;
-  eventIds?: string[];
+  eventIds?: readonly string[];
   change?: string;
   next?: string;
   frontier?: string;
-  setsUp?: string[];
-  paysOff?: string[];
+  setsUp?: readonly string[];
+  paysOff?: readonly string[];
 };
 
 export type MouthCandidate = {
@@ -44,8 +44,8 @@ export type MouthCandidateBatch = {
 
 export type MouthCandidateGenerationInput = {
   envelope: RealityEnvelope;
-  beats: MouthCandidateBeat[];
-  priorTexts?: string[];
+  beats: readonly MouthCandidateBeat[];
+  priorTexts?: readonly string[];
   lens?: string;
 };
 
@@ -130,7 +130,7 @@ function relationKey(from: string, to: string): string {
   return `${from}->${to}`;
 }
 
-function supportedRelationPairs(eventIds: string[], envelope: RealityEnvelope): string[] {
+function supportedRelationPairs(eventIds: readonly string[], envelope: RealityEnvelope): string[] {
   return envelope.relations
     .filter(
       (relation) =>
@@ -188,8 +188,7 @@ function requiredEventCoverage(
   ).length;
 
   return metric(
-    hits /
-      Math.max(1, required.length),
+    hits / Math.max(1, required.length),
   );
 }
 
@@ -201,23 +200,9 @@ function relationMeaningScore(
   const eventIds = supportedEventIds(text, envelope);
   const beatEventIds = unique(beat.eventIds ?? []);
 
-  const direct =
-    requiredEventCoverage(
-      text,
-      beat,
-      envelope,
-    );
-
-  const relationCount =
-    supportedRelationPairs(
-      eventIds,
-      envelope,
-    ).length;
-
-  const mode = clean(
-    beat.realizationMode,
-  ).toLowerCase();
-
+  const direct = requiredEventCoverage(text, beat, envelope);
+  const relationCount = supportedRelationPairs(eventIds, envelope).length;
+  const mode = clean(beat.realizationMode).toLowerCase();
   const multiSignalMode =
     mode.includes("reframe") ||
     mode.includes("contrast") ||
@@ -225,39 +210,16 @@ function relationMeaningScore(
     mode.includes("callback") ||
     mode.includes("reversal");
 
-  const requiredSignalCount =
-    multiSignalMode
-      ? Math.min(
-          2,
-          Math.max(
-            1,
-            beatEventIds.length,
-          ),
-        )
-      : 1;
+  const requiredSignalCount = multiSignalMode
+    ? Math.min(2, Math.max(1, beatEventIds.length))
+    : 1;
+  const supportedSignals = beatEventIds.filter((id) => eventIds.includes(id)).length;
+  const signalCoverage = metric(supportedSignals / requiredSignalCount);
+  const relationalBonus = multiSignalMode
+    ? Math.min(1, relationCount / 2)
+    : Math.min(1, relationCount / 3);
 
-  const supportedSignals =
-    beatEventIds.filter(
-      (id) =>
-        eventIds.includes(id),
-    ).length;
-
-  const signalCoverage =
-    metric(
-      supportedSignals /
-        requiredSignalCount,
-    );
-
-  const relationalBonus =
-    multiSignalMode
-      ? Math.min(1, relationCount / 2)
-      : Math.min(1, relationCount / 3);
-
-  return metric(
-    direct * 0.4 +
-      signalCoverage * 0.3 +
-      relationalBonus * 0.3,
-  );
+  return metric(direct * 0.4 + signalCoverage * 0.3 + relationalBonus * 0.3);
 }
 
 function cohesionScore(text: string, priorTexts: readonly string[]): number {
@@ -291,56 +253,31 @@ function meaningShiftEvidence(
   const eventIds = supportedEventIds(text, envelope);
   const beatEventIds = unique(beat.eventIds ?? []);
   const change = clean(beat.change);
-  const changeSupport = change
-    ? phraseSimilarity(text, change)
-    : 0.25;
-
-  const mode = clean(
-    beat.realizationMode,
-  ).toLowerCase();
-
+  const changeSupport = change ? phraseSimilarity(text, change) : 0.25;
+  const mode = clean(beat.realizationMode).toLowerCase();
   const multiSignalMode =
     mode.includes("reframe") ||
     mode.includes("contrast") ||
     mode.includes("turn") ||
     mode.includes("callback") ||
     mode.includes("reversal");
-
-  const relationCount =
-    supportedRelationPairs(
-      eventIds,
-      envelope,
-    ).length;
-
-  const supportedBeatSignals =
-    beatEventIds.filter(
-      (id) => eventIds.includes(id),
-    ).length;
-
+  const relationCount = supportedRelationPairs(eventIds, envelope).length;
+  const supportedBeatSignals = beatEventIds.filter((id) => eventIds.includes(id)).length;
   const signalScore = beatEventIds.length
-    ? metric(
-        supportedBeatSignals /
-          Math.max(1, beatEventIds.length),
-      )
+    ? metric(supportedBeatSignals / Math.max(1, beatEventIds.length))
     : 0.25;
+  const relationScore = multiSignalMode
+    ? Math.min(1, relationCount / 2)
+    : Math.min(1, relationCount / 3);
 
-  const relationScore =
-    multiSignalMode
-      ? Math.min(1, relationCount / 2)
-      : Math.min(1, relationCount / 3);
-
-  return metric(
-    signalScore * 0.45 +
-      relationScore * 0.35 +
-      changeSupport * 0.2,
-  );
+  return metric(signalScore * 0.45 + relationScore * 0.35 + changeSupport * 0.2);
 }
 
 export function scoreMouthCandidate(input: {
   text: string;
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
-  priorTexts?: string[];
+  priorTexts?: readonly string[];
 }): MouthCandidate {
   const text = clean(input.text);
   const priorTexts = input.priorTexts ?? [];
@@ -354,20 +291,12 @@ export function scoreMouthCandidate(input: {
     META.test(text) ? 0.8 : 0,
     operationLanguage ? 0.7 : 0,
   );
-  const meaning = relationMeaningScore(
-    text,
-    input.beat,
-    input.envelope,
-  );
+  const meaning = relationMeaningScore(text, input.beat, input.envelope);
   const cohesion = cohesionScore(text, priorTexts);
   const repetition = repetitionRisk(text, priorTexts);
   const novelty = noveltyScore(text, priorTexts);
   const compression = compressionScore(text);
-  const transition = meaningShiftEvidence(
-    input.beat,
-    text,
-    input.envelope,
-  );
+  const transition = meaningShiftEvidence(input.beat, text, input.envelope);
   const questionPenalty = QUESTION.test(text) ? 0.5 : 0;
 
   const score = metric(
@@ -413,24 +342,19 @@ export function selectBestMouthCandidate(input: {
   texts: readonly string[];
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
-  priorTexts?: string[];
+  priorTexts?: readonly string[];
 }): MouthCandidateSelection {
   const candidates = input.texts
-    .map((text) =>
-      scoreMouthCandidate({
-        text,
-        beat: input.beat,
-        envelope: input.envelope,
-        priorTexts: input.priorTexts,
-      }),
-    )
+    .map((text) => scoreMouthCandidate({
+      text,
+      beat: input.beat,
+      envelope: input.envelope,
+      priorTexts: input.priorTexts,
+    }))
     .filter((candidate) => candidate.text.length > 0)
     .sort((a, b) => b.score - a.score);
 
-  return {
-    selected: candidates[0],
-    candidates,
-  };
+  return { selected: candidates[0], candidates };
 }
 
 export function buildMouthCandidateMessages(
@@ -461,21 +385,12 @@ export function buildMouthCandidateMessages(
     beats: input.beats.map((beat) => ({
       ...beat,
       anchorEvents: (beat.eventIds ?? [])
-        .map(
-          (id) =>
-            input.envelope.events.find(
-              (event) => event.id === id,
-            )?.label,
-        )
+        .map((id) => input.envelope.events.find((event) => event.id === id)?.label)
         .filter(Boolean),
       anchorRelations: input.envelope.relations.filter(
         (relation) =>
-          (beat.eventIds ?? []).includes(
-            relation.from,
-          ) ||
-          (beat.eventIds ?? []).includes(
-            relation.to,
-          ),
+          (beat.eventIds ?? []).includes(relation.from) ||
+          (beat.eventIds ?? []).includes(relation.to),
       ),
     })),
   };
@@ -503,10 +418,7 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
         const variants = Array.isArray(item.variants)
           ? item.variants.map(clean).filter(Boolean).slice(0, 8)
           : [];
-        return {
-          order: Number(item.order ?? 0),
-          variants,
-        };
+        return { order: Number(item.order ?? 0), variants };
       })
       .filter((entry) => entry.order > 0 && entry.variants.length > 0);
 
@@ -518,29 +430,17 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
 
 export async function generateAndSelectMouthCandidates(
   input: MouthCandidateGenerationInput & { model: MouthCandidateModel },
-): Promise<{
-  texts: string[];
-  candidates: MouthCandidate[];
-  rawText: string;
-}> {
-  const result = await input.model(
-    buildMouthCandidateMessages(input),
-  );
-
+): Promise<{ texts: string[]; candidates: MouthCandidate[]; rawText: string }> {
+  const result = await input.model(buildMouthCandidateMessages(input));
   const parsed = parseMouthCandidateBatch(result.text);
-  if (!parsed) {
-    return { texts: [], candidates: [], rawText: result.text };
-  }
+  if (!parsed) return { texts: [], candidates: [], rawText: result.text };
 
   const ordered = [...input.beats].sort((a, b) => a.order - b.order);
   const texts: string[] = [];
   const selected: MouthCandidate[] = [];
 
   for (const beat of ordered) {
-    const entry = parsed.variantsByBeat.find(
-      (item) => item.order === beat.order,
-    );
-
+    const entry = parsed.variantsByBeat.find((item) => item.order === beat.order);
     const selection = selectBestMouthCandidate({
       texts: entry?.variants ?? [],
       beat,
@@ -556,9 +456,5 @@ export async function generateAndSelectMouthCandidates(
     }
   }
 
-  return {
-    texts,
-    candidates: selected,
-    rawText: result.text,
-  };
+  return { texts, candidates: selected, rawText: result.text };
 }
