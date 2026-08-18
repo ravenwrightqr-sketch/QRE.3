@@ -75,7 +75,7 @@ function salvageCandidateEntries(raw) {
             Array.isArray(value.variants)
           ) {
             const variants = value.variants
-              .map((item) => String(item ?? "").replace(/\\s+/g, " ").trim())
+              .map((item) => String(item ?? "").replace(/\s+/g, " ").trim())
               .filter(Boolean)
               .slice(0, 8);
             if (variants.length) {
@@ -139,7 +139,7 @@ write(candidatePath, candidateSource);
 
 let runtimeSource = read(runtimePath);
 runtimeSource = runtimeSource.replace(
-  /process\.env\.QRE_LOCAL_MODEL \\|\\|\s*"qre-local"/,
+  /process\.env\.QRE_LOCAL_MODEL\s*\|\|\s*"qre-local"/,
   'process.env.QRE_LOCAL_MODEL ||\n    "qwen2.5vl:7b"',
 );
 write(runtimePath, runtimeSource);
