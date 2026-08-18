@@ -62,6 +62,44 @@ function transitionCoverage(
   );
 }
 
+function relationCoverage(
+  candidate: MouthCandidate,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): number {
+  const required = [
+    ...(beat.eventIds ?? []),
+  ].filter(Boolean);
+
+  if (required.length < 2) return 0.5;
+
+  const supported = new Set(
+    candidate.supportedEventIds,
+  );
+
+  const relevantRelations =
+    envelope.relations.filter(
+      (relation) =>
+        required.includes(relation.from) &&
+        required.includes(relation.to) &&
+        supported.has(relation.from) &&
+        supported.has(relation.to),
+    );
+
+  if (!relevantRelations.length) return 0;
+
+  const strongest = relevantRelations.reduce(
+    (best, relation) =>
+      Math.max(best, relation.strength),
+    0,
+  );
+
+  return metric(
+    0.55 +
+      Math.min(0.45, strongest * 0.45),
+  );
+}
+
 export function adaptMouthCandidateQuality(input: {
   candidate: MouthCandidate;
   beat: MouthCandidateBeat;
@@ -78,13 +116,19 @@ export function adaptMouthCandidateQuality(input: {
     beat,
   );
 
+  const relationEvidence = relationCoverage(
+    candidate,
+    beat,
+    envelope,
+  );
+
   const relationRequired = relationMode(
     beat,
   );
 
   const meaningPenalty =
     relationRequired && transition < 1
-      ? (1 - transition) * 0.35
+      ? (1 - transition) * 0.25
       : 0;
 
   const naturalnessPenalty =
@@ -94,10 +138,17 @@ export function adaptMouthCandidateQuality(input: {
     language.supportedActionRisk * 0.14 +
     language.supportedEntityRisk * 0.08;
 
+  const relationMeaningBonus =
+    relationRequired &&
+    transition >= 1
+      ? relationEvidence * 0.35
+      : 0;
+
   const adaptedMeaning = metric(
     Math.max(
       0,
-      candidate.meaningScore -
+      candidate.meaningScore +
+        relationMeaningBonus -
         meaningPenalty,
     ),
   );
@@ -111,9 +162,11 @@ export function adaptMouthCandidateQuality(input: {
   );
 
   const score = metric(
-    candidate.score * 0.62 +
-      language.naturalness * 0.16 +
-      transition * 0.14 -
+    candidate.score * 0.58 +
+      adaptedMeaning * 0.12 +
+      language.naturalness * 0.14 +
+      transition * 0.08 +
+      relationEvidence * 0.08 -
       naturalnessPenalty * 0.18 -
       meaningPenalty * 0.2,
   );
@@ -132,6 +185,16 @@ export function adaptMouthCandidateQuality(input: {
     );
   }
 
+  if (
+    relationRequired &&
+    transition >= 1 &&
+    relationEvidence > 0
+  ) {
+    reasons.push(
+      "graph-relation-supported",
+    );
+  }
+
   if (language.accepted === false) {
     reasons.push(
       "language-quality-gate",
@@ -141,8 +204,9 @@ export function adaptMouthCandidateQuality(input: {
   return {
     ...candidate,
     groundingScore: metric(
-      candidate.groundingScore * 0.85 +
-        language.naturalness * 0.15,
+      candidate.groundingScore * 0.8 +
+        language.naturalness * 0.1 +
+        relationEvidence * 0.1,
     ),
     meaningScore: adaptedMeaning,
     inventionRisk: adaptedInvention,
