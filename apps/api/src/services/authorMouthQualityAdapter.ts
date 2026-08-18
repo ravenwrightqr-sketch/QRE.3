@@ -6,6 +6,7 @@ import type {
   MouthCandidate,
   MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
+import { buildGroundedFallbackCandidates } from "./authorMouthGroundedFallback.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -206,12 +207,6 @@ export function adaptMouthCandidateQuality(input: {
     ),
   );
 
-  /*
-   * The raw candidate risk remains useful as a diagnostic. Acceptance risk is
-   * re-derived from the evidence-aware language gate so safe universal
-   * equivalents such as "arrived" for supplied "came in" are not punished,
-   * while unsupported concrete language remains expensive.
-   */
   const lexicalRisk = language.accepted
     ? Math.min(0.25, language.supportedActionRisk * 0.8 + language.supportedEntityRisk * 0.5)
     : Math.max(
@@ -296,8 +291,15 @@ export function adaptMouthCandidatePool(input: {
   candidates: readonly MouthCandidate[];
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
+  priorTexts?: readonly string[];
 }): MouthCandidate[] {
-  return input.candidates
+  const fallback = buildGroundedFallbackCandidates({
+    beat: input.beat,
+    envelope: input.envelope,
+    priorTexts: input.priorTexts,
+  });
+
+  const adapted = [...input.candidates, ...fallback]
     .map((candidate) =>
       adaptMouthCandidateQuality({
         candidate,
@@ -306,4 +308,12 @@ export function adaptMouthCandidatePool(input: {
       }),
     )
     .sort((a, b) => b.score - a.score);
+
+  const seen = new Set<string>();
+  return adapted.filter((candidate) => {
+    const key = candidate.text.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
