@@ -78,54 +78,60 @@ Sequence authority       → Mouth Beam
 Judgment authority       → Critic / Cut Policy / Sequence Gate
 ```
 
-## ACCOMPLISHED ALIGNMENT
+## VERIFIED GREEN LAYERS
 
-### Latent movie / thesis
+The following acceptance layers have already reached green during this build cycle:
 
-The thesis acceptance suite now proves across unrelated probes that the movie can contain:
+```text
+TypeScript contract build             PASS
+TypeScript engine build               PASS
+TypeScript API build                  PASS
+API test typecheck                    PASS
+pureUniversalCognitionAcceptance      PASS · 4/4
+pureLatentStoryThesisAcceptance       PASS · 4/4
+```
+
+The latent thesis gate proved the universal structure:
 
 ```text
 establish → semantic turn → sealing evidence → supplied payoff
 ```
 
-with:
+with carrier, sealing, endpoint dependency, distinctness, and counterfactual checks satisfied across unrelated realities.
+
+## MOUTH HARDENING COMPLETED
+
+The Mouth path now enforces:
 
 ```text
-turnIsNotPayoff
-carrierExists
-sealingExists
-carrierAndSealDistinct
-payoffDependencyExists
-counterfactualDependencyAboveFloor
+exact supplied payoff endpoint
+source-keyword collage rejection
+semantic invalidity before beam optimization
+universal fallback boundaries
+shared realization-slot semantics
+bounded repair/recovery
 ```
 
-all satisfied.
+## STRUCTURED-OUTPUT HARDENING
 
-### Mouth endpoint
+The latest Ollama failure was transport-level: the model response ended before the JSON document closed.
 
-The Mouth now treats a supplied payoff endpoint as exact reality-owned output rather than a creative invitation.
+The reproducible fix is now tracked as:
 
-### Anchor-collage rejection
+```text
+scripts/harden-author-production-transport-v1.mjs
+```
 
-Multi-signal realization now distinguishes grounded source anchors from actual semantic realization. `source-keyword collage` is a forbidden move and must not win through beam arithmetic.
+The hardener is designed to:
 
-### Beam boundary
+```text
+1. preserve complete variantsByBeat objects from truncated model output;
+2. let the existing bounded recovery path request only missing beat orders;
+3. preserve valid early candidates instead of converting the entire response to an empty batch;
+4. align the local Ollama fallback with qwen2.5vl:7b when no explicit model is configured.
+```
 
-Sequence optimization occurs after semantic validity. The beam is an optimizer, not an authority that can resurrect a semantically invalid line.
-
-### Universal language alignment
-
-Historical/domain-specific examples were removed from the active universal author paths that were found during the alignment sweep. Domain-specific acceptance cases remain tests, not production logic.
-
-### Model configuration
-
-The local runtime must resolve the configured Ollama model through `QRE_LOCAL_MODEL` / `QRE_AUTHOR_FAST_MODEL`. Never invent a second model identity such as `qre-local` when the configured model is otherwise available.
-
-### Structured-output completion budget
-
-Enterprise Mouth full mode now reserves a larger completion budget so candidate JSON has enough room to close. This complements bounded recovery rather than replacing it.
-
-Current policy baseline:
+The enterprise Mouth completion budget is also raised so structured candidate JSON has enough room to close without creating unbounded calls:
 
 ```text
 full      → numPredict 1536
@@ -133,28 +139,28 @@ model     → numPredict 1024
 dev-fast  → numPredict 768
 ```
 
-## CURRENT KNOWN PRODUCTION HARDENING ITEM
+The performance law remains bounded: primary + recovery + revision at most three calls in full mode.
 
-Structured candidate output must survive truncation without throwing away complete earlier beat entries.
+## CURRENT TRAJECTORY
 
-Required behavior:
+The author is now intentionally organized around one invariant path:
 
 ```text
-valid complete JSON
-→ parse normally
-
-truncated JSON with complete early entries
-→ salvage complete variantsByBeat entries
-→ recover only missing beat orders
-
-malformed response with no recoverable entries
-→ bounded recovery generation
-
-recovery also fails
-→ deterministic evidence-locked fallback
+REALITY
+→ RELATIONS
+→ LATENT MOVIE
+→ THESIS
+→ MEANING SPINE
+→ REALIZATION SLOT
+→ CANDIDATE
+→ SEMANTIC CONTRACT
+→ BEAM
+→ CRITIC
+→ REPAIR
+→ EXACT PAYOFF
 ```
 
-This is the remaining transport/realization hardening boundary identified by the latest Ollama run.
+When debugging, identify the first boundary where an invariant is lost. Do not repair downstream symptoms before restoring that upstream contract.
 
 ## DEBUGGING DISCIPLINE
 
@@ -171,7 +177,7 @@ For every failure:
 6. Record the discovered law here.
 ```
 
-Do not weaken gates to make tests green.
+Do not weaken quality gates to make tests green.
 
 ## ACCEPTANCE LADDER
 
@@ -207,7 +213,7 @@ copying old architecture back into the live path
 
 ## NEXT INTELLIGENCE TARGET
 
-Once structured-output recovery and production-path acceptance are green, improve creative search rather than adding more language heuristics:
+Once the structured-output recovery path is green on the real Ollama run, stop adding language heuristics and return to creative search:
 
 ```text
 WORLD FACTS
