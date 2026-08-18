@@ -37,11 +37,19 @@ const SEMANTIC_VERBS = new Set(
   "mean means meant feel feels felt seem seems seemed read reads reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied".split(/\s+/),
 );
 
-const ANALYTIC = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transform(?:s|ed|ation)?|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the joke|the punchline|the payoff|the reveal|the answer)\b/i;
+const UNIVERSAL_ACTION_EQUIVALENTS: Record<string, readonly string[]> = {
+  arrive: ["come", "came", "arrive", "arrived", "enter", "entered"],
+  enter: ["come", "came", "enter", "entered", "arrive", "arrived"],
+  return: ["return", "returned", "came", "came back", "back"],
+  depart: ["leave", "left", "depart", "departed"],
+  exit: ["leave", "left", "exit", "exited"],
+};
+
+const ANALYTIC = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|mood|vibe|transforms?|transformation|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the joke|the punchline|the payoff|the reveal|the result|the outcome)\b/i;
 const META = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
 const QUESTION = /\?/;
 const COMMA_STACK = /^\S+(?:,\s*\S+){2,}[.!?]?$/;
-const LABEL_FRAGMENT = /^(?:the|a|an)\s+(?:contrast|conclusion|transformation|reframe|reveal|payoff|twist|answer|joke|punchline)\b/i;
+const LABEL_FRAGMENT = /^(?:the|a|an)\s+(?:contrast|conclusion|transformation|reframe|reveal|payoff|twist|answer|joke|punchline|result|outcome)\b/i;
 const COPULALESS_SUBJECT_STATE = /^(?:[A-Z][\w'-]*)(?:\s+(?:is|was|became|seems|looks|feels|came|went))?\s+(?:nervous|fierce|cool|happy|sad|proud|angry|afraid|scared|quiet|calm|excited|tired|ready|fabulous|beautiful)\.?$/i;
 const PREPOSITIONAL_ACTION_FRAGMENT = /^(?:[A-Z][\w'-]*|\b(?:fierce|nervous|fabulous|blue|cool)\b)\s+(?:to|from|into|with|against)\s+[a-z]+(?:\s+[a-z]+){0,3}\.?$/i;
 
@@ -55,14 +63,22 @@ function suppliedSet(envelope: RealityEnvelope): Set<string> {
 
 function entitySet(envelope: RealityEnvelope): Set<string> {
   return new Set(
-    envelope.suppliedEntities.flatMap(tokens).map(stem),
+    [envelope.subject, ...envelope.suppliedEntities].flatMap(tokens).map(stem),
   );
 }
 
 function actionSet(envelope: RealityEnvelope): Set<string> {
-  return new Set(
+  const actions = new Set(
     envelope.suppliedActions.flatMap(tokens).map(stem),
   );
+
+  for (const equivalents of Object.values(UNIVERSAL_ACTION_EQUIVALENTS)) {
+    const sourceActionPresent = equivalents.some((word) => actions.has(stem(word)));
+    if (!sourceActionPresent) continue;
+    for (const word of equivalents) actions.add(stem(word));
+  }
+
+  return actions;
 }
 
 function unsupportedConcreteRisk(
@@ -94,7 +110,7 @@ function unsupportedConcreteRisk(
     const looksConcrete =
       actions.has(word) ||
       entities.has(word) ||
-      /^(?:[a-z]+(?:ed|ing|s)|[a-z]+)$/.test(word);
+      source.has(word);
 
     if (looksConcrete) {
       concrete += 1;
@@ -102,7 +118,20 @@ function unsupportedConcreteRisk(
     }
   }
 
-  if (!concrete) return 0;
+  if (!concrete) {
+    const unsupportedWords = words.filter(
+      (word) =>
+        !STOP.has(stem(word)) &&
+        !SEMANTIC_VERBS.has(stem(word)) &&
+        !source.has(stem(word)) &&
+        !entities.has(stem(word)) &&
+        !actions.has(stem(word)),
+    );
+    return metric(
+      unsupportedWords.length / Math.max(1, words.length),
+    );
+  }
+
   return metric(unsupported / concrete);
 }
 
