@@ -33,6 +33,16 @@ export type LatentMovie = {
   continuation?: string;
 };
 
+/** A compact explanation of why a selected movie exists in this evidence. */
+export type LatentStoryThesis = {
+  initialReading: string;
+  semanticTurn: string;
+  carrierEventIds: string[];
+  sealingEventIds: string[];
+  payoffDependency: string;
+  counterfactualDependency: number;
+};
+
 /** A semantic hypothesis discovered from RealityGraph. It is never source truth. */
 export type LatentMovieCandidate = {
   id: string;
@@ -44,6 +54,7 @@ export type LatentMovieCandidate = {
   unresolvedQuestion: string;
   evidence: string[];
   hypothesis: string[];
+  storyThesis: LatentStoryThesis;
 
   /** Epistemic / creative diagnostics. */
   truthRisk: number;
