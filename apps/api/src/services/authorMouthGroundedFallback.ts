@@ -59,9 +59,8 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
   const actions = suppliedActionLabels(labels, envelope);
   const variants: string[] = [];
 
-  // This fallback is a universal evidence-to-language recovery path. It may
-  // use generic connective language, but it never authorizes a domain object,
-  // setting, reaction, or concrete action that is absent from the evidence.
+  // Universal evidence-to-language recovery. No domain objects, settings,
+  // reactions, or concrete actions are invented here.
   if (subject && first) variants.push(`${subject} ${first}.`);
   if (first && (attention === "hook" || role === "arrival" || role === "establish")) variants.push(`${first}.`);
 
@@ -76,10 +75,6 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
     variants.push(`${states[0]}; then ${actions[0]}.`);
     variants.push(`${actions[0]}. That was enough.`);
     variants.push(`${actions[0]}. There it was.`);
-  }
-
-  if (actions.length >= 1 && relations.includes("contrasts")) {
-    variants.push(`${actions[0]}. That was the turn.`);
   }
 
   if (second && (relations.includes("contrasts") || relations.includes("changes") || relations.includes("converges"))) {
