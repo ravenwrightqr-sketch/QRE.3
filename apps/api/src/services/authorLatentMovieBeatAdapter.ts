@@ -70,14 +70,28 @@ type AdaptedBeatPlan = {
 };
 
 const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const strings = (value: unknown, limit = 24): string[] => {
+const strings = (
+  value: unknown,
+  limit = 24,
+): string[] => {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.map(clean).filter(Boolean))].slice(0, limit);
+  return [
+    ...new Set(
+      value
+        .map(clean)
+        .filter(Boolean),
+    ),
+  ].slice(0, limit);
 };
 
-const ROLE_BY_OPERATION: Record<string, string> = {
+const ROLE_BY_OPERATION: Record<
+  string,
+  string
+> = {
   establish: "arrival",
   contrast: "reframe",
   recur: "callback",
@@ -89,7 +103,10 @@ const ROLE_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
-const GAIN_BY_OPERATION: Record<string, string> = {
+const GAIN_BY_OPERATION: Record<
+  string,
+  string
+> = {
   establish: "new_fact",
   contrast: "reframe",
   recur: "callback",
@@ -101,95 +118,161 @@ const GAIN_BY_OPERATION: Record<string, string> = {
   payoff: "payoff",
 };
 
-const ATTENTION_BY_OPERATION: Record<string, BeatAttentionFunction> = {
+const ATTENTION_BY_OPERATION: Record<
+  string,
+  BeatAttentionFunction
+> = {
   establish: "hook",
   contrast: "reframe",
   recur: "callback",
   reframe: "reframe",
   escalate: "escalation",
-  converge: "discovery" as BeatAttentionFunction,
+  converge: "turn",
   reveal: "turn",
   consequence: "release",
   payoff: "payoff",
 };
 
-function eventIds(value: unknown): string[] {
+function eventIds(
+  value: unknown,
+): string[] {
   return Array.isArray(value)
-    ? [...new Set(value.map(clean).filter(Boolean))].slice(0, 12)
+    ? [
+        ...new Set(
+          value
+            .map(clean)
+            .filter(Boolean),
+        ),
+      ].slice(0, 12)
     : [];
 }
 
-function arc(beats: AdaptedBeat[]): string {
-  return beats.map((beat) => beat.attentionFunction).join(" → ");
+function arc(
+  beats: AdaptedBeat[],
+): string {
+  return beats
+    .map(
+      (beat) =>
+        beat.attentionFunction,
+    )
+    .join(" → ");
 }
 
 export function normalizeLatentMovieBeatPlan(
   value: unknown,
 ): AdaptedBeatPlan | undefined {
-  if (!value || typeof value !== "object") return undefined;
-
-  const candidate = value as Candidate;
-  if (!Array.isArray(candidate.trajectory) || !candidate.trajectory.length) {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
     return undefined;
   }
 
-  const trajectory = candidate.trajectory
-    .filter(
-      (step): step is TrajectoryStep =>
-        Boolean(step) && typeof step === "object",
-    )
-    .sort(
-      (a, b) =>
-        Number(a.order ?? 0) -
-        Number(b.order ?? 0),
-    );
+  const candidate =
+    value as Candidate;
+
+  if (
+    !Array.isArray(
+      candidate.trajectory,
+    ) ||
+    !candidate.trajectory.length
+  ) {
+    return undefined;
+  }
+
+  const trajectory =
+    candidate.trajectory
+      .filter(
+        (
+          step,
+        ): step is TrajectoryStep =>
+          Boolean(step) &&
+          typeof step ===
+            "object",
+      )
+      .sort(
+        (a, b) =>
+          Number(a.order ?? 0) -
+          Number(b.order ?? 0),
+      );
+
+  const payoff = clean(
+    candidate.payoff,
+  );
 
   const beats: AdaptedBeat[] = [];
 
-  for (const [index, step] of trajectory.entries()) {
-    const operation = clean(step.operation).toLowerCase();
-    const change = clean(step.viewerChange);
-    const next = clean(step.nextQuestion);
+  for (const [
+    index,
+    step,
+  ] of trajectory.entries()) {
+    const operation = clean(
+      step.operation,
+    ).toLowerCase();
+    const change = clean(
+      step.viewerChange,
+    );
+    const next = clean(
+      step.nextQuestion,
+    );
 
-    if (!operation || !change) continue;
+    if (!operation || !change) {
+      continue;
+    }
+
+    const isPayoff =
+      operation === "payoff";
 
     beats.push({
       order: index + 1,
       role:
-        ROLE_BY_OPERATION[operation] ??
-        "discovery",
+        ROLE_BY_OPERATION[
+          operation
+        ] ?? "discovery",
       gainKind:
-        GAIN_BY_OPERATION[operation] ??
-        "discovery",
+        GAIN_BY_OPERATION[
+          operation
+        ] ?? "discovery",
       change,
       next,
       frontier: next,
       necessity:
         next ||
         "Preserves the next change in the discovered movie.",
-      eventIds: eventIds(step.eventIds),
+      eventIds: eventIds(
+        step.eventIds,
+      ),
       attentionFunction:
-        ATTENTION_BY_OPERATION[operation] ??
-        "reframe",
+        ATTENTION_BY_OPERATION[
+          operation
+        ] ?? "reframe",
       setsUp: [],
-      paysOff: [],
+      paysOff:
+        isPayoff && payoff
+          ? [payoff]
+          : [],
       creativeMove:
         operation === "contrast"
           ? "contrast"
           : operation === "reframe"
             ? "recontextualization"
-            : "none",
-      nextBeatPullTarget: next ? 0.55 : 0.35,
+            : operation === "recur"
+              ? "callback"
+              : "none",
+      nextBeatPullTarget:
+        next ? 0.55 : 0.35,
     });
   }
 
-  if (!beats.length) return undefined;
+  if (!beats.length) {
+    return undefined;
+  }
 
   const hypothesis = strings(
     candidate.hypothesis,
     1,
   )[0];
-  const payoff = clean(candidate.payoff);
+
   const unresolved = clean(
     candidate.unresolvedQuestion,
   );
@@ -202,7 +285,9 @@ export function normalizeLatentMovieBeatPlan(
       candidate.evidence,
       16,
     ),
-    attentionArc: arc(beats.slice(0, 6)),
+    attentionArc: arc(
+      beats.slice(0, 6),
+    ),
     beats: beats.slice(0, 6),
     closing:
       payoff ||
