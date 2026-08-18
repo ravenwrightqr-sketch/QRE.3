@@ -10,7 +10,8 @@
  *   - at most one batched recovery generation
  *   - at most one final revision generation in full mode
  *
- * Missing beats are recovered in ONE request, never one request per beat.
+ * Missing model beats are recovered in ONE request, then deterministic
+ * evidence-locked fallback completes any remaining realization slots.
  */
 import type { RealityGraph, AuthorCreativeCritique } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -113,8 +114,8 @@ function qualityFailures(texts: readonly string[], candidates: readonly MouthCan
 }
 
 function mergeCandidateBatches(beats: readonly MouthCandidateBeat[], primary: MouthCandidateBatch | undefined, recovered: ReadonlyMap<number, string[]>, limit: number): MouthCandidateBatch {
-  const variantsByBeat = beats
-    .map((beat) => {
+  return {
+    variantsByBeat: beats.map((beat) => {
       const primaryEntry = primary?.variantsByBeat.find((item) => item.order === beat.order);
       const recoveredVariants = recovered.get(beat.order) ?? [];
       return {
@@ -125,9 +126,8 @@ function mergeCandidateBatches(beats: readonly MouthCandidateBeat[], primary: Mo
           .filter((value, index, values) => values.indexOf(value) === index)
           .slice(0, Math.max(1, limit)),
       };
-    })
-    .filter((entry) => entry.variants.length > 0);
-  return { variantsByBeat };
+    }),
+  };
 }
 
 function eventLabel(envelope: ReturnType<typeof buildAuthorRealityEnvelope>, id: string): string {
@@ -252,18 +252,18 @@ async function generateBeam(
   });
 
   const parsed = parseMouthCandidateBatch(result.text);
-  const expectedOrders = new Set(input.beats.map((beat) => beat.order));
-  const presentOrders = new Set(parsed?.variantsByBeat.map((item) => item.order) ?? []);
-  const missingBeats = input.beats.filter((beat) => !presentOrders.has(beat.order));
+  const missingBeats = input.beats.filter((beat) => !(parsed?.variantsByBeat.some((item) => item.order === beat.order) ?? false));
   let modelCalls = 1;
   const recovery = await recoverMissingBeatVariants(input, envelope, missingBeats, policy, spine);
   modelCalls += recovery.modelCalls;
 
   const merged = mergeCandidateBatches(input.beats, parsed, recovery.recovered, policy.variantsPerBeat);
-  const coverageOrders = new Set(merged.variantsByBeat.map((item) => item.order));
-  const missingAfterRecovery = [...expectedOrders].filter((order) => !coverageOrders.has(order));
-  if (missingAfterRecovery.length) return { resultText: result.text, texts: [], candidates: [], beamScore: 0, modelCalls };
 
+  // CRITICAL ARCHITECTURAL RULE:
+  // model coverage is diagnostic, not a prerequisite for realization.
+  // Every canonical beat gets a candidate pool. The quality adapter adds the
+  // deterministic evidence-locked fallback for any empty model slot. Only
+  // after fallback is applied do we declare a slot unrecoverable.
   const pools: MouthCandidatePool[] = input.beats
     .map((beat) => {
       const entry = merged.variantsByBeat.find((item) => item.order === beat.order);
@@ -271,10 +271,20 @@ async function generateBeam(
         scoreMouthCandidate({ text, beat, envelope, priorTexts: input.priorTexts ? [...input.priorTexts] : [] }),
       ).map(applyLatentStoryPenalty);
 
-      const candidates = adaptMouthCandidatePool({ candidates: rawCandidates, beat, envelope }).slice(0, policy.beamCandidatesPerBeat);
+      const candidates = adaptMouthCandidatePool({
+        candidates: rawCandidates,
+        beat,
+        envelope,
+        priorTexts: input.priorTexts ? [...input.priorTexts] : [],
+      }).slice(0, policy.beamCandidatesPerBeat);
       return { order: beat.order, candidates };
     })
     .sort((a, b) => a.order - b.order);
+
+  const missingPools = pools.filter((pool) => pool.candidates.length === 0).map((pool) => pool.order);
+  if (missingPools.length) {
+    return { resultText: result.text, texts: [], candidates: [], beamScore: 0, modelCalls };
+  }
 
   const beam = selectBestMouthSequence(pools, { width: policy.beamWidth, candidatesPerBeat: policy.beamCandidatesPerBeat });
   return { resultText: result.text, texts: beam.texts, candidates: beam.candidates, beamScore: beam.score, modelCalls };
