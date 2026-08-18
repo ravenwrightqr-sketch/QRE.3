@@ -1,9 +1,8 @@
 /**
  * QRE ENTERPRISE MOUTH · ORCHESTRATION BOUNDARY
  *
- * This is the integration seam between the canonical Beat Graph and the
- * deterministic mouth candidate selector. The model proposes variants; QRE
- * selects the surviving realization using RealityGraph-derived evidence.
+ * Qwen proposes variants. QRE derives the RealityEnvelope, scores every
+ * candidate, then performs deterministic sequence-level beam selection.
  */
 import type { RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -11,10 +10,16 @@ import {
   buildAuthorRealityEnvelope,
 } from "./authorRealityEnvelope.js";
 import {
-  generateAndSelectMouthCandidates,
+  buildMouthCandidateMessages,
+  parseMouthCandidateBatch,
+  scoreMouthCandidate,
   type MouthCandidate,
   type MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
+import {
+  selectBestMouthSequence,
+  type MouthCandidatePool,
+} from "./authorMouthSequenceBeamSearch.js";
 
 export type EnterpriseMouthInput = {
   graph: RealityGraph;
@@ -29,9 +34,8 @@ export type EnterpriseMouthResult = {
   texts: string[];
   candidates: MouthCandidate[];
   rawModelText: string;
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >;
+  beamScore: number;
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
 };
 
 export async function realizeEnterpriseMouth(
@@ -43,37 +47,85 @@ export async function realizeEnterpriseMouth(
       subject: input.subject,
     });
 
-  const modelResult =
-    await generateAndSelectMouthCandidates({
+  const result = await localModelGenerate(
+    buildMouthCandidateMessages({
       envelope,
       beats: input.beats,
-      priorTexts:
-        input.priorTexts,
+      priorTexts: input.priorTexts,
       lens: input.lens,
-      model: async (messages) => {
-        const result =
-          await localModelGenerate(
-            messages,
-            "json",
-            {
-              numPredict: 1024,
-              temperature:
-                input.temperature ?? 0.72,
-            },
+    }),
+    "json",
+    {
+      numPredict: 1024,
+      temperature:
+        input.temperature ?? 0.72,
+    },
+  );
+
+  const parsed = parseMouthCandidateBatch(
+    result.text,
+  );
+
+  if (!parsed) {
+    return {
+      texts: [],
+      candidates: [],
+      rawModelText: result.text,
+      beamScore: 0,
+      envelope,
+    };
+  }
+
+  const pools: MouthCandidatePool[] =
+    input.beats
+      .map((beat) => {
+        const entry =
+          parsed.variantsByBeat.find(
+            (item) =>
+              item.order ===
+              beat.order,
           );
 
+        const candidates =
+          (entry?.variants ?? [])
+            .map((text) =>
+              scoreMouthCandidate({
+                text,
+                beat,
+                envelope,
+                priorTexts:
+                  input.priorTexts ?? [],
+              }),
+            )
+            .sort(
+              (a, b) =>
+                b.score - a.score,
+            );
+
         return {
-          text: result.text,
+          order: beat.order,
+          candidates,
         };
+      })
+      .sort(
+        (a, b) =>
+          a.order - b.order,
+      );
+
+  const beam =
+    selectBestMouthSequence(
+      pools,
+      {
+        width: 8,
+        candidatesPerBeat: 8,
       },
-    });
+    );
 
   return {
-    texts: modelResult.texts,
-    candidates:
-      modelResult.candidates,
-    rawModelText:
-      modelResult.rawText,
+    texts: beam.texts,
+    candidates: beam.candidates,
+    rawModelText: result.text,
+    beamScore: beam.score,
     envelope,
   };
 }
