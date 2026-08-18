@@ -10,6 +10,11 @@
  *   full     → bounded primary/recovery/revision path
  *   no-model → deterministic harness mode; the orchestrator should bypass the
  *               transport entirely when a fixture provider is available
+ *
+ * Output-budget law:
+ *   Structured candidate generation must have enough completion budget to
+ *   close the JSON document. Recovery remains bounded; increasing completion
+ *   budget is preferred to creating extra model calls.
  */
 export type EnterpriseMouthMode =
   | "dev-fast"
@@ -87,7 +92,7 @@ export function getEnterpriseMouthPolicy(): EnterpriseMouthExecutionPolicy {
         mode,
         maxBeats: 6,
         variantsPerBeat: 3,
-        numPredict: 384,
+        numPredict: 768,
         temperature: 0.45,
         maxPrimaryCalls: 1,
         maxRecoveryCalls: 1,
@@ -104,7 +109,7 @@ export function getEnterpriseMouthPolicy(): EnterpriseMouthExecutionPolicy {
         mode,
         maxBeats: 6,
         variantsPerBeat: 5,
-        numPredict: 512,
+        numPredict: 1024,
         temperature: 0.62,
         maxPrimaryCalls: 1,
         maxRecoveryCalls: 0,
@@ -121,7 +126,7 @@ export function getEnterpriseMouthPolicy(): EnterpriseMouthExecutionPolicy {
         mode: "full",
         maxBeats: 6,
         variantsPerBeat: 5,
-        numPredict: 768,
+        numPredict: 1536,
         temperature: 0.68,
         maxPrimaryCalls: 1,
         maxRecoveryCalls: 1,
