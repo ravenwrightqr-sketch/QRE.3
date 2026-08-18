@@ -4,6 +4,10 @@
  * Per-beat candidate ranking is insufficient: a line can be excellent alone and
  * destroy the sequence. This layer searches combinations of otherwise valid
  * mouth candidates and selects the strongest cumulative realization.
+ *
+ * The beam is an optimizer, not a semantic validator. Candidates that already
+ * failed the realization contract are excluded whenever a valid alternative
+ * exists for that beat.
  */
 import type { MouthCandidate } from "./authorMouthCandidateSearch.js";
 
@@ -101,6 +105,51 @@ function repeatedEvidencePenalty(
   );
 }
 
+function candidateIsSemanticallyEligible(
+  candidate: MouthCandidate,
+): boolean {
+  const hardFailures = new Set([
+    "weak-meaning-execution",
+    "weak-meaning-transition",
+    "keyword-assembly",
+    "non-exact-payoff",
+    "high-invention-risk",
+    "analytic-realization-language",
+    "question-leak",
+  ]);
+
+  return (
+    candidate.groundingScore >= 0.42 &&
+    candidate.meaningScore >= 0.4 &&
+    candidate.inventionRisk <= 0.45 &&
+    !candidate.reasons.some((reason) =>
+      hardFailures.has(reason),
+    )
+  );
+}
+
+function candidatePoolForBeam(
+  pool: MouthCandidatePool,
+  perBeat: number,
+): MouthCandidate[] {
+  const ranked = [...pool.candidates].sort(
+    (a, b) => b.score - a.score,
+  );
+
+  const eligible = ranked.filter(
+    candidateIsSemanticallyEligible,
+  );
+
+  // Preserve diagnostic fallback when an entire beat has no valid candidate.
+  // The quality gate can then reject the resulting path and trigger repair;
+  // the beam never silently converts an invalid candidate into a valid one.
+  const source = eligible.length
+    ? eligible
+    : ranked;
+
+  return source.slice(0, perBeat);
+}
+
 function signature(path: MouthCandidate[]): string {
   return path
     .map((candidate) => clean(candidate.text).toLowerCase())
@@ -117,42 +166,66 @@ export function selectBestMouthSequence(
     Math.min(options.candidatesPerBeat ?? 8, 16),
   );
 
-  let beam: MouthSequencePath[] = [{
-    candidates: [],
-    texts: [],
-    score: 0,
-  }];
+  let beam: MouthSequencePath[] = [
+    {
+      candidates: [],
+      texts: [],
+      score: 0,
+    },
+  ];
 
-  for (const pool of [...pools].sort((a, b) => a.order - b.order)) {
-    const candidates = [...pool.candidates]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, perBeat);
+  for (const pool of [...pools].sort(
+    (a, b) => a.order - b.order,
+  )) {
+    const candidates = candidatePoolForBeam(
+      pool,
+      perBeat,
+    );
 
     const expanded: MouthSequencePath[] = [];
 
     for (const path of beam) {
       for (const candidate of candidates) {
-        const previous = path.candidates[path.candidates.length - 1];
+        const previous =
+          path.candidates[
+            path.candidates.length - 1
+          ];
+
         const transition = previous
-          ? candidateTransition(previous, candidate)
+          ? candidateTransition(
+              previous,
+              candidate,
+            )
           : 0.2;
-        const repetition = repeatedEvidencePenalty(
-          path.candidates,
-          candidate,
-        );
+
+        const repetition =
+          repeatedEvidencePenalty(
+            path.candidates,
+            candidate,
+          );
+
         const evidenceGain =
           candidate.supportedEventIds.filter(
             (id) =>
-              !path.candidates.some((prior) =>
-                prior.supportedEventIds.includes(id),
+              !path.candidates.some(
+                (prior) =>
+                  prior.supportedEventIds.includes(
+                    id,
+                  ),
               ),
           ).length > 0
             ? 0.1
             : 0;
 
         expanded.push({
-          candidates: [...path.candidates, candidate],
-          texts: [...path.texts, candidate.text],
+          candidates: [
+            ...path.candidates,
+            candidate,
+          ],
+          texts: [
+            ...path.texts,
+            candidate.text,
+          ],
           score:
             path.score +
             candidate.score * 0.68 +
@@ -163,11 +236,21 @@ export function selectBestMouthSequence(
       }
     }
 
-    const deduped = new Map<string, MouthSequencePath>();
+    const deduped = new Map<
+      string,
+      MouthSequencePath
+    >();
+
     for (const path of expanded) {
-      const key = signature(path.candidates);
+      const key = signature(
+        path.candidates,
+      );
       const existing = deduped.get(key);
-      if (!existing || path.score > existing.score) {
+
+      if (
+        !existing ||
+        path.score > existing.score
+      ) {
         deduped.set(key, path);
       }
     }
@@ -178,6 +261,7 @@ export function selectBestMouthSequence(
   }
 
   const best = beam[0];
+
   if (!best) {
     return {
       candidates: [],
@@ -188,6 +272,12 @@ export function selectBestMouthSequence(
 
   return {
     ...best,
-    score: metric(best.score / Math.max(1, pools.length)),
+    score: metric(
+      best.score /
+        Math.max(
+          1,
+          pools.length,
+        ),
+    ),
   };
 }
