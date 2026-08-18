@@ -97,38 +97,40 @@ let candidateSource = read(candidatePath);
 
 const parserPattern = /export function parseMouthCandidateBatch\([\s\S]*?\n}\n\nexport async function generateAndSelectMouthCandidates/;
 
-const replacement = `export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {
-  const text = clean(raw)
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
-  try {
-    const value = JSON.parse(text) as { variantsByBeat?: unknown };
-    if (!Array.isArray(value.variantsByBeat)) return undefined;
-
-    const variantsByBeat = value.variantsByBeat
-      .filter((entry) => entry && typeof entry === "object")
-      .map((entry) => {
-        const item = entry as Record<string, unknown>;
-        const variants = Array.isArray(item.variants)
-          ? item.variants.map(clean).filter(Boolean).slice(0, 8)
-          : [];
-        return {
-          order: Number(item.order ?? 0),
-          variants,
-        };
-      })
-      .filter((entry) => entry.order > 0 && entry.variants.length > 0);
-
-    return variantsByBeat.length ? { variantsByBeat } : undefined;
-  } catch {
-    const salvaged = salvageCandidateEntries(text);
-    return salvaged.length ? { variantsByBeat: salvaged } : undefined;
-  }
-}
-
-export async function generateAndSelectMouthCandidates`;
+const replacement = [
+  "export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {",
+  "  const text = clean(raw)",
+  "    .replace(/^```(?:json)?/i, \"\")",
+  "    .replace(/```$/i, \"\")",
+  "    .trim();",
+  "",
+  "  try {",
+  "    const value = JSON.parse(text) as { variantsByBeat?: unknown };",
+  "    if (!Array.isArray(value.variantsByBeat)) return undefined;",
+  "",
+  "    const variantsByBeat = value.variantsByBeat",
+  "      .filter((entry) => entry && typeof entry === \"object\")",
+  "      .map((entry) => {",
+  "        const item = entry as Record<string, unknown>;",
+  "        const variants = Array.isArray(item.variants)",
+  "          ? item.variants.map(clean).filter(Boolean).slice(0, 8)",
+  "          : [];",
+  "        return {",
+  "          order: Number(item.order ?? 0),",
+  "          variants,",
+  "        };",
+  "      })",
+  "      .filter((entry) => entry.order > 0 && entry.variants.length > 0);",
+  "",
+  "    return variantsByBeat.length ? { variantsByBeat } : undefined;",
+  "  } catch {",
+  "    const salvaged = salvageCandidateEntries(text);",
+  "    return salvaged.length ? { variantsByBeat: salvaged } : undefined;",
+  "  }",
+  "}",
+  "",
+  "export async function generateAndSelectMouthCandidates",
+].join("\n");
 
 if (!parserPattern.test(candidateSource)) {
   throw new Error("Could not locate canonical mouth candidate parser.");
@@ -139,7 +141,7 @@ write(candidatePath, candidateSource);
 
 let runtimeSource = read(runtimePath);
 runtimeSource = runtimeSource.replace(
-  /process\.env\.QRE_LOCAL_MODEL\s*\|\|\s*"qre-local"/,
+  /process\.env\.QRE_LOCAL_MODEL\s*\|\|\s*\"qre-local\"/,
   'process.env.QRE_LOCAL_MODEL ||\n    "qwen2.5vl:7b"',
 );
 write(runtimePath, runtimeSource);
