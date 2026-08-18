@@ -6,10 +6,6 @@ const candidatePath = path.join(
   root,
   "apps/api/src/services/authorMouthCandidateSearch.ts",
 );
-const runtimePath = path.join(
-  root,
-  "apps/api/src/services/localModelRuntime.ts",
-);
 
 function read(file) {
   return fs.readFileSync(file, "utf8");
@@ -144,39 +140,10 @@ function hardenCandidateParser(source) {
   return `${source.slice(0, start)}${replacement}${source.slice(end)}`;
 }
 
-function hardenRuntimeFallback(source) {
-  if (source.includes('"qwen2.5vl:7b"')) {
-    return source;
-  }
-
-  const startMarker = "function modelName(): string {";
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf("\n}\n", start);
-
-  if (start < 0 || end < 0 || end <= start) {
-    throw new Error("Could not locate modelName() in localModelRuntime.ts.");
-  }
-
-  const replacement = [
-    "function modelName(): string {",
-    "  return (",
-    "    process.env.QRE_AUTHOR_FAST_MODEL ||",
-    "    process.env.QRE_LOCAL_MODEL ||",
-    '    "qwen2.5vl:7b"',
-    "  );",
-    "}",
-  ].join("\n");
-
-  return `${source.slice(0, start)}${replacement}${source.slice(end + 3)}`;
-}
-
 const candidateSource = hardenCandidateParser(read(candidatePath));
-const runtimeSource = hardenRuntimeFallback(read(runtimePath));
-
 write(candidatePath, candidateSource);
-write(runtimePath, runtimeSource);
 
 console.log("Author production transport hardening applied.");
 console.log("- canonical JSON parser salvages complete beat entries from truncated output");
 console.log("- missing beat orders remain recoverable by bounded orchestration recovery");
-console.log("- local Ollama fallback resolves to qwen2.5vl:7b");
+console.log("- local model fallback is owned by localModelRuntime.ts, not this script");
