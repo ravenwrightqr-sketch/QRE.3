@@ -184,8 +184,10 @@ function realizationSlotDirectives(input: {
     "Prefer implication, contrast, recontextualization, understatement, or compression when they make the relationship felt without explaining it.",
   ];
 
-  for (const slot of slots) {
-    const beat = beats.find((candidate) => candidate.order === slot.order);
+   for (const slot of input.slots) {
+  const beat = input.beats.find(
+    (candidate) => candidate.order === slot.order,
+  );
     const endpoint = beat?.paysOff?.length ? beat.paysOff.join(" / ") : "";
     const strategies = beat
       ? selectSafeStrategies(beat, input.envelope, 5)

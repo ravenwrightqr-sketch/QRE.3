@@ -188,7 +188,7 @@ function endpointIdFor(
   return (
     convergence.endpointId ||
     convergence.endpointCandidates[0] ||
-    graph.events.at(-1)?.id ||
+    graph.events[graph.events.length - 1]?.id ||
     ""
   );
 }

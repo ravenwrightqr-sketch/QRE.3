@@ -376,11 +376,11 @@ function walkForward(
   const used = new Set(path);
 
   for (let depth = 0; depth < maxDepth; depth += 1) {
-    if (path.at(-1) === endpointId) break;
+    if (path[path.length - 1] === endpointId) break;
 
     const next = nextForward(
       graph,
-      path.at(-1) ?? openingId,
+      path[path.length - 1] ?? openingId,
       used,
       preferredKinds,
     )[0];
@@ -405,11 +405,11 @@ function walkBackward(
   const used = new Set(path);
 
   for (let depth = 0; depth < maxDepth; depth += 1) {
-    if (path.at(-1) === openingId) break;
+    if (path[path.length - 1] === openingId) break;
 
     const next = previousBackward(
       graph,
-      path.at(-1) ?? endpointId,
+      path[path.length - 1] ?? endpointId,
       used,
       preferredKinds,
     )[0];
@@ -535,7 +535,7 @@ export function findLatentMovieConvergence(
 
   const endpointId =
     endpointCandidates[0] ??
-    graph.events.at(-1)?.id ??
+    graph.events[graph.events.length - 1]?.id ??
     "";
 
   let best: LatentMovieConvergence | undefined;
