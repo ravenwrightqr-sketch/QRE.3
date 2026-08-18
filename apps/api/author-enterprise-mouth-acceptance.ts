@@ -121,6 +121,7 @@ result.candidates.forEach((candidate) => {
     `compression=${candidate.compressionScore}`,
     `invention=${candidate.inventionRisk}`,
     `repetition=${candidate.repetitionRisk}`,
+    `reasons=${candidate.reasons.join(",") || "none"}`,
   );
 });
 
@@ -130,11 +131,42 @@ console.log(JSON.stringify({
   beamScore: result.beamScore,
 }, null, 2));
 
-if (
-  result.texts.length !== beats.length ||
-  result.texts.some((text) => !text)
-) {
-  throw new Error("ENTERPRISE MOUTH ACCEPTANCE FAILED: incomplete realization");
+const failures: string[] = [];
+const MIN_GROUNDING = 0.42;
+const MIN_MEANING = 0.40;
+const MAX_INVENTION = 0.45;
+const MIN_SCORE = 0.30;
+const MIN_BEAM = 0.32;
+
+if (result.texts.length !== beats.length) {
+  failures.push(`expected ${beats.length} lines, received ${result.texts.length}`);
+}
+
+for (const candidate of result.candidates) {
+  if (candidate.groundingScore < MIN_GROUNDING) {
+    failures.push(`beat ${candidate.beatOrder}: grounding ${candidate.groundingScore} < ${MIN_GROUNDING}`);
+  }
+  if (candidate.meaningScore < MIN_MEANING) {
+    failures.push(`beat ${candidate.beatOrder}: meaning ${candidate.meaningScore} < ${MIN_MEANING}`);
+  }
+  if (candidate.inventionRisk > MAX_INVENTION) {
+    failures.push(`beat ${candidate.beatOrder}: invention ${candidate.inventionRisk} > ${MAX_INVENTION}`);
+  }
+  if (candidate.score < MIN_SCORE) {
+    failures.push(`beat ${candidate.beatOrder}: score ${candidate.score} < ${MIN_SCORE}`);
+  }
+}
+
+if (result.beamScore < MIN_BEAM) {
+  failures.push(`beam ${result.beamScore} < ${MIN_BEAM}`);
+}
+
+if (failures.length) {
+  console.log("\n--- ENTERPRISE QUALITY FAILURES ---");
+  for (const failure of failures) {
+    console.log(`- ${failure}`);
+  }
+  throw new Error("ENTERPRISE MOUTH ACCEPTANCE FAILED: quality gate did not pass");
 }
 
 console.log("\nENTERPRISE MOUTH ACCEPTANCE: PASS");
