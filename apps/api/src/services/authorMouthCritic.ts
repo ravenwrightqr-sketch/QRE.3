@@ -60,16 +60,9 @@ function exactEndpoint(
     return undefined;
   }
 
-  const value = beat as Record<
-    string,
-    unknown
-  >;
-  const paysOff = Array.isArray(
-    value.paysOff,
-  )
-    ? value.paysOff
-        .map(clean)
-        .filter(Boolean)
+  const value = beat as Record<string, unknown>;
+  const paysOff = Array.isArray(value.paysOff)
+    ? value.paysOff.map(clean).filter(Boolean)
     : [];
 
   if (!paysOff.length) {
@@ -77,26 +70,17 @@ function exactEndpoint(
   }
 
   return paysOff.some(
-    (endpoint) =>
-      normalize(candidate) ===
-      normalize(endpoint),
+    (endpoint) => normalize(candidate) === normalize(endpoint),
   );
 }
 
-function relationBeat(
-  beat: unknown,
-): boolean {
+function relationBeat(beat: unknown): boolean {
   if (!beat || typeof beat !== "object") {
     return false;
   }
 
-  const value = beat as Record<
-    string,
-    unknown
-  >;
-  const mode = clean(
-    value.realizationMode,
-  ).toLowerCase();
+  const value = beat as Record<string, unknown>;
+  const mode = clean(value.realizationMode).toLowerCase();
 
   return [
     "reframe",
@@ -105,58 +89,31 @@ function relationBeat(
     "callback",
     "reversal",
     "meaning",
-  ].some((token) =>
-    mode.includes(token),
-  );
+  ].some((token) => mode.includes(token));
 }
 
-function parse(raw: string):
-  | MouthCritique
-  | undefined {
+function parse(raw: string): MouthCritique | undefined {
   const text = clean(raw)
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
 
   try {
-    const value = JSON.parse(
-      text,
-    ) as MouthCritique;
+    const value = JSON.parse(text) as MouthCritique;
 
-    if (
-      !value ||
-      typeof value !==
-        "object"
-    ) {
+    if (!value || typeof value !== "object") {
       return undefined;
     }
 
-    if (
-      !Number.isInteger(
-        value.bestIndex,
-      )
-    ) {
+    if (!Number.isInteger(value.bestIndex)) {
       return undefined;
     }
 
-    if (
-      ![
-        "accept",
-        "reject",
-        "retry",
-      ].includes(
-        value.decision,
-      )
-    ) {
+    if (!["accept", "reject", "retry"].includes(value.decision)) {
       return undefined;
     }
 
-    if (
-      value.failureCodes &&
-      !Array.isArray(
-        value.failureCodes,
-      )
-    ) {
+    if (value.failureCodes && !Array.isArray(value.failureCodes)) {
       return undefined;
     }
 
@@ -180,24 +137,14 @@ export async function critiqueMouthCandidates(
     previousFailure?: string;
   },
 ): Promise<MouthCritique> {
-  const endpointLines = input.beat &&
-    typeof input.beat === "object"
-    ? (
-        Array.isArray(
-          (input.beat as Record<
-            string,
-            unknown
-          >).paysOff,
-        )
-          ? (input.beat as Record<
-              string,
-              unknown
-            >).paysOff
-              .map(clean)
-              .filter(Boolean)
-          : []
-      )
-    : [];
+  const endpointLines = (() => {
+    if (!input.beat || typeof input.beat !== "object") {
+      return [];
+    }
+
+    const raw = (input.beat as Record<string, unknown>).paysOff;
+    return Array.isArray(raw) ? raw.map(clean).filter(Boolean) : [];
+  })();
 
   const system = [
     "You are QRE's AUTHOR CRITIC for short-form realization.",
@@ -225,95 +172,61 @@ export async function critiqueMouthCandidates(
     prompt: input.prompt,
     lens: input.lens ?? "",
     subject: input.subject ?? "",
-    moviePremise:
-      input.moviePremise ?? "",
+    moviePremise: input.moviePremise ?? "",
     SUPPLIED_EVIDENCE: {
       facts: input.facts,
       moments: input.moments,
       memory: input.memory,
     },
-    GROUNDED_BEAT:
-      input.beat,
-    PAYOFF_CONTRACT:
-      endpointLines.length
-        ? {
-            exact: true,
-            endpoints:
-              endpointLines,
-          }
-        : null,
-    RELATIONAL_BEAT:
-      relationBeat(
-        input.beat,
-      ),
-    CANDIDATES:
-      input.candidates,
-    PREVIOUS_FAILURE:
-      input.previousFailure ?? "",
+    GROUNDED_BEAT: input.beat,
+    PAYOFF_CONTRACT: endpointLines.length
+      ? { exact: true, endpoints: endpointLines }
+      : null,
+    RELATIONAL_BEAT: relationBeat(input.beat),
+    CANDIDATES: input.candidates,
+    PREVIOUS_FAILURE: input.previousFailure ?? "",
   });
 
-  const result =
-    await localModelGenerate(
-      [
-        {
-          role: "system",
-          content: system,
-        },
-        {
-          role: "user",
-          content: user,
-        },
-      ],
-      "json",
-      {
-        numPredict: 380,
-        temperature: 0.14,
-      },
-    );
+  const result = await localModelGenerate(
+    [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    "json",
+    {
+      numPredict: 380,
+      temperature: 0.14,
+    },
+  );
 
-  const parsed =
-    parse(result.text);
+  const parsed = parse(result.text);
 
   if (!parsed) {
     return {
       decision: "retry",
       bestIndex: -1,
-      reason:
-        "critic output could not be parsed",
-      failureCodes: [
-        "weak_attention_pull",
-      ],
+      reason: "critic output could not be parsed",
+      failureCodes: ["weak_attention_pull"],
       repairDirective:
         "Generate a short, source-specific line that completes the approved semantic job without inventing a concrete fact.",
     };
   }
 
   const candidateAtBest =
-    parsed.bestIndex >= 0 &&
-    parsed.bestIndex <
-      input.candidates.length
-      ? input.candidates[
-          parsed.bestIndex
-        ]
+    parsed.bestIndex >= 0 && parsed.bestIndex < input.candidates.length
+      ? input.candidates[parsed.bestIndex]
       : "";
 
-  const endpointCheck =
-    endpointLines.length
-      ? exactEndpoint(
-          input.beat,
-          candidateAtBest,
-        )
-      : undefined;
+  const endpointCheck = endpointLines.length
+    ? exactEndpoint(input.beat, candidateAtBest)
+    : undefined;
 
-  if (
-    endpointCheck === false
-  ) {
+  if (endpointCheck === false) {
     return {
       ...parsed,
       decision: "retry",
       bestIndex: -1,
-      reason:
-        "candidate violates the exact supplied endpoint contract",
+      reason: "candidate violates the exact supplied endpoint contract",
       failureCodes: [
         ...new Set([
           ...(parsed.failureCodes ?? []),
