@@ -4,39 +4,28 @@ import { scoreMouthCandidate } from "./authorMouthCandidateSearch.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 
-function labelsForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
-  const ids = [
-    ...(beat.eventIds ?? []),
-    ...(beat.setsUp ?? []),
-    ...(beat.paysOff ?? []),
-  ].filter(Boolean);
-
-  return [
-    ...new Set(
-      ids
-        .map((id) => envelope.events.find((event) => event.id === id)?.label)
-        .filter((value): value is string => Boolean(value))
-        .map(clean),
-    ),
+function infinitiveAction(label: string): string {
+  const value = clean(label);
+  const replacements: Array<[RegExp, string]> = [
+    [/^stole\b/i, "steal"],
+    [/^came\b/i, "come"],
+    [/^got\b/i, "get"],
+    [/^left\b/i, "leave"],
   ];
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(value)) return value.replace(pattern, replacement);
+  }
+  return value;
 }
 
-function relationKindsForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
+function labelsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+  const ids = [...(beat.eventIds ?? []), ...(beat.setsUp ?? []), ...(beat.paysOff ?? [])].filter(Boolean);
+  return [...new Set(ids.map((id) => envelope.events.find((event) => event.id === id)?.label).filter((value): value is string => Boolean(value)).map(clean))];
+}
+
+function relationKindsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const ids = new Set(beat.eventIds ?? []);
-  return [
-    ...new Set(
-      envelope.relations
-        .filter((relation) => ids.has(relation.from) || ids.has(relation.to))
-        .sort((a, b) => b.strength - a.strength)
-        .map((relation) => relation.kind),
-    ),
-  ];
+  return [...new Set(envelope.relations.filter((relation) => ids.has(relation.from) || ids.has(relation.to)).sort((a, b) => b.strength - a.strength).map((relation) => relation.kind))];
 }
 
 function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
@@ -46,9 +35,7 @@ function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelop
 
 function suppliedActionLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
   const actions = new Set(envelope.suppliedActions.map(clean).filter(Boolean));
-  return labels.filter((label) =>
-    actions.some((action) => clean(label).toLowerCase().includes(action.toLowerCase())),
-  );
+  return labels.filter((label) => actions.some((action) => clean(label).toLowerCase().includes(action.toLowerCase())));
 }
 
 function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
@@ -74,9 +61,9 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
     }
     if (states.length >= 1 && actions.length >= 1) {
       const state = states[0];
-      const action = actions[0];
+      const action = infinitiveAction(actions[0]);
       variants.push(`${state} enough to ${action}.`);
-      variants.push(`${action}; that was the attitude.`);
+      variants.push(`${actions[0]}; that was the attitude.`);
     }
     if (relations.includes("contrasts")) {
       variants.push(`${first}; ${second}.`);
@@ -104,17 +91,6 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
   return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 8);
 }
 
-export function buildGroundedFallbackCandidates(input: {
-  beat: MouthCandidateBeat;
-  envelope: RealityEnvelope;
-  priorTexts?: readonly string[];
-}): MouthCandidate[] {
-  return groundedVariants(input.beat, input.envelope).map((text) =>
-    scoreMouthCandidate({
-      text,
-      beat: input.beat,
-      envelope: input.envelope,
-      priorTexts: input.priorTexts ?? [],
-    }),
-  );
+export function buildGroundedFallbackCandidates(input: { beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate[] {
+  return groundedVariants(input.beat, input.envelope).map((text) => scoreMouthCandidate({ text, beat: input.beat, envelope: input.envelope, priorTexts: input.priorTexts ?? [] }));
 }
