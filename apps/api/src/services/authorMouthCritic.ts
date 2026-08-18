@@ -16,6 +16,8 @@ export type MouthFailureCode =
   | "weak_afterimage"
   | "weak_attention_pull"
   | "weak_delight"
+  | "anchor_collage"
+  | "non_exact_endpoint"
   | "too_long";
 
 export type MouthCritique = {
@@ -39,86 +41,289 @@ export type MouthCritique = {
 };
 
 function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function parse(raw: string): MouthCritique | undefined {
-  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+function normalize(value: string): string {
+  return clean(value)
+    .replace(/[.!?]+$/g, "")
+    .toLowerCase();
+}
+
+function exactEndpoint(
+  beat: unknown,
+  candidate: string,
+): boolean | undefined {
+  if (!beat || typeof beat !== "object") {
+    return undefined;
+  }
+
+  const value = beat as Record<
+    string,
+    unknown
+  >;
+  const paysOff = Array.isArray(
+    value.paysOff,
+  )
+    ? value.paysOff
+        .map(clean)
+        .filter(Boolean)
+    : [];
+
+  if (!paysOff.length) {
+    return undefined;
+  }
+
+  return paysOff.some(
+    (endpoint) =>
+      normalize(candidate) ===
+      normalize(endpoint),
+  );
+}
+
+function relationBeat(
+  beat: unknown,
+): boolean {
+  if (!beat || typeof beat !== "object") {
+    return false;
+  }
+
+  const value = beat as Record<
+    string,
+    unknown
+  >;
+  const mode = clean(
+    value.realizationMode,
+  ).toLowerCase();
+
+  return [
+    "reframe",
+    "contrast",
+    "turn",
+    "callback",
+    "reversal",
+    "meaning",
+  ].some((token) =>
+    mode.includes(token),
+  );
+}
+
+function parse(raw: string):
+  | MouthCritique
+  | undefined {
+  const text = clean(raw)
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
   try {
-    const value = JSON.parse(text) as MouthCritique;
-    if (!value || typeof value !== "object") return undefined;
-    if (!Number.isInteger(value.bestIndex)) return undefined;
-    if (!["accept", "reject", "retry"].includes(value.decision)) return undefined;
-    if (value.failureCodes && !Array.isArray(value.failureCodes)) return undefined;
+    const value = JSON.parse(
+      text,
+    ) as MouthCritique;
+
+    if (
+      !value ||
+      typeof value !==
+        "object"
+    ) {
+      return undefined;
+    }
+
+    if (
+      !Number.isInteger(
+        value.bestIndex,
+      )
+    ) {
+      return undefined;
+    }
+
+    if (
+      ![
+        "accept",
+        "reject",
+        "retry",
+      ].includes(
+        value.decision,
+      )
+    ) {
+      return undefined;
+    }
+
+    if (
+      value.failureCodes &&
+      !Array.isArray(
+        value.failureCodes,
+      )
+    ) {
+      return undefined;
+    }
+
     return value;
   } catch {
     return undefined;
   }
 }
 
-export async function critiqueMouthCandidates(input: {
-  prompt: string;
-  lens?: string;
-  subject?: string;
-  facts: string[];
-  moments: string[];
-  memory: string[];
-  moviePremise?: string;
-  beat: unknown;
-  candidates: string[];
-  previousFailure?: string;
-}): Promise<MouthCritique> {
+export async function critiqueMouthCandidates(
+  input: {
+    prompt: string;
+    lens?: string;
+    subject?: string;
+    facts: string[];
+    moments: string[];
+    memory: string[];
+    moviePremise?: string;
+    beat: unknown;
+    candidates: string[];
+    previousFailure?: string;
+  },
+): Promise<MouthCritique> {
+  const endpointLines = input.beat &&
+    typeof input.beat === "object"
+    ? (
+        Array.isArray(
+          (input.beat as Record<
+            string,
+            unknown
+          >).paysOff,
+        )
+          ? (input.beat as Record<
+              string,
+              unknown
+            >).paysOff
+              .map(clean)
+              .filter(Boolean)
+          : []
+      )
+    : [];
+
   const system = [
-    "You are QRE's AUTHOR CRITIC for short-form experience copy.",
-    "You judge the finished line, not the architecture.",
-    "The goal is a line a real person or business would enjoy showing someone else: short, catchy, specific, human, and worth sharing.",
-    "ATTENTION PULL: the line should make the reader want to keep watching, smile, pause, or wonder what comes next. It can be tiny; it does not need to be profound.",
-    "DELIGHT: reward 'neato' moments—small clever turns, cute/funny collisions, satisfying phrasing, sly wordplay, or a fresh little surprise that feels earned.",
-    "Do NOT demand a mini-story. A single sharp line can be the complete realization of a beat.",
+    "You are QRE's AUTHOR CRITIC for short-form realization.",
+    "You judge whether each candidate completes the approved cognitive job, remains inside source truth, and fits the cumulative sequence.",
+    "Do not invent new facts while judging.",
     "SOURCE TRUTH IS ABSOLUTE: reject any concrete person, object, action, location, setting, dialogue, outcome, body position, wardrobe placement, event, or social reaction not supported by supplied evidence.",
-    "TRUTH GATE BOUNDARY: approvedEvidence is the only material that may be asserted as concrete reality. forbiddenClaims are prohibited. creativeOpportunity is an interpretive search direction, not a fact.",
-    "Do not punish creative phrasing, metaphor, idiom, implication, juxtaposition, wordplay, or personification when it is clearly a creative interpretation rather than a new factual event.",
-    "A line may be excellent even when it uses only one or two source details. Reward compression, not checklist coverage.",
-    "Source-specific wordplay is HIGH specificity when the turn depends on the supplied words.",
-    "Specificity: could this line plausibly have been written from this exact source?",
-    "Creative force: reward double meaning, reversal, status turn, sly understatement, comic compression, or a phrase with an afterimage.",
-    "Compression: prefer 3-7 words. A slightly longer line may still win when the punch materially improves.",
-    "SUBJECT REFERENCE: after the subject is established, omission is preferred. Reusing the name is allowed when the name itself makes the line hit harder.",
-    "Do not reward repeated 'subject + verb + fact' construction across lines.",
-    "Reject generic summaries such as 'happy and fun', 'special moment', 'joyful experience', or 'what a day' when they merely restate supplied emotion.",
-    "A creative interpretation is allowed when it changes the reading of supplied details without fabricating a new concrete world fact.",
-    "When a candidate is catchy, grounded, source-specific, and simply fun to read, prefer it over a blandly literal sentence.",
-    "If all candidates are weak, use decision=retry and bestIndex=-1. Never choose the least-bad candidate merely because one must be selected.",
+    "APPROVED EVIDENCE is the only material that may be asserted as concrete reality. A creative opportunity is an interpretation, not a factual event.",
+    "Do not punish metaphor, idiom, implication, juxtaposition, wordplay, personification, status language, understatement, or comic framing when they reinterpret supplied reality without creating a new concrete event.",
+    "SEMANTIC CONTRACT: for a relational beat, mentioning two supplied anchors is not enough. The sentence must make their relationship, changed reading, or consequence felt.",
+    "Anchor collage such as 'A; B' is a failure when it merely enumerates two evidence items without performing the approved meaning change.",
+    "The final supplied endpoint is inviolable. When the beat contains paysOff, the candidate must equal the supplied endpoint after punctuation normalization. No prefix, suffix, context clause, or added earlier evidence is allowed.",
+    "A line may be excellent even when it uses only one or two source details. Reward compression and semantic force, not checklist coverage.",
+    "Specificity means the line could plausibly have been written from this exact source.",
+    "Creative force means a grounded double meaning, reversal, status turn, sly understatement, comic compression, or memorable afterimage.",
+    "Compression: prefer 3-7 words; modestly longer lines are acceptable only when the meaning materially improves.",
+    "After the subject is established, name omission is preferred unless the name materially improves the line.",
+    "Reject generic summaries that merely restate supplied emotion or context.",
+    "If all candidates are weak, decision=retry and bestIndex=-1. Never choose a least-bad invalid candidate.",
     "Return JSON exactly with decision, bestIndex, reason, failureCodes, repairDirective, and scores.",
-    "failureCodes must use only: invented_concrete_detail, invented_reaction, invented_event, invented_identity, beat_poisoned, weak_beat_fit, generic_summary, overexplained, repetitive, weak_specificity, weak_creative_force, weak_afterimage, weak_attention_pull, weak_delight, too_long.",
-    "repairDirective must be a short instruction for the next generation attempt, focused on the dominant failure.",
+    "failureCodes may include: invented_concrete_detail, invented_reaction, invented_event, invented_identity, beat_poisoned, weak_beat_fit, generic_summary, overexplained, repetitive, weak_specificity, weak_creative_force, weak_afterimage, weak_attention_pull, weak_delight, anchor_collage, non_exact_endpoint, too_long.",
+    "repairDirective must identify the dominant failure and tell the next realization attempt what to change without inventing content.",
   ].join("\n");
 
   const user = JSON.stringify({
     prompt: input.prompt,
     lens: input.lens ?? "",
     subject: input.subject ?? "",
-    moviePremise: input.moviePremise ?? "",
-    SUPPLIED_EVIDENCE: { facts: input.facts, moments: input.moments, memory: input.memory },
-    GROUNDED_BEAT: input.beat,
-    CANDIDATES: input.candidates,
-    PREVIOUS_FAILURE: input.previousFailure ?? "",
+    moviePremise:
+      input.moviePremise ?? "",
+    SUPPLIED_EVIDENCE: {
+      facts: input.facts,
+      moments: input.moments,
+      memory: input.memory,
+    },
+    GROUNDED_BEAT:
+      input.beat,
+    PAYOFF_CONTRACT:
+      endpointLines.length
+        ? {
+            exact: true,
+            endpoints:
+              endpointLines,
+          }
+        : null,
+    RELATIONAL_BEAT:
+      relationBeat(
+        input.beat,
+      ),
+    CANDIDATES:
+      input.candidates,
+    PREVIOUS_FAILURE:
+      input.previousFailure ?? "",
   });
 
-  const result = await localModelGenerate(
-    [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    "json",
-    { numPredict: 380, temperature: 0.14 },
-  );
+  const result =
+    await localModelGenerate(
+      [
+        {
+          role: "system",
+          content: system,
+        },
+        {
+          role: "user",
+          content: user,
+        },
+      ],
+      "json",
+      {
+        numPredict: 380,
+        temperature: 0.14,
+      },
+    );
 
-  return parse(result.text) ?? {
-    decision: "retry",
-    bestIndex: -1,
-    reason: "critic output could not be parsed",
-    failureCodes: ["weak_attention_pull"],
-    repairDirective: "Generate a short, source-specific line with a small clever turn that makes the reader want the next beat.",
-  };
+  const parsed =
+    parse(result.text);
+
+  if (!parsed) {
+    return {
+      decision: "retry",
+      bestIndex: -1,
+      reason:
+        "critic output could not be parsed",
+      failureCodes: [
+        "weak_attention_pull",
+      ],
+      repairDirective:
+        "Generate a short, source-specific line that completes the approved semantic job without inventing a concrete fact.",
+    };
+  }
+
+  const candidateAtBest =
+    parsed.bestIndex >= 0 &&
+    parsed.bestIndex <
+      input.candidates.length
+      ? input.candidates[
+          parsed.bestIndex
+        ]
+      : "";
+
+  const endpointCheck =
+    endpointLines.length
+      ? exactEndpoint(
+          input.beat,
+          candidateAtBest,
+        )
+      : undefined;
+
+  if (
+    endpointCheck === false
+  ) {
+    return {
+      ...parsed,
+      decision: "retry",
+      bestIndex: -1,
+      reason:
+        "candidate violates the exact supplied endpoint contract",
+      failureCodes: [
+        ...new Set([
+          ...(parsed.failureCodes ?? []),
+          "non_exact_endpoint" as const,
+        ]),
+      ],
+      repairDirective:
+        `Use the supplied endpoint exactly: ${endpointLines.join(" / ")}. Add nothing before or after it.`,
+    };
+  }
+
+  return parsed;
 }
