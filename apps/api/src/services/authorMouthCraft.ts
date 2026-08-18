@@ -228,20 +228,7 @@ export function mouthCraftUser(input: {
       finalBeatMustFeelEarned: true,
       independentCaptionBehaviorForbidden: true,
     },
-    APPROVED_BEATS: beats,
-    MOUTH_QUALITY_CONTRACT: {
-      maxWords: 7,
-      naturalLanguage: true,
-      noRawBeatRestatement: true,
-      avoidKeywordCollage: true,
-      avoidCommaStacking: true,
-      avoidHeadlineFragments: true,
-      requireBeatExecution: true,
-      requireGroundedConcreteLanguage: true,
-      preferMultiSignalCollisionForTurns: true,
-      preferChangedMeaningOverParaphrase: true,
-      requireSequenceCohesion: true,
-    },
+    
     forbiddenStyleSignals: [
       "generic cinematic filler",
       "invented outcomes",

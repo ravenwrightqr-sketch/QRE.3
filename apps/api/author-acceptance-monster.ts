@@ -224,7 +224,45 @@ console.log(
       [],
   )}`,
 );
+console.log(
+  `SEQUENCE ARC ACCEPTED: ${String(
+    (
+      result.diagnostics.sequenceArc as
+        | { accepted?: boolean }
+        | undefined
+    )?.accepted ?? false,
+  )}`,
+);
 
+console.log(
+  `SEQUENCE ARC SCORE: ${String(
+    (
+      result.diagnostics.sequenceArc as
+        | { sequenceScore?: number }
+        | undefined
+    )?.sequenceScore ?? 0,
+  )}`,
+);
+
+console.log(
+  `SEQUENCE ARC FAILURES: ${JSON.stringify(
+    (
+      result.diagnostics.sequenceArc as
+        | { failures?: string[] }
+        | undefined
+    )?.failures ?? [],
+  )}`,
+);
+
+console.log(
+  `SEQUENCE ARC WEAK BEATS: ${JSON.stringify(
+    (
+      result.diagnostics.sequenceArc as
+        | { weakBeats?: number[] }
+        | undefined
+    )?.weakBeats ?? [],
+  )}`,
+);
 console.log(
   `COMPLETE: ${String(result.diagnostics.complete ?? false)}`,
 );
@@ -288,6 +326,36 @@ if (!attention?.accepted) {
       attention?.sequenceScore ?? 0,
     )} weakBeats=${JSON.stringify(
       attention?.weakBeats ?? [],
+    )}`,
+  );
+}
+const sequenceArc =
+  result.diagnostics.sequenceArc as
+    | {
+        accepted?: boolean;
+        sequenceScore?: number;
+        failures?: string[];
+        weakBeats?: number[];
+      }
+    | undefined;
+
+if (!sequenceArc?.accepted) {
+  throw new Error(
+    `MONSTER INVARIANT FAILED: sequence arc rejected score=${String(
+      sequenceArc?.sequenceScore ?? 0,
+    )} failures=${JSON.stringify(
+      sequenceArc?.failures ?? [],
+    )} weakBeats=${JSON.stringify(
+      sequenceArc?.weakBeats ?? [],
+    )}`,
+  );
+}
+if (
+  Number(sequenceArc.sequenceScore ?? 0) < 0.62
+) {
+  throw new Error(
+    `MONSTER INVARIANT FAILED: sequence arc score below production floor: ${String(
+      sequenceArc.sequenceScore,
     )}`,
   );
 }

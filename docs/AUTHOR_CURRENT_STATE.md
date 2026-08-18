@@ -310,3 +310,25 @@ reality
 ```
 
 A beautiful intermediate artifact that never survives to the final player does not count.
+
+
+
+
+2026-08-17
+
+LATENT MOVIE IS PRIMARY SEMANTIC AUTHORITY
+
+RealityGraph
+→ selected latent movie
+→ BeatPlan
+→ viewer momentum
+→ mouth
+→ attention editor
+→ sequence arc
+→ cut policy
+
+The model is bounded fallback, not the primary movie selector.
+
+The supplied endpoint is preserved.
+Forward/backward convergence is deterministic.
+Fixed 4/5 beat acceptance is removed.

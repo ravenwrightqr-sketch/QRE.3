@@ -471,9 +471,13 @@ export function evaluateCut(
     reasons.push("repetition");
   }
 
-  if (referenceCost >= 0.5) {
-    reasons.push("wasted-subject-reference");
-  }
+  if (
+  referenceCost >= 0.5 &&
+  explanation >= 0.6 &&
+  novelty < 0.35
+) {
+  reasons.push("wasted-subject-reference");
+}
 
   if (wordCount === 1 && density < 0.5) {
     reasons.push("subject-or-label-only");

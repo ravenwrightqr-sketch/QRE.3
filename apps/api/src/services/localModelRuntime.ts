@@ -418,14 +418,175 @@ function isCanonicalMouth(
 
 function mouthAcceptable(text: string): boolean {
   const words = wordCount(text);
-  if (!text || words < 2 || words > 9) return false;
+
+  if (
+    !text ||
+    words < 2 ||
+    words > 7
+  ) {
+    return false;
+  }
+     if (/[?]/.test(text)) {
+    return false;
+  }
   if (META_LANGUAGE.test(text)) return false;
   if (GENERIC_PROSE.test(text)) return false;
-  if (/^[A-Z][A-Z _-]{5,}:/.test(text)) return false;
-  if (/\b(?:what happens next|what will happen next|more to come|this beat|this scene|the viewer)\b/i.test(text)) return false;
+
+  if (
+    /^[A-Z][A-Z _-]{5,}:/.test(text)
+  ) {
+    return false;
+  }
+
+  if (
+    /\b(?:what happens next|what will happen next|more to come|this beat|this scene|the viewer)\b/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+function mouthGrounded(
+  text: string,
+  suppliedText: string,
+): boolean {
+  const sourceTokens =
+    new Set(
+      suppliedText
+        .toLowerCase()
+        .split(/[^a-z0-9'-]+/i)
+        .filter(
+          (word) =>
+            word.length >= 3,
+        ),
+    );
+
+  const actionWords = [
+    "bark",
+    "barks",
+    "barked",
+    "growl",
+    "growls",
+    "growled",
+    "snatch",
+    "snatches",
+    "snatched",
+    "grab",
+    "grabs",
+    "grabbed",
+    "run",
+    "runs",
+    "ran",
+    "jump",
+    "jumps",
+    "jumped",
+    "wag",
+    "wags",
+    "wagged",
+    "smile",
+    "smiles",
+    "smiled",
+    "stare",
+    "stares",
+    "stared",
+    "blink",
+    "blinks",
+    "blinked",
+    "lick",
+    "licks",
+    "licked",
+    "sit",
+    "sits",
+    "sat",
+    "stand",
+    "stands",
+    "stood",
+  ];
+
+  for (const action of actionWords) {
+    if (
+      new RegExp(
+        `\\b${action}\\b`,
+        "i",
+      ).test(text) &&
+      !sourceTokens.has(action)
+    ) {
+      return false;
+    }
+  }
+
   return true;
 }
 
+function realizationModeForBeat(
+  beat: Record<string, unknown>,
+): string {
+  const creativeMove =
+    String(
+      beat.creativeMove ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+  const attentionFunction =
+    String(
+      beat.attentionFunction ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+  switch (creativeMove) {
+    case "contrast":
+      return "semantic_contrast";
+
+    case "status_inversion":
+      return "status_reversal";
+
+    case "callback":
+      return "callback_compression";
+
+    case "recontextualization":
+      return "meaning_reframe";
+
+    case "understatement":
+      return "understatement";
+
+    case "double_meaning":
+      return "double_meaning";
+
+    case "personification":
+      return "personification";
+
+    case "implication":
+      return "implication";
+
+    default:
+      switch (attentionFunction) {
+        case "turn":
+          return "meaning_turn";
+
+        case "reframe":
+          return "meaning_reframe";
+
+        case "escalation":
+          return "grounded_escalation";
+
+        case "callback":
+          return "callback_compression";
+
+        case "payoff":
+          return "payoff_compression";
+
+        case "release":
+          return "clean_release";
+
+        default:
+          return "direct_grounded_realization";
+      }
+  }
+}
 function canonicalMouthPrompt(
   messages: LocalModelMessage[],
   beatCount: number,
@@ -464,40 +625,233 @@ function canonicalMouthPrompt(
       : /\bsame\b|\bagain\b|\breturned\b|\bback\b/i.test(compactFacts) && /\bdifferent\b|\bchanged\b|\bnew\b/i.test(compactFacts)
       ? "Private character read: repetition now carries changed meaning."
       : "Private character read: make the strongest supplied contradiction or relationship affect the attitude of the line.";
+   const approvedBeats =
+  Array.isArray(source.beats)
+    ? source.beats
+        .map(
+          (value): Record<string, unknown> | null =>
+            value &&
+            typeof value === "object"
+              ? (value as Record<string, unknown>)
+              : null,
+        )
+        .filter(
+          (
+            value,
+          ): value is Record<string, unknown> =>
+            Boolean(value),
+        )
+        .slice(0, beatCount)
+    : [];
+const realizationPlan =
+  approvedBeats.map(
+    (beat, index) => ({
+      order:
+        Number(
+          beat.order ??
+            index + 1,
+        ),
 
-  const batchInstruction = [
-    "QRE CANONICAL MOUTH BATCH MODE.",
-    `There are exactly ${beatCount} approved beats. Return exactly ${beatCount} viewer-facing lines in order.`,
-    'Ignore any earlier singular-output wording and use exactly: {"texts":["line 1","line 2",...]}',
-    "Each line is one film cut. 2-9 words, preferably 3-7.",
-    "Do not repeat subject + identity fact. Identity belongs to baseline unless it is the discovery.",
-    "Use the supplied beat and the nextNeed/frontier to make the viewer want the next cut.",
-    "Interpret supplied relationships instead of merely paraphrasing them.",
-    "Status language, metaphor, personification, double meaning, sly exaggeration, and character-specific absurdity are allowed.",
-    "A metaphorical frame is not a factual event. Do not literalize a lawyer, negotiation, heist, spy, case, mission, rebellion, or similar lens unless the source explicitly says it happened.",
-    "Never invent a new person, object, location, dialogue, weather, lighting, time-of-day, body position, physical reaction, sound, crowd reaction, or outcome.",
-    "Every line must be grounded in the supplied source details and approved beat.",
-    "Prefer a line that changes the social or emotional reading of the detail.",
-    "Avoid generic words such as beautiful, magical, special, meaningful, unforgettable, journey, transformation, or cinematic.",
-    characterHint,
-    `SOURCE TRUTH: ${JSON.stringify(compactTruth)}`,
-    "PRIVATE GUIDANCE: strategy names, contradictions, candidate lenses, and planning vocabulary are authoring controls only. Never print them.",
-  ].join("\n");
+      eventIds:
+        Array.isArray(
+          beat.eventIds,
+        )
+          ? beat.eventIds
+          : [],
 
-  return [
-    {
-      ...system,
-      content: `${system.content}\n\n${batchInstruction}`,
-    },
-    {
-      ...user,
-      content: JSON.stringify({
-        ...source,
-        canonicalMouthBeatCount: beatCount,
-        canonicalMouthTruth: compactTruth,
-      }),
-    },
-  ];
+      anchors:
+        Array.from(
+          new Set([
+            ...(Array.isArray(
+              beat.setsUp,
+            )
+              ? beat.setsUp
+              : []),
+            ...(Array.isArray(
+              beat.paysOff,
+            )
+              ? beat.paysOff
+              : []),
+          ]),
+        ),
+
+      change:
+        String(
+          beat.informationGain ??
+            beat.change ??
+            "",
+        ),
+
+      setsUp:
+        Array.isArray(
+          beat.setsUp,
+        )
+          ? beat.setsUp
+          : [],
+
+      paysOff:
+        Array.isArray(
+          beat.paysOff,
+        )
+          ? beat.paysOff
+          : [],
+
+      attentionFunction:
+        String(
+          beat.attentionFunction ??
+            "",
+        ),
+
+      creativeMove:
+        String(
+          beat.creativeMove ??
+            "",
+        ),
+
+      realizationMode:
+        realizationModeForBeat(
+          beat,
+        ),
+
+      nextNeed:
+        String(
+          beat.nextNeed ??
+            beat.next ??
+            "",
+        ),
+    }),
+  );
+ const batchInstruction = [
+  "QRE CANONICAL MOUTH BATCH.",
+  `There are exactly ${beatCount} approved beats.`,
+  "Return exactly one short viewer-facing line per beat.",
+
+    "",
+  "REALIZATION LAW:",
+  "The movie is already chosen.",
+  "The Meaning Spine is already chosen.",
+  "The Beat Graph is already approved.",
+  "Your job is language realization only.",
+
+  "",
+  "MEANING IS APPROVED. REALITY IS LOCKED.",
+  "You may express approved meaning through implication, contrast, status language, understatement, callback, double meaning, metaphor, personification, recontextualization, or compression.",
+  "You may NOT create a new concrete event.",
+
+  "",
+  "REALIZATION PRIORITY:",
+  "1. Preserve the supplied anchor.",
+  "2. Express the approved meaning shift.",
+  "3. Add stylistic language only when it does not introduce new reality.",
+  "Never sacrifice grounding for cleverness.",
+  "Never use a metaphor that requires a new object, person, body action, reaction, or event.",
+
+     "",
+  "NEVER INVENT:",
+  "body movement, facial expression, physical reaction, internal thought, new emotion, dialogue, object interaction, environment, sound, crowd reaction, outcome, or new action.",
+  "Do not literalize a metaphorical frame.",
+
+  "",
+  "DOMAIN INFERENCE IS NOT FACT:",
+  "Do not infer objects, tools, locations, staff, people, clothing, equipment, or standard industry actions merely because the prompt belongs to a known domain.",
+  "A dog grooming prompt does NOT authorize scissors, salon, groomer, leash, kennel, table, dryer, clippers, shampoo, tail movement, or any other grooming detail unless explicitly supplied.",
+  "Use only supplied domain details.",
+  "Never fill missing reality with stereotypical domain knowledge.",
+    "",
+  "CONCRETE VERBS ARE EVIDENCE-SENSITIVE TOO:",
+  "Do not invent an action merely because it is plausible for the subject.",
+  "If the source does not say the dog barked, do not write barked.",
+  "If the source does not say the dog growled, do not write growled.",
+  "Use supplied state words and supplied actions before adding any concrete verb.",
+  "",
+  "ANCHOR RULE:",
+  "Every line must contain or clearly transform at least one supplied detail.",
+  "Prefer the strongest supplied anchor over inferred context.",
+  "When a beat is a meaning shift, transform the supplied anchor instead of adding a new event.",
+
+  "",
+  "MINIMUM PAYOFF INFORMATION:",
+  "The final line must be at least 2 words.",
+  "The final line must contain or clearly transform a supplied ending detail.",
+  "Never output a bare compliment such as Fabulous, Amazing, Perfect, or Beautiful.",
+  
+  "",
+  "GOOD:",
+  "Change the reading of supplied details.",
+  "Make earlier details matter differently after later details.",
+  "Let the approved carrier alter the meaning of the opening.",
+  "Let the supplied endpoint pay off the accumulated meaning.",
+
+  "",
+  "BAD:",
+  "Do not turn interpretation into invented action.",
+  "Do not write eyes widened, tail wagged, squared shoulders, looked confident, became determined, snatched the bow, or similar unsupported events.",
+
+  "",
+     "LINE RULES:",
+  "2-7 words required.",
+  "Natural language.",
+  "One clean thought.",
+  "Never use a question mark.",
+  "Never ask the viewer a literal question.",
+  "Questions belong in the hidden planning layer, never in viewer-facing mouth text.",
+  "No keyword collage.",
+  "No headline fragments.",
+  "No comma stacks.",
+  "No planner vocabulary.",
+  "No explanation of meaning.",
+  "No strategy names.",
+  "No generic cinematic filler.",
+
+  "",
+    "SEQUENCE RULE:",
+  "Every line inherits meaning from earlier lines.",
+  "Later beats must recontextualize earlier supplied details.",
+  "For a turn or reframe, do not repeat the setup as a question.",
+  "A turn must state or imply the changed relationship between the earlier anchor and the new supplied anchor.",
+  "Use supplied state → changed reading, never supplied state → literal question.",
+  "The final line must pay off the supplied ending.",
+
+  "",
+  characterHint,
+].join("\n");
+
+return [
+  {
+    ...system,
+    content:
+      `${system.content}\n\n${batchInstruction}\n\n` +
+      "FINAL OUTPUT CONTRACT:\n" +
+      'Return ONLY valid JSON in exactly this shape: {"texts":["line 1","line 2","line 3"]}.\n' +
+      `The array MUST contain exactly ${beatCount} strings.\n` +
+      "Do not output beatGraphs.\n" +
+      "Do not output a MOUTH_QUALITY_CONTRACT.\n" +
+      "Do not output beats.\n" +
+      "Do not output analysis.\n" +
+      "Do not output planning metadata.\n" +
+      "Do not output keys other than texts.",
+  },
+  {
+    role: "user",
+    content: JSON.stringify({
+      task: "realize_approved_beats",
+      subject:
+        compactTruth.subject,
+      prompt:
+        compactTruth.prompt,
+      suppliedEvidence:
+        compactTruth.facts,
+      sourceMoments:
+        compactTruth.moments,
+      memory:
+        compactTruth.memory,
+      subjectTruth:
+        compactTruth.subjectTruth,
+      beatCount,
+      realizationPlan,
+    }),
+  },
+];
 }
 
 function parseMouthBatch(raw: string, expected: number): string[] {
@@ -527,7 +881,20 @@ async function canonicalMouthRequest(
 ): Promise<LocalModelResult> {
   const payload = parseUserObject(messages);
   const beats = Array.isArray(payload?.beats) ? payload.beats : [];
-
+   const suppliedText = [
+    ...(Array.isArray(payload?.facts)
+      ? payload.facts.map(String)
+      : []),
+    ...(Array.isArray(payload?.moments)
+      ? payload.moments.map(String)
+      : []),
+    ...(Array.isArray(payload?.sourceMoments)
+      ? payload.sourceMoments.map(String)
+      : []),
+    ...(Array.isArray(payload?.memory)
+      ? payload.memory.map(String)
+      : []),
+  ].join(" ");
   if (!beats.length) {
     return {
       text: JSON.stringify({ texts: [] }),
@@ -563,7 +930,17 @@ async function canonicalMouthRequest(
   }
 
   const parsed = parseMouthBatch(text, beats.length);
-  const valid = parsed.length === beats.length && parsed.every(mouthAcceptable);
+ const valid =
+  parsed.length === beats.length &&
+  parsed.every(
+    (line) =>
+      mouthAcceptable(line) &&
+      mouthGrounded(
+        line,
+        suppliedText,
+      ),
+  );
+  
 
   if (valid) {
     return {
@@ -579,7 +956,16 @@ async function canonicalMouthRequest(
       {
         role: "system",
         content:
-          "RETRY: Previous mouth batch failed structural or style validation. Rewrite every beat. Preserve facts, improve character-specific interpretation, remove generic prose, and return exactly the required texts array.",
+  "RETRY: Rewrite every line to satisfy the canonical mouth contract. " +
+  "Return exactly the required texts array. " +
+  "Use 2-7 words per line. " +
+  "Preserve the approved Meaning Spine. " +
+  "Use supplied nouns, traits, and actions as anchors. " +
+  "Do not invent body movement, facial expression, internal state, new action, new object interaction, or new outcome. " +
+  "Do not add atmosphere. " +
+  "Do not explain the meaning. " +
+  "Compress the approved relationship into natural language.",
+        
       },
     ],
     beats.length,
@@ -603,14 +989,27 @@ async function canonicalMouthRequest(
 
   const retryText = outputText(retryData);
   const retryParsed = parseMouthBatch(retryText, beats.length);
+   const retryValid =
+  retryParsed.length === beats.length &&
+  retryParsed.every(
+    (line) =>
+      mouthAcceptable(line) &&
+      mouthGrounded(
+        line,
+        suppliedText,
+      ),
+  );
 
-  if (retryParsed.length === beats.length) {
-    return {
-      text: JSON.stringify({ texts: retryParsed }),
-      model: modelName(),
-      provider: "local",
-    };
-  }
+
+if (retryValid) {
+  return {
+    text: JSON.stringify({
+      texts: retryParsed,
+    }),
+    model: modelName(),
+    provider: "local",
+  };
+}
 
   return {
     text: JSON.stringify({

@@ -31,6 +31,10 @@ import {
   editAttentionSequence,
   buildAttentionRewritePrompt,
 } from "./authorAttentionEditor.js";
+import {
+  evaluateSequenceArc,
+  type SequenceArcBeat,
+} from "./authorSequenceArcGate.js";
 
 const ROLES: readonly ViewerAttentionRole[] = [
   "arrival", "hook", "question", "pressure", "reframe", "escalation",
@@ -89,6 +93,13 @@ const GAIN_ALIASES: Record<string, NonNullable<SequenceCut["gainKind"]>> = {
 };
 
 const ATTENTION_ALIASES: Record<string, BeatAttentionFunction> = {
+  establish: "hook",
+  establishment: "hook",
+  opening: "hook",
+
+  contrast: "reframe",
+  status_inversion: "reframe",
+
   curiosity: "hook",
   build_curiosity: "hook",
   increase_tension: "escalation",
@@ -187,11 +198,28 @@ function parseJson<T>(raw: string): T | null {
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
+
   if (!text) return null;
+
   try {
     return JSON.parse(text) as T;
   } catch {
-    return null;
+    /*
+     * Bounded model-output repair.
+     *
+     * Qwen sometimes emits invalid JSON escapes such as:
+     *   "status\_inversion"
+     *
+     * We repair only that class of invalid escape. We do not attempt to
+     * invent missing structure or reconstruct arbitrary malformed JSON.
+     */
+    const repaired = text.replace(/\\_/g, "_");
+
+    try {
+      return JSON.parse(repaired) as T;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -262,7 +290,12 @@ function normalizeAttentionArc(value: unknown, beats: AuthorBeat[]): string {
   }
   return beats.map((beat) => beat.attentionFunction ?? "reframe").join(" → ");
 }
-
+type BeatPlanNormalizationDiagnostics = {
+  inputBeatCount: number;
+  acceptedBeatCount: number;
+  rejectedBeatCount: number;
+  rejectionReasons: Record<string, number>;
+};
 function normalizeBeatPlan(value: unknown): BeatPlan | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
@@ -317,6 +350,184 @@ function normalizeBeatPlan(value: unknown): BeatPlan | undefined {
     closing: clean(record.closing || record.continuation),
   };
 }
+function canonicalMeaningWords(value: string, subject: string): string[] {
+  const subjectWords = new Set(
+    clean(subject)
+      .toLowerCase()
+      .split(/[^a-z0-9'-]+/i)
+      .filter(Boolean),
+  );
+
+  return clean(value)
+    .toLowerCase()
+    .split(/[^a-z0-9'-]+/i)
+    .map((word) => word.trim())
+    .filter(
+      (word) =>
+        word.length >= 3 &&
+        !STOP.has(word) &&
+        !subjectWords.has(word),
+    );
+}
+
+function isBareSourceFact(
+  change: string,
+  evidence: readonly string[],
+  subject: string,
+): boolean {
+  const candidate = new Set(
+    canonicalMeaningWords(change, subject),
+  );
+
+  if (!candidate.size) return true;
+
+  return evidence.some((item) => {
+    const source = new Set(
+      canonicalMeaningWords(item, subject),
+    );
+
+    if (!source.size) return false;
+
+    if (
+      candidate.size === source.size &&
+      [...candidate].every((word) => source.has(word))
+    ) {
+      return true;
+    }
+
+    const overlapCount = [...candidate].filter((word) =>
+      source.has(word),
+    ).length;
+
+    const overlapRatio =
+      overlapCount /
+      Math.max(candidate.size, source.size);
+
+    return (
+      overlapRatio >= 0.9 &&
+      candidate.size <= source.size + 1
+    );
+  });
+}
+function enforceBeatMeaningContinuity(
+  plan: BeatPlan,
+  input: AuthorBrainTruth,
+): BeatPlan | undefined {
+  if (plan.beats.length < 2) return plan;
+
+  const subject = clean(input.subject);
+
+  const evidence = [
+    ...input.facts,
+    ...input.sourceMoments,
+    ...(input.memoryContext ?? []),
+    ...(input.trajectory ?? []),
+  ]
+    .map(clean)
+    .filter(Boolean);
+
+  const accepted: AuthorBeat[] = [];
+  const rejected: number[] = [];
+
+  for (const beat of plan.beats) {
+    const previous =
+      accepted[accepted.length - 1];
+
+    const currentMeaning =
+      canonicalMeaningWords(
+        beat.change,
+        subject,
+      );
+
+    const previousMeaning =
+      previous
+        ? canonicalMeaningWords(
+            previous.change,
+            subject,
+          )
+        : [];
+
+    const repeatedChange =
+      Boolean(previous) &&
+      currentMeaning.length > 0 &&
+      currentMeaning.join(" ") ===
+        previousMeaning.join(" ");
+
+    /*
+     * A concrete supplied event is legitimate material.
+     *
+     * We do NOT delete it merely because it exists in the source.
+     * The mouth/attention layers must transform its meaning.
+     */
+    const meaningfulMetadata =
+      Boolean(
+        beat.attentionFunction &&
+        beat.attentionFunction !==
+          "hook",
+      ) ||
+      Boolean(
+        beat.creativeMove &&
+        beat.creativeMove !==
+          "none",
+      ) ||
+      Boolean(beat.setsUp?.length) ||
+      Boolean(beat.paysOff?.length) ||
+      Boolean(
+        clean(beat.frontier),
+      ) ||
+      Boolean(
+        clean(beat.next),
+      );
+
+    if (
+      repeatedChange &&
+      !meaningfulMetadata
+    ) {
+      rejected.push(beat.order);
+      continue;
+    }
+
+    /*
+     * Preserve real source events.
+     *
+     * The Beat Graph is allowed to contain material facts such as:
+     *   "Coco got a bath"
+     *   "Coco stole a blue bow"
+     *
+     * provided they participate in the approved graph and are not merely
+     * duplicated copies of the immediately preceding beat.
+     */
+    accepted.push({
+      ...beat,
+      order: accepted.length + 1,
+    });
+  }
+
+  if (rejected.length) {
+    debug(
+      "BEAT-MEANING-GATE",
+      JSON.stringify({
+        rejected,
+        originalBeatCount:
+          plan.beats.length,
+        acceptedBeatCount:
+          accepted.length,
+        reason:
+          "duplicate beat meaning without graph contribution",
+      }),
+    );
+  }
+
+  if (!accepted.length) {
+    return undefined;
+  }
+
+  return {
+    ...plan,
+    beats: accepted,
+  };
+}
+
 
 function world(input: AuthorBrainTruth): CutWorld {
   return {
@@ -636,8 +847,15 @@ function buildMouthMessages(
 }
 
 function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof buildAuthorCognitivePlan>) {
-  const risk = inferRiskDial(input, cognition);
-  const targetBeats = risk === "safe" ? 4 : 5;
+ const risk = inferRiskDial(input, cognition);
+
+const latentMovieBeatCount =
+  cognition.latentMovieCandidates?.[0]?.trajectory?.length ?? 0;
+
+const targetBeats =
+  latentMovieBeatCount >= 3
+    ? Math.min(6, latentMovieBeatCount)
+    : 4;
 
   const compactWorld = {
     prompt: clean(input.prompt),
@@ -667,6 +885,7 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
       attentionCandidates: cognition.attentionCandidates.slice(0, 6),
       callbackTargets: cognition.callbackTargets.slice(0, 8),
       latentMovieCandidates: cognition.latentMovieCandidates.slice(0, 6),
+      latentMovie: cognition.latentMovieCandidates?.[0] ?? null,
       allowedMoves: cognition.characterRead?.allowedMoves ?? [],
       avoidedMoves: cognition.characterRead?.avoidedMoves ?? [],
       creativeFrames: cognition.characterRead?.creativeFrames ?? [],
@@ -680,8 +899,22 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
     "You are QRE's latent-movie director and creative realization planner.",
     "You are NOT a summarizer and NOT a novelist.",
     "Discover the strongest hidden movie inside the supplied reality, then encode it as a compact Beat Graph.",
+    "PRIMARY AUTHORING SOURCE: if a latent movie is supplied in cognition.latentMovie, compile that discovered movie into the Beat Graph. Do not replace it with a new movie, reorder its supplied ending, or append an abstract planning beat.",
+    "BACKWARD PAYOFF LAW: treat the supplied latent-movie payoff as the endpoint to be earned. Work backward to preserve which earlier supplied details make that endpoint meaningful, then verify the path forward.",
     "REALITY IS IMMUTABLE. Facts, source moments, graph events, and subject truth are evidence. Creative interpretation may change framing, attitude, metaphor, personification, status, implication, juxtaposition, absurdity, understatement, reversal, or rhetorical framing; it may not create a concrete person, object, location, date, dialogue, physical action, reaction, outcome, or event.",
     "The beat change is the changed meaning, not the analyst's explanation of that meaning.",
+    "MEANING-TRANSITION LAW:",
+     "Source facts are raw material, not finished beats.",
+    "The opening beat may establish a supplied fact.",
+    "After the opening, do not use a supplied fact as the entire beat change merely because it happened next.",
+     "Each later beat must transform, reinterpret, escalate, connect, or pay off something already established.",
+    "Ask internally: what changed in the meaning of the known reality?",
+    "'Coco got a bath' is material, not the destination.",
+    "The bath should make us wonder what it reveals, what changes because of it, or what later detail gives it new meaning.",
+   "'Coco stole a blue bow' is material, not the destination.",
+   "The bow should acquire significance through the character, contradiction, status shift, consequence, or callback already supported by the evidence.",
+   "A strong final image should feel earned by the accumulated meaning, not merely repeat the final source fact.",
+   "Never manufacture a meaning transition when the evidence cannot support one.",
     "Do not write 'this means', 'reveals that', 'was a cover for', 'the final revelation', 'the punchline', 'the mystery', 'the supplied relationship', or similar analyst language.",
     "The sequence must have an actual attention arc. Prefer hook → turn/reframe → escalation/callback/consequence → payoff when the evidence supports it.",
     "Each beat needs exactly one canonical attentionFunction: hook, question, turn, escalation, reframe, callback, payoff, release.",
@@ -691,7 +924,7 @@ function buildBeatMessages(input: AuthorBrainTruth, cognition: ReturnType<typeof
     "nextBeatPullTarget is a grounded estimate from 0 to 1. It is not permission to manufacture drama.",
     "The final beat must pay, turn, release, callback, or land an image; never summarize the whole sequence.",
     `CREATIVE RISK: ${risk}. Be bold in interpretation and conservative in facts.`,
-    `Return exactly ${targetBeats} beats.`,
+    `Return approximately ${targetBeats} beats when QRE must use model fallback. The discovered latent movie, not a fixed beat count, determines the real sequence length.`,
     "Output JSON only in this shape:",
     "{premise:string,baselineFacts:string[],attentionArc:string,beats:[{role,gainKind,change,next,frontier,necessity,attentionFunction,setsUp:string[],paysOff:string[],creativeMove,nextBeatPullTarget:number}]}",
   ].join("\n");
@@ -1056,57 +1289,131 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{
     creativeRisk: risk,
   };
 
-  const beatMessages = buildBeatMessages({ ...input, realityGraph }, cognition);
-  let beatPlanResult = await localModelGenerate(
-    beatMessages,
-    "json",
-    { numPredict: 1536, temperature: risk === "safe" ? 0.55 : 0.74 },
+  const beatMessages =
+  buildBeatMessages(
+    { ...input, realityGraph },
+    cognition,
   );
 
-  debug("BEAT-DISCOVERY", beatPlanResult.text);
-  let beatPlan =
-    normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text)) ??
-    normalizeLatentMovieBeatPlan(parseJson<unknown>(beatPlanResult.text));
+let beatPlanRetries = 0;
 
-  const minimumBeatCount = risk === "safe" ? 4 : 5;
-  if (!beatPlan || beatPlan.beats.length < minimumBeatCount) beatPlan = undefined;
+const selectedLatentMovie =
+  cognition.latentMovieCandidates?.[0];
 
-  let beatPlanRetries = 0;
+const recoveredBeatPlan =
+  selectedLatentMovie
+    ? recoverBeatPlanFromLatentMovie(
+        selectedLatentMovie,
+        realityGraph,
+      )
+    : undefined;
+
+/*
+ * Canonical semantic authority:
+ *
+ *   RealityGraph
+ *        ↓
+ *   selected Latent Movie
+ *        ↓
+ *   BeatPlan
+ *
+ * The model is NOT the primary movie author anymore.
+ * It is bounded fallback/enrichment when no executable latent movie exists.
+ */
+let beatPlan =
+  recoveredBeatPlan
+    ? normalizeBeatPlan(
+        recoveredBeatPlan,
+      )
+    : undefined;
+
+if (beatPlan) {
+  beatPlan = enforceBeatMeaningContinuity(
+    beatPlan,
+    { ...input, realityGraph },
+  );
+}
+
+if (!beatPlan) {
+  let beatPlanResult =
+    await localModelGenerate(
+      beatMessages,
+      "json",
+      {
+        numPredict: 1536,
+        temperature:
+          risk === "safe"
+            ? 0.55
+            : 0.74,
+      },
+    );
+
+  debug(
+    "BEAT-DISCOVERY-FALLBACK",
+    beatPlanResult.text,
+  );
+
+  beatPlan =
+    normalizeBeatPlan(
+      parseJson<unknown>(
+        beatPlanResult.text,
+      ),
+    );
+
+  if (beatPlan) {
+    beatPlan =
+      enforceBeatMeaningContinuity(
+        beatPlan,
+        { ...input, realityGraph },
+      );
+  }
 
   if (!beatPlan) {
     beatPlanRetries = 1;
-    beatPlanResult = await localModelGenerate(
-      [
-        beatMessages[0],
+
+    beatPlanResult =
+      await localModelGenerate(
+        [
+          beatMessages[0],
+          {
+            role: "user",
+            content:
+              `${beatMessages[1].content}\n` +
+              "Return ONLY JSON. Preserve the supplied latent movie " +
+              "if one is present. Do not invent a different ending. " +
+              "Do not add abstract planning beats such as reframe, " +
+              "payoff, resolution, or meaning. Every beat must correspond " +
+              "to supplied evidence or an evidence-backed meaning transition.",
+          },
+        ],
+        "json",
         {
-          role: "user",
-          content:
-            `${beatMessages[1].content}\n` +
-            `Return ONLY JSON. Use exactly ${minimumBeatCount} beats. ` +
-            "Use only canonical attentionFunction and creativeMove values. " +
-            "Every beat must have a distinct dramatic job. " +
-            "Do not explain the movie. No analyst prose. No closing.",
+          numPredict: 1536,
+          temperature: 0.45,
         },
-      ],
-      "json",
-      { numPredict: 1536, temperature: 0.45 },
+      );
+
+    debug(
+      "BEAT-DISCOVERY-FALLBACK-RETRY",
+      beatPlanResult.text,
     );
 
-    debug("BEAT-DISCOVERY-RETRY", beatPlanResult.text);
-    beatPlan = normalizeBeatPlan(parseJson<unknown>(beatPlanResult.text));
-    if (!beatPlan || beatPlan.beats.length < minimumBeatCount) beatPlan = undefined;
+    beatPlan =
+      normalizeBeatPlan(
+        parseJson<unknown>(
+          beatPlanResult.text,
+        ),
+      );
+
+    if (beatPlan) {
+      beatPlan =
+        enforceBeatMeaningContinuity(
+          beatPlan,
+          { ...input, realityGraph },
+        );
+    }
   }
-
-  const recoveredBeatPlan = recoverBeatPlanFromLatentMovie(
-    cognition.latentMovieCandidates?.[0],
-    realityGraph,
-  );
-
-  if (!beatPlan && recoveredBeatPlan) {
-    const recovered = normalizeBeatPlan(recoveredBeatPlan);
-    if (recovered && recovered.beats.length >= minimumBeatCount) beatPlan = recovered;
-  }
-
+}
   if (!beatPlan) {
     return {
       brief: brief(input, cognition.chosenAttentionStrategy),
@@ -1173,7 +1480,37 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{
     { ...input, realityGraph },
     cognition,
   );
+   const sequenceArcBeats: SequenceArcBeat[] =
+  sequence.cuts.map((cut, index) => {
+    const beat = beatPlan.beats[index];
 
+    return {
+      order: index + 1,
+      role: cut.role,
+      attentionFunction:
+        beat?.attentionFunction,
+      creativeMove:
+        beat?.creativeMove,
+      text: mouth.texts[index] ?? "",
+      change:
+        cut.informationGain,
+      next:
+        cut.nextPromise,
+      frontier:
+        cut.momentum?.after
+          .informationFrontier
+          ?.frontier,
+      setsUp:
+        beat?.setsUp ?? [],
+      paysOff:
+        beat?.paysOff ?? [],
+    };
+  });
+
+const sequenceArc =
+  evaluateSequenceArc(
+    sequenceArcBeats,
+  );
   const magnetValues = sequence.cuts
     .map((cut) => cut.momentum?.after.magnet?.magnetStrength ?? 0)
     .filter(Number.isFinite);
@@ -1181,11 +1518,11 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{
   const magnetPeak = magnetValues.length ? Math.max(...magnetValues) : 0;
   const magnetFloor = magnetValues.length ? Math.min(...magnetValues) : 0;
 
-  const complete =
-    sequenceResult.rejected === 0 &&
-    mouth.texts.length === sequence.cuts.length &&
-    sequenceResult.scenes.length === sequence.cuts.length;
-
+   const complete =
+  sequenceResult.rejected === 0 &&
+  mouth.texts.length === sequence.cuts.length &&
+  sequenceResult.scenes.length === sequence.cuts.length &&
+  sequenceArc.accepted;
   return {
     brief: brief(input, cognition.chosenAttentionStrategy),
     scenes: complete ? sequenceResult.scenes : [],
@@ -1217,6 +1554,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<{
       realizationTexts: mouth.texts,
       realizationCountMismatch: mouth.texts.length !== sequence.cuts.length,
       attentionEditor: mouth.attentionEdit,
+      sequenceArc,
       attentionRetry: mouth.attentionRetry,
       cutRepair: mouth.cutRepair,
       finalScenes: complete ? sequenceResult.scenes.length : 0,
