@@ -145,15 +145,29 @@ function hardenCandidateParser(source) {
 }
 
 function hardenRuntimeFallback(source) {
-  const configured = 'process.env.QRE_LOCAL_MODEL ||\n    "qre-local"';
-  const replacement = 'process.env.QRE_LOCAL_MODEL ||\n    "qwen2.5vl:7b"';
-
-  if (source.includes(replacement)) return source;
-  if (!source.includes(configured)) {
-    throw new Error("Could not locate canonical local-model fallback.");
+  if (source.includes('"qwen2.5vl:7b"')) {
+    return source;
   }
 
-  return source.replace(configured, replacement);
+  const startMarker = "function modelName(): string {";
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf("\n}\n", start);
+
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error("Could not locate modelName() in localModelRuntime.ts.");
+  }
+
+  const replacement = [
+    "function modelName(): string {",
+    "  return (",
+    "    process.env.QRE_AUTHOR_FAST_MODEL ||",
+    "    process.env.QRE_LOCAL_MODEL ||",
+    '    "qwen2.5vl:7b"',
+    "  );",
+    "}",
+  ].join("\n");
+
+  return `${source.slice(0, start)}${replacement}${source.slice(end + 3)}`;
 }
 
 const candidateSource = hardenCandidateParser(read(candidatePath));
