@@ -39,10 +39,19 @@ function relationKindsForBeat(
   ];
 }
 
-function groundedVariants(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
+function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
+  const states = new Set(envelope.suppliedStates.map(clean).filter(Boolean));
+  return labels.filter((label) => states.has(label));
+}
+
+function suppliedActionLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
+  const actions = new Set(envelope.suppliedActions.map(clean).filter(Boolean));
+  return labels.filter((label) =>
+    actions.some((action) => clean(label).toLowerCase().includes(action.toLowerCase())),
+  );
+}
+
+function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const labels = labelsForBeat(beat, envelope);
   const first = labels[0] ?? "";
   const second = labels[1] ?? "";
@@ -51,17 +60,24 @@ function groundedVariants(
   const attention = clean(beat.attentionFunction).toLowerCase();
   const role = clean(beat.role).toLowerCase();
   const relations = relationKindsForBeat(beat, envelope);
+  const states = suppliedStateLabels(labels, envelope);
+  const actions = suppliedActionLabels(labels, envelope);
   const variants: string[] = [];
 
-  if (subject && first) {
-    variants.push(`${subject} ${first}.`);
-  }
-
-  if (first && (attention === "hook" || role === "arrival" || role === "establish")) {
-    variants.push(`${first}.`);
-  }
+  if (subject && first) variants.push(`${subject} ${first}.`);
+  if (first && (attention === "hook" || role === "arrival" || role === "establish")) variants.push(`${first}.`);
 
   if (second) {
+    if (states.length >= 2 && (relations.includes("contrasts") || relations.includes("changes"))) {
+      variants.push(`${states[0]}, but ${states[1]}.`);
+      variants.push(`${states[1]} beneath ${states[0]}.`);
+    }
+    if (states.length >= 1 && actions.length >= 1) {
+      const state = states[0];
+      const action = actions[0];
+      variants.push(`${state} enough to ${action}.`);
+      variants.push(`${action}; that was the attitude.`);
+    }
     if (relations.includes("contrasts")) {
       variants.push(`${first}; ${second}.`);
       variants.push(`${first}. ${second}.`);
@@ -73,9 +89,7 @@ function groundedVariants(
     }
   }
 
-  if (attention === "callback" && first && second) {
-    variants.push(`Still ${first}; ${second}.`);
-  }
+  if (attention === "callback" && first && second) variants.push(`Still ${first}; ${second}.`);
 
   if (endpoint && (attention === "payoff" || role === "payoff" || attention === "release")) {
     if (labels.length >= 2) {
@@ -87,7 +101,7 @@ function groundedVariants(
     variants.push(`${endpoint}.`);
   }
 
-  return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 6);
+  return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 8);
 }
 
 export function buildGroundedFallbackCandidates(input: {
