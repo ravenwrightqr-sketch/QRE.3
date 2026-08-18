@@ -12,70 +12,172 @@ export type MouthLanguageEvaluation = {
 };
 
 const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const tokens = (value: string): string[] =>
   clean(value)
     .toLowerCase()
     .split(/[^a-z0-9'-]+/i)
-    .filter((token) => token.length >= 2);
+    .filter(
+      (token) =>
+        token.length >= 2,
+    );
 
 const stem = (token: string): string => {
   const value = token.toLowerCase();
-  if (value.length > 6 && value.endsWith("ing")) return value.slice(0, -3);
-  if (value.length > 5 && value.endsWith("ed")) return value.slice(0, -2);
-  if (value.length > 5 && value.endsWith("es")) return value.slice(0, -2);
-  if (value.length > 4 && value.endsWith("s")) return value.slice(0, -1);
+  if (
+    value.length > 6 &&
+    value.endsWith("ing")
+  ) {
+    return value.slice(0, -3);
+  }
+  if (
+    value.length > 5 &&
+    value.endsWith("ed")
+  ) {
+    return value.slice(0, -2);
+  }
+  if (
+    value.length > 5 &&
+    value.endsWith("es")
+  ) {
+    return value.slice(0, -2);
+  }
+  if (
+    value.length > 4 &&
+    value.endsWith("s")
+  ) {
+    return value.slice(0, -1);
+  }
   return value;
 };
 
 const STOP = new Set(
-  "the a an and or but for to of in on at with from this that is are was were be been as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/),
+  "the a an and or but for to of in on at with from this that is are was were be been as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten"
+    .split(/\s+/),
 );
 
 const SEMANTIC_VERBS = new Set(
-  "mean means meant feel feels felt seem seems seemed read reads reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied".split(/\s+/),
+  "mean means meant feel feels felt seem seems seemed read reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied seem seemed look looks looked"
+    .split(/\s+/),
 );
 
-const UNIVERSAL_ACTION_EQUIVALENTS: Record<string, readonly string[]> = {
-  arrive: ["come", "came", "arrive", "arrived", "enter", "entered"],
-  enter: ["come", "came", "enter", "entered", "arrive", "arrived"],
-  return: ["return", "returned", "came", "came back", "back"],
-  depart: ["leave", "left", "depart", "departed"],
-  exit: ["leave", "left", "exit", "exited"],
+const UNIVERSAL_ACTION_EQUIVALENTS: Record<
+  string,
+  readonly string[]
+> = {
+  arrive: [
+    "come",
+    "came",
+    "arrive",
+    "arrived",
+    "enter",
+    "entered",
+  ],
+  enter: [
+    "come",
+    "came",
+    "enter",
+    "entered",
+    "arrive",
+    "arrived",
+  ],
+  return: [
+    "return",
+    "returned",
+    "came",
+    "came back",
+    "back",
+  ],
+  depart: [
+    "leave",
+    "left",
+    "depart",
+    "departed",
+  ],
+  exit: [
+    "leave",
+    "left",
+    "exit",
+    "exited",
+  ],
 };
 
-const ANALYTIC = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|mood|vibe|transforms?|transformation|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the joke|the punchline|the payoff|the reveal|the result|the outcome)\b/i;
-const META = /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
+const ANALYTIC =
+  /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the reveal|the result|the outcome)\b/i;
+
+const META =
+  /\b(?:viewer|audience|beat|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
+
 const QUESTION = /\?/;
-const COMMA_STACK = /^\S+(?:,\s*\S+){2,}[.!?]?$/;
-const LABEL_FRAGMENT = /^(?:the|a|an)\s+(?:contrast|conclusion|transformation|reframe|reveal|payoff|twist|answer|joke|punchline|result|outcome)\b/i;
-const COPULALESS_SUBJECT_STATE = /^(?:[A-Z][\w'-]*)(?:\s+(?:is|was|became|seems|looks|feels|came|went))?\s+(?:nervous|fierce|cool|happy|sad|proud|angry|afraid|scared|quiet|calm|excited|tired|ready|fabulous|beautiful)\.?$/i;
-const PREPOSITIONAL_ACTION_FRAGMENT = /^(?:[A-Z][\w'-]*|\b(?:fierce|nervous|fabulous|blue|cool)\b)\s+(?:to|from|into|with|against)\s+[a-z]+(?:\s+[a-z]+){0,3}\.?$/i;
+
+const COMMA_STACK =
+  /^\S+(?:,\s*\S+){2,}[.!?]?$/;
+
+const LABEL_FRAGMENT =
+  /^(?:the|a|an)\s+(?:contrast|conclusion|transformation|reframe|reveal|payoff|twist|answer|result|outcome)\b/i;
+
+const PREPOSITIONAL_FRAGMENT =
+  /^(?:[A-Z][\w'-]*|[a-z][\w'-]*)\s+(?:to|from|into|with|against)\s+[a-z][\w'-]*(?:\s+[a-z][\w'-]*){0,3}\.?$/i;
 
 function metric(value: number): number {
-  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
+  return Number(
+    Math.max(
+      0,
+      Math.min(1, value),
+    ).toFixed(3),
+  );
 }
 
-function suppliedSet(envelope: RealityEnvelope): Set<string> {
-  return new Set(envelope.suppliedTerms.map(stem));
-}
-
-function entitySet(envelope: RealityEnvelope): Set<string> {
+function suppliedSet(
+  envelope: RealityEnvelope,
+): Set<string> {
   return new Set(
-    [envelope.subject, ...envelope.suppliedEntities].flatMap(tokens).map(stem),
+    envelope.suppliedTerms.map(stem),
   );
 }
 
-function actionSet(envelope: RealityEnvelope): Set<string> {
+function entitySet(
+  envelope: RealityEnvelope,
+): Set<string> {
+  return new Set(
+    [
+      envelope.subject,
+      ...envelope.suppliedEntities,
+    ]
+      .flatMap(tokens)
+      .map(stem),
+  );
+}
+
+function actionSet(
+  envelope: RealityEnvelope,
+): Set<string> {
   const actions = new Set(
-    envelope.suppliedActions.flatMap(tokens).map(stem),
+    envelope.suppliedActions
+      .flatMap(tokens)
+      .map(stem),
   );
 
-  for (const equivalents of Object.values(UNIVERSAL_ACTION_EQUIVALENTS)) {
-    const sourceActionPresent = equivalents.some((word) => actions.has(stem(word)));
-    if (!sourceActionPresent) continue;
-    for (const word of equivalents) actions.add(stem(word));
+  for (
+    const equivalents of Object.values(
+      UNIVERSAL_ACTION_EQUIVALENTS,
+    )
+  ) {
+    const sourceActionPresent =
+      equivalents.some((word) =>
+        actions.has(stem(word)),
+      );
+
+    if (!sourceActionPresent) {
+      continue;
+    }
+
+    for (const word of equivalents) {
+      actions.add(stem(word));
+    }
   }
 
   return actions;
@@ -85,69 +187,92 @@ function unsupportedConcreteRisk(
   text: string,
   envelope: RealityEnvelope,
 ): number {
-  const source = suppliedSet(envelope);
-  const actions = actionSet(envelope);
-  const entities = entitySet(envelope);
+  const source = suppliedSet(
+    envelope,
+  );
+  const actions = actionSet(
+    envelope,
+  );
+  const entities = entitySet(
+    envelope,
+  );
+
   const words = tokens(text);
 
+  if (!words.length) {
+    return 1;
+  }
+
   let unsupported = 0;
-  let concrete = 0;
 
   for (const raw of words) {
     const word = stem(raw);
+
     if (
       STOP.has(word) ||
-      SEMANTIC_VERBS.has(word)
+      SEMANTIC_VERBS.has(word) ||
+      source.has(word) ||
+      entities.has(word) ||
+      actions.has(word)
     ) {
       continue;
     }
 
-    const supported =
-      source.has(word) ||
-      entities.has(word) ||
-      actions.has(word);
-
-    const looksConcrete =
-      actions.has(word) ||
-      entities.has(word) ||
-      source.has(word);
-
-    if (looksConcrete) {
-      concrete += 1;
-      if (!supported) unsupported += 1;
-    }
+    unsupported += 1;
   }
 
-  if (!concrete) {
-    const unsupportedWords = words.filter(
-      (word) =>
-        !STOP.has(stem(word)) &&
-        !SEMANTIC_VERBS.has(stem(word)) &&
-        !source.has(stem(word)) &&
-        !entities.has(stem(word)) &&
-        !actions.has(stem(word)),
-    );
-    return metric(
-      unsupportedWords.length / Math.max(1, words.length),
-    );
-  }
-
-  return metric(unsupported / concrete);
+  return metric(
+    unsupported /
+      Math.max(1, words.length),
+  );
 }
 
-function naturalnessRisk(text: string): number {
+function naturalnessRisk(
+  text: string,
+): number {
   const value = clean(text);
   const words = tokens(value);
-  if (!value || words.length < 2) return 1;
+
+  if (!value) {
+    return 1;
+  }
+
+  /*
+   * One-word supplied anchors are valid authorial language. They are not
+   * automatically fragments, especially for hooks and exact endpoints.
+   */
+  if (words.length === 1) {
+    return 0.25;
+  }
 
   let risk = 0;
 
-  if (COMMA_STACK.test(value)) risk += 0.35;
-  if (LABEL_FRAGMENT.test(value)) risk += 0.45;
-  if (COPULALESS_SUBJECT_STATE.test(value)) risk += 0.5;
-  if (PREPOSITIONAL_ACTION_FRAGMENT.test(value)) risk += 0.4;
-  if (/^\w+\s+\w+\.?$/.test(value) && words.length === 2) risk += 0.2;
-  if (/^(?:[A-Z][^.!?]*\b(?:shift|transformation|contrast|conclusion|reframe)\b[^.!?]*)$/i.test(value)) risk += 0.3;
+  if (COMMA_STACK.test(value)) {
+    risk += 0.35;
+  }
+
+  if (LABEL_FRAGMENT.test(value)) {
+    risk += 0.45;
+  }
+
+  if (PREPOSITIONAL_FRAGMENT.test(value)) {
+    risk += 0.25;
+  }
+
+  if (
+    words.length === 2 &&
+    !/[.!?]$/.test(value)
+  ) {
+    risk += 0.15;
+  }
+
+  if (
+    /^(?:[A-Z][^.!?]*\b(?:shift|transformation|contrast|conclusion|reframe)\b[^.!?]*)$/i.test(
+      value,
+    )
+  ) {
+    risk += 0.3;
+  }
 
   return metric(risk);
 }
@@ -157,45 +282,99 @@ export function evaluateMouthLanguage(
   envelope: RealityEnvelope,
 ): MouthLanguageEvaluation {
   const value = clean(text);
-  const languageRisk = naturalnessRisk(value);
-  const analyticLanguageRisk = metric(
-    ANALYTIC.test(value) ? 0.8 : META.test(value) ? 0.9 : 0,
-  );
-  const keywordAssemblyRisk = metric(
-    COMMA_STACK.test(value) || LABEL_FRAGMENT.test(value)
-      ? 0.7
-      : PREPOSITIONAL_ACTION_FRAGMENT.test(value)
-        ? 0.55
+  const languageRisk =
+    naturalnessRisk(value);
+
+  const analyticLanguageRisk =
+    metric(
+      ANALYTIC.test(value)
+        ? 0.8
+        : META.test(value)
+          ? 0.9
+          : 0,
+    );
+
+  const keywordAssemblyRisk =
+    metric(
+      COMMA_STACK.test(value) ||
+        LABEL_FRAGMENT.test(value)
+        ? 0.7
         : 0,
-  );
-  const unsupportedRisk = unsupportedConcreteRisk(
+    );
+
+  const unsupportedRisk =
+    unsupportedConcreteRisk(
+      value,
+      envelope,
+    );
+
+  const actionWords = tokens(
     value,
-    envelope,
+  ).filter((token) =>
+    actionSet(envelope).has(
+      stem(token),
+    ),
+  ).length;
+
+  const entityWords = tokens(
+    value,
+  ).filter((token) =>
+    entitySet(envelope).has(
+      stem(token),
+    ),
+  ).length;
+
+  const supportedActionRisk =
+    actionWords === 0
+      ? 0
+      : metric(
+          unsupportedRisk *
+            0.8,
+        );
+
+  const supportedEntityRisk =
+    entityWords === 0
+      ? 0
+      : metric(
+          unsupportedRisk *
+            0.6,
+        );
+
+  const naturalness = metric(
+    1 - languageRisk,
   );
-
-  const actionWords = tokens(value).filter((token) =>
-    actionSet(envelope).has(stem(token)),
-  ).length;
-  const entityWords = tokens(value).filter((token) =>
-    entitySet(envelope).has(stem(token)),
-  ).length;
-
-  const supportedActionRisk = actionWords === 0
-    ? 0
-    : metric(Math.max(0, unsupportedRisk * 0.8));
-
-  const supportedEntityRisk = entityWords === 0
-    ? 0
-    : metric(Math.max(0, unsupportedRisk * 0.6));
-
-  const naturalness = metric(1 - languageRisk);
 
   const reasons: string[] = [];
-  if (languageRisk > 0.45) reasons.push("weak-natural-language");
-  if (keywordAssemblyRisk > 0.45) reasons.push("keyword-assembly");
-  if (analyticLanguageRisk > 0.45) reasons.push("analytic-language");
-  if (unsupportedRisk > 0.45) reasons.push("unsupported-concrete-language");
-  if (QUESTION.test(value)) reasons.push("question-leak");
+
+  if (languageRisk > 0.45) {
+    reasons.push(
+      "weak-natural-language",
+    );
+  }
+
+  if (keywordAssemblyRisk > 0.45) {
+    reasons.push(
+      "keyword-assembly",
+    );
+  }
+
+  if (analyticLanguageRisk > 0.45) {
+    reasons.push(
+      "analytic-language",
+    );
+  }
+
+  if (unsupportedRisk > 0.45) {
+    reasons.push(
+      "unsupported-concrete-language",
+    );
+  }
+
+  if (QUESTION.test(value)) {
+    reasons.push(
+      "question-leak",
+    );
+  }
 
   return {
     naturalness,
