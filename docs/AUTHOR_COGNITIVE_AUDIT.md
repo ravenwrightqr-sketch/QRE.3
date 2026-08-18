@@ -20,6 +20,7 @@ USER REALITY
   -> RELATION / TENSION DISCOVERY
   -> CHARACTER + LENS READ
   -> LATENT MOVIE COMPETITION
+  -> LATENT STORY THESIS
   -> SEMANTIC TRAJECTORY
   -> CANONICAL BEAT GRAPH
   -> MEANING SPINE
@@ -62,6 +63,7 @@ The same discovered meaning must survive every boundary:
 ```text
 RealityGraph
  -> Movie
+ -> Latent Story Thesis
  -> semantic change
  -> Beat Graph
  -> Meaning Spine
@@ -179,6 +181,31 @@ GOOD COGNITION / BAD MOUTH
 
 The acceptance path should eventually report the cognitive thread before evaluating prose.
 
+## Finding 11 — A thesis cannot be a renamed payoff
+
+A latent story thesis is not complete because it contains an initial state, an endpoint, and a graph relationship.
+
+The `semanticTurn` must identify a non-payoff relationship that changes the reading. The carrier must participate in that turn. Sealing evidence should appear later in the selected trajectory when available. Payoff dependency must explain why the supplied endpoint benefits from the path.
+
+The following are invalid thesis shortcuts:
+
+```text
+payoff == semanticTurn
+carrier == endpoint
+carrier == sealing evidence
+counterfactualDependency == 1 merely because graph density is high
+```
+
+The thesis acceptance gate must reject those shortcuts.
+
+## Finding 12 — Counterfactual dependency must measure path necessity
+
+Counterfactual dependency is intended to approximate:
+
+> If this carrier disappeared from the supplied evidence, how much of the selected movie would weaken or collapse?
+
+It should be derived from selected trajectory participation, downstream dependence, turn anchoring, and endpoint linkage—not from the raw number of edges incident to the carrier.
+
 ## Enterprise learning loop
 
 The durable author should accumulate reusable evaluation knowledge from failures without memorizing domain-specific stories:
@@ -199,6 +226,8 @@ Examples:
 "relationship named rather than performed"
 "later detail unused as recontextualization"
 "generic praise replacing evidence"
+"payoff mislabeled as semantic turn"
+"carrier chosen for graph density instead of path necessity"
 ```
 
 ## Permanent laws
@@ -213,6 +242,8 @@ Examples:
 8. Acceptance must measure latent-story quality separately from prose quality.
 9. Rejected candidates should teach reusable failure patterns.
 10. Every new layer must answer: who owns this decision, and can another layer silently contradict it?
+11. A semantic thesis must identify a real turn, carrier, seal, and payoff dependency.
+12. Counterfactual quality means path dependence, not graph density.
 
 ## Acceleration order
 
@@ -221,8 +252,9 @@ Examples:
 2. Remove template-like cognition routing.
 3. Harden latent movie competition.
 4. Carry semantic change through the Beat Graph and Meaning Spine.
-5. Introduce one canonical semantic thread if existing contracts cannot carry it cleanly.
-6. Make Attention / Repair an active search controller.
-7. Make evaluation memory reusable and domain-neutral.
-8. Tune the Mouth only after cognition is demonstrably strong.
+5. Make latent story thesis structurally honest.
+6. Wire thesis into the canonical semantic thread.
+7. Make Attention / Repair an active search controller.
+8. Make evaluation memory reusable and domain-neutral.
+9. Tune the Mouth only after cognition is demonstrably strong.
 ```
