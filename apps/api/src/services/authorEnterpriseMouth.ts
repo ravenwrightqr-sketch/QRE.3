@@ -15,6 +15,7 @@ import {
   scoreMouthCandidate,
   type MouthCandidate,
   type MouthCandidateBeat,
+  type MouthCandidateBatch,
 } from "./authorMouthCandidateSearch.js";
 import {
   selectBestMouthSequence,
@@ -89,6 +90,99 @@ function qualityFailures(
   return failures;
 }
 
+function mergeCandidateBatches(
+  beats: readonly MouthCandidateBeat[],
+  primary: MouthCandidateBatch | undefined,
+  recovered: ReadonlyMap<number, string[]>,
+): MouthCandidateBatch {
+  const variantsByBeat = beats
+    .map((beat) => {
+      const primaryEntry = primary?.variantsByBeat.find(
+        (item) => item.order === beat.order,
+      );
+      const recoveredVariants = recovered.get(beat.order) ?? [];
+
+      return {
+        order: beat.order,
+        variants: [
+          ...(primaryEntry?.variants ?? []),
+          ...recoveredVariants,
+        ]
+          .map((value) => String(value ?? "").trim())
+          .filter(Boolean)
+          .filter(
+            (value, index, values) =>
+              values.indexOf(value) === index,
+          )
+          .slice(0, 8),
+      };
+    })
+    .filter((entry) => entry.variants.length > 0);
+
+  return { variantsByBeat };
+}
+
+async function recoverMissingBeatVariants(
+  input: EnterpriseMouthInput,
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  missingBeats: readonly MouthCandidateBeat[],
+): Promise<ReadonlyMap<number, string[]>> {
+  const recovered = new Map<number, string[]>();
+
+  for (const beat of missingBeats) {
+    const targetedMessages = buildMouthCandidateMessages({
+      envelope,
+      beats: [beat],
+      priorTexts: input.priorTexts,
+      lens: input.lens,
+    });
+
+    targetedMessages[0] = {
+      ...targetedMessages[0],
+      content:
+        `${targetedMessages[0].content}\n\n` +
+        "TARGETED BEAT RECOVERY:\n" +
+        `Generate candidates for beat ${beat.order} ONLY.\n` +
+        "Return exactly one variantsByBeat entry with this beat order.\n" +
+        "Do not generate any other beat.\n" +
+        "Use the supplied anchors for this beat.\n" +
+        "Do not describe the planning operation; perform the approved meaning shift.\n" +
+        (input.revisionGuidance?.length
+          ? input.revisionGuidance
+              .slice(-10)
+              .map((item) => `- ${item}`)
+              .join("\n")
+          : ""),
+    };
+
+    const result = await localModelGenerate(
+      targetedMessages,
+      "json",
+      {
+        numPredict: 512,
+        temperature: Math.max(
+          0.48,
+          input.temperature ?? 0.72,
+        ),
+      },
+    );
+
+    const parsed = parseMouthCandidateBatch(result.text);
+    const entry = parsed?.variantsByBeat.find(
+      (item) => item.order === beat.order,
+    );
+
+    if (entry?.variants.length) {
+      recovered.set(
+        beat.order,
+        entry.variants,
+      );
+    }
+  }
+
+  return recovered;
+}
+
 async function generateBeam(
   input: EnterpriseMouthInput,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
@@ -129,8 +223,39 @@ async function generateBeam(
   );
 
   const parsed = parseMouthCandidateBatch(result.text);
+  const expectedOrders = new Set(
+    input.beats.map((beat) => beat.order),
+  );
 
-  if (!parsed) {
+  const recovered = await recoverMissingBeatVariants(
+    input,
+    envelope,
+    input.beats.filter(
+      (beat) =>
+        !parsed?.variantsByBeat.some(
+          (item) => item.order === beat.order,
+        ),
+    ),
+  );
+
+  const merged = mergeCandidateBatches(
+    input.beats,
+    parsed,
+    recovered,
+  );
+
+  const coverageOrders = new Set(
+    merged.variantsByBeat.map(
+      (item) => item.order,
+    ),
+  );
+
+  const missingAfterRecovery =
+    [...expectedOrders].filter(
+      (order) => !coverageOrders.has(order),
+    );
+
+  if (missingAfterRecovery.length) {
     return {
       resultText: result.text,
       texts: [],
@@ -141,7 +266,7 @@ async function generateBeam(
 
   const pools: MouthCandidatePool[] = input.beats
     .map((beat) => {
-      const entry = parsed.variantsByBeat.find(
+      const entry = merged.variantsByBeat.find(
         (item) => item.order === beat.order,
       );
 
