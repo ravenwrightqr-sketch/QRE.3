@@ -27,6 +27,7 @@ export type EnterpriseMouthInput = {
   lens?: string;
   beats: MouthCandidateBeat[];
   priorTexts?: string[];
+  revisionGuidance?: string[];
   temperature?: number;
 };
 
@@ -47,13 +48,30 @@ export async function realizeEnterpriseMouth(
       subject: input.subject,
     });
 
-  const result = await localModelGenerate(
+  const candidateMessages =
     buildMouthCandidateMessages({
       envelope,
       beats: input.beats,
       priorTexts: input.priorTexts,
       lens: input.lens,
-    }),
+    });
+
+  if (input.revisionGuidance?.length) {
+    candidateMessages[0] = {
+      ...candidateMessages[0],
+      content:
+        `${candidateMessages[0].content}\n\n` +
+        "ENTERPRISE REVISION GUIDANCE:\n" +
+        input.revisionGuidance
+          .slice(0, 16)
+          .map((item) => `- ${item}`)
+          .join("\n") +
+        "\nRegenerate candidates that address these failures. Preserve the approved reality and meaning spine.",
+    };
+  }
+
+  const result = await localModelGenerate(
+    candidateMessages,
     "json",
     {
       numPredict: 1024,
