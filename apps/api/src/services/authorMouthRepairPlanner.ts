@@ -17,11 +17,15 @@ export type MouthRepairObjective = {
 };
 
 const metric = (value: number): number =>
-  Number(Math.max(0, Math.min(1, value)).toFixed(3));
+  Number(
+    Math.max(0, Math.min(1, value)).toFixed(3),
+  );
 
 type MouthRepairPriority = MouthRepairObjective["priority"];
 
-const REPAIR_PRIORITY_WEIGHT: Readonly<Record<MouthRepairPriority, number>> = {
+const REPAIR_PRIORITY_WEIGHT: Readonly<
+  Record<MouthRepairPriority, number>
+> = {
   critical: 3,
   high: 2,
   medium: 1,
@@ -33,6 +37,14 @@ function objectiveFor(
 ): string {
   if (
     candidate.reasons.includes(
+      "non-exact-payoff",
+    )
+  ) {
+    return "Use the supplied endpoint exactly and add nothing before or after it.";
+  }
+
+  if (
+    candidate.reasons.includes(
       "incomplete-transition-coverage",
     ) ||
     candidate.meaningScore < 0.4
@@ -41,7 +53,10 @@ function objectiveFor(
       return "Perform the supplied contrast by preserving enough evidence from both source signals; do not name the contrast.";
     }
 
-    if (slot.kind === "recontextualize") {
+    if (
+      slot.kind ===
+      "recontextualize"
+    ) {
       return "Let the later supplied signal change the reading of the earlier signal without introducing a new event.";
     }
 
@@ -110,69 +125,81 @@ export function buildMouthRepairObjectives(input: {
         candidate.inventionRisk > 0.45 ||
         candidate.reasons.length > 0,
     )
-    .map((candidate): MouthRepairObjective => {
-      const slot = slots.get(
-        candidate.beatOrder,
-      );
-
-      if (!slot) {
-        throw new Error(
-          `MOUTH REPAIR INVARIANT FAILED: missing slot ${candidate.beatOrder}`,
-        );
-      }
-
-      const failures = [
-        ...candidate.reasons,
-      ];
-
-      const critical =
-        candidate.inventionRisk > 0.55 ||
-        candidate.groundingScore < 0.3;
-
-      const priority: MouthRepairPriority =
-        critical
-          ? "critical"
-          : failures.length >= 2
-            ? "high"
-            : "medium";
-
-      return {
-        beatOrder:
+    .map(
+      (candidate): MouthRepairObjective => {
+        const slot = slots.get(
           candidate.beatOrder,
-        priority,
-        failures,
-        objective:
-          objectiveFor(
-            candidate,
-            slot,
-          ),
-        preserve: [
-          ...slot.sourceLabels,
-          ...slot.targetLabels,
-          ...slot.relationKinds,
-        ].filter(Boolean),
-        forbid: [
-          ...slot.forbiddenMoves,
-          ...(
-            candidate.reasons.includes(
-              "analytic-realization-language",
-            )
-              ? [
-                  "operation labels",
-                ]
-              : []
-          ),
-        ],
-      };
-    })
-    .sort((a, b) => {
-      return (
-        REPAIR_PRIORITY_WEIGHT[b.priority] -
-        REPAIR_PRIORITY_WEIGHT[a.priority] ||
-        a.beatOrder -
-        b.beatOrder
-      );
-    });
+        );
+
+        if (!slot) {
+          throw new Error(
+            `MOUTH REPAIR INVARIANT FAILED: missing slot ${candidate.beatOrder}`,
+          );
+        }
+
+        const failures = [
+          ...candidate.reasons,
+        ];
+
+        const critical =
+          candidate.inventionRisk >
+            0.55 ||
+          candidate.groundingScore <
+            0.3 ||
+          candidate.reasons.includes(
+            "non-exact-payoff",
+          ) ||
+          candidate.reasons.includes(
+            "semantic-contract-invalid",
+          );
+
+        const priority: MouthRepairPriority =
+          critical
+            ? "critical"
+            : failures.length >= 2
+              ? "high"
+              : "medium";
+
+        return {
+          beatOrder:
+            candidate.beatOrder,
+          priority,
+          failures,
+          objective:
+            objectiveFor(
+              candidate,
+              slot,
+            ),
+          preserve: [
+            ...slot.sourceLabels,
+            ...slot.targetLabels,
+            ...slot.relationKinds,
+          ].filter(Boolean),
+          forbid: [
+            ...slot.forbiddenMoves,
+            ...(
+              candidate.reasons.includes(
+                "analytic-realization-language",
+              )
+                ? [
+                    "operation labels",
+                  ]
+                : []
+            ),
+          ],
+        };
+      },
+    )
+    .sort((a, b) =>
+      REPAIR_PRIORITY_WEIGHT[
+        b.priority
+      ] -
+        REPAIR_PRIORITY_WEIGHT[
+          a.priority
+        ] ||
+      a.beatOrder -
+        b.beatOrder,
+    );
 }
 
 export function compactRepairInstructions(
