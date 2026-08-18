@@ -68,6 +68,7 @@ const GENERIC_FILLER = /\b(?:beautiful|magical|unforgettable|incredible|journey|
 const QUESTION = /\?/;
 const META = /\b(?:beat|viewer|audience|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
 const REALIZATION_META = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe|reframing|changes? the meaning|shows? the contrast|explains?)\b/i;
+const MULTI_SIGNAL_MODE = /(?:reframe|contrast|turn|callback|reversal)/i;
 
 const clean = (value: unknown): string =>
   String(value ?? "")
@@ -75,9 +76,7 @@ const clean = (value: unknown): string =>
     .trim();
 
 const metric = (value: number): number =>
-  Number(
-    Math.max(0, Math.min(1, value)).toFixed(3),
-  );
+  Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
@@ -179,17 +178,30 @@ function requiredEventCoverage(
   const required = unique(beat.eventIds ?? []);
   if (!required.length) return 0.5;
 
-  const supported = new Set(
-    supportedEventIds(text, envelope),
-  );
+  const supported = new Set(supportedEventIds(text, envelope));
+  const hits = required.filter((id) => supported.has(id)).length;
 
-  const hits = required.filter(
-    (id) => supported.has(id),
-  ).length;
+  return metric(hits / Math.max(1, required.length));
+}
 
-  return metric(
-    hits / Math.max(1, required.length),
-  );
+function isPayoffBeat(beat: MouthCandidateBeat): boolean {
+  const mode = clean(beat.realizationMode).toLowerCase();
+  const role = clean(beat.role).toLowerCase();
+  const attention = clean(beat.attentionFunction).toLowerCase();
+  return mode.includes("payoff") || role === "payoff" || attention === "payoff";
+}
+
+function endpointText(beat: MouthCandidateBeat): string {
+  return clean(beat.paysOff?.[0] ?? "");
+}
+
+function endpointExactness(text: string, beat: MouthCandidateBeat): number {
+  if (!isPayoffBeat(beat)) return 0;
+  const endpoint = endpointText(beat);
+  if (!endpoint) return 0;
+  const actual = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
+  const expected = endpoint.replace(/[.!?]+$/g, "").toLowerCase();
+  return actual === expected ? 1 : 0;
 }
 
 function relationMeaningScore(
@@ -199,17 +211,9 @@ function relationMeaningScore(
 ): number {
   const eventIds = supportedEventIds(text, envelope);
   const beatEventIds = unique(beat.eventIds ?? []);
-
   const direct = requiredEventCoverage(text, beat, envelope);
   const relationCount = supportedRelationPairs(eventIds, envelope).length;
-  const mode = clean(beat.realizationMode).toLowerCase();
-  const multiSignalMode =
-    mode.includes("reframe") ||
-    mode.includes("contrast") ||
-    mode.includes("turn") ||
-    mode.includes("callback") ||
-    mode.includes("reversal");
-
+  const multiSignalMode = MULTI_SIGNAL_MODE.test(clean(beat.realizationMode));
   const requiredSignalCount = multiSignalMode
     ? Math.min(2, Math.max(1, beatEventIds.length))
     : 1;
@@ -219,7 +223,11 @@ function relationMeaningScore(
     ? Math.min(1, relationCount / 2)
     : Math.min(1, relationCount / 3);
 
-  return metric(direct * 0.4 + signalCoverage * 0.3 + relationalBonus * 0.3);
+  return metric(
+    direct * 0.4 +
+      signalCoverage * 0.3 +
+      relationalBonus * 0.3,
+  );
 }
 
 function cohesionScore(text: string, priorTexts: readonly string[]): number {
@@ -254,13 +262,7 @@ function meaningShiftEvidence(
   const beatEventIds = unique(beat.eventIds ?? []);
   const change = clean(beat.change);
   const changeSupport = change ? phraseSimilarity(text, change) : 0.25;
-  const mode = clean(beat.realizationMode).toLowerCase();
-  const multiSignalMode =
-    mode.includes("reframe") ||
-    mode.includes("contrast") ||
-    mode.includes("turn") ||
-    mode.includes("callback") ||
-    mode.includes("reversal");
+  const multiSignalMode = MULTI_SIGNAL_MODE.test(clean(beat.realizationMode));
   const relationCount = supportedRelationPairs(eventIds, envelope).length;
   const supportedBeatSignals = beatEventIds.filter((id) => eventIds.includes(id)).length;
   const signalScore = beatEventIds.length
@@ -270,7 +272,52 @@ function meaningShiftEvidence(
     ? Math.min(1, relationCount / 2)
     : Math.min(1, relationCount / 3);
 
-  return metric(signalScore * 0.45 + relationScore * 0.35 + changeSupport * 0.2);
+  return metric(
+    signalScore * 0.45 +
+      relationScore * 0.35 +
+      changeSupport * 0.2,
+  );
+}
+
+/**
+ * Detect pure source-anchor collage. The candidate is grounded, but the
+ * sentence contains no substantive language beyond the supplied anchors and
+ * function words, so it cannot be trusted as semantic realization.
+ */
+function anchorCollagePenalty(
+  beat: MouthCandidateBeat,
+  text: string,
+  envelope: RealityEnvelope,
+): number {
+  if (!MULTI_SIGNAL_MODE.test(clean(beat.realizationMode))) return 0;
+
+  const requiredIds = unique(beat.eventIds ?? []);
+  if (requiredIds.length < 2) return 0;
+
+  const supported = new Set(supportedEventIds(text, envelope));
+  const requiredHits = requiredIds.filter((id) => supported.has(id)).length;
+  if (requiredHits < 2) return 0;
+
+  const anchorVocabulary = new Set<string>();
+  for (const event of envelope.events) {
+    if (!requiredIds.includes(event.id)) continue;
+    for (const token of tokens(event.label)) {
+      const normalized = stem(token);
+      if (!STOP.has(normalized) && !INTERPRETIVE.has(normalized)) {
+        anchorVocabulary.add(normalized);
+      }
+    }
+  }
+
+  const substantive = tokens(text)
+    .map(stem)
+    .filter((token) => !STOP.has(token) && !INTERPRETIVE.has(token));
+
+  if (!substantive.length) return 0.9;
+
+  const outsideAnchor = substantive.filter((token) => !anchorVocabulary.has(token));
+
+  return outsideAnchor.length === 0 ? 0.9 : 0;
 }
 
 export function scoreMouthCandidate(input: {
@@ -285,29 +332,43 @@ export function scoreMouthCandidate(input: {
   const relations = supportedRelationPairs(eventIds, input.envelope);
   const grounding = groundingScore(text, input.envelope);
   const operationLanguage = REALIZATION_META.test(text);
+  const endpointExact = endpointExactness(text, input.beat);
+  const collagePenalty = anchorCollagePenalty(input.beat, text, input.envelope);
   const inventionRisk = Math.max(
     concreteTokenRisk(text, input.envelope),
     GENERIC_FILLER.test(text) ? 0.8 : 0,
     META.test(text) ? 0.8 : 0,
     operationLanguage ? 0.7 : 0,
   );
-  const meaning = relationMeaningScore(text, input.beat, input.envelope);
+  const meaning = isPayoffBeat(input.beat)
+    ? endpointExact === 1
+      ? 1
+      : 0
+    : Math.max(
+        0,
+        relationMeaningScore(text, input.beat, input.envelope) - collagePenalty * 0.9,
+      );
   const cohesion = cohesionScore(text, priorTexts);
   const repetition = repetitionRisk(text, priorTexts);
   const novelty = noveltyScore(text, priorTexts);
   const compression = compressionScore(text);
-  const transition = meaningShiftEvidence(input.beat, text, input.envelope);
+  const transition = isPayoffBeat(input.beat)
+    ? endpointExact
+    : meaningShiftEvidence(input.beat, text, input.envelope);
   const questionPenalty = QUESTION.test(text) ? 0.5 : 0;
+  const payoffViolation = isPayoffBeat(input.beat) && endpointExact !== 1 ? 0.8 : 0;
 
   const score = metric(
     grounding * 0.22 +
-      meaning * 0.25 +
+      meaning * 0.3 +
       transition * 0.2 +
-      cohesion * 0.11 +
-      novelty * 0.08 +
-      compression * 0.1 -
+      cohesion * 0.08 +
+      novelty * 0.06 +
+      compression * 0.08 +
+      endpointExact * 0.35 -
       inventionRisk * 0.25 -
       repetition * 0.08 -
+      payoffViolation * 0.35 -
       questionPenalty * 0.1,
   );
 
@@ -319,6 +380,8 @@ export function scoreMouthCandidate(input: {
   if (operationLanguage) reasons.push("analytic-realization-language");
   if (repetition > 0.8) reasons.push("high-repetition");
   if (compression < 0.45) reasons.push("poor-compression");
+  if (collagePenalty > 0) reasons.push("keyword-assembly");
+  if (isPayoffBeat(input.beat) && endpointExact !== 1) reasons.push("non-exact-payoff");
   if (QUESTION.test(text)) reasons.push("question-leak");
 
   return {
@@ -345,12 +408,14 @@ export function selectBestMouthCandidate(input: {
   priorTexts?: readonly string[];
 }): MouthCandidateSelection {
   const candidates = input.texts
-    .map((text) => scoreMouthCandidate({
-      text,
-      beat: input.beat,
-      envelope: input.envelope,
-      priorTexts: input.priorTexts,
-    }))
+    .map((text) =>
+      scoreMouthCandidate({
+        text,
+        beat: input.beat,
+        envelope: input.envelope,
+        priorTexts: input.priorTexts,
+      }),
+    )
     .filter((candidate) => candidate.text.length > 0)
     .sort((a, b) => b.score - a.score);
 
@@ -371,9 +436,10 @@ export function buildMouthCandidateMessages(
     "Do not output explanations or planning metadata.",
     "Do not describe the beat operation. Perform the meaning shift in natural language.",
     "Never write phrases such as 'contrasts with', 'the contrast', 'the conclusion', 'the transformation', 'changes the meaning', or 'completes the scene'.",
-    "For contrast, reframe, turn, callback, and payoff beats, use the supplied details as the subject matter and let the relationship be felt rather than named.",
+    "For contrast, reframe, turn, and callback beats, do not merely list or juxtapose source anchors. Make the relationship felt through the sentence.",
+    "For a payoff beat, output ONLY the supplied endpoint realization. Never prepend or append an earlier beat.",
     "Generate 5 materially different short variants for each beat.",
-    "Prefer 2-7 words per variant.",
+    "Prefer 2-7 words per non-payoff variant.",
     'Return JSON only: {"variantsByBeat":[{"order":1,"variants":["...","..."]}]}',
   ].join("\n");
 
@@ -392,6 +458,9 @@ export function buildMouthCandidateMessages(
           (beat.eventIds ?? []).includes(relation.from) ||
           (beat.eventIds ?? []).includes(relation.to),
       ),
+      payoffContract: isPayoffBeat(beat)
+        ? { exact: true, endpoint: endpointText(beat) }
+        : undefined,
     })),
   };
 
@@ -418,9 +487,16 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
         const variants = Array.isArray(item.variants)
           ? item.variants.map(clean).filter(Boolean).slice(0, 8)
           : [];
-        return { order: Number(item.order ?? 0), variants };
+        return {
+          order: Number(item.order ?? 0),
+          variants,
+        };
       })
-      .filter((entry) => entry.order > 0 && entry.variants.length > 0);
+      .filter(
+        (entry) =>
+          entry.order > 0 &&
+          entry.variants.length > 0,
+      );
 
     return { variantsByBeat };
   } catch {
@@ -430,17 +506,48 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
 
 export async function generateAndSelectMouthCandidates(
   input: MouthCandidateGenerationInput & { model: MouthCandidateModel },
-): Promise<{ texts: string[]; candidates: MouthCandidate[]; rawText: string }> {
-  const result = await input.model(buildMouthCandidateMessages(input));
-  const parsed = parseMouthCandidateBatch(result.text);
-  if (!parsed) return { texts: [], candidates: [], rawText: result.text };
+): Promise<{
+  texts: string[];
+  candidates: MouthCandidate[];
+  rawText: string;
+}> {
+  const result = await input.model(
+    buildMouthCandidateMessages(input),
+  );
 
-  const ordered = [...input.beats].sort((a, b) => a.order - b.order);
+  const parsed = parseMouthCandidateBatch(result.text);
+  if (!parsed) {
+    return {
+      texts: [],
+      candidates: [],
+      rawText: result.text,
+    };
+  }
+
+  const ordered = [...input.beats].sort(
+    (a, b) => a.order - b.order,
+  );
+
   const texts: string[] = [];
   const selected: MouthCandidate[] = [];
 
   for (const beat of ordered) {
-    const entry = parsed.variantsByBeat.find((item) => item.order === beat.order);
+    const entry = parsed.variantsByBeat.find(
+      (item) => item.order === beat.order,
+    );
+
+    if (isPayoffBeat(beat) && endpointText(beat)) {
+      const candidate = scoreMouthCandidate({
+        text: endpointText(beat),
+        beat,
+        envelope: input.envelope,
+        priorTexts: texts,
+      });
+      texts.push(candidate.text);
+      selected.push(candidate);
+      continue;
+    }
+
     const selection = selectBestMouthCandidate({
       texts: entry?.variants ?? [],
       beat,
@@ -456,5 +563,9 @@ export async function generateAndSelectMouthCandidates(
     }
   }
 
-  return { texts, candidates: selected, rawText: result.text };
+  return {
+    texts,
+    candidates: selected,
+    rawText: result.text,
+  };
 }
