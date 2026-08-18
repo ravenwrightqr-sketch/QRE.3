@@ -30,7 +30,13 @@ function relationKindsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelop
 
 function suppliedStateLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
   const states = new Set(envelope.suppliedStates.map(clean).filter(Boolean));
-  return labels.filter((label) => states.has(label));
+  const recurring = new Set(envelope.recurringSignals.map(clean).filter(Boolean));
+  const matched = labels.filter((label) => states.has(label));
+  return [...matched].sort((left, right) => {
+    const leftRecurring = recurring.has(left) ? 1 : 0;
+    const rightRecurring = recurring.has(right) ? 1 : 0;
+    return rightRecurring - leftRecurring;
+  });
 }
 
 function suppliedActionLabels(labels: readonly string[], envelope: RealityEnvelope): string[] {
@@ -53,36 +59,39 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
   const actions = suppliedActionLabels(labels, envelope);
   const variants: string[] = [];
 
-  // The fallback may only reuse supplied language. It is deliberately
-  // domain-neutral: no grooming, wedding, restaurant, pet, or other
-  // industry-specific verbs/objects are authorized here.
+  // This fallback is a universal evidence-to-language recovery path. It may
+  // use generic connective language, but it never authorizes a domain object,
+  // setting, reaction, or concrete action that is absent from the evidence.
   if (subject && first) variants.push(`${subject} ${first}.`);
   if (first && (attention === "hook" || role === "arrival" || role === "establish")) variants.push(`${first}.`);
 
-  if (second) {
-    // Prefer exact supplied phrases and punctuation over fabricated grammar.
-    // The model remains responsible for polished natural-language realization.
-    if (states.length >= 2 && (relations.includes("contrasts") || relations.includes("changes"))) {
-      variants.push(`${states[0]}; ${states[1]}.`);
-      variants.push(`${states[1]}; ${states[0]}.`);
-    }
-    if (states.length >= 1 && actions.length >= 1) {
-      variants.push(`${states[0]}; ${actions[0]}.`);
-      variants.push(`${actions[0]}; ${states[0]}.`);
-    }
-    if (relations.includes("contrasts") || relations.includes("changes") || relations.includes("converges")) {
-      variants.push(`${first}; ${second}.`);
-      variants.push(`${first}. ${second}.`);
-    } else {
-      variants.push(`${first}; ${second}.`);
-    }
+  if (states.length >= 2 && (relations.includes("contrasts") || relations.includes("changes"))) {
+    if (subject) variants.push(`${subject} was ${states[0]}, but ${states[1]}.`);
+    variants.push(`${states[0]}, but ${states[1]}.`);
+    variants.push(`${states[1]}, even then ${states[0]}.`);
+  }
+
+  if (states.length >= 1 && actions.length >= 1) {
+    if (subject) variants.push(`${subject} was ${states[0]}, but then ${actions[0]}.`);
+    variants.push(`${states[0]}; then ${actions[0]}.`);
+    variants.push(`${actions[0]}. That was enough.`);
+    variants.push(`${actions[0]}. There it was.`);
+  }
+
+  if (actions.length >= 1 && relations.includes("contrasts")) {
+    variants.push(`${actions[0]}. That was the turn.`);
+  }
+
+  if (second && (relations.includes("contrasts") || relations.includes("changes") || relations.includes("converges"))) {
+    variants.push(`${first}; ${second}.`);
+    variants.push(`${first}. ${second}.`);
   }
 
   if (attention === "callback" && first && second) variants.push(`${first}; ${second}.`);
 
   if (endpoint && (attention === "payoff" || role === "payoff" || attention === "release")) {
-    // The endpoint is an exact supplied reality anchor. Never append invented
-    // language after it and never replace it with a generated synonym.
+    // The endpoint is supplied reality. Preserve it exactly and never append
+    // generated language after it.
     if (labels.length >= 2) {
       const prior = labels[labels.length - 2];
       variants.push(`${prior}; ${endpoint}.`);
@@ -92,7 +101,7 @@ function groundedVariants(beat: MouthCandidateBeat, envelope: RealityEnvelope): 
     variants.push(`${endpoint}.`);
   }
 
-  return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 8);
+  return [...new Set(variants.map(clean).filter(Boolean))].slice(0, 10);
 }
 
 export function buildGroundedFallbackCandidates(input: {
