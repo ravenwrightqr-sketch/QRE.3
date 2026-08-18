@@ -39,6 +39,28 @@ function relationMode(beat: MouthCandidateBeat): boolean {
   ].some((value) => mode.includes(value));
 }
 
+function hookOrEstablishment(beat: MouthCandidateBeat): boolean {
+  const attention = clean(beat.attentionFunction).toLowerCase();
+  const role = clean(beat.role).toLowerCase();
+  return (
+    attention === "hook" ||
+    role === "arrival" ||
+    role === "establish" ||
+    clean(beat.realizationMode).toLowerCase() === "direct_grounded_realization"
+  );
+}
+
+function payoffOrRelease(beat: MouthCandidateBeat): boolean {
+  const attention = clean(beat.attentionFunction).toLowerCase();
+  const role = clean(beat.role).toLowerCase();
+  return (
+    attention === "payoff" ||
+    attention === "release" ||
+    role === "payoff" ||
+    role === "release"
+  );
+}
+
 function transitionCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
@@ -100,6 +122,31 @@ function relationCoverage(
   );
 }
 
+function semanticExecutionBaseline(
+  candidate: MouthCandidate,
+  beat: MouthCandidateBeat,
+): number {
+  if (hookOrEstablishment(beat)) {
+    return metric(
+      Math.max(
+        candidate.groundingScore,
+        candidate.supportedEventIds.length > 0 ? 0.65 : 0.35,
+      ),
+    );
+  }
+
+  if (payoffOrRelease(beat)) {
+    return metric(
+      Math.max(
+        candidate.groundingScore * 0.8,
+        candidate.supportedEventIds.length > 0 ? 0.55 : 0.3,
+      ),
+    );
+  }
+
+  return candidate.meaningScore;
+}
+
 export function adaptMouthCandidateQuality(input: {
   candidate: MouthCandidate;
   beat: MouthCandidateBeat;
@@ -125,18 +172,38 @@ export function adaptMouthCandidateQuality(input: {
   const relationRequired = relationMode(
     beat,
   );
+  const isHook = hookOrEstablishment(beat);
+  const isPayoff = payoffOrRelease(beat);
+
+  /*
+   * Semantic scoring is role-aware. A hook establishes evidence; it does not
+   * need to demonstrate a relation. A payoff must land supplied endpoint
+   * evidence; only relational middle beats require explicit transition proof.
+   */
+  const baseMeaning = semanticExecutionBaseline(
+    candidate,
+    beat,
+  );
 
   const meaningPenalty =
-    relationRequired && transition < 1
-      ? (1 - transition) * 0.25
+    relationRequired &&
+    !isHook &&
+    transition < 1
+      ? (1 - transition) * 0.22
+      : 0;
+
+  const endpointBonus =
+    isPayoff &&
+    candidate.supportedEventIds.length > 0
+      ? 0.12
       : 0;
 
   const naturalnessPenalty =
     language.fragmentRisk * 0.22 +
     language.keywordAssemblyRisk * 0.2 +
     language.analyticLanguageRisk * 0.2 +
-    language.supportedActionRisk * 0.14 +
-    language.supportedEntityRisk * 0.08;
+    language.supportedActionRisk * 0.12 +
+    language.supportedEntityRisk * 0.06;
 
   const relationMeaningBonus =
     relationRequired &&
@@ -147,28 +214,32 @@ export function adaptMouthCandidateQuality(input: {
   const adaptedMeaning = metric(
     Math.max(
       0,
-      candidate.meaningScore +
-        relationMeaningBonus -
+      baseMeaning +
+        relationMeaningBonus +
+        endpointBonus -
         meaningPenalty,
     ),
   );
 
   const adaptedInvention = metric(
     Math.max(
-      candidate.inventionRisk,
-      language.supportedActionRisk,
-      language.supportedEntityRisk,
+      0,
+      Math.min(
+        candidate.inventionRisk,
+        Math.max(0, language.supportedActionRisk * 0.75),
+      ),
     ),
   );
 
   const score = metric(
-    candidate.score * 0.58 +
-      adaptedMeaning * 0.12 +
-      language.naturalness * 0.14 +
-      transition * 0.08 +
-      relationEvidence * 0.08 -
-      naturalnessPenalty * 0.18 -
-      meaningPenalty * 0.2,
+    candidate.score * 0.5 +
+      adaptedMeaning * 0.18 +
+      language.naturalness * 0.15 +
+      transition * 0.07 +
+      relationEvidence * 0.06 +
+      endpointBonus * 0.08 -
+      naturalnessPenalty * 0.12 -
+      meaningPenalty * 0.12,
   );
 
   const reasons = [
@@ -178,6 +249,7 @@ export function adaptMouthCandidateQuality(input: {
 
   if (
     relationRequired &&
+    !isHook &&
     transition < 1
   ) {
     reasons.push(
@@ -195,6 +267,14 @@ export function adaptMouthCandidateQuality(input: {
     );
   }
 
+  if (isHook) {
+    reasons.push("hook-scored-as-establishment");
+  }
+
+  if (isPayoff) {
+    reasons.push("payoff-endpoint-priority");
+  }
+
   if (language.accepted === false) {
     reasons.push(
       "language-quality-gate",
@@ -204,8 +284,8 @@ export function adaptMouthCandidateQuality(input: {
   return {
     ...candidate,
     groundingScore: metric(
-      candidate.groundingScore * 0.8 +
-        language.naturalness * 0.1 +
+      candidate.groundingScore * 0.78 +
+        language.naturalness * 0.12 +
         relationEvidence * 0.1,
     ),
     meaningScore: adaptedMeaning,
