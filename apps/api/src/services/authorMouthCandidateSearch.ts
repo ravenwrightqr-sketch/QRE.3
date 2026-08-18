@@ -67,6 +67,7 @@ const INTERPRETIVE = new Set(
 const GENERIC_FILLER = /\b(?:beautiful|magical|unforgettable|incredible|journey|special|meaningful|cinematic|perfect day|new chapter|happy ending|what a day)\b/i;
 const QUESTION = /\?/;
 const META = /\b(?:beat|viewer|audience|strategy|operator|cognition|frontier|planner|planning|narrative|realization|writing process|author brief)\b/i;
+const REALIZATION_META = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe|reframing|changes? the meaning|shows? the contrast|explains?)\b/i;
 
 const clean = (value: unknown): string =>
   String(value ?? "")
@@ -170,6 +171,28 @@ function concreteTokenRisk(text: string, envelope: RealityEnvelope): number {
   return metric(unsupported / Math.max(1, words.length));
 }
 
+function requiredEventCoverage(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): number {
+  const required = unique(beat.eventIds ?? []);
+  if (!required.length) return 0.5;
+
+  const supported = new Set(
+    supportedEventIds(text, envelope),
+  );
+
+  const hits = required.filter(
+    (id) => supported.has(id),
+  ).length;
+
+  return metric(
+    hits /
+      Math.max(1, required.length),
+  );
+}
+
 function relationMeaningScore(
   text: string,
   beat: MouthCandidateBeat,
@@ -177,22 +200,64 @@ function relationMeaningScore(
 ): number {
   const eventIds = supportedEventIds(text, envelope);
   const beatEventIds = unique(beat.eventIds ?? []);
-  const direct = beatEventIds.length
-    ? eventIds.filter((id) => beatEventIds.includes(id)).length /
-      Math.max(1, beatEventIds.length)
-    : 0;
 
-  const relationCount = supportedRelationPairs(eventIds, envelope).length;
-  const mode = clean(beat.realizationMode).toLowerCase();
-  const relationalBonus =
+  const direct =
+    requiredEventCoverage(
+      text,
+      beat,
+      envelope,
+    );
+
+  const relationCount =
+    supportedRelationPairs(
+      eventIds,
+      envelope,
+    ).length;
+
+  const mode = clean(
+    beat.realizationMode,
+  ).toLowerCase();
+
+  const multiSignalMode =
     mode.includes("reframe") ||
     mode.includes("contrast") ||
     mode.includes("turn") ||
-    mode.includes("callback")
+    mode.includes("callback") ||
+    mode.includes("reversal");
+
+  const requiredSignalCount =
+    multiSignalMode
+      ? Math.min(
+          2,
+          Math.max(
+            1,
+            beatEventIds.length,
+          ),
+        )
+      : 1;
+
+  const supportedSignals =
+    beatEventIds.filter(
+      (id) =>
+        eventIds.includes(id),
+    ).length;
+
+  const signalCoverage =
+    metric(
+      supportedSignals /
+        requiredSignalCount,
+    );
+
+  const relationalBonus =
+    multiSignalMode
       ? Math.min(1, relationCount / 2)
       : Math.min(1, relationCount / 3);
 
-  return metric(direct * 0.55 + relationalBonus * 0.45);
+  return metric(
+    direct * 0.4 +
+      signalCoverage * 0.3 +
+      relationalBonus * 0.3,
+  );
 }
 
 function cohesionScore(text: string, priorTexts: readonly string[]): number {
@@ -223,19 +288,51 @@ function meaningShiftEvidence(
   text: string,
   envelope: RealityEnvelope,
 ): number {
-  const change = clean(beat.change);
-  if (!change) return 0.25;
-
-  const changeSupport = phraseSimilarity(text, change);
   const eventIds = supportedEventIds(text, envelope);
-  const currentSupport = eventIds.length > 0 ? 1 : 0;
-  const relational = supportedRelationPairs(eventIds, envelope).length > 0 ? 1 : 0;
+  const beatEventIds = unique(beat.eventIds ?? []);
+  const change = clean(beat.change);
+  const changeSupport = change
+    ? phraseSimilarity(text, change)
+    : 0.25;
+
+  const mode = clean(
+    beat.realizationMode,
+  ).toLowerCase();
+
+  const multiSignalMode =
+    mode.includes("reframe") ||
+    mode.includes("contrast") ||
+    mode.includes("turn") ||
+    mode.includes("callback") ||
+    mode.includes("reversal");
+
+  const relationCount =
+    supportedRelationPairs(
+      eventIds,
+      envelope,
+    ).length;
+
+  const supportedBeatSignals =
+    beatEventIds.filter(
+      (id) => eventIds.includes(id),
+    ).length;
+
+  const signalScore = beatEventIds.length
+    ? metric(
+        supportedBeatSignals /
+          Math.max(1, beatEventIds.length),
+      )
+    : 0.25;
+
+  const relationScore =
+    multiSignalMode
+      ? Math.min(1, relationCount / 2)
+      : Math.min(1, relationCount / 3);
 
   return metric(
-    Math.max(
-      currentSupport * 0.25 + relational * 0.5 + changeSupport * 0.25,
-      changeSupport,
-    ),
+    signalScore * 0.45 +
+      relationScore * 0.35 +
+      changeSupport * 0.2,
   );
 }
 
@@ -250,35 +347,47 @@ export function scoreMouthCandidate(input: {
   const eventIds = supportedEventIds(text, input.envelope);
   const relations = supportedRelationPairs(eventIds, input.envelope);
   const grounding = groundingScore(text, input.envelope);
+  const operationLanguage = REALIZATION_META.test(text);
   const inventionRisk = Math.max(
     concreteTokenRisk(text, input.envelope),
     GENERIC_FILLER.test(text) ? 0.8 : 0,
     META.test(text) ? 0.8 : 0,
+    operationLanguage ? 0.7 : 0,
   );
-  const meaning = relationMeaningScore(text, input.beat, input.envelope);
+  const meaning = relationMeaningScore(
+    text,
+    input.beat,
+    input.envelope,
+  );
   const cohesion = cohesionScore(text, priorTexts);
   const repetition = repetitionRisk(text, priorTexts);
   const novelty = noveltyScore(text, priorTexts);
   const compression = compressionScore(text);
-  const transition = meaningShiftEvidence(input.beat, text, input.envelope);
+  const transition = meaningShiftEvidence(
+    input.beat,
+    text,
+    input.envelope,
+  );
   const questionPenalty = QUESTION.test(text) ? 0.5 : 0;
 
   const score = metric(
-    grounding * 0.24 +
-      meaning * 0.22 +
-      transition * 0.16 +
-      cohesion * 0.12 +
-      novelty * 0.1 +
+    grounding * 0.22 +
+      meaning * 0.25 +
+      transition * 0.2 +
+      cohesion * 0.11 +
+      novelty * 0.08 +
       compression * 0.1 -
-      inventionRisk * 0.2 -
+      inventionRisk * 0.25 -
       repetition * 0.08 -
       questionPenalty * 0.1,
   );
 
   const reasons: string[] = [];
-  if (grounding < 0.34) reasons.push("weak-grounding");
-  if (meaning < 0.34) reasons.push("weak-meaning-execution");
+  if (grounding < 0.42) reasons.push("weak-grounding");
+  if (meaning < 0.4) reasons.push("weak-meaning-execution");
+  if (transition < 0.4) reasons.push("weak-meaning-transition");
   if (inventionRisk > 0.45) reasons.push("high-invention-risk");
+  if (operationLanguage) reasons.push("analytic-realization-language");
   if (repetition > 0.8) reasons.push("high-repetition");
   if (compression < 0.45) reasons.push("poor-compression");
   if (QUESTION.test(text)) reasons.push("question-leak");
@@ -336,6 +445,9 @@ export function buildMouthCandidateMessages(
     "Semantic interpretation may be novel when supported by graph relationships.",
     "Do not ask questions.",
     "Do not output explanations or planning metadata.",
+    "Do not describe the beat operation. Perform the meaning shift in natural language.",
+    "Never write phrases such as 'contrasts with', 'the contrast', 'the conclusion', 'the transformation', 'changes the meaning', or 'completes the scene'.",
+    "For contrast, reframe, turn, callback, and payoff beats, use the supplied details as the subject matter and let the relationship be felt rather than named.",
     "Generate 5 materially different short variants for each beat.",
     "Prefer 2-7 words per variant.",
     'Return JSON only: {"variantsByBeat":[{"order":1,"variants":["...","..."]}]}',
@@ -346,7 +458,26 @@ export function buildMouthCandidateMessages(
     lens: clean(input.lens),
     priorTexts: input.priorTexts ?? [],
     realityEnvelope: input.envelope,
-    beats: input.beats,
+    beats: input.beats.map((beat) => ({
+      ...beat,
+      anchorEvents: (beat.eventIds ?? [])
+        .map(
+          (id) =>
+            input.envelope.events.find(
+              (event) => event.id === id,
+            )?.label,
+        )
+        .filter(Boolean),
+      anchorRelations: input.envelope.relations.filter(
+        (relation) =>
+          (beat.eventIds ?? []).includes(
+            relation.from,
+          ) ||
+          (beat.eventIds ?? []).includes(
+            relation.to,
+          ),
+      ),
+    })),
   };
 
   return [
