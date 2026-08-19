@@ -1,80 +1,115 @@
 # QRE AUTHOR WIRING MAP
 
-**Status:** CANONICAL CURRENT WIRING
-**Branch:** `author/enterprise-mouth-rewire`
-**Primary reference:** `docs/AUTHOR_CURRENT_STATE.md`
+**STATUS:** CURRENT / CANONICAL
+**BRANCH:** `author/enterprise-realization-engine`
+
+## Canonical live path
 
 ```text
 SOURCE TRUTH
-  → RealityGraph
-  → Cognition / Character Read
-  → Latent Movie Search / Differentiation
-  → Beat Discovery
-  → Canonical Beat Graph
-  → Viewer Momentum / Magnet
-  → Mouth
-  → Attention Editor
-  → Truth / Cut Policy
-  → Bounded Repair
-  → Final Scenes
-  → Cinematic Runtime
+  → authorRealityGraph.ts
+  → authorCognition.ts
+  → authorLatentMovieSearch.ts
+  → authorMovieDifferentiation.ts
+  → authorBrainUniversal.ts
+  → authorMeaningSpine.ts
+  → authorMouthRealizationSlot.ts
+  → authorMouthCandidateSearch.ts
+  → authorMouthLanguageGate.ts
+  → authorMouthSequenceBeamSearch.ts
+  → authorAttentionEditor.ts
+  → authorBeatTruthGate.ts / authorCutPolicy.ts
+  → final scenes
 ```
 
 ## Canonical owners
 
-| Responsibility | Owner |
-|---|---|
-| Reality graph | `apps/api/src/services/authorRealityGraph.ts` |
-| Cognition | `apps/api/src/services/authorCognition.ts` |
-| Latent movie search | `apps/api/src/services/authorLatentMovieSearch.ts` |
-| Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` |
-| Master Author | `apps/api/src/services/authorBrainUniversal.ts` |
-| Beat recovery | `apps/api/src/services/authorBeatPlanRecovery.ts` |
-| Latent beat adaptation | `apps/api/src/services/authorLatentMovieBeatAdapter.ts` |
-| Mouth realization | `apps/api/src/services/localModelRuntime.ts` + canonical author mouth craft |
-| Attention editor | `apps/api/src/services/authorAttentionEditor.ts` |
-| Truth gate | `apps/api/src/services/authorBeatTruthGate.ts` |
-| Cut policy | `apps/api/src/services/authorCutPolicy.ts` |
-| Model transport | `apps/api/src/services/localModelRuntime.ts` |
-| Acceptance | Monster + author acceptance suite |
+| Responsibility | Owner | Consumer |
+|---|---|---|
+| RealityGraph compilation | `authorRealityGraph.ts` | cognition / Master Author |
+| Cognition | `authorCognition.ts` | Master Author |
+| Latent movie search | `authorLatentMovieSearch.ts` | cognition / Master Author |
+| Movie differentiation | `authorMovieDifferentiation.ts` | movie selection |
+| Master Author | `authorBrainUniversal.ts` | acceptance / runtime |
+| Meaning Spine | `authorMeaningSpine.ts` | realization slots |
+| Realization Slots | `authorMouthRealizationSlot.ts` | Mouth candidates |
+| Candidate generation + semantic scoring | `authorMouthCandidateSearch.ts` | Mouth quality / beam |
+| Reality/language gate | `authorMouthLanguageGate.ts` | Mouth quality adapter |
+| Candidate quality adaptation | `authorMouthQualityAdapter.ts` | Mouth beam |
+| Grounded fallback | `authorMouthGroundedFallback.ts` | quality adapter |
+| Mouth sequence beam | `authorMouthSequenceBeamSearch.ts` | Master Author |
+| Attention editing | `authorAttentionEditor.ts` | Master Author |
+| Truth gate | `authorBeatTruthGate.ts` | Master Author |
+| Cut policy | `authorCutPolicy.ts` | Master Author |
+| Model transport | `localModelRuntime.ts` | canonical Mouth candidate generation |
 
-## Beat Graph
+## Trajectory status
 
-A beat is one perceivable change in the viewer's mental model.
+`authorTrajectorySearch.ts` exists as a pure capability with its own structural acceptance. It is **NOT YET CONNECTED to the production Master Author** and therefore is not listed as a live pipeline stage.
 
-```text
-role
-change
-next
-frontier
-necessity
-attentionFunction
-setsUp
-paysOff
-creativeMove
-nextBeatPullTarget
-source/event IDs
-```
+The isolated acceptance currently exposes an endpoint-terminal defect (`payoff -> payoff`). That defect must be resolved before trajectory search is promoted.
 
-Metadata is private. It must never leak into viewer prose.
+## Enterprise Mouth status
 
-## Truth boundary
+`authorEnterpriseMouth.ts` is an acceptance-oriented alternate orchestration over many canonical Mouth helpers. `authorBrainUniversal.ts` does not import it.
 
-Creative interpretation may change framing, attitude, implication, metaphor, status, and meaning. It may not create unsupported concrete reality in reality-locked mode.
-
-## Acceptance invariants
+Therefore:
 
 ```text
-one Master Author
-one Beat Graph shape
-one Magnet representation
-one mouth path
-one Attention Editor
-one truth/cut gate
-no planning prose
-no unsupported concrete invention
-no silent partial success
-no bypass recovery author
+Enterprise Mouth = NON-CANONICAL / UNDER MIGRATION AUDIT
 ```
 
-Builds prove compilation. Monster/acceptance runs prove semantic integrity.
+Useful capabilities from its cluster—strategy selection, cumulative meaning, safety, grounded surprise, bounded model budgets—must be migrated into canonical owners only when they improve the live path. Duplicate orchestration must then be retired.
+
+`docs/AUTHOR_ENTERPRISE_MASTER.md` is historical/diagnostic material until that migration is complete; it is not production authority.
+
+## Contract rule
+
+All semantic concepts crossing service boundaries must originate in `@qre/contracts`.
+
+A local type is allowed only when it is genuinely implementation-private. Shared Author/Mouth semantics must not be redefined independently by individual services.
+
+## Acceptance rule
+
+Production acceptance must exercise `authorBrainUniversal.ts`.
+
+Helper-level acceptance may diagnose a component, but it cannot be called production green unless the canonical Master Author consumes that component.
+
+## Failure interpretation
+
+```text
+compile passes
+    ≠
+production works
+
+helper passes
+    ≠
+Master Author works
+
+fallback passes
+    ≠
+Mouth is excellent
+
+production acceptance passes
+    =
+actual viewer-facing path survived authoritative gates
+```
+
+## Audit label standard
+
+Every file we certify receives:
+
+```text
+FULLY READ
+FILE:
+ROLE:
+OWNS:
+DOES NOT OWN:
+UPSTREAM:
+DOWNSTREAM:
+CONTRACT:
+CANONICAL:
+STATUS:
+```
+
+No filename grants architectural authority.
