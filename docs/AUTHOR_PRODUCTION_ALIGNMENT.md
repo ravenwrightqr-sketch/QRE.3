@@ -1,29 +1,29 @@
-# QRE Author · Production Alignment Ledger
+# QRE AUTHOR · PRODUCTION ALIGNMENT LEDGER
 
-This file is the permanent operating log for the universal Author.
+**STATUS:** CURRENT OPERATING LEDGER
+**BRANCH:** `author/enterprise-realization-engine`
 
-Its purpose is to prevent the team from solving the same failure more than once and to keep cognition, realization, validation, and deployment on one trajectory.
+This ledger records production laws and verified development learnings. It does not override `AUTHOR_ARCHITECTURE_INDEX.md` or `AUTHOR_WIRING_MAP.md`.
 
 ## CURRENT TARGET
-
-Production objective:
 
 ```text
 SUPPLIED REALITY
 → STRUCTURED REALITY GRAPH
-→ EVIDENCE RELATIONS
+→ RELATIONSHIPS
 → LATENT MOVIE SEARCH
-→ LATENT STORY THESIS
+→ MOVIE DIFFERENTIATION
 → MEANING SPINE
 → REALIZATION SLOTS
-→ LANGUAGE CANDIDATES
-→ SEMANTIC VALIDATION
+→ MOUTH CANDIDATES
+→ LANGUAGE / REALITY GATE
 → SEQUENCE BEAM
-→ CRITIC / REPAIR
+→ ATTENTION EDITOR
+→ TRUTH / CUT POLICY
 → FINAL EXACT ENDPOINT
 ```
 
-The Author must remain universal. Domain examples are evidence for acceptance tests, never architecture.
+The Author remains universal. Domain examples are acceptance evidence, never architecture.
 
 ## HARD LAWS
 
@@ -33,197 +33,167 @@ No author stage may invent a concrete person, object, location, action, reaction
 
 ### Cognition owns meaning
 
-The latent movie, thesis, spine, and realization slot determine what changes between beats. The Mouth supplies language only.
+Movie hypotheses, relationships, meaning, and realization jobs are upstream of the Mouth. The Mouth supplies language only.
 
 ### Grounding is not meaning
 
-A sentence can contain supplied facts and still fail the cognitive job. Keyword overlap must never substitute for semantic movement.
+A sentence can contain supplied facts and still fail the cognitive job. Keyword overlap never substitutes for semantic movement.
 
 ### One beat = one cognitive job
 
-A beat must earn its place by advancing the viewer model. Fact collage is not a realization.
+A beat earns its place by advancing the viewer model. Fact collage is not a realization.
 
 ### Endpoint authority is absolute
 
-If reality supplies the ending, the final realization is that supplied endpoint. Previous beats earn it; they do not get appended to it.
+If reality supplies the ending, the final realization is that supplied endpoint. Previous beats earn it; they do not embellish it.
 
 ### Beam optimizes valid candidates
 
-The beam must not use sequence arithmetic to rescue a candidate already rejected for semantic invalidity, invention, endpoint violation, or forbidden realization behavior.
+Sequence arithmetic must never rescue a candidate already rejected for semantic invalidity, invention, endpoint violation, or forbidden realization behavior.
 
 ### Recovery is bounded
 
-Primary generation may fail. Recovery should salvage complete structured entries and regenerate only missing beats. Do not multiply model calls just because one response was malformed.
-
-### Transport failure is not cognitive failure
-
-Truncated JSON, malformed structured output, or model transport errors are recovery conditions. They must not erase already-generated valid beats.
+Malformed model output is a recovery condition. Preserve valid candidates and repair only the missing/failed portion. Do not create a second fallback author.
 
 ### Universal means entity-neutral
 
-No active author authority may depend on Coco, grooming, wedding, restaurant, cannabis, horror, or any other domain-specific vocabulary. Domains belong in supplied evidence and optional external knowledge, not in the author core.
+No active author authority may depend on Coco, grooming, wedding, restaurant, horror, or any other domain vocabulary.
 
 ### One authority per responsibility
 
-Creative capability may multiply. Author authorities may not.
-
 ```text
-Reality authority        → RealityGraph / RealityEnvelope
-Movie authority          → Latent Movie search
-Thesis authority         → Latent Story Thesis
-Meaning authority        → Meaning Spine
-Job authority            → Realization Slot
-Language authority       → Mouth Candidate Search
-Sequence authority       → Mouth Beam
-Judgment authority       → Critic / Cut Policy / Sequence Gate
+Reality authority  → RealityGraph / RealityEnvelope
+Movie authority    → Latent Movie search / differentiation
+Meaning authority  → Meaning Spine / Realization Slots
+Language authority → Mouth Candidate Search
+Sequence authority → Mouth Beam
+Judgment authority → Attention Editor / Truth / Cut Policy
 ```
 
-## VERIFIED GREEN LAYERS
+## VERIFIED PRINCIPLES
 
-The following acceptance layers have already reached green during this build cycle:
-
-```text
-TypeScript contract build             PASS
-TypeScript engine build               PASS
-TypeScript API build                  PASS
-API test typecheck                    PASS
-pureUniversalCognitionAcceptance      PASS · 4/4
-pureLatentStoryThesisAcceptance       PASS · 4/4
-```
-
-The latent thesis gate proved the universal structure:
+Already demonstrated in the build cycle:
 
 ```text
-establish → semantic turn → sealing evidence → supplied payoff
+contracts/type safety remain green when changes respect owners
+RealityGraph preserves provenance and relations
+latent movie candidates remain hypotheses
+endpoint preservation is a hard constraint
+candidate batches must be recoverable per beat
+sequence scoring must operate on complete paths
 ```
 
-with carrier, sealing, endpoint dependency, distinctness, and counterfactual checks satisfied across unrelated realities.
+## STRUCTURED-OUTPUT LAW
 
-## MOUTH HARDENING COMPLETED
+The local Qwen transport is a model-transport concern, not a cognition concern.
 
-The Mouth path now enforces:
+When JSON is malformed or truncated:
 
 ```text
-exact supplied payoff endpoint
-source-keyword collage rejection
-semantic invalidity before beam optimization
-universal fallback boundaries
-shared realization-slot semantics
-bounded repair/recovery
+preserve usable candidate data
+→ normalize per beat
+→ recover only missing coverage
+→ continue through the same gates
 ```
 
-## STRUCTURED-OUTPUT HARDENING
+Do not silently turn a partial model response into a successful partial movie.
 
-The latest Ollama failure was transport-level: the model response ended before the JSON document closed.
+## MOUTH LAW
 
-The reproducible fix is now tracked as:
+The production Mouth must optimize:
 
 ```text
-scripts/harden-author-production-transport-v1.mjs
+truth
++ meaning execution
++ relationship execution
++ attention movement
++ next-cut pull
++ novelty
++ compression
++ endpoint exactness
 ```
 
-The hardener is designed to:
+It must reject:
 
 ```text
-1. preserve complete variantsByBeat objects from truncated model output;
-2. let the existing bounded recovery path request only missing beat orders;
-3. preserve valid early candidates instead of converting the entire response to an empty batch;
-4. align the local Ollama fallback with qwen2.5vl:7b when no explicit model is configured.
+invented concrete reality
+planning prose
+keyword collage
+source restatement
+clause overload
+weak semantic transition
+non-exact payoff
 ```
-
-The enterprise Mouth completion budget is also raised so structured candidate JSON has enough room to close without creating unbounded calls:
-
-```text
-full      → numPredict 1536
-model     → numPredict 1024
-dev-fast  → numPredict 768
-```
-
-The performance law remains bounded: primary + recovery + revision at most three calls in full mode.
 
 ## CURRENT TRAJECTORY
 
-The author is now intentionally organized around one invariant path:
+The canonical production system is intentionally organized around one path:
 
 ```text
 REALITY
-→ RELATIONS
+→ RELATIONSHIPS
 → LATENT MOVIE
-→ THESIS
 → MEANING SPINE
 → REALIZATION SLOT
 → CANDIDATE
-→ SEMANTIC CONTRACT
+→ GATE
 → BEAM
-→ CRITIC
-→ REPAIR
-→ EXACT PAYOFF
+→ ATTENTION EDITOR
+→ TRUTH/CUT
+→ PAYOFF
 ```
 
-When debugging, identify the first boundary where an invariant is lost. Do not repair downstream symptoms before restoring that upstream contract.
+`authorTrajectorySearch.ts` is currently an isolated capability. It must not be treated as live architecture until it is wired into the Master Author and its endpoint behavior is correct.
+
+## ENTERPRISE CLUSTER STATUS
+
+The Enterprise Mouth cluster contains useful capabilities—strategy selection, bounded budgets, cumulative meaning, grounded surprise, safety, and cross-domain fixtures—but `authorEnterpriseMouth.ts` is currently a duplicate orchestration path used by a dedicated acceptance harness.
+
+Those capabilities must be migrated into canonical owners where they measurably improve the production path. The duplicate orchestrator must then be retired.
 
 ## DEBUGGING DISCIPLINE
-
-Never rerun an unchanged test and call it progress.
 
 For every failure:
 
 ```text
-1. Identify the exact boundary that failed.
-2. Determine which contract was lost.
-3. Change the narrowest responsible authority.
-4. Rebuild/type-check.
-5. Run the changed behavioral gate.
-6. Record the discovered law here.
+1. identify the first failed boundary
+2. identify the lost contract
+3. change the narrowest responsible owner
+4. typecheck
+5. run the changed acceptance
+6. inspect final viewer-facing output
+7. record the learning
 ```
 
-Do not weaken quality gates to make tests green.
-
-## ACCEPTANCE LADDER
-
-Use this order after meaningful author changes:
-
-```text
-contracts build
-engine build
-api build
-API test typecheck
-
-pureUniversalCognitionAcceptance
-pureLatentStoryThesisAcceptance
-enterprise mouth acceptance
-production-path acceptance
-```
-
-A green upstream cognition gate does not prove a green Mouth. A green Mouth gate does not prove a green production path.
+Do not rerun unchanged tests and call it progress.
 
 ## DO NOT REINTRODUCE
 
 ```text
 hardcoded domain branches
 benchmark-specific prose templates
-emotion → automatic plot transformations
-fact concatenation presented as meaning
-endpoint embellishment
 independent fallback authors
 second model identity names
+v2/v3/final/fixed architecture files
 per-test author logic
-copying old architecture back into the live path
+score laundering
+endpoint embellishment
+silent partial success
 ```
 
 ## NEXT INTELLIGENCE TARGET
 
-Once the structured-output recovery path is green on the real Ollama run, stop adding language heuristics and return to creative search:
+Once the canonical Mouth is clean and fully production-connected:
 
 ```text
 WORLD FACTS
 → RELATION GRAPH
-→ MULTIPLE MAGNET CANDIDATES
+→ MULTIPLE MOVIE INTERPRETATIONS
 → COUNTER-OBVIOUS ATTACK
-→ INFORMATION FRONTIER RANKING
-→ LATENT MOVIE
-→ THESIS
-→ REALIZATION
+→ INFORMATION-FRONTIER RANKING
+→ BEST MOVIE
+→ STRONG BEAT JOBS
+→ MONSTER MOUTH
 ```
 
-The objective is to discover the most valuable meaning before rendering it.
+The goal is not more author machinery. The goal is a decisive universal author whose final viewer-facing result is excellent.
