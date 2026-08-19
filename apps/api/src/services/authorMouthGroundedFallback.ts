@@ -106,19 +106,17 @@ function addPairVariant(
 ): void {
   if (!first || !second) return;
 
-  if (relationKindsSet.has("contrasts")) {
+  if (
+    relationKindsSet.has("contrasts") ||
+    relationKindsSet.has("changes")
+  ) {
     addBounded(variants, `${first}, then ${second}`);
-    addBounded(variants, `${first with ${second}`);
-  }
-
-  if (relationKindsSet.has("changes")) {
-    addBounded(variants, `${first}, then ${second}`);
-    addBounded(variants, `${second after ${first}`);
+    addBounded(variants, `${first} with ${second}`);
   }
 
   if (relationKindsSet.has("recontextualizes")) {
     addBounded(variants, `${first}, now ${second}`);
-    addBounded(variants, `${second gives ${first} a new reading`);
+    addBounded(variants, `${second} gives ${first} new meaning`);
   }
 
   if (relationKindsSet.has("causes")) {
@@ -126,15 +124,15 @@ function addPairVariant(
   }
 
   if (relationKindsSet.has("converges")) {
-    addBounded(variants, `${first} meets ${second}`);
+    addBounded(variants, `${first} with ${second}`);
   }
 
   if (relationKindsSet.has("repeats")) {
-    addBounded(variants, `${first}, again as ${second}`);
+    addBounded(variants, `${first}, again with ${second}`);
   }
 
   // Universal fallback: let the approved relation be felt without inventing
-  // a domain-specific action or setting.
+  // a domain-specific object, location, person, action, or reaction.
   addBounded(variants, `${first} with ${second}`);
 }
 
@@ -197,14 +195,11 @@ function groundedVariants(
     addBounded(variants, first);
   }
 
-  // Last-resort deterministic productivity: use approved semantic text, but
-  // never fabricate a concrete event. This is intentionally scored normally
-  // by the Mouth contract afterward.
+  // Last-resort deterministic productivity: use only approved semantic text.
+  // It is still passed through the exact same Mouth scoring contract.
   if (!variants.length) {
-    const change = bounded(clean(beat.change));
-    const next = bounded(clean(beat.next || beat.frontier));
-    addBounded(variants, change);
-    addBounded(variants, next);
+    addBounded(variants, bounded(clean(beat.change)));
+    addBounded(variants, bounded(clean(beat.next || beat.frontier)));
   }
 
   return variants.slice(0, 8);
