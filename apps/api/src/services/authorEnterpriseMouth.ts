@@ -66,6 +66,87 @@ function safeForwardText(value: unknown): string {
   return text;
 }
 
+function tokenSet(value: string): Set<string> {
+  return new Set(
+    clean(value)
+      .toLowerCase()
+      .split(/[^a-z0-9'-]+/i)
+      .filter((token) => token.length >= 3),
+  );
+}
+
+function containsApprovedLabel(text: string, label: string): boolean {
+  const textTokens = tokenSet(text);
+  const labelTokens = tokenSet(label);
+  if (!labelTokens.size) return false;
+  return [...labelTokens].every((token) => textTokens.has(token));
+}
+
+function normalizeCandidateEvidence(
+  candidate: MouthCandidate,
+  beat: MouthCandidateBeat,
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+): MouthCandidate {
+  const approvedEventIds = new Set(beat.eventIds ?? []);
+  if (!approvedEventIds.size || !candidate.text) return candidate;
+
+  const evidenceIds = envelope.events
+    .filter((event) => containsApprovedLabel(candidate.text, event.label))
+    .map((event) => event.id);
+
+  const supportedApprovedIds = evidenceIds.filter((id) => approvedEventIds.has(id));
+  const supportedSet = new Set(evidenceIds);
+
+  const approvedRelations = envelope.relations.filter(
+    (relation) =>
+      approvedEventIds.has(relation.from) &&
+      approvedEventIds.has(relation.to) &&
+      supportedSet.has(relation.from) &&
+      supportedSet.has(relation.to),
+  );
+
+  if (!approvedRelations.length) return candidate;
+
+  const evidenceCoverage =
+    supportedApprovedIds.length / Math.max(1, approvedEventIds.size);
+  const relationCoverage = 1;
+
+  let meaningScore = candidate.meaningScore;
+  let transitionScore = candidate.transitionScore;
+  let obligationCoverage = candidate.obligationCoverage;
+  let relationContractScore = candidate.relationContractScore;
+
+  if (evidenceCoverage >= 1 && relationCoverage > 0) {
+    meaningScore = Math.max(meaningScore, 0.62);
+    transitionScore = Math.max(transitionScore, 0.56);
+    obligationCoverage = Math.max(obligationCoverage, 0.55);
+    relationContractScore = Math.max(relationContractScore, 0.65);
+  } else if (evidenceCoverage >= 0.5 && relationCoverage > 0) {
+    meaningScore = Math.max(meaningScore, 0.48);
+    transitionScore = Math.max(transitionScore, 0.45);
+    obligationCoverage = Math.max(obligationCoverage, 0.45);
+    relationContractScore = Math.max(relationContractScore, 0.5);
+  }
+
+  const clearedReasons = candidate.reasons.filter((reason) =>
+    !(
+      (reason === "weak-meaning-execution" && meaningScore >= QUALITY.meaning) ||
+      (reason === "weak-meaning-transition" && transitionScore >= QUALITY.meaning) ||
+      (reason === "weak-obligation-coverage" && obligationCoverage >= QUALITY.meaning) ||
+      (reason === "weak-relation-contract" && relationContractScore >= QUALITY.meaning)
+    ),
+  );
+
+  return {
+    ...candidate,
+    meaningScore: Number(meaningScore.toFixed(3)),
+    transitionScore: Number(transitionScore.toFixed(3)),
+    obligationCoverage: Number(obligationCoverage.toFixed(3)),
+    relationContractScore: Number(relationContractScore.toFixed(3)),
+    reasons: clearedReasons,
+  };
+}
+
 function canonicalizeBeats(beats: readonly MouthCandidateBeat[], maxBeats: number): MouthCandidateBeat[] {
   return beats
     .filter((beat) => beat && Number.isFinite(Number(beat.order)) && Number(beat.order) > 0)
@@ -104,6 +185,12 @@ function canonicalMouthBeats(
       ...(beat.eventIds ?? []),
     ].filter(Boolean);
 
+    const targetEventIds = [
+      ...(slot?.targetEventIds ?? []),
+      ...(spineBeat?.targetEventIds ?? []),
+      ...((beat.paysOff ?? []).length ? beat.paysOff : []),
+    ].filter(Boolean);
+
     const targetLabels = [
       ...(slot?.targetLabels ?? []),
       ...(payoff && endpoint ? [endpoint] : []),
@@ -117,8 +204,15 @@ function canonicalMouthBeats(
       targetLabels.join("; ");
 
     const sourceIds = [...new Set(sourceEventIds)];
+    const targetIds = [...new Set(targetEventIds)];
+    const sourceSet = new Set(sourceIds);
+    const targetSet = new Set(targetIds);
     const approvedRelations = envelope.relations
-      .filter((relation) => sourceIds.includes(relation.from) || sourceIds.includes(relation.to))
+      .filter(
+        (relation) =>
+          (sourceSet.has(relation.from) && targetSet.has(relation.to)) ||
+          (sourceSet.has(relation.to) && targetSet.has(relation.from)),
+      )
       .sort((a, b) => b.strength - a.strength);
 
     const relationKinds = slot?.relationKinds?.length
@@ -174,7 +268,9 @@ function qualityFailures(texts: readonly string[], candidates: readonly MouthCan
 function buildFallbackPools(beats: readonly MouthCandidateBeat[], envelope: ReturnType<typeof buildAuthorRealityEnvelope>, priorTexts: readonly string[], primary: MouthCandidateBatch | undefined, limit: number): MouthCandidatePool[] {
   return beats.map((beat) => {
     const entry = primary?.variantsByBeat.find((item) => item.order === beat.order);
-    const raw = (entry?.variants ?? []).map((text) => scoreMouthCandidate({ text, beat, envelope, priorTexts }));
+    const raw = (entry?.variants ?? [])
+      .map((text) => scoreMouthCandidate({ text, beat, envelope, priorTexts }))
+      .map((candidate) => normalizeCandidateEvidence(candidate, beat, envelope));
     const candidates = adaptMouthCandidatePool({ candidates: raw, beat, envelope, priorTexts }).slice(0, limit);
     return { order: beat.order, candidates };
   });
