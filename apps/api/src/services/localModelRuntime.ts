@@ -880,89 +880,82 @@ function parseCanonicalMouthCandidateBatch(
   }>;
 } {
   const text = raw
-    .replace(
-      /^```(?:json)?/i,
-      "",
-    )
-    .replace(
-      /```$/i,
-      "",
-    )
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
     .trim();
 
   try {
-    const value =
-      JSON.parse(text) as {
-        variantsByBeat?: unknown;
-      };
+    const value = JSON.parse(text) as {
+      variantsByBeat?: unknown;
+    };
 
-    if (
-      !Array.isArray(
-        value.variantsByBeat,
-      )
-    ) {
-      return {
-        variantsByBeat: [],
-      };
+    if (!Array.isArray(value.variantsByBeat)) {
+      return { variantsByBeat: [] };
     }
 
     return {
-      variantsByBeat:
-        value.variantsByBeat
-          .filter(
-            (entry) =>
-              entry &&
-              typeof entry ===
-                "object",
-          )
-          .map(
-            (entry) => {
-              const item =
-                entry as Record<
-                  string,
-                  unknown
-                >;
+      variantsByBeat: value.variantsByBeat
+        .filter(
+          (entry): entry is Record<string, unknown> =>
+            Boolean(entry) && typeof entry === "object",
+        )
+        .map((entry) => {
+          const variants = Array.isArray(entry.variants)
+            ? entry.variants
+                .map((value) => String(value ?? "").trim())
+                .filter(Boolean)
+                .slice(0, 8)
+            : [];
 
-              const variants =
-                Array.isArray(
-                  item.variants,
-                )
-                  ? item.variants
-                      .map(
-                        (value) =>
-                          String(
-                            value ?? "",
-                          ).trim(),
-                      )
-                      .filter(Boolean)
-                      .slice(
-                        0,
-                        8,
-                      )
-                  : [];
-
-              return {
-                order:
-                  Number(
-                    item.order ??
-                      0,
-                  ),
-                variants,
-              };
-            },
-          )
-          .filter(
-            (entry) =>
-              entry.order > 0 &&
-              entry.variants.length >
-                0,
-          ),
+          return {
+            order: Number(entry.order ?? 0),
+            variants,
+          };
+        })
+        .filter(
+          (entry) =>
+            Number.isFinite(entry.order) &&
+            entry.order > 0 &&
+            entry.variants.length > 0,
+        ),
     };
   } catch {
-    return {
-      variantsByBeat: [],
-    };
+    return { variantsByBeat: [] };
   }
+}
+
+function normalizeCanonicalMouthCandidateBatch(
+  parsed: {
+    variantsByBeat: Array<{
+      order: number;
+      variants: string[];
+    }>;
+  },
+  beatCount: number,
+): {
+  variantsByBeat: Array<{
+    order: number;
+    variants: string[];
+  }>;
+} {
+  const byOrder = new Map(
+    parsed.variantsByBeat.map((entry) => [entry.order, entry]),
+  );
+
+  return {
+    variantsByBeat: Array.from(
+      { length: beatCount },
+      (_, index) => {
+        const order = index + 1;
+        const entry = byOrder.get(order);
+
+        return {
+          order,
+          variants: entry?.variants ?? [],
+        };
+      },
+    ),
+  };
 }
 
 async function canonicalMouthCandidateRequest(
@@ -1038,39 +1031,192 @@ async function canonicalMouthCandidateRequest(
         message.role ===
         "user",
     );
+      const sourceSubject =
+    typeof payload?.subject === "string"
+      ? payload.subject
+      : "";
 
-  const repairSuffix =
-    [
-      "",
-      "STRICT OUTPUT CONTRACT:",
-      "Return ONLY valid JSON.",
-      '{"variantsByBeat":[{"order":1,"variants":["...","..."]}]}',
-      `Return exactly one variantsByBeat entry for each of the ${beatCount} approved beats.`,
-      "Never return a beats key.",
-      "Never return a texts key.",
-      "Never return planning metadata.",
-      "Never return analysis.",
-      "Never rewrite the Beat Graph.",
-      "Never invent facts.",
-    ].join(
-      "\n",
-    );
+  const sourcePrompt =
+    typeof payload?.prompt === "string"
+      ? payload.prompt
+      : "";
+
+  const sourceFacts =
+    Array.isArray(payload?.facts)
+      ? payload.facts
+          .map(String)
+          .filter(Boolean)
+          .slice(0, 24)
+      : [];
+
+  const sourceMoments =
+    Array.isArray(payload?.moments)
+      ? payload.moments
+          .map(String)
+          .filter(Boolean)
+          .slice(0, 18)
+      : [];
+
+  const sourceMomentsExplicit =
+    Array.isArray(payload?.sourceMoments)
+      ? payload.sourceMoments
+          .map(String)
+          .filter(Boolean)
+          .slice(0, 18)
+      : [];
+
+  const sourceMemory =
+    Array.isArray(payload?.memory)
+      ? payload.memory
+          .map(String)
+          .filter(Boolean)
+          .slice(0, 12)
+      : [];
+
+  const creativeLock =
+    typeof payload?.creativeLock === "string"
+      ? payload.creativeLock
+      : typeof payload?.lens === "string"
+        ? payload.lens
+        : "";
+
+  const sourceBeats = beats.map(
+    (value, index) => {
+      const beat =
+        value && typeof value === "object"
+          ? (value as Record<string, unknown>)
+          : {};
+
+      return {
+        order: Number(
+          beat.order ?? index + 1,
+        ),
+        role: String(
+          beat.role ?? "",
+        ),
+        attentionFunction: String(
+          beat.attentionFunction ?? "",
+        ),
+        creativeMove: String(
+          beat.creativeMove ?? "",
+        ),
+        realizationMode: String(
+          beat.realizationMode ?? "",
+        ),
+        eventIds: Array.isArray(
+          beat.eventIds,
+        )
+          ? beat.eventIds.map(String)
+          : [],
+        anchors: Array.from(
+          new Set([
+            ...(Array.isArray(beat.setsUp)
+              ? beat.setsUp.map(String)
+              : []),
+            ...(Array.isArray(beat.paysOff)
+              ? beat.paysOff.map(String)
+              : []),
+          ]),
+        ),
+        change: String(
+          beat.change ??
+            beat.informationGain ??
+            "",
+        ),
+        next: String(
+          beat.next ??
+            beat.frontier ??
+            beat.nextNeed ??
+            "",
+        ),
+        obligations: Array.isArray(
+          beat.obligations,
+        )
+          ? beat.obligations.map(String)
+          : [],
+        forbiddenMoves: Array.isArray(
+          beat.forbiddenMoves,
+        )
+          ? beat.forbiddenMoves.map(String)
+          : [],
+        relationKinds: Array.isArray(
+          beat.relationKinds,
+        )
+          ? beat.relationKinds.map(String)
+          : [],
+        relationStrength: Number(
+          beat.relationStrength ?? 0,
+        ),
+      };
+    },
+  );
+
+  const mouthSystem = [
+    "QRE MOUTH · CREATIVE REALIZATION ENGINE.",
+    "",
+    "You create viewer-facing language only.",
+    "Reality is locked.",
+    "Meaning is locked.",
+    "The movie is locked.",
+    "The endpoint is locked.",
+    "",
+    "Generate materially different variants.",
+    "Do not paraphrase the same line five times.",
+    "Explore different readings of the approved relationship.",
+    "",
+    "You may change framing, rhythm, implication, attitude, metaphor, status, wordplay, and genre flavor.",
+    "You may NOT invent concrete events, people, objects, places, chronology, physical actions, reactions, sounds, dialogue, or outcomes.",
+    "",
+    creativeLock
+      ? `CREATIVE LOCK: ${creativeLock}. Use it as the expressive universe without changing reality.`
+      : "CREATIVE LOCK: none. Choose the strongest expressive framing supported by the approved meaning.",
+    "",
+    "Each line is one cinematic cut.",
+    "One dominant thought.",
+    "Short.",
+    "Clean.",
+    "Make the next cut desirable.",
+    "Avoid summary sentences that cram multiple beats together.",
+    "",
+    "For middle beats, prefer implication, contrast, callback, reversal, consequence, compression, or escalation when supported.",
+    "Do not write analyst language.",
+    "Do not explain the meaning.",
+    "Do not name the operation.",
+    "",
+    `Return exactly ${beatCount} variantsByBeat entries.`,
+    "Return 5 materially different variants for each non-payoff beat.",
+    "Return JSON only.",
+    '{"variantsByBeat":[{"order":1,"variants":["...","...","...","...","..."]}]}',
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const mouthUser = JSON.stringify({
+    task: "generate_creative_mouth_candidates",
+    subject: sourceSubject,
+    prompt: sourcePrompt,
+    creativeLock,
+    suppliedEvidence: {
+      facts: sourceFacts,
+      moments: sourceMoments,
+      sourceMoments: sourceMomentsExplicit,
+      memory: sourceMemory,
+    },
+    beats: sourceBeats,
+  });
 
   const requestMessages = [
     {
       role: "system" as const,
-      content:
-        `${system?.content ?? ""}\n\n${repairSuffix}`,
+      content: mouthSystem,
     },
     {
       role: "user" as const,
-      content:
-        user?.content ??
-        JSON.stringify(
-          payload,
-        ),
+      content: mouthUser,
     },
   ];
+
+  
 
   const data =
     await request(
@@ -1096,29 +1242,26 @@ async function canonicalMouthCandidateRequest(
     outputText(data);
 
   const parsed =
-    parseCanonicalMouthCandidateBatch(
-      text,
+    normalizeCanonicalMouthCandidateBatch(
+      parseCanonicalMouthCandidateBatch(text),
+      beatCount,
     );
 
-  const complete =
-    parsed.variantsByBeat.length ===
-    beatCount &&
-    parsed.variantsByBeat.every(
-      (entry) =>
-        entry.order > 0 &&
-        entry.variants.length >
-          0,
-    );
+  const usableBeats =
+    parsed.variantsByBeat.filter(
+      (entry) => entry.variants.length > 0,
+    ).length;
 
-  if (complete) {
+  console.log(
+    "QRE CANDIDATE PARSE:",
+    `${usableBeats}/${beatCount} beats usable`,
+  );
+
+  if (usableBeats >= Math.max(1, beatCount - 1)) {
     return {
-      text: JSON.stringify(
-        parsed,
-      ),
-      model:
-        modelName(),
-      provider:
-        "local",
+      text: JSON.stringify(parsed),
+      model: modelName(),
+      provider: "local",
     };
   }
 
@@ -1156,8 +1299,13 @@ async function canonicalMouthCandidateRequest(
               "Do NOT return texts.\n" +
               "Return ONLY variantsByBeat.\n" +
               `There are exactly ${beatCount} approved beats.\n` +
-              "Each approved beat must receive one entry.\n" +
               "Each entry must contain 2-5 short language variants.\n" +
+              "Each variant is one viewer-facing cinematic cut.\n" +
+              "Prefer 2-7 words. One dominant thought.\n" +
+              "No comma-heavy summaries. No subject-trait-then-action scaffolds.\n" +
+              "Use supplied facts and approved relationships only.\n" +
+              "Do not invent events, people, objects, places, movement, reactions, sounds, dialogue, or outcomes.\n" +
+              "Return valid JSON even when a beat has no safe candidate.\n" +
               "Do not invent reality.",
           },
           {
@@ -1192,19 +1340,30 @@ async function canonicalMouthCandidateRequest(
     );
 
   const retryParsed =
-    parseCanonicalMouthCandidateBatch(
-      retryText,
+    normalizeCanonicalMouthCandidateBatch(
+      parseCanonicalMouthCandidateBatch(retryText),
+      beatCount,
     );
 
+  const retryUsableBeats =
+    retryParsed.variantsByBeat.filter(
+      (entry) => entry.variants.length > 0,
+    ).length;
+
+  console.log(
+    "QRE CANDIDATE REPAIR PARSE:",
+    `${retryUsableBeats}/${beatCount} beats usable`,
+  );
+
+  const result =
+    retryUsableBeats > 0
+      ? retryParsed
+      : parsed;
+
   return {
-    text:
-      JSON.stringify(
-        retryParsed,
-      ),
-    model:
-      modelName(),
-    provider:
-      "local",
+    text: JSON.stringify(result),
+    model: modelName(),
+    provider: "local",
   };
 }
 async function canonicalMouthRequest(

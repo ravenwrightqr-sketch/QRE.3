@@ -47,18 +47,56 @@ function exactEndpoint(
   const endpoint = clean(beat.paysOff?.[0] ?? "");
   return Boolean(endpoint) && normalize(endpoint) === normalize(text);
 }
-
 function transitionCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
 ): number {
-  const required = [...(beat.eventIds ?? [])].filter(Boolean);
-  if (!required.length) return isHook(beat) ? 1 : 0.5;
-  const supported = new Set(candidate.supportedEventIds);
-  const hits = required.filter((id) => supported.has(id)).length;
-  return Math.max(0, Math.min(1, hits / Math.max(1, required.length)));
-}
+  const required = [
+    ...(beat.eventIds ?? []),
+  ].filter(Boolean);
 
+  if (!required.length) {
+    return isHook(beat) ? 1 : 0.5;
+  }
+
+  const supported = new Set(
+    candidate.supportedEventIds,
+  );
+
+  const hits = required.filter(
+    (id) => supported.has(id),
+  ).length;
+
+  const semanticMode = clean(
+  [
+    beat.realizationMode,
+    beat.creativeMove,
+    beat.attentionFunction,
+    beat.role,
+    ...(beat.relationKinds ?? []),
+  ].join(" "),
+).toLowerCase();
+
+ const isMultiSignal =
+  /\b(?:contrast|contrasts|changes|reframe|recontextualize|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i.test(
+    semanticMode,
+  );
+
+  // A semantic cut does not need to literally repeat every internal
+  // evidence ID carried by the planner. Two supported signals are enough
+  // to execute a multi-signal relationship.
+  const requiredSignals = isMultiSignal
+    ? Math.min(2, required.length)
+    : required.length;
+
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      hits / Math.max(1, requiredSignals),
+    ),
+  );
+}
 function relationCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,

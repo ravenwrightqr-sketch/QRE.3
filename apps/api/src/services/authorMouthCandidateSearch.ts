@@ -1,5 +1,5 @@
 /**
- * QRE MOUTH CANDIDATE SEARCH · CANONICAL SEMANTIC GATE
+ * QRE AUTHORMOUTHCANDIDATESEARCH.TS · CANONICAL SEMANTIC GATE
  *
  * The Mouth receives an approved Meaning Spine / Realization Slot and
  * generates language candidates.
@@ -207,7 +207,7 @@ const REALIZATION_META =
   /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe|reframing|changes? the meaning|shows? the contrast|explains?)\b/i;
 
 const MULTI_SIGNAL_MODE =
-  /\b(?:contrast|reframe|recontextualize|recontextualization|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i;
+  /\b(?:contrast|contrasts|changes|reframe|recontextualize|recontextualization|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i;
 
 const clean = (
   value: unknown,
@@ -636,6 +636,7 @@ function semanticMode(
       beat.creativeMove,
       beat.attentionFunction,
       beat.role,
+      ...(beat.relationKinds ?? []),
     ].join(" "),
   ).toLowerCase();
 }
@@ -1831,26 +1832,41 @@ export function buildMouthCandidateMessages(
 }> {
   const system = [
     "QRE MOUTH CANDIDATE GENERATOR.",
-    "The selected movie, Meaning Spine, Beat Graph, and Reality Envelope already exist.",
-    "Generate language variants only.",
-    "QRE will choose the winning candidate deterministically.",
-    "Never invent a concrete event, object, person, place, action, reaction, body movement, sound, chronology, or outcome.",
+    "The movie, Meaning Spine, Beat Graph, Reality Envelope, and endpoint are already approved.",
+    "Generate language variants only. QRE chooses the winner.",
+    "",
+    "MOVING-MESSAGE CUT LAW:",
+    "Every variant is one viewer-facing cinematic text-message cut.",
+    "One dominant thought. One semantic move. 2-7 words preferred.",
+    "The next cut must feel desirable because this cut changes the reading.",
+    "Prefer short punchy messages over compressed prose.",
+    "",
+    "REFERENCE RHYTHM:",
+    "Came in nervous.",
+    "Fierce anyway.",
+    "Then came the bow.",
+    "Blue, apparently.",
+    "Peace was temporary.",
+    "These examples define rhythm only. Do not copy unsupplied facts.",
+    "",
+    "CREATIVE MOVES:",
+    "Use contrast, implication, status shift, understatement, callback, reversal, consequence, wordplay, recontextualization, personification, or genre framing when supported by the approved relationship.",
+    "Make the relationship felt. Do not explain the relationship.",
+    "",
+    "REALITY LOCK:",
+    "Never invent a concrete event, object, person, place, action, reaction, body movement, sound, chronology, dialogue, environment, or outcome.",
     "Concrete wording must be traceable to supplied evidence.",
-    "Semantic interpretation may be novel when supported by the approved relationship and semantic change.",
-    "Do not ask questions.",
-    "Do not output explanations or planning metadata.",
-    "Do not describe the beat operation. Perform the meaning shift in natural language.",
-    "Do not write analyst language such as 'the contrast', 'the reframe', 'this means', 'reveals that', 'the transformation', or 'the conclusion'.",
-    "For multi-signal beats, do not concatenate source anchors into a list.",
-    "A semantic beat must make the approved relationship felt in natural language.",
-    "A candidate that merely restates one source event is weak unless that beat is explicitly the opening establishment.",
-    "A payoff beat is different: it has a hard endpoint contract.",
+    "Creative framing may be novel. Concrete reality may not.",
+    "Do not concatenate multiple source anchors into a list.",
+    "Do not use comma-heavy summaries.",
+    "Do not use 'subject, trait, then action' scaffolds.",
+    "Do not turn the beat graph into prose metadata.",
+    "",
+    "PAYOFF:",
     "For a payoff beat, output ONLY the supplied endpoint phrase.",
-    "Never prepend an earlier beat to the payoff.",
-    "Never append another outcome to the payoff.",
-    "Never replace the supplied endpoint.",
+    "Never prepend, append, or rewrite the endpoint.",
+    "",
     "Generate 5 materially different variants for each non-payoff beat.",
-    "Prefer 2-7 words per non-payoff variant.",
     'Return JSON only: {"variantsByBeat":[{"order":1,"variants":["...","..."]}]}',
   ].join("\n");
 
@@ -2165,8 +2181,11 @@ export async function generateAndSelectMouthCandidates(
     const selection =
       selectBestMouthCandidate({
         texts:
-          entry?.variants ??
-          [],
+          (entry?.variants ?? []).filter(
+            (text) =>
+              clean(text).split(/\s+/).length <= 10 &&
+              !/^.{0,40},.{0,40},/.test(clean(text)),
+          ),
         beat,
         envelope:
           input.envelope,

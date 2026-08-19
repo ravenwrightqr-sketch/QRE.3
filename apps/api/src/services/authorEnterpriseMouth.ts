@@ -188,7 +188,7 @@ function canonicalMouthBeats(
     const targetEventIds = [
       ...(slot?.targetEventIds ?? []),
       ...(spineBeat?.targetEventIds ?? []),
-      ...((beat.paysOff ?? []).length ? beat.paysOff : []),
+      ...(beat.paysOff ?? []),
     ].filter(Boolean);
 
     const targetLabels = [
@@ -228,24 +228,36 @@ function canonicalMouthBeats(
           ? beat.relationStrength
           : approvedRelations[0]?.strength ?? 0;
 
-    return {
-      ...beat,
-      order: beat.order,
-      role: payoff ? "payoff" : beat.role,
-      attentionFunction: payoff ? "payoff" : beat.attentionFunction,
-      creativeMove: beat.creativeMove ?? slot?.mode,
-      realizationMode: clean(`${slot?.kind ?? ""} ${slot?.mode ?? ""}`) || beat.realizationMode,
-      eventIds: sourceIds,
-      change: clean(spineBeat?.change) || clean(beat.change),
-      next: safeNext,
-      frontier: safeNext,
-      setsUp: beat.setsUp?.length ? beat.setsUp : slot?.sourceLabels ?? [],
-      paysOff: payoff ? [endpoint].filter(Boolean) : beat.paysOff ?? slot?.targetLabels ?? [],
-      obligations: slot?.obligations ?? beat.obligations ?? [],
-      forbiddenMoves: slot?.forbiddenMoves ?? beat.forbiddenMoves ?? [],
-      relationKinds,
-      relationStrength,
-    };
+   return {
+  ...beat,
+  order: beat.order,
+  role: payoff ? "payoff" : beat.role,
+  attentionFunction: payoff ? "payoff" : beat.attentionFunction,
+  creativeMove: beat.creativeMove ?? slot?.mode,
+  realizationMode:
+    clean(`${slot?.kind ?? ""} ${slot?.mode ?? ""}`) ||
+    beat.realizationMode,
+  eventIds: [
+    ...new Set([
+      ...sourceIds,
+      ...targetIds,
+    ]),
+  ],
+  change: clean(spineBeat?.change) || clean(beat.change),
+  next: safeNext,
+  frontier: safeNext,
+  setsUp: beat.setsUp?.length
+    ? beat.setsUp
+    : slot?.sourceLabels ?? [],
+  paysOff: payoff
+    ? [endpoint].filter(Boolean)
+    : beat.paysOff ?? slot?.targetLabels ?? [],
+  obligations: slot?.obligations ?? beat.obligations ?? [],
+  forbiddenMoves:
+    slot?.forbiddenMoves ?? beat.forbiddenMoves ?? [],
+  relationKinds,
+  relationStrength,
+};
   });
 }
 

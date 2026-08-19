@@ -200,7 +200,7 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   const unsupportedActionRisk = unsupportedConcreteActionRisk(value, envelope);
   const unsupportedPhysicalRisk = unsupportedPhysicalStageRisk(value, envelope);
   const unsupportedFrameRisk = unsupportedInventedFrameRisk(value, envelope);
-  const unsupportedSoundRisk = unsupportedSoundRisk(value, envelope);
+  const soundRisk = unsupportedSoundRisk(value, envelope);
   const languageMismatchRisk = nonLatinMismatchRisk(value, envelope);
 
   const actionWords = tokens(value).filter((token) => actionSet(envelope).has(stem(token))).length;
@@ -210,7 +210,7 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   const supportedEntityRisk = entityWords === 0 ? 0 : metric(unsupportedRisk * 0.6);
   const naturalness = metric(1 - languageRisk);
 
-  const reasons: string[] = [];
+    const reasons: string[] = [];
   if (languageRisk > 0.45) reasons.push("weak-natural-language");
   if (keywordAssemblyRisk > 0.45) reasons.push("keyword-assembly");
   if (analyticLanguageRisk > 0.45) reasons.push("analytic-language");
@@ -218,7 +218,7 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   if (unsupportedActionRisk > 0) reasons.push("unsupported-concrete-action");
   if (unsupportedPhysicalRisk > 0) reasons.push("unsupported-physical-staging");
   if (unsupportedFrameRisk > 0) reasons.push("unsupported-invented-frame");
-  if (unsupportedSoundRisk > 0) reasons.push("unsupported-concrete-sound");
+  if (soundRisk > 0) reasons.push("unsupported-concrete-sound");
   if (languageMismatchRisk > 0) reasons.push("language-mismatch");
   if (QUESTION.test(value)) reasons.push("question-leak");
 
@@ -237,7 +237,7 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
       unsupportedActionRisk === 0 &&
       unsupportedPhysicalRisk === 0 &&
       unsupportedFrameRisk === 0 &&
-      unsupportedSoundRisk === 0 &&
+      soundRisk === 0 &&
       languageMismatchRisk === 0 &&
       !QUESTION.test(value),
     reasons,
