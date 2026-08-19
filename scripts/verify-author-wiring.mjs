@@ -107,7 +107,7 @@ if (exists("apps/api/src/services/authorBrainUniversal.ts")) {
 if (exists("apps/api/src/services/authorMouthCandidateSearch.ts")) {
   const body = read("apps/api/src/services/authorMouthCandidateSearch.ts");
   check("mouth:reality-envelope", imports(body, "./authorRealityEnvelope.js"), "Mouth candidate scoring is evidence-bound");
-  check("mouth:no-planning", /does NOT choose meaning|does NOT choose the movie|does NOT choose the endpoint/i.test(body), "Mouth boundary explicitly forbids re-planning");
+  check("mouth:no-planning", /does NOT choose meaning|does NOT choose the movie|does NOT choose the endpoint|does NOT own reality.*meaning selection.*endpoint choice/i.test(body), "Mouth boundary explicitly forbids re-planning");
   check("mouth:local-contract-types", !/export type MouthCandidateBeat\s*=|export type MouthCandidate\s*=/.test(body), "Shared Mouth semantic contracts are not redefined inside the service");
 }
 
