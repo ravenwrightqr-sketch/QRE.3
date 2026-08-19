@@ -263,11 +263,12 @@ function poolCandidates(pool: MouthCandidatePool, perBeat: number): MouthCandida
   const ranked = [...pool.candidates].sort((a, b) => b.score - a.score);
   const valid = ranked.filter(semanticallyEligible);
   const creative = valid.filter((candidate) => creativeMiddleCandidate(candidate));
-  const nonFallback = valid.filter((candidate) => !isFallback(candidate));
+  const fallback = valid.filter(isFallback);
+  const model = valid.filter((candidate) => !isFallback(candidate));
 
   if (creative.length) return creative.slice(0, perBeat);
-  if (nonFallback.length) return nonFallback.slice(0, perBeat);
-  return valid.slice(0, perBeat);
+  if (fallback.length) return fallback.slice(0, perBeat);
+  return model.slice(0, perBeat);
 }
 
 function isCompleteEndpointPath(path: MouthSequencePath): boolean {
