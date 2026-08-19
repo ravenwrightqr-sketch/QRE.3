@@ -6,6 +6,9 @@ import type {
   MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
 import { buildGroundedFallbackCandidates } from "./authorMouthGroundedFallback.js";
+import {
+  evaluateAttentionCut,
+} from "./authorMouthAttentionGate.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -122,6 +125,12 @@ export function adaptMouthCandidateQuality(input: {
   const transition = payoff ? 1 : hook ? 1 : transitionCoverage(candidate, beat);
   const relation = payoff ? 1 : relationCoverage(candidate, beat, envelope);
 
+  const attention = evaluateAttentionCut({
+    text: candidate.text,
+    beat,
+    envelope,
+  });
+
   const meaning = payoff
     ? 1
     : hook
@@ -137,10 +146,11 @@ export function adaptMouthCandidateQuality(input: {
 
   const endpointBonus = endpoint ? 0.35 : 0;
   const semanticQuality =
-    meaning * 0.34 +
-    transition * 0.28 +
-    relation * 0.16 +
-    language.naturalness * 0.14 +
+    meaning * 0.32 +
+    transition * 0.24 +
+    relation * 0.13 +
+    language.naturalness * 0.11 +
+    attention.score * 0.12 +
     candidate.compressionScore * 0.08;
 
   const score = payoff
@@ -149,8 +159,8 @@ export function adaptMouthCandidateQuality(input: {
         0,
         Math.min(
           1,
-          candidate.score * 0.45 +
-            semanticQuality * 0.45 +
+          candidate.score * 0.4 +
+            semanticQuality * 0.5 +
             endpointBonus * 0.1 -
             invention * 0.08,
         ),
@@ -159,6 +169,7 @@ export function adaptMouthCandidateQuality(input: {
   const reasons = new Set([
     ...candidate.reasons,
     ...language.reasons,
+    ...attention.reasons,
   ]);
 
   if (hook) {
@@ -185,6 +196,7 @@ export function adaptMouthCandidateQuality(input: {
     obligationCoverage: Number((payoff || hook ? 1 : Math.max(candidate.obligationCoverage, 0.5)).toFixed(3)),
     relationContractScore: Number((payoff || hook ? 1 : Math.max(candidate.relationContractScore, relation)).toFixed(3)),
     inventionRisk: Number(Math.max(0, Math.min(1, invention)).toFixed(3)),
+    compressionScore: Number(Math.max(candidate.compressionScore, attention.density).toFixed(3)),
     score: Number(Math.max(0, Math.min(1, score)).toFixed(3)),
     reasons: [...reasons],
   };
