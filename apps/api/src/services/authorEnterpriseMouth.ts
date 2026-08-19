@@ -116,6 +116,24 @@ function canonicalMouthBeats(
       safeForwardText(beat.frontier) ||
       targetLabels.join("; ");
 
+    const sourceIds = [...new Set(sourceEventIds)];
+    const approvedRelations = envelope.relations
+      .filter((relation) => sourceIds.includes(relation.from) || sourceIds.includes(relation.to))
+      .sort((a, b) => b.strength - a.strength);
+
+    const relationKinds = slot?.relationKinds?.length
+      ? [...new Set(slot.relationKinds)]
+      : beat.relationKinds?.length
+        ? [...new Set(beat.relationKinds)]
+        : [...new Set(approvedRelations.map((relation) => relation.kind))];
+
+    const relationStrength =
+      slot?.relationStrength && slot.relationStrength > 0
+        ? slot.relationStrength
+        : beat.relationStrength && beat.relationStrength > 0
+          ? beat.relationStrength
+          : approvedRelations[0]?.strength ?? 0;
+
     return {
       ...beat,
       order: beat.order,
@@ -123,7 +141,7 @@ function canonicalMouthBeats(
       attentionFunction: payoff ? "payoff" : beat.attentionFunction,
       creativeMove: beat.creativeMove ?? slot?.mode,
       realizationMode: clean(`${slot?.kind ?? ""} ${slot?.mode ?? ""}`) || beat.realizationMode,
-      eventIds: [...new Set(sourceEventIds)],
+      eventIds: sourceIds,
       change: clean(spineBeat?.change) || clean(beat.change),
       next: safeNext,
       frontier: safeNext,
@@ -131,8 +149,8 @@ function canonicalMouthBeats(
       paysOff: payoff ? [endpoint].filter(Boolean) : beat.paysOff ?? slot?.targetLabels ?? [],
       obligations: slot?.obligations ?? beat.obligations ?? [],
       forbiddenMoves: slot?.forbiddenMoves ?? beat.forbiddenMoves ?? [],
-      relationKinds: slot?.relationKinds ?? beat.relationKinds ?? [],
-      relationStrength: slot?.relationStrength ?? beat.relationStrength ?? 0,
+      relationKinds,
+      relationStrength,
     };
   });
 }
