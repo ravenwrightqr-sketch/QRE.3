@@ -15,7 +15,6 @@
     "noEmit": true
   },
   "include": [
-    "./author-mouth-probe.ts",
     "./author-acceptance-monster.ts",
     "./author-acceptance-suite.ts",
     "./author-enterprise-realization-selfcheck.ts"
