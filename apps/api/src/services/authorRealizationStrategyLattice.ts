@@ -1,9 +1,9 @@
 import type {
   AuthorRealizationStrategy,
   AuthorStrategyCandidate,
+  MouthCandidateBeat,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import type { MouthCandidateBeat } from "./authorMouthCandidateSearch.js";
 
 const STRATEGY_ORDER: readonly AuthorRealizationStrategy[] = [
   "contrast",
