@@ -1,3 +1,4 @@
+import type { RealityRelation } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { evaluateMouthLanguage } from "./authorMouthLanguageGate.js";
 import type {
@@ -60,11 +61,29 @@ function relationCoverage(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): number {
-  const kinds = new Set((beat.relationKinds ?? []).map(clean).filter(Boolean));
+  const kinds = new Set<RealityRelation["kind"]>(
+    (beat.relationKinds ?? [])
+      .map(clean)
+      .filter(Boolean)
+      .filter((kind): kind is RealityRelation["kind"] =>
+        [
+          "before",
+          "after",
+          "causes",
+          "changes",
+          "contrasts",
+          "repeats",
+          "belongs_to",
+          "involves",
+          "recontextualizes",
+          "converges",
+        ].includes(kind as RealityRelation["kind"]),
+      ),
+  );
   if (!kinds.size) return 0.5;
 
   const supported = new Set(candidate.supportedEventIds);
-  const actual = new Set(
+  const actual = new Set<RealityRelation["kind"]>(
     envelope.relations
       .filter((relation) => supported.has(relation.from) && supported.has(relation.to))
       .map((relation) => relation.kind),
@@ -112,8 +131,6 @@ export function adaptMouthCandidateQuality(input: {
           transition * 0.45 + relation * 0.3 + candidate.groundingScore * 0.25,
         );
 
-  // The language gate is the canonical reality-vocabulary authority. Do not
-  // let an older lexical scorer reject legitimate subject/entity vocabulary.
   const invention = language.accepted
     ? Math.min(candidate.inventionRisk, 0.35)
     : Math.max(candidate.inventionRisk, language.supportedActionRisk, language.supportedEntityRisk);
@@ -210,8 +227,6 @@ export function adaptMouthCandidatePool(input: {
 
   if (valid.length) return valid;
 
-  // Enterprise invariant: a model-quality failure must never become an empty
-  // realization pool when deterministic grounded recovery exists.
   return deduped
     .filter((candidate) => {
       const language = evaluateMouthLanguage(candidate.text, input.envelope);
