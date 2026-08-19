@@ -260,8 +260,8 @@ export function buildGroundedFallbackCandidates(input: {
   envelope: RealityEnvelope;
   priorTexts?: readonly string[];
 }): MouthCandidate[] {
-  return groundedVariants(input.beat, input.envelope).map((text) =>
-    normalizeGroundedRelationCandidate(
+  return groundedVariants(input.beat, input.envelope).map((text) => {
+    const candidate = normalizeGroundedRelationCandidate(
       scoreMouthCandidate({
         text,
         beat: input.beat,
@@ -270,6 +270,11 @@ export function buildGroundedFallbackCandidates(input: {
       }),
       input.beat,
       input.envelope,
-    ),
-  );
+    );
+
+    return {
+      ...candidate,
+      reasons: [...new Set([...candidate.reasons, "grounded-fallback"])],
+    };
+  });
 }
