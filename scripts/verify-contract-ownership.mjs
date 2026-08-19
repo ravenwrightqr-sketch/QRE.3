@@ -12,6 +12,8 @@ const coreSymbols = [
   "LatentMovie", "SequencePlay", "ViewerMomentum", "MagnetCircle", "CutNecessity",
   "SequenceTransition", "InformationFrontier", "SubjectContinuity", "AuthorBrainTruth",
   "AuthorCreativeBrief", "AuthorScene",
+  "MouthCandidateBeat", "MouthCandidate", "MouthCandidateBatch", "MouthCandidateSelection",
+  "MouthCandidatePool", "MouthSequencePath", "MouthBeamOptions", "MouthRepairObjective",
 ];
 
 function fail(message) { failures.push(message); }
@@ -30,7 +32,7 @@ function rel(path) { return relative(root, path).replaceAll("\\", "/"); }
 function resolveImport(importer, specifier) {
   if (!specifier.startsWith(".")) return undefined;
   const raw = normalize(join(dirname(importer), specifier));
-  const candidates = [raw, `${raw}.ts`, `${raw}.tsx`, `${raw}.js`.replace(/\.js$/, ".ts"), join(raw, "index.ts")];
+  const candidates = [raw, `${raw}.ts`, `${raw}.tsx`, raw.endsWith(".js") ? raw.replace(/\.js$/, ".ts") : `${raw}.js`.replace(/\.js$/, ".ts"), join(raw, "index.ts")];
   return candidates.find((candidate) => existsSync(candidate));
 }
 function hasTrueOwner(body, symbol) {
@@ -56,10 +58,7 @@ function reachableBarrels() {
 function barrelSurfacesSymbol(barrel, symbol) {
   const body = readFileSync(barrel, "utf8");
   if (new RegExp(`export\\s+(?:type\\s+)?\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s+from`).test(body)) return true;
-  if (/export\s+\*\s+from/.test(body)) {
-    // Star barrels are handled transitively by reachableBarrels().
-    return true;
-  }
+  if (/export\s+\*\s+from/.test(body)) return true;
   return false;
 }
 
