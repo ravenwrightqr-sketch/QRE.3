@@ -30,6 +30,17 @@ const clean = (value: unknown): string =>
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
+const MOVING_CUT_REASONS = new Set([
+  "strong-moving-cut",
+]);
+
+const WEAK_MOVEMENT_REASONS = new Set([
+  "weak-forward-pull",
+  "weak-next-need",
+  "weak-attention-change",
+  "attention-source-restatement",
+]);
+
 function tokenSet(text: string): Set<string> {
   return new Set(
     clean(text)
@@ -48,6 +59,10 @@ function overlap(left: Set<string>, right: Set<string>): number {
 
 function isHook(candidate: MouthCandidate): boolean {
   return candidate.reasons.includes("hook-scored-as-establishment");
+}
+
+function isFallback(candidate: MouthCandidate): boolean {
+  return candidate.reasons.includes("grounded-fallback");
 }
 
 function isEndpoint(candidate: MouthCandidate): boolean {
@@ -104,6 +119,24 @@ function semanticallyEligible(candidate: MouthCandidate): boolean {
   );
 }
 
+function creativeMiddleCandidate(candidate: MouthCandidate): boolean {
+  if (isHook(candidate) || isEndpoint(candidate) || isFallback(candidate)) return false;
+
+  const weakMovement = candidate.reasons.some((reason) => WEAK_MOVEMENT_REASONS.has(reason));
+  const strongMovingCut = candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason));
+
+  return (
+    semanticallyEligible(candidate) &&
+    candidate.score >= 0.52 &&
+    candidate.meaningScore >= 0.45 &&
+    candidate.transitionScore >= 0.45 &&
+    candidate.noveltyScore >= 0.55 &&
+    candidate.inventionRisk <= 0.35 &&
+    !weakMovement &&
+    (strongMovingCut || candidate.meaningScore >= 0.58)
+  );
+}
+
 function candidateTransition(previous: MouthCandidate, current: MouthCandidate): number {
   const sharedEvents = previous.supportedEventIds.filter((id) =>
     current.supportedEventIds.includes(id),
@@ -117,15 +150,16 @@ function candidateTransition(previous: MouthCandidate, current: MouthCandidate):
   const lexical = metric(overlap(tokenSet(previous.text), tokenSet(current.text)));
   const semantic = metric(
     Math.min(1,
-      Math.max(previous.meaningScore, current.meaningScore) * 0.45 +
-      Math.max(previous.transitionScore, current.transitionScore) * 0.55),
+      Math.max(previous.meaningScore, current.meaningScore) * 0.35 +
+      Math.max(previous.transitionScore, current.transitionScore) * 0.35 +
+      Math.max(previous.score, current.score) * 0.3),
   );
 
   return metric(
-    Math.min(sharedEvents, 2) * 0.06 +
-    Math.min(newEvents, 2) * 0.08 +
+    Math.min(sharedEvents, 2) * 0.05 +
+    Math.min(newEvents, 2) * 0.1 +
     Math.min(sharedRelations, 2) * 0.14 +
-    lexical * 0.04 +
+    lexical * 0.03 +
     semantic * 0.68,
   );
 }
@@ -141,32 +175,41 @@ function intrinsic(candidate: MouthCandidate): number {
   if (isEndpoint(candidate)) return metric(0.94 + candidate.groundingScore * 0.06);
   if (isHook(candidate)) {
     return metric(
-      candidate.groundingScore * 0.6 +
-      candidate.compressionScore * 0.15 +
-      candidate.noveltyScore * 0.1 +
-      candidate.meaningScore * 0.15,
+      candidate.groundingScore * 0.55 +
+      candidate.compressionScore * 0.12 +
+      candidate.noveltyScore * 0.08 +
+      candidate.meaningScore * 0.1 +
+      candidate.score * 0.15,
     );
   }
 
   const semantic = metric(
-    candidate.meaningScore * 0.3 +
-    candidate.transitionScore * 0.3 +
-    candidate.obligationCoverage * 0.2 +
-    candidate.relationContractScore * 0.2,
+    candidate.meaningScore * 0.24 +
+    candidate.transitionScore * 0.22 +
+    candidate.obligationCoverage * 0.16 +
+    candidate.relationContractScore * 0.15 +
+    candidate.score * 0.23,
   );
+  const movement =
+    candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason)) ? 0.12 : 0;
+  const weakMovement =
+    candidate.reasons.some((reason) => WEAK_MOVEMENT_REASONS.has(reason)) ? 0.12 : 0;
   const quality = metric(
-    candidate.groundingScore * 0.32 +
+    candidate.groundingScore * 0.25 +
     semantic * 0.4 +
-    candidate.compressionScore * 0.12 +
+    candidate.compressionScore * 0.1 +
     candidate.noveltyScore * 0.08 +
-    candidate.cohesionScore * 0.08,
+    candidate.cohesionScore * 0.05 +
+    movement,
   );
   const risk =
-    candidate.inventionRisk * 0.4 +
-    candidate.collageRisk * 0.25 +
-    candidate.forbiddenMoveRisk * 0.35 +
-    candidate.repetitionRisk * 0.15;
-  return metric(quality - risk * 0.3);
+    candidate.inventionRisk * 0.42 +
+    candidate.collageRisk * 0.24 +
+    candidate.forbiddenMoveRisk * 0.34 +
+    candidate.repetitionRisk * 0.12 +
+    (isFallback(candidate) ? 0.2 : 0) +
+    weakMovement;
+  return metric(quality - risk * 0.34);
 }
 
 function endpointDominance(path: MouthCandidate[], candidate: MouthCandidate): number {
@@ -181,10 +224,11 @@ function pathScore(path: MouthSequencePath, candidate: MouthCandidate): number {
     : isHook(candidate)
       ? candidate.groundingScore
       : metric(
-          candidate.meaningScore * 0.35 +
-          candidate.transitionScore * 0.35 +
-          candidate.obligationCoverage * 0.15 +
-          candidate.relationContractScore * 0.15,
+          candidate.meaningScore * 0.25 +
+          candidate.transitionScore * 0.25 +
+          candidate.obligationCoverage * 0.12 +
+          candidate.relationContractScore * 0.13 +
+          candidate.score * 0.25,
         );
 
   const repetition = repeatedEvidencePenalty(path.candidates, candidate);
@@ -193,16 +237,21 @@ function pathScore(path: MouthSequencePath, candidate: MouthCandidate): number {
     Math.min(
       candidate.supportedEventIds.filter((id) => !newEvidence.has(id)).length,
       3,
-    ) * 0.07,
+    ) * 0.08,
   );
+  const movementBonus =
+    candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason)) ? 0.16 : 0;
+  const fallbackPenalty = isFallback(candidate) ? 0.12 : 0;
 
   return (
     path.score +
-    intrinsic(candidate) * 0.48 +
+    intrinsic(candidate) * 0.45 +
     transition * 0.2 +
     evidenceGain +
+    movementBonus +
     endpointDominance(path.candidates, candidate) -
-    repetition * 0.05
+    repetition * 0.04 -
+    fallbackPenalty
   );
 }
 
@@ -213,7 +262,12 @@ function signature(path: MouthCandidate[]): string {
 function poolCandidates(pool: MouthCandidatePool, perBeat: number): MouthCandidate[] {
   const ranked = [...pool.candidates].sort((a, b) => b.score - a.score);
   const valid = ranked.filter(semanticallyEligible);
-  return (valid.length ? valid : ranked).slice(0, perBeat);
+  const creative = valid.filter((candidate) => creativeMiddleCandidate(candidate));
+  const nonFallback = valid.filter((candidate) => !isFallback(candidate));
+
+  if (creative.length) return creative.slice(0, perBeat);
+  if (nonFallback.length) return nonFallback.slice(0, perBeat);
+  return valid.slice(0, perBeat);
 }
 
 function isCompleteEndpointPath(path: MouthSequencePath): boolean {
