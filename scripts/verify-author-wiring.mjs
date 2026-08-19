@@ -5,34 +5,31 @@ const root = resolve(process.cwd());
 const checks = [];
 const failures = [];
 
-function file(path) {
-  return join(root, path);
-}
-
-function exists(path) {
-  return existsSync(file(path));
-}
-
-function read(path) {
-  return readFileSync(file(path), "utf8");
-}
-
-function check(name, ok, detail) {
-  checks.push({ name, ok, detail });
-  if (!ok) failures.push(`${name}: ${detail}`);
-}
-
+function file(path) { return join(root, path); }
+function exists(path) { return existsSync(file(path)); }
+function read(path) { return readFileSync(file(path), "utf8"); }
+function check(name, ok, detail) { checks.push({ name, ok, detail }); if (!ok) failures.push(`${name}: ${detail}`); }
 function imports(source, moduleName) {
   const escaped = moduleName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`from\\s+[\"']${escaped}[\"']|import\\s*\\([^)]*[\"']${escaped}[\"']`).test(source);
 }
 
 const contracts = [
-  "packages/contracts/src/experience/authorBrain.ts",
-  "packages/contracts/src/experience/realityGraph.ts",
-  "packages/contracts/src/experience/latentMovie.ts",
-  "packages/contracts/src/experience/cognition.ts",
+  "packages/contracts/src/cogauthor/authorBrain.ts",
+  "packages/contracts/src/cogauthor/cognition.ts",
+  "packages/contracts/src/cogauthor/latentMovie.ts",
+  "packages/contracts/src/cogauthor/realityGraph.ts",
+  "packages/contracts/src/cogauthor/mouth.ts",
+  "packages/contracts/src/cogauthor/index.ts",
   "packages/contracts/src/experience/index.ts",
+];
+
+const retiredContracts = [
+  "packages/contracts/src/experience/authorBrain.ts",
+  "packages/contracts/src/experience/cognition.ts",
+  "packages/contracts/src/experience/latentMovie.ts",
+  "packages/contracts/src/experience/realityGraph.ts",
+  "packages/contracts/src/experience/mouth.ts",
 ];
 
 const services = [
@@ -54,9 +51,14 @@ const services = [
   "apps/api/src/services/localModelRuntime.ts",
 ];
 
-for (const path of [...contracts, ...services]) {
-  check(`exists:${path}`, exists(path), "canonical file present");
-}
+for (const path of [...contracts, ...services]) check(`exists:${path}`, exists(path), "canonical file present");
+for (const path of retiredContracts) check(`retired:${path}`, !exists(path), "retired duplicate contract absent");
+
+check(
+  "contracts:public-cogauthor",
+  exists("packages/contracts/src/index.ts") && imports(read("packages/contracts/src/index.ts"), "./cogauthor/index.js"),
+  "@qre/contracts exposes the canonical COGAUTHOR barrel",
+);
 
 if (exists("apps/api/src/services/authorRealityGraph.ts")) {
   const body = read("apps/api/src/services/authorRealityGraph.ts");
@@ -98,9 +100,7 @@ if (exists("apps/api/src/services/authorBrainUniversal.ts")) {
     "./authorBeatTruthGate.js",
     "./localModelRuntime.js",
   ];
-  for (const moduleName of required) {
-    check(`master:imports:${moduleName}`, imports(body, moduleName), "Master Author consumes the canonical stage");
-  }
+  for (const moduleName of required) check(`master:imports:${moduleName}`, imports(body, moduleName), "Master Author consumes the canonical stage");
   check("master:no-enterprise-mouth-authority", !imports(body, "./authorEnterpriseMouth.js"), "Enterprise Mouth is not a shadow production author");
 }
 
@@ -139,7 +139,6 @@ check(
   !imports(read("apps/api/src/services/authorBrainUniversal.ts"), "./authorTrajectorySearch.js"),
   "Trajectory search is not declared canonical until its endpoint and consumer wiring are verified",
 );
-
 check(
   "enterprise:acceptance-only",
   exists("apps/api/author-enterprise-mouth-acceptance.ts") && !imports(read("apps/api/src/services/authorBrainUniversal.ts"), "./authorEnterpriseMouth.js"),
@@ -147,13 +146,9 @@ check(
 );
 
 console.log("=== QRE AUTHOR WIRING GUARD · CANONICAL ===");
-for (const item of checks) {
-  console.log(`${item.ok ? "GREEN" : "FAIL"}: ${item.name} · ${item.detail}`);
-}
-
+for (const item of checks) console.log(`${item.ok ? "GREEN" : "FAIL"}: ${item.name} · ${item.detail}`);
 if (failures.length) {
   console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length} issue(s)`);
   process.exit(1);
 }
-
 console.log("AUTHOR WIRING GUARD GREEN · canonical ownership, imports, contracts, Mouth boundary, and production authority verified");
