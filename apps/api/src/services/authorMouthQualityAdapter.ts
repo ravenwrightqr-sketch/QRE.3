@@ -47,6 +47,7 @@ function exactEndpoint(
   const endpoint = clean(beat.paysOff?.[0] ?? "");
   return Boolean(endpoint) && normalize(endpoint) === normalize(text);
 }
+
 function transitionCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
@@ -68,19 +69,19 @@ function transitionCoverage(
   ).length;
 
   const semanticMode = clean(
-  [
-    beat.realizationMode,
-    beat.creativeMove,
-    beat.attentionFunction,
-    beat.role,
-    ...(beat.relationKinds ?? []),
-  ].join(" "),
-).toLowerCase();
+    [
+      beat.realizationMode,
+      beat.creativeMove,
+      beat.attentionFunction,
+      beat.role,
+      ...(beat.relationKinds ?? []),
+    ].join(" "),
+  ).toLowerCase();
 
- const isMultiSignal =
-  /\b(?:contrast|contrasts|changes|reframe|recontextualize|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i.test(
-    semanticMode,
-  );
+  const isMultiSignal =
+    /\b(?:contrast|contrasts|changes|reframe|recontextualize|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i.test(
+      semanticMode,
+    );
 
   // A semantic cut does not need to literally repeat every internal
   // evidence ID carried by the planner. Two supported signals are enough
@@ -97,6 +98,7 @@ function transitionCoverage(
     ),
   );
 }
+
 function relationCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
@@ -178,9 +180,14 @@ export function adaptMouthCandidateQuality(input: {
           transition * 0.45 + relation * 0.3 + candidate.groundingScore * 0.25,
         );
 
-  const invention = language.accepted
-    ? Math.min(candidate.inventionRisk, 0.35)
-    : Math.max(candidate.inventionRisk, language.supportedActionRisk, language.supportedEntityRisk);
+  // Quality adaptation may raise measured risk from downstream gate evidence,
+  // but it may never lower a measured invention risk merely because language
+  // happened to pass a separate gate. Truth risk is a hard floor.
+  const invention = Math.max(
+    candidate.inventionRisk,
+    language.supportedActionRisk,
+    language.supportedEntityRisk,
+  );
 
   const endpointBonus = endpoint ? 0.35 : 0;
   const semanticQuality =
