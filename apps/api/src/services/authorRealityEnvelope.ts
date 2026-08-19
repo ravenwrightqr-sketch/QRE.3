@@ -138,6 +138,7 @@ export function buildAuthorRealityEnvelope(input: {
   graph: RealityGraph;
   subject?: string;
 }): RealityEnvelope {
+  const graph = input.graph;
   const subject = clean(input.subject);
   const eventLabels = graph.events.map((event) => event.label);
   const suppliedPhrases = unique(eventLabels);
