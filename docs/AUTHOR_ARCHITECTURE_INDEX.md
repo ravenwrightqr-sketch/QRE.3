@@ -51,11 +51,12 @@ Trajectory search is a supported semantic capability but is **not yet declared a
 | Master Author orchestration | `apps/api/src/services/authorBrainUniversal.ts` | ACTIVE |
 | Meaning Spine | `apps/api/src/services/authorMeaningSpine.ts` | ACTIVE |
 | Realization Slots | `apps/api/src/services/authorMouthRealizationSlot.ts` | ACTIVE |
+| Mouth semantic contract | `packages/contracts/src/experience/mouth.ts` | ACTIVE CONTRACT / MIGRATION IN PROGRESS |
 | Mouth candidate generation/scoring | `apps/api/src/services/authorMouthCandidateSearch.ts` | ACTIVE |
 | Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | ACTIVE |
 | Mouth language gate | `apps/api/src/services/authorMouthLanguageGate.ts` | ACTIVE |
 | Mouth attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` | ACTIVE |
-| Mouth quality adaptation | `apps/api/src/services/authorMouthQualityAdapter.ts` | ACTIVE / UNDER AUDIT |
+| Mouth quality adaptation | `apps/api/src/services/authorMouthQualityAdapter.ts` | ACTIVE / HARDENED |
 | Grounded fallback | `apps/api/src/services/authorMouthGroundedFallback.ts` | ACTIVE / SAFETY RAIL |
 | Attention Editor | `apps/api/src/services/authorAttentionEditor.ts` | ACTIVE |
 | Truth / cut policy | `apps/api/src/services/authorBeatTruthGate.ts` + `apps/api/src/services/authorCutPolicy.ts` | ACTIVE |
@@ -74,6 +75,7 @@ packages/contracts/src/experience/authorBrain.ts
 packages/contracts/src/experience/realityGraph.ts
 packages/contracts/src/experience/latentMovie.ts
 packages/contracts/src/experience/cognition.ts
+packages/contracts/src/experience/mouth.ts
 ```
 
 No service may create a competing semantic contract for an existing concept.
@@ -169,7 +171,7 @@ DUPLICATE ORCHESTRATION → retire
 ACCEPTANCE DATA → retain only where it tests the canonical path
 ```
 
-`docs/AUTHOR_ENTERPRISE_MASTER.md` is not current architecture authority and must not be used to decide production wiring.
+The old Enterprise architecture documents have been retired from current authority.
 
 ## 8. ADAPTER / RECOVERY RULE
 
