@@ -114,7 +114,8 @@ function operationValue(step: LatentMovieTrajectoryStep): number {
     case "reframe":
       return 0.9;
     case "escalate":
-    case "consequence":n      return 0.86;
+    case "consequence":
+      return 0.86;
     case "converge":
       return 0.78;
     case "recur":
@@ -178,6 +179,7 @@ function expandStep(
   graph: RealityGraph,
   state: SearchState,
   step: LatentMovieTrajectoryStep,
+  endpointEventId: string,
 ): SearchState | undefined {
   const ids = step.eventIds.filter((id) => eventExists(graph, id));
   if (!ids.length) return undefined;
@@ -203,7 +205,17 @@ function expandStep(
   const weakRelations = relationPairs.filter((relation) => relation.strength < 0.5).length;
   const uncertaintyPenalty = weakRelations / Math.max(1, relationPairs.length);
 
-  const nextSteps = [...state.steps, step].map((item, index) => ({ ...item, order: index + 1 }));
+  const normalizedStep =
+    endpointEventId && ids.includes(endpointEventId) && step.operation !== "payoff"
+      ? {
+          ...step,
+          operation: "payoff" as const,
+          viewerChange: `The supplied ending lands on ${eventLabel(graph, endpointEventId)}.`,
+          nextQuestion: "What remains true at the supplied ending?",
+        }
+      : step;
+
+  const nextSteps = [...state.steps, normalizedStep].map((item, index) => ({ ...item, order: index + 1 }));
   const nextUsed = [...new Set([...state.usedEventIds, ...ids])];
   const nextRelations = [...state.usedRelations, ...relationPairs];
 
@@ -221,7 +233,7 @@ function expandStep(
 
   return {
     ...nextState,
-    score: scoreState(nextState, ""),
+    score: scoreState(nextState, endpointEventId),
   };
 }
 
@@ -334,7 +346,7 @@ export function searchBestMovieTrajectories(
       const successors = legalSuccessors(graph, tail, endpointEventId).slice(0, 8);
 
       for (const successor of successors) {
-        const next = expandStep(graph, state, successor);
+        const next = expandStep(graph, state, successor, endpointEventId);
         if (!next) continue;
         next.score = scoreState(next, endpointEventId);
         expanded.push(next);
