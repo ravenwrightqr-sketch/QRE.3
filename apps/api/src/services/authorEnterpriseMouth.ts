@@ -1,19 +1,16 @@
 /**
- * QRE ENTERPRISE MOUTH · ORCHESTRATION BOUNDARY
+ * QRE ENTERPRISE MOUTH · CANONICAL ORCHESTRATION
  *
- * Qwen proposes language variants. QRE owns reality, meaning, realization
- * constraints, repair objectives, sequence selection, and enterprise
- * diagnostics.
+ * Reality → Meaning Spine → Realization Slots → Mouth Candidates → Beam.
  *
- * Performance law:
- *   - one primary batch generation
- *   - at most one batched recovery generation
- *   - at most one final revision generation in full mode
- *
- * Missing model beats are recovered in ONE request, then deterministic
- * evidence-locked fallback completes any remaining realization slots.
+ * The RealizationSlot is the authoritative creative job. Model output is
+ * optional language evidence; QRE owns grounding, semantic contracts,
+ * fallback, sequence selection, and endpoint authority.
  */
-import type { RealityGraph, AuthorCreativeCritique } from "@qre/contracts";
+import type {
+  AuthorCreativeCritique,
+  RealityGraph,
+} from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import {
@@ -21,8 +18,8 @@ import {
   parseMouthCandidateBatch,
   scoreMouthCandidate,
   type MouthCandidate,
-  type MouthCandidateBeat,
   type MouthCandidateBatch,
+  type MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
 import { adaptMouthCandidatePool } from "./authorMouthQualityAdapter.js";
 import {
@@ -37,7 +34,6 @@ import {
   buildRealizationSlots,
   type RealizationSlot,
 } from "./authorMouthRealizationSlot.js";
-import { selectSafeStrategies } from "./authorRealizationStrategyLattice.js";
 import {
   buildMouthRepairObjectives,
   compactRepairInstructions,
@@ -90,88 +86,91 @@ export type EnterpriseMouthResult = {
 };
 
 const QUALITY = {
-  minimumGrounding: 0.42,
-  minimumMeaning: 0.4,
-  maximumInventionRisk: 0.45,
-  minimumCompression: 0.45,
-  minimumBeamScore: 0.32,
+  grounding: 0.42,
+  meaning: 0.4,
+  invention: 0.45,
+  compression: 0.45,
+  beam: 0.32,
 } as const;
 
-const MAX_CANONICAL_BEATS = 6;
-
 const clean = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
 function canonicalizeBeats(
   beats: readonly MouthCandidateBeat[],
+  maxBeats: number,
 ): MouthCandidateBeat[] {
   return beats
-    .filter(
-      (beat) =>
-        beat &&
-        Number.isFinite(Number(beat.order)) &&
-        Number(beat.order) > 0,
-    )
+    .filter((beat) => beat && Number.isFinite(Number(beat.order)) && Number(beat.order) > 0)
     .slice()
-    .sort(
-      (a, b) =>
-        Number(a.order) -
-        Number(b.order),
-    )
+    .sort((a, b) => Number(a.order) - Number(b.order))
     .filter(
-      (beat, index, values) =>
-        values.findIndex(
-          (candidate) =>
-            Number(candidate.order) ===
-            Number(beat.order),
-        ) === index,
+      (beat, index, all) =>
+        all.findIndex((item) => Number(item.order) === Number(beat.order)) === index,
     )
-    .slice(0, MAX_CANONICAL_BEATS)
+    .slice(0, maxBeats)
     .map((beat, index) => ({
       ...beat,
       order: index + 1,
-      eventIds: Array.isArray(beat.eventIds)
-        ? [
-            ...new Set(
-              beat.eventIds.filter(
-                (
-                  value,
-                ): value is string =>
-                  typeof value === "string" &&
-                  value.trim().length > 0,
-              ),
-            ),
-          ]
-        : [],
-      setsUp: Array.isArray(beat.setsUp)
-        ? [
-            ...new Set(
-              beat.setsUp.filter(
-                (
-                  value,
-                ): value is string =>
-                  typeof value === "string" &&
-                  value.trim().length > 0,
-              ),
-            ),
-          ]
-        : [],
-      paysOff: Array.isArray(beat.paysOff)
-        ? [
-            ...new Set(
-              beat.paysOff.filter(
-                (
-                  value,
-                ): value is string =>
-                  typeof value === "string" &&
-                  value.trim().length > 0,
-              ),
-            ),
-          ]
-        : [],
+      eventIds: [...new Set((beat.eventIds ?? []).filter((value) => typeof value === "string" && clean(value)))],
+      setsUp: [...new Set((beat.setsUp ?? []).filter((value) => typeof value === "string" && clean(value)))],
+      paysOff: [...new Set((beat.paysOff ?? []).filter((value) => typeof value === "string" && clean(value)))],
     }));
+}
+
+function endpointLabel(envelope: ReturnType<typeof buildAuthorRealityEnvelope>): string {
+  return envelope.events.find((event) => event.id === envelope.endpointEventId)?.label ?? "";
+}
+
+/**
+ * The only adapter from RealizationSlot into the canonical Mouth beat shape.
+ * Every downstream Mouth operation consumes this representation.
+ */
+function canonicalMouthBeats(
+  beats: readonly MouthCandidateBeat[],
+  slots: readonly RealizationSlot[],
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  spine: MeaningSpine,
+): MouthCandidateBeat[] {
+  return beats.map((beat) => {
+    const slot = slots.find((candidate) => candidate.order === beat.order);
+    const spineBeat = spine.beats.find((candidate) => candidate.order === beat.order);
+    const payoff = slot?.kind === "payoff" || beat.role === "payoff" || beat.attentionFunction === "payoff";
+    const endpoint = endpointLabel(envelope);
+
+    const sourceEventIds = [
+      ...(slot?.sourceEventIds ?? []),
+      ...(slot?.inheritedEventIds ?? []),
+      ...(beat.eventIds ?? []),
+    ].filter(Boolean);
+
+    const targetLabels = [
+      ...(slot?.targetLabels ?? []),
+      ...(payoff && endpoint ? [endpoint] : []),
+      ...(beat.paysOff ?? []),
+    ].filter(Boolean);
+
+    return {
+      ...beat,
+      order: beat.order,
+      role: payoff ? "payoff" : beat.role,
+      attentionFunction: payoff ? "payoff" : beat.attentionFunction,
+      creativeMove: beat.creativeMove ?? slot?.mode,
+      realizationMode: clean(
+        `${slot?.kind ?? ""} ${slot?.mode ?? ""}`,
+      ) || beat.realizationMode,
+      eventIds: [...new Set(sourceEventIds)],
+      change: clean(spineBeat?.change) || clean(beat.change),
+      next: clean(spineBeat?.next) || clean(beat.next) || targetLabels.join("; "),
+      frontier: clean(spineBeat?.next) || clean(beat.frontier) || targetLabels.join("; "),
+      setsUp: beat.setsUp?.length ? beat.setsUp : slot?.sourceLabels ?? [],
+      paysOff: payoff ? [endpoint].filter(Boolean) : beat.paysOff ?? slot?.targetLabels ?? [],
+      obligations: slot?.obligations ?? beat.obligations ?? [],
+      forbiddenMoves: slot?.forbiddenMoves ?? beat.forbiddenMoves ?? [],
+      relationKinds: slot?.relationKinds ?? beat.relationKinds ?? [],
+      relationStrength: slot?.relationStrength ?? beat.relationStrength ?? 0,
+    };
+  });
 }
 
 function qualityFailures(
@@ -181,1131 +180,304 @@ function qualityFailures(
   beamScore: number,
 ): string[] {
   const failures: string[] = [];
-
-  if (
-    texts.length !== beatCount
-  ) {
-    failures.push(
-      `expected ${beatCount} lines, received ${texts.length}`,
-    );
-  }
+  if (texts.length !== beatCount) failures.push(`expected ${beatCount} lines, received ${texts.length}`);
 
   for (const candidate of candidates) {
+    if (candidate.groundingScore < QUALITY.grounding) failures.push(`beat ${candidate.beatOrder}: weak-grounding=${candidate.groundingScore}`);
+    if (candidate.meaningScore < QUALITY.meaning) failures.push(`beat ${candidate.beatOrder}: weak-meaning=${candidate.meaningScore}`);
+    if (candidate.inventionRisk > QUALITY.invention) failures.push(`beat ${candidate.beatOrder}: invention-risk=${candidate.inventionRisk}`);
+    if (candidate.compressionScore < QUALITY.compression) failures.push(`beat ${candidate.beatOrder}: poor-compression=${candidate.compressionScore}`);
     if (
-      candidate.groundingScore <
-      QUALITY.minimumGrounding
+      candidate.reasons.includes("keyword-assembly") ||
+      candidate.reasons.includes("analytic-realization-language") ||
+      candidate.reasons.includes("question-leak")
     ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: weak-grounding=${candidate.groundingScore}`,
-      );
-    }
-
-    if (
-      candidate.meaningScore <
-      QUALITY.minimumMeaning
-    ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: weak-meaning=${candidate.meaningScore}`,
-      );
-    }
-
-    if (
-      candidate.inventionRisk >
-      QUALITY.maximumInventionRisk
-    ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: invention-risk=${candidate.inventionRisk}`,
-      );
-    }
-
-    if (
-      candidate.compressionScore <
-      QUALITY.minimumCompression
-    ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: poor-compression=${candidate.compressionScore}`,
-      );
-    }
-
-    if (
-      candidate.reasons.includes(
-        "language-quality-gate",
-      ) ||
-      candidate.reasons.includes(
-        "weak-natural-language",
-      ) ||
-      candidate.reasons.includes(
-        "keyword-assembly",
-      ) ||
-      candidate.reasons.includes(
-        "analytic-language",
-      ) ||
-      candidate.reasons.includes(
-        "analytic-realization-language",
-      )
-    ) {
-      failures.push(
-        `beat ${candidate.beatOrder}: language-quality-failure`,
-      );
+      failures.push(`beat ${candidate.beatOrder}: language-quality-failure`);
     }
   }
 
-  if (
-    beamScore <
-    QUALITY.minimumBeamScore
-  ) {
-    failures.push(
-      `beam-score=${beamScore}`,
-    );
-  }
-
-  return [
-    ...new Set(failures),
-  ];
+  if (beamScore < QUALITY.beam) failures.push(`beam-score=${beamScore}`);
+  return [...new Set(failures)];
 }
 
-function mergeCandidateBatches(
+function mergeBatches(
   beats: readonly MouthCandidateBeat[],
   primary: MouthCandidateBatch | undefined,
-  recovered: ReadonlyMap<
-    number,
-    string[]
-  >,
-  limit: number,
 ): MouthCandidateBatch {
   return {
-    variantsByBeat: beats.map(
-      (beat) => {
-        const primaryEntry =
-          primary?.variantsByBeat.find(
-            (item) =>
-              item.order ===
-              beat.order,
-          );
-
-        const recoveredVariants =
-          recovered.get(
-            beat.order,
-          ) ?? [];
-
-        return {
-          order:
-            beat.order,
-          variants: [
-            ...(primaryEntry
-              ?.variants ?? []),
-            ...recoveredVariants,
-          ]
-            .map(
-              (value) =>
-                String(
-                  value ?? "",
-                ).trim(),
-            )
-            .filter(Boolean)
-            .filter(
-              (
-                value,
-                index,
-                values,
-              ) =>
-                values.indexOf(
-                  value,
-                ) === index,
-            )
-            .slice(
-              0,
-              Math.max(
-                1,
-                limit,
-              ),
-            ),
-        };
-      },
-    ),
+    variantsByBeat: beats.map((beat) => ({
+      order: beat.order,
+      variants: [
+        ...(primary?.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []),
+      ]
+        .map(clean)
+        .filter(Boolean)
+        .filter((value, index, all) => all.indexOf(value) === index),
+    })),
   };
 }
 
-function eventLabel(
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >,
-  id: string,
-): string {
-  return (
-    envelope.events.find(
-      (event) =>
-        event.id === id,
-    )?.label ?? ""
-  );
+function buildFallbackPools(
+  beats: readonly MouthCandidateBeat[],
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  priorTexts: readonly string[],
+  primary: MouthCandidateBatch | undefined,
+  limit: number,
+): MouthCandidatePool[] {
+  return beats.map((beat) => {
+    const entry = primary?.variantsByBeat.find((item) => item.order === beat.order);
+    const raw = (entry?.variants ?? []).map((text) =>
+      scoreMouthCandidate({
+        text,
+        beat,
+        envelope,
+        priorTexts,
+      }),
+    );
+
+    const candidates = adaptMouthCandidatePool({
+      candidates: raw,
+      beat,
+      envelope,
+      priorTexts,
+    }).slice(0, limit);
+
+    return { order: beat.order, candidates };
+  });
 }
 
-function latentStoryDirectives(input: {
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >;
-  beats: readonly MouthCandidateBeat[];
-  spine: MeaningSpine;
-}): string[] {
-  const {
+async function generateCandidates(
+  beats: readonly MouthCandidateBeat[],
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  priorTexts: readonly string[],
+  lens: string | undefined,
+  revisionGuidance: readonly string[],
+  policy: EnterpriseMouthExecutionPolicy,
+): Promise<{ text: string; batch?: MouthCandidateBatch; calls: number }> {
+  if (policy.maxPrimaryCalls <= 0 || policy.mode === "no-model") {
+    return { text: JSON.stringify({ variantsByBeat: [] }), calls: 0 };
+  }
+
+  const messages = buildMouthCandidateMessages({
     envelope,
     beats,
-    spine,
-  } = input;
+    priorTexts,
+    lens,
+  });
 
-  const directives: string[] =
-    [];
-
-  const endpoint =
-    spine.endpointLabel;
-
-  directives.push(
-    "Find the latent story already contained in the supplied evidence; do not write a receipt caption for each event.",
-  );
-
-  directives.push(
-    "Each middle beat must make the selected movie more legible by changing the reading of earlier evidence or using a later supplied detail as concrete proof.",
-  );
-
-  directives.push(
-    "A supplied state can be interpreted as character attitude, but the interpretation must be grounded by a supplied action, object, or later state when the graph provides one.",
-  );
-
-  directives.push(
-    "Do not name the operation. Make the relationship felt through the line.",
-  );
-
-  for (
-    let index = 1;
-    index < beats.length - 1;
-    index += 1
-  ) {
-    const current =
-      beats[index];
-
-    const previous =
-      beats[index - 1];
-
-    const currentLabels =
-      current.eventIds
-        ?.map((id) =>
-          eventLabel(
-            envelope,
-            id,
-          ),
-        )
-        .filter(Boolean) ??
-      [];
-
-    const nextLabels =
-      beats[index + 1]
-        .eventIds
-        ?.map((id) =>
-          eventLabel(
-            envelope,
-            id,
-          ),
-        )
-        .filter(Boolean) ??
-      [];
-
-    const priorLabels =
-      previous.eventIds
-        ?.map((id) =>
-          eventLabel(
-            envelope,
-            id,
-          ),
-        )
-        .filter(Boolean) ??
-      [];
-
-    const state =
-      currentLabels.find(
-        (label) =>
-          envelope.suppliedStates.includes(
-            label,
-          ),
-      );
-
-    const action =
-      nextLabels.find(
-        (label) =>
-          envelope.suppliedActions.some(
-            (value) =>
-              label
-                .toLowerCase()
-                .includes(
-                  value.toLowerCase(),
-                ),
-          ),
-      );
-
-    if (
-      state &&
-      action
-    ) {
-      directives.push(
-        `Beat ${current.order}: ${state} is the emerging attitude; the next supplied action "${action}" must make that attitude concrete. Do not merely place the two labels beside each other.`,
-      );
-    } else if (
-      priorLabels.length &&
-      currentLabels.length
-    ) {
-      directives.push(
-        `Beat ${current.order}: carry the prior signal ${priorLabels.join(" / ")} into ${currentLabels.join(" / ")} so the viewer feels a change, not a list.`,
-      );
-    }
+  const system = messages[0];
+  if (system) {
+    system.content += [
+      "",
+      "ENTERPRISE CANONICAL REALIZATION CONTRACT.",
+      "The supplied beats are already canonicalized from RealizationSlots.",
+      "Generate exactly one variantsByBeat entry for every beat order.",
+      "Never return an empty variantsByBeat array when beat orders are supplied.",
+      "Every non-payoff beat must contain at least one grounded candidate.",
+      "Every payoff beat must contain the exact supplied endpoint phrase.",
+      ...revisionGuidance.slice(0, 20).map((item) => `- ${item}`),
+    ].join("\n");
   }
 
-  if (endpoint) {
-    directives.push(
-      `FINAL SCENE END IS NON-NEGOTIABLE: the final line must end on the supplied endpoint "${endpoint}". Do not replace it, weaken it, add a fifth beat, or continue after it.`,
-    );
-
-    directives.push(
-      `Everything before the endpoint exists to make "${endpoint}" land as the earned payoff of the accumulated meaning.`,
-    );
-  }
-
-  return directives;
-}
-
-function realizationSlotDirectives(input: {
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >;
-  beats: readonly MouthCandidateBeat[];
-  slots: readonly RealizationSlot[];
-}): string[] {
-  const directives: string[] =
-    [
-      "REALIZATION SLOTS ARE THE AUTHORITATIVE CREATIVE JOBS.",
-      "Do not invent, merge, reorder, or skip slots. Solve each slot as its own bounded language problem.",
-      "For middle slots, the sentence must perform the required meaning movement; naming two anchors side-by-side is not enough.",
-      "Prefer implication, contrast, recontextualization, understatement, or compression when they make the relationship felt without explaining it.",
-    ];
-
-  for (
-    const slot of input.slots
-  ) {
-    const beat =
-      input.beats.find(
-        (candidate) =>
-          candidate.order ===
-          slot.order,
-      );
-
-    const endpoint =
-      beat?.paysOff?.length
-        ? beat.paysOff.join(
-            " / ",
-          )
-        : "";
-
-    const strategies = beat
-      ? selectSafeStrategies(
-          beat,
-          input.envelope,
-          5,
-        )
-          .map(
-            (candidate) =>
-              candidate.strategy,
-          )
-          .join(", ")
-      : "implication, compression";
-
-    directives.push(
-      `SLOT ${slot.order}`,
-    );
-
-    directives.push(
-      `kind=${slot.kind}; mode=${slot.mode}; source=${slot.sourceLabels.join(" | ") || "none"}; target=${slot.targetLabels.join(" | ") || "none"}`,
-    );
-
-    directives.push(
-      `relations=${slot.relationKinds.join(" | ") || "none"}; strength=${slot.relationStrength}; strategies=${strategies}`,
-    );
-
-    directives.push(
-      `obligations=${slot.obligations.join(" || ") || "ground the line in supplied evidence"}`,
-    );
-
-    directives.push(
-      `forbidden=${slot.forbiddenMoves.join(" | ")}`,
-    );
-
-    if (endpoint) {
-      directives.push(
-        `supplied ending anchor=${endpoint}; this slot must support the path into that ending, not replace it.`,
-      );
-    }
-  }
-
-  return directives;
-}
-
-function applyLatentStoryPenalty(
-  candidate: MouthCandidate,
-): MouthCandidate {
-  const scaffold =
-    candidate.reasons.includes(
-      "keyword-assembly",
-    ) ||
-    candidate.reasons.includes(
-      "analytic-realization-language",
-    );
-
-  if (!scaffold) {
-    return candidate;
-  }
+  const result = await localModelGenerate(messages, "json", {
+    numPredict: policy.numPredict,
+    temperature: policy.temperature,
+  });
 
   return {
-    ...candidate,
-    score: Number(
-      Math.max(
-        0,
-        candidate.score * 0.58,
-      ).toFixed(3),
-    ),
-    meaningScore: Number(
-      Math.max(
-        0,
-        candidate.meaningScore *
-          0.72,
-      ).toFixed(3),
-    ),
-    reasons: [
-      ...new Set([
-        ...candidate.reasons,
-        "latent-story-scaffold",
-      ]),
-    ],
-  };
-}
-
-async function recoverMissingBeatVariants(
-  input: EnterpriseMouthInput,
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >,
-  missingBeats: readonly MouthCandidateBeat[],
-  slots: readonly RealizationSlot[],
-  policy: EnterpriseMouthExecutionPolicy,
-  spine: MeaningSpine,
-): Promise<{
-  recovered: ReadonlyMap<
-    number,
-    string[]
-  >;
-  modelCalls: number;
-}> {
-  const recovered =
-    new Map<
-      number,
-      string[]
-    >();
-
-  if (
-    !missingBeats.length ||
-    policy.maxRecoveryCalls <= 0 ||
-    policy.mode ===
-      "no-model"
-  ) {
-    return {
-      recovered,
-      modelCalls: 0,
-    };
-  }
-
-  const targetedMessages =
-    buildMouthCandidateMessages({
-      envelope,
-      beats:
-        missingBeats,
-      priorTexts:
-        input.priorTexts
-          ? [
-              ...input.priorTexts,
-            ]
-          : undefined,
-      lens:
-        input.lens,
-    });
-
-  const scopedSlots =
-    slots.filter(
-      (slot) =>
-        missingBeats.some(
-          (beat) =>
-            beat.order ===
-            slot.order,
-        ),
-    );
-
-  targetedMessages[0] =
-    {
-      ...targetedMessages[0],
-      content:
-        `${targetedMessages[0].content}\n\nBATCHED BEAT RECOVERY:\n` +
-        `Recover ONLY the missing beat orders: ${missingBeats
-          .map(
-            (beat) =>
-              beat.order,
-          )
-          .join(", ")}.\n` +
-        "Return one variantsByBeat entry for each requested order and no others.\n" +
-        `Maximum variants per beat: ${policy.variantsPerBeat}.\n` +
-        "Use supplied anchors for each beat.\n" +
-        "Do not create new people, objects, locations, reactions, actions, or outcomes.\n" +
-        `${realizationSlotDirectives({
-          envelope,
-          beats:
-            missingBeats,
-          slots:
-            scopedSlots,
-        }).join("\n")}\n` +
-        `${latentStoryDirectives({
-          envelope,
-          beats:
-            missingBeats,
-          spine,
-        }).join("\n")}\n` +
-        `${
-          input.revisionGuidance?.length
-            ? input.revisionGuidance
-                .slice(-10)
-                .map(
-                  (item) =>
-                    `- ${item}`,
-                )
-                .join("\n")
-            : ""
-        }`,
-    };
-
-  const requestedTemperature =
-    input.temperature ??
-    policy.temperature;
-
-  const result =
-    await localModelGenerate(
-      targetedMessages,
-      "json",
-      {
-        numPredict:
-          Math.max(
-            128,
-            Math.min(
-              policy.numPredict ||
-                768,
-              768,
-            ),
-          ),
-        temperature:
-          Math.max(
-            0.4,
-            Math.min(
-              policy.temperature ||
-                0.62,
-              requestedTemperature,
-            ),
-          ),
-      },
-    );
-
-  const parsed =
-    parseMouthCandidateBatch(
-      result.text,
-    );
-
-  for (
-    const beat of
-      missingBeats
-  ) {
-    const entry =
-      parsed?.variantsByBeat.find(
-        (item) =>
-          item.order ===
-          beat.order,
-      );
-
-    if (
-      entry?.variants.length
-    ) {
-      recovered.set(
-        beat.order,
-        entry.variants.slice(
-          0,
-          policy.variantsPerBeat,
-        ),
-      );
-    }
-  }
-
-  return {
-    recovered,
-    modelCalls: 1,
-  };
-}
-
-async function generateBeam(
-  input: EnterpriseMouthInput,
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >,
-  slots: readonly RealizationSlot[],
-  policy: EnterpriseMouthExecutionPolicy,
-  spine: MeaningSpine,
-): Promise<{
-  resultText: string;
-  texts: string[];
-  candidates: MouthCandidate[];
-  beamScore: number;
-  modelCalls: number;
-}> {
-  if (
-    policy.mode ===
-      "no-model" ||
-    policy.maxPrimaryCalls <=
-      0
-  ) {
-    return {
-      resultText:
-        JSON.stringify({
-          variantsByBeat: [],
-        }),
-      texts: [],
-      candidates: [],
-      beamScore: 0,
-      modelCalls: 0,
-    };
-  }
-
-  const candidateMessages =
-    buildMouthCandidateMessages({
-      envelope,
-      beats:
-        input.beats,
-      priorTexts:
-        input.priorTexts
-          ? [
-              ...input.priorTexts,
-            ]
-          : undefined,
-      lens:
-        input.lens,
-    });
-
-  candidateMessages[0] =
-    {
-      ...candidateMessages[0],
-      content:
-        `${candidateMessages[0].content}\n\nLATENT STORY REALIZATION CONTRACT:\n` +
-        `${latentStoryDirectives({
-          envelope,
-          beats:
-            input.beats,
-          spine,
-        }).join("\n")}\n\n` +
-        `${realizationSlotDirectives({
-          envelope,
-          beats:
-            input.beats,
-          slots,
-        }).join("\n")}`,
-    };
-
-  if (
-    input.revisionGuidance?.length
-  ) {
-    candidateMessages[0] =
-      {
-        ...candidateMessages[0],
-        content:
-          `${candidateMessages[0].content}\n\nENTERPRISE REVISION GUIDANCE:\n` +
-          `${input.revisionGuidance
-            .slice(0, 20)
-            .map(
-              (item) =>
-                `- ${item}`,
-            )
-            .join("\n")}\n` +
-          "Regenerate candidates that address these failures. Preserve approved reality, the Meaning Spine, the realization slot contracts, and the selected ending.",
-      };
-  }
-
-  if (
-    process.env.QRE_AUTHOR_DEBUG_RAW ===
-    "true"
-  ) {
-    console.log(
-      "\n=== ENTERPRISE MOUTH SYSTEM PROMPT ===\n" +
-        candidateMessages
-          .filter(
-            (message) =>
-              message.role ===
-              "system",
-          )
-          .map(
-            (message) =>
-              message.content,
-          )
-          .join(
-            "\n\n",
-          ) +
-        "\n=== ENTERPRISE MOUTH USER PAYLOAD ===\n" +
-        candidateMessages
-          .filter(
-            (message) =>
-              message.role ===
-              "user",
-          )
-          .map(
-            (message) =>
-              message.content,
-          )
-          .join(
-            "\n\n",
-          ) +
-        "\n=== END ENTERPRISE MOUTH REQUEST ===\n",
-    );
-  }
-
-  const result =
-    await localModelGenerate(
-      candidateMessages,
-      "json",
-      {
-        numPredict:
-          policy.numPredict,
-        temperature:
-          input.temperature ??
-          policy.temperature,
-      },
-    );
-
-  const parsed =
-    parseMouthCandidateBatch(
-      result.text,
-    );
-
-  const missingBeats =
-    input.beats.filter(
-      (beat) =>
-        !(
-          parsed?.variantsByBeat.some(
-            (item) =>
-              item.order ===
-              beat.order,
-          ) ?? false
-        ),
-    );
-
-  let modelCalls = 1;
-
-  const recovery =
-    await recoverMissingBeatVariants(
-      input,
-      envelope,
-      missingBeats,
-      slots,
-      policy,
-      spine,
-    );
-
-  modelCalls +=
-    recovery.modelCalls;
-
-  const merged =
-    mergeCandidateBatches(
-      input.beats,
-      parsed,
-      recovery.recovered,
-      policy.variantsPerBeat,
-    );
-
-  // Model coverage is diagnostic, not a prerequisite for realization.
-  // Every canonical beat gets a candidate pool. The quality adapter contributes
-  // deterministic evidence-locked recovery for any model gap.
-  const pools:
-    MouthCandidatePool[] =
-    input.beats
-      .map((beat) => {
-        const entry =
-          merged.variantsByBeat.find(
-            (item) =>
-              item.order ===
-              beat.order,
-          );
-
-        const rawCandidates =
-          (
-            entry?.variants ??
-            []
-          )
-            .map(
-              (text) =>
-                scoreMouthCandidate(
-                  {
-                    text,
-                    beat,
-                    envelope,
-                    priorTexts:
-                      input.priorTexts
-                        ? [
-                            ...input.priorTexts,
-                          ]
-                        : [],
-                  },
-                ),
-            )
-            .map(
-              applyLatentStoryPenalty,
-            );
-
-        const candidates =
-          adaptMouthCandidatePool({
-            candidates:
-              rawCandidates,
-            beat,
-            envelope,
-            priorTexts:
-              input.priorTexts
-                ? [
-                    ...input.priorTexts,
-                  ]
-                : [],
-          }).slice(
-            0,
-            policy.beamCandidatesPerBeat,
-          );
-
-        return {
-          order:
-            beat.order,
-          candidates,
-        };
-      })
-      .sort(
-        (a, b) =>
-          a.order -
-          b.order,
-      );
-
-  const missingPools =
-    pools
-      .filter(
-        (pool) =>
-          pool.candidates
-            .length === 0,
-      )
-      .map(
-        (pool) =>
-          pool.order,
-      );
-
-  if (
-    missingPools.length
-  ) {
-    return {
-      resultText:
-        result.text,
-      texts: [],
-      candidates: [],
-      beamScore: 0,
-      modelCalls,
-    };
-  }
-
-  const beam =
-    selectBestMouthSequence(
-      pools,
-      {
-        width:
-          policy.beamWidth,
-        candidatesPerBeat:
-          policy.beamCandidatesPerBeat,
-      },
-    );
-
-  return {
-    resultText:
-      result.text,
-    texts:
-      beam.texts,
-    candidates:
-      beam.candidates,
-    beamScore:
-      beam.score,
-    modelCalls,
+    text: result.text,
+    batch: parseMouthCandidateBatch(result.text),
+    calls: 1,
   };
 }
 
 export async function realizeEnterpriseMouth(
   input: EnterpriseMouthInput,
 ): Promise<EnterpriseMouthResult> {
-  const policy =
-    getEnterpriseMouthPolicy();
+  const policy = getEnterpriseMouthPolicy();
+  const envelope = buildAuthorRealityEnvelope({
+    graph: input.graph,
+    subject: input.subject,
+  });
 
-  const envelope =
-    buildAuthorRealityEnvelope({
-      graph:
-        input.graph,
-      subject:
-        input.subject,
-    });
+  const sourceBeats = canonicalizeBeats(
+    input.beats,
+    policy.maxBeats,
+  );
 
-  const canonicalBeats =
-    canonicalizeBeats(
-      input.beats,
-    ).slice(
-      0,
-      policy.maxBeats,
-    );
+  const meaningSpine = buildMeaningSpine({
+    envelope,
+    beats: sourceBeats,
+  });
 
-  const meaningSpine =
-    buildMeaningSpine({
+  const realizationSlots = buildRealizationSlots({
+    envelope,
+    beats: sourceBeats,
+    spine: meaningSpine,
+    fast: policy.mode === "dev-fast",
+  });
+
+  const mouthBeats = canonicalMouthBeats(
+    sourceBeats,
+    realizationSlots,
+    envelope,
+    meaningSpine,
+  );
+
+  const enterpriseIntelligence = buildEnterpriseIntelligence({
+    graph: input.graph,
+    subject: input.subject,
+    lens: input.lens,
+    beats: mouthBeats,
+  });
+
+  const priorTexts = [...(input.priorTexts ?? [])];
+  let modelCallCount = 0;
+  let rawModelText = JSON.stringify({ variantsByBeat: [] });
+  let batch: MouthCandidateBatch | undefined;
+
+  if (policy.mode !== "no-model") {
+    const generated = await generateCandidates(
+      mouthBeats,
       envelope,
-      beats:
-        canonicalBeats,
-    });
-
-  const realizationSlots =
-    buildRealizationSlots({
-      envelope,
-      beats:
-        canonicalBeats,
-      spine:
-        meaningSpine,
-      fast:
-        policy.mode ===
-        "dev-fast",
-    });
-
-  const enterpriseIntelligence =
-    buildEnterpriseIntelligence({
-      graph:
-        input.graph,
-      subject:
-        input.subject,
-      lens:
-        input.lens,
-      beats:
-        canonicalBeats,
-    });
-
-  if (
-    policy.mode ===
-    "no-model"
-  ) {
-    const cumulativeStates =
-      buildCumulativeMeaningState(
-        canonicalBeats,
-        envelope,
-      );
-
-    return {
-      texts: [],
-      candidates: [],
-      rawModelText:
-        JSON.stringify({
-          variantsByBeat: [],
-        }),
-      beamScore: 0,
-      envelope,
-      meaningSpine,
-      realizationSlots,
-      repairObjectives: [],
+      priorTexts,
+      input.lens,
+      input.revisionGuidance ?? [],
       policy,
-      modelCallCount: 0,
-      enterpriseIntelligence,
-      cumulativeMeaningScore:
-        evaluateCumulativeMeaning(
-          cumulativeStates,
-        ),
-      creativeCritique:
-        critiqueCreativeSelection(
-          "",
-          [],
-        ),
-      safetyViolations: [],
-      groundedSurprise: 0,
-    };
+    );
+    rawModelText = generated.text;
+    batch = generated.batch;
+    modelCallCount += generated.calls;
   }
 
-  let current =
-    await generateBeam(
-      {
-        ...input,
-        beats:
-          canonicalBeats,
-      },
-      envelope,
-      realizationSlots,
-      policy,
-      meaningSpine,
-    );
+  const pools = buildFallbackPools(
+    mouthBeats,
+    envelope,
+    priorTexts,
+    batch,
+    policy.beamCandidatesPerBeat,
+  );
 
-  let failures =
-    qualityFailures(
-      current.texts,
-      current.candidates,
-      canonicalBeats.length,
-      current.beamScore,
-    );
+  const repairObjectives = buildMouthRepairObjectives({
+    candidates: pools.flatMap((pool) => pool.candidates),
+    slots: realizationSlots,
+  });
 
-  let modelCallCount =
-    current.modelCalls;
+  let beam = selectBestMouthSequence(pools, {
+    width: policy.beamWidth,
+    candidatesPerBeat: policy.beamCandidatesPerBeat,
+  });
 
-  const repairObjectives =
-    buildMouthRepairObjectives({
-      candidates:
-        current.candidates,
-      slots:
-        realizationSlots,
-    });
+  let failures = qualityFailures(
+    beam.texts,
+    beam.candidates,
+    mouthBeats.length,
+    beam.score,
+  );
 
+  /*
+   * Full mode gets one bounded revision request. The revision still enters
+   * through the exact same candidate batch contract and receives the same
+   * fallback + adapter + beam pipeline.
+   */
   if (
-    failures.length > 0 &&
-    policy.maxRevisionCalls >
-      0 &&
-    modelCallCount <
-      policy.maxTotalModelCalls
+    failures.length &&
+    policy.maxRevisionCalls > 0 &&
+    modelCallCount < policy.maxTotalModelCalls
   ) {
-    const remainingCalls =
-      policy.maxTotalModelCalls -
-      modelCallCount;
+    const revisionGuidance = [
+      ...(input.revisionGuidance ?? []),
+      ...compactRepairInstructions(repairObjectives, 8),
+      ...failures,
+      "The first realization failed quality gates.",
+      "Do not paraphrase a failed candidate; solve the slot's semantic job.",
+      "Do not invent concrete reality.",
+      "Preserve the exact supplied endpoint.",
+    ];
 
-    const revisionPolicy: EnterpriseMouthExecutionPolicy =
+    const revised = await generateCandidates(
+      mouthBeats,
+      envelope,
+      beam.texts,
+      input.lens,
+      revisionGuidance,
       {
         ...policy,
-        maxPrimaryCalls:
-          remainingCalls >
-          0
-            ? 1
-            : 0,
-        maxRecoveryCalls:
-          remainingCalls >
-          1
-            ? 1
-            : 0,
+        maxPrimaryCalls: 1,
+        maxRecoveryCalls: 0,
         maxRevisionCalls: 0,
-        maxTotalModelCalls:
-          remainingCalls,
-        beamWidth:
-          policy.beamWidth,
-        beamCandidatesPerBeat:
-          policy.beamCandidatesPerBeat,
-      };
+        maxTotalModelCalls: 1,
+        temperature: Math.max(
+          0.42,
+          (input.temperature ?? policy.temperature) - 0.06,
+        ),
+      },
+    );
 
-    if (
-      revisionPolicy.maxPrimaryCalls >
-      0
-    ) {
-      const revised =
-        await generateBeam(
-          {
-            ...input,
-            beats:
-              canonicalBeats,
-            priorTexts:
-              current.texts,
-            revisionGuidance: [
-              ...(input.revisionGuidance ??
-                []),
-              ...compactRepairInstructions(
-                repairObjectives,
-                8,
-              ),
-              ...failures,
-              "QUALITY GATE FAILED. Do not merely paraphrase the previous candidates.",
-              "Meaning shifts must be grounded in actual graph relationships.",
-              "Concrete verbs are evidence-sensitive: use only supplied actions or direct universal equivalents.",
-              "Interpretation may change the reading of evidence, but may not create a new concrete action, object, person, setting, or reaction.",
-              "For multi-signal beats, preserve enough evidence to make the transition legible without naming the operation.",
-              "The final supplied endpoint is the end of this source sequence. Do not continue beyond it or replace it with a new invented ending.",
-            ],
-            temperature:
-              Math.max(
-                0.42,
-                (
-                  input.temperature ??
-                  policy.temperature
-                ) -
-                  0.06,
-              ),
-          },
-          envelope,
-          realizationSlots,
-          revisionPolicy,
-          meaningSpine,
-        );
+    modelCallCount += revised.calls;
+    if (revised.batch) {
+      const revisedPools = buildFallbackPools(
+        mouthBeats,
+        envelope,
+        beam.texts,
+        revised.batch,
+        policy.beamCandidatesPerBeat,
+      );
 
-      const revisedFailures =
-        qualityFailures(
-          revised.texts,
-          revised.candidates,
-          canonicalBeats.length,
-          revised.beamScore,
-        );
+      const revisedBeam = selectBestMouthSequence(
+        revisedPools,
+        {
+          width: policy.beamWidth,
+          candidatesPerBeat: policy.beamCandidatesPerBeat,
+        },
+      );
 
-      modelCallCount +=
-        revised.modelCalls;
+      const revisedFailures = qualityFailures(
+        revisedBeam.texts,
+        revisedBeam.candidates,
+        mouthBeats.length,
+        revisedBeam.score,
+      );
 
       if (
-        revisedFailures.length <
-          failures.length ||
-        (
-          revisedFailures.length ===
-            failures.length &&
-          revised.beamScore >
-            current.beamScore
-        )
+        revisedFailures.length < failures.length ||
+        (revisedFailures.length === failures.length &&
+          revisedBeam.score > beam.score)
       ) {
-        current =
-          revised;
-        failures =
-          revisedFailures;
+        beam = revisedBeam;
+        failures = revisedFailures;
+        rawModelText = revised.text;
       }
     }
   }
 
   const safetyViolations = [
     ...new Set(
-      current.texts.flatMap(
-        (text) =>
-          detectAuthorSafetyViolations(
-            {
-              text,
-              envelope,
-            },
-          ),
+      beam.texts.flatMap((text) =>
+        detectAuthorSafetyViolations({
+          text,
+          envelope,
+        }),
       ),
     ),
   ];
 
-  const cumulativeStates =
-    buildCumulativeMeaningState(
-      canonicalBeats,
-      envelope,
-    );
+  const cumulativeStates = buildCumulativeMeaningState(
+    mouthBeats,
+    envelope,
+  );
 
-  const finalText =
-    current.texts.join(
-      " ",
-    );
+  const finalText = beam.texts.join(" ");
+  const creativeCritique = critiqueCreativeSelection(
+    finalText,
+    [],
+  );
 
   return {
-    texts:
-      current.texts,
-    candidates:
-      current.candidates,
-    rawModelText:
-      current.resultText,
-    beamScore:
-      current.beamScore,
+    texts: beam.texts,
+    candidates: beam.candidates,
+    rawModelText,
+    beamScore: beam.score,
     envelope,
     meaningSpine,
     realizationSlots,
@@ -1313,20 +485,9 @@ export async function realizeEnterpriseMouth(
     policy,
     modelCallCount,
     enterpriseIntelligence,
-    cumulativeMeaningScore:
-      evaluateCumulativeMeaning(
-        cumulativeStates,
-      ),
-    creativeCritique:
-      critiqueCreativeSelection(
-        finalText,
-        [],
-      ),
+    cumulativeMeaningScore: evaluateCumulativeMeaning(cumulativeStates),
+    creativeCritique,
     safetyViolations,
-    groundedSurprise:
-      surpriseScore(
-        finalText,
-        envelope,
-      ),
+    groundedSurprise: surpriseScore(finalText, envelope),
   };
 }
