@@ -310,52 +310,45 @@ function chooseSealingIds(
   if (!turn) return [];
 
   const carrierSet = new Set(carriers);
-  const candidates: Array<{
-    id: string;
-    score: number;
-  }> = [];
+  const endpoint = endpointId(candidate);
+  const candidates: Array<{ id: string; score: number }> = [];
+  const pushCandidate = (id: string, score: number) => {
+    if (!id || carrierSet.has(id) || id === endpoint) return;
+    if (!candidates.some((item) => item.id === id)) candidates.push({ id, score });
+  };
 
-  for (
-    let index = turn.index + 1;
-    index < candidate.trajectory.length;
-    index += 1
-  ) {
+  // Prefer evidence that appears after the turn in the selected trajectory.
+  for (let index = turn.index + 1; index < candidate.trajectory.length; index += 1) {
     const step = candidate.trajectory[index];
-
     for (const id of step.eventIds) {
-      if (carrierSet.has(id)) continue;
-
-      const carrierRelation = carriers.some((carrier) =>
-        Boolean(
-          relationBetween(
-            graph,
-            carrier,
-            id,
-          ),
-        ),
-      );
-
-      candidates.push({
+      const carrierRelation = carriers.some((carrier) => Boolean(relationBetween(graph, carrier, id)));
+      pushCandidate(
         id,
-        score:
-          (step.operation === "payoff"
-            ? 0.2
-            : 0.7) +
-          (carrierRelation ? 0.3 : 0),
-      });
+        (step.operation === "payoff" ? 0.2 : 0.7) + (carrierRelation ? 0.3 : 0),
+      );
+    }
+  }
+
+  // When the selected trajectory is only establish -> turn -> payoff,
+  // recover a distinct sealing event from source evidence instead of failing the thesis.
+  if (!candidates.length) {
+    const trajectoryIds = new Set(candidate.trajectory.flatMap((step) => step.eventIds));
+    for (const relation of graph.relations) {
+      const touchesCarrier = carriers.some((carrier) => relation.from === carrier || relation.to === carrier);
+      if (!touchesCarrier) continue;
+
+      const otherId = carriers.includes(relation.from) ? relation.to : relation.from;
+      if (trajectoryIds.has(otherId) || otherId === endpoint) continue;
+
+      pushCandidate(otherId, relation.strength * 0.75 + relationPriority(relation.kind) * 0.25);
     }
   }
 
   return candidates
     .sort((a, b) => b.score - a.score)
     .map((item) => item.id)
-    .filter(
-      (id, index, values) =>
-        values.indexOf(id) === index,
-    )
     .slice(0, 2);
 }
-
 function buildPayoffDependency(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,

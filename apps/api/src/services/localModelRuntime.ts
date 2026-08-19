@@ -854,7 +854,359 @@ function parseMouthBatch(raw: string, expected: number): string[] {
     return [];
   }
 }
+function isCanonicalMouthCandidateRequest(
+  messages: LocalModelMessage[],
+  format?: "json",
+): boolean {
+  if (format !== "json") return false;
 
+  const system =
+    messages.find(
+      (message) =>
+        message.role === "system",
+    )?.content ?? "";
+
+  return /QRE MOUTH CANDIDATE GENERATOR/i.test(
+    system,
+  );
+}
+
+function parseCanonicalMouthCandidateBatch(
+  raw: string,
+): {
+  variantsByBeat: Array<{
+    order: number;
+    variants: string[];
+  }>;
+} {
+  const text = raw
+    .replace(
+      /^```(?:json)?/i,
+      "",
+    )
+    .replace(
+      /```$/i,
+      "",
+    )
+    .trim();
+
+  try {
+    const value =
+      JSON.parse(text) as {
+        variantsByBeat?: unknown;
+      };
+
+    if (
+      !Array.isArray(
+        value.variantsByBeat,
+      )
+    ) {
+      return {
+        variantsByBeat: [],
+      };
+    }
+
+    return {
+      variantsByBeat:
+        value.variantsByBeat
+          .filter(
+            (entry) =>
+              entry &&
+              typeof entry ===
+                "object",
+          )
+          .map(
+            (entry) => {
+              const item =
+                entry as Record<
+                  string,
+                  unknown
+                >;
+
+              const variants =
+                Array.isArray(
+                  item.variants,
+                )
+                  ? item.variants
+                      .map(
+                        (value) =>
+                          String(
+                            value ?? "",
+                          ).trim(),
+                      )
+                      .filter(Boolean)
+                      .slice(
+                        0,
+                        8,
+                      )
+                  : [];
+
+              return {
+                order:
+                  Number(
+                    item.order ??
+                      0,
+                  ),
+                variants,
+              };
+            },
+          )
+          .filter(
+            (entry) =>
+              entry.order > 0 &&
+              entry.variants.length >
+                0,
+          ),
+    };
+  } catch {
+    return {
+      variantsByBeat: [],
+    };
+  }
+}
+
+async function canonicalMouthCandidateRequest(
+  messages: LocalModelMessage[],
+  options: LocalModelOptions,
+): Promise<LocalModelResult> {
+  const payload =
+    parseUserObject(messages);
+
+  const beats = Array.isArray(
+    payload?.beats,
+  )
+    ? payload.beats
+    : [];
+
+  const beatCount =
+    beats.length;
+
+  if (!beatCount) {
+    return {
+      text: JSON.stringify({
+        variantsByBeat: [],
+      }),
+      model: modelName(),
+      provider: "local",
+    };
+  }
+
+  const temperature =
+    options.temperature ??
+    Number(
+      process.env
+        .QRE_LOCAL_MODEL_TEMPERATURE ??
+        "0.72",
+    );
+
+  const numPredict =
+    options.numPredict ??
+    Number(
+      process.env
+        .QRE_LOCAL_MODEL_NUM_PREDICT ??
+        "768",
+    );
+
+  const prepared =
+    messages.map(
+      (message) => ({
+        role:
+          message.role,
+        content:
+          message.content,
+        ...(message.images?.length
+          ? {
+              images:
+                message.images.map(
+                  stripDataUrl,
+                ),
+            }
+          : {}),
+      }),
+    );
+
+  const system =
+    prepared.find(
+      (message) =>
+        message.role ===
+        "system",
+    );
+
+  const user =
+    prepared.find(
+      (message) =>
+        message.role ===
+        "user",
+    );
+
+  const repairSuffix =
+    [
+      "",
+      "STRICT OUTPUT CONTRACT:",
+      "Return ONLY valid JSON.",
+      '{"variantsByBeat":[{"order":1,"variants":["...","..."]}]}',
+      `Return exactly one variantsByBeat entry for each of the ${beatCount} approved beats.`,
+      "Never return a beats key.",
+      "Never return a texts key.",
+      "Never return planning metadata.",
+      "Never return analysis.",
+      "Never rewrite the Beat Graph.",
+      "Never invent facts.",
+    ].join(
+      "\n",
+    );
+
+  const requestMessages = [
+    {
+      role: "system" as const,
+      content:
+        `${system?.content ?? ""}\n\n${repairSuffix}`,
+    },
+    {
+      role: "user" as const,
+      content:
+        user?.content ??
+        JSON.stringify(
+          payload,
+        ),
+    },
+  ];
+
+  const data =
+    await request(
+      "/api/chat",
+      {
+        model:
+          modelName(),
+        stream: false,
+        keep_alive:
+          keepAlive(),
+        format: "json",
+        messages:
+          requestMessages,
+        options: {
+          temperature,
+          num_predict:
+            numPredict,
+        },
+      },
+    );
+
+  const text =
+    outputText(data);
+
+  const parsed =
+    parseCanonicalMouthCandidateBatch(
+      text,
+    );
+
+  const complete =
+    parsed.variantsByBeat.length ===
+    beatCount &&
+    parsed.variantsByBeat.every(
+      (entry) =>
+        entry.order > 0 &&
+        entry.variants.length >
+          0,
+    );
+
+  if (complete) {
+    return {
+      text: JSON.stringify(
+        parsed,
+      ),
+      model:
+        modelName(),
+      provider:
+        "local",
+    };
+  }
+
+  if (
+    process.env
+      .QRE_AUTHOR_DEBUG_RAW ===
+    "true"
+  ) {
+    console.log(
+      "\n--- QRE CANDIDATE ROUTE RETRY ---\n" +
+        text +
+        "\n--- END QRE CANDIDATE ROUTE RETRY ---\n",
+    );
+  }
+
+  const retryData =
+    await request(
+      "/api/chat",
+      {
+        model:
+          modelName(),
+        stream: false,
+        keep_alive:
+          keepAlive(),
+        format: "json",
+        messages: [
+          {
+            role:
+              "system",
+            content:
+              `${system?.content ?? ""}\n\n` +
+              "THIS IS A REPAIR REQUEST.\n" +
+              "The previous response used the wrong schema.\n" +
+              "Do NOT return beats.\n" +
+              "Do NOT return texts.\n" +
+              "Return ONLY variantsByBeat.\n" +
+              `There are exactly ${beatCount} approved beats.\n` +
+              "Each approved beat must receive one entry.\n" +
+              "Each entry must contain 2-5 short language variants.\n" +
+              "Do not invent reality.",
+          },
+          {
+            role:
+              "user",
+            content:
+              user?.content ??
+              JSON.stringify(
+                payload,
+              ),
+          },
+        ],
+        options: {
+          temperature:
+            Math.max(
+              0.45,
+              temperature -
+                0.15,
+            ),
+          num_predict:
+            Math.min(
+              numPredict,
+              768,
+            ),
+        },
+      },
+    );
+
+  const retryText =
+    outputText(
+      retryData,
+    );
+
+  const retryParsed =
+    parseCanonicalMouthCandidateBatch(
+      retryText,
+    );
+
+  return {
+    text:
+      JSON.stringify(
+        retryParsed,
+      ),
+    model:
+      modelName(),
+    provider:
+      "local",
+  };
+}
 async function canonicalMouthRequest(
   messages: LocalModelMessage[],
   options: LocalModelOptions,
@@ -1007,9 +1359,29 @@ export async function localModelGenerate(
   format?: "json",
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
-  if (isCanonicalMouth(messages, format)) {
-    return canonicalMouthRequest(messages, options);
-  }
+ if (
+  isCanonicalMouthCandidateRequest(
+    messages,
+    format,
+  )
+) {
+  return canonicalMouthCandidateRequest(
+    messages,
+    options,
+  );
+}
+
+if (
+  isCanonicalMouth(
+    messages,
+    format,
+  )
+) {
+  return canonicalMouthRequest(
+    messages,
+    options,
+  );
+}
 
   const planner = messages.some(
     (message) =>
