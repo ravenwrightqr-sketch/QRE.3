@@ -54,7 +54,17 @@ const CONCRETE_ACTION_LEMMAS = new Set(
 
 /* Universal physical staging. Legal only when evidenced. */
 const PHYSICAL_STAGE_LEMMAS = new Set(
-  "eye eyes shadow claw claws fur face body head hand hands tail tongue mouth teeth paw paws shoulder shoulders gaze breath heartbeat heart skin hair coat carpet floor room door window chair table wall".split(/\s+/).map(stem),
+  "eye eyes shadow claw claws fur face body head hand hands tail tongue mouth teeth paw paws shoulder shoulders gaze breath heartbeat heart skin hair coat carpet floor room door window chair table wall forest".split(/\s+/).map(stem),
+);
+
+/* Unsupported concrete identity/staging nouns are never allowed to sneak in as metaphor. */
+const INVENTED_FRAME_LEMMAS = new Set(
+  "beast creature dog cat animal person man woman child stranger crowd lawyer judge witness king queen monster ghost dragon hero villain forest room salon office table chair door window floor carpet shadow".split(/\s+/).map(stem),
+);
+
+/* Concrete sound claims are facts too. */
+const CONCRETE_SOUND_LEMMAS = new Set(
+  "roar roared roars roar echo echoed echoes whisper whispered whispers scream screamed screams bark barked barks growl growled growls snarl snarled snarls".split(/\s+/).map(stem),
 );
 
 const ANALYTIC = /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the reveal|the result|the outcome)\b/i;
@@ -107,6 +117,29 @@ function unsupportedPhysicalStageRisk(text: string, envelope: RealityEnvelope): 
   const entities = entitySet(envelope);
   const unsupported = tokens(text).map(stem).filter(
     (word) => PHYSICAL_STAGE_LEMMAS.has(word) && !source.has(word) && !entities.has(word),
+  );
+  return metric(unsupported.length > 0 ? 1 : 0);
+}
+
+function unsupportedInventedFrameRisk(text: string, envelope: RealityEnvelope): number {
+  const source = suppliedSet(envelope);
+  const entities = entitySet(envelope);
+  const unsupported = tokens(text).map(stem).filter(
+    (word) => INVENTED_FRAME_LEMMAS.has(word) && !source.has(word) && !entities.has(word),
+  );
+  return metric(unsupported.length > 0 ? 1 : 0);
+}
+
+function unsupportedSoundRisk(text: string, envelope: RealityEnvelope): number {
+  const source = suppliedSet(envelope);
+  const entities = entitySet(envelope);
+  const actions = actionSet(envelope);
+  const unsupported = tokens(text).map(stem).filter(
+    (word) =>
+      CONCRETE_SOUND_LEMMAS.has(word) &&
+      !source.has(word) &&
+      !entities.has(word) &&
+      !actions.has(word),
   );
   return metric(unsupported.length > 0 ? 1 : 0);
 }
@@ -166,6 +199,8 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   const unsupportedRisk = unsupportedConcreteRisk(value, envelope);
   const unsupportedActionRisk = unsupportedConcreteActionRisk(value, envelope);
   const unsupportedPhysicalRisk = unsupportedPhysicalStageRisk(value, envelope);
+  const unsupportedFrameRisk = unsupportedInventedFrameRisk(value, envelope);
+  const unsupportedSoundRisk = unsupportedSoundRisk(value, envelope);
   const languageMismatchRisk = nonLatinMismatchRisk(value, envelope);
 
   const actionWords = tokens(value).filter((token) => actionSet(envelope).has(stem(token))).length;
@@ -182,6 +217,8 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   if (unsupportedRisk > 0.45) reasons.push("unsupported-concrete-language");
   if (unsupportedActionRisk > 0) reasons.push("unsupported-concrete-action");
   if (unsupportedPhysicalRisk > 0) reasons.push("unsupported-physical-staging");
+  if (unsupportedFrameRisk > 0) reasons.push("unsupported-invented-frame");
+  if (unsupportedSoundRisk > 0) reasons.push("unsupported-concrete-sound");
   if (languageMismatchRisk > 0) reasons.push("language-mismatch");
   if (QUESTION.test(value)) reasons.push("question-leak");
 
@@ -199,6 +236,8 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
       unsupportedRisk <= 0.45 &&
       unsupportedActionRisk === 0 &&
       unsupportedPhysicalRisk === 0 &&
+      unsupportedFrameRisk === 0 &&
+      unsupportedSoundRisk === 0 &&
       languageMismatchRisk === 0 &&
       !QUESTION.test(value),
     reasons,
