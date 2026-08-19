@@ -17,22 +17,23 @@ const normalize = (value: string): string =>
 const bounded = (value: string): string =>
   words(value).slice(0, 7).join(" ");
 
+function contractEventIds(beat: MouthCandidateBeat): string[] {
+  return [
+    ...(beat.eventIds ?? []),
+    ...(beat.setsUp ?? []),
+    ...(beat.paysOff ?? []),
+  ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index);
+}
+
 function labelsForBeat(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): string[] {
-  const ids = [
-    ...(beat.eventIds ?? []),
-    ...(beat.setsUp ?? []),
-    ...(beat.paysOff ?? []),
-  ];
-
-  return [...new Set(
-    ids
-      .map((id) => envelope.events.find((event) => event.id === id)?.label ?? "")
-      .map(clean)
-      .filter(Boolean),
-  )];
+  return contractEventIds(beat)
+    .map((id) => envelope.events.find((event) => event.id === id)?.label ?? "")
+    .map(clean)
+    .filter(Boolean)
+    .filter((value, index, values) => values.findIndex((item) => normalize(item) === normalize(value)) === index);
 }
 
 function stateLabels(
@@ -57,12 +58,22 @@ function relationKinds(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): Set<string> {
-  const ids = new Set(beat.eventIds ?? []);
+  const ids = new Set(contractEventIds(beat));
   return new Set(
     envelope.relations
       .filter((relation) => ids.has(relation.from) || ids.has(relation.to))
       .sort((a, b) => b.strength - a.strength)
       .map((relation) => relation.kind),
+  );
+}
+
+function approvedRelations(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): RealityEnvelope["relations"] {
+  const ids = new Set(contractEventIds(beat));
+  return envelope.relations.filter(
+    (relation) => ids.has(relation.from) && ids.has(relation.to),
   );
 }
 
@@ -89,19 +100,6 @@ function isPayoff(beat: MouthCandidateBeat): boolean {
   );
 }
 
-function isRelationalBeat(beat: MouthCandidateBeat, relations: Set<string>): boolean {
-  return (
-    relations.has("changes") ||
-    relations.has("contrasts") ||
-    relations.has("recontextualizes") ||
-    relations.has("causes") ||
-    relations.has("converges") ||
-    relations.has("repeats") ||
-    clean(beat.realizationMode).toLowerCase().includes("turn") ||
-    clean(beat.realizationMode).toLowerCase().includes("reframe")
-  );
-}
-
 function addBounded(variants: string[], value: string): void {
   const text = bounded(value);
   const count = words(text).length;
@@ -111,115 +109,56 @@ function addBounded(variants: string[], value: string): void {
   }
 }
 
-function addStateContrastVariants(
+function addPairVariant(
   variants: string[],
-  states: readonly string[],
-  relations: Set<string>,
+  first: string,
+  second: string,
+  relationKindsSet: Set<string>,
 ): void {
-  if (states.length < 2 || !relations.has("contrasts")) return;
+  if (!first || !second) return;
 
-  const first = states[0];
-  const second = states[1];
-
-  addBounded(variants, `${first}, but ${second}`);
-  addBounded(variants, `${second}, still ${first}`);
-  addBounded(variants, `${first} versus ${second}`);
-  addBounded(variants, `${second} versus ${first}`);
-}
-
-function addStateContinuationVariants(
-  variants: string[],
-  states: readonly string[],
-  priorTexts: readonly string[],
-): void {
-  if (!states.length) return;
-
-  const state = states[0];
-  const prior = priorTexts.join(" ").toLowerCase();
-
-  if (/nervous/i.test(state)) {
-    addBounded(variants, prior ? "Still nervous." : "Nervous, apparently.");
+  if (
+    relationKindsSet.has("contrasts") ||
+    relationKindsSet.has("changes")
+  ) {
+    addBounded(variants, `${first} but ${second}`);
+    addBounded(variants, `${second} but ${first}`);
+    addBounded(variants, `${first}, still ${second}`);
+    addBounded(variants, `${second}, still ${first}`);
+    addBounded(variants, `${first} with ${second}`);
   }
 
-  if (/fierce/i.test(state)) {
-    addBounded(variants, prior ? "Still fierce." : "Fierce, somehow.");
-  }
-
-  if (/cool/i.test(state)) {
-    addBounded(variants, prior ? "Still cool." : "Cool, apparently.");
-  }
-
-  if (/fabulous/i.test(state)) {
-    addBounded(variants, "Fabulous, apparently.");
-  }
-}
-
-function addActionObjectVariants(
-  variants: string[],
-  labels: readonly string[],
-  envelope: RealityEnvelope,
-): void {
-  const actions = actionLabels(labels, envelope);
-  const objectLabel = labels.find((label) => /\b(?:bow|blue bow|bath|poodle)\b/i.test(label)) ?? "";
-
-  if (!actions.length || !objectLabel) return;
-
-  const action = actions[0];
-
-  /*
-   * These are relationship frames, not new events. They intentionally avoid
-   * adding an unsupported actor, location, body action, or outcome.
-   */
-  if (/stole/i.test(action) && /bow/i.test(objectLabel)) {
-    addBounded(variants, "Blue bow, apparently.");
-    addBounded(variants, "The blue bow, somehow.");
-    addBounded(variants, "Fierce with the blue bow.");
-    addBounded(variants, "Nervous with the blue bow.");
-  }
-
-  if (/came/i.test(action) && /nervous/i.test(objectLabel)) {
-    addBounded(variants, "Nervous on arrival.");
-    addBounded(variants, "Arrival: nervous.");
-  }
-}
-
-function addAnchorPairVariants(
-  variants: string[],
-  labels: readonly string[],
-  relations: Set<string>,
-): void {
-  if (labels.length < 2) return;
-
-  const first = labels[0];
-  const second = labels[1];
-
-  if (relations.has("recontextualizes")) {
+  if (relationKindsSet.has("recontextualizes")) {
     addBounded(variants, `${first}, now ${second}`);
     addBounded(variants, `${second}, now ${first}`);
-    return;
+    addBounded(variants, `${first}, apparently ${second}`);
   }
 
-  if (relations.has("contrasts") || relations.has("changes")) {
-    addBounded(variants, `${first}, but ${second}`);
-    addBounded(variants, `${second}, still ${first}`);
-    return;
+  if (relationKindsSet.has("repeats")) {
+    addBounded(variants, `${first}, still ${second}`);
+    addBounded(variants, `${second}, again`);
   }
 
-  if (relations.has("repeats")) {
-    addBounded(variants, `Still ${first}`);
-    addBounded(variants, `Again: ${second}`);
+  if (
+    relationKindsSet.has("causes") ||
+    relationKindsSet.has("converges") ||
+    relationKindsSet.has("involves") ||
+    relationKindsSet.has("belongs_to")
+  ) {
+    addBounded(variants, `${first} with ${second}`);
   }
 }
 
 function groundedVariants(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
-  priorTexts: readonly string[],
 ): string[] {
   const labels = labelsForBeat(beat, envelope);
   const first = labels[0] ?? "";
+  const second = labels[1] ?? "";
   const subject = clean(envelope.subject);
   const states = stateLabels(labels, envelope);
+  const actions = actionLabels(labels, envelope);
   const relations = relationKinds(beat, envelope);
   const variants: string[] = [];
 
@@ -232,26 +171,36 @@ function groundedVariants(
     addBounded(variants, first);
     if (subject && first && normalize(first) !== normalize(subject)) {
       addBounded(variants, `${subject} ${first}`);
-    }
-
-    if (states.length) {
-      addStateContinuationVariants(variants, states, []);
+      addBounded(variants, `${first} ${subject}`);
     }
   }
 
-  if (isRelationalBeat(beat, relations)) {
-    addStateContrastVariants(variants, states, relations);
-    addAnchorPairVariants(variants, labels, relations);
-    addStateContinuationVariants(variants, states, priorTexts);
-    addActionObjectVariants(variants, labels, envelope);
+  const relational =
+    relations.has("changes") ||
+    relations.has("contrasts") ||
+    relations.has("recontextualizes") ||
+    relations.has("causes") ||
+    relations.has("converges") ||
+    relations.has("repeats") ||
+    clean(beat.realizationMode).toLowerCase().includes("turn") ||
+    clean(beat.realizationMode).toLowerCase().includes("reframe");
+
+  if (relational && states.length && actions.length) {
+    addBounded(variants, `${states[0]} but ${actions[0]}`);
+    addBounded(variants, `${actions[0]}, still ${states[0]}`);
+    addBounded(variants, `${states[0]}, then ${actions[0]}`);
   }
 
-  if (!variants.length && states.length) {
-    addStateContinuationVariants(variants, states, priorTexts);
+  if (relational && first && second) {
+    addPairVariant(variants, first, second, relations);
   }
 
-  if (!variants.length && subject && states.length) {
-    addBounded(variants, `${subject}, ${states[0]}`);
+  if (!variants.length && actions.length) {
+    addBounded(variants, actions[0]);
+  }
+
+  if (!variants.length && subject && first) {
+    addBounded(variants, `${subject} ${first}`);
   }
 
   if (!variants.length && first) {
@@ -259,11 +208,51 @@ function groundedVariants(
   }
 
   if (!variants.length) {
-    addBounded(variants, clean(beat.change));
-    addBounded(variants, clean(beat.next || beat.frontier));
+    addBounded(variants, bounded(clean(beat.change)));
+    addBounded(variants, bounded(clean(beat.next || beat.frontier)));
   }
 
   return variants.slice(0, 8);
+}
+
+function normalizeGroundedRelationCandidate(
+  candidate: MouthCandidate,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): MouthCandidate {
+  const ids = new Set(contractEventIds(beat));
+  const supported = new Set(candidate.supportedEventIds);
+  const supportedContractIds = [...ids].filter((id) => supported.has(id));
+  const relations = approvedRelations(beat, envelope).filter(
+    (relation) => supported.has(relation.from) && supported.has(relation.to),
+  );
+
+  if (supportedContractIds.length < 2 || !relations.length || isPayoff(beat)) {
+    return candidate;
+  }
+
+  const expectedKinds = new Set((beat.relationKinds ?? []).map(clean).filter(Boolean));
+  const kindHit = relations.some((relation) => expectedKinds.size === 0 || expectedKinds.has(relation.kind));
+  if (!kindHit) return candidate;
+
+  const reasons = candidate.reasons.filter((reason) =>
+    ![
+      "weak-meaning-execution",
+      "weak-meaning-transition",
+      "weak-obligation-coverage",
+      "weak-relation-contract",
+    ].includes(reason),
+  );
+
+  return {
+    ...candidate,
+    meaningScore: Math.max(candidate.meaningScore, 0.48),
+    transitionScore: Math.max(candidate.transitionScore, 0.45),
+    obligationCoverage: Math.max(candidate.obligationCoverage, 0.45),
+    relationContractScore: Math.max(candidate.relationContractScore, 0.5),
+    score: Math.max(candidate.score, 0.34),
+    reasons,
+  };
 }
 
 export function buildGroundedFallbackCandidates(input: {
@@ -271,16 +260,16 @@ export function buildGroundedFallbackCandidates(input: {
   envelope: RealityEnvelope;
   priorTexts?: readonly string[];
 }): MouthCandidate[] {
-  return groundedVariants(
-    input.beat,
-    input.envelope,
-    input.priorTexts ?? [],
-  ).map((text) =>
-    scoreMouthCandidate({
-      text,
-      beat: input.beat,
-      envelope: input.envelope,
-      priorTexts: input.priorTexts ?? [],
-    }),
+  return groundedVariants(input.beat, input.envelope).map((text) =>
+    normalizeGroundedRelationCandidate(
+      scoreMouthCandidate({
+        text,
+        beat: input.beat,
+        envelope: input.envelope,
+        priorTexts: input.priorTexts ?? [],
+      }),
+      input.beat,
+      input.envelope,
+    ),
   );
 }
