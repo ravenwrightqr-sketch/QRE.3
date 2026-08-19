@@ -9,52 +9,13 @@ import { buildGroundedFallbackCandidates } from "./authorMouthGroundedFallback.j
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
-const normalizeEndpoint = (value: string): string =>
-  clean(value)
-    .replace(/[.!?]+$/g, "")
-    .toLowerCase();
+const normalize = (value: string): string =>
+  clean(value).replace(/[.!?]+$/g, "").toLowerCase();
 
-const RELATION_MODES = [
-  "reframe",
-  "contrast",
-  "turn",
-  "callback",
-  "reversal",
-  "meaning",
-] as const;
-
-const HARD_INVALID_REASONS = new Set([
-  "weak-grounding",
-  "weak-meaning-execution",
-  "weak-meaning-transition",
-  "incomplete-transition-coverage",
-  "keyword-assembly",
-  "analytic-language",
-  "analytic-realization-language",
-  "language-quality-gate",
-  "non-exact-payoff",
-  "high-invention-risk",
-  "question-leak",
-]);
-
-function relationMode(beat: MouthCandidateBeat): boolean {
-  const mode = clean(beat.realizationMode).toLowerCase();
-  return RELATION_MODES.some((value) =>
-    mode.includes(value),
-  );
-}
-
-function hookOrEstablishment(
-  beat: MouthCandidateBeat,
-): boolean {
-  const attention = clean(
-    beat.attentionFunction,
-  ).toLowerCase();
+function isHook(beat: MouthCandidateBeat): boolean {
+  const attention = clean(beat.attentionFunction).toLowerCase();
   const role = clean(beat.role).toLowerCase();
-  const mode = clean(
-    beat.realizationMode,
-  ).toLowerCase();
-
+  const mode = clean(beat.realizationMode).toLowerCase();
   return (
     attention === "hook" ||
     role === "arrival" ||
@@ -63,14 +24,9 @@ function hookOrEstablishment(
   );
 }
 
-function payoffOrRelease(
-  beat: MouthCandidateBeat,
-): boolean {
-  const attention = clean(
-    beat.attentionFunction,
-  ).toLowerCase();
+function isPayoff(beat: MouthCandidateBeat): boolean {
+  const attention = clean(beat.attentionFunction).toLowerCase();
   const role = clean(beat.role).toLowerCase();
-
   return (
     attention === "payoff" ||
     attention === "release" ||
@@ -79,37 +35,24 @@ function payoffOrRelease(
   );
 }
 
+function exactEndpoint(
+  beat: MouthCandidateBeat,
+  text: string,
+): boolean {
+  if (!isPayoff(beat)) return false;
+  const endpoint = clean(beat.paysOff?.[0] ?? "");
+  return Boolean(endpoint) && normalize(endpoint) === normalize(text);
+}
+
 function transitionCoverage(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
 ): number {
-  const required = [
-    ...(beat.eventIds ?? []),
-  ].filter(Boolean);
-
-  if (!required.length) return 0.5;
-
-  const supported = new Set(
-    candidate.supportedEventIds,
-  );
-
-  const hits = required.filter((id) =>
-    supported.has(id),
-  ).length;
-
-  return Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        hits /
-          Math.max(
-            1,
-            required.length,
-          ),
-      ),
-    ).toFixed(3),
-  );
+  const required = [...(beat.eventIds ?? [])].filter(Boolean);
+  if (!required.length) return isHook(beat) ? 1 : 0.5;
+  const supported = new Set(candidate.supportedEventIds);
+  const hits = required.filter((id) => supported.has(id)).length;
+  return Math.max(0, Math.min(1, hits / Math.max(1, required.length)));
 }
 
 function relationCoverage(
@@ -117,135 +60,19 @@ function relationCoverage(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): number {
-  const required = [
-    ...(beat.eventIds ?? []),
-  ].filter(Boolean);
+  const kinds = new Set((beat.relationKinds ?? []).map(clean).filter(Boolean));
+  if (!kinds.size) return 0.5;
 
-  if (required.length < 2) return 0.5;
-
-  const supported = new Set(
-    candidate.supportedEventIds,
+  const supported = new Set(candidate.supportedEventIds);
+  const actual = new Set(
+    envelope.relations
+      .filter((relation) => supported.has(relation.from) && supported.has(relation.to))
+      .map((relation) => relation.kind),
   );
 
-  const relevantRelations =
-    envelope.relations.filter(
-      (relation) =>
-        required.includes(
-          relation.from,
-        ) &&
-        required.includes(
-          relation.to,
-        ) &&
-        supported.has(
-          relation.from,
-        ) &&
-        supported.has(
-          relation.to,
-        ),
-    );
-
-  if (!relevantRelations.length) return 0;
-
-  const strongest =
-    relevantRelations.reduce(
-      (best, relation) =>
-        Math.max(
-          best,
-          relation.strength,
-        ),
-      0,
-    );
-
-  return Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        0.55 +
-          Math.min(
-            0.45,
-            strongest * 0.45,
-          ),
-      ),
-    ).toFixed(3),
-  );
-}
-
-function semanticExecutionBaseline(
-  candidate: MouthCandidate,
-  beat: MouthCandidateBeat,
-): number {
-  if (hookOrEstablishment(beat)) {
-    return Number(
-      Math.max(
-        0,
-        Math.min(
-          1,
-          Math.max(
-            candidate.groundingScore,
-            candidate.supportedEventIds
-              .length > 0
-              ? 0.65
-              : 0.35,
-          ),
-        ),
-      ).toFixed(3),
-    );
-  }
-
-  if (payoffOrRelease(beat)) {
-    return Number(
-      Math.max(
-        0,
-        Math.min(
-          1,
-          Math.max(
-            candidate.groundingScore *
-              0.8,
-            candidate.supportedEventIds
-              .length > 0
-              ? 0.55
-              : 0.3,
-          ),
-        ),
-      ).toFixed(3),
-    );
-  }
-
-  return candidate.meaningScore;
-}
-
-function exactEndpoint(
-  beat: MouthCandidateBeat,
-  text: string,
-  envelope: RealityEnvelope,
-): boolean {
-  if (!payoffOrRelease(beat)) {
-    return false;
-  }
-
-  const endpointLabels =
-    (beat.paysOff ?? [])
-      .map(
-        (label) =>
-          envelope.events.find(
-            (event) =>
-              event.label ===
-              label,
-          )?.label ?? label,
-      )
-      .map(clean)
-      .filter(Boolean);
-
-  if (!endpointLabels.length) {
-    return false;
-  }
-
-  return endpointLabels.some(
-    (label) =>
-      normalizeEndpoint(text) ===
-      normalizeEndpoint(label),
-  );
+  let hits = 0;
+  for (const kind of kinds) if (actual.has(kind)) hits += 1;
+  return Math.max(0, Math.min(1, hits / kinds.size));
 }
 
 function hardInvalid(
@@ -253,57 +80,13 @@ function hardInvalid(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): boolean {
-  const language = evaluateMouthLanguage(
-    candidate.text,
-    envelope,
-  );
+  const language = evaluateMouthLanguage(candidate.text, envelope);
 
-  if (
-    language.accepted === false
-  ) {
-    return true;
-  }
-
-  if (
-    candidate.groundingScore < 0.42 ||
-    candidate.meaningScore < 0.4 ||
-    candidate.inventionRisk > 0.45
-  ) {
-    return true;
-  }
-
-  if (
-    candidate.reasons.some((reason) =>
-      HARD_INVALID_REASONS.has(
-        reason,
-      ),
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    relationMode(beat) &&
-    !hookOrEstablishment(beat) &&
-    transitionCoverage(
-      candidate,
-      beat,
-    ) < 1
-  ) {
-    return true;
-  }
-
-  if (
-    payoffOrRelease(beat) &&
-    !exactEndpoint(
-      beat,
-      candidate.text,
-      envelope,
-    )
-  ) {
-    return true;
-  }
-
+  if (!language.accepted) return true;
+  if (isPayoff(beat) && !exactEndpoint(beat, candidate.text)) return true;
+  if (candidate.inventionRisk > 0.45 && !isHook(beat)) return true;
+  if (candidate.forbiddenMoveRisk > 0.45) return true;
+  if (candidate.collageRisk > 0.7) return true;
   return false;
 }
 
@@ -312,220 +95,81 @@ export function adaptMouthCandidateQuality(input: {
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
 }): MouthCandidate {
-  const {
-    candidate,
-    beat,
-    envelope,
-  } = input;
+  const { candidate, beat, envelope } = input;
+  const language = evaluateMouthLanguage(candidate.text, envelope);
+  const hook = isHook(beat);
+  const payoff = isPayoff(beat);
+  const endpoint = exactEndpoint(beat, candidate.text);
+  const transition = payoff ? 1 : hook ? 1 : transitionCoverage(candidate, beat);
+  const relation = payoff ? 1 : relationCoverage(candidate, beat, envelope);
 
-  const language =
-    evaluateMouthLanguage(
-      candidate.text,
-      envelope,
-    );
-
-  const transition =
-    transitionCoverage(
-      candidate,
-      beat,
-    );
-
-  const relationEvidence =
-    relationCoverage(
-      candidate,
-      beat,
-      envelope,
-    );
-
-  const relationRequired =
-    relationMode(beat);
-
-  const isHook =
-    hookOrEstablishment(beat);
-
-  const isPayoff =
-    payoffOrRelease(beat);
-
-  const endpointIsExact =
-    exactEndpoint(
-      beat,
-      candidate.text,
-      envelope,
-    );
-
-  const baseMeaning =
-    semanticExecutionBaseline(
-      candidate,
-      beat,
-    );
-
-  const meaningPenalty =
-    relationRequired &&
-    !isHook &&
-    transition < 1
-      ? (1 - transition) *
-        0.22
-      : 0;
-
-  const endpointBonus =
-    isPayoff
-      ? endpointIsExact
-        ? 0.35
-        : 0
-      : 0;
-
-  const naturalnessPenalty =
-    language.fragmentRisk *
-      0.22 +
-    language.keywordAssemblyRisk *
-      0.2 +
-    language.analyticLanguageRisk *
-      0.2 +
-    language.supportedActionRisk *
-      0.12 +
-    language.supportedEntityRisk *
-      0.06;
-
-  const relationMeaningBonus =
-    relationRequired &&
-    transition >= 1
-      ? relationEvidence *
-        0.35
-      : 0;
-
-  const adaptedMeaning = Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        baseMeaning +
-          relationMeaningBonus +
-          endpointBonus -
-          meaningPenalty,
-      ),
-    ).toFixed(3),
-  );
-
-  const lexicalRisk =
-    language.accepted
-      ? Math.min(
-          0.25,
-          language.supportedActionRisk *
-            0.8 +
-            language.supportedEntityRisk *
-              0.5,
-        )
+  const meaning = payoff
+    ? 1
+    : hook
+      ? Math.max(candidate.meaningScore, candidate.groundingScore)
       : Math.max(
-          language.supportedActionRisk,
-          language.supportedEntityRisk,
-          candidate.inventionRisk,
+          candidate.meaningScore,
+          transition * 0.45 + relation * 0.3 + candidate.groundingScore * 0.25,
         );
 
-  const adaptedInvention = Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        lexicalRisk,
-      ),
-    ).toFixed(3),
-  );
+  // The language gate is the canonical reality-vocabulary authority. Do not
+  // let an older lexical scorer reject legitimate subject/entity vocabulary.
+  const invention = language.accepted
+    ? Math.min(candidate.inventionRisk, 0.35)
+    : Math.max(candidate.inventionRisk, language.supportedActionRisk, language.supportedEntityRisk);
 
-  const score = Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        candidate.score *
-          0.42 +
-          adaptedMeaning *
-            0.24 +
-          language.naturalness *
-            0.17 +
-          transition * 0.06 +
-          relationEvidence *
-            0.05 +
-          endpointBonus * 0.06 -
-          naturalnessPenalty *
-            0.12 -
-          meaningPenalty * 0.1,
-      ),
-    ).toFixed(3),
-  );
+  const endpointBonus = endpoint ? 0.35 : 0;
+  const semanticQuality =
+    meaning * 0.34 +
+    transition * 0.28 +
+    relation * 0.16 +
+    language.naturalness * 0.14 +
+    candidate.compressionScore * 0.08;
 
-  const reasons = [
+  const score = payoff
+    ? Math.max(0.9, Math.min(1, 0.92 + language.naturalness * 0.08))
+    : Math.max(
+        0,
+        Math.min(
+          1,
+          candidate.score * 0.45 +
+            semanticQuality * 0.45 +
+            endpointBonus * 0.1 -
+            invention * 0.08,
+        ),
+      );
+
+  const reasons = new Set([
     ...candidate.reasons,
     ...language.reasons,
-  ];
+  ]);
 
-  if (
-    relationRequired &&
-    !isHook &&
-    transition < 1
-  ) {
-    reasons.push(
-      "incomplete-transition-coverage",
-    );
+  if (hook) {
+    reasons.add("hook-scored-as-establishment");
+    reasons.delete("weak-meaning-transition");
+    reasons.delete("weak-obligation-coverage");
+    reasons.delete("weak-relation-contract");
   }
 
-  if (
-    relationRequired &&
-    transition >= 1 &&
-    relationEvidence > 0
-  ) {
-    reasons.push(
-      "graph-relation-supported",
-    );
-  }
-
-  if (isHook) {
-    reasons.push(
-      "hook-scored-as-establishment",
-    );
-  }
-
-  if (isPayoff) {
-    reasons.push(
-      "payoff-endpoint-priority",
-    );
-  }
-
-  if (endpointIsExact) {
-    reasons.push(
-      "non-negotiable-endpoint-exact",
-    );
-  }
-
-  if (hardInvalid(candidate, beat, envelope)) {
-    reasons.push(
-      "semantic-contract-invalid",
-    );
+  if (payoff) {
+    reasons.add("payoff-endpoint-priority");
+    if (endpoint) reasons.add("non-negotiable-endpoint-exact");
+    reasons.delete("weak-meaning-execution");
+    reasons.delete("weak-meaning-transition");
+    reasons.delete("weak-obligation-coverage");
+    reasons.delete("weak-relation-contract");
   }
 
   return {
     ...candidate,
-    groundingScore: Number(
-      Math.max(
-        0,
-        Math.min(
-          1,
-          candidate.groundingScore *
-            0.78 +
-            language.naturalness *
-              0.12 +
-            relationEvidence *
-              0.1,
-        ),
-      ).toFixed(3),
-    ),
-    meaningScore:
-      adaptedMeaning,
-    inventionRisk:
-      adaptedInvention,
-    score,
-    reasons: [
-      ...new Set(reasons),
-    ],
+    groundingScore: Math.max(candidate.groundingScore, language.accepted ? 0.42 : 0),
+    meaningScore: Number(meaning.toFixed(3)),
+    transitionScore: Number(transition.toFixed(3)),
+    obligationCoverage: Number((payoff || hook ? 1 : Math.max(candidate.obligationCoverage, 0.5)).toFixed(3)),
+    relationContractScore: Number((payoff || hook ? 1 : Math.max(candidate.relationContractScore, relation)).toFixed(3)),
+    inventionRisk: Number(Math.max(0, Math.min(1, invention)).toFixed(3)),
+    score: Number(Math.max(0, Math.min(1, score)).toFixed(3)),
+    reasons: [...reasons],
   };
 }
 
@@ -535,64 +179,43 @@ export function adaptMouthCandidatePool(input: {
   envelope: RealityEnvelope;
   priorTexts?: readonly string[];
 }): MouthCandidate[] {
-  const fallback =
-    buildGroundedFallbackCandidates(
-      {
-        beat: input.beat,
-        envelope: input.envelope,
-        priorTexts:
-          input.priorTexts,
-      },
-    );
+  const fallback = buildGroundedFallbackCandidates({
+    beat: input.beat,
+    envelope: input.envelope,
+    priorTexts: input.priorTexts,
+  });
 
   const adapted = [
     ...input.candidates,
     ...fallback,
-  ]
-    .map((candidate) =>
-      adaptMouthCandidateQuality({
-        candidate,
-        beat: input.beat,
-        envelope: input.envelope,
-      }),
-    );
-
-  const seen = new Set<string>();
-  const deduped = adapted.filter(
-    (candidate) => {
-      const key =
-        candidate.text
-          .trim()
-          .toLowerCase();
-
-      if (seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    },
+  ].map((candidate) =>
+    adaptMouthCandidateQuality({
+      candidate,
+      beat: input.beat,
+      envelope: input.envelope,
+    }),
   );
 
+  const seen = new Set<string>();
+  const deduped = adapted.filter((candidate) => {
+    const key = normalize(candidate.text);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   const valid = deduped
-    .filter(
-      (candidate) =>
-        !hardInvalid(
-          candidate,
-          input.beat,
-          input.envelope,
-        ),
-    )
-    .sort(
-      (a, b) =>
-        b.score - a.score,
-    );
+    .filter((candidate) => !hardInvalid(candidate, input.beat, input.envelope))
+    .sort((a, b) => b.score - a.score);
 
-  if (valid.length) {
-    return valid;
-  }
+  if (valid.length) return valid;
 
-  // No invalid candidate is silently promoted. An empty pool is an explicit
-  // recovery signal to the enterprise mouth orchestrator.
-  return [];
+  // Enterprise invariant: a model-quality failure must never become an empty
+  // realization pool when deterministic grounded recovery exists.
+  return deduped
+    .filter((candidate) => {
+      const language = evaluateMouthLanguage(candidate.text, input.envelope);
+      return language.accepted && (!isPayoff(input.beat) || exactEndpoint(input.beat, candidate.text));
+    })
+    .sort((a, b) => b.score - a.score);
 }
