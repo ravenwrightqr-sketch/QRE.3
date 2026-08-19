@@ -1,10 +1,7 @@
-import type { ExperienceEntities } from "./entityExtractor.js";
-import type { CognitivePremise } from "./premise.js";
+import type { ExperienceEntities } from "../experience/entityExtractor.js";
+import type { CognitivePremise } from "../experience/premise.js";
 
-/**
- * QRE COGNITIVE CONTRACT
- * Canonical semantic source of truth for cognition and realization planning.
- */
+/** Canonical semantic source of truth for COGAUTHOR cognition and realization planning. */
 export type CognitiveClaimStatus = "observed" | "derived" | "hypothesized" | "unknown";
 export type CognitiveEvidence = {
   source: "prompt" | "context" | "memory" | "event" | "location" | "history" | "creative_realization";
@@ -27,39 +24,49 @@ export type CognitiveBeatKind = "orientation" | "hook" | "need" | "threshold" | 
 export type CognitiveBeatDirective = { kind: CognitiveBeatKind; intent: string; subject: string; action: string; stateBefore: string; stateAfter: string; relationalFocus: string[]; evidence: CognitiveEvidence[]; confidence: number };
 export type CognitiveExperienceRealization = { direction: ExperienceHypothesisKind; directives: CognitiveBeatDirective[]; semanticArc: string[]; conservedRoles: string[]; confidence: number };
 export type CognitiveExperiencePlan = {
-  direction?: ExperienceHypothesisKind; centralSubject: string; audience: string[]; whyInteract: string[]; emotionalIntent: string[]; purpose: string;
-  interactionModel: string[]; storyStructure: string[]; memoryModel: string[]; geographicModel: string[]; socialModel: string[]; discoveryModel: string[];
-  rewardModel: string[]; commerceModel: string[]; progressionModel: string[]; contentModel: string[]; dynamicBehavior: string[]; futureEvolution: string[];
-  creativePossibilities: string[]; premise?: CognitivePremise; realization?: CognitiveExperienceRealization;
+  direction?: ExperienceHypothesisKind;
+  centralSubject: string;
+  audience: string[];
+  whyInteract: string[];
+  emotionalIntent: string[];
+  purpose: string;
+  interactionModel: string[];
+  storyStructure: string[];
+  memoryModel: string[];
+  geographicModel: string[];
+  socialModel: string[];
+  discoveryModel: string[];
+  rewardModel: string[];
+  commerceModel: string[];
+  progressionModel: string[];
+  contentModel: string[];
+  dynamicBehavior: string[];
+  futureEvolution: string[];
+  creativePossibilities: string[];
+  premise?: CognitivePremise;
+  realization?: CognitiveExperienceRealization;
 };
 export type CognitiveCreativeLearning = { accepted: string[]; rejected: string[]; preferences: string[]; successfulLenses: string[]; avoidedPatterns: string[]; usedPhrases: string[]; noveltyPressure: number };
-export type CognitiveAnalyticsSignal = {
-  scans: number;
-  completions: number;
-  abandons: number;
-  replays: number;
-  ctaClicks: number;
-  errors: number;
-  engagement: number;
-  friction: number;
-  accepted: string[];
-  rejected: string[];
-  preferences: string[];
-};
+export type CognitiveAnalyticsSignal = { scans: number; completions: number; abandons: number; replays: number; ctaClicks: number; errors: number; engagement: number; friction: number; accepted: string[]; rejected: string[]; preferences: string[] };
 export type CognitiveEntityState = { entity: string; appearances: number; lastEventId?: string; places: string[]; relationships: string[]; states: string[] };
 export type CognitiveRelationshipState = { from: string; to: string; relation: string; strength: number; eventCount: number };
-export type CognitiveMindState = {
-  compileCount: number;
-  entityStates: CognitiveEntityState[];
-  relationships: CognitiveRelationshipState[];
-  eventHistory: string[];
-  creativeLearning: CognitiveCreativeLearning;
-  lastLens?: string;
-  lastMomentCount?: number;
-};
+export type CognitiveMindState = { compileCount: number; entityStates: CognitiveEntityState[]; relationships: CognitiveRelationshipState[]; eventHistory: string[]; creativeLearning: CognitiveCreativeLearning; lastLens?: string; lastMomentCount?: number };
 export type CognitiveExperienceState = {
-  prompt: string; subject: CognitiveClaim<string>; participants: CognitiveClaim<string[]>; motivations: CognitiveClaim<string[]>; entities: ExperienceEntities;
-  affordances: string[]; emotionalIntent: string[]; memoryOpportunities: string[]; geographicOpportunities: string[]; socialOpportunities: string[];
-  discoveryOpportunities: string[]; temporalOpportunities: string[]; commercialOpportunities: string[]; hypotheses: ExperienceHypothesis[];
-  selectedHypothesis: ExperienceHypothesis; plan: CognitiveExperiencePlan; assumptions: CognitiveAssumption[];
+  prompt: string;
+  subject: CognitiveClaim<string>;
+  participants: CognitiveClaim<string[]>;
+  motivations: CognitiveClaim<string[]>;
+  entities: ExperienceEntities;
+  affordances: string[];
+  emotionalIntent: string[];
+  memoryOpportunities: string[];
+  geographicOpportunities: string[];
+  socialOpportunities: string[];
+  discoveryOpportunities: string[];
+  temporalOpportunities: string[];
+  commercialOpportunities: string[];
+  hypotheses: ExperienceHypothesis[];
+  selectedHypothesis: ExperienceHypothesis;
+  plan: CognitiveExperiencePlan;
+  assumptions: CognitiveAssumption[];
 };

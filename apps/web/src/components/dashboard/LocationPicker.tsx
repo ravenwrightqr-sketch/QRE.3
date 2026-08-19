@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import type { GeoObservationV17 } from "@qre/contracts";
 
-type LocationValue = {
-  lat: number;
-  lng: number;
-  label?: string;
-  city?: string;
-  region?: string;
-  country?: string;
-};
+type LocationValue = Pick<GeoObservationV17, "latitude" | "longitude" | "accuracyMeters" | "placeName" | "city" | "region" | "country">;
 
 type Props = {
   initial?: LocationValue | null;
@@ -23,7 +17,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const [location, setLocation] = useState<LocationValue | null>(initial ?? null);
-  const [label, setLabel] = useState(initial?.label ?? "");
+  const [placeName, setPlaceName] = useState(initial?.placeName ?? "");
   const [saving, setSaving] = useState(false);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,21 +25,27 @@ export default function LocationPicker({ initial, onSave }: Props) {
   useEffect(() => {
     if (!mapElement.current || mapRef.current) return;
 
-    const center = initial ? [initial.lat, initial.lng] as L.LatLngExpression : DEFAULT_CENTER;
+    const center = initial ? [initial.latitude, initial.longitude] as L.LatLngExpression : DEFAULT_CENTER;
     const map = L.map(mapElement.current, { zoomControl: true }).setView(center, initial ? 15 : 5);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 20,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
     map.on("click", (event) => {
-      const next = { lat: event.latlng.lat, lng: event.latlng.lng };
-      setLocation((current) => ({ ...current, ...next }));
+      setLocation((current) => ({
+        latitude: event.latlng.lat,
+        longitude: event.latlng.lng,
+        accuracyMeters: null,
+        placeName: current?.placeName,
+        city: current?.city,
+        region: current?.region,
+        country: current?.country,
+      }));
     });
 
     mapRef.current = map;
-
     return () => {
       map.remove();
       mapRef.current = null;
@@ -56,7 +56,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
     const map = mapRef.current;
     if (!map || !location) return;
 
-    const point: L.LatLngExpression = [location.lat, location.lng];
+    const point: L.LatLngExpression = [location.latitude, location.longitude];
     map.setView(point, Math.max(map.getZoom(), 15));
 
     if (!markerRef.current) {
@@ -64,7 +64,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
       markerRef.current.on("dragend", () => {
         const current = markerRef.current?.getLatLng();
         if (!current) return;
-        setLocation((value) => ({ ...value, lat: current.lat, lng: current.lng }));
+        setLocation((value) => value ? { ...value, latitude: current.lat, longitude: current.lng, accuracyMeters: null } : value);
       });
     } else {
       markerRef.current.setLatLng(point);
@@ -73,7 +73,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
 
   function useCurrentLocation() {
     if (!("geolocation" in navigator)) {
-      setError("This browser does not provide GPS location.");
+      setError("This browser does not provide geolocation.");
       return;
     }
 
@@ -82,14 +82,15 @@ export default function LocationPicker({ initial, onSave }: Props) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          label,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+          placeName: placeName.trim() || undefined,
         });
         setGpsBusy(false);
       },
-      () => {
-        setError("Unable to read your current location.");
+      (cause) => {
+        setError(cause.message || "Unable to read your current location.");
         setGpsBusy(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
@@ -105,7 +106,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
     setSaving(true);
     setError("");
     try {
-      await onSave({ ...location, label: label.trim() || undefined });
+      await onSave({ ...location, placeName: placeName.trim() || undefined });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save location.");
     } finally {
@@ -120,7 +121,7 @@ export default function LocationPicker({ initial, onSave }: Props) {
           <p style={{ opacity: 0.45, letterSpacing: 4, fontSize: 11, margin: 0 }}>EXACT LOCATION</p>
           <h2 style={{ margin: "6px 0 0" }}>Drop the pin</h2>
           <p style={{ opacity: 0.6, maxWidth: 620, margin: "8px 0 0" }}>
-            Click anywhere on the real map, drag the pin, or use your device location. The saved coordinates become part of this experience.
+            Click the real map, drag the pin, or use device GPS. GPS captures retain the device-reported accuracy; manual pins are explicitly accuracy-unknown.
           </p>
         </div>
         <button type="button" onClick={useCurrentLocation} disabled={gpsBusy || saving}>
@@ -128,24 +129,21 @@ export default function LocationPicker({ initial, onSave }: Props) {
         </button>
       </div>
 
-      <div
-        ref={mapElement}
-        style={{ height: 420, width: "100%", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,.12)" }}
-      />
+      <div ref={mapElement} style={{ height: 420, width: "100%", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,.12)" }} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
         <label style={{ display: "grid", gap: 6 }}>
-          <span style={{ opacity: 0.5, fontSize: 12 }}>LABEL</span>
-          <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Disneyland, Huntington Beach Pier, etc." />
+          <span style={{ opacity: 0.5, fontSize: 12 }}>PLACE LABEL</span>
+          <input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Optional human label" />
         </label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ opacity: 0.5, fontSize: 12 }}>LATITUDE</span>
-            <input value={location?.lat ?? ""} onChange={(event) => setLocation((current) => current ? { ...current, lat: Number(event.target.value) } : { lat: Number(event.target.value), lng: 0 })} />
+            <input value={location?.latitude ?? ""} onChange={(event) => setLocation((current) => current ? { ...current, latitude: Number(event.target.value), accuracyMeters: null } : { latitude: Number(event.target.value), longitude: 0, accuracyMeters: null })} />
           </label>
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ opacity: 0.5, fontSize: 12 }}>LONGITUDE</span>
-            <input value={location?.lng ?? ""} onChange={(event) => setLocation((current) => current ? { ...current, lng: Number(event.target.value) } : { lat: 0, lng: Number(event.target.value) })} />
+            <input value={location?.longitude ?? ""} onChange={(event) => setLocation((current) => current ? { ...current, longitude: Number(event.target.value), accuracyMeters: null } : { latitude: 0, longitude: Number(event.target.value), accuracyMeters: null })} />
           </label>
         </div>
       </div>

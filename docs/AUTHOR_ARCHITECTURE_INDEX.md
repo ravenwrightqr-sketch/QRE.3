@@ -1,173 +1,218 @@
-# QRE AUTHOR / COGNITION ARCHITECTURE INDEX
+# QRE AUTHOR ARCHITECTURE INDEX
 
-**Status:** CURRENT / CANONICAL
-**Branch:** `author/enterprise-mouth-rewire`
-**Primary reference:** `docs/AUTHOR_CURRENT_STATE.md`
-
-Read `AUTHOR_CURRENT_STATE.md` first. This file is the architecture index; detailed historical experiments are not implementation authority.
+**STATUS:** CURRENT / CANONICAL
+**BRANCH:** `author/enterprise-realization-engine`
+**AUTHORITY:** This file defines the current semantic ownership map. Historical/idea documents do not override it.
 
 ## 1. MASTER RULE
 
-> **NO GAPS IN THE PIPELINE.**
+> **ONE SEMANTIC AUTHORITY PER STAGE. NO GAPS. NO SHADOW AUTHORS.**
 
 ```text
-ONE REALITY MODEL
-ONE LATENT MOVIE SEARCH
-ONE MASTER AUTHOR
-ONE CANONICAL BEAT GRAPH
-ONE MOUTH PATH
-ONE ATTENTION EDITOR
-ONE TRUTH / CUT GATE
-ONE ACCEPTANCE PATH
-```
-
-Creative capability may multiply. Semantic authorities may not.
-
-## 2. LIVE AUTHOR STACK
-
-```text
-SOURCE TRUTH
-   ↓
+SOURCE REALITY
+    ↓
 REALITY GRAPH
-   ↓
+    ↓
 COGNITION / CHARACTER READ
-   ↓
+    ↓
 LATENT MOVIE SEARCH
-   ↓
+    ↓
 MOVIE DIFFERENTIATION
-   ↓
-BEAT DISCOVERY
-   ↓
-CANONICAL BEAT GRAPH
-   ↓
-VIEWER MOMENTUM / MAGNET
-   ↓
-MOUTH REALIZATION
-   ↓
+    ↓
+MASTER AUTHOR / BEAT DISCOVERY
+    ↓
+MEANING SPINE / REALIZATION SLOTS
+    ↓
+MOUTH CANDIDATES
+    ↓
+LANGUAGE + REALITY GATES
+    ↓
+SEQUENCE BEAM
+    ↓
 ATTENTION EDITOR
-   ↓
+    ↓
 TRUTH / CUT POLICY
-   ↓
-BOUNDED REPAIR
-   ↓
+    ↓
 FINAL SCENES
+    ↓
+RUNTIME
 ```
 
-## 3. REALITY GRAPH
+Trajectory search is a supported semantic capability but is **not yet declared a canonical production stage** until its complete endpoint/consumer wiring is verified in the live Master Author.
 
-Owner: `apps/api/src/services/authorRealityGraph.ts`
+## 2. CANONICAL OWNERS
 
-Contract: `packages/contracts/src/experience/realityGraph.ts`
+| Concern | Canonical owner | Status |
+|---|---|---|
+| Source truth / evidence graph | `apps/api/src/services/authorRealityGraph.ts` | ACTIVE |
+| Cognition / character read | `apps/api/src/services/authorCognition.ts` | ACTIVE |
+| Latent movie search | `apps/api/src/services/authorLatentMovieSearch.ts` | ACTIVE |
+| Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` | ACTIVE |
+| Master Author orchestration | `apps/api/src/services/authorBrainUniversal.ts` | ACTIVE |
+| Meaning Spine | `apps/api/src/services/authorMeaningSpine.ts` | ACTIVE |
+| Realization Slots | `apps/api/src/services/authorMouthRealizationSlot.ts` | ACTIVE |
+| Mouth semantic contract | `packages/contracts/src/experience/mouth.ts` | ACTIVE CONTRACT / MIGRATION IN PROGRESS |
+| Mouth candidate generation/scoring | `apps/api/src/services/authorMouthCandidateSearch.ts` | ACTIVE |
+| Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | ACTIVE |
+| Mouth language gate | `apps/api/src/services/authorMouthLanguageGate.ts` | ACTIVE |
+| Mouth attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` | ACTIVE |
+| Mouth quality adaptation | `apps/api/src/services/authorMouthQualityAdapter.ts` | ACTIVE / HARDENED |
+| Grounded fallback | `apps/api/src/services/authorMouthGroundedFallback.ts` | ACTIVE / SAFETY RAIL |
+| Attention Editor | `apps/api/src/services/authorAttentionEditor.ts` | ACTIVE |
+| Truth / cut policy | `apps/api/src/services/authorBeatTruthGate.ts` + `apps/api/src/services/authorCutPolicy.ts` | ACTIVE |
+| Sequence arc gate | `apps/api/src/services/authorSequenceArcGate.ts` | ACTIVE |
+| Model transport | `apps/api/src/services/localModelRuntime.ts` | ACTIVE |
+| Trajectory search | `apps/api/src/services/authorTrajectorySearch.ts` | CANDIDATE / NOT YET WIRED |
 
-Owns evidence, events, entities, relationships, recurrence, sensory signals, unresolved tensions, and provenance.
+## 3. CONTRACT AUTHORITY
 
-RealityGraph does not create source truth. Creative hypotheses remain derived.
+Canonical Author contracts live in `packages/contracts/src/experience/`.
 
-## 4. LATENT MOVIE SEARCH
-
-Owners:
+Current verified authorities include:
 
 ```text
-apps/api/src/services/authorLatentMovieSearch.ts
-apps/api/src/services/authorMovieDifferentiation.ts
+packages/contracts/src/experience/authorBrain.ts
+packages/contracts/src/experience/realityGraph.ts
+packages/contracts/src/experience/latentMovie.ts
+packages/contracts/src/experience/cognition.ts
+packages/contracts/src/experience/mouth.ts
 ```
 
-The system must compare genuinely different movie hypotheses. Tone labels alone are not differentiation.
+No service may create a competing semantic contract for an existing concept.
 
-A selected movie is still a hypothesis, not concrete reality.
+Any type shared across Author services must either come from `@qre/contracts` or be demonstrably private to one implementation.
 
-## 5. MASTER AUTHOR
+## 4. TRUTH BOUNDARY
 
-Owner: `apps/api/src/services/authorBrainUniversal.ts`
+Reality is immutable.
 
-This is the production author authority. It is responsible for sequence discovery, Beat Graph construction, viewer momentum, mouth orchestration, attention editing, final cut gating, and author diagnostics.
-
-It must not contain domain-specific story branches or a duplicate cut validator.
-
-## 6. CANONICAL BEAT GRAPH
-
-Internal beat fields:
+Allowed:
 
 ```text
-order
-role
-gainKind
-change
-next
-frontier
-necessity
-attentionFunction
-setsUp
-paysOff
-creativeMove
-nextBeatPullTarget
-event/source IDs when available
+fact → factual realization
+fact + supported relation → interpretation
+supplied contradiction → creative framing
+supplied object → changed meaning
 ```
 
-Canonical attention functions:
+Not allowed in reality-locked mode:
 
 ```text
-hook question turn escalation reframe callback payoff release
+new person
+new object
+new location
+new chronology
+new concrete action
+new body reaction
+new dialogue
+new sound
+new outcome
 ```
 
-Canonical creative moves:
+Creative lenses change framing. They do not create reality.
+
+## 5. MOUTH CONTRACT
+
+The Mouth receives approved meaning and source evidence.
+
+It does **not** decide:
 
 ```text
-contrast status_inversion understatement double_meaning
-personification callback recontextualization implication none
+reality
+movie
+meaning
+endpoint
+sequence architecture
 ```
 
-Unknown planner metadata must be rejected or intentionally normalized. Silent fallback that falsifies the graph is prohibited.
-
-## 7. VIEWER MOMENTUM / MAGNET
-
-The Magnet Circle remains the sequence primitive:
+It proposes language, then QRE evaluates:
 
 ```text
+truth
+meaning execution
+relation execution
+attention
+next-cut pull
 novelty
-→ uncertainty
-→ information value
-→ attention
-→ tension
-→ information seeking
-→ narrative engagement
-→ next unresolved relationship
+compression
+repetition
+endpoint exactness
 ```
 
-Magnet strength is not a substitute for good writing. It is an internal pressure model that helps select and score movement.
+Fallback is an emergency safety rail, not the desired creative winner.
 
-## 8. MOUTH + ATTENTION
+## 6. SEQUENCE LAW
 
-The mouth receives the selected Beat Graph plus enough source evidence to realize it precisely.
+One viewer-facing message normally performs one dominant cut.
 
-The Attention Editor judges the realized lines. It does not become a second author.
+A successful sequence must create movement:
 
-Final truth/cut acceptance remains authoritative. Attention cannot override grounding.
+```text
+CUT
+→ viewer state changes
+→ something remains unresolved
+→ next CUT becomes desirable
+→ payoff lands
+```
 
-## 9. RECOVERY
+A list of facts chopped into separate lines is not a movie.
 
-`apps/api/src/services/authorBeatPlanRecovery.ts` and `authorLatentMovieBeatAdapter.ts` are structural recovery/adaptation layers only.
+## 7. ENTERPRISE MOUTH STATUS
 
-They project an already-selected latent movie into the canonical Beat Graph shape. They must never invent an alternate story.
+`apps/api/src/services/authorEnterpriseMouth.ts` currently implements a **separate acceptance-oriented orchestration path** around the same Mouth primitives.
 
-## 10. PRODUCTION ADAPTERS
+It is **NOT** the canonical production Mouth path because `authorBrainUniversal.ts` does not consume it.
 
-`microBeatMouth.ts` and `cinematicAuthor.ts` are adapters/projections, not competing author brains.
+Enterprise-specific helpers are therefore classified as:
 
-## 11. TEST / ACCEPTANCE PATH
+```text
+USEFUL CAPABILITY → audit for migration into canonical owners
+DUPLICATE ORCHESTRATION → retire
+ACCEPTANCE DATA → retain only where it tests the canonical path
+```
 
-The Monster and broader acceptance suites exercise the same `authorBrainUniversal.ts` path.
+The old Enterprise architecture documents have been retired from current authority.
 
-A benchmark observes production behavior. It does not define production semantics.
+## 8. ADAPTER / RECOVERY RULE
 
-## 12. HISTORICAL MATERIAL
+Recovery and adapters may translate existing approved meaning into canonical shapes.
 
-Historical author experiments remain useful as evidence of discovered laws but are not current architecture authority.
+They may not invent an alternate story or bypass the canonical gates.
 
-For current implementation state, use:
+## 9. ACCEPTANCE RULE
 
-`docs/AUTHOR_CURRENT_STATE.md`
+A production acceptance must exercise `authorBrainUniversal.ts`.
 
-For decisions and engineering prioritization, use:
+A diagnostic may test a helper in isolation, but its result cannot be called production green unless the canonical Master Author consumes it.
 
-`docs/AUTHOR_DECISION_LAW.md`
+## 10. FILE STATUS STANDARD
+
+Every audited file is classified as exactly one of:
+
+```text
+CANONICAL
+SUPPORT
+ACCEPTANCE
+STRATEGY / IDEATION
+HISTORICAL
+LEGACY
+ORPHAN
+```
+
+Names containing `enterprise`, `monster`, `v2`, `v3`, `final`, or `fixed` do not confer authority.
+
+## 11. DEFINITION OF DONE
+
+The Author is production-ready when unfamiliar reality can travel through one coherent path:
+
+```text
+reality
+→ interesting interpretation
+→ differentiated movie
+→ deliberate beat graph
+→ strong momentum
+→ excellent Mouth
+→ truth-safe final scenes
+```
+
+The standard is not merely green tests. The standard is that the final viewer-facing sequence is excellent, grounded, complete, and repeatably produced across unrelated industries.

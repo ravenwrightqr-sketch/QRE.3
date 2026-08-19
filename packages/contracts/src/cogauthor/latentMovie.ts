@@ -1,11 +1,8 @@
 /**
- * QRE LATENT MOVIE CONTRACT · CANONICAL HYPOTHESIS LAYER
+ * QRE LATENT MOVIE CONTRACT · CANONICAL COGAUTHOR HYPOTHESIS LAYER
  *
  * Universal semantic structures discovered from immutable RealityGraph data.
- * This contract is domain-neutral: groomers, weddings, services, people,
- * places, events, animals, and ordinary life all use the same representation.
- *
- * IMPORTANT: Latent Movie data is interpretation, not source truth.
+ * Latent Movie data is interpretation, never source truth.
  */
 export type LatentMovieEvent = {
   id: string;
@@ -33,7 +30,15 @@ export type LatentMovie = {
   continuation?: string;
 };
 
-/** A semantic hypothesis discovered from RealityGraph. It is never source truth. */
+export type LatentStoryThesis = {
+  initialReading: string;
+  semanticTurn: string;
+  carrierEventIds: string[];
+  sealingEventIds: string[];
+  payoffDependency: string;
+  counterfactualDependency: number;
+};
+
 export type LatentMovieCandidate = {
   id: string;
   lens: string;
@@ -44,8 +49,7 @@ export type LatentMovieCandidate = {
   unresolvedQuestion: string;
   evidence: string[];
   hypothesis: string[];
-
-  /** Epistemic / creative diagnostics. */
+  storyThesis?: LatentStoryThesis;
   truthRisk: number;
   novelty: number;
   specificity: number;
@@ -56,8 +60,6 @@ export type LatentMovieCandidate = {
   callbackPotential: number;
   compressionPotential: number;
   repetitionRisk: number;
-
-  /** How materially this movie differs from the other candidates in the same search. */
   distinctiveness: number;
   score: number;
 };

@@ -1,9 +1,7 @@
 /**
- * Canonical internal representation of source reality for QRE Author cognition.
+ * QRE COGAUTHOR REALITY GRAPH CONTRACT
  *
- * Facts remain immutable evidence. Events are the units the Author can relate,
- * contrast, sequence, and revisit. Edges preserve temporal, causal,
- * relational, and recontextualization links without changing source truth.
+ * Immutable source-world representation for Author cognition.
  */
 import type { LatentMovieCandidate } from "./latentMovie.js";
 
@@ -50,6 +48,5 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
-  /** Derived hypotheses only. Never promote these to source truth. */
   latentMovieCandidates?: LatentMovieCandidate[];
 };

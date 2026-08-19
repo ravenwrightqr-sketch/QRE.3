@@ -1,6 +1,6 @@
 import type { CognitiveExperiencePlan } from "./cognition.js";
 import type { RealityGraph } from "./realityGraph.js";
-import type { SubjectTruth } from "./subjectTruth.js";
+import type { SubjectTruth } from "../experience/subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 

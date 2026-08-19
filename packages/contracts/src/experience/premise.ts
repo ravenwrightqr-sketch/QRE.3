@@ -6,7 +6,7 @@
  * value instead of turning the noun into a hard-coded compiler mode.
  */
 
-import type { CognitiveClaim, CognitiveEvidence } from "./cognition.js";
+import type { CognitiveClaim, CognitiveEvidence } from "../cogauthor/cognition.js";
 
 export type CognitivePremiseRole =
   | "subject"

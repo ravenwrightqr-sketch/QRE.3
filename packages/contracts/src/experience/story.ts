@@ -12,7 +12,7 @@
  */
 
 import type { ExperienceTone } from "./tone.js";
-import type { CognitiveBeatDirective } from "./cognition.js";
+import type { CognitiveBeatDirective } from "../cogauthor/cognition.js";
 
 export type StoryEvidenceKind = "observed" | "inferred" | "playful";
 
