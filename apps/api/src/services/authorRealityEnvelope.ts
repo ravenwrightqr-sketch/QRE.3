@@ -35,9 +35,7 @@ export type RealityEnvelope = {
 };
 
 const clean = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
@@ -127,9 +125,7 @@ function carrierEventIds(graph: RealityGraph, endpointId: string): string[] {
 
       return {
         id: event.id,
-        score:
-          endpointSupport * 0.65 +
-          relationStrength(graph, event.id) * 0.35,
+        score: endpointSupport * 0.65 + relationStrength(graph, event.id) * 0.35,
       };
     })
     .filter((item) => item.score > 0)
@@ -142,24 +138,36 @@ export function buildAuthorRealityEnvelope(input: {
   graph: RealityGraph;
   subject?: string;
 }): RealityEnvelope {
-  const { graph } = input;
+  const subject = clean(input.subject);
   const eventLabels = graph.events.map((event) => event.label);
   const suppliedPhrases = unique(eventLabels);
-  const suppliedTerms = tokens([
-    ...eventLabels,
-    ...graph.recurringSignals,
-    ...graph.sensorySignals,
-  ]);
   const suppliedEntities = unique(
     graph.events.flatMap((event) =>
-      (event.entities ?? []).filter((entity) =>
-        !ACTION_RE.test(entity) && !STATE_RE.test(entity),
+      (event.entities ?? []).filter(
+        (entity) =>
+          !ACTION_RE.test(entity) &&
+          !STATE_RE.test(entity),
       ),
     ),
   );
 
+  /*
+   * suppliedTerms is the canonical concrete vocabulary used by the Mouth.
+   * It must include the explicit subject and supplied entity vocabulary, not
+   * merely lexical tokens extracted from event labels.
+   */
+  const suppliedTerms = tokens([
+    subject,
+    ...eventLabels,
+    ...suppliedEntities,
+    ...graph.recurringSignals,
+    ...graph.sensorySignals,
+  ]);
+
+  const endpointId = endpointEventId(graph);
+
   return {
-    subject: clean(input.subject),
+    subject,
     events: graph.events.map((event) => ({
       id: event.id,
       label: event.label,
@@ -182,8 +190,8 @@ export function buildAuthorRealityEnvelope(input: {
       ...graph.sensorySignals,
     ]),
     openingEventIds: openingEventIds(graph),
-    endpointEventId: endpointEventId(graph),
-    carrierEventIds: carrierEventIds(graph, endpointEventId(graph)),
+    endpointEventId: endpointId,
+    carrierEventIds: carrierEventIds(graph, endpointId),
     unresolvedTensions: unique(graph.unresolvedTensions),
     recurringSignals: unique(graph.recurringSignals),
     sensorySignals: unique(graph.sensorySignals),
