@@ -116,24 +116,23 @@ function addPairVariant(
 
   if (relationKindsSet.has("recontextualizes")) {
     addBounded(variants, `${first}, now ${second}`);
-    addBounded(variants, `${second} gives ${first} new meaning`);
-  }
-
-  if (relationKindsSet.has("causes")) {
-    addBounded(variants, `${first} led to ${second}`);
-  }
-
-  if (relationKindsSet.has("converges")) {
-    addBounded(variants, `${first} with ${second}`);
+    addBounded(variants, `${second}, now ${first}`);
   }
 
   if (relationKindsSet.has("repeats")) {
-    addBounded(variants, `${first}, again with ${second}`);
+    addBounded(variants, `${first}, again ${second}`);
   }
 
-  // Universal fallback: let the approved relation be felt without inventing
-  // a domain-specific object, location, person, action, or reaction.
-  addBounded(variants, `${first} with ${second}`);
+  if (
+    relationKindsSet.has("causes") ||
+    relationKindsSet.has("converges") ||
+    relationKindsSet.has("involves") ||
+    relationKindsSet.has("belongs_to")
+  ) {
+    addBounded(variants, `${first} with ${second}`);
+  }
+
+  addBounded(variants, `${first}, ${second}`);
 }
 
 function groundedVariants(
@@ -174,8 +173,9 @@ function groundedVariants(
 
   if (relational && states.length && actions.length) {
     addBounded(variants, `${states[0]}, then ${actions[0]}`);
+    addBounded(variants, `${states[0]} ${actions[0]}`);
     if (subject) {
-      addBounded(variants, `${subject}: ${states[0]}, then ${actions[0]}`);
+      addBounded(variants, `${subject}, ${states[0]}, then ${actions[0]}`);
     }
   }
 
@@ -195,8 +195,6 @@ function groundedVariants(
     addBounded(variants, first);
   }
 
-  // Last-resort deterministic productivity: use only approved semantic text.
-  // It is still passed through the exact same Mouth scoring contract.
   if (!variants.length) {
     addBounded(variants, bounded(clean(beat.change)));
     addBounded(variants, bounded(clean(beat.next || beat.frontier)));
