@@ -14,6 +14,9 @@ const words = (value: string): string[] =>
 const normalize = (value: string): string =>
   clean(value).replace(/[.!?]+$/g, "").toLowerCase();
 
+const bounded = (value: string): string =>
+  words(value).slice(0, 7).join(" ");
+
 function labelsForBeat(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
@@ -87,12 +90,52 @@ function isPayoff(beat: MouthCandidateBeat): boolean {
 }
 
 function addBounded(variants: string[], value: string): void {
-  const text = clean(value);
+  const text = bounded(value);
   const count = words(text).length;
   if (!text || count < 1 || count > 7) return;
   if (!variants.some((item) => normalize(item) === normalize(text))) {
     variants.push(text);
   }
+}
+
+function addPairVariant(
+  variants: string[],
+  first: string,
+  second: string,
+  relationKindsSet: Set<string>,
+): void {
+  if (!first || !second) return;
+
+  if (relationKindsSet.has("contrasts")) {
+    addBounded(variants, `${first}, then ${second}`);
+    addBounded(variants, `${first with ${second}`);
+  }
+
+  if (relationKindsSet.has("changes")) {
+    addBounded(variants, `${first}, then ${second}`);
+    addBounded(variants, `${second after ${first}`);
+  }
+
+  if (relationKindsSet.has("recontextualizes")) {
+    addBounded(variants, `${first}, now ${second}`);
+    addBounded(variants, `${second gives ${first} a new reading`);
+  }
+
+  if (relationKindsSet.has("causes")) {
+    addBounded(variants, `${first} led to ${second}`);
+  }
+
+  if (relationKindsSet.has("converges")) {
+    addBounded(variants, `${first} meets ${second}`);
+  }
+
+  if (relationKindsSet.has("repeats")) {
+    addBounded(variants, `${first}, again as ${second}`);
+  }
+
+  // Universal fallback: let the approved relation be felt without inventing
+  // a domain-specific action or setting.
+  addBounded(variants, `${first} with ${second}`);
 }
 
 function groundedVariants(
@@ -101,6 +144,7 @@ function groundedVariants(
 ): string[] {
   const labels = labelsForBeat(beat, envelope);
   const first = labels[0] ?? "";
+  const second = labels[1] ?? "";
   const subject = clean(envelope.subject);
   const states = stateLabels(labels, envelope);
   const actions = actionLabels(labels, envelope);
@@ -115,6 +159,7 @@ function groundedVariants(
   if (isHook(beat)) {
     addBounded(variants, first);
     if (subject && first && normalize(first) !== normalize(subject)) {
+      addBounded(variants, `${subject}, ${first}`);
       addBounded(variants, `${subject} ${first}`);
     }
   }
@@ -123,25 +168,43 @@ function groundedVariants(
     relations.has("changes") ||
     relations.has("contrasts") ||
     relations.has("recontextualizes") ||
+    relations.has("causes") ||
+    relations.has("converges") ||
+    relations.has("repeats") ||
     clean(beat.realizationMode).toLowerCase().includes("turn") ||
     clean(beat.realizationMode).toLowerCase().includes("reframe");
 
   if (relational && states.length && actions.length) {
     addBounded(variants, `${states[0]}, then ${actions[0]}`);
-    if (subject) addBounded(variants, `${states[0]} ${subject} ${actions[0]}`);
+    if (subject) {
+      addBounded(variants, `${subject}: ${states[0]}, then ${actions[0]}`);
+    }
   }
 
-  if (relational && labels.length >= 2) {
-    addBounded(variants, `${labels[0]}, then ${labels[1]}`);
-    addBounded(variants, `${labels[0]} ${labels[1]}`);
+  if (relational && first && second) {
+    addPairVariant(variants, first, second, relations);
   }
 
   if (!variants.length && actions.length) {
     addBounded(variants, actions[0]);
   }
 
+  if (!variants.length && subject && first) {
+    addBounded(variants, `${subject} ${first}`);
+  }
+
   if (!variants.length && first) {
     addBounded(variants, first);
+  }
+
+  // Last-resort deterministic productivity: use approved semantic text, but
+  // never fabricate a concrete event. This is intentionally scored normally
+  // by the Mouth contract afterward.
+  if (!variants.length) {
+    const change = bounded(clean(beat.change));
+    const next = bounded(clean(beat.next || beat.frontier));
+    addBounded(variants, change);
+    addBounded(variants, next);
   }
 
   return variants.slice(0, 8);
