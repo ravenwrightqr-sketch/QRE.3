@@ -60,7 +60,7 @@ const STOP = new Set(
 );
 
 const SEMANTIC_VERBS = new Set(
-  "mean means meant feel feels felt seem seems seemed read reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied seem seemed look looks looked"
+  "mean means meant feel feels felt seem seems seemed read reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied look looks looked"
     .split(/\s+/),
 );
 
@@ -104,6 +104,24 @@ const UNIVERSAL_ACTION_EQUIVALENTS: Record<
     "exited",
   ],
 };
+
+/*
+ * These are universal concrete-action / physical-staging verbs. They are
+ * intentionally domain-agnostic. A verb is legal only when its lemma is
+ * already present in supplied actions/terms or is an allowed equivalent.
+ * This prevents the Mouth from turning interpretation into invented events.
+ */
+const CONCRETE_ACTION_LEMMAS = new Set(
+  "bark barked barks chase chased chases growl growled growls snarl snarled snarls leap leaped leaps jump jumped jumps grab grabbed grabs snatch snatched snatches seize seized seizes run ran runs walk walked walks step stepped steps sneak sneaked sneaks crawl crawled crawls sit sat sits stand stood stands wag wagged wags lick licked licks blink blinked blinks stare stared stares smile smiled smiles laugh laughed laughs cry cried cries wave waved waves point pointed points touch touched touches pull pulled pulls push pushed pushes throw threw throws catch caught catches drop dropped drops pick picked picks open opened opens close closed closes reach reached reaches hold held holds carry carried carries hug hugged hugs kiss kissed kisses turn turned turns kneel knelt kneels bend bent bends spin spun spins shake shook shakes hide hid hides rise rose rises fall fell falls" 
+    .split(/\s+/)
+    .map(stem),
+);
+
+const PHYSICAL_STAGE_LEMMAS = new Set(
+  "eye eyes shadow claw claws fur face body head hand hands tail tongue mouth teeth paw paws shoulder shoulders gaze breath heartbeat heart skin hair coat carpet floor room door window chair table wall" 
+    .split(/\s+/)
+    .map(stem),
+);
 
 const ANALYTIC =
   /\b(?:contrast(?:s|ed)?|conclusion|concludes|completes?|highlight(?:s|ed)?|demeanor|appearance|transforms?|transformation|reframe(?:s|d)?|changes? the meaning|shows? the contrast|explains?|the reveal|the result|the outcome)\b/i;
@@ -181,6 +199,64 @@ function actionSet(
   }
 
   return actions;
+}
+
+function unsupportedConcreteActionRisk(
+  text: string,
+  envelope: RealityEnvelope,
+): number {
+  const source = suppliedSet(envelope);
+  const entities = entitySet(envelope);
+  const actions = actionSet(envelope);
+
+  const unsupported = tokens(text)
+    .map(stem)
+    .filter((word) =>
+      CONCRETE_ACTION_LEMMAS.has(word) &&
+      !source.has(word) &&
+      !entities.has(word) &&
+      !actions.has(word),
+    );
+
+  return metric(
+    unsupported.length > 0 ? 1 : 0,
+  );
+}
+
+function unsupportedPhysicalStageRisk(
+  text: string,
+  envelope: RealityEnvelope,
+): number {
+  const source = suppliedSet(envelope);
+  const entities = entitySet(envelope);
+
+  const unsupported = tokens(text)
+    .map(stem)
+    .filter((word) =>
+      PHYSICAL_STAGE_LEMMAS.has(word) &&
+      !source.has(word) &&
+      !entities.has(word),
+    );
+
+  return metric(
+    unsupported.length > 0 ? 1 : 0,
+  );
+}
+
+function nonLatinMismatchRisk(
+  text: string,
+  envelope: RealityEnvelope,
+): number {
+  const value = clean(text);
+  if (!value) return 1;
+
+  const sourceHasLatin = envelope.suppliedTerms.some((term) =>
+    /[a-z]/i.test(term),
+  );
+
+  const hasNonLatin = /[^\x00-\x7F]/.test(value);
+
+  return sourceHasLatin && hasNonLatin ? 1 : 0;
 }
 
 function unsupportedConcreteRisk(
@@ -308,6 +384,24 @@ export function evaluateMouthLanguage(
       envelope,
     );
 
+  const unsupportedActionRisk =
+    unsupportedConcreteActionRisk(
+      value,
+      envelope,
+    );
+
+  const unsupportedPhysicalRisk =
+    unsupportedPhysicalStageRisk(
+      value,
+      envelope,
+    );
+
+  const languageMismatchRisk =
+    nonLatinMismatchRisk(
+      value,
+      envelope,
+    );
+
   const actionWords = tokens(
     value,
   ).filter((token) =>
@@ -321,8 +415,7 @@ export function evaluateMouthLanguage(
   ).filter((token) =>
     entitySet(envelope).has(
       stem(token),
-    ),
-  ).length;
+    ).length;
 
   const supportedActionRisk =
     actionWords === 0
@@ -370,6 +463,24 @@ export function evaluateMouthLanguage(
     );
   }
 
+  if (unsupportedActionRisk > 0) {
+    reasons.push(
+      "unsupported-concrete-action",
+    );
+  }
+
+  if (unsupportedPhysicalRisk > 0) {
+    reasons.push(
+      "unsupported-physical-staging",
+    );
+  }
+
+  if (languageMismatchRisk > 0) {
+    reasons.push(
+      "language-mismatch",
+    );
+  }
+
   if (QUESTION.test(value)) {
     reasons.push(
       "question-leak",
@@ -388,6 +499,9 @@ export function evaluateMouthLanguage(
       keywordAssemblyRisk <= 0.45 &&
       analyticLanguageRisk <= 0.45 &&
       unsupportedRisk <= 0.45 &&
+      unsupportedActionRisk === 0 &&
+      unsupportedPhysicalRisk === 0 &&
+      languageMismatchRisk === 0 &&
       !QUESTION.test(value),
     reasons,
   };
