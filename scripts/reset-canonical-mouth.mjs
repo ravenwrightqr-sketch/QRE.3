@@ -1,134 +1,84 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
 const root = process.cwd();
+const runtimeFile = path.join(root, "apps/api/src/services/localModelRuntime.ts");
+const mouthFile = path.join(root, "apps/api/src/services/authorMouthCandidateSearch.ts");
+const logFile = path.join(root, "docs/AUTHOR_FILE_READ_LOG.md");
 
-const run = (command, args) => {
-  execFileSync(command, args, {
-    cwd: root,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
-};
+const runtime = await readFile(runtimeFile, "utf8");
+const mouth = await readFile(mouthFile, "utf8");
 
-const file = (relative) => path.join(root, relative);
-
-const mouthPath = file("apps/api/src/services/authorMouthCandidateSearch.ts");
-const runtimePath = file("apps/api/src/services/localModelRuntime.ts");
-const logPath = file("docs/AUTHOR_FILE_READ_LOG.md");
-
-const readUtf8 = async (relative) => readFile(file(relative), "utf8");
-const writeUtf8 = async (relative, content) => writeFile(file(relative), content, "utf8");
-
-const source = await readUtf8("apps/api/src/services/authorMouthCandidateSearch.ts");
-const runtime = await readUtf8("apps/api/src/services/localModelRuntime.ts");
-
-const requiredMarkers = [
-  "export function buildMouthCandidateMessages",
-  "export function parseMouthCandidateBatch",
-  "export function scoreMouthCandidate",
-];
-
-for (const marker of requiredMarkers) {
-  if (!source.includes(marker)) {
-    throw new Error(`Canonical Mouth source marker missing: ${marker}`);
+for (const marker of [
+  "async function canonicalMouthCandidateRequest(",
+  "function parseUserObject(",
+  "function outputText(",
+]) {
+  if (!runtime.includes(marker)) {
+    throw new Error(`Required runtime marker missing: ${marker}`);
   }
 }
 
-const canonicalMarker = "async function canonicalMouthCandidateRequest(";
-if (!runtime.includes(canonicalMarker)) {
-  throw new Error("Canonical Mouth runtime boundary missing; refusing to patch.");
+for (const marker of [
+  "export function buildMouthCandidateMessages",
+  "export function parseMouthCandidateBatch",
+  "export function scoreMouthCandidate",
+]) {
+  if (!mouth.includes(marker)) {
+    throw new Error(`Required Mouth marker missing: ${marker}`);
+  }
 }
 
-const concurrencyMarker = "const concurrency = Math.max(";
-if (!runtime.includes(concurrencyMarker)) {
-  throw new Error("Canonical Mouth runtime concurrency boundary missing; refusing to patch.");
-}
-
-function findBalancedBlock(text, marker) {
+function findBalancedFunction(text, marker) {
   const start = text.indexOf(marker);
-  if (start < 0) throw new Error(`Could not find block: ${marker}`);
+  if (start < 0) throw new Error(`Could not find function: ${marker}`);
 
   const open = text.indexOf("{", start);
-  if (open < 0) throw new Error(`Could not find opening brace for: ${marker}`);
+  if (open < 0) throw new Error(`Could not find opening brace: ${marker}`);
 
   let depth = 0;
   let quote = null;
   let escaped = false;
-  let regex = false;
-  let regexClass = false;
 
   for (let i = open; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
+    const ch = text[i];
 
     if (quote) {
       if (escaped) {
         escaped = false;
-        continue;
-      }
-      if (char === "\\") {
+      } else if (ch === "\\") {
         escaped = true;
-        continue;
-      }
-      if (char === quote) quote = null;
-      continue;
-    }
-
-    if (regex) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (char === "[" && !regexClass) {
-        regexClass = true;
-        continue;
-      }
-      if (char === "]" && regexClass) {
-        regexClass = false;
-        continue;
-      }
-      if (char === "/" && !regexClass) {
-        regex = false;
+      } else if (ch === quote) {
+        quote = null;
       }
       continue;
     }
 
-    if (char === "\"" || char === "'" || char === "`") {
-      quote = char;
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
       continue;
     }
 
-    if (char === "/" && next !== "/" && next !== "*") {
-      regex = true;
-      continue;
-    }
-
-    if (char === "{") depth += 1;
-    if (char === "}") {
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
       depth -= 1;
       if (depth === 0) return [start, i + 1];
     }
   }
 
-  throw new Error(`Unbalanced block: ${marker}`);
+  throw new Error(`Unbalanced function: ${marker}`);
 }
 
-function replaceBalancedFunction(text, marker, replacement) {
-  const [start, end] = findBalancedBlock(text, marker);
-  return `${text.slice(0, start)}${replacement}${text.slice(end)}`;
+function replaceFunction(text, marker, replacement) {
+  const [start, end] = findBalancedFunction(text, marker);
+  return text.slice(0, start) + replacement + text.slice(end);
 }
 
-const newCandidateBlock = `async function canonicalMouthCandidateRequest(
+const newCandidateFunction = String.raw`async function canonicalMouthCandidateRequest(
   messages,
   options,
 ) {
@@ -174,9 +124,14 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
   };
 
   const extractVariants = (raw) => {
+    const fence = String.fromCharCode(96).repeat(3);
     const text = String(raw ?? "")
-      .replace(/^\\s*```(?:text|txt|json)?\\s*/i, "")
-      .replace(/\\s*```\\s*$/i, "")
+      .trim()
+      .split(/\\r?\\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line !== fence)
+      .filter((line) => !/^`{3}(?:text|txt|json)?$/i.test(line))
+      .join("\\n")
       .trim();
 
     if (!text) return [];
@@ -209,7 +164,9 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
   };
 
   const endpointFor = (beat) => {
-    const values = Array.isArray(beat?.paysOff) ? beat.paysOff.map(String).filter(Boolean) : [];
+    const values = Array.isArray(beat?.paysOff)
+      ? beat.paysOff.map(String).filter(Boolean)
+      : [];
     return values[0] ?? "";
   };
 
@@ -218,14 +175,8 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
     const endpoint = endpointFor(beat);
 
     if (isPayoff(beat) && endpoint) {
-      return { order, variants: [endpoint], repaired: false };
+      return { order, variants: [endpoint] };
     }
-
-    const eventIds = Array.isArray(beat?.eventIds) ? beat.eventIds.map(String) : [];
-    const anchors = [
-      ...(Array.isArray(beat?.setsUp) ? beat.setsUp.map(String) : []),
-      ...(Array.isArray(beat?.paysOff) ? beat.paysOff.map(String) : []),
-    ].filter(Boolean).slice(0, 8);
 
     const system = [
       "QRE CANONICAL MOUTH · ONE-BEAT REALIZATION.",
@@ -236,7 +187,7 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
       "Creative framing is allowed; concrete reality is locked.",
       "Never invent events, actions, body reactions, objects, people, places, sounds, dialogue, chronology, or outcomes.",
       "Use implication, contrast, reversal, callback, understatement, status, wordplay, or recontextualization when supported.",
-      "Do not name planning, cognition, realization, strategy, Beat Graph, viewer, or next-beat concepts.",
+      "Do not mention planning, cognition, realization, strategy, Beat Graph, viewer, or next-beat concepts.",
       "Return one candidate per line. No numbering required. No commentary.",
     ].join("\\n");
 
@@ -247,8 +198,11 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
       facts,
       beat: {
         order,
-        eventIds,
-        anchors,
+        eventIds: Array.isArray(beat?.eventIds) ? beat.eventIds.map(String) : [],
+        anchors: [
+          ...(Array.isArray(beat?.setsUp) ? beat.setsUp.map(String) : []),
+          ...(Array.isArray(beat?.paysOff) ? beat.paysOff.map(String) : []),
+        ].filter(Boolean).slice(0, 8),
         change: String(beat?.change ?? beat?.informationGain ?? ""),
         next: String(beat?.next ?? beat?.frontier ?? beat?.nextNeed ?? ""),
         attentionFunction: String(beat?.attentionFunction ?? ""),
@@ -269,7 +223,7 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
           {
             role: "system",
             content: repair
-              ? `${system}\\nREPAIR: produce materially different candidates for the same approved beat; do not change the semantic contract.`
+              ? `${system}\\nREPAIR: generate different realizations for the same approved beat. Do not change the semantic contract.`
               : system,
           },
           { role: "user", content: user },
@@ -289,7 +243,7 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
 
       if (first.length >= 2) {
         console.log(`QRE MOUTH BEAT ${order}: ${first.length} candidates usable`);
-        return { order, variants: first, repaired: false };
+        return { order, variants: first };
       }
 
       const repairRaw = await call(true);
@@ -299,10 +253,10 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
         .slice(0, 8);
 
       console.log(`QRE MOUTH BEAT REPAIR ${order}: ${merged.length} candidates usable`);
-      return { order, variants: merged, repaired: true };
+      return { order, variants: merged };
     } catch (error) {
       console.log(`QRE MOUTH BEAT ${order} ERROR:`, error instanceof Error ? error.message : error);
-      return { order, variants: [], repaired: false };
+      return { order, variants: [] };
     }
   };
 
@@ -329,22 +283,34 @@ const newCandidateBlock = `async function canonicalMouthCandidateRequest(
 }
 `;
 
-const nextRuntime = replaceBalancedFunction(
+const updatedRuntime = replaceFunction(
   runtime,
   "async function canonicalMouthCandidateRequest(",
-  newCandidateBlock,
+  newCandidateFunction,
 );
 
-await writeUtf8(
-  "apps/api/src/services/localModelRuntime.ts",
-  nextRuntime,
-);
+await writeFile(runtimeFile, updatedRuntime, "utf8");
 
-const logEntry = `\n## 2026-08-19 · Canonical Mouth reset\n\n\`FILE: apps/api/src/services/localModelRuntime.ts\`\nROLE: local model transport + canonical per-beat Mouth generation adapter.\nCHANGE: replaced all-beats JSON candidate generation with isolated per-beat realization, per-beat repair, partial-pool preservation, and bounded concurrency.\n\n\`FILE: apps/api/src/services/authorMouthCandidateSearch.ts\`\nROLE: canonical Mouth candidate normalization/scoring/selection input.\nSTATUS: unchanged owner.\n\n\`FILE: apps/api/src/services/authorBrainUniversal.ts\`\nROLE: sole production Author orchestrator.\nSTATUS: unchanged.\n\n`;
-
-if (existsSync(logPath)) {
-  const existing = await readFile(logPath, "utf8");
-  await writeFile(logPath, existing + logEntry, "utf8");
+if (existsSync(logFile)) {
+  const existing = await readFile(logFile, "utf8");
+  const entry = [
+    "",
+    "## 2026-08-19 · Canonical Mouth reset",
+    "",
+    "FILE: apps/api/src/services/localModelRuntime.ts",
+    "ROLE: model transport plus canonical per-beat Mouth generation adapter.",
+    "CHANGE: isolated per-beat realization, per-beat repair, partial-pool preservation, and bounded concurrency.",
+    "",
+    "FILE: apps/api/src/services/authorMouthCandidateSearch.ts",
+    "ROLE: canonical candidate normalization/scoring owner.",
+    "STATUS: unchanged owner.",
+    "",
+    "FILE: apps/api/src/services/authorBrainUniversal.ts",
+    "ROLE: sole production Author orchestrator.",
+    "STATUS: unchanged.",
+    "",
+  ].join("\\n");
+  await writeFile(logFile, existing + entry, "utf8");
 }
 
 console.log("CANONICAL MOUTH RESET APPLIED");
