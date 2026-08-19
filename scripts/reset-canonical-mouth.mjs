@@ -1,50 +1,137 @@
 #!/usr/bin/env node
-import fs from "node:fs";
-import path from "node:path";
+
+import { readFile, writeFile, unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import process from "node:process";
 
-const ROOT = process.cwd();
-const runtimePath = path.join(ROOT, "apps/api/src/services/localModelRuntime.ts");
-const mapPath = path.join(ROOT, "docs/MOUTH_PRODUCTION_MAP.md");
+const root = process.cwd();
 
-function read(file) {
-  return fs.readFileSync(file, "utf8");
-}
-
-function write(file, text) {
-  fs.writeFileSync(file, text.replace(/\r\n/g, "\n"), "utf8");
-}
-
-function run(command, args) {
-  console.log(`\\n> ${command} ${args.join(" ")}`);
+const run = (command, args) => {
   execFileSync(command, args, {
-    cwd: ROOT,
+    cwd: root,
     stdio: "inherit",
     shell: process.platform === "win32",
   });
+};
+
+const file = (relative) => path.join(root, relative);
+
+const mouthPath = file("apps/api/src/services/authorMouthCandidateSearch.ts");
+const runtimePath = file("apps/api/src/services/localModelRuntime.ts");
+const logPath = file("docs/AUTHOR_FILE_READ_LOG.md");
+
+const readUtf8 = async (relative) => readFile(file(relative), "utf8");
+const writeUtf8 = async (relative, content) => writeFile(file(relative), content, "utf8");
+
+const source = await readUtf8("apps/api/src/services/authorMouthCandidateSearch.ts");
+const runtime = await readUtf8("apps/api/src/services/localModelRuntime.ts");
+
+const requiredMarkers = [
+  "export function buildMouthCandidateMessages",
+  "export function parseMouthCandidateBatch",
+  "export function scoreMouthCandidate",
+];
+
+for (const marker of requiredMarkers) {
+  if (!source.includes(marker)) {
+    throw new Error(`Canonical Mouth source marker missing: ${marker}`);
+  }
 }
 
-const source = read(runtimePath);
-const start = source.indexOf(
-  "async function canonicalMouthCandidateRequest("
-);
-const end = source.indexOf(
-  "async function canonicalMouthRequest("
-);
-
-if (start < 0 || end < 0 || end <= start) {
-  throw new Error(
-    "Canonical Mouth candidate function boundary not found; refusing to rewrite runtime."
-  );
+const canonicalMarker = "async function canonicalMouthCandidateRequest(";
+if (!runtime.includes(canonicalMarker)) {
+  throw new Error("Canonical Mouth runtime boundary missing; refusing to patch.");
 }
 
-if (source.includes("QRE MOUTH · PER-BEAT REALIZATION")) {
-  console.log("Canonical per-beat Mouth runtime is already installed.");
-} else {
-  const replacement = String.raw`async function canonicalMouthCandidateRequest(
-  messages: LocalModelMessage[],
-  options: LocalModelOptions,
-): Promise<LocalModelResult> {
+const concurrencyMarker = "const concurrency = Math.max(";
+if (!runtime.includes(concurrencyMarker)) {
+  throw new Error("Canonical Mouth runtime concurrency boundary missing; refusing to patch.");
+}
+
+function findBalancedBlock(text, marker) {
+  const start = text.indexOf(marker);
+  if (start < 0) throw new Error(`Could not find block: ${marker}`);
+
+  const open = text.indexOf("{", start);
+  if (open < 0) throw new Error(`Could not find opening brace for: ${marker}`);
+
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let regex = false;
+  let regexClass = false;
+
+  for (let i = open; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (regex) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "[" && !regexClass) {
+        regexClass = true;
+        continue;
+      }
+      if (char === "]" && regexClass) {
+        regexClass = false;
+        continue;
+      }
+      if (char === "/" && !regexClass) {
+        regex = false;
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "/" && next !== "/" && next !== "*") {
+      regex = true;
+      continue;
+    }
+
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return [start, i + 1];
+    }
+  }
+
+  throw new Error(`Unbalanced block: ${marker}`);
+}
+
+function replaceBalancedFunction(text, marker, replacement) {
+  const [start, end] = findBalancedBlock(text, marker);
+  return `${text.slice(0, start)}${replacement}${text.slice(end)}`;
+}
+
+const newCandidateBlock = `async function canonicalMouthCandidateRequest(
+  messages,
+  options,
+) {
   const payload = parseUserObject(messages);
   const beats = Array.isArray(payload?.beats) ? payload.beats : [];
   const beatCount = beats.length;
@@ -59,33 +146,20 @@ if (source.includes("QRE MOUTH · PER-BEAT REALIZATION")) {
 
   const subject = typeof payload?.subject === "string" ? payload.subject : "";
   const prompt = typeof payload?.prompt === "string" ? payload.prompt : "";
-  const evidence = [
-    ...(Array.isArray(payload?.facts) ? payload.facts.map(String) : []),
-    ...(Array.isArray(payload?.moments) ? payload.moments.map(String) : []),
-    ...(Array.isArray(payload?.sourceMoments) ? payload.sourceMoments.map(String) : []),
-    ...(Array.isArray(payload?.memory) ? payload.memory.map(String) : []),
-  ].map((value) => value.trim()).filter(Boolean).slice(0, 36);
+  const facts = [
+    ...(Array.isArray(payload?.facts) ? payload.facts : []),
+    ...(Array.isArray(payload?.moments) ? payload.moments : []),
+    ...(Array.isArray(payload?.sourceMoments) ? payload.sourceMoments : []),
+    ...(Array.isArray(payload?.memory) ? payload.memory : []),
+  ].map(String).filter(Boolean).slice(0, 32);
 
-  const envelope = payload?.realityEnvelope && typeof payload.realityEnvelope === "object"
-    ? payload.realityEnvelope
-    : null;
-
-  const events = envelope && Array.isArray(envelope.events) ? envelope.events : [];
-  const labelFor = (id) => {
-    const event = events.find((value) => value && typeof value === "object" && String(value.id ?? "") === id);
-    return event && typeof event === "object" ? String(event.label ?? "").trim() : "";
-  };
-
-  const temperature = options.temperature ?? 0.78;
-  const numPredict = Math.min(options.numPredict ?? 512, 512);
-  const concurrency = Math.max(
-    1,
-    Math.min(3, Number(process.env.QRE_MOUTH_CONCURRENCY ?? "2")),
-  );
+  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE ?? "0.72");
+  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT ?? "640");
+  const concurrency = Math.max(1, Math.min(3, Number(process.env.QRE_MOUTH_CONCURRENCY ?? "2")));
 
   const cleanLine = (value) => String(value ?? "")
     .replace(/^\\s*(?:[-*•]|\\d+[.)])\\s*/, "")
-    .replace(/^['"`\\s]+|['"`\\s]+$/g, "")
+    .replace(/^['"\\s]+|['"\\s]+$/g, "")
     .replace(/\\s+/g, " ")
     .trim();
 
@@ -99,158 +173,153 @@ if (source.includes("QRE MOUTH · PER-BEAT REALIZATION")) {
     return true;
   };
 
-  const extract = (raw) => {
-    const text = String(raw ?? "").replace(/^```(?:json|text|txt)?/i, "").replace(/```$/i, "").trim();
+  const extractVariants = (raw) => {
+    const text = String(raw ?? "")
+      .replace(/^\\s*```(?:text|txt|json)?\\s*/i, "")
+      .replace(/\\s*```\\s*$/i, "")
+      .trim();
+
     if (!text) return [];
 
     try {
       const value = JSON.parse(text);
-      const candidates = Array.isArray(value?.variants) ? value.variants : Array.isArray(value?.texts) ? value.texts : [];
-      if (Array.isArray(candidates)) {
-        return candidates.map(cleanLine).filter(acceptable).filter((value, index, all) => all.indexOf(value) === index).slice(0, 8);
+      if (Array.isArray(value?.variants)) {
+        return value.variants.map(cleanLine).filter(acceptable).slice(0, 8);
+      }
+      if (Array.isArray(value?.texts)) {
+        return value.texts.map(cleanLine).filter(acceptable).slice(0, 8);
       }
     } catch {
-      // Plain text is the canonical format; tolerate accidental JSON only.
+      // Plain text is the canonical creative output path.
     }
 
     return text
       .split(/\\r?\\n+/)
       .map(cleanLine)
       .filter(acceptable)
-      .filter((value, index, all) => all.indexOf(value) === index)
+      .filter((value, index, values) => values.indexOf(value) === index)
       .slice(0, 8);
   };
 
-  const payoff = (beat) => {
+  const isPayoff = (beat) => {
     const role = String(beat?.role ?? "").toLowerCase();
     const attention = String(beat?.attentionFunction ?? "").toLowerCase();
     const mode = String(beat?.realizationMode ?? "").toLowerCase();
     return role === "payoff" || attention === "payoff" || mode.includes("payoff");
   };
 
-  const endpoint = (beat) => {
-    const values = Array.isArray(beat?.paysOff) ? beat.paysOff.map(String).map((value) => value.trim()).filter(Boolean) : [];
+  const endpointFor = (beat) => {
+    const values = Array.isArray(beat?.paysOff) ? beat.paysOff.map(String).filter(Boolean) : [];
     return values[0] ?? "";
   };
 
-  const makePrompt = (beat, repair) => {
-    const ids = Array.isArray(beat?.eventIds) ? beat.eventIds.map(String) : [];
+  const runBeat = async (beat) => {
+    const order = Number(beat?.order ?? 1);
+    const endpoint = endpointFor(beat);
+
+    if (isPayoff(beat) && endpoint) {
+      return { order, variants: [endpoint], repaired: false };
+    }
+
+    const eventIds = Array.isArray(beat?.eventIds) ? beat.eventIds.map(String) : [];
     const anchors = [
       ...(Array.isArray(beat?.setsUp) ? beat.setsUp.map(String) : []),
       ...(Array.isArray(beat?.paysOff) ? beat.paysOff.map(String) : []),
-      ...ids.map(labelFor),
-    ].map((value) => value.trim()).filter(Boolean).slice(0, 8);
+    ].filter(Boolean).slice(0, 8);
 
-    const isPayoff = payoff(beat);
-    const exact = endpoint(beat);
+    const system = [
+      "QRE CANONICAL MOUTH · ONE-BEAT REALIZATION.",
+      "You create viewer-facing language only.",
+      "The movie, meaning, reality, and endpoint are already approved.",
+      "Create 5 materially different short realizations for this beat.",
+      "2-7 words preferred. One dominant thought. No analysis. No questions.",
+      "Creative framing is allowed; concrete reality is locked.",
+      "Never invent events, actions, body reactions, objects, people, places, sounds, dialogue, chronology, or outcomes.",
+      "Use implication, contrast, reversal, callback, understatement, status, wordplay, or recontextualization when supported.",
+      "Do not name planning, cognition, realization, strategy, Beat Graph, viewer, or next-beat concepts.",
+      "Return one candidate per line. No numbering required. No commentary.",
+    ].join("\\n");
 
-    return {
-      system: [
-        "QRE MOUTH · PER-BEAT REALIZATION.",
-        "You are the final language realization layer.",
-        "Reality is locked. Meaning is locked. The movie is locked. The endpoint is locked.",
-        "Your only job is to make ONE approved semantic beat speak as short viewer-facing language.",
-        "",
-        "ONE CUT. ONE DOMINANT THOUGHT. 2-7 WORDS PREFERRED.",
-        "Use implication, contrast, status shift, understatement, callback, reversal, double meaning, recontextualization, wordplay, personification, or genre framing when supported.",
-        "Creative framing may be novel. Concrete reality may not.",
-        "",
-        "NEVER INVENT events, actions, objects, people, places, sounds, body reactions, facial expressions, internal thoughts, dialogue, chronology, or outcomes.",
-        "Do not use domain stereotypes that were not supplied.",
-        "Do not explain the meaning. Make it felt.",
-        "Do not mention QRE, planning, viewers, beats, strategy, cognition, realization, or the next cut.",
-        "Do not use questions or comma-heavy summaries.",
-        isPayoff
-          ? `PAYOFF: output exactly this and nothing else: ${exact}`
-          : "Return five materially different candidate lines, one per line, with no numbering or commentary.",
-        repair ? "REPAIR: the prior realization was rejected; try a genuinely different phrasing of the SAME approved meaning." : "",
-      ].filter(Boolean).join("\\n"),
-      user: JSON.stringify({
-        task: "realize_one_approved_mouth_beat",
-        subject,
-        prompt,
-        suppliedEvidence: evidence,
-        beat: {
-          order: beat?.order ?? 1,
-          eventIds: ids,
-          anchors,
-          change: String(beat?.change ?? beat?.informationGain ?? ""),
-          next: String(beat?.next ?? beat?.frontier ?? beat?.nextNeed ?? ""),
-          attentionFunction: String(beat?.attentionFunction ?? ""),
-          creativeMove: String(beat?.creativeMove ?? ""),
-          realizationMode: String(beat?.realizationMode ?? ""),
-          relationKinds: Array.isArray(beat?.relationKinds) ? beat.relationKinds : [],
-          forbiddenMoves: Array.isArray(beat?.forbiddenMoves) ? beat.forbiddenMoves : [],
-          payoff: isPayoff,
-          endpoint: exact,
-        },
-      }),
-    };
-  };
+    const user = JSON.stringify({
+      task: "realize_approved_mouth_beat",
+      subject,
+      prompt,
+      facts,
+      beat: {
+        order,
+        eventIds,
+        anchors,
+        change: String(beat?.change ?? beat?.informationGain ?? ""),
+        next: String(beat?.next ?? beat?.frontier ?? beat?.nextNeed ?? ""),
+        attentionFunction: String(beat?.attentionFunction ?? ""),
+        creativeMove: String(beat?.creativeMove ?? ""),
+        realizationMode: String(beat?.realizationMode ?? ""),
+        relationKinds: Array.isArray(beat?.relationKinds) ? beat.relationKinds.map(String) : [],
+        forbiddenMoves: Array.isArray(beat?.forbiddenMoves) ? beat.forbiddenMoves.map(String) : [],
+        endpoint,
+      },
+    });
 
-  const realize = async (beat) => {
-    if (payoff(beat) && endpoint(beat)) {
-      return { order: Number(beat?.order ?? 1), variants: [endpoint(beat)], calls: 0 };
-    }
-
-    const attempt = async (repair) => {
-      const prompt = makePrompt(beat, repair);
+    const call = async (repair) => {
       const data = await request("/api/chat", {
         model: modelName(),
         stream: false,
         keep_alive: keepAlive(),
         messages: [
-          { role: "system", content: prompt.system },
-          { role: "user", content: prompt.user },
+          {
+            role: "system",
+            content: repair
+              ? `${system}\\nREPAIR: produce materially different candidates for the same approved beat; do not change the semantic contract.`
+              : system,
+          },
+          { role: "user", content: user },
         ],
         options: {
           temperature: repair ? Math.max(0.55, temperature - 0.12) : temperature,
-          num_predict: repair ? 320 : numPredict,
+          num_predict: repair ? Math.min(numPredict, 384) : Math.min(numPredict, 512),
         },
       });
-      const raw = outputText(data);
-      return { raw, variants: extract(raw) };
+
+      return outputText(data);
     };
 
     try {
-      const first = await attempt(false);
-      if (first.variants.length >= 2) {
-        return { order: Number(beat?.order ?? 1), variants: first.variants, calls: 1 };
+      const firstRaw = await call(false);
+      const first = extractVariants(firstRaw);
+
+      if (first.length >= 2) {
+        console.log(`QRE MOUTH BEAT ${order}: ${first.length} candidates usable`);
+        return { order, variants: first, repaired: false };
       }
 
-      const second = await attempt(true);
-      return {
-        order: Number(beat?.order ?? 1),
-        variants: [...first.variants, ...second.variants]
-          .filter((value, index, all) => all.indexOf(value) === index)
-          .slice(0, 8),
-        calls: 2,
-      };
+      const repairRaw = await call(true);
+      const repaired = extractVariants(repairRaw);
+      const merged = [...first, ...repaired]
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .slice(0, 8);
+
+      console.log(`QRE MOUTH BEAT REPAIR ${order}: ${merged.length} candidates usable`);
+      return { order, variants: merged, repaired: true };
     } catch (error) {
-      console.log(
-        `QRE MOUTH BEAT ${String(beat?.order ?? 1)} ERROR:`,
-        error instanceof Error ? error.message : error,
-      );
-      return { order: Number(beat?.order ?? 1), variants: [], calls: 1 };
+      console.log(`QRE MOUTH BEAT ${order} ERROR:`, error instanceof Error ? error.message : error);
+      return { order, variants: [], repaired: false };
     }
   };
 
   const results = [];
-  for (let start = 0; start < beats.length; start += concurrency) {
-    const batch = beats.slice(start, start + concurrency);
-    results.push(...(await Promise.all(batch.map(realize))));
+  for (let index = 0; index < beats.length; index += concurrency) {
+    const batch = beats.slice(index, index + concurrency);
+    results.push(...await Promise.all(batch.map(runBeat)));
   }
 
-  const byOrder = new Map(results.map((result) => [result.order, result]));
   const variantsByBeat = Array.from({ length: beatCount }, (_, index) => {
     const order = index + 1;
-    return { order, variants: byOrder.get(order)?.variants ?? [] };
+    const result = results.find((value) => value.order === order);
+    return { order, variants: result?.variants ?? [] };
   });
 
   const usable = variantsByBeat.filter((entry) => entry.variants.length > 0).length;
-  const calls = results.reduce((sum, result) => sum + result.calls, 0);
-
-  console.log("QRE MOUTH PER-BEAT:", `${usable}/${beatCount} beats usable`, `calls=${calls}`, `concurrency=${concurrency}`);
+  console.log("QRE MOUTH PER-BEAT PARSE:", `${usable}/${beatCount} beats usable`);
 
   return {
     text: JSON.stringify({ variantsByBeat }),
@@ -260,54 +329,23 @@ if (source.includes("QRE MOUTH · PER-BEAT REALIZATION")) {
 }
 `;
 
-  const updated = source.slice(0, start) + replacement + source.slice(end);
-  write(runtimePath, updated);
+const nextRuntime = replaceBalancedFunction(
+  runtime,
+  "async function canonicalMouthCandidateRequest(",
+  newCandidateBlock,
+);
+
+await writeUtf8(
+  "apps/api/src/services/localModelRuntime.ts",
+  nextRuntime,
+);
+
+const logEntry = `\n## 2026-08-19 · Canonical Mouth reset\n\n\`FILE: apps/api/src/services/localModelRuntime.ts\`\nROLE: local model transport + canonical per-beat Mouth generation adapter.\nCHANGE: replaced all-beats JSON candidate generation with isolated per-beat realization, per-beat repair, partial-pool preservation, and bounded concurrency.\n\n\`FILE: apps/api/src/services/authorMouthCandidateSearch.ts\`\nROLE: canonical Mouth candidate normalization/scoring/selection input.\nSTATUS: unchanged owner.\n\n\`FILE: apps/api/src/services/authorBrainUniversal.ts\`\nROLE: sole production Author orchestrator.\nSTATUS: unchanged.\n\n`;
+
+if (existsSync(logPath)) {
+  const existing = await readFile(logPath, "utf8");
+  await writeFile(logPath, existing + logEntry, "utf8");
 }
 
-const map = `# QRE Mouth Production Map
-
-## Canonical ownership
-
-Reality / Cognition / Movie / Meaning / Realization are upstream responsibilities.
-
-Production Author: \\`apps/api/src/services/authorBrainUniversal.ts\\`
-
-Mouth candidate ownership: \\`apps/api/src/services/authorMouthCandidateSearch.ts\\`
-
-Model transport + per-beat local realization adapter: \\`apps/api/src/services/localModelRuntime.ts\\`
-
-Sequence selection: \\`apps/api/src/services/authorMouthSequenceBeamSearch.ts\\`
-
-Truth: \\`apps/api/src/services/authorBeatTruthGate.ts\\` + cut policy.
-
-Attention: \\`apps/api/src/services/authorAttentionEditor.ts\\`
-
-Contracts: \\`packages/contracts/src/cogauthor/mouth.ts\\`
-
-## Production invariants
-
-- One production Author path.
-- Mouth receives approved meaning; it does not re-plan.
-- Candidate generation is isolated per beat.
-- One failed beat cannot erase another beat's candidates.
-- Payoff is exact and terminal.
-- Truth gates never weaken to make tests green.
-- Enterprise Mouth remains diagnostic until removed from all production wiring.
-`;
-
-write(mapPath, map);
-
-run("pnpm", ["--filter", "@qre/contracts", "build"]);
-run("pnpm", ["exec", "tsc", "-p", "apps/api/tsconfig.tests.json", "--noEmit"]);
-run("pnpm", ["--filter", "@qre/api", "build"]);
-run("node", ["scripts/verify-contract-ownership.mjs"]);
-run("node", ["scripts/verify-author-wiring.mjs"]);
-
-console.log("\\nCANONICAL MOUTH MIGRATION COMPLETE");
-
-try {
-  fs.unlinkSync(new URL(import.meta.url));
-  console.log("Temporary migration script removed.");
-} catch {
-  console.log("Migration completed; remove scripts/reset-canonical-mouth.mjs after reviewing git diff.");
-}
+console.log("CANONICAL MOUTH RESET APPLIED");
+console.log("Next: pnpm --filter @qre/api build");
