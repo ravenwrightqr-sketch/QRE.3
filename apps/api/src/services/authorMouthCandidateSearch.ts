@@ -1,5 +1,5 @@
 /**
- * QRE AUTHORMOUTHCANDIDATESEARCH.TS · CANONICAL SEMANTIC GATE
+ * QRE AUTHORMOUTHCANDIDATESEARCH.TS Ã‚Â· CANONICAL SEMANTIC GATE
  *
  * The Mouth receives an approved Meaning Spine / Realization Slot and
  * generates language candidates.
@@ -27,67 +27,20 @@
  * It only proposes language.
  */
 
+import type {
+  MouthCandidate,
+  MouthCandidateBatch,
+  MouthCandidateBeat,
+  MouthCandidateSelection,
+} from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
-export type MouthCandidateBeat = {
-  order: number;
-  role?: string;
-  attentionFunction?: string;
-  creativeMove?: string;
-  realizationMode?: string;
-  eventIds?: readonly string[];
-  change?: string;
-  next?: string;
-  frontier?: string;
-  setsUp?: readonly string[];
-  paysOff?: readonly string[];
-
-  obligations?: readonly string[];
-  forbiddenMoves?: readonly string[];
-  relationKinds?: readonly string[];
-  relationStrength?: number;
-};
-
-export type MouthCandidate = {
-  text: string;
-  beatOrder: number;
-
-  supportedEventIds: string[];
-  supportedRelationPairs: string[];
-
-  groundingScore: number;
-  meaningScore: number;
-  transitionScore: number;
-
-  obligationCoverage: number;
-  relationContractScore: number;
-  forbiddenMoveRisk: number;
-
-  cohesionScore: number;
-  noveltyScore: number;
-  compressionScore: number;
-
-  inventionRisk: number;
-  repetitionRisk: number;
-  collageRisk: number;
-
-  endpointExactness: number;
-
-  score: number;
-  reasons: string[];
-};
-
-export type MouthCandidateSelection = {
-  selected?: MouthCandidate;
-  candidates: MouthCandidate[];
-};
-
-export type MouthCandidateBatch = {
-  variantsByBeat: Array<{
-    order: number;
-    variants: string[];
-  }>;
-};
+export type {
+  MouthCandidate,
+  MouthCandidateBatch,
+  MouthCandidateBeat,
+  MouthCandidateSelection,
+} from "@qre/contracts";
 
 export type MouthCandidateGenerationInput = {
   envelope: RealityEnvelope;
@@ -1115,7 +1068,7 @@ function forbiddenMoveRisk(
       /\b(?:trembled|blinked|sighed|stared|shrugged|winked|flinched)\b/i,
 
     "new dialogue":
-      /["“”]/i,
+      /["Ã¢â‚¬Å“Ã¢â‚¬Â]/i,
 
     "new sound":
       /\b(?:bang|buzz|ring|whistle|bark|laugh|scream)\b/i,
