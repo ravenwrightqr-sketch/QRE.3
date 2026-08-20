@@ -9,7 +9,7 @@
     "dev": "pnpm -r dev",
     "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
     "author:guard": "node ./scripts/verify-contract-ownership.mjs",
-    "author:wiring": "node ./scripts/verify-author-wiring.mjs",
+    "author:wiring": "node ./scripts/verify-author-wiring.mjs && node ./scripts/verify-creative-realization-wiring.mjs",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
