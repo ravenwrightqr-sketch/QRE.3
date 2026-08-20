@@ -32,8 +32,10 @@ export type MouthCreativeRealization = {
   /**
    * Optional earlier material that can be revisited only after its meaning
    * has changed. It is not permission to repeat source language.
+   *
+   * Multiple callback signals may be available to the creative realization.
    */
-  callbackPotential?: string;
+  callbackPotential?: readonly string[];
 
   /**
    * The final semantic meaning the experience should leave behind.
