@@ -357,17 +357,51 @@ export function scoreMouthCandidate(input: {
     (supported.length ? 0.4 : 0),
   );
 
-  const meaning = relationMeaning(text, input.beat, input.envelope);
-  const transition = transitionScore(text, input.beat, input.envelope);
-  const endpoint = endpointExactness(text, input.beat);
-  const invention = concreteRisk(text, input.envelope);
-  const forbidden = forbiddenRisk(text, input.beat, input.envelope);
-  const repetition = repetitionRisk(text, priorTexts);
+  const meaning = relationMeaning(
+    text,
+    input.beat,
+    input.envelope,
+  );
+
+  const transition = transitionScore(
+    text,
+    input.beat,
+    input.envelope,
+  );
+
+  const endpoint = endpointExactness(
+    text,
+    input.beat,
+  );
+
+  const invention = concreteRisk(
+    text,
+    input.envelope,
+  );
+
+  const forbidden = forbiddenRisk(
+    text,
+    input.beat,
+    input.envelope,
+  );
+
+  const repetition = repetitionRisk(
+    text,
+    priorTexts,
+  );
+
   const novelty = metric(1 - repetition);
   const compression = compressionScore(text);
 
-  const obligationCoverage = metric(meaning * 0.6 + transition * 0.4);
-  const relationContract = input.beat.relationKinds?.length ? meaning : 0.5;
+  const obligationCoverage = metric(
+    meaning * 0.6 +
+    transition * 0.4,
+  );
+
+  const relationContract =
+    input.beat.relationKinds?.length
+      ? meaning
+      : 0.5;
 
   const collageRisk =
     input.beat.eventIds &&
@@ -379,16 +413,131 @@ export function scoreMouthCandidate(input: {
       : 0;
 
   const cohesion = priorTexts.length
-    ? metric(overlap(setOf(text), setOf(priorTexts.join(" "))))
+    ? metric(
+        overlap(
+          setOf(text),
+          setOf(
+            priorTexts.join(" "),
+          ),
+        ),
+      )
     : 0.5;
 
-  const restatement = input.beat.eventIds?.some(
-    (id) => similarity(text, eventLabel(input.envelope, id)) >= 0.92,
-  )
-    ? 0.8
+  const restatement =
+    input.beat.eventIds?.some(
+      (id) =>
+        similarity(
+          text,
+          eventLabel(
+            input.envelope,
+            id,
+          ),
+        ) >= 0.92,
+    )
+      ? 0.8
+      : 0;
+
+  /*
+   * CREATIVE REALIZATION EXECUTION
+   *
+   * The source facts establish truth.
+   * CreativeRealization establishes what the line is supposed
+   * to DO with that truth.
+   *
+   * A strong candidate should therefore match the approved
+   * creative meaning without simply repeating its source wording.
+   */
+  const realization =
+    input.beat.creativeRealization;
+
+  const creativeSignals = realization
+    ? unique([
+        realization.creativePremise,
+        realization.realizationIntent,
+        realization.viewerEffect,
+        ...(realization.creativeTrajectory ?? []),
+        realization.escalationMove,
+        ...(realization.callbackPotential ?? []),
+        realization.terminalMeaning,
+      ])
+    : [];
+
+  const creativeReference =
+    creativeSignals.join(" ");
+
+  const creativeExecution =
+    realization && creativeReference
+      ? metric(
+          Math.max(
+            similarity(
+              text,
+               realization.creativePremise ?? "",
+            ),
+            similarity(
+              text,
+              realization.realizationIntent,
+            ),
+            ...(realization.creativeTrajectory ?? [])
+              .map((item) =>
+                similarity(
+                  text,
+                  item,
+                ),
+              ),
+            realization.escalationMove
+              ? similarity(
+                  text,
+                  realization.escalationMove,
+                )
+              : 0,
+            ...(realization.callbackPotential ?? [])
+              .map((item) =>
+                similarity(
+                  text,
+                  item,
+                ),
+              ),
+            realization.terminalMeaning
+              ? similarity(
+                  text,
+                  realization.terminalMeaning,
+                )
+              : 0,
+          ),
+        )
+      : 0;
+
+  /*
+   * Creative compression:
+   *
+   * If the line is almost identical to source evidence,
+   * it should not receive extra creative credit merely
+   * because it is grounded.
+   */
+  const creativeIndependence =
+    realization
+      ? metric(
+          1 -
+            Math.min(
+              1,
+              restatement +
+                collageRisk * 0.5,
+            ),
+        )
+      : 1;
+
+  const creativeScore = realization
+    ? metric(
+        creativeExecution *
+          0.65 +
+        creativeIndependence *
+          0.35,
+      )
     : 0;
 
-  const score = isPayoffBeat(input.beat)
+  const score = isPayoffBeat(
+    input.beat,
+  )
     ? metric(
         endpoint * 0.85 +
         grounding * 0.05 +
@@ -398,50 +547,127 @@ export function scoreMouthCandidate(input: {
         forbidden * 0.7,
       )
     : metric(
-        grounding * 0.18 +
-        meaning * 0.2 +
-        transition * 0.24 +
-        obligationCoverage * 0.12 +
-        relationContract * 0.08 +
-        cohesion * 0.04 +
+        grounding * 0.12 +
+        meaning * 0.16 +
+        transition * 0.18 +
+        obligationCoverage * 0.09 +
+        relationContract * 0.06 +
+        cohesion * 0.03 +
         novelty * 0.06 +
-        compression * 0.08 -
+        compression * 0.06 +
+        creativeScore * 0.24 -
         invention * 0.35 -
         forbidden * 0.5 -
-        collageRisk * 0.15 -
-        restatement * 0.12,
+        collageRisk * 0.16 -
+        restatement * 0.18,
       );
 
   const reasons: string[] = [];
-  if (grounding < 0.42) reasons.push("weak-grounding");
-  if (meaning < 0.4) reasons.push("weak-meaning-execution");
-  if (transition < 0.4) reasons.push("weak-meaning-transition");
-  if (invention > 0.45) reasons.push("high-invention-risk");
-  if (forbidden > 0) reasons.push("forbidden-slot-move");
-  if (repetition > 0.8) reasons.push("high-repetition");
-  if (compression < 0.45) reasons.push("poor-compression");
-  if (collageRisk > 0) reasons.push("keyword-assembly");
-  if (restatement > 0) reasons.push("source-restatement");
-  if (isPayoffBeat(input.beat) && endpoint !== 1) reasons.push("non-exact-payoff");
+
+  if (grounding < 0.42) {
+    reasons.push(
+      "weak-grounding",
+    );
+  }
+
+  if (meaning < 0.4) {
+    reasons.push(
+      "weak-meaning-execution",
+    );
+  }
+
+  if (transition < 0.4) {
+    reasons.push(
+      "weak-meaning-transition",
+    );
+  }
+
+  if (
+    realization &&
+    creativeScore < 0.3
+  ) {
+    reasons.push(
+      "weak-creative-realization",
+    );
+  }
+
+  if (invention > 0.45) {
+    reasons.push(
+      "high-invention-risk",
+    );
+  }
+
+  if (forbidden > 0) {
+    reasons.push(
+      "forbidden-slot-move",
+    );
+  }
+
+  if (repetition > 0.8) {
+    reasons.push(
+      "high-repetition",
+    );
+  }
+
+  if (compression < 0.45) {
+    reasons.push(
+      "poor-compression",
+    );
+  }
+
+  if (collageRisk > 0) {
+    reasons.push(
+      "keyword-assembly",
+    );
+  }
+
+  if (restatement > 0) {
+    reasons.push(
+      "source-restatement",
+    );
+  }
+
+  if (
+    isPayoffBeat(input.beat) &&
+    endpoint !== 1
+  ) {
+    reasons.push(
+      "non-exact-payoff",
+    );
+  }
 
   return {
     text,
-    beatOrder: input.beat.order,
-    supportedEventIds: supported,
-    supportedRelationPairs: relations,
-    groundingScore: grounding,
-    meaningScore: meaning,
-    transitionScore: transition,
+    beatOrder:
+      input.beat.order,
+    supportedEventIds:
+      supported,
+    supportedRelationPairs:
+      relations,
+    groundingScore:
+      grounding,
+    meaningScore:
+      meaning,
+    transitionScore:
+      transition,
     obligationCoverage,
-    relationContractScore: relationContract,
-    forbiddenMoveRisk: forbidden,
-    cohesionScore: cohesion,
-    noveltyScore: novelty,
-    compressionScore: compression,
-    inventionRisk: invention,
-    repetitionRisk: repetition,
+    relationContractScore:
+      relationContract,
+    forbiddenMoveRisk:
+      forbidden,
+    cohesionScore:
+      cohesion,
+    noveltyScore:
+      novelty,
+    compressionScore:
+      compression,
+    inventionRisk:
+      invention,
+    repetitionRisk:
+      repetition,
     collageRisk,
-    endpointExactness: endpoint,
+    endpointExactness:
+      endpoint,
     score,
     reasons,
   };
@@ -520,101 +746,304 @@ function strategyNames(
 
 export function buildMouthCandidateMessages(
   input: MouthCandidateGenerationInput,
-): Array<{ role: "system" | "user"; content: string }> {
-  const beat = input.beats[0];
+): Array<{
+  role: "system" | "user";
+  content: string;
+}> {
+  const beat =
+    input.beats[0];
 
   if (!beat) {
     return [
-      { role: "system", content: "QRE CANONICAL MOUTH: no approved beat." },
-      { role: "user", content: JSON.stringify({ task: "none" }) },
+      {
+        role: "system",
+        content:
+          "QRE CANONICAL MOUTH: no approved creative beat.",
+      },
+      {
+        role: "user",
+        content:
+          JSON.stringify({
+            task: "none",
+          }),
+      },
     ];
   }
 
-  const anchors = (beat.eventIds ?? []).map((id) => ({
-    id,
-    label: eventLabel(input.envelope, id),
-  }));
+  const anchors =
+    (
+      beat.eventIds ??
+      []
+    ).map(
+      (id) => ({
+        id,
+        label:
+          eventLabel(
+            input.envelope,
+            id,
+          ),
+      }),
+    );
 
-  const relations = input.envelope.relations
-    .filter(
-      (relation) =>
-        (beat.eventIds ?? []).includes(relation.from) ||
-        (beat.eventIds ?? []).includes(relation.to),
-    )
-    .map((relation) => ({
-      from: eventLabel(input.envelope, relation.from),
-      to: eventLabel(input.envelope, relation.to),
-      kind: relation.kind,
-      strength: relation.strength,
-    }));
+  const relations =
+    input.envelope.relations
+      .filter(
+        (relation) =>
+          (
+            beat.eventIds ??
+            []
+          ).includes(
+            relation.from,
+          ) ||
+          (
+            beat.eventIds ??
+            []
+          ).includes(
+            relation.to,
+          ),
+      )
+      .map(
+        (relation) => ({
+          from:
+            eventLabel(
+              input.envelope,
+              relation.from,
+            ),
+          to:
+            eventLabel(
+              input.envelope,
+              relation.to,
+            ),
+          kind:
+            relation.kind,
+          strength:
+            relation.strength,
+        }),
+      );
 
-  const strategies = strategyNames(beat, input.envelope);
-  const creativeLock = getMouthCreativeLock(input.lens);
-  const creativeDirective = buildMouthCreativeLockDirective(creativeLock);
+  const strategies =
+    strategyNames(
+      beat,
+      input.envelope,
+    );
 
+  const creativeLock =
+    getMouthCreativeLock(
+      input.lens,
+    );
+
+  const creativeDirective =
+    buildMouthCreativeLockDirective(
+      creativeLock,
+    );
+
+  const realization =
+    beat.creativeRealization;
+
+  const creativeOpportunity =
+    realization
+      ?.creativeOpportunity ??
+    "Find the most interesting safe interpretation of the approved semantic job.";
+
+  const realizationIntent =
+    realization
+      ?.realizationIntent ??
+    "Express the approved meaning without literal fact restatement.";
+
+  const viewerEffect =
+    realization
+      ?.viewerEffect ??
+    "Create curiosity, attitude, surprise, or satisfying payoff.";
+ const creativePremise =
+  realization?.creativePremise ??
+  "Find the strongest creative reading of the approved material.";
+
+const creativeTrajectory =
+  realization?.creativeTrajectory ??
+  [];
+
+const escalationMove =
+  realization?.escalationMove ??
+  "Increase implication, attitude, or consequence without adding reality.";
+
+const callbackPotential =
+  realization?.callbackPotential ??
+  [];
+
+const terminalMeaning =
+  realization?.terminalMeaning ??
+  "Land the strongest earned meaning without reopening the scene.";
   const system = [
-    "QRE CANONICAL MOUTH · ONE APPROVED BEAT.",
-    "The upstream Author already chose reality, movie, meaning, relationship, and endpoint.",
-    "Your only job is language realization.",
-    "Explore the supplied realization strategies as alternative expressions of the SAME approved semantic job.",
+    "QRE CANONICAL MOUTH · ONE APPROVED CREATIVE REALIZATION.",
+    "The upstream Author owns reality, movie, meaning, relationship, semantic trajectory, and creative realization.",
+    "Your job is LANGUAGE ONLY.",
+    "",
+    "CORE LAW:",
+    "A supplied fact is RAW MATERIAL, not automatically viewer-facing language.",
+    "Do not repeat the input merely because it is true.",
+    "Find the interesting thing hiding inside the approved material.",
+    "Reveal character, attitude, status, contradiction, implication, humor, tension, surprise, or payoff.",
+    "Create a memorable line from the approved realization.",
+    "",
+    `CREATIVE OPPORTUNITY: ${creativeOpportunity}`,
+    `REALIZATION INTENT: ${realizationIntent}`,
+    `VIEWER EFFECT: ${viewerEffect}`,
+    `CREATIVE PREMISE: ${creativePremise}`,
+    `CREATIVE TRAJECTORY: ${creativeTrajectory.join(" → ") || "single-beat realization"}`,
+     `ESCALATION MOVE: ${escalationMove}`,
+     `CALLBACK POTENTIAL: ${callbackPotential.join(" · ") || "none identified"}`,
+     `TERMINAL MEANING: ${terminalMeaning}`,
     `SAFE REALIZATION STRATEGIES: ${strategies.join(", ") || "implication, compression"}.`,
     ...creativeDirective,
-    "Write 5 materially different short viewer-facing lines for this beat.",
-    "2-7 words preferred. One dominant thought. One semantic move.",
-    "Make the next cut feel desirable without inventing a new event.",
     "",
-    "REALITY LOCK: never invent concrete actions, body reactions, facial expressions, objects, people, places, sounds, dialogue, chronology, or outcomes.",
-    "Creative framing MAY introduce new wording, attitude, status language, implication, rhythm, rhetorical pressure, or genre flavor.",
-    "New wording is not new reality.",
-    "Never write planner language, explain the relationship, or turn the beat into a summary.",
-    "Never use a comma-chain or a subject/trait/action scaffold.",
+    "The line may be surprising, funny, sharp, romantic, eerie, absurd, dramatic, tender, or stylish when justified by the approved meaning.",
+    "Creative framing may transform how the supplied evidence is perceived.",
+    "Creative framing must not create a new concrete event.",
     "",
-    "GOOD RHYTHM REFERENCES:",
-    "Came in nervous.",
-    "Fierce anyway.",
-    "Then came the bow.",
-    "Blue, apparently.",
-    "Peace was temporary.",
+    "DO NOT:",
+    "literalize the source facts into captions;",
+    "write bullet-point summaries;",
+    "repeat the same fact with minor wording changes;",
+    "use subject + trait + action scaffolds;",
+    "use comma-chain fact collage;",
+    "invent people, objects, places, actions, reactions, chronology, sounds, dialogue, or outcomes;",
+    "explain the joke;",
+    "explain the relationship;",
+    "write planner or analyst language.",
     "",
-    "These are rhythm references only. Do not copy unsupplied facts.",
+    "WRITE:",
+    "5 materially different viewer-facing realizations of the SAME approved creative meaning.",
+    "Each line should earn its existence.",
+    "Prefer 2-7 words.",
+    "One dominant thought.",
+    "One semantic move.",
+    "Make the next cut feel desirable.",
     "",
-    "PAYOFF: if this beat is the payoff, return only the exact supplied endpoint phrase.",
+    "PAYOFF:",
+    "If this is the payoff beat, return ONLY the exact supplied endpoint phrase.",
+    "",
+    "IMPORTANT:",
+    "The source sentence may be correct and still be a terrible realization.",
+    "Do not optimize for literal coverage.",
+    "Optimize for memorable creative expression of the approved realization.",
     "",
     "RETURN JSON ONLY:",
     '{"variantsByBeat":[{"order":NUMBER,"variants":["LINE 1","LINE 2","LINE 3","LINE 4","LINE 5"]}]}',
-  ].join("\n");
+  ].join(
+    "\n",
+  );
 
   const user = {
-    task: "realize_one_approved_beat",
-    subject: input.envelope.subject,
-    lens: clean(input.lens),
-    priorTexts: input.priorTexts ?? [],
-    suppliedEvidence: input.envelope.suppliedPhrases,
+    task:
+      "realize_one_approved_creative_meaning",
+
+    subject:
+      input.envelope.subject,
+
+    lens:
+      clean(
+        input.lens,
+      ),
+
+    priorTexts:
+      input.priorTexts ??
+      [],
+
+    suppliedEvidence:
+      input.envelope
+        .suppliedPhrases,
+
     beat: {
-      order: beat.order,
-      role: beat.role,
-      attentionFunction: beat.attentionFunction,
-      creativeMove: beat.creativeMove,
-      realizationMode: beat.realizationMode,
-      realizationStrategies: strategies,
-      creativeLock: creativeLock.name,
-      eventIds: beat.eventIds ?? [],
+      order:
+        beat.order,
+
+      role:
+        beat.role,
+
+      attentionFunction:
+        beat.attentionFunction,
+
+      creativeMove:
+        beat.creativeMove,
+
+      realizationMode:
+        beat.realizationMode,
+
+      realizationStrategies:
+        strategies,
+
+      creativeRealization:
+        realization ??
+        null,
+
+        creativePremise,
+       creativeTrajectory,
+       escalationMove,
+      callbackPotential,
+      terminalMeaning,
+
+      creativeLock:
+        creativeLock.name,
+
+      eventIds:
+        beat.eventIds ??
+        [],
+
       anchors,
-      relationKinds: beat.relationKinds ?? [],
-      relationStrength: beat.relationStrength ?? 0,
+
+      relationKinds:
+        beat.relationKinds ??
+        [],
+
+      relationStrength:
+        beat.relationStrength ??
+        0,
+
       relations,
-      change: clean(beat.change),
-      next: clean(beat.next || beat.frontier),
-      obligations: beat.obligations ?? [],
-      forbiddenMoves: beat.forbiddenMoves ?? [],
-      payoff: isPayoffBeat(beat),
-      endpoint: endpointText(beat),
+
+      change:
+        clean(
+          beat.change,
+        ),
+
+      next:
+        clean(
+          beat.next ||
+          beat.frontier,
+        ),
+
+      obligations:
+        beat.obligations ??
+        [],
+
+      forbiddenMoves:
+        beat.forbiddenMoves ??
+        [],
+
+      payoff:
+        isPayoffBeat(
+          beat,
+        ),
+
+      endpoint:
+        endpointText(
+          beat,
+        ),
     },
   };
 
   return [
-    { role: "system", content: system },
-    { role: "user", content: JSON.stringify(user) },
+    {
+      role: "system",
+      content: system,
+    },
+    {
+      role: "user",
+      content:
+        JSON.stringify(
+          user,
+        ),
+    },
   ];
 }
 

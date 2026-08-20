@@ -251,14 +251,14 @@ function opportunityFor(
     escalationMove: sourceNext
       ? `Increase the pull toward ${sourceNext} without introducing a new event.`
       : "Increase implication, attitude, or consequence without adding reality.",
-    callbackPotential: unique([
-      ...labels.slice(0, 3),
-      ...character.coreTraits.slice(0, 3),
-      ...contradictions.slice(0, 3),
-    ]).slice(0, 5),
-    terminalMeaning,
-  };
+   callbackPotential: unique([
+  ...labels.slice(0, 3),
+  ...character.coreTraits.slice(0, 3),
+  ...contradictions.slice(0, 3),
+]).slice(0, 5),
 
+terminalMeaning,
+};
   switch (strategy) {
     case "status_inversion":
       return {

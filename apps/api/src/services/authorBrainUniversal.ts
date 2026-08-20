@@ -64,7 +64,17 @@ import {
   meaningSpineForBeat,
   type MeaningSpine,
 } from "./authorMeaningSpine.js";
+import {
+  buildCharacterProfile,
+} from "./authorCharacterLensEngine.js";
 
+import {
+  selectSafeStrategies,
+} from "./authorRealizationStrategyLattice.js";
+
+import {
+  buildCreativeRealization,
+} from "./authorCreativeRealizationEngine.js";
 import {
   buildRealizationSlots,
   type RealizationSlot,
@@ -1914,13 +1924,16 @@ function endpointLabel(
 function candidateBeatFromSlot(
   slot: RealizationSlot,
   spine: MeaningSpine,
-  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  envelope: ReturnType<
+    typeof buildAuthorRealityEnvelope
+  >,
   originalBeat?: MouthCandidateBeat,
 ): MouthCandidateBeat {
-  const spineBeat = meaningSpineForBeat(
-    spine,
-    slot.order,
-  );
+  const spineBeat =
+    meaningSpineForBeat(
+      spine,
+      slot.order,
+    );
 
   if (!spineBeat) {
     throw new Error(
@@ -1928,91 +1941,171 @@ function candidateBeatFromSlot(
     );
   }
 
-  const endpoint = endpointLabel(envelope);
+  const endpoint =
+    endpointLabel(
+      envelope,
+    );
 
   const isPayoff =
     slot.kind === "payoff" ||
-    originalBeat?.attentionFunction === "payoff" ||
-    originalBeat?.role === "payoff";
+    originalBeat?.attentionFunction ===
+      "payoff" ||
+    originalBeat?.role ===
+      "payoff";
 
-  const sourceEventIds = uniq(
-    [
-      ...slot.sourceEventIds,
-      ...slot.inheritedEventIds,
-    ],
-    8,
-  );
+  const sourceEventIds =
+    uniq(
+      [
+        ...slot.sourceEventIds,
+        ...slot.inheritedEventIds,
+      ],
+      8,
+    );
 
-  const sourceLabels = uniq(
-    slot.sourceLabels,
-    8,
-  );
+  const sourceLabels =
+    uniq(
+      slot.sourceLabels,
+      8,
+    );
 
-  const targetLabels = uniq(
-    [
-      ...slot.targetLabels,
-      ...(isPayoff && endpoint
-        ? [endpoint]
-        : []),
-    ],
-    8,
-  );
+  const targetLabels =
+    uniq(
+      [
+        ...slot.targetLabels,
+        ...(isPayoff && endpoint
+          ? [endpoint]
+          : []),
+      ],
+      8,
+    );
 
-return {
-  order: slot.order,
-  role:
-    originalBeat?.role ||
-    (isPayoff ? "payoff" : slot.kind),
+  /*
+   * THIS IS THE PRODUCTION BOUNDARY:
+   *
+   * The slot provides approved semantic material.
+   * CharacterProfile provides computed character/relationship meaning.
+   * StrategyLattice provides safe expressive options.
+   * CreativeRealization chooses the best thing worth saying.
+   *
+   * Mouth receives that realization and turns it into language.
+   */
+  const baseBeat: MouthCandidateBeat = {
+    order:
+      slot.order,
 
-  attentionFunction:
-    originalBeat?.attentionFunction ||
-    (isPayoff ? "payoff" : "reframe"),
+    role:
+      originalBeat?.role ||
+      (isPayoff
+        ? "payoff"
+        : slot.kind),
 
-  creativeMove:
-    originalBeat?.creativeMove ||
-    (isPayoff ? "callback" : "none"),
+    attentionFunction:
+      originalBeat?.attentionFunction ||
+      (isPayoff
+        ? "payoff"
+        : "reframe"),
 
-  realizationMode:
-    `${slot.kind} ${slot.mode}`.trim(),
+    creativeMove:
+      originalBeat?.creativeMove ||
+      (isPayoff
+        ? "callback"
+        : "none"),
 
-  eventIds: sourceEventIds,
+    realizationMode:
+      `${slot.kind} ${slot.mode}`.trim(),
 
-  change:
-    clean(spineBeat.change) ||
-    clean(originalBeat?.change),
+    eventIds:
+      sourceEventIds,
 
-  next:
-    clean(spineBeat.next) ||
-    clean(originalBeat?.next) ||
-    targetLabels.join("; "),
+    change:
+      clean(
+        spineBeat.change,
+      ) ||
+      clean(
+        originalBeat?.change,
+      ),
 
-  frontier:
-    clean(spineBeat.next) ||
-    clean(originalBeat?.next) ||
-    targetLabels.join("; "),
+    next:
+      clean(
+        spineBeat.next,
+      ) ||
+      clean(
+        originalBeat?.next,
+      ) ||
+      targetLabels.join(
+        "; ",
+      ),
 
-  setsUp:
-    originalBeat?.setsUp?.length
-      ? uniq(originalBeat.setsUp, 6)
-      : sourceLabels,
+    frontier:
+      clean(
+        spineBeat.next,
+      ) ||
+      clean(
+        originalBeat?.next,
+      ) ||
+      targetLabels.join(
+        "; ",
+      ),
 
-  paysOff:
-    isPayoff
-      ? [endpoint].filter(Boolean)
-      : targetLabels,
+    setsUp:
+      originalBeat?.setsUp?.length
+        ? uniq(
+            originalBeat.setsUp,
+            6,
+          )
+        : sourceLabels,
 
-  obligations:
-    slot.obligations,
+    paysOff:
+      isPayoff
+        ? [endpoint].filter(
+            Boolean,
+          )
+        : targetLabels,
 
-  forbiddenMoves:
-    slot.forbiddenMoves,
+    obligations:
+      slot.obligations,
 
-  relationKinds:
-    slot.relationKinds,
+    forbiddenMoves:
+      slot.forbiddenMoves,
 
-  relationStrength:
-    slot.relationStrength,
-};
+    relationKinds:
+      slot.relationKinds,
+
+    relationStrength:
+      slot.relationStrength,
+  };
+
+  const character =
+    buildCharacterProfile(
+      envelope,
+    );
+
+  const strategies =
+    selectSafeStrategies(
+      baseBeat,
+      envelope,
+      5,
+    );
+
+  const creativeRealization =
+    buildCreativeRealization(
+      baseBeat,
+      envelope,
+      character,
+      strategies,
+    );
+
+  return {
+    ...baseBeat,
+
+    realizationStrategies:
+      strategies.map(
+        (candidate) =>
+          candidate.strategy,
+      ),
+
+    creativeRealization,
+  };
 }
 
 function ensureEndpointCandidate(
