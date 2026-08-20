@@ -2,7 +2,7 @@
 
 ## Status
 
-Canonical. Current as of the `author/enterprise-realization-engine` branch.
+Canonical. Audit-aligned on `audit/mouth-production-sync`.
 
 ## Purpose
 
@@ -35,6 +35,26 @@ packages/contracts/src/cogauthor/index.ts
 | `cogauthor/latentMovie.ts` | latent movie hypotheses and trajectory steps | canonical |
 | `cogauthor/realityGraph.ts` | immutable source reality graph + provenance + relations | canonical |
 | `cogauthor/mouth.ts` | Mouth candidate, beat, pool, beam, and repair contracts | canonical |
+
+## Approach-B realization contracts
+
+The current repository already has the strategic realization layer required for Approach B:
+
+```text
+Meaning Spine
+  ↓
+Realization Slot
+  ↓
+authorRealizationStrategyLattice.ts
+  ↓
+AuthorRealizationStrategy / AuthorStrategyCandidate
+  ↓
+Mouth candidate generation
+```
+
+`AuthorRealizationStrategy` and `AuthorStrategyCandidate` currently live in `packages/contracts/src/authoringIntelligence.ts` because that contract file also owns broader domain-neutral authoring intelligence. Consumer analysis will determine whether those strategy contracts should remain shared there or move into `cogauthor/mouth.ts`.
+
+**Do not create a second strategy contract merely to move the boundary.**
 
 ## Deliberately not moved yet
 
@@ -71,6 +91,8 @@ Latent Movie
 Master Author
   ↓
 Meaning / Realization
+  ↓
+Realization Strategy
   ↓
 Mouth
   ↓
