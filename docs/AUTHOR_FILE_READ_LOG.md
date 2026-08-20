@@ -132,7 +132,7 @@ The shared Mouth contract now exposes:
 MouthCandidateBeat.realizationStrategies
 ```
 
-The next live wiring change is to pass those strategy choices into the canonical Mouth generation owner, not to create another subsystem.
+Those strategy choices are passed into the canonical Mouth generation owner rather than creating another authoring subsystem.
 
 ## MEDIA FINDING
 
@@ -147,6 +147,49 @@ user uploads media
 ```
 
 `aiProvider.ts` is now explicitly a provider adapter / compatibility layer. It cannot own a second narrative author.
+
+## 2026-08-20 · UNIVERSAL CUT-POLICY HARDENING
+
+The latest canonical acceptance run reached:
+
+```text
+CANDIDATE POOLS: 5/5
+BEAM: > 0.49
+SEQUENCE ARC: ACCEPTED
+ENDPOINT EXACT: true
+```
+
+The remaining failure was a boundary mismatch: the terminal endpoint was correctly selected but the final Cut Policy still applied ordinary middle-cut restatement rules.
+
+`authorCutPolicy.ts` was upgraded without changing its public `evaluateCut()` API to:
+
+```text
+1. Treat payoff/release/consequence roles as terminal landings.
+2. Permit terminal landings to reuse supplied endpoint facts.
+3. Preserve repetition/frontier/restatement protections for non-terminal cuts.
+4. Add universal unsupported semantic state-transition detection.
+5. Expose semanticTransitionRisk and terminalLanding in diagnostics.
+```
+
+This specifically prevents unsupported constructions such as:
+
+```text
+nervous → calm
+```
+
+when `calm` was never supplied, while still permitting valid supplied transitions such as:
+
+```text
+nervous → fierce
+```
+
+and allowing a terminal supplied endpoint such as:
+
+```text
+left looking fabulous
+```
+
+to land even though it is itself source evidence.
 
 ## AUDIT LAW
 
