@@ -1,9 +1,9 @@
 # QRE AUTHOR · CURRENT STATE
 
 **STATUS:** CANONICAL CURRENT-STATE REFERENCE
-**BRANCH:** `author/enterprise-realization-engine`
+**AUDIT SNAPSHOT:** `audit/mouth-production-sync`
 
-Read this before changing Author, Mouth, contracts, attention, cut policy, or model transport.
+Read this before changing Author, Mouth, contracts, attention, cut policy, sequence arc, or model transport.
 
 ## 1. CURRENT PRODUCTION PATH
 
@@ -24,6 +24,8 @@ MEANING SPINE
    ↓
 REALIZATION SLOTS
    ↓
+REALIZATION STRATEGY
+   ↓
 MOUTH CANDIDATES
    ↓
 LANGUAGE / REALITY GATES
@@ -33,6 +35,8 @@ SEQUENCE BEAM
 ATTENTION EDITOR
    ↓
 TRUTH / CUT POLICY
+   ↓
+SEQUENCE ARC
    ↓
 FINAL SCENES
    ↓
@@ -44,20 +48,24 @@ There is one semantic authority per stage. A helper can support a stage without 
 ## 2. CANONICAL FILES
 
 ```text
-Reality:        authorRealityGraph.ts
-Cognition:      authorCognition.ts
-Movie Search:   authorLatentMovieSearch.ts
-Movie Diff:     authorMovieDifferentiation.ts
-Master Author:  authorBrainUniversal.ts
-Meaning:        authorMeaningSpine.ts
-Slots:          authorMouthRealizationSlot.ts
-Mouth Search:   authorMouthCandidateSearch.ts
-Mouth Beam:     authorMouthSequenceBeamSearch.ts
-Mouth Gate:     authorMouthLanguageGate.ts
-Attention:      authorAttentionEditor.ts
-Truth Gate:     authorBeatTruthGate.ts
-Cut Policy:     authorCutPolicy.ts
-Runtime:        localModelRuntime.ts
+Reality:          authorRealityGraph.ts
+Cognition:        authorCognition.ts
+Movie Search:     authorLatentMovieSearch.ts
+Movie Diff:       authorMovieDifferentiation.ts
+Master Author:    authorBrainUniversal.ts
+Meaning:          authorMeaningSpine.ts
+Slots:            authorMouthRealizationSlot.ts
+Strategy:         authorRealizationStrategyLattice.ts (promotion target)
+Mouth Search:     authorMouthCandidateSearch.ts
+Language Gate:    authorMouthLanguageGate.ts
+Attention Gate:   authorMouthAttentionGate.ts
+Quality Adapter:  authorMouthQualityAdapter.ts
+Mouth Beam:       authorMouthSequenceBeamSearch.ts
+Attention:        authorAttentionEditor.ts
+Truth Gate:       authorBeatTruthGate.ts
+Cut Policy:       authorCutPolicy.ts
+Sequence Arc:     authorSequenceArcGate.ts
+Runtime:          localModelRuntime.ts
 ```
 
 ## 3. REALITY LAW
@@ -95,11 +103,28 @@ A beat is a meaningful change in viewer interpretation.
 
 The canonical internal state carries the beat job, change, next movement, setup/payoff, creative move, attention function, and source/event provenance where available.
 
-Internal planner metadata is never viewer prose.
+`RealizationSlot` is the canonical boundary between semantic meaning and language realization. It owns the approved source/target evidence, semantic kind, endpoint, obligations, and forbidden moves handed to the Mouth.
 
-## 7. MOUTH LAW
+## 7. REALIZATION STRATEGY LAW
 
-The Mouth receives approved meaning plus source evidence and proposes language.
+Approach B is a controlled realization-strategy search, not a second author.
+
+The intended path is:
+
+```text
+Meaning Spine
+→ Realization Slot
+→ safe realization strategies
+→ language realization
+→ gates
+→ Beam
+```
+
+`authorRealizationStrategyLattice.ts` already implements the safe strategy selection capability. It is currently a promotion target; the canonical Master Author still owns a direct candidate-generation loop and must be consolidated before the strategy lattice becomes production authority.
+
+## 8. MOUTH LAW
+
+The Mouth receives an approved realization job plus source evidence and proposes language.
 
 It does not re-plan.
 
@@ -116,7 +141,9 @@ interpretive rather than explanatory
 
 The target behavior is **moving-message cinema**: each line creates a state change and makes the next line desirable.
 
-## 8. TRUTH + ATTENTION
+The model supplies wording only. QRE owns truth, semantic legality, candidate selection, endpoint integrity, and final gating.
+
+## 9. TRUTH + ATTENTION
 
 Attention is never allowed to override grounding.
 
@@ -126,31 +153,37 @@ Fallback exists only as a safety rail when model coverage is incomplete.
 
 A passing fallback sequence is not equivalent to exceptional Mouth quality.
 
-## 9. COMPLETENESS
+## 10. COMPLETENESS
 
 Successful author output means:
 
 ```text
-beat count == realized line count == accepted scene count
+beat count == candidate coverage == realized line count == accepted scene count
 ```
 
 Zero scenes or silent partial sequences are author-path failures.
 
-## 10. ENTERPRISE PATH STATUS
+## 11. ENTERPRISE PATH STATUS
 
-`authorEnterpriseMouth.ts` currently provides an acceptance-oriented alternate orchestration over the Mouth primitives. It is **not** consumed by the canonical Master Author.
+`authorEnterpriseMouth.ts` provides an acceptance-oriented alternate orchestration over canonical Mouth primitives. It is **not** consumed by the canonical Master Author.
 
-Its useful capabilities—strategy selection, cumulative meaning, grounded surprise, safety, bounded model budgets—must be evaluated for migration into canonical owners. Its duplicate orchestration must not remain a second production brain.
+Its capabilities—strategy selection, cumulative meaning, grounded surprise, safety, bounded model budgets, and cross-domain fixtures—are migration candidates only. Duplicate orchestration must not become a second production brain.
 
-## 11. CONTRACT LAW
+## 12. CONTRACT LAW
 
 All shared semantic types belong in `@qre/contracts`.
 
-A service-local type is acceptable only when it is genuinely private to that implementation. Any concept consumed by multiple Author services must have one canonical contract.
+The canonical Author semantic contract namespace is:
+
+```text
+packages/contracts/src/cogauthor/
+```
+
+`packages/contracts/src/authoringIntelligence.ts` currently owns broader shared authoring-intelligence strategy/lens/safety/model-tier contracts. Consumer analysis must prove any future relocation; do not duplicate them.
 
 No new contract is created to paper over an implementation mismatch.
 
-## 12. DEVELOPMENT LOOP
+## 13. DEVELOPMENT LOOP
 
 ```text
 FAILURE SIGNATURE
@@ -166,7 +199,7 @@ FAILURE SIGNATURE
 
 Do not patch the last symptom while leaving an upstream contract mismatch intact.
 
-## 13. QUALITY STANDARD
+## 14. QUALITY STANDARD
 
 These are different levels:
 
