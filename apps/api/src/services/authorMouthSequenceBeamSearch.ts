@@ -8,6 +8,7 @@
  * - exact duplicate language cannot occupy two non-terminal cuts;
  * - evidence reuse is legal when meaning advances;
  * - weak-but-legal candidates remain available for global comparison;
+ * - source-fact restatements do not count as distinct trajectory progress;
  * - when a beat pool cannot produce a distinct legal realization, the beam may
  *   compress that beat instead of manufacturing a duplicate caption.
  */
@@ -82,6 +83,10 @@ function isFallback(candidate: MouthCandidate): boolean {
 function isEndpoint(candidate: MouthCandidate): boolean {
   return candidate.endpointExactness === 1 &&
     !candidate.reasons.includes("non-exact-payoff");
+}
+
+function isSourceRestatement(candidate: MouthCandidate): boolean {
+  return candidate.reasons.includes("source-restatement");
 }
 
 function hardFailure(candidate: MouthCandidate): boolean {
@@ -276,6 +281,13 @@ function pathScore(
     : 0;
   const endpointBonus = isEndpoint(candidate) ? 0.28 : 0;
   const fallbackPenalty = isFallback(candidate) ? 0.1 : 0;
+  const sourceRestatementPenalty =
+    isSourceRestatement(candidate) &&
+    !isEndpoint(candidate) &&
+    advance < 0.35 &&
+    transition < 0.72
+      ? 0.22
+      : 0;
 
   return (
     path.score +
@@ -285,7 +297,8 @@ function pathScore(
     movementBonus +
     endpointBonus -
     repetition * 0.28 -
-    fallbackPenalty
+    fallbackPenalty -
+    sourceRestatementPenalty
   );
 }
 
@@ -341,14 +354,6 @@ function poolCandidates(
   return output;
 }
 
-/**
- * A pool is realization-viable for this point in the path when at least one
- * candidate gives us more than repeated wording or repeated evidence.
- *
- * This is deliberately a soft semantic test. It does not reinterpret meaning,
- * and it never treats lack of novelty as invention risk. It only answers:
- * "Does keeping this beat as a cut buy us enough trajectory value?"
- */
 function poolHasDistinctViability(
   path: MouthCandidate[],
   candidates: MouthCandidate[],
@@ -357,6 +362,15 @@ function poolHasDistinctViability(
 
   const viable = candidates.some((candidate) => {
     if (exactTextDuplicate(path, candidate)) return false;
+    if (isSourceRestatement(candidate) && !isEndpoint(candidate)) {
+      const advance = evidenceAdvance(path, candidate);
+      const movement = metric(
+        candidate.meaningScore * 0.55 +
+        candidate.transitionScore * 0.45,
+      );
+      if (advance < 0.35 && movement < 0.72) return false;
+    }
+
     if (evidenceAdvance(path, candidate) >= 0.18) return true;
 
     const priorText = path[path.length - 1]?.text ?? "";
@@ -369,10 +383,7 @@ function poolHasDistinctViability(
       candidate.transitionScore * 0.45,
     );
 
-    return (
-      movement >= 0.72 &&
-      lexical < 0.88
-    );
+    return movement >= 0.72 && lexical < 0.88;
   });
 
   return viable;
@@ -391,14 +402,6 @@ function signature(path: MouthCandidate[]): string {
     .join("|");
 }
 
-/**
- * Select the strongest realizable sequence.
- *
- * IMPORTANT:
- * If a middle beat cannot be realized as a distinct legal cut, it is skipped
- * rather than forcing the Mouth to emit duplicate language. This is trajectory
- * compression, not semantic invention.
- */
 export function selectBestMouthSequence(
   pools: readonly MouthCandidatePool[],
   options: MouthBeamOptions = {},
@@ -426,11 +429,7 @@ export function selectBestMouthSequence(
 
   for (let index = 0; index < ordered.length; index += 1) {
     const pool = ordered[index]!;
-    const candidates = poolCandidates(
-      pool,
-      perBeat,
-    );
-
+    const candidates = poolCandidates(pool, perBeat);
     const expanded: MouthSequencePath[] = [];
 
     for (const path of beam) {
@@ -440,35 +439,19 @@ export function selectBestMouthSequence(
         if (exactTextDuplicate(pathCandidates, candidate)) continue;
 
         expanded.push({
-          candidates: [
-            ...pathCandidates,
-            candidate,
-          ],
-          texts: [
-            ...path.texts,
-            candidate.text,
-          ],
+          candidates: [...pathCandidates, candidate],
+          texts: [...path.texts, candidate.text],
           score: pathScore(path, candidate),
         });
       }
 
-      /*
-       * Trajectory compression:
-       *
-       * If the current pool contributes no distinct realizable advancement,
-       * preserve the path unchanged and skip this beat. Never skip the final
-       * pool when it contains an exact approved endpoint.
-       */
       const finalPool = index === ordered.length - 1;
       const endpointAvailable = candidates.some(isEndpoint);
 
       if (
         !finalPool &&
         !endpointAvailable &&
-        !poolHasDistinctViability(
-          pathCandidates,
-          candidates,
-        )
+        !poolHasDistinctViability(pathCandidates, candidates)
       ) {
         expanded.push({
           candidates: pathCandidates,
@@ -479,11 +462,7 @@ export function selectBestMouthSequence(
     }
 
     if (!expanded.length) {
-      return {
-        candidates: [],
-        texts: [],
-        score: 0,
-      };
+      return { candidates: [], texts: [], score: 0 };
     }
 
     const deduped = new Map<string, MouthSequencePath>();
@@ -491,22 +470,13 @@ export function selectBestMouthSequence(
     for (const path of expanded) {
       const key = signature(path.candidates);
       const existing = deduped.get(key);
-      if (!existing || path.score > existing.score) {
-        deduped.set(key, path);
-      }
+      if (!existing || path.score > existing.score) deduped.set(key, path);
     }
 
     const all = [...deduped.values()];
     const complete = all.filter(completeEndpointPath);
-    const safe = all.filter((path) =>
-      path.candidates.every(legal),
-    );
-
-    const survival = complete.length
-      ? complete
-      : safe.length
-        ? safe
-        : all;
+    const safe = all.filter((path) => path.candidates.every(legal));
+    const survival = complete.length ? complete : safe.length ? safe : all;
 
     beam = survival
       .sort((a, b) => b.score - a.score)
@@ -514,22 +484,15 @@ export function selectBestMouthSequence(
   }
 
   if (!beam.length) {
-    return {
-      candidates: [],
-      texts: [],
-      score: 0,
-    };
+    return { candidates: [], texts: [], score: 0 };
   }
 
-  const endpoint =
-    beam.find(completeEndpointPath) ??
-    beam[0]!;
+  const endpoint = beam.find(completeEndpointPath) ?? beam[0]!;
 
   return {
     ...endpoint,
     score: metric(
-      endpoint.score /
-      Math.max(1, ordered.length),
+      endpoint.score / Math.max(1, ordered.length),
     ),
   };
 }
