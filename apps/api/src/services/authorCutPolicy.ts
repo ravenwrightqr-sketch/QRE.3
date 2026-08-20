@@ -4,11 +4,13 @@
  * Final legality gate for one short viewer-facing line.
  *
  * Production law:
- * - truth and concrete reality remain hard boundaries;
+ * - supplied reality remains the factual boundary;
  * - creative interpretation is legal when cognitively grounded;
- * - repetition is contextual, not universally forbidden;
- * - a terminal payoff/release is allowed to land a supplied fact;
- * - terminal payoff is not required to create another frontier.
+ * - repetition is contextual rather than globally forbidden;
+ * - terminal payoff/release may land a supplied endpoint fact;
+ * - unsupported semantic state changes are not concrete-event hallucinations,
+ *   but they still require evidence or an explicit cognitive anchor;
+ * - this policy is universal and domain-agnostic.
  */
 
 export type CutWorld = {
@@ -54,6 +56,8 @@ export type CutPolicyResult = {
     frontierValue: number;
     semanticDensity: number;
     factRestatement: number;
+    semanticTransitionRisk: number;
+    terminalLanding: number;
   };
 };
 
@@ -77,8 +81,19 @@ const SUBJECT_REFERENCE = /\b(?:he|she|they|it|him|her|them|his|their|its)\b/i;
 const STATUS_METAPHOR = /\b(?:lawyer|ceo|boss|diva|celebrity|negotiator|negotiation|negotiate|case|trial|court|verdict|crime|criminal|suspect|evidence|trophy|queen|king|royalty|hostage|rebel|rebellion|legend|star|promotion|resignation|contract|deal|terms|undefeated|in charge|calling the shots|made the rules|won|victory|victorious)\b/i;
 const CHARACTER_INTERPRETATION = /\b(?:ready to|here to|not having it|not impressed|on a mission|taking no prisoners|calling the shots|in charge|running the show|made the rules|means business|came to negotiate|came to win|case closed|not backing down|hard bargain|little rebel|tiny rebel|diva|boss|lawyer|negotiat(?:e|ion|or)|undefeated|victory|victorious|mini[- ]?rebel)\b/i;
 
+const STATE_WORDS = /\b(?:happy|sad|angry|excited|afraid|scared|nervous|joyful|thrilled|content|confident|loving|furious|heartbroken|alarmed|relieved|anxious|delighted|worried|calm|proud|uneasy|gleeful|happiness|confident|comfortable|ready|relaxed|wild|quiet|peaceful|fierce|cool|beautiful|fabulous|clean|dirty|tired|awake|asleep|safe|unsafe|free|trapped|open|closed|different|same|changed)\b/i;
+const TRANSITION_PATTERNS: readonly RegExp[] = [
+  /\bfrom\s+(.+?)\s+to\s+([a-z][a-z'-]+)\b/i,
+  /\bwent\s+from\s+(.+?)\s+to\s+([a-z][a-z'-]+)\b/i,
+  /\bturned\s+([a-z][a-z'-]+)\b/i,
+  /\bbecame\s+([a-z][a-z'-]+)\b/i,
+  /\bnow\s+([a-z][a-z'-]+)\b/i,
+  /\bto\s+([a-z][a-z'-]+)\b/i,
+];
+
 const STOP = new Set(
-  "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten new more".split(/\s+/),
+  "the a an and or but for to of in on at with from this that is are was were be been being as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten new more"
+    .split(/\s+/),
 );
 
 const IRREGULAR = new Map([
@@ -251,9 +266,31 @@ function terminalLanding(intent: CutIntent, text: string): boolean {
   const role = clean(intent.role).toLowerCase();
   const gain = clean(intent.gainKind).toLowerCase();
   const terminal = ["payoff", "release", "consequence"].includes(role) || ["payoff", "consequence"].includes(gain);
-  if (!terminal) return false;
-  if (clean(intent.next) || clean(intent.informationFrontier)) return false;
-  return Boolean(text);
+  return terminal && Boolean(text);
+}
+
+function semanticTransitionRisk(text: string, world: CutWorld, intent: CutIntent): number {
+  if (!STATE_WORDS.test(text)) return 0;
+
+  const source = new Set(sourceText(world).flatMap(contentWords));
+  const cognitive = new Set(contentWords(characterGroundingSignal(intent)));
+  const matchedTransitions: string[] = [];
+
+  for (const pattern of TRANSITION_PATTERNS) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const target = match[match.length - 1] ?? "";
+    if (target && STATE_WORDS.test(target)) matchedTransitions.push(target.toLowerCase());
+  }
+
+  if (!matchedTransitions.length) return 0;
+
+  const unsupported = matchedTransitions.filter((target) => {
+    const words = contentWords(target);
+    return words.length > 0 && words.some((word) => !source.has(word) && !cognitive.has(word));
+  });
+
+  return unsupported.length ? 1 : 0;
 }
 
 export function evaluateCut(
@@ -278,6 +315,7 @@ export function evaluateCut(
   const density = semanticDensity(text);
   const restatement = factRestatement(text, world);
   const terminal = terminalLanding(intent, text);
+  const transitionRisk = semanticTransitionRisk(text, world, intent);
   const statusMetaphor = STATUS_METAPHOR.test(text);
   const sourceRich = sourceText(world).join(" ");
   const groundedRelationship = /\bnervous\b.*\bfierce\b|\bfierce\b.*\bnervous\b|\bhates\b.*\bloves\b|\bloves\b.*\bhates\b|\bmissing\b.*\bpacked\b|\bpacked\b.*\bmissing\b/i.test(sourceRich);
@@ -292,19 +330,15 @@ export function evaluateCut(
   if (GENERIC.test(text)) reasons.push("generic-prose");
   if (questionLeak) reasons.push("question-leak");
   if (invention >= 0.6 && !statusMetaphor) reasons.push("invention-risk");
+  if (transitionRisk > 0) reasons.push("unsupported-state-transition");
   if (explanation >= 0.75) reasons.push("explanation-heavy");
   if (grounded < groundingFloor && wordCount > 2) reasons.push("weak-grounding");
 
-  /*
-   * Terminal payoff is allowed to reuse the supplied endpoint fact.
-   * Repetition/fact-restatement/frontier-starvation protect middle cuts,
-   * not the line whose explicit job is to land the approved ending.
-   */
   if (!terminal && repetition >= 0.92 && priorCuts.length) reasons.push("repetition");
   if (!terminal && referenceCost >= 0.5 && explanation >= 0.6 && novelty < 0.35) reasons.push("wasted-subject-reference");
-  if (wordCount === 1 && density < 0.5) reasons.push("subject-or-label-only");
+  if (!terminal && wordCount === 1 && density < 0.5) reasons.push("subject-or-label-only");
   if (!terminal && restatement >= 0.9) reasons.push("known-fact-restatement");
-  if (density < 0.2 && wordCount <= 3) reasons.push("low-semantic-density");
+  if (!terminal && density < 0.2 && wordCount <= 3) reasons.push("low-semantic-density");
   if (["hook", "reframe", "callback"].includes(clean(intent.role)) && compression < 0.85) reasons.push("low-impact-density");
   if (clean(intent.gainKind) === "question" && questionLeak) reasons.push("cognitive-question-in-mouth");
   if (!terminal && frontier < 0.08 && novelty < 0.15 && wordCount > 2) reasons.push("frontier-starvation");
@@ -326,6 +360,8 @@ export function evaluateCut(
       frontierValue: Number(frontier.toFixed(3)),
       semanticDensity: Number(density.toFixed(3)),
       factRestatement: Number(restatement.toFixed(3)),
+      semanticTransitionRisk: Number(transitionRisk.toFixed(3)),
+      terminalLanding: terminal ? 1 : 0,
     },
   };
 }
