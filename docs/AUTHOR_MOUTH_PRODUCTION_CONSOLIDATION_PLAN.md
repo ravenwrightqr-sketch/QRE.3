@@ -131,3 +131,7 @@ The consolidation is complete only when:
 6. Canonical Master Author acceptance is green.
 7. Documentation and file-read logs identify the final ownership map.
 8. Duplicate orchestration is either removed or explicitly retained as non-production diagnostic code.
+
+## Trigger
+
+The one-shot consolidation workflow is now intentionally triggered by this commit so the migration runs against the fully committed plan and workflow definition.
