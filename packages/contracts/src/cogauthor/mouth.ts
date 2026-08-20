@@ -10,6 +10,7 @@ export type MouthCandidateBeat = {
   attentionFunction?: string;
   creativeMove?: string;
   realizationMode?: string;
+  realizationStrategies?: readonly string[];
   eventIds?: readonly string[];
   change?: string;
   next?: string;
