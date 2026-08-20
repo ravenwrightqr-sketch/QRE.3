@@ -48,21 +48,26 @@ function patchMaster(text) {
 
   let block = text.slice(start, end);
 
-  if (!block.includes("const baseBeat: MouthCandidateBeat = {")) {
-    const returnAnchor = "\nreturn {\n  order: slot.order,";
-    if (!block.includes(returnAnchor)) {
-      throw new Error("master candidate beat return anchor not found");
+  if (!block.includes("creativeRealization: realization")) {
+    const objectStart = block.indexOf("\nreturn {\n");
+    if (objectStart < 0) {
+      throw new Error("master candidate beat return object not found");
     }
 
-    block = block.replace(
-      returnAnchor,
-      "\nconst baseBeat: MouthCandidateBeat = {\n  order: slot.order,",
+    const objectClose = block.lastIndexOf("\n};\n}");
+    if (objectClose < 0 || objectClose <= objectStart) {
+      throw new Error("master candidate beat return object close not found");
+    }
+
+    const objectBody = block.slice(
+      objectStart + "\nreturn {\n".length,
+      objectClose,
     );
 
-    const close = block.lastIndexOf("\n};");
-    if (close < 0) throw new Error("master candidate beat object close not found");
-
-    const tail = [
+    const replacement = [
+      "\nconst baseBeat: MouthCandidateBeat = {",
+      objectBody,
+      "};",
       "",
       "  const character = buildCharacterProfile(envelope);",
       "  const strategyCandidates = selectSafeStrategies(baseBeat, envelope, 5);",
@@ -80,9 +85,10 @@ function patchMaster(text) {
       "    ),",
       "    creativeRealization: realization,",
       "  };",
+      "}",
     ].join("\n");
 
-    block = block.slice(0, close) + "\n" + tail + block.slice(close + 3);
+    block = block.slice(0, objectStart) + replacement;
   }
 
   text = text.slice(0, start) + block + text.slice(end);
@@ -90,28 +96,43 @@ function patchMaster(text) {
 }
 
 function patchMouth(text) {
-  const marker = "  const creativeDirective = buildMouthCreativeLockDirective(creativeLock);";
-  if (!text.includes(marker)) {
+  const directiveMarker = "  const creativeDirective = buildMouthCreativeLockDirective(creativeLock);";
+  if (!text.includes(directiveMarker)) {
     throw new Error("mouth creative directive anchor not found");
   }
 
   if (!text.includes("  const creativeRealization = beat.creativeRealization;")) {
     text = text.replace(
-      marker,
-      marker + "\n  const creativeRealization = beat.creativeRealization;",
+      directiveMarker,
+      directiveMarker + "\n  const creativeRealization = beat.creativeRealization;",
     );
   }
 
-  const systemMarker = '    "Do not simply restate a supplied fact when you can reveal what is interesting about it.",';
-  if (!text.includes(systemMarker)) {
-    throw new Error("mouth system creative anchor not found");
+  const sourceRule = '    "Your only job is language realization.",';
+  const rawMaterialRule = '    "SUPPLIED FACTS ARE RAW MATERIAL, NOT AUTOMATIC VIEWER LANGUAGE.",';
+  if (text.includes(sourceRule) && !text.includes(rawMaterialRule)) {
+    text = text.replace(
+      sourceRule,
+      [
+        sourceRule,
+        rawMaterialRule,
+        '    "Do not simply restate a supplied fact when you can reveal what is interesting about it.",',
+        '    "Never use a literal source sentence as a candidate unless it is an exact terminal endpoint.",',
+        '    "Never use fact-collage captions such as subject + trait + action when a stronger creative realization is available.",',
+      ].join("\n"),
+    );
   }
 
-  if (!text.includes('"CREATIVE REALIZATION:"')) {
+  const systemAnchor = rawMaterialRule;
+  if (!text.includes('`CREATIVE REALIZATION: ${creativeRealization?.creativeOpportunity')) {
+    const directiveLine = '    ...creativeDirective,';
+    if (!text.includes(directiveLine)) {
+      throw new Error("mouth creative directive spread anchor not found");
+    }
     text = text.replace(
-      systemMarker,
+      directiveLine,
       [
-        systemMarker,
+        directiveLine,
         '    `CREATIVE REALIZATION: ${creativeRealization?.creativeOpportunity || "Find the most interesting safe interpretation of the approved semantic job."}`,',
         '    `REALIZATION INTENT: ${creativeRealization?.realizationIntent || "Express the approved meaning without literal fact restatement."}`,',
         '    `VIEWER EFFECT: ${creativeRealization?.viewerEffect || "Create curiosity, attitude, surprise, or satisfying payoff."}`,',
@@ -131,6 +152,14 @@ function patchMouth(text) {
     );
   }
 
+  if (text.includes('"subject + trait + action when a stronger creative realization is available"')) {
+    text = text.replace(
+      '    "Never use a comma-chain or a subject/trait/action scaffold.",\n',
+      '    "Never use a comma-chain or a subject/trait/action scaffold when a stronger realization exists.",\n',
+    );
+  }
+
+  void systemAnchor;
   return text;
 }
 
@@ -145,8 +174,9 @@ function apply() {
   write(mouthName, mouth);
 
   console.log("CREATIVE REALIZATION WIRING APPLIED");
-  console.log("Master Author now computes character meaning → strategies → creative realization.");
-  console.log("Mouth now receives the creative realization and remains language-only.");
+  console.log("Master Author owns: character meaning → strategies → creative realization.");
+  console.log("Strategy lattice remains strategy-only.");
+  console.log("Mouth receives the approved realization and remains language-only.");
 }
 
 apply();
