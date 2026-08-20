@@ -4,11 +4,6 @@ import type {
   MouthCandidateBeat,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import { buildCharacterProfile } from "./authorCharacterLensEngine.js";
-import {
-  buildCreativeRealization,
-  type CreativeRealization,
-} from "./authorCreativeRealizationEngine.js";
 
 const STRATEGY_ORDER: readonly AuthorRealizationStrategy[] = [
   "contrast",
@@ -181,23 +176,4 @@ export function selectSafeStrategies(
   }
 
   return selected.slice(0, limit);
-}
-
-export function buildCreativeRealizationForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): {
-  strategies: AuthorStrategyCandidate[];
-  realization: CreativeRealization;
-} {
-  const strategies = selectSafeStrategies(beat, envelope, 5);
-  const character = buildCharacterProfile(envelope);
-  const realization = buildCreativeRealization(
-    beat,
-    envelope,
-    character,
-    strategies,
-  );
-
-  return { strategies, realization };
 }
