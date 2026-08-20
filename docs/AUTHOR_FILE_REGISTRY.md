@@ -1,111 +1,182 @@
 # QRE AUTHOR FILE REGISTRY
 
 **STATUS:** CANONICAL AUDIT REGISTRY
-**SNAPSHOT:** `audit/mouth-production-sync` / `587304bb862003d764d383baa36e9a71da326c79`
+**AUDIT:** 2026-08-20 · `audit/mouth-production-sync`
 
-This registry is the single sectional map for Author architecture files. Update the relevant section when ownership or behavior changes. The end-of-day alignment pass verifies the whole registry against code, contracts, imports, guards, and acceptance.
+This is the sectional map of every current Author-related service in `apps/api/src/services`. A file earns CANONICAL status only when its owner, contract, consumers, and production acceptance responsibility are explicit.
 
-## 01 · PRODUCTION ORCHESTRATION
+## 01 · CANONICAL PRODUCTION PATH
 
-| Status | File | Role | Owner / responsibility |
-|---|---|---|---|
-| CANONICAL | `apps/api/src/services/authorBrainUniversal.ts` | Master Author orchestration | sole production Author authority |
-| CANONICAL | `apps/api/src/services/authorRealityGraph.ts` | source reality graph | reality/evidence authority |
-| CANONICAL | `apps/api/src/services/authorCognition.ts` | cognition / character / hypothesis layer | cognition authority |
-| CANONICAL | `apps/api/src/services/authorLatentMovieSearch.ts` | latent movie search | movie hypothesis authority |
-| CANONICAL | `apps/api/src/services/authorMovieDifferentiation.ts` | material movie diversity | movie differentiation authority |
-| CANONICAL | `apps/api/src/services/authorMeaningSpine.ts` | semantic beat operations | meaning authority |
-| CANONICAL | `apps/api/src/services/authorMouthRealizationSlot.ts` | realization boundary | converts Meaning Spine semantics into Mouth jobs |
-| CANONICAL | `apps/api/src/services/authorMouthCandidateSearch.ts` | candidate generation / normalization / semantic scoring | canonical Mouth candidate authority |
-| CANONICAL | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | complete sequence search | sequence-selection authority |
-| CANONICAL | `apps/api/src/services/authorAttentionEditor.ts` | sequence attention / accumulation evaluation | editorial judgment authority |
-| CANONICAL | `apps/api/src/services/authorBeatTruthGate.ts` | beat truth protection | truth boundary |
-| CANONICAL | `apps/api/src/services/authorCutPolicy.ts` | final cut legality / density / grounding | cut gate |
-| CANONICAL | `apps/api/src/services/authorSequenceArcGate.ts` | sequence-level arc/payoff evaluation | arc gate |
-| CANONICAL | `apps/api/src/services/localModelRuntime.ts` | model transport | model transport only; not semantic authority |
+| Status | File | Owns |
+|---|---|---|
+| CANONICAL | `authorBrainUniversal.ts` | sole production Author orchestration |
+| CANONICAL | `authorRealityGraph.ts` | immutable source/evidence graph |
+| CANONICAL | `authorCognition.ts` | cognition, character read, movie hypothesis search |
+| CANONICAL | `authorLatentMovieSearch.ts` | latent movie hypothesis generation |
+| CANONICAL | `authorLatentMovieConvergence.ts` | deterministic graph convergence support used by movie search |
+| CANONICAL | `authorMovieDifferentiation.ts` | material movie diversity |
+| CANONICAL | `authorMeaningSpine.ts` | semantic beat meaning |
+| CANONICAL | `authorMouthRealizationSlot.ts` | semantic-to-language realization boundary |
+| CANONICAL | `authorRealizationStrategyLattice.ts` | Approach-B safe realization strategy selection; promotion into live Mouth path is next |
+| CANONICAL | `authorMouthCandidateSearch.ts` | canonical Mouth generation, normalization, scoring, bounded repair |
+| CANONICAL | `authorMouthSequenceBeamSearch.ts` | deterministic sequence optimization |
+| CANONICAL | `authorAttentionEditor.ts` | sequence accumulation / attention evaluation |
+| CANONICAL | `authorBeatTruthGate.ts` | beat-level truth protection |
+| CANONICAL | `authorCutPolicy.ts` | final cut legality, grounding, density, repetition |
+| CANONICAL | `authorSequenceArcGate.ts` | sequence-level arc/payoff gate |
+| CANONICAL | `localModelRuntime.ts` | model transport only; no semantic authority |
 
-## 02 · MOUTH SUPPORT / GATES
+## 02 · CANONICAL SUPPORT / INPUT INTELLIGENCE
 
 | Status | File | Role |
 |---|---|---|
-| SUPPORT | `apps/api/src/services/authorMouthLanguageGate.ts` | language naturalness / concrete invention / analytic leakage gate |
-| SUPPORT | `apps/api/src/services/authorMouthAttentionGate.ts` | individual cut attention diagnostics |
-| SUPPORT | `apps/api/src/services/authorMouthQualityAdapter.ts` | cross-gate quality adaptation; truth risk remains a floor |
-| SUPPORT | `apps/api/src/services/authorMouthGroundedFallback.ts` | safety fallback when model coverage is incomplete |
-| SUPPORT | `apps/api/src/services/authorMouthRepairPlanner.ts` | bounded repair objectives; does not author prose |
-| SUPPORT / STRATEGY | `apps/api/src/services/authorRealizationStrategyLattice.ts` | existing Approach-B strategy search; derives safe realization strategies |
-| SUPPORT / SEMANTIC STATE | `apps/api/src/services/authorCumulativeMeaning.ts` | cumulative meaning state; migration candidate for canonical editorial ownership |
+| SUPPORT / CANONICAL | `authorBeatPlanRecovery.ts` | deterministic recovery of a selected latent movie into BeatPlan semantics |
+| SUPPORT / AUDIT | `authorCharacterLensEngine.ts` | character/lens interpretation capability; must not create a second author |
+| SUPPORT / AUDIT | `authorEvidenceFusion.ts` | evidence fusion capability; production consumer trace required |
+| SUPPORT / AUDIT | `authorMemoryIntelligence.ts` | living-memory intelligence capability; must feed Reality/evidence, not prose |
+| SUPPORT / AUDIT | `authorMultimodalEvidence.ts` | user media/evidence capability; media is source evidence, not generated reality |
+| SUPPORT / AUDIT | `authorModelRouter.ts` | model selection/routing capability; transport only |
+| SUPPORT / AUDIT | `authorTruth.ts` | broader Author truth helper; consumer ownership must remain explicit |
+| SUPPORT / AUDIT | `aiProvider.ts` | provider adapter / media understanding compatibility path; must not become a second Author |
 
-## 03 · CONTRACTS
+## 03 · CREATIVE CAPABILITY / NOT A SECOND AUTHOR
 
 | Status | File | Role |
 |---|---|---|
-| CANONICAL | `packages/contracts/src/cogauthor/mouth.ts` | shared Mouth candidate / beat / pool / beam / repair contracts |
-| CANONICAL | `packages/contracts/src/cogauthor/index.ts` | COGAUTHOR public barrel |
-| SUPPORT / BROADER AUTHORING | `packages/contracts/src/authoringIntelligence.ts` | strategy / lens / safety / repair / model-tier contracts; currently supplies Approach-B strategy types |
-| CANONICAL | `packages/contracts/src/cogauthor/authorBrain.ts` | Master Author truth / scene contracts |
-| CANONICAL | `packages/contracts/src/cogauthor/cognition.ts` | cognitive semantic contracts |
-| CANONICAL | `packages/contracts/src/cogauthor/latentMovie.ts` | latent movie / trajectory contracts |
-| CANONICAL | `packages/contracts/src/cogauthor/realityGraph.ts` | immutable reality graph contracts |
-| EXPERIENCE-OWNED / UNDER AUDIT | `packages/contracts/src/experience/beat.ts` | broader Experience beat contract; consumer analysis required before relocation |
-| EXPERIENCE-OWNED / UNDER AUDIT | `packages/contracts/src/experience/meaning.ts` | broader Experience meaning contract; consumer analysis required before relocation |
+| SUPPORT / UNWIRED | `authorMouthCreativeLock.ts` | framing universes; may alter expression only, never reality/meaning/endpoint |
+| SUPPORT / EXPERIMENTAL | `authorLatentStoryThesis.ts` | structural thesis extraction; not canonical until a live downstream consumer is proven |
+| SUPPORT / EXPERIMENTAL | `authorCreativeSearch.ts` | creative-search capability; no production authority |
+| SUPPORT / EXPERIMENTAL | `authorCounterfactualSearch.ts` | counterfactual capability; never allowed to rewrite Reality |
+| SUPPORT / EXPERIMENTAL | `authorTrajectorySearch.ts` | reusable trajectory capability; not canonical until endpoint and consumer wiring are proven |
+| SUPPORT / EXPERIMENTAL | `pureLatentStoryThesisAcceptance.ts` | isolated acceptance for thesis capability |
+| SUPPORT / EXPERIMENTAL | `pureUniversalCognitionAcceptance.ts` | isolated cognition acceptance |
 
-## 04 · NON-CANONICAL ENTERPRISE CLUSTER
+## 04 · ADAPTERS / PRODUCT INTEGRATION
 
-| Status | File | Role / disposition |
+| Status | File | Role |
 |---|---|---|
-| ACCEPTANCE / NON-CANONICAL | `apps/api/src/services/authorEnterpriseMouth.ts` | alternate Mouth orchestration; useful capabilities must migrate into canonical owners; duplicate orchestration should retire |
-| SUPPORT / ENTERPRISE | `apps/api/src/services/authorEnterpriseIntelligence.ts` | strategy/lens/budget/evidence helper cluster; audit consumers before migration |
-| ACCEPTANCE | `apps/api/src/services/authorEnterpriseMouthAcceptanceMatrix.ts` | domain-neutral fixtures/invariants |
-| ACCEPTANCE | `apps/api/author-enterprise-mouth-acceptance.ts` | acceptance harness for non-canonical Enterprise path |
-| SUPPORT / EXPERIMENTAL | `apps/api/src/services/authorCreativeSearch.ts` | creative-search support; consumer trace required before promotion |
-| SUPPORT / EXPERIMENTAL | `apps/api/src/services/authorCounterfactualSearch.ts` | counterfactual capability; consumer trace required before promotion |
+| ADAPTER | `microBeatMouth.ts` | runtime projection into canonical Author; no independent author |
+| ADAPTER | `cinematicAuthor.ts` | rendering/cinematic adapter; no independent author |
+| SUPPORT | `creativeLearning.ts` | learned taste/preferences; soft guidance only, never source truth |
+| SUPPORT | `autonomousLearning.ts` | learning infrastructure; must not alter truth or author authority silently |
+| SUPPORT | `creativeSeedEngine.ts` | creative seed support; must remain upstream capability, not Mouth authority |
+| SUPPORT | `entityMemoryService.ts` | persistent entity memory infrastructure |
+| SUPPORT | `memoryProjection.ts` | memory projection infrastructure |
+| PRODUCT | `experienceCreationServices.ts` | product-level creation orchestration; must delegate to canonical Author |
+| PRODUCT | `experienceService.ts` | product experience service; canonical Author remains creative authority |
 
-## 05 · TRAJECTORY / EXPERIMENTAL
+## 05 · RETIRED IN THIS AUDIT
 
-| Status | File | Role / disposition |
-|---|---|---|
-| CANDIDATE / NOT WIRED | `apps/api/src/services/authorTrajectorySearch.ts` | reusable trajectory search; not canonical until endpoint and Master Author consumer wiring are verified |
-| ACCEPTANCE | `apps/api/author-trajectory-search-acceptance.ts` | isolated trajectory acceptance |
-
-## 06 · DIAGNOSTIC / HISTORICAL RULE
-
-Files containing `enterprise`, `monster`, `v1`, `v2`, `v3`, `final`, or `fixed` do not gain authority from their names. They require verified owner, input contract, output contract, consumer, and acceptance responsibility.
-
-## 07 · APPROACH-B TARGET
-
-The canonical Mouth evolution target is **not a new parallel subsystem**.
-
-Current pieces already present:
+The following were proven to be a non-canonical duplicate Mouth/quality stack and were removed:
 
 ```text
-RealizationSlot
-    ↓
-authorRealizationStrategyLattice.ts
-    ↓
-AuthorRealizationStrategy / AuthorStrategyCandidate
-    ↓
-Mouth candidate generation
-    ↓
-truth / language / attention gates
-    ↓
-Beam
+apps/api/src/services/authorEnterpriseAdversarialMatrix.ts
+apps/api/src/services/authorEnterpriseIntelligence.ts
+apps/api/src/services/authorEnterpriseMouth.ts
+apps/api/src/services/authorEnterpriseMouthAcceptanceMatrix.ts
+apps/api/src/services/authorEnterpriseMouthPolicy.ts
+apps/api/src/services/authorEnterpriseRuntime.ts
+apps/api/src/services/authorEnterpriseSafety.ts
+apps/api/author-enterprise-mouth-acceptance.ts
+apps/api/src/services/authorMouthQualityAdapter.ts
+apps/api/src/services/authorMouthGroundedFallback.ts
+apps/api/src/services/authorMouthLanguageGate.ts
+apps/api/src/services/authorMouthAttentionGate.ts
+apps/api/src/services/authorMouthRepairPlanner.ts
+apps/api/src/services/authorCumulativeMeaning.ts
+apps/api/src/services/authorLatentMovieBeatAdapter.ts
 ```
 
-Production work is to make this one path explicit and contract-driven, then retire duplicate orchestration.
+Their responsibilities were either duplicate orchestration or support code used only by the retired Enterprise path. The canonical Mouth already owns candidate generation, scoring, bounded repair, attention evaluation, truth protection, and final cut gating.
 
-## 08 · DAILY ALIGNMENT CHECK
+## 06 · CONTRACTS
 
-At the end of each change cluster:
+Canonical shared semantic contracts live under:
+
+```text
+packages/contracts/src/cogauthor/
+```
+
+The canonical Mouth contract now explicitly carries:
+
+```text
+MouthCandidateBeat.realizationStrategies
+```
+
+so Approach B can cross the semantic-to-language boundary without inventing a parallel contract namespace.
+
+## 07 · APPROACH-B PRODUCTION TARGET
+
+The intended live machine is now:
+
+```text
+Reality
+  ↓
+Cognition
+  ↓
+Latent Movie
+  ↓
+Meaning Spine
+  ↓
+Realization Slot
+  ↓
+SAFE STRATEGY LATTICE
+  ↓
+CANONICAL MOUTH GENERATION OWNER
+  ↓
+DETERMINISTIC BEAM
+  ↓
+ATTENTION
+  ↓
+TRUTH / CUT
+  ↓
+SEQUENCE ARC
+  ↓
+FINAL SCENES
+```
+
+There is no second Mouth. Creative capability can multiply; semantic authority cannot.
+
+## 08 · UNIVERSAL MEDIA LAW
+
+User-supplied media is evidence:
+
+```text
+USER MEDIA
+→ MEDIA UNDERSTANDING
+→ EVIDENCE / REALITY
+→ CANONICAL AUTHOR
+→ MOUTH
+```
+
+AI image generation is not part of the canonical author path. Uploaded before/after photos, clips, audio, and other media remain user-owned source reality.
+
+## 09 · FILE STATUS LAW
+
+Every Author-related file must be exactly one of:
+
+```text
+CANONICAL
+SUPPORT / CANONICAL
+SUPPORT / AUDIT
+SUPPORT / EXPERIMENTAL
+ADAPTER
+PRODUCT
+RETIRED
+```
+
+No silent Author files. Names do not confer authority.
+
+## 10 · DAILY ALIGNMENT CHECK
+
+Every change cluster ends with:
 
 ```text
 CODE
 ↔ IMPORTS / CONSUMERS
 ↔ @qre/contracts
-↔ AUTHOR ARCHITECTURE INDEX
 ↔ AUTHOR WIRING MAP
 ↔ THIS REGISTRY
-↔ ACCEPTANCE / GUARDS
+↔ ACCEPTANCE
+↔ ARCHITECTURE GUARD
 ```
-
-Anything that cannot be classified gets `UNDER AUDIT`; nothing becomes a silent file.
