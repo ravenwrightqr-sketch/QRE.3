@@ -51,7 +51,7 @@ import type {
   MouthCandidateSelection,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-
+import { localModelGenerate } from "./localModelRuntime.js";
 export type {
   MouthCandidate,
   MouthCandidateBatch,
@@ -1494,6 +1494,272 @@ export function parseMouthCandidateBatch(
         ],
       }
     : undefined;
+}
+export type MouthCandidatePool = {
+  order: number;
+  candidates: MouthCandidate[];
+};
+
+export async function generateMouthCandidatePools(
+  input: MouthCandidateGenerationInput & {
+    risk?: string;
+    feedback?: string;
+  },
+): Promise<{
+  pools: MouthCandidatePool[];
+  rawText: string;
+}> {
+  const ordered = [
+    ...input.beats,
+  ].sort(
+    (a, b) =>
+      a.order - b.order,
+  );
+
+  const MAX_CONCURRENT_REQUESTS = 3;
+
+  type BeatJobResult = {
+    beat: MouthCandidateBeat;
+    exact?: MouthCandidate;
+    candidates: MouthCandidate[];
+    rawParts: string[];
+    repairsUsed: number;
+  };
+
+  const basePriorTexts =
+    input.priorTexts ?? [];
+
+  const runBeatJob = async (
+    beat: MouthCandidateBeat,
+  ): Promise<BeatJobResult> => {
+    /*
+     * Payoff beats are deterministic.
+     * Never spend a model request rewriting
+     * an exact supplied endpoint.
+     */
+    if (
+      isPayoffBeat(beat) &&
+      endpointText(beat)
+    ) {
+      const exact =
+        scoreMouthCandidate({
+          text:
+            endpointText(
+              beat,
+            ),
+          beat,
+          envelope:
+            input.envelope,
+          priorTexts:
+            basePriorTexts,
+        });
+
+      return {
+        beat,
+        exact,
+        candidates: [
+          exact,
+        ],
+        rawParts: [],
+        repairsUsed: 0,
+      };
+    }
+
+    const messages =
+      buildMouthCandidateMessages({
+        ...input,
+        beats: [beat],
+        priorTexts:
+          basePriorTexts,
+      });
+
+    if (input.feedback) {
+      const last =
+        messages[
+          messages.length - 1
+        ];
+
+      if (
+        last?.role === "user"
+      ) {
+        last.content +=
+          `\n\nQRE REPAIR FEEDBACK:\n${input.feedback}`;
+      }
+    }
+
+    const rawParts: string[] = [];
+    let repairsUsed = 0;
+
+    const result =
+  await localModelGenerate(
+    messages,
+    "json",
+    {
+      numPredict: 1536,
+      temperature:
+        input.risk === "safe"
+          ? 0.55
+          : 0.72,
+    },
+  );
+
+    rawParts.push(
+      `BEAT ${beat.order} PRIMARY\n${result.text}`,
+    );
+
+    let parsed =
+      parseMouthCandidateBatch(
+        result.text,
+      );
+
+    let variants =
+      parsed?.variantsByBeat.find(
+        (entry) =>
+          entry.order ===
+          beat.order,
+      )?.variants ??
+      [];
+
+    /*
+     * One bounded repair only.
+     */
+    if (
+      variants.length < 2 &&
+      repairsUsed <
+        MAX_REPAIRS_PER_BEAT
+    ) {
+      repairsUsed += 1;
+
+      const repairMessages:
+        Array<{
+          role:
+            | "system"
+            | "user";
+          content: string;
+        }> = [
+        messages[0]!,
+        {
+          role: "user",
+          content:
+            messages[1]!.content +
+            "\n\nREPAIR THIS BEAT ONLY." +
+            "\nReturn 5 materially different grounded language realizations." +
+            "\nDo not use placeholders." +
+            "\nDo not invent concrete reality." +
+            "\nPreserve the approved semantic change." +
+            "\nReturn JSON only.",
+        },
+      ];
+
+      const repair =
+  await localModelGenerate(
+    repairMessages,
+    "json",
+    {
+      numPredict: 1536,
+      temperature: 0.62,
+    },
+  );
+
+      rawParts.push(
+        `BEAT ${beat.order} REPAIR\n${repair.text}`,
+      );
+
+      parsed =
+        parseMouthCandidateBatch(
+          repair.text,
+        );
+
+      const repairedVariants =
+        parsed?.variantsByBeat.find(
+          (entry) =>
+            entry.order ===
+            beat.order,
+        )?.variants ??
+        [];
+
+      variants =
+        unique([
+          ...variants,
+          ...repairedVariants,
+        ]).slice(
+          0,
+          MAX_CANDIDATES,
+        );
+    }
+
+    const selection =
+      selectBestMouthCandidate({
+        texts:
+          variants,
+        beat,
+        envelope:
+          input.envelope,
+        priorTexts:
+          basePriorTexts,
+      });
+
+    return {
+      beat,
+      candidates:
+        selection.candidates,
+      rawParts,
+      repairsUsed,
+    };
+  };
+
+  const jobs: BeatJobResult[] =
+    [];
+
+  for (
+    let start = 0;
+    start < ordered.length;
+    start +=
+      MAX_CONCURRENT_REQUESTS
+  ) {
+    const batch =
+      ordered.slice(
+        start,
+        start +
+          MAX_CONCURRENT_REQUESTS,
+      );
+
+    const batchResults =
+      await Promise.all(
+        batch.map(
+          runBeatJob,
+        ),
+      );
+
+    jobs.push(
+      ...batchResults,
+    );
+  }
+
+  const pools:
+    MouthCandidatePool[] =
+    jobs.map(
+      (job) => ({
+        order:
+          job.beat.order,
+        candidates:
+          job.candidates,
+      }),
+    );
+
+  const rawParts =
+    jobs.flatMap(
+      (job) =>
+        job.rawParts,
+    );
+
+  return {
+    pools,
+    rawText:
+      rawParts.join(
+        "\n--- BEAT ---\n",
+      ),
+  };
 }
 export async function generateAndSelectMouthCandidates(
   input: MouthCandidateGenerationInput & {

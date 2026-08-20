@@ -58,7 +58,8 @@ export type CutPolicyResult = {
     factRestatement: number;
   };
 };
-
+const metric = (value: number): number =>
+  Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const META =
   /\b(?:qre|prompt|compiler|cognition|metadata|language model|writing process|attention strategy|operator mix|beat plan)\b/i;
 
@@ -160,7 +161,24 @@ function contentWords(text: string): string[] {
     .filter((word) => word.length >= 3 && !STOP.has(word))
     .map(normalizeWord);
 }
+function overlap(
+  a: Set<string>,
+  b: Set<string>,
+): number {
+  if (!a.size || !b.size) {
+    return 0;
+  }
 
+  let hits = 0;
+
+  for (const word of a) {
+    if (b.has(word)) {
+      hits += 1;
+    }
+  }
+
+  return hits / Math.max(1, a.size);
+}
 function groundedTokenRatio(text: string, world: CutWorld): number {
   const words = contentWords(text);
   if (!words.length) return 1;
@@ -396,133 +414,612 @@ export function evaluateCut(
   priorCuts: readonly string[] = [],
 ): CutPolicyResult {
   const text = clean(textInput);
-
   const reasons: string[] = [];
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
 
-  const grounded = groundedTokenRatio(text, world);
-  const novelty = noveltyScore(text, priorCuts);
-  const implication = implicationScore(text);
-  const explanation = explanationScore(text);
+  const wordCount =
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const evidence =
+    sourceText(world);
+
+  const sourceRich =
+    evidence.join(" ");
+
+  const grounded =
+    groundedTokenRatio(
+      text,
+      world,
+    );
+
+  const novelty =
+    noveltyScore(
+      text,
+      priorCuts,
+    );
+
+  const implication =
+    implicationScore(
+      text,
+    );
+
+  const explanation =
+    explanationScore(
+      text,
+    );
 
   const questionLeak =
     LITERAL_QUESTION.test(text) &&
-    !sourceText(world).some((item) => item.includes(text))
+    !evidence.some(
+      (item) =>
+        clean(item).toLowerCase() ===
+        text.toLowerCase(),
+    )
       ? 1
       : 0;
 
-  const invention = inventionRisk(text, world);
-  const repetition = repetitionScore(text, priorCuts);
-  const compression = compressionScore(text);
-  const referenceCost = subjectReferenceCost(
-    text,
-    world,
-    priorCuts,
-    Boolean(intent.subjectEstablished),
-  );
-  const frontier = frontierValue(text, intent, priorCuts);
-  const density = semanticDensity(text);
-  const restatement = factRestatement(text, world);
-
-  const statusMetaphor = STATUS_METAPHOR.test(text);
-
-  const sourceRich = sourceText(world).join(" ");
-
-  const groundedRelationship =
-    /\bnervous\b.*\bfierce\b|\bfierce\b.*\bnervous\b|\bhates\b.*\bloves\b|\bloves\b.*\bhates\b|\bmissing\b.*\bpacked\b|\bpacked\b.*\bmissing\b/i.test(
-      sourceRich,
+  const invention =
+    inventionRisk(
+      text,
+      world,
     );
 
-  const interpretiveCharacterGrounding = groundedCharacterInterpretation(
-    text,
-    intent,
-  );
+  const repetition =
+    repetitionScore(
+      text,
+      priorCuts,
+    );
+
+  const compression =
+    compressionScore(
+      text,
+    );
+
+  const referenceCost =
+    subjectReferenceCost(
+      text,
+      world,
+      priorCuts,
+      Boolean(
+        intent.subjectEstablished,
+      ),
+    );
+
+  const frontier =
+    frontierValue(
+      text,
+      intent,
+      priorCuts,
+    );
+
+  const density =
+    semanticDensity(
+      text,
+    );
+
+  const restatement =
+    factRestatement(
+      text,
+      world,
+    );
+
+  const role =
+    clean(
+      intent.role,
+    ).toLowerCase();
+
+  const gainKind =
+    clean(
+      intent.gainKind,
+    ).toLowerCase();
+
+  const change =
+    clean(
+      intent.change,
+    );
+
+  const next =
+    clean(
+      intent.next,
+    );
+
+  const frontierText =
+    clean(
+      intent.informationFrontier,
+    );
+
+  const cognitiveSignals = [
+    ...(intent.characterTraits ?? []),
+    ...(intent.characterContradictions ?? []),
+    intent.characterStatusPosture ?? "",
+    ...(intent.characterFrames ?? []),
+  ]
+    .map(clean)
+    .filter(Boolean);
+
+  const cognitiveSignalText =
+    cognitiveSignals.join(" ");
+
+  /*
+   * ---------------------------------------------------------------
+   * UNIVERSAL SEMANTIC GROUNDING
+   * ---------------------------------------------------------------
+   *
+   * A creative interpretation is legal when its language is grounded
+   * in one or more approved semantic surfaces:
+   *
+   *   reality evidence
+   *   approved beat change
+   *   approved next/frontier
+   *   character/frame cognition
+   *
+   * This replaces domain-specific phrase matching.
+   */
+
+  const textWords =
+    new Set(
+      contentWords(text),
+    );
+
+  const semanticSources = [
+    ...evidence,
+    change,
+    next,
+    frontierText,
+    cognitiveSignalText,
+  ]
+    .map(clean)
+    .filter(Boolean);
+
+  const semanticSourceWords =
+    new Set(
+      semanticSources.flatMap(
+        contentWords,
+      ),
+    );
+
+  let semanticAnchorHits = 0;
+
+  for (
+    const word of textWords
+  ) {
+    if (
+      semanticSourceWords.has(word)
+    ) {
+      semanticAnchorHits += 1;
+    }
+  }
+
+  const semanticAnchorRatio =
+    textWords.size
+      ? semanticAnchorHits /
+        textWords.size
+      : 0;
+
+  const changeSimilarity =
+    change
+      ? metric(
+          groundedTokenRatio(
+            text,
+            {
+              ...world,
+              facts: [
+                ...(world.facts ?? []),
+                change,
+              ],
+            },
+          ),
+        )
+      : 0;
+
+  const nextSimilarity =
+    next
+      ? metric(
+          groundedTokenRatio(
+            text,
+            {
+              ...world,
+              facts: [
+                ...(world.facts ?? []),
+                next,
+              ],
+            },
+          ),
+        )
+      : 0;
+
+  const frontierSimilarity =
+    frontierText
+      ? metric(
+          groundedTokenRatio(
+            text,
+            {
+              ...world,
+              facts: [
+                ...(world.facts ?? []),
+                frontierText,
+              ],
+            },
+          ),
+        )
+      : 0;
+
+  const cognitiveGrounding =
+    cognitiveSignalText
+      ? metric(
+          groundedTokenRatio(
+            text,
+            {
+              ...world,
+              facts: [
+                ...(world.facts ?? []),
+                cognitiveSignalText,
+              ],
+            },
+          ),
+        )
+      : 0;
+
+  const semanticGrounding =
+    metric(
+      semanticAnchorRatio *
+        0.35 +
+        changeSimilarity *
+        0.3 +
+        Math.max(
+          nextSimilarity,
+          frontierSimilarity,
+        ) *
+        0.2 +
+        cognitiveGrounding *
+        0.15,
+    );
+
+  const interpretiveLanguage =
+    STATUS_METAPHOR.test(
+      text,
+    ) ||
+    CHARACTER_INTERPRETATION.test(
+      text,
+    );
+
+  const groundedInterpretation =
+    interpretiveLanguage &&
+    (
+      semanticGrounding >=
+        0.18 ||
+      cognitiveGrounding >=
+        0.2
+    );
+
+  /*
+   * ---------------------------------------------------------------
+   * INTENT-AWARE FACT RESTATEMENT
+   * ---------------------------------------------------------------
+   *
+   * Restating a fact is not automatically bad.
+   *
+   * Arrival / establishment / new-fact beats may legitimately say
+   * the thing that establishes the story.
+   *
+   * A later beat repeating the same fact without new semantic value
+   * is what we reject.
+   */
+
+  const establishmentRole =
+    [
+      "arrival",
+      "hook",
+      "question",
+      "discovery",
+    ].includes(role);
+
+  const explicitBeatChange =
+    change &&
+    metric(
+      overlap(
+        new Set(
+          contentWords(text),
+        ),
+        new Set(
+          contentWords(change),
+        ),
+      ),
+    ) >= 0.4;
+
+  const legitimateRestatement =
+    restatement >= 0.9 &&
+    (
+      establishmentRole ||
+      explicitBeatChange ||
+      gainKind === "new_fact" ||
+      gainKind === "discovery"
+    ) &&
+    priorCuts.length === 0;
+
+  /*
+   * ---------------------------------------------------------------
+   * INTERPRETATION FLOOR
+   * ---------------------------------------------------------------
+   */
 
   const interpretationAllowed =
-    !PHYSICAL_ACTION.test(text) &&
-    (
-      (
-        groundedRelationship &&
-        (statusMetaphor || CHARACTER_INTERPRETATION.test(text))
-      ) ||
-      interpretiveCharacterGrounding
+    !PHYSICAL_ACTION.test(
+      text,
+    ) &&
+    groundedInterpretation;
+
+  const groundingFloor =
+    interpretationAllowed
+      ? 0
+      : semanticGrounding >= 0.42
+        ? 0
+        : 0.1;
+
+  /*
+   * ---------------------------------------------------------------
+   * SCORE REASONS
+   * ---------------------------------------------------------------
+   */
+
+  if (!text) {
+    reasons.push(
+      "empty",
     );
-
-  const groundingFloor = interpretationAllowed
-    ? 0
-    : statusMetaphor
-      ? 0.05
-      : 0.1;
-
-  if (!text) reasons.push("empty");
-  if (wordCount > 7) reasons.push("too-long");
-  if (META.test(text)) reasons.push("meta-language");
-  if (CAMERA.test(text)) reasons.push("camera-language");
-  if (GENERIC.test(text)) reasons.push("generic-prose");
-  if (questionLeak) reasons.push("question-leak");
-  if (invention >= 0.6 && !statusMetaphor) reasons.push("invention-risk");
-  if (explanation >= 0.75) reasons.push("explanation-heavy");
-
-  if (grounded < groundingFloor && wordCount > 2) {
-    reasons.push("weak-grounding");
   }
 
-  if (repetition >= 0.92 && priorCuts.length) {
-    reasons.push("repetition");
+  if (wordCount > 7) {
+    reasons.push(
+      "too-long",
+    );
+  }
+
+  if (META.test(text)) {
+    reasons.push(
+      "meta-language",
+    );
+  }
+
+  if (CAMERA.test(text)) {
+    reasons.push(
+      "camera-language",
+    );
+  }
+
+  if (GENERIC.test(text)) {
+    reasons.push(
+      "generic-prose",
+    );
+  }
+
+  if (questionLeak) {
+    reasons.push(
+      "question-leak",
+    );
+  }
+
+  /*
+   * Concrete unsupported action remains a real boundary.
+   */
+  if (
+    invention >= 0.6 &&
+    !groundedInterpretation
+  ) {
+    reasons.push(
+      "invention-risk",
+    );
   }
 
   if (
-  referenceCost >= 0.5 &&
-  explanation >= 0.6 &&
-  novelty < 0.35
-) {
-  reasons.push("wasted-subject-reference");
-}
-
-  if (wordCount === 1 && density < 0.5) {
-    reasons.push("subject-or-label-only");
+    explanation >= 0.75
+  ) {
+    reasons.push(
+      "explanation-heavy",
+    );
   }
 
-  if (restatement >= 0.9) {
-    reasons.push("known-fact-restatement");
+  /*
+   * Grounding now considers approved beat semantics,
+   * not just literal source vocabulary.
+   */
+  if (
+    grounded <
+      groundingFloor &&
+    wordCount > 2 &&
+    !groundedInterpretation
+  ) {
+    reasons.push(
+      "weak-grounding",
+    );
   }
 
-  if (density < 0.2 && wordCount <= 3) {
-    reasons.push("low-semantic-density");
+  /*
+   * Repetition is only fatal when the later beat provides
+   * no approved semantic advancement.
+   */
+  if (
+    repetition >= 0.92 &&
+    priorCuts.length &&
+    !groundedInterpretation &&
+    frontier < 0.3
+  ) {
+    reasons.push(
+      "repetition",
+    );
   }
 
   if (
-    ["hook", "reframe", "callback"].includes(clean(intent.role)) &&
+    referenceCost >= 0.5 &&
+    explanation >= 0.6 &&
+    novelty < 0.35
+  ) {
+    reasons.push(
+      "wasted-subject-reference",
+    );
+  }
+
+  if (
+    wordCount === 1 &&
+    density < 0.5
+  ) {
+    reasons.push(
+      "subject-or-label-only",
+    );
+  }
+
+  /*
+   * A source phrase may be a legitimate realization of the
+   * currently approved beat. Do not reject it automatically.
+   */
+  if (
+    restatement >= 0.9 &&
+    !legitimateRestatement &&
+    !groundedInterpretation &&
+    priorCuts.length
+  ) {
+    reasons.push(
+      "known-fact-restatement",
+    );
+  }
+
+  if (
+    density < 0.2 &&
+    wordCount <= 3 &&
+    !groundedInterpretation
+  ) {
+    reasons.push(
+      "low-semantic-density",
+    );
+  }
+
+  if (
+    [
+      "hook",
+      "reframe",
+      "callback",
+    ].includes(role) &&
     compression < 0.85
   ) {
-    reasons.push("low-impact-density");
+    reasons.push(
+      "low-impact-density",
+    );
   }
 
-  if (clean(intent.gainKind) === "question" && questionLeak) {
-    reasons.push("cognitive-question-in-mouth");
+  if (
+    gainKind === "question" &&
+    questionLeak
+  ) {
+    reasons.push(
+      "cognitive-question-in-mouth",
+    );
   }
 
-  if (frontier < 0.08 && novelty < 0.15 && wordCount > 2) {
-    reasons.push("frontier-starvation");
+  /*
+   * Frontier starvation should only fire when the beat's approved
+   * semantic frontier actually exists.
+   */
+  if (
+    frontierText &&
+    frontier < 0.08 &&
+    novelty < 0.15 &&
+    wordCount > 2 &&
+    !groundedInterpretation
+  ) {
+    reasons.push(
+      "frontier-starvation",
+    );
   }
+
+  /*
+   * ---------------------------------------------------------------
+   * APPROVED SEMANTIC MOVEMENT
+   * ---------------------------------------------------------------
+   *
+   * A line may be valuable even when its literal vocabulary is light,
+   * provided it executes the approved change or frame.
+   */
+  const approvedMovement =
+    metric(
+      Math.max(
+        changeSimilarity,
+        cognitiveGrounding,
+        frontierSimilarity,
+        semanticAnchorRatio,
+      ),
+    );
+
+  /*
+   * A middle beat that executes its approved semantic change should
+   * not be rejected merely because it doesn't repeat literal source
+   * words.
+   */
+  if (
+    priorCuts.length > 0 &&
+    approvedMovement < 0.12 &&
+    novelty < 0.08 &&
+    !groundedInterpretation &&
+    !explicitBeatChange
+  ) {
+    reasons.push(
+      "no-semantic-advance",
+    );
+  }
+
+  const accepted =
+    reasons.length === 0;
 
   return {
-    accepted: reasons.length === 0,
+    accepted,
     reasons,
     metrics: {
       wordCount,
-      groundedTokenRatio: Number(grounded.toFixed(3)),
-      novelty: Number(novelty.toFixed(3)),
-      implication: Number(implication.toFixed(3)),
-      explanation: Number(explanation.toFixed(3)),
+      groundedTokenRatio:
+        Number(
+          grounded.toFixed(3),
+        ),
+      novelty:
+        Number(
+          novelty.toFixed(3),
+        ),
+      implication:
+        Number(
+          implication.toFixed(3),
+        ),
+      explanation:
+        Number(
+          explanation.toFixed(3),
+        ),
       questionLeak,
-      inventionRisk: Number(invention.toFixed(3)),
-      repetition: Number(repetition.toFixed(3)),
-      compression: Number(compression.toFixed(3)),
-      subjectReferenceCost: Number(referenceCost.toFixed(3)),
-      frontierValue: Number(frontier.toFixed(3)),
-      semanticDensity: Number(density.toFixed(3)),
-      factRestatement: Number(restatement.toFixed(3)),
+      inventionRisk:
+        Number(
+          invention.toFixed(3),
+        ),
+      repetition:
+        Number(
+          repetition.toFixed(3),
+        ),
+      compression:
+        Number(
+          compression.toFixed(3),
+        ),
+      subjectReferenceCost:
+        Number(
+          referenceCost.toFixed(3),
+        ),
+      frontierValue:
+        Number(
+          frontier.toFixed(3),
+        ),
+      semanticDensity:
+        Number(
+          density.toFixed(3),
+        ),
+      factRestatement:
+        Number(
+          restatement.toFixed(3),
+        ),
     },
   };
 }

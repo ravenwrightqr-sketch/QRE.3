@@ -71,10 +71,8 @@ import {
 } from "./authorMouthRealizationSlot.js";
 
 import {
-  buildMouthCandidateMessages,
-  parseMouthCandidateBatch,
+  generateMouthCandidatePools,
   scoreMouthCandidate,
-  selectBestMouthCandidate,
   type MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
 
@@ -1711,7 +1709,6 @@ function buildAttentionBeatInputs(
     },
   );
 }
-
 function scenesFromSequence(
   sequence: SequencePlay,
   texts: string[],
@@ -1735,6 +1732,17 @@ function scenesFromSequence(
       number
     > = {};
 
+  const cutDiagnostics: Array<{
+    order: number;
+    text: string;
+    accepted: boolean;
+    reasons: string[];
+    metrics: Record<
+      string,
+      number
+    >;
+  }> = [];
+
   const worldValue =
     world(input);
 
@@ -1746,18 +1754,36 @@ function scenesFromSequence(
     const cut =
       sequence.cuts[i];
 
+    if (!cut) {
+      continue;
+    }
+
     const text =
       clean(
         texts[i] ?? "",
       );
 
     if (!text) {
+      const reasons = [
+        "missing-text",
+      ];
+
+      cutDiagnostics.push({
+        order:
+          cut.order,
+        text,
+        accepted: false,
+        reasons,
+        metrics: {},
+      });
+
       rejectionReasons[
         "missing-text"
       ] =
         (rejectionReasons[
           "missing-text"
         ] ?? 0) + 1;
+
       continue;
     }
 
@@ -1814,6 +1840,20 @@ function scenesFromSequence(
         prior,
       );
 
+    cutDiagnostics.push({
+      order:
+        cut.order,
+      text,
+      accepted:
+        policy.accepted,
+      reasons: [
+        ...policy.reasons,
+      ],
+      metrics: {
+        ...policy.metrics,
+      },
+    });
+
     if (!policy.accepted) {
       for (
         const reason of
@@ -1852,6 +1892,7 @@ function scenesFromSequence(
       attempted -
       scenes.length,
     rejectionReasons,
+    cutDiagnostics,
   };
 }
 
@@ -1972,136 +2013,6 @@ return {
   relationStrength:
     slot.relationStrength,
 };
-}
-
-async function generateCandidatePools(
-  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
-  beats: readonly MouthCandidateBeat[],
-  lens: string | undefined,
-  priorTexts: readonly string[],
-  risk: string,
-  feedback?: string,
-): Promise<{
-  pools: MouthCandidatePool[];
-  rawText: string;
-}> {
-  const pools: MouthCandidatePool[] = [];
-  const rawParts: string[] = [];
-
-  for (const beat of beats) {
-    const messages = buildMouthCandidateMessages({
-      envelope,
-      beats: [beat],
-      priorTexts,
-      lens,
-    });
-
-    if (feedback) {
-      const last = messages[messages.length - 1];
-
-      if (last?.role === "user") {
-        last.content +=
-          `\n\nQRE REPAIR FEEDBACK:\n${feedback}`;
-      }
-    }
-
-    const result = await localModelGenerate(
-      messages,
-      "json",
-      {
-        numPredict: 1536,
-        temperature:
-          risk === "safe" ? 0.55 : 0.72,
-      },
-    );
-
-    rawParts.push(
-      `BEAT ${beat.order}\n${result.text}`,
-    );
-
-    let parsed = parseMouthCandidateBatch(
-      result.text,
-    );
-
-    let variants =
-      parsed?.variantsByBeat.find(
-        (entry) => entry.order === beat.order,
-      )?.variants ?? [];
-
-    /*
-     * A beat is allowed to fail independently.
-     * Repair only this beat rather than destroying
-     * the entire candidate population.
-     */
-    if (variants.length < 2) {
-      const repairMessages: Array<{
-        role: "system" | "user";
-        content: string;
-      }> = [
-        messages[0]!,
-        {
-          role: "user",
-          content:
-            messages[1]!.content +
-            "\n\nREPAIR THIS BEAT ONLY.\n" +
-            "Return 5 materially different grounded language realizations.\n" +
-            "Do not use placeholders such as ..., null, empty strings, or template labels.\n" +
-            "Preserve the supplied meaning and reality exactly.\n" +
-            "Return JSON only.",
-        },
-      ];
-
-      const repair = await localModelGenerate(
-        repairMessages,
-        "json",
-        {
-          numPredict: 1536,
-          temperature: 0.62,
-        },
-      );
-
-      rawParts.push(
-        `BEAT ${beat.order} REPAIR\n${repair.text}`,
-      );
-
-      parsed = parseMouthCandidateBatch(
-        repair.text,
-      );
-
-      const repairedVariants =
-        parsed?.variantsByBeat.find(
-          (entry) =>
-            entry.order === beat.order,
-        )?.variants ?? [];
-
-      variants = [
-        ...new Set([
-          ...variants,
-          ...repairedVariants,
-        ]),
-      ].slice(0, 8);
-    }
-
-    const selection =
-      selectBestMouthCandidate({
-        texts: variants,
-        beat,
-        envelope,
-        priorTexts,
-      });
-
-    pools.push({
-      order: beat.order,
-      candidates: selection.candidates,
-    });
-  }
-
-  return {
-    pools,
-    rawText: rawParts.join(
-      "\n--- BEAT ---\n",
-    ),
-  };
 }
 
 function ensureEndpointCandidate(
@@ -2276,15 +2187,15 @@ async function realizeMouth(
       ),
   );
   
-
   let generated =
-    await generateCandidatePools(
-      envelope,
-      canonicalBeats,
-      input.lens,
-      [],
-      risk,
-    );
+  await generateMouthCandidatePools({
+    envelope,
+    beats: canonicalBeats,
+    priorTexts: [],
+    lens: input.lens,
+    risk,
+  });
+  
 
   ensureEndpointCandidate(
     generated.pools,
@@ -2334,14 +2245,14 @@ async function realizeMouth(
       );
 
     generated =
-      await generateCandidatePools(
-        envelope,
-        canonicalBeats,
-        input.lens,
-        [],
-        risk,
-        feedback,
-      );
+  await generateMouthCandidatePools({
+    envelope,
+    beats: canonicalBeats,
+    priorTexts: [],
+    lens: input.lens,
+    risk,
+    feedback,
+  });
 
     ensureEndpointCandidate(
       generated.pools,
@@ -2427,21 +2338,21 @@ async function realizeMouth(
         "\n",
       );
 
-    generated =
-      await generateCandidatePools(
-        envelope,
-        canonicalBeats,
-        input.lens,
-        [],
-        risk,
-        repairFeedback,
-      );
+   generated =
+  await generateMouthCandidatePools({
+    envelope,
+    beats: canonicalBeats,
+    priorTexts: [],
+    lens: input.lens,
+    risk,
+    feedback: repairFeedback,
+  });
 
-    ensureEndpointCandidate(
-      generated.pools,
-      envelope,
-      canonicalBeats,
-    );
+ensureEndpointCandidate(
+  generated.pools,
+  envelope,
+  canonicalBeats,
+);
 
     const repairBeam =
       selectBestMouthSequence(
@@ -3471,6 +3382,8 @@ export async function authorBrainUniversal(
         sequenceResult.rejected,
       rejectionReasons:
         sequenceResult.rejectionReasons,
+        cutDiagnostics:
+  sequenceResult.cutDiagnostics,
       realizationTexts:
         mouth.texts,
       realizationCountMismatch:
