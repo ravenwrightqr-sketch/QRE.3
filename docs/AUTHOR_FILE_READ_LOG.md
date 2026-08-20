@@ -120,3 +120,17 @@ fixed
 ```
 
 Canonical status requires a verified owner, input contract, output contract, downstream consumer, and acceptance responsibility.
+
+## 2026-08-19 · Canonical Mouth reset
+
+FILE: apps/api/src/services/localModelRuntime.ts
+ROLE: model transport plus canonical per-beat Mouth generation adapter.
+CHANGE: isolated per-beat realization, per-beat repair, partial-pool preservation, and bounded concurrency.
+
+FILE: apps/api/src/services/authorMouthCandidateSearch.ts
+ROLE: canonical candidate normalization/scoring owner.
+STATUS: unchanged owner.
+
+FILE: apps/api/src/services/authorBrainUniversal.ts
+ROLE: sole production Author orchestrator.
+STATUS: unchanged.

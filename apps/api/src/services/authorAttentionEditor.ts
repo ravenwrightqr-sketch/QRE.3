@@ -960,28 +960,152 @@ function setupValue(
 
   return metric(score);
 }
+function exactApprovedPayoff(
+  input: AttentionBeatInput,
+  text: string,
+): boolean {
+  const actual = clean(text)
+    .replace(/[.!?]+$/g, "")
+    .toLowerCase();
+
+  if (!actual) {
+    return false;
+  }
+
+  const approved = (input.paysOff ?? [])
+    .map(clean)
+    .filter(Boolean)
+    .map((value) =>
+      value
+        .replace(/[.!?]+$/g, "")
+        .toLowerCase(),
+    );
+
+  return approved.some(
+    (value) => value === actual,
+  );
+}
+
+function endpointPayoffStrength(
+  input: AttentionBeatInput,
+  text: string,
+  priorTexts: string[],
+): number {
+  const role = clean(
+    input.attentionFunction ??
+      input.role,
+  );
+
+  const isPayoffRole = [
+    "payoff",
+    "release",
+    "callback",
+    "consequence",
+  ].includes(role);
+
+  const hasApprovedEndpoint =
+    (input.paysOff ?? []).some(
+      (value) => clean(value).length > 0,
+    );
+
+  if (
+    !isPayoffRole &&
+    !hasApprovedEndpoint
+  ) {
+    return 0;
+  }
+
+  let score = 0.08;
+
+  if (hasApprovedEndpoint) {
+    score += 0.2;
+  }
+
+  if (
+    exactApprovedPayoff(
+      input,
+      text,
+    )
+  ) {
+    /*
+     * Exact supplied endpoint is sovereign.
+     * It does not need to invent additional interpretation.
+     */
+    score += 0.58;
+  }
+
+  if (priorTexts.length) {
+    const prior = set(
+      priorTexts.join(" "),
+    );
+    const current = set(text);
+    const carry = overlap(
+      current,
+      prior,
+    );
+
+    if (carry >= 0.05) {
+      score += 0.08;
+    }
+
+    if (carry >= 0.12) {
+      score += 0.06;
+    }
+  }
+
+  if (
+    meaningfulInterpretation(text)
+  ) {
+    score += 0.08;
+  }
+
+  if (
+    TRANSITION.test(text)
+  ) {
+    score += 0.05;
+  }
+
+  if (
+    input.change &&
+    clean(input.change)
+  ) {
+    score += 0.05;
+  }
+
+  return metric(score);
+}
 
 function payoffContribution(
   input: AttentionBeatInput,
   text: string,
   prior: string[],
 ): number {
-  let score = [
-    "payoff",
-    "release",
-    "callback",
-    "consequence",
-  ].includes(
-    clean(
-      input.attentionFunction ??
-        input.role,
-    ),
-  )
-    ? 0.32
-    : 0.05;
+  const role = clean(
+    input.attentionFunction ??
+      input.role,
+  );
 
-  if ((input.paysOff ?? []).length) {
-    score += 0.22;
+  let score = endpointPayoffStrength(
+    input,
+    text,
+    prior,
+  );
+
+  if (
+    [
+      "payoff",
+      "release",
+      "callback",
+      "consequence",
+    ].includes(role)
+  ) {
+    score += 0.12;
+  }
+
+  if (
+    (input.paysOff ?? []).length
+  ) {
+    score += 0.08;
   }
 
   if (
@@ -991,11 +1115,24 @@ function payoffContribution(
       set(prior.join(" ")),
     ) > 0.12
   ) {
-    score += 0.12;
+    score += 0.08;
   }
 
-  if (meaningfulInterpretation(text)) {
+  /*
+   * Exact endpoint does not need additional interpretive language.
+   * The supplied ending itself can be the payoff.
+   */
+  if (
+    exactApprovedPayoff(
+      input,
+      text,
+    )
+  ) {
     score += 0.12;
+  } else if (
+    meaningfulInterpretation(text)
+  ) {
+    score += 0.08;
   }
 
   return metric(score);
@@ -1372,15 +1509,22 @@ export function scoreAttentionBeat(
     );
   }
 
-  if (
-    priorTexts.length > 0 &&
-    cumulative < 0.28 &&
-    role !== "hook"
-  ) {
-    reasons.push(
-      "weak-cumulative-meaning",
-    );
-  }
+  const exactPayoff =
+  exactApprovedPayoff(
+    input,
+    text,
+  );
+
+if (
+  priorTexts.length > 0 &&
+  cumulative < 0.28 &&
+  role !== "hook" &&
+  !exactPayoff
+) {
+  reasons.push(
+    "weak-cumulative-meaning",
+  );
+}
 
   return {
     order: input.order,
@@ -1451,16 +1595,32 @@ export function editAttentionSequence(
       );
     }
 
-    if (
-      last &&
-      last.payoffContribution < 0.34
-    ) {
-      last.reasons.push(
-        "weak-payoff",
-      );
+   if (
+  last &&
+  last.payoffContribution < 0.34
+) {
+  const lastInput =
+    input.beats.find(
+      (beat) =>
+        beat.order === last.order,
+    );
 
-      last.keep = false;
-    }
+  const exactPayoff =
+    lastInput
+      ? exactApprovedPayoff(
+          lastInput,
+          lastInput.text,
+        )
+      : false;
+
+  if (!exactPayoff) {
+    last.reasons.push(
+      "weak-payoff",
+    );
+
+    last.keep = false;
+  }
+}
   }
 
   const weakBeats = scores

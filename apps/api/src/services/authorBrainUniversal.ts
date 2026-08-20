@@ -74,6 +74,7 @@ import {
   buildMouthCandidateMessages,
   parseMouthCandidateBatch,
   scoreMouthCandidate,
+  selectBestMouthCandidate,
   type MouthCandidateBeat,
 } from "./authorMouthCandidateSearch.js";
 
@@ -1974,9 +1975,7 @@ return {
 }
 
 async function generateCandidatePools(
-  envelope: ReturnType<
-    typeof buildAuthorRealityEnvelope
-  >,
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
   beats: readonly MouthCandidateBeat[],
   lens: string | undefined,
   priorTexts: readonly string[],
@@ -1986,126 +1985,122 @@ async function generateCandidatePools(
   pools: MouthCandidatePool[];
   rawText: string;
 }> {
-  const messages =
-    buildMouthCandidateMessages({
+  const pools: MouthCandidatePool[] = [];
+  const rawParts: string[] = [];
+
+  for (const beat of beats) {
+    const messages = buildMouthCandidateMessages({
       envelope,
-      beats,
+      beats: [beat],
       priorTexts,
       lens,
     });
 
-  if (
-    feedback
-  ) {
-    const last =
-      messages[
-        messages.length -
-          1
-      ];
+    if (feedback) {
+      const last = messages[messages.length - 1];
 
-    if (
-      last?.role ===
-      "user"
-    ) {
-      last.content +=
-        `\n\nQRE REPAIR FEEDBACK:\n${feedback}`;
+      if (last?.role === "user") {
+        last.content +=
+          `\n\nQRE REPAIR FEEDBACK:\n${feedback}`;
+      }
     }
-  }
-   console.log(
-    "\n=== QRE CANDIDATE PROMPT DEBUG ===\n" +
-      messages
-        .map(
-          (message) =>
-            `[${message.role}]\n${message.content}`,
-        )
-        .join("\n\n") +
-      "\n=== END QRE CANDIDATE PROMPT DEBUG ===\n",
-       );
-  const result =
-    await localModelGenerate(
+
+    const result = await localModelGenerate(
       messages,
       "json",
       {
-        numPredict:
-          1536,
+        numPredict: 1536,
         temperature:
-          risk ===
-          "safe"
-            ? 0.55
-            : 0.72,
+          risk === "safe" ? 0.55 : 0.72,
       },
     );
 
-  debug(
-    feedback
-      ? "MOUTH-CANDIDATE-REPAIR"
-      : "MOUTH-CANDIDATE-GENERATION",
-    result.text,
-  );
+    rawParts.push(
+      `BEAT ${beat.order}\n${result.text}`,
+    );
 
-  const parsed =
-    parseMouthCandidateBatch(
+    let parsed = parseMouthCandidateBatch(
       result.text,
     );
 
-  if (!parsed) {
-    return {
-      pools: [],
-      rawText:
-        result.text,
-    };
+    let variants =
+      parsed?.variantsByBeat.find(
+        (entry) => entry.order === beat.order,
+      )?.variants ?? [];
+
+    /*
+     * A beat is allowed to fail independently.
+     * Repair only this beat rather than destroying
+     * the entire candidate population.
+     */
+    if (variants.length < 2) {
+      const repairMessages: Array<{
+        role: "system" | "user";
+        content: string;
+      }> = [
+        messages[0]!,
+        {
+          role: "user",
+          content:
+            messages[1]!.content +
+            "\n\nREPAIR THIS BEAT ONLY.\n" +
+            "Return 5 materially different grounded language realizations.\n" +
+            "Do not use placeholders such as ..., null, empty strings, or template labels.\n" +
+            "Preserve the supplied meaning and reality exactly.\n" +
+            "Return JSON only.",
+        },
+      ];
+
+      const repair = await localModelGenerate(
+        repairMessages,
+        "json",
+        {
+          numPredict: 1536,
+          temperature: 0.62,
+        },
+      );
+
+      rawParts.push(
+        `BEAT ${beat.order} REPAIR\n${repair.text}`,
+      );
+
+      parsed = parseMouthCandidateBatch(
+        repair.text,
+      );
+
+      const repairedVariants =
+        parsed?.variantsByBeat.find(
+          (entry) =>
+            entry.order === beat.order,
+        )?.variants ?? [];
+
+      variants = [
+        ...new Set([
+          ...variants,
+          ...repairedVariants,
+        ]),
+      ].slice(0, 8);
+    }
+
+    const selection =
+      selectBestMouthCandidate({
+        texts: variants,
+        beat,
+        envelope,
+        priorTexts,
+      });
+
+    pools.push({
+      order: beat.order,
+      candidates: selection.candidates,
+    });
   }
-
-  const pools:
-    MouthCandidatePool[] =
-    beats.map(
-      (beat) => {
-        const entry =
-          parsed.variantsByBeat.find(
-            (item) =>
-              item.order ===
-              beat.order,
-          );
-
-        const candidates =
-          (entry?.variants ??
-            [])
-            .map(
-              (text) =>
-                scoreMouthCandidate(
-                  {
-                    text,
-                    beat,
-                    envelope,
-                    priorTexts,
-                  },
-                ),
-            )
-            .filter(
-              (
-                candidate,
-              ) =>
-                candidate.text.length >
-                0,
-            )
-            .sort(
-              (a, b) =>
-                b.score -
-                a.score,
-            );
-
-        return {
-          order:
-            beat.order,
-          candidates,
-        };
-      },
-    );
 
   return {
     pools,
-    rawText:
-      result.text,
+    rawText: rawParts.join(
+      "\n--- BEAT ---\n",
+    ),
   };
 }
 

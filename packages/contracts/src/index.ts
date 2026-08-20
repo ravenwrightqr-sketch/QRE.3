@@ -15,8 +15,7 @@ export type { GeoStory, GeoStoryScene, GeoStorySceneType, GeoLocation } from "./
 export * from "./analytics.js";
 export * from "./events.js";
 export * from "./flow.js";
-export * from "./experience/index.js";
-export * from "./cogauthor/index.js";
+
 export * from "./experience/indexV13.js";
 export * from "./experience/memoryIntelligenceV14.js";
 export * from "./experience/memoryForesightV15.js";
@@ -26,3 +25,9 @@ export type { MediaAsset, MediaType } from "./media.js";
 export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";
 export * from "./authoringIntelligence.js";
+
+
+
+///CONTRACTS/EXPERIENCE/FOLDER AND CONTRACTS COGAUTHOR FOLDER 
+export * from "./experience/index.js";
+export * from "./cogauthor/index.js";

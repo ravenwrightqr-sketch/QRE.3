@@ -244,6 +244,19 @@ function legalSuccessors(
 ): LatentMovieTrajectoryStep[] {
   const next: LatentMovieTrajectoryStep[] = [];
 
+  // Payoff is terminal.
+  if (step.operation === "payoff") {
+    return next;
+  }
+
+  // Reaching the supplied endpoint is terminal.
+  if (
+    endpointEventId &&
+    step.eventIds.includes(endpointEventId)
+  ) {
+    return next;
+  }
+
   for (const event of graph.events) {
     if (step.eventIds.includes(event.id)) continue;
 
@@ -263,16 +276,23 @@ function legalSuccessors(
             ? "escalate"
             : relation.kind === "converges"
               ? "converge"
-              : relation.kind === "before" || relation.kind === "after"
+              : relation.kind === "before" ||
+                  relation.kind === "after"
                 ? "consequence"
                 : "reveal";
 
     next.push({
       order: 0,
       operation,
-      eventIds: [step.eventIds.at(-1)!, event.id],
+      eventIds: [
+        step.eventIds[step.eventIds.length - 1]!,
+        event.id,
+      ],
       viewerChange:
-        `${eventLabel(graph, step.eventIds.at(-1)!)} changes how ${event.label} reads next.`,
+        `${eventLabel(
+          graph,
+          step.eventIds[step.eventIds.length - 1]!,
+        )} changes how ${event.label} reads next.`,
       nextQuestion:
         event.id === endpointEventId
           ? `What remains true at ${event.label}?`
@@ -295,10 +315,18 @@ export function searchBestMovieTrajectories(
   candidates: LatentMovieCandidate[],
   config: TrajectorySearchConfig = {},
 ): LatentMovieCandidate[] {
+
   const beamWidth = Math.max(1, Math.min(8, config.beamWidth ?? 4));
+
   const maxSteps = Math.max(1, Math.min(7, config.maxSteps ?? 5));
-  const endpointEventId = config.endpointEventId ?? graph.events.at(-1)?.id ?? "";
-  const requireEndpoint = config.requireEndpoint ?? Boolean(endpointEventId);
+
+  const endpointEventId =
+    config.endpointEventId ??
+    graph.events[graph.events.length - 1]?.id ??
+    "";
+
+  const requireEndpoint =
+    config.requireEndpoint ?? Boolean(endpointEventId);
 
   const ranked: SearchState[] = candidates.map((candidate) => {
     const seedSteps = candidate.trajectory.slice(0, maxSteps).map((step, index) => ({ ...step, order: index + 1 }));
@@ -333,22 +361,68 @@ export function searchBestMovieTrajectories(
     return { ...state, score: scoreState(state, endpointEventId) };
   });
 
-  let beam = ranked
+      let beam = ranked
     .sort((a, b) => b.score - a.score)
     .slice(0, beamWidth);
 
-  for (let depth = Math.max(1, beam[0]?.steps.length ?? 1); depth < maxSteps; depth += 1) {
+  const completed: SearchState[] = [];
+
+  for (
+    let depth = Math.max(
+      1,
+      beam[0]?.steps.length ?? 1,
+    );
+    depth < maxSteps;
+    depth += 1
+  ) {
     const expanded: SearchState[] = [];
 
     for (const state of beam) {
-      const tail = state.steps.at(-1);
+      // Completed trajectories are preserved, never expanded.
+      if (
+        endpointEventId &&
+        endpointReached(
+          state.steps,
+          endpointEventId,
+        )
+      ) {
+        completed.push(state);
+        continue;
+      }
+
+      const tail =
+        state.steps[state.steps.length - 1];
+
       if (!tail) continue;
-      const successors = legalSuccessors(graph, tail, endpointEventId).slice(0, 8);
+
+      // Payoff is terminal and is preserved as a completed path.
+      if (tail.operation === "payoff") {
+        completed.push(state);
+        continue;
+      }
+
+      const successors =
+        legalSuccessors(
+          graph,
+          tail,
+          endpointEventId,
+        ).slice(0, 8);
 
       for (const successor of successors) {
-        const next = expandStep(graph, state, successor, endpointEventId);
+        const next = expandStep(
+          graph,
+          state,
+          successor,
+          endpointEventId,
+        );
+
         if (!next) continue;
-        next.score = scoreState(next, endpointEventId);
+
+        next.score = scoreState(
+          next,
+          endpointEventId,
+        );
+
         expanded.push(next);
       }
     }
@@ -360,7 +434,14 @@ export function searchBestMovieTrajectories(
       .slice(0, beamWidth);
   }
 
-  return beam
+  const finalStates = dedupeStates([
+    ...beam,
+    ...completed,
+  ])
+    .sort((a, b) => b.score - a.score);
+
+  return finalStates
+
     .filter((state) => !requireEndpoint || endpointReached(state.steps, endpointEventId))
     .sort((a, b) => b.score - a.score)
     .map((state) => ({

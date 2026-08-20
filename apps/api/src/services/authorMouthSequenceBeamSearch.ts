@@ -70,32 +70,48 @@ function isEndpoint(candidate: MouthCandidate): boolean {
     !candidate.reasons.includes("non-exact-payoff");
 }
 
-function hardFailure(candidate: MouthCandidate): boolean {
-  return candidate.reasons.some((reason) =>
-    new Set([
-      "weak-grounding",
-      "weak-meaning-execution",
-      "weak-meaning-transition",
-      "weak-obligation-coverage",
-      "weak-relation-contract",
-      "keyword-assembly",
-      "source-restatement",
-      "forbidden-slot-move",
-      "non-exact-payoff",
-      "high-invention-risk",
-      "analytic-realization-language",
-      "question-leak",
-    ]).has(reason),
+function hardFailure(
+  candidate: MouthCandidate,
+): boolean {
+  /*
+   * Only actual boundary violations are hard failures.
+   *
+   * Weak semantic execution is a quality signal.
+   * Beam must be allowed to compare weak and strong
+   * legal realizations across the complete trajectory.
+   */
+
+  return candidate.reasons.some(
+    (reason) =>
+      new Set([
+        "forbidden-slot-move",
+        "high-invention-risk",
+        "analytic-realization-language",
+        "question-leak",
+        "non-exact-payoff",
+      ]).has(reason),
   );
 }
 
-function semanticallyEligible(candidate: MouthCandidate): boolean {
-  // Exact approved endpoint is sovereign.
+function semanticallyEligible(
+  candidate: MouthCandidate,
+): boolean {
+  /*
+   * Exact approved endpoint is sovereign.
+   */
   if (isEndpoint(candidate)) {
-    return candidate.groundingScore >= 0.42 && candidate.inventionRisk <= 0.45;
+    return (
+      candidate.endpointExactness === 1 &&
+      candidate.groundingScore >= 0.42 &&
+      candidate.inventionRisk <= 0.45 &&
+      candidate.forbiddenMoveRisk <= 0.45
+    );
   }
 
-  // Hooks/establishments need grounding, not a middle-beat transition score.
+  /*
+   * Establishment / hook beats need grounding and legality,
+   * but do not need middle-beat transition semantics.
+   */
   if (isHook(candidate)) {
     return (
       candidate.groundingScore >= 0.42 &&
@@ -106,15 +122,17 @@ function semanticallyEligible(candidate: MouthCandidate): boolean {
     );
   }
 
+  /*
+   * Middle beats:
+   *
+   * Truth and concrete invention remain hard boundaries.
+   * Semantic weakness is deliberately left to Beam scoring.
+   */
   return (
     candidate.groundingScore >= 0.42 &&
-    candidate.meaningScore >= 0.4 &&
-    candidate.transitionScore >= 0.4 &&
-    candidate.obligationCoverage >= 0.4 &&
-    candidate.relationContractScore >= 0.4 &&
     candidate.inventionRisk <= 0.45 &&
-    candidate.collageRisk <= 0.45 &&
     candidate.forbiddenMoveRisk <= 0.45 &&
+    candidate.collageRisk <= 0.6 &&
     !hardFailure(candidate)
   );
 }
@@ -258,17 +276,82 @@ function pathScore(path: MouthSequencePath, candidate: MouthCandidate): number {
 function signature(path: MouthCandidate[]): string {
   return path.map((candidate) => clean(candidate.text).toLowerCase()).join("|");
 }
+function poolCandidates(
+  pool: MouthCandidatePool,
+  perBeat: number,
+): MouthCandidate[] {
+  const ranked = [
+    ...pool.candidates,
+  ].sort(
+    (a, b) =>
+      b.score - a.score,
+  );
 
-function poolCandidates(pool: MouthCandidatePool, perBeat: number): MouthCandidate[] {
-  const ranked = [...pool.candidates].sort((a, b) => b.score - a.score);
-  const valid = ranked.filter(semanticallyEligible);
-  const creative = valid.filter((candidate) => creativeMiddleCandidate(candidate));
-  const fallback = valid.filter(isFallback);
-  const model = valid.filter((candidate) => !isFallback(candidate));
+  /*
+   * Remove only hard truth / realization violations.
+   * Keep legal but imperfect candidates available to Beam.
+   */
+  const legal = ranked.filter(
+    (candidate) =>
+      !hardFailure(candidate) &&
+      candidate.inventionRisk <=
+        0.45 &&
+      candidate.forbiddenMoveRisk <=
+        0.45 &&
+      candidate.collageRisk <=
+        0.6,
+  );
 
-  if (creative.length) return creative.slice(0, perBeat);
-  if (fallback.length) return fallback.slice(0, perBeat);
-  return model.slice(0, perBeat);
+  if (!legal.length) {
+    return [];
+  }
+
+  const endpoint = legal.filter(
+    isEndpoint,
+  );
+
+  if (endpoint.length) {
+    return endpoint.slice(
+      0,
+      perBeat,
+    );
+  }
+
+  const hooks = legal.filter(
+    isHook,
+  );
+
+  const creative = legal.filter(
+    (candidate) =>
+      creativeMiddleCandidate(
+        candidate,
+      ),
+  );
+
+  const used = new Set<
+    MouthCandidate
+  >();
+
+  const output: MouthCandidate[] = [];
+
+  for (const candidate of [
+    ...hooks,
+    ...creative,
+    ...legal,
+  ]) {
+    if (output.length >= perBeat) {
+      break;
+    }
+
+    if (used.has(candidate)) {
+      continue;
+    }
+
+    used.add(candidate);
+    output.push(candidate);
+  }
+
+  return output;
 }
 
 function isCompleteEndpointPath(path: MouthSequencePath): boolean {
