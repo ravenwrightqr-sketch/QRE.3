@@ -11,6 +11,35 @@ export type MouthCreativeRealization = {
   viewerEffect: string;
   sourceAnchors: readonly string[];
   forbiddenLiteralizations: readonly string[];
+
+  /**
+   * Canonical creative direction for the entire realization.
+   * This is not viewer prose.
+   */
+  creativePremise?: string;
+
+  /**
+   * Ordered semantic trajectory the Mouth must express across the experience.
+   * These are meaning moves, not literal captions.
+   */
+  creativeTrajectory?: readonly string[];
+
+  /**
+   * The intended escalation or intensification move for this realization.
+   */
+  escalationMove?: string;
+
+  /**
+   * Optional earlier material that can be revisited only after its meaning
+   * has changed. It is not permission to repeat source language.
+   */
+  callbackPotential?: string;
+
+  /**
+   * The final semantic meaning the experience should leave behind.
+   */
+  terminalMeaning?: string;
+
   score: number;
 };
 
