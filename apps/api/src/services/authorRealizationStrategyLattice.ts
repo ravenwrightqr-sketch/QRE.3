@@ -4,6 +4,11 @@ import type {
   MouthCandidateBeat,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
+import { buildCharacterProfile } from "./authorCharacterLensEngine.js";
+import {
+  buildCreativeRealization,
+  type CreativeRealization,
+} from "./authorCreativeRealizationEngine.js";
 
 const STRATEGY_ORDER: readonly AuthorRealizationStrategy[] = [
   "contrast",
@@ -113,26 +118,17 @@ export function deriveRealizationStrategies(
     required.add("callback");
   }
 
-  if (
-    mode.includes("double") ||
-    creativeMove === "double_meaning"
-  ) {
+  if (mode.includes("double") || creativeMove === "double_meaning") {
     required.add("double_meaning");
   }
 
-  if (
-    mode.includes("payoff") ||
-    attentionFunction === "payoff"
-  ) {
+  if (mode.includes("payoff") || attentionFunction === "payoff") {
     required.add("compression");
     required.add("callback");
     required.add("understatement");
   }
 
-  if (
-    mode.includes("person") ||
-    creativeMove === "personification"
-  ) {
+  if (mode.includes("person") || creativeMove === "personification") {
     required.add("personification");
   }
 
@@ -174,13 +170,34 @@ export function selectSafeStrategies(
     (candidate) => candidate.strategy === "contrast",
   );
 
-  if (contrastCandidate && !selected.slice(0, limit).some((candidate) => candidate.strategy === "contrast")) {
+  if (
+    contrastCandidate &&
+    !selected
+      .slice(0, limit)
+      .some((candidate) => candidate.strategy === "contrast")
+  ) {
     const head = selected.slice(0, Math.max(0, limit - 1));
-    return [
-      ...head,
-      contrastCandidate,
-    ];
+    return [...head, contrastCandidate];
   }
 
   return selected.slice(0, limit);
+}
+
+export function buildCreativeRealizationForBeat(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): {
+  strategies: AuthorStrategyCandidate[];
+  realization: CreativeRealization;
+} {
+  const strategies = selectSafeStrategies(beat, envelope, 5);
+  const character = buildCharacterProfile(envelope);
+  const realization = buildCreativeRealization(
+    beat,
+    envelope,
+    character,
+    strategies,
+  );
+
+  return { strategies, realization };
 }
