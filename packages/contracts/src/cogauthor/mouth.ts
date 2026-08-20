@@ -4,6 +4,16 @@
  * Semantic structures shared by the canonical Mouth candidate, repair,
  * quality, and sequence-selection services. These are not viewer prose.
  */
+export type MouthCreativeRealization = {
+  strategy: string;
+  creativeOpportunity: string;
+  realizationIntent: string;
+  viewerEffect: string;
+  sourceAnchors: readonly string[];
+  forbiddenLiteralizations: readonly string[];
+  score: number;
+};
+
 export type MouthCandidateBeat = {
   order: number;
   role?: string;
@@ -11,6 +21,7 @@ export type MouthCandidateBeat = {
   creativeMove?: string;
   realizationMode?: string;
   realizationStrategies?: readonly string[];
+  creativeRealization?: MouthCreativeRealization;
   eventIds?: readonly string[];
   change?: string;
   next?: string;
