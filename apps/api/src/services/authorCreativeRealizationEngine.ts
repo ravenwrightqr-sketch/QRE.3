@@ -34,6 +34,11 @@ export type CreativeRealization = {
   sourceAnchors: string[];
   forbiddenLiteralizations: string[];
   score: number;
+  creativePremise: string;
+  creativeTrajectory: string[];
+  escalationMove: string;
+  callbackPotential: string[];
+  terminalMeaning: string;
 };
 
 const CONTRAST_PAIRS: readonly [string, string][] = [
@@ -67,13 +72,12 @@ function unique(values: readonly unknown[]): string[] {
 
 function lowerTokens(values: readonly string[]): Set<string> {
   return new Set(
-    values
-      .flatMap((value) =>
-        clean(value)
-          .toLowerCase()
-          .split(/[^a-z0-9'-]+/i)
-          .filter((token) => token.length >= 3),
-      ),
+    values.flatMap((value) =>
+      clean(value)
+        .toLowerCase()
+        .split(/[^a-z0-9'-]+/i)
+        .filter((token) => token.length >= 3),
+    ),
   );
 }
 
@@ -112,7 +116,7 @@ function detectContradictions(
   const signals = lowerTokens([
     ...character.coreTraits,
     ...character.contradictions,
-    ...character.emotionalPosture ? [character.emotionalPosture] : [],
+    ...(character.emotionalPosture ? [character.emotionalPosture] : []),
     ...(envelope.suppliedStates ?? []),
   ]);
 
@@ -123,10 +127,7 @@ function detectContradictions(
     }
   }
 
-  return unique([
-    ...character.contradictions,
-    ...found,
-  ]).slice(0, 8);
+  return unique([...character.contradictions, ...found]).slice(0, 8);
 }
 
 function chooseStrategy(
@@ -140,7 +141,8 @@ function chooseStrategy(
   const contradictions = detectContradictions(character, envelope);
   const relationKinds = relationKindsForBeat(beat, envelope);
   const labels = eventLabelsForBeat(beat, envelope);
-  const objectPresent = labels.some((label) => OBJECT_WORDS.test(label)) ||
+  const objectPresent =
+    labels.some((label) => OBJECT_WORDS.test(label)) ||
     envelope.events.some((event) => OBJECT_WORDS.test(event.label));
   const role = clean(beat.role).toLowerCase();
   const attention = clean(beat.attentionFunction).toLowerCase();
@@ -164,28 +166,39 @@ function chooseStrategy(
 
     if (
       objectPresent &&
-      (candidate.strategy === "double_meaning" || candidate.strategy === "personification" || candidate.strategy === "recontextualization")
+      (candidate.strategy === "double_meaning" ||
+        candidate.strategy === "personification" ||
+        candidate.strategy === "recontextualization")
     ) {
       bonus += 0.12;
     }
 
     if (
       (role === "payoff" || attention === "payoff") &&
-      (candidate.strategy === "compression" || candidate.strategy === "understatement" || candidate.strategy === "callback")
+      (candidate.strategy === "compression" ||
+        candidate.strategy === "understatement" ||
+        candidate.strategy === "callback")
     ) {
       bonus += 0.2;
     }
 
     if (
       (role === "hook" || attention === "hook") &&
-      (candidate.strategy === "contrast" || candidate.strategy === "status_inversion" || candidate.strategy === "implication")
+      (candidate.strategy === "contrast" ||
+        candidate.strategy === "status_inversion" ||
+        candidate.strategy === "implication")
     ) {
       bonus += 0.12;
     }
 
     return {
       candidate,
-      score: metric(candidate.safety * 0.5 + candidate.novelty * 0.2 + bonus + Math.max(0, 0.05 - index * 0.005)),
+      score: metric(
+        candidate.safety * 0.5 +
+          candidate.novelty * 0.2 +
+          bonus +
+          Math.max(0, 0.05 - index * 0.005),
+      ),
     };
   });
 
@@ -201,7 +214,8 @@ function opportunityFor(
   relationKinds: readonly string[],
 ): CreativeRealization {
   const role = clean(beat.role).toLowerCase();
-  const isPayoff = role === "payoff" || clean(beat.attentionFunction).toLowerCase() === "payoff";
+  const isPayoff =
+    role === "payoff" || clean(beat.attentionFunction).toLowerCase() === "payoff";
   const anchors = unique([
     ...(beat.eventIds ?? []),
     ...labels,
@@ -217,9 +231,38 @@ function opportunityFor(
     "new chronology",
   ];
 
+  const sourceChange = clean(beat.change);
+  const sourceNext = clean(beat.next || beat.frontier);
+  const dominantSignal = labels[0] || contradictions[0] || sourceChange;
+  const terminalMeaning = isPayoff
+    ? "Land the strongest earned meaning and finish without reopening the scene."
+    : sourceNext
+      ? `Make the next pull feel more interesting than the current fact: ${sourceNext}.`
+      : "Leave the viewer with a changed reading that invites the next beat.";
+
+  const base = {
+    sourceAnchors: anchors,
+    forbiddenLiteralizations: forbidden,
+    score: 0,
+    creativePremise: dominantSignal
+      ? `The source is material for a stronger reading of ${dominantSignal}, not a caption to repeat.`
+      : "Transform approved material into a viewer-facing idea rather than a fact list.",
+    creativeTrajectory: [] as string[],
+    escalationMove: sourceNext
+      ? `Increase the pull toward ${sourceNext} without introducing a new event.`
+      : "Increase implication, attitude, or consequence without adding reality.",
+    callbackPotential: unique([
+      ...labels.slice(0, 3),
+      ...character.coreTraits.slice(0, 3),
+      ...contradictions.slice(0, 3),
+    ]).slice(0, 5),
+    terminalMeaning,
+  };
+
   switch (strategy) {
     case "status_inversion":
       return {
+        ...base,
         strategy,
         creativeOpportunity:
           contradictions.length
@@ -228,12 +271,16 @@ function opportunityFor(
         realizationIntent:
           "Express the subject as if they already have the upper hand; do not narrate the source event literally.",
         viewerEffect: "The viewer feels an attitude reveal before being told what to think.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "recognize the contradiction",
+          "convert it into attitude",
+          "raise the status",
+          isPayoff ? "land the earned status" : "pull toward the next meaning",
+        ],
       };
     case "contrast":
       return {
+        ...base,
         strategy,
         creativeOpportunity:
           contradictions.length
@@ -241,12 +288,16 @@ function opportunityFor(
             : "Place two supplied qualities or signals against each other so the tension becomes the story.",
         realizationIntent: "Make the contradiction visible through language rather than restating either fact.",
         viewerEffect: "Immediate curiosity and character-specific punch.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "surface the tension",
+          "sharpen the contrast",
+          "let the contradiction become the joke or attitude",
+          isPayoff ? "resolve the contrast in the endpoint" : "leave a forward pull",
+        ],
       };
     case "recontextualization":
       return {
+        ...base,
         strategy,
         creativeOpportunity:
           relationKinds.length
@@ -254,35 +305,47 @@ function opportunityFor(
             : "Use a later supplied signal to make an earlier detail suddenly read differently.",
         realizationIntent: "Reveal a new reading of the same evidence instead of repeating the evidence.",
         viewerEffect: "The viewer gets the satisfying click of a new interpretation.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "plant the supplied signal",
+          "change its reading",
+          "connect it to the larger relationship",
+          isPayoff ? "cash the changed meaning" : "open the next implication",
+        ],
       };
     case "double_meaning":
       return {
+        ...base,
         strategy,
         creativeOpportunity:
           labels.length
             ? `Use the supplied object or phrase (${labels[0]}) as a safe second meaning.`
             : "Give a supplied word, object, or relationship a second safe reading.",
-        realizationIntent: "Exploit the supplied language as a joke, metaphor, status signal, or subtext without creating an event.",
+        realizationIntent: "Exploit supplied language as a joke, metaphor, status signal, or subtext without creating an event.",
         viewerEffect: "A small line lands twice.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "identify the loaded phrase",
+          "activate a second reading",
+          "let the implication do the work",
+          isPayoff ? "land the double meaning" : "carry the second reading forward",
+        ],
       };
     case "understatement":
       return {
+        ...base,
         strategy,
         creativeOpportunity: "Let the smallest language carry the largest implication.",
         realizationIntent: "Say less than the literal facts while making the attitude unmistakable.",
         viewerEffect: "The audience completes the joke or meaning themselves.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "strip the obvious language",
+          "keep the loaded implication",
+          "let silence do part of the work",
+          isPayoff ? "end on the earned understatement" : "leave room for the next beat",
+        ],
       };
     case "implication":
       return {
+        ...base,
         strategy,
         creativeOpportunity:
           relationKinds.length
@@ -290,49 +353,68 @@ function opportunityFor(
             : "Trust the supplied signals to imply a stronger meaning than their literal wording.",
         realizationIntent: "Write the line that makes the reader infer the interesting part.",
         viewerEffect: "The audience discovers the meaning rather than receiving an explanation.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "select the loaded evidence",
+          "withhold the literal explanation",
+          "let the viewer connect it",
+          isPayoff ? "land the implication" : "create the next pull",
+        ],
       };
     case "callback":
       return {
+        ...base,
         strategy,
         creativeOpportunity: "Reuse an earlier supplied signal only after it has gained a different meaning.",
         realizationIntent: "Make the callback feel earned and changed, never repeated for padding.",
         viewerEffect: "Recognition plus a new punch.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "plant the source signal",
+          "change its meaning",
+          "return to it with new context",
+          "make recognition become payoff",
+        ],
       };
     case "reversal":
       return {
+        ...base,
         strategy,
         creativeOpportunity: "Reverse the expected reading while remaining entirely inside supplied reality.",
         realizationIntent: "Make the line turn the viewer's assumption without inventing a new event.",
         viewerEffect: "A compact surprise.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "establish the obvious reading",
+          "turn the interpretation",
+          "commit to the new attitude",
+          isPayoff ? "land the reversal" : "pull toward the next turn",
+        ],
       };
     case "compression":
       return {
+        ...base,
         strategy,
         creativeOpportunity: "Collapse several supplied signals into the one thought that matters most.",
         realizationIntent: "Combine only when the resulting line creates a stronger meaning than the individual facts.",
         viewerEffect: "Fast, quotable momentum.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "identify the dominant meaning",
+          "discard redundant facts",
+          "compress into one memorable thought",
+          isPayoff ? "land the compressed meaning" : "launch the next beat",
+        ],
       };
     case "personification":
       return {
+        ...base,
         strategy,
         creativeOpportunity: "Give a supplied object, relationship, or situation human-like attitude without asserting a literal event.",
         realizationIntent: "Use personification as framing only; never imply the object literally acted.",
         viewerEffect: "Memorable visual personality.",
-        sourceAnchors: anchors,
-        forbiddenLiteralizations: forbidden,
-        score: 0,
+        creativeTrajectory: [
+          "select the supplied thing",
+          "assign it safe human-like attitude",
+          "let that attitude reframe the scene",
+          isPayoff ? "land the personality" : "carry it forward",
+        ],
       };
   }
 }
@@ -358,7 +440,12 @@ export function buildCreativeRealization(
   );
 
   const bestScore = selected
-    ? metric((selected.safety * 0.45) + (selected.novelty * 0.2) + (realization.sourceAnchors.length ? 0.15 : 0) + (contradictions.length ? 0.2 : 0))
+    ? metric(
+        selected.safety * 0.45 +
+          selected.novelty * 0.2 +
+          (realization.sourceAnchors.length ? 0.15 : 0) +
+          (contradictions.length ? 0.2 : 0),
+      )
     : 0.45;
 
   return {
