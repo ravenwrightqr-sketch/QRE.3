@@ -1,12 +1,12 @@
 # QRE AUTHOR WIRING MAP
 
 **STATUS:** CURRENT / CANONICAL
-**AUDIT SNAPSHOT:** `audit/mouth-production-sync`
+**AUDIT:** 2026-08-20 · `audit/mouth-production-sync`
 
 ## Canonical live path
 
 ```text
-SOURCE TRUTH
+USER-SUPPLIED REALITY / MEDIA EVIDENCE
   → authorRealityGraph.ts
   → authorCognition.ts
   → authorLatentMovieSearch.ts
@@ -14,111 +14,138 @@ SOURCE TRUTH
   → authorBrainUniversal.ts
   → authorMeaningSpine.ts
   → authorMouthRealizationSlot.ts
-  → authorRealizationStrategyLattice.ts  [promotion target]
+  → authorRealizationStrategyLattice.ts
   → authorMouthCandidateSearch.ts
-  → authorMouthLanguageGate.ts
-  → authorMouthAttentionGate.ts
-  → authorMouthQualityAdapter.ts
   → authorMouthSequenceBeamSearch.ts
   → authorAttentionEditor.ts
   → authorBeatTruthGate.ts / authorCutPolicy.ts
   → authorSequenceArcGate.ts
   → final scenes
+  → cinematic runtime
 ```
 
 ## Canonical owners
 
-| Responsibility | Owner | Consumer / status |
+| Responsibility | Owner | Status |
 |---|---|---|
-| RealityGraph compilation | `authorRealityGraph.ts` | cognition / Master Author |
-| Cognition | `authorCognition.ts` | Master Author |
-| Latent movie search | `authorLatentMovieSearch.ts` | cognition / Master Author |
-| Movie differentiation | `authorMovieDifferentiation.ts` | movie selection |
-| Master Author | `authorBrainUniversal.ts` | acceptance / runtime |
-| Meaning Spine | `authorMeaningSpine.ts` | realization slots |
-| Realization Slots | `authorMouthRealizationSlot.ts` | Mouth realization boundary |
-| Realization strategy selection | `authorRealizationStrategyLattice.ts` | current capability; **not yet called by canonical Mouth path** |
-| Candidate generation + semantic scoring | `authorMouthCandidateSearch.ts` | current canonical Mouth candidate owner; contains a direct generation loop that should be consolidated behind one generation API |
-| Reality/language gate | `authorMouthLanguageGate.ts` | quality adapter |
-| Attention cut gate | `authorMouthAttentionGate.ts` | quality adapter |
-| Candidate quality adaptation | `authorMouthQualityAdapter.ts` | Mouth beam |
-| Grounded fallback | `authorMouthGroundedFallback.ts` | quality adapter / safety rail |
-| Mouth sequence beam | `authorMouthSequenceBeamSearch.ts` | Master Author |
-| Attention editing | `authorAttentionEditor.ts` | Master Author |
-| Truth gate | `authorBeatTruthGate.ts` | Master Author |
-| Cut policy | `authorCutPolicy.ts` | Master Author |
-| Sequence arc | `authorSequenceArcGate.ts` | Master Author |
-| Model transport | `localModelRuntime.ts` | canonical Mouth generation only |
+| Reality construction | `authorRealityGraph.ts` | CANONICAL |
+| Cognition / character read | `authorCognition.ts` | CANONICAL |
+| Latent movie search | `authorLatentMovieSearch.ts` | CANONICAL |
+| Graph convergence support | `authorLatentMovieConvergence.ts` | CANONICAL SUPPORT |
+| Material movie differentiation | `authorMovieDifferentiation.ts` | CANONICAL |
+| Master Author orchestration | `authorBrainUniversal.ts` | CANONICAL / SOLE AUTHORITY |
+| Meaning Spine | `authorMeaningSpine.ts` | CANONICAL |
+| Realization boundary | `authorMouthRealizationSlot.ts` | CANONICAL |
+| Realization strategy selection | `authorRealizationStrategyLattice.ts` | CANONICAL CAPABILITY / NEXT WIRING PROMOTION |
+| Mouth generation + normalization + scoring | `authorMouthCandidateSearch.ts` | CANONICAL / SOLE MOUTH GENERATION OWNER |
+| Sequence optimization | `authorMouthSequenceBeamSearch.ts` | CANONICAL |
+| Attention accumulation | `authorAttentionEditor.ts` | CANONICAL |
+| Beat truth | `authorBeatTruthGate.ts` | CANONICAL |
+| Final cut policy | `authorCutPolicy.ts` | CANONICAL |
+| Sequence arc | `authorSequenceArcGate.ts` | CANONICAL |
+| Model transport | `localModelRuntime.ts` | CANONICAL TRANSPORT ONLY |
 
-## Current architecture finding
+## Architecture cleanup completed in this audit
 
-The canonical Master Author currently performs its own per-beat model-generation / parse / repair / selection loop instead of delegating the complete Mouth-generation responsibility to one canonical Mouth API. `authorMouthCandidateSearch.ts` also contains generation functionality.
-
-This is an ownership duplication to remove before Approach B is promoted. The target is one Mouth generation owner with:
+The following shadow branch was removed:
 
 ```text
-approved realization job
-→ strategy selection
-→ bounded model generation
-→ normalization / repair
-→ language + truth gates
-→ candidate pools
+Enterprise Mouth
++ Enterprise policy/runtime/safety/intelligence
++ Enterprise acceptance path
++ standalone Mouth quality/language/attention/fallback/repair adapters
++ duplicate latent-movie→beat adapter
 ```
 
-The Master Author should orchestrate that result, not reimplement the Mouth generation loop.
+Those modules were not consumed by the canonical Master Author. Keeping them would preserve duplicate ownership and make future failures ambiguous.
 
-## Trajectory status
+## Mouth ownership law
 
-`authorTrajectorySearch.ts` exists as a pure capability with its own structural acceptance. It is **NOT YET CONNECTED to the production Master Author** and therefore is not a live pipeline stage.
-
-The isolated acceptance has exposed an endpoint-terminal defect (`payoff -> payoff`). Resolve that before promotion.
-
-## Enterprise Mouth status
-
-`authorEnterpriseMouth.ts` is an acceptance-oriented alternate orchestration over canonical Mouth helpers. `authorBrainUniversal.ts` does not import it.
-
-Therefore:
+There is exactly one production Mouth generation owner:
 
 ```text
-Enterprise Mouth = NON-CANONICAL / UNDER MIGRATION AUDIT
+authorMouthCandidateSearch.ts
 ```
 
-Useful capabilities from the cluster—strategy selection, cumulative meaning, safety, grounded surprise, bounded model budgets, and cross-domain fixtures—must be migrated into canonical owners only when they improve the live path. Duplicate orchestration must then be retired.
+`authorBrainUniversal.ts` may orchestrate Mouth work, but must not implement another model-generation / parse / repair / selection subsystem.
 
-## Contract rule
+## Approach-B target
 
-All semantic concepts crossing service boundaries must originate in `@qre/contracts`.
-
-Canonical Author/Mouth semantic contracts live under:
+Approach B is now represented in the shared Mouth contract through:
 
 ```text
-packages/contracts/src/cogauthor/
+MouthCandidateBeat.realizationStrategies
 ```
 
-Broader shared strategy/lens/safety/model-tier contracts currently live in `packages/contracts/src/authoringIntelligence.ts`; do not duplicate them while consumer ownership is being audited.
+The next live wiring step is:
+
+```text
+RealizationSlot
+→ deriveSafeStrategies()
+→ realizationStrategies on MouthCandidateBeat
+→ candidate prompt explicitly explores those strategies
+→ deterministic scoring / Beam decides which wording survives
+```
+
+The strategy lattice changes expressive search, not Reality, Meaning, or endpoint authority.
+
+## Universal media law
+
+```text
+user media
+→ multimodal evidence
+→ RealityGraph
+→ canonical Author
+```
+
+AI image generation is outside the production Author path. QRE may interpret supplied media, but it must not silently replace user reality with generated imagery.
+
+## Experimental capabilities
+
+These remain explicitly non-authoritative until a real consumer is proven:
+
+```text
+authorLatentStoryThesis.ts
+authorCreativeSearch.ts
+authorCounterfactualSearch.ts
+authorTrajectorySearch.ts
+authorMouthCreativeLock.ts
+authorCharacterLensEngine.ts
+authorEvidenceFusion.ts
+authorMemoryIntelligence.ts
+authorMultimodalEvidence.ts
+authorModelRouter.ts
+authorTruth.ts
+```
+
+They are capability reservoirs, not shadow Authors.
 
 ## Acceptance rule
 
-Production acceptance must exercise `authorBrainUniversal.ts`.
-
-Helper-level acceptance may diagnose a component, but it cannot be called production green unless the canonical Master Author consumes that component.
-
-## Failure interpretation
+Production acceptance exercises:
 
 ```text
-compile passes
-    ≠
-production works
+authorBrainUniversal()
+```
 
-helper passes
-    ≠
-Master Author works
+Component tests may diagnose individual helpers. They never establish production authority by themselves.
 
-fallback passes
-    ≠
-Mouth is excellent
+## Production law
 
-production acceptance passes
-    =
-actual viewer-facing path survived authoritative gates
+```text
+compile green
+≠
+production green
+
+helper green
+≠
+production green
+
+one model output green
+≠
+universal green
+
+canonical path + authoritative gates + cross-domain acceptance
+=
+production confidence
 ```
