@@ -23,6 +23,105 @@ function ensureImport(text, importLine, marker) {
   return text.replace(marker, marker + "\n" + importLine);
 }
 
+function findMatchingBrace(text, openIndex) {
+  if (text[openIndex] !== "{") return -1;
+
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = openIndex; i < text.length; i += 1) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (lineComment) {
+      if (ch === "\n") lineComment = false;
+      continue;
+    }
+
+    if (blockComment) {
+      if (ch === "*" && next === "/") {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      lineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      blockComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+function findFunctionBlock(text, functionName) {
+  const signature = `function ${functionName}(`;
+  const start = text.indexOf(signature);
+  if (start < 0) return null;
+
+  const open = text.indexOf("{", start);
+  if (open < 0) return null;
+
+  const close = findMatchingBrace(text, open);
+  if (close < 0) return null;
+
+  return {
+    start,
+    open,
+    close,
+    block: text.slice(start, close + 1),
+  };
+}
+
+function findReturnObject(block) {
+  const returnMatch = /\breturn\s*\{/m.exec(block);
+  if (!returnMatch) return null;
+
+  const returnStart = returnMatch.index;
+  const open = block.indexOf("{", returnStart);
+  const close = findMatchingBrace(block, open);
+  if (open < 0 || close < 0) return null;
+
+  return {
+    returnStart,
+    open,
+    close,
+  };
+}
+
 function patchMaster(text) {
   text = ensureImport(
     text,
@@ -40,59 +139,48 @@ function patchMaster(text) {
     'import { selectSafeStrategies } from "./authorRealizationStrategyLattice.js";',
   );
 
-  const start = text.indexOf("function candidateBeatFromSlot(");
-  const end = text.indexOf("\nfunction ensureEndpointCandidate(", start);
-  if (start < 0 || end < 0) {
-    throw new Error("master candidateBeatFromSlot block not found");
+  const fn = findFunctionBlock(text, "candidateBeatFromSlot");
+  if (!fn) {
+    throw new Error("master candidateBeatFromSlot function not found");
   }
 
-  let block = text.slice(start, end);
-
-  if (!block.includes("creativeRealization: realization")) {
-    const objectStart = block.indexOf("\nreturn {\n");
-    if (objectStart < 0) {
-      throw new Error("master candidate beat return object not found");
-    }
-
-    const objectClose = block.lastIndexOf("\n};\n}");
-    if (objectClose < 0 || objectClose <= objectStart) {
-      throw new Error("master candidate beat return object close not found");
-    }
-
-    const objectBody = block.slice(
-      objectStart + "\nreturn {\n".length,
-      objectClose,
-    );
-
-    const replacement = [
-      "\nconst baseBeat: MouthCandidateBeat = {",
-      objectBody,
-      "};",
-      "",
-      "  const character = buildCharacterProfile(envelope);",
-      "  const strategyCandidates = selectSafeStrategies(baseBeat, envelope, 5);",
-      "  const realization = buildCreativeRealization(",
-      "    baseBeat,",
-      "    envelope,",
-      "    character,",
-      "    strategyCandidates,",
-      "  );",
-      "",
-      "  return {",
-      "    ...baseBeat,",
-      "    realizationStrategies: strategyCandidates.map(",
-      "      (candidate) => candidate.strategy,",
-      "    ),",
-      "    creativeRealization: realization,",
-      "  };",
-      "}",
-    ].join("\n");
-
-    block = block.slice(0, objectStart) + replacement;
+  const block = fn.block;
+  if (block.includes("creativeRealization: realization")) {
+    return text;
   }
 
-  text = text.slice(0, start) + block + text.slice(end);
-  return text;
+  const object = findReturnObject(block);
+  if (!object) {
+    throw new Error("master candidate beat return object not found structurally");
+  }
+
+  const objectBody = block.slice(object.open + 1, object.close);
+  const replacement = [
+    `function candidateBeatFromSlot${block.slice(block.indexOf("(", "function candidateBeatFromSlot"), object.returnStart)}`,
+    "const baseBeat: MouthCandidateBeat = {",
+    objectBody,
+    "  };",
+    "",
+    "  const character = buildCharacterProfile(envelope);",
+    "  const strategyCandidates = selectSafeStrategies(baseBeat, envelope, 5);",
+    "  const realization = buildCreativeRealization(",
+    "    baseBeat,",
+    "    envelope,",
+    "    character,",
+    "    strategyCandidates,",
+    "  );",
+    "",
+    "  return {",
+    "    ...baseBeat,",
+    "    realizationStrategies: strategyCandidates.map(",
+    "      (candidate) => candidate.strategy,",
+    "    ),",
+    "    creativeRealization: realization,",
+    "  };",
+    "}",
+  ].join("\n");
+
+  return text.slice(0, fn.start) + replacement + text.slice(fn.close + 1);
 }
 
 function patchMouth(text) {
@@ -123,9 +211,8 @@ function patchMouth(text) {
     );
   }
 
-  const systemAnchor = rawMaterialRule;
   if (!text.includes('`CREATIVE REALIZATION: ${creativeRealization?.creativeOpportunity')) {
-    const directiveLine = '    ...creativeDirective,';
+    const directiveLine = "    ...creativeDirective,";
     if (!text.includes(directiveLine)) {
       throw new Error("mouth creative directive spread anchor not found");
     }
@@ -159,7 +246,6 @@ function patchMouth(text) {
     );
   }
 
-  void systemAnchor;
   return text;
 }
 
