@@ -1120,7 +1120,7 @@ export async function generateMouthCandidatePools(
   },
 ): Promise<{ pools: MouthCandidatePool[]; rawText: string }> {
   const ordered = [...input.beats].sort((a, b) => a.order - b.order);
-  const MAX_CONCURRENT_REQUESTS = 3;
+  const MAX_CONCURRENT_REQUESTS = 1;
 
   type BeatJobResult = {
     beat: MouthCandidateBeat;
