@@ -1,9 +1,14 @@
 /**
  * QRE MOUTH SEQUENCE BEAM SEARCH · DETERMINISTIC EDITOR
  *
- * The beam never invents meaning. It selects among candidates produced by the
- * canonical Mouth scorer and grounded fallback. Establishment and payoff beats
- * have distinct semantic contracts from middle transition beats.
+ * The beam never invents meaning. It selects among already-scored candidates.
+ *
+ * Production invariants:
+ * - exact approved endpoint is sovereign;
+ * - exact duplicate language cannot occupy two non-terminal cuts;
+ * - evidence reuse is allowed when meaning advances;
+ * - callbacks are rewarded for new relation/transition value;
+ * - weak-but-legal candidates remain available for global comparison.
  */
 
 import type { MouthCandidate } from "./authorMouthCandidateSearch.js";
@@ -30,10 +35,15 @@ const clean = (value: unknown): string =>
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
-const MOVING_CUT_REASONS = new Set([
-  "strong-moving-cut",
+const HARD_FAILURES = new Set([
+  "forbidden-slot-move",
+  "high-invention-risk",
+  "analytic-realization-language",
+  "question-leak",
+  "non-exact-payoff",
 ]);
 
+const MOVING_CUT_REASONS = new Set(["strong-moving-cut"]);
 const WEAK_MOVEMENT_REASONS = new Set([
   "weak-forward-pull",
   "weak-next-need",
@@ -66,837 +76,185 @@ function isFallback(candidate: MouthCandidate): boolean {
 }
 
 function isEndpoint(candidate: MouthCandidate): boolean {
-  return candidate.endpointExactness === 1 &&
-    !candidate.reasons.includes("non-exact-payoff");
+  return candidate.endpointExactness === 1 && !candidate.reasons.includes("non-exact-payoff");
 }
 
-function hardFailure(
-  candidate: MouthCandidate,
-): boolean {
-  /*
-   * Only actual boundary violations are hard failures.
-   *
-   * Weak semantic execution is a quality signal.
-   * Beam must be allowed to compare weak and strong
-   * legal realizations across the complete trajectory.
-   */
-
-  return candidate.reasons.some(
-    (reason) =>
-      new Set([
-        "forbidden-slot-move",
-        "high-invention-risk",
-        "analytic-realization-language",
-        "question-leak",
-        "non-exact-payoff",
-      ]).has(reason),
-  );
+function hardFailure(candidate: MouthCandidate): boolean {
+  return candidate.reasons.some((reason) => HARD_FAILURES.has(reason));
 }
 
-function semanticallyEligible(
-  candidate: MouthCandidate,
-): boolean {
-  /*
-   * Exact approved endpoint is sovereign.
-   */
-  if (isEndpoint(candidate)) {
-    return (
-      candidate.endpointExactness === 1 &&
-      candidate.groundingScore >= 0.42 &&
-      candidate.inventionRisk <= 0.45 &&
-      candidate.forbiddenMoveRisk <= 0.45
-    );
-  }
-
-  /*
-   * Establishment / hook beats need grounding and legality,
-   * but do not need middle-beat transition semantics.
-   */
-  if (isHook(candidate)) {
-    return (
-      candidate.groundingScore >= 0.42 &&
-      candidate.inventionRisk <= 0.45 &&
-      candidate.forbiddenMoveRisk <= 0.45 &&
-      candidate.collageRisk <= 0.45 &&
-      !hardFailure(candidate)
-    );
-  }
-
-  /*
-   * Middle beats:
-   *
-   * Truth and concrete invention remain hard boundaries.
-   * Semantic weakness is deliberately left to Beam scoring.
-   */
+function legal(candidate: MouthCandidate): boolean {
   return (
+    !hardFailure(candidate) &&
     candidate.groundingScore >= 0.42 &&
     candidate.inventionRisk <= 0.45 &&
     candidate.forbiddenMoveRisk <= 0.45 &&
-    candidate.collageRisk <= 0.6 &&
-    !hardFailure(candidate)
+    candidate.collageRisk <= 0.6
   );
 }
 
-function creativeMiddleCandidate(candidate: MouthCandidate): boolean {
-  if (isHook(candidate) || isEndpoint(candidate) || isFallback(candidate)) return false;
-
-  const weakMovement = candidate.reasons.some((reason) => WEAK_MOVEMENT_REASONS.has(reason));
-  const strongMovingCut = candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason));
-
-  return (
-    semanticallyEligible(candidate) &&
-    candidate.score >= 0.52 &&
-    candidate.meaningScore >= 0.45 &&
-    candidate.transitionScore >= 0.45 &&
-    candidate.noveltyScore >= 0.55 &&
-    candidate.inventionRisk <= 0.35 &&
-    !weakMovement &&
-    (strongMovingCut || candidate.meaningScore >= 0.58)
-  );
-}
-function candidateTransition(
-  previous: MouthCandidate,
-  current: MouthCandidate,
-): number {
-  const previousEvents =
-    new Set(previous.supportedEventIds);
-
-  const currentEvents =
-    new Set(current.supportedEventIds);
-
-  const previousRelations =
-    new Set(
-      previous.supportedRelationPairs,
-    );
-
-  const currentRelations =
-    new Set(
-      current.supportedRelationPairs,
-    );
-
-  let sharedEvents = 0;
-
-  for (const id of currentEvents) {
-    if (previousEvents.has(id)) {
-      sharedEvents += 1;
-    }
-  }
-
-  let newEvents = 0;
-
-  for (const id of currentEvents) {
-    if (!previousEvents.has(id)) {
-      newEvents += 1;
-    }
-  }
-
-  let sharedRelations = 0;
-
-  for (const pair of currentRelations) {
-    if (previousRelations.has(pair)) {
-      sharedRelations += 1;
-    }
-  }
-
-  let newRelations = 0;
-
-  for (const pair of currentRelations) {
-    if (!previousRelations.has(pair)) {
-      newRelations += 1;
-    }
-  }
-
-  const lexicalSimilarity = metric(
-    overlap(
-      tokenSet(previous.text),
-      tokenSet(current.text),
-    ),
-  );
-
-  /*
-   * Local semantic continuity matters, but continuity alone cannot
-   * justify a repeated beat.
-   */
-  const semanticContinuity = metric(
-    Math.max(
-      previous.meaningScore,
-      current.meaningScore,
-    ) * 0.3 +
-      Math.max(
-        previous.transitionScore,
-        current.transitionScore,
-      ) * 0.3 +
-      Math.max(
-        previous.score,
-        current.score,
-      ) * 0.25 +
-      Math.max(
-        previous.cohesionScore,
-        current.cohesionScore,
-      ) * 0.15,
-  );
-
-  const eventCarry = metric(
-    Math.min(
-      1,
-      sharedEvents * 0.18,
-    ),
-  );
-
-  const eventAdvance = metric(
-    Math.min(
-      1,
-      newEvents * 0.28,
-    ),
-  );
-
-  const relationCarry = metric(
-    Math.min(
-      1,
-      sharedRelations * 0.16,
-    ),
-  );
-
-  const relationAdvance = metric(
-    Math.min(
-      1,
-      newRelations * 0.34,
-    ),
-  );
-
-  /*
-   * Very high lexical overlap is only good when something else
-   * actually advances.
-   */
-  const lexicalPenalty =
-    lexicalSimilarity >= 0.82 &&
-    newEvents === 0 &&
-    newRelations === 0
-      ? 0.22
-      : lexicalSimilarity >= 0.65 &&
-          newEvents === 0 &&
-          newRelations === 0
-        ? 0.1
-        : 0;
-
-  /*
-   * A legitimate callback can reuse evidence while introducing
-   * a new relationship or materially stronger transition.
-   */
-  const callbackCredit =
-    newRelations > 0 ||
-    current.transitionScore >= 0.72
-      ? 0.12
-      : 0;
-
-  const raw =
-    semanticContinuity * 0.42 +
-    eventCarry * 0.08 +
-    eventAdvance * 0.16 +
-    relationCarry * 0.06 +
-    relationAdvance * 0.24 +
-    callbackCredit -
-    lexicalPenalty;
-
-  return metric(raw);
+function exactTextDuplicate(path: MouthCandidate[], candidate: MouthCandidate): boolean {
+  const text = clean(candidate.text).toLowerCase();
+  if (!text || isEndpoint(candidate)) return false;
+  return path.some((previous) => clean(previous.text).toLowerCase() === text);
 }
 
-function repeatedEvidencePenalty(
-  path: MouthCandidate[],
-  candidate: MouthCandidate,
-): number {
-  if (!path.length) {
-    return 0;
+function evidenceAdvance(path: MouthCandidate[], candidate: MouthCandidate): number {
+  const priorEvents = new Set(path.flatMap((item) => item.supportedEventIds));
+  const priorRelations = new Set(path.flatMap((item) => item.supportedRelationPairs));
+  const newEvents = candidate.supportedEventIds.filter((id) => !priorEvents.has(id)).length;
+  const newRelations = candidate.supportedRelationPairs.filter((pair) => !priorRelations.has(pair)).length;
+  return metric(Math.min(1, newEvents * 0.18 + newRelations * 0.26));
+}
+
+function repetitionPenalty(path: MouthCandidate[], candidate: MouthCandidate): number {
+  if (!path.length || isEndpoint(candidate)) return 0;
+
+  const current = tokenSet(candidate.text);
+  let maxSimilarity = 0;
+  for (const previous of path) {
+    maxSimilarity = Math.max(maxSimilarity, overlap(current, tokenSet(previous.text)));
   }
 
-  /*
-   * Repetition is not automatically bad.
-   *
-   * A callback may legitimately reuse:
-   * - an earlier event,
-   * - an earlier relation,
-   * - an earlier phrase,
-   *
-   * when the new line changes its meaning or advances the trajectory.
-   *
-   * We therefore distinguish:
-   *
-   *   JUSTIFIED CALLBACK
-   *     reused evidence + new relation / stronger meaning / strong transition
-   *
-   *   SEMANTIC RESET
-   *     reused evidence + no new relation + weak movement
-   *
-   *   HARD REPETITION
-   *     same language / same evidence / no meaningful change
-   */
+  const advance = evidenceAdvance(path, candidate);
+  const movement = metric(candidate.meaningScore * 0.55 + candidate.transitionScore * 0.45);
 
-  const priorCandidates =
-    path;
+  if (maxSimilarity >= 0.92 && advance < 0.35 && movement < 0.72) return 1;
+  if (maxSimilarity >= 0.8 && advance === 0 && movement < 0.5) return 0.8;
+  if (advance > 0.35 || movement >= 0.72) return 0.08;
+  return metric(maxSimilarity * 0.24 - advance * 0.1);
+}
 
-  const candidateEvents =
-    new Set(
-      candidate.supportedEventIds,
-    );
-
-  const candidateRelations =
-    new Set(
-      candidate.supportedRelationPairs,
-    );
-
-  if (
-    !candidateEvents.size &&
-    !candidateRelations.size
-  ) {
-    return 0.12;
+function candidateTransition(previous: MouthCandidate | undefined, current: MouthCandidate): number {
+  if (!previous) {
+    return isHook(current)
+      ? current.groundingScore
+      : metric(
+          current.meaningScore * 0.25 +
+            current.transitionScore * 0.25 +
+            current.obligationCoverage * 0.15 +
+            current.relationContractScore * 0.12 +
+            current.score * 0.23,
+        );
   }
 
-  let maxLexicalSimilarity = 0;
-  let maxEventOverlap = 0;
-  let maxRelationOverlap = 0;
+  const previousEvents = new Set(previous.supportedEventIds);
+  const previousRelations = new Set(previous.supportedRelationPairs);
+  const currentEvents = new Set(current.supportedEventIds);
+  const currentRelations = new Set(current.supportedRelationPairs);
 
-  for (
-    const previous of priorCandidates
-  ) {
-    const lexical =
-      metric(
-        overlap(
-          tokenSet(
-            candidate.text,
-          ),
-          tokenSet(
-            previous.text,
-          ),
-        ),
-      );
+  const sharedEvents = [...currentEvents].filter((id) => previousEvents.has(id)).length;
+  const newEvents = [...currentEvents].filter((id) => !previousEvents.has(id)).length;
+  const sharedRelations = [...currentRelations].filter((pair) => previousRelations.has(pair)).length;
+  const newRelations = [...currentRelations].filter((pair) => !previousRelations.has(pair)).length;
 
-    maxLexicalSimilarity =
-      Math.max(
-        maxLexicalSimilarity,
-        lexical,
-      );
+  const lexical = overlap(tokenSet(previous.text), tokenSet(current.text));
+  const semantic = metric(
+    Math.max(previous.meaningScore, current.meaningScore) * 0.34 +
+      Math.max(previous.transitionScore, current.transitionScore) * 0.34 +
+      Math.max(previous.score, current.score) * 0.32,
+  );
 
-    const previousEvents =
-      new Set(
-        previous.supportedEventIds,
-      );
+  const repeatedLanguagePenalty = lexical >= 0.88 && newEvents === 0 && newRelations === 0 ? 0.22 : 0;
 
-    const previousRelations =
-      new Set(
-        previous.supportedRelationPairs,
-      );
-
-    let sharedEvents = 0;
-
-    for (
-      const id of candidateEvents
-    ) {
-      if (
-        previousEvents.has(id)
-      ) {
-        sharedEvents += 1;
-      }
-    }
-
-    let sharedRelations = 0;
-
-    for (
-      const pair of candidateRelations
-    ) {
-      if (
-        previousRelations.has(
-          pair,
-        )
-      ) {
-        sharedRelations += 1;
-      }
-    }
-
-    maxEventOverlap =
-      Math.max(
-        maxEventOverlap,
-        sharedEvents /
-          Math.max(
-            1,
-            candidateEvents.size,
-          ),
-      );
-
-    maxRelationOverlap =
-      Math.max(
-        maxRelationOverlap,
-        sharedRelations /
-          Math.max(
-            1,
-            candidateRelations.size,
-          ),
-      );
-  }
-
-  const priorEventIds =
-    new Set(
-      priorCandidates.flatMap(
-        (item) =>
-          item.supportedEventIds,
-      ),
-    );
-
-  const priorRelationPairs =
-    new Set(
-      priorCandidates.flatMap(
-        (item) =>
-          item.supportedRelationPairs,
-      ),
-    );
-
-  const newEventCount =
-    candidate.supportedEventIds.filter(
-      (id) =>
-        !priorEventIds.has(id),
-    ).length;
-
-  const newRelationCount =
-    candidate.supportedRelationPairs.filter(
-      (pair) =>
-        !priorRelationPairs.has(pair),
-    ).length;
-
-  const eventNovelty =
-    metric(
-      Math.min(
-        1,
-        newEventCount / 2,
-      ),
-    );
-
-  const relationNovelty =
-    metric(
-      Math.min(
-        1,
-        newRelationCount / 2,
-      ),
-    );
-
-  const movement =
-    metric(
-      candidate.meaningScore *
-        0.55 +
-        candidate.transitionScore *
-        0.45,
-    );
-
-  const callbackQuality =
-    metric(
-      eventNovelty *
-        0.35 +
-        relationNovelty *
-        0.35 +
-        movement *
-        0.3,
-    );
-
-  /*
-   * Exact / near-exact language repetition is almost always a reset
-   * unless the candidate is an explicit endpoint.
-   */
-  if (
-    maxLexicalSimilarity >=
-      0.92 &&
-    callbackQuality <
-      0.62
-  ) {
-    return 1;
-  }
-
-  /*
-   * Reusing almost all of the same evidence without any new relation
-   * or meaningful semantic movement is the core failure we just saw.
-   *
-   * Example:
-   *   "Came in nervous."
-   *   ...
-   *   "Came in nervous."
-   */
-  if (
-    maxEventOverlap >=
-      0.9 &&
-    maxRelationOverlap >=
-      0.9 &&
-    callbackQuality <
-      0.45
-  ) {
-    return 0.95;
-  }
-
-  /*
-   * Same event, but no new evidence and only weak movement:
-   * still heavily penalized.
-   */
-  if (
-    maxEventOverlap >=
-      0.8 &&
-    newEventCount ===
-      0 &&
-    newRelationCount ===
-      0 &&
-    movement <
-      0.5
-  ) {
-    return 0.8;
-  }
-
-  /*
-   * Reused evidence can be legitimate when the line materially
-   * changes the interpretation.
-   */
-  if (
-    newRelationCount > 0 ||
-    movement >=
-      0.72
-  ) {
-    return metric(
-      Math.max(
-        0,
-        0.18 -
-          callbackQuality *
-            0.12,
-      ),
-    );
-  }
-
-  /*
-   * Moderate reuse remains mildly costly.
-   */
   return metric(
-    Math.max(
-      0,
-      maxEventOverlap *
-        0.22 +
-        maxLexicalSimilarity *
-          0.12 -
-        eventNovelty *
-          0.18 -
-        relationNovelty *
-          0.18,
-    ),
+    semantic * 0.64 +
+      Math.min(sharedEvents, 2) * 0.04 +
+      Math.min(newEvents, 2) * 0.08 +
+      Math.min(sharedRelations, 2) * 0.08 +
+      Math.min(newRelations, 2) * 0.16 -
+      repeatedLanguagePenalty,
   );
 }
 
 function intrinsic(candidate: MouthCandidate): number {
-  if (isEndpoint(candidate)) return metric(0.94 + candidate.groundingScore * 0.06);
+  if (isEndpoint(candidate)) return metric(0.95 + candidate.groundingScore * 0.05);
   if (isHook(candidate)) {
     return metric(
-      candidate.groundingScore * 0.55 +
-      candidate.compressionScore * 0.12 +
-      candidate.noveltyScore * 0.08 +
-      candidate.meaningScore * 0.1 +
-      candidate.score * 0.15,
+      candidate.groundingScore * 0.42 +
+        candidate.compressionScore * 0.14 +
+        candidate.noveltyScore * 0.1 +
+        candidate.meaningScore * 0.12 +
+        candidate.score * 0.22,
     );
   }
 
-  const semantic = metric(
-    candidate.meaningScore * 0.24 +
-    candidate.transitionScore * 0.22 +
-    candidate.obligationCoverage * 0.16 +
-    candidate.relationContractScore * 0.15 +
-    candidate.score * 0.23,
+  return metric(
+    candidate.groundingScore * 0.2 +
+      candidate.meaningScore * 0.22 +
+      candidate.transitionScore * 0.2 +
+      candidate.obligationCoverage * 0.14 +
+      candidate.relationContractScore * 0.12 +
+      candidate.score * 0.12,
   );
-  const movement =
-    candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason)) ? 0.12 : 0;
-  const weakMovement =
-    candidate.reasons.some((reason) => WEAK_MOVEMENT_REASONS.has(reason)) ? 0.12 : 0;
-  const quality = metric(
-    candidate.groundingScore * 0.25 +
-    semantic * 0.4 +
-    candidate.compressionScore * 0.1 +
-    candidate.noveltyScore * 0.08 +
-    candidate.cohesionScore * 0.05 +
-    movement,
-  );
-  const risk =
-    candidate.inventionRisk * 0.42 +
-    candidate.collageRisk * 0.24 +
-    candidate.forbiddenMoveRisk * 0.34 +
-    candidate.repetitionRisk * 0.12 +
-    (isFallback(candidate) ? 0.2 : 0) +
-    weakMovement;
-  return metric(quality - risk * 0.34);
 }
 
-function endpointDominance(path: MouthCandidate[], candidate: MouthCandidate): number {
-  if (!isEndpoint(candidate)) return 0;
-  return path.some(isEndpoint) ? 0.02 : 0.28;
-}
-
-function pathScore(
-  path: MouthSequencePath,
-  candidate: MouthCandidate,
-): number {
-  const previous =
-    path.candidates[
-      path.candidates.length - 1
-    ];
-
-  const transition =
-    previous
-      ? candidateTransition(
-          previous,
-          candidate,
-        )
-      : isHook(candidate)
-        ? candidate.groundingScore
-        : metric(
-            candidate.meaningScore * 0.24 +
-              candidate.transitionScore * 0.24 +
-              candidate.obligationCoverage * 0.14 +
-              candidate.relationContractScore * 0.14 +
-              candidate.score * 0.24,
-          );
-
-  const priorEventIds =
-    new Set(
-      path.candidates.flatMap(
-        (item) =>
-          item.supportedEventIds,
-      ),
-    );
-
-  const priorRelationPairs =
-    new Set(
-      path.candidates.flatMap(
-        (item) =>
-          item.supportedRelationPairs,
-      ),
-    );
-
-  const newEventCount =
-    candidate.supportedEventIds.filter(
-      (id) =>
-        !priorEventIds.has(id),
-    ).length;
-
-  const newRelationCount =
-    candidate.supportedRelationPairs.filter(
-      (pair) =>
-        !priorRelationPairs.has(pair),
-    ).length;
-
-  const evidenceGain =
-    metric(
-      Math.min(
-        1,
-        newEventCount * 0.2 +
-          newRelationCount * 0.3,
-      ),
-    );
-
-  /*
-   * Semantic reset:
-   *
-   * The candidate is legal in isolation but spends evidence already
-   * used by the path without creating a new relation, new event, or
-   * meaningful transition.
-   */
-  const pathRepetition =
-    repeatedEvidencePenalty(
-      path.candidates,
-      candidate,
-    );
-
-  const meaningfulAdvance =
-    metric(
-      evidenceGain * 0.45 +
-        candidate.transitionScore *
-          0.3 +
-        candidate.meaningScore *
-          0.25,
-    );
-
-  const semanticReset =
-    path.candidates.length >= 2 &&
-    newEventCount === 0 &&
-    newRelationCount === 0 &&
-    meaningfulAdvance < 0.48
-      ? 0.32
-      : 0;
-
-  /*
-   * If the current candidate reuses evidence, it must earn that reuse
-   * through stronger semantic movement.
-   */
-  const reuseWithoutAdvance =
-    candidate.supportedEventIds.length > 0 &&
-    newEventCount === 0 &&
-    newRelationCount === 0 &&
-    candidate.transitionScore < 0.6
-      ? 0.18
-      : 0;
-
-  const movementBonus =
-    candidate.reasons.some(
-      (reason) =>
-        MOVING_CUT_REASONS.has(reason),
-    )
-      ? 0.14
-      : 0;
-
-  const callbackBonus =
-    path.candidates.length > 0 &&
-    newRelationCount > 0 &&
-    candidate.meaningScore >= 0.55
-      ? 0.1
-      : 0;
-
-  const fallbackPenalty =
-    isFallback(candidate)
-      ? 0.12
-      : 0;
-
-  /*
-   * Endpoint remains sovereign, but it should not make us forget
-   * the trajectory that leads into it.
-   */
-  const endpointBonus =
-    isEndpoint(candidate)
-      ? endpointDominance(
-          path.candidates,
-          candidate,
-        )
-      : 0;
+function pathScore(path: MouthSequencePath, candidate: MouthCandidate): number {
+  const previous = path.candidates[path.candidates.length - 1];
+  const transition = candidateTransition(previous, candidate);
+  const advance = evidenceAdvance(path.candidates, candidate);
+  const repetition = repetitionPenalty(path.candidates, candidate);
+  const movementBonus = candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason)) ? 0.12 : 0;
+  const endpointBonus = isEndpoint(candidate) ? 0.28 : 0;
+  const fallbackPenalty = isFallback(candidate) ? 0.1 : 0;
 
   return (
     path.score +
-    intrinsic(candidate) * 0.42 +
-    transition * 0.22 +
-    evidenceGain * 0.16 +
+    intrinsic(candidate) * 0.45 +
+    transition * 0.25 +
+    advance * 0.18 +
     movementBonus +
-    callbackBonus +
     endpointBonus -
-    pathRepetition * 0.22 -
-    semanticReset -
-    reuseWithoutAdvance -
+    repetition * 0.28 -
     fallbackPenalty
   );
 }
 
-function signature(path: MouthCandidate[]): string {
-  return path.map((candidate) => clean(candidate.text).toLowerCase()).join("|");
-}
-function poolCandidates(
-  pool: MouthCandidatePool,
-  perBeat: number,
-  isTerminal: boolean,
-): MouthCandidate[] {
-  const ranked = [
-    ...pool.candidates,
-  ].sort(
-    (a, b) =>
-      b.score - a.score,
-  );
+function poolCandidates(pool: MouthCandidatePool, perBeat: number): MouthCandidate[] {
+  const ranked = [...pool.candidates].sort((a, b) => b.score - a.score);
+  const legalCandidates = ranked.filter(legal);
+  if (!legalCandidates.length) return [];
 
-  const legal =
-    ranked.filter(
-      (candidate) =>
-        !hardFailure(candidate) &&
-        candidate.inventionRisk <=
-          0.45 &&
-        candidate.forbiddenMoveRisk <=
-          0.45 &&
-        candidate.collageRisk <=
-          0.6,
+  const endpoint = legalCandidates.filter(isEndpoint);
+  if (endpoint.length) return endpoint.slice(0, perBeat);
+
+  const hooks = legalCandidates.filter(isHook);
+  const creative = legalCandidates.filter((candidate) => {
+    if (isHook(candidate) || isFallback(candidate)) return false;
+    const weakMovement = candidate.reasons.some((reason) => WEAK_MOVEMENT_REASONS.has(reason));
+    const strongMovement = candidate.reasons.some((reason) => MOVING_CUT_REASONS.has(reason));
+    return (
+      candidate.score >= 0.48 &&
+      candidate.meaningScore >= 0.42 &&
+      candidate.transitionScore >= 0.4 &&
+      candidate.inventionRisk <= 0.35 &&
+      candidate.noveltyScore >= 0.45 &&
+      !weakMovement &&
+      (strongMovement || candidate.meaningScore >= 0.55)
     );
+  });
 
-  if (!legal.length) {
-    return [];
-  }
+  const output: MouthCandidate[] = [];
+  const seen = new Set<string>();
 
-  /*
-   * Endpoint candidates belong only to the terminal pool.
-   */
-  if (isTerminal) {
-    const endpoints =
-      legal.filter(
-        isEndpoint,
-      );
-
-    return endpoints.length
-      ? endpoints.slice(
-          0,
-          perBeat,
-        )
-      : legal
-          .filter(
-            (candidate) =>
-              !isEndpoint(candidate),
-          )
-          .slice(
-            0,
-            perBeat,
-          );
-  }
-
-  /*
-   * Earlier beats must never consume the terminal endpoint.
-   */
-  const nonEndpoint =
-    legal.filter(
-      (candidate) =>
-        !isEndpoint(candidate),
-    );
-
-  if (!nonEndpoint.length) {
-    return [];
-  }
-
-  const hooks =
-    nonEndpoint.filter(
-      isHook,
-    );
-
-  const creative =
-    nonEndpoint.filter(
-      (candidate) =>
-        creativeMiddleCandidate(
-          candidate,
-        ),
-    );
-
-  const used =
-    new Set<MouthCandidate>();
-
-  const output:
-    MouthCandidate[] = [];
-
-  for (
-    const candidate of [
-      ...hooks,
-      ...creative,
-      ...nonEndpoint,
-    ]
-  ) {
-    if (
-      output.length >=
-      perBeat
-    ) {
-      break;
-    }
-
-    if (
-      used.has(candidate)
-    ) {
-      continue;
-    }
-
-    used.add(candidate);
+  for (const candidate of [...hooks, ...creative, ...legalCandidates]) {
+    if (output.length >= perBeat) break;
+    const key = clean(candidate.text).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
     output.push(candidate);
   }
 
   return output;
 }
 
-function isCompleteEndpointPath(path: MouthSequencePath): boolean {
+function completeEndpointPath(path: MouthSequencePath): boolean {
   const last = path.candidates[path.candidates.length - 1];
   return Boolean(last && isEndpoint(last));
+}
+
+function signature(path: MouthCandidate[]): string {
+  return path.map((candidate) => clean(candidate.text).toLowerCase()).join("|");
 }
 
 export function selectBestMouthSequence(
@@ -909,31 +267,15 @@ export function selectBestMouthSequence(
 
   let beam: MouthSequencePath[] = [{ candidates: [], texts: [], score: 0 }];
 
-  for (
-  let poolIndex = 0;
-  poolIndex < ordered.length;
-  poolIndex += 1
-) {
-  const pool =
-    ordered[poolIndex]!;
-
-  const isTerminal =
-    poolIndex ===
-    ordered.length - 1;
-
-  const candidates =
-    poolCandidates(
-      pool,
-      perBeat,
-      isTerminal,
-    );
-    if (!candidates.length) {
-      return { candidates: [], texts: [], score: 0 };
-    }
+  for (const pool of ordered) {
+    const candidates = poolCandidates(pool, perBeat);
+    if (!candidates.length) return { candidates: [], texts: [], score: 0 };
 
     const expanded: MouthSequencePath[] = [];
+
     for (const path of beam) {
       for (const candidate of candidates) {
+        if (exactTextDuplicate(path.candidates, candidate)) continue;
         expanded.push({
           candidates: [...path.candidates, candidate],
           texts: [...path.texts, candidate.text],
@@ -941,6 +283,8 @@ export function selectBestMouthSequence(
         });
       }
     }
+
+    if (!expanded.length) return { candidates: [], texts: [], score: 0 };
 
     const deduped = new Map<string, MouthSequencePath>();
     for (const path of expanded) {
@@ -950,20 +294,18 @@ export function selectBestMouthSequence(
     }
 
     const all = [...deduped.values()];
-    const complete = all.filter(isCompleteEndpointPath);
-    const valid = all.filter((path) => path.candidates.every(semanticallyEligible));
-    const survival = complete.length ? complete : valid.length ? valid : all;
+    const complete = all.filter(completeEndpointPath);
+    const safe = all.filter((path) => path.candidates.every(legal));
+    const survival = complete.length ? complete : safe.length ? safe : all;
 
     beam = survival.sort((a, b) => b.score - a.score).slice(0, width);
   }
 
   if (!beam.length) return { candidates: [], texts: [], score: 0 };
 
-  const endpoint = beam.filter(isCompleteEndpointPath).sort((a, b) => b.score - a.score)[0];
-  const selected = endpoint ?? beam[0];
-
+  const endpoint = beam.find(completeEndpointPath) ?? beam[0]!;
   return {
-    ...selected,
-    score: metric(selected.score / Math.max(1, ordered.length)),
+    ...endpoint,
+    score: metric(endpoint.score / Math.max(1, ordered.length)),
   };
 }
