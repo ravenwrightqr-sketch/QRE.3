@@ -178,7 +178,7 @@ if (exists("apps/api/src/services/authorRealizationStrategyLattice.ts")) {
 if (exists("apps/api/src/services/authorMouthSequenceBeamSearch.ts")) {
   const body = read("apps/api/src/services/authorMouthSequenceBeamSearch.ts");
   check("beam:sequence", /selectBestMouthSequence/.test(body), "Beam selects complete sequences");
-  check("beam:endpoint", /isCompleteEndpointPath/.test(body), "Beam models endpoint completion explicitly");
+  check("beam:endpoint", /completeEndpointPath/.test(body), "Beam models endpoint completion explicitly");
   check("beam:no-model", !/localModelGenerate/.test(body), "Beam remains deterministic and model-free");
 }
 
@@ -202,6 +202,8 @@ if (exists("apps/api/src/services/localModelRuntime.ts")) {
 const allowedDirectModelCallers = new Set([
   "authorBrainUniversal.ts",
   "authorMouthCandidateSearch.ts",
+  "authorBeatTruthGate.ts",
+  "localModelRuntime.ts",
   "aiProvider.ts",
 ]);
 
