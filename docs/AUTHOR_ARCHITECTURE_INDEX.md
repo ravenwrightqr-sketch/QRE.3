@@ -1,8 +1,8 @@
 # QRE AUTHOR ARCHITECTURE INDEX
 
 **STATUS:** CURRENT / CANONICAL
-**AUDIT SNAPSHOT:** `audit/mouth-production-sync`
-**AUTHORITY:** This file defines the current semantic ownership map. Historical/idea documents do not override it.
+**AUDIT:** 2026-08-20 · `audit/mouth-production-sync`
+**AUTHORITY:** This file defines current semantic ownership. Historical/idea documents do not override it.
 
 ## 1. MASTER RULE
 
@@ -23,13 +23,11 @@ MASTER AUTHOR / BEAT DISCOVERY
     ↓
 MEANING SPINE / REALIZATION SLOTS
     ↓
-REALIZATION STRATEGY
+REALIZATION STRATEGY LATTICE
     ↓
-MOUTH CANDIDATES
+ONE CANONICAL MOUTH GENERATION OWNER
     ↓
-LANGUAGE + REALITY GATES
-    ↓
-SEQUENCE BEAM
+DETERMINISTIC SEQUENCE BEAM
     ↓
 ATTENTION EDITOR
     ↓
@@ -42,8 +40,6 @@ FINAL SCENES
 RUNTIME
 ```
 
-Trajectory search is a supported semantic capability but is **not yet declared a canonical production stage** until its complete endpoint/consumer wiring is verified in the live Master Author.
-
 ## 2. CANONICAL OWNERS
 
 | Concern | Canonical owner | Status |
@@ -51,57 +47,58 @@ Trajectory search is a supported semantic capability but is **not yet declared a
 | Source truth / evidence graph | `apps/api/src/services/authorRealityGraph.ts` | ACTIVE |
 | Cognition / character read | `apps/api/src/services/authorCognition.ts` | ACTIVE |
 | Latent movie search | `apps/api/src/services/authorLatentMovieSearch.ts` | ACTIVE |
+| Graph convergence support | `apps/api/src/services/authorLatentMovieConvergence.ts` | ACTIVE SUPPORT |
 | Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` | ACTIVE |
-| Master Author orchestration | `apps/api/src/services/authorBrainUniversal.ts` | ACTIVE |
+| Master Author orchestration | `apps/api/src/services/authorBrainUniversal.ts` | ACTIVE / SOLE AUTHORITY |
+| Beat recovery | `apps/api/src/services/authorBeatPlanRecovery.ts` | ACTIVE SUPPORT |
 | Meaning Spine | `apps/api/src/services/authorMeaningSpine.ts` | ACTIVE |
 | Realization Slots | `apps/api/src/services/authorMouthRealizationSlot.ts` | ACTIVE |
-| Realization strategy selection | `apps/api/src/services/authorRealizationStrategyLattice.ts` | SUPPORT → PROMOTION TARGET |
+| Realization strategy selection | `apps/api/src/services/authorRealizationStrategyLattice.ts` | ACTIVE CAPABILITY / PROMOTION TARGET |
 | Mouth semantic contract | `packages/contracts/src/cogauthor/mouth.ts` | CANONICAL |
-| Mouth strategy / safety contract types | `packages/contracts/src/authoringIntelligence.ts` | SHARED AUTHORING CONTRACT / CONSUMER AUDIT |
-| Mouth candidate generation/scoring | `apps/api/src/services/authorMouthCandidateSearch.ts` | ACTIVE |
-| Mouth language gate | `apps/api/src/services/authorMouthLanguageGate.ts` | ACTIVE |
-| Mouth attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` | ACTIVE |
-| Mouth quality adaptation | `apps/api/src/services/authorMouthQualityAdapter.ts` | ACTIVE / HARDENED |
-| Grounded fallback | `apps/api/src/services/authorMouthGroundedFallback.ts` | ACTIVE / SAFETY RAIL |
-| Mouth repair objectives | `apps/api/src/services/authorMouthRepairPlanner.ts` | SUPPORT |
+| Mouth candidate generation / normalization / scoring / bounded repair | `apps/api/src/services/authorMouthCandidateSearch.ts` | ACTIVE / SOLE MOUTH GENERATION OWNER |
 | Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | ACTIVE |
-| Attention Editor | `apps/api/src/services/authorAttentionEditor.ts` | ACTIVE |
-| Truth / cut policy | `apps/api/src/services/authorBeatTruthGate.ts` + `apps/api/src/services/authorCutPolicy.ts` | ACTIVE |
-| Sequence arc gate | `apps/api/src/services/authorSequenceArcGate.ts` | ACTIVE |
-| Model transport | `apps/api/src/services/localModelRuntime.ts` | ACTIVE |
-| Trajectory search | `apps/api/src/services/authorTrajectorySearch.ts` | CANDIDATE / NOT YET WIRED |
+| Whole-sequence attention editing | `apps/api/src/services/authorAttentionEditor.ts` | ACTIVE |
+| Beat truth | `apps/api/src/services/authorBeatTruthGate.ts` | ACTIVE |
+| Final cut legality / grounding / frontier | `apps/api/src/services/authorCutPolicy.ts` | ACTIVE |
+| Sequence arc | `apps/api/src/services/authorSequenceArcGate.ts` | ACTIVE |
+| Model transport | `apps/api/src/services/localModelRuntime.ts` | ACTIVE / TRANSPORT ONLY |
 
-## 3. CONTRACT AUTHORITY
+## 3. MOUTH OWNERSHIP
 
-Canonical COGAUTHOR Author contracts live in:
-
-```text
-packages/contracts/src/cogauthor/
-```
-
-The public package barrel is:
+There is exactly one production Mouth generation owner:
 
 ```text
-packages/contracts/src/index.ts
-    ↓
-packages/contracts/src/cogauthor/index.ts
+apps/api/src/services/authorMouthCandidateSearch.ts
 ```
 
-Current COGAUTHOR authorities include:
+It owns the model-facing realization call and candidate scoring. The Master Author orchestrates the result; it does not recreate another generation/repair/selection pipeline.
+
+Separate language/attention/quality/fallback adapters were retired when their only production consumer was the non-canonical Enterprise Mouth stack. Their useful invariants have either been incorporated into canonical scoring/gates or are preserved as production laws.
+
+## 4. APPROACH B
+
+Approach B is a controlled realization-strategy search.
+
+The contract explicitly carries:
 
 ```text
-cogauthor/authorBrain.ts
-cogauthor/cognition.ts
-cogauthor/latentMovie.ts
-cogauthor/realityGraph.ts
-cogauthor/mouth.ts
+MouthCandidateBeat.realizationStrategies
 ```
 
-`packages/contracts/src/authoringIntelligence.ts` currently owns broader domain-neutral authoring strategy/lens/safety/model contracts and supplies `AuthorRealizationStrategy` / `AuthorStrategyCandidate` consumed by the existing realization strategy lattice. Relocation into COGAUTHOR is a consumer-audit decision, not an assumption.
+Target:
 
-No service may create a competing semantic contract for an existing concept.
+```text
+Meaning Spine
+→ Realization Slot
+→ safe realization strategies
+→ Mouth wording candidates
+→ deterministic semantic scoring
+→ Beam
+```
 
-## 4. TRUTH BOUNDARY
+The lattice may change framing, implication, status, contrast, callback, compression, understatement, personification, or other expressive treatment. It never grants permission to invent reality.
+
+## 5. TRUTH BOUNDARY
 
 Reality is immutable.
 
@@ -111,10 +108,11 @@ Allowed:
 fact → factual realization
 fact + supported relation → interpretation
 supplied contradiction → creative framing
-supplied object → changed meaning
+supplied recurrence → changed significance
+supplied media → evidence
 ```
 
-Not allowed in reality-locked mode:
+Forbidden as new factual content:
 
 ```text
 new person
@@ -128,106 +126,84 @@ new sound
 new outcome
 ```
 
-Creative lenses change framing. They do not create reality.
+## 6. MEDIA LAW
 
-## 5. MOUTH CONTRACT
-
-The Mouth receives an approved realization job plus source evidence.
-
-It does **not** decide:
+User media is part of source reality:
 
 ```text
-reality
-movie
-meaning
-endpoint
-sequence architecture
+user uploads before/after photos
+→ multimodal evidence extraction
+→ RealityGraph / evidence
+→ canonical Author
 ```
 
-The production evolution is:
+AI image generation is not part of the canonical Author path.
+
+`aiProvider.ts` is a provider adapter and compatibility layer. Any compatibility writing call must delegate to `authorBrainUniversal.ts`; it cannot become a second prose author.
+
+## 7. EXPERIMENTAL CAPABILITIES
+
+The following remain capability reservoirs and are not semantic authorities until their live consumer and acceptance path are proven:
 
 ```text
-Realization Slot
-→ safe realization strategy
-→ language candidates
-→ truth / language gates
-→ semantic scoring
-→ whole-sequence Beam
+authorLatentStoryThesis.ts
+authorCreativeSearch.ts
+authorCounterfactualSearch.ts
+authorTrajectorySearch.ts
+authorMouthCreativeLock.ts
+authorCharacterLensEngine.ts
+authorEvidenceFusion.ts
+authorMemoryIntelligence.ts
+authorMultimodalEvidence.ts
+authorModelRouter.ts
+authorTruth.ts
 ```
 
-The model supplies wording only. QRE owns truth, semantic legality, sequence selection, endpoint integrity, and final gating.
+Trajectory search is especially important for future realization-viability / trajectory-compression work, but it is not silently promoted into the Master Author until its endpoint semantics are proven.
 
-## 6. SEQUENCE LAW
+## 8. RETIRED SHADOW SYSTEMS
 
-One viewer-facing message normally performs one dominant cut.
-
-A successful sequence must create movement:
+The following non-canonical Enterprise and orphaned Mouth support modules were removed in the 2026-08-20 audit:
 
 ```text
-CUT
-→ viewer state changes
-→ something remains unresolved
-→ next CUT becomes desirable
-→ payoff lands
+Enterprise Mouth orchestration / policy / runtime / safety / intelligence
+Enterprise acceptance harness
+MouthQualityAdapter
+MouthGroundedFallback
+MouthLanguageGate
+MouthAttentionGate
+MouthRepairPlanner
+CumulativeMeaning support adapter
+LatentMovieBeatAdapter
 ```
 
-A list of facts chopped into separate lines is not a movie.
+A new filename must not recreate any of these as another author.
 
-## 7. ENTERPRISE MOUTH STATUS
+## 9. ACCEPTANCE RULE
 
-`apps/api/src/services/authorEnterpriseMouth.ts` is an acceptance-oriented alternate orchestration over canonical Mouth primitives. It is **NOT** the canonical production Mouth path because `authorBrainUniversal.ts` does not consume it.
-
-Useful capabilities from that cluster are migration candidates only:
+Production acceptance exercises:
 
 ```text
-strategy selection
-cumulative meaning
-safety
-bounded budgets
-cross-domain fixtures
-surprise diagnostics
+authorBrainUniversal()
 ```
 
-Duplicate orchestration must retire after useful capabilities are migrated and verified in canonical owners.
-
-## 8. ACCEPTANCE RULE
-
-Production acceptance must exercise `authorBrainUniversal.ts`.
-
-Helper-level acceptance diagnoses components; it does not establish production authority.
-
-## 9. FILE STATUS STANDARD
-
-Every audited file is classified exactly one of:
-
-```text
-CANONICAL
-SUPPORT
-ACCEPTANCE
-STRATEGY / IDEATION
-HISTORICAL
-LEGACY
-ORPHAN
-UNDER AUDIT
-```
-
-Names containing `enterprise`, `monster`, `v2`, `v3`, `final`, or `fixed` do not confer authority.
+Helper acceptance exists to diagnose components. It cannot establish production authority.
 
 ## 10. DEFINITION OF DONE
 
-The Author is production-ready when unfamiliar reality can travel through one coherent path:
+The Author becomes production-ready when unfamiliar source reality can travel through one coherent machine:
 
 ```text
 reality
-→ interesting interpretation
+→ meaningful interpretation
 → differentiated movie
 → deliberate beat graph
 → realization strategy
-→ strong Mouth
-→ sequence search
+→ strong Mouth candidates
+→ sequence optimization
 → attention / truth / cut
-→ complete payoff
-→ final scenes
+→ exact endpoint
+→ complete scenes
 ```
 
-The standard is not merely green tests. The standard is excellent, grounded, complete, repeatable output across unrelated industries.
+The quality standard is not “the compiler ran.” It is excellent, grounded, distinct, complete output across unrelated industries, sparse inputs, rich inputs, returning memories, and user-supplied media.
