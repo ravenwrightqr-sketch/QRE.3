@@ -14,6 +14,7 @@ type Packet = { subject: string; reality: string[]; ending: string; lineCount: n
 
 const MIN_SCORE = 0.74;
 const MIN_PULL = 0.34;
+const PATH_IDS = ["shift", "deadpan", "pressure"] as const;
 const META = /\b(?:as an ai|the audience|the viewer|this means|this shows|the strategy|the beat|according to qre|cognitive)\b/i;
 const STOCK = /\b(?:magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|one for the books|once in a lifetime|heartwarming)\b/i;
 const GLUE = /\b(?:therefore|as a result|which means|this is why|in order to|thus|ultimately)\b/i;
@@ -121,9 +122,12 @@ function makePaths(arc: ReturnType<typeof chooseMaterial>, subject: string, endi
 function referencePolicy(subject: string): ReferencePolicy { return { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }; }
 function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> {
   const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" };
+  const schema = packet.paths.map((path) => `{"pathId":"${path.id}","lines":["..."]}`).join(",");
   return [{ role: "user", content: [
     "QRE MOUTH. QRE already discovered the movie paths. You are only the language renderer.",
-    `Return JSON only: {\"candidates\":[{\"pathId\":\"shift|deadpan|pressure\",\"lines\":[\"...\"]}]}. Return exactly ${packet.paths.length} candidates, one for each path, in path order.`,
+    `Return JSON only using this exact structure: {"candidates":[${schema}]}.`,
+    `Allowed pathId values are exactly: ${packet.paths.map((path) => `"${path.id}"`).join(", ")}. Never return a combined value such as "${packet.paths.map((path) => path.id).join("|")}".`,
+    `Return exactly ${packet.paths.length} candidates, one for each path, in path order.`,
     `Each candidate has exactly ${packet.lineCount} lines. Each non-final line is ${packet.maxWords} words or fewer.`,
     packet.ending ? `Every candidate final line must be EXACTLY: ${packet.ending}` : "Finish on the earned consequence.",
     "Each beat must perform its assigned function. A line that only describes, repeats, restates, or decorates is a failure.",
@@ -137,9 +141,22 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
 function normalizeLine(value: unknown): string { return clean(value).replace(/^(?:[-*•]|\d+[.)])\s*/u, "").replace(/^['\"]|['\"]$/g, "").trim(); }
 function parseCandidates(raw: string, count: number): Candidate[] {
   const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim(); if (!text) return [];
-  try { const parsed = JSON.parse(text) as unknown; const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : [];
-    return list.map((item) => { const r = item && typeof item === "object" ? item as Record<string, unknown> : {}; return { pathId: String(r.pathId ?? ""), lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] }; }).filter((c) => c.lines.length === count) as Candidate[];
-  } catch { const m = text.match(/\{[\s\S]*\}/); return m ? parseCandidates(m[0], count) : []; }
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : [];
+    return list.map((item, index) => {
+      const r = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      const suppliedPathId = String(r.pathId ?? "").trim();
+      const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number])
+        ? suppliedPathId
+        : suppliedPathId === PATH_IDS.join("|")
+          ? PATH_IDS[index] ?? ""
+          : suppliedPathId;
+      return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] };
+    }).filter((candidate) => candidate.lines.length === count) as Candidate[];
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/); return m ? parseCandidates(m[0], count) : [];
+  }
 }
 function worldViolation(line: string, packet: Packet): string | undefined {
   const known = packet.reality.join(" ").toLowerCase();
@@ -164,8 +181,8 @@ function pull(line: string, nextBeat: Beat | undefined, move: CreativeMove): num
 }
 function metrics(lines: string[], path: Path, packet: Packet): BeatMetrics[] {
   return lines.map((line, index) => {
-    const beat = path.beats[index]!; const previous = lines[index - 1] ?? ""; const source = beat.source.join(" ");
-    const rep = index > 0 && index < lines.length - 1 ? replay(line, source) : 0;
+    const beat = path.beats[index]!; const previous = lines[index - 1] ?? "";
+    const rep = index > 0 && index < lines.length - 1 ? replay(line, beat.source.join(" ")) : 0;
     const novelty = metric(1 - overlap(line, previous));
     const specificity = metric(Math.min(1, meaningful(line).length / 4));
     const statusChange = metric((STATUS.test(line) ? 0.45 : 0) + (ACTION.test(line) ? 0.35 : 0) + (CONTRAST.test(line) ? 0.2 : 0));
@@ -205,7 +222,8 @@ function role(index: number, total: number): ViewerAttentionRole { if (index ===
 function gain(index: number, total: number): SequenceGainKind { if (index === 0) return "baseline"; if (index === total - 1) return "payoff"; if (index === total - 2) return "reframe"; if (index === 1) return "question"; return "surprise"; }
 function buildSequence(packet: Packet, path: Path, candidate: Candidate, score: number): SequencePlay {
   const cuts: SequenceCut[] = []; const known: string[] = [];
-  candidate.lines.forEach((text, index) => { const beat = path.beats[index]!; const before: ViewerState = { known: [...known], expected: beat.change, unresolved: index ? path.beats[index - 1]?.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: index ? path.beats[index - 1]?.source.join(" ") : undefined }; known.push(text); const after: ViewerState = { known: [...known], expected: index < candidate.lines.length - 1 ? beat.change : undefined, unresolved: index < candidate.lines.length - 1 ? beat.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: beat.change }; cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, candidate.lines.length), gainKind: gain(index, candidate.lines.length), sourceIds: beat.source.map((_, i) => `reality:${index}:${i}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${metrics(candidate.lines, path, packet)[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, payoffConnection: index === candidate.lines.length - 1 ? packet.ending || text : path.beats[index + 1]?.change, noveltyScore: metrics(candidate.lines, path, packet)[index]?.novelty ?? 0, confidence: score }); });
+  const candidateMetrics = metrics(candidate.lines, path, packet);
+  candidate.lines.forEach((text, index) => { const beat = path.beats[index]!; const before: ViewerState = { known: [...known], expected: beat.change, unresolved: index ? path.beats[index - 1]?.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: index ? path.beats[index - 1]?.source.join(" ") : undefined }; known.push(text); const after: ViewerState = { known: [...known], expected: index < candidate.lines.length - 1 ? beat.change : undefined, unresolved: index < candidate.lines.length - 1 ? beat.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: beat.change }; cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, candidate.lines.length), gainKind: gain(index, candidate.lines.length), sourceIds: beat.source.map((_, i) => `reality:${index}:${i}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${candidateMetrics[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, payoffConnection: index === candidate.lines.length - 1 ? packet.ending || text : path.beats[index + 1]?.change, noveltyScore: candidateMetrics[index]?.novelty ?? 0, confidence: score }); });
   return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: candidate.lines, antiCrutch: ["no description-only beats", "no fact parade", "no unsupported identity", "no unsupported world expansion", "no decorative filler", "ending must reframe", "rejected output never rendered"] };
 }
 function brief(packet: Packet): AuthorCreativeBrief { return { angle: packet.lock.approvedMeaning, engine: "reality → interest → latent movie → beat graph → one render → truth gate → attention editor", question: packet.paths[0]?.beats[1]?.change ?? "What changes next?", strongestImage: packet.arc.turn, tension: `${packet.arc.baseline} → ${packet.arc.turn}`, payoff: packet.ending || packet.arc.resolution, callback: packet.arc.turn, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull"] }; }
@@ -217,6 +235,18 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(512, lineTotal * paths.length * 90)), temperature: sensitive === "sensitive" ? 0.36 : 0.58 });
   const candidates = parseCandidates(modelResult.text, lineTotal); const accepted: Array<{ candidate: Candidate; path: Path; validation: Validation }> = []; const rejected: Array<{ pathId: string; reasons: string[]; score: number; metrics: BeatMetrics[] }> = [];
   for (const candidate of candidates) { const path = paths.find((p) => p.id === candidate.pathId); if (!path) { rejected.push({ pathId: candidate.pathId, reasons: ["unknown_path"], score: 0, metrics: [] }); continue; } const validation = validate(candidate, path, packet); if (validation.ok) accepted.push({ candidate, path, validation }); else rejected.push({ pathId: candidate.pathId, reasons: validation.reasons, score: validation.score, metrics: validation.metrics }); }
+  const duplicateCandidateKeys = new Map<string, number>();
+  for (const item of accepted) duplicateCandidateKeys.set(item.candidate.lines.join("\n").toLowerCase(), (duplicateCandidateKeys.get(item.candidate.lines.join("\n").toLowerCase()) ?? 0) + 1);
+  for (const [key, count] of duplicateCandidateKeys) {
+    if (count < 2) continue;
+    let kept = false;
+    for (let index = accepted.length - 1; index >= 0; index -= 1) {
+      if (accepted[index]!.candidate.lines.join("\n").toLowerCase() !== key) continue;
+      if (!kept) { kept = true; continue; }
+      const duplicate = accepted.splice(index, 1)[0]!;
+      rejected.push({ pathId: duplicate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics });
+    }
+  }
   accepted.sort((a, b) => b.validation.score - a.validation.score); const selected = accepted[0]; const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
   if (!selected) {
     return { brief: brief(packet), scenes: [], sequence: undefined, field: { packet, moviePaths: paths }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "REJECTED_MODEL_OUTPUT", renderable: false, candidateSequences: candidates.length, acceptedCandidates: 0, rejectedCandidates: rejected, selectedScore: 0, qualityFloor: MIN_SCORE, lineCount: lineTotal, endpoint: ending, endpointExact: false, complete: false, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), selectedPath: undefined, attentionEditor: true, attentionMetrics: rejected.map((r) => ({ pathId: r.pathId, metrics: r.metrics })), rejectedOutputNeverRendered: true, rawModelOutput: raw } };
