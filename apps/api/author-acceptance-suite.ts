@@ -59,96 +59,103 @@ const cases: Case[] = [
 ];
 
 let failures = 0;
+const previousDebugRaw = process.env.QRE_AUTHOR_DEBUG_RAW;
+process.env.QRE_AUTHOR_DEBUG_RAW = "true";
 
-for (const test of cases) {
-  const result = await authorBrainUniversal({
-    prompt: test.prompt,
-    subject: test.subject,
-    facts: test.facts,
-    sourceMoments: test.facts,
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  });
+try {
+  for (const test of cases) {
+    const result = await authorBrainUniversal({
+      prompt: test.prompt,
+      subject: test.subject,
+      facts: test.facts,
+      sourceMoments: test.facts,
+      memoryContext: [],
+      trajectory: [],
+      creativeLearningContext: [],
+    });
 
-  const diagnostics = result.diagnostics;
-  const expectedLines = 5;
-  const accepted = diagnostics.qualityStatus === "ACCEPTED";
-  const oneCall = diagnostics.modelCalls === 1;
-  const complete = diagnostics.complete === true;
-  const exactCount = result.scenes.length === expectedLines;
-  const exactEnding = String(test.prompt).match(/final\s+line\s*:\s*(.+)$/i)?.[1]?.trim() ?? "";
-  const endingOk = exactEnding
-    ? result.scenes.at(-1)?.text.trim().toLowerCase() === exactEnding.toLowerCase()
-    : true;
+    const diagnostics = result.diagnostics;
+    const expectedLines = 5;
+    const accepted = diagnostics.qualityStatus === "ACCEPTED";
+    const oneCall = diagnostics.modelCalls === 1;
+    const complete = diagnostics.complete === true;
+    const exactCount = result.scenes.length === expectedLines;
+    const exactEnding = String(test.prompt).match(/final\s+line\s*:\s*(.+)$/i)?.[1]?.trim() ?? "";
+    const endingOk = exactEnding
+      ? result.scenes.at(-1)?.text.trim().toLowerCase() === exactEnding.toLowerCase()
+      : true;
 
-  const ok = accepted && oneCall && complete && exactCount && endingOk;
-  if (!ok) failures += 1;
+    const ok = accepted && oneCall && complete && exactCount && endingOk;
+    if (!ok) failures += 1;
+
+    console.log(
+      `${ok ? "PASS" : "FAIL"} ${test.name.padEnd(16)} calls=${String(diagnostics.modelCalls).padEnd(2)} ` +
+      `accepted=${accepted ? "yes" : "no"} lines=${result.scenes.length} ` +
+      `ending=${endingOk ? "yes" : "no"} score=${String(diagnostics.selectedScore ?? 0)}`,
+    );
+
+    if (!ok) {
+      console.log(JSON.stringify({
+        thesis: diagnostics.thesis,
+        transformation: diagnostics.transformation,
+        rejectedCandidates: diagnostics.rejectedCandidates,
+        rawModelOutput: diagnostics.rawModelOutput,
+      }, null, 2));
+    }
+  }
+
+  const differentiationPrompt = "Write a 5-line sequence about Coco. Final line: The calm did not last.";
+  const differentiationCases = [
+    {
+      label: "state-shift",
+      facts: ["arrived timid", "settled after a bath", "stole a blue bow", "left smiling"],
+    },
+    {
+      label: "chaos-shift",
+      facts: ["arrived confident", "refused the bath", "stole three red ribbons", "left covered in mud"],
+    },
+  ];
+
+  const differentiationResults = [] as Array<{
+    label: string;
+    result: Awaited<ReturnType<typeof authorBrainUniversal>>;
+  }>;
+
+  for (const test of differentiationCases) {
+    const result = await authorBrainUniversal({
+      prompt: differentiationPrompt,
+      subject: "Coco",
+      facts: test.facts,
+      sourceMoments: test.facts,
+      memoryContext: [],
+      trajectory: [],
+      creativeLearningContext: [],
+    });
+    differentiationResults.push({ label: test.label, result });
+  }
+
+  const [first, second] = differentiationResults;
+  const thesisA = String(first?.result.diagnostics.thesis ?? "");
+  const thesisB = String(second?.result.diagnostics.thesis ?? "");
+  const outputA = first?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+  const outputB = second?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+  const differentiated = thesisA !== thesisB && outputA !== outputB;
 
   console.log(
-    `${ok ? "PASS" : "FAIL"} ${test.name.padEnd(16)} calls=${String(diagnostics.modelCalls).padEnd(2)} ` +
-    `accepted=${accepted ? "yes" : "no"} lines=${result.scenes.length} ` +
-    `ending=${endingOk ? "yes" : "no"} score=${String(diagnostics.selectedScore ?? 0)}`,
+    `${differentiated ? "PASS" : "FAIL"} differentiation   ` +
+    `thesis=${thesisA !== thesisB ? "different" : "same"} output=${outputA !== outputB ? "different" : "same"}`,
   );
 
-  if (!ok) {
+  if (!differentiated) {
+    failures += 1;
     console.log(JSON.stringify({
-      thesis: diagnostics.thesis,
-      transformation: diagnostics.transformation,
-      rejectedCandidates: diagnostics.rejectedCandidates,
-      rawModelOutput: diagnostics.rawModelOutput,
+      first: { thesis: thesisA, output: outputA, raw: first?.result.diagnostics.rawModelOutput },
+      second: { thesis: thesisB, output: outputB, raw: second?.result.diagnostics.rawModelOutput },
     }, null, 2));
   }
-}
-
-const differentiationPrompt = "Write a 5-line sequence about Coco. Final line: The calm did not last.";
-const differentiationCases = [
-  {
-    label: "state-shift",
-    facts: ["arrived timid", "settled after a bath", "stole a blue bow", "left smiling"],
-  },
-  {
-    label: "chaos-shift",
-    facts: ["arrived confident", "refused the bath", "stole three red ribbons", "left covered in mud"],
-  },
-];
-
-const differentiationResults = [] as Array<{
-  label: string;
-  result: Awaited<ReturnType<typeof authorBrainUniversal>>;
-}>;
-
-for (const test of differentiationCases) {
-  const result = await authorBrainUniversal({
-    prompt: differentiationPrompt,
-    subject: "Coco",
-    facts: test.facts,
-    sourceMoments: test.facts,
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  });
-  differentiationResults.push({ label: test.label, result });
-}
-
-const [first, second] = differentiationResults;
-const thesisA = String(first?.result.diagnostics.thesis ?? "");
-const thesisB = String(second?.result.diagnostics.thesis ?? "");
-const outputA = first?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
-const outputB = second?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
-const differentiated = thesisA !== thesisB && outputA !== outputB;
-
-console.log(
-  `${differentiated ? "PASS" : "FAIL"} differentiation   ` +
-  `thesis=${thesisA !== thesisB ? "different" : "same"} output=${outputA !== outputB ? "different" : "same"}`,
-);
-
-if (!differentiated) {
-  failures += 1;
-  console.log(JSON.stringify({
-    first: { thesis: thesisA, output: outputA, raw: first?.result.diagnostics.rawModelOutput },
-    second: { thesis: thesisB, output: outputB, raw: second?.result.diagnostics.rawModelOutput },
-  }, null, 2));
+} finally {
+  if (previousDebugRaw === undefined) delete process.env.QRE_AUTHOR_DEBUG_RAW;
+  else process.env.QRE_AUTHOR_DEBUG_RAW = previousDebugRaw;
 }
 
 console.log(`\nUNIVERSAL AUTHOR ACCEPTANCE: ${failures === 0 ? "PASS" : "FAIL"}`);
