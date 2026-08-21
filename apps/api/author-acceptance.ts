@@ -45,6 +45,11 @@ if (qualityStatus !== "ACCEPTED") {
   console.log("\n--- OUTPUT ---");
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.text}`));
   console.log("--- END OUTPUT ---");
+  if (debugRaw) {
+    console.log("\n--- RAW MODEL OUTPUT ---");
+    console.log(String(result.diagnostics.rawModelOutput ?? "<no raw model output captured>"));
+    console.log("--- END RAW MODEL OUTPUT ---");
+  }
 }
 
 if (result.diagnostics.modelCalls !== 1) {
