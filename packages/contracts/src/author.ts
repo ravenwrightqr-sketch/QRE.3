@@ -4,7 +4,7 @@ export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
 export type AuthorBrainTruth = {
   prompt: string;
-  subject?: string;
+  subject: string;
   place?: string;
   lens?: string;
   facts: string[];
