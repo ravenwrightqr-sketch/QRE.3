@@ -55,17 +55,24 @@ type Packet = {
   };
 };
 
-type Candidate = { lines: string[] };
+type Candidate = {
+  lines: string[];
+  beatMap?: Array<{ line: number; operation?: string; source?: string }>;
+};
+
 type Validation = { ok: boolean; reasons: string[]; score: number };
 
-const MIN_SCORE = 0.76;
+const MIN_SCORE = 0.72;
 
 const META_LANGUAGE = /\b(?:as an ai|the audience|the viewer|this means|this shows|this reveals|the strategy|the beat|the writing process|according to qre|cognitive)\b/i;
 const STOCK_SENTIMENT = /\b(?:magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|one for the books|truly amazing|absolutely adorable|once in a lifetime|beautiful moment|heartwarming)\b/i;
 const EXPLANATORY_GLUE = /\b(?:therefore|as a result|which means|this is why|in order to|thus|ultimately)\b/i;
 const GENERIC_DECORATION = /\b(?:beautifully|gracefully|dramatically|magically|poetically|gently|softly|wonderfully|incredibly|extremely)\b/i;
-const IDENTITY_REFERENCE = /\b(?:he|she|him|her|his|hers|husband|wife|man|woman|male|female|boy|girl)\b/i;
 const PRONOUN_REFERENCE = /\b(?:he|she|him|her|his|hers)\b/i;
+const IDENTITY_REFERENCE = /\b(?:he|she|him|her|his|hers|husband|wife|man|woman|male|female|boy|girl)\b/i;
+const EXPLICIT_RELATIONSHIP = /\b(?:husband|wife|partner|girlfriend|boyfriend|sister|brother|mother|father|son|daughter|friend|owner|boss|manager|lawyer|judge|doctor|nurse|employee|customer|officer)\b/i;
+const EXPLICIT_PLACE = /\b(?:street|office|room|chair|table|bed|floor|counter|dresser|park|car|restaurant|hotel|house|kitchen|bathroom|store|shop|court|church|school|hospital)\b/i;
+const EXPLICIT_BODY = /\b(?:tail|tails|legs|leg|ears|ear|paws|paw|eyes|eye|mouth|teeth|face|head|hands|hand|feet|foot|shoulder|hair|skin)\b/i;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = (values: readonly string[], limit = 40): string[] => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
@@ -143,18 +150,18 @@ function operationFor(index: number, count: number, hasEnding: boolean): Operati
 function purposeFor(operation: Operation, packet: Omit<Packet, "directives">): string {
   switch (operation) {
     case "anchor":
-      return "Make the starting condition immediately clear using the supplied reality.";
+      return "Establish the starting condition clearly and quickly.";
     case "change":
-      return "Show a real change, shift, or new reading created by the supplied material; do not merely restate the next fact.";
+      return "Make the supplied change visible; do not merely copy the next fact.";
     case "disruption":
-      return "Do something sharper with an established element: invert it, reframe it, escalate it, or make it newly relevant.";
+      return "Make an established element newly matter through contrast, inversion, escalation, personification, or reframing.";
     case "payoff_setup":
       return packet.payoff.target
-        ? `Create the immediate setup that makes the final destination land: ${packet.payoff.target}`
-        : "Create the last turn that makes the ending feel earned.";
+        ? `Prepare the immediate condition that makes the destination land: ${packet.payoff.target}`
+        : "Prepare the final beat so the ending feels earned.";
     default:
       return packet.payoff.target
-        ? `Land the exact destination as the payoff: ${packet.payoff.target}`
+        ? `Land the destination as a payoff, not as a detached slogan: ${packet.payoff.target}`
         : "Land the strongest earned payoff and stop.";
   }
 }
@@ -178,52 +185,43 @@ function buildPacket(input: AuthorBrainTruth): Packet {
   const arc = chooseArc(source, subject, ending);
 
   const base = {
-    mission: "Create a contemporary, compressed sequence from supplied reality. QRE decides what matters, what changes, and where it lands. The model only realizes that decision in language.",
+    mission: "Create a contemporary, compressed sequence from supplied reality. QRE decides reality, meaning, progression, and destination. The model only realizes that decision in language.",
     subject,
-    identityRule: "Use only identity attributes actually established by the supplied reality or prompt. When identity is unspecified, use the subject name or neutral phrasing. Never infer gender, relationships, profession, authority, age, or physical traits.",
+    identityRule: "Use only identity attributes established by the supplied reality or prompt. If identity is unspecified, use the subject name or neutral language. Never infer gender, relationships, profession, authority, age, or physical traits.",
     reality: source,
     intent,
     arc,
     payoff: {
       target: ending || arc.apparentResolution,
       setup: ending
-        ? "Build backward from the ending. The penultimate beat must make the final line newly meaningful; the ending must not feel appended."
-        : "Make the final beat feel like the earned consequence of the preceding progression.",
+        ? "Build backward from the ending. The penultimate beat should create the condition that makes the final line newly meaningful."
+        : "Make the final beat the earned consequence or newly relevant read of the preceding progression.",
       requirement: ending
-        ? "Before the exact ending appears, establish the change, pressure, contradiction, or false resolution that gives it force. Never reveal the ending early."
-        : "Finish on the strongest newly relevant read of the supplied reality.",
+        ? "Establish change, pressure, contradiction, false resolution, or another prerequisite before the exact ending. Never reveal the ending early."
+        : "Finish on the strongest earned consequence and stop.",
     },
     style: [
       "Contemporary spoken intelligence: direct, compressed, specific, alive.",
-      "Prefer strong verbs and clean syntax over explanation or ornament.",
-      "Use sentence fragments only when they sharpen rhythm; do not produce accidental fragments.",
-      "Every line must do something new. No fact-parade formatting.",
-      "No greeting-card sentiment, corporate filler, moral lesson, fake cinematic narration, or generic inspirational language.",
-      "Do not use stock transitions to glue facts together. Make the beat itself create the transition.",
-      "Trust the reader. Imply where possible; explain only when necessary for clarity.",
+      "Prefer strong verbs, concrete phrasing, clean syntax, and varied rhythm.",
+      "Every line advances the experience; never pad with connective prose.",
+      "No greeting-card sentiment, corporate mush, fake cinematic narration, moral lesson, or generic inspiration.",
+      "Trust the reader. Imply where useful; explain only when clarity requires it.",
+      "Use fragments only when deliberate and sharp.",
     ],
     constraints: [
-      "Literal reality is immutable unless the prompt explicitly asks for fiction or transformation.",
+      "Literal reality is immutable unless the prompt explicitly requests fiction or transformation.",
       "Creative realization may change framing, attitude, status, implication, juxtaposition, rhythm, personification, or metaphorical read without inventing a new literal event.",
-      "Do not invent unsupported people, places, objects, dialogue, sensory details, body details, relationships, or physical outcomes.",
-      "Do not infer gender or personal attributes from a name, subject type, or context.",
-      "Do not explain the creative strategy.",
+      "Do not invent unsupported people, places, objects, dialogue, relationships, body details, sensory facts, or physical outcomes.",
+      "Do not infer identity attributes from names or context.",
       "One distinct beat per line.",
-      "Do not repeat a fact in different words merely to fill space.",
+      "Do not repeat facts merely to fill space.",
       "Use the exact supplied ending when one exists.",
-      "The ending is a destination. Build toward it instead of appending it.",
+      "Build toward the ending; do not append it without setup.",
     ],
     output: { lineCount: count, maxWords: 7, endingExact: ending },
   };
 
-  const targets = [
-    arc.baseline,
-    arc.change,
-    arc.disruption,
-    arc.apparentResolution,
-    ending || arc.apparentResolution,
-  ];
-
+  const targets = [arc.baseline, arc.change, arc.disruption, arc.apparentResolution, ending || arc.apparentResolution];
   const directives = Array.from({ length: count }, (_, index) => {
     const operation = operationFor(index, count, Boolean(ending));
     const sourceTarget = operation === "payoff_setup"
@@ -263,25 +261,20 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     content: [
       "QRE FINAL REALIZATION.",
       "You are the language renderer at the end of a deterministic creative system.",
-      "QRE has already decided the reality, creative direction, beat progression, and ending. Do not invent a second story.",
+      "QRE already decided the reality, meaning, progression, and destination. Do not invent a second story.",
       `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.output.lineCount} lines.`,
-      `Each non-final line is ${packet.output.maxWords} words or fewer.`,
-      packet.output.endingExact
-        ? `FINAL LINE EXACTLY: ${packet.output.endingExact}`
-        : "End on the strongest earned result.",
-      "Render the directives in order.",
-      "Line 1 establishes. Middle lines change the read. The disruption should make an existing element newly matter. The penultimate line creates the immediate payoff setup. The final line lands the destination.",
-      "Do not output commentary, analysis, headings, markdown, or extra keys.",
+      `Each non-final line must be ${packet.output.maxWords} words or fewer.`,
+      packet.output.endingExact ? `FINAL LINE EXACTLY: ${packet.output.endingExact}` : "End on the strongest earned result.",
+      "Render the directives in order. Establish, change, disrupt, setup, payoff.",
+      "Use the supplied subject name or neutral language when identity is unspecified. Never invent identity.",
+      "No commentary, analysis, headings, markdown, or extra keys.",
       JSON.stringify(compactPacket),
     ].join("\n"),
   }];
 }
 
 function normalizeLine(value: unknown): string {
-  return clean(value)
-    .replace(/^(?:[-*•]|\d+[.)])\s*/u, "")
-    .replace(/^['\"]|['\"]$/g, "")
-    .trim();
+  return clean(value).replace(/^(?:[-*•]|\d+[.)])\s*/u, "").replace(/^['\"]|['\"]$/g, "").trim();
 }
 
 function parseCandidate(raw: string, count: number): Candidate | undefined {
@@ -296,19 +289,24 @@ function parseCandidate(raw: string, count: number): Candidate | undefined {
     }
     if (!parsed || typeof parsed !== "object") return undefined;
     const record = parsed as Record<string, unknown>;
-    const direct = record.lines;
-    if (Array.isArray(direct)) {
-      const lines = direct.map(normalizeLine).filter(Boolean);
-      if (lines.length === count) return { lines };
-    }
-    return undefined;
+    const linesValue = record.lines;
+    const lines = Array.isArray(linesValue) ? linesValue.map(normalizeLine).filter(Boolean) : [];
+    if (lines.length !== count) return undefined;
+    const beatValue = record.beatMap;
+    const beatMap = Array.isArray(beatValue)
+      ? beatValue.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object")).map((entry) => ({
+          line: Number(entry.line),
+          operation: typeof entry.operation === "string" ? entry.operation : undefined,
+          source: typeof entry.source === "string" ? clean(entry.source) : undefined,
+        })).filter((entry) => Number.isFinite(entry.line))
+      : undefined;
+    return { lines, beatMap };
   } catch {
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return undefined;
     try {
       const parsed = JSON.parse(match[0]) as Record<string, unknown>;
-      if (!Array.isArray(parsed.lines)) return undefined;
-      const lines = parsed.lines.map(normalizeLine).filter(Boolean);
+      const lines = Array.isArray(parsed.lines) ? parsed.lines.map(normalizeLine).filter(Boolean) : [];
       return lines.length === count ? { lines } : undefined;
     } catch {
       return undefined;
@@ -316,27 +314,59 @@ function parseCandidate(raw: string, count: number): Candidate | undefined {
   }
 }
 
-function unauthorizedIdentity(line: string, packet: Packet): string | undefined {
+function identityViolation(line: string, packet: Packet): string | undefined {
   if (!IDENTITY_REFERENCE.test(line)) return undefined;
-  const realityText = packet.reality.join(" ").toLowerCase();
-  const intentText = packet.intent.toLowerCase();
+  const knownText = `${packet.reality.join(" ")} ${packet.intent}`.toLowerCase();
   if (PRONOUN_REFERENCE.test(line)) {
-    const subjectKnown = new RegExp(`\\b${packet.subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(realityText + " " + intentText);
-    const explicitPronoun = new RegExp(`\\b(?:he|she|him|her|his|hers)\\b`, "i").test(realityText + " " + intentText);
-    if (!explicitPronoun && subjectKnown) return "unsupported_identity_reference";
+    const explicitIdentity = /\b(?:he|she|him|her|his|hers|husband|wife|man|woman|male|female|boy|girl)\b/i.test(knownText);
+    if (!explicitIdentity) return "unsupported_identity_reference";
   }
   return undefined;
 }
 
-function noveltyLoad(line: string, packet: Packet): number {
-  const allowed = new Set([...meaningful(packet.reality.join(" ")), ...meaningful(packet.intent)]);
-  const tokens = meaningful(line);
-  if (!tokens.length) return 0;
-  return tokens.filter((token) => !allowed.has(token)).length / tokens.length;
+function explicitWorldExpansion(line: string, packet: Packet): string | undefined {
+  const knownText = packet.reality.join(" ").toLowerCase();
+  const candidates: Array<[RegExp, string]> = [
+    [EXPLICIT_RELATIONSHIP, "relationship"],
+    [EXPLICIT_PLACE, "place"],
+    [EXPLICIT_BODY, "body_detail"],
+  ];
+  for (const [pattern, label] of candidates) {
+    const match = line.match(pattern);
+    if (!match) continue;
+    if (!new RegExp(`\\b${match[0].replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(knownText)) {
+      return `unsupported_${label}`;
+    }
+  }
+  return undefined;
+}
+
+function beatQuality(candidate: Candidate, packet: Packet): number {
+  const expected = packet.directives;
+  if (!expected.length) return 0;
+  let total = 0;
+  for (let index = 0; index < expected.length; index += 1) {
+    const line = candidate.lines[index] ?? "";
+    const source = expected[index]?.source ?? "";
+    const directSupport = overlap(line, source);
+    const readSupport = overlap(line, packet.intent);
+    const novelty = 1 - overlap(line, candidate.lines[index - 1] ?? "");
+    const operation = expected[index]?.operation;
+    let operationBonus = 0.5;
+    if (operation === "anchor") operationBonus = directSupport > 0 ? 1 : 0.55;
+    if (operation === "change") operationBonus = directSupport > 0 || readSupport > 0 ? 1 : 0.7;
+    if (operation === "disruption") operationBonus = novelty > 0.25 ? 1 : 0.65;
+    if (operation === "payoff_setup") operationBonus = novelty > 0.15 ? 1 : 0.65;
+    if (operation === "payoff") operationBonus = packet.output.endingExact ? 1 : 0.8;
+    total += operationBonus * 0.7 + Math.max(directSupport, readSupport) * 0.2 + novelty * 0.1;
+  }
+  return metric(total / expected.length);
 }
 
 function validate(candidate: Candidate, packet: Packet): Validation {
   const reasons: string[] = [];
+
+  if (candidate.lines.length !== packet.output.lineCount) reasons.push("wrong_line_count");
 
   candidate.lines.forEach((line, index) => {
     const count = words(line).length;
@@ -347,40 +377,27 @@ function validate(candidate: Candidate, packet: Packet): Validation {
     if (EXPLANATORY_GLUE.test(line)) reasons.push(`line_${index + 1}:explanatory_glue`);
     if (GENERIC_DECORATION.test(line)) reasons.push(`line_${index + 1}:generic_decoration`);
     if (/```|[{}]/.test(line)) reasons.push(`line_${index + 1}:format_noise`);
-    const identity = unauthorizedIdentity(line, packet);
+    const identity = identityViolation(line, packet);
     if (identity) reasons.push(`line_${index + 1}:${identity}`);
-
-    const novelty = noveltyLoad(line, packet);
-    const grounded = overlap(line, packet.reality.join(" "));
-    if (novelty > 0.72 && grounded < 0.18) reasons.push(`line_${index + 1}:unsupported_claim_load`);
+    const expansion = explicitWorldExpansion(line, packet);
+    if (expansion) reasons.push(`line_${index + 1}:${expansion}`);
   });
 
   if (packet.output.endingExact) {
     const final = clean(candidate.lines.at(-1)).toLowerCase();
     if (final !== packet.output.endingExact.toLowerCase()) reasons.push("endpoint_mismatch");
     for (const line of candidate.lines.slice(0, -1)) {
-      if (overlap(line, packet.output.endingExact) > 0.82) reasons.push("ending_revealed_early");
+      if (overlap(line, packet.output.endingExact) > 0.9) reasons.push("ending_revealed_early");
     }
   }
 
   const normalized = candidate.lines.map((line) => line.toLowerCase());
   if (new Set(normalized).size !== normalized.length) reasons.push("duplicate_lines");
 
-  const groundedScores = candidate.lines.map((line) => Math.max(overlap(line, packet.reality.join(" ")), overlap(line, packet.intent)));
-  const grounding = groundedScores.reduce((a, b) => a + b, 0) / Math.max(1, groundedScores.length);
-  const novelty = candidate.lines.length < 2
-    ? 1
-    : candidate.lines.slice(1).reduce((sum, line, index) => sum + 1 - overlap(line, candidate.lines[index] ?? ""), 0) / (candidate.lines.length - 1);
+  const quality = beatQuality(candidate, packet);
+  if (quality < MIN_SCORE) reasons.push(`quality_below_floor:${quality}`);
 
-  const penultimate = candidate.lines.at(-2) ?? "";
-  const payoffSetup = packet.output.endingExact
-    ? Math.max(0, 1 - overlap(penultimate, packet.output.endingExact)) * Math.max(overlap(penultimate, packet.reality.join(" ")), 0.35)
-    : 0.5;
-
-  const score = metric(grounding * 0.52 + novelty * 0.23 + payoffSetup * 0.25);
-  if (score < MIN_SCORE) reasons.push(`score_below_floor:${score}`);
-
-  return { ok: reasons.length === 0, reasons, score };
+  return { ok: reasons.length === 0, reasons, score: quality };
 }
 
 function roleFor(index: number, total: number): ViewerAttentionRole {
@@ -404,7 +421,6 @@ function gainFor(operation: Operation): SequenceGainKind {
 function buildSequence(packet: Packet, candidate: Candidate, score: number): SequencePlay {
   const cuts: SequenceCut[] = [];
   const known: string[] = [];
-
   candidate.lines.forEach((text, index) => {
     const directive = packet.directives[index]!;
     const before: ViewerState = {
@@ -414,9 +430,7 @@ function buildSequence(packet: Packet, candidate: Candidate, score: number): Seq
       currentWant: directive.viewerChange,
       recentChange: index ? packet.directives[index - 1]?.source : undefined,
     };
-
     known.push(text);
-
     const after: ViewerState = {
       known: [...known],
       expected: index === candidate.lines.length - 1 ? undefined : packet.directives[index + 1]?.purpose,
@@ -424,7 +438,6 @@ function buildSequence(packet: Packet, candidate: Candidate, score: number): Seq
       currentWant: index === candidate.lines.length - 1 ? undefined : packet.directives[index + 1]?.viewerChange,
       recentChange: directive.source,
     };
-
     cuts.push({
       id: `author-cut-${index + 1}`,
       order: index + 1,
@@ -441,7 +454,6 @@ function buildSequence(packet: Packet, candidate: Candidate, score: number): Seq
       confidence: score,
     });
   });
-
   return {
     subject: packet.subject,
     premise: packet.mission,
@@ -454,6 +466,7 @@ function buildSequence(packet: Packet, candidate: Candidate, score: number): Seq
       "no summary",
       "no explanation",
       "no unsupported identity inference",
+      "no unsupported world expansion",
       "no fact parade",
       "ending must be earned",
       "rejected output never rendered",
@@ -463,21 +476,20 @@ function buildSequence(packet: Packet, candidate: Candidate, score: number): Seq
 
 function brief(packet: Packet): AuthorCreativeBrief {
   return {
-    angle: `${packet.subject}: ${packet.directives.map((d) => d.operation).join(" → ")}`,
-    engine: "reality → meaning → backward payoff → realization contract → one model call → gate",
+    angle: `${packet.subject}: ${packet.directives.map((directive) => directive.operation).join(" → ")}`,
+    engine: "reality → meaning → backward payoff → realization contract → one model call → semantic gate",
     question: packet.output.endingExact ? "What must become newly relevant before the ending lands?" : "What changes next?",
     strongestImage: packet.arc.disruption || packet.arc.change || packet.arc.baseline,
     tension: `${packet.arc.baseline} → ${packet.arc.disruption || packet.arc.change}`,
     payoff: packet.output.endingExact || packet.arc.apparentResolution,
     callback: packet.arc.change,
     rhythm: ["short", "hit", "short", "hit", "short"] as AuthorRhythm[],
-    avoid: ["fact parade", "stock sentiment", "generic transition", "unsupported identity", "detached ending"],
+    avoid: ["fact parade", "stock sentiment", "generic transition", "unsupported identity", "unsupported world expansion", "detached ending"],
   };
 }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<AuthorResult> {
   const packet = buildPacket(input);
-
   const modelResult = await localModelGenerate(modelMessage(packet), "json", {
     numPredict: Math.min(512, Math.max(256, packet.output.lineCount * 80)),
     temperature: 0.42,
@@ -487,7 +499,6 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const validation = candidate
     ? validate(candidate, packet)
     : { ok: false, reasons: ["invalid_model_json_or_line_count"], score: 0 };
-
   const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
 
   if (!candidate || !validation.ok) {
@@ -511,11 +522,12 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
         endpointExact: false,
         complete: false,
         oneCanonicalPacket: true,
-        packetOperations: packet.directives.map((d) => d.operation),
+        packetOperations: packet.directives.map((directive) => directive.operation),
         rejectedOutputNeverRendered: true,
         rawModelOutput: raw,
         creativeGrammar: packet.style,
         payoffContract: packet.payoff,
+        semanticGate: "authority-plus-structure",
       },
     };
   }
@@ -548,11 +560,12 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
         : true,
       complete: true,
       oneCanonicalPacket: true,
-      packetOperations: packet.directives.map((d) => d.operation),
+      packetOperations: packet.directives.map((directive) => directive.operation),
       rejectedOutputNeverRendered: true,
       safeFallbackUsed: false,
       creativeGrammar: packet.style,
       payoffContract: packet.payoff,
+      semanticGate: "authority-plus-structure",
     },
   };
 }
