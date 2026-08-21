@@ -1,6 +1,6 @@
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
 
-type Case = { name: string; subject: string; facts: string[]; prompt: string };
+type Case = { name: string; subject: string; facts: string[]; prompt: string; sensitive?: boolean };
 const cases: Case[] = [
   { name: "pet-grooming", subject: "Coco", facts: ["came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"], prompt: "Write a 5-line sequence about Coco. Final line: Peace was temporary." },
   { name: "housekeeping", subject: "Room 412", facts: ["check-out was at noon", "room was cleaned", "fresh towels were placed", "guest returned early"], prompt: "Write a 5-line sequence about Room 412. Final line: Someone was coming back." },
@@ -26,11 +26,13 @@ try {
     const exactCount = result.scenes.length === 5;
     const ending = String(test.prompt).match(/final\s+line\s*:\s*(.+)$/i)?.[1]?.trim() ?? "";
     const endingOk = ending ? result.scenes.at(-1)?.text.trim().toLowerCase() === ending.toLowerCase() : true;
-    const lensSearch = Array.isArray(diagnostics.lensCandidates) && diagnostics.lensCandidates.length >= 1;
-    const ok = accepted && oneCall && complete && exactCount && endingOk && lensSearch;
+    const paths = Array.isArray(diagnostics.moviePaths) && diagnostics.moviePaths.length === 3;
+    const beatGraph = Array.isArray(result.sequence?.cuts) && result.sequence.cuts.length === 5;
+    const attentionEditor = diagnostics.attentionEditor === true && Array.isArray(diagnostics.attentionMetrics) && diagnostics.attentionMetrics.length === 5;
+    const ok = accepted && oneCall && complete && exactCount && endingOk && paths && beatGraph && attentionEditor;
     if (!ok) failures += 1;
-    console.log(`${ok ? "PASS" : "FAIL"} ${test.name.padEnd(16)} calls=${String(diagnostics.modelCalls).padEnd(2)} accepted=${accepted ? "yes" : "no"} lines=${result.scenes.length} ending=${endingOk ? "yes" : "no"} lens=${String(diagnostics.selectedLens ?? "none")} score=${String(diagnostics.selectedScore ?? 0)}`);
-    if (!ok) console.log(JSON.stringify({ thesis: diagnostics.thesis, creativeLock: diagnostics.creativeLock, rejectedCandidates: diagnostics.rejectedCandidates, rawModelOutput: diagnostics.rawModelOutput }, null, 2));
+    console.log(`${ok ? "PASS" : "FAIL"} ${test.name.padEnd(16)} calls=${String(diagnostics.modelCalls).padEnd(2)} accepted=${accepted ? "yes" : "no"} lines=${result.scenes.length} ending=${endingOk ? "yes" : "no"} paths=${paths ? 3 : 0} score=${String(diagnostics.selectedScore ?? 0)}`);
+    if (!ok) console.log(JSON.stringify({ thesis: diagnostics.thesis, creativeBudget: diagnostics.creativeBudget, moviePaths: diagnostics.moviePaths, rejectedCandidates: diagnostics.rejectedCandidates, attentionMetrics: diagnostics.attentionMetrics, rawModelOutput: diagnostics.rawModelOutput }, null, 2));
   }
 
   const differentiationPrompt = "Write a 5-line sequence about Coco. Final line: The calm did not last.";
@@ -49,11 +51,11 @@ try {
   console.log(`${differentiated ? "PASS" : "FAIL"} differentiation   thesis=${thesisA !== thesisB ? "different" : "same"} output=${outputA !== outputB ? "different" : "same"}`);
   if (!differentiated) { failures += 1; console.log(JSON.stringify({ first: { thesis: thesisA, output: outputA, raw: first?.result.diagnostics.rawModelOutput }, second: { thesis: thesisB, output: outputB, raw: second?.result.diagnostics.rawModelOutput } }, null, 2)); }
 
-  const lensResult = await authorBrainUniversal({ prompt: "Write a 5-line sequence about Coco in a courtroom lens. Final line: Peace was temporary.", lens: "courtroom", subject: "Coco", facts: ["came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"], sourceMoments: ["came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"], memoryContext: [], trajectory: [], creativeLearningContext: [] });
-  const lensDiagnostics = lensResult.diagnostics;
-  const explicitLensOk = lensDiagnostics.selectedLens === "courtroom" && lensDiagnostics.modelCalls === 1 && lensDiagnostics.qualityStatus === "ACCEPTED" && lensResult.scenes.length === 5;
-  console.log(`${explicitLensOk ? "PASS" : "FAIL"} explicit-lens      selected=${String(lensDiagnostics.selectedLens ?? "none")} calls=${lensDiagnostics.modelCalls} accepted=${lensDiagnostics.qualityStatus === "ACCEPTED" ? "yes" : "no"}`);
-  if (!explicitLensOk) { failures += 1; console.log(JSON.stringify({ creativeLock: lensDiagnostics.creativeLock, rejectedCandidates: lensDiagnostics.rejectedCandidates, rawModelOutput: lensDiagnostics.rawModelOutput }, null, 2)); }
+  const sensitive = await authorBrainUniversal({ prompt: "Write a 5-line respectful tribute. Final line: The memory remains.", subject: "Grandma", facts: ["gathered family", "made everyone laugh", "kept old photographs", "left a recipe behind"], sourceMoments: ["gathered family", "made everyone laugh", "kept old photographs", "left a recipe behind"], memoryContext: [], trajectory: [], creativeLearningContext: [] });
+  const sensitiveBudget = Number(sensitive.diagnostics.creativeBudget ?? 1);
+  const sensitiveOk = sensitiveBudget <= 0.3;
+  console.log(`${sensitiveOk ? "PASS" : "FAIL"} creative-budget    value=${sensitiveBudget}`);
+  if (!sensitiveOk) failures += 1;
 } finally {
   if (previousDebugRaw === undefined) delete process.env.QRE_AUTHOR_DEBUG_RAW;
   else process.env.QRE_AUTHOR_DEBUG_RAW = previousDebugRaw;
