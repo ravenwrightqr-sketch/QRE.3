@@ -25,4 +25,5 @@ export type { MediaAsset, MediaType } from "./media.js";
 export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";
 export * from "./author.js";
+export * from "./cogauthor/cognition.js";
 export * from "./experience/index.js";
