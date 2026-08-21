@@ -177,9 +177,11 @@ if (exists("apps/api/src/services/authorMouthCandidateSearch.ts")) {
     "Mouth does not contain the retired per-beat repair loop",
   );
   check(
-    "mouth:no-old-output-contract",
-    !/variantsByBeat/.test(body),
-    "Mouth uses candidateSequences rather than the retired variantsByBeat contract",
+    "mouth:canonical-output-contract",
+    /candidateSequences/.test(body) &&
+      /parseCompleteSequenceBatch/.test(body) &&
+      /generateMouthCandidatePools/.test(body),
+    "Mouth generation and parsing use the canonical candidateSequences contract",
   );
   check("mouth:no-enterprise-import", !imports(body, "./authorEnterpriseMouth.js"), "Mouth cannot depend on retired Enterprise orchestration");
   check("mouth:no-duplicate-contract", !/export type MouthCandidateBeat\s*=|export type MouthCandidate\s*=/.test(body), "Mouth does not redefine shared semantic contract types");
