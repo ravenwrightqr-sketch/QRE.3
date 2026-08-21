@@ -1,11 +1,15 @@
 import { buildPresenceContext, compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
-import type { ExperienceBeat, ExperiencePresenceContext, MemoryContext } from "@qre/contracts";
+import type {
+  AuthorBrainTruth,
+  ExperienceBeat,
+  ExperiencePresenceContext,
+  MemoryContext,
+} from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
-import { authorMicroBeats } from "./microBeatMouth.js";
-import { resolveSubjectTruth } from "./authorTruth.js";
+import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -41,13 +45,35 @@ export type CompiledExperienceResult = {
   [key: string]: unknown;
 };
 
-function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
+function sceneKindToBeatKind(
+  kind: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" | undefined,
+): ExperienceBeat["kind"] {
+  switch (kind) {
+    case "payoff":
+      return "payoff";
+    case "turn":
+      return "turn";
+    case "afterglow":
+      return "afterglow";
+    case "hook":
+    case "discovery":
+      return "reveal";
+    default:
+      return "jolt";
+  }
+}
+
+function applyAuthorBeats(compiled: any, beats: ExperienceBeat[]): any {
   if (!beats.length) return compiled;
 
-  const templateScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
-  const templateMoments = Array.isArray(compiled.moments) ? compiled.moments : [];
+  const templateScenes = Array.isArray(compiled.cinematicScenes)
+    ? compiled.cinematicScenes
+    : [];
+  const templateMoments = Array.isArray(compiled.moments)
+    ? compiled.moments
+    : [];
   const baseScene = templateScenes[0] ?? {
-    id: "micro-beat-scene-1",
+    id: "author-scene-1",
     type: "action",
     duration: 1200,
     transition: "fade",
@@ -57,11 +83,16 @@ function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
 
   const cinematicScenes = beats.map((beat, index) => {
     const template = templateScenes[index] ?? baseScene;
-    const baseMoment = templateMoments[index] ?? template.moment ?? { type: "message", order: index, meta: {} };
+    const baseMoment = templateMoments[index] ?? template.moment ?? {
+      type: "message",
+      order: index,
+      meta: {},
+    };
     const duration = beat.durationHintMs ?? template.duration ?? 1200;
+
     return {
       ...template,
-      id: `micro-beat-scene-${index + 1}`,
+      id: `author-scene-${index + 1}`,
       order: index,
       duration,
       type: index === 0 ? "intro" : index === beats.length - 1 ? "emotion" : "action",
@@ -75,26 +106,21 @@ function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
         description: undefined,
         meta: {
           ...(baseMoment.meta ?? {}),
-          authoredBy: "qre-universal-author",
+          authoredBy: "qre-author-brain",
           beatId: beat.id,
           beatKind: beat.kind,
           attentionRole: beat.attentionRole ?? null,
-          operator: beat.operator ?? null,
           callback: beat.callback ?? false,
-          sceneRule: "one_micro_thought_per_beat",
-          creativeAngle: beat.meta?.creativeAngle ?? null,
-          creativeEngine: beat.meta?.creativeEngine ?? null,
+          sceneRule: "one_short_thought_per_beat",
         },
       },
       meta: {
         ...(template.meta ?? {}),
-        authoredBy: "qre-universal-author",
+        authoredBy: "qre-author-brain",
         beatId: beat.id,
         beatKind: beat.kind,
         callback: beat.callback ?? false,
-        sceneRule: "one_micro_thought_per_beat",
-        creativeAngle: beat.meta?.creativeAngle ?? null,
-        creativeEngine: beat.meta?.creativeEngine ?? null,
+        sceneRule: "one_short_thought_per_beat",
       },
     };
   });
@@ -105,7 +131,10 @@ function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
     moments: cinematicScenes.map((scene) => scene.moment),
     cinematicScenes,
     momentCount: cinematicScenes.length,
-    estimatedDuration: cinematicScenes.reduce((sum, scene) => sum + Number(scene.duration || 1200), 0),
+    estimatedDuration: cinematicScenes.reduce(
+      (sum, scene) => sum + Number(scene.duration || 1200),
+      0,
+    ),
   };
 }
 
@@ -123,21 +152,31 @@ export async function compileExperience(input: {
 
   const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
+
   if (input.assetId && input.memoryRepository) {
     try {
-      memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
+      memoryContext = await input.memoryRepository.loadContext({
+        assetId: input.assetId,
+        userId: input.userId,
+      });
     } catch (error) {
       console.warn("[QRE][AUTHORING] Memory context unavailable; continuing with prompt-only cognition.", error);
       warnings.push("memory_context_unavailable");
     }
   }
 
-  const memorySummary = memoryContext ? memoryContextToCognitiveSummary(memoryContext) : [];
+  const memorySummary = memoryContext
+    ? memoryContextToCognitiveSummary(memoryContext)
+    : [];
+
   let analyticsEvents = input.analyticsEvents ?? [];
   if (input.assetId && analyticsEvents.length === 0) {
     try {
       const analyticsRepository = createAnalyticsRepository();
-      analyticsEvents = await analyticsRepository.findEvents({ assetId: input.assetId, limit: 200 });
+      analyticsEvents = await analyticsRepository.findEvents({
+        assetId: input.assetId,
+        limit: 200,
+      });
     } catch (error) {
       console.warn("[QRE][AUTHORING] Analytics context unavailable; continuing without historical analytics.", error);
       analyticsEvents = [];
@@ -148,7 +187,11 @@ export async function compileExperience(input: {
   let presence: ExperiencePresenceContext | null = null;
   if (input.assetId) {
     try {
-      presence = await buildPresenceContext(input.assetId, createPresenceRepository(), input.sessionId);
+      presence = await buildPresenceContext(
+        input.assetId,
+        createPresenceRepository(),
+        input.sessionId,
+      );
     } catch (error) {
       console.warn("[QRE][AUTHORING] Presence context unavailable; continuing without presence history.", error);
       warnings.push("presence_context_unavailable");
@@ -164,82 +207,146 @@ export async function compileExperience(input: {
     memorySummary: [...memorySummary, ...presenceSummary],
     presence: presence ?? undefined,
     analytics,
-    location: geo ? {
-      label: geo.label,
-      city: geo.city,
-      region: geo.region,
-      country: geo.country,
-      latitude: geo.latitude,
-      longitude: geo.longitude,
-      role,
-      source: geo.source,
-    } : undefined,
-    event: geo ? {
-      venue: geo.label,
-      date: geo.time,
-      description: role === "physical_site" ? "Persistent physical site for this QRE asset." : undefined,
-    } : undefined,
+    location: geo
+      ? {
+          label: geo.label,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          role,
+          source: geo.source,
+        }
+      : undefined,
+    event: geo
+      ? {
+          venue: geo.label,
+          date: geo.time,
+          description:
+            role === "physical_site"
+              ? "Persistent physical site for this QRE asset."
+              : undefined,
+        }
+      : undefined,
   });
 
-  const subject = String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? "").trim();
-  const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
+  const subject = String(
+    compiled?.observation?.subject ?? compiled?.movie?.subject ?? "",
+  ).trim();
+
+  const facts = [
+    ...(Array.isArray(compiled?.observation?.entities?.people)
+      ? compiled.observation.entities.people
+      : []),
+    ...(Array.isArray(compiled?.observation?.entities?.places)
+      ? compiled.observation.entities.places
+      : []),
+    ...(Array.isArray(compiled?.observation?.entities?.events)
+      ? compiled.observation.entities.events
+      : []),
+    ...(Array.isArray(compiled?.observation?.entities?.objects)
+      ? compiled.observation.entities.objects
+      : []),
+    ...(Array.isArray(compiled?.observation?.temporal)
+      ? compiled.observation.temporal
+      : []),
+    ...(Array.isArray(compiled?.facts) ? compiled.facts : []),
+    ...(presence?.places?.slice(0, 12) ?? []),
+    presence?.visitNumber ? `visit ${presence.visitNumber}` : "",
+    presence?.isReturning ? "returning visit" : "first known visit",
+  ]
+    .map(String)
+    .filter(Boolean);
+
+  const sourceMoments = [
+    ...(Array.isArray(compiled?.moments)
+      ? compiled.moments
+          .map((moment: any) =>
+            String(moment?.text ?? moment?.description ?? "").trim(),
+          )
+          .filter(Boolean)
+      : []),
+    ...memorySummary,
+    ...presenceSummary,
+  ].slice(0, 32);
+
+  const authorInput: AuthorBrainTruth = {
+    prompt,
+    subject,
+    place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+    lens: String(
+      compiled?.cognition?.selectedHypothesis?.kind ??
+        compiled?.blueprint?.tone?.[0] ??
+        "neutral",
+    ),
+    facts,
+    sourceMoments,
+    memoryContext: [...memorySummary, ...presenceSummary],
+    creativeLearningContext: Array.isArray(compiled.learningSignals)
+      ? [
+          ...compiled.learningSignals.slice(0, 20),
+          ...presenceSummary,
+        ]
+      : presenceSummary,
+    trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure)
+      ? compiled.cognition.plan.storyStructure
+      : [],
+    returning: presence?.isReturning ?? false,
+    visitNumber: presence?.visitNumber,
+    presenceSummary,
+  };
 
   try {
-    const beats = await authorMicroBeats({
-      prompt,
-      lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
-      subject,
-      place: String(geo?.label ?? presence?.places?.[0] ?? ""),
-      subjectTruth,
-      cognitivePlan: compiled?.plan,
-      facts: [
-        ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
-        ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
-        ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
-        ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
-        ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
-        ...presence?.places?.slice(0, 12) ?? [],
-        presence?.visitNumber ? `visit ${presence.visitNumber}` : "",
-        presence?.isReturning ? "returning visit" : "first known visit",
-      ].filter(Boolean),
-      sourceMoments: [
-        ...(Array.isArray(compiled.moments) ? compiled.moments.map((moment: any) => String(moment?.text ?? moment?.description ?? "").trim()).filter(Boolean) : []),
-        ...memorySummary,
-        ...presenceSummary,
-      ].slice(0, 32),
-      memoryContext: [...memorySummary, ...presenceSummary],
-      creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
-      trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
-      returning: presence?.isReturning ?? false,
-      visitNumber: presence?.visitNumber,
-      presenceSummary,
-      presence: presence ?? undefined,
-      round: presence?.visitNumber ?? 1,
-    });
+    const authored = await authorBrainUniversal(authorInput);
+    const qualityStatus = String(
+      authored.diagnostics?.qualityStatus ??
+        (authored.scenes.length ? "ACCEPTED" : "REJECTED_MODEL_OUTPUT"),
+    );
 
-    if (beats.length >= 2) compiled = applyMicroBeats(compiled, beats);
-    else warnings.push("micro_beat_mouth_fallback");
+    if (authored.scenes.length > 0 && qualityStatus === "ACCEPTED") {
+      const beats: ExperienceBeat[] = authored.scenes.map((scene, index) => ({
+        id: `author-beat-${index + 1}`,
+        text: scene.text,
+        kind: sceneKindToBeatKind(scene.kind),
+        order: index + 1,
+        attentionRole: scene.kind ?? "movement",
+        callback: scene.kind === "turn",
+        durationHintMs: 1200,
+        meta: {
+          qualityStatus,
+          model: authored.diagnostics?.model ?? null,
+          selectedScore: authored.diagnostics?.selectedScore ?? null,
+        },
+      }));
+
+      compiled = applyAuthorBeats(compiled, beats);
+    } else {
+      warnings.push("author_quality_rejected");
+    }
   } catch (error) {
-    console.warn("[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.", error);
-    warnings.push("micro_beat_mouth_unavailable");
+    console.warn("[QRE][AUTHORING] Author Brain unavailable; preserving deterministic compiled experience.", error);
+    warnings.push("author_brain_unavailable");
   }
 
   const enrichedBlueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     metadata: {
       ...((compiled.blueprint as any)?.metadata ?? {}),
-      geoAnchor: geo ? {
-        role,
-        label: geo.label ?? null,
-        latitude: geo.latitude ?? null,
-        longitude: geo.longitude ?? null,
-        source: geo.source ?? "dashboard",
-        time: geo.time ?? null,
-      } : null,
+      geoAnchor: geo
+        ? {
+            role,
+            label: geo.label ?? null,
+            latitude: geo.latitude ?? null,
+            longitude: geo.longitude ?? null,
+            source: geo.source ?? "dashboard",
+            time: geo.time ?? null,
+          }
+        : null,
       presence: presence ?? null,
       cinematicAuthor: {
         authoringAtom: "experience_beat",
-        sceneRule: "one_micro_thought_per_beat",
+        sceneRule: "one_short_thought_per_beat",
         presentation: "adaptive_line_rhythm",
         hardPunctuationRule: "no_comma_or_semicolon_scene_cuts",
         playerOwnsExactPresentation: true,
@@ -257,7 +364,12 @@ export async function compileExperience(input: {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({ assetId: input.assetId, userId: input.userId, world: compiled.world, source: "prompt" });
+      const batch = buildExperienceMemoryBatch({
+        assetId: input.assetId,
+        userId: input.userId,
+        world: compiled.world,
+        source: "prompt",
+      });
       await input.memoryRepository.writeBatch(batch);
       return {
         ...result,
