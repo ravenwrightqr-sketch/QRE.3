@@ -48,56 +48,14 @@ const meaningful = (value: string): string[] => words(value).filter((w) => w.len
 const metric = (n: number): number => Number(Math.max(0, Math.min(1, n)).toFixed(3));
 const uniq = (values: readonly string[], limit = 64): string[] => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
 
-function lineCount(prompt: string): number {
-  const m = clean(prompt).match(/\b(\d{1,2})\s*[- ]?\s*line(?:s)?\b/i);
-  const n = m ? Number(m[1]) : 5;
-  return Number.isFinite(n) ? Math.max(3, Math.min(8, n)) : 5;
-}
-function endpoint(prompt: string): string {
-  const m = clean(prompt).match(/(?:final\s+line|ending|endpoint)\s*:\s*(.+)$/i);
-  return clean(m?.[1] ?? "").replace(/^['\"]|['\"]$/g, "");
-}
-function reality(input: AuthorBrainTruth): string[] {
-  return uniq([input.subject, input.place ?? "", ...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.presenceSummary ?? []), ...(input.trajectory ?? [])]);
-}
-function overlap(a: string, b: string): number {
-  const left = new Set(meaningful(a)); const right = new Set(meaningful(b));
-  if (!left.size || !right.size) return 0;
-  let shared = 0; for (const t of left) if (right.has(t)) shared += 1;
-  return shared / Math.max(left.size, right.size);
-}
-function uniqueness(value: string, all: string[]): number {
-  const mine = new Set(meaningful(value)); if (!mine.size) return 0;
-  let shared = 0; for (const other of all) { if (other === value) continue; const set = new Set(meaningful(other)); for (const t of mine) if (set.has(t)) shared += 1; }
-  return metric(mine.size / Math.max(1, shared + 1));
-}
-function interest(value: string, all: string[], ending: string): number {
-  const text = clean(value).toLowerCase(); let score = 0.2 + uniqueness(value, all) * 0.28;
-  if (ACTION.test(value)) score += 0.12;
-  if (STATUS.test(value)) score += 0.12;
-  if (CONTRAST.test(value)) score += 0.18;
-  if (ending && overlap(value, ending) > 0.08) score += 0.08;
-  if (/\b(?:unexpected|strange|odd|suddenly|first|only|one|three|blue|red|missing|quiet|loud|early|late)\b/i.test(text)) score += 0.1;
-  return metric(score);
-}
-function creativeBudget(source: string[], prompt: string): number {
-  const all = `${source.join(" | ")} ${prompt}`;
-  if (SENSITIVE.test(all)) return 0.18;
-  let n = 0.48;
-  if (/\b(?:steal|stole|unexpected|suddenly|odd|strange|contradiction|returned|again|temporary|failed|missing)\b/i.test(all)) n += 0.22;
-  if (/(final\s+line|ending|payoff|funny|comic|cinematic|playful|surprising|clever)/i.test(prompt)) n += 0.14;
-  if (source.length >= 4) n += 0.08;
-  return metric(n);
-}
-function chooseMaterial(source: string[], subject: string, ending: string): { baseline: string; change: string; turn: string; resolution: string } {
-  const material = source.filter((v) => clean(v).toLowerCase() !== subject.toLowerCase());
-  const baseline = material[0] ?? subject;
-  const scored = material.map((value, index) => ({ value, index, score: interest(value, material, ending) }));
-  const change = (scored.find((x) => x.index > 0)?.value ?? material[1] ?? material[0] ?? subject);
-  const turn = [...scored].sort((a, b) => b.score - a.score || b.index - a.index).find((x) => x.value !== baseline && x.value !== change)?.value ?? material[material.length - 2] ?? change;
-  const resolution = material.at(-1) ?? change;
-  return { baseline, change, turn, resolution };
-}
+function lineCount(prompt: string): number { const m = clean(prompt).match(/\b(\d{1,2})\s*[- ]?\s*line(?:s)?\b/i); const n = m ? Number(m[1]) : 5; return Number.isFinite(n) ? Math.max(3, Math.min(8, n)) : 5; }
+function endpoint(prompt: string): string { const m = clean(prompt).match(/(?:final\s+line|ending|endpoint)\s*:\s*(.+)$/i); return clean(m?.[1] ?? "").replace(/^['\"]|['\"]$/g, ""); }
+function reality(input: AuthorBrainTruth): string[] { return uniq([input.subject, input.place ?? "", ...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.presenceSummary ?? []), ...(input.trajectory ?? [])]); }
+function overlap(a: string, b: string): number { const left = new Set(meaningful(a)); const right = new Set(meaningful(b)); if (!left.size || !right.size) return 0; let shared = 0; for (const t of left) if (right.has(t)) shared += 1; return shared / Math.max(left.size, right.size); }
+function uniqueness(value: string, all: string[]): number { const mine = new Set(meaningful(value)); if (!mine.size) return 0; let shared = 0; for (const other of all) { if (other === value) continue; const set = new Set(meaningful(other)); for (const t of mine) if (set.has(t)) shared += 1; } return metric(mine.size / Math.max(1, shared + 1)); }
+function interest(value: string, all: string[], ending: string): number { const text = clean(value).toLowerCase(); let score = 0.2 + uniqueness(value, all) * 0.28; if (ACTION.test(value)) score += 0.12; if (STATUS.test(value)) score += 0.12; if (CONTRAST.test(value)) score += 0.18; if (ending && overlap(value, ending) > 0.08) score += 0.08; if (/\b(?:unexpected|strange|odd|suddenly|first|only|one|three|blue|red|missing|quiet|loud|early|late)\b/i.test(text)) score += 0.1; return metric(score); }
+function creativeBudget(source: string[], prompt: string): number { const all = `${source.join(" | ")} ${prompt}`; if (SENSITIVE.test(all)) return 0.18; let n = 0.48; if (/\b(?:steal|stole|unexpected|suddenly|odd|strange|contradiction|returned|again|temporary|failed|missing)\b/i.test(all)) n += 0.22; if (/(final\s+line|ending|payoff|funny|comic|cinematic|playful|surprising|clever)/i.test(prompt)) n += 0.14; if (source.length >= 4) n += 0.08; return metric(n); }
+function chooseMaterial(source: string[], subject: string, ending: string): { baseline: string; change: string; turn: string; resolution: string } { const material = source.filter((v) => clean(v).toLowerCase() !== subject.toLowerCase()); const baseline = material[0] ?? subject; const scored = material.map((value, index) => ({ value, index, score: interest(value, material, ending) })); const change = (scored.find((x) => x.index > 0)?.value ?? material[1] ?? material[0] ?? subject); const turn = [...scored].sort((a, b) => b.score - a.score || b.index - a.index).find((x) => x.value !== baseline && x.value !== change)?.value ?? material[material.length - 2] ?? change; const resolution = material.at(-1) ?? change; return { baseline, change, turn, resolution }; }
 function sensitivity(input: string, source: string[]): "normal" | "sensitive" { return SENSITIVE.test(`${input} ${source.join(" ")}`) ? "sensitive" : "normal"; }
 
 function makeCognitivePaths(cognition: ReturnType<typeof buildMovieCognition>, subject: string, ending: string, budget: number, preferredLens?: string): Path[] {
@@ -107,184 +65,26 @@ function makeCognitivePaths(cognition: ReturnType<typeof buildMovieCognition>, s
   const turn = source[1] ?? anchor;
   const consequence = source[2] ?? turn;
   const operation = selected.operation;
-  const build = (id: string, move: CreativeMove, thesis: string, changes: string[]): Path => ({
-    id,
-    thesis,
-    move,
-    budget,
-    beats: changes.map((change, index, all) => ({
-      order: index + 1,
-      function: index === 0 ? "hook" : index === 1 ? "question" : index === all.length - 1 ? "payoff" : index === all.length - 2 ? "escalation" : "turn",
-      source: [source[Math.min(index, Math.max(0, source.length - 1))] ?? subject],
-      change,
-      setupFor: index < all.length - 1 ? index + 2 : undefined,
-      paysOff: index === all.length - 2 ? all.length : undefined,
-      creativeMove: move,
-    })),
-  });
-
+  const build = (id: string, move: CreativeMove, thesis: string, changes: string[]): Path => ({ id, thesis, move, budget, beats: changes.map((change, index, all) => ({ order: index + 1, function: index === 0 ? "hook" : index === 1 ? "question" : index === all.length - 1 ? "payoff" : index === all.length - 2 ? "escalation" : "turn", source: [source[Math.min(index, Math.max(0, source.length - 1))] ?? subject], change, setupFor: index < all.length - 1 ? index + 2 : undefined, paysOff: index === all.length - 2 ? all.length : undefined, creativeMove: move })) });
   return [
-    build(
-      "shift",
-      preferredLens ? "status_shift" : "status_shift",
-      `${subject} changes status through the relationship between supplied events.`,
-      [
-        `Establish ${anchor}.`,
-        `Let ${turn} change the expectation.`,
-        `Let ${consequence} create a new consequence through ${operation}.`,
-        "Reframe what the viewer thought was happening.",
-        ending || "Land the earned consequence.",
-      ],
-    ),
-    build(
-      "deadpan",
-      "deadpan",
-      `${subject} is treated with disproportionate seriousness as the supplied relationship develops.`,
-      [
-        `Establish ${anchor}.`,
-        `Give ${turn} a second meaning.`,
-        `Let ${consequence} make that meaning increasingly obvious.",
-        "Play the consequence straight.",
-        ending || "Land the earned consequence.",
-      ],
-    ),
-    build(
-      "pressure",
-      "social_friction",
-      `${subject} develops pressure through the relationship between concrete events.`,
-      [
-        `Establish ${anchor}.`,
-        `Create an unresolved question around ${turn}.`,
-        `Use ${consequence} to increase the pressure.`,
-        "Hold the unresolved consequence without adding a new world.",
-        ending || "Pay it off.",
-      ],
-    ),
+    build("shift", preferredLens ? "status_shift" : "status_shift", `${subject} changes status through the relationship between supplied events.`, [`Establish ${anchor}.`, `Let ${turn} change the expectation.`, `Let ${consequence} create a new consequence through ${operation}.`, "Reframe what the viewer thought was happening.", ending || "Land the earned consequence."]),
+    build("deadpan", "deadpan", `${subject} is treated with disproportionate seriousness as the supplied relationship develops.`, [`Establish ${anchor}.`, `Give ${turn} a second meaning.`, `Let ${consequence} make that meaning increasingly obvious.`, "Play the consequence straight.", ending || "Land the earned consequence."]),
+    build("pressure", "social_friction", `${subject} develops pressure through the relationship between concrete events.`, [`Establish ${anchor}.`, `Create an unresolved question around ${turn}.`, `Use ${consequence} to increase the pressure.`, "Hold the unresolved consequence without adding a new world.", ending || "Pay it off."]),
   ];
 }
 
 function referencePolicy(subject: string): ReferencePolicy { return { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }; }
-function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> {
-  const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, movieCognition: packet.movieCognition.selected, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" };
-  const schema = packet.paths.map((path) => `{"pathId":"${path.id}","lines":["..."]}`).join(",");
-  return [{ role: "user", content: [
-    "QRE MOUTH. QRE already discovered the movie trajectories. You are only the language renderer.",
-    `Return JSON only using this exact structure: {"candidates":[${schema}]}.`,
-    `Allowed pathId values are exactly: ${packet.paths.map((path) => `"${path.id}"`).join(", ")}. Never return a combined value such as "${packet.paths.map((path) => path.id).join("|")}".`,
-    `Return exactly ${packet.paths.length} candidates, one for each path, in path order.`,
-    `Each candidate has exactly ${packet.lineCount} lines. Each non-final line is ${packet.maxWords} words or fewer.`,
-    packet.ending ? `Every candidate final line must be EXACTLY: ${packet.ending}` : "Finish on the earned consequence.",
-    `Each path is a distinct trajectory derived from the selected cognition. Do not collapse all paths into the same fact order.`,
-    `The selected movie operation is ${packet.movieCognition.selected.operation}. Realize its tension and trajectory; do not merely repeat the source facts.`,
-    "Every screen must either establish, raise, redirect, resolve, or pay off a question. A strong line may be simple, musical, or interpretive when it changes the viewer's read.",
-    "Use small creative moves: contrast, status shift, understatement, unexpected verb, social friction, deadpan, callback, implication, absurd escalation, double meaning.",
-    "Never invent a person, place, relationship, body detail, dialogue, sensory fact, object, or literal event. A frame may change the read but never the world.",
-    packet.lock.referencePolicy.instruction,
-    "Creative budget is a ceiling, not a requirement. Sensitive material stays restrained.",
-    JSON.stringify(payload),
-  ].join("\n") }];
-}
+function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> { const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, movieCognition: packet.movieCognition.selected, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" }; const schema = packet.paths.map((path) => `{"pathId":"${path.id}","lines":["..."]}`).join(","); return [{ role: "user", content: ["QRE MOUTH. QRE already discovered the movie trajectories. You are only the language renderer.", `Return JSON only using this exact structure: {"candidates":[${schema}]}.`, `Allowed pathId values are exactly: ${packet.paths.map((path) => `"${path.id}"`).join(", ")}. Never return a combined value such as "${packet.paths.map((path) => path.id).join("|")}".`, `Return exactly ${packet.paths.length} candidates, one for each path, in path order.`, `Each candidate has exactly ${packet.lineCount} lines. Each non-final line is ${packet.maxWords} words or fewer.`, packet.ending ? `Every candidate final line must be EXACTLY: ${packet.ending}` : "Finish on the earned consequence.", "Each path is a distinct trajectory derived from the selected cognition. Do not collapse all paths into the same fact order.", `The selected movie operation is ${packet.movieCognition.selected.operation}. Realize its tension and trajectory; do not merely repeat the source facts.`, "Every screen must either establish, raise, redirect, resolve, or pay off a question. A strong line may be simple, musical, or interpretive when it changes the viewer's read.", "Use small creative moves: contrast, status shift, understatement, unexpected verb, social friction, deadpan, callback, implication, absurd escalation, double meaning.", "Never invent a person, place, relationship, body detail, dialogue, sensory fact, object, or literal event. A frame may change the read but never the world.", packet.lock.referencePolicy.instruction, "Creative budget is a ceiling, not a requirement. Sensitive material stays restrained.", JSON.stringify(payload)].join("\n") }]; }
 function normalizeLine(value: unknown): string { return clean(value).replace(/^(?:[-*•]|\d+[.)])\s*/u, "").replace(/^['\"]|['\"]$/g, "").trim(); }
-function parseCandidates(raw: string, count: number): Candidate[] {
-  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim(); if (!text) return [];
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : [];
-    return list.map((item, index) => {
-      const r = item && typeof item === "object" ? item as Record<string, unknown> : {};
-      const suppliedPathId = String(r.pathId ?? "").trim();
-      const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number])
-        ? suppliedPathId
-        : suppliedPathId === PATH_IDS.join("|") || !suppliedPathId
-          ? PATH_IDS[index] ?? ""
-          : suppliedPathId;
-      return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] };
-    }).filter((candidate) => candidate.lines.length === count) as Candidate[];
-  } catch {
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m || m[0] === text) return [];
-    try {
-      const parsed = JSON.parse(m[0]) as unknown;
-      const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : [];
-      return list.map((item, index) => {
-        const r = item && typeof item === "object" ? item as Record<string, unknown> : {};
-        const suppliedPathId = String(r.pathId ?? "").trim();
-        const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number]) ? suppliedPathId : !suppliedPathId || suppliedPathId === PATH_IDS.join("|") ? PATH_IDS[index] ?? "" : suppliedPathId;
-        return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] };
-      }).filter((candidate) => candidate.lines.length === count) as Candidate[];
-    } catch {
-      return [];
-    }
-  }
-}
-function worldViolation(line: string, packet: Packet): string | undefined {
-  const known = packet.reality.join(" ").toLowerCase();
-  for (const [pattern, label] of [[RELATIONSHIP, "relationship"], [PLACE, "place"], [BODY, "body_detail"]] as const) {
-    const match = line.match(pattern); if (!match) continue; const token = match[0].toLowerCase();
-    if (label === "body_detail" && BODY_IDIOM.test(line)) continue;
-    if (!known.includes(token)) return `unsupported_${label}`;
-  }
-  return undefined;
-}
+function parseCandidates(raw: string, count: number): Candidate[] { const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim(); if (!text) return []; try { const parsed = JSON.parse(text) as unknown; const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : []; return list.map((item, index) => { const r = item && typeof item === "object" ? item as Record<string, unknown> : {}; const suppliedPathId = String(r.pathId ?? "").trim(); const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number]) ? suppliedPathId : suppliedPathId === PATH_IDS.join("|") || !suppliedPathId ? PATH_IDS[index] ?? "" : suppliedPathId; return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] }; }).filter((candidate) => candidate.lines.length === count) as Candidate[]; } catch { return []; } }
+function worldViolation(line: string, packet: Packet): string | undefined { const known = packet.reality.join(" ").toLowerCase(); for (const [pattern, label] of [[RELATIONSHIP, "relationship"], [PLACE, "place"], [BODY, "body_detail"]] as const) { const match = line.match(pattern); if (!match) continue; const token = match[0].toLowerCase(); if (label === "body_detail" && BODY_IDIOM.test(line)) continue; if (!known.includes(token)) return `unsupported_${label}`; } return undefined; }
 function replay(line: string, source: string): number { const a = clean(line).toLowerCase(); const b = clean(source).toLowerCase(); return a === b ? 1 : overlap(a, b) >= 0.92 ? 1 : 0; }
-function pull(line: string, nextBeat: Beat | undefined, move: CreativeMove): number {
-  if (!nextBeat) return 1;
-  let score = 0.25;
-  if (CONTRAST.test(line)) score += 0.18;
-  if (MOVE_MARKERS[move]?.test(line)) score += 0.18;
-  if (ACTION.test(line)) score += 0.08;
-  if (STATUS.test(line)) score += 0.08;
-  if (nextBeat.change && overlap(line, nextBeat.change) < 0.7) score += 0.1;
-  if (/\b(?:what|why|then|until|again|still|but|yet|except|so|almost|fine|maybe|not yet)\b/i.test(line)) score += 0.13;
-  return metric(score);
-}
-function metrics(lines: string[], path: Path, packet: Packet): BeatMetrics[] {
-  return lines.map((line, index) => {
-    const beat = path.beats[index]!; const previous = lines[index - 1] ?? "";
-    const rep = index > 0 && index < lines.length - 1 ? replay(line, beat.source.join(" ")) : 0;
-    const novelty = metric(1 - overlap(line, previous));
-    const specificity = metric(Math.min(1, meaningful(line).length / 4));
-    const statusChange = metric((STATUS.test(line) ? 0.45 : 0) + (ACTION.test(line) ? 0.35 : 0) + (CONTRAST.test(line) ? 0.2 : 0));
-    const nextPull = pull(line, path.beats[index + 1], beat.creativeMove);
-    const moveScore = MOVE_MARKERS[beat.creativeMove]?.test(line) ? 1 : packet.lock.creativeBudget < 0.3 ? 0.7 : 0.45;
-    const cinematicity = metric((ACTION.test(line) ? 0.35 : 0) + (meaningful(line).length ? 0.35 : 0) + (novelty * 0.3));
-    return { factuality: 1, specificity, attention: metric(novelty * 0.5 + nextPull * 0.5), novelty, statusChange, nextBeatPull: index === lines.length - 1 ? 1 : nextPull, creativeMove: moveScore, repetition: rep, cinematicity };
-  });
-}
-function validate(candidate: Candidate, path: Path, packet: Packet): Validation {
-  const reasons: string[] = []; const ms = metrics(candidate.lines, path, packet); let replayCount = 0;
-  candidate.lines.forEach((line, index) => {
-    const count = words(line).length;
-    if (!count) reasons.push(`line_${index + 1}:empty`);
-    if (index < candidate.lines.length - 1 && count > packet.maxWords) reasons.push(`line_${index + 1}:wrong_length`);
-    if (META.test(line)) reasons.push(`line_${index + 1}:meta_language`);
-    if (STOCK.test(line)) reasons.push(`line_${index + 1}:stock_sentiment`);
-    if (GLUE.test(line)) reasons.push(`line_${index + 1}:explanatory_glue`);
-    if (DECORATION.test(line)) reasons.push(`line_${index + 1}:generic_decoration`);
-    if (PRONOUN.test(line)) reasons.push(`line_${index + 1}:unsupported_identity_reference`);
-    const violation = worldViolation(line, packet); if (violation) reasons.push(`line_${index + 1}:${violation}`);
-    if (ms[index]?.repetition) replayCount += 1;
-  });
-  if (replayCount > 1) reasons.push(`mechanical_fact_replay:${replayCount}`);
-  if (packet.ending && clean(candidate.lines.at(-1)).toLowerCase() !== packet.ending.toLowerCase()) reasons.push("endpoint_mismatch");
-  if (new Set(candidate.lines.map((x) => x.toLowerCase())).size !== candidate.lines.length) reasons.push("duplicate_lines");
-  const weakPull = ms.slice(0, -1).filter((m) => m.nextBeatPull < MIN_PULL).length; if (weakPull >= Math.max(2, Math.floor(candidate.lines.length / 2))) reasons.push(`weak_next_beat_pull:${weakPull}`);
-  const transformation = ms.slice(1, -1).reduce((sum, m) => sum + (1 - m.repetition), 0) / Math.max(1, candidate.lines.length - 2);
-  const pullScore = ms.slice(0, -1).reduce((sum, m) => sum + m.nextBeatPull, 0) / Math.max(1, candidate.lines.length - 1);
-  const moveScore = ms.reduce((sum, m) => sum + m.creativeMove, 0) / Math.max(1, ms.length);
-  const payoff = packet.ending ? 1 : 0.8;
-  const score = metric(transformation * 0.28 + pullScore * 0.32 + moveScore * 0.15 + ms.reduce((s, m) => s + m.cinematicity, 0) / ms.length * 0.15 + payoff * 0.1);
-  if (score < MIN_SCORE) reasons.push(`quality_below_floor:${score}`);
-  return { ok: reasons.length === 0, reasons, score, metrics: ms };
-}
+function pull(line: string, nextBeat: Beat | undefined, move: CreativeMove): number { if (!nextBeat) return 1; let score = 0.25; if (CONTRAST.test(line)) score += 0.18; if (MOVE_MARKERS[move]?.test(line)) score += 0.18; if (ACTION.test(line)) score += 0.08; if (STATUS.test(line)) score += 0.08; if (nextBeat.change && overlap(line, nextBeat.change) < 0.7) score += 0.1; if (/\b(?:what|why|then|until|again|still|but|yet|except|so|almost|fine|maybe|not yet)\b/i.test(line)) score += 0.13; return metric(score); }
+function metrics(lines: string[], path: Path, packet: Packet): BeatMetrics[] { return lines.map((line, index) => { const beat = path.beats[index]!; const previous = lines[index - 1] ?? ""; const rep = index > 0 && index < lines.length - 1 ? replay(line, beat.source.join(" ")) : 0; const novelty = metric(1 - overlap(line, previous)); const specificity = metric(Math.min(1, meaningful(line).length / 4)); const statusChange = metric((STATUS.test(line) ? 0.45 : 0) + (ACTION.test(line) ? 0.35 : 0) + (CONTRAST.test(line) ? 0.2 : 0)); const nextPull = pull(line, path.beats[index + 1], beat.creativeMove); const moveScore = MOVE_MARKERS[beat.creativeMove]?.test(line) ? 1 : packet.lock.creativeBudget < 0.3 ? 0.7 : 0.45; const cinematicity = metric((ACTION.test(line) ? 0.35 : 0) + (meaningful(line).length ? 0.35 : 0) + (novelty * 0.3)); return { factuality: 1, specificity, attention: metric(novelty * 0.5 + nextPull * 0.5), novelty, statusChange, nextBeatPull: index === lines.length - 1 ? 1 : nextPull, creativeMove: moveScore, repetition: rep, cinematicity }; }); }
+function validate(candidate: Candidate, path: Path, packet: Packet): Validation { const reasons: string[] = []; const ms = metrics(candidate.lines, path, packet); let replayCount = 0; candidate.lines.forEach((line, index) => { const count = words(line).length; if (!count) reasons.push(`line_${index + 1}:empty`); if (index < candidate.lines.length - 1 && count > packet.maxWords) reasons.push(`line_${index + 1}:wrong_length`); if (META.test(line)) reasons.push(`line_${index + 1}:meta_language`); if (STOCK.test(line)) reasons.push(`line_${index + 1}:stock_sentiment`); if (GLUE.test(line)) reasons.push(`line_${index + 1}:explanatory_glue`); if (DECORATION.test(line)) reasons.push(`line_${index + 1}:generic_decoration`); if (PRONOUN.test(line)) reasons.push(`line_${index + 1}:unsupported_identity_reference`); const violation = worldViolation(line, packet); if (violation) reasons.push(`line_${index + 1}:${violation}`); if (ms[index]?.repetition) replayCount += 1; }); if (replayCount > 1) reasons.push(`mechanical_fact_replay:${replayCount}`); if (packet.ending && clean(candidate.lines.at(-1)).toLowerCase() !== packet.ending.toLowerCase()) reasons.push("endpoint_mismatch"); if (new Set(candidate.lines.map((x) => x.toLowerCase())).size !== candidate.lines.length) reasons.push("duplicate_lines"); const weakPull = ms.slice(0, -1).filter((m) => m.nextBeatPull < MIN_PULL).length; if (weakPull >= Math.max(2, Math.floor(candidate.lines.length / 2))) reasons.push(`weak_next_beat_pull:${weakPull}`); const transformation = ms.slice(1, -1).reduce((sum, m) => sum + (1 - m.repetition), 0) / Math.max(1, candidate.lines.length - 2); const pullScore = ms.slice(0, -1).reduce((sum, m) => sum + m.nextBeatPull, 0) / Math.max(1, candidate.lines.length - 1); const moveScore = ms.reduce((sum, m) => sum + m.creativeMove, 0) / Math.max(1, ms.length); const payoff = packet.ending ? 1 : 0.8; const score = metric(transformation * 0.28 + pullScore * 0.32 + moveScore * 0.15 + ms.reduce((s, m) => s + m.cinematicity, 0) / ms.length * 0.15 + payoff * 0.1); if (score < MIN_SCORE) reasons.push(`quality_below_floor:${score}`); return { ok: reasons.length === 0, reasons, score, metrics: ms }; }
 function role(index: number, total: number): ViewerAttentionRole { if (index === 0) return "hook"; if (index === 1) return "question"; if (index === total - 1) return "payoff"; if (index === total - 2) return "reframe"; return "escalation"; }
 function gain(index: number, total: number): SequenceGainKind { if (index === 0) return "baseline"; if (index === total - 1) return "payoff"; if (index === total - 2) return "reframe"; if (index === 1) return "question"; return "surprise"; }
-function buildSequence(packet: Packet, path: Path, candidate: Candidate, score: number): SequencePlay {
-  const cuts: SequenceCut[] = []; const known: string[] = [];
-  const candidateMetrics = metrics(candidate.lines, path, packet);
-  candidate.lines.forEach((text, index) => { const beat = path.beats[index]!; const before: ViewerState = { known: [...known], expected: beat.change, unresolved: index ? path.beats[index - 1]?.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: index ? path.beats[index - 1]?.source.join(" ") : undefined }; known.push(text); const after: ViewerState = { known: [...known], expected: index < candidate.lines.length - 1 ? beat.change : undefined, unresolved: index < candidate.lines.length - 1 ? beat.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: beat.change }; cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, candidate.lines.length), gainKind: gain(index, candidate.lines.length), sourceIds: beat.source.map((_, i) => `reality:${index}:${i}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${candidateMetrics[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, payoffConnection: index === candidate.lines.length - 1 ? packet.ending || text : path.beats[index + 1]?.change, noveltyScore: candidateMetrics[index]?.novelty ?? 0, confidence: score }); });
-  return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: candidate.lines, antiCrutch: ["no description-only beats", "no fact parade", "no unsupported identity", "no unsupported world expansion", "no decorative filler", "ending must reframe", "rejected output never rendered"] };
-}
+function buildSequence(packet: Packet, path: Path, candidate: Candidate, score: number): SequencePlay { const cuts: SequenceCut[] = []; const known: string[] = []; const candidateMetrics = metrics(candidate.lines, path, packet); candidate.lines.forEach((text, index) => { const beat = path.beats[index]!; const before: ViewerState = { known: [...known], expected: beat.change, unresolved: index ? path.beats[index - 1]?.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: index ? path.beats[index - 1]?.source.join(" ") : undefined }; known.push(text); const after: ViewerState = { known: [...known], expected: index < candidate.lines.length - 1 ? beat.change : undefined, unresolved: index < candidate.lines.length - 1 ? beat.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: beat.change }; cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, candidate.lines.length), gainKind: gain(index, candidate.lines.length), sourceIds: beat.source.map((_, i) => `reality:${index}:${i}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${candidateMetrics[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, payoffConnection: index === candidate.lines.length - 1 ? packet.ending || text : path.beats[index + 1]?.change, noveltyScore: candidateMetrics[index]?.novelty ?? 0, confidence: score }); }); return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: candidate.lines, antiCrutch: ["no description-only beats", "no fact parade", "no unsupported identity", "no unsupported world expansion", "no decorative filler", "ending must reframe", "rejected output never rendered"] }; }
 function brief(packet: Packet): AuthorCreativeBrief { return { angle: packet.lock.approvedMeaning, engine: "reality → movie cognition → competing trajectories → mouth → truth gate → attention editor", question: packet.movieCognition.attentionQuestion, strongestImage: packet.arc.turn, tension: packet.movieCognition.selected.tension, payoff: packet.ending || packet.arc.resolution, callback: packet.movieCognition.selected.sources.at(-1) ?? packet.arc.turn, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention"] }; }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<AuthorResult> {
@@ -311,22 +111,11 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   for (const candidate of candidates) { const path = paths.find((p) => p.id === candidate.pathId); if (!path) { rejected.push({ pathId: candidate.pathId, reasons: ["unknown_path"], score: 0, metrics: [] }); continue; } const validation = validate(candidate, path, packet); if (validation.ok) accepted.push({ candidate, path, validation }); else rejected.push({ pathId: candidate.pathId, reasons: validation.reasons, score: validation.score, metrics: validation.metrics }); }
   const duplicateCandidateKeys = new Map<string, number>();
   for (const item of accepted) duplicateCandidateKeys.set(item.candidate.lines.join("\n").toLowerCase(), (duplicateCandidateKeys.get(item.candidate.lines.join("\n").toLowerCase()) ?? 0) + 1);
-  for (const [key, count] of duplicateCandidateKeys) {
-    if (count < 2) continue;
-    let kept = false;
-    for (let index = accepted.length - 1; index >= 0; index -= 1) {
-      if (accepted[index]!.candidate.lines.join("\n").toLowerCase() !== key) continue;
-      if (!kept) { kept = true; continue; }
-      const duplicate = accepted.splice(index, 1)[0]!;
-      rejected.push({ pathId: duplicate.candidate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics });
-    }
-  }
+  for (const [key, count] of duplicateCandidateKeys) { if (count < 2) continue; let kept = false; for (let index = accepted.length - 1; index >= 0; index -= 1) { if (accepted[index]!.candidate.lines.join("\n").toLowerCase() !== key) continue; if (!kept) { kept = true; continue; } const duplicate = accepted.splice(index, 1)[0]!; rejected.push({ pathId: duplicate.candidate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics }); } }
   accepted.sort((a, b) => b.validation.score - a.validation.score);
   const selected = accepted[0];
   const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
-  if (!selected) {
-    return { brief: brief(packet), scenes: [], sequence: undefined, field: { packet, moviePaths: paths, movieCognition }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "REJECTED_MODEL_OUTPUT", renderable: false, candidateSequences: candidates.length, acceptedCandidates: 0, rejectedCandidates: rejected, selectedScore: 0, qualityFloor: MIN_SCORE, lineCount: lineTotal, endpoint: ending, endpointExact: false, complete: false, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), movieHypotheses: movieCognition.hypotheses, selectedMovie: movieCognition.selected, selectedPath: undefined, attentionEditor: true, attentionMetrics: rejected.map((r) => ({ pathId: r.pathId, metrics: r.metrics })), rejectedOutputNeverRendered: true, rawModelOutput: raw } };
-  }
+  if (!selected) return { brief: brief(packet), scenes: [], sequence: undefined, field: { packet, moviePaths: paths, movieCognition }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "REJECTED_MODEL_OUTPUT", renderable: false, candidateSequences: candidates.length, acceptedCandidates: 0, rejectedCandidates: rejected, selectedScore: 0, qualityFloor: MIN_SCORE, lineCount: lineTotal, endpoint: ending, endpointExact: false, complete: false, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), movieHypotheses: movieCognition.hypotheses, selectedMovie: movieCognition.selected, selectedPath: undefined, attentionEditor: true, attentionMetrics: rejected.map((r) => ({ pathId: r.pathId, metrics: r.metrics })), rejectedOutputNeverRendered: true, rawModelOutput: raw } };
   const sequence = buildSequence(packet, selected.path, selected.candidate, selected.validation.score);
   const scenes: AuthorScene[] = selected.candidate.lines.map((text, index, all) => ({ text, kind: index === 0 ? "hook" : index === all.length - 1 ? "payoff" : index === all.length - 2 ? "turn" : "movement" }));
   return { brief: brief(packet), scenes, sequence, field: { packet, moviePaths: paths, selectedPath: selected.path, movieCognition }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "ACCEPTED", renderable: true, candidateSequences: candidates.length, acceptedCandidates: accepted.length, rejectedCandidates: rejected, selectedScore: selected.validation.score, qualityFloor: MIN_SCORE, lineCount: scenes.length, endpoint: ending, endpointExact: ending ? clean(scenes.at(-1)?.text).toLowerCase() === ending.toLowerCase() : true, complete: true, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), movieHypotheses: movieCognition.hypotheses, selectedMovie: movieCognition.selected, selectedPath: selected.path.id, selectedMove: selected.path.move, attentionEditor: true, attentionMetrics: selected.validation.metrics, rejectedOutputNeverRendered: true, rawModelOutput: raw } };
