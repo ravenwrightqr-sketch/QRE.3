@@ -191,23 +191,48 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
   const causalFit = metric(0.4 + relationStrength * 0.38 + (turn.action ? 0.12 : 0));
   const payoffPotential = metric(0.38 + (ending ? 0.22 : 0.06) + (operation === "reframe" || operation === "echo" || operation === "reversal" ? 0.16 : 0.08));
   const repetitionRisk = metric(source.length <= 1 ? 0.4 : source[0] === source[1] ? 0.9 : 0.08);
+  const trajectory = unique([anchor.text, turn.text, support?.text ?? ""]).slice(0, 3);
 
-  const definitions: Record<MovieOperation, { premise: string; tension: string; trajectory: string[] }> = {
-    contrast: { premise: "A later state changes the meaning of the earlier one.", tension: "What changed between the two states?", trajectory: [`Establish ${anchor.text}.`, `Let ${turn.text} alter that first read.`, support ? `Use ${support.text} to sharpen the contrast.` : "Let the consequence sharpen the contrast.", "Pay off the changed read."] },
-    reframe: { premise: "One concrete event makes another concrete event mean something new.", tension: `Why does ${turn.text} matter differently now?`, trajectory: [`Plant ${anchor.text}.`, `Make ${turn.text} newly relevant.`, support ? `Let ${support.text} reinterpret the relationship.` : "Let the consequence reinterpret the relationship.", "Land the earned meaning."] },
-    reversal: { premise: "The apparent direction turns without changing the supplied world.", tension: "What looked settled becomes the reason to keep watching.", trajectory: [`Establish ${anchor.text}.`, `Move toward ${turn.text}.`, "Reverse the interpretation, not the facts.", support ? `Let ${support.text} carry the consequence.` : "Let the next supplied event carry the consequence."] },
-    amplification: { premise: "A small supplied detail grows in importance because later events depend on it.", tension: `Why does ${turn.text} suddenly matter this much?`, trajectory: [`Plant ${turn.text}.`, "Increase its relevance once.", support ? `Let ${support.text} enlarge the consequence.` : "Let the next event enlarge the consequence.", "Pay it off before unrelated material appears."] },
-    echo: { premise: "A returning detail comes back with changed meaning.", tension: "What does the return mean now?", trajectory: [`Establish ${anchor.text}.`, `Let ${turn.text} change the state.`, support ? `Return to ${support.text} with the new meaning.` : "Return to the established detail with the new meaning.", "End on the changed meaning."] },
-    enclosure: { premise: "The supplied experience narrows until what is already there feels unusually complete or private.", tension: "What drops away from attention?", trajectory: [`Establish ${anchor.text}.`, `Narrow attention through ${turn.text}.`, support ? `Let ${support.text} make the existing world feel self-contained.` : "Make the existing world feel self-contained.", "Pay off the intimacy."] },
-    reveal: { premise: "A supplied relationship was carrying more meaning than it first appeared to.", tension: "What was already there that we had not noticed?", trajectory: [`Plant ${anchor.text}.`, "Delay the obvious reading.", `Use ${turn.text} to expose the relationship.`, support ? `Let ${support.text} complete it.` : "Let the next supplied event complete it."] },
-    implication: { premise: "The strongest meaning sits inside the relationship between events rather than an explanation.", tension: "What does the sequence imply without spelling it out?", trajectory: [`State ${anchor.text}.`, `Shift through ${turn.text}.`, support ? `Let ${support.text} imply the consequence.` : "Let the next supplied event imply the consequence.", "Stop before explaining it."] },
+  const premiseByOperation: Record<MovieOperation, string> = {
+    contrast: "A later state changes the meaning of an earlier supplied state.",
+    reframe: "One supplied event makes another supplied event mean something new.",
+    reversal: "The apparent direction changes without changing the supplied world.",
+    amplification: "A supplied detail grows in importance because later supplied events depend on it.",
+    echo: "A supplied detail returns with changed meaning.",
+    enclosure: "The supplied experience narrows until what is already there feels unusually complete or private.",
+    reveal: "A supplied relationship was carrying more meaning than it first appeared to.",
+    implication: "The strongest meaning sits inside the relationship between supplied events.",
   };
+  const tensionByOperation: Record<MovieOperation, string> = {
+    contrast: "What changed between the supplied states?",
+    reframe: `Why does ${turn.text} matter differently now?`,
+    reversal: "What looked settled becomes the reason to keep watching.",
+    amplification: `Why does ${turn.text} suddenly matter this much?`,
+    echo: "What does the return mean now?",
+    enclosure: "What drops away from attention while the supplied world remains?",
+    reveal: "What was already there that we had not noticed?",
+    implication: "What does the sequence imply without spelling it out?",
+  };
+  const lens = chooseLens(input, operation, facts, tensionByOperation[operation]);
 
-  const selected = definitions[operation];
-  const lens = chooseLens(input, operation, facts, selected.tension);
-  const framedPremise = `${selected.premise} Framing pressure: ${lens.pressure}`;
+  // HARD REALITY LAW: cognition may select framing, but it never manufactures a source fact.
+  // trajectory contains source facts only; lens pressure stays separate from the movie material.
   const score = metric(novelty * 0.28 + causalFit * 0.34 + payoffPotential * 0.25 + lens.fit * 0.09 - repetitionRisk * 0.1 - rank * 0.004);
-  return { id: `movie-${operation}-${rank}`, operation, premise: framedPremise, tension: selected.tension, trajectory: selected.trajectory, sources: source, relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens };
+  return {
+    id: `movie-${operation}-${rank}`,
+    operation,
+    premise: premiseByOperation[operation],
+    tension: tensionByOperation[operation],
+    trajectory,
+    sources: source,
+    relationships: linked,
+    score,
+    novelty,
+    causalFit,
+    payoffPotential,
+    repetitionRisk,
+    lens,
+  };
 }
 
 export function buildMovieCognition(input: AuthorBrainTruth, ending: string): MovieCognition {
@@ -215,7 +240,9 @@ export function buildMovieCognition(input: AuthorBrainTruth, ending: string): Mo
   const facts = rankFacts(splitFacts(input), ending);
   const relationships = makeRelationships(facts);
   const operations = operationSet(input, facts, relationships);
-  const hypotheses = operations.map((operation, index) => hypothesisFor(operation, subject, input, facts, relationships, ending, index + 1)).sort((a, b) => b.score - a.score);
+  const hypotheses = operations
+    .map((operation, index) => hypothesisFor(operation, subject, input, facts, relationships, ending, index + 1))
+    .sort((a, b) => b.score - a.score);
   const selected = hypotheses[0] ?? hypothesisFor("reframe", subject, input, facts, relationships, ending, 1);
   return { facts, relationships, hypotheses, selected, attentionQuestion: selected.tension };
 }
