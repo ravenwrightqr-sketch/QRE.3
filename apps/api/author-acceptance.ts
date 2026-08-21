@@ -19,6 +19,7 @@ const result = await authorBrainUniversal({
 
 const qualityStatus = String(result.diagnostics.qualityStatus ?? "UNKNOWN");
 const renderable = Boolean(result.diagnostics.renderable);
+const debugRaw = process.env.QRE_AUTHOR_DEBUG_RAW === "true";
 
 console.log("=".repeat(72));
 console.log("QRE AUTHOR ACCEPTANCE · ONE BRAIN / ONE MODEL CALL");
@@ -34,6 +35,11 @@ console.log(`SCORE: ${String(result.diagnostics.selectedScore ?? 0)}`);
 if (qualityStatus !== "ACCEPTED") {
   console.log("\n--- REJECTED MODEL OUTPUT ---");
   console.log(JSON.stringify(result.diagnostics.rejectedCandidates ?? [], null, 2));
+  if (debugRaw) {
+    console.log("\n--- RAW MODEL OUTPUT ---");
+    console.log(String(result.diagnostics.rawModelOutput ?? "<no raw model output captured>"));
+    console.log("--- END RAW MODEL OUTPUT ---");
+  }
   console.log("--- NO MODEL PROSE RENDERED ---");
 } else {
   console.log("\n--- OUTPUT ---");
