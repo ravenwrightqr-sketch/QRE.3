@@ -105,7 +105,11 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
   const payoffPotential = metric(0.38 + (ending ? 0.22 : 0.06) + (operation === "reframe" || operation === "echo" || operation === "reversal" ? 0.16 : 0.08));
   const repetitionRisk = metric(source.length <= 1 ? 0.4 : source[0] === source[1] ? 0.9 : 0.08);
   const usedIndexes = new Set<number>(); const trajectory: string[] = [];
-  for (const fact of [anchor, turn, support, ...ordered]) { if (!usedIndexes.has(fact.index)) { usedIndexes.add(fact.index); trajectory.push(fact.text); } if (trajectory.length >= 4) break; }
+  for (const fact of [anchor, turn, support, ...ordered]) {
+    if (!fact) continue;
+    if (!usedIndexes.has(fact.index)) { usedIndexes.add(fact.index); trajectory.push(fact.text); }
+    if (trajectory.length >= 4) break;
+  }
   const premiseByOperation: Record<MovieOperation, string> = {
     contrast: "A later state changes the meaning of an earlier supplied state.", reframe: "One supplied event makes another supplied event mean something new.", reversal: "The apparent direction changes without changing the supplied world.",
     amplification: "A supplied detail grows in importance because later supplied events depend on it.", echo: "A supplied detail returns with changed meaning.", enclosure: "The supplied experience narrows until what is already there feels unusually complete or private.",
