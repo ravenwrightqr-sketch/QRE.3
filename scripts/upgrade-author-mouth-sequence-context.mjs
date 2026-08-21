@@ -2,9 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const file = (name) => path.join(root, name);
-const read = (name) => fs.readFileSync(file(name), "utf8");
-const write = (name, content) => fs.writeFileSync(file(name), content, "utf8");
+const target = path.join(root, "apps/api/src/services/authorMouthCandidateSearch.ts");
+
+function read() {
+  return fs.readFileSync(target, "utf8");
+}
+
+function write(content) {
+  fs.writeFileSync(target, content, "utf8");
+}
 
 function findMatchingBrace(text, openIndex) {
   let depth = 0;
@@ -48,6 +54,7 @@ function findMatchingBrace(text, openIndex) {
       i += 1;
       continue;
     }
+
     if (ch === "{") depth += 1;
     if (ch === "}") {
       depth -= 1;
@@ -58,52 +65,56 @@ function findMatchingBrace(text, openIndex) {
   return -1;
 }
 
-function replaceFunction(text, name, replacement) {
+function replaceExportedFunction(text, name, replacement) {
   const signature = `export async function ${name}(`;
   const start = text.indexOf(signature);
-  if (start < 0) throw new Error(`AUTHOR MOUTH UPGRADE · missing function: ${name}`);
+  if (start < 0) throw new Error(`Missing function: ${name}`);
+
   const open = text.indexOf("{", start);
-  if (open < 0) throw new Error(`AUTHOR MOUTH UPGRADE · missing body: ${name}`);
+  if (open < 0) throw new Error(`Missing function body: ${name}`);
+
   const close = findMatchingBrace(text, open);
-  if (close < 0) throw new Error(`AUTHOR MOUTH UPGRADE · malformed body: ${name}`);
+  if (close < 0) throw new Error(`Malformed function body: ${name}`);
+
   return text.slice(0, start) + replacement + text.slice(close + 1);
 }
 
-function patchMouth() {
-  const name = "apps/api/src/services/authorMouthCandidateSearch.ts";
-  let text = read(name);
+function addSequenceGenerator(text) {
+  if (text.includes("function buildSequenceMouthCandidateMessages(")) return text;
 
-  if (!text.includes("function buildSequenceMouthCandidateMessages(")) {
-    const marker = "export function parseMouthCandidateBatch(";
-    const index = text.indexOf(marker);
-    if (index < 0) throw new Error("AUTHOR MOUTH UPGRADE · missing parser anchor");
+  const marker = "export function parseMouthCandidateBatch(";
+  const index = text.indexOf(marker);
+  if (index < 0) throw new Error("Missing parser anchor");
 
-    const sequenceBuilder = `
+  const helper = String.raw`
 function buildSequenceMouthCandidateMessages(
   input: MouthCandidateGenerationInput,
 ): Array<{ role: "system" | "user"; content: string }> {
   const beats = [...input.beats].sort((a, b) => a.order - b.order);
-  const realizationRows = beats.map((beat) => {
+
+  const sequence = beats.map((beat) => {
     const realization = beat.creativeRealization;
+
     return {
       order: beat.order,
       role: beat.role,
       attentionFunction: beat.attentionFunction,
       creativeMove: beat.creativeMove,
+      realizationMode: beat.realizationMode,
       strategy: realization?.strategy,
-      opportunity: realization?.creativeOpportunity,
-      intent: realization?.realizationIntent,
+      creativeOpportunity: realization?.creativeOpportunity,
+      realizationIntent: realization?.realizationIntent,
       viewerEffect: realization?.viewerEffect,
-      premise: realization?.creativePremise,
-      trajectory: realization?.creativeTrajectory ?? [],
-      escalation: realization?.escalationMove,
+      creativePremise: realization?.creativePremise,
+      creativeTrajectory: realization?.creativeTrajectory ?? [],
+      escalationMove: realization?.escalationMove,
       callbackPotential: realization?.callbackPotential ?? [],
       terminalMeaning: realization?.terminalMeaning,
-      eventIds: beat.eventIds ?? [],
       change: beat.change,
       next: beat.next || beat.frontier,
       obligations: beat.obligations ?? [],
       forbiddenMoves: beat.forbiddenMoves ?? [],
+      eventIds: beat.eventIds ?? [],
       payoff: isPayoffBeat(beat),
       endpoint: endpointText(beat),
     };
@@ -111,39 +122,39 @@ function buildSequenceMouthCandidateMessages(
 
   const system = [
     "QRE CANONICAL MOUTH · SEQUENCE AUTHOR.",
-    "You are writing ONE complete creative sequence, not five captions.",
-    "The upstream Author owns reality, meaning, relationships, trajectory, creative realization, and the terminal endpoint.",
-    "Your job is to turn that approved semantic trajectory into memorable viewer-facing language.",
+    "Write ONE complete creative sequence. Do not write independent captions.",
+    "The upstream Author owns reality, meaning, semantic trajectory, creative realization, and the terminal endpoint.",
+    "Your job is to turn that approved meaning into memorable viewer-facing language.",
     "",
     "CORE LAW:",
     "SUPPLIED FACTS ARE RAW MATERIAL, NOT A SCRIPT.",
     "Do not narrate the receipt.",
-    "Do not list events in order.",
-    "Do not paraphrase the supplied moments.",
-    "Do not repeat the subject, trait, object, or action just because it is available.",
-    "Each line must perform a creative move and make the next line more desirable.",
-    "Later lines must recontextualize earlier material rather than summarize it.",
-    "A line can be indirect, sharp, funny, dry, stylish, absurd, tender, or surprising when supported by the approved meaning.",
-    "Creative language may transform perception, but may not invent concrete reality.",
+    "Do not list the events in order.",
+    "Do not paraphrase supplied moments.",
+    "Do not make every line repeat the subject, trait, object, or action.",
+    "Each beat must perform a distinct creative move.",
+    "Each line must change the viewer's reading, pressure, attitude, implication, or expectation.",
+    "Later beats should recontextualize earlier material rather than summarize it.",
     "",
-    "SEQUENCE RHYTHM:",
-    "Use short cinematic beats.",
-    "Vary rhetorical shape across the sequence.",
-    "Prefer implication over explanation.",
-    "Prefer status, contrast, understatement, double meaning, escalation, callback, and recontextualization over factual reporting.",
-    "Avoid making every line syntactically similar.",
-    "Avoid repeating the same source nouns across adjacent lines unless the meaning changes.",
+    "CREATIVE RHYTHM:",
+    "Explore status, contrast, implication, understatement, double meaning, escalation, callback, and recontextualization.",
+    "Vary rhetorical shape across beats.",
+    "Prefer short, sharp, quotable language.",
+    "Use the source facts as hidden material for the creative move.",
     "",
     "TRUTH:",
-    "Do not invent people, places, concrete actions, reactions, sounds, dialogue, chronology, outcomes, or props.",
+    "Do not invent people, objects, places, concrete actions, body reactions, sounds, dialogue, chronology, or outcomes.",
+    "Creative framing is allowed. New concrete reality is not.",
     "",
     "PAYOFF:",
-    "The supplied terminal endpoint is sovereign.",
-    "For the payoff beat, use the exact supplied endpoint phrase and nothing else.",
+    "The supplied terminal endpoint is sacred.",
+    "For the payoff beat, return the exact supplied endpoint phrase and nothing else.",
     "",
-    "RETURN JSON ONLY:",
-    '{"variantsByBeat":[{"order":1,"variants":["LINE 1","LINE 2","LINE 3","LINE 4","LINE 5"]}]}',
-    "Return one variantsByBeat entry for EVERY requested beat.",
+    "OUTPUT:",
+    "Return JSON only.",
+    "Return one variantsByBeat entry for every requested beat.",
+    "Provide 5 materially different realizations per non-payoff beat.",
+    'Use this shape: {"variantsByBeat":[{"order":1,"variants":["LINE 1","LINE 2","LINE 3","LINE 4","LINE 5"]}]}',
   ].join("\n");
 
   const user = {
@@ -152,7 +163,7 @@ function buildSequenceMouthCandidateMessages(
     lens: clean(input.lens),
     priorTexts: input.priorTexts ?? [],
     suppliedEvidence: input.envelope.suppliedPhrases,
-    sequence: realizationRows,
+    sequence,
   };
 
   return [
@@ -163,10 +174,11 @@ function buildSequenceMouthCandidateMessages(
 
 `;
 
-    text = text.slice(0, index) + sequenceBuilder + text.slice(index);
-  }
+  return text.slice(0, index) + helper + text.slice(index);
+}
 
-  const generateReplacement = `export async function generateMouthCandidatePools(
+function replaceGenerator(text) {
+  const replacement = String.raw`export async function generateMouthCandidatePools(
   input: MouthCandidateGenerationInput & {
     risk?: string;
     feedback?: string;
@@ -174,8 +186,8 @@ function buildSequenceMouthCandidateMessages(
 ): Promise<{ pools: MouthCandidatePool[]; rawText: string }> {
   const ordered = [...input.beats].sort((a, b) => a.order - b.order);
   const basePriorTexts = input.priorTexts ?? [];
-
   const messages = buildSequenceMouthCandidateMessages(input);
+
   if (input.feedback) {
     const last = messages[messages.length - 1];
     if (last?.role === "user") {
@@ -184,7 +196,7 @@ function buildSequenceMouthCandidateMessages(
   }
 
   const result = await localModelGenerate(messages, "json", {
-    numPredict: Math.max(2048, ordered.length * 512),
+    numPredict: Math.max(3072, ordered.length * 640),
     temperature: input.risk === "safe" ? 0.72 : 0.84,
   });
 
@@ -194,7 +206,7 @@ function buildSequenceMouthCandidateMessages(
   );
 
   const pools: MouthCandidatePool[] = [];
-  const rawParts = [`SEQUENCE PRIMARY\\n${result.text}`];
+  const rawParts = [`SEQUENCE PRIMARY\n${result.text}`];
 
   for (const beat of ordered) {
     if (isPayoffBeat(beat) && endpointText(beat)) {
@@ -220,18 +232,18 @@ function buildSequenceMouthCandidateMessages(
       repairMessages[0]!.content += [
         "",
         "SEQUENCE REPAIR:",
-        "The complete sequence already exists upstream.",
-        "Write only this missing beat, but make it feel like it belongs to a larger accumulating experience.",
+        "The complete creative sequence already exists upstream.",
+        "Write only this missing beat, but make it belong to the accumulating experience.",
         "Do not restate the supplied event.",
         "Return 5 distinct short realizations.",
-      ].join("\\n");
+      ].join("\n");
 
       const repair = await localModelGenerate(repairMessages, "json", {
         numPredict: 1536,
         temperature: 0.78,
       });
 
-      rawParts.push(`BEAT ${beat.order} REPAIR\\n${repair.text}`);
+      rawParts.push(`BEAT ${beat.order} REPAIR\n${repair.text}`);
       const repaired = parseMouthCandidateBatch(repair.text);
       variants = unique([
         ...variants,
@@ -251,20 +263,27 @@ function buildSequenceMouthCandidateMessages(
 
   return {
     pools,
-    rawText: rawParts.join("\\n--- MOUTH GENERATION ---\\n"),
+    rawText: rawParts.join("\n--- MOUTH GENERATION ---\n"),
   };
 }`;
 
-  text = replaceFunction(text, "generateMouthCandidatePools", generateReplacement);
-  write(name, text);
+  return replaceExportedFunction(text, "generateMouthCandidatePools", replacement);
 }
 
-patchMouth();
+let text = read();
+text = addSequenceGenerator(text);
+text = replaceGenerator(text);
+write(text);
+
 console.log("AUTHOR MOUTH SEQUENCE GENERATION UPGRADE APPLIED");
 `;
 
-  write(file, sequenceBuilder);
+function main() {
+  let text = read();
+  text = addSequenceGenerator(text);
+  text = replaceGenerator(text);
+  write(text);
+  console.log("AUTHOR MOUTH SEQUENCE GENERATION UPGRADE APPLIED");
 }
 
-patchMouth();
-console.log("AUTHOR MOUTH SEQUENCE GENERATION UPGRADE APPLIED");
+main();
