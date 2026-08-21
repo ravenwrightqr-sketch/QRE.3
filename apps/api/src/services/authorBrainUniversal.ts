@@ -99,38 +99,82 @@ function chooseMaterial(source: string[], subject: string, ending: string): { ba
   return { baseline, change, turn, resolution };
 }
 function sensitivity(input: string, source: string[]): "normal" | "sensitive" { return SENSITIVE.test(`${input} ${source.join(" ")}`) ? "sensitive" : "normal"; }
-function makePaths(arc: ReturnType<typeof chooseMaterial>, subject: string, ending: string, budget: number, preferredLens?: string): Path[] {
-  const safeMoves: CreativeMove[] = budget < 0.3 ? ["understatement", "callback"] : ["status_shift", "deadpan", "social_friction", "contrast", "unexpected_verb", "implication", "callback", "double_meaning", "absurd_escalation"];
-  const moveA = preferredLens ? "status_shift" : safeMoves[0] ?? "contrast";
-  const moveB = budget < 0.3 ? "understatement" : safeMoves[1] ?? "deadpan";
-  const moveC = budget < 0.3 ? "callback" : safeMoves[2] ?? "social_friction";
-  const base = (id: string, move: CreativeMove, thesis: string): Path => ({
-    id, thesis, move, budget,
-    beats: [
-      { order: 1, function: "hook", source: [arc.baseline], change: "establish the starting read", setupFor: 2, creativeMove: move },
-      { order: 2, function: "question", source: [arc.change], change: "alter what the viewer expects", setupFor: 3, creativeMove: move },
-      { order: 3, function: "turn", source: [arc.turn], change: "make the distinctive element newly matter", setupFor: 4, paysOff: 5, creativeMove: move },
-      { order: 4, function: "escalation", source: [arc.resolution], change: "create apparent resolution while preserving pressure", setupFor: 5, creativeMove: move },
-      { order: 5, function: "payoff", source: ending ? [ending] : [arc.resolution], change: ending ? "reframe the sequence" : "land the consequence", creativeMove: move },
-    ],
+
+function makeCognitivePaths(cognition: ReturnType<typeof buildMovieCognition>, subject: string, ending: string, budget: number, preferredLens?: string): Path[] {
+  const selected = cognition.selected;
+  const source = uniq(selected.sources.filter((value) => clean(value).toLowerCase() !== subject.toLowerCase()));
+  const anchor = source[0] ?? subject;
+  const turn = source[1] ?? anchor;
+  const consequence = source[2] ?? turn;
+  const operation = selected.operation;
+  const build = (id: string, move: CreativeMove, thesis: string, changes: string[]): Path => ({
+    id,
+    thesis,
+    move,
+    budget,
+    beats: changes.map((change, index, all) => ({
+      order: index + 1,
+      function: index === 0 ? "hook" : index === 1 ? "question" : index === all.length - 1 ? "payoff" : index === all.length - 2 ? "escalation" : "turn",
+      source: [source[Math.min(index, Math.max(0, source.length - 1))] ?? subject],
+      change,
+      setupFor: index < all.length - 1 ? index + 2 : undefined,
+      paysOff: index === all.length - 2 ? all.length : undefined,
+      creativeMove: move,
+    })),
   });
+
   return [
-    base("shift", moveA, `${subject} changes status before the viewer is ready for it.`),
-    base("deadpan", moveB, `${subject} is treated with disproportionate seriousness, making the ordinary turn matter.`),
-    base("pressure", moveC, `${subject} turns an established detail into social or narrative pressure before the payoff.`),
+    build(
+      "shift",
+      preferredLens ? "status_shift" : "status_shift",
+      `${subject} changes status through the relationship between supplied events.`,
+      [
+        `Establish ${anchor}.`,
+        `Let ${turn} change the expectation.`,
+        `Let ${consequence} create a new consequence through ${operation}.`,
+        "Reframe what the viewer thought was happening.",
+        ending || "Land the earned consequence.",
+      ],
+    ),
+    build(
+      "deadpan",
+      "deadpan",
+      `${subject} is treated with disproportionate seriousness as the supplied relationship develops.`,
+      [
+        `Establish ${anchor}.`,
+        `Give ${turn} a second meaning.`,
+        `Let ${consequence} make that meaning increasingly obvious.",
+        "Play the consequence straight.",
+        ending || "Land the earned consequence.",
+      ],
+    ),
+    build(
+      "pressure",
+      "social_friction",
+      `${subject} develops pressure through the relationship between concrete events.`,
+      [
+        `Establish ${anchor}.`,
+        `Create an unresolved question around ${turn}.`,
+        `Use ${consequence} to increase the pressure.`,
+        "Hold the unresolved consequence without adding a new world.",
+        ending || "Pay it off.",
+      ],
+    ),
   ];
 }
+
 function referencePolicy(subject: string): ReferencePolicy { return { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }; }
 function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> {
   const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, movieCognition: packet.movieCognition.selected, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" };
   const schema = packet.paths.map((path) => `{"pathId":"${path.id}","lines":["..."]}`).join(",");
   return [{ role: "user", content: [
-    "QRE MOUTH. QRE already discovered the movie trajectory. You are only the language renderer.",
+    "QRE MOUTH. QRE already discovered the movie trajectories. You are only the language renderer.",
     `Return JSON only using this exact structure: {"candidates":[${schema}]}.`,
     `Allowed pathId values are exactly: ${packet.paths.map((path) => `"${path.id}"`).join(", ")}. Never return a combined value such as "${packet.paths.map((path) => path.id).join("|")}".`,
     `Return exactly ${packet.paths.length} candidates, one for each path, in path order.`,
     `Each candidate has exactly ${packet.lineCount} lines. Each non-final line is ${packet.maxWords} words or fewer.`,
     packet.ending ? `Every candidate final line must be EXACTLY: ${packet.ending}` : "Finish on the earned consequence.",
+    `Each path is a distinct trajectory derived from the selected cognition. Do not collapse all paths into the same fact order.`,
     `The selected movie operation is ${packet.movieCognition.selected.operation}. Realize its tension and trajectory; do not merely repeat the source facts.`,
     "Every screen must either establish, raise, redirect, resolve, or pay off a question. A strong line may be simple, musical, or interpretive when it changes the viewer's read.",
     "Use small creative moves: contrast, status shift, understatement, unexpected verb, social friction, deadpan, callback, implication, absurd escalation, double meaning.",
@@ -257,10 +301,10 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const arc = { ...baseArc, turn: improvedTurn };
   const sensitive = sensitivity(input.prompt, source);
   const ref = referencePolicy(subject);
-  const paths = makePaths(arc, subject, ending, budget, input.lens);
+  const paths = makeCognitivePaths(movieCognition, subject, ending, budget, input.lens);
   const lock: MovieLock = { approvedMeaning: `${subject}: ${arc.baseline} establishes the read; ${arc.change} changes it; ${arc.turn} becomes the turn; ${arc.resolution} creates apparent resolution; ${ending || "the ending"} recontextualizes it.`, creativeBudget: budget, worldFreedom: "closed", referencePolicy: ref, ending, sensitivity: sensitive, preferredLens: input.lens, allowedMoves: paths.map((p) => p.move) };
   const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, paths, thesis: movieCognition.selected.premise, arc, movieCognition };
-  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(512, lineTotal * paths.length * 90)), temperature: sensitive === "sensitive" ? 0.36 : 0.58 });
+  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(2400, Math.max(1200, lineTotal * paths.length * 140)), temperature: sensitive === "sensitive" ? 0.36 : 0.58 });
   const candidates = parseCandidates(modelResult.text, lineTotal);
   const accepted: Array<{ candidate: Candidate; path: Path; validation: Validation }> = [];
   const rejected: Array<{ pathId: string; reasons: string[]; score: number; metrics: BeatMetrics[] }> = [];
