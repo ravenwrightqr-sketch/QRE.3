@@ -25,6 +25,9 @@ type SemanticJob = {
   nextPull: string;
 };
 
+const MIN_SEQUENCE_SCORE = 0.82;
+const MAX_CANDIDATES = 4;
+
 const clean = (value: unknown): string =>
   String(value ?? "")
     .replace(/\s+/g, " ")
@@ -68,26 +71,113 @@ function hasPlaceholder(line: string): boolean {
 }
 
 function hasMetaLanguage(line: string): boolean {
-  return /\b(?:this means|this reveals|this shows|the viewer|the audience|the strategy|the beat|the line|the point is|as an ai|attention function|creative move|cognitive)\b/i.test(
-    line,
-  );
+  return /\b(?:this means|this reveals|this shows|the viewer|the audience|the strategy|the beat|the line|the point is|as an ai|attention function|creative move|cognitive|the reader)\b/i.test(line);
 }
 
 function hasGenericFiller(line: string): boolean {
-  return /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|one for the books)\b/i.test(
-    line,
+  return /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|one for the books|totally fabulous|truly amazing|absolutely adorable)\b/i.test(line);
+}
+
+function hasExplanatoryGlue(line: string): boolean {
+  return /\b(?:because|therefore|as a result|which means|which made|so that|this is why|in order to|thus)\b/i.test(line);
+}
+
+function hasDecorativeProse(line: string): boolean {
+  return /\b(?:warm|gently|softly|quietly|beautifully|gracefully|dramatically|magically|suddenly|actually|totally|completely|deeply|heartwarming|poetically|under the|beneath the|in the air|stepping into)\b/i.test(line);
+}
+
+function isFigurativeFraming(text: string): boolean {
+  return (
+    /\blike (?:a|an)\b/i.test(text) ||
+    /\bas if\b/i.test(text) ||
+    /\bas though\b/i.test(text) ||
+    /\bapparently\b/i.test(text) ||
+    /\bseemed like\b/i.test(text) ||
+    /\bthe room\b.*\bapproved\b/i.test(text)
   );
 }
 
-function acceptableLine(line: string, isEndpoint: boolean): boolean {
+const CONCRETE_INVENTION_WORDS =
+  /\b(?:tail|tails|legs|leg|ears|ear|paws|paw|eyes|eye|mouth|teeth|face|head|hands|hand|feet|foot|counter|dresser|door|outside|inside|street|car|park|office|room|chair|table|bed|floor|steam|water|bathwater|towel|mirror|window|leash|collar|coat|hat|shaking|shook|trembled|trembling|shivering|strutting|running|walked|walking|ran|jumped|jumping|hugged|smiled|laughed|cried|whispered|yelled)\b/i;
+
+const CONCRETE_PERSON_WORDS =
+  /\b(?:man|woman|boy|girl|male|female|husband|wife|father|mother|dad|mom|lawyer|judge|king|queen|boss|manager|officer|celebrity|star|doctor|nurse|friend|stranger|customer|owner|employee)\b/gi;
+
+function knownText(input: AuthorBrainTruth): string {
+  return clean([
+    input.subject,
+    input.place,
+    ...input.facts,
+    ...input.sourceMoments,
+    ...(input.memoryContext ?? []),
+    ...(input.presenceSummary ?? []),
+  ].join(" ")).toLowerCase();
+}
+
+function hasUnsupportedConcreteDetail(line: string, input: AuthorBrainTruth): string | undefined {
+  const lower = line.toLowerCase();
+  const known = knownText(input);
+  const figurative = isFigurativeFraming(line);
+
+  const gendered = /\b(?:his|her|him|he|she|husband|wife|man|woman|male|female|boy|girl)\b/i.exec(lower);
+  if (gendered && !new RegExp(`\\b${gendered[0]}\\b`, "i").test(known)) {
+    return `unsupported_person_or_gender:${gendered[0]}`;
+  }
+
+  if (CONCRETE_INVENTION_WORDS.test(lower)) {
+    const concrete = lower.match(CONCRETE_INVENTION_WORDS)?.[0] ?? "concrete_detail";
+    if (!known.includes(concrete)) {
+      return `unsupported_concrete_detail:${concrete}`;
+    }
+  }
+
+  if (!figurative && CONCRETE_PERSON_WORDS.test(lower)) {
+    const person = lower.match(CONCRETE_PERSON_WORDS)?.[0] ?? "person";
+    if (!known.includes(person)) {
+      return `unsupported_person:${person}`;
+    }
+  }
+
+  return undefined;
+}
+
+function lineShape(line: string): string {
   const normalized = normalizeLine(line);
+  return normalized
+    .toLowerCase()
+    .replace(/\b(?:the|a|an)\b/g, "DET")
+    .replace(/\b\d+\b/g, "NUM")
+    .replace(/\b[a-z]+(?:ed|ing|s)\b/g, "VERB")
+    .replace(/\b[a-z]+\b/g, "WORD");
+}
+
+function acceptableLine(
+  line: string,
+  isEndpoint: boolean,
+  input: AuthorBrainTruth,
+): { ok: boolean; reasons: string[] } {
+  const normalized = normalizeLine(line);
+  const reasons: string[] = [];
   const count = tokens(normalized).length;
-  if (!normalized || hasPlaceholder(normalized) || hasMetaLanguage(normalized) || hasGenericFiller(normalized)) return false;
-  if (count < 1 || count > 9) return false;
-  if (/```|^\{|^\[|[{}]/.test(normalized)) return false;
-  if (isEndpoint) return true;
-  if (/\?{2,}|!{3,}/.test(normalized)) return false;
-  return true;
+
+  if (!normalized) reasons.push("empty");
+  if (hasPlaceholder(normalized)) reasons.push("placeholder");
+  if (hasMetaLanguage(normalized)) reasons.push("meta_language");
+  if (hasGenericFiller(normalized)) reasons.push("generic_filler");
+  if (hasExplanatoryGlue(normalized)) reasons.push("explanatory_glue");
+  if (hasDecorativeProse(normalized)) reasons.push("decorative_prose");
+  if (count < 1 || count > 9) reasons.push("wrong_length");
+  if (/```|^\{|^\[|[{}]/.test(normalized)) reasons.push("format_noise");
+  if (/\?{2,}|!{3,}/.test(normalized)) reasons.push("punctuation_noise");
+
+  const invention = hasUnsupportedConcreteDetail(normalized, input);
+  if (invention) reasons.push(invention);
+
+  if (isEndpoint && normalizeLine(normalized).toLowerCase() !== clean(input.prompt).toLowerCase()) {
+    // Endpoint exactness is handled separately because the endpoint is allowed to differ from the prompt.
+  }
+
+  return { ok: reasons.length === 0, reasons };
 }
 
 function semanticJobs(
@@ -106,20 +196,11 @@ function semanticJobs(
   const second = evidence[1] ?? first;
   const third = evidence[2] ?? second;
   const fourth = evidence[3] ?? third;
-
   const jobs: SemanticJob[] = [];
-  const roles: SemanticJob["role"][] = [
-    "hook",
-    "turn",
-    "escalation",
-    "reframe",
-    "payoff",
-  ];
+  const roles: SemanticJob["role"][] = ["hook", "turn", "escalation", "reframe", "payoff"];
 
   for (let index = 0; index < count; index += 1) {
-    const role = endpoint && index === count - 1
-      ? "payoff"
-      : roles[Math.min(index, roles.length - 2)]!;
+    const role = endpoint && index === count - 1 ? "payoff" : roles[Math.min(index, roles.length - 2)]!;
 
     switch (role) {
       case "hook":
@@ -174,32 +255,21 @@ function semanticJobs(
 }
 
 function buildBrief(input: AuthorBrainTruth, endpoint: string): AuthorCreativeBrief {
-  const evidence = uniq([
-    ...input.sourceMoments,
-    ...input.facts,
-  ], 16);
+  const evidence = uniq([...input.sourceMoments, ...input.facts], 16);
   const subject = clean(input.subject) || "the subject";
   const first = evidence[0] ?? "the supplied reality";
   const second = evidence[1] ?? "the next detail";
-  const tension = first && second ? `${first} ↔ ${second}` : first;
 
   return {
     angle: `${subject}: behavior reveals character`,
     engine: "change → behavior → implication → payoff",
-    question: endpoint ? `How does the ending become inevitable?` : "What changes next?",
+    question: endpoint ? "How does the ending become inevitable?" : "What changes next?",
     strongestImage: first,
-    tension,
+    tension: `${first} ↔ ${second}`,
     payoff: endpoint || evidence.at(-1) || "earned ending",
     callback: evidence.length > 1 ? second : first,
-    rhythm: ["short", "short", "hit", "hit", "short"].slice(0, Math.max(3, Math.min(5, evidence.length + 1))) as AuthorRhythm[],
-    avoid: [
-      "summary",
-      "explanation",
-      "poetic filler",
-      "generic inspiration",
-      "invented literal events",
-      "repeating the same sentence shape",
-    ],
+    rhythm: ["short", "short", "hit", "hit", "short"] as AuthorRhythm[],
+    avoid: ["summary", "explanation", "poetic filler", "generic inspiration", "invented literal events", "repeated sentence shape"],
   };
 }
 
@@ -215,24 +285,24 @@ function buildPrompt(input: AuthorBrainTruth, jobs: SemanticJob[], endpoint: str
 
   const system = [
     "QRE FINAL LANGUAGE INSTRUMENT.",
-    "QRE has already decided what matters. You only write the language.",
-    "",
+    "QRE owns reality, meaning, sequence, and truth. You own wording only.",
     "WRITE SHORT, CONVERSATIONAL, ADDICTIVE SEQUENCES.",
-    "Every line must change, sharpen, or deepen the line before it.",
-    "Reveal character through behavior, not explanation.",
-    "Do not summarize the supplied facts.",
+    "Every line must change, sharpen, or deepen what came before.",
+    "Reveal character through behavior and status, not explanation.",
+    "Prefer compression over connective tissue.",
+    "No poetic prose. No literary description. No decorative atmosphere.",
+    "Do not summarize the facts. Perform the meaning.",
     "Do not explain the joke, meaning, emotion, strategy, or structure.",
-    "Do not sound poetic, literary, inspirational, or cinematic-by-description.",
-    "Avoid decorative metaphors. Useful figurative framing is legal when it clarifies character or attitude without inventing a literal event.",
-    "Different lines must feel different. Do not repeat the same sentence pattern.",
-    "Use only supplied reality plus safe interpretation of that reality.",
-    "Never invent a literal person, place, object, action, dialogue, chronology, reaction, or outcome.",
-    "A figurative phrase such as 'like a lawyer already notified' is legal framing, not a literal lawyer event.",
+    "Different lines must have different rhythm or syntax.",
+    "Never invent a literal person, place, object, body reaction, dialogue, chronology, setting, or outcome.",
+    "Gender is forbidden unless explicitly supplied.",
+    "Figurative framing is legal: a phrase like 'like a lawyer already notified' is not a literal lawyer event.",
+    "Do not add sensory decoration such as warm water, steam, lighting, atmosphere, or movement unless supplied.",
     endpoint ? `The final line MUST be exactly: ${endpoint}` : "",
     "",
-    `Return exactly 4 candidate sequences. Each sequence contains exactly ${count} lines.`,
-    "Return JSON only in this shape:",
-    '{"candidateSequences":[{"lines":["LINE 1","LINE 2","LINE 3"]},{"lines":["..."]}]}',
+    `Return exactly ${MAX_CANDIDATES} complete candidate sequences, each with exactly ${count} lines.`,
+    "Return JSON only:",
+    '{"candidateSequences":[{"lines":["LINE 1","LINE 2","LINE 3"]}]}',
   ].filter(Boolean).join("\n");
 
   const user = {
@@ -270,7 +340,7 @@ function parseBatch(raw: string, count: number): CandidateSequence[] {
         lines: Array.isArray(entry.lines) ? entry.lines.map(normalizeLine) : [],
       }))
       .filter((candidate) => candidate.lines.length === count)
-      .slice(0, 4);
+      .slice(0, MAX_CANDIDATES);
   } catch {
     return [];
   }
@@ -285,46 +355,72 @@ function overlap(a: string, b: string): number {
   return shared / Math.max(left.size, right.size);
 }
 
-function sequenceScore(candidate: CandidateSequence, evidence: string[], endpoint: string): number {
+function lineHasGrounding(line: string, evidence: string[]): boolean {
+  return evidence.some((fact) => overlap(line, fact) >= 0.2);
+}
+
+function sequenceScore(candidate: CandidateSequence, input: AuthorBrainTruth, endpoint: string): number {
+  const evidence = uniq([
+    ...input.sourceMoments,
+    ...input.facts,
+    ...(input.memoryContext ?? []),
+    ...(input.presenceSummary ?? []),
+  ], 32);
   const lines = candidate.lines;
+
   const lineScores = lines.map((line, index) => {
     const words = tokens(line).length;
-    const brevity = words <= 6 ? 1 : words <= 8 ? 0.8 : 0.4;
-    const grounding = evidence.some((fact) => overlap(line, fact) >= 0.2) ? 1 : 0.55;
+    const brevity = words <= 6 ? 1 : words <= 8 ? 0.8 : 0.35;
+    const grounding = lineHasGrounding(line, evidence) ? 1 : 0.65;
     const distinct = index === 0 ? 1 : 1 - overlap(line, lines[index - 1] ?? "");
-    const style = !/[,:;]/.test(line) ? 1 : 0.7;
-    return brevity * 0.32 + grounding * 0.22 + distinct * 0.30 + style * 0.16;
+    const style = !/[,:;]/.test(line) && !hasExplanatoryGlue(line) && !hasDecorativeProse(line) ? 1 : 0.35;
+    return brevity * 0.30 + grounding * 0.22 + distinct * 0.28 + style * 0.20;
   });
 
-  const rhythm = lines.length <= 1
-    ? 1
-    : metric(new Set(lines.map((line) => tokens(line).length)).size / Math.min(lines.length, 4));
-
+  const rhythm = metric(new Set(lines.map((line) => tokens(line).length)).size / Math.min(lines.length, 4));
   const endpointScore = endpoint
-    ? (clean(lines.at(-1)).toLowerCase() === clean(endpoint).toLowerCase() ? 1 : 0)
+    ? clean(lines.at(-1)).toLowerCase() === clean(endpoint).toLowerCase() ? 1 : 0
     : 1;
+  const shapeCount = new Set(lines.slice(0, -1).map(lineShape)).size;
+  const shapeVariety = metric(shapeCount / Math.max(1, Math.min(lines.length - 1, 4)));
 
   return metric(
-    lineScores.reduce((sum, value) => sum + value, 0) / Math.max(1, lineScores.length) * 0.78 +
+    (lineScores.reduce((sum, value) => sum + value, 0) / Math.max(1, lineScores.length)) * 0.66 +
       rhythm * 0.12 +
+      shapeVariety * 0.12 +
       endpointScore * 0.10,
   );
 }
 
-function validateCandidate(candidate: CandidateSequence, endpoint: string): { ok: boolean; reasons: string[] } {
+function validateCandidate(
+  candidate: CandidateSequence,
+  input: AuthorBrainTruth,
+  endpoint: string,
+): { ok: boolean; reasons: string[]; score: number } {
   const reasons: string[] = [];
+
   candidate.lines.forEach((line, index) => {
-    if (!acceptableLine(line, Boolean(endpoint && index === candidate.lines.length - 1))) {
-      reasons.push(`line_${index + 1}_failed_quality_gate`);
+    const result = acceptableLine(line, Boolean(endpoint && index === candidate.lines.length - 1), input);
+    if (!result.ok) {
+      for (const reason of result.reasons) {
+        reasons.push(`line_${index + 1}:${reason}`);
+      }
     }
   });
-  if (endpoint && clean(candidate.lines.at(-1)).toLowerCase() !== endpoint.toLowerCase()) {
+
+  if (endpoint && clean(candidate.lines.at(-1)).toLowerCase() !== clean(endpoint).toLowerCase()) {
     reasons.push("endpoint_mismatch");
   }
-  if (new Set(candidate.lines.map((line) => line.toLowerCase())).size !== candidate.lines.length) {
+
+  const normalizedLines = candidate.lines.map((line) => clean(line).toLowerCase());
+  if (new Set(normalizedLines).size !== normalizedLines.length) {
     reasons.push("duplicate_lines");
   }
-  return { ok: reasons.length === 0, reasons };
+
+  const score = sequenceScore(candidate, input, endpoint);
+  if (score < MIN_SEQUENCE_SCORE) reasons.push(`score_below_floor:${score}`);
+
+  return { ok: reasons.length === 0, reasons, score };
 }
 
 function roleFor(index: number, total: number): ViewerAttentionRole {
@@ -389,7 +485,7 @@ function buildSequence(subject: string, candidate: CandidateSequence, jobs: Sema
     cuts,
     closingState: cuts.at(-1)?.viewerAfter,
     continuity: candidate.lines,
-    antiCrutch: ["no summary", "no explanation", "no repeated sentence shape"],
+    antiCrutch: ["no summary", "no explanation", "no repeated sentence shape", "no unsupported concrete detail"],
   };
 }
 
@@ -400,22 +496,32 @@ function sceneKind(index: number, total: number): AuthorScene["kind"] {
   return index === 1 ? "discovery" : "movement";
 }
 
-function briefFrom(input: AuthorBrainTruth, endpoint: string): AuthorCreativeBrief {
+function buildBriefResult(input: AuthorBrainTruth, endpoint: string): AuthorCreativeBrief {
   return buildBrief(input, endpoint);
+}
+
+function safeFallbackScenes(input: AuthorBrainTruth, count: number, endpoint: string): AuthorScene[] {
+  const facts = uniq([...input.facts, ...input.sourceMoments], count);
+  const lines = facts.slice(0, Math.max(0, endpoint ? count - 1 : count));
+  if (endpoint && lines.length < count) lines.push(endpoint);
+  return lines.map((text, index, all) => ({
+    text: normalizeLine(text),
+    kind: sceneKind(index, all.length),
+  }));
 }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<AuthorResult> {
   const subject = clean(input.subject) || "the subject";
+  const endpoint = endpointFromPrompt(input.prompt);
+  const count = requestedLineCount(input.prompt);
   const facts = uniq([
     ...input.facts,
     ...input.sourceMoments,
     ...(input.memoryContext ?? []),
     ...(input.presenceSummary ?? []),
   ], 32);
-  const endpoint = endpointFromPrompt(input.prompt);
-  const count = requestedLineCount(input.prompt);
   const jobs = semanticJobs(input, count, endpoint);
-  const brief = briefFrom(input, endpoint);
+  const brief = buildBriefResult(input, endpoint);
   const messages = buildPrompt(input, jobs, endpoint);
 
   const modelResult = await localModelGenerate(messages, "json", {
@@ -425,37 +531,43 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
 
   const rawCandidates = parseBatch(modelResult.text, count);
   const accepted: Array<{ candidate: CandidateSequence; score: number }> = [];
-  const rejected: Array<{ index: number; reasons: string[] }> = [];
+  const rejected: Array<{ index: number; reasons: string[]; score: number }> = [];
 
   rawCandidates.forEach((candidate, index) => {
-    const validation = validateCandidate(candidate, endpoint);
+    const validation = validateCandidate(candidate, input, endpoint);
     if (!validation.ok) {
-      rejected.push({ index: index + 1, reasons: validation.reasons });
+      rejected.push({ index: index + 1, reasons: validation.reasons, score: validation.score });
       return;
     }
-    accepted.push({ candidate, score: sequenceScore(candidate, facts, endpoint) });
+    accepted.push({ candidate, score: validation.score });
   });
 
   accepted.sort((a, b) => b.score - a.score);
   const selected = accepted[0];
 
   if (!selected) {
+    const safeFallback = safeFallbackScenes(input, count, endpoint);
     return {
       brief,
-      scenes: [],
+      scenes: safeFallback,
       sequence: undefined,
       field: {
         prompt: clean(input.prompt),
         subject,
         facts,
         jobs,
+        safeFallback,
       },
       diagnostics: {
         model: modelResult.model,
         modelCalls: 1,
+        qualityStatus: "REJECTED_MODEL_OUTPUT",
+        renderable: safeFallback.length >= 2,
         candidateSequences: rawCandidates.length,
         acceptedCandidates: 0,
         rejectedCandidates: rejected,
+        qualityFloor: MIN_SEQUENCE_SCORE,
+        safeFallbackUsed: true,
         complete: false,
       },
     };
@@ -481,14 +593,24 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
     diagnostics: {
       model: modelResult.model,
       modelCalls: 1,
+      qualityStatus: "ACCEPTED",
+      renderable: true,
       candidateSequences: rawCandidates.length,
       acceptedCandidates: accepted.length,
       rejectedCandidates: rejected,
       selectedScore: selected.score,
+      qualityFloor: MIN_SEQUENCE_SCORE,
       lineCount: scenes.length,
       endpoint,
       endpointExact: endpoint ? clean(scenes.at(-1)?.text).toLowerCase() === endpoint.toLowerCase() : true,
       complete: true,
+      antiTrash: {
+        unsupportedConcrete: true,
+        explanationBlocked: true,
+        decorativeProseBlocked: true,
+        duplicateLinesBlocked: true,
+        scoreFloorEnforced: true,
+      },
     },
   };
 }
