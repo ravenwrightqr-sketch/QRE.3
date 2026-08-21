@@ -93,10 +93,62 @@ for (const test of cases) {
 
   if (!ok) {
     console.log(JSON.stringify({
+      thesis: diagnostics.thesis,
+      transformation: diagnostics.transformation,
       rejectedCandidates: diagnostics.rejectedCandidates,
       rawModelOutput: diagnostics.rawModelOutput,
     }, null, 2));
   }
+}
+
+const differentiationPrompt = "Write a 5-line sequence about Coco. Final line: The calm did not last.";
+const differentiationCases = [
+  {
+    label: "state-shift",
+    facts: ["arrived timid", "settled after a bath", "stole a blue bow", "left smiling"],
+  },
+  {
+    label: "chaos-shift",
+    facts: ["arrived confident", "refused the bath", "stole three red ribbons", "left covered in mud"],
+  },
+];
+
+const differentiationResults = [] as Array<{
+  label: string;
+  result: Awaited<ReturnType<typeof authorBrainUniversal>>;
+}>;
+
+for (const test of differentiationCases) {
+  const result = await authorBrainUniversal({
+    prompt: differentiationPrompt,
+    subject: "Coco",
+    facts: test.facts,
+    sourceMoments: test.facts,
+    memoryContext: [],
+    trajectory: [],
+    creativeLearningContext: [],
+  });
+  differentiationResults.push({ label: test.label, result });
+}
+
+const [first, second] = differentiationResults;
+const thesisA = String(first?.result.diagnostics.thesis ?? "");
+const thesisB = String(second?.result.diagnostics.thesis ?? "");
+const outputA = first?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+const outputB = second?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+const differentiated = thesisA !== thesisB && outputA !== outputB;
+
+console.log(
+  `${differentiated ? "PASS" : "FAIL"} differentiation   ` +
+  `thesis=${thesisA !== thesisB ? "different" : "same"} output=${outputA !== outputB ? "different" : "same"}`,
+);
+
+if (!differentiated) {
+  failures += 1;
+  console.log(JSON.stringify({
+    first: { thesis: thesisA, output: outputA, raw: first?.result.diagnostics.rawModelOutput },
+    second: { thesis: thesisB, output: outputB, raw: second?.result.diagnostics.rawModelOutput },
+  }, null, 2));
 }
 
 console.log(`\nUNIVERSAL AUTHOR ACCEPTANCE: ${failures === 0 ? "PASS" : "FAIL"}`);
