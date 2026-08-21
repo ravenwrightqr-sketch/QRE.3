@@ -27,7 +27,7 @@ type Packet = { subject: string; reality: string[]; ending: string; lineCount: n
 const MIN_SCORE = 0.74;
 const MIN_PULL = 0.34;
 const PATH_IDS = ["shift", "deadpan", "pressure"] as const;
-const META = /\b(?:as an ai|the audience|the viewer|this means|this shows|the strategy|the beat|according to qre|cognitive|the truth is|status feels|pressure builds|this is|never simple)\b/i;
+const META = /\b(?:as an ai|the audience|the viewer|this means|this shows|the strategy|the beat|according to qre|cognitive|the truth is|status feels|pressure builds|this is|never simple|the meaning|the transformation|the symbol|the tension|the contrast)\b/i;
 const STOCK = /\b(?:magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|one for the books|once in a lifetime|heartwarming)\b/i;
 const GLUE = /\b(?:therefore|as a result|which means|this is why|in order to|thus|ultimately)\b/i;
 const DECORATION = /\b(?:beautifully|gracefully|dramatically|magically|poetically|gently|softly|wonderfully|incredibly|extremely|quiet tremor|silent storm|theft of grace|new face)\b/i;
@@ -194,10 +194,15 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
       "Each path is a different movie hypothesis. Do not reuse another path's trajectory, beat order, or language merely to sound different.",
       "Realize the path's tension, operation, consequence, and payoff. Do not mechanically list the supplied facts.",
       "Every screen must earn the next screen: establish, create tension, redirect, escalate, reveal, resolve, or pay off.",
+      "Use the lens only as framing pressure. The lens may change tone, emphasis, or interpretation, but it cannot create a new fact, person, object, place, relationship, body detail, or literal event.",
+      "IMPORTANT: turn cognitive instructions into concrete movie language. Never write the instruction itself. Never write analysis words such as meaning, transformation, symbol, tension, contrast, pressure, interpretation, premise, operation, lens, or trajectory as the subject of a line.",
+      "A line should normally contain a concrete supplied entity, action, state, object, place, or observable consequence. Make the viewer infer the meaning instead of explaining it.",
+      "Prefer: concrete action + consequence + implication. Avoid: abstract noun + explanation.",
+      "If a beat says 'reframe', 'reinterpret', 'increase relevance', or 'land meaning', do not repeat those words. Show the changed situation instead.",
+      "Do not use generic analysis language such as 'the truth is', 'pressure builds', 'status feels', 'never simple', or 'this shows'.",
+      "Do not explain the technique. Make the screen line itself perform the move.",
       "Use small creative moves when earned: contrast, status shift, understatement, unexpected verb, social friction, deadpan, callback, implication, absurd escalation, double meaning.",
       "Never invent a person, place, relationship, body detail, dialogue, sensory fact, object, or literal event. Interpretive framing is allowed; unsupported physical detail is not.",
-      "Do not use generic analysis language such as 'the truth is', 'pressure builds', 'status feels', 'never simple', or 'this shows'.", 
-      "Do not explain the technique. Make the screen line itself perform the move.",
       packet.lock.referencePolicy.instruction,
       "Creative budget is a ceiling, not a requirement. Sensitive material stays restrained.",
       JSON.stringify(payload),
@@ -382,14 +387,14 @@ function buildSequence(packet: Packet, path: Path, candidate: Candidate, score: 
 function brief(packet: Packet): AuthorCreativeBrief {
   return {
     angle: packet.lock.approvedMeaning,
-    engine: "reality → cognitive hypotheses → trajectory competition → mouth → truth gate → attention editor",
+    engine: "reality → cognitive hypotheses → trajectory competition → lens pressure → mouth → truth gate → attention editor",
     question: packet.movieCognition.attentionQuestion,
     strongestImage: packet.movieCognition.selected.sources[1] ?? packet.subject,
     tension: packet.movieCognition.selected.tension,
     payoff: packet.ending || packet.movieCognition.selected.trajectory.at(-1) || packet.subject,
     callback: packet.movieCognition.selected.sources.at(-1) ?? packet.subject,
     rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[],
-    avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention"],
+    avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention", "abstract analysis prose"],
   };
 }
 
