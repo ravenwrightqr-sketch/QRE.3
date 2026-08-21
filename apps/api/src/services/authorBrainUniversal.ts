@@ -1,1 +1,1 @@
-export { authorBrainUniversal } from "./authorBrainUniversalV2.js";
+export { authorBrainUniversal } from "./authorBrainUniversalV3.js";
