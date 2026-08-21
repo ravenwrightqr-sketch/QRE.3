@@ -1,5 +1,6 @@
 import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorResult, AuthorRhythm, AuthorScene, SequenceCut, SequenceGainKind, SequencePlay, ViewerAttentionRole, ViewerState } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { buildMovieCognition } from "./authorMovieCognition.js";
 
 type BeatFunction = "hook" | "question" | "turn" | "escalation" | "payoff";
 type CreativeMove = "contrast" | "status_shift" | "understatement" | "unexpected_verb" | "social_friction" | "deadpan" | "callback" | "implication" | "absurd_escalation" | "double_meaning";
@@ -10,7 +11,7 @@ type BeatMetrics = { factuality: number; specificity: number; attention: number;
 type Validation = { ok: boolean; reasons: string[]; score: number; metrics: BeatMetrics[] };
 type ReferencePolicy = { subject: string; mode: "explicit_name"; allowPronouns: false; allowIdentityInference: false; instruction: string };
 type MovieLock = { approvedMeaning: string; creativeBudget: number; worldFreedom: "closed"; referencePolicy: ReferencePolicy; ending: string; sensitivity: "normal" | "sensitive"; preferredLens?: string; allowedMoves: CreativeMove[] };
-type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; paths: Path[]; thesis: string; arc: { baseline: string; change: string; turn: string; resolution: string } };
+type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; paths: Path[]; thesis: string; arc: { baseline: string; change: string; turn: string; resolution: string }; movieCognition: ReturnType<typeof buildMovieCognition> };
 
 const MIN_SCORE = 0.74;
 const MIN_PULL = 0.34;
@@ -121,16 +122,17 @@ function makePaths(arc: ReturnType<typeof chooseMaterial>, subject: string, endi
 }
 function referencePolicy(subject: string): ReferencePolicy { return { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }; }
 function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> {
-  const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" };
+  const payload = { subject: packet.subject, reality: packet.reality, ending: packet.ending, creativeBudget: packet.lock.creativeBudget, approvedMeaning: packet.lock.approvedMeaning, movieCognition: packet.movieCognition.selected, paths: packet.paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), referencePolicy: packet.lock.referencePolicy, world: "closed" };
   const schema = packet.paths.map((path) => `{"pathId":"${path.id}","lines":["..."]}`).join(",");
   return [{ role: "user", content: [
-    "QRE MOUTH. QRE already discovered the movie paths. You are only the language renderer.",
+    "QRE MOUTH. QRE already discovered the movie trajectory. You are only the language renderer.",
     `Return JSON only using this exact structure: {"candidates":[${schema}]}.`,
     `Allowed pathId values are exactly: ${packet.paths.map((path) => `"${path.id}"`).join(", ")}. Never return a combined value such as "${packet.paths.map((path) => path.id).join("|")}".`,
     `Return exactly ${packet.paths.length} candidates, one for each path, in path order.`,
     `Each candidate has exactly ${packet.lineCount} lines. Each non-final line is ${packet.maxWords} words or fewer.`,
     packet.ending ? `Every candidate final line must be EXACTLY: ${packet.ending}` : "Finish on the earned consequence.",
-    "Each beat must perform its assigned function. A line that only describes, repeats, restates, or decorates is a failure.",
+    `The selected movie operation is ${packet.movieCognition.selected.operation}. Realize its tension and trajectory; do not merely repeat the source facts.`,
+    "Every screen must either establish, raise, redirect, resolve, or pay off a question. A strong line may be simple, musical, or interpretive when it changes the viewer's read.",
     "Use small creative moves: contrast, status shift, understatement, unexpected verb, social friction, deadpan, callback, implication, absurd escalation, double meaning.",
     "Never invent a person, place, relationship, body detail, dialogue, sensory fact, object, or literal event. A frame may change the read but never the world.",
     packet.lock.referencePolicy.instruction,
@@ -149,13 +151,26 @@ function parseCandidates(raw: string, count: number): Candidate[] {
       const suppliedPathId = String(r.pathId ?? "").trim();
       const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number])
         ? suppliedPathId
-        : suppliedPathId === PATH_IDS.join("|")
+        : suppliedPathId === PATH_IDS.join("|") || !suppliedPathId
           ? PATH_IDS[index] ?? ""
           : suppliedPathId;
       return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] };
     }).filter((candidate) => candidate.lines.length === count) as Candidate[];
   } catch {
-    const m = text.match(/\{[\s\S]*\}/); return m ? parseCandidates(m[0], count) : [];
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m || m[0] === text) return [];
+    try {
+      const parsed = JSON.parse(m[0]) as unknown;
+      const list = parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).candidates) ? (parsed as Record<string, unknown>).candidates as unknown[] : [];
+      return list.map((item, index) => {
+        const r = item && typeof item === "object" ? item as Record<string, unknown> : {};
+        const suppliedPathId = String(r.pathId ?? "").trim();
+        const pathId = PATH_IDS.includes(suppliedPathId as (typeof PATH_IDS)[number]) ? suppliedPathId : !suppliedPathId || suppliedPathId === PATH_IDS.join("|") ? PATH_IDS[index] ?? "" : suppliedPathId;
+        return { pathId, lines: Array.isArray(r.lines) ? r.lines.map(normalizeLine).filter(Boolean) : [] };
+      }).filter((candidate) => candidate.lines.length === count) as Candidate[];
+    } catch {
+      return [];
+    }
   }
 }
 function worldViolation(line: string, packet: Packet): string | undefined {
@@ -176,7 +191,7 @@ function pull(line: string, nextBeat: Beat | undefined, move: CreativeMove): num
   if (ACTION.test(line)) score += 0.08;
   if (STATUS.test(line)) score += 0.08;
   if (nextBeat.change && overlap(line, nextBeat.change) < 0.7) score += 0.1;
-  if (/\b(?:what|why|then|until|again|still|but|yet|except|so)\b/i.test(line)) score += 0.13;
+  if (/\b(?:what|why|then|until|again|still|but|yet|except|so|almost|fine|maybe|not yet)\b/i.test(line)) score += 0.13;
   return metric(score);
 }
 function metrics(lines: string[], path: Path, packet: Packet): BeatMetrics[] {
@@ -226,14 +241,29 @@ function buildSequence(packet: Packet, path: Path, candidate: Candidate, score: 
   candidate.lines.forEach((text, index) => { const beat = path.beats[index]!; const before: ViewerState = { known: [...known], expected: beat.change, unresolved: index ? path.beats[index - 1]?.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: index ? path.beats[index - 1]?.source.join(" ") : undefined }; known.push(text); const after: ViewerState = { known: [...known], expected: index < candidate.lines.length - 1 ? beat.change : undefined, unresolved: index < candidate.lines.length - 1 ? beat.change : undefined, currentWant: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, recentChange: beat.change }; cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, candidate.lines.length), gainKind: gain(index, candidate.lines.length), sourceIds: beat.source.map((_, i) => `reality:${index}:${i}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${candidateMetrics[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < candidate.lines.length - 1 ? path.beats[index + 1]?.change : undefined, payoffConnection: index === candidate.lines.length - 1 ? packet.ending || text : path.beats[index + 1]?.change, noveltyScore: candidateMetrics[index]?.novelty ?? 0, confidence: score }); });
   return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: candidate.lines, antiCrutch: ["no description-only beats", "no fact parade", "no unsupported identity", "no unsupported world expansion", "no decorative filler", "ending must reframe", "rejected output never rendered"] };
 }
-function brief(packet: Packet): AuthorCreativeBrief { return { angle: packet.lock.approvedMeaning, engine: "reality → interest → latent movie → beat graph → one render → truth gate → attention editor", question: packet.paths[0]?.beats[1]?.change ?? "What changes next?", strongestImage: packet.arc.turn, tension: `${packet.arc.baseline} → ${packet.arc.turn}`, payoff: packet.ending || packet.arc.resolution, callback: packet.arc.turn, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull"] }; }
+function brief(packet: Packet): AuthorCreativeBrief { return { angle: packet.lock.approvedMeaning, engine: "reality → movie cognition → competing trajectories → mouth → truth gate → attention editor", question: packet.movieCognition.attentionQuestion, strongestImage: packet.arc.turn, tension: packet.movieCognition.selected.tension, payoff: packet.ending || packet.arc.resolution, callback: packet.movieCognition.selected.sources.at(-1) ?? packet.arc.turn, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention"] }; }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<AuthorResult> {
-  const subject = clean(input.subject) || "the subject"; const source = reality(input); const ending = endpoint(input.prompt); const lineTotal = lineCount(input.prompt); const maxWords = 7; const budget = creativeBudget(source, input.prompt); const arc = chooseMaterial(source, subject, ending); const sensitive = sensitivity(input.prompt, source); const ref = referencePolicy(subject); const paths = makePaths(arc, subject, ending, budget, input.lens);
+  const subject = clean(input.subject) || "the subject";
+  const source = reality(input);
+  const ending = endpoint(input.prompt);
+  const lineTotal = lineCount(input.prompt);
+  const maxWords = 7;
+  const budget = creativeBudget(source, input.prompt);
+  const baseArc = chooseMaterial(source, subject, ending);
+  const movieCognition = buildMovieCognition(input, ending);
+  const selectedSources = movieCognition.selected.sources.filter((value) => clean(value).toLowerCase() !== subject.toLowerCase());
+  const improvedTurn = selectedSources.find((value) => clean(value).toLowerCase() !== clean(baseArc.baseline).toLowerCase()) ?? baseArc.turn;
+  const arc = { ...baseArc, turn: improvedTurn };
+  const sensitive = sensitivity(input.prompt, source);
+  const ref = referencePolicy(subject);
+  const paths = makePaths(arc, subject, ending, budget, input.lens);
   const lock: MovieLock = { approvedMeaning: `${subject}: ${arc.baseline} establishes the read; ${arc.change} changes it; ${arc.turn} becomes the turn; ${arc.resolution} creates apparent resolution; ${ending || "the ending"} recontextualizes it.`, creativeBudget: budget, worldFreedom: "closed", referencePolicy: ref, ending, sensitivity: sensitive, preferredLens: input.lens, allowedMoves: paths.map((p) => p.move) };
-  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, paths, thesis: paths[0]?.thesis ?? `${subject} changes the read.`, arc };
+  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, paths, thesis: movieCognition.selected.premise, arc, movieCognition };
   const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(512, lineTotal * paths.length * 90)), temperature: sensitive === "sensitive" ? 0.36 : 0.58 });
-  const candidates = parseCandidates(modelResult.text, lineTotal); const accepted: Array<{ candidate: Candidate; path: Path; validation: Validation }> = []; const rejected: Array<{ pathId: string; reasons: string[]; score: number; metrics: BeatMetrics[] }> = [];
+  const candidates = parseCandidates(modelResult.text, lineTotal);
+  const accepted: Array<{ candidate: Candidate; path: Path; validation: Validation }> = [];
+  const rejected: Array<{ pathId: string; reasons: string[]; score: number; metrics: BeatMetrics[] }> = [];
   for (const candidate of candidates) { const path = paths.find((p) => p.id === candidate.pathId); if (!path) { rejected.push({ pathId: candidate.pathId, reasons: ["unknown_path"], score: 0, metrics: [] }); continue; } const validation = validate(candidate, path, packet); if (validation.ok) accepted.push({ candidate, path, validation }); else rejected.push({ pathId: candidate.pathId, reasons: validation.reasons, score: validation.score, metrics: validation.metrics }); }
   const duplicateCandidateKeys = new Map<string, number>();
   for (const item of accepted) duplicateCandidateKeys.set(item.candidate.lines.join("\n").toLowerCase(), (duplicateCandidateKeys.get(item.candidate.lines.join("\n").toLowerCase()) ?? 0) + 1);
@@ -247,11 +277,13 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
       rejected.push({ pathId: duplicate.candidate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics });
     }
   }
-  accepted.sort((a, b) => b.validation.score - a.validation.score); const selected = accepted[0]; const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
+  accepted.sort((a, b) => b.validation.score - a.validation.score);
+  const selected = accepted[0];
+  const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
   if (!selected) {
-    return { brief: brief(packet), scenes: [], sequence: undefined, field: { packet, moviePaths: paths }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "REJECTED_MODEL_OUTPUT", renderable: false, candidateSequences: candidates.length, acceptedCandidates: 0, rejectedCandidates: rejected, selectedScore: 0, qualityFloor: MIN_SCORE, lineCount: lineTotal, endpoint: ending, endpointExact: false, complete: false, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), selectedPath: undefined, attentionEditor: true, attentionMetrics: rejected.map((r) => ({ pathId: r.pathId, metrics: r.metrics })), rejectedOutputNeverRendered: true, rawModelOutput: raw } };
+    return { brief: brief(packet), scenes: [], sequence: undefined, field: { packet, moviePaths: paths, movieCognition }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "REJECTED_MODEL_OUTPUT", renderable: false, candidateSequences: candidates.length, acceptedCandidates: 0, rejectedCandidates: rejected, selectedScore: 0, qualityFloor: MIN_SCORE, lineCount: lineTotal, endpoint: ending, endpointExact: false, complete: false, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), movieHypotheses: movieCognition.hypotheses, selectedMovie: movieCognition.selected, selectedPath: undefined, attentionEditor: true, attentionMetrics: rejected.map((r) => ({ pathId: r.pathId, metrics: r.metrics })), rejectedOutputNeverRendered: true, rawModelOutput: raw } };
   }
   const sequence = buildSequence(packet, selected.path, selected.candidate, selected.validation.score);
   const scenes: AuthorScene[] = selected.candidate.lines.map((text, index, all) => ({ text, kind: index === 0 ? "hook" : index === all.length - 1 ? "payoff" : index === all.length - 2 ? "turn" : "movement" }));
-  return { brief: brief(packet), scenes, sequence, field: { packet, moviePaths: paths, selectedPath: selected.path }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "ACCEPTED", renderable: true, candidateSequences: candidates.length, acceptedCandidates: accepted.length, rejectedCandidates: rejected, selectedScore: selected.validation.score, qualityFloor: MIN_SCORE, lineCount: scenes.length, endpoint: ending, endpointExact: ending ? clean(scenes.at(-1)?.text).toLowerCase() === ending.toLowerCase() : true, complete: true, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), selectedPath: selected.path.id, selectedMove: selected.path.move, attentionEditor: true, attentionMetrics: selected.validation.metrics, rejectedOutputNeverRendered: true, rawModelOutput: raw } };
+  return { brief: brief(packet), scenes, sequence, field: { packet, moviePaths: paths, selectedPath: selected.path, movieCognition }, diagnostics: { model: modelResult.model, modelCalls: 1, qualityStatus: "ACCEPTED", renderable: true, candidateSequences: candidates.length, acceptedCandidates: accepted.length, rejectedCandidates: rejected, selectedScore: selected.validation.score, qualityFloor: MIN_SCORE, lineCount: scenes.length, endpoint: ending, endpointExact: ending ? clean(scenes.at(-1)?.text).toLowerCase() === ending.toLowerCase() : true, complete: true, oneCanonicalPacket: true, thesis: packet.thesis, creativeBudget: budget, sensitivity: sensitive, moviePaths: paths.map((p) => ({ id: p.id, thesis: p.thesis, move: p.move, beats: p.beats })), movieHypotheses: movieCognition.hypotheses, selectedMovie: movieCognition.selected, selectedPath: selected.path.id, selectedMove: selected.path.move, attentionEditor: true, attentionMetrics: selected.validation.metrics, rejectedOutputNeverRendered: true, rawModelOutput: raw } };
 }
