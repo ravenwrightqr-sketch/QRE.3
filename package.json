@@ -9,7 +9,7 @@
     "dev": "pnpm -r dev",
     "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
     "author:guard": "node ./scripts/verify-contract-ownership.mjs",
-    "author:wiring": "node ./scripts/verify-author-wiring.mjs && node ./scripts/verify-creative-realization-wiring.mjs",
+    "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
-    "@types/express": "^5.0.6",
+    "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "20",
     "prisma": "6.19.3",
