@@ -44,7 +44,6 @@ const ACTION = /\b(?:arrived|came|left|got|stole|found|sent|ordered|changed|ran|
 const STATE = /\b(?:nervous|confident|quiet|loud|happy|sad|angry|excited|tired|ready|late|early|busy|empty|full|broken|fixed|clean|dirty|fresh|approved|rejected|missing|gone|fabulous|muddy|calm|bold|radiant|unsteady|successful|failed|resolved|unresolved|connected|proud|scared|fierce|sweet|wild)\b/i;
 const RECURRENCE = /\b(?:again|returned|return|back|second|third|once more|still|temporary|until|finally)\b/i;
 const CONTRAST = /\b(?:but|yet|instead|rather|despite|however|except|although|while)\b/i;
-const QUESTION = /\b(?:why|how|what|who|where|until|then)\b/i;
 const SENSITIVE = /\b(?:memorial|funeral|grief|bereavement|passed away|death|deceased|eulogy)\b/i;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -66,6 +65,7 @@ function splitFacts(input: AuthorBrainTruth): string[] {
   return unique([
     ...input.facts,
     ...input.sourceMoments,
+    ...(input.memoryContext ?? []),
     ...(input.trajectory ?? []),
     ...(input.presenceSummary ?? []),
   ].flatMap((value) => {
@@ -77,7 +77,6 @@ function splitFacts(input: AuthorBrainTruth): string[] {
 
 function rankFacts(facts: string[], ending: string): RealityFact[] {
   return facts.map((text, index) => {
-    const previous = facts[index - 1] ?? "";
     const later = facts.slice(index + 1);
     const repeatedLater = later.some((candidate) => overlap(text, candidate) >= 0.75);
     const novelty = metric(
@@ -95,8 +94,7 @@ function rankFacts(facts: string[], ending: string): RealityFact[] {
       action: ACTION.test(text),
       state: STATE.test(text),
       recurring: repeatedLater || RECURRENCE.test(text),
-      previousOverlap: previous ? overlap(text, previous) : 0,
-    } as RealityFact & { previousOverlap: number };
+    };
   }).sort((a, b) => b.novelty - a.novelty || a.index - b.index);
 }
 
@@ -109,7 +107,7 @@ function operationSet(input: AuthorBrainTruth, facts: RealityFact[]): MovieOpera
   if (facts.length >= 3) operations.push("amplification");
   if (/\b(?:alone|private|together|connected|just us|intimate)\b/i.test(text)) operations.push("enclosure");
   operations.push("reveal");
-  return unique(operations) as MovieOperation[];
+  return [...new Set(operations)].slice(0, 5);
 }
 
 function hypothesisFor(operation: MovieOperation, subject: string, facts: RealityFact[], ending: string, rank: number): MovieHypothesis {
@@ -188,7 +186,7 @@ export function buildMovieCognition(input: AuthorBrainTruth, ending: string): Mo
   const subject = clean(input.subject) || "the subject";
   const sourceFacts = splitFacts(input);
   const facts = rankFacts(sourceFacts, ending);
-  const operations = operationSet(input, facts).slice(0, 5);
+  const operations = operationSet(input, facts);
   const hypotheses = operations
     .map((operation, index) => hypothesisFor(operation, subject, facts, ending, index + 1))
     .sort((a, b) => b.score - a.score);
@@ -211,6 +209,6 @@ export function buildMovieCognition(input: AuthorBrainTruth, ending: string): Mo
     facts,
     hypotheses,
     selected,
-    attentionQuestion: selected.tension || QUESTION.test(input.prompt) ? selected.tension : "What changes the read next?",
+    attentionQuestion: selected.tension,
   };
 }
