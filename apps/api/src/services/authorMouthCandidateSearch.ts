@@ -9,12 +9,8 @@ import { localModelGenerate } from "./localModelRuntime.js";
 /**
  * Canonical Mouth boundary.
  *
- * QRE owns:
- *   reality, meaning, beat movement, strategy, truth constraints, payoff,
- *   legality, scoring, and selection.
- *
- * The model owns only language realization.
- *
+ * QRE owns reality, meaning, beat movement, strategy, truth constraints,
+ * legality, scoring, and selection. The model owns language realization.
  * One generation call produces complete candidate sequences.
  */
 export type MouthCandidateGenerationInput = {
@@ -200,7 +196,6 @@ function forbiddenRisk(text: string, beat: MouthCandidateBeat): number {
   if (GENERIC.test(lower)) risk = Math.max(risk, 0.8);
   if (QUESTION.test(lower)) risk = Math.max(risk, 0.7);
   if (forbidden.has("analytic explanation") && ANALYTIC_EXPLANATION.test(lower)) risk = 1;
-
   if (forbidden.has("new dialogue") && /["“”]/.test(text)) risk = 1;
 
   return metric(risk);
@@ -222,7 +217,6 @@ function relationMeaning(text: string, beat: MouthCandidateBeat, envelope: Reali
 function strategyExecutionScore(text: string, beat: MouthCandidateBeat): number {
   const move = clean(beat.creativeMove).toLowerCase();
   const lower = clean(text).toLowerCase();
-
   if (!move || move === "none") return 0.5;
 
   switch (move) {
@@ -283,8 +277,7 @@ export function scoreMouthCandidate(input: {
   const supported = supportedEventIds(text, input.envelope);
   const relations = supportedRelations(supported, input.envelope);
   const grounding = metric(
-    overlap(setOf(text), suppliedTerms(input.envelope)) * 0.5 +
-      (supported.length ? 0.5 : 0),
+    overlap(setOf(text), suppliedTerms(input.envelope)) * 0.5 + (supported.length ? 0.5 : 0),
   );
   const meaning = relationMeaning(text, input.beat, input.envelope);
   const transition = meaning;
@@ -296,12 +289,9 @@ export function scoreMouthCandidate(input: {
   const compression = compressionScore(text);
   const strategyExecution = strategyExecutionScore(text, input.beat);
 
-  const restatement =
-    (input.beat.eventIds ?? []).some(
-      (id) => similarity(text, eventLabel(input.envelope, id)) >= 0.92,
-    )
-      ? 0.8
-      : 0;
+  const restatement = (input.beat.eventIds ?? []).some(
+    (id) => similarity(text, eventLabel(input.envelope, id)) >= 0.92,
+  ) ? 0.8 : 0;
 
   const collageRisk =
     (input.beat.eventIds?.length ?? 0) > 1 &&
@@ -311,25 +301,13 @@ export function scoreMouthCandidate(input: {
       ? 0.7
       : 0;
 
-  const creativeIndependence = metric(
-    1 - Math.min(1, restatement + collageRisk * 0.5),
-  );
-
+  const creativeIndependence = metric(1 - Math.min(1, restatement + collageRisk * 0.5));
   const creativeExecution = input.beat.creativeRealization
-    ? metric(
-        creativeIndependence * 0.45 +
-          strategyExecution * 0.55,
-      )
+    ? metric(creativeIndependence * 0.45 + strategyExecution * 0.55)
     : 0;
 
   const score = isPayoffBeat(input.beat)
-    ? metric(
-        endpoint * 0.9 +
-          novelty * 0.05 +
-          compression * 0.05 -
-          invention * 0.5 -
-          forbidden * 0.8,
-      )
+    ? metric(endpoint * 0.9 + novelty * 0.05 + compression * 0.05 - invention * 0.5 - forbidden * 0.8)
     : metric(
         creativeExecution * 0.38 +
           novelty * 0.12 +
@@ -385,9 +363,7 @@ function candidateIsLegal(candidate: MouthCandidate, beat: MouthCandidateBeat): 
   if (candidate.inventionRisk >= 0.62) return false;
   if (candidate.text.split(/\s+/).filter(Boolean).length > 10) return false;
   if (isPayoffBeat(beat)) return candidate.endpointExactness === 1;
-  if (candidate.score < 0.42) return false;
-  if (candidate.creativeExecution !== undefined) return true;
-  return candidate.meaningScore >= 0.25;
+  return candidate.score >= 0.42;
 }
 
 export function selectBestMouthCandidate(input: {
@@ -397,26 +373,13 @@ export function selectBestMouthCandidate(input: {
   priorTexts?: readonly string[];
 }): MouthCandidateSelection {
   const scored = input.texts.map((text) =>
-    scoreMouthCandidate({
-      text,
-      beat: input.beat,
-      envelope: input.envelope,
-      priorTexts: input.priorTexts,
-    }),
+    scoreMouthCandidate({ text, beat: input.beat, envelope: input.envelope, priorTexts: input.priorTexts }),
   );
-
-  const candidates = scored
-    .filter((candidate) => candidateIsLegal(candidate, input.beat))
-    .sort((a, b) => b.score - a.score);
+  const candidates = scored.filter((candidate) => candidateIsLegal(candidate, input.beat)).sort((a, b) => b.score - a.score);
   const rejected = scored.filter((candidate) => !candidateIsLegal(candidate, input.beat));
 
-  if (
-    rejected.length &&
-    (candidates.length === 0 || process.env.QRE_AUTHOR_DEBUG_MOUTH_REJECTIONS === "true")
-  ) {
-    console.log(
-      `[QRE MOUTH REJECT] beat=${input.beat.order} rejected=${rejected.length} accepted=${candidates.length}`,
-    );
+  if (rejected.length && (candidates.length === 0 || process.env.QRE_AUTHOR_DEBUG_MOUTH_REJECTIONS === "true")) {
+    console.log(`[QRE MOUTH REJECT] beat=${input.beat.order} rejected=${rejected.length} accepted=${candidates.length}`);
   }
 
   return { selected: candidates[0], candidates };
@@ -425,17 +388,14 @@ export function selectBestMouthCandidate(input: {
 function compactExpressionJob(beat: MouthCandidateBeat): Record<string, unknown> {
   const realization = beat.creativeRealization;
   const isPayoff = isPayoffBeat(beat);
-  const next = clean(beat.next || beat.frontier);
-  const job = realization?.realizationIntent || realization?.creativeOpportunity || "Perform the approved change without explaining it.";
-
   return {
     order: beat.order,
     attention: clean(beat.attentionFunction),
     move: clean(beat.creativeMove),
     mode: clean(beat.realizationMode),
     change: clean(beat.change),
-    job: clean(job),
-    nextPull: next,
+    job: clean(realization?.realizationIntent || realization?.creativeOpportunity || "Perform the approved change without explaining it."),
+    nextPull: clean(beat.next || beat.frontier),
     sourceEvents: beat.eventIds ?? [],
     sourceLabels: beat.setsUp ?? [],
     obligations: beat.obligations ?? [],
@@ -454,34 +414,22 @@ function buildCompleteSequenceMouthMessages(
     "QRE has already decided reality, meaning, behavior, progression, strategy, and payoff.",
     "Your only job is to express those approved jobs as short, natural language.",
     "",
-    "STYLE:",
-    "short",
-    "conversational",
-    "sharp",
-    "behavioral",
-    "cumulative",
-    "addictive",
-    "ordinary words unless an unusual phrase makes the behavior sharper",
+    "STYLE: short, conversational, sharp, behavioral, cumulative, addictive.",
+    "Use ordinary words unless an unusual phrase makes the behavior sharper.",
     "",
-    "RHYTHM:",
-    "start with what changed; turn it; prove it through behavior; push it; land the payoff.",
+    "RHYTHM: start with what changed; turn it; prove it through behavior; push it; land the payoff.",
     "Do not force five beats when the supplied sequence has a different length.",
     "Every line must make the next line more wanted.",
     "A later line should change how an earlier line reads.",
     "",
-    "DO NOT:",
-    "sound poetic, literary, inspirational, or cinematic",
-    "decorate a line just to make it pretty",
-    "explain the meaning",
-    "repeat facts as captions",
-    "write analyst language",
-    "invent literal people, places, props, actions, reactions, chronology, dialogue, or outcomes",
-    "turn several facts into a fact list inside one line",
+    "DO NOT sound poetic, literary, inspirational, or cinematic.",
+    "DO NOT decorate a line just to make it pretty.",
+    "DO NOT explain the meaning or write analyst language.",
+    "DO NOT repeat facts as captions or invent literal people, places, props, actions, reactions, chronology, dialogue, or outcomes.",
     "",
     "FIGURATIVE LANGUAGE IS LEGAL when it is clearly framing rather than a literal new event.",
     "",
-    "PAYOFF:",
-    "the supplied endpoint must appear exactly and alone as the final line.",
+    "PAYOFF: the supplied endpoint must appear exactly and alone as the final line.",
     "",
     "RETURN JSON ONLY.",
     `Return exactly ${MAX_SEQUENCE_CANDIDATES} complete candidate sequences.`,
@@ -505,26 +453,15 @@ function buildCompleteSequenceMouthMessages(
 }
 
 function parseCompleteSequenceBatch(raw: string, beatCount: number): string[][] {
-  const text = clean(raw)
-    .replace(/^```(?:json|text|txt)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
+  const text = clean(raw).replace(/^```(?:json|text|txt)?/i, "").replace(/```$/i, "").trim();
   if (!text) return [];
 
   try {
     const value = JSON.parse(text) as { candidateSequences?: unknown };
     if (!Array.isArray(value.candidateSequences)) return [];
-
     return value.candidateSequences
-      .filter(
-        (entry): entry is { lines?: unknown } =>
-          Boolean(entry) && typeof entry === "object",
-      )
-      .map((entry) =>
-        Array.isArray(entry.lines)
-          ? entry.lines.map(normalizeLine).filter((line) => !hasPlaceholder(line))
-          : [],
-      )
+      .filter((entry): entry is { lines?: unknown } => Boolean(entry) && typeof entry === "object")
+      .map((entry) => Array.isArray(entry.lines) ? entry.lines.map(normalizeLine).filter((line) => !hasPlaceholder(line)) : [])
       .filter((lines) => lines.length === beatCount)
       .slice(0, MAX_SEQUENCE_CANDIDATES);
   } catch {
@@ -533,19 +470,14 @@ function parseCompleteSequenceBatch(raw: string, beatCount: number): string[][] 
 }
 
 export async function generateMouthCandidatePools(
-  input: MouthCandidateGenerationInput & {
-    risk?: string;
-    feedback?: string;
-  },
+  input: MouthCandidateGenerationInput & { risk?: string; feedback?: string },
 ): Promise<{ pools: MouthCandidatePool[]; rawText: string }> {
   const ordered = [...input.beats].sort((a, b) => a.order - b.order);
   const messages = buildCompleteSequenceMouthMessages(input, ordered);
 
   if (input.feedback) {
     const last = messages[messages.length - 1];
-    if (last?.role === "user") {
-      last.content += `\nQRE FEEDBACK: ${input.feedback}`;
-    }
+    if (last?.role === "user") last.content += `\nQRE FEEDBACK: ${input.feedback}`;
   }
 
   const result = await localModelGenerate(messages, "json", {
@@ -554,10 +486,7 @@ export async function generateMouthCandidatePools(
   });
 
   const sequences = parseCompleteSequenceBatch(result.text, ordered.length);
-  const pools: MouthCandidatePool[] = ordered.map((beat) => ({
-    order: beat.order,
-    candidates: [],
-  }));
+  const pools: MouthCandidatePool[] = ordered.map((beat) => ({ order: beat.order, candidates: [] }));
 
   for (const sequence of sequences) {
     for (let index = 0; index < ordered.length; index += 1) {
@@ -565,34 +494,17 @@ export async function generateMouthCandidatePools(
       const line = sequence[index];
       if (!line || isPayoffBeat(beat)) continue;
 
-      const priorTexts = [
-        ...(input.priorTexts ?? []),
-        ...sequence.slice(0, index),
-      ];
-
-      const candidate = scoreMouthCandidate({
-        text: line,
-        beat,
-        envelope: input.envelope,
-        priorTexts,
-      });
-
-      if (candidateIsLegal(candidate, beat)) {
-        pools[index]!.candidates.push(candidate);
-      }
+      const priorTexts = [...(input.priorTexts ?? []), ...sequence.slice(0, index)];
+      const candidate = scoreMouthCandidate({ text: line, beat, envelope: input.envelope, priorTexts });
+      if (candidateIsLegal(candidate, beat)) pools[index]!.candidates.push(candidate);
     }
   }
 
   for (let index = 0; index < ordered.length; index += 1) {
     const beat = ordered[index]!;
-    const candidates = [
-      ...new Map(
-        pools[index]!.candidates.map((candidate) => [candidate.text, candidate]),
-      ).values(),
-    ]
+    const candidates = [...new Map(pools[index]!.candidates.map((candidate) => [candidate.text, candidate])).values()]
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_CANDIDATES);
-
     pools[index] = { order: beat.order, candidates };
   }
 
@@ -603,14 +515,7 @@ export async function generateMouthCandidatePools(
     if (endpoint) {
       pools[payoffIndex] = {
         order: payoffBeat.order,
-        candidates: [
-          scoreMouthCandidate({
-            text: endpoint,
-            beat: payoffBeat,
-            envelope: input.envelope,
-            priorTexts: input.priorTexts ?? [],
-          }),
-        ],
+        candidates: [scoreMouthCandidate({ text: endpoint, beat: payoffBeat, envelope: input.envelope, priorTexts: input.priorTexts ?? [] })],
       };
     }
   }
