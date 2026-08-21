@@ -156,15 +156,23 @@ if (exists("apps/api/src/services/authorBrainUniversal.ts")) {
 
 if (exists("apps/api/src/services/authorMouthCandidateSearch.ts")) {
   const body = read("apps/api/src/services/authorMouthCandidateSearch.ts");
+  const generatorCount = (body.match(/export async function generateMouthCandidatePools\s*\(/g) ?? []).length;
+  const modelCallCount = (body.match(/localModelGenerate\s*\(/g) ?? []).length;
+
   check("mouth:contract", imports(body, "@qre/contracts"), "Mouth uses shared contracts");
   check("mouth:reality-envelope", imports(body, "./authorRealityEnvelope.js"), "Mouth is evidence-bound");
-  check("mouth:generator", /generateMouthCandidatePools/.test(body), "Mouth owns the canonical generation API");
+  check("mouth:generator", generatorCount === 1, generatorCount === 1 ? "Mouth has exactly one canonical generation API" : `DUPLICATE MOUTH GENERATORS FOUND · count=${generatorCount}`);
   check(
     "mouth:sequence-generator",
     /buildCompleteSequenceMouthMessages/.test(body) &&
       /candidateSequences/.test(body) &&
       /parseCompleteSequenceBatch/.test(body),
     "Mouth generates complete candidate sequences before Beam selection",
+  );
+  check(
+    "mouth:model-call-count",
+    modelCallCount === 1,
+    modelCallCount === 1 ? "Mouth has exactly one model-generation call site" : `DUPLICATE MOUTH MODEL AUTHORITIES FOUND · count=${modelCallCount}`,
   );
   check(
     "mouth:no-per-beat-generation",
