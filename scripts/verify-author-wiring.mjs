@@ -159,7 +159,28 @@ if (exists("apps/api/src/services/authorMouthCandidateSearch.ts")) {
   check("mouth:contract", imports(body, "@qre/contracts"), "Mouth uses shared contracts");
   check("mouth:reality-envelope", imports(body, "./authorRealityEnvelope.js"), "Mouth is evidence-bound");
   check("mouth:generator", /generateMouthCandidatePools/.test(body), "Mouth owns the canonical generation API");
-  check("mouth:bounded-repair", /MAX_REPAIRS_PER_BEAT|repair/i.test(body), "Mouth repairs are bounded");
+  check(
+    "mouth:sequence-generator",
+    /buildCompleteSequenceMouthMessages/.test(body) &&
+      /candidateSequences/.test(body) &&
+      /parseCompleteSequenceBatch/.test(body),
+    "Mouth generates complete candidate sequences before Beam selection",
+  );
+  check(
+    "mouth:no-per-beat-generation",
+    !/runBeatJob|MAX_CONCURRENT_REQUESTS|BEAT \\d+ PRIMARY|BEAT \\d+ REPAIR/.test(body),
+    "Mouth does not contain the retired beat-local generation loop",
+  );
+  check(
+    "mouth:no-repair-loop",
+    !/MAX_REPAIRS_PER_BEAT|REPAIR THIS BEAT ONLY|QRE REPAIR FEEDBACK/.test(body),
+    "Mouth does not contain the retired per-beat repair loop",
+  );
+  check(
+    "mouth:no-old-output-contract",
+    !/variantsByBeat/.test(body),
+    "Mouth uses candidateSequences rather than the retired variantsByBeat contract",
+  );
   check("mouth:no-enterprise-import", !imports(body, "./authorEnterpriseMouth.js"), "Mouth cannot depend on retired Enterprise orchestration");
   check("mouth:no-duplicate-contract", !/export type MouthCandidateBeat\s*=|export type MouthCandidate\s*=/.test(body), "Mouth does not redefine shared semantic contract types");
 }
@@ -193,12 +214,6 @@ if (exists("apps/api/src/services/localModelRuntime.ts")) {
   check("runtime:transport", /11434/.test(body), "Local model transport is explicit");
 }
 
-/*
- * Duplicate model-generation audit.
- * Only known narrative/prose authorities may directly call localModelGenerate.
- * Provider adapters may use it for media understanding, but cannot contain a
- * second narrative pipeline.
- */
 const allowedDirectModelCallers = new Set([
   "authorBrainUniversal.ts",
   "authorMouthCandidateSearch.ts",
@@ -221,7 +236,6 @@ for (const name of CANONICAL_SERVICES) {
   );
 }
 
-/* aiProvider must not contain the old independent creative brief/draft loop. */
 if (exists("apps/api/src/services/aiProvider.ts")) {
   const body = read("apps/api/src/services/aiProvider.ts");
   check("provider:no-creative-brief-author", !/localCreativeBrief|localDraft|localCritique|localRevision|localPolish/.test(body), "provider cannot recreate a second prose-author pipeline");
