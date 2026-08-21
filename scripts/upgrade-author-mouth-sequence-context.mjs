@@ -31,7 +31,7 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
         \`meaning=\\${clean(realization?.creativeOpportunity)}\`,
         \`intent=\\${clean(realization?.realizationIntent)}\`,
         \`effect=\\${clean(realization?.viewerEffect)}\`,
-        \`trajectory=\\${(realization?.creativeTrajectory ?? []).join(" → ") }\`,
+        \`trajectory=\\${(realization?.creativeTrajectory ?? []).join(" → ")}\`,
         \`escalation=\\${clean(realization?.escalationMove)}\`,
         \`next=\\${clean(beat.next || beat.frontier)}\`,
         \`endpoint=\\${clean(beat.paysOff?.[0])}\`,
@@ -72,16 +72,5 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
   write(name, text);
 }
 
-function patchAcceptance() {
-  const name = "apps/api/author-canonical-acceptance.ts";
-  let text = read(name);
-  const marker = 'console.log("--- REALIZATION TEXTS ---");';
-  if (text.includes("REALIZATION STRATEGIES")) return;
-  const addition = `console.log("--- REALIZATION STRATEGIES ---");\nif (result?.mouth?.beats) {\n  for (const beat of result.mouth.beats) {\n    const realization = beat?.creativeRealization;\n    console.log(\`[\\${beat.order}] STRATEGY: \\${realization?.strategy ?? "none"} · INTENT: \\${realization?.realizationIntent ?? ""}\`);\n  }\n}\n`;
-  if (text.includes(marker)) text = text.replace(marker, marker + "\n" + addition);
-  write(name, text);
-}
-
 patchMouth();
-patchAcceptance();
 console.log("AUTHOR MOUTH SEQUENCE CONTEXT UPGRADE APPLIED");
