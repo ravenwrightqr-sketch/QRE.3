@@ -1,34 +1,28 @@
-/**
- * QRE AUTHOR MOUTH · CANONICAL CANDIDATE REALIZATION
- *
- * Production boundary:
- * REALITY → MEANING → CREATIVE REALIZATION → COMPLETE SEQUENCE LANGUAGE
- *
- * The model supplies language.
- * QRE owns truth, semantic obligations, sequence selection, endpoint preservation,
- * candidate legality, and final gating.
- */
 import type {
   MouthCandidate,
-  MouthCandidateBatch,
   MouthCandidateBeat,
   MouthCandidateSelection,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-export type {
-  MouthCandidate,
-  MouthCandidateBatch,
-  MouthCandidateBeat,
-  MouthCandidateSelection,
-} from "@qre/contracts";
-
+/**
+ * Canonical Mouth boundary.
+ *
+ * QRE owns reality, meaning, beat movement, strategy, truth constraints,
+ * legality, scoring, and selection. The model owns language realization.
+ * One generation call produces complete candidate sequences.
+ */
 export type MouthCandidateGenerationInput = {
   envelope: RealityEnvelope;
   beats: readonly MouthCandidateBeat[];
   priorTexts?: readonly string[];
   lens?: string;
+};
+
+export type MouthCandidatePool = {
+  order: number;
+  candidates: MouthCandidate[];
 };
 
 const MAX_CANDIDATES = 8;
@@ -51,21 +45,19 @@ const OPERATION_LANGUAGE =
   /\b(?:contrast(?:s|ed)?|reframe|reframing|transformation|transforms?|highlight(?:s|ed)?|explains?|shows? the contrast|changes? the meaning|the meaning is|the strategy is|the operation is|conclusion)\b/i;
 
 const ANALYTIC_EXPLANATION =
-  /\b(?:this means|this reveals|this shows|the point is|the reason is|the meaning is|which means|in other words|therefore|as a result)/i;
+  /\b(?:this means|this reveals|this shows|the point is|the reason is|the meaning is|which means|in other words|therefore|as a result)\b/i;
 
 const PLACEHOLDER =
   /^(?:\.\.\.|candidate[_\s-]?(?:one|two|three|four|five)|line[_\s-]?(?:one|two|three|four|five)|short line(?: one| two| three| four| five)?)$/i;
 
 const FIGURATIVE_FRAME =
-  /\blike (?:a|an)\b|\bas if\b|\bas though\b|\bapparently\b|\bseemed like\b|\bthe room approved\b|\bthe mirror approved\b|\bpeace was\b|\bterms were\b/i;
+  /\blike (?:a|an)\b|\bas if\b|\bas though\b|\bapparently\b|\bseemed like\b|\bthe room\b.*\bapproved\b|\bpeace was\b|\bterms were\b/i;
 
 const FIGURATIVE_PEOPLE =
   /\b(?:lawyer|judge|king|queen|boss|manager|officer|celebrity|star)\b/gi;
 
 const clean = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, value)).toFixed(3));
@@ -131,15 +123,13 @@ function supportedRelations(eventIds: readonly string[], envelope: RealityEnvelo
 }
 
 function isPayoffBeat(beat: MouthCandidateBeat): boolean {
-  const mode = clean(beat.realizationMode).toLowerCase();
   const role = clean(beat.role).toLowerCase();
   const attention = clean(beat.attentionFunction).toLowerCase();
-
+  const mode = clean(beat.realizationMode).toLowerCase();
   return (
     role === "payoff" ||
     attention === "payoff" ||
     mode === "payoff" ||
-    mode === "payoff_compression" ||
     mode.includes("payoff")
   );
 }
@@ -155,11 +145,15 @@ function endpointExactness(text: string, beat: MouthCandidateBeat): number {
   return expected && actual === expected ? 1 : 0;
 }
 
+function isFigurativeFraming(text: string): boolean {
+  return FIGURATIVE_FRAME.test(text);
+}
+
 function concreteRisk(text: string, envelope: RealityEnvelope): number {
   const lower = clean(text).toLowerCase();
-  const source = suppliedTerms(envelope);
   if (!lower) return 1;
 
+  const source = suppliedTerms(envelope);
   const concretePatterns: Array<{ pattern: RegExp; terminal?: boolean }> = [
     { pattern: /\b(?:eyes?|tail|ears?|hands?|feet?|fingers?|shoulders?|face|mouth|head|legs?|paws?)\b/i },
     { pattern: /\b(?:trembled|blinked|sighed|stared|shrugged|winked|flinched|wagged|smiled|cried|laughed|smirked|gasped)\b/i },
@@ -172,47 +166,37 @@ function concreteRisk(text: string, envelope: RealityEnvelope): number {
     { pattern: /\b(?:later|earlier|tomorrow|yesterday|the next day|years later|weeks later|months later)\b/i, terminal: true },
   ];
 
-  const figurative = FIGURATIVE_FRAME.test(lower);
+  const figurative = isFigurativeFraming(lower);
 
   for (const rule of concretePatterns) {
-    const matches = lower.match(rule.pattern);
-    if (!matches) continue;
+    const match = lower.match(rule.pattern);
+    if (!match) continue;
     if (rule.terminal) return 1;
 
-    const matched = matches[0] ?? "";
+    const matched = match[0] ?? "";
     if (figurative && FIGURATIVE_PEOPLE.test(matched)) {
       FIGURATIVE_PEOPLE.lastIndex = 0;
       continue;
     }
+    FIGURATIVE_PEOPLE.lastIndex = 0;
 
-    const unsupported = tokens(matched)
-      .map(stem)
-      .some((word) => !source.has(word));
+    const unsupported = tokens(matched).some((word) => !source.has(stem(word)));
     if (unsupported) return 1;
   }
 
-  FIGURATIVE_PEOPLE.lastIndex = 0;
   return 0;
 }
 
-function forbiddenRisk(
-  text: string,
-  beat: MouthCandidateBeat,
-): number {
+function forbiddenRisk(text: string, beat: MouthCandidateBeat): number {
   const lower = clean(text).toLowerCase();
-  const forbidden = unique(beat.forbiddenMoves ?? []).map((value) => value.toLowerCase());
+  const forbidden = new Set(unique(beat.forbiddenMoves ?? []).map((value) => value.toLowerCase()));
 
   let risk = 0;
-  if (META.test(lower)) risk = 1;
-  if (OPERATION_LANGUAGE.test(lower)) risk = 1;
+  if (META.test(lower) || OPERATION_LANGUAGE.test(lower)) risk = 1;
   if (GENERIC.test(lower)) risk = Math.max(risk, 0.8);
   if (QUESTION.test(lower)) risk = Math.max(risk, 0.7);
-
-  if (forbidden.includes("planner vocabulary") && META.test(lower)) risk = 1;
-  if (forbidden.includes("analytic explanation") && ANALYTIC_EXPLANATION.test(lower)) risk = 1;
-  if (forbidden.includes("new dialogue")) {
-    if (/["“”]/.test(text) || /^(?:said|says|asked|asks|replied|replies)\b/i.test(lower)) risk = 1;
-  }
+  if (forbidden.has("analytic explanation") && ANALYTIC_EXPLANATION.test(lower)) risk = 1;
+  if (forbidden.has("new dialogue") && /["“”]/.test(text)) risk = 1;
 
   return metric(risk);
 }
@@ -233,27 +217,27 @@ function relationMeaning(text: string, beat: MouthCandidateBeat, envelope: Reali
 function strategyExecutionScore(text: string, beat: MouthCandidateBeat): number {
   const move = clean(beat.creativeMove).toLowerCase();
   const lower = clean(text).toLowerCase();
-  if (!move || move === "none") return 0.55;
+  if (!move || move === "none") return 0.5;
 
   switch (move) {
     case "status_inversion":
-      return /\b(?:like|apparently|already|still|anyway|terms|boss|owned|rule|rules|official|business)\b/.test(lower) ? 0.9 : 0.35;
+      return metric(/\b(?:like|apparently|already|still|anyway|terms|boss|owned|rule|rules|official|business)\b/.test(lower) ? 0.9 : 0.35);
     case "contrast":
-      return /\b(?:but|still|yet|anyway|except|instead)\b/.test(lower) ? 0.9 : 0.35;
+      return metric(/\b(?:but|still|yet|anyway|except|instead|first)\b/.test(lower) ? 0.9 : 0.4);
     case "implication":
-      return ANALYTIC_EXPLANATION.test(lower) ? 0.15 : 0.9;
+      return metric(ANALYTIC_EXPLANATION.test(lower) ? 0.15 : 0.85);
     case "understatement":
-      return tokens(text).length <= 7 ? 0.9 : 0.35;
+      return metric(tokens(text).length <= 7 ? 0.9 : 0.35);
     case "personification":
-      return /\b(?:approved|agreed|judged|decided|had other plans|wasn't impressed|was not impressed)\b/.test(lower) ? 0.9 : 0.45;
+      return metric(/\b(?:approved|agreed|judged|decided|had other plans|wasn't impressed|was not impressed)\b/.test(lower) ? 0.85 : 0.4);
     case "recontextualization":
-      return /\b(?:apparently|suddenly|then|of course|turns out|that explained|so)\b/.test(lower) ? 0.9 : 0.4;
+      return metric(/\b(?:apparently|so|suddenly|then|of course|turns out|that explained)\b/.test(lower) ? 0.85 : 0.4);
     case "double_meaning":
-      return /\b(?:terms|peace|deal|contract|approved|business|official|apparently)\b/.test(lower) ? 0.9 : 0.4;
+      return metric(/\b(?:terms|peace|deal|contract|approved|business|official|apparently)\b/.test(lower) ? 0.85 : 0.4);
     case "callback":
-      return /\b(?:again|still|apparently|same|that|back|returned)\b/.test(lower) ? 0.85 : 0.4;
+      return metric(/\b(?:again|still|apparently|same|that|back|returned)\b/.test(lower) ? 0.8 : 0.35);
     default:
-      return 0.55;
+      return 0.5;
   }
 }
 
@@ -293,8 +277,7 @@ export function scoreMouthCandidate(input: {
   const supported = supportedEventIds(text, input.envelope);
   const relations = supportedRelations(supported, input.envelope);
   const grounding = metric(
-    overlap(setOf(text), suppliedTerms(input.envelope)) * 0.5 +
-    (supported.length ? 0.5 : 0),
+    overlap(setOf(text), suppliedTerms(input.envelope)) * 0.5 + (supported.length ? 0.5 : 0),
   );
   const meaning = relationMeaning(text, input.beat, input.envelope);
   const transition = meaning;
@@ -306,57 +289,42 @@ export function scoreMouthCandidate(input: {
   const compression = compressionScore(text);
   const strategyExecution = strategyExecutionScore(text, input.beat);
 
+  const restatement = (input.beat.eventIds ?? []).some(
+    (id) => similarity(text, eventLabel(input.envelope, id)) >= 0.92,
+  ) ? 0.8 : 0;
+
   const collageRisk =
-    input.beat.eventIds &&
-    input.beat.eventIds.length > 1 &&
+    (input.beat.eventIds?.length ?? 0) > 1 &&
     tokens(text).length > 4 &&
-    supported.length >= input.beat.eventIds.length &&
+    supported.length >= (input.beat.eventIds?.length ?? 0) &&
     strategyExecution < 0.55
       ? 0.7
       : 0;
 
-  const restatement =
-    input.beat.eventIds?.some(
-      (id) => similarity(text, eventLabel(input.envelope, id)) >= 0.92,
-    )
-      ? 0.8
-      : 0;
-
-  const creativeIndependence = metric(
-    1 - Math.min(1, restatement + collageRisk * 0.5),
-  );
-
-  const creativeScore = metric(
-    strategyExecution * 0.7 +
-    creativeIndependence * 0.3,
-  );
+  const creativeIndependence = metric(1 - Math.min(1, restatement + collageRisk * 0.5));
+  const creativeExecution = input.beat.creativeRealization
+    ? metric(creativeIndependence * 0.45 + strategyExecution * 0.55)
+    : 0;
 
   const score = isPayoffBeat(input.beat)
-    ? metric(
-        endpoint * 0.9 +
-        novelty * 0.05 +
-        compression * 0.05 -
-        invention * 0.5 -
-        forbidden * 0.8,
-      )
+    ? metric(endpoint * 0.9 + novelty * 0.05 + compression * 0.05 - invention * 0.5 - forbidden * 0.8)
     : metric(
-        creativeScore * 0.34 +
-        novelty * 0.12 +
-        compression * 0.08 +
-        meaning * 0.12 +
-        grounding * 0.08 +
-        transition * 0.08 +
-        (1 - restatement) * 0.08 +
-        (1 - collageRisk) * 0.05 +
-        (forbidden === 0 ? 0.05 : 0) -
-        invention * 0.35,
+        creativeExecution * 0.38 +
+          novelty * 0.12 +
+          compression * 0.12 +
+          meaning * 0.12 +
+          grounding * 0.09 +
+          transition * 0.08 +
+          (1 - restatement) * 0.05 +
+          (1 - collageRisk) * 0.04 -
+          invention * 0.35,
       );
 
   const reasons: string[] = [];
   if (grounding < 0.28) reasons.push("weak-grounding");
   if (meaning < 0.28) reasons.push("weak-meaning-execution");
   if (strategyExecution < 0.45) reasons.push("weak-creative-execution");
-  if (creativeScore < 0.42 && !isPayoffBeat(input.beat)) reasons.push("weak-creative-realization");
+  if (creativeExecution < 0.42 && !isPayoffBeat(input.beat)) reasons.push("weak-creative-realization");
   if (invention > 0.45) reasons.push("high-invention-risk");
   if (forbidden > 0) reasons.push("forbidden-slot-move");
   if (repetition > 0.8) reasons.push("high-repetition");
@@ -376,7 +344,7 @@ export function scoreMouthCandidate(input: {
     obligationCoverage: metric(meaning * 0.65 + strategyExecution * 0.35),
     relationContractScore: input.beat.relationKinds?.length ? meaning : 0.5,
     forbiddenMoveRisk: forbidden,
-    cohesionScore: priorTexts.length ? metric(1 - repetition) : 0.5,
+    cohesionScore: priorTexts.length ? novelty : 0.5,
     noveltyScore: novelty,
     compressionScore: compression,
     inventionRisk: invention,
@@ -395,7 +363,7 @@ function candidateIsLegal(candidate: MouthCandidate, beat: MouthCandidateBeat): 
   if (candidate.inventionRisk >= 0.62) return false;
   if (candidate.text.split(/\s+/).filter(Boolean).length > 10) return false;
   if (isPayoffBeat(beat)) return candidate.endpointExactness === 1;
-  return candidate.score >= 0.24;
+  return candidate.score >= 0.42;
 }
 
 export function selectBestMouthCandidate(input: {
@@ -405,133 +373,72 @@ export function selectBestMouthCandidate(input: {
   priorTexts?: readonly string[];
 }): MouthCandidateSelection {
   const scored = input.texts.map((text) =>
-    scoreMouthCandidate({
-      text,
-      beat: input.beat,
-      envelope: input.envelope,
-      priorTexts: input.priorTexts,
-    }),
+    scoreMouthCandidate({ text, beat: input.beat, envelope: input.envelope, priorTexts: input.priorTexts }),
   );
-
-  const candidates = scored
-    .filter((candidate) => candidateIsLegal(candidate, input.beat))
-    .sort((a, b) => b.score - a.score);
-
+  const candidates = scored.filter((candidate) => candidateIsLegal(candidate, input.beat)).sort((a, b) => b.score - a.score);
   const rejected = scored.filter((candidate) => !candidateIsLegal(candidate, input.beat));
 
-  if (
-    rejected.length &&
-    (candidates.length === 0 || process.env.QRE_AUTHOR_DEBUG_MOUTH_REJECTIONS === "true")
-  ) {
-    console.log(
-      `[QRE MOUTH REJECT] beat=${input.beat.order} rejected=${rejected.length} accepted=${candidates.length}`,
-    );
-    for (const candidate of rejected) {
-      console.log(
-        JSON.stringify({
-          beat: input.beat.order,
-          text: candidate.text,
-          score: candidate.score,
-          inventionRisk: candidate.inventionRisk,
-          forbiddenMoveRisk: candidate.forbiddenMoveRisk,
-          meaningScore: candidate.meaningScore,
-          transitionScore: candidate.transitionScore,
-          groundingScore: candidate.groundingScore,
-          reasons: candidate.reasons,
-        }),
-      );
-    }
+  if (rejected.length && (candidates.length === 0 || process.env.QRE_AUTHOR_DEBUG_MOUTH_REJECTIONS === "true")) {
+    console.log(`[QRE MOUTH REJECT] beat=${input.beat.order} rejected=${rejected.length} accepted=${candidates.length}`);
   }
 
   return { selected: candidates[0], candidates };
 }
 
+function compactExpressionJob(beat: MouthCandidateBeat): Record<string, unknown> {
+  const realization = beat.creativeRealization;
+  const isPayoff = isPayoffBeat(beat);
+  return {
+    order: beat.order,
+    attention: clean(beat.attentionFunction),
+    move: clean(beat.creativeMove),
+    mode: clean(beat.realizationMode),
+    change: clean(beat.change),
+    job: clean(realization?.realizationIntent || realization?.creativeOpportunity || "Perform the approved change without explaining it."),
+    nextPull: clean(beat.next || beat.frontier),
+    sourceEvents: beat.eventIds ?? [],
+    sourceLabels: beat.setsUp ?? [],
+    obligations: beat.obligations ?? [],
+    forbidden: beat.forbiddenMoves ?? [],
+    endpoint: isPayoff ? endpointText(beat) : "",
+  };
+}
 
 function buildCompleteSequenceMouthMessages(
   input: MouthCandidateGenerationInput,
   beats: readonly MouthCandidateBeat[],
 ): Array<{ role: "system" | "user"; content: string }> {
-  const sequence = beats.map((beat, index) => ({
-    order: beat.order,
-    role: beat.role,
-    attentionFunction: beat.attentionFunction,
-    creativeMove: beat.creativeMove,
-    realizationMode: beat.realizationMode,
-    realizationStrategies: beat.realizationStrategies ?? [],
-    creativeRealization: beat.creativeRealization ?? null,
-    sourceAnchors: beat.eventIds ?? [],
-    change: beat.change,
-    next: beat.next || beat.frontier,
-    rhetoricalJob: isPayoffBeat(beat)
-      ? "EXACT PAYOFF"
-      : index === 0
-        ? "ESTABLISH"
-        : index === 1
-          ? "CONTRAST"
-          : index === 2
-            ? "ESCALATE"
-            : "IMPLY_OR_RECONTEXTUALIZE",
-    endpoint: endpointText(beat),
-  }));
-
+  const sequence = beats.map(compactExpressionJob);
   const system = [
-    "QRE CANONICAL MOUTH · COMPLETE EXPERIENCE WRITER.",
+    "QRE MOUTH. LANGUAGE INSTRUMENT, NOT AUTHOR.",
+    "QRE has already decided reality, meaning, behavior, progression, strategy, and payoff.",
+    "Your only job is to express those approved jobs as short, natural language.",
     "",
-    "QRE has already solved reality, meaning, character reading, trajectory, truth constraints, and payoff.",
-    "You supply language only.",
+    "STYLE: short, conversational, sharp, behavioral, cumulative, addictive.",
+    "Use ordinary words unless an unusual phrase makes the behavior sharper.",
     "",
-    "SOURCE FACTS ARE TRUTH CONSTRAINTS, NOT A SCRIPT.",
-    "Do not narrate the receipt.",
-    "Do not summarize events.",
-    "Do not paraphrase the upstream creative realization.",
+    "RHYTHM: start with what changed; turn it; prove it through behavior; push it; land the payoff.",
+    "Do not force five beats when the supplied sequence has a different length.",
+    "Every line must make the next line more wanted.",
+    "A later line should change how an earlier line reads.",
     "",
-    "WRITE A COMPLETE EXPERIENCE.",
-    "The lines must feel causally connected and cumulative.",
-    "Every line should make the next line more desirable.",
-    "Later lines should deepen, escalate, callback, or recontextualize earlier lines.",
-    "Never reset into an independent caption.",
+    "DO NOT sound poetic, literary, inspirational, or cinematic.",
+    "DO NOT decorate a line just to make it pretty.",
+    "DO NOT explain the meaning or write analyst language.",
+    "DO NOT repeat facts as captions or invent literal people, places, props, actions, reactions, chronology, dialogue, or outcomes.",
     "",
-    "RHYTHM:",
-    "ESTABLISH → CONTRAST → ESCALATE → IMPLY / RECONTEXTUALIZE → PAYOFF.",
+    "FIGURATIVE LANGUAGE IS LEGAL when it is clearly framing rather than a literal new event.",
     "",
-    "PREFER:",
-    "short",
-    "sharp",
-    "specific",
-    "quotable",
-    "subtext",
-    "status",
-    "attitude",
-    "understatement",
-    "double meaning",
-    "personification",
-    "reversal",
-    "callback",
-    "",
-    "FIGURATIVE LANGUAGE IS LEGAL.",
-    "A phrase such as 'walked in like a lawyer already notified' is rhetorical framing, not a literal claim that a lawyer appeared.",
-    "Use metaphor and personification when they reveal the approved meaning without inventing an event.",
-    "",
-    "DO NOT:",
-    "write analyst language",
-    "say this means, this reveals, this shows, the contrast is, the strategy is, or the point is",
-    "repeat subject + trait + explanation",
-    "compress several supplied facts into one sentence",
-    "invent literal people, places, props, actions, reactions, sounds, dialogue, chronology, or outcomes",
-    "use generic inspirational filler",
-    "",
-    "PAYOFF IS SACRED.",
-    "The supplied terminal endpoint must appear exactly and alone as the final line.",
+    "PAYOFF: the supplied endpoint must appear exactly and alone as the final line.",
     "",
     "RETURN JSON ONLY.",
     `Return exactly ${MAX_SEQUENCE_CANDIDATES} complete candidate sequences.`,
     `Each sequence must contain exactly ${beats.length} lines.`,
-    "The final line of every sequence must be the exact supplied endpoint.",
-    '{"candidateSequences":[{"lines":["LINE 1","LINE 2","LINE 3","LINE 4","EXACT PAYOFF"]}]}'
+    '{"candidateSequences":[{"lines":["LINE 1","LINE 2","LINE 3","LINE 4","EXACT PAYOFF"]}]}',
   ].join("\n");
 
   const user = {
-    task: "write_complete_creative_sequences",
+    task: "write_complete_sequences",
     subject: input.envelope.subject,
     lens: clean(input.lens),
     truthConstraints: input.envelope.suppliedPhrases,
@@ -546,26 +453,15 @@ function buildCompleteSequenceMouthMessages(
 }
 
 function parseCompleteSequenceBatch(raw: string, beatCount: number): string[][] {
-  const text = clean(raw)
-    .replace(/^```(?:json|text|txt)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
+  const text = clean(raw).replace(/^```(?:json|text|txt)?/i, "").replace(/```$/i, "").trim();
   if (!text) return [];
 
   try {
     const value = JSON.parse(text) as { candidateSequences?: unknown };
     if (!Array.isArray(value.candidateSequences)) return [];
-
     return value.candidateSequences
-      .filter(
-        (entry): entry is { lines?: unknown } =>
-          Boolean(entry) && typeof entry === "object",
-      )
-      .map((entry) =>
-        Array.isArray(entry.lines)
-          ? entry.lines.map(normalizeLine).filter((line) => !hasPlaceholder(line))
-          : [],
-      )
+      .filter((entry): entry is { lines?: unknown } => Boolean(entry) && typeof entry === "object")
+      .map((entry) => Array.isArray(entry.lines) ? entry.lines.map(normalizeLine).filter((line) => !hasPlaceholder(line)) : [])
       .filter((lines) => lines.length === beatCount)
       .slice(0, MAX_SEQUENCE_CANDIDATES);
   } catch {
@@ -573,25 +469,15 @@ function parseCompleteSequenceBatch(raw: string, beatCount: number): string[][] 
   }
 }
 
-export type MouthCandidatePool = {
-  order: number;
-  candidates: MouthCandidate[];
-};
-
 export async function generateMouthCandidatePools(
-  input: MouthCandidateGenerationInput & {
-    risk?: string;
-    feedback?: string;
-  },
+  input: MouthCandidateGenerationInput & { risk?: string; feedback?: string },
 ): Promise<{ pools: MouthCandidatePool[]; rawText: string }> {
   const ordered = [...input.beats].sort((a, b) => a.order - b.order);
   const messages = buildCompleteSequenceMouthMessages(input, ordered);
 
   if (input.feedback) {
     const last = messages[messages.length - 1];
-    if (last?.role === "user") {
-      last.content += "\n\nQRE SEQUENCE FEEDBACK:\n" + input.feedback;
-    }
+    if (last?.role === "user") last.content += `\nQRE FEEDBACK: ${input.feedback}`;
   }
 
   const result = await localModelGenerate(messages, "json", {
@@ -600,75 +486,39 @@ export async function generateMouthCandidatePools(
   });
 
   const sequences = parseCompleteSequenceBatch(result.text, ordered.length);
-  const pools: MouthCandidatePool[] = ordered.map((beat) => ({
-    order: beat.order,
-    candidates: [],
-  }));
+  const pools: MouthCandidatePool[] = ordered.map((beat) => ({ order: beat.order, candidates: [] }));
 
   for (const sequence of sequences) {
     for (let index = 0; index < ordered.length; index += 1) {
       const beat = ordered[index]!;
-      if (isPayoffBeat(beat)) continue;
-
       const line = sequence[index];
-      if (!line) continue;
+      if (!line || isPayoffBeat(beat)) continue;
 
-      const priorTexts = [
-        ...(input.priorTexts ?? []),
-        ...sequence.slice(0, index),
-      ];
-
-      const candidate = scoreMouthCandidate({
-        text: line,
-        beat,
-        envelope: input.envelope,
-        priorTexts,
-      });
-
-      if (candidateIsLegal(candidate, beat)) {
-        pools[index]!.candidates.push(candidate);
-      }
+      const priorTexts = [...(input.priorTexts ?? []), ...sequence.slice(0, index)];
+      const candidate = scoreMouthCandidate({ text: line, beat, envelope: input.envelope, priorTexts });
+      if (candidateIsLegal(candidate, beat)) pools[index]!.candidates.push(candidate);
     }
   }
 
   for (let index = 0; index < ordered.length; index += 1) {
     const beat = ordered[index]!;
-    const candidates = [
-      ...new Map(
-        pools[index]!.candidates.map((candidate) => [candidate.text, candidate]),
-      ).values(),
-    ]
+    const candidates = [...new Map(pools[index]!.candidates.map((candidate) => [candidate.text, candidate])).values()]
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_CANDIDATES);
-
-    pools[index] = {
-      order: beat.order,
-      candidates,
-    };
+    pools[index] = { order: beat.order, candidates };
   }
 
   const payoffIndex = ordered.findIndex(isPayoffBeat);
   if (payoffIndex >= 0) {
     const payoffBeat = ordered[payoffIndex]!;
     const endpoint = endpointText(payoffBeat);
-
     if (endpoint) {
-      const exact = scoreMouthCandidate({
-        text: endpoint,
-        beat: payoffBeat,
-        envelope: input.envelope,
-        priorTexts: input.priorTexts ?? [],
-      });
-
       pools[payoffIndex] = {
         order: payoffBeat.order,
-        candidates: [exact],
+        candidates: [scoreMouthCandidate({ text: endpoint, beat: payoffBeat, envelope: input.envelope, priorTexts: input.priorTexts ?? [] })],
       };
     }
   }
 
-  return {
-    pools,
-    rawText: result.text,
-  };
+  return { pools, rawText: result.text };
 }
