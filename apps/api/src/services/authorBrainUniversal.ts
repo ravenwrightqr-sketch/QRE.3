@@ -99,7 +99,7 @@ function chooseMaterial(source: string[], subject: string, ending: string): { ba
 }
 function sensitivity(input: string, source: string[]): "normal" | "sensitive" { return SENSITIVE.test(`${input} ${source.join(" ")}`) ? "sensitive" : "normal"; }
 function makePaths(arc: ReturnType<typeof chooseMaterial>, subject: string, ending: string, budget: number, preferredLens?: string): Path[] {
-  const safeMoves: CreativeMove[] = budget < 0.3 ? ["understatement", "compression" as CreativeMove, "callback"] : ["status_shift", "deadpan", "social_friction", "contrast", "unexpected_verb", "implication", "callback", "double_meaning", "absurd_escalation"];
+  const safeMoves: CreativeMove[] = budget < 0.3 ? ["understatement", "callback"] : ["status_shift", "deadpan", "social_friction", "contrast", "unexpected_verb", "implication", "callback", "double_meaning", "absurd_escalation"];
   const moveA = preferredLens ? "status_shift" : safeMoves[0] ?? "contrast";
   const moveB = budget < 0.3 ? "understatement" : safeMoves[1] ?? "deadpan";
   const moveC = budget < 0.3 ? "callback" : safeMoves[2] ?? "social_friction";
@@ -244,7 +244,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
       if (accepted[index]!.candidate.lines.join("\n").toLowerCase() !== key) continue;
       if (!kept) { kept = true; continue; }
       const duplicate = accepted.splice(index, 1)[0]!;
-      rejected.push({ pathId: duplicate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics });
+      rejected.push({ pathId: duplicate.candidate.pathId, reasons: ["duplicate_candidate_output"], score: duplicate.validation.score, metrics: duplicate.validation.metrics });
     }
   }
   accepted.sort((a, b) => b.validation.score - a.validation.score); const selected = accepted[0]; const raw = process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? modelResult.text : undefined;
