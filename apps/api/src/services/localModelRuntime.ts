@@ -73,17 +73,20 @@ function responseText(value: unknown): string {
   const data = value as Record<string, unknown>;
   const message = data.message;
   if (message && typeof message === "object") {
-    const content = (message as Record<string, unknown>).content;
-    if (typeof content === "string") return content.trim();
+    const messageRecord = message as Record<string, unknown>;
+    const content = messageRecord.content;
+    if (typeof content === "string" && content.trim()) return content.trim();
+    const thinking = messageRecord.thinking;
+    if (typeof thinking === "string" && thinking.trim()) return thinking.trim();
   }
-  if (typeof data.response === "string") return data.response.trim();
+  if (typeof data.response === "string" && data.response.trim()) return data.response.trim();
   const choices = data.choices;
   if (Array.isArray(choices) && choices[0] && typeof choices[0] === "object") {
     const choice = choices[0] as Record<string, unknown>;
     const choiceMessage = choice.message;
     if (choiceMessage && typeof choiceMessage === "object") {
       const content = (choiceMessage as Record<string, unknown>).content;
-      if (typeof content === "string") return content.trim();
+      if (typeof content === "string" && content.trim()) return content.trim();
     }
   }
   return "";
@@ -95,6 +98,7 @@ export async function localModelGenerate(messages: LocalModelMessage[], format?:
     model: modelName(),
     messages: [{ role: canonical.role, content: canonical.content, ...(canonical.images?.length ? { images: canonical.images.map(stripDataUrl) } : {}) }],
     stream: false,
+    think: false,
     ...(format ? { format } : {}),
     options: {
       ...(options.numPredict !== undefined ? { num_predict: options.numPredict } : {}),
