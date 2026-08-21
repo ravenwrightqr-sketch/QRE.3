@@ -446,12 +446,6 @@ export function selectBestMouthCandidate(input: {
   return { selected: candidates[0], candidates };
 }
 
-export function buildMouthCandidateMessages(
-  input: MouthCandidateGenerationInput,
-): Array<{ role: "system" | "user"; content: string }> {
-  const beats = [...input.beats].sort((a, b) => a.order - b.order);
-  return buildCompleteSequenceMouthMessages(input, beats);
-}
 
 function buildCompleteSequenceMouthMessages(
   input: MouthCandidateGenerationInput,
@@ -577,14 +571,6 @@ function parseCompleteSequenceBatch(raw: string, beatCount: number): string[][] 
   } catch {
     return [];
   }
-}
-
-export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {
-  const sequences = parseCompleteSequenceBatch(raw, 1);
-  if (sequences.length) {
-    return { variantsByBeat: [{ order: 1, variants: sequences[0] ?? [] }] };
-  }
-  return undefined;
 }
 
 export type MouthCandidatePool = {
