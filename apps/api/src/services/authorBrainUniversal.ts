@@ -18,6 +18,7 @@ type SemanticJob = {
   order: number;
   role: "hook" | "turn" | "escalation" | "reframe" | "payoff";
   change: string;
+  operation: "anchor" | "contrast" | "escalate" | "invert" | "callback" | "payoff";
   expressionJob: string;
   nextPull: string;
 };
@@ -34,7 +35,7 @@ const tokenSet = (text: string): Set<string> => new Set(tokens(text));
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
 function requestedLineCount(prompt: string): number {
-  const match = clean(prompt).match(/\b(\d{1,2})\s*[- ]?\s*line\b/i);
+  const match = clean(prompt).match(/\b(\d{1,2})\s*[- ]?\s*\bline(?:s)?\b/i);
   const n = match ? Number(match[1]) : 5;
   return Number.isFinite(n) ? Math.max(3, Math.min(8, n)) : 5;
 }
@@ -105,14 +106,16 @@ function semanticJobs(input: AuthorBrainTruth, count: number, endpoint: string):
   const facts = uniq([...input.sourceMoments, ...input.facts, ...(input.memoryContext ?? [])], 24);
   const jobs: SemanticJob[] = [];
   const roles: SemanticJob["role"][] = ["hook", "turn", "escalation", "reframe", "payoff"];
+  const operations: SemanticJob["operation"][] = ["anchor", "contrast", "escalate", "invert", "payoff"];
   for (let i = 0; i < count; i += 1) {
     const role = endpoint && i === count - 1 ? "payoff" : roles[Math.min(i, roles.length - 2)]!;
+    const operation = endpoint && i === count - 1 ? "payoff" : operations[Math.min(i, operations.length - 2)]!;
     const fact = facts[i] ?? facts[facts.length - 1] ?? "the supplied reality";
-    if (role === "hook") jobs.push({ order: i + 1, role, change: "establish the starting reality", expressionJob: `Use this supplied fact without adding detail: ${fact}`, nextPull: "show what changes next" });
-    else if (role === "turn") jobs.push({ order: i + 1, role, change: "change the interpretation", expressionJob: `Use the next supplied fact as the turn: ${fact}`, nextPull: "make the next behavior matter" });
-    else if (role === "escalation") jobs.push({ order: i + 1, role, change: "increase character evidence", expressionJob: `Use this supplied behavior or object: ${fact}. Make the attitude visible without explaining it.`, nextPull: "push toward the payoff" });
-    else if (role === "reframe") jobs.push({ order: i + 1, role, change: "recontextualize what came before", expressionJob: `Use this supplied fact as a callback or sharper read: ${fact}`, nextPull: endpoint ? "land the supplied ending" : "leave forward pressure" });
-    else jobs.push({ order: i + 1, role, change: "land the exact endpoint", expressionJob: `Use the exact endpoint: ${endpoint}`, nextPull: "finish" });
+    if (role === "hook") jobs.push({ order: i + 1, role, change: "establish the starting reality", operation, expressionJob: `Anchor the realization in this supplied fact: ${fact}. Do not embellish the physical reality.`, nextPull: "show what changes next" });
+    else if (role === "turn") jobs.push({ order: i + 1, role, change: "change the interpretation", operation, expressionJob: `Use the supplied fact as a contrast or sharper read: ${fact}. The creative change may be attitudinal, relational, or status-based without inventing a new physical event.`, nextPull: "make the change matter" });
+    else if (role === "escalation") jobs.push({ order: i + 1, role, change: "increase creative pressure", operation, expressionJob: `Escalate the supplied reality: ${fact}. You may use compression, juxtaposition, inversion, status shift, or attitude, but introduce no unsupported concrete object, person, place, body detail, or physical event.`, nextPull: "push toward the payoff" });
+    else if (role === "reframe") jobs.push({ order: i + 1, role, change: "recontextualize what came before", operation, expressionJob: `Reframe a supplied fact as a sharper creative read: ${fact}. Preserve literal facts while changing the audience's interpretation of them.`, nextPull: endpoint ? "land the supplied ending" : "leave forward pressure" });
+    else jobs.push({ order: i + 1, role, change: "land the exact endpoint", operation, expressionJob: `Use the exact endpoint as the final realization: ${endpoint}`, nextPull: "finish" });
   }
   return jobs;
 }
@@ -138,30 +141,34 @@ function buildPrompt(input: AuthorBrainTruth, jobs: SemanticJob[], endpoint: str
   const facts = evidenceFor(input);
   const known = facts.join(" | ");
   const genderSupplied = GENDER_WORDS.test(known);
+  const creativeIntent = clean(input.prompt);
   const system = [
     "QRE AUTHORING REALIZATION BOUNDARY.",
-    "You are not the story engine. QRE already decided reality, subject, evidence, beats, and endpoint. You only realize that decision as language.",
+    "You are the final language renderer. QRE owns reality and creative direction. You own phrasing only.",
     `SUBJECT: ${subject}. The subject identity is immutable.`,
     `EVIDENCE LEDGER: ${known}`,
-    genderSupplied ? "Gendered language is allowed only when explicitly present in the evidence ledger." : "GENDER IS UNKNOWN. Never use he/she/him/her/his/male/female/man/woman/boy/girl/husband/wife.",
-    "Every concrete noun, body part, person, location, object, sensory detail, physical action, and outcome must be supported by the evidence ledger.",
+    `CREATIVE INTENT: ${creativeIntent}`,
+    genderSupplied ? "Gendered language is allowed only when explicitly present in the evidence ledger." : "GENDER IS UNKNOWN. Never use he/she/him/her/his/male/female/man/woman/boy/girl/husband/wife unless the evidence ledger explicitly contains it.",
+    "FACTS and CREATIVE INTENT have different authority: facts constrain literal reality; creative intent describes the desired attitude, status, contrast, inversion, escalation, or payoff.",
+    "You may realize a creative intent through attitude, status, implication, juxtaposition, compression, metaphorical framing, or relational language. Do not convert creative intent into an invented literal physical event.",
+    "A concrete noun, body part, person, location, object, sensory detail, physical action, or literal outcome is allowed only when supported by the evidence ledger or explicitly present in the creative intent.",
     "A pronoun is a factual claim. If unsupported, repeat the subject name.",
-    "Do not invent steam, water, warmth, hands, tails, legs, rooms, counters, doors, streets, movement, dialogue, or atmosphere unless supplied.",
-    "Do not turn a source fact into a new literal event. Interpret behavior only through language that does not assert new physical facts.",
+    "Do not invent steam, water, warmth, hands, tails, legs, rooms, counters, doors, streets, movement, dialogue, or atmosphere unless supplied or explicitly requested as creative intent.",
+    "Do not explain the creative move. Make the line itself carry the move.",
     "Write compact conversational prose. Prefer 3–7 words per non-endpoint line.",
-    "No analyst language, no explanation, no poetic filler, no generic inspiration, no viewer-directed language.",
-    "Every line must advance the read of the subject or move toward the endpoint.",
+    "No analyst language, no generic inspiration, no viewer-directed language, no decorative filler.",
+    "Every line must create a meaningful change in read: anchor, contrast, escalate, invert, callback, or payoff.",
     endpoint ? `FINAL LINE MUST BE EXACTLY: ${endpoint}` : "",
     `Return exactly ${jobs.length} lines inside one JSON candidate.`,
     '{"candidateSequences":[{"lines":["...","..."]}]}'
   ].filter(Boolean).join("\n");
   const user = JSON.stringify({
     subject,
-    prompt: clean(input.prompt),
+    prompt: creativeIntent,
     evidence: facts,
     jobs,
     endpoint,
-    hardRules: ["evidence_only", "subject_locked", "no_unsupported_gender", "no_unsupported_concrete_details", "exact_line_count", "exact_endpoint"],
+    hardRules: ["facts_constrain_literal_reality", "creative_intent_guides_realization", "subject_locked", "no_unsupported_gender", "no_unsupported_concrete_details", "exact_line_count", "exact_endpoint"],
   });
   return [{ role: "system", content: system }, { role: "user", content: user }];
 }
