@@ -205,8 +205,9 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
 
   const selected = definitions[operation];
   const lens = chooseLens(input, operation, facts, selected.tension);
+  const framedPremise = `${selected.premise} Framing pressure: ${lens.pressure}`;
   const score = metric(novelty * 0.28 + causalFit * 0.34 + payoffPotential * 0.25 + lens.fit * 0.09 - repetitionRisk * 0.1 - rank * 0.004);
-  return { id: `movie-${operation}-${rank}`, operation, premise: selected.premise, tension: selected.tension, trajectory: selected.trajectory, sources: source, relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens };
+  return { id: `movie-${operation}-${rank}`, operation, premise: framedPremise, tension: selected.tension, trajectory: selected.trajectory, sources: source, relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens };
 }
 
 export function buildMovieCognition(input: AuthorBrainTruth, ending: string): MovieCognition {
