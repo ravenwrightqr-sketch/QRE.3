@@ -15,7 +15,8 @@ function patchMouth() {
   const name = "apps/api/src/services/authorMouthCandidateSearch.ts";
   let text = read(name);
 
-  const helper = `
+  if (!text.includes("function buildSequenceCreativeContext(")) {
+    const helper = `
 function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): string {
   return beats
     .slice()
@@ -40,9 +41,7 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
     .join("\\n");
 }
 `;
-
-  if (!text.includes("function buildSequenceCreativeContext(")) {
-    text = text.replace("function isPayoffBeat(", helper + "\nfunction isPayoffBeat(");
+    text = replaceOnce(text, "function isPayoffBeat(", helper + "\nfunction isPayoffBeat(", "sequence creative context helper");
   }
 
   if (!text.includes("sequenceCreativeContext?: string;")) {
@@ -55,9 +54,16 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
   }
 
   if (!text.includes('"The sequence is ONE creative experience, not independent captions."')) {
-    const currentSystemMarker = '    "The source sentence may be correct and still be a terrible realization.",\n';
-    const sequenceRules = `    "The sequence is ONE creative experience, not independent captions.",\n    "Every beat must change the meaning, attitude, pressure, implication, or expectation created by the previous beat.",\n    "Do not summarize what happened before. Recontextualize it.",\n    "A later beat may reuse a supplied fact only when its significance changes.",\n    "Do not make every beat name the subject, trait, or object again.",\n`;
-    text = replaceOnce(text, currentSystemMarker, currentSystemMarker + sequenceRules, "sequence creative rules");
+    const marker = '    "The source sentence may be correct and still be a terrible realization.",\n';
+    const rules = [
+      '    "The sequence is ONE creative experience, not independent captions.",',
+      '    "Every beat must change the meaning, attitude, pressure, implication, or expectation created by the previous beat.",',
+      '    "Do not summarize what happened before. Recontextualize it.",',
+      '    "A later beat may reuse a supplied fact only when its significance changes.",',
+      '    "Do not make every beat name the subject, trait, or object again.",',
+      '    "Do not write a beat as a receipt item merely because the source contains that event.",',
+    ].join("\n");
+    text = replaceOnce(text, marker, marker + rules + "\n", "sequence creative rules");
   }
 
   const contextLine = '    sequenceCreativeContext: input.sequenceCreativeContext ?? buildSequenceCreativeContext(input.beats),\n\n';
@@ -71,16 +77,9 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
     text = replaceOnce(text, targetBeat, targetBeat + targetInstruction, "target beat instruction");
   }
 
-  const generationCall = `    const result = await localModelGenerate(messages, "json", {\n      numPredict: 1536,\n      temperature: input.risk === "safe" ? 0.55 : 0.72,\n    });`;
-  const hotterCall = `    const result = await localModelGenerate(messages, "json", {\n      numPredict: 1536,\n      temperature: input.risk === "safe" ? 0.68 : 0.84,\n    });`;
-  if (text.includes(generationCall)) {
-    text = replaceOnce(text, generationCall, hotterCall, "creative generation temperature");
-  }
-
   const orderedLine = '  const ordered = [...input.beats].sort((a, b) => a.order - b.order);\n';
-  const contextDeclaration = '  const sequenceCreativeContext = buildSequenceCreativeContext(ordered);\n';
   if (!text.includes("const sequenceCreativeContext = buildSequenceCreativeContext(ordered);")) {
-    text = replaceOnce(text, orderedLine, orderedLine + "\n" + contextDeclaration, "full sequence context declaration");
+    text = replaceOnce(text, orderedLine, orderedLine + '\n  const sequenceCreativeContext = buildSequenceCreativeContext(ordered);\n', "full sequence context declaration");
   }
 
   const jobInput = `    const messages = buildMouthCandidateMessages({\n      ...input,\n      beats: [beat],\n      priorTexts: basePriorTexts,\n    });`;
@@ -89,11 +88,9 @@ function buildSequenceCreativeContext(beats: readonly MouthCandidateBeat[]): str
     text = replaceOnce(text, jobInput, jobInputWithContext, "pass full sequence context into beat job");
   }
 
-  const repairInput = `        messages[1]!.content +`;
-  if (!text.includes(repairInput)) throw new Error("repair message anchor missing");
-
   write(name, text);
 }
 
 patchMouth();
 console.log("AUTHOR MOUTH SEQUENCE CONTEXT UPGRADE APPLIED");
+console.log("FULL CREATIVE TRAJECTORY IS NOW VISIBLE TO EACH PER-BEAT LANGUAGE CALL.");
