@@ -42,6 +42,18 @@ function timeoutMs(): number {
     : 600000;
 }
 
+export function localModelConfig(): {
+  provider: "local";
+  model: string;
+  baseUrl: string;
+} {
+  return {
+    provider: "local",
+    model: modelName(),
+    baseUrl: baseUrl(),
+  };
+}
+
 function stripDataUrl(value: string): string {
   const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
   return match ? match[1] : value;
