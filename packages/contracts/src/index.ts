@@ -24,10 +24,5 @@ export * from "./experience/memorySpatialV17.js";
 export type { MediaAsset, MediaType } from "./media.js";
 export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";
-export * from "./authoringIntelligence.js";
 
-
-
-///CONTRACTS/EXPERIENCE/FOLDER AND CONTRACTS COGAUTHOR FOLDER 
 export * from "./experience/index.js";
-export * from "./cogauthor/index.js";
