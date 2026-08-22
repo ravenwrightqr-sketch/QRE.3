@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "author:fast": "tsx ./author-acceptance-suite.ts",
     "author:living-memory": "tsx ./author-living-memory-acceptance.ts",
-    "author:pet-social": "tsx ./author-pet-social-acceptance.ts"
+    "author:pet-social": "tsx ./author-pet-social-acceptance.ts",
+    "author:reality-typing": "tsx ./author-reality-typing-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
