@@ -12,11 +12,15 @@ function mapFactType(type: RealityFactType): ContractFactType {
     case "state": return "state";
     case "trait": return "trait";
     case "preference": return "preference";
+    case "activity": return "activity";
+    case "social_preference": return "social_preference";
     case "relationship": return "relationship";
     case "place": return "place";
     case "object": return "object";
     case "outcome": return "outcome";
     case "recurrence": return "recurrence";
+    case "goal": return "goal";
+    case "intention": return "intention";
     default: return "unknown";
   }
 }
@@ -53,6 +57,10 @@ const forbidden: AuthorRealityProvenance["forbiddenExpansions"] = [
   "invent_private_fact",
 ];
 
+function isActivityPhrase(text: string): boolean {
+  return /\b(?:long\s+walks?|night\s+walks?|daily\s+walks?|walks?|walking|played?|plays|eats?|eating|visits?|visiting|works?|working|travels?|traveling|calls?|calling|runs?|running|trains?|training|grooms?|grooming|swims?|swimming)\b/i.test(text);
+}
+
 export function buildRealityProvenance(
   text: string,
   source: Source,
@@ -61,7 +69,7 @@ export function buildRealityProvenance(
   const typed = typeRealityFact(text, options.subject ?? "");
   const factType = mapFactType(typed.type);
   const adjustedType: ContractFactType =
-    factType === "event" && /\b(?:walk|walking|played|plays|eats|eating|visits|visiting|works|working|travels|traveling|calls|calling)\b/i.test(text)
+    isActivityPhrase(text) && (factType === "event" || factType === "unknown")
       ? "activity"
       : factType;
 
