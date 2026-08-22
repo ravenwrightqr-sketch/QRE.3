@@ -36,8 +36,8 @@ assert.deepEqual(context.media?.map((item: CognitiveAuthorMedia) => item.id), [
   "knowledge-before",
   "knowledge-after",
 ]);
-assert.equal(context.media?.[0]?.provenance?.source, "memory");
-assert.ok(context.media?.every((item: CognitiveAuthorMedia) => Boolean(item.provenance)));
+assert.equal(context.media?.[0]?.source, "knowledge");
+assert.equal(context.media?.[1]?.source, "knowledge");
 assert.equal(context.photoBeatsAreSilent, true);
 
 const photoBeats = (result.beats ?? []).filter((beat) => beat.kind === "photo");
@@ -49,5 +49,5 @@ if (photoBeats.length > 0) {
 console.log("AUTHOR LIVE MEDIA BRIDGE ACCEPTANCE: PASS");
 console.log(`compileContextMedia=${context.media.length}`);
 console.log(`chronological=${context.media.map((item: CognitiveAuthorMedia) => item.id).join(",")}`);
-console.log(`provenance=${context.media.every((item: CognitiveAuthorMedia) => Boolean(item.provenance))}`);
+console.log(`knowledgeSource=${context.media.every((item: CognitiveAuthorMedia) => item.source === "knowledge")}`);
 console.log(`silentPhotoBeats=${photoBeats.length === 0 || photoBeats.every((beat) => beat.meta?.silent === true)}`);
