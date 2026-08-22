@@ -383,8 +383,6 @@ Never write:
 
 Those are internal notes, not the movie.
 
-Instead, show the concrete thing that makes the viewer experience the interpretation.
-
 Rule:
 
 SHOW THE MOVE.
@@ -568,5 +566,492 @@ Super Cog is successful when:
 - the payoff is earned
 - outputs remain short, fast, and scannable
 - the same mechanism works across pets, services, businesses, memories, events, commerce, and experiences
+
+That is the beast we are building.
+
+---
+
+# Operating Doctrine: How We Advance Super Cog
+
+This section is the engineering memory for the project. It records not only what exists, but how we decide what to add next.
+
+## The Real Product Boundary
+
+The final product is not the validator, the cognitive graph, or the Mouth in isolation.
+
+The final product is the sequence the person actually experiences on screen.
+
+Therefore all internal work must eventually improve at least one of:
+
+- the quality of the selected trajectory
+- the specificity of the realization
+- the next-screen pull
+- the earned payoff
+- the domain fit
+- the speed / simplicity of compilation
+- the user's desire to create another experience
+
+Internal scores are diagnostic instruments, not product goals.
+
+## Core Company-Level Rule
+
+Build the minimum number of strong primitives and make each primitive do one job extremely well.
+
+Prefer:
+
+ONE reality model
+ONE cognitive state
+ONE trajectory search
+ONE selected movie
+ONE lens stage
+ONE Mouth
+ONE truth gate
+ONE attention editor
+
+Avoid:
+
+- parallel brains
+- duplicate parsers
+- V2/V3 architecture copies
+- domain-specific forks of the core cognition
+- permanent memory structures for transient compilation needs
+- giant prompts that compensate for weak representation
+
+When a new capability appears, first ask:
+
+“Which existing primitive should become smarter?”
+
+Only create a new primitive when the responsibility genuinely does not belong anywhere that already exists.
+
+## Search Before Prose
+
+Super Cog should increasingly behave like a constrained search system rather than a prompt chain.
+
+The planning problem is:
+
+REALITY FACTS
+→ POSSIBLE NEXT MOVES
+→ STATE TRANSITIONS
+→ TRAJECTORIES
+→ RANKED MOVIES
+
+The Mouth is downstream of this search.
+
+The model should not be asked to simultaneously discover the movie, plan the movie, invent the language, and satisfy a large protocol.
+
+## Bounded Beam Principle
+
+Search should remain small and fast.
+
+Default target:
+
+- 4–8 trajectory candidates
+- 4–8 movie hypotheses after operation pairing
+- retain top 1–3 for diagnostic visibility
+- render only the selected winner
+
+Expand search only when reality is rich enough to justify it.
+
+Sparse input should not receive a giant search tree.
+
+Rich input should not be reduced to the first obvious fact chain.
+
+## Cognitive State Is a Search State
+
+Cognitive State should not merely document the chosen trajectory.
+
+It must help decide which candidate deserves to survive.
+
+At every search step track:
+
+- established facts
+- established states
+- current state
+- last event
+- unresolved question
+- next available grounded events
+- used details
+- unused promising details
+- transition quality
+- payoff potential
+- repetition risk
+
+A candidate should become stronger when the next event changes what the viewer can reasonably expect.
+
+A candidate should become weaker when it merely restates what was already understood.
+
+## Three-Layer Truth Model
+
+For future hardening, classify every meaningful claim as one of:
+
+OBSERVED
+Directly supplied by the source.
+
+DERIVED
+Logically supported by multiple supplied facts and traceable to them.
+
+INTERPRETED
+A creative framing of supplied or derived information that does not assert a new literal event.
+
+CREATED
+Language-level realization chosen to express an interpretation. It must still remain truth-safe.
+
+The system must never silently upgrade CREATED or INTERPRETED content into OBSERVED reality.
+
+This model is especially important for living memory, where a fluent sentence can accidentally turn an emotional inference into a factual relationship claim.
+
+## Living Memory Contract
+
+A living memory may feel emotional, romantic, intimate, funny, mysterious, or cinematic.
+
+It may NOT manufacture:
+
+- a relationship status
+- private feelings
+- dialogue
+- future promises
+- cohabitation
+- ownership
+- intimacy details
+- locations beyond those supplied
+- physical contact beyond what was supplied
+
+Example:
+
+Supplied:
+
+met at the local bar
+connected
+talked until close
+seen each other every day
+
+Allowed direction:
+
+The meeting became a pattern.
+
+Not automatically allowed:
+
+“We moved in together.”
+
+The second statement is a new factual event.
+
+## Pet Social Contract
+
+Pet social media is a first-class use case, not a toy benchmark.
+
+The user can supply sparse facts such as:
+
+- Coco
+- poodle
+- fierce
+- loves bacon
+- long walks at night
+- friendly
+- loves other dogs
+
+Cog should discover personality and social potential from the relationship among those facts.
+
+It may say that the supplied traits create a recognizable character.
+
+It may not manufacture:
+
+- a house
+- an owner
+- another pet
+- a neighborhood
+- a specific walk event
+- a stolen object
+- dialogue
+- physical features not supplied
+
+The objective is:
+
+FACTS
+→ CHARACTER PATTERN
+→ GROUNDED SOCIAL PREMISE
+→ FUN REALIZATION
+
+## Business / Service Contract
+
+Business data is still reality data.
+
+The business or service provider enters the facts.
+
+QRE organizes them.
+
+The creative layer may make the result memorable, but it must not infer customer identity or property context that was not provided.
+
+Examples:
+
+Housekeeping service:
+
+service facts → organized service play-out → client-facing artifact
+
+Law:
+
+submitted legal facts → exact data mode by default
+promotional mode only when explicitly requested
+
+Real estate:
+
+supplied property/listing facts → cinematic listing experience
+never infer homeowner, Airbnb, tenant, or seller relationship without evidence
+
+The same reality graph can power all of these. The domain ontology changes the interpretation space.
+
+## Lens Is a Post-Decision Transformation
+
+Lens should never rescue a weak movie.
+
+The order is:
+
+1. discover the strongest grounded trajectory
+2. decide what movie it is
+3. decide whether a lens materially improves it
+4. apply lens pressure
+5. realize one movie
+
+A lens is successful when it makes the selected movie more distinctive without creating new facts.
+
+## Validator Repair Loop
+
+Validation should eventually output two things:
+
+1. why the candidate failed
+2. what kind of grounded move could repair it
+
+Example:
+
+FAILURE:
+unsupported_object
+
+REPAIR CLASS:
+remove literal prop; preserve the intended emphasis through an existing supplied fact
+
+FAILURE:
+unsupported_relationship
+
+REPAIR CLASS:
+remove relationship claim; express recurrence/proximity without asserting relationship status
+
+FAILURE:
+weak_next_beat_pull
+
+REPAIR CLASS:
+use an unused supplied event that changes the expectation
+
+This makes rejection data useful to the upstream planner and eventually to offline evaluation/learning.
+
+## Boringness Is Its Own Failure
+
+A candidate can be factually correct and still be bad.
+
+Add a distinct boredom / mechanicality signal for:
+
+- direct fact parade
+- same grammatical structure repeatedly
+- no state change
+- no unresolved question
+- no meaningful reframe
+- obvious ending with no setup
+- generic emotional summary
+- lens label disguised as prose
+
+The goal is not maximum novelty.
+
+The goal is maximum **earned movement per screen**.
+
+## Progress Metric
+
+Do not use “PASS” as the final quality metric.
+
+Track at least:
+
+TRUTH
+CHRONOLOGY
+TRAJECTORY
+STATE CHANGE
+NEXT-BEAT PULL
+SPECIFICITY
+NOVELTY
+PAYOFF CONNECTION
+DOMAIN FIT
+RENDERABILITY
+
+A release-quality experience should be strong across the full vector, not merely above a single aggregate score.
+
+## Golden Acceptance Families
+
+Maintain a small number of high-value behavioral tests:
+
+### Core cross-domain
+Pet grooming, housekeeping, lawyer, restaurant, real estate, mechanic, wedding, person, plus differentiation.
+
+### Living memory
+Sparse personal events that contain a meaningful temporal relationship.
+
+### Pet social
+Sparse personality facts that must become fun without invented biography.
+
+### Truth torture
+Inputs designed specifically to lure the Mouth into inventing props, rooms, body details, relationships, dialogue, or chronology.
+
+### Lens torture
+Same supplied reality rendered through multiple lenses. Outputs must differ in framing while preserving the same factual substrate.
+
+### Sparse-data test
+Only two or three facts. Cog must avoid hallucination while still finding a possible movie.
+
+### Rich-data test
+Many supplied events. Cog must avoid flattening them into a fact parade and must search for the strongest relationship chain.
+
+## Next-Level Roadmap
+
+### Phase A — Stabilize the search
+
+- merge Cognitive State and bounded trajectory search cleanly
+- ensure trajectory candidates remain chronological
+- expose trajectory diagnostics
+- compare selected trajectory against a boring baseline
+- preserve nine-domain acceptance suite
+
+### Phase B — Make the planner smarter
+
+- explicit unresolved-question scoring
+- state-transition scoring
+- unused-detail opportunity scoring
+- retrospective-payoff scoring
+- trajectory diversity / novelty pruning
+- candidate dominance pruning
+
+### Phase C — Make the Mouth elite
+
+- one selected movie only
+- minimal grounded payload
+- lens-aware but truth-closed realization
+- repair/fallback renderer
+- specialized compression for sparse facts
+- style adaptation without changing world facts
+
+### Phase D — Make learning real
+
+- store aggregate rejection patterns, not raw private prose by default
+- track accepted/rejected trajectory characteristics
+- learn domain-native preferences
+- learn which operations work on which reality structures
+- learn which lens pressures improve outcomes
+
+### Phase E — Expand the world model
+
+- stronger event segmentation
+- explicit entity graph
+- provenance graph
+- recurring-detail detection
+- temporal interval representation
+- domain ontologies
+- paying-entity / service-entity separation
+
+### Phase F — Product intelligence
+
+- one-sentence input → automatic mode selection
+- structured data entry → same brain
+- living memory → same brain
+- pet social → same brain
+- service receipt → same brain
+- promotional media → same brain
+- CTA generation only after play-out quality is established
+
+## Quicker / Easier / Better Rules
+
+Prefer deterministic preprocessing for:
+
+- fact splitting
+- chronology ordering
+- duplicate detection
+- provenance
+- entity extraction
+- domain detection
+- exact ending extraction
+
+Use the model for:
+
+- ambiguous semantic relationships
+- trajectory interpretation
+- creative framing
+- concise realization
+
+Do not spend model tokens proving things that code can prove cheaply.
+
+Do not make the 8B model solve JSON protocol problems that a deterministic serializer can solve.
+
+Do not call the model again merely because a candidate failed a mechanical constraint if code can repair that constraint without changing meaning.
+
+Do not lower a truth gate to increase acceptance.
+
+Do not add a new subsystem when a scoring function or contract field inside the existing cognition module solves the problem.
+
+## Company-Level Product Test
+
+Before calling an upgrade “done,” ask:
+
+Would I ship this if this were my company and thousands or millions of people were creating memories and business experiences through it?
+
+Would the result:
+
+- preserve their truth?
+- save their time?
+- feel surprisingly personal?
+- work without training?
+- work across domains?
+- get better as we accumulate evidence?
+- remain understandable to engineers six months later?
+- remain fast enough to feel immediate?
+
+If not, the upgrade is not finished.
+
+## Current Strategic Principle
+
+The system is moving from:
+
+PROMPT → PROSE
+
+toward:
+
+REALITY → SEARCH → MEANING → MOVIE → REALIZATION
+
+That is the central evolution of Super Cog.
+
+The Mouth should increasingly become the smallest and least important intelligent component.
+
+The deepest intelligence belongs upstream in representation, trajectory search, state transitions, provenance, and grounded selection.
+
+## Working Memory Update Rule
+
+Whenever a major architectural decision is made, update this document with:
+
+- what changed
+- why it changed
+- what remains non-negotiable
+- what evidence motivated it
+- what the next measurable test is
+
+This document is the durable project memory for Super Cog evolution.
+
+## Definition of Done
+
+Super Cog is successful when:
+
+- ordinary supplied reality can become a compelling short movie
+- multiple hypotheses genuinely differ in causal trajectory
+- the selected movie is domain-native
+- the lens improves framing without changing facts
+- the Mouth realizes the movie rather than explaining it
+- chronology remains intact
+- unsupported details never survive
+- each beat creates the next question or changes the current meaning
+- the payoff is earned
+- outputs remain short, fast, and scannable
+- the same mechanism works across pets, services, businesses, memories, events, commerce, and experiences
+- quality improves through evidence and feedback rather than architecture sprawl
 
 That is the beast we are building.
