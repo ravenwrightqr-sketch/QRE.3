@@ -12,7 +12,8 @@
     "author:pet-social": "tsx ./author-pet-social-acceptance.ts",
     "author:reality-typing": "tsx ./author-reality-typing-acceptance.ts",
     "author:domain-cognition": "tsx ./author-domain-cognition-acceptance.ts",
-    "author:domain-movie": "tsx ./author-domain-movie-acceptance.ts"
+    "author:domain-movie": "tsx ./author-domain-movie-acceptance.ts",
+    "author:provenance": "tsx ./author-provenance-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
