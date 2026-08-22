@@ -55,6 +55,13 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 - `apps/api/src/services/authorMovieBeatPlan.ts` — deterministic media/timeline organizer.
 - `apps/api/src/services/experienceService.ts` — consumes MovieBeatPlan and renders runtime scenes.
 
+### Media bridge
+
+- `packages/contracts/src/media.ts` — shared MediaAsset contract used by runtime/media layers.
+- `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — media evidence channel for Cognition.
+- `apps/api/src/services/authorMediaBridge.ts` — normalizes supplied media, preserves observed timestamps/roles, attaches provenance, and orders evidence chronologically for Cognition/Beat planning.
+- `apps/api/author-media-context-acceptance.ts` — proves media normalization, chronology, roles, and provenance attachment.
+
 ### Learning and write-back
 
 - `apps/api/src/services/authorLearningLoop.ts` — universal authoring input → memory projection + analytics learning signal.
@@ -112,11 +119,11 @@ better next experience
 
 **Do these in order. Do not advance to the next layer until the current layer has a passing acceptance.**
 
-### 1. Live media ingestion bridge — TODO
+### 1. Live media ingestion bridge — PARTIAL
 
-The contract already supports `CognitiveAuthorContext.media` and silent photo beats. The live compile path currently provides `media: []`.
+The contract and canonical normalization module now exist. `authorMediaBridge.ts` normalizes supplied media, preserves chronology/role metadata, and attaches provenance. The live `experienceService` hookup is still required.
 
-Required:
+Required production path:
 
 ```text
 uploaded / supplied media
@@ -127,6 +134,8 @@ uploaded / supplied media
 → silent media beats
 → Player
 ```
+
+Acceptance currently proves normalization; the remaining acceptance must prove an actual media item entering the live compile path and becoming a playable silent media beat.
 
 ### 2. Live provenance-context bridge — TODO
 
@@ -141,6 +150,8 @@ IdentityState / typed evidence
 → Mouth
 → Provenance Gate
 ```
+
+Acceptance must prove an actual grounded fact carries provenance into the live author call and an unsupported object/place/person remains rejected.
 
 ### 3. Universal input-route learning — TODO
 
@@ -245,19 +256,13 @@ The lens may change framing, tone, emphasis, implication, and genre. It may not 
 
 ```text
 author:fast               → universal author stability
-
 author:cognitive-context  → context packet completeness
-
+author:media-context      → media normalization + chronology + provenance
 author:provenance         → provenance permissions
-
 author:provenance-gate    → reality firewall
-
 author:domain-cognition   → domain evidence/tension layer
-
 author:domain-movie       → domain opportunity → movie bridge
-
 author:movie-beat-plan    → timeline/media planning
-
 author:movie-pipeline     → Mouth → MovieBeatPlan
 author:full-circle        → author → timeline → runtime shape
 author:learning-loop      → input → memory + analytics + identity isolation
