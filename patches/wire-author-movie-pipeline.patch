@@ -1,15 +1,31 @@
 diff --git a/apps/api/src/services/experienceService.ts b/apps/api/src/services/experienceService.ts
 --- a/apps/api/src/services/experienceService.ts
 +++ b/apps/api/src/services/experienceService.ts
-@@ -9,7 +9,7 @@ import { createPresenceRepository } from "../repositories/presenceRepository.js";
- import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
- import { buildAuthorIdentityState } from "./authorIdentityState.js";
- import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
+@@ -15,1 +15,1 @@
 -import { authorBrainUniversal } from "./authorBrainUniversal.js";
 +import { authorMoviePipeline } from "./authorMoviePipeline.js";
-@@ -281,32 +281,39 @@ export async function compileExperience(input: {
-   };
- 
+@@ -52,19 +52,0 @@
+-function sceneKindToBeatKind(
+-  kind: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" | "photo" | undefined,
+-): ExperienceBeat["kind"] {
+-  switch (kind) {
+-    case "photo":
+-      return "photo";
+-    case "payoff":
+-      return "payoff";
+-    case "turn":
+-      return "turn";
+-    case "afterglow":
+-      return "afterglow";
+-    case "hook":
+-    case "discovery":
+-      return "reveal";
+-    default:
+-      return "jolt";
+-  }
+-}
+-
+@@ -427,35 +427,40 @@
    try {
 -    const authored = await authorBrainUniversal(authorInput);
 +    const { authored, movieBeatPlan } = await authorMoviePipeline(authorInput);
@@ -23,17 +39,16 @@ diff --git a/apps/api/src/services/experienceService.ts b/apps/api/src/services/
 -        id: `author-beat-${index + 1}`,
 -        text: scene.kind === "photo" ? "" : scene.text,
 -        kind: sceneKindToBeatKind(scene.kind),
--        order: index + 1,
--        attentionRole: scene.kind ?? "movement",
--        callback: scene.kind === "turn",
--        durationHintMs: 1200,
--        media: scene.media,
 +    if (movieBeatPlan.beats.length > 0 && qualityStatus === "ACCEPTED") {
 +      const beats: ExperienceBeat[] = movieBeatPlan.beats.map((planned, index) => ({
 +        id: planned.id,
 +        text: planned.kind === "photo" ? "" : String(planned.text ?? ""),
 +        kind: planned.kind === "photo" ? "photo" : planned.kind === "cta" ? "afterglow" : "jolt",
-+        order: index + 1,
+         order: index + 1,
+-        attentionRole: scene.kind ?? "movement",
+-        callback: scene.kind === "turn",
+-        durationHintMs: 1200,
+-        media: scene.media,
 +        attentionRole: planned.attentionRole ?? planned.kind,
 +        callback: planned.kind === "cta",
 +        durationHintMs: planned.durationHintMs ?? (planned.kind === "photo" ? 1700 : 1400),
@@ -54,4 +69,6 @@ diff --git a/apps/api/src/services/experienceService.ts b/apps/api/src/services/
        }));
  
        compiled = applyAuthorBeats(compiled, beats);
-*** End Patch
+@@ -461,1 +466,1 @@
+-    warnings.push("author_brain_unavailable");
++    warnings.push("author_movie_pipeline_unavailable");
