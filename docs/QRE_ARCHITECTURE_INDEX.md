@@ -11,9 +11,9 @@ Start here before changing QRE. This is the fast architectural map: **what, wher
 | `@qre/contracts` | Shared shapes and canonical analytics event names | Runtime decisions or persistence |
 | Engine cognition | Reality typing, world/context cognition | Database persistence |
 | `IdentityState` | Accumulated identity/world state | Creative wording |
-| `CognitiveAuthorContext` | One structured author packet | Persistence or timeline decisions |
+| `CognitiveAuthorContext` | One structured author packet, including creative-safety classification | Persistence or timeline decisions |
 | Universal Author / Super Cog | Meaning selection, movie trajectory, creative competition | New factual reality |
-| Mouth | Grounded wording | Timeline ownership or reality authority |
+| Mouth | Grounded wording and realization | Timeline ownership or reality authority |
 | Provenance Gate | Reality enforcement | Creative preference |
 | `MovieBeatPlan` | One playable timeline + media order | Authoring persistence |
 | `ExperienceService` | Orchestration + runtime scene conversion | Competing author/timeline logic |
@@ -21,6 +21,7 @@ Start here before changing QRE. This is the fast architectural map: **what, wher
 | `AnalyticsRepository` | Durable observed behavior/outcomes | Durable factual reality |
 | `CreativeLearning` | Accepted/rejected creative signals + autonomous patterns | Factual truth |
 | Media bridge | Storage representation → `CognitiveAuthorMedia` | Media storage ownership |
+| Creative safety classifier | Semantic protected-context classification | Rendering, memory, or lens ownership |
 
 ## Canonical loop
 
@@ -29,7 +30,7 @@ input
 → reality typing / provenance
 → Memory + Geo + Presence + Analytics + Media + Domain Cognition
 → IdentityState
-→ CognitiveAuthorContext
+→ CognitiveAuthorContext + Creative Safety
 → Super Cog / Universal Author
 → Mouth
 → Provenance Gate
@@ -47,9 +48,9 @@ input
 ### Identity / context
 
 - `apps/api/src/services/authorIdentityState.ts` — composes memory, analytics, presence, creative learning, domain state, recurrence, and context.
-- `apps/api/src/services/authorCognitiveContext.ts` — builds the single author packet.
+- `apps/api/src/services/authorCognitiveContext.ts` — builds the single author packet and carries creative-safety state.
 - `packages/contracts/src/cogauthor/identityState.ts` — IdentityState contract.
-- `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — author packet contract.
+- `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — author packet contract, including `creativeSafety`.
 
 ### Reality / provenance
 
@@ -57,6 +58,13 @@ input
 - `apps/api/src/services/authorProvenanceSource.ts` — live IdentityState → provenance facts.
 - `apps/api/src/services/authorProvenanceGate.ts` — rendered-line reality firewall.
 - `packages/contracts/src/cogauthor/realityProvenance.ts` — permissions + forbidden expansions.
+
+### Creative safety / adaptation
+
+- `apps/api/src/services/authorCreativeSafetyContext.ts` — semantic-first protected-context classifier. Consumes structured cognitive plan/premise signals; raw memorial terminology exists only as an emergency backstop.
+- `apps/api/src/services/authorCreativeLearningPressure.ts` — bounded learned-lens preference pressure.
+- `apps/api/src/services/authorMoviePipeline.ts` — attaches creative safety to the canonical author context and prevents learned/explicit incompatible genre selection for protected contexts.
+- `apps/api/src/services/authorBrainUniversal.ts` — converts protected memorial context into a neutral, continuity-first realization before model generation.
 
 ### Media
 
@@ -73,12 +81,10 @@ input
 - `apps/api/src/services/authorOutcomeLearning.ts` — canonical analytics event → `AnalyticsOutcomeKind` classification.
 - `apps/api/src/services/autonomousLearning.ts` — behavioral winners/weaknesses from existing analytics outcomes.
 - `apps/api/src/services/creativeLearning.ts` — explicit + autonomous creative learning context.
-- `apps/api/src/services/authorCreativeLearningPressure.ts` — bounded learned-lens preference plus protected-context safety classification.
-- `apps/api/src/services/authorMoviePipeline.ts` — applies learned lens preference only when neutral/default; protected memorial contexts force `neutral` before the Author Brain sees any genre request.
 - `apps/api/author-learning-loop-acceptance.ts` — input → memory + analytics + identity isolation.
 - `apps/api/author-knowledge-learning-acceptance.ts` — deterministic Knowledge evidence → learning authority.
 - `apps/api/author-outcome-learning-acceptance.ts` — canonical behavioral outcome normalization.
-- `apps/api/author-adaptive-learning-acceptance.ts` — learned preference → next selected lens, plus protected memorial safety; explicit intent and reality remain authoritative outside protected contexts.
+- `apps/api/author-adaptive-learning-acceptance.ts` — learned preference → next selected lens, protected memorial safety, explicit intent, and reality preservation.
 
 ### Movie / Mouth
 
@@ -107,13 +113,15 @@ known memory-route learning bypass
 Knowledge deterministic learning
 canonical outcome taxonomy
 adaptive learned-lens consumer
-memorial protected-context lens safety
+protected memorial realization rail
 universal author regression suite
 ```
 
 ### IN PROGRESS
 
 ```text
+semantic safety classification wired into the direct author pipeline
+full compileExperience → cognitive-plan → creativeSafety production seam
 all user/guest/staff reality-input route audit
 real runtime outcome → IdentityState → next-experience proof
 true candidate-level learned-pressure competition
@@ -138,7 +146,7 @@ runtime outcome
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
 → bounded learned-lens preference
-→ protected-context safety check
+→ Creative Safety
 → existing authorMovieCognition
 → Mouth
 ```
@@ -149,10 +157,12 @@ Current consumer behavior is intentionally conservative:
 - explicit non-neutral lens intent outranks learned preference in ordinary contexts;
 - rejected/avoided lenses cannot become learned winners;
 - creative learning cannot alter the reality/provenance packet;
-- memorial/tribute/funeral/grief contexts are a protected semantic class and force `neutral`; learned or explicit incompatible genre requests cannot turn them into spy/heist/horror/etc.;
-- the current preference is a bounded injection into the existing lens choice, not yet candidate-by-candidate hypothesis re-ranking.
+- protected memorial/tribute contexts force a continuity-first neutral realization and cannot become spy/heist/horror/deadpan/etc.;
+- semantic safety is based on structured cognitive plan/premise signals when available;
+- raw memorial terminology is only an emergency backstop and is not the long-term classifier authority;
+- the current learned preference is bounded and not yet candidate-by-candidate hypothesis re-ranking.
 
-**Next hardening step:** move learned pressure into the existing `authorMovieCognition` hypothesis scoring itself, without adding another lens engine.
+**Next hardening step:** wire `compiled.cognition.plan`/premise into `CognitiveAuthorContext.creativeSafety` inside the live `compileExperience()` seam, then move learned pressure into existing `authorMovieCognition` hypothesis scoring.
 
 ## Known architecture cleanup target
 
@@ -175,7 +185,7 @@ author:live-provenance      live provenance → author
 author:learning-loop        accepted input → memory + analytics + isolation
 author:knowledge-learning   explicit Knowledge → learning authority
 author:outcome-learning     canonical outcome normalization
-author:adaptive-learning    learned preference + memorial safety
+author:adaptive-learning    learned preference + protected memorial safety
 
 author:movie-beat-plan      timeline/media selection
 author:movie-pipeline       Mouth → MovieBeatPlan
@@ -189,7 +199,7 @@ USER INPUT
 → Reality / Provenance
 → Memory + Geo + Presence + Analytics + Media
 → IdentityState
-→ CognitiveAuthorContext
+→ CognitiveAuthorContext + Creative Safety
 → Super Cog
 → Mouth
 → Provenance Gate

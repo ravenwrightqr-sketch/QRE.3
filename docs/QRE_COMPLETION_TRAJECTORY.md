@@ -16,11 +16,12 @@ Do not add another brain, timeline owner, persistence system, or lens system whi
 - Knowledge deterministic evidence → AuthorLearningLoop.
 - Canonical behavioral outcome taxonomy.
 - Learned-lens consumer inside the existing author pipeline.
-- Protected memorial-context lens safety at the author boundary.
+- Protected memorial-context realization rail at the Author Brain boundary.
 - Universal author regression suite.
 
 ### IN PROGRESS
 
+- Semantic creative-safety classification wired into the direct author pipeline; live `compileExperience()` must still feed its structured cognitive plan/premise into the canonical safety context.
 - Complete audit of every user/guest/staff reality-bearing input route.
 - Real runtime outcome → IdentityState → materially different next experience proof.
 - True candidate-level learned-pressure competition inside `authorMovieCognition`.
@@ -38,7 +39,7 @@ runtime outcome
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
 → authorCreativeLearningPressure
-→ protected-context safety check
+→ semantic Creative Safety
 → learned preferred lens when neutral/default
 → existing authorMovieCognition
 → Mouth
@@ -50,10 +51,11 @@ Rules:
 - ordinary explicit non-neutral lens intent wins;
 - rejected/avoided lenses cannot become learned winners;
 - creative learning never changes reality or provenance;
-- memorial / tribute / funeral / grief contexts are protected and force `neutral` before genre choice reaches the Author Brain;
+- memorial / tribute / funeral / grief contexts are protected and force a continuity-first neutral realization before genre choice reaches the Author Brain;
+- the preferred safety signal comes from structured cognitive plan/premise semantics; raw terminology is only an emergency backstop;
 - no second lens engine is introduced.
 
-The current acceptance proves the consumer bridge and the memorial veto. It does **not** yet prove true candidate-level re-ranking or the full persisted Movie A → outcome → Movie B loop.
+The current acceptance proves the consumer bridge and the memorial safety rail. It does **not** yet prove the live compileExperience semantic seam, true candidate-level re-ranking, or the full persisted Movie A → outcome → Movie B loop.
 
 Acceptance:
 
@@ -180,7 +182,7 @@ USER INPUT
 → Reality / Provenance
 → Memory + Geo + Presence + Analytics + Media
 → IdentityState
-→ CognitiveAuthorContext
+→ CognitiveAuthorContext + Creative Safety
 → Super Cog
 → Mouth
 → Provenance Gate

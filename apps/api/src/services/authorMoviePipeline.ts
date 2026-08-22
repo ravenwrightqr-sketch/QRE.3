@@ -1,35 +1,46 @@
 import type { AuthorBrainTruth, AuthorResult, MovieBeatPlan } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
-import { isMemorialContext, resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
+import { resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
 import { buildMovieBeatPlan } from "./authorMovieBeatPlan.js";
+import {
+  classifyAuthorCreativeSafety,
+  isProtectedCreativeContext as isSemanticProtectedContext,
+} from "./authorCreativeSafetyContext.js";
 
 export async function authorMoviePipeline(input: AuthorBrainTruth & {
   cta?: { text: string; sourceIds?: string[] };
   presentationMode?: "auto" | "manual";
 }): Promise<{ authored: AuthorResult; movieBeatPlan: MovieBeatPlan }> {
   const explicitLens = String(input.lens ?? "").trim().toLowerCase();
-  const memorial = isMemorialContext([
-    input.prompt,
-    input.subject,
-    input.place,
-    ...(input.facts ?? []),
-    ...(input.sourceMoments ?? []),
-    ...(input.memoryContext ?? []),
-    ...(input.trajectory ?? []),
-    ...(input.presenceSummary ?? []),
-  ]);
+  const safety = classifyAuthorCreativeSafety({
+    cognitivePlan: input.cognitivePlan,
+    premise: input.cognitivePlan?.premise,
+    backstopText: [
+      input.prompt,
+      input.subject,
+      input.place,
+      ...(input.facts ?? []),
+      ...(input.sourceMoments ?? []),
+      ...(input.memoryContext ?? []),
+      ...(input.trajectory ?? []),
+      ...(input.presenceSummary ?? []),
+    ],
+  });
+  const cognitiveContext = {
+    ...(input.cognitiveContext ?? {}),
+    creativeSafety: safety,
+  };
+  const protectedContext = isSemanticProtectedContext(cognitiveContext);
 
-  // Memorial/tribute contexts are a hard semantic safety class. They must not
-  // inherit an incompatible learned or explicitly requested genre lens.
-  const learnedLens = memorial || (explicitLens && explicitLens !== "neutral")
+  const learnedLens = protectedContext || (explicitLens && explicitLens !== "neutral")
     ? undefined
-    : resolveLearnedCreativeLens(input.cognitiveContext);
+    : resolveLearnedCreativeLens(cognitiveContext);
 
-  const authorInput: AuthorBrainTruth = memorial
-    ? { ...input, lens: "neutral" }
+  const authorInput: AuthorBrainTruth = protectedContext
+    ? { ...input, lens: "neutral", cognitiveContext }
     : learnedLens
-      ? { ...input, lens: learnedLens }
-      : input;
+      ? { ...input, lens: learnedLens, cognitiveContext }
+      : { ...input, cognitiveContext };
 
   const authored = await authorBrainUniversal(authorInput);
   const movieBeatPlan = buildMovieBeatPlan({
