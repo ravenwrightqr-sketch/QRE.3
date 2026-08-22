@@ -201,6 +201,30 @@ ORPHAN
 
 Names containing `enterprise`, `monster`, `v2`, `v3`, `final`, or `fixed` do not confer authority.
 
+## 10A. ASSET IDENTITY / LEARNING SCOPE
+
+QRE has a strict distinction between administrative scope and creative identity scope.
+
+The physical QRE art piece is an `Asset`. `Asset.ownerId`, `Asset.accountId`, `User`, and `AccountUser` define ownership, administration, and organizational membership. They do **not** silently define a shared creative identity.
+
+Current canonical rule:
+
+```text
+administration / ownership
+    ≠
+creative learning identity
+```
+
+For the current schema, `Asset.id` is the explicit identity boundary for asset-scoped creative learning. `creativeLearning.ts` and `autonomousLearning.ts` must therefore remain scoped to the requested asset and must not aggregate other assets merely because they share an owner, user, or account.
+
+A real-estate brokerage, enterprise team, or other organization may legitimately administer many users' assets without merging those assets' creative learning.
+
+The current schema has **no first-class `identityId` or `worldId` above Asset**. Any future shared-world behavior across multiple physical assets must be modeled as an explicit domain relationship; it must not be inferred from `accountId` or `ownerId`.
+
+Canonical detail and regression requirements live in:
+
+`docs/ASSET_IDENTITY_AND_LEARNING_SCOPE.md`
+
 ## 11. DEFINITION OF DONE
 
 The Author is production-ready when unfamiliar reality can travel through one coherent path:
