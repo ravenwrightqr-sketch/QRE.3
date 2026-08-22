@@ -50,16 +50,19 @@ function factSupportsLine(line: string, fact: GateFact): boolean {
   const factTokens = tokens(fact.text);
   if (!lineTokens.size || !factTokens.size) return false;
 
-  // A subject-prefixed realization such as "Coco loves bacon" is still
-  // grounded by the source fact "loves bacon" because the complete fact
-  // phrase is contained in the generated line.
   const factContained = [...factTokens].every((token) => lineTokens.has(token));
   return factContained || overlap(line, fact.text) >= 0.6;
 }
 
+function explicitTermOverlap(line: string, factText: string, pattern: RegExp): boolean {
+  const flags = pattern.flags.replace("g", "");
+  const lineMatches = line.match(new RegExp(pattern.source, `${flags}g`)) ?? [];
+  const factMatches = factText.match(new RegExp(pattern.source, `${flags}g`)) ?? [];
+  const factTerms = new Set(factMatches.map((value) => value.toLowerCase()));
+  return lineMatches.some((value) => factTerms.has(value.toLowerCase()));
+}
+
 function isPreferenceUse(line: string, match: string): boolean {
-  // A preference like "loves bacon" is not an object invention merely
-  // because the preferred thing is also physically describable.
   return match.toLowerCase() === "bacon" && PREFERENCE.test(line);
 }
 
@@ -73,11 +76,16 @@ function hasForbiddenKind(
   if (!match) return false;
   if (expansion === "invent_object" && isPreferenceUse(line, match)) return false;
 
-  const supporting = facts.some(
-    (fact) =>
-      factSupportsLine(line, fact) &&
-      !provenanceForbids(fact.provenance, expansion),
-  );
+  const supporting = facts.some((fact) => {
+    if (provenanceForbids(fact.provenance, expansion)) return false;
+
+    if (expansion === "invent_place" && explicitTermOverlap(line, fact.text, PLACE)) return true;
+    if (expansion === "invent_object" && explicitTermOverlap(line, fact.text, OBJECT)) return true;
+    if (expansion === "invent_person" && explicitTermOverlap(line, fact.text, PERSON)) return true;
+    if (expansion === "invent_body_detail" && explicitTermOverlap(line, fact.text, BODY)) return true;
+
+    return factSupportsLine(line, fact);
+  });
 
   return !supporting;
 }
