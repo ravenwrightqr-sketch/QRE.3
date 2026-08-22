@@ -1,10 +1,20 @@
 import type { AuthorBrainTruth } from "@qre/contracts";
+import { typeRealityFact, type RealityFactType } from "./authorRealityTyping.js";
 
 type MovieOperation = "contrast" | "reframe" | "reversal" | "amplification" | "echo" | "enclosure" | "reveal" | "implication";
 type RelationshipKind = "chronology" | "transition" | "contrast" | "overlap" | "recurrence" | "continuation";
 type LensId = "neutral" | "noir" | "heist" | "courtroom" | "spy" | "horror" | "deadpan" | "absurd" | "romance" | "military" | "mockumentary" | "game";
 
-type RealityFact = { text: string; index: number; novelty: number; action: boolean; state: boolean; recurring: boolean };
+type RealityFact = {
+  text: string;
+  index: number;
+  novelty: number;
+  action: boolean;
+  state: boolean;
+  recurring: boolean;
+  type: RealityFactType;
+  typeConfidence: number;
+};
 type RealityRelationship = { from: number; to: number; kind: RelationshipKind; strength: number; reason: string };
 type MovieLens = { id: LensId; pressure: string; fit: number; moves: string[] };
 type TrajectoryCandidate = {
@@ -16,6 +26,7 @@ type TrajectoryCandidate = {
   opportunity: number;
   payoffPotential: number;
   baselineLift: number;
+  personalityCoherence: number;
   score: number;
 };
 
@@ -93,65 +104,50 @@ function splitFacts(input: AuthorBrainTruth): string[] {
   }));
 }
 
-function rankFacts(facts: string[], ending: string): RealityFact[] {
-  return facts.map((text, index) => ({
-    text,
-    index,
-    novelty: metric(
-      0.22 +
-        Math.min(0.28, tokens(text).size * 0.045) +
+function rankFacts(facts: string[], ending: string[], subject = ""): RealityFact[] {
+  return facts.map((text, index) => {
+    const typed = typeRealityFact(text, subject);
+    return {
+      text,
+      index,
+      novelty: metric(
+        0.22 + Math.min(0.28, tokens(text).size * 0.045) +
         (ACTION.test(text) ? 0.16 : 0) +
         (STATE.test(text) ? 0.1 : 0) +
         (CONTRAST.test(text) ? 0.08 : 0) +
         (RECURRENCE.test(text) ? 0.12 : 0) +
-        (ending && overlap(text, ending) > 0.08 ? 0.05 : 0),
-    ),
-    action: ACTION.test(text),
-    state: STATE.test(text),
-    recurring: RECURRENCE.test(text) || facts.slice(index + 1).some((candidate) => overlap(text, candidate) >= 0.75),
-  }));
+        (typed.type === "trait" || typed.type === "preference" ? 0.08 : 0) +
+        (typed.type === "relationship" ? 0.06 : 0) +
+        (ending.some((item) => overlap(text, item) > 0.08) ? 0.05 : 0),
+      ),
+      action: ACTION.test(text),
+      state: STATE.test(text),
+      recurring: RECURRENCE.test(text) || facts.slice(index + 1).some((candidate) => overlap(text, candidate) >= 0.75),
+      type: typed.type,
+      typeConfidence: typed.confidence,
+    };
+  });
 }
 
 function makeRelationships(facts: RealityFact[]): RealityRelationship[] {
   const ordered = [...facts].sort((a, b) => a.index - b.index);
   const relationships: RealityRelationship[] = [];
-  for (let i = 0; i < ordered.length; i += 1) {
-    for (let j = i + 1; j < ordered.length; j += 1) {
-      const a = ordered[i]!;
-      const b = ordered[j]!;
-      const shared = overlap(a.text, b.text);
-      const changedState = a.state !== b.state || (a.state && b.action) || (a.action && b.state);
-      let kind: RelationshipKind = "chronology";
-      let strength = 0.5;
-      let reason = "The facts form an ordered sequence.";
-      if (a.recurring || b.recurring) {
-        kind = "recurrence";
-        strength = 0.92;
-        reason = "A supplied detail or state returns.";
-      } else if (a.action && b.state) {
-        kind = "transition";
-        strength = 0.94;
-        reason = "An observed action precedes a supplied state change.";
-      } else if (changedState) {
-        kind = "transition";
-        strength = 0.82;
-        reason = "The later fact changes the earlier state.";
-      } else if (shared >= 0.45) {
-        kind = "overlap";
-        strength = 0.74 + Math.min(0.18, shared * 0.35);
-        reason = "The facts share a concrete detail.";
-      } else if (CONTRAST.test(`${a.text} ${b.text}`) || (a.state && b.state)) {
-        kind = "contrast";
-        strength = 0.74;
-        reason = "The supplied facts create an opposing or changed read.";
-      } else if (CAUSAL.test(b.text)) {
-        kind = "continuation";
-        strength = 0.7;
-        reason = "The later supplied fact contains continuation language.";
-      }
-      if (j === i + 1) strength += 0.08;
-      relationships.push({ from: a.index, to: b.index, kind, strength: metric(strength), reason });
-    }
+  for (let i = 0; i < ordered.length; i += 1) for (let j = i + 1; j < ordered.length; j += 1) {
+    const a = ordered[i]!;
+    const b = ordered[j]!;
+    const shared = overlap(a.text, b.text);
+    const changedState = a.state !== b.state || (a.state && b.action) || (a.action && b.state);
+    let kind: RelationshipKind = "chronology";
+    let strength = 0.5;
+    let reason = "The facts form an ordered sequence.";
+    if (a.recurring || b.recurring) { kind = "recurrence"; strength = 0.92; reason = "A supplied detail or state returns."; }
+    else if (a.action && b.state) { kind = "transition"; strength = 0.94; reason = "An observed action precedes a supplied state change."; }
+    else if (changedState) { kind = "transition"; strength = 0.82; reason = "The later fact changes the earlier state."; }
+    else if (shared >= 0.45) { kind = "overlap"; strength = 0.74 + Math.min(0.18, shared * 0.35); reason = "The facts share a concrete detail."; }
+    else if (CONTRAST.test(`${a.text} ${b.text}`) || (a.state && b.state)) { kind = "contrast"; strength = 0.74; reason = "The supplied facts create an opposing or changed read."; }
+    else if (CAUSAL.test(b.text)) { kind = "continuation"; strength = 0.7; reason = "The later supplied fact contains continuation language."; }
+    if (j === i + 1) strength += 0.08;
+    relationships.push({ from: a.index, to: b.index, kind, strength: metric(strength), reason });
   }
   return relationships.sort((a, b) => b.strength - a.strength || a.from - b.from || a.to - b.to);
 }
@@ -159,9 +155,14 @@ function makeRelationships(facts: RealityFact[]): RealityRelationship[] {
 function operationSet(input: AuthorBrainTruth, facts: RealityFact[], relationships: RealityRelationship[]): MovieOperation[] {
   const text = [input.prompt, ...facts.map((fact) => fact.text)].join(" ");
   if (SENSITIVE.test(text)) return ["contrast", "reframe", "echo"];
-  const operations: MovieOperation[] = ["reframe", "contrast", "implication"];
+  const stateFacts = facts.filter((fact) => fact.type === "state" || fact.type === "outcome");
+  const personalityFacts = facts.filter((fact) => fact.type === "trait" || fact.type === "preference");
+  const operations: MovieOperation[] = [];
+  if (stateFacts.length >= 2 && new Set(stateFacts.map((fact) => clean(fact.text).toLowerCase())).size >= 2) operations.push("contrast");
   if (relationships.some((item) => item.kind === "recurrence")) operations.push("echo");
   if (relationships.some((item) => item.kind === "transition" || item.kind === "contrast")) operations.push("reversal");
+  if (personalityFacts.length >= 2) operations.push("reframe", "amplification", "implication");
+  else operations.push("reframe", "contrast", "implication");
   if (relationships.length >= 2) operations.push("amplification");
   if (/\b(?:alone|private|together|connected|just us|intimate)\b/i.test(text)) operations.push("enclosure");
   operations.push("reveal");
@@ -251,6 +252,16 @@ function opportunityScore(candidate: RealityFact[], all: RealityFact[]): number 
   return metric(0.35 + strongest * 0.35 + relational * 0.3);
 }
 
+function personalityCoherence(candidate: RealityFact[]): number {
+  const identity = candidate.filter((fact) => fact.type === "identity").length;
+  const traits = candidate.filter((fact) => fact.type === "trait").length;
+  const preferences = candidate.filter((fact) => fact.type === "preference").length;
+  const social = candidate.filter((fact) => fact.type === "relationship").length;
+  if (!identity && !traits && !preferences && !social) return 0.35;
+  const concrete = candidate.filter((fact) => fact.type === "object" || fact.type === "place").length;
+  return metric(0.4 + Math.min(0.35, (traits + preferences) * 0.08) + Math.min(0.15, social * 0.05) + (identity ? 0.05 : 0) - concrete * 0.03);
+}
+
 function trajectoryCandidates(facts: RealityFact[], relationships: RealityRelationship[], ending: string): TrajectoryCandidate[] {
   const ordered = [...facts].sort((a, b) => a.index - b.index);
   if (!ordered.length) return [];
@@ -262,21 +273,15 @@ function trajectoryCandidates(facts: RealityFact[], relationships: RealityRelati
     const key = chronological.map((fact) => fact.index).join(",");
     if (chronological.length >= Math.min(3, target) && !candidates.some((candidate) => candidate.map((fact) => fact.index).join(",") === key)) candidates.push(chronological.slice(0, target));
   };
-
   push(ordered);
   push(ordered.slice(0, target));
   push([...ordered.slice(0, 1), ...ordered.slice(-Math.min(target - 1, ordered.length - 1))]);
-
-  for (let start = 0; start < ordered.length; start += 1) {
-    push(ordered.slice(start, Math.min(ordered.length, start + target)));
-  }
-
+  for (let start = 0; start < ordered.length; start += 1) push(ordered.slice(start, Math.min(ordered.length, start + target)));
   const highValue = [...ordered].sort((a, b) => b.novelty - a.novelty).slice(0, Math.min(4, ordered.length));
   for (const pivot of highValue) {
     const surrounding = ordered.filter((fact) => fact.index <= pivot.index).slice(-1).concat(ordered.filter((fact) => fact.index > pivot.index).slice(0, target - 2), pivot);
     push(surrounding);
   }
-
   const scored = candidates.map((candidate) => {
     const links = candidate.slice(0, -1).map((fact, index) => relationships.find((relation) => relation.from === fact.index && relation.to === candidate[index + 1]!.index)).filter(Boolean) as RealityRelationship[];
     const relationStrength = metric(links.reduce((sum, relation) => sum + relation.strength, 0) / Math.max(1, links.length));
@@ -287,27 +292,27 @@ function trajectoryCandidates(facts: RealityFact[], relationships: RealityRelati
     const opportunity = opportunityScore(candidate, ordered);
     const payoffPotential = metric((ending ? 0.45 : 0.3) + (candidate.at(-1)?.novelty ?? 0.2) * 0.35 + transition * 0.2);
     const simpleBaseline = baselineQuality(candidate);
-    const baselineLift = metric(Math.max(0, transition * 0.35 + relationStrength * 0.25 + opportunity * 0.2 + payoffPotential * 0.2 - simpleBaseline * 0.5));
-    const score = metric(relationStrength * 0.24 + transition * 0.27 + novelty * 0.17 + opportunity * 0.14 + payoffPotential * 0.18 - repetitionRisk * 0.14);
-    return { facts: candidate, relationStrength, transitionFit: transition, novelty, repetitionRisk, opportunity, payoffPotential, baselineLift, score };
+    const personality = personalityCoherence(candidate);
+    const baselineLift = metric(Math.max(0, transition * 0.32 + relationStrength * 0.23 + opportunity * 0.18 + payoffPotential * 0.17 + personality * 0.1 - simpleBaseline * 0.5));
+    const score = metric(relationStrength * 0.22 + transition * 0.25 + novelty * 0.14 + opportunity * 0.12 + payoffPotential * 0.16 + personality * 0.11 + baselineLift * 0.08 - repetitionRisk * 0.14);
+    return { facts: candidate, relationStrength, transitionFit: transition, novelty, repetitionRisk, opportunity, payoffPotential, baselineLift, personalityCoherence: personality, score };
   });
-
-  return scored.sort((a, b) => b.score - a.score || b.baselineLift - a.baselineLift).slice(0, 8);
+  return scored.sort((a, b) => b.score - a.score || b.baselineLift - a.baselineLift || b.personalityCoherence - a.personalityCoherence).slice(0, 8);
 }
 
 function hypothesisFor(operation: MovieOperation, subject: string, input: AuthorBrainTruth, facts: RealityFact[], relationships: RealityRelationship[], trajectory: TrajectoryCandidate, ending: string, rank: number): MovieHypothesis {
   const ordered = [...trajectory.facts].sort((a, b) => a.index - b.index);
-  const first = ordered[0] ?? ({ text: subject, index: 0, novelty: 0.2, action: false, state: false, recurring: false } satisfies RealityFact);
+  const first = ordered[0] ?? ({ text: subject, index: 0, novelty: 0.2, action: false, state: false, recurring: false, type: "identity", typeConfidence: 1 } satisfies RealityFact);
   const last = ordered.at(-1) ?? first;
   const states = buildCognitiveStates(ordered, operation);
   const adjacent = ordered.slice(0, -1).map((fact, index) => relationships.find((relation) => relation.from === fact.index && relation.to === ordered[index + 1]!.index)).filter(Boolean) as RealityRelationship[];
   const linked = relationships.filter((relation) => ordered.some((fact) => fact.index === relation.from || fact.index === relation.to)).slice(0, 8);
   const relationStrength = metric(Math.max(trajectory.relationStrength, adjacent.reduce((sum, relation) => sum + relation.strength, 0) / Math.max(1, adjacent.length)));
-  const causalFit = metric(0.26 + relationStrength * 0.3 + trajectory.transitionFit * 0.3 + (last.action ? 0.08 : 0) + (trajectory.baselineLift * 0.06));
-  const novelty = metric(0.35 + trajectory.novelty * 0.42 + trajectory.opportunity * 0.16 + trajectory.baselineLift * 0.07);
+  const causalFit = metric(0.26 + relationStrength * 0.3 + trajectory.transitionFit * 0.3 + (last.action ? 0.08 : 0) + trajectory.baselineLift * 0.06);
+  const novelty = metric(0.35 + trajectory.novelty * 0.38 + trajectory.opportunity * 0.14 + trajectory.personalityCoherence * 0.08 + trajectory.baselineLift * 0.05);
   const payoffPotential = metric(0.3 + trajectory.payoffPotential * 0.42 + trajectory.transitionFit * 0.18 + (ending ? 0.1 : 0));
   const repetitionRisk = trajectory.repetitionRisk;
-  const premise: Record<MovieOperation, string> = {
+  const premiseBase: Record<MovieOperation, string> = {
     contrast: "A later supplied state changes the meaning of an earlier supplied state.",
     reframe: "One supplied event makes another supplied event mean something new.",
     reversal: "The apparent direction changes without changing the supplied world.",
@@ -317,6 +322,8 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
     reveal: "A supplied relationship was carrying more meaning than it first appeared to.",
     implication: "The strongest meaning sits inside the relationship between supplied events.",
   };
+  const profile = unique(ordered.slice(0, 2).map((fact) => fact.type)).join(" + ");
+  const premise = profile ? `${premiseBase[operation]} Profile: ${profile}.` : premiseBase[operation];
   const tension: Record<MovieOperation, string> = {
     contrast: `What changed between ${first.text} and ${last.text}?`,
     reframe: `Why does ${last.text} matter differently now?`,
@@ -328,38 +335,18 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
     implication: "What does this trajectory make the viewer infer without inventing facts?",
   };
   const lens = chooseLens(input, operation, facts, tension[operation]);
-  const score = metric(novelty * 0.18 + causalFit * 0.32 + payoffPotential * 0.22 + trajectory.opportunity * 0.1 + trajectory.baselineLift * 0.12 + lens.fit * 0.06 - repetitionRisk * 0.12 - rank * 0.002);
-  return {
-    id: `movie-${operation}-${rank}`,
-    operation,
-    premise: premise[operation],
-    tension: tension[operation],
-    trajectory: ordered.map((fact) => fact.text),
-    sources: unique(ordered.map((fact) => fact.text)),
-    relationships: linked,
-    score,
-    novelty,
-    causalFit,
-    payoffPotential,
-    repetitionRisk,
-    lens,
-    states,
-  };
+  const score = metric(novelty * 0.17 + causalFit * 0.3 + payoffPotential * 0.21 + trajectory.opportunity * 0.09 + trajectory.baselineLift * 0.12 + trajectory.personalityCoherence * 0.07 + lens.fit * 0.04 - repetitionRisk * 0.12 - rank * 0.002);
+  return { id: `movie-${operation}-${rank}`, operation, premise, tension: tension[operation], trajectory: ordered.map((fact) => fact.text), sources: unique(ordered.map((fact) => fact.text)), relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens, states };
 }
 
 export function buildMovieCognition(input: AuthorBrainTruth, ending: string): MovieCognition {
   const subject = clean(input.subject) || "the subject";
-  const facts = rankFacts(splitFacts(input), ending);
+  const facts = rankFacts(splitFacts(input), [ending], subject);
   const relationships = makeRelationships(facts);
   const operations = operationSet(input, facts, relationships);
   const trajectories = trajectoryCandidates(facts, relationships, ending);
-  const viableTrajectories = trajectories.length ? trajectories : [{ facts, relationStrength: 0.4, transitionFit: 0.35, novelty: 0.3, repetitionRisk: 0.1, opportunity: 0.4, payoffPotential: 0.4, baselineLift: 0.05, score: 0.3 } satisfies TrajectoryCandidate];
-
-  const hypotheses = operations
-    .flatMap((operation) => viableTrajectories.slice(0, 4).map((trajectory, index) => hypothesisFor(operation, subject, input, facts, relationships, trajectory, ending, index + 1)))
-    .sort((a, b) => b.score - a.score || b.causalFit - a.causalFit || b.payoffPotential - a.payoffPotential)
-    .slice(0, 12);
-
+  const viableTrajectories = trajectories.length ? trajectories : [{ facts, relationStrength: 0.4, transitionFit: 0.35, novelty: 0.3, repetitionRisk: 0.1, opportunity: 0.4, payoffPotential: 0.4, baselineLift: 0.05, personalityCoherence: personalityCoherence(facts), score: 0.3 } satisfies TrajectoryCandidate];
+  const hypotheses = operations.flatMap((operation) => viableTrajectories.slice(0, 4).map((trajectory, index) => hypothesisFor(operation, subject, input, facts, relationships, trajectory, ending, index + 1))).sort((a, b) => b.score - a.score || b.causalFit - a.causalFit || b.payoffPotential - a.payoffPotential).slice(0, 12);
   const selected = hypotheses[0] ?? hypothesisFor("reframe", subject, input, facts, relationships, viableTrajectories[0]!, ending, 1);
   return { facts, relationships, hypotheses, selected, attentionQuestion: selected.tension };
 }
