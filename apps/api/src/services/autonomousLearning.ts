@@ -1,6 +1,18 @@
 import { db } from "@qre/db";
+import { normalizeExperienceOutcome } from "./authorOutcomeLearning.js";
 
-export type AutonomousLearning = {
+type FlowActions = {
+  generativeAuthor?: boolean;
+  sourcePrompt?: unknown;
+  category?: unknown;
+  learningProfile?: {
+    lens?: unknown;
+    promptShape?: unknown;
+    promptSignals?: unknown;
+  };
+};
+
+type AutonomousLearning = {
   signals: string[];
   winningPatterns: string[];
   weakPatterns: string[];
@@ -9,34 +21,11 @@ export type AutonomousLearning = {
   measuredEvents: number;
 };
 
-type FlowActions = {
-  category?: unknown;
-  sourcePrompt?: unknown;
-  generativeAuthor?: unknown;
-  learningProfile?: {
-    lens?: unknown;
-    promptShape?: unknown;
-    promptSignals?: unknown;
-  };
-};
-
-const POSITIVE = new Set([
-  "FLOW_COMPLETE",
-  "EXPERIENCE_REPLAY",
-  "EXPERIENCE_SAVED",
-  "EXPERIENCE_SHARED",
-  "CTA_CLICK",
-  "REWARD_EARNED",
-  "PAYMENT_COMPLETE",
-  "MEMORY_RECOMMENDATION_SELECTED",
-]);
-const NEGATIVE = new Set(["FLOW_ABANDON", "ERROR"]);
-
 function text(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
-function short(value: string, max = 180): string {
+function short(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
@@ -56,26 +45,14 @@ export async function getAutonomousLearning(input: {
 }): Promise<AutonomousLearning> {
   const base = await db.asset.findUnique({
     where: { id: input.assetId },
-    select: { id: true, accountId: true },
+    select: { id: true },
   });
   if (!base) return { signals: [], winningPatterns: [], weakPatterns: [], confidence: 0, measuredExperiences: 0, measuredEvents: 0 };
 
-  let assetIds = [base.id];
-  if (input.userId) {
-    const accountIds = base.accountId
-      ? [base.accountId]
-      : (await db.accountUser.findMany({ where: { userId: input.userId }, select: { accountId: true } })).map((row) => row.accountId);
-    const owned = await db.asset.findMany({
-      where: {
-        OR: [
-          { ownerId: input.userId },
-          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
-        ],
-      },
-      select: { id: true },
-    });
-    if (owned.length) assetIds = owned.map((row) => row.id);
-  }
+  // Autonomous creative learning is identity-scoped to the current physical QRE asset.
+  // ownerId/accountId are administrative/organizational relationships, not permission
+  // to blend unrelated assets into this asset's learning state.
+  const assetIds = [base.id];
 
   const take = Math.max(20, Math.min(500, input.limit ?? 240));
   const flows = await db.flow.findMany({
@@ -115,8 +92,9 @@ export async function getAutonomousLearning(input: {
     const bucket = byFlow.get(event.flowId);
     if (!bucket) continue;
     if (event.type === "SCAN") bucket.scans += 1;
-    if (POSITIVE.has(event.type)) bucket.positives += 1;
-    if (NEGATIVE.has(event.type)) bucket.negatives += 1;
+    const normalized = normalizeExperienceOutcome(event.type as Parameters<typeof normalizeExperienceOutcome>[0]);
+    if (normalized === "positive") bucket.positives += 1;
+    if (normalized === "negative") bucket.negatives += 1;
     if (event.type === "FLOW_COMPLETE") bucket.completes += 1;
     if (event.type === "EXPERIENCE_REPLAY") bucket.replays += 1;
     if (event.type === "EXPERIENCE_SAVED") bucket.saves += 1;
