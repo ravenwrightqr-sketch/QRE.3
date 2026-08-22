@@ -20,7 +20,7 @@ negative → FLOW_ABANDON / ERROR
 neutral  → other observed events such as SCAN / SESSION_START
 ```
 
-This keeps outcome meaning from drifting across learning components.
+The normalized result is the canonical cross-layer `AnalyticsOutcomeKind` contract type. This keeps outcome meaning from drifting across learning components.
 
 ## What QRE stores about creative work
 
@@ -30,7 +30,7 @@ Experience records carry lightweight learning metadata such as the selected lens
 
 Behavioral learning groups comparable experiences and calculates outcome pressure from completion, positive actions, abandonment, and errors. The resulting winners/weaknesses flow into `IdentityState.creativeLearning` and then `CognitiveAuthorContext.creativeLearning`.
 
-The author consumes that existing state through:
+The existing author pipeline consumes that state through:
 
 `apps/api/src/services/authorCreativeLearningPressure.ts`
 
@@ -40,20 +40,26 @@ outcome
 → autonomousLearning
 → IdentityState
 → CognitiveAuthorContext
-→ learned creative pressure
-→ existing lens competition
-→ next Mouth realization
+→ bounded learned-lens preference
+→ existing authorMovieCognition
+→ Mouth
 ```
 
-The pressure is deliberately soft. It does not replace the existing lens engine and does not create a new brain.
+The current consumer is intentionally conservative. It can provide a preferred lens when authoring is neutral/default. It does not replace the existing cognition owner.
 
 ### Selection rules
 
-- A learned lens may strengthen a neutral/default authoring choice.
+- A learned preference may influence a neutral/default authoring choice.
 - An explicit non-neutral user lens request outranks learned preference.
 - Rejected or avoided lenses cannot become learned winners.
 - Creative learning can influence framing/selection but cannot create factual reality.
 - Reality/provenance remain governed by the existing truth packet and Provenance Gate.
+
+### Next hardening gate
+
+The next step is to move the learned pressure into the existing `authorMovieCognition` hypothesis score itself. That is the proper candidate-level implementation because it lets reality fit, attention value, trajectory quality, and learning all compete together rather than turning learning into a hard preferred-lens injection.
+
+Do **not** create another lens engine to accomplish this.
 
 ## Privacy boundary
 
@@ -70,7 +76,7 @@ pnpm --filter @qre/api author:outcome-learning
 pnpm --filter @qre/api author:adaptive-learning
 ```
 
-The first proves canonical outcome normalization. The second proves learned creative state changes next lens selection, explicit intent still wins, rejected-only learning does not create a preference, and the supplied reality packet remains unchanged.
+The first proves canonical outcome normalization. The second proves learned creative state can alter the next selected lens while explicit intent still wins and the supplied reality packet remains unchanged.
 
 ## Remaining full-loop proof
 
