@@ -53,14 +53,16 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 - `apps/api/src/services/authorMoviePipeline.ts` — universal author result → MovieBeatPlan.
 - `packages/contracts/src/cogauthor/movieBeatPlan.ts` — canonical timeline contract.
 - `apps/api/src/services/authorMovieBeatPlan.ts` — deterministic media/timeline organizer.
-- `apps/api/src/services/experienceService.ts` — consumes MovieBeatPlan and renders runtime scenes.
+- `apps/api/src/services/experienceService.ts` — orchestration boundary: gathers world/context, loads canonical media/provenance context, calls authoring, then renders the resulting MovieBeatPlan.
 
 ### Media bridge
 
 - `packages/contracts/src/media.ts` — shared MediaAsset contract used by runtime/media layers.
 - `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — media evidence channel for Cognition.
+- `apps/api/src/services/authorMediaSource.ts` — adapts existing `Insight(type=KNOWLEDGE)` image evidence into the author media contract without introducing a second media repository.
 - `apps/api/src/services/authorMediaBridge.ts` — normalizes supplied media, preserves observed timestamps/roles, attaches provenance, and orders evidence chronologically for Cognition/Beat planning.
 - `apps/api/author-media-context-acceptance.ts` — proves media normalization, chronology, roles, and provenance attachment.
+- `apps/api/author-live-media-bridge-acceptance.ts` — proves the live `compileExperience()` seam carries media into `CognitiveAuthorContext` and preserves silent-photo behavior.
 
 ### Learning and write-back
 
@@ -119,23 +121,31 @@ better next experience
 
 **Do these in order. Do not advance to the next layer until the current layer has a passing acceptance.**
 
-### 1. Live media ingestion bridge — PARTIAL
+### 1. Live media ingestion bridge — GREEN
 
-The contract and canonical normalization module now exist. `authorMediaBridge.ts` normalizes supplied media, preserves chronology/role metadata, and attaches provenance. The live `experienceService` hookup is still required.
+The production compile seam is now wired. Existing `Insight(type=KNOWLEDGE)` records containing `imageDataUrl` are adapted into `CognitiveAuthorMedia`, passed through `authorMediaBridge`, then placed into `CognitiveAuthorContext.media`. The existing MovieBeatPlan remains the sole timeline owner and creates silent photo beats from selected media.
 
-Required production path:
+Production path:
 
 ```text
-uploaded / supplied media
-→ normalized MediaAsset
-→ evidence metadata + chronology + role + provenance
+existing Knowledge image evidence
+→ authorMediaSource
+→ authorMediaBridge
+→ MediaAsset / CognitiveAuthorMedia + provenance + chronology
 → CognitiveAuthorContext.media
 → MovieBeatPlan
 → silent media beats
 → Player
 ```
 
-Acceptance currently proves normalization; the remaining acceptance must prove an actual media item entering the live compile path and becoming a playable silent media beat.
+Acceptance:
+
+```powershell
+pnpm --filter @qre/api author:media-context
+pnpm --filter @qre/api author:live-media-bridge
+```
+
+The first proves normalization. The second proves the live compile seam carries the media packet and preserves the silent-photo contract.
 
 ### 2. Live provenance-context bridge — TODO
 
@@ -258,6 +268,7 @@ The lens may change framing, tone, emphasis, implication, and genre. It may not 
 author:fast               → universal author stability
 author:cognitive-context  → context packet completeness
 author:media-context      → media normalization + chronology + provenance
+author:live-media-bridge  → live compile seam → CognitiveAuthorContext.media
 author:provenance         → provenance permissions
 author:provenance-gate    → reality firewall
 author:domain-cognition   → domain evidence/tension layer

@@ -1,6 +1,7 @@
 import { buildPresenceContext, compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
 import type {
   AuthorBrainTruth,
+  CognitiveAuthorMedia,
   ExperienceBeat,
   ExperiencePresenceContext,
   IdentityState,
@@ -9,11 +10,13 @@ import type {
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
-import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
+import { memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { buildAuthorIdentityState } from "./authorIdentityState.js";
 import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
 import { authorMoviePipeline } from "./authorMoviePipeline.js";
 import { persistAuthorLearning } from "./authorLearningLoop.js";
+import { loadAuthorMediaContext } from "./authorMediaSource.js";
+import { buildAuthorProvenanceFacts } from "./authorProvenanceSource.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -172,6 +175,7 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
+  mediaLoader?: (assetId: string, subject?: string) => Promise<CognitiveAuthorMedia[]>;
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("Experience prompt required");
@@ -351,6 +355,16 @@ export async function compileExperience(input: {
     ...(identityState?.behavioralLearning.rejected ?? []),
   ];
 
+  let media: CognitiveAuthorMedia[] = [];
+  if (input.assetId) {
+    try {
+      media = await (input.mediaLoader ?? loadAuthorMediaContext)(input.assetId, subject);
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Media context unavailable; continuing without media.", error);
+      warnings.push("media_context_unavailable");
+    }
+  }
+
   const cognitiveContext = buildCognitiveAuthorContext({
     identityState,
     geo: geo
@@ -369,8 +383,8 @@ export async function compileExperience(input: {
     presence,
     analytics,
     creativeLearning: identityState?.creativeLearning ?? null,
-    provenanceFacts: [],
-    media: [],
+    provenanceFacts: buildAuthorProvenanceFacts(identityState, subject),
+    media,
     authorizedCreativeInstructions: [],
     textBeatTarget: 5,
   });
