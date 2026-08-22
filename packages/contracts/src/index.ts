@@ -28,4 +28,5 @@ export * from "./author.js";
 export * from "./cogauthor/cognition.js";
 export * from "./cogauthor/realityProvenance.js";
 export * from "./cogauthor/identityState.js";
+export * from "./cogauthor/cognitiveAuthorContext.js";
 export * from "./experience/index.js";
