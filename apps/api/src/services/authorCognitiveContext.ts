@@ -7,6 +7,7 @@ export function buildCognitiveAuthorContext(input: {
   analytics?: CognitiveAuthorContext["analytics"];
   domain?: CognitiveAuthorContext["domain"];
   creativeLearning?: CognitiveAuthorContext["creativeLearning"];
+  creativeSafety?: CognitiveAuthorContext["creativeSafety"];
   provenanceFacts?: CognitiveAuthorContext["provenanceFacts"];
   media?: CognitiveAuthorContext["media"];
   authorizedCreativeInstructions?: string[];
@@ -19,6 +20,7 @@ export function buildCognitiveAuthorContext(input: {
     analytics: input.analytics ?? null,
     domain: input.domain ?? null,
     creativeLearning: input.creativeLearning ?? null,
+    creativeSafety: input.creativeSafety ?? null,
     provenanceFacts: input.provenanceFacts ?? [],
     media: input.media ?? [],
     authorizedCreativeInstructions: input.authorizedCreativeInstructions ?? [],
