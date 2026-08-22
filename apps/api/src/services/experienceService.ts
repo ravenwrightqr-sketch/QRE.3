@@ -3,12 +3,14 @@ import type {
   AuthorBrainTruth,
   ExperienceBeat,
   ExperiencePresenceContext,
+  IdentityState,
   MemoryContext,
 } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
+import { buildAuthorIdentityState } from "./authorIdentityState.js";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 export type GeoAnchorInput = {
@@ -41,6 +43,7 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
+  identityState?: IdentityState | null;
   warnings?: string[];
   [key: string]: unknown;
 };
@@ -152,6 +155,34 @@ export async function compileExperience(input: {
 
   const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
+  let identityState: IdentityState | null = null;
+
+  if (input.assetId) {
+    try {
+      identityState = await buildAuthorIdentityState({
+        assetId: input.assetId,
+        userId: input.userId,
+        subject: undefined,
+        location: input.geoAnchor
+          ? {
+              label: input.geoAnchor.label,
+              city: input.geoAnchor.city,
+              region: input.geoAnchor.region,
+              country: input.geoAnchor.country,
+              latitude: input.geoAnchor.latitude,
+              longitude: input.geoAnchor.longitude,
+              role: input.geoAnchor.role,
+              source: input.geoAnchor.source,
+              observedAt: input.geoAnchor.time,
+            }
+          : undefined,
+        memoryRepository: input.memoryRepository,
+      });
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Identity state unavailable; continuing with existing context paths.", error);
+      warnings.push("identity_state_unavailable");
+    }
+  }
 
   if (input.assetId && input.memoryRepository) {
     try {
@@ -165,9 +196,10 @@ export async function compileExperience(input: {
     }
   }
 
+  const identityFacts = identityState?.canonicalFacts.map((fact) => fact.text) ?? [];
   const memorySummary = memoryContext
     ? memoryContextToCognitiveSummary(memoryContext)
-    : [];
+    : identityState?.canonicalFacts.slice(0, 32).map((fact) => fact.text) ?? [];
 
   let analyticsEvents = input.analyticsEvents ?? [];
   if (input.assetId && analyticsEvents.length === 0) {
@@ -204,7 +236,13 @@ export async function compileExperience(input: {
   const presenceSummary = presence?.summary ?? [];
 
   let compiled: any = compileCognitiveExperience(prompt, {
-    memorySummary: [...memorySummary, ...presenceSummary],
+    memorySummary: [
+      ...memorySummary,
+      ...identityFacts,
+      ...(identityState?.recentEvents ?? []),
+      ...(identityState?.recurringPatterns ?? []),
+      ...presenceSummary,
+    ].slice(0, 120),
     presence: presence ?? undefined,
     analytics,
     location: geo
@@ -232,10 +270,18 @@ export async function compileExperience(input: {
   });
 
   const subject = String(
-    compiled?.observation?.subject ?? compiled?.movie?.subject ?? "",
+    identityState?.subject.value ?? compiled?.observation?.subject ?? compiled?.movie?.subject ?? "",
   ).trim();
 
   const facts = [
+    ...identityFacts,
+    ...(identityState?.traits.map((fact) => fact.text) ?? []),
+    ...(identityState?.preferences.map((fact) => fact.text) ?? []),
+    ...(identityState?.activities.map((fact) => fact.text) ?? []),
+    ...(identityState?.goals.map((goal) => goal.text) ?? []),
+    ...(identityState?.intentions.map((intent) => intent.text) ?? []),
+    ...(identityState?.recentEvents ?? []),
+    ...(identityState?.recurringPatterns ?? []),
     ...(Array.isArray(compiled?.observation?.entities?.people)
       ? compiled.observation.entities.people
       : []),
@@ -260,6 +306,8 @@ export async function compileExperience(input: {
     .filter(Boolean);
 
   const sourceMoments = [
+    ...(identityState?.recentEvents ?? []),
+    ...(identityState?.canonicalFacts.slice(0, 20).map((fact) => fact.text) ?? []),
     ...(Array.isArray(compiled?.moments)
       ? compiled.moments
           .map((moment: any) =>
@@ -269,12 +317,21 @@ export async function compileExperience(input: {
       : []),
     ...memorySummary,
     ...presenceSummary,
-  ].slice(0, 32);
+  ].slice(0, 48);
+
+  const learnedContext = [
+    ...(identityState?.creativeLearning.accepted ?? []),
+    ...(identityState?.creativeLearning.rejected ?? []),
+    ...(identityState?.creativeLearning.preferences ?? []),
+    ...(identityState?.creativeLearning.avoidedPatterns ?? []),
+    ...(identityState?.behavioralLearning.accepted ?? []),
+    ...(identityState?.behavioralLearning.rejected ?? []),
+  ];
 
   const authorInput: AuthorBrainTruth = {
     prompt,
     subject,
-    place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+    place: String(geo?.label ?? presence?.places?.[0] ?? identityState?.locations?.[0]?.label ?? ""),
     lens: String(
       compiled?.cognition?.selectedHypothesis?.kind ??
         compiled?.blueprint?.tone?.[0] ??
@@ -282,13 +339,18 @@ export async function compileExperience(input: {
     ),
     facts,
     sourceMoments,
-    memoryContext: [...memorySummary, ...presenceSummary],
-    creativeLearningContext: Array.isArray(compiled.learningSignals)
-      ? [
-          ...compiled.learningSignals.slice(0, 20),
-          ...presenceSummary,
-        ]
-      : presenceSummary,
+    memoryContext: [
+      ...memorySummary,
+      ...(identityState?.recentEvents ?? []),
+      ...(identityState?.recurringPatterns ?? []),
+    ],
+    creativeLearningContext: [
+      ...learnedContext,
+      ...(Array.isArray(compiled.learningSignals)
+        ? compiled.learningSignals.slice(0, 20)
+        : []),
+      ...presenceSummary,
+    ],
     trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure)
       ? compiled.cognition.plan.storyStructure
       : [],
@@ -317,6 +379,9 @@ export async function compileExperience(input: {
           qualityStatus,
           model: authored.diagnostics?.model ?? null,
           selectedScore: authored.diagnostics?.selectedScore ?? null,
+          identityStateConfidence: identityState?.confidence ?? null,
+          identityKind: identityState?.kind ?? null,
+          identityContext: identityState?.activeContext ?? null,
         },
       }));
 
@@ -344,6 +409,19 @@ export async function compileExperience(input: {
           }
         : null,
       presence: presence ?? null,
+      identityState: identityState
+        ? {
+            identityId: identityState.identityId,
+            kind: identityState.kind,
+            subject: identityState.subject.value,
+            currentState: identityState.currentState,
+            activeContext: identityState.activeContext,
+            recurringPatterns: identityState.recurringPatterns,
+            sourceMemoryCount: identityState.sourceMemoryCount,
+            sourceEventCount: identityState.sourceEventCount,
+            confidence: identityState.confidence,
+          }
+        : null,
       cinematicAuthor: {
         authoringAtom: "experience_beat",
         sceneRule: "one_short_thought_per_beat",
@@ -359,6 +437,7 @@ export async function compileExperience(input: {
     blueprint: enrichedBlueprint,
     geo: geo ?? null,
     presence,
+    identityState,
     warnings,
   };
 
