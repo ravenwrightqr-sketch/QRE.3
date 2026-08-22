@@ -12,7 +12,7 @@ import { createPresenceRepository } from "../repositories/presenceRepository.js"
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { buildAuthorIdentityState } from "./authorIdentityState.js";
 import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
-import { authorBrainUniversal } from "./authorBrainUniversal.js";
+import { authorMoviePipeline } from "./authorMoviePipeline.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -48,26 +48,6 @@ export type CompiledExperienceResult = {
   warnings?: string[];
   [key: string]: unknown;
 };
-
-function sceneKindToBeatKind(
-  kind: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" | "photo" | undefined,
-): ExperienceBeat["kind"] {
-  switch (kind) {
-    case "photo":
-      return "photo";
-    case "payoff":
-      return "payoff";
-    case "turn":
-      return "turn";
-    case "afterglow":
-      return "afterglow";
-    case "hook":
-    case "discovery":
-      return "reveal";
-    default:
-      return "jolt";
-  }
-}
 
 function applyAuthorBeats(compiled: any, beats: ExperienceBeat[]): any {
   if (!beats.length) return compiled;
@@ -147,6 +127,7 @@ function applyAuthorBeats(compiled: any, beats: ExperienceBeat[]): any {
         text: beat.text,
         title: undefined,
         description: undefined,
+        media: undefined,
         meta: {
           ...(baseMoment.meta ?? {}),
           authoredBy: "qre-author-brain",
@@ -425,22 +406,22 @@ export async function compileExperience(input: {
   };
 
   try {
-    const authored = await authorBrainUniversal(authorInput);
+    const { authored, movieBeatPlan } = await authorMoviePipeline(authorInput);
     const qualityStatus = String(
       authored.diagnostics?.qualityStatus ??
         (authored.scenes.length ? "ACCEPTED" : "REJECTED_MODEL_OUTPUT"),
     );
 
-    if (authored.scenes.length > 0 && qualityStatus === "ACCEPTED") {
-      const beats: ExperienceBeat[] = authored.scenes.map((scene, index) => ({
-        id: `author-beat-${index + 1}`,
-        text: scene.kind === "photo" ? "" : scene.text,
-        kind: sceneKindToBeatKind(scene.kind),
+    if (movieBeatPlan.beats.length > 0 && qualityStatus === "ACCEPTED") {
+      const beats: ExperienceBeat[] = movieBeatPlan.beats.map((planned, index) => ({
+        id: planned.id,
+        text: planned.kind === "photo" ? "" : String(planned.text ?? ""),
+        kind: planned.kind === "photo" ? "photo" : planned.kind === "cta" ? "afterglow" : "jolt",
         order: index + 1,
-        attentionRole: scene.kind ?? "movement",
-        callback: scene.kind === "turn",
-        durationHintMs: 1200,
-        media: scene.media,
+        attentionRole: planned.attentionRole ?? planned.kind,
+        callback: planned.kind === "cta",
+        durationHintMs: planned.durationHintMs ?? (planned.kind === "photo" ? 1700 : 1400),
+        media: planned.media,
         meta: {
           qualityStatus,
           model: authored.diagnostics?.model ?? null,
@@ -448,6 +429,11 @@ export async function compileExperience(input: {
           identityStateConfidence: identityState?.confidence ?? null,
           identityKind: identityState?.kind ?? null,
           identityContext: identityState?.activeContext ?? null,
+          planner: "movie-beat-plan",
+          plannerKind: planned.kind,
+          sourceIds: planned.sourceIds,
+          reason: planned.reason,
+          silent: planned.silent ?? planned.kind === "photo",
         },
       }));
 
@@ -456,8 +442,8 @@ export async function compileExperience(input: {
       warnings.push("author_quality_rejected");
     }
   } catch (error) {
-    console.warn("[QRE][AUTHORING] Author Brain unavailable; preserving deterministic compiled experience.", error);
-    warnings.push("author_brain_unavailable");
+    console.warn("[QRE][AUTHORING] Author Movie Pipeline unavailable; preserving deterministic compiled experience.", error);
+    warnings.push("author_movie_pipeline_unavailable");
   }
 
   const enrichedBlueprint = {
