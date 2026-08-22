@@ -24,6 +24,12 @@ export type CognitiveAuthorMedia = MediaAsset & {
   provenance?: AuthorRealityProvenance;
 };
 
+export type CognitiveAuthorCreativeSafety = {
+  class: "ordinary" | "memorial";
+  confidence: number;
+  evidence: string[];
+};
+
 export type CognitiveAuthorContext = {
   identityState?: IdentityState | null;
   geo?: CognitiveAuthorGeo | null;
@@ -53,6 +59,7 @@ export type CognitiveAuthorContext = {
     successfulLenses?: string[];
     noveltyPressure?: number;
   } | null;
+  creativeSafety?: CognitiveAuthorCreativeSafety | null;
   provenanceFacts?: Array<{
     text: string;
     provenance: AuthorRealityProvenance;
