@@ -30,7 +30,7 @@ const base: AuthorBrainTruth = {
 };
 
 const baseline = await authorMoviePipeline(base);
-const baselineLens = String((baseline.authored.field as any)?.movieCognition?.selected?.lens?.id ?? "");
+const baselineLens = baseline.authored.field.movieCognition.selected.lens.id;
 assert.ok(baselineLens, "baseline author must expose the selected movie lens");
 
 const learnedContext: CognitiveAuthorContext = {
@@ -51,7 +51,7 @@ const learned = await authorMoviePipeline({
   ...base,
   cognitiveContext: learnedContext,
 });
-const learnedSelectedLens = String((learned.authored.field as any)?.movieCognition?.selected?.lens?.id ?? "");
+const learnedSelectedLens = learned.authored.field.movieCognition.selected.lens.id;
 assert.equal(learnedSelectedLens, "courtroom");
 assert.notEqual(learnedSelectedLens, baselineLens, "learned selection must materially change the creative competition");
 
@@ -60,7 +60,7 @@ const explicit = await authorMoviePipeline({
   lens: "noir",
   cognitiveContext: learnedContext,
 });
-const explicitSelectedLens = String((explicit.authored.field as any)?.movieCognition?.selected?.lens?.id ?? "");
+const explicitSelectedLens = explicit.authored.field.movieCognition.selected.lens.id;
 assert.equal(explicitSelectedLens, "noir", "explicit lens intent must outrank learned preference");
 
 const rejectedOnly: CognitiveAuthorContext = {
@@ -73,7 +73,11 @@ const rejectedOnly: CognitiveAuthorContext = {
 };
 assert.equal(resolveLearnedCreativeLens(rejectedOnly), undefined, "rejected-only learning must not create a lens preference");
 
-assert.deepEqual(base.facts, learned.authored.field?.packet?.reality?.slice(2, 6), "learning must not rewrite the supplied reality packet");
+assert.deepEqual(
+  base.facts,
+  learned.authored.field.packet.reality.slice(2, 6),
+  "learning must not rewrite the supplied reality packet",
+);
 
 console.log("AUTHOR ADAPTIVE LEARNING ACCEPTANCE: PASS");
 console.log(`baselineLens=${baselineLens}`);
