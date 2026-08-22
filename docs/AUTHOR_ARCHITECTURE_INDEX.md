@@ -278,6 +278,124 @@ ORGANIZATIONAL LEARNING
 
 Neither capability exists merely because assets share `accountId`, `ownerId`, `userId`, or administrative membership. Until a first-class authorization/relationship is modeled, current creative learning remains asset-scoped.
 
+## 10D. FUTURE PRISMA / DOMAIN BLUEPRINT
+
+**DESIGN-ONLY. NOT A CURRENT MIGRATION.**
+
+When the product explicitly requires multiple physical assets to participate in one persistent world, introduce one canonical first-class identity relationship rather than inventing parallel `identityId` and `worldId` semantics.
+
+Conceptual target:
+
+```text
+Account / Organization
+        │
+        ├── Users / Admins
+        │
+        └── Identity / World
+                │
+                ├── Asset A
+                ├── Asset B
+                └── Asset C
+```
+
+Likely shape:
+
+```text
+Identity / World
+- id
+- accountId?
+- name
+- kind
+- status
+- createdAt
+- updatedAt
+```
+
+```text
+Asset
+- identityId?
+- ownerId
+- accountId
+- ...existing fields...
+```
+
+Do not add both `identityId` and `worldId` as competing semantic relationships. Pick one canonical domain concept when the feature is actually implemented.
+
+If organization-wide learning is later required, model it as separately scoped evidence rather than putting it into Asset learning. Any schema for that layer must carry authorization, provenance, confidence, recurrence, recency, and context.
+
+## 10E. LEARNING → MOUTH PROJECTION
+
+The full adaptive path must remain explicit:
+
+```text
+REALITY / RUNTIME EVENT
+        ↓
+AnalyticsEvent
+        ↓
+Outcome normalization
+        ↓
+Learning aggregation
+        ↓
+Scope + provenance + confidence
+        ↓
+Identity-scoped projection
+        ↓
+IdentityState.creativeLearning
+        ↓
+Cognitive Author Context
+        ↓
+Semantic eligibility / learned pressure
+        ↓
+Movie / meaning / realization decisions
+        ↓
+Mouth candidates
+        ↓
+Truth + meaning + attention gates
+        ↓
+FINAL LANGUAGE
+```
+
+The Mouth receives **approved learning pressure**, not raw analytics or administrative data.
+
+Learning may influence creative choice such as:
+
+```text
+lens
+pressure
+novelty
+trajectory
+selection bias
+creative emphasis
+```
+
+Learning may never create or rewrite factual reality:
+
+```text
+new person
+new object
+new location
+new action
+new outcome
+new chronology
+```
+
+The richer future learning record should preserve:
+
+```text
+what happened
+what was selected
+what succeeded
+what failed
+confidence
+recurrence
+recency
+context
+scope
+source
+```
+
+The Mouth-facing contract should be a compact projection of that evidence, with provenance retained enough to distinguish explicit preference, observed winner, repeated pattern, weak signal, shared-world signal, and organization signal.
+
 ## 11. DEFINITION OF DONE
 
 The Author is production-ready when unfamiliar reality can travel through one coherent path:
@@ -293,3 +411,7 @@ reality
 ```
 
 The standard is not merely green tests. The standard is that the final viewer-facing sequence is excellent, grounded, complete, and repeatably produced across unrelated industries.
+
+For the complete Asset, future Prisma, learning provenance, and Mouth projection rules, use:
+
+`docs/ASSET_IDENTITY_AND_LEARNING_SCOPE.md`
