@@ -1,7 +1,30 @@
 import assert from "node:assert/strict";
-import type { AuthorBrainTruth, CognitiveAuthorContext } from "@qre/contracts";
+import type { AuthorBrainTruth, AuthorResult, CognitiveAuthorContext } from "@qre/contracts";
 import { resolveLearnedCreativeLens } from "./src/services/authorCreativeLearningPressure.js";
 import { authorMoviePipeline } from "./src/services/authorMoviePipeline.js";
+
+function selectedLens(result: AuthorResult): string {
+  const field = result.field;
+  const cognition = field.movieCognition;
+  if (!cognition || typeof cognition !== "object" || Array.isArray(cognition)) throw new Error("adaptive acceptance: missing movieCognition");
+  const selected = (cognition as Record<string, unknown>).selected;
+  if (!selected || typeof selected !== "object" || Array.isArray(selected)) throw new Error("adaptive acceptance: missing selected hypothesis");
+  const lens = (selected as Record<string, unknown>).lens;
+  if (!lens || typeof lens !== "object" || Array.isArray(lens)) throw new Error("adaptive acceptance: missing selected lens");
+  const id = (lens as Record<string, unknown>).id;
+  if (typeof id !== "string" || !id) throw new Error("adaptive acceptance: missing selected lens id");
+  return id;
+}
+
+function realityPacket(result: AuthorResult): string[] {
+  const packet = result.field.packet;
+  if (!packet || typeof packet !== "object" || Array.isArray(packet)) throw new Error("adaptive acceptance: missing packet");
+  const reality = (packet as Record<string, unknown>).reality;
+  if (!Array.isArray(reality) || !reality.every((value) => typeof value === "string")) {
+    throw new Error("adaptive acceptance: missing reality packet");
+  }
+  return reality;
+}
 
 const baseContext: CognitiveAuthorContext = {
   creativeLearning: {
@@ -30,7 +53,7 @@ const base: AuthorBrainTruth = {
 };
 
 const baseline = await authorMoviePipeline(base);
-const baselineLens = baseline.authored.field.movieCognition.selected.lens.id;
+const baselineLens = selectedLens(baseline.authored);
 assert.ok(baselineLens, "baseline author must expose the selected movie lens");
 
 const learnedContext: CognitiveAuthorContext = {
@@ -51,7 +74,7 @@ const learned = await authorMoviePipeline({
   ...base,
   cognitiveContext: learnedContext,
 });
-const learnedSelectedLens = learned.authored.field.movieCognition.selected.lens.id;
+const learnedSelectedLens = selectedLens(learned.authored);
 assert.equal(learnedSelectedLens, "courtroom");
 assert.notEqual(learnedSelectedLens, baselineLens, "learned selection must materially change the creative competition");
 
@@ -60,7 +83,7 @@ const explicit = await authorMoviePipeline({
   lens: "noir",
   cognitiveContext: learnedContext,
 });
-const explicitSelectedLens = explicit.authored.field.movieCognition.selected.lens.id;
+const explicitSelectedLens = selectedLens(explicit.authored);
 assert.equal(explicitSelectedLens, "noir", "explicit lens intent must outrank learned preference");
 
 const rejectedOnly: CognitiveAuthorContext = {
@@ -75,7 +98,7 @@ assert.equal(resolveLearnedCreativeLens(rejectedOnly), undefined, "rejected-only
 
 assert.deepEqual(
   base.facts,
-  learned.authored.field.packet.reality.slice(2, 6),
+  realityPacket(learned.authored).slice(2, 6),
   "learning must not rewrite the supplied reality packet",
 );
 
