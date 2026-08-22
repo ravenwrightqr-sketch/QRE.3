@@ -11,6 +11,8 @@ import type {
   ViewerState,
 } from "@qre/contracts";
 import { buildMovieCognition } from "./authorMovieCognition.js";
+import { buildRealityProvenance } from "./authorRealityProvenance.js";
+import { validateAuthorProvenance, type ProvenanceViolation } from "./authorProvenanceGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 type BeatFunction = "hook" | "question" | "turn" | "escalation" | "payoff";
@@ -19,10 +21,11 @@ type Beat = { order: number; function: BeatFunction; source: string[]; change: s
 type Path = { id: string; thesis: string; move: CreativeMove; beats: Beat[]; budget: number; operation: string };
 type Candidate = { pathId: string; lines: string[] };
 type BeatMetrics = { factuality: number; specificity: number; attention: number; novelty: number; statusChange: number; nextBeatPull: number; creativeMove: number; repetition: number; cinematicity: number };
-type Validation = { ok: boolean; reasons: string[]; score: number; metrics: BeatMetrics[] };
+type Validation = { ok: boolean; reasons: string[]; score: number; metrics: BeatMetrics[]; provenance: ProvenanceViolation[] };
 type ReferencePolicy = { subject: string; mode: "explicit_name"; allowPronouns: false; allowIdentityInference: false; instruction: string };
 type MovieLock = { approvedMeaning: string; creativeBudget: number; worldFreedom: "closed"; referencePolicy: ReferencePolicy; ending: string; sensitivity: "normal" | "sensitive"; preferredLens?: string; allowedMoves: CreativeMove[] };
-type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; path: Path; thesis: string; movieCognition: ReturnType<typeof buildMovieCognition> };
+type ProvenanceFact = { text: string; provenance: ReturnType<typeof buildRealityProvenance> };
+type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; path: Path; thesis: string; movieCognition: ReturnType<typeof buildMovieCognition>; provenanceFacts: ProvenanceFact[] };
 
 const MIN_SCORE = 0.74;
 const META = /\b(?:as an ai|the audience|the viewer|this means|this shows|the strategy|the beat|according to qre|cognitive|the truth is|status feels|pressure builds|the meaning|the transformation|the symbol|the tension|the contrast|the premise|the operation|the lens|the trajectory|the movie|the bow's meaning|a transformation followed)\b/i;
@@ -75,6 +78,17 @@ function reality(input: AuthorBrainTruth): string[] {
     ...(input.presenceSummary ?? []),
     ...(input.trajectory ?? []),
   ]);
+}
+
+function buildProvenanceFacts(source: string[], subject: string): ProvenanceFact[] {
+  return source.map((text) => ({
+    text,
+    provenance: buildRealityProvenance(text, "memory", { subject }),
+  }));
+}
+
+function provenanceViolations(lines: string[], packet: Packet): ProvenanceViolation[] {
+  return validateAuthorProvenance(lines, packet.provenanceFacts);
 }
 
 function creativeBudget(source: string[], prompt: string): number {
@@ -142,7 +156,7 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
   };
   return [{ role: "user", content: [
     "QRE MOUTH. COG has already selected the movie. Render ONE sequence only.",
-    `Return JSON only: {"lines":["..."]}. Exactly ${packet.lineCount} lines.`,
+    `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.lineCount} lines.`,
     `Every non-final line is ${packet.maxWords} words or fewer.`,
     packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be the earned consequence.",
     "Use the supplied movie trajectory in its supplied chronological order. Do not reorder events.",
@@ -150,7 +164,7 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "HARD REALITY LAW: do not invent a person, identity, relationship, place, room, object, body detail, sensory detail, dialogue, participant, ownership, tenancy, customer/client relationship, or literal event.",
     "A plausible detail is still invented. Do not infer physical props from actions. A bath does not authorize a sink; grooming does not authorize a towel; stealing does not authorize a trash can.",
     "Do not reorder, merge, or replace supplied events. You may compress language around them.",
-    "Do not explain cognition. Never write words such as meaning, transformation, symbol, tension, contrast, pressure, premise, operation, lens, trajectory, state, or interpretation as the subject of a line.",
+    "Do not explain cognition. Never write words such as meaning, transformation, symbol, tension, contrast, pressure, premise, operation, lens, trajectory, movie, state, or interpretation as the subject of a line.",
     "Make the viewer infer the creative move from concrete supplied reality.",
     JSON.stringify(payload),
   ].join("\n") }];
@@ -227,11 +241,13 @@ function validate(lines: string[], path: Path, packet: Packet): Validation {
     const violation = worldViolation(line, packet); if (violation) reasons.push(`line_${index + 1}:${violation}`);
   });
   const chronology = chronologyViolation(lines, packet); if (chronology) reasons.push(chronology);
+  const provenance = provenanceViolations(lines, packet);
+  for (const violation of provenance) reasons.push(`line_${violation.line}:provenance_${violation.reason}`);
   if (packet.ending && clean(lines.at(-1)).toLowerCase() !== packet.ending.toLowerCase()) reasons.push("endpoint_mismatch");
   if (new Set(lines.map((line) => line.toLowerCase())).size !== lines.length) reasons.push("duplicate_lines");
   const score = metric(ms.reduce((sum, item) => sum + item.attention, 0) / Math.max(1, ms.length) * 0.45 + ms.reduce((sum, item) => sum + item.cinematicity, 0) / Math.max(1, ms.length) * 0.25 + 0.2 + (packet.ending ? 0.1 : 0));
   if (score < MIN_SCORE) reasons.push(`quality_below_floor:${score}`);
-  return { ok: reasons.length === 0, reasons, score, metrics: ms };
+  return { ok: reasons.length === 0, reasons, score, metrics: ms, provenance };
 }
 
 function capitalizeFact(value: string): string {
@@ -270,7 +286,7 @@ function buildSequence(packet: Packet, lines: string[], score: number): Sequence
     const after: ViewerState = { known: [...known], expected: index < lines.length - 1 ? beat.change : undefined, unresolved: index < lines.length - 1 ? beat.change : undefined, currentWant: index < lines.length - 1 ? packet.path.beats[index + 1]?.change : undefined, recentChange: beat.change };
     cuts.push({ id: `author-cut-${index + 1}`, order: index + 1, role: role(index, lines.length), gainKind: gain(index, lines.length), sourceIds: beat.source.map((_, sourceIndex) => `reality:${sourceIndex}`), informationGain: beat.change, attentionDelta: `nextBeatPull=${ms[index]?.nextBeatPull ?? 0}`, viewerBefore: before, viewerAfter: after, nextPromise: index < lines.length - 1 ? packet.path.beats[index + 1]?.change : undefined, payoffConnection: index === lines.length - 1 ? packet.ending || text : packet.path.beats[index + 1]?.change, noveltyScore: ms[index]?.novelty ?? 0, confidence: score });
   });
-  return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: lines, antiCrutch: ["no invented details", "no fact parade", "no unsupported identity", "no chronology rewriting", "no decorative filler", "ending must be earned", "rejected model output never rendered"] };
+  return { subject: packet.subject, premise: packet.lock.approvedMeaning, openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: packet.reality, cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: lines, antiCrutch: ["no invented details", "no fact parade", "no unsupported identity", "no chronology rewriting", "no decorative filler", "ending must be earned", "provenance gate passed", "rejected model output never rendered"] };
 }
 
 function brief(packet: Packet): AuthorCreativeBrief {
@@ -289,11 +305,12 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const selected = movieCognition.selected;
   const path = makePath(movieCognition, subject, ending, budget);
   const lock: MovieLock = { approvedMeaning: selected.premise, creativeBudget: budget, worldFreedom: "closed", referencePolicy: { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }, ending, sensitivity: sensitive, preferredLens: input.lens, allowedMoves: [path.move] };
-  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition };
+  const provenanceFacts = buildProvenanceFacts(source, subject);
+  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };
 
   const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1200, Math.max(420, lineTotal * 80)), temperature: sensitive ? 0.32 : 0.48 });
   const modelLines = parseSingle(modelResult.text).slice(0, lineTotal);
-  const modelValidation = modelLines.length === lineTotal ? validate(modelLines, path, packet) : { ok: false, reasons: ["incomplete_model_output"], score: 0, metrics: [] };
+  const modelValidation = modelLines.length === lineTotal ? validate(modelLines, path, packet) : { ok: false, reasons: ["incomplete_model_output"], score: 0, metrics: [], provenance: [] };
 
   let finalLines = modelValidation.ok ? modelLines : groundedRecovery(packet);
   let finalValidation = validate(finalLines, path, packet);
@@ -343,6 +360,8 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
       rejectedOutputNeverRendered: true,
       rawModelOutput: raw,
       recoveryRendererUsed: recoveryUsed,
+      provenanceGate: finalValidation.ok ? "passed" : "failed",
+      provenanceViolations: finalValidation.provenance,
     },
   } as AuthorResult;
 }
