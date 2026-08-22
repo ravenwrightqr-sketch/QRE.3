@@ -29,7 +29,9 @@ MOUTH
   ↓
 provenance + quality gate
   ↓
-text beats + optional silent photo beats
+MOVIE BEAT PLAN
+  ↓
+text beats + optional silent photo beats + CTA
   ↓
 SequencePlay / cinematic runtime
   ↓
@@ -61,25 +63,96 @@ It preserves:
 
 Existing flattened `AuthorBrainTruth` fields remain during migration for compatibility.
 
+## MovieBeatPlan
+
+`MovieBeatPlan` is the canonical timeline decision object between authoring and the player.
+
+It answers one question:
+
+> **What exactly should play, in what order, and why?**
+
+A plan contains:
+
+- `text` beats produced by the Mouth
+- `photo` beats selected from existing media evidence
+- optional `cta` as the terminal action
+- source IDs for traceability
+- per-beat reason for selection
+- duration hints
+- attention roles
+- silent-media enforcement
+- auto vs manual presentation mode
+- selected media IDs
+- estimated runtime
+
+The player consumes the plan; the player does not decide which evidence belongs in the movie.
+
+## Media organization
+
+Default mode is **auto**.
+
+Cognition may organize an unordered media dump using available evidence such as:
+
+- observed timestamps
+- explicit before/after labels
+- service-stage labels
+- media role (`evidence`, `memory`, `photo_beat`)
+- chronology
+- relevance to the selected movie
+
+A deterministic media organizer is intentionally kept outside the database and storage layer. It only chooses a playable plan from supplied media; it does not mutate historical truth.
+
+### Example: groomer
+
+```text
+MEGA DUMP
+before Coco
+bath complete
+after Coco
+blue bow incident
+final after photo
+```
+
+QRE can produce:
+
+```text
+TEXT
+Coco came in nervous.
+
+PHOTO
+before
+
+TEXT
+The bath changed everything.
+
+PHOTO
+after
+
+TEXT
+Then Coco found the blue bow.
+
+PHOTO
+blue-bow evidence
+
+TEXT
+Coco left looking fabulous.
+
+PHOTO
+final after
+
+CTA
+Want to keep Coco's story?
+```
+
+The groomer does not need to manually arrange the media.
+
+If a human explicitly wants a different order, the Dashboard becomes the override surface.
+
 ## Default organization vs Dashboard override
 
 The default product behavior is **Cognition organizes the experience**.
 
 Users do not need to manually arrange a timeline just to get a good result.
-
-```text
-MEGA DUMP
-  ↓
-Cognition classifies
-  ↓
-Cognition orders by evidence, chronology, recurrence, state change, and attention
-  ↓
-Cognition selects the strongest text/photo sequence
-```
-
-The Dashboard is the intentional override surface.
-
-A user can enter the Dashboard when they want to explicitly control layout, ordering, grouping, or presentation.
 
 ```text
 AUTO MODE
@@ -123,36 +196,6 @@ A photo beat:
 - may contain text only when that text is actually part of the source image/media
 
 The cognition layer chooses whether a photo is worth the attention slot. The player owns presentation.
-
-### Example: service / groomer dump
-
-A groomer can drop photos and service facts in any order:
-
-```text
-before Coco
-bath complete
-blue bow incident
-after Coco
-another before photo
-final after photo
-```
-
-Cognition may recognize the service domain, timestamps, before/after relationships, recurring motifs, and strongest visual evidence and automatically organize the movie as:
-
-```text
-TEXT: Coco came in nervous.
-PHOTO: before
-TEXT: The bath changed the whole mood.
-PHOTO: after
-TEXT: Then Coco found the blue bow.
-PHOTO: blue-bow evidence
-TEXT: Coco left looking fabulous.
-PHOTO: final after
-```
-
-The groomer does not have to manually sort the photos.
-
-When explicit ordering is important, the groomer can use the Dashboard override.
 
 ## User authority vs reality authority
 
@@ -239,16 +282,25 @@ event
 
 Learning changes future selection, not historical reality.
 
+## Implementation checkpoint
+
+The canonical `MovieBeatPlan` contract, deterministic media-to-plan organizer, and acceptance test are now in the author stack.
+
+The planner is intentionally pure and storage-agnostic. It prefers chronology and explicit before/after evidence, keeps photo beats silent, supports a default five-text-beat attention unit, and allows an explicit CTA at the end.
+
+The remaining runtime seam is to have the existing experience assembly consume `MovieBeatPlan` as the single timeline owner instead of independently mapping authored scenes. That is the next integration target.
+
 ## Non-negotiable boundaries
 
 1. IdentityState is the accumulated world model.
 2. CognitiveAuthorContext is the canonical author packet.
 3. Super Cog decides what is interesting and what movie should happen.
 4. Mouth renders the selected movie; it does not invent the world.
-5. Provenance gates final authored output.
-6. Photos are evidence and cinematic beats, not generated prose.
-7. Player owns exact visual presentation.
-8. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
-9. Cognition organizes by default; Dashboard is the explicit override.
-10. All meaningful new interactions feed memory and analytics.
-11. The system must remain one universal brain with domain cognition, not separate domain brains.
+5. MovieBeatPlan is the single timeline decision object.
+6. Provenance gates final authored output.
+7. Photos are evidence and cinematic beats, not generated prose.
+8. Player owns exact visual presentation.
+9. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
+10. Cognition organizes by default; Dashboard is the explicit override.
+11. All meaningful new interactions feed memory and analytics.
+12. The system must remain one universal brain with domain cognition, not separate domain brains.
