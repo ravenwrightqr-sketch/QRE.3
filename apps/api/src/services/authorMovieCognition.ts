@@ -8,10 +8,22 @@ type RealityFact = { text: string; index: number; novelty: number; action: boole
 type RealityRelationship = { from: number; to: number; kind: RelationshipKind; strength: number; reason: string };
 type MovieLens = { id: LensId; pressure: string; fit: number; moves: string[] };
 
+export type CognitiveState = {
+  step: number;
+  establishedFacts: string[];
+  establishedStates: string[];
+  stateBefore: string;
+  trigger: string;
+  stateAfter: string;
+  nextPossibility: string;
+  unresolvedQuestion: string;
+  sourceIndex: number;
+};
+
 export type MovieHypothesis = {
   id: string; operation: MovieOperation; premise: string; tension: string; trajectory: string[]; sources: string[];
   relationships: RealityRelationship[]; score: number; novelty: number; causalFit: number; payoffPotential: number;
-  repetitionRisk: number; lens: MovieLens;
+  repetitionRisk: number; lens: MovieLens; states: CognitiveState[];
 };
 export type MovieCognition = { facts: RealityFact[]; relationships: RealityRelationship[]; hypotheses: MovieHypothesis[]; selected: MovieHypothesis; attentionQuestion: string };
 
@@ -28,15 +40,27 @@ const tokens = (value: string): Set<string> => new Set(words(value).filter((word
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const unique = (values: string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
-function overlap(a: string, b: string): number { const left = tokens(a); const right = tokens(b); if (!left.size || !right.size) return 0; let shared = 0; for (const token of left) if (right.has(token)) shared += 1; return shared / Math.max(left.size, right.size); }
+function overlap(a: string, b: string): number {
+  const left = tokens(a); const right = tokens(b); if (!left.size || !right.size) return 0;
+  let shared = 0; for (const token of left) if (right.has(token)) shared += 1;
+  return shared / Math.max(left.size, right.size);
+}
+
 function splitFacts(input: AuthorBrainTruth): string[] {
   return unique([...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? []), ...(input.presenceSummary ?? [])].flatMap((value) => {
     const text = clean(value); if (!text) return []; return /[,;\n•]/.test(text) ? text.split(/[,;\n•]+/g).map(clean) : [text];
   }));
 }
+
 function rankFacts(facts: string[], ending: string): RealityFact[] {
-  return facts.map((text, index) => ({ text, index, novelty: metric(0.2 + Math.min(0.3, tokens(text).size * 0.05) + (ACTION.test(text) ? 0.15 : 0) + (STATE.test(text) ? 0.08 : 0) + (CONTRAST.test(text) ? 0.12 : 0) + (RECURRENCE.test(text) ? 0.1 : 0) + (ending && overlap(text, ending) > 0.08 ? 0.05 : 0)), action: ACTION.test(text), state: STATE.test(text), recurring: RECURRENCE.test(text) || facts.slice(index + 1).some((candidate) => overlap(text, candidate) >= 0.75) }));
+  return facts.map((text, index) => ({
+    text, index,
+    novelty: metric(0.2 + Math.min(0.3, tokens(text).size * 0.05) + (ACTION.test(text) ? 0.15 : 0) + (STATE.test(text) ? 0.08 : 0) + (CONTRAST.test(text) ? 0.12 : 0) + (RECURRENCE.test(text) ? 0.1 : 0) + (ending && overlap(text, ending) > 0.08 ? 0.05 : 0)),
+    action: ACTION.test(text), state: STATE.test(text),
+    recurring: RECURRENCE.test(text) || facts.slice(index + 1).some((candidate) => overlap(text, candidate) >= 0.75),
+  }));
 }
+
 function makeRelationships(facts: RealityFact[]): RealityRelationship[] {
   const ordered = [...facts].sort((a, b) => a.index - b.index); const relationships: RealityRelationship[] = [];
   for (let i = 0; i < ordered.length; i += 1) for (let j = i + 1; j < ordered.length; j += 1) {
@@ -48,19 +72,24 @@ function makeRelationships(facts: RealityFact[]): RealityRelationship[] {
     else if (changedState) { kind = "transition"; strength = 0.78; reason = "The later fact changes the earlier state."; }
     else if (CONTRAST.test(`${a.text} ${b.text}`) || (a.state && b.state)) { kind = "contrast"; strength = 0.72; reason = "The facts create an opposing or changed read."; }
     else if (CAUSAL.test(b.text)) { kind = "continuation"; strength = 0.7; reason = "The later fact contains causal or continuation language."; }
-    if (j === i + 1) strength += 0.08; relationships.push({ from: a.index, to: b.index, kind, strength: metric(strength), reason });
+    if (j === i + 1) strength += 0.08;
+    relationships.push({ from: a.index, to: b.index, kind, strength: metric(strength), reason });
   }
   return relationships.sort((a, b) => b.strength - a.strength || a.from - b.from || a.to - b.to);
 }
+
 function operationSet(input: AuthorBrainTruth, facts: RealityFact[], relationships: RealityRelationship[]): MovieOperation[] {
-  const text = [input.prompt, ...facts.map((fact) => fact.text)].join(" "); if (SENSITIVE.test(text)) return ["contrast", "reframe", "echo"];
+  const text = [input.prompt, ...facts.map((fact) => fact.text)].join(" ");
+  if (SENSITIVE.test(text)) return ["contrast", "reframe", "echo"];
   const operations: MovieOperation[] = ["reframe", "contrast", "implication"];
   if (relationships.some((item) => item.kind === "recurrence")) operations.push("echo");
   if (relationships.some((item) => item.kind === "transition" || item.kind === "contrast")) operations.push("reversal");
   if (relationships.length >= 2) operations.push("amplification");
-  if (/\b(?:alone|private|together|connected|just us|intimate)\b/i.test(text)) operations.push("enclosure"); operations.push("reveal");
+  if (/\b(?:alone|private|together|connected|just us|intimate)\b/i.test(text)) operations.push("enclosure");
+  operations.push("reveal");
   return [...new Set(operations)].slice(0, 6);
 }
+
 function chooseLens(input: AuthorBrainTruth, operation: MovieOperation, facts: RealityFact[], tension: string): MovieLens {
   const requested = clean((input as AuthorBrainTruth & { lens?: string }).lens).toLowerCase(); const text = `${input.prompt} ${facts.map((fact) => fact.text).join(" ")} ${tension}`.toLowerCase();
   const catalog: Array<{ id: LensId; pressure: string; fit: number; moves: string[]; terms: RegExp }> = [
@@ -82,9 +111,34 @@ function chooseLens(input: AuthorBrainTruth, operation: MovieOperation, facts: R
   return best ? { id: best.id, pressure: best.pressure, fit: metric(best.fit), moves: best.moves } : { id: "neutral", pressure: "Use the strongest natural framing already present in the movie.", fit: 0.6, moves: [] };
 }
 
+function stateLabel(fact: RealityFact): string {
+  const match = fact.text.match(STATE); return match ? match[0].toLowerCase() : fact.state ? clean(fact.text) : "established";
+}
+
+function buildCognitiveStates(trajectoryFacts: RealityFact[], operation: MovieOperation): CognitiveState[] {
+  const states: CognitiveState[] = [];
+  for (let i = 0; i < trajectoryFacts.length; i += 1) {
+    const fact = trajectoryFacts[i]!;
+    const previous = trajectoryFacts[i - 1];
+    const stateBefore = previous ? stateLabel(previous) : "starting reality";
+    const stateAfter = stateLabel(fact);
+    const establishedFacts = trajectoryFacts.slice(0, i + 1).map((item) => item.text);
+    const establishedStates = trajectoryFacts.slice(0, i + 1).filter((item) => item.state).map(stateLabel);
+    const next = trajectoryFacts[i + 1];
+    const nextPossibility = next ? `What changes because of ${fact.text}?` : operation === "echo" ? "What does the supplied detail mean now?" : "What does the completed sequence make the ending mean?";
+    const unresolvedQuestion = next ? `What happens next after ${fact.text}?` : "What remains unresolved?";
+    states.push({ step: i + 1, establishedFacts, establishedStates: unique(establishedStates), stateBefore, trigger: fact.text, stateAfter, nextPossibility, unresolvedQuestion, sourceIndex: fact.index });
+  }
+  return states;
+}
+
 function hypothesisFor(operation: MovieOperation, subject: string, input: AuthorBrainTruth, facts: RealityFact[], relationships: RealityRelationship[], ending: string, rank: number): MovieHypothesis {
-  const ordered = [...facts].sort((a, b) => a.index - b.index); const first = ordered[0] ?? { text: subject, index: 0, novelty: 0.2, action: false, state: false, recurring: false }; const last = ordered.at(-1) ?? first;
-  const actions = ordered.filter((fact) => fact.action && !OUTCOME.test(fact.text)); const states = ordered.filter((fact) => fact.state); const recurring = ordered.filter((fact) => fact.recurring);
+  const ordered = [...facts].sort((a, b) => a.index - b.index);
+  const first = ordered[0] ?? { text: subject, index: 0, novelty: 0.2, action: false, state: false, recurring: false };
+  const last = ordered.at(-1) ?? first;
+  const actions = ordered.filter((fact) => fact.action && !OUTCOME.test(fact.text));
+  const states = ordered.filter((fact) => fact.state);
+  const recurring = ordered.filter((fact) => fact.recurring);
   let anchor = first; let turn = actions.at(-1) ?? ordered[1] ?? first; let support = last !== turn ? last : undefined;
   switch (operation) {
     case "contrast": anchor = states[0] ?? first; turn = [...states].reverse().find((fact) => fact !== anchor) ?? actions.at(-1) ?? ordered[1] ?? first; support = ordered.find((fact) => fact.index > turn.index) ?? last; break;
@@ -96,20 +150,18 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
     case "reveal": { const relation = relationships[rank] ?? relationships[0]; anchor = ordered.find((fact) => fact.index === relation?.from) ?? first; turn = ordered.find((fact) => fact.index === relation?.to) ?? last; support = ordered.find((fact) => fact !== anchor && fact !== turn && fact.index > turn.index); break; }
     case "implication": anchor = actions[(rank - 1) % Math.max(1, actions.length)] ?? first; turn = actions.at(-1) ?? last; support = ordered.find((fact) => fact !== anchor && fact !== turn && fact.index > turn.index); break;
   }
-  const source = unique([anchor.text, turn.text, support?.text ?? "", ...ordered.map((fact) => fact.text)]).slice(0, 6);
-  const used = new Set(source.map((value) => ordered.find((fact) => fact.text === value)?.index).filter((value): value is number => typeof value === "number"));
+  const focusedIndexes = new Set([anchor.index, turn.index, support?.index].filter((value): value is number => typeof value === "number"));
+  const trajectoryFacts = ordered.filter((fact) => focusedIndexes.has(fact.index) || facts.length <= 4);
+  const trajectory = trajectoryFacts.slice(0, 4).map((fact) => fact.text);
+  const source = unique([anchor.text, turn.text, support?.text ?? "", ...trajectory]);
+  const used = new Set(trajectoryFacts.map((fact) => fact.index));
   const linked = relationships.filter((relation) => used.has(relation.from) || used.has(relation.to)).slice(0, 6);
-  const relationStrength = linked[0]?.strength ?? 0.5;
+  const adjacentLinks = trajectoryFacts.slice(0, -1).map((fact, index) => relationships.find((relation) => relation.from === fact.index && relation.to === trajectoryFacts[index + 1]!.index)).filter((value): value is RealityRelationship => Boolean(value));
+  const relationStrength = metric(Math.max(linked[0]?.strength ?? 0.5, adjacentLinks.reduce((sum, relation) => sum + relation.strength, 0) / Math.max(1, adjacentLinks.length)));
   const novelty = metric(0.34 + turn.novelty * 0.42 + (support?.novelty ?? 0.2) * 0.08 + relationStrength * 0.12);
-  const causalFit = metric(0.4 + relationStrength * 0.38 + (turn.action ? 0.12 : 0));
+  const causalFit = metric(0.4 + relationStrength * 0.38 + (turn.action ? 0.12 : 0) + adjacentLinks.length * 0.05);
   const payoffPotential = metric(0.38 + (ending ? 0.22 : 0.06) + (operation === "reframe" || operation === "echo" || operation === "reversal" ? 0.16 : 0.08));
-  const repetitionRisk = metric(source.length <= 1 ? 0.4 : source[0] === source[1] ? 0.9 : 0.08);
-  const usedIndexes = new Set<number>(); const trajectory: string[] = [];
-  for (const fact of [anchor, turn, support, ...ordered]) {
-    if (!fact) continue;
-    if (!usedIndexes.has(fact.index)) { usedIndexes.add(fact.index); trajectory.push(fact.text); }
-    if (trajectory.length >= 4) break;
-  }
+  const repetitionRisk = metric(trajectory.length <= 1 ? 0.4 : trajectory.some((value, index) => index > 0 && value === trajectory[index - 1]) ? 0.9 : 0.08);
   const premiseByOperation: Record<MovieOperation, string> = {
     contrast: "A later state changes the meaning of an earlier supplied state.", reframe: "One supplied event makes another supplied event mean something new.", reversal: "The apparent direction changes without changing the supplied world.",
     amplification: "A supplied detail grows in importance because later supplied events depend on it.", echo: "A supplied detail returns with changed meaning.", enclosure: "The supplied experience narrows until what is already there feels unusually complete or private.",
@@ -119,10 +171,10 @@ function hypothesisFor(operation: MovieOperation, subject: string, input: Author
     contrast: "What changed between the supplied states?", reframe: `Why does ${turn.text} matter differently now?`, reversal: "What looked settled becomes the reason to keep watching?", amplification: `Why does ${turn.text} suddenly matter this much?`,
     echo: "What does the return mean now?", enclosure: "What drops away from attention while the supplied world remains?", reveal: "What was already there that we had not noticed?", implication: "What does the sequence imply without spelling it out?",
   };
+  const states = buildCognitiveStates(trajectoryFacts, operation);
   const lens = chooseLens(input, operation, facts, tensionByOperation[operation]);
-  // HARD REALITY LAW: trajectory is composed only of supplied facts. Lens pressure is separate framing metadata.
-  const score = metric(novelty * 0.28 + causalFit * 0.34 + payoffPotential * 0.25 + lens.fit * 0.09 - repetitionRisk * 0.1 - rank * 0.004);
-  return { id: `movie-${operation}-${rank}`, operation, premise: premiseByOperation[operation], tension: tensionByOperation[operation], trajectory, sources: source, relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens };
+  const score = metric(novelty * 0.26 + causalFit * 0.38 + payoffPotential * 0.22 + lens.fit * 0.08 - repetitionRisk * 0.1 - rank * 0.004);
+  return { id: `movie-${operation}-${rank}`, operation, premise: premiseByOperation[operation], tension: tensionByOperation[operation], trajectory, sources: source, relationships: linked, score, novelty, causalFit, payoffPotential, repetitionRisk, lens, states };
 }
 
 export function buildMovieCognition(input: AuthorBrainTruth, ending: string): MovieCognition {
