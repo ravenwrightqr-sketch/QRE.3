@@ -72,7 +72,7 @@ export async function getCreativeLearningContext(input: {
 
   const asset = await db.asset.findUnique({
     where: { id: input.assetId },
-    select: { id: true, ownerId: true, accountId: true },
+    select: { id: true },
   });
 
   if (!asset) {
@@ -88,28 +88,10 @@ export async function getCreativeLearningContext(input: {
     };
   }
 
-  let scopeAssetIds = [asset.id];
-
-  if (input.userId) {
-    const accountIds = asset.accountId
-      ? [asset.accountId]
-      : (await db.accountUser.findMany({
-          where: { userId: input.userId },
-          select: { accountId: true },
-        })).map((row) => row.accountId);
-
-    const owned = await db.asset.findMany({
-      where: {
-        OR: [
-          { ownerId: input.userId },
-          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
-        ],
-      },
-      select: { id: true },
-    });
-
-    if (owned.length) scopeAssetIds = owned.map((row) => row.id);
-  }
+  // Creative learning is identity-scoped to the physical QRE asset.
+  // ownerId/accountId describe administration and organizational ownership;
+  // they must never implicitly widen creative learning to unrelated assets.
+  const scopeAssetIds = [asset.id];
 
   const events = await db.analyticsEvent.findMany({
     where: {
@@ -137,9 +119,7 @@ export async function getCreativeLearningContext(input: {
       : [];
     const userId = clean(meta.userId);
     const sameUser = Boolean(input.userId && userId && userId === input.userId);
-    const sameAsset = event.assetId === input.assetId;
-    const prefix = sameUser ? "your preference" : "account preference";
-    const scope = sameAsset ? "this experience" : "another experience";
+    const prefix = sameUser ? "your preference" : "recorded preference";
     const source = event.type.startsWith("AI_") ? "explicit" : "observed";
 
     if (event.type === "AI_CREATIVE_REJECTED") {
@@ -150,7 +130,7 @@ export async function getCreativeLearningContext(input: {
       if (feedback) accepted.push(`${prefix}: liked ${feedback}`);
       if (trajectory) accepted.push(`${prefix}: preferred trajectory ${trajectory}`);
       if (tags.length) accepted.push(`${prefix}: preferred styles ${tags.join(", ")}`);
-      if (draft) recentFeedback.push(`${scope} accepted draft: ${draft.slice(0, 500)}`);
+      if (draft) recentFeedback.push(`this asset accepted draft: ${draft.slice(0, 500)}`);
     }
 
     const timestamp = event.createdAt.toISOString();
