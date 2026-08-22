@@ -26,26 +26,37 @@ Finish the existing architecture in dependency order. Every bridge gets an accep
 - ExperienceService → renders MovieBeatPlan into runtime scenes.
 - Author input learning → memory projection + `AUTHOR_INPUT_ACCEPTED` signal.
 - Identity-scoped learning acceptance → new evidence reaches the next CognitiveAuthorContext and does not leak across identities.
+- Live media ingestion → existing Knowledge image evidence reaches `CognitiveAuthorContext.media` through the canonical media source/bridge.
 
 ## REQUIRED BEFORE CREATIVE-LENS EXPANSION
 
-### 1. Live media ingestion bridge
+### 1. Live media ingestion bridge — GREEN
 
-Current contract already supports `CognitiveAuthorContext.media` and silent photo beats.
+The existing media abstraction is now wired through the real compile path.
 
-Required production path:
+Production path:
 
 ```text
-upload / supplied media
-→ normalized MediaAsset
-→ media evidence + timestamps/roles/provenance
-→ CognitiveAuthorContext.media
-→ MovieBeatPlan
-→ silent photo/video beats
+existing Knowledge image evidence
+→ `authorMediaSource`
+→ `authorMediaBridge`
+→ `CognitiveAuthorContext.media`
+→ `authorMoviePipeline`
+→ `MovieBeatPlan`
+→ silent photo beat
 → Player
 ```
 
-Acceptance must prove an actual uploaded media item can enter the live compile path, be selected by cognition/planning, and render without invented caption text.
+The source adapter reads the existing `Insight(type=KNOWLEDGE)` representation. No second media repository was introduced. `MediaAsset` remains the canonical cross-layer media shape.
+
+Validation:
+
+```powershell
+pnpm --filter @qre/api author:media-context
+pnpm --filter @qre/api author:live-media-bridge
+```
+
+The live acceptance injects media at the production seam and verifies the returned canonical author context, chronology/provenance, and silent-photo contract.
 
 ### 2. Live provenance-context bridge
 
@@ -158,6 +169,7 @@ Lens freedom may change framing, tone, emphasis, implication, and genre. It may 
 10. Learning changes future selection; it never silently rewrites historical reality.
 11. Dashboard manual ordering is an override, not a second source of historical truth.
 12. Every new bridge gets an acceptance test and an architecture-index entry.
+13. Media storage can evolve independently of authoring because the author boundary is `MediaAsset` / `CognitiveAuthorMedia`, not the persistence representation.
 
 ## Definition of "full circle"
 
