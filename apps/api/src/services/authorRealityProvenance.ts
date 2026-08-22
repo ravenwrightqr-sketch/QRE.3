@@ -12,15 +12,11 @@ function mapFactType(type: RealityFactType): ContractFactType {
     case "state": return "state";
     case "trait": return "trait";
     case "preference": return "preference";
-    case "activity": return "activity";
-    case "social_preference": return "social_preference";
     case "relationship": return "relationship";
     case "place": return "place";
     case "object": return "object";
     case "outcome": return "outcome";
     case "recurrence": return "recurrence";
-    case "goal": return "goal";
-    case "intention": return "intention";
     default: return "unknown";
   }
 }
