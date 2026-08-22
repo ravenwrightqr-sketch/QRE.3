@@ -1,6 +1,4 @@
-import type { CognitiveExperiencePlan } from "./cognition.js";
-import type { RealityGraph } from "./realityGraph.js";
-import type { SubjectTruth } from "./subjectTruth.js";
+import type { CognitiveExperiencePlan } from "../cogauthor/cognition.js";
 import type { CognitiveAuthorContext } from "../cogauthor/cognitiveAuthorContext.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
@@ -22,9 +20,7 @@ export type AuthorBrainTruth = {
   lens?: string;
   subject?: string;
   place?: string;
-  subjectTruth?: SubjectTruth;
   cognitivePlan?: CognitiveExperiencePlan;
-  realityGraph?: RealityGraph;
   cognitiveContext?: CognitiveAuthorContext;
   returning?: boolean;
   visitNumber?: number;
