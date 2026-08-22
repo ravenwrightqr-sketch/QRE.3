@@ -46,26 +46,14 @@ export async function getAutonomousLearning(input: {
 }): Promise<AutonomousLearning> {
   const base = await db.asset.findUnique({
     where: { id: input.assetId },
-    select: { id: true, accountId: true },
+    select: { id: true },
   });
   if (!base) return { signals: [], winningPatterns: [], weakPatterns: [], confidence: 0, measuredExperiences: 0, measuredEvents: 0 };
 
-  let assetIds = [base.id];
-  if (input.userId) {
-    const accountIds = base.accountId
-      ? [base.accountId]
-      : (await db.accountUser.findMany({ where: { userId: input.userId }, select: { accountId: true } })).map((row) => row.accountId);
-    const owned = await db.asset.findMany({
-      where: {
-        OR: [
-          { ownerId: input.userId },
-          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
-        ],
-      },
-      select: { id: true },
-    });
-    if (owned.length) assetIds = owned.map((row) => row.id);
-  }
+  // Autonomous creative learning is identity-scoped to the current physical QRE asset.
+  // ownerId/accountId are administrative/organizational relationships, not permission
+  // to blend unrelated assets into this asset's learning state.
+  const assetIds = [base.id];
 
   const take = Math.max(20, Math.min(500, input.limit ?? 240));
   const flows = await db.flow.findMany({
