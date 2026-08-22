@@ -26,4 +26,5 @@ export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal }
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";
 export * from "./author.js";
 export * from "./cogauthor/cognition.js";
+export * from "./cogauthor/identityState.js";
 export * from "./experience/index.js";
