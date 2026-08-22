@@ -1,4 +1,7 @@
 import type { SequencePlay } from "./sequencePlay.js";
+import type { CognitiveAuthorContext } from "./cogauthor/cognitiveAuthorContext.js";
+import type { MediaAsset } from "./media.js";
+import type { CognitiveExperiencePlan } from "./cogauthor/cognition.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
@@ -7,6 +10,8 @@ export type AuthorBrainTruth = {
   subject: string;
   place?: string;
   lens?: string;
+  cognitivePlan?: CognitiveExperiencePlan;
+  cognitiveContext?: CognitiveAuthorContext;
   facts: string[];
   sourceMoments: string[];
   memoryContext?: string[];
@@ -36,11 +41,13 @@ export type AuthorSceneKind =
   | "discovery"
   | "turn"
   | "payoff"
-  | "afterglow";
+  | "afterglow"
+  | "photo";
 
 export type AuthorScene = {
   text: string;
   kind?: AuthorSceneKind;
+  media?: MediaAsset;
 };
 
 export type AuthorResult = {
