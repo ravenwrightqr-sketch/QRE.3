@@ -20,6 +20,8 @@
     "author:live-media-bridge": "tsx ./author-live-media-bridge-acceptance.ts",
     "author:live-provenance": "tsx ./author-live-provenance-acceptance.ts",
     "author:knowledge-learning": "tsx ./author-knowledge-learning-acceptance.ts",
+    "author:outcome-learning": "tsx ./author-outcome-learning-acceptance.ts",
+    "author:adaptive-learning": "tsx ./author-adaptive-learning-acceptance.ts",
     "author:movie-beat-plan": "tsx ./author-movie-beat-plan-acceptance.ts",
     "author:movie-pipeline": "tsx ./author-movie-pipeline-acceptance.ts",
     "author:full-circle": "tsx ./author-full-circle-acceptance.ts",

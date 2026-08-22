@@ -1,12 +1,21 @@
 import type { AuthorBrainTruth, AuthorResult, MovieBeatPlan } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
+import { resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
 import { buildMovieBeatPlan } from "./authorMovieBeatPlan.js";
 
 export async function authorMoviePipeline(input: AuthorBrainTruth & {
   cta?: { text: string; sourceIds?: string[] };
   presentationMode?: "auto" | "manual";
 }): Promise<{ authored: AuthorResult; movieBeatPlan: MovieBeatPlan }> {
-  const authored = await authorBrainUniversal(input);
+  const explicitLens = String(input.lens ?? "").trim().toLowerCase();
+  const learnedLens = explicitLens && explicitLens !== "neutral"
+    ? undefined
+    : resolveLearnedCreativeLens(input.cognitiveContext);
+  const authorInput = learnedLens
+    ? { ...input, lens: learnedLens }
+    : input;
+
+  const authored = await authorBrainUniversal(authorInput);
   const movieBeatPlan = buildMovieBeatPlan({
     textBeats: authored.scenes
       .filter((scene) => scene.kind !== "photo" && Boolean(scene.text.trim()))
