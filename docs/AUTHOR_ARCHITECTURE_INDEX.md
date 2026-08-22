@@ -278,123 +278,83 @@ ORGANIZATIONAL LEARNING
 
 Neither capability exists merely because assets share `accountId`, `ownerId`, `userId`, or administrative membership. Until a first-class authorization/relationship is modeled, current creative learning remains asset-scoped.
 
-## 10D. FUTURE PRISMA / DOMAIN BLUEPRINT
+## 10D. DOCUMENTATION AUTHORITY MAP
 
-**DESIGN-ONLY. NOT A CURRENT MIGRATION.**
-
-When the product explicitly requires multiple physical assets to participate in one persistent world, introduce one canonical first-class identity relationship rather than inventing parallel `identityId` and `worldId` semantics.
-
-Conceptual target:
+Do not create another document for a concept already owned below.
 
 ```text
-Account / Organization
-        │
-        ├── Users / Admins
-        │
-        └── Identity / World
-                │
-                ├── Asset A
-                ├── Asset B
-                └── Asset C
+QRE_CORE_MASTER_CONSTITUTION.md
+  PRODUCT-WIDE AUTHORITY
+  → what QRE is
+  → physical QR product
+  → universal experience engine
+  → one universe / many worlds
+  → universal subjects
+  → learning / inquiry / adaptation / re-engagement
+  → future expansion principles
+
+AUTHOR_ARCHITECTURE_INDEX.md
+  LIVE TECHNICAL AUTHORITY MAP
+  → canonical semantic owners
+  → contracts
+  → file status
+  → current keep / legacy / delete map
+
+AUTHOR_CURRENT_STATE.md
+  FOCUSED TECHNICAL CURRENT STATE
+  → current Author/Mouth production path
+  → canonical Author files
+  → current runtime and quality laws
+
+AUTHOR_NEXT_WORLD.md
+  ACTIVE STRATEGY / HYPOTHESES
+  → next experiments
+  → unresolved creative questions
+  → candidate improvements
+  → NOT canonical architecture
+
+ADAPTIVE_EXPERIENCE_ENGINE.md
+  LONGITUDINAL EXPERIENCE / LEARNING MODEL
+  → observe / learn / inquire / adapt / advance / re-engage
+  → universal domain behavior
+
+ASSET_IDENTITY_AND_LEARNING_SCOPE.md
+  ASSET / ADMINISTRATION / LEARNING BOUNDARY
+  → asset scope
+  → organization scope
+  → future Identity / World direction
+
+AUTHOR_CHANGELOG.md
+  HISTORY ONLY
+  → what changed and why
 ```
 
-Likely shape:
+Rules:
 
 ```text
-Identity / World
-- id
-- accountId?
-- name
-- kind
-- status
-- createdAt
-- updatedAt
+PRODUCT FACT CHANGED
+→ update QRE_CORE_MASTER_CONSTITUTION.md
+
+CANONICAL OWNER CHANGED
+→ update AUTHOR_ARCHITECTURE_INDEX.md
+
+CURRENT IMPLEMENTATION PATH CHANGED
+→ update AUTHOR_CURRENT_STATE.md
+
+STRATEGIC HYPOTHESIS CHANGED
+→ update AUTHOR_NEXT_WORLD.md
+
+ADAPTIVE LOOP / MULTI-WORLD RULE CHANGED
+→ update ADAPTIVE_EXPERIENCE_ENGINE.md
+
+ASSET / ORGANIZATION / LEARNING SCOPE CHANGED
+→ update ASSET_IDENTITY_AND_LEARNING_SCOPE.md
+
+HISTORICAL DETAIL
+→ update AUTHOR_CHANGELOG.md
 ```
 
-```text
-Asset
-- identityId?
-- ownerId
-- accountId
-- ...existing fields...
-```
-
-Do not add both `identityId` and `worldId` as competing semantic relationships. Pick one canonical domain concept when the feature is actually implemented.
-
-If organization-wide learning is later required, model it as separately scoped evidence rather than putting it into Asset learning. Any schema for that layer must carry authorization, provenance, confidence, recurrence, recency, and context.
-
-## 10E. LEARNING → MOUTH PROJECTION
-
-The full adaptive path must remain explicit:
-
-```text
-REALITY / RUNTIME EVENT
-        ↓
-AnalyticsEvent
-        ↓
-Outcome normalization
-        ↓
-Learning aggregation
-        ↓
-Scope + provenance + confidence
-        ↓
-Identity-scoped projection
-        ↓
-IdentityState.creativeLearning
-        ↓
-Cognitive Author Context
-        ↓
-Semantic eligibility / learned pressure
-        ↓
-Movie / meaning / realization decisions
-        ↓
-Mouth candidates
-        ↓
-Truth + meaning + attention gates
-        ↓
-FINAL LANGUAGE
-```
-
-The Mouth receives **approved learning pressure**, not raw analytics or administrative data.
-
-Learning may influence creative choice such as:
-
-```text
-lens
-pressure
-novelty
-trajectory
-selection bias
-creative emphasis
-```
-
-Learning may never create or rewrite factual reality:
-
-```text
-new person
-new object
-new location
-new action
-new outcome
-new chronology
-```
-
-The richer future learning record should preserve:
-
-```text
-what happened
-what was selected
-what succeeded
-what failed
-confidence
-recurrence
-recency
-context
-scope
-source
-```
-
-The Mouth-facing contract should be a compact projection of that evidence, with provenance retained enough to distinguish explicit preference, observed winner, repeated pattern, weak signal, shared-world signal, and organization signal.
+A stale document must be updated, explicitly marked historical/legacy, or deleted. Do not preserve contradictory documents merely because they contain old architecture language.
 
 ## 11. DEFINITION OF DONE
 
@@ -411,7 +371,3 @@ reality
 ```
 
 The standard is not merely green tests. The standard is that the final viewer-facing sequence is excellent, grounded, complete, and repeatably produced across unrelated industries.
-
-For the complete Asset, future Prisma, learning provenance, and Mouth projection rules, use:
-
-`docs/ASSET_IDENTITY_AND_LEARNING_SCOPE.md`
