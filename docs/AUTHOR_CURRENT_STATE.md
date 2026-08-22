@@ -1,7 +1,24 @@
 # QRE AUTHOR · CURRENT STATE
 
-**STATUS:** CANONICAL CURRENT-STATE REFERENCE
+**STATUS:** CANONICAL TECHNICAL CURRENT-STATE REFERENCE
 **BRANCH:** `author/enterprise-realization-engine`
+**AUTHORITY:** This file is the focused technical reference for the current Author/Mouth production path. Product-wide vision, asset semantics, universal experience scope, and future shared-world rules live in the canonical project constitution and architecture index.
+
+Canonical companion documents:
+
+```text
+docs/QRE_CORE_MASTER_CONSTITUTION.md
+  → product-wide purpose, universal experience model, physical QRE product model
+
+docs/AUTHOR_ARCHITECTURE_INDEX.md
+  → canonical semantic owners, contracts, file status, and live keep/legacy/delete map
+
+docs/ADAPTIVE_EXPERIENCE_ENGINE.md
+  → longitudinal learning, inquiry, adaptation, re-engagement, multi-world behavior
+
+docs/ASSET_IDENTITY_AND_LEARNING_SCOPE.md
+  → asset, account, user, organization, identity/world, and learning boundaries
+```
 
 Read this before changing Author, Mouth, contracts, attention, cut policy, or model transport.
 
