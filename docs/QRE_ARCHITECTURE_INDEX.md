@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This is the quick-reference map for the QRE cognitive/experience stack. It exists so future work starts from what already exists instead of recreating or duplicating subsystems.
+This is the quick-reference map for the QRE cognitive/experience stack. Start here before changing code. It records **what owns what, where it lives, what flows through it, why it exists, what it must not own, and the acceptance that proves it**.
 
 ## Runtime ownership
 
@@ -16,7 +16,7 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 | Mouth | Renders selected grounded text | Only wording | No |
 | Provenance Gate | Blocks unsupported reality claims | Yes, enforcement only | No |
 | MovieBeatPlan | Chooses exact playable timeline and media order | Yes; single timeline owner | No |
-| ExperienceService | Converts the chosen plan into runtime scenes | No competing author decisions | No |
+| ExperienceService | Orchestration boundary: assembles context, invokes authoring, renders the chosen plan | No competing timeline decisions | No |
 | Player / Runtime | Presents timing, transitions, crop, audio, interaction | Presentation only | No |
 | MemoryRepository | Persists identity-scoped entities/facts/relations/events | Persistence only | Yes |
 | AnalyticsRepository | Persists behavioral/learning signals | Persistence only | Yes |
@@ -38,7 +38,8 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 ### Reality and safety
 
 - `packages/contracts/src/cogauthor/realityProvenance.ts` — author-side provenance permissions/forbidden expansions.
-- `apps/api/src/services/authorRealityProvenance.ts` — maps facts into author provenance.
+- `apps/api/src/services/authorRealityProvenance.ts` — maps typed reality evidence into author provenance.
+- `apps/api/src/services/authorProvenanceSource.ts` — maps live IdentityState facts into `CognitiveAuthorContext.provenanceFacts`.
 - `apps/api/src/services/authorProvenanceGate.ts` — validates authored output against provenance and user-authorized creative endpoints.
 
 ### Domain cognition
@@ -66,11 +67,13 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 
 ### Learning and write-back
 
-- `apps/api/src/services/authorLearningLoop.ts` — universal authoring input → memory projection + analytics learning signal.
+- `apps/api/src/services/authorLearningLoop.ts` — **single accepted-input learning authority**. Supports both cognitive world projection and deterministic explicit-evidence projection into MemoryRepository + `AUTHOR_INPUT_ACCEPTED` analytics.
 - `apps/api/src/services/memoryProjection.ts` — converts cognition/world evidence into MemoryWriteBatch.
 - `apps/api/src/repositories/memoryRepository.ts` — identity-scoped durable memory persistence; supersedes changed facts and writes audit records.
 - `apps/api/src/repositories/analyticsRepository.ts` — durable analytics/event persistence and reporting metrics.
 - `apps/api/src/services/creativeLearning.ts` — explicit creative feedback plus autonomous creative learning signals.
+- `apps/api/src/services/autonomousLearning.ts` — derives behavioral winners/weaknesses from experience outcomes already present in analytics.
+- `apps/api/author-knowledge-learning-acceptance.ts` — proves deterministic explicit evidence produces a user-sourced memory fact/event and `AUTHOR_INPUT_ACCEPTED` through the learning authority.
 
 ### Geo and presence
 
@@ -123,7 +126,7 @@ better next experience
 
 ### 1. Live media ingestion bridge — GREEN
 
-The production compile seam is now wired. Existing `Insight(type=KNOWLEDGE)` records containing `imageDataUrl` are adapted into `CognitiveAuthorMedia`, passed through `authorMediaBridge`, then placed into `CognitiveAuthorContext.media`. The existing MovieBeatPlan remains the sole timeline owner and creates silent photo beats from selected media.
+The production compile seam is wired. Existing `Insight(type=KNOWLEDGE)` records containing `imageDataUrl` are adapted into `CognitiveAuthorMedia`, passed through `authorMediaBridge`, then placed into `CognitiveAuthorContext.media`. The existing MovieBeatPlan remains the sole timeline owner and creates silent photo beats from selected media.
 
 Production path:
 
@@ -145,35 +148,52 @@ pnpm --filter @qre/api author:media-context
 pnpm --filter @qre/api author:live-media-bridge
 ```
 
-The first proves normalization. The second proves the live compile seam carries the media packet and preserves the silent-photo contract.
+### 2. Live provenance-context bridge — GREEN
 
-### 2. Live provenance-context bridge — TODO
+The live compile path now derives provenance facts from IdentityState instead of sending an empty provenance packet.
 
-The live compile path currently provides `provenanceFacts: []` even though the identity layer already has grounded evidence.
-
-Required:
+Production path:
 
 ```text
-IdentityState / typed evidence
+IdentityState.canonicalFacts
+→ authorProvenanceSource
 → AuthorRealityProvenance
 → CognitiveAuthorContext.provenanceFacts
 → Mouth
 → Provenance Gate
 ```
 
-Acceptance must prove an actual grounded fact carries provenance into the live author call and an unsupported object/place/person remains rejected.
+Acceptance:
 
-### 3. Universal input-route learning — TODO
-
-`compileExperience` now uses the learning coordinator. Other user/guest/staff input routes must be audited so they cannot bypass the learning hook.
-
-Known bypass to close:
-
-```text
-POST /experience/memory/:assetId
+```powershell
+pnpm --filter @qre/api author:provenance
+pnpm --filter @qre/api author:provenance-gate
+pnpm --filter @qre/api author:live-provenance
 ```
 
-This route currently writes directly through `MemoryRepository` and must use the same coordinator.
+### 3. Universal input-route learning — IN PROGRESS
+
+The known `/experience/memory/:assetId` bypass is normalized through `persistAuthorLearning`.
+
+Knowledge writes are now also normalized through the same learning authority without asking the model to reinterpret explicit user evidence:
+
+```text
+Knowledge label/value/image
+→ Insight persistence (existing Knowledge source)
+→ persistExplicitAuthorEvidence
+→ MemoryRepository
+→ AUTHOR_INPUT_ACCEPTED
+→ next IdentityState
+```
+
+Acceptance:
+
+```powershell
+pnpm --filter @qre/api author:learning-loop
+pnpm --filter @qre/api author:knowledge-learning
+```
+
+Remaining work: audit every other user/guest/staff reality-bearing route and classify or normalize any remaining direct writes.
 
 ### 4. Post-play outcome learning — TODO
 
@@ -186,6 +206,8 @@ movie
 → CognitiveAuthorContext
 → next MovieBeatPlan
 ```
+
+Existing substrate already measures behavioral outcomes in `autonomousLearning.ts`; the remaining job is to prove those signals materially alter a subsequent experience through the existing identity/context path.
 
 Acceptance must prove the next movie materially changes when new evidence/outcomes warrant it.
 
@@ -207,7 +229,7 @@ Minimum reporting:
 
 ### 6. Genre-fluid Mouth hardening — AFTER ALL ABOVE
 
-The existing lens catalog in `authorMovieCognition.ts` is the foundation. Do not create another lens system.
+The existing lens catalog in `authorMovieCognition.ts` is the foundation. Do not create another lens engine.
 
 Target:
 
@@ -229,13 +251,14 @@ The lens may change framing, tone, emphasis, implication, and genre. It may not 
 ## Learning rules
 
 1. Accepted user evidence becomes identity-scoped memory evidence.
-2. Learning signals describe behavior/selection; they do not rewrite historical truth.
-3. A user's or asset's facts never leak into another identity's context.
-4. Changed facts supersede prior active facts instead of silently deleting history.
-5. Creative learning affects future selection/style; it does not create factual evidence.
-6. Geo and presence are context/evidence, not automatic creative permission.
-7. The model cannot convert a missing fact into reality merely because it makes a better story.
-8. Explicit user-authorized creative endpoints may be rendered exactly when requested.
+2. Explicit Knowledge facts are deterministic user evidence; Cognition must not reinterpret them into unsupported reality.
+3. Learning signals describe behavior/selection; they do not rewrite historical truth.
+4. A user's or asset's facts never leak into another identity's context.
+5. Changed facts supersede prior active facts instead of silently deleting history.
+6. Creative learning affects future selection/style; it does not create factual evidence.
+7. Geo and presence are context/evidence, not automatic creative permission.
+8. The model cannot convert a missing fact into reality merely because it makes a better story.
+9. Explicit user-authorized creative endpoints may be rendered exactly when requested.
 
 ## Product behavior rules
 
@@ -251,7 +274,7 @@ The lens may change framing, tone, emphasis, implication, and genre. It may not 
 
 | Signal | Meaning |
 |---|---|
-| `AUTHOR_INPUT_ACCEPTED` | Authoring input entered the universal learning path and was projected into memory. |
+| `AUTHOR_INPUT_ACCEPTED` | Accepted reality entered the universal learning authority and was projected into identity memory. |
 | `AI_CREATIVE_ACCEPTED` | User/system accepted an authored creative result. |
 | `AI_CREATIVE_REJECTED` | Authored creative result was rejected; useful for creative avoidance learning. |
 | `AI_VARIATION_SELECTED` | A generated variation was selected; useful for style/trajectory learning. |
@@ -265,18 +288,20 @@ The lens may change framing, tone, emphasis, implication, and genre. It may not 
 ## Acceptance map
 
 ```text
-author:fast               → universal author stability
-author:cognitive-context  → context packet completeness
-author:media-context      → media normalization + chronology + provenance
-author:live-media-bridge  → live compile seam → CognitiveAuthorContext.media
-author:provenance         → provenance permissions
-author:provenance-gate    → reality firewall
-author:domain-cognition   → domain evidence/tension layer
-author:domain-movie       → domain opportunity → movie bridge
-author:movie-beat-plan    → timeline/media planning
-author:movie-pipeline     → Mouth → MovieBeatPlan
-author:full-circle        → author → timeline → runtime shape
-author:learning-loop      → input → memory + analytics + identity isolation
+author:fast                 → universal author stability
+author:cognitive-context    → context packet completeness
+author:media-context        → media normalization + chronology + provenance
+author:live-media-bridge    → live compile seam → CognitiveAuthorContext.media
+author:provenance           → provenance permissions
+author:provenance-gate      → reality firewall
+author:live-provenance      → live IdentityState → author provenance packet
+author:knowledge-learning   → explicit Knowledge → MemoryRepository + learning signal
+author:domain-cognition     → domain evidence/tension layer
+author:domain-movie         → domain opportunity → movie bridge
+author:movie-beat-plan      → timeline/media planning
+author:movie-pipeline       → Mouth → MovieBeatPlan
+author:full-circle          → author → timeline → runtime shape
+author:learning-loop        → input → memory + analytics + identity isolation
 ```
 
 ## Definition of full circle

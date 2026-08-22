@@ -4,6 +4,8 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { analyzeImageForKnowledge } from "../services/aiProvider.js";
+import { persistExplicitAuthorEvidence } from "../services/authorLearningLoop.js";
+import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
@@ -93,8 +95,37 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     };
 
     const row = await db.insight.create({ data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: finalValue } });
-    await db.analyticsEvent.create({ data: { assetId: asset.id, type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED", meta: { source: payload.source, category: finalCategory, label: finalLabel, confidence: payload.confidence } } });
-    return res.status(201).json({ success: true, item: { id: row.id, createdAt: row.createdAt, ...payload } });
+    const learning = await persistExplicitAuthorEvidence(
+      {
+        assetId: asset.id,
+        userId,
+        text: `${finalLabel}: ${finalValue}`,
+        predicate: finalLabel,
+        value: finalValue,
+        sourceRef: row.id,
+        metadata: {
+          category: finalCategory,
+          source: payload.source,
+          confidence: payload.confidence,
+          hasMedia: Boolean(payload.imageDataUrl),
+          mediaId: row.id,
+        },
+      },
+      {
+        memoryRepository: createMemoryRepository(),
+        analyticsRepository,
+      },
+    );
+
+    return res.status(201).json({
+      success: true,
+      item: { id: row.id, createdAt: row.createdAt, ...payload },
+      learning: {
+        analyticsType: learning.analyticsType,
+        observedAt: learning.observedAt,
+        memory: learning.memory,
+      },
+    });
   } catch (error) {
     console.error("Knowledge write failed:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Knowledge write failed." });

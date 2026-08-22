@@ -27,22 +27,22 @@ Finish the existing architecture in dependency order. Every bridge gets an accep
 - Author input learning → memory projection + `AUTHOR_INPUT_ACCEPTED` signal.
 - Identity-scoped learning acceptance → new evidence reaches the next CognitiveAuthorContext and does not leak across identities.
 - Live media ingestion → existing Knowledge image evidence reaches `CognitiveAuthorContext.media` through the canonical media source/bridge.
+- Live provenance context → IdentityState facts reach `CognitiveAuthorContext.provenanceFacts` through the canonical provenance source.
+- Known direct memory write bypass → normalized through `AuthorLearningLoop`.
 
 ## REQUIRED BEFORE CREATIVE-LENS EXPANSION
 
 ### 1. Live media ingestion bridge — GREEN
 
-The existing media abstraction is now wired through the real compile path.
-
 Production path:
 
 ```text
 existing Knowledge image evidence
-→ `authorMediaSource`
-→ `authorMediaBridge`
-→ `CognitiveAuthorContext.media`
-→ `authorMoviePipeline`
-→ `MovieBeatPlan`
+→ authorMediaSource
+→ authorMediaBridge
+→ CognitiveAuthorContext.media
+→ authorMoviePipeline
+→ MovieBeatPlan
 → silent photo beat
 → Player
 ```
@@ -56,57 +56,73 @@ pnpm --filter @qre/api author:media-context
 pnpm --filter @qre/api author:live-media-bridge
 ```
 
-The live acceptance injects media at the production seam and verifies the returned canonical author context, chronology/provenance, and silent-photo contract.
+### 2. Live provenance-context bridge — GREEN
 
-### 2. Live provenance-context bridge
-
-Current production author context still constructs `provenanceFacts: []` in `experienceService`.
-
-Required production path:
+Production path:
 
 ```text
-IdentityState / typed evidence
+IdentityState.canonicalFacts
+→ authorProvenanceSource
 → AuthorRealityProvenance
 → CognitiveAuthorContext.provenanceFacts
 → Mouth
 → Provenance Gate
 ```
 
-Acceptance must prove an actual grounded fact carries provenance into the live author call and an unsupported object/place/person remains rejected.
+Validation:
 
-### 3. Universal input-path learning
-
-`compileExperience` now uses `AuthorLearningLoop`, but not every input route is yet normalized through it.
-
-Known bypass to close:
-
-```text
-POST /experience/memory/:assetId
+```powershell
+pnpm --filter @qre/api author:provenance
+pnpm --filter @qre/api author:provenance-gate
+pnpm --filter @qre/api author:live-provenance
 ```
 
-This route currently writes directly through `MemoryRepository` and must use the same learning coordinator so direct memory updates also produce the learning signal and feed the next IdentityState.
+### 3. Universal input-route learning — IN PROGRESS
 
-Audit every other route that accepts user/guest/staff reality and ensure it follows the same rule.
+The known `/experience/memory/:assetId` bypass now uses `persistAuthorLearning`.
 
-### 4. Post-play outcome learning
+Knowledge writes also enter the same learning authority deterministically:
+
+```text
+Knowledge label/value/image
+→ existing Insight persistence
+→ persistExplicitAuthorEvidence
+→ MemoryRepository
+→ explicit_evidence_added
+→ AUTHOR_INPUT_ACCEPTED
+→ next IdentityState
+```
+
+Validation:
+
+```powershell
+pnpm --filter @qre/api author:learning-loop
+pnpm --filter @qre/api author:knowledge-learning
+```
+
+Remaining work: audit every other user/guest/staff reality-bearing route and normalize or explicitly classify all remaining direct writes.
+
+### 4. Post-play outcome learning — TODO
+
+Existing behavioral substrate already reads completion, replay, save, share, CTA, abandon, and error outcomes. The remaining production bridge is to prove that those observed outcomes alter future identity/context selection and produce a materially different next MovieBeatPlan when warranted.
 
 Required path:
 
 ```text
 movie plays
-→ scan / replay / completion / abandon / save / CTA / contribution / rejection
+→ normalized outcome
 → behavioral + creative learning
 → identity-scoped write-back
 → next IdentityState
 → next CognitiveAuthorContext
-→ materially different next MovieBeatPlan when evidence warrants it
+→ next MovieBeatPlan
 ```
 
 Acceptance must prove Input A → Movie A → Outcome/Input B → Movie B changes because of the new world evidence.
 
-### 5. Reporting to owner/operator
+### 5. Reporting to owner/operator — TODO
 
-Expose a concise operational learning report without creating a learning dashboard requirement for end users.
+Expose a concise operational learning report without creating a learning-dashboard requirement for end users.
 
 Minimum signals:
 
@@ -120,7 +136,7 @@ Minimum signals:
 - provenance/reality rejects
 - current identity confidence
 
-## AFTER THE BRIDGES ARE GREEN: CREATIVE LENS HARDENING
+### 6. Genre-fluid Mouth hardening — AFTER ALL ABOVE
 
 The lens catalog already exists in `authorMovieCognition`.
 
@@ -170,6 +186,7 @@ Lens freedom may change framing, tone, emphasis, implication, and genre. It may 
 11. Dashboard manual ordering is an override, not a second source of historical truth.
 12. Every new bridge gets an acceptance test and an architecture-index entry.
 13. Media storage can evolve independently of authoring because the author boundary is `MediaAsset` / `CognitiveAuthorMedia`, not the persistence representation.
+14. Explicit Knowledge is deterministic evidence; it must not be sent through a generative interpretation step merely to enter memory.
 
 ## Definition of "full circle"
 

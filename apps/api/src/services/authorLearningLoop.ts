@@ -1,6 +1,6 @@
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import type { AnalyticsRepository } from "@qre/engine";
-import type { MemorySource } from "@qre/contracts";
+import type { MemorySource, MemoryWriteBatch } from "@qre/contracts";
 import type { WorldModel } from "@qre/engine";
 import { buildExperienceMemoryBatch } from "./memoryProjection.js";
 
@@ -25,8 +25,60 @@ export type AuthorLearningResult = {
   observedAt: string;
 };
 
+export type ExplicitAuthorEvidence = {
+  assetId: string;
+  userId?: string;
+  sessionId?: string;
+  text: string;
+  predicate?: string;
+  value?: string;
+  sourceRef?: string;
+  observedAt?: string;
+  metadata?: Record<string, unknown>;
+};
+
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+function explicitEvidenceBatch(input: ExplicitAuthorEvidence): MemoryWriteBatch {
+  const observedAt = input.observedAt ?? new Date().toISOString();
+  const text = clean(input.text);
+  const predicate = clean(input.predicate) || "knowledge";
+  const value = clean(input.value) || text;
+
+  return {
+    assetId: input.assetId,
+    userId: input.userId,
+    entities: [],
+    facts: [
+      {
+        kind: "attribute",
+        predicate,
+        value,
+        confidence: 1,
+        source: "user",
+        sourceRef: input.sourceRef,
+        status: "active",
+        observedAt,
+        visibility: "private",
+        metadata: input.metadata,
+      },
+    ],
+    relations: [],
+    events: [
+      {
+        type: "explicit_evidence_added",
+        summary: text,
+        occurredAt: observedAt,
+        source: "user",
+        confidence: 1,
+        entityIds: [],
+        sessionId: input.sessionId,
+        metadata: input.metadata,
+      },
+    ],
+  };
+}
 
 export function buildAuthorLearningRecord(input: AuthorLearningRecord) {
   const observedAt = input.observedAt ?? new Date().toISOString();
@@ -81,5 +133,44 @@ export async function persistAuthorLearning(
     memory: record.analytics.meta.memory,
     analyticsType: record.analytics.type,
     observedAt: record.observedAt,
+  };
+}
+
+export async function persistExplicitAuthorEvidence(
+  input: ExplicitAuthorEvidence,
+  deps: { memoryRepository: MemoryRepository; analyticsRepository: AnalyticsRepository },
+): Promise<AuthorLearningResult> {
+  const observedAt = input.observedAt ?? new Date().toISOString();
+  const batch = explicitEvidenceBatch(input);
+
+  await deps.memoryRepository.writeBatch(batch);
+  await deps.analyticsRepository.trackEvent({
+    assetId: input.assetId,
+    sessionId: input.sessionId,
+    type: "AUTHOR_INPUT_ACCEPTED",
+    meta: {
+      source: "explicit_evidence",
+      observedAt,
+      text: clean(input.text).slice(0, 4000),
+      predicate: clean(input.predicate) || "knowledge",
+      sourceRef: input.sourceRef ?? null,
+      memory: {
+        entities: 0,
+        facts: batch.facts.length,
+        relations: 0,
+        events: batch.events.length,
+      },
+    },
+  });
+
+  return {
+    memory: {
+      entities: 0,
+      facts: batch.facts.length,
+      relations: 0,
+      events: batch.events.length,
+    },
+    analyticsType: "AUTHOR_INPUT_ACCEPTED",
+    observedAt,
   };
 }
