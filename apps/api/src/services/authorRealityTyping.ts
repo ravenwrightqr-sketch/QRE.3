@@ -18,9 +18,9 @@ export type TypedRealityFact = {
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const has = (text: string, pattern: RegExp): boolean => pattern.test(text);
 
-const IDENTITY = /\b(?:is|named|name is|called|a poodle|a dog|a cat|a lawyer|a mechanic|a groomer|a restaurant|a hotel|a wedding|a house)\b/i;
+const IDENTITY = /^(?:poodle|dog|cat|lawyer|mechanic|groomer|restaurant|hotel|wedding|house)$/i;
+const IDENTITY_PHRASE = /\b(?:is|named|name is|called|a poodle|a dog|a cat|a lawyer|a mechanic|a groomer|a restaurant|a hotel|a wedding|a house)\b/i;
 const EVENT = /\b(?:arrived|came|left|got|stole|found|sent|ordered|changed|ran|returned|noticed|repaired|disappeared|stayed|moved|laughed|waited|opened|closed|called|signed|checked|cleaned|placed|listed|reviewed|diagnosed|approved|emerged|departed|took|secured|settled|turned|shifted|broke|held|talked|connected|met|married|celebrated|finished|started|worked|showed|served|paid|saw|came in)\b/i;
 const STATE = /\b(?:nervous|confident|quiet|loud|happy|sad|angry|excited|tired|ready|late|early|busy|empty|full|broken|fixed|clean|dirty|fresh|approved|rejected|missing|gone|fabulous|muddy|calm|bold|radiant|unsteady|successful|failed|resolved|unresolved|connected|proud|scared|fierce|sweet|wild|open|closed|private|together|alone|friendly)\b/i;
 const TRAIT = /\b(?:fierce|friendly|bold|sweet|calm|wild|quiet|loud|proud|playful|curious|loyal|stubborn|gentle|shy|social|serious|funny)\b/i;
@@ -36,11 +36,8 @@ export function typeRealityFact(value: string, subject = ""): TypedRealityFact {
   const lowered = text.toLowerCase();
   if (!text) return { text, type: "event", confidence: 0, explicit: false };
 
-  if (lowered === subject.toLowerCase() || IDENTITY.test(text)) {
+  if (lowered === subject.toLowerCase() || IDENTITY.test(text) || IDENTITY_PHRASE.test(text)) {
     return { text, type: "identity", confidence: 0.96, explicit: true };
-  }
-  if (RECURRENCE.test(text) && !EVENT.test(text)) {
-    return { text, type: "recurrence", confidence: 0.93, explicit: true };
   }
   if (PREFERENCE.test(text)) {
     return { text, type: "preference", confidence: 0.95, explicit: true };
@@ -50,6 +47,9 @@ export function typeRealityFact(value: string, subject = ""): TypedRealityFact {
   }
   if (TRAIT.test(text) && !EVENT.test(text)) {
     return { text, type: "trait", confidence: 0.9, explicit: true };
+  }
+  if (RECURRENCE.test(text) && !EVENT.test(text)) {
+    return { text, type: "recurrence", confidence: 0.93, explicit: true };
   }
   if (PLACE.test(text) && !EVENT.test(text) && !STATE.test(text)) {
     return { text, type: "place", confidence: 0.84, explicit: true };
