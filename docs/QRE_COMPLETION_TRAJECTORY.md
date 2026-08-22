@@ -15,18 +15,19 @@ Do not add another brain, timeline owner, persistence system, or lens system whi
 - Known memory-route learning bypass → AuthorLearningLoop.
 - Knowledge deterministic evidence → AuthorLearningLoop.
 - Canonical behavioral outcome taxonomy.
-- Learned creative pressure consumer inside the existing author pipeline.
+- Learned-lens consumer inside the existing author pipeline.
 - Universal author regression suite.
 
 ### IN PROGRESS
 
 - Complete audit of every user/guest/staff reality-bearing input route.
 - Real runtime outcome → IdentityState → materially different next experience proof.
+- True candidate-level learned-pressure competition inside `authorMovieCognition`.
 - Owner/operator reporting.
 
 ## Outcome + adaptive bridge
 
-Runtime already records outcome events. The behavioral learning layer now consumes one canonical event taxonomy and the author consumes the resulting creative learning through one soft-pressure bridge:
+Runtime already records outcome events. The behavioral learning layer now consumes one canonical event taxonomy, and the author consumes resulting creative learning through a bounded learned-lens preference:
 
 ```text
 runtime outcome
@@ -36,17 +37,20 @@ runtime outcome
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
 → authorCreativeLearningPressure
-→ existing authorMovieCognition lens competition
+→ learned preferred lens when neutral/default
+→ existing authorMovieCognition
 → Mouth
 ```
 
 Rules:
 
-- learned pressure is soft selection pressure;
+- learned preference is bounded and soft relative to explicit intent;
 - explicit non-neutral lens intent wins;
 - rejected/avoided lenses cannot become learned winners;
 - creative learning never changes reality or provenance;
 - no second lens engine is introduced.
+
+The current acceptance proves the consumer bridge. It does **not** yet prove true candidate-level re-ranking or the full persisted Movie A → outcome → Movie B loop.
 
 Acceptance:
 
@@ -54,8 +58,6 @@ Acceptance:
 pnpm --filter @qre/api author:outcome-learning
 pnpm --filter @qre/api author:adaptive-learning
 ```
-
-These prove taxonomy normalization and the consumer bridge. The remaining production proof must exercise actual persisted runtime outcomes through IdentityState into a subsequent MovieBeatPlan.
 
 ## 1. Live media ingestion — GREEN
 
@@ -105,6 +107,8 @@ Movie A
 
 Movie B must materially change because of newly observed outcome evidence, not because the prompt changed.
 
+The immediate next hardening is to move learned pressure from preferred-lens injection into the **existing hypothesis score inside `authorMovieCognition`**, keeping the same catalog and same author owner.
+
 ## 5. Owner/operator reporting — TODO
 
 Minimum useful signals:
@@ -130,7 +134,7 @@ Target pipeline:
 REAL FACTS
 → approved meaning / relationship
 → existing lens search
-→ learned creative pressure
+→ learned pressure inside existing hypothesis competition
 → candidate realization
 → reality gate
 → meaning execution gate
