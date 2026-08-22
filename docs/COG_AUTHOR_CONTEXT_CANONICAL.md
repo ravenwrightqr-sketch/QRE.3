@@ -31,7 +31,9 @@ provenance + quality gate
   ↓
 MOVIE BEAT PLAN
   ↓
-text beats + optional silent photo beats + CTA
+text beats + optional silent photo beats + optional business CTA
+  ↓
+EXPERIENCE SERVICE RENDERING
   ↓
 SequencePlay / cinematic runtime
   ↓
@@ -75,7 +77,7 @@ A plan contains:
 
 - `text` beats produced by the Mouth
 - `photo` beats selected from existing media evidence
-- optional `cta` as the terminal action
+- optional `cta` as the terminal business action
 - source IDs for traceability
 - per-beat reason for selection
 - duration hints
@@ -85,7 +87,25 @@ A plan contains:
 - selected media IDs
 - estimated runtime
 
-The player consumes the plan; the player does not decide which evidence belongs in the movie.
+The **Author Movie Pipeline** now produces the `MovieBeatPlan` immediately after the universal author selects/accepts the movie.
+
+The existing `experienceService` consumes that plan and renders it into the runtime experience. It no longer independently decides the author timeline.
+
+```text
+SUPER COG
+  ↓
+MOUTH / AUTHOR RESULT
+  ↓
+AUTHOR MOVIE PIPELINE
+  ↓
+MOVIE BEAT PLAN       ← SINGLE TIMELINE OWNER
+  ↓
+EXPERIENCE SERVICE    ← RENDERER / ADAPTER
+  ↓
+PLAYER
+```
+
+The player consumes the resulting runtime beats; the player does not decide which evidence belongs in the movie.
 
 ## Media organization
 
@@ -140,9 +160,11 @@ Coco left looking fabulous.
 PHOTO
 final after
 
-CTA
-Want to keep Coco's story?
+CTA (only when explicitly configured)
+BOOK AGAIN
 ```
+
+Without an explicit business CTA, the movie simply lands on its ending/personality surface; the core story does not become an advertisement.
 
 The groomer does not need to manually arrange the media.
 
@@ -196,6 +218,50 @@ A photo beat:
 - may contain text only when that text is actually part of the source image/media
 
 The cognition layer chooses whether a photo is worth the attention slot. The player owns presentation.
+
+## Ending architecture
+
+The story payoff, personality landing, portal action, and business CTA are distinct concepts.
+
+Default:
+
+```text
+STORY PAYOFF
+   ↓
+tiny visual pause
+   ↓
+optional QRE personality landing
+```
+
+Only add an action when there is a real destination or explicit business configuration:
+
+```text
+business plan + configured CTA
+→ business CTA
+
+real portal exists
+→ portal action
+
+otherwise
+→ no sales CTA required
+```
+
+The default QRE personality pool is intentionally short, strange, and non-SaaS. Examples include:
+
+```text
+The End, Never.
+Never Ending Story.
+Oops. I Did It Again.
+Build...
+Naturally.
+Again?
+For Now.
+Obviously.
+There It Is.
+Alive.
+```
+
+These are personality landings, not generic conversion buttons.
 
 ## User authority vs reality authority
 
@@ -284,11 +350,36 @@ Learning changes future selection, not historical reality.
 
 ## Implementation checkpoint
 
-The canonical `MovieBeatPlan` contract, deterministic media-to-plan organizer, and acceptance test are now in the author stack.
+The following author stack is now wired and acceptance-covered:
 
-The planner is intentionally pure and storage-agnostic. It prefers chronology and explicit before/after evidence, keeps photo beats silent, supports a default five-text-beat attention unit, and allows an explicit CTA at the end.
+- `CognitiveAuthorContext`
+- `MovieBeatPlan`
+- deterministic media-to-plan organizer
+- `authorMoviePipeline`
+- `experienceService` consumption of `MovieBeatPlan`
+- silent photo beats
+- default auto organization
+- manual Dashboard override
+- optional terminal business CTA
+- explicit user endpoint authority
+- provenance gate
 
-The remaining runtime seam is to have the existing experience assembly consume `MovieBeatPlan` as the single timeline owner instead of independently mapping authored scenes. That is the next integration target.
+The remaining full-circle work is **post-play write-back**: turning scan/replay/contribution/CTA outcomes back into the memory, analytics, and creative-learning layers so the next `CognitiveAuthorContext` is measurably richer.
+
+## Acceptance sequence
+
+```text
+pnpm --filter @qre/contracts build
+pnpm --filter @qre/engine build
+pnpm --filter @qre/api build
+pnpm --filter @qre/api author:cognitive-context
+pnpm --filter @qre/api author:movie-beat-plan
+pnpm --filter @qre/api author:movie-pipeline
+pnpm --filter @qre/api author:full-circle
+pnpm --filter @qre/api author:fast
+```
+
+`author:full-circle` proves the current author-to-timeline seam for a Coco-style scenario: full cognitive context, media evidence, five text beats, silent photo beats, no default CTA, explicit business CTA override, and manual Dashboard override.
 
 ## Non-negotiable boundaries
 
@@ -297,10 +388,12 @@ The remaining runtime seam is to have the existing experience assembly consume `
 3. Super Cog decides what is interesting and what movie should happen.
 4. Mouth renders the selected movie; it does not invent the world.
 5. MovieBeatPlan is the single timeline decision object.
-6. Provenance gates final authored output.
-7. Photos are evidence and cinematic beats, not generated prose.
-8. Player owns exact visual presentation.
-9. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
-10. Cognition organizes by default; Dashboard is the explicit override.
-11. All meaningful new interactions feed memory and analytics.
-12. The system must remain one universal brain with domain cognition, not separate domain brains.
+6. ExperienceService renders the plan; it does not choose a competing author timeline.
+7. Provenance gates final authored output.
+8. Photos are evidence and cinematic beats, not generated prose.
+9. Player owns exact visual presentation.
+10. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
+11. Cognition organizes by default; Dashboard is the explicit override.
+12. Business CTAs are opt-in; default experiences do not become ads.
+13. All meaningful new interactions feed memory and analytics.
+14. The system must remain one universal brain with domain cognition, not separate domain brains.
