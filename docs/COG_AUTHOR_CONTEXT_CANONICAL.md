@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the canonical path from a user's one-shot mega dump to a grounded, adaptive cinematic experience.
+This document defines the canonical path from a user's one-shot mega dump to a grounded, adaptive cinematic experience and the universal learning loop that makes the next experience richer.
 
 The UI does not require the user to understand the internal structure. They can provide a messy dump of facts, memories, locations, updates, goals, photos, and instructions. Cognition organizes it.
 
@@ -39,7 +39,11 @@ SequencePlay / cinematic runtime
   ↓
 scan / replay / contribution / update
   ↓
-MEMORY + ANALYTICS
+UNIVERSAL LEARNING WRITE-BACK
+  ↓
+MEMORY + ANALYTICS + CREATIVE LEARNING
+  ↓
+stronger IDENTITY STATE
   ↓
 next experience is richer
 ```
@@ -330,15 +334,27 @@ world remains readable and replayable
 
 This supports weddings, events, memorials, travel, parties, service follow-ups, pet updates, and other time-bounded collaborative experiences.
 
-## Learning loop
+## Universal learning loop
 
 Learning is not a dashboard the user must study.
 
-The system learns automatically from legitimate signals:
+The system treats accepted user input and legitimate experience outcomes as identity-scoped evidence.
 
 ```text
-event
-→ rendered experience
+new user input
+→ reality typing / provenance
+→ memory projection
+→ identity-scoped memory write-back
+→ AUTHOR_INPUT_ACCEPTED analytics signal
+→ stronger IdentityState on next load
+→ richer CognitiveAuthorContext
+→ new movie selection
+```
+
+Runtime outcomes extend the same loop:
+
+```text
+rendered experience
 → scan / replay / contribution / save / completion / rejection
 → memory + analytics + creative learning
 → stronger identity state
@@ -346,7 +362,11 @@ event
 → better next experience
 ```
 
-Learning changes future selection, not historical reality.
+The universal learning coordinator is `authorLearningLoop.ts`. It deliberately reuses the existing `MemoryRepository` and `AnalyticsRepository` rather than creating a second persistence system.
+
+Learning is identity-scoped by `assetId` and user-scoped where available. One user's pet, business, memorial, property, event, or personal world must never leak into another identity.
+
+Learning changes future selection and significance; it must not rewrite historical evidence merely because a pattern was inferred.
 
 ## Implementation checkpoint
 
@@ -363,8 +383,9 @@ The following author stack is now wired and acceptance-covered:
 - optional terminal business CTA
 - explicit user endpoint authority
 - provenance gate
+- universal learning coordinator contract + acceptance
 
-The remaining full-circle work is **post-play write-back**: turning scan/replay/contribution/CTA outcomes back into the memory, analytics, and creative-learning layers so the next `CognitiveAuthorContext` is measurably richer.
+The next integration target is post-play outcome write-back: scan, replay, contribution, save/completion, and creative feedback should all feed the same identity-scoped learning path so future `CognitiveAuthorContext` becomes measurably richer.
 
 ## Acceptance sequence
 
@@ -376,10 +397,13 @@ pnpm --filter @qre/api author:cognitive-context
 pnpm --filter @qre/api author:movie-beat-plan
 pnpm --filter @qre/api author:movie-pipeline
 pnpm --filter @qre/api author:full-circle
+pnpm --filter @qre/api author:learning-loop
 pnpm --filter @qre/api author:fast
 ```
 
 `author:full-circle` proves the current author-to-timeline seam for a Coco-style scenario: full cognitive context, media evidence, five text beats, silent photo beats, no default CTA, explicit business CTA override, and manual Dashboard override.
+
+`author:learning-loop` proves identity-scoped memory write-back, the accepted-input analytics signal, visibility of new evidence in the next memory summary, and cross-identity isolation.
 
 ## Non-negotiable boundaries
 
@@ -395,5 +419,6 @@ pnpm --filter @qre/api author:fast
 10. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
 11. Cognition organizes by default; Dashboard is the explicit override.
 12. Business CTAs are opt-in; default experiences do not become ads.
-13. All meaningful new interactions feed memory and analytics.
-14. The system must remain one universal brain with domain cognition, not separate domain brains.
+13. Accepted user input and legitimate runtime outcomes feed identity-scoped memory, analytics, and learning.
+14. Learning may change future selection but never silently overwrite historical reality.
+15. The system must remain one universal brain with domain cognition, not separate domain brains.
