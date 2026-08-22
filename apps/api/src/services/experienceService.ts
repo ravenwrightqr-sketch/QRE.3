@@ -13,6 +13,7 @@ import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./m
 import { buildAuthorIdentityState } from "./authorIdentityState.js";
 import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
 import { authorMoviePipeline } from "./authorMoviePipeline.js";
+import { persistAuthorLearning } from "./authorLearningLoop.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -42,6 +43,7 @@ export type CompiledExperienceResult = {
   learningSignals?: string[];
   cognition?: unknown;
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
+  learning?: { analyticsType: "AUTHOR_INPUT_ACCEPTED"; observedAt: string } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
   identityState?: IdentityState | null;
@@ -497,25 +499,32 @@ export async function compileExperience(input: {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({
-        assetId: input.assetId,
-        userId: input.userId,
-        world: compiled.world,
-        source: "prompt",
-      });
-      await input.memoryRepository.writeBatch(batch);
+      const learningResult = await persistAuthorLearning(
+        {
+          assetId: input.assetId,
+          userId: input.userId,
+          sessionId: input.sessionId,
+          prompt,
+          source: "prompt",
+          world: compiled.world,
+        },
+        {
+          memoryRepository: input.memoryRepository,
+          analyticsRepository: createAnalyticsRepository(),
+        },
+      );
+
       return {
         ...result,
-        memory: {
-          entities: batch.entities.length,
-          facts: batch.facts.length,
-          relations: batch.relations.length,
-          events: batch.events.length,
+        memory: learningResult.memory,
+        learning: {
+          analyticsType: learningResult.analyticsType,
+          observedAt: learningResult.observedAt,
         },
       };
     } catch (error) {
-      console.warn("[QRE][AUTHORING] Memory projection failed after compile; preserving generated experience.", error);
-      warnings.push("memory_projection_failed");
+      console.warn("[QRE][AUTHORING] Learning persistence failed after compile; preserving generated experience.", error);
+      warnings.push("learning_persistence_failed");
       return { ...result, warnings };
     }
   }
