@@ -58,6 +58,7 @@ export const AnalyticsEventTypes = {
 } as const;
 
 export type AnalyticsEventType = (typeof AnalyticsEventTypes)[keyof typeof AnalyticsEventTypes];
+export type AnalyticsOutcomeKind = "positive" | "negative" | "neutral";
 
 export interface AnalyticsEvent {
   type: AnalyticsEventType;

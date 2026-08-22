@@ -1,57 +1,97 @@
 # QRE Autonomous Learning
 
-QRE does not require the owner to manually judge every generated experience.
+QRE learns from real use without requiring the owner to manually judge every generated experience.
 
 ## What QRE observes
 
-QRE reads behavioral analytics already produced by real use, including:
+Runtime analytics records scans, completions, abandonment, errors, replays, saves, shares, CTA clicks, payments, rewards, and memory-selection behavior.
 
-- scans
-- flow completions
-- flow abandonment
-- errors
-- replays
-- saves
-- shares
-- CTA clicks
-- earned rewards
-- completed payments
-- selected memory recommendations
+## Canonical outcome taxonomy
 
-## What QRE records about creative work
+Runtime event names come from `@qre/contracts` `AnalyticsEventTypes`. API learning normalizes them once in:
 
-Each generated experience persists a lightweight learning profile containing:
+`apps/api/src/services/authorOutcomeLearning.ts`
 
-- cognitive lens
-- prompt size class
-- automatically detected prompt characteristics
-- whether a generative author was used
-- whether memory was available
+Current classification:
 
-Examples of automatically detected characteristics include comedy, romance, horror, mystery, cinematic, memory, place-centered, service-centered, object-centered, relationship-centered, escalation, and understatement.
+```text
+positive → FLOW_COMPLETE / EXPERIENCE_REPLAY / EXPERIENCE_SAVED / EXPERIENCE_SHARED / CTA_CLICK / PAYMENT_COMPLETED / MEMORY_RECOMMENDATION_SELECTED
+negative → FLOW_ABANDON / ERROR
+neutral  → other observed events such as SCAN / SESSION_START
+```
 
-## How autonomous learning works
+The normalized result is the canonical cross-layer `AnalyticsOutcomeKind` contract type. This keeps outcome meaning from drifting across learning components.
 
-QRE groups experiences by those characteristics and compares measured outcomes.
+## What QRE stores about creative work
 
-A behavioral score combines:
+Experience records carry lightweight learning metadata such as the selected lens, prompt shape, detected prompt signals, generative-author use, memory awareness, and related learning profile data.
 
-- completion rate
-- positive actions per scan
-- abandonment/errors per scan
+## How learning becomes useful
 
-The resulting signals are labeled as behavioral winners or weaknesses and are injected back into the next creative authoring context as soft guidance.
+Behavioral learning groups comparable experiences and calculates outcome pressure from completion, positive actions, abandonment, and errors. The resulting winners/weaknesses flow into `IdentityState.creativeLearning` and then `CognitiveAuthorContext.creativeLearning`.
 
-This is evidence-based preference learning, not hard-coded storytelling templates.
+The existing author pipeline consumes that state through:
+
+`apps/api/src/services/authorCreativeLearningPressure.ts`
+
+```text
+outcome
+→ AnalyticsRepository
+→ autonomousLearning
+→ IdentityState
+→ CognitiveAuthorContext
+→ bounded learned-lens preference
+→ existing authorMovieCognition
+→ Mouth
+```
+
+The current consumer is intentionally conservative. It can provide a preferred lens when authoring is neutral/default. It does not replace the existing cognition owner.
+
+### Selection rules
+
+- A learned preference may influence a neutral/default authoring choice.
+- An explicit non-neutral user lens request outranks learned preference.
+- Rejected or avoided lenses cannot become learned winners.
+- Creative learning can influence framing/selection but cannot create factual reality.
+- Reality/provenance remain governed by the existing truth packet and Provenance Gate.
+
+### Next hardening gate
+
+The next step is to move the learned pressure into the existing `authorMovieCognition` hypothesis score itself. That is the proper candidate-level implementation because it lets reality fit, attention value, trajectory quality, and learning all compete together rather than turning learning into a hard preferred-lens injection.
+
+Do **not** create another lens engine to accomplish this.
 
 ## Privacy boundary
 
-Behavioral learning is scoped to the authenticated user's owned assets/account assets. One customer's creative behavior is not used as another customer's private preference context.
+Behavioral learning remains scoped to the authenticated user's owned/account assets. One identity's private learning must not become another identity's private preference.
 
 ## Human feedback
 
-Explicit feedback remains supported and is treated as a higher-value signal, but it is optional. QRE is intended to keep learning while users live normally, create experiences, scan objects, travel, add memories, and interact with the system.
+Explicit creative feedback remains higher-value evidence than weak behavioral observation, but QRE can continue learning from normal use without requiring manual review of every experience.
 
-## What this does not yet do
+## Current acceptances
 
-This layer does not automatically fine-tune model weights. It changes future creative context using observed outcomes. A later training pipeline can turn accumulated accepted/rejected/outcome data into a QRE-specific fine-tuning dataset.
+```powershell
+pnpm --filter @qre/api author:outcome-learning
+pnpm --filter @qre/api author:adaptive-learning
+```
+
+The first proves canonical outcome normalization. The second proves learned creative state can alter the next selected lens while explicit intent still wins and the supplied reality packet remains unchanged.
+
+## Remaining full-loop proof
+
+The system still needs the end-to-end acceptance:
+
+```text
+Movie A
+→ real runtime outcome
+→ behavioral learning
+→ IdentityState / CognitiveAuthorContext
+→ Movie B materially changes
+```
+
+That proof is required before the adaptive loop is considered complete.
+
+## Future training boundary
+
+This layer changes future authoring context. It does not fine-tune model weights. A later training pipeline can consume the accumulated accepted/rejected/outcome dataset without changing the runtime truth architecture.
