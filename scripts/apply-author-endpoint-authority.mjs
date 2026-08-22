@@ -3,6 +3,11 @@ import fs from "node:fs";
 const path = "apps/api/src/services/authorBrainUniversal.ts";
 let source = fs.readFileSync(path, "utf8");
 
+if (source.includes("authorizedCreativeInstructions: string[]") && source.includes("isAuthorizedEndpoint")) {
+  console.log(`Already patched ${path}: explicit endpoint authority enabled.`);
+  process.exit(0);
+}
+
 const replacements = [
   [
     'type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; path: Path; thesis: string; movieCognition: ReturnType<typeof buildMovieCognition>; provenanceFacts: ProvenanceFact[] };',
