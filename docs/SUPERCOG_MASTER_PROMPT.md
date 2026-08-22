@@ -81,6 +81,8 @@ FACT TYPING
 ↓
 DOMAIN / ENTITY MODEL
 ↓
+DOMAIN COGNITION PROFILE
+↓
 EVENT / RELATIONSHIP GRAPH
 ↓
 COGNITIVE STATE
@@ -88,6 +90,8 @@ COGNITIVE STATE
 TRAJECTORY CANDIDATES
 ↓
 CAUSAL / ATTENTION / NOVELTY SEARCH
+↓
+PERSONALITY / PERSISTENT-MEANING SEARCH WHEN APPLICABLE
 ↓
 BEST MOVIE
 ↓
@@ -99,6 +103,8 @@ TRUTH / PROVENANCE GATE
 ↓
 ATTENTION / BORINGNESS GATE
 ↓
+GROUNDED RECOVERY IF NECESSARY
+↓
 SEQUENCEPLAY / TEXT-MOVIE
 
 ## Movie Cognition
@@ -108,7 +114,7 @@ A movie hypothesis is a proposed causal interpretation of supplied reality, not 
 It must answer:
 
 - What is actually happening?
-- What is interesting about the relationship between supplied events?
+- What is interesting about the relationship between supplied events or supplied character facts?
 - What expectation exists?
 - What changes that expectation?
 - What consequence follows?
@@ -131,6 +137,7 @@ For each candidate, evaluate:
 - payoff potential
 - baseline lift
 - personality coherence when reality is trait/preference-heavy
+- domain fit
 
 The search is deliberately bounded. QRE needs a small number of strong alternatives and disciplined pruning, not thousands of branches.
 
@@ -171,6 +178,8 @@ IDENTITY → who/what the subject is, only as supplied
 TRAITS → persistent characteristics
 PREFERENCES → what the subject is drawn toward or away from
 SOCIAL SIGNALS → relationships or social tendencies only when supplied
+ACTIVITIES → recurring behaviors or supplied behavior patterns
+TENSIONS → contrasts between supplied character signals
 OPPORTUNITIES → tensions, combinations, or comic contrasts already latent in those facts
 
 Example:
@@ -190,6 +199,90 @@ night walks + loves other dogs → social/behavioral opportunity
 loves bacon → concrete preference / comic leverage
 
 The system may make the personality feel vivid. It may not invent a dog park, owner, house, dialogue, physical habit, or unreported adventure.
+
+## Domain Cognition Profile
+
+Domain cognition is a mode of the same Super Cog, not a second brain.
+
+Supported modes include:
+
+- memory
+- pet_social
+- service
+- business_media
+- generic
+
+The profile contains:
+
+- typed domain facts
+- anchors
+- personality or meaning tensions
+- opportunities
+- identity signals
+- trait signals
+- preference signals
+- social signals
+- activity signals
+- continuity signals
+- forbidden expansions
+
+Domain cognition determines how supplied knowledge should be searched. It must not create new reality.
+
+### Memory mode
+
+Memory mode searches for persistent meaning:
+
+FIRST EVENT → CONNECTION → CONTINUITY → CHANGED MEANING
+
+A supplied later event may make an earlier event feel more important, intimate, funny, strange, or inevitable, but may not create unsupported relationship status or private history.
+
+### Pet social mode
+
+Pet social mode searches for character rather than biography:
+
+IDENTITY → TRAITS → PREFERENCES → ACTIVITIES → SOCIAL SIGNALS → PERSONALITY TENSION → PAYOFF
+
+It should create a recognizable social personality from sparse facts. It must not create an owner, home, dog park, breed history, dialogue, physical habits, or unreported adventures.
+
+### Service mode
+
+Service mode distinguishes the service provider, paying/business entity, customer/client when explicitly supplied, service subject, location, work performed, completion state, and operational CTA.
+
+Housekeeping service is not automatically hotel, homeowner, Airbnb, tenant, or host context. The system must never silently add those entities.
+
+### Business media mode
+
+Business media mode can turn supplied product/service facts into punchy, attention-oriented play-outs and CTA moments while preserving exact commercial claims.
+
+“New on market” may create urgency. It may not invent square footage, price, features, buyer demographics, property condition, or seller identity.
+
+## Character Tension
+
+When multiple persistent character signals are supplied, Cog should search for useful tension instead of flattening them into adjectives.
+
+Examples:
+
+fierce ↔ friendly
+social ↔ private
+routine ↔ spontaneous
+serious ↔ playful
+strong preference A ↔ strong preference B
+
+A character tension is valid only when both sides are directly supported by supplied facts.
+
+Tension is not permission to invent an event. It is a reason to choose a different framing or payoff.
+
+## Persistent Meaning
+
+Persistent meaning is a first-class search target.
+
+A detail can appear early, matter differently later, and then pay off without the literal detail changing.
+
+The search asks:
+
+“What was established early that the ending can make mean something different?”
+
+This is especially important for living memories, recurring pet behavior, customer relationships, and serialized experiences.
 
 ## Domain / Entity Rule
 
@@ -391,14 +484,124 @@ Update this document as architecture evolves.
 5. Preserve chronology and provenance as hard constraints.
 6. Type reality facts before reasoning when the input mixes events, traits, preferences, identity, or social data.
 7. Use trait/preference cognition for personality-heavy experiences instead of forcing them into event-only trajectories.
-8. Select one movie before Mouth realization.
-9. Keep lens after cognition and before language.
-10. Use strict truth validation plus grounded recovery.
-11. Feed recurring validator failures back into generation constraints.
-12. Expand acceptance around living memory, pet social, services, business marketing, and exact-data modes.
+8. Build domain cognition profiles for memory, pet social, service, and business media without creating separate brains.
+9. Search explicit character tensions when trait/preference data is present.
+10. Search persistent meaning when repeated or long-horizon facts are present.
+11. Select one movie before Mouth realization.
+12. Keep lens after cognition and before language.
+13. Use strict truth validation plus grounded recovery.
+14. Feed recurring validator failures back into generation constraints.
+15. Expand acceptance around living memory, pet social, services, business marketing, and exact-data modes.
+
+## Current Advancement Doctrine
+
+The next level of Super Cog comes from adding cognitive structure, not adding prompt adjectives.
+
+A supplied fact should create one or more useful relationships:
+
+FACT → TYPE → ROLE → RELATIONSHIP → TENSION → OPPORTUNITY → TRAJECTORY → MEANING → PAYOFF
+
+The system should continuously search for:
+
+- the strongest fact relationship
+- the strongest state transition
+- the strongest character tension
+- the strongest social opportunity
+- the strongest unused fact
+- the strongest persistent meaning
+- the strongest payoff connection
+
+The winning movie is the hypothesis that creates the most meaningful viewer-state movement under the hard reality constraints.
+
+## Product Expansion Targets
+
+The same Super Cog can support many experiences without becoming many brains.
+
+### Living memories
+
+Meeting → connection → continuity → significance.
+
+### Pet social media
+
+Identity → personality → preference → social behavior → character tension → funny/learnable payoff.
+
+### Service media
+
+Arrival → work → change → result → client-facing completion moment → optional CTA.
+
+### Real estate
+
+Supplied property fact → market event → distinctive detail → attention shift → commercial action.
+
+Never invent listing facts, price, buyer type, seller identity, square footage, property condition, or location claims.
+
+### Restaurant / hospitality
+
+Supplied food/service facts → sensory emphasis only when supported → social or commercial opportunity → CTA.
+
+Never manufacture ingredients, reviews, customer quotes, or service claims.
+
+### Legal / exact-data businesses
+
+Prefer exactness-first cognition. Creative framing is opt-in and cannot mutate the underlying record.
+
+### Events / weddings
+
+Supplied sequence → ritual / emotion / turning point → earned memory payoff.
+
+Never fabricate relatives, dialogue, vows, locations, or private meaning not supported by the source.
+
+## Speed / UX Doctrine
+
+The user should not need to understand any of this machinery.
+
+The product should feel:
+
+FAST → TYPE OR PASTE FACTS → QRE UNDERSTANDS → QRE MAKES THE MOVIE → USER APPROVES / SHARES / SAVES
+
+No learning dashboard is required for the creative core.
+
+Avoid unnecessary configuration. Automatic domain detection should be preferred when confidence is high. User-provided lens or mode overrides are explicit and should never silently change reality rules.
 
 ## Definition of Done
 
 Super Cog is successful when ordinary supplied reality can become a compelling short movie without changing reality; multiple hypotheses genuinely differ in causal trajectory; fact types are respected; the selected movie is domain-native; the lens improves framing without changing facts; the Mouth realizes instead of explaining; chronology remains intact; unsupported details never survive; every beat changes or deepens the viewer’s state; the payoff is earned; outputs remain fast and scannable; and the same cognitive mechanism works across memories, pets, services, businesses, events, commerce, and experiences.
 
 That is the beast we are building.
+
+## Advancement Log — 2026-08-21
+
+### Upgrade: Unified Domain Cognition Profile
+
+Added `authorDomainCognition.ts` as a shared mode layer rather than a separate domain brain.
+
+Current modes:
+
+- `memory`
+- `pet_social`
+- `service`
+- `business_media`
+- `generic`
+
+The profile organizes typed facts into anchors, traits, preferences, social signals, activities, continuity signals, tensions, opportunities, and forbidden expansions.
+
+Why:
+
+The same fact set should not be reasoned about identically across a living memory, pet social story, housekeeping service, and business-media promotion. The domain mode changes what relationships are worth searching while the truth law remains global.
+
+Acceptance:
+
+`author:domain-cognition` exercises pet personality, living-memory meaning shift, and service cognition through the same shared profile system.
+
+### Next Upgrade Target: Character + Persistent Meaning Search
+
+The next cognitive jump is to make `authorMovieCognition.ts` consume domain profiles directly for:
+
+- trait contradiction search
+- preference leverage
+- social opportunity search
+- activity/recurrence search
+- persistent-meaning callbacks
+- domain-specific trajectory scoring
+
+This should make pet social experiences behave like character movies, living memories behave like evolving meaning, services behave like transformation/completion movies, and business media behave like attention/action movies without creating separate brains.
