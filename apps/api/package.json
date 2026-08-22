@@ -10,7 +10,8 @@
     "author:fast": "tsx ./author-acceptance-suite.ts",
     "author:living-memory": "tsx ./author-living-memory-acceptance.ts",
     "author:pet-social": "tsx ./author-pet-social-acceptance.ts",
-    "author:reality-typing": "tsx ./author-reality-typing-acceptance.ts"
+    "author:reality-typing": "tsx ./author-reality-typing-acceptance.ts",
+    "author:domain-cognition": "tsx ./author-domain-cognition-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
