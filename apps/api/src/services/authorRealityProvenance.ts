@@ -1,7 +1,7 @@
 import { typeRealityFact, type RealityFactType } from "./authorRealityTyping.js";
-import type { RealityFactType as ContractFactType, RealityProvenance } from "@qre/contracts";
+import type { RealityFactType as ContractFactType, AuthorRealityProvenance } from "@qre/contracts";
 
-type Source = RealityProvenance["source"];
+type Source = AuthorRealityProvenance["source"];
 
 const UNIQUE = <T>(values: T[]): T[] => [...new Set(values)];
 
@@ -21,8 +21,8 @@ function mapFactType(type: RealityFactType): ContractFactType {
   }
 }
 
-function permissionsFor(type: ContractFactType): RealityProvenance["permissions"] {
-  const base: RealityProvenance["permissions"] = ["compress", "reframe"];
+function permissionsFor(type: ContractFactType): AuthorRealityProvenance["permissions"] {
+  const base: AuthorRealityProvenance["permissions"] = ["compress", "reframe"];
   switch (type) {
     case "event": return [...base, "reorder", "derive_state", "derive_significance"];
     case "state": return [...base, "derive_state", "derive_significance"];
@@ -40,7 +40,7 @@ function permissionsFor(type: ContractFactType): RealityProvenance["permissions"
   }
 }
 
-const forbidden: RealityProvenance["forbiddenExpansions"] = [
+const forbidden: AuthorRealityProvenance["forbiddenExpansions"] = [
   "invent_person",
   "invent_relationship",
   "invent_place",
@@ -57,7 +57,7 @@ export function buildRealityProvenance(
   text: string,
   source: Source,
   options: { subject?: string; observedAt?: string; entity?: string; confidence?: number } = {},
-): RealityProvenance {
+): AuthorRealityProvenance {
   const typed = typeRealityFact(text, options.subject ?? "");
   const factType = mapFactType(typed.type);
   const adjustedType: ContractFactType =
@@ -76,10 +76,16 @@ export function buildRealityProvenance(
   };
 }
 
-export function provenanceAllows(provenance: RealityProvenance, permission: RealityProvenance["permissions"][number]): boolean {
+export function provenanceAllows(
+  provenance: AuthorRealityProvenance,
+  permission: AuthorRealityProvenance["permissions"][number],
+): boolean {
   return provenance.permissions.includes(permission);
 }
 
-export function provenanceForbids(provenance: RealityProvenance, expansion: RealityProvenance["forbiddenExpansions"][number]): boolean {
+export function provenanceForbids(
+  provenance: AuthorRealityProvenance,
+  expansion: AuthorRealityProvenance["forbiddenExpansions"][number],
+): boolean {
   return provenance.forbiddenExpansions.includes(expansion);
 }
