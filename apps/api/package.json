@@ -7,7 +7,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
-    "author:fast": "tsx ./author-acceptance-suite.ts"
+    "author:fast": "tsx ./author-acceptance-suite.ts",
+    "author:living-memory": "tsx ./author-living-memory-acceptance.ts",
+    "author:pet-social": "tsx ./author-pet-social-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
@@ -15,7 +17,7 @@
     "@qre/engine": "workspace:*",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
+    "cors": "^2.2.1",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
@@ -25,7 +27,7 @@
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
-    "@types/cors": "^2.8.19",
+    "@types/cors": "^2.0.0",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.3",
