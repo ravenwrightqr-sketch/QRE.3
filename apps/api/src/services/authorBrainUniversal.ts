@@ -300,11 +300,33 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const lineTotal = lineCount(input.prompt);
   const maxWords = 7;
   const budget = creativeBudget(source, input.prompt);
-  const movieCognition = buildMovieCognition(input, ending);
+  const rawMovieCognition = buildMovieCognition(input, ending);
+  const protectedMemorial = input.cognitiveContext?.creativeSafety?.class === "memorial";
+  const safeSelected = protectedMemorial
+    ? {
+        ...rawMovieCognition.selected,
+        operation: "echo" as const,
+        lens: {
+          ...rawMovieCognition.selected.lens,
+          id: "neutral" as const,
+          pressure: "Honor the supplied memory through grounded continuity and reflection without genre transformation.",
+          fit: 1,
+          moves: ["callback", "understatement"],
+        },
+      }
+    : rawMovieCognition.selected;
+  const movieCognition = protectedMemorial
+    ? {
+        ...rawMovieCognition,
+        attentionQuestion: "How can the supplied memory be honored through grounded continuity without genre transformation?",
+        selected: safeSelected,
+        hypotheses: [safeSelected],
+      }
+    : rawMovieCognition;
   const sensitive = sensitivity(input.prompt, source);
   const selected = movieCognition.selected;
   const path = makePath(movieCognition, subject, ending, budget);
-  const lock: MovieLock = { approvedMeaning: selected.premise, creativeBudget: budget, worldFreedom: "closed", referencePolicy: { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }, ending, sensitivity: sensitive, preferredLens: input.lens, allowedMoves: [path.move] };
+  const lock: MovieLock = { approvedMeaning: selected.premise, creativeBudget: budget, worldFreedom: "closed", referencePolicy: { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }, ending, sensitivity: protectedMemorial ? "sensitive" : sensitive, preferredLens: selected.lens.id, allowedMoves: [path.move] };
   const provenanceFacts = buildProvenanceFacts(source, subject);
   const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };
 
@@ -349,7 +371,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
       oneCanonicalPacket: true,
       thesis: packet.thesis,
       creativeBudget: budget,
-      sensitivity: sensitive,
+      sensitivity: protectedMemorial ? "sensitive" : sensitive,
       moviePaths,
       movieHypotheses: movieCognition.hypotheses,
       selectedMovie: selected,
