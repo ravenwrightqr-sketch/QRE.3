@@ -80,11 +80,20 @@ function reality(input: AuthorBrainTruth): string[] {
   ]);
 }
 
-function buildProvenanceFacts(source: string[], subject: string): ProvenanceFact[] {
-  return source.map((text) => ({
+function buildProvenanceFacts(source: string[], subject: string, authorizedInstructions: string[] = []): ProvenanceFact[] {
+  const facts = source.map((text) => ({
     text,
     provenance: buildRealityProvenance(text, "memory", { subject }),
   }));
+  for (const instruction of authorizedInstructions) {
+    const text = clean(instruction);
+    if (!text || facts.some((fact) => fact.text.toLowerCase() === text.toLowerCase())) continue;
+    facts.push({
+      text,
+      provenance: buildRealityProvenance(text, "prompt", { subject }),
+    });
+  }
+  return facts;
 }
 
 function provenanceViolations(lines: string[], packet: Packet): ProvenanceViolation[] {
@@ -305,7 +314,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const selected = movieCognition.selected;
   const path = makePath(movieCognition, subject, ending, budget);
   const lock: MovieLock = { approvedMeaning: selected.premise, creativeBudget: budget, worldFreedom: "closed", referencePolicy: { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` }, ending, sensitivity: sensitive, preferredLens: input.lens, allowedMoves: [path.move] };
-  const provenanceFacts = buildProvenanceFacts(source, subject);
+  const provenanceFacts = buildProvenanceFacts(source, subject, ending ? [ending] : []);
   const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };
 
   const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1200, Math.max(420, lineTotal * 80)), temperature: sensitive ? 0.32 : 0.48 });
