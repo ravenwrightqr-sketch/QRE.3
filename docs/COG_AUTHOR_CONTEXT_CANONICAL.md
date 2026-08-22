@@ -57,8 +57,39 @@ It preserves:
 - Explicit user creative instructions
 - Default text beat target
 - Silent-photo rule
+- Presentation authority mode
 
 Existing flattened `AuthorBrainTruth` fields remain during migration for compatibility.
+
+## Default organization vs Dashboard override
+
+The default product behavior is **Cognition organizes the experience**.
+
+Users do not need to manually arrange a timeline just to get a good result.
+
+```text
+MEGA DUMP
+  ↓
+Cognition classifies
+  ↓
+Cognition orders by evidence, chronology, recurrence, state change, and attention
+  ↓
+Cognition selects the strongest text/photo sequence
+```
+
+The Dashboard is the intentional override surface.
+
+A user can enter the Dashboard when they want to explicitly control layout, ordering, grouping, or presentation.
+
+```text
+AUTO MODE
+→ cognition owns organization
+
+MANUAL MODE
+→ dashboard owns explicit arrangement
+```
+
+Manual arrangement is an instruction and does not rewrite the underlying historical evidence.
 
 ## Five-ish attention unit
 
@@ -92,6 +123,36 @@ A photo beat:
 - may contain text only when that text is actually part of the source image/media
 
 The cognition layer chooses whether a photo is worth the attention slot. The player owns presentation.
+
+### Example: service / groomer dump
+
+A groomer can drop photos and service facts in any order:
+
+```text
+before Coco
+bath complete
+blue bow incident
+after Coco
+another before photo
+final after photo
+```
+
+Cognition may recognize the service domain, timestamps, before/after relationships, recurring motifs, and strongest visual evidence and automatically organize the movie as:
+
+```text
+TEXT: Coco came in nervous.
+PHOTO: before
+TEXT: The bath changed the whole mood.
+PHOTO: after
+TEXT: Then Coco found the blue bow.
+PHOTO: blue-bow evidence
+TEXT: Coco left looking fabulous.
+PHOTO: final after
+```
+
+The groomer does not have to manually sort the photos.
+
+When explicit ordering is important, the groomer can use the Dashboard override.
 
 ## User authority vs reality authority
 
@@ -188,5 +249,6 @@ Learning changes future selection, not historical reality.
 6. Photos are evidence and cinematic beats, not generated prose.
 7. Player owns exact visual presentation.
 8. Five-ish text beats are the default attention unit; accumulated experiences may be longer.
-9. All meaningful new interactions feed memory and analytics.
-10. The system must remain one universal brain with domain cognition, not separate domain brains.
+9. Cognition organizes by default; Dashboard is the explicit override.
+10. All meaningful new interactions feed memory and analytics.
+11. The system must remain one universal brain with domain cognition, not separate domain brains.
