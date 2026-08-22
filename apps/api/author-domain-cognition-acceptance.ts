@@ -34,7 +34,9 @@ for (const item of cases) {
 
 const pet = buildDomainCognition(cases[0]!.facts, "Coco", "pet_social");
 if (pet.traitSignals.length !== 2) throw new Error("DOMAIN COGNITION FAILED: expected two pet traits");
-if (pet.preferenceSignals.length !== 2) throw new Error("DOMAIN COGNITION FAILED: expected two pet preferences");
+if (pet.preferenceSignals.length !== 1) throw new Error("DOMAIN COGNITION FAILED: expected one non-social pet preference");
+if (pet.socialSignals.length !== 1) throw new Error("DOMAIN COGNITION FAILED: expected one pet social preference");
+if (!pet.activitySignals.includes("long walks at night")) throw new Error("DOMAIN COGNITION FAILED: expected recurring pet activity");
 if (pet.tensions.length === 0) throw new Error("DOMAIN COGNITION FAILED: expected pet personality tension");
 if (!pet.opportunities.some((item) => item.kind === "social")) throw new Error("DOMAIN COGNITION FAILED: expected social opportunity");
 
