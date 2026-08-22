@@ -105,7 +105,14 @@ A PERSON
   can have goals, memories, plans, preferences, milestones, obstacles
 
 AN ANIMAL
-  can have care history, behavior, routines, milestones, observations
+  can have care history, behavior, routines, milestones, observations,
+  living memories, places visited, vacations, trips, walks, beaches,
+  parks, groomer visits, veterinary visits, daycare visits, walking-service
+  visits, social activity, presence updates, lost-mode state, rewards,
+  owner notifications, and other authorized experiences.
+  Multiple experiences can coexist around the same animal and accumulate
+  into the same authorized long-term history.
+, and living memories, of where, vacations, visits. anything. a social on and off data, one for vacation. one for lost mode. one for trips to dog groomer/vet/daycare/walking service and so on that can see presence and updates and change scan info to owner information and another button for lost mode reward./ call now for any updates on the animal.
 
 A SURFBOARD
   can have an owner, purchase history, places surfed, repairs,
@@ -113,7 +120,11 @@ A SURFBOARD
 
 A CAR
   can have service history, trips, maintenance, ownership changes,
-  memories, expenses, and future care needs
+  memories, expenses, and future care needs. The same long-term model can
+apply to parks, beaches, homes, vehicles, products, tools, artwork,
+surfboards, collectibles, or any other object or subject with meaningful
+history.
+
 
 A HOUSE
   can have residents, repairs, renovations, events, memories,
@@ -121,15 +132,18 @@ A HOUSE
 
 A PROPERTY LISTING
   can have facts, presentation history, audience interactions,
-  performance outcomes, and future listing changes
+  performance outcomes, future listing changes, media, video receipts,
+knowledge records, follow-ups, prompts, recommendations, and any other
+experience QRE can create from authorized reality.
+
 
 A SERVICE JOB
   can have work performed, materials, notes, customer preferences,
-  follow-up requirements, and recurring service history
+  follow-up requirements, and recurring service history. memories
 
 A PRODUCT
   can have provenance, use history, reviews, maintenance, milestones,
-  and future interactions
+  and future interactions. memories
 
 AN EVENT
   can have preparation, attendance, interactions, outcomes,
