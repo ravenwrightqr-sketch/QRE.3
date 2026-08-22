@@ -197,7 +197,7 @@ export async function buildAuthorIdentityState(input: {
   const analytics = analyticsSignal(analyticsEvents);
   const creativeLearning = creativeSignal(learning);
 
-  const observedSubject = clean(input.subject || memory.entities.find((entity) => entity.kind === "person" || entity.kind === "pet" || entity.kind === "business")?.name || "identity");
+  const observedSubject = clean(input.subject || memory.entities.find((entity) => entity.kind === "person" || entity.kind === "animal" || entity.kind === "business")?.name || "identity");
   const subject = claim(observedSubject, `Observed subject for asset ${input.assetId}`, input.subject ? "prompt" : "memory");
 
   const canonicalFacts = memoryFacts.slice(0, 120);
