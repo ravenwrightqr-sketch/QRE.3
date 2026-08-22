@@ -29,12 +29,7 @@ const PRIVATE = /\b(?:secretly|privately|deep down|inside|felt that|wanted|hated
 const PREFERENCE = /\b(?:love|loves|like|likes|prefer|prefers|favorite|enjoy|enjoys|hate|hates|dislike|dislikes)\b/i;
 
 const tokens = (value: string): Set<string> =>
-  new Set(
-    value
-      .toLowerCase()
-      .split(/[^a-z0-9'-]+/)
-      .filter((v) => v.length > 2),
-  );
+  new Set(value.toLowerCase().split(/[^a-z0-9'-]+/).filter((v) => v.length > 2));
 
 const overlap = (a: string, b: string): number => {
   const left = tokens(a);
@@ -49,7 +44,6 @@ function factSupportsLine(line: string, fact: GateFact): boolean {
   const lineTokens = tokens(line);
   const factTokens = tokens(fact.text);
   if (!lineTokens.size || !factTokens.size) return false;
-
   const factContained = [...factTokens].every((token) => lineTokens.has(token));
   return factContained || overlap(line, fact.text) >= 0.6;
 }
@@ -77,23 +71,22 @@ function hasForbiddenKind(
   if (expansion === "invent_object" && isPreferenceUse(line, match)) return false;
 
   const supporting = facts.some((fact) => {
-    if (provenanceForbids(fact.provenance, expansion)) return false;
-
+    // Reusing an explicitly observed concrete term is not invention. The
+    // forbidden expansion applies only when the term is introduced without
+    // evidence in the supplied fact graph.
     if (expansion === "invent_place" && explicitTermOverlap(line, fact.text, PLACE)) return true;
     if (expansion === "invent_object" && explicitTermOverlap(line, fact.text, OBJECT)) return true;
     if (expansion === "invent_person" && explicitTermOverlap(line, fact.text, PERSON)) return true;
     if (expansion === "invent_body_detail" && explicitTermOverlap(line, fact.text, BODY)) return true;
 
+    if (provenanceForbids(fact.provenance, expansion)) return false;
     return factSupportsLine(line, fact);
   });
 
   return !supporting;
 }
 
-export function validateAuthorProvenance(
-  lines: string[],
-  facts: GateFact[],
-): ProvenanceViolation[] {
+export function validateAuthorProvenance(lines: string[], facts: GateFact[]): ProvenanceViolation[] {
   const violations: ProvenanceViolation[] = [];
   let lastFactIndex = -1;
 
@@ -105,7 +98,6 @@ export function validateAuthorProvenance(
         detail: "line introduces a place not authorized by its supporting facts",
       });
     }
-
     if (hasForbiddenKind(line, facts, OBJECT, "invent_object")) {
       violations.push({
         line: index + 1,
@@ -113,7 +105,6 @@ export function validateAuthorProvenance(
         detail: "line introduces an object not authorized by its supporting facts",
       });
     }
-
     if (hasForbiddenKind(line, facts, PERSON, "invent_person")) {
       violations.push({
         line: index + 1,
@@ -121,7 +112,6 @@ export function validateAuthorProvenance(
         detail: "line introduces a person not authorized by its supporting facts",
       });
     }
-
     if (hasForbiddenKind(line, facts, BODY, "invent_body_detail")) {
       violations.push({
         line: index + 1,
@@ -132,9 +122,7 @@ export function validateAuthorProvenance(
 
     if (
       PRIVATE.test(line) &&
-      facts.every((fact) =>
-        provenanceForbids(fact.provenance, "invent_private_fact"),
-      )
+      facts.every((fact) => provenanceForbids(fact.provenance, "invent_private_fact"))
     ) {
       violations.push({
         line: index + 1,
@@ -146,10 +134,7 @@ export function validateAuthorProvenance(
     const matchedIndex = facts.findIndex((fact) => factSupportsLine(line, fact));
     if (matchedIndex >= 0) {
       const provenance = facts[matchedIndex]!.provenance;
-      if (
-        CHRONOLOGY.test(line) &&
-        !provenance.permissions.includes("reorder")
-      ) {
+      if (CHRONOLOGY.test(line) && !provenance.permissions.includes("reorder")) {
         if (matchedIndex < lastFactIndex) {
           violations.push({
             line: index + 1,
@@ -165,9 +150,6 @@ export function validateAuthorProvenance(
   return violations;
 }
 
-export function provenanceGatePasses(
-  lines: string[],
-  facts: GateFact[],
-): boolean {
+export function provenanceGatePasses(lines: string[], facts: GateFact[]): boolean {
   return validateAuthorProvenance(lines, facts).length === 0;
 }
