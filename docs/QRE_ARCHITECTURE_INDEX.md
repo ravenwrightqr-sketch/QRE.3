@@ -32,7 +32,7 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 
 ### Cognitive author packet
 
-- `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — canonical author context contract.
+- `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — canonical author context contract, including geo, presence, media, provenance, learning, and authoring rules.
 - `apps/api/src/services/authorCognitiveContext.ts` — builds the single structured packet consumed by authoring.
 
 ### Reality and safety
@@ -49,6 +49,7 @@ This is the quick-reference map for the QRE cognitive/experience stack. It exist
 ### Movie authoring
 
 - `apps/api/src/services/authorBrainUniversal.ts` — universal author/Mouth orchestration and movie candidate selection.
+- `apps/api/src/services/authorMovieCognition.ts` — fact relationships, trajectory candidates, and the existing genre/lens catalog. Do not create a second lens engine.
 - `apps/api/src/services/authorMoviePipeline.ts` — universal author result → MovieBeatPlan.
 - `packages/contracts/src/cogauthor/movieBeatPlan.ts` — canonical timeline contract.
 - `apps/api/src/services/authorMovieBeatPlan.ts` — deterministic media/timeline organizer.
@@ -98,7 +99,7 @@ scan / replay / contribution / outcome
         ↓
 AuthorLearningLoop
         ↓
-MemoryRepository + AnalyticsRepository
+MemoryRepository + AnalyticsRepository + CreativeLearning
         ↓
 next IdentityState
         ↓
@@ -106,6 +107,103 @@ next CognitiveAuthorContext
         ↓
 better next experience
 ```
+
+## Current completion trajectory
+
+**Do these in order. Do not advance to the next layer until the current layer has a passing acceptance.**
+
+### 1. Live media ingestion bridge — TODO
+
+The contract already supports `CognitiveAuthorContext.media` and silent photo beats. The live compile path currently provides `media: []`.
+
+Required:
+
+```text
+uploaded / supplied media
+→ normalized MediaAsset
+→ evidence metadata + chronology + role + provenance
+→ CognitiveAuthorContext.media
+→ MovieBeatPlan
+→ silent media beats
+→ Player
+```
+
+### 2. Live provenance-context bridge — TODO
+
+The live compile path currently provides `provenanceFacts: []` even though the identity layer already has grounded evidence.
+
+Required:
+
+```text
+IdentityState / typed evidence
+→ AuthorRealityProvenance
+→ CognitiveAuthorContext.provenanceFacts
+→ Mouth
+→ Provenance Gate
+```
+
+### 3. Universal input-route learning — TODO
+
+`compileExperience` now uses the learning coordinator. Other user/guest/staff input routes must be audited so they cannot bypass the learning hook.
+
+Known bypass to close:
+
+```text
+POST /experience/memory/:assetId
+```
+
+This route currently writes directly through `MemoryRepository` and must use the same coordinator.
+
+### 4. Post-play outcome learning — TODO
+
+```text
+movie
+→ scan / replay / completion / abandon / save / CTA / contribution / rejection
+→ behavioral + creative signal
+→ identity-scoped learning write-back
+→ IdentityState
+→ CognitiveAuthorContext
+→ next MovieBeatPlan
+```
+
+Acceptance must prove the next movie materially changes when new evidence/outcomes warrant it.
+
+### 5. Owner/operator reporting — TODO
+
+Expose concise operational signals without forcing end users into a learning dashboard.
+
+Minimum reporting:
+
+- accepted input
+- recurring patterns
+- meaningful state changes
+- creative accept/reject patterns
+- replay/completion/friction
+- CTA performance when configured
+- media contribution counts
+- provenance/reality rejects
+- current identity confidence
+
+### 6. Genre-fluid Mouth hardening — AFTER ALL ABOVE
+
+The existing lens catalog in `authorMovieCognition.ts` is the foundation. Do not create another lens system.
+
+Target:
+
+```text
+REAL FACTS
+→ approved meaning / relationship
+→ existing lens search
+→ candidate realization
+→ REALITY GATE
+→ MEANING EXECUTION GATE
+→ ATTENTION CUT GATE
+→ CREATIVE LOCK GATE
+→ DIVERSITY GATE
+→ BEAM / BEST LINE
+```
+
+The lens may change framing, tone, emphasis, implication, and genre. It may not create new factual reality.
 
 ## Learning rules
 
@@ -130,11 +228,9 @@ better next experience
 
 ## Reporting / observability index
 
-The fastest signals to inspect when debugging or advancing the beast are:
-
 | Signal | Meaning |
 |---|---|
-| `AUTHOR_INPUT_ACCEPTED` | Authoring input was accepted into the learning loop and projected into memory. |
+| `AUTHOR_INPUT_ACCEPTED` | Authoring input entered the universal learning path and was projected into memory. |
 | `AI_CREATIVE_ACCEPTED` | User/system accepted an authored creative result. |
 | `AI_CREATIVE_REJECTED` | Authored creative result was rejected; useful for creative avoidance learning. |
 | `AI_VARIATION_SELECTED` | A generated variation was selected; useful for style/trajectory learning. |
@@ -149,7 +245,7 @@ The fastest signals to inspect when debugging or advancing the beast are:
 
 ```text
 author:fast               → universal author stability
-                                  
+
 author:cognitive-context  → context packet completeness
 
 author:provenance         → provenance permissions
@@ -163,22 +259,28 @@ author:domain-movie       → domain opportunity → movie bridge
 author:movie-beat-plan    → timeline/media planning
 
 author:movie-pipeline     → Mouth → MovieBeatPlan
-
 author:full-circle        → author → timeline → runtime shape
-
 author:learning-loop      → input → memory + analytics + identity isolation
 ```
 
-## Current advancement target
-
-The immediate goal after the author stack is green is to prove a two-pass adaptive loop:
+## Definition of full circle
 
 ```text
-Input A → Movie A
-Input B → persisted learning/memory
-        → rebuilt IdentityState
-        → rebuilt CognitiveAuthorContext
-        → Movie B materially changes because of B
+USER INPUT
+→ Reality / Provenance
+→ Memory + Geo + Presence + Analytics + Media
+→ IdentityState
+→ CognitiveAuthorContext
+→ Super Cog
+→ Mouth
+→ Provenance Gate
+→ MovieBeatPlan
+→ ExperienceService
+→ Player
+→ Outcome / New Input
+→ Universal Learning Loop
+→ stronger IdentityState
+→ materially changed next experience
 ```
 
-That acceptance is the proof that QRE is not merely storing information; it is using accumulated reality to improve the next experience.
+This is the finish line before expanding the creative lens universe further.
