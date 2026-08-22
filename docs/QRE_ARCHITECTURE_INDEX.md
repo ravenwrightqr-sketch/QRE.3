@@ -73,12 +73,12 @@ input
 - `apps/api/src/services/authorOutcomeLearning.ts` — canonical analytics event → `AnalyticsOutcomeKind` classification.
 - `apps/api/src/services/autonomousLearning.ts` — behavioral winners/weaknesses from existing analytics outcomes.
 - `apps/api/src/services/creativeLearning.ts` — explicit + autonomous creative learning context.
-- `apps/api/src/services/authorCreativeLearningPressure.ts` — converts existing learning context into bounded learned-lens preference pressure.
-- `apps/api/src/services/authorMoviePipeline.ts` — applies learned lens preference only when the incoming lens is neutral/default; explicit non-neutral lens intent remains authoritative.
+- `apps/api/src/services/authorCreativeLearningPressure.ts` — bounded learned-lens preference plus protected-context safety classification.
+- `apps/api/src/services/authorMoviePipeline.ts` — applies learned lens preference only when neutral/default; protected memorial contexts force `neutral` before the Author Brain sees any genre request.
 - `apps/api/author-learning-loop-acceptance.ts` — input → memory + analytics + identity isolation.
 - `apps/api/author-knowledge-learning-acceptance.ts` — deterministic Knowledge evidence → learning authority.
 - `apps/api/author-outcome-learning-acceptance.ts` — canonical behavioral outcome normalization.
-- `apps/api/author-adaptive-learning-acceptance.ts` — learned preference → next selected lens; explicit intent and reality remain authoritative.
+- `apps/api/author-adaptive-learning-acceptance.ts` — learned preference → next selected lens, plus protected memorial safety; explicit intent and reality remain authoritative outside protected contexts.
 
 ### Movie / Mouth
 
@@ -107,6 +107,7 @@ known memory-route learning bypass
 Knowledge deterministic learning
 canonical outcome taxonomy
 adaptive learned-lens consumer
+memorial protected-context lens safety
 universal author regression suite
 ```
 
@@ -137,6 +138,7 @@ runtime outcome
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
 → bounded learned-lens preference
+→ protected-context safety check
 → existing authorMovieCognition
 → Mouth
 ```
@@ -144,9 +146,10 @@ runtime outcome
 Current consumer behavior is intentionally conservative:
 
 - learned evidence can supply a preferred lens when the authoring request is neutral/default;
-- explicit non-neutral lens intent outranks learned preference;
+- explicit non-neutral lens intent outranks learned preference in ordinary contexts;
 - rejected/avoided lenses cannot become learned winners;
 - creative learning cannot alter the reality/provenance packet;
+- memorial/tribute/funeral/grief contexts are a protected semantic class and force `neutral`; learned or explicit incompatible genre requests cannot turn them into spy/heist/horror/etc.;
 - the current preference is a bounded injection into the existing lens choice, not yet candidate-by-candidate hypothesis re-ranking.
 
 **Next hardening step:** move learned pressure into the existing `authorMovieCognition` hypothesis scoring itself, without adding another lens engine.
@@ -172,7 +175,8 @@ author:live-provenance      live provenance → author
 author:learning-loop        accepted input → memory + analytics + isolation
 author:knowledge-learning   explicit Knowledge → learning authority
 author:outcome-learning     canonical outcome normalization
-author:adaptive-learning    learned preference → next lens selection
+author:adaptive-learning    learned preference + memorial safety
+
 author:movie-beat-plan      timeline/media selection
 author:movie-pipeline       Mouth → MovieBeatPlan
 author:full-circle          author → timeline → runtime shape
