@@ -33,7 +33,7 @@
     "jsonwebtoken": "^9.0.0",
     "nanoid": "^5.1.16",
     "qrcode": "^1.5.4",
-    "stripe": "^22.2.3"
+    "stripe": "^22.2.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
