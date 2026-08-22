@@ -2,6 +2,7 @@ import type { ExperiencePresenceContext } from "../experience/presence.js";
 import type { MediaAsset } from "../media.js";
 import type { IdentityState } from "./identityState.js";
 import type { AuthorRealityProvenance } from "./realityProvenance.js";
+import type { CognitiveCreativeLearning } from "./cognition.js";
 
 export type CognitiveAuthorGeo = {
   label?: string;
@@ -10,7 +11,12 @@ export type CognitiveAuthorGeo = {
   country?: string;
   latitude?: number;
   longitude?: number;
-  role?: "physical_site" | "experience_place" | "event_venue" | "memory_place" | "reference_place";
+  role?:
+    | "physical_site"
+    | "experience_place"
+    | "event_venue"
+    | "memory_place"
+    | "reference_place";
   source?: string;
   time?: string;
 };
@@ -51,24 +57,26 @@ export type CognitiveAuthorContext = {
     opportunity?: Record<string, unknown> | null;
     continuity?: string[];
   } | null;
-  creativeLearning?: {
-    accepted?: string[];
-    rejected?: string[];
-    preferences?: string[];
-    avoidedPatterns?: string[];
-    successfulLenses?: string[];
-    noveltyPressure?: number;
-  } | null;
+
+  /** Canonical creative learning projection consumed by the author. */
+  creativeLearning?: CognitiveCreativeLearning | null;
+
+  /** Semantic creative eligibility/safety established before realization. */
   creativeSafety?: CognitiveAuthorCreativeSafety | null;
+
   provenanceFacts?: Array<{
     text: string;
     provenance: AuthorRealityProvenance;
   }>;
+
   media?: CognitiveAuthorMedia[];
+
   /** Explicit user instructions are authoritative intent, not invented reality. */
   authorizedCreativeInstructions?: string[];
+
   /** Default text attention unit. Photo beats may extend the experience. */
   textBeatTarget?: number;
+
   /** Hard rule: visual-only photo beats do not receive generated captions. */
   photoBeatsAreSilent?: boolean;
 };
