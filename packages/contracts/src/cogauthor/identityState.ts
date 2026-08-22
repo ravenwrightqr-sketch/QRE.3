@@ -5,7 +5,7 @@ import type {
   CognitiveCreativeLearning,
   CognitiveRelationshipState,
 } from "./cognition.js";
-import type { RealityProvenance } from "./realityProvenance.js";
+import type { AuthorRealityProvenance } from "./realityProvenance.js";
 
 export type IdentityKind =
   | "pet"
@@ -44,7 +44,7 @@ export type IdentityFact = {
   observedAt?: string;
   entity?: string;
   status?: "active" | "superseded" | "derived";
-  provenance?: RealityProvenance;
+  provenance?: AuthorRealityProvenance;
 };
 
 export type IdentityIntent = {
