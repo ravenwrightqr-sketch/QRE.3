@@ -70,15 +70,15 @@ input
 
 - `apps/api/src/services/authorLearningLoop.ts` — **single accepted-input learning authority**. Handles cognitive world evidence and deterministic explicit evidence.
 - `apps/api/src/services/memoryProjection.ts` — world → MemoryWriteBatch.
-- `apps/api/src/services/authorOutcomeLearning.ts` — canonical event → `positive | negative | neutral` outcome taxonomy.
+- `apps/api/src/services/authorOutcomeLearning.ts` — canonical analytics event → `AnalyticsOutcomeKind` classification.
 - `apps/api/src/services/autonomousLearning.ts` — behavioral winners/weaknesses from existing analytics outcomes.
 - `apps/api/src/services/creativeLearning.ts` — explicit + autonomous creative learning context.
-- `apps/api/src/services/authorCreativeLearningPressure.ts` — converts existing learning context into soft lens-selection pressure for the existing author pipeline.
-- `apps/api/src/services/authorMoviePipeline.ts` — applies learned creative pressure before Universal Author, while preserving explicit non-neutral lens intent.
+- `apps/api/src/services/authorCreativeLearningPressure.ts` — converts existing learning context into bounded learned-lens preference pressure.
+- `apps/api/src/services/authorMoviePipeline.ts` — applies learned lens preference only when the incoming lens is neutral/default; explicit non-neutral lens intent remains authoritative.
 - `apps/api/author-learning-loop-acceptance.ts` — input → memory + analytics + identity isolation.
 - `apps/api/author-knowledge-learning-acceptance.ts` — deterministic Knowledge evidence → learning authority.
 - `apps/api/author-outcome-learning-acceptance.ts` — canonical behavioral outcome normalization.
-- `apps/api/author-adaptive-learning-acceptance.ts` — learned creative pressure → next lens selection; explicit intent and reality remain authoritative.
+- `apps/api/author-adaptive-learning-acceptance.ts` — learned preference → next selected lens; explicit intent and reality remain authoritative.
 
 ### Movie / Mouth
 
@@ -105,8 +105,8 @@ live media ingestion
 live provenance context
 known memory-route learning bypass
 Knowledge deterministic learning
-outcome taxonomy normalization
-adaptive creative-pressure consumer
+canonical outcome taxonomy
+adaptive learned-lens consumer
 universal author regression suite
 ```
 
@@ -115,6 +115,7 @@ universal author regression suite
 ```text
 all user/guest/staff reality-input route audit
 real runtime outcome → IdentityState → next-experience proof
+true candidate-level learned-pressure competition
 operator reporting
 ```
 
@@ -135,16 +136,20 @@ runtime outcome
 → autonomousLearning
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
-→ resolveLearnedCreativeLens()
-→ existing authorMovieCognition lens competition
+→ bounded learned-lens preference
+→ existing authorMovieCognition
+→ Mouth
 ```
 
-Learned preference is **soft pressure**, not authority.
+Current consumer behavior is intentionally conservative:
 
-- Explicit non-neutral lens intent outranks learning.
-- Rejected/avoided lenses cannot become learned winners.
-- Creative learning cannot alter the reality/provenance packet.
-- There is still one lens competition owner: the existing author cognition.
+- learned evidence can supply a preferred lens when the authoring request is neutral/default;
+- explicit non-neutral lens intent outranks learned preference;
+- rejected/avoided lenses cannot become learned winners;
+- creative learning cannot alter the reality/provenance packet;
+- the current preference is a bounded injection into the existing lens choice, not yet candidate-by-candidate hypothesis re-ranking.
+
+**Next hardening step:** move learned pressure into the existing `authorMovieCognition` hypothesis scoring itself, without adding another lens engine.
 
 ## Known architecture cleanup target
 
@@ -167,7 +172,7 @@ author:live-provenance      live provenance → author
 author:learning-loop        accepted input → memory + analytics + isolation
 author:knowledge-learning   explicit Knowledge → learning authority
 author:outcome-learning     canonical outcome normalization
-author:adaptive-learning    learned outcomes → next lens selection
+author:adaptive-learning    learned preference → next lens selection
 author:movie-beat-plan      timeline/media selection
 author:movie-pipeline       Mouth → MovieBeatPlan
 author:full-circle          author → timeline → runtime shape
