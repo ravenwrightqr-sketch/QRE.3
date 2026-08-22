@@ -2,153 +2,131 @@
 
 ## Rule
 
-Do not add another brain, timeline owner, persistence system, or lens system while a lower-level bridge is still incomplete.
+Do not add another brain, timeline owner, persistence system, or lens system while a lower-level bridge is incomplete. Every significant bridge gets an acceptance and an architecture-index entry.
 
-Finish the existing architecture in dependency order. Every bridge gets an acceptance test and an entry in `QRE_ARCHITECTURE_INDEX.md`.
+## Current status
 
-## Current architecture status
+### GREEN
 
-### GREEN — already wired and acceptance-covered
+- Contracts / Engine / API build chain.
+- IdentityState and CognitiveAuthorContext.
+- Live media ingestion: Knowledge image evidence → MediaAsset/CognitiveAuthorMedia → context → MovieBeatPlan.
+- Live provenance: IdentityState facts → provenance packet → Mouth → Provenance Gate.
+- Known memory-route learning bypass → AuthorLearningLoop.
+- Knowledge deterministic evidence → AuthorLearningLoop.
+- Universal author regression suite.
 
-- Contracts → canonical shared shapes.
-- IdentityState → accumulated identity/world snapshot.
-- CognitiveAuthorContext → single structured author packet.
-- Geo → semantic place/time context.
-- Presence → return/visit context.
-- Analytics → behavioral signals supplied to cognition.
-- Creative learning → accepted/rejected patterns and creative preferences.
-- Domain cognition → typed opportunities/tensions without domain-specific brains.
-- Provenance contract → permissions/forbidden expansions.
-- Provenance gate → grounded output firewall.
-- Universal author / Mouth → author selection and grounded realization.
-- MovieBeatPlan → single timeline owner.
-- Author Movie Pipeline → author result → MovieBeatPlan.
-- ExperienceService → renders MovieBeatPlan into runtime scenes.
-- Author input learning → memory projection + `AUTHOR_INPUT_ACCEPTED` signal.
-- Identity-scoped learning acceptance → new evidence reaches the next CognitiveAuthorContext and does not leak across identities.
-- Live media ingestion → existing Knowledge image evidence reaches `CognitiveAuthorContext.media` through the canonical media source/bridge.
-- Live provenance context → IdentityState facts reach `CognitiveAuthorContext.provenanceFacts` through the canonical provenance source.
-- Known direct memory write bypass → normalized through `AuthorLearningLoop`.
+### IN PROGRESS
 
-## REQUIRED BEFORE CREATIVE-LENS EXPANSION
+- Complete audit of every user/guest/staff reality-bearing input route.
+- Post-play adaptive loop.
+- Operator reporting.
 
-### 1. Live media ingestion bridge — GREEN
+The existing runtime already emits behavioral outcomes and `autonomousLearning` already derives behavioral winners/weaknesses. The new adaptive bridge makes those learned signals consumable by the existing author lens competition.
 
-Production path:
+## Adaptive bridge
+
+Production intent:
 
 ```text
-existing Knowledge image evidence
+real outcome
+→ AnalyticsRepository
+→ autonomousLearning
+→ IdentityState.creativeLearning
+→ CognitiveAuthorContext.creativeLearning
+→ authorCreativeLearningPressure
+→ existing authorMovieCognition lens competition
+→ Mouth
+```
+
+Rules:
+
+- learned pressure is soft selection pressure;
+- explicit non-neutral lens intent wins;
+- rejected/avoided lenses cannot become learned winners;
+- creative learning never changes reality or provenance;
+- no second lens engine is introduced.
+
+Acceptance:
+
+```powershell
+pnpm --filter @qre/api author:adaptive-learning
+```
+
+This proves the consumer bridge. The remaining full-loop acceptance must prove real runtime outcomes → IdentityState → context → materially changed next MovieBeatPlan.
+
+## 1. Live media ingestion — GREEN
+
+```text
+Knowledge image
 → authorMediaSource
 → authorMediaBridge
 → CognitiveAuthorContext.media
-→ authorMoviePipeline
 → MovieBeatPlan
 → silent photo beat
-→ Player
 ```
 
-The source adapter reads the existing `Insight(type=KNOWLEDGE)` representation. No second media repository was introduced. `MediaAsset` remains the canonical cross-layer media shape.
-
-Validation:
-
-```powershell
-pnpm --filter @qre/api author:media-context
-pnpm --filter @qre/api author:live-media-bridge
-```
-
-### 2. Live provenance-context bridge — GREEN
-
-Production path:
+## 2. Live provenance — GREEN
 
 ```text
 IdentityState.canonicalFacts
 → authorProvenanceSource
 → AuthorRealityProvenance
 → CognitiveAuthorContext.provenanceFacts
-→ Mouth
 → Provenance Gate
 ```
 
-Validation:
-
-```powershell
-pnpm --filter @qre/api author:provenance
-pnpm --filter @qre/api author:provenance-gate
-pnpm --filter @qre/api author:live-provenance
-```
-
-### 3. Universal input-route learning — IN PROGRESS
-
-The known `/experience/memory/:assetId` bypass now uses `persistAuthorLearning`.
-
-Knowledge writes also enter the same learning authority deterministically:
+## 3. Universal input learning — IN PROGRESS
 
 ```text
-Knowledge label/value/image
-→ existing Insight persistence
-→ persistExplicitAuthorEvidence
-→ MemoryRepository
-→ explicit_evidence_added
-→ AUTHOR_INPUT_ACCEPTED
+accepted reality input
+→ one learning authority
+→ MemoryRepository + AnalyticsRepository
 → next IdentityState
 ```
 
-Validation:
+Known routes already normalized: `/experience/memory/:assetId` and Knowledge writes. Remaining routes require audit/classification.
 
-```powershell
-pnpm --filter @qre/api author:learning-loop
-pnpm --filter @qre/api author:knowledge-learning
-```
+## 4. Post-play outcome learning — IN PROGRESS
 
-Remaining work: audit every other user/guest/staff reality-bearing route and normalize or explicitly classify all remaining direct writes.
-
-### 4. Post-play outcome learning — TODO
-
-Existing behavioral substrate already reads completion, replay, save, share, CTA, abandon, and error outcomes. The remaining production bridge is to prove that those observed outcomes alter future identity/context selection and produce a materially different next MovieBeatPlan when warranted.
-
-Required path:
+Required production proof:
 
 ```text
-movie plays
-→ normalized outcome
-→ behavioral + creative learning
-→ identity-scoped write-back
-→ next IdentityState
-→ next CognitiveAuthorContext
-→ next MovieBeatPlan
+Movie A
+→ real completion/replay/abandon/save/share/CTA/etc.
+→ normalized behavioral/creative learning
+→ IdentityState
+→ CognitiveAuthorContext
+→ Movie B
 ```
 
-Acceptance must prove Input A → Movie A → Outcome/Input B → Movie B changes because of the new world evidence.
+Movie B must materially change because of newly observed outcome evidence, not because the prompt changed.
 
-### 5. Reporting to owner/operator — TODO
+## 5. Owner/operator reporting — TODO
 
-Expose a concise operational learning report without creating a learning-dashboard requirement for end users.
+Minimum useful signals:
 
-Minimum signals:
-
-- new evidence accepted
-- recurring patterns discovered
-- meaningful state changes
-- creative patterns accepted/rejected
+- accepted evidence
+- state changes / recurrence
+- creative accept/reject patterns
+- winning/weak lenses
 - replay/completion/friction
 - CTA performance when configured
-- media contribution counts
-- provenance/reality rejects
-- current identity confidence
+- media contributions
+- provenance rejects
+- identity confidence
 
-### 6. Genre-fluid Mouth hardening — AFTER ALL ABOVE
+## 6. Mouth / lens hardening — AFTER THE ABOVE
 
-The lens catalog already exists in `authorMovieCognition`.
+Do not add a new lens engine.
 
-Do not create a second lens engine.
-
-Harden the existing pipeline in this order:
+Target pipeline:
 
 ```text
 REAL FACTS
-→ reality typing
 → approved meaning / relationship
 → existing lens search
+→ learned creative pressure
 → candidate realization
 → reality gate
 → meaning execution gate
@@ -158,39 +136,28 @@ REAL FACTS
 → beam / best line
 ```
 
-Default fallback remains an emergency safety rail, not the preferred winner.
+Fallback is an emergency safety rail, not the preferred winner.
 
-For middle beats, ranking should favor:
-
-- attention change
-- forward pull
-- next-need
-- semantic execution
-- creative distinctiveness
-- provenance safety
-
-Lens freedom may change framing, tone, emphasis, implication, and genre. It may not create a new person, place, object, body detail, relationship, literal event, dialogue, or chronology.
-
-## DRIFT RULES
+## Architecture rules
 
 1. One universal brain.
 2. One canonical author context.
 3. One timeline owner: `MovieBeatPlan`.
 4. One durable memory truth layer: `MemoryRepository`.
-5. One learning coordinator for accepted input and outcomes.
-6. No direct input-route writes that bypass learning unless explicitly documented as infrastructure-only.
+5. One learning authority for accepted inputs and eventual outcome write-back.
+6. No direct reality writes bypass learning unless explicitly classified as infrastructure.
 7. No second lens engine.
-8. No generated text attached to photo beats by default.
-9. No business CTA unless explicitly configured/entitled.
-10. Learning changes future selection; it never silently rewrites historical reality.
-11. Dashboard manual ordering is an override, not a second source of historical truth.
-12. Every new bridge gets an acceptance test and an architecture-index entry.
-13. Media storage can evolve independently of authoring because the author boundary is `MediaAsset` / `CognitiveAuthorMedia`, not the persistence representation.
-14. Explicit Knowledge is deterministic evidence; it must not be sent through a generative interpretation step merely to enter memory.
+8. Photo beats are silent by default.
+9. Business CTA is opt-in.
+10. Learning changes future selection, never historical reality.
+11. Explicit Knowledge is deterministic evidence, not model-generated interpretation.
+12. Every bridge gets an acceptance and an index entry.
 
-## Definition of "full circle"
+## Known next-level cleanup
 
-QRE is not considered fully adaptive until this passes:
+`authorMovieCognition.ts` and `authorCreativeLenses.ts` currently contain overlapping lens catalogs. Do not add another. Consolidate during the dedicated Mouth/lens phase after adaptive learning is fully acceptance-covered.
+
+## Definition of full circle
 
 ```text
 USER INPUT
@@ -209,5 +176,3 @@ USER INPUT
 → stronger IdentityState
 → materially changed next experience
 ```
-
-That is the finish line before expanding the creative universe further.
