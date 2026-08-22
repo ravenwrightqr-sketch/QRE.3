@@ -21,23 +21,14 @@ const replacements = [
     '    if (META.test(line) && !isAuthorizedEndpoint) reasons.push(`line_${index + 1}:meta_language`);\n    if (STOCK.test(line) && !isAuthorizedEndpoint) reasons.push(`line_${index + 1}:stock_sentiment`);\n    if (GLUE.test(line) && !isAuthorizedEndpoint) reasons.push(`line_${index + 1}:explanatory_glue`);\n    if (DECORATION.test(line) && !isAuthorizedEndpoint) reasons.push(`line_${index + 1}:generic_decoration`);\n    if (PRONOUN.test(line) && !isAuthorizedEndpoint) reasons.push(`line_${index + 1}:unsupported_identity_reference`);\n    const violation = !isAuthorizedEndpoint ? worldViolation(line, packet) : undefined; if (violation) reasons.push(`line_${index + 1}:${violation}`);',
   ],
   [
-    '  const provenance = provenanceViolations(lines, packet);',
-    '  const provenance = provenanceViolations(lines, packet);',
-  ],
-  [
     '  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };',
     '  const authorizedCreativeInstructions = ending ? [ending] : [];\n  const packet: Packet = { subject, reality: source, ending, authorizedCreativeInstructions, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };',
-  ],
-  [
-    '    ending,\n  };',
-    '    ending,\n    authorizedCreativeInstructions,\n  };',
   ],
 ];
 
 for (const [from, to] of replacements) {
-  if (from === to) continue;
   if (!source.includes(from)) {
-    throw new Error(`Patch anchor not found: ${from.slice(0, 80)}`);
+    throw new Error(`Patch anchor not found: ${from.slice(0, 100)}`);
   }
   source = source.replace(from, to);
 }
