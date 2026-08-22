@@ -3,6 +3,7 @@ import type { AnalyticsRepository, WorldModel } from "@qre/engine";
 import type { MemoryRepository } from "./src/repositories/memoryRepository.js";
 import { buildAuthorLearningRecord, persistAuthorLearning } from "./src/services/authorLearningLoop.js";
 import { memoryContextToCognitiveSummary } from "./src/services/memoryProjection.js";
+import { buildCognitiveAuthorContext } from "./src/services/authorCognitiveContext.js";
 
 const makeWorld = (prompt: string, eventRaw: string, participant: string, place: string): WorldModel => ({
   prompt,
@@ -129,6 +130,17 @@ const summary = memoryContextToCognitiveSummary(loaded);
 if (!summary.some((line) => /Riverside Grooming/i.test(line))) {
   throw new Error("LEARNING LOOP FAILED: next context missed new place");
 }
+
+const nextContext = buildCognitiveAuthorContext({
+  identityState: {
+    canonicalFacts: loaded.facts,
+  } as never,
+  textBeatTarget: 5,
+});
+if (!nextContext.identityState?.canonicalFacts.some((fact) => /Riverside Grooming/i.test(fact.text))) {
+  throw new Error("LEARNING LOOP FAILED: new evidence did not reach CognitiveAuthorContext");
+}
+
 if (analytics.events.length !== 1 || analytics.events[0]?.type !== "AUTHOR_INPUT_ACCEPTED") {
   throw new Error("LEARNING LOOP FAILED: input signal not recorded");
 }
@@ -141,5 +153,6 @@ if (secondContext.entities.length || secondContext.facts.length || secondContext
 console.log("AUTHOR LEARNING LOOP ACCEPTANCE: PASS");
 console.log("identityScoped=true");
 console.log("newEvidenceVisible=true");
+console.log("nextCognitiveContext=true");
 console.log("analyticsSignal=true");
 console.log("crossIdentityIsolation=true");
