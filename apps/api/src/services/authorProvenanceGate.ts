@@ -60,6 +60,12 @@ function isPreferenceUse(line: string, match: string): boolean {
   return match.toLowerCase() === "bacon" && PREFERENCE.test(line);
 }
 
+function hasPromptAuthority(line: string, facts: GateFact[]): boolean {
+  return facts.some(
+    (fact) => fact.provenance.source === "prompt" && factSupportsLine(line, fact),
+  );
+}
+
 function hasForbiddenKind(
   line: string,
   facts: GateFact[],
@@ -68,12 +74,10 @@ function hasForbiddenKind(
 ): boolean {
   const match = line.match(pattern)?.[0];
   if (!match) return false;
+  if (hasPromptAuthority(line, facts)) return false;
   if (expansion === "invent_object" && isPreferenceUse(line, match)) return false;
 
   const supporting = facts.some((fact) => {
-    // Reusing an explicitly observed concrete term is not invention. The
-    // forbidden expansion applies only when the term is introduced without
-    // evidence in the supplied fact graph.
     if (expansion === "invent_place" && explicitTermOverlap(line, fact.text, PLACE)) return true;
     if (expansion === "invent_object" && explicitTermOverlap(line, fact.text, OBJECT)) return true;
     if (expansion === "invent_person" && explicitTermOverlap(line, fact.text, PERSON)) return true;
@@ -91,28 +95,30 @@ export function validateAuthorProvenance(lines: string[], facts: GateFact[]): Pr
   let lastFactIndex = -1;
 
   lines.forEach((line, index) => {
-    if (hasForbiddenKind(line, facts, PLACE, "invent_place")) {
+    const promptAuthorized = hasPromptAuthority(line, facts);
+
+    if (!promptAuthorized && hasForbiddenKind(line, facts, PLACE, "invent_place")) {
       violations.push({
         line: index + 1,
         reason: "unsupported_place",
         detail: "line introduces a place not authorized by its supporting facts",
       });
     }
-    if (hasForbiddenKind(line, facts, OBJECT, "invent_object")) {
+    if (!promptAuthorized && hasForbiddenKind(line, facts, OBJECT, "invent_object")) {
       violations.push({
         line: index + 1,
         reason: "unsupported_object",
         detail: "line introduces an object not authorized by its supporting facts",
       });
     }
-    if (hasForbiddenKind(line, facts, PERSON, "invent_person")) {
+    if (!promptAuthorized && hasForbiddenKind(line, facts, PERSON, "invent_person")) {
       violations.push({
         line: index + 1,
         reason: "unsupported_person",
         detail: "line introduces a person not authorized by its supporting facts",
       });
     }
-    if (hasForbiddenKind(line, facts, BODY, "invent_body_detail")) {
+    if (!promptAuthorized && hasForbiddenKind(line, facts, BODY, "invent_body_detail")) {
       violations.push({
         line: index + 1,
         reason: "unsupported_body_detail",
@@ -121,6 +127,7 @@ export function validateAuthorProvenance(lines: string[], facts: GateFact[]): Pr
     }
 
     if (
+      !promptAuthorized &&
       PRIVATE.test(line) &&
       facts.every((fact) => provenanceForbids(fact.provenance, "invent_private_fact"))
     ) {
@@ -132,7 +139,7 @@ export function validateAuthorProvenance(lines: string[], facts: GateFact[]): Pr
     }
 
     const matchedIndex = facts.findIndex((fact) => factSupportsLine(line, fact));
-    if (matchedIndex >= 0) {
+    if (matchedIndex >= 0 && !promptAuthorized) {
       const provenance = facts[matchedIndex]!.provenance;
       if (CHRONOLOGY.test(line) && !provenance.permissions.includes("reorder")) {
         if (matchedIndex < lastFactIndex) {
