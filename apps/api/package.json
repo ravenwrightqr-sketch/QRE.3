@@ -13,7 +13,8 @@
     "author:reality-typing": "tsx ./author-reality-typing-acceptance.ts",
     "author:domain-cognition": "tsx ./author-domain-cognition-acceptance.ts",
     "author:domain-movie": "tsx ./author-domain-movie-acceptance.ts",
-    "author:provenance": "tsx ./author-provenance-acceptance.ts"
+    "author:provenance": "tsx ./author-provenance-acceptance.ts",
+    "author:provenance-gate": "tsx ./author-provenance-gate-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
