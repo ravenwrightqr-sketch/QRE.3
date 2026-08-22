@@ -11,6 +11,7 @@ import { createAnalyticsRepository } from "../repositories/analyticsRepository.j
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import { buildAuthorIdentityState } from "./authorIdentityState.js";
+import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
 
 export type GeoAnchorInput = {
@@ -49,9 +50,11 @@ export type CompiledExperienceResult = {
 };
 
 function sceneKindToBeatKind(
-  kind: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" | undefined,
+  kind: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" | "photo" | undefined,
 ): ExperienceBeat["kind"] {
   switch (kind) {
+    case "photo":
+      return "photo";
     case "payoff":
       return "payoff";
     case "turn":
@@ -92,6 +95,43 @@ function applyAuthorBeats(compiled: any, beats: ExperienceBeat[]): any {
       meta: {},
     };
     const duration = beat.durationHintMs ?? template.duration ?? 1200;
+
+    if (beat.kind === "photo" && beat.media) {
+      return {
+        ...template,
+        id: `author-scene-${index + 1}`,
+        order: index,
+        duration,
+        type: "action",
+        transition: index === 0 ? "none" : "fade",
+        moment: {
+          ...baseMoment,
+          type: "media",
+          order: index,
+          text: "",
+          title: undefined,
+          description: undefined,
+          media: beat.media,
+          meta: {
+            ...(baseMoment.meta ?? {}),
+            authoredBy: "qre-author-brain",
+            beatId: beat.id,
+            beatKind: "photo",
+            attentionRole: beat.attentionRole ?? "photo",
+            callback: beat.callback ?? false,
+            sceneRule: "silent_photo_beat",
+          },
+        },
+        meta: {
+          ...(template.meta ?? {}),
+          authoredBy: "qre-author-brain",
+          beatId: beat.id,
+          beatKind: "photo",
+          callback: beat.callback ?? false,
+          sceneRule: "silent_photo_beat",
+        },
+      };
+    }
 
     return {
       ...template,
@@ -328,6 +368,30 @@ export async function compileExperience(input: {
     ...(identityState?.behavioralLearning.rejected ?? []),
   ];
 
+  const cognitiveContext = buildCognitiveAuthorContext({
+    identityState,
+    geo: geo
+      ? {
+          label: geo.label,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          role,
+          source: geo.source,
+          time: geo.time,
+        }
+      : null,
+    presence,
+    analytics,
+    creativeLearning: identityState?.creativeLearning ?? null,
+    provenanceFacts: [],
+    media: [],
+    authorizedCreativeInstructions: [],
+    textBeatTarget: 5,
+  });
+
   const authorInput: AuthorBrainTruth = {
     prompt,
     subject,
@@ -337,6 +401,7 @@ export async function compileExperience(input: {
         compiled?.blueprint?.tone?.[0] ??
         "neutral",
     ),
+    cognitiveContext,
     facts,
     sourceMoments,
     memoryContext: [
@@ -369,12 +434,13 @@ export async function compileExperience(input: {
     if (authored.scenes.length > 0 && qualityStatus === "ACCEPTED") {
       const beats: ExperienceBeat[] = authored.scenes.map((scene, index) => ({
         id: `author-beat-${index + 1}`,
-        text: scene.text,
+        text: scene.kind === "photo" ? "" : scene.text,
         kind: sceneKindToBeatKind(scene.kind),
         order: index + 1,
         attentionRole: scene.kind ?? "movement",
         callback: scene.kind === "turn",
         durationHintMs: 1200,
+        media: scene.media,
         meta: {
           qualityStatus,
           model: authored.diagnostics?.model ?? null,
@@ -422,12 +488,14 @@ export async function compileExperience(input: {
             confidence: identityState.confidence,
           }
         : null,
+      cognitiveAuthorContext: cognitiveContext,
       cinematicAuthor: {
         authoringAtom: "experience_beat",
         sceneRule: "one_short_thought_per_beat",
         presentation: "adaptive_line_rhythm",
         hardPunctuationRule: "no_comma_or_semicolon_scene_cuts",
         playerOwnsExactPresentation: true,
+        photoBeatRule: "silent_photo_beat",
       },
     },
   };
