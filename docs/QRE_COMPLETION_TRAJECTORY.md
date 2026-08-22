@@ -14,23 +14,24 @@ Do not add another brain, timeline owner, persistence system, or lens system whi
 - Live provenance: IdentityState facts → provenance packet → Mouth → Provenance Gate.
 - Known memory-route learning bypass → AuthorLearningLoop.
 - Knowledge deterministic evidence → AuthorLearningLoop.
+- Canonical behavioral outcome taxonomy.
+- Learned creative pressure consumer inside the existing author pipeline.
 - Universal author regression suite.
 
 ### IN PROGRESS
 
 - Complete audit of every user/guest/staff reality-bearing input route.
-- Post-play adaptive loop.
-- Operator reporting.
+- Real runtime outcome → IdentityState → materially different next experience proof.
+- Owner/operator reporting.
 
-The existing runtime already emits behavioral outcomes and `autonomousLearning` already derives behavioral winners/weaknesses. The new adaptive bridge makes those learned signals consumable by the existing author lens competition.
+## Outcome + adaptive bridge
 
-## Adaptive bridge
-
-Production intent:
+Runtime already records outcome events. The behavioral learning layer now consumes one canonical event taxonomy and the author consumes the resulting creative learning through one soft-pressure bridge:
 
 ```text
-real outcome
-→ AnalyticsRepository
+runtime outcome
+→ AnalyticsEventTypes
+→ normalizeExperienceOutcome()
 → autonomousLearning
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
@@ -50,10 +51,11 @@ Rules:
 Acceptance:
 
 ```powershell
+pnpm --filter @qre/api author:outcome-learning
 pnpm --filter @qre/api author:adaptive-learning
 ```
 
-This proves the consumer bridge. The remaining full-loop acceptance must prove real runtime outcomes → IdentityState → context → materially changed next MovieBeatPlan.
+These prove taxonomy normalization and the consumer bridge. The remaining production proof must exercise actual persisted runtime outcomes through IdentityState into a subsequent MovieBeatPlan.
 
 ## 1. Live media ingestion — GREEN
 
@@ -94,7 +96,8 @@ Required production proof:
 ```text
 Movie A
 → real completion/replay/abandon/save/share/CTA/etc.
-→ normalized behavioral/creative learning
+→ canonical outcome normalization
+→ behavioral/creative learning
 → IdentityState
 → CognitiveAuthorContext
 → Movie B
@@ -115,6 +118,7 @@ Minimum useful signals:
 - media contributions
 - provenance rejects
 - identity confidence
+- learned creative pressure
 
 ## 6. Mouth / lens hardening — AFTER THE ABOVE
 
@@ -152,6 +156,8 @@ Fallback is an emergency safety rail, not the preferred winner.
 10. Learning changes future selection, never historical reality.
 11. Explicit Knowledge is deterministic evidence, not model-generated interpretation.
 12. Every bridge gets an acceptance and an index entry.
+13. Canonical `AnalyticsEventTypes` own the runtime outcome vocabulary.
+14. Learned creative pressure is soft preference; explicit authoring intent remains authoritative.
 
 ## Known next-level cleanup
 

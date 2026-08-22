@@ -8,7 +8,7 @@ Start here before changing QRE. This is the fast architectural map: **what, wher
 
 | Layer | Owns | Does not own |
 |---|---|---|
-| `@qre/contracts` | Shared shapes | Runtime decisions or persistence |
+| `@qre/contracts` | Shared shapes and canonical analytics event names | Runtime decisions or persistence |
 | Engine cognition | Reality typing, world/context cognition | Database persistence |
 | `IdentityState` | Accumulated identity/world state | Creative wording |
 | `CognitiveAuthorContext` | One structured author packet | Persistence or timeline decisions |
@@ -70,12 +70,14 @@ input
 
 - `apps/api/src/services/authorLearningLoop.ts` — **single accepted-input learning authority**. Handles cognitive world evidence and deterministic explicit evidence.
 - `apps/api/src/services/memoryProjection.ts` — world → MemoryWriteBatch.
+- `apps/api/src/services/authorOutcomeLearning.ts` — canonical event → `positive | negative | neutral` outcome taxonomy.
 - `apps/api/src/services/autonomousLearning.ts` — behavioral winners/weaknesses from existing analytics outcomes.
 - `apps/api/src/services/creativeLearning.ts` — explicit + autonomous creative learning context.
 - `apps/api/src/services/authorCreativeLearningPressure.ts` — converts existing learning context into soft lens-selection pressure for the existing author pipeline.
 - `apps/api/src/services/authorMoviePipeline.ts` — applies learned creative pressure before Universal Author, while preserving explicit non-neutral lens intent.
 - `apps/api/author-learning-loop-acceptance.ts` — input → memory + analytics + identity isolation.
 - `apps/api/author-knowledge-learning-acceptance.ts` — deterministic Knowledge evidence → learning authority.
+- `apps/api/author-outcome-learning-acceptance.ts` — canonical behavioral outcome normalization.
 - `apps/api/author-adaptive-learning-acceptance.ts` — learned creative pressure → next lens selection; explicit intent and reality remain authoritative.
 
 ### Movie / Mouth
@@ -103,6 +105,8 @@ live media ingestion
 live provenance context
 known memory-route learning bypass
 Knowledge deterministic learning
+outcome taxonomy normalization
+adaptive creative-pressure consumer
 universal author regression suite
 ```
 
@@ -110,7 +114,7 @@ universal author regression suite
 
 ```text
 all user/guest/staff reality-input route audit
-post-play outcome → learned selection full-loop proof
+real runtime outcome → IdentityState → next-experience proof
 operator reporting
 ```
 
@@ -122,53 +126,48 @@ beam / diversity competition hardening
 lens-catalog consolidation
 ```
 
-## Adaptive learning rule
-
-Behavioral outcomes already live in Analytics. `autonomousLearning` converts them into learned winners/weaknesses, `IdentityState` carries them, and `CognitiveAuthorContext.creativeLearning` transports them.
-
-The new consumer bridge treats that state as **soft selection pressure**:
+## Adaptive learning rules
 
 ```text
-learned preference
-→ existing lens competition gets more pressure
+runtime outcome
+→ canonical AnalyticsEventTypes
+→ normalizeExperienceOutcome()
+→ autonomousLearning
+→ IdentityState.creativeLearning
+→ CognitiveAuthorContext.creativeLearning
+→ resolveLearnedCreativeLens()
+→ existing authorMovieCognition lens competition
 ```
 
-It never becomes:
+Learned preference is **soft pressure**, not authority.
 
-```text
-learned preference
-→ invented fact
-```
-
-Explicit non-neutral user lens intent outranks learned preference. Rejected/avoided lenses cannot become learned winners. Reality and provenance packets are untouched by creative learning.
+- Explicit non-neutral lens intent outranks learning.
+- Rejected/avoided lenses cannot become learned winners.
+- Creative learning cannot alter the reality/provenance packet.
+- There is still one lens competition owner: the existing author cognition.
 
 ## Known architecture cleanup target
 
-There are currently overlapping lens catalogs in:
+There are overlapping lens catalogs in:
 
 - `apps/api/src/services/authorMovieCognition.ts`
 - `apps/api/src/services/authorCreativeLenses.ts`
 
-Do **not** add another catalog. Consolidate these during the dedicated Mouth/lens hardening phase after the adaptive bridge is fully acceptance-covered.
+Do **not** add another catalog. Consolidate these during the dedicated Mouth/lens phase after adaptive learning is fully acceptance-covered.
 
 ## Acceptance map
 
 ```text
 author:fast                 universal author regression
 author:media-context        media normalization
-
 author:live-media-bridge    live media → context
-
 author:provenance           provenance construction
-
 author:provenance-gate      reality firewall
-
 author:live-provenance      live provenance → author
-
 author:learning-loop        accepted input → memory + analytics + isolation
 author:knowledge-learning   explicit Knowledge → learning authority
+author:outcome-learning     canonical outcome normalization
 author:adaptive-learning    learned outcomes → next lens selection
-
 author:movie-beat-plan      timeline/media selection
 author:movie-pipeline       Mouth → MovieBeatPlan
 author:full-circle          author → timeline → runtime shape

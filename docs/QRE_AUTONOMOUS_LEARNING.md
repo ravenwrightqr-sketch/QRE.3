@@ -4,7 +4,23 @@ QRE learns from real use without requiring the owner to manually judge every gen
 
 ## What QRE observes
 
-Runtime analytics already records scans, completions, abandonment, errors, replays, saves, shares, CTA clicks, payments, rewards, and memory-selection behavior.
+Runtime analytics records scans, completions, abandonment, errors, replays, saves, shares, CTA clicks, payments, rewards, and memory-selection behavior.
+
+## Canonical outcome taxonomy
+
+Runtime event names come from `@qre/contracts` `AnalyticsEventTypes`. API learning normalizes them once in:
+
+`apps/api/src/services/authorOutcomeLearning.ts`
+
+Current classification:
+
+```text
+positive → FLOW_COMPLETE / EXPERIENCE_REPLAY / EXPERIENCE_SAVED / EXPERIENCE_SHARED / CTA_CLICK / PAYMENT_COMPLETED / MEMORY_RECOMMENDATION_SELECTED
+negative → FLOW_ABANDON / ERROR
+neutral  → other observed events such as SCAN / SESSION_START
+```
+
+This keeps outcome meaning from drifting across learning components.
 
 ## What QRE stores about creative work
 
@@ -14,7 +30,9 @@ Experience records carry lightweight learning metadata such as the selected lens
 
 Behavioral learning groups comparable experiences and calculates outcome pressure from completion, positive actions, abandonment, and errors. The resulting winners/weaknesses flow into `IdentityState.creativeLearning` and then `CognitiveAuthorContext.creativeLearning`.
 
-The author now consumes that existing state through `authorCreativeLearningPressure.ts`.
+The author consumes that existing state through:
+
+`apps/api/src/services/authorCreativeLearningPressure.ts`
 
 ```text
 outcome
@@ -45,13 +63,14 @@ Behavioral learning remains scoped to the authenticated user's owned/account ass
 
 Explicit creative feedback remains higher-value evidence than weak behavioral observation, but QRE can continue learning from normal use without requiring manual review of every experience.
 
-## Current acceptance
+## Current acceptances
 
 ```powershell
+pnpm --filter @qre/api author:outcome-learning
 pnpm --filter @qre/api author:adaptive-learning
 ```
 
-This proves the consumer bridge: learned creative state changes next lens selection, explicit intent still wins, rejected-only learning does not create a preference, and the supplied reality packet remains unchanged.
+The first proves canonical outcome normalization. The second proves learned creative state changes next lens selection, explicit intent still wins, rejected-only learning does not create a preference, and the supplied reality packet remains unchanged.
 
 ## Remaining full-loop proof
 
