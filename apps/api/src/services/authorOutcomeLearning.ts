@@ -1,4 +1,8 @@
-import { AnalyticsEventTypes, type AnalyticsEventType } from "@qre/contracts";
+import {
+  AnalyticsEventTypes,
+  type AnalyticsEventType,
+  type AnalyticsOutcomeKind,
+} from "@qre/contracts";
 
 const POSITIVE_EVENTS = new Set<AnalyticsEventType>([
   AnalyticsEventTypes.FLOW_COMPLETE,
@@ -15,7 +19,7 @@ const NEGATIVE_EVENTS = new Set<AnalyticsEventType>([
   AnalyticsEventTypes.ERROR,
 ]);
 
-export function normalizeExperienceOutcome(type: AnalyticsEventType): "positive" | "negative" | "neutral" {
+export function normalizeExperienceOutcome(type: AnalyticsEventType): AnalyticsOutcomeKind {
   if (POSITIVE_EVENTS.has(type)) return "positive";
   if (NEGATIVE_EVENTS.has(type)) return "negative";
   return "neutral";
