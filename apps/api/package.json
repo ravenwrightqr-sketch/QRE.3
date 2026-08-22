@@ -25,7 +25,8 @@
     "author:movie-beat-plan": "tsx ./author-movie-beat-plan-acceptance.ts",
     "author:movie-pipeline": "tsx ./author-movie-pipeline-acceptance.ts",
     "author:full-circle": "tsx ./author-full-circle-acceptance.ts",
-    "author:learning-loop": "tsx ./author-learning-loop-acceptance.ts"
+    "author:learning-loop": "tsx ./author-learning-loop-acceptance.ts",
+    "author:real-adaptive-learning": "tsx ./author-real-adaptive-learning-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",

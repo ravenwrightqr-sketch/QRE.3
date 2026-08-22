@@ -19,7 +19,7 @@ export function buildCognitiveAuthorContext(input: {
     presence: input.presence ?? null,
     analytics: input.analytics ?? null,
     domain: input.domain ?? null,
-    creativeLearning: input.creativeLearning ?? null,
+    creativeLearning: input.creativeLearning ?? input.identityState?.creativeLearning ?? null,
     creativeSafety: input.creativeSafety ?? null,
     provenanceFacts: input.provenanceFacts ?? [],
     media: input.media ?? [],
