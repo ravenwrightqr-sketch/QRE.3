@@ -1,4 +1,4 @@
-import type { CognitiveExperiencePlan, CognitivePremise, CognitiveAuthorContext } from "@qre/contracts";
+import type { CognitiveAuthorContext, CognitiveExperiencePlan, CognitivePremise } from "@qre/contracts";
 
 export type AuthorCreativeSafetyClass = "ordinary" | "memorial";
 
@@ -10,14 +10,22 @@ export type AuthorCreativeSafetyContext = {
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 
+const SEMANTIC_PATTERNS: Array<{ pattern: RegExp; weight: number; reason: string }> = [
+  { pattern: /^direction:ritual$/i, weight: 0.42, reason: "cognitive direction is ritual" },
+  { pattern: /\b(?:remembrance|remembering|legacy|commemorative|commemoration|in memory)\b/i, weight: 0.26, reason: "cognitive memory model signals remembrance" },
+  { pattern: /\b(?:grief|mourning|remembrance|loss|reflection|honor|tribute)\b/i, weight: 0.2, reason: "cognitive emotional intent signals grief/remembrance" },
+  { pattern: /\b(?:remember|honor|commemorate|memorial|tribute)\b/i, weight: 0.24, reason: "cognitive purpose signals remembrance/commemoration" },
+  { pattern: /\b(?:tribute|remembrance|memorial|reflection|legacy)\b/i, weight: 0.18, reason: "cognitive story structure signals remembrance" },
+];
+
+const BACKSTOP_MEMORIAL = /\b(?:memorial|funeral|tribute|grief|bereavement|passed away|death|deceased|eulogy|in memory of|remembering)\b/i;
+
 function semanticSignals(plan: CognitiveExperiencePlan | undefined, premise: CognitivePremise | undefined): string[] {
   const signals: string[] = [];
-  if (!plan && !premise) return signals;
-
-  if (plan?.direction === "ritual") signals.push("direction:ritual");
-  if (plan?.memoryModel?.length) signals.push(...plan.memoryModel.map((value) => `memory:${clean(value)}`).filter(Boolean));
-  if (plan?.emotionalIntent?.length) signals.push(...plan.emotionalIntent.map((value) => `emotion:${clean(value)}`).filter(Boolean));
-  if (plan?.storyStructure?.length) signals.push(...plan.storyStructure.map((value) => `story:${clean(value)}`).filter(Boolean));
+  if (plan?.direction) signals.push(`direction:${clean(plan.direction)}`);
+  signals.push(...(plan?.memoryModel ?? []).map((value) => `memory:${clean(value)}`).filter(Boolean));
+  signals.push(...(plan?.emotionalIntent ?? []).map((value) => `emotion:${clean(value)}`).filter(Boolean));
+  signals.push(...(plan?.storyStructure ?? []).map((value) => `story:${clean(value)}`).filter(Boolean));
   if (plan?.purpose) signals.push(`purpose:${clean(plan.purpose)}`);
 
   for (const slot of premise?.slots ?? []) {
@@ -27,48 +35,33 @@ function semanticSignals(plan: CognitiveExperiencePlan | undefined, premise: Cog
   for (const relation of premise?.relations ?? []) {
     if (clean(relation.relation)) signals.push(`relation:${relation.from}->${relation.to}:${clean(relation.relation)}`);
   }
-
   return signals;
-}
-
-function scoreMemorialSemantics(signals: string[]): { score: number; evidence: string[] } {
-  let score = 0;
-  const evidence: string[] = [];
-  const text = signals.join(" ").toLowerCase();
-
-  const checks: Array<[RegExp, number, string]> = [
-    [/direction:ritual/, 0.42, "cognitive direction is ritual"],
-    /memory:(?:.*\b(?:remembrance|remembering|legacy|commemorative|commemoration|in memory)\b)/i,
-    /emotion:(?:.*\b(?:grief|mourning|remembrance|loss|reflection|honor|tribute)\b)/i,
-    /purpose:(?:.*\b(?:remember|honor|commemorate|memorial|tribute)\b)/i,
-    /story:(?:.*\b(?:tribute|remembrance|memorial|reflection|legacy)\b)/i,
-  ].map((item) => item) as Array<[RegExp, number, string]>;
-
-  checks[1] = [/memory:(?:.*\b(?:remembrance|remembering|legacy|commemorative|commemoration|in memory)\b)/i, 0.26, "cognitive memory model signals remembrance" ];
-  checks[2] = [/emotion:(?:.*\b(?:grief|mourning|remembrance|loss|reflection|honor|tribute)\b)/i, 0.2, "cognitive emotional intent signals grief/remembrance" ];
-  checks[3] = [/purpose:(?:.*\b(?:remember|honor|commemorate|memorial|tribute)\b)/i, 0.24, "cognitive purpose signals remembrance/commemoration" ];
-  checks[4] = [/story:(?:.*\b(?:tribute|remembrance|memorial|reflection|legacy)\b)/i, 0.18, "cognitive story structure signals remembrance" ];
-
-  for (const [pattern, weight, reason] of checks) {
-    if (pattern.test(text)) {
-      score += weight;
-      evidence.push(reason);
-    }
-  }
-
-  return { score: Math.min(1, score), evidence };
 }
 
 export function classifyAuthorCreativeSafety(input: {
   cognitivePlan?: CognitiveExperiencePlan;
   premise?: CognitiveExperiencePlan["premise"];
+  backstopText?: string[];
 }): AuthorCreativeSafetyContext {
   const signals = semanticSignals(input.cognitivePlan, input.premise);
-  const scored = scoreMemorialSemantics(signals);
-  if (scored.score >= 0.5) {
-    return { class: "memorial", confidence: scored.score, evidence: scored.evidence };
+  const text = signals.join(" ");
+  let score = 0;
+  const evidence: string[] = [];
+
+  for (const item of SEMANTIC_PATTERNS) {
+    if (item.pattern.test(item.pattern.source.startsWith("^") ? clean(input.cognitivePlan?.direction) : text)) {
+      score += item.weight;
+      evidence.push(item.reason);
+    }
   }
-  return { class: "ordinary", confidence: Math.max(0.5, 1 - scored.score), evidence: scored.evidence };
+
+  if (score < 0.5 && (input.backstopText ?? []).some((value) => BACKSTOP_MEMORIAL.test(value))) {
+    score = 0.5;
+    evidence.push("emergency memorial terminology backstop");
+  }
+
+  if (score >= 0.5) return { class: "memorial", confidence: Math.min(1, score), evidence };
+  return { class: "ordinary", confidence: Math.max(0.5, 1 - score), evidence };
 }
 
 export function isProtectedCreativeContext(context: CognitiveAuthorContext | null | undefined): boolean {
