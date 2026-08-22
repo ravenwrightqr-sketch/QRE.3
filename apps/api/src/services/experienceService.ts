@@ -16,6 +16,7 @@ import { buildCognitiveAuthorContext } from "./authorCognitiveContext.js";
 import { authorMoviePipeline } from "./authorMoviePipeline.js";
 import { persistAuthorLearning } from "./authorLearningLoop.js";
 import { loadAuthorMediaContext } from "./authorMediaSource.js";
+import { buildAuthorProvenanceFacts } from "./authorProvenanceSource.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -382,7 +383,7 @@ export async function compileExperience(input: {
     presence,
     analytics,
     creativeLearning: identityState?.creativeLearning ?? null,
-    provenanceFacts: [],
+    provenanceFacts: buildAuthorProvenanceFacts(identityState, subject),
     media,
     authorizedCreativeInstructions: [],
     textBeatTarget: 5,
