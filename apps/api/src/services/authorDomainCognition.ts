@@ -44,7 +44,7 @@ const unique = (values: string[]): string[] => [...new Set(values.map(clean).fil
 const ACTIVITY = /\b(?:walks?|runs?|plays?|eats?|sleeps?|travels?|works?|shops?|dances?|talks?|calls?|visits?|drives?|cooks?|grooms?)\b/i;
 const SOCIAL = /\b(?:other dogs?|friends?|client|customer|guest|couple|partner|team|family|people|social|connect(?:ed|s|ing)?)\b/i;
 const COMMERCIAL = /\b(?:offer|sale|listed|approved|review|booked|paid|price|deal|client|customer|service|appointment|order)\b/i;
-const RECURRENCE = /\b(?:every day|daily|again|still|returned|return|back|each day|weekly|monthly|routine|usually|always|often)\b/i;
+const RECURRENCE = /\b(?:every day|daily|again|still|returned|return|back|each day|weekly|monthly|routine|usually|always|often|long walks?|night walks?)\b/i;
 
 function roleFor(fact: DomainFact, mode: AuthorDomainMode): DomainFact["role"] {
   if (fact.type === "trait") return "trait";
@@ -105,8 +105,9 @@ export function buildDomainCognition(values: string[], subject = "", mode: Autho
   traitSignals.forEach((text) => opportunities.push({ text, kind: "character", strength: 0.86, sources: [text] }));
   preferenceSignals.forEach((text) => opportunities.push({ text, kind: "character", strength: 0.83, sources: [text] }));
   socialSignals.forEach((text) => opportunities.push({ text, kind: "social", strength: 0.82, sources: [text] }));
+  activitySignals.forEach((text) => opportunities.push({ text, kind: "character", strength: 0.81, sources: [text] }));
   continuitySignals.forEach((text) => opportunities.push({ text, kind: "callback", strength: 0.88, sources: [text] }));
-  tensions.forEach((tension) => opportunities.push({ text: `${tension.left} ↔ ${tension.right}`, kind: tension.kind === "meaning_shift" ? "payoff" : "character", strength: tension.strength, sources: [tension.left, tension.right] }));
+  tensions.forEach((tension) => opportunities.push({ text: `${tension.left} ↔ ${tension.right}`, kind: tension.kind === "meaning_shift" ? "payoff" : tension.kind === "social_pull" ? "social" : "character", strength: metric(tension.strength + 0.02), sources: [tension.left, tension.right] }));
 
   const anchors = unique([
     ...identitySignals,
@@ -141,10 +142,14 @@ export function personalitySignature(profile: DomainCognitionProfile): string {
     profile.traitSignals.slice(0, 3).join(" + "),
     profile.preferenceSignals.slice(0, 3).join(" + "),
     profile.socialSignals.slice(0, 2).join(" + "),
+    profile.activitySignals.slice(0, 2).join(" + "),
   ].filter(Boolean);
   return clean(parts.join(" | "));
 }
 
 export function strongestDomainOpportunity(profile: DomainCognitionProfile): DomainOpportunity | undefined {
-  return profile.opportunities[0];
+  const preferred = profile.opportunities.find((item) => item.kind === "character" && item.text.includes("↔"))
+    ?? profile.opportunities.find((item) => item.kind === "social" && item.text.includes("↔"))
+    ?? profile.opportunities[0];
+  return preferred;
 }
