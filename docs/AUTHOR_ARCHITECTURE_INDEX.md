@@ -225,6 +225,59 @@ Canonical detail and regression requirements live in:
 
 `docs/ASSET_IDENTITY_AND_LEARNING_SCOPE.md`
 
+## 10B. ASSET-FIRST PRODUCT / DASHBOARD MODEL
+
+The user-facing product is asset-first, not database-first.
+
+```text
+PHYSICAL QRE ART
+    ↓
+ASSET
+    ↓
+EXPERIENCES / FLOWS
+    ↓
+RUNTIME / ANALYTICS
+    ↓
+ASSET-SCOPED LEARNING
+```
+
+A customer may buy multiple physical QRE assets. Each purchase is its own `Asset` and its own QR/NFC identity. A customer may connect multiple experiences to an asset, and the existing `AssetFlow` relationship means flows/experiences are not themselves the asset identity boundary.
+
+The dashboard should therefore expose the simple product concepts first:
+
+```text
+Personal user
+  → My Assets
+  → Experiences on each Asset
+  → Results / activity
+
+Organization / administrator
+  → Organization
+  → Managed Assets
+  → Users / assignments / permissions
+  → Asset activity and organization-level reporting
+```
+
+An administrator may manage assets belonging to many users. This is an **administrative capability**, not a reason to merge their creative learning.
+
+The same asset-centric dashboard model should work for a solo customer and an enterprise such as a real-estate brokerage. Enterprise UX adds management, assignment, permissions, and organization reporting around assets rather than creating a separate semantic identity model.
+
+Do not expose `ownerId`, `accountId`, `AssetFlow`, or other persistence details as the primary user mental model. Those are implementation/administration structures behind the simple concepts of **who manages it, what asset it is, what experience it runs, and what happened**.
+
+## 10C. FUTURE SHARED-WORLD / ORGANIZATIONAL LEARNING
+
+Two future capabilities must remain explicit and separate from current asset learning:
+
+```text
+SHARED WORLD / IDENTITY LEARNING
+  → intentionally shared by multiple physical assets
+
+ORGANIZATIONAL LEARNING
+  → aggregated behavioral evidence across an authorized organization
+```
+
+Neither capability exists merely because assets share `accountId`, `ownerId`, `userId`, or administrative membership. Until a first-class authorization/relationship is modeled, current creative learning remains asset-scoped.
+
 ## 11. DEFINITION OF DONE
 
 The Author is production-ready when unfamiliar reality can travel through one coherent path:
