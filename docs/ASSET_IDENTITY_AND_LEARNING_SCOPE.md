@@ -269,7 +269,265 @@ AnalyticsEvent
 
 Therefore the implementation must not claim that multiple assets share a persistent world unless and until that relationship is explicitly modeled.
 
-## 11. Non-negotiable mental model
+## 11. Future Prisma/domain model — design now, implement later
+
+**This section is a future blueprint, not a current migration. Do not add these fields/models until the current asset-scoped learning loop is green and the product requirement for shared identity is explicitly accepted.**
+
+The clean future model is to introduce a first-class persistent identity/world above physical assets:
+
+```text
+Account / Organization
+        │
+        ├───────────────┐
+        ↓               ↓
+   Users/Admins     Identity / World
+                         │
+                 ┌───────┼────────┐
+                 ↓       ↓        ↓
+              Asset A  Asset B  Asset C
+```
+
+### Recommended future entities
+
+Conceptually:
+
+```text
+Identity / World
+- id
+- accountId?              // organizational ownership, if appropriate
+- name
+- kind                    // person, pet, property, brand, event, memorial, etc.
+- status
+- createdAt
+- updatedAt
+```
+
+```text
+Asset
+- id
+- identityId?             // explicit relationship to shared world/identity
+- ownerId                 // administrative ownership, retained
+- accountId               // administrative organization, retained
+- ...existing asset fields...
+```
+
+The exact model name (`Identity`, `World`, or another canonical domain term) should be decided once, then used consistently. **Do not add both `identityId` and `worldId` as competing concepts.** One relationship should own the semantic meaning.
+
+### Optional future organizational learning model
+
+Do not fold organization learning into Asset learning. A future organization-level projection may use a separate concept such as:
+
+```text
+OrganizationLearningSignal
+- id
+- accountId
+- signalType
+- evidenceCount
+- confidence
+- recurrence
+- recency
+- context
+- pattern
+- createdAt
+- updatedAt
+```
+
+This is illustrative, not a locked schema. It exists to preserve the distinction:
+
+```text
+Asset identity evidence
+        ≠
+shared-world identity evidence
+        ≠
+organization evidence
+```
+
+### Future asset-to-identity rule
+
+Once the relationship exists:
+
+```text
+Asset.identityId → Identity.id
+```
+
+then learning scope can become:
+
+```text
+asset-specific evidence
+        ↓
+Identity / World learning
+        ↓
+all assets explicitly belonging to that Identity / World
+```
+
+Only assets explicitly linked to the same Identity / World may share that learning.
+
+An account, owner, user, or administrator relationship still does **not** imply shared identity.
+
+### Migration requirement
+
+When this is eventually implemented:
+
+1. Every existing Asset must receive an explicit identity decision.
+2. No historical learning may be merged merely because assets share `accountId`.
+3. Backfill must be deterministic and auditable.
+4. Learning queries must use the new identity relationship explicitly.
+5. Organization-level learning must remain separately typed and provenance-aware.
+6. Regression tests must cover both multi-asset shared identity and enterprise isolation.
+
+Until that migration is complete, `Asset.id` remains the safe learning boundary.
+
+## 12. Future learning provenance and richness
+
+The eventual compact learning contract feeding the Author/Mouth should not reduce all evidence to a single undifferentiated string.
+
+The durable learning record should be conceptually capable of representing:
+
+```text
+WHAT HAPPENED
+WHAT WAS SELECTED
+WHAT SUCCEEDED
+WHAT FAILED
+CONFIDENCE
+RECURRENCE
+RECENCY
+CONTEXT
+SCOPE
+SOURCE
+```
+
+The key provenance dimensions are:
+
+```text
+scope:
+  asset | identity | organization
+
+source:
+  explicit_user | observed_behavior | runtime_outcome | system_inference
+
+confidence:
+  numeric bounded value
+
+recurrence:
+  count / repeat pattern
+
+recency:
+  latest evidence timestamp / decay signal
+
+context:
+  the conditions under which the evidence was observed
+```
+
+This allows the Beast to distinguish:
+
+```text
+USER SAID THEY LIKED THIS
+```
+
+from:
+
+```text
+THIS PATTERN WON REPEATEDLY
+```
+
+from:
+
+```text
+THIS PATTERN WORKED IN THIS CONTEXT
+```
+
+from:
+
+```text
+THIS IS A WEAK INFERENCE
+```
+
+The richer evidence should be projected into the compact Mouth-facing contract rather than forcing the Mouth to reconstruct provenance from arbitrary strings.
+
+## 13. IdentityState → Author → Mouth projection
+
+The complete future learning path is:
+
+```text
+REALITY / RUNTIME EVENT
+        ↓
+AnalyticsEvent
+        ↓
+Outcome normalization
+        ↓
+Learning aggregation
+        ↓
+Scope + provenance + confidence
+        ↓
+Identity-scoped projection
+        ↓
+IdentityState.creativeLearning
+        ↓
+Cognitive Author Context
+        ↓
+Semantic eligibility / learned pressure
+        ↓
+Movie / meaning / realization decisions
+        ↓
+Mouth candidates
+        ↓
+Truth + meaning + attention gates
+        ↓
+Final viewer-facing language
+```
+
+The Mouth should receive only **approved, relevant, compact learning pressure**. It should not receive raw analytics, account membership, database identifiers, or unfiltered organization-wide evidence.
+
+The projection should preserve enough provenance for the Author to know the difference between:
+
+```text
+EXPLICIT PREFERENCE
+OBSERVED WINNER
+REPEATED PATTERN
+WEAK SIGNAL
+ORGANIZATION SIGNAL
+SHARED-WORLD SIGNAL
+```
+
+but should remain compact enough that learning does not drown out reality, current prompt intent, subject facts, or the current creative task.
+
+### Mouth eligibility rule
+
+Before a learning signal reaches the Mouth-facing contract, QRE should answer:
+
+```text
+1. Is this signal authorized for this identity?
+2. Is it about the current subject / experience context?
+3. Is the evidence strong enough to matter?
+4. Is it recent or recurrent enough to remain relevant?
+5. Does it conflict with current supplied reality?
+6. Does it constrain creative choice or merely provide optional pressure?
+```
+
+The Mouth never gets to reinterpret a learning signal as factual reality.
+
+Learning can influence:
+
+```text
+lens
+pressure
+novelty
+trajectory
+selection bias
+creative emphasis
+```
+
+Learning cannot create:
+
+```text
+new facts
+new events
+new people
+new outcomes
+new chronology
+```
+
+## 14. Non-negotiable mental model
 
 When debugging future learning behavior, reason in this order:
 
@@ -292,7 +550,12 @@ AnalyticsEvent / normalized outcome
 
 WHAT MAY THIS IDENTITY LEARN?
         ↓
-Asset-scoped learning
+Asset-scoped learning today
+Identity/World learning only when explicitly modeled later
+
+WHAT MAY THE ORGANIZATION LEARN?
+        ↓
+Separate organization-level evidence later
 
 WHAT REACHES THE MOUTH?
         ↓
