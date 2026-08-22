@@ -6,7 +6,7 @@ Protect the universal QRE reality law at the cognitive boundary:
 
 > QRE may derive meaning and relationships from supplied reality. QRE may not invent reality.
 
-This layer does not create another brain. It gives every reality fact an explicit semantic envelope that can travel with cognition and later constrain movie realization.
+This layer does not create another brain. It gives every reality fact an explicit semantic envelope that can travel with cognition and constrain movie realization.
 
 ## Current implementation
 
@@ -24,7 +24,7 @@ Defines:
 
 ### Identity State
 
-`IdentityFact.provenance` is optional and can now carry the provenance envelope without breaking existing callers.
+`IdentityFact.provenance` is optional and carries the provenance envelope without breaking existing callers.
 
 ### API utility
 
@@ -32,21 +32,31 @@ Defines:
 
 Creates provenance from the existing reality typing system and specializes recurring activity semantics such as `long walks at night` into `activity`.
 
+### Runtime gate
+
+`apps/api/src/services/authorProvenanceGate.ts`
+
+Provides a reusable gate that checks authored lines against the provenance envelope and rejects unsupported place, object, person, body-detail, chronology, and private-fact expansions.
+
 ### Acceptance
 
 `pnpm --filter @qre/api author:provenance`
 
-The acceptance verifies that activities, events, places, and traits receive different permissions while invention classes remain forbidden.
+Verifies the semantic permission taxonomy.
 
-## Next canonical integration
+`pnpm --filter @qre/api author:provenance-gate`
 
-The next safe step is to attach `RealityProvenance` to every `IdentityFact` created by `authorIdentityState.ts`.
+Verifies grounded lines pass while deliberate invented-place, invented-object, invented-person/relationship cases fail.
 
-Then carry the provenance into movie cognition:
+## Canonical wiring status
 
-`IdentityFact → RealityFact → trajectory candidate → movie beat → Mouth packet`
+The provenance contract and gate are implemented and tested independently.
 
-The final truth gate should be able to reject a realization because it exceeds the semantic envelope, even when the raw keyword validator does not recognize the invention.
+The final production seam remains:
+
+`IdentityFact.provenance → movie beat → Mouth packet → provenance gate`
+
+That integration must happen before provenance is considered complete.
 
 ## Example
 
