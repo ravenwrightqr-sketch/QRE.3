@@ -15,7 +15,8 @@
     "author:domain-movie": "tsx ./author-domain-movie-acceptance.ts",
     "author:provenance": "tsx ./author-provenance-acceptance.ts",
     "author:provenance-gate": "tsx ./author-provenance-gate-acceptance.ts",
-    "author:cognitive-context": "tsx ./author-cognitive-context-acceptance.ts"
+    "author:cognitive-context": "tsx ./author-cognitive-context-acceptance.ts",
+    "author:movie-beat-plan": "tsx ./author-movie-beat-plan-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
