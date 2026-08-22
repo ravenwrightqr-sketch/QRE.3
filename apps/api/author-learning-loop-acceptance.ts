@@ -113,8 +113,11 @@ const record = buildAuthorLearningRecord({
   observedAt: "2026-08-22T15:00:00.000Z",
 });
 
-if (record.batch.facts.length !== 1 || record.batch.events.length !== 1) {
-  throw new Error("LEARNING LOOP FAILED: first evidence batch incomplete");
+if (record.batch.events.length !== 1) {
+  throw new Error("LEARNING LOOP FAILED: event evidence batch incomplete");
+}
+if (!record.batch.facts.some((fact) => /Riverside Grooming/i.test(fact.value))) {
+  throw new Error("LEARNING LOOP FAILED: place evidence missing from fact projection");
 }
 
 await persistAuthorLearning({
