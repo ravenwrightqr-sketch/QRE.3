@@ -65,13 +65,31 @@ function inferContext(input: { requested?: IdentityContext; presenceSummary: str
 }
 
 function factFromMemory(fact: MemoryContext["facts"][number]): IdentityFact {
+  const source =
+    fact.source === "prompt"
+      ? "prompt"
+      : fact.source === "event"
+        ? "event"
+        : fact.source === "location"
+          ? "location"
+          : "history";
+
+  const status =
+    fact.status === "active"
+      ? "active"
+      : fact.status === "superseded"
+        ? "superseded"
+        : fact.status === "retracted" || fact.status === "quarantined"
+          ? "derived"
+          : undefined;
+
   return {
     text: clean(`${fact.predicate}: ${fact.value}`),
-    source: fact.source === "memory" ? "memory" : fact.source === "event" ? "event" : "history",
+    source,
     confidence: confidence(fact.confidence),
     observedAt: fact.observedAt,
     entity: fact.entityId,
-    status: fact.status,
+    status,
   };
 }
 
@@ -106,7 +124,19 @@ function relationshipStates(memory: MemoryContext): CognitiveRelationshipState[]
     eventCount: 1,
   }));
 }
+function analyticsEventsWithType(
+  events: unknown[],
+): Array<{ type: string }> {
+  return events.flatMap((event) => {
+    if (!event || typeof event !== "object" || Array.isArray(event)) {
+      return [];
+    }
 
+    const type = (event as Record<string, unknown>).type;
+
+    return typeof type === "string" ? [{ type }] : [];
+  });
+}
 function analyticsSignal(events: Array<{ type: string }>): CognitiveAnalyticsSignal {
   let scans = 0;
   let completions = 0;
@@ -194,10 +224,21 @@ export async function buildAuthorIdentityState(input: {
   const location = input.location ?? ((presence?.places?.[0] ?? "") ? { label: presence?.places?.[0], role: "presence" } : undefined);
   const activeContext = inferContext({ requested: input.context, presenceSummary, locationLabel: location?.label });
   const intents = intentsFromInput(input);
-  const analytics = analyticsSignal(analyticsEvents);
+  const analytics = analyticsSignal(
+  analyticsEventsWithType(analyticsEvents),
+);
   const creativeLearning = creativeSignal(learning);
 
-  const observedSubject = clean(input.subject || memory.entities.find((entity) => entity.kind === "person" || entity.kind === "animal" || entity.kind === "business")?.name || "identity");
+const observedSubject = clean(
+  input.subject ||
+    memory.entities.find(
+      (entity) =>
+        entity.kind === "person" ||
+        entity.kind === "animal" ||
+        entity.kind === "organization",
+    )?.name ||
+    "identity",
+);
   const subject = claim(observedSubject, `Observed subject for asset ${input.assetId}`, input.subject ? "prompt" : "memory");
 
   const canonicalFacts = memoryFacts.slice(0, 120);

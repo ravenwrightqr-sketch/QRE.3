@@ -18,7 +18,7 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
     backstopText: [
       input.prompt,
       input.subject,
-      input.place,
+      input.place ?? "",
       ...(input.facts ?? []),
       ...(input.sourceMoments ?? []),
       ...(input.memoryContext ?? []),
