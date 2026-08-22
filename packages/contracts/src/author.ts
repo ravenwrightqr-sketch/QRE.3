@@ -1,5 +1,6 @@
 import type { SequencePlay } from "./sequencePlay.js";
 import type { CognitiveAuthorContext } from "./cogauthor/cognitiveAuthorContext.js";
+import type { MovieBeatPlan } from "./cogauthor/movieBeatPlan.js";
 import type { MediaAsset } from "./media.js";
 import type { CognitiveExperiencePlan } from "./cogauthor/cognition.js";
 
@@ -54,6 +55,7 @@ export type AuthorResult = {
   brief: AuthorCreativeBrief;
   scenes: AuthorScene[];
   sequence?: SequencePlay;
+  movieBeatPlan?: MovieBeatPlan;
   field: Record<string, unknown>;
   diagnostics: Record<string, unknown>;
 };
