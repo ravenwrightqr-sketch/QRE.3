@@ -37,7 +37,13 @@ export type InferenceForbidden =
   | "invent_business_fact"
   | "invent_private_fact";
 
-export type RealityProvenance = {
+/**
+ * Author-side provenance envelope for a reality fact.
+ *
+ * This intentionally has a distinct public name from the legacy
+ * RealityProvenance string union used by the experience reality model.
+ */
+export type AuthorRealityProvenance = {
   factType: RealityFactType;
   source: "prompt" | "memory" | "event" | "location" | "presence" | "history";
   observedAt?: string;
