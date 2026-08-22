@@ -14,7 +14,8 @@ const SUPPORTED_LENSES = [
   "game",
 ] as const;
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 
 function lensHits(values: string[]): Map<string, number> {
   const scores = new Map<string, number>();
@@ -30,34 +31,31 @@ function lensHits(values: string[]): Map<string, number> {
 }
 
 /**
- * Converts already-observed creative learning into selection pressure for the
- * existing author lens competition. It does not invent a new lens engine and
- * never overrides an explicit non-neutral user lens request.
+ * Returns bounded soft pressure for the existing lens competition.
+ *
+ * This is deliberately not a lens selector. Existing cognition still decides
+ * whether the lens fits the supplied reality; this helper only moves the
+ * candidate score slightly based on learned evidence.
  */
-export function resolveLearnedCreativeLens(
+export function learnedLensPressure(
   context: CognitiveAuthorContext | null | undefined,
-): string | undefined {
+  lensId: string,
+): number {
+  const lens = clean(lensId);
+  if (!lens || !SUPPORTED_LENSES.includes(lens as (typeof SUPPORTED_LENSES)[number])) return 0;
+
   const learning = context?.creativeLearning;
-  if (!learning) return undefined;
+  if (!learning) return 0;
 
   const positive = lensHits([
     ...(learning.successfulLenses ?? []),
     ...(learning.accepted ?? []),
     ...(learning.preferences ?? []),
-  ]);
+  ]).get(lens) ?? 0;
   const negative = lensHits([
     ...(learning.rejected ?? []),
     ...(learning.avoidedPatterns ?? []),
-  ]);
+  ]).get(lens) ?? 0;
 
-  let best: { lens: string; score: number } | undefined;
-  for (const lens of SUPPORTED_LENSES) {
-    const score =
-      (positive.get(lens) ?? 0) * 3 -
-      (negative.get(lens) ?? 0) * 3;
-    if (score <= 0) continue;
-    if (!best || score > best.score) best = { lens, score };
-  }
-
-  return best?.lens;
+  return Math.max(-0.12, Math.min(0.12, positive * 0.04 - negative * 0.05));
 }
