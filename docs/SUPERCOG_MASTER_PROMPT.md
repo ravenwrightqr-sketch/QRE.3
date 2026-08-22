@@ -12,98 +12,42 @@ The downstream product can turn those play-outs into living memories, pet social
 
 Reality is authoritative.
 
-The creative system may:
+The creative system may reinterpret supplied facts, change emphasis, reveal relationships between supplied facts, use grounded metaphorical or emotional language, use a creative lens, personify or mirror meaning metaphorically, compress supplied events, and select which supplied detail receives attention.
 
-- reinterpret supplied facts
-- change emphasis
-- reveal a relationship between supplied facts
-- use metaphorical or emotional language grounded in those facts
-- use a creative lens
-- personify or mirror meaning metaphorically
-- compress supplied events
-- select which supplied detail receives attention
-
-The creative system may NOT invent:
-
-- people
-- identities
-- relationships
-- places
-- rooms or locations
-- objects
-- body details
-- dialogue
-- sensory facts
-- literal events
-- participants
-- ownership or tenancy
-- customer/client relationships
-- chronology
-- outcomes that did not occur
+The creative system may NOT invent people, identities, relationships, places, rooms or locations, objects, body details, dialogue, sensory facts, literal events, participants, ownership or tenancy, customer/client relationships, chronology, or outcomes that did not occur.
 
 Plausibility is not provenance. A plausible detail is still invented if the supplied reality does not support it.
 
-## Critical Distinction: Interpretation vs Invention
+## Interpretation vs Invention
 
 Interpretive creativity is allowed when it is causally grounded.
 
-Example:
+Allowed: a cleaned home can be described as looking able to breathe again.
 
-Supplied reality:
-- house was cleaned
-- environment was restored
+Disallowed: a front door opening by itself when no such event was supplied.
 
-Allowed realization:
-- “The house looked like it could breathe again.”
-
-That is metaphorical interpretation of a supplied state change. It does not claim the house literally has lungs.
-
-Disallowed:
-- “The front door opened by itself.”
-
-That is a literal invented event.
+A lens changes framing, not reality.
 
 ## Chronology Law
 
-Source chronology is immutable.
-
-Creative realization may change the meaning of an earlier event, but it may never move a later event before an earlier event.
-
-Allowed:
-
-came in nervous → got a bath → stole a blue bow → left looking fabulous
-
-A later line may make the nervous arrival funny, meaningful, or surprising in retrospect.
-
-Not allowed:
-
-stole a bow → left → came in nervous → got a bath
-
-unless the user explicitly supplied that chronology.
+Source chronology is immutable. Creative realization may change the meaning of an earlier event, but may never move a supplied event backward or forward in time.
 
 ## Cognitive State
 
-Add Cognitive State as a temporary compiler structure inside movie cognition.
+Cognitive State is temporary compiler state, not durable memory and not a new database architecture.
 
-It is NOT durable memory, NOT a new database system, and NOT another user-facing architecture layer.
-
-Cognitive State exists only while compiling one experience/trajectory.
-
-Minimum conceptual shape:
+Minimum state concepts:
 
 - establishedFacts
 - establishedStates
-- currentState
-- unresolvedTensions
-- expectations
-- lastEvent
-- availableNextEvents
-- emotionalProgression
-- usedOperations
-- usedConcreteDetails
-- payoffPotential
+- stateBefore
+- trigger
+- stateAfter
+- nextPossibility
+- unresolvedQuestion
+- sourceIndex
 
-Every beat should operate as:
+Every beat operates as:
 
 STATE BEFORE
 → SUPPLIED EVENT OR GROUNDED INTERPRETATION
@@ -111,11 +55,9 @@ STATE BEFORE
 → NEW POSSIBILITY
 → NEXT QUESTION
 
-The key question is:
+The governing question is:
 
 “What is now possible because of what just happened?”
-
-This prevents the author from repeatedly rediscovering the same fact.
 
 ## Canonical Cognitive Pipeline
 
@@ -123,122 +65,118 @@ RAW PROMPT
 ↓
 REALITY MODEL
 ↓
-DOMAIN MODEL
-↓
-SITUATION MODEL
+DOMAIN / ENTITY MODEL
 ↓
 EVENT / RELATIONSHIP GRAPH
 ↓
 COGNITIVE STATE
 ↓
-LATENT OPPORTUNITY / TENSION
+TRAJECTORY CANDIDATES
 ↓
-MULTIPLE MOVIE HYPOTHESES
-↓
-TRAJECTORY SEARCH
+CAUSAL / ATTENTION / NOVELTY SEARCH
 ↓
 BEST MOVIE
 ↓
 OPTIONAL LENS
 ↓
-MOUTH / LANGUAGE REALIZATION
+ONE MOUTH REALIZATION
 ↓
-TRUTH GATE
+TRUTH / PROVENANCE GATE
 ↓
-ATTENTION EDITOR
+ATTENTION / BORINGNESS GATE
 ↓
 SEQUENCEPLAY / TEXT-MOVIE
 
 ## Domain Model
 
-Domain is not a prose style.
+Domain is not prose style.
 
 Each domain supplies an ontology, affordances, constraints, actors, objects, transformations, and business context.
 
-Examples:
-
-Housekeeping service:
-- rooms
-- surfaces
-- disorder
-- restoration
-- before/after
-- hidden condition
-- cleaning actions
-- documentation
-- service completion
-
-Hotel:
-- guest stay
-- room status
-- check-in/out
-- amenities
-- service operations
-- hospitality
-
-Pet grooming:
-- animal behavior
-- grooming actions
-- appearance change
-- personality
-- pet agency
-- service outcome
-
-Wedding:
-- couple
-- family
-- ritual
-- ceremony
-- time
-- memory
-- promise
-- photographs
-- tradition
-
-The same cognitive machinery runs across domains. The world model changes.
+Housekeeping service is not automatically hotel, homeowner, Airbnb, tenant, or client context. Hotel has its own ontology. Grooming has its own ontology. Legal services have their own exact-data context. Wedding has ritual, family, time, promise, memory, and photographs. The same cognition runs across all of them while the world model changes.
 
 ## Entity / Paying-Party Rule
 
 All data is organized.
 
-Do not confuse:
+Never confuse service provider, paying entity, customer/client, subject, location, and participant.
 
-- service provider
-- paying entity
-- customer/client
-- subject of the experience
-- location
-- participant
+The paying/business entity is the commercial party QRE should address downstream. The subject of a story can be a different entity.
 
-The entity that actually pays for a business experience is important because that is the entity QRE should address commercially.
-
-Never infer homeowner, Airbnb host, tenant, employer, owner, client, customer, or relationship unless the source actually establishes it.
-
-For example, “housekeeping service” is a service entity/context. It is not automatically a hotel, homeowner, Airbnb, or tenant context.
+Never infer homeowner, Airbnb host, tenant, employer, owner, client, customer, or relationship unless the source establishes it.
 
 ## Movie Cognition
 
-A movie hypothesis is not a writing style.
+A movie hypothesis is a proposed causal interpretation of supplied reality, not a writing style.
 
-It is a proposed causal interpretation of supplied reality.
-
-A hypothesis should answer:
+It must answer:
 
 - What is actually happening?
-- What is interesting about the relationship between the supplied events?
+- What is interesting about the relationship between supplied events?
 - What expectation exists?
 - What changes that expectation?
 - What consequence follows?
 - What becomes possible next?
 - What realization could this trajectory earn?
 
-Different hypotheses should use genuinely different evidence relationships, not merely different adjectives applied to the same fact sequence.
+Different hypotheses should differ in evidence relationship and trajectory, not merely adjectives.
+
+## Trajectory Search
+
+Super Cog now performs bounded search over grounded, chronological trajectories inside the existing movie-cognition layer.
+
+The search may compare several candidate fact paths, but every candidate must preserve source order.
+
+For each candidate, evaluate:
+
+- relationship strength
+- state-transition fit
+- novelty
+- repetition risk
+- unused-opportunity value
+- payoff potential
+- baseline lift
+
+The search is deliberately bounded. QRE does not need thousands of branches. It needs a small number of strong alternatives and disciplined pruning.
+
+### Boring Baseline
+
+Every experience has a simple factual baseline.
+
+Example:
+
+Coco came in nervous.
+Coco got a bath.
+Coco stole a blue bow.
+Coco left looking fabulous.
+Peace was temporary.
+
+The creative winner should beat that baseline on meaningful movement, causal relationship, attention, and payoff while preserving reality.
+
+Validity and quality are separate:
+
+VALIDITY = can this exist?
+QUALITY = is this worth watching?
+
+A technically valid but boring trajectory is not the winner merely because it passes the truth gate.
+
+## Unused Opportunity
+
+At every state, Cog tracks which supplied details have not yet been meaningfully used.
+
+The governing question is:
+
+“What supplied detail could now change the meaning of what we already established?”
+
+This is the mechanism for retrospective payoff and for preventing fact-parade writing.
+
+A later supplied event should be able to make an earlier event feel different without changing what physically happened.
 
 ## Creative Operations
 
 Operations are mechanisms, not motifs.
 
-Useful operations include:
+Examples:
 
 - REVEAL
 - PERSONIFICATION
@@ -261,13 +199,7 @@ Useful operations include:
 - CONTRAST
 - IMPLICATION
 
-Example: MIRROR
-
-MIRROR does NOT mean “insert a mirror.”
-
-It means a later supplied state or image reflects an earlier state with changed meaning.
-
-The operation is cognitive; the literal world remains closed.
+“MIRROR” never means insert a mirror. “HEIST” never means invent a crew. “HORROR” never means invent ghosts. The operation is cognitive; the literal world stays closed.
 
 ## Semantic Creativity Law
 
@@ -275,134 +207,106 @@ Do not add weirdness.
 
 Discover what the experience secretly wants to become.
 
-Creativity should be:
+CREATIVITY:
 
 OBSERVATION
 → MEANING
 → LATENT POSSIBILITY
-→ WORLD TRANSFORMATION IN INTERPRETATION
+→ GROUNDED TRANSFORMATION OF INTERPRETATION
 → CONSEQUENCE
 → ESCALATION
 → REALIZATION
 → PAYOFF
 
-The invention expresses the meaning.
+The invention expresses the meaning. The invention is never the point by itself.
 
-The invention is never the point by itself.
-
-## Trajectory / Attention Loop
+## Attention / Trajectory Loop
 
 A strong short movie is not a pile of good sentences.
 
-Every screen must create a reason to want the next screen.
+Every screen must either:
 
-Each beat should answer one of these:
-
-- What changed?
-- Why does that matter now?
-- What does that make possible?
-- What is still unresolved?
-- What does the viewer expect next?
-- How can the next event change the meaning of the last one?
-
-The attention loop is:
+- establish a state
+- raise a question
+- answer/change the state
+- create a new question
+- escalate an existing consequence
+- reframe an earlier detail
+- pay something off
 
 JOLT
 → QUESTION
-→ ANSWER / CHANGE
+→ CHANGE
 → NEW QUESTION
-→ ESCALATION
+→ CONSEQUENCE
 → REFRAME
 → PAYOFF
 
 ## Retrospective Payoff
 
-The payoff is earned through changed interpretation.
+The ending is earned when the final state changes the meaning of the beginning.
 
-A later event should be capable of changing how the viewer understands an earlier event.
+Do not select a clever ending first and force facts toward it.
 
-The ending should not be selected merely because it sounds clever.
-
-The trajectory earns the ending.
+Search forward from reality. Allow the ending to emerge from the strongest trajectory.
 
 ## Lens Architecture
 
-Lens comes AFTER movie cognition.
+Lens comes after movie cognition.
 
-Cog decides what the movie is.
+COG decides what the movie is.
+LENS decides how to frame it.
+MOUTH realizes the framed movie.
 
-Lens decides how to frame the movie.
+Lens may affect tone, emphasis, implication, pacing, seriousness, absurdity, intimacy, and tension.
 
-Mouth decides how to express the framed movie in language.
-
-Lens may affect:
-
-- tone
-- emphasis
-- implication
-- pacing
-- seriousness
-- absurdity
-- intimacy
-- tension
-
-Lens may not alter:
-
-- reality
-- chronology
-- identity
-- relationships
-- literal events
-- provenance
-
-Example:
-
-MOVIE: a warning light leads to diagnosis, repair, and a changed understanding of the problem.
-
-Lens: noir.
-
-The realization can emphasize evidence and uncertainty.
-
-Lens does not create a detective, crime, gun, police station, or second location.
+Lens may not alter facts, chronology, identity, relationships, literal events, or provenance.
 
 ## Mouth Contract
 
-The Mouth is a renderer, not a planner.
+The Mouth is a renderer, not the planner.
 
-It must never expose internal cognition.
+Prefer one selected movie over asking a small local model to write three complete movies.
 
-Never write:
+The Mouth payload should contain only:
 
-- “the meaning shifted”
-- “the transformation happened”
-- “the tension built”
-- “the contrast became clear”
-- “the bow became a symbol”
-- “the premise was…”
-- “the operation was…”
+- selected trajectory
+- cognitive purpose
+- lens pressure
+- concrete supplied details
+- truth constraints
+- line/screen constraints
+- ending requirements
 
-Those are internal notes, not the movie.
+The Mouth must not be responsible for choosing the movie.
 
-Instead, show the concrete thing that makes the viewer experience the interpretation.
+## Grounded Recovery
 
-Rule:
+Local models can hallucinate even when instructed not to.
 
-SHOW THE MOVE.
-DO NOT NAME THE MOVE.
+Therefore:
+
+MODEL OUTPUT
+→ STRICT TRUTH GATE
+→ ACCEPT
+or
+→ REJECT
+→ GROUNDED RECOVERY
+
+Recovery must reconstruct from supplied facts only. It may not relax the truth law just to make a test green.
 
 ## Validator as Teacher
 
-The validator is not merely a gate.
+The validator is both gate and feedback source.
 
-Every repeated rejection pattern is feedback for the generator.
-
-Track and learn from:
+Track recurring failures:
 
 - invented places
 - invented objects
 - invented people
 - unsupported relationships
 - unsupported body details
+- invented temporal/location modifiers
 - chronology violations
 - abstract cognition language
 - weak next-beat pull
@@ -410,34 +314,15 @@ Track and learn from:
 - generic decoration
 - stock sentiment
 - excessive line length
-- duplicate candidates
+- duplicate candidate outputs
 - fake escalation
 - unearned payoff
 
-The long-term goal is to make generation naturally avoid these failures before validation.
-
-## Candidate Strategy
-
-Cognition should compete multiple trajectories.
-
-The Mouth should not be burdened with unnecessarily generating three complete stories if a single selected winner can be rendered instead.
-
-Preferred long-term architecture:
-
-COG
-→ generate multiple hypotheses
-→ score trajectories
-→ select best movie
-→ apply optional lens
-→ MOUTH renders one winner
-
-This reduces output-format failures and keeps planning authority in cognition.
+The long-term objective is not better rejection. It is generation that naturally avoids the rejection patterns.
 
 ## Quality Objective
 
-The target is not “creative wording.”
-
-The target is:
+Target output is:
 
 SPECIFIC
 + GROUNDED
@@ -448,13 +333,60 @@ SPECIFIC
 + ATTENTION-GENERATING
 + EARNED
 
-A great result should make a human think:
+The experience should make someone think:
 
 “Holy shit, that actually went somewhere.”
 
-and ideally:
+Ideally it creates:
 
 “I want one of these for my own thing.”
+
+## Living Memory
+
+Living memory preserves source truth while allowing creative framing.
+
+Example supplied facts:
+
+met at the local bar
+connected
+talked until close
+seen each other every day
+
+Cog may discover intimacy, repetition, anticipation, or changing significance from those facts.
+
+It may not upgrade “seen each other every day” into living together, marriage, a private confession, or another unsupported relationship state.
+
+MEMORY TRUTH = immutable source
+CREATIVE LENS = interpretation
+PLAY-OUT = realized experience
+
+## Pet Social / Living Dog Tag
+
+Pet social experiences use user-entered bullet facts as the reality source.
+
+Example:
+
+Coco
+poodle
+fierce
+loves bacon
+long walks at night
+friendly
+loves other dogs
+
+Cog may derive a recognizable personality and social trajectory from those traits.
+
+It may not invent a home, owner, dog park, breed history, dialogue, physical behavior, or event unless supplied.
+
+The goal is fun plus learnable personality, not fabricated biography.
+
+## Business / Data Mode
+
+When the user is documenting operational or exact business data, preserve exactness.
+
+Legal, accounting, compliance, receipts, logs, service records, and similar data should not be forced through entertainment cognition merely because QRE can make stories.
+
+Creative mode is optional and must never silently mutate business truth.
 
 ## Domain Independence
 
@@ -467,27 +399,15 @@ wedding → candles
 grooming → bow joke
 restaurant → empty room
 
-Those may be examples or test outputs, never the brain.
+Those can be tests, not brain rules.
 
 Good:
 
 same cognitive operation
 → different domain reality
-→ different causal realization
+→ different realization
 
-Patterns should emerge.
-
-## Living Memory Principle
-
-QRE is building experiences that can preserve moments while allowing creative framing.
-
-Therefore:
-
-MEMORY TRUTH = immutable source
-CREATIVE LENS = interpretation
-PLAY-OUT = realized experience
-
-Creative reactivation must never overwrite or fabricate the underlying memory truth.
+Let patterns emerge.
 
 ## Product Direction
 
@@ -500,73 +420,52 @@ One moving line.
 One reason to continue.
 Then a payoff.
 
-A pet can become a socially shareable little movie.
-A business can turn a service into a memorable experience.
-A receipt can become a narrative artifact.
-A wedding can become a living memory.
-A property can become a cinematic listing moment.
+Pet memories can become social media.
+Business services can become memorable artifacts.
+Wedding moments can become living memories.
+Property can become cinematic marketing.
+Receipts can become useful narrative records when creative mode is appropriate.
 
-The downstream CTA should feel like the natural next action after the experience has already created desire.
+CTA is downstream. Make the play-out excellent first.
 
-Do not optimize the CTA before the play-out is excellent.
+## Engineering Doctrine
+
+Build as if this were our own company.
+
+Prefer the smallest clean architectural addition that materially increases cognitive capability.
+
+Do not add a new file when an existing canonical cognition file is the correct home.
+
+Do not create V2/V3 brains.
+
+Do not weaken validators to hide failures.
+
+Do not optimize for green tests alone.
+
+Every meaningful upgrade must have:
+
+1. one clear responsibility
+2. one measurable effect
+3. one acceptance path
+4. one documented reason
+
+Update this document as architecture evolves.
 
 ## Current Engineering Priorities
 
-1. Add transient Cognitive State to movie cognition.
-2. Make state transitions explicit for every trajectory.
-3. Preserve immutable source chronology.
-4. Make hypothesis competition genuinely trajectory-based.
-5. Select one best movie before language realization where practical.
-6. Keep lens as post-movie framing pressure.
-7. Give the Mouth a lean payload containing only the selected movie, concrete trajectory, lens pressure, and truth constraints.
-8. Keep the validator strict.
-9. Feed validator rejection patterns back into generation constraints.
-10. Expand cross-domain acceptance tests only after the core loop is stable.
-
-## Architectural Hygiene
-
-Keep the code organized.
-
-One canonical Author Brain.
-No v2/v3 duplicates.
-No parallel legacy creative brains.
-No unnecessary new folders or abstractions.
-Contracts stay separated and canonical.
-Cog/Author code should ultimately live in clear, dedicated folders without leaving dead intertwined implementations behind.
-
-Do not redesign the locked QRE architecture.
-Extend and stabilize it.
-
-## Working Rule
-
-Work backward from the desired final play-out.
-
-Find the missing cognitive mechanism.
-Implement the smallest clean structure that provides it.
-Compile.
-Run acceptance.
-Inspect real output.
-Then make the next surgical improvement.
-
-Do not stack speculative layers.
-Do not solve failures by weakening truth gates.
-Do not hide failures behind green tests.
-Do not add templates when the missing capability is cognition.
+1. Keep Cognitive State authoritative inside movie cognition.
+2. Use bounded trajectory search rather than isolated fact selection.
+3. Require the selected trajectory to beat the boring factual baseline.
+4. Track unused opportunities during compilation.
+5. Preserve chronology and provenance as hard constraints.
+6. Select one movie before Mouth realization.
+7. Keep lens after cognition and before language.
+8. Use strict truth validation plus grounded recovery.
+9. Feed recurring validator failures back into generation constraints.
+10. Expand cross-domain acceptance around living memory, pet social, services, business marketing, and exact-data modes.
 
 ## Definition of Done
 
-Super Cog is successful when:
-
-- ordinary supplied reality can become a compelling short movie
-- multiple hypotheses genuinely differ in causal trajectory
-- the selected movie is domain-native
-- the lens improves framing without changing facts
-- the Mouth realizes the movie rather than explaining it
-- chronology remains intact
-- unsupported details never survive
-- each beat creates the next question or changes the current meaning
-- the payoff is earned
-- outputs remain short, fast, and scannable
-- the same mechanism works across pets, services, businesses, memories, events, commerce, and experiences
+Super Cog is successful when ordinary supplied reality can become a compelling short movie without changing reality; multiple hypotheses genuinely differ in causal trajectory; the selected movie is domain-native; the lens improves framing without changing facts; the Mouth realizes instead of explaining; chronology remains intact; unsupported details never survive; every beat changes or deepens the viewer's state; the payoff is earned; outputs remain fast and scannable; and the same cognitive mechanism works across memories, pets, services, businesses, events, commerce, and experiences.
 
 That is the beast we are building.
