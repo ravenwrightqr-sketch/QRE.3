@@ -1,8 +1,11 @@
 import type { AuthorBrainTruth, AuthorResult, MovieBeatPlan } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
-import { classifyAuthorCreativeSafety, isProtectedCreativeContext, resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
+import { resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
 import { buildMovieBeatPlan } from "./authorMovieBeatPlan.js";
-import { isProtectedCreativeContext as isSemanticProtectedContext } from "./authorCreativeSafetyContext.js";
+import {
+  classifyAuthorCreativeSafety,
+  isProtectedCreativeContext as isSemanticProtectedContext,
+} from "./authorCreativeSafetyContext.js";
 
 export async function authorMoviePipeline(input: AuthorBrainTruth & {
   cta?: { text: string; sourceIds?: string[] };
@@ -27,7 +30,7 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
     ...(input.cognitiveContext ?? {}),
     creativeSafety: safety,
   };
-  const protectedContext = isProtectedCreativeContext({ ...cognitiveContext }) || isSemanticProtectedContext(cognitiveContext);
+  const protectedContext = isSemanticProtectedContext(cognitiveContext);
 
   const learnedLens = protectedContext || (explicitLens && explicitLens !== "neutral")
     ? undefined
