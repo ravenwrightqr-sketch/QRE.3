@@ -14,7 +14,8 @@
     "author:domain-cognition": "tsx ./author-domain-cognition-acceptance.ts",
     "author:domain-movie": "tsx ./author-domain-movie-acceptance.ts",
     "author:provenance": "tsx ./author-provenance-acceptance.ts",
-    "author:provenance-gate": "tsx ./author-provenance-gate-acceptance.ts"
+    "author:provenance-gate": "tsx ./author-provenance-gate-acceptance.ts",
+    "author:cognitive-context": "tsx ./author-cognitive-context-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
@@ -33,7 +34,7 @@
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
+    "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.3",
     "@types/qrcode": "^1.5.6",
