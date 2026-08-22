@@ -16,6 +16,7 @@ Do not add another brain, timeline owner, persistence system, or lens system whi
 - Knowledge deterministic evidence → AuthorLearningLoop.
 - Canonical behavioral outcome taxonomy.
 - Learned-lens consumer inside the existing author pipeline.
+- Protected memorial-context lens safety at the author boundary.
 - Universal author regression suite.
 
 ### IN PROGRESS
@@ -37,6 +38,7 @@ runtime outcome
 → IdentityState.creativeLearning
 → CognitiveAuthorContext.creativeLearning
 → authorCreativeLearningPressure
+→ protected-context safety check
 → learned preferred lens when neutral/default
 → existing authorMovieCognition
 → Mouth
@@ -44,13 +46,14 @@ runtime outcome
 
 Rules:
 
-- learned preference is bounded and soft relative to explicit intent;
-- explicit non-neutral lens intent wins;
+- learned preference is bounded relative to explicit intent;
+- ordinary explicit non-neutral lens intent wins;
 - rejected/avoided lenses cannot become learned winners;
 - creative learning never changes reality or provenance;
+- memorial / tribute / funeral / grief contexts are protected and force `neutral` before genre choice reaches the Author Brain;
 - no second lens engine is introduced.
 
-The current acceptance proves the consumer bridge. It does **not** yet prove true candidate-level re-ranking or the full persisted Movie A → outcome → Movie B loop.
+The current acceptance proves the consumer bridge and the memorial veto. It does **not** yet prove true candidate-level re-ranking or the full persisted Movie A → outcome → Movie B loop.
 
 Acceptance:
 
@@ -123,6 +126,7 @@ Minimum useful signals:
 - provenance rejects
 - identity confidence
 - learned creative pressure
+- protected-context overrides
 
 ## 6. Mouth / lens hardening — AFTER THE ABOVE
 
@@ -135,6 +139,7 @@ REAL FACTS
 → approved meaning / relationship
 → existing lens search
 → learned pressure inside existing hypothesis competition
+→ protected-context vetoes
 → candidate realization
 → reality gate
 → meaning execution gate
@@ -161,7 +166,8 @@ Fallback is an emergency safety rail, not the preferred winner.
 11. Explicit Knowledge is deterministic evidence, not model-generated interpretation.
 12. Every bridge gets an acceptance and an index entry.
 13. Canonical `AnalyticsEventTypes` own the runtime outcome vocabulary.
-14. Learned creative pressure is soft preference; explicit authoring intent remains authoritative.
+14. Learned creative pressure is a preference, never reality authority.
+15. Protected semantic contexts may override creative preference; memorial contexts must never become incompatible genre experiences such as spy.
 
 ## Known next-level cleanup
 
