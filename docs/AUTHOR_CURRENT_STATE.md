@@ -1,8 +1,9 @@
 # QRE AUTHOR · CURRENT STATE
 
 **Status:** CANONICAL CURRENT-STATE REFERENCE  
-**Branch:** `author/enterprise-mouth-rewire`  
-**Purpose:** Single fast reference for the live Universal Author architecture. Read this before changing author, mouth, attention, beat planning, recovery, cut policy, or local-model transport.
+**Branch:** `main`  
+**Updated:** 2026-08-22  
+**Purpose:** Single fast reference for the live Universal Author architecture. Read this before changing author, mouth, attention, beat planning, recovery, cut policy, local-model transport, or the runtime boundary.
 
 ## 1. NON-NEGOTIABLE MOTTO
 
@@ -104,7 +105,7 @@ There is one semantic authority for each stage. Adapters may project data; they 
 | Attention/editor scoring | `apps/api/src/services/authorAttentionEditor.ts` |
 | Truth / cut acceptance | `apps/api/src/services/authorBeatTruthGate.ts` + `apps/api/src/services/authorCutPolicy.ts` |
 | Model transport | `apps/api/src/services/localModelRuntime.ts` |
-| Acceptance harness | `apps/api/author-acceptance-monster.ts` and the broader author acceptance suite |
+| Acceptance harness | current author acceptance suite / monster acceptance path |
 
 ## 5. BEAT GRAPH IS THE INTERNAL CONTRACT
 
@@ -426,17 +427,58 @@ When a test fails, diagnose the first broken semantic boundary rather than compe
 ```powershell
 pnpm --filter @qre/contracts build
 pnpm --filter @qre/engine build
-pnpm exec tsc -p apps/api/tsconfig.tests.json --noEmit
 pnpm --filter @qre/api build
+git diff --check
 ```
 
-Primary Monster run:
+Use the current author acceptance suite / monster acceptance path for creative validation. Do not treat old benchmark filenames as canonical architecture.
 
-```powershell
-pnpm exec tsx apps/api/author-acceptance-monster.ts "Dog grooming service receipt | Coco, poodle, nervous, fierce, cool | came in nervous, got a bath, stole a blue bow, left looking fabulous"
+## 17. RUNTIME / ANALYTICS BOUNDARY
+
+Authoring ends at approved experience scenes. Runtime is a separate semantic plane.
+
+```text
+AUTHOR
+source truth
+  ↓
+RealityGraph
+  ↓
+cognition
+  ↓
+movie search / differentiation
+  ↓
+Master Author
+  ↓
+mouth
+  ↓
+experience moments / cinematic scenes
+
+RUNTIME
+experience scenes
+  ↓
+scan / access / moments / flow / geo / cinematic / delivery / session
+  ↓
+Engine Event Spine
+  ↓
+analytics adapter / registry / repository persistence
 ```
 
-## 17. CURRENT WORKING PRINCIPLE
+Runtime decomposition is documented in:
+
+`docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md`
+
+Internal runtime seams currently established:
+
+```text
+buildRuntimeMoments()
+selectCinematicScenes()
+buildRuntimeGeoStory()
+buildRuntimeMemorySnapshot()
+```
+
+These are runtime boundaries, not cognition modules and not additional author brains.
+
+## 18. CURRENT WORKING PRINCIPLE
 
 We are no longer optimizing isolated functions.
 
@@ -450,6 +492,8 @@ reality
 → accumulating momentum
 → excellent mouth
 → truth-safe final scene
+→ runtime delivery
+→ observable analytics / learning input
 ```
 
 A beautiful intermediate artifact that never survives to the final player does not count.
