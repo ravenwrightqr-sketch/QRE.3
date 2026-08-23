@@ -3,20 +3,17 @@ import { db } from "@qre/db";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { safeStringParam } from "../lib/safeParam.js";
 import { getCreativeLearningContext, learningContextLines } from "../services/creativeLearning.js";
+import { userHasAssetAccess } from "../services/assetAccess.js";
 
 const router = express.Router();
 
 async function ownedAsset(slug: string, userId: string) {
-  return db.asset.findFirst({
-    where: {
-      slug,
-      OR: [
-        { ownerId: userId },
-        { ownership: { userId } },
-      ],
-    },
+  const asset = await db.asset.findUnique({
+    where: { slug },
     select: { id: true, slug: true, displayName: true },
   });
+  if (!asset) return null;
+  return (await userHasAssetAccess(asset.id, userId)) ? asset : null;
 }
 
 router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
