@@ -1,6 +1,7 @@
 import type {
   TheState,
   TheStateConfiguration,
+  TheStateCurrent,
 } from "@qre/contracts";
 
 export type TheStateAsset = {
@@ -27,13 +28,27 @@ export function buildTheState(asset: TheStateAsset): TheState {
       ? [asset.experience]
       : [];
 
-  const config = asset.stateConfig ?? {};
+  const config: TheStateConfiguration = asset.stateConfig ?? {};
   const modes = config.modes ?? [];
   const capabilities = config.capabilities ?? [];
-  const configuredCurrent = config.current ?? {};
-  const activeModeId = configuredCurrent.modeId ?? config.defaultModeId ?? null;
+  const configuredCurrent: TheStateCurrent = config.current ?? {
+    modeId: null,
+    status: null,
+    since: null,
+    context: {},
+  };
+
+  const activeModeId =
+    configuredCurrent.modeId ??
+    config.defaultModeId ??
+    null;
+
   const activeMode = activeModeId
-    ? modes.find((mode) => mode.id === activeModeId && mode.enabled)
+    ? modes.find(
+        (mode) =>
+          mode.id === activeModeId &&
+          mode.enabled,
+      )
     : undefined;
 
   return {
@@ -51,16 +66,22 @@ export function buildTheState(asset: TheStateAsset): TheState {
     current: {
       ...configuredCurrent,
       modeId: activeMode?.id ?? null,
-      status: configuredCurrent.status ?? (activeMode ? "active" : "idle"),
+      status:
+        configuredCurrent.status ??
+        (activeMode ? "active" : "idle"),
     },
     activeExperienceId:
-      asset.experience?.id ?? experiences[0]?.id ?? null,
-    experiences: experiences.map((experience) => ({
-      id: experience.id,
-      title: experience.title,
-      createdAt: experience.createdAt,
-      available: true,
-    })),
+      asset.experience?.id ??
+      experiences[0]?.id ??
+      null,
+    experiences: experiences.map(
+      (experience) => ({
+        id: experience.id,
+        title: experience.title,
+        createdAt: experience.createdAt,
+        available: true,
+      }),
+    ),
     history: [],
     measurements: [],
     patterns: [],
