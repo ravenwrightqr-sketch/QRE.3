@@ -327,3 +327,35 @@ MOUTH
 ```
 
 Do not skip movie differentiation and jump directly from lens labels to trajectory search. Otherwise QRE will optimize duplicate movies.
+
+## 13. RUNTIME + ANALYTICS ARCHITECTURE
+
+The current runtime/analytics refactor is documented separately and must be read alongside this author/cognition index when changing the scan runtime, presence, flow execution, analytics, GeoStory, or MemorySnapshot boundaries.
+
+Reference:
+
+`docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md`
+
+The boundary is:
+
+```text
+RUNTIME
+  scan / access / moments / flow / geo / cinematic / delivery / session
+
+COGNITION
+  world understanding / significance / memory reasoning / creative learning
+
+ANALYTICS
+  runtime observations / registry semantics / repository persistence / dashboards
+```
+
+The key invariant is:
+
+```text
+runtime emits events
+→ analytics adapter translates them
+→ analytics registry defines their meaning
+→ AnalyticsRepository persists them
+```
+
+Runtime components do not become analytics storage adapters, and analytics infrastructure does not become a second cognition or author system.
