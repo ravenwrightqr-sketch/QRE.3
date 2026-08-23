@@ -6,8 +6,39 @@ import type { ScanResponse, CinematicScene } from "@qre/contracts";
 
 type Props = { data: ScanResponse };
 
+const INTERNAL_LABEL = /\b(?:INTENT|DOMAIN|SUBJECT|TYPE|GOAL|OUTPUT|TONE|CURRENT FACTS|KNOWN ASSET FACTS|REAL FACTS|FIELDS|AUTHORING|COGNITIVE|LEARNING SIGNALS|PROVENANCE|DIAGNOSTICS)\s*:/i;
+const INTERNAL_META = /\b(?:second meaning|gave the moment its shape|made the larger moment stay|next beat was|this was the hinge|according to qre|the transformation|the symbol|the tension|the contrast|the premise|the operation|the lens|the trajectory|the movie)\b/i;
+
+function renderableText(value: unknown): string {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text || text.length > 800) return "";
+  if (INTERNAL_LABEL.test(text) || INTERNAL_META.test(text)) return "";
+  if (text.includes("{") || text.includes("}")) return "";
+  if ((text.match(/\|/g)?.length ?? 0) >= 2) return "";
+  return text;
+}
+
+function renderableScenes(data: ScanResponse): CinematicScene[] {
+  return (data.cinematicScenes ?? [])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .filter((scene) => {
+      const text = renderableText(scene.moment?.text ?? scene.moment?.description ?? scene.moment?.title ?? "");
+      return Boolean(text || scene.moment?.media?.length);
+    })
+    .map((scene, index) => ({
+      ...scene,
+      order: index,
+      moment: {
+        ...scene.moment,
+        order: index,
+        text: renderableText(scene.moment?.text ?? scene.moment?.description ?? scene.moment?.title ?? ""),
+      },
+    }));
+}
+
 export default function CinematicScanPlayer({ data }: Props) {
-  const scenes: CinematicScene[] = (data.cinematicScenes ?? []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const scenes = renderableScenes(data);
   const [index, setIndex] = useState(0);
   const musicRef = useRef<MusicHandle | null>(null);
 
@@ -94,89 +125,12 @@ export default function CinematicScanPlayer({ data }: Props) {
   );
 }
 
-const stage: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  width: "100vw",
-  height: "100dvh",
-  minHeight: "100dvh",
-  overflow: "hidden",
-  display: "grid",
-  placeItems: "center",
-  color: "#fff",
-  backgroundColor: "#030305",
-  zIndex: 9999,
-  touchAction: "manipulation",
-};
-
-const vignette: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  pointerEvents: "none",
-  background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,.48) 100%)",
-};
-
-const sceneFrame: CSSProperties = {
-  position: "relative",
-  zIndex: 2,
-  width: "100%",
-  maxWidth: 980,
-  height: "100%",
-  display: "grid",
-  placeItems: "center",
-  padding: "clamp(28px, 7vw, 88px) clamp(20px, 7vw, 100px)",
-  boxSizing: "border-box",
-};
-
-const progressTrack: CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  height: 2,
-  background: "rgba(255,255,255,.06)",
-  zIndex: 4,
-};
-
-const progressFill: CSSProperties = {
-  height: "100%",
-  background: "rgba(255,255,255,.55)",
-  transition: "width .25s ease",
-};
-
-const sealedStage: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  width: "100vw",
-  height: "100dvh",
-  display: "grid",
-  placeItems: "center",
-  background: "#030305",
-  color: "#fff",
-  zIndex: 9999,
-};
-
-const sealedCard: CSSProperties = {
-  display: "grid",
-  justifyItems: "center",
-  gap: 22,
-  padding: 30,
-};
-
-const sealedTitle: CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(30px, 8vw, 68px)",
-  fontWeight: 500,
-  letterSpacing: "-2px",
-};
-
-const reliveButton: CSSProperties = {
-  border: "1px solid rgba(255,255,255,.22)",
-  background: "rgba(255,255,255,.04)",
-  color: "#fff",
-  borderRadius: 999,
-  padding: "11px 18px",
-  fontSize: 10,
-  letterSpacing: 2,
-  cursor: "pointer",
-};
+const stage: CSSProperties = { position: "fixed", inset: 0, width: "100vw", height: "100dvh", minHeight: "100dvh", overflow: "hidden", display: "grid", placeItems: "center", color: "#fff", backgroundColor: "#030305", zIndex: 9999, touchAction: "manipulation" };
+const vignette: CSSProperties = { position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,.48) 100%)" };
+const sceneFrame: CSSProperties = { position: "relative", zIndex: 2, width: "100%", maxWidth: 980, height: "100%", display: "grid", placeItems: "center", padding: "clamp(28px, 7vw, 88px) clamp(20px, 7vw, 100px)", boxSizing: "border-box" };
+const progressTrack: CSSProperties = { position: "fixed", top: 0, left: 0, right: 0, height: 2, background: "rgba(255,255,255,.06)", zIndex: 4 };
+const progressFill: CSSProperties = { height: "100%", background: "rgba(255,255,255,.55)", transition: "width .25s ease" };
+const sealedStage: CSSProperties = { position: "fixed", inset: 0, width: "100vw", height: "100dvh", display: "grid", placeItems: "center", background: "#030305", color: "#fff", zIndex: 9999 };
+const sealedCard: CSSProperties = { display: "grid", justifyItems: "center", gap: 22, padding: 30 };
+const sealedTitle: CSSProperties = { margin: 0, fontSize: "clamp(30px, 8vw, 68px)", fontWeight: 500, letterSpacing: "-2px" };
+const reliveButton: CSSProperties = { border: "1px solid rgba(255,255,255,.22)", background: "rgba(255,255,255,.04)", color: "#fff", borderRadius: 999, padding: "11px 18px", fontSize: 10, letterSpacing: 2, cursor: "pointer" };
