@@ -3,6 +3,7 @@ import type {
   AdaptiveCapabilityDefinition,
   AdaptiveCapabilityId,
   AdaptiveExperienceBrief,
+  AdaptiveField,
   AdaptiveStep,
   AdaptiveStepOption,
 } from "@qre/contracts";
