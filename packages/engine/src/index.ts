@@ -2,7 +2,7 @@
 
 export { scanEngine } from "./scanEngine.js";
 export { runFlowActions } from "./flowOrchestrator.js";
-
+export { buildTheState } from "./theState.js";
 
 export type { ExperienceMoment } from "@qre/contracts";
 
