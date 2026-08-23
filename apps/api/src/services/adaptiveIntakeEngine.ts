@@ -79,15 +79,15 @@ function completeness(brief: AdaptiveExperienceBrief): number {
     Boolean(brief.output),
     Boolean(brief.goal),
   ];
-  return checks.filter(Boolean).length / checks.length;
+  const weighted = checks.filter(Boolean).length / checks.length;
+  return Number(weighted.toFixed(2));
 }
 
 function ready(brief: AdaptiveExperienceBrief): boolean {
-  const hasReality = brief.facts.length >= 1 || Object.keys(brief.fields).length >= 2;
-  const hasIntent = Boolean(brief.output || brief.capabilities.length);
-  const authorRequired = brief.output === "cinematic_video" || brief.capabilities.includes("cinematic_video");
-  if (authorRequired) return hasReality && hasIntent;
-  return Boolean(brief.originalIntent) && hasReality && hasIntent;
+  if (!brief.domain || !brief.output || !brief.goal) return false;
+  if (!brief.subject && !brief.subjectType && !brief.fields.name) return false;
+  if (brief.output === "cinematic_video" && brief.facts.length === 0) return false;
+  return true;
 }
 
 function makeOption(id: string, label: string, value: string, capabilityId?: AdaptiveCapabilityId): AdaptiveStepOption {
@@ -96,17 +96,15 @@ function makeOption(id: string, label: string, value: string, capabilityId?: Ada
 
 function deterministicStep(brief: AdaptiveExperienceBrief, suggested: AdaptiveCapabilityDefinition[]): AdaptiveStep {
   const domain = brief.domain;
-
-  if (!brief.domain) {
+  if (!domain) {
     return {
       id: "domain",
       kind: "choice",
       field: "domain",
-      title: "What is this for?",
-      explanation: "A rough direction is enough. QRE will adapt from there.",
+      title: "What kind of thing are we making?",
       options: [
-        makeOption("pet", "A pet / animal", "pet"),
-        makeOption("property", "A property", "property"),
+        makeOption("pet", "A pet / animal", "pet", "pet_identity"),
+        makeOption("property", "A property / place", "property", "property_record"),
         makeOption("event", "An event", "event"),
         makeOption("business", "A company / business", "business"),
         makeOption("memory", "A memory / life story", "memory"),
@@ -134,7 +132,7 @@ function deterministicStep(brief: AdaptiveExperienceBrief, suggested: AdaptiveCa
     };
   }
 
-  if (!brief.fields.name && ["pet", "property", "business", "event", "identity"].includes(domain)) {
+  if (!brief.fields.name && domain && ["pet", "property", "business", "event", "identity"].includes(domain)) {
     const label = domain === "property" ? "What is the property called?" : domain === "business" ? "What's the company or brand called?" : domain === "event" ? "What's the event called?" : domain === "identity" ? "Whose identity is this?" : "What's the name?";
     return {
       id: "name",
@@ -164,229 +162,111 @@ function deterministicStep(brief: AdaptiveExperienceBrief, suggested: AdaptiveCa
       ? [
           makeOption("meet", "Help people meet them", "meet", "pet_identity"),
           makeOption("story", "Tell their story", "story", "cinematic_video"),
-          makeOption("inquiry", "Get inquiries", "inquiry", "contact"),
+          makeOption("contact", "Help people inquire", "contact", "contact"),
           makeOption("all", "All of it", "all"),
         ]
       : domain === "property"
         ? [
             makeOption("sell", "Sell the property", "sell", "property_record"),
-            makeOption("status", "Build status and prestige", "status", "cinematic_video"),
-            makeOption("show", "Guide private showings", "show", "booking"),
-            makeOption("record", "Preserve the property's history", "record", "memory"),
+            makeOption("show", "Show the property's story", "show", "cinematic_video"),
+            makeOption("inquire", "Generate inquiries", "inquire", "booking"),
             makeOption("all", "All of it", "all"),
           ]
-        : domain === "event"
+        : domain === "business"
           ? [
-              makeOption("entry", "Handle entry", "entry", "ticket"),
-              makeOption("live", "Run a live experience", "live", "event"),
-              makeOption("memory", "Remember the event", "memory", "memory"),
-              makeOption("both", "Run it live and remember it", "both", "memory"),
+              makeOption("promote", "Promote what we do", "promote", "cinematic_video"),
+              makeOption("connect", "Connect people to us", "connect", "contact"),
+              makeOption("reward", "Reward people", "reward", "reward"),
+              makeOption("all", "All of it", "all"),
             ]
           : [
-              makeOption("sell", "Sell / promote", "sell", "cinematic_video"),
-              makeOption("identity", "Build the brand's identity", "identity", "living_profile"),
-              makeOption("book", "Get bookings / inquiries", "book", "booking"),
-              makeOption("remember", "Create live memories", "remember", "memory"),
+              makeOption("attend", "Help people experience it", "attend", "event"),
+              makeOption("remember", "Remember it", "remember", "memory"),
+              makeOption("contribute", "Let people contribute", "contribute", "collaborative_memory"),
               makeOption("all", "All of it", "all"),
             ];
-    return {
-      id: "goal",
-      kind: "choice",
-      field: "goal",
-      title: "What should people get from it?",
-      options,
-      why: "The goal determines which QRE capabilities are worth surfacing next.",
-      readyForAuthor: false,
-    };
-  }
-
-  if (!brief.facts.length) {
-    const title = domain === "pet" ? "Tell me the facts about them." : domain === "property" ? "What should people know about the property?" : domain === "event" ? "What actually matters about the event?" : domain === "business" ? "What should people know about the company?" : "What should this remember or communicate?";
-    return {
-      id: "facts",
-      kind: "question",
-      field: "facts",
-      title,
-      explanation: "Keep it factual. QRE will do the creative work later.",
-      placeholder: domain === "pet" ? "3 months, male, for sale, fun, cute, loves people..." : "Enter the real details, moments or things people should know...",
-      why: "Author can only safely transform what the creator actually supplies.",
-      readyForAuthor: false,
-    };
+    return { id: "goal", kind: "choice", field: "goal", title: "What should this help people do?", options, why: "Goal determines which QRE capabilities are worth exposing.", readyForAuthor: false };
   }
 
   if (!brief.output) {
-    const options: AdaptiveStepOption[] = [];
-    const allowed = suggested.length ? suggested : ADAPTIVE_CAPABILITIES.slice(0, 6);
-    for (const capability of allowed) {
-      if (!capability.outputs.length) continue;
-      options.push(makeOption(capability.id, capability.label, capability.outputs[0], capability.id));
-    }
-    return {
-      id: "output",
-      kind: "capability",
-      field: "output",
-      title: "What should QRE make from this?",
-      options: options.slice(0, 6),
-      why: "This chooses the experience type without exposing QRE's internal machinery.",
-      readyForAuthor: false,
-    };
+    const options = suggested.map((capability) => makeOption(capability.id, capability.label, capability.id, capability.id));
+    if (options.length) return { id: "output", kind: "capability", field: "output", title: "What should people experience?", explanation: "QRE only shows capabilities that fit what you've told us.", options, optional: false, why: "The output determines what information QRE still needs.", readyForAuthor: false };
   }
 
-  if (brief.output === "cinematic_video" && !brief.preferences.some((item) => item.startsWith("tone:"))) {
-    return {
-      id: "tone",
-      kind: "choice",
-      field: "tone",
-      title: "How should it feel?",
-      options: [
-        makeOption("funny", "Funny", "tone:funny"),
-        makeOption("sweet", "Sweet", "tone:sweet"),
-        makeOption("fierce", "Fierce", "tone:fierce"),
-        makeOption("romantic", "Romantic", "tone:romantic"),
-        makeOption("unexpected", "Unexpected", "tone:unexpected"),
-      ],
-      optional: true,
-      why: "Tone changes how Author realizes the supplied reality without changing the facts.",
-      readyForAuthor: false,
-    };
+  const outputCapability = suggested.find((capability) => capability.id === brief.output);
+  if (outputCapability?.authoring === "required" && !brief.facts.length) {
+    return { id: "facts", kind: "question", field: "facts", title: "What should be true in this experience?", placeholder: "Add the real facts, moments, behaviors, or details QRE should use.", why: "Author needs supplied reality before it can responsibly create the experience.", readyForAuthor: false };
   }
 
-  if (brief.output === "cinematic_video" && !brief.media.length) {
-    return {
-      id: "media",
-      kind: "media",
-      field: "media",
-      title: "Want to give the movie real media?",
-      explanation: "Photos and video become source material. They are optional.",
-      options: [
-        makeOption("photos", "Photos", "photos"),
-        makeOption("video", "Video clips", "video"),
-        makeOption("both", "Photos + video", "photos,video"),
-        makeOption("skip", "Not yet", "skip"),
-      ],
-      optional: true,
-      why: "Media can make the authored experience more concrete, but the Author can work from facts alone.",
-      readyForAuthor: false,
-    };
+  if (outputCapability?.media === "required" && !brief.media.length) {
+    return { id: "media", kind: "media", field: "media", title: "Want to add media?", explanation: "Photos and video become source material for the experience.", options: [makeOption("add", "Add media", "add"), makeOption("later", "Later", "later")], optional: true, why: "This capability needs source media.", readyForAuthor: false };
   }
 
-  if (ready(brief)) {
-    return {
-      id: "create",
-      kind: "create",
-      title: "I have enough to make it.",
-      explanation: "QRE will use the facts you supplied, your selected capabilities and learned creative preferences.",
-      options: [makeOption("make", "Make it", "create")],
-      why: "The brief has enough grounded information and a clear output.",
-      readyForAuthor: true,
-    };
+  if (brief.output === "cinematic_video" && !brief.tone.length) {
+    return { id: "tone", kind: "choice", field: "tone", title: "How should it feel?", options: [makeOption("sweet", "Sweet", "sweet"), makeOption("funny", "Funny", "funny"), makeOption("fierce", "Fierce", "fierce"), makeOption("cinematic", "Cinematic", "cinematic")], optional: true, why: "Tone guides Author without becoming a fact.", readyForAuthor: false };
   }
 
-  return {
-    id: "more",
-    kind: "question",
-    field: "facts",
-    title: "What else should QRE know?",
-    placeholder: "Add another real detail...",
-    optional: true,
-    why: "More source reality can improve the next experience without forcing the user through a form.",
-    readyForAuthor: false,
-  };
+  if (brief.output === "cinematic_video" && brief.media.length === 0) {
+    return { id: "media-choice", kind: "media", field: "media", title: "Want to add photos or video?", options: [makeOption("photos", "Photos", "photos"), makeOption("video", "Video", "video"), makeOption("both", "Both", "both"), makeOption("later", "Later", "later")], optional: true, why: "Media can enrich the movie while remaining separate from factual truth.", readyForAuthor: false };
+  }
+
+  if (!brief.facts.length) {
+    return { id: "facts", kind: "question", field: "facts", title: "What are the real facts we should use?", placeholder: "Give QRE the facts. We'll do the creative work.", optional: false, why: "Author must work from supplied reality.", readyForAuthor: false };
+  }
+
+  return { id: "create", kind: "create", title: "I have enough.", explanation: "QRE has the direction and source material needed to build the experience.", optional: false, why: "The brief is ready for Author.", readyForAuthor: true };
 }
 
-export function createEmptyAdaptiveBrief(sessionId: string, assetId: string | undefined, originalIntent = ""): AdaptiveExperienceBrief {
-  return {
-    sessionId,
-    assetId,
-    originalIntent: clean(originalIntent),
-    fields: {},
-    facts: [],
-    preferences: [],
-    tone: [],
-    media: [],
-    capabilities: [],
-    rejectedCapabilities: [],
-    answeredStepIds: [],
-    completeness: 0,
-    readyForAuthor: false,
-  };
+function applyValueToBrief(brief: AdaptiveExperienceBrief, field: string | undefined, value: string, values: string[]): AdaptiveExperienceBrief {
+  const next = { ...brief, fields: { ...brief.fields }, facts: [...brief.facts], preferences: [...brief.preferences], tone: [...brief.tone], media: [...brief.media], capabilities: [...brief.capabilities] };
+  const cleanValue = clean(value);
+  if (!cleanValue && values.length === 0) return next;
+  if (field === "facts") next.facts = unique([...next.facts, cleanValue, ...values]);
+  else if (field === "tone") next.tone = unique([...next.tone, cleanValue, ...values]);
+  else if (field === "media") next.media = unique([...next.media, cleanValue, ...values]);
+  else if (field === "output") next.output = cleanValue;
+  else if (field === "goal") next.goal = cleanValue;
+  else if (field === "domain") next.domain = cleanValue;
+  else if (field === "subjectType") next.subjectType = cleanValue;
+  else if (field === "subject") next.subject = cleanValue;
+  else if (field) next.fields[field] = cleanValue;
+  return next;
 }
 
-function applyAnswer(brief: AdaptiveExperienceBrief, answer: AdaptiveAnswer): AdaptiveExperienceBrief {
-  const next: AdaptiveExperienceBrief = {
-    ...brief,
-    fields: { ...brief.fields },
-    facts: [...brief.facts],
-    preferences: [...brief.preferences],
-    tone: [...brief.tone],
-    media: [...brief.media],
-    capabilities: [...brief.capabilities],
-    rejectedCapabilities: [...brief.rejectedCapabilities],
-    answeredStepIds: unique([...brief.answeredStepIds, answer.stepId]),
-  };
+export function createEmptyAdaptiveBrief(sessionId: string, assetId: string | undefined, originalIntent: string): AdaptiveExperienceBrief {
+  return { sessionId, assetId, originalIntent: clean(originalIntent), fields: {}, facts: [], preferences: [], tone: [], media: [], capabilities: [], rejectedCapabilities: [], answeredStepIds: [], completeness: 0, readyForAuthor: false };
+}
 
-  const values = unique(answer.values?.length ? answer.values : answer.value ? [answer.value] : []);
-  const chosen = unique(answer.selectedOptionIds ?? []);
-
-  if (answer.action === "skip") return finalizeBrief(next);
-
-  switch (answer.stepId) {
-    case "domain":
-      next.domain = values[0];
-      break;
-    case "subject-type":
-      next.subjectType = values[0];
-      break;
-    case "name":
-      next.fields.name = values[0] ?? "";
-      next.subject = values[0] ?? next.subject;
-      break;
-    case "property-location":
-      next.fields.location = values[0] ?? "";
-      break;
-    case "goal":
-      next.goal = values[0] ?? "";
-      break;
-    case "facts":
-    case "more":
-      next.facts = unique([...next.facts, ...values.flatMap((value) => value.split(/\n|\.|;|\|/).map(clean))]);
-      break;
-    case "output": {
-      const option = chosen[0] ?? values[0];
-      next.output = option;
-      const capability = ADAPTIVE_CAPABILITIES.find((item) => item.id === option);
-      if (capability && !next.capabilities.includes(capability.id)) next.capabilities.push(capability.id);
-      break;
-    }
-    case "tone":
-      next.tone = unique([...next.tone, ...values.map((value) => value.replace(/^tone:/, ""))]);
-      next.preferences = unique([...next.preferences, ...values.map((value) => value.startsWith("tone:") ? value : `tone:${value}`)]);
-      break;
-    case "media":
-      next.media = unique(values.flatMap((value) => value === "photos,video" ? ["photo", "video"] : value === "skip" ? [] : [value]));
-      break;
-    default:
-      if (values.length) next.facts = unique([...next.facts, ...values]);
-  }
-
-  const selectedCapabilityIds = chosen
-    .map((id) => ADAPTIVE_CAPABILITIES.find((item) => item.id === id)?.id)
+export function applyAdaptiveAnswer(brief: AdaptiveExperienceBrief, answer: AdaptiveAnswer): AdaptiveExperienceBrief {
+  const selected = answer.selectedOptionIds ?? [];
+  const value = clean(answer.value);
+  const values = unique(answer.values ?? []);
+  const matchingCapabilities = selected
+    .map((id) => ADAPTIVE_CAPABILITIES.find((capability) => capability.id === id)?.id)
     .filter((id): id is AdaptiveCapabilityId => Boolean(id));
-  next.capabilities = unique([...next.capabilities, ...selectedCapabilityIds]) as AdaptiveCapabilityId[];
-
-  const domain = inferDomain(next);
-  if (domain) next.domain = domain;
-  if (!next.output) {
-    const output = inferOutput(next);
-    if (output) next.output = output;
-  }
-
-  return finalizeBrief(next);
+  const next = applyValueToBrief(brief, inferFieldFromStep(answer.stepId), value, values);
+  if (matchingCapabilities.length) next.capabilities = unique([...next.capabilities, ...matchingCapabilities]) as AdaptiveCapabilityId[];
+  if (answer.action === "skip") next.rejectedCapabilities = unique([...next.rejectedCapabilities, ...matchingCapabilities]) as AdaptiveCapabilityId[];
+  if (answer.action === "select" && matchingCapabilities.length && answer.stepId === "output") next.output = matchingCapabilities[0];
+  next.answeredStepIds = unique([...next.answeredStepIds, answer.stepId]);
+  return next;
 }
 
-function finalizeBrief(brief: AdaptiveExperienceBrief): AdaptiveExperienceBrief {
-  const domain = inferDomain(brief);
-  const output = inferOutput(brief);
+function inferFieldFromStep(stepId: string): AdaptiveField | undefined {
+  const known = ["domain", "subject-type", "name", "property-location", "goal", "output", "facts", "media", "media-choice", "tone"] as const;
+  if (known.includes(stepId as typeof known[number])) {
+    if (stepId === "subject-type") return "subjectType";
+    if (stepId === "property-location") return "location";
+    if (stepId === "media-choice") return "media";
+    return stepId as AdaptiveField;
+  }
+  return undefined;
+}
+
+function finalizeBrief(input: AdaptiveExperienceBrief): AdaptiveExperienceBrief {
+  const brief = { ...input, fields: { ...input.fields }, facts: [...input.facts], preferences: [...input.preferences], tone: [...input.tone], media: [...input.media], capabilities: [...input.capabilities], rejectedCapabilities: [...input.rejectedCapabilities], answeredStepIds: [...input.answeredStepIds] };
+  const domain = brief.domain ?? inferDomain(brief);
+  const output = brief.output ?? inferOutput(brief);
   const next = { ...brief };
   if (domain) next.domain = domain;
   if (output && !next.output) next.output = output;
@@ -410,6 +290,7 @@ function briefPrompt(brief: AdaptiveExperienceBrief): string {
 }
 
 export async function recordAdaptiveInteraction(brief: AdaptiveExperienceBrief, answer: AdaptiveAnswer, step: AdaptiveStep): Promise<void> {
+  if (!brief.assetId) return;
   await analytics.trackEvent({
     assetId: brief.assetId,
     sessionId: brief.sessionId,
@@ -445,7 +326,7 @@ export async function getAdaptiveState(briefInput: AdaptiveExperienceBrief): Pro
         ? await createMemoryRepository().loadContext({ assetId: brief.assetId })
         : null;
       const cognitive = compileCognitiveExperience(briefPrompt(brief), {
-        memorySummary: context ? `KNOWN MEMORY: ${JSON.stringify(context).slice(0, 10000)}` : undefined,
+        memorySummary: context ? [`KNOWN MEMORY: ${JSON.stringify(context).slice(0, 10000)}`] : undefined,
         feedback: { accepted: learningHints, rejected: learning?.rejectedPatterns ?? [] },
       });
       const world = cognitive.world as any;
@@ -463,33 +344,18 @@ export async function getAdaptiveState(briefInput: AdaptiveExperienceBrief): Pro
   return {
     brief,
     step,
-    suggestedCapabilities: suggested.map((item) => item.id),
+    suggestedCapabilities: suggested.map((capability) => capability.id),
     learning: learningHints,
   };
 }
 
-export function applyAdaptiveAnswer(brief: AdaptiveExperienceBrief, answer: AdaptiveAnswer): AdaptiveExperienceBrief {
-  return applyAnswer(brief, answer);
-}
-
 export function buildAuthorPrompt(brief: AdaptiveExperienceBrief): string {
   return [
-    `Create the approved QRE experience from this governed brief.`,
-    `Intent: ${brief.originalIntent}`,
-    `Domain: ${brief.domain ?? "unknown"}`,
-    `Subject: ${brief.subject ?? brief.fields.name ?? "unknown"}`,
-    `Subject type: ${brief.subjectType ?? "unknown"}`,
-    `Goal: ${brief.goal ?? "unknown"}`,
-    `Audience: ${brief.audience ?? "unknown"}`,
-    `Requested output: ${brief.output ?? "experience"}`,
-    `Tone preferences: ${brief.tone.join(", ") || "natural"}`,
-    `Capabilities: ${brief.capabilities.join(", ")}`,
-    `Facts supplied by creator:`,
-    ...brief.facts.map((fact) => `- ${fact}`),
-    `Creator preferences:`,
-    ...brief.preferences.map((preference) => `- ${preference}`),
-    `Media available: ${brief.media.join(", ") || "none"}`,
-    `Reality rule: do not invent facts, people, events, chronology, locations, relationships, products, claims or outcomes not supported by supplied reality or existing governed memory.`,
-    `Creative rule: transform the supplied reality into a watchable experience; do not merely summarize it.`,
+    "QRE ADAPTIVE EXPERIENCE BRIEF",
+    briefPrompt(brief),
+    `CAPABILITIES: ${brief.capabilities.join(", ")}`,
+    `MEDIA: ${brief.media.join(", ") || "none"}`,
+    `PREFERENCES: ${brief.preferences.join(", ") || "none"}`,
+    "AUTHOR RULE: Use supplied facts as reality. Creative treatment may transform presentation, but must not invent unsupported factual events, identities, chronology, locations or attributes.",
   ].join("\n");
 }
