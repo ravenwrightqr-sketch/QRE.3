@@ -1,9 +1,12 @@
+import type { MediaAsset } from "../media.js";
+
 export type ExperienceBeatKind =
   | "jolt"
   | "reveal"
   | "turn"
   | "payoff"
-  | "afterglow";
+  | "afterglow"
+  | "photo";
 
 export type ExperienceBeat = {
   id: string;
@@ -16,5 +19,7 @@ export type ExperienceBeat = {
   durationHintMs?: number;
   visualHint?: string;
   audioMood?: string;
+  /** First-class visual beat. Text stays empty unless the source image itself contains text. */
+  media?: MediaAsset;
   meta?: Record<string, unknown>;
 };

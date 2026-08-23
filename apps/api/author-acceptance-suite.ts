@@ -1,554 +1,65 @@
-﻿/// <reference types="node" />
 import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
-import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
-import { searchLatentMovieCandidates } from "./src/services/authorLatentMovieSearch.js";
-import { hasMaterialMovieDifference } from "./src/services/authorMovieDifferentiation.js";
 
-type AuthorAcceptanceCase = {
-  prompt: string;
-  subject?: string;
-  facts: readonly string[];
-  sourceMoments: readonly string[];
-  lens: string;
-  memoryContext: readonly string[];
-  trajectory: readonly string[];
-  creativeLearningContext: readonly string[];
-};
+type Case = { name: string; subject: string; facts: string[]; prompt: string; sensitive?: boolean };
+const cases: Case[] = [
+  { name: "pet-grooming", subject: "Coco", facts: ["came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"], prompt: "Write a 5-line sequence about Coco. Final line: Peace was temporary." },
+  { name: "housekeeping", subject: "Room 412", facts: ["check-out was at noon", "room was cleaned", "fresh towels were placed", "guest returned early"], prompt: "Write a 5-line sequence about Room 412. Final line: Someone was coming back." },
+  { name: "lawyer", subject: "Mara", facts: ["arrived for a contract review", "found one missing clause", "redlined the agreement", "sent it back approved"], prompt: "Write a 5-line sequence about Mara. Final line: The answer was already in the fine print." },
+  { name: "restaurant", subject: "Table 9", facts: ["ordered quietly", "the kitchen fell behind", "dessert arrived first", "the table laughed"], prompt: "Write a 5-line sequence about Table 9. Final line: Dinner had other plans." },
+  { name: "real-estate", subject: "The house", facts: ["listed on Monday", "the showing was busy", "one buyer stayed behind", "an offer arrived that night"], prompt: "Write a 5-line sequence about the house. Final line: The quiet one made the offer." },
+  { name: "mechanic", subject: "The car", facts: ["arrived with a warning light", "diagnosis found a loose connection", "the connection was repaired", "the warning light disappeared"], prompt: "Write a 5-line sequence about the car. Final line: The real problem had been smaller than it looked." },
+  { name: "wedding", subject: "The reception", facts: ["the speeches ran long", "the DJ changed the song", "everyone moved to the floor", "the couple stayed up front"], prompt: "Write a 5-line sequence about the reception. Final line: Nobody wanted the night to end." },
+  { name: "person", subject: "Alex", facts: ["arrived late", "said almost nothing", "noticed the one thing everyone missed", "left before anyone asked"], prompt: "Write a 5-line sequence about Alex. Final line: The quiet part was the point." },
+];
 
-const COUPLE_FACTS = [
-  "Mike and Joe recently met",
-  "they met at Luigi's Italian Restaurant",
-  "they talked until closing",
-  "they connected",
-  "they both knew it was the start of something great",
-] as const;
-
-const COUPLE_MOMENTS = [
-  "first meeting",
-  "Luigi's Italian Restaurant",
-  "talked until closing",
-  "connection",
-] as const;
-
-const cases: Record<string, AuthorAcceptanceCase> = {
-  COCO: {
-    prompt: "Make a living memory story for Coco's dog tag.",
-    subject: "Coco",
-    facts: [
-      "Coco is a poodle",
-      "hates bows",
-      "loves treats",
-      "scared at first",
-      "happy after",
-    ],
-    sourceMoments: [
-      "grooming visit",
-      "pink bow",
-    ],
-    lens: "funny, affectionate, slightly fierce",
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  },
-
-  "COCO-RETURN": {
-    prompt:
-      "Write Coco's second grooming chapter using what we already know plus today's update.",
-    subject: "Coco",
-    facts: [
-      "Coco is a poodle",
-      "hates bows",
-      "loves treats",
-      "scared at first",
-    ],
-    sourceMoments: [
-      "bath was faster today",
-      "pink bow offered again",
-      "Coco walked out proud",
-    ],
-    lens: "callback comedy",
-    memoryContext: [
-      "Chapter 1: Coco resisted the bow and left happy.",
-    ],
-    trajectory: [
-      "Chapter 1: Coco resisted the bow and left happy.",
-    ],
-    creativeLearningContext: [
-      "Do not replay the first chapter. Make the returning bow mean something new.",
-    ],
-  },
-
-  MARIA: {
-    prompt:
-      "Make a short new-world receipt for Maria's cleaning visit.",
-    subject: "Maria",
-    facts: [
-      "Maria arrived at 9:04 AM",
-      "bathrooms",
-      "kitchen",
-      "laundry",
-      "finished at 11:47 AM",
-    ],
-    sourceMoments: [
-      "one cleaning visit",
-    ],
-    lens: "service receipt with attitude",
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  },
-
-  HORROR: {
-    prompt:
-      "Turn an ordinary dinner into a slow, unavoidable horror sequence while everyone keeps calmly talking.",
-    subject: "the dinner",
-    facts: [
-      "dinner",
-      "wine",
-      "conversation",
-      "doors slam",
-      "glass breaks",
-      "knives fly past us",
-    ],
-    sourceMoments: [
-      "everyone continued discussing the day prior",
-    ],
-    lens:
-      "calm human behavior while reality breaks",
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  },
-
-  RAVE: {
-    prompt:
-      "Make this rave attendance feel like a living memory.",
-    subject: "the rave",
-    facts: [
-      "rave",
-      "friends dancing",
-      "bass",
-      "late night",
-      "we stayed",
-    ],
-    sourceMoments: [
-      "attendance at the event",
-    ],
-    lens:
-      "specific, kinetic, memorable",
-    memoryContext: [],
-    trajectory: [
-      "First presence at this event.",
-    ],
-    creativeLearningContext: [],
-  },
-
-  "COUPLE-FUNNY": {
-    prompt:
-      "Make a living memory for a couple who just met. Use only the supplied reality, but find the latent comedy inside it.",
-    subject: "Mike and Joe",
-    facts: [...COUPLE_FACTS],
-    sourceMoments: [...COUPLE_MOMENTS],
-    lens:
-      "funny, warm, observant, playful",
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  },
-
-  "COUPLE-HORROR": {
-    prompt:
-      "Make a living memory for the same couple and exact same facts, but use a horror lens. Do not invent events.",
-    subject: "Mike and Joe",
-    facts: [...COUPLE_FACTS],
-    sourceMoments: [...COUPLE_MOMENTS],
-    lens:
-      "slow-burn horror, eerie, restrained",
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
-  },
-};
-
-function splitReality(value: string): string[] {
-  return value
-    .split(/[,\n.;â€¢]+/)
-    .map((item) =>
-      item
-        .replace(
-          /^\s*(?:[-*â€¢]|\d+[.)])\s*/,
-          "",
-        )
-        .trim(),
-    )
-    .filter((item) => item.length >= 2);
-}
-
-function hasExplicitClock(text: string): boolean {
-  return /\b(?:at\s*)?\d{1,2}:\d{2}\s*(?:am|pm)?\b/i.test(
-    text,
-  );
-}
-
-const arg = process.argv
-  .slice(2)
-  .join(" ")
-  .trim();
-
-const raw = (
-  arg ||
-  process.env.QRE_AUTHOR_CASE ||
-  "COCO"
-).trim();
-
-const requested = raw.toUpperCase();
-
-const test =
-  cases[requested] ??
-  (() => {
-    const facts = splitReality(raw);
-
-    const prompt =
-      process.env.QRE_AUTHOR_PROMPT ||
-      "Make a living memory from this reality.";
-
-    const lens =
-      process.env.QRE_AUTHOR_LENS ||
-      "natural, specific, emotionally intelligent";
-
-    return {
-      prompt,
-      subject: undefined,
-      facts: facts.length ? facts : [raw],
-      sourceMoments:
-        facts.length ? facts : [raw],
-      lens,
-      memoryContext: [],
-      trajectory: [],
-      creativeLearningContext: [],
-    } satisfies AuthorAcceptanceCase;
-  })();
-
+let failures = 0;
+const previousDebugRaw = process.env.QRE_AUTHOR_DEBUG_RAW;
 process.env.QRE_AUTHOR_DEBUG_RAW = "true";
 
-const started = Date.now();
-
-console.log("=".repeat(80));
-console.log(
-  `QRE UNIVERSAL AUTHOR ACCEPTANCE Â· ${requested}`,
-);
-console.log("ONE MASTER BRAIN Â· ONE AUTHOR PATH");
-console.log(
-  "REALITY â†’ CANDIDATE SEARCH â†’ DIFFERENTIATION â†’ COGNITION â†’ MAGNET â†’ SEQUENCE â†’ MOUTH",
-);
-console.log(
-  "VIEWER MOMENTUM Â· SOURCE TRUTH Â· CUT NECESSITY",
-);
-console.log(
-  "RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS",
-);
-console.log("=".repeat(80));
-
 try {
-  const realityGraph =
-    buildAuthorRealityGraph({
-      prompt: test.prompt,
-      subject: test.subject,
-      facts: [...test.facts],
-      sourceMoments: [
-        ...test.sourceMoments,
-      ],
-      memoryContext: [
-        ...test.memoryContext,
-      ],
-      trajectory: [
-        ...test.trajectory,
-      ],
-    });
-
-  console.log(
-    "\n--- QRE REALITY GRAPH PREVIEW ---",
-  );
-
-  console.log(
-    `EVIDENCE: ${realityGraph.evidence.length}`,
-  );
-
-  console.log(
-    `EVENTS: ${realityGraph.events.length}`,
-  );
-
-  realityGraph.events
-    .slice(0, 12)
-    .forEach((event) =>
-      console.log(
-        `  ${event.id}: ${event.label} Â· entities=${event.entities.join(", ")}`,
-      ),
-    );
-
-  console.log(
-    `RELATIONS: ${realityGraph.relations.length}`,
-  );
-
-  realityGraph.relations
-    .slice(0, 24)
-    .forEach((relation) =>
-      console.log(
-        `  ${relation.from} -[${relation.kind} ${relation.strength}]-> ${relation.to}`,
-      ),
-    );
-
-  console.log(
-    `TENSIONS: ${JSON.stringify(
-      realityGraph.unresolvedTensions,
-    )}`,
-  );
-
-  console.log(
-    `RECURRING: ${JSON.stringify(
-      realityGraph.recurringSignals,
-    )}`,
-  );
-
-  console.log(
-    `SENSORY: ${JSON.stringify(
-      realityGraph.sensorySignals,
-    )}`,
-  );
-
-  console.log(
-    "--- END QRE REALITY GRAPH PREVIEW ---\n",
-  );
-
-  if (!realityGraph.events.length) {
-    throw new Error(
-      "Reality Graph produced no events from supplied reality",
-    );
+  for (const test of cases) {
+    const result = await authorBrainUniversal({ prompt: test.prompt, subject: test.subject, facts: test.facts, sourceMoments: test.facts, memoryContext: [], trajectory: [], creativeLearningContext: [] });
+    const diagnostics = result.diagnostics;
+    const accepted = diagnostics.qualityStatus === "ACCEPTED";
+    const oneCall = diagnostics.modelCalls === 1;
+    const complete = diagnostics.complete === true;
+    const exactCount = result.scenes.length === 5;
+    const ending = String(test.prompt).match(/final\s+line\s*:\s*(.+)$/i)?.[1]?.trim() ?? "";
+    const endingOk = ending ? result.scenes.at(-1)?.text.trim().toLowerCase() === ending.toLowerCase() : true;
+    const paths = Array.isArray(diagnostics.moviePaths) && diagnostics.moviePaths.length === 3;
+    const beatGraph = Array.isArray(result.sequence?.cuts) && result.sequence.cuts.length === 5;
+    const attentionEditor = diagnostics.attentionEditor === true && Array.isArray(diagnostics.attentionMetrics) && diagnostics.attentionMetrics.length === 5;
+    const ok = accepted && oneCall && complete && exactCount && endingOk && paths && beatGraph && attentionEditor;
+    if (!ok) failures += 1;
+    console.log(`${ok ? "PASS" : "FAIL"} ${test.name.padEnd(16)} calls=${String(diagnostics.modelCalls).padEnd(2)} accepted=${accepted ? "yes" : "no"} lines=${result.scenes.length} ending=${endingOk ? "yes" : "no"} paths=${paths ? 3 : 0} score=${String(diagnostics.selectedScore ?? 0)}`);
+    if (!ok) console.log(JSON.stringify({ thesis: diagnostics.thesis, creativeBudget: diagnostics.creativeBudget, moviePaths: diagnostics.moviePaths, rejectedCandidates: diagnostics.rejectedCandidates, attentionMetrics: diagnostics.attentionMetrics, rawModelOutput: diagnostics.rawModelOutput }, null, 2));
   }
 
-  const invalidTemporalEdges =
-    realityGraph.relations.filter((relation) => {
-      if (
-        relation.kind !== "before" &&
-        relation.kind !== "after"
-      ) {
-        return false;
-      }
+  const differentiationPrompt = "Write a 5-line sequence about Coco. Final line: The calm did not last.";
+  const differentiationCases = [
+    { label: "state-shift", facts: ["arrived timid", "settled after a bath", "stole a blue bow", "left smiling"] },
+    { label: "chaos-shift", facts: ["arrived confident", "refused the bath", "stole three red ribbons", "left covered in mud"] },
+  ];
+  const differentiationResults = [] as Array<{ label: string; result: Awaited<ReturnType<typeof authorBrainUniversal>> }>;
+  for (const test of differentiationCases) differentiationResults.push({ label: test.label, result: await authorBrainUniversal({ prompt: differentiationPrompt, subject: "Coco", facts: test.facts, sourceMoments: test.facts, memoryContext: [], trajectory: [], creativeLearningContext: [] }) });
+  const [first, second] = differentiationResults;
+  const thesisA = String(first?.result.diagnostics.thesis ?? "");
+  const thesisB = String(second?.result.diagnostics.thesis ?? "");
+  const outputA = first?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+  const outputB = second?.result.scenes.map((scene) => scene.text.trim().toLowerCase()).join("\n") ?? "";
+  const differentiated = thesisA !== thesisB && outputA !== outputB;
+  console.log(`${differentiated ? "PASS" : "FAIL"} differentiation   thesis=${thesisA !== thesisB ? "different" : "same"} output=${outputA !== outputB ? "different" : "same"}`);
+  if (!differentiated) { failures += 1; console.log(JSON.stringify({ first: { thesis: thesisA, output: outputA, raw: first?.result.diagnostics.rawModelOutput }, second: { thesis: thesisB, output: outputB, raw: second?.result.diagnostics.rawModelOutput } }, null, 2)); }
 
-      const from =
-        realityGraph.events.find(
-          (event) => event.id === relation.from,
-        )?.label ?? "";
-
-      const to =
-        realityGraph.events.find(
-          (event) => event.id === relation.to,
-        )?.label ?? "";
-
-      return (
-        !hasExplicitClock(from) ||
-        !hasExplicitClock(to)
-      );
-    });
-
-  if (invalidTemporalEdges.length) {
-    throw new Error(
-      `Reality Graph invented chronology: ${invalidTemporalEdges.length} temporal edge(s) lack explicit clock evidence`,
-    );
-  }
-
-  console.log(
-    "GRAPH INVARIANT GREEN Â· chronology requires explicit clock evidence",
-  );
-
-  const latentMovies =
-    searchLatentMovieCandidates({
-      graph: realityGraph,
-      subject: test.subject,
-      lens: test.lens,
-      limit: 6,
-    });
-
-  console.log(
-    "\n--- QRE LATENT MOVIE SEARCH ---",
-  );
-
-  latentMovies.forEach(
-    (candidate, index) => {
-      console.log(
-        `[${index + 1}] ${candidate.lens} Â· SCORE=${candidate.score} Â· DISTINCT=${candidate.distinctiveness} Â· TRUTH-RISK=${candidate.truthRisk}`,
-      );
-
-      console.log(
-        `    EVIDENCE: ${candidate.evidence.join(" | ")}`,
-      );
-
-      console.log(
-        `    RELATIONS: ${candidate.supportingRelationKinds.join(", ") || "none"}`,
-      );
-
-      console.log(
-        `    QUESTION: ${candidate.unresolvedQuestion}`,
-      );
-
-      console.log(
-        `    TRAJECTORY: ${candidate.trajectory
-          .map(
-            (step) =>
-              `${step.operation}:${step.eventIds.join("+")}`,
-          )
-          .join(" â†’ ")}`,
-      );
-
-      console.log(
-        `    PAYOFF: ${candidate.payoff}`,
-      );
-    },
-  );
-
-  console.log(
-    "--- END QRE LATENT MOVIE SEARCH ---\n",
-  );
-
-  for (
-    let i = 0;
-    i < latentMovies.length;
-    i += 1
-  ) {
-    for (
-      let j = i + 1;
-      j < latentMovies.length;
-      j += 1
-    ) {
-      if (
-        latentMovies.length >= 3 &&
-        !hasMaterialMovieDifference(
-          latentMovies[i],
-          latentMovies[j],
-        )
-      ) {
-        console.warn(
-          `MOVIE DIFFERENTIATION WARNING Â· ${latentMovies[i].lens} and ${latentMovies[j].lens} are materially similar`,
-        );
-      }
-    }
-  }
-
-  console.log(
-    `MOVIE DIFFERENTIATION GREEN Â· ${latentMovies.length} candidate(s) passed through diversity gate`,
-  );
-
-  const result =
-    await authorBrainUniversal({
-      ...test,
-      facts: [...test.facts],
-      sourceMoments: [
-        ...test.sourceMoments,
-      ],
-      memoryContext: [
-        ...test.memoryContext,
-      ],
-      trajectory: [
-        ...test.trajectory,
-      ],
-      creativeLearningContext: [
-        ...test.creativeLearningContext,
-      ],
-    });
-
-  console.log(
-    `TIME: ${(
-      (Date.now() - started) /
-      1000
-    ).toFixed(3)}s`,
-  );
-
-  console.log(
-    `ANGLE: ${result.brief.angle}`,
-  );
-
-  console.log(
-    `ENGINE: ${result.brief.engine}`,
-  );
-
-  console.log(
-    `QUESTION: ${result.brief.question}`,
-  );
-
-  console.log(
-    `IMAGE: ${result.brief.strongestImage}`,
-  );
-
-  console.log(
-    `PAYOFF: ${result.brief.payoff}`,
-  );
-
-  if (result.sequence) {
-    console.log(
-      "\n--- QRE SEQUENCE PLAY ---",
-    );
-
-    console.log(
-      `PREMISE: ${result.sequence.premise}`,
-    );
-
-    result.sequence.cuts.forEach(
-      (cut) => {
-        console.log(
-          `[${cut.order}] ${cut.role} Â· GAIN: ${cut.informationGain}`,
-        );
-
-        console.log(
-          `    ATTENTION: ${cut.attentionDelta}`,
-        );
-
-        if (cut.nextPromise) {
-          console.log(
-            `    NEXT: ${cut.nextPromise}`,
-          );
-        }
-      },
-    );
-
-    console.log(
-      "--- END QRE SEQUENCE PLAY ---\n",
-    );
-  }
-
-  console.log(
-    `DIAGNOSTICS: ${JSON.stringify(
-      result.diagnostics,
-    )}`,
-  );
-
-  console.log(
-    `BEATS: ${result.scenes.length}`,
-  );
-
-  result.scenes.forEach(
-    (scene, index) =>
-      console.log(
-        `[${index + 1}] ${scene.kind ?? "line"} Â· ${scene.text}`,
-      ),
-  );
-
-  if (
-    !result.sequence ||
-    !result.scenes.length
-  ) {
-    console.error(
-      "FAIL: master Universal Author produced no usable sequence/scenes",
-    );
-
-    process.exitCode = 1;
-  }
-} catch (error) {
-  console.error(
-    "AUTHOR ERROR:",
-    error instanceof Error
-      ? error.message
-      : error,
-  );
-
-  process.exitCode = 1;
+  const sensitive = await authorBrainUniversal({ prompt: "Write a 5-line respectful tribute. Final line: The memory remains.", subject: "Grandma", facts: ["gathered family", "made everyone laugh", "kept old photographs", "left a recipe behind"], sourceMoments: ["gathered family", "made everyone laugh", "kept old photographs", "left a recipe behind"], memoryContext: [], trajectory: [], creativeLearningContext: [] });
+  const sensitiveBudget = Number(sensitive.diagnostics.creativeBudget ?? 1);
+  const sensitiveOk = sensitiveBudget <= 0.3;
+  console.log(`${sensitiveOk ? "PASS" : "FAIL"} creative-budget    value=${sensitiveBudget}`);
+  if (!sensitiveOk) failures += 1;
+} finally {
+  if (previousDebugRaw === undefined) delete process.env.QRE_AUTHOR_DEBUG_RAW;
+  else process.env.QRE_AUTHOR_DEBUG_RAW = previousDebugRaw;
 }
+
+console.log(`\nUNIVERSAL AUTHOR ACCEPTANCE: ${failures === 0 ? "PASS" : "FAIL"}`);
+if (failures !== 0) process.exitCode = 1;
