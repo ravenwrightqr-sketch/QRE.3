@@ -14,6 +14,8 @@ export { resolveGeoLabel } from "./geo/resolveGeoLabel.js";
 export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 export { compileCognitiveExperience, messageText } from "./cognition/universalMind.js";
+export { buildCognitiveState } from "./cognition/cognitiveState.js";
+export type { CognitiveState } from "@qre/contracts";
 export type { UniversalMindContext, UniversalMindResult, WorldModel } from "./cognition/universalMind.js";
 export { summarizeCognitiveAnalytics } from "./cognition/cognitiveAnalytics.js";
 export { recommendMemories } from "./cognition/memoryRecommendations.js";
