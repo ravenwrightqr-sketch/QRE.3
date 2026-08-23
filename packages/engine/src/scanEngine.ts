@@ -1,4 +1,3 @@
-
 import type {
   AssetRepository,
   SessionRepository,
@@ -19,6 +18,7 @@ import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 import { getScanInsights } from "./analytics/analyticsService.js";
 import { runFlowActions } from "./flowOrchestrator.js";
 import { buildServiceReceipt } from "./receiptBuilder.js";
+import { buildTheState } from "./theState.js";
 import type {
   EngineEventType,
   FlowStepType,
@@ -122,6 +122,7 @@ export async function scanEngine(
       access: "DEMO",
       preview: true,
       asset: null,
+      state: null,
       moments: [],
       geoStory: null,
       cinematicScenes: [],
@@ -173,9 +174,13 @@ export async function scanEngine(
       repos.accessRepository,
     );
 
+  const state = buildTheState(asset);
+
   await emitRuntimeEvent("AI_DECISION", {
     stage: "access",
     accessState: access.state,
+    stateExperienceCount: state.experiences.length,
+    activeExperienceId: state.activeExperienceId,
     sponsorConfigured: Boolean(
       (
         asset.experience?.blueprint as
@@ -226,18 +231,18 @@ export async function scanEngine(
 
   let geoStory = null;
 
-try {
-  geoStory = buildRuntimeGeoStory(
-    asset.id,
-    input.geo,
-  );
-} catch (err) {
+  try {
+    geoStory = buildRuntimeGeoStory(
+      asset.id,
+      input.geo,
+    );
+  } catch (err) {
+    await emitRuntimeEvent("ERROR", {
+      stage: "geo-story",
+      error: String(err),
+    });
+  }
 
-  await emitRuntimeEvent("ERROR", {
-    stage: "geo-story",
-    error: String(err),
-  });
-}
   const cinematicScenes =
     selectCinematicScenes({
       accessState: access.state,
@@ -340,7 +345,8 @@ try {
       {
         stage:
           "service-experience-delivery",
-        receiptKind: receipt.kind,
+        receiptKind:
+          receipt.kind,
         experienceId:
           receipt.experienceId,
         sponsorPresent: Boolean(
@@ -385,6 +391,8 @@ try {
         Boolean(memorySnapshot),
       serviceExperience:
         Boolean(receipt),
+      stateExperienceCount:
+        state.experiences.length,
     },
   );
 
@@ -393,7 +401,9 @@ try {
     access: access.state,
     preview:
       access.state !== "UNLOCKED",
-    timestamp: new Date().toISOString(),
+    timestamp:
+      new Date().toISOString(),
+    state,
     moments,
     geoStory,
     cinematicScenes,
