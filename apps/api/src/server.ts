@@ -31,6 +31,7 @@ import { aiConfigured, aiProviderName } from "./services/aiProvider.js";
 import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
+import { presentationBoundary } from "./middleware/presentationBoundary.js";
 
 const app = express();
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
@@ -51,7 +52,7 @@ app.use("/api/claim", claimRouter);
 app.use("/api/flow", flowRouter);
 app.use("/api/presence", presenceRoutes);
 app.use("/api/debug", debugRouter);
-app.use("/experience", experienceRouter);
+app.use("/experience", presentationBoundary, experienceRouter);
 app.use("/api/tickets", ticketRouter);
 app.use("/api/quick-experience", quickExperienceRouter);
 app.use("/api/rewards", rewardsRouter);
