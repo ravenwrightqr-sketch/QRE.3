@@ -3,6 +3,7 @@ import type { GeoStory } from "../geoStory.js";
 import type { CinematicScene } from "../cinematic.js";
 import type { MemorySnapshot } from "../memorySnapshot.js";
 import type { ServiceReceipt } from "../serviceReceipt.js";
+import type { TheState } from "../theState.js";
 
 export type ExperienceAccess = "DEMO" | "UNLOCKED";
 
@@ -36,6 +37,7 @@ export type Experience = {
   access: ExperienceAccess;
   preview: boolean;
   asset: AssetSummary | null;
+  state: TheState | null;
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
   cinematicScenes: CinematicScene[];
