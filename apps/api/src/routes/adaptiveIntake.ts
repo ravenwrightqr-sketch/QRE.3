@@ -1,4 +1,5 @@
 import express from "express";
+import { randomUUID } from "node:crypto";
 import { db } from "@qre/db";
 import type {
   AdaptiveAnswer,
@@ -41,7 +42,7 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ success: false, error: "Asset access denied." });
     }
 
-    const sessionId = crypto.randomUUID();
+    const sessionId = randomUUID();
     const brief = createEmptyAdaptiveBrief(sessionId, assetId, intent);
     const state = await getAdaptiveState(brief);
 
