@@ -1,17 +1,19 @@
-import type { AuthorBrainTruth } from "@qre/contracts";
+import type {
+  AuthorBrainTruth,
+  UniversalCreativeCandidate,
+  UniversalCreativeCandidateResult,
+  UniversalCreativeMouthResult,
+} from "@qre/contracts";
 import { buildMovieCognition } from "./authorMovieCognition.js";
 import { buildRealityProvenance } from "./authorRealityProvenance.js";
 import { validateAuthorProvenance, type ProvenanceViolation } from "./authorProvenanceGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-type Candidate = { frame: string; operation: string; lines: string[] };
-type CandidateValidation = {
-  ok: boolean;
-  score: number;
-  reasons: string[];
+type CandidateValidation = UniversalCreativeCandidateResult["validation"] & {
   provenance: ProvenanceViolation[];
   metrics: { attention: number; novelty: number; payoff: number; creative: number };
 };
+type EvaluatedCandidate = UniversalCreativeCandidate & { validation: CandidateValidation };
 
 const META = /\b(?:as an ai|the audience|the viewer|this means|the strategy|the beat|according to qre|cognitive|the truth is|the meaning|the transformation|the symbol|the tension|the premise|the operation|the trajectory|the movie|interpretation)\b/i;
 const STOCK = /\b(?:magical moment|unforgettable experience|incredible journey|newfound confidence|a testament to|making memories|cherished moment|once in a lifetime|heartwarming)\b/i;
@@ -56,19 +58,8 @@ function candidatePacket(input: AuthorBrainTruth) {
   const reality = sourceFacts(input);
   const ending = clean(input.prompt.match(/(?:final\s+line|ending|endpoint)\s*:\s*(.+)$/i)?.[1] ?? "");
   const cognition = buildMovieCognition(input, ending);
-  const top = cognition.hypotheses.slice(0, 6);
-  const protectedMemorial = input.cognitiveContext?.creativeSafety?.class === "memorial";
-  const hypotheses: typeof cognition.hypotheses = protectedMemorial
-    ? cognition.hypotheses.slice(0, 1).map((hypothesis) => ({
-        ...hypothesis,
-        lens: {
-          ...hypothesis.lens,
-          id: "neutral" as const,
-          pressure: "Honor the supplied memory through grounded continuity without genre transformation.",
-        },
-      }))
-    : top;
-  return { subject, reality, ending, cognition, hypotheses };
+  const top = cognition.hypotheses.slice(0, input.cognitiveContext?.creativeSafety?.class === "memorial" ? 1 : 6);
+  return { subject, reality, ending, cognition, hypotheses: top };
 }
 
 function buildPrompt(input: AuthorBrainTruth, packet: ReturnType<typeof candidatePacket>): string {
@@ -82,18 +73,18 @@ function buildPrompt(input: AuthorBrainTruth, packet: ReturnType<typeof candidat
     creativeMoves: hypothesis.lens.moves,
   }));
   return [
-    "QRE UNIVERSAL MOUTH · CANDIDATE COMPETITION",
-    "Cognition has already selected the factual trajectory and the semantic relationships. Your job is creative realization, not fact extraction.",
-    `Return JSON only with exactly ${candidateBrief.length} candidates: {\"candidates\":[{\"frame\":\"...\",\"operation\":\"...\",\"lines\":[\"...\"]}]}.`,
-    `Every candidate must contain exactly ${lineCount(input.prompt)} short lines. Keep every non-final line to 7 words or fewer.`,
-    "Each candidate must use its assigned frame as an expressive lens. The frame may change rhythm, metaphor, status framing, implication, comedy, tension, and payoff.",
-    "A frame NEVER changes reality. Do not invent people, relationships, places, rooms, objects, body details, private facts, dialogue, participants, chronology, or literal events.",
-    "Do not merely paraphrase the supplied facts. Transform their presentation so each beat earns the next beat.",
+    "QRE UNIVERSAL MOUTH · CREATIVE COMPETITION",
+    "This is a universal experience engine. Do not classify or template the domain. Realize the supplied reality through the assigned frame.",
+    `Return JSON only with exactly ${candidateBrief.length} candidates in {\"candidates\":[...]}.`,
+    `Each candidate object must contain frame, operation, and exactly ${lineCount(input.prompt)} lines.`,
+    `Every non-final line must be 7 words or fewer.`,
+    "Generate genuinely different realizations. Do not merely paraphrase the facts.",
+    "The frame can change rhythm, metaphor, status framing, implication, comedy, tension, and payoff.",
+    "THE FRAME NEVER CHANGES REALITY. Never invent people, relationships, places, rooms, objects, body details, private facts, dialogue, participants, ownership, chronology, or literal events.",
     "Use the supplied trajectory in chronological order.",
-    "The final line should be a creative consequence or implication earned by the supplied sequence. Avoid a generic administrative ending unless no stronger grounded realization survives.",
-    "Do not put the frame name into the lines unless it naturally belongs there. The viewer should feel the frame, not be told the frame.",
-    "Generate genuinely different realizations across candidates. Do not produce the same sequence with cosmetic word changes.",
-    "Examples of desired behavior only: heist can make a supplied success feel like a clean getaway; spy can make a supplied progression feel like extraction; courtroom can make a supplied change feel like a verdict; game can make supplied milestones feel like progression; noir can make supplied details feel like evidence. These examples do not authorize literal props or world details.",
+    "The final line should be a memorable creative consequence or implication earned from the supplied sequence. Avoid generic administrative endings unless no stronger grounded realization survives.",
+    "Do not write the frame name unless it naturally belongs in the line. The viewer should feel the frame.",
+    "Heist may frame supplied success like an operation. Spy may frame supplied progression like extraction. Courtroom may frame a supplied change like a verdict. Game may frame milestones like progression. Noir may frame supplied details like evidence. These are framing permissions only; they do not authorize literal genre props.",
     JSON.stringify({
       subject: packet.subject,
       request: input.prompt,
@@ -107,25 +98,33 @@ function buildPrompt(input: AuthorBrainTruth, packet: ReturnType<typeof candidat
   ].join("\n");
 }
 
-function parseCandidates(raw: string): Candidate[] {
+function parseJsonCandidateObjects(value: unknown): UniversalCreativeCandidate[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(parseJsonCandidateObjects);
+  if (typeof value !== "object") return [];
+  const record = value as Record<string, unknown>;
+  const nested = [record.candidates, record.variants, record.paths, record.options].flatMap((item) => Array.isArray(item) ? item : []);
+  const candidates = nested.flatMap(parseJsonCandidateObjects);
+  const lines = Array.isArray(record.lines) ? record.lines.map(clean).filter(Boolean) : [];
+  const frame = clean(record.frame ?? record.lens ?? record.style ?? "");
+  const operation = clean(record.operation ?? record.move ?? "reframe");
+  if (lines.length && frame) candidates.push({ frame, operation, lines });
+  return candidates;
+}
+
+function parseCandidates(raw: string): UniversalCreativeCandidate[] {
   const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  if (!text) return [];
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return [];
-    try { parsed = JSON.parse(match[0]); } catch { return []; }
+    const candidatesMatch = text.match(/\{[\s\S]*\"(?:candidates|variants|paths|options)\"[\s\S]*\}/);
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    try { parsed = JSON.parse(candidatesMatch?.[0] ?? objectMatch?.[0] ?? ""); } catch { return []; }
   }
-  if (!parsed || typeof parsed !== "object") return [];
-  const candidates = (parsed as Record<string, unknown>).candidates;
-  if (!Array.isArray(candidates)) return [];
-  return candidates.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const record = item as Record<string, unknown>;
-    const frame = clean(record.frame);
-    const operation = clean(record.operation);
-    const lines = Array.isArray(record.lines) ? record.lines.map(clean).filter(Boolean) : [];
-    return frame && operation && lines.length ? [{ frame, operation, lines }] : [];
-  });
+  return parseJsonCandidateObjects(parsed)
+    .map((candidate) => ({ frame: clean(candidate.frame), operation: clean(candidate.operation) || "reframe", lines: candidate.lines.map(clean).filter(Boolean) }))
+    .filter((candidate) => candidate.frame && candidate.lines.length)
+    .slice(0, 8);
 }
 
 function worldViolation(line: string, reality: string[]): string | undefined {
@@ -141,9 +140,7 @@ function chronologicalViolation(lines: string[], reality: string[]): string | un
   const ordered = reality.map((fact, index) => ({ fact, index }));
   let last = -1;
   for (const line of lines) {
-    const hit = ordered
-      .filter((item) => overlap(line, item.fact) >= 0.72)
-      .sort((a, b) => b.fact.length - a.fact.length)[0];
+    const hit = ordered.filter((item) => overlap(line, item.fact) >= 0.72).sort((a, b) => b.fact.length - a.fact.length)[0];
     if (!hit) continue;
     if (hit.index < last) return "reordered_supplied_event";
     last = hit.index;
@@ -161,7 +158,14 @@ function semanticSignal(lines: string[], hypothesis: ReturnType<typeof buildMovi
   return metric(Math.min(1, nonliteral * 0.11 + contrast * 0.13 + action * 0.08 + questionPull * 0.08 + Math.min(0.35, frameMoves * 0.08)));
 }
 
-function validateCandidate(candidate: Candidate, input: AuthorBrainTruth, packet: ReturnType<typeof candidatePacket>, hypothesis: ReturnType<typeof candidatePacket>["hypotheses"][number]): CandidateValidation {
+function hypothesisFor(candidate: UniversalCreativeCandidate, packet: ReturnType<typeof candidatePacket>) {
+  return packet.hypotheses.find((hypothesis) => hypothesis.lens.id.toLowerCase() === candidate.frame.toLowerCase())
+    ?? packet.hypotheses.find((hypothesis) => hypothesis.operation.toLowerCase() === candidate.operation.toLowerCase())
+    ?? packet.hypotheses[0]!;
+}
+
+function validateCandidate(candidate: UniversalCreativeCandidate, input: AuthorBrainTruth, packet: ReturnType<typeof candidatePacket>): CandidateValidation {
+  const hypothesis = hypothesisFor(candidate, packet);
   const reasons: string[] = [];
   const expectedLines = lineCount(input.prompt);
   if (candidate.lines.length !== expectedLines) reasons.push("wrong_line_count");
@@ -172,11 +176,9 @@ function validateCandidate(candidate: Candidate, input: AuthorBrainTruth, packet
     if (STOCK.test(line)) reasons.push(`line_${index + 1}:stock_sentiment`);
     if (GLUE.test(line)) reasons.push(`line_${index + 1}:explanatory_glue`);
     if (PRONOUN.test(line)) reasons.push(`line_${index + 1}:unsupported_identity_reference`);
-    const world = worldViolation(line, packet.reality);
-    if (world) reasons.push(`line_${index + 1}:${world}`);
+    const world = worldViolation(line, packet.reality); if (world) reasons.push(`line_${index + 1}:${world}`);
   });
-  const chronology = chronologicalViolation(candidate.lines, packet.reality);
-  if (chronology) reasons.push(chronology);
+  const chronology = chronologicalViolation(candidate.lines, packet.reality); if (chronology) reasons.push(chronology);
   const provenanceFacts = packet.reality.map((text) => ({ text, provenance: buildRealityProvenance(text, "memory", { subject: packet.subject }) }));
   const provenance = validateAuthorProvenance(candidate.lines, provenanceFacts);
   for (const violation of provenance) reasons.push(`line_${violation.line}:provenance_${violation.reason}`);
@@ -192,28 +194,18 @@ function validateCandidate(candidate: Candidate, input: AuthorBrainTruth, packet
   return { ok: reasons.length === 0, score, reasons, provenance, metrics: { attention, novelty, payoff, creative } };
 }
 
-export async function generateCreativeCandidates(input: AuthorBrainTruth): Promise<{
-  candidates: Array<Candidate & { validation: CandidateValidation }>;
-  winner?: Candidate & { validation: CandidateValidation };
-  model: string;
-  modelCalls: number;
-  recoveryRequired: boolean;
-}> {
+export async function generateCreativeCandidates(input: AuthorBrainTruth): Promise<UniversalCreativeMouthResult & { diagnostics?: { rawModelOutput?: string } }> {
   const packet = candidatePacket(input);
   if (!packet.hypotheses.length) return { candidates: [], model: "none", modelCalls: 0, recoveryRequired: true };
 
   const result = await localModelGenerate(
     [{ role: "user", content: buildPrompt(input, packet) }],
     "json",
-    { numPredict: Math.min(1800, Math.max(700, lineCount(input.prompt) * 140)), temperature: input.cognitiveContext?.creativeSafety?.class === "memorial" ? 0.26 : 0.72 },
+    { numPredict: Math.min(2600, Math.max(1100, lineCount(input.prompt) * 220)), temperature: input.cognitiveContext?.creativeSafety?.class === "memorial" ? 0.26 : 0.82 },
   );
 
-  const generated = parseCandidates(result.text).slice(0, packet.hypotheses.length);
-  const evaluated = generated.map((candidate, index) => {
-    const hypothesis = packet.hypotheses[index] ?? packet.hypotheses[0]!;
-    const validation = validateCandidate(candidate, input, packet, hypothesis);
-    return { ...candidate, validation };
-  });
+  const generated = parseCandidates(result.text);
+  const evaluated: EvaluatedCandidate[] = generated.map((candidate) => ({ ...candidate, validation: validateCandidate(candidate, input, packet) }));
   const viable = evaluated.filter((candidate) => candidate.validation.ok).sort((a, b) => b.validation.score - a.validation.score);
   return {
     candidates: evaluated,
@@ -221,5 +213,6 @@ export async function generateCreativeCandidates(input: AuthorBrainTruth): Promi
     model: result.model,
     modelCalls: 1,
     recoveryRequired: !viable.length,
+    diagnostics: process.env.QRE_AUTHOR_DEBUG_RAW === "true" ? { rawModelOutput: result.text } : undefined,
   };
 }
