@@ -1,3 +1,4 @@
+import type { CognitiveState } from "../experience/cognitiveState.js";
 import type { ExperiencePresenceContext } from "../experience/presence.js";
 import type { MediaAsset } from "../media.js";
 import type { IdentityState } from "./identityState.js";
@@ -37,6 +38,8 @@ export type CognitiveAuthorCreativeSafety = {
 };
 
 export type CognitiveAuthorContext = {
+  /** Canonical semantic snapshot produced once by Universal Mind. */
+  cognitiveState?: CognitiveState | null;
   identityState?: IdentityState | null;
   geo?: CognitiveAuthorGeo | null;
   presence?: ExperiencePresenceContext | null;
@@ -57,26 +60,14 @@ export type CognitiveAuthorContext = {
     opportunity?: Record<string, unknown> | null;
     continuity?: string[];
   } | null;
-
-  /** Canonical creative learning projection consumed by the author. */
   creativeLearning?: CognitiveCreativeLearning | null;
-
-  /** Semantic creative eligibility/safety established before realization. */
   creativeSafety?: CognitiveAuthorCreativeSafety | null;
-
   provenanceFacts?: Array<{
     text: string;
     provenance: AuthorRealityProvenance;
   }>;
-
   media?: CognitiveAuthorMedia[];
-
-  /** Explicit user instructions are authoritative intent, not invented reality. */
   authorizedCreativeInstructions?: string[];
-
-  /** Default text attention unit. Photo beats may extend the experience. */
   textBeatTarget?: number;
-
-  /** Hard rule: visual-only photo beats do not receive generated captions. */
   photoBeatsAreSilent?: boolean;
 };
