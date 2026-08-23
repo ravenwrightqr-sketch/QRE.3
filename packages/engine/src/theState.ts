@@ -1,9 +1,13 @@
-import type { TheState } from "@qre/contracts";
+import type {
+  TheState,
+  TheStateConfiguration,
+} from "@qre/contracts";
 
 export type TheStateAsset = {
   id: string;
   slug: string;
   category?: string | null;
+  stateConfig?: TheStateConfiguration | null;
   experience?: {
     id: string;
     title: string | null;
@@ -23,6 +27,16 @@ export function buildTheState(asset: TheStateAsset): TheState {
       ? [asset.experience]
       : [];
 
+  const config = asset.stateConfig ?? {};
+  const modes = config.modes ?? [];
+  const capabilities = config.capabilities ?? [];
+  const configuredCurrent = config.current ?? {};
+
+  const activeModeId = configuredCurrent.modeId ?? config.defaultModeId ?? null;
+  const activeMode = activeModeId
+    ? modes.find((mode) => mode.id === activeModeId && mode.enabled)
+    : undefined;
+
   return {
     identity: {
       id: asset.id,
@@ -33,6 +47,13 @@ export function buildTheState(asset: TheStateAsset): TheState {
         asset.slug,
       category: asset.category ?? undefined,
     },
+    capabilities,
+    modes,
+    current: {
+      ...configuredCurrent,
+      modeId: activeMode?.id ?? null,
+      status: configuredCurrent.status ?? (activeMode ? "active" : "idle"),
+    },
     activeExperienceId:
       asset.experience?.id ?? experiences[0]?.id ?? null,
     experiences: experiences.map((experience) => ({
@@ -41,5 +62,8 @@ export function buildTheState(asset: TheStateAsset): TheState {
       createdAt: experience.createdAt,
       available: true,
     })),
+    history: [],
+    measurements: [],
+    patterns: [],
   };
 }
