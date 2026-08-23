@@ -60,11 +60,38 @@ export type TheStatePattern = {
   metadata?: Record<string, unknown>;
 };
 
+export type TheStateActorKind =
+  | "OWNER"
+  | "MANAGER"
+  | "RENTER"
+  | "CARETAKER"
+  | "STAFF"
+  | "COLLABORATOR"
+  | "CUSTOM";
+
+export type TheStatePermission =
+  | "VIEW_STATE"
+  | "MANAGE_STATE"
+  | "ACTIVATE_MODE"
+  | "MANAGE_EXPERIENCES"
+  | "MANAGE_HISTORY";
+
+export type TheStateActor = {
+  userId: string;
+  kind: TheStateActorKind;
+  label?: string;
+  permissions: TheStatePermission[];
+  startsAt?: string | null;
+  endsAt?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
 export type TheStateConfiguration = {
   capabilities?: TheStateCapability[];
   modes?: TheStateMode[];
   defaultModeId?: string | null;
   current?: TheStateCurrent;
+  authorizedActors?: TheStateActor[];
 };
 
 /**
