@@ -80,8 +80,8 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
       })),
     media: sanitizedInput.cognitiveContext?.media ?? [],
     textBeatTarget: sanitizedInput.cognitiveContext?.textBeatTarget ?? 5,
-    mode: sanitizedInput.presentationMode ?? "auto",
-    cta: sanitizedInput.cta,
+    mode: input.presentationMode ?? "auto",
+    cta: input.cta,
   });
 
   return { authored, movieBeatPlan };
