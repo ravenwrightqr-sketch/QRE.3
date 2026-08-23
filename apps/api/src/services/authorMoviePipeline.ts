@@ -150,22 +150,31 @@ function ensureCognitiveState(input: AuthorBrainTruth): CognitiveState | null {
   });
 }
 
+function overlapText(a: string, b: string): number {
+  const left = new Set(cleanSourceValue(a).join(" ").toLowerCase().split(/[^a-z0-9'-]+/).filter((word) => word.length > 2));
+  const right = new Set(cleanSourceValue(b).join(" ").toLowerCase().split(/[^a-z0-9'-]+/).filter((word) => word.length > 2));
+  if (!left.size || !right.size) return 0;
+  let shared = 0;
+  for (const token of left) if (right.has(token)) shared += 1;
+  return shared / Math.max(left.size, right.size);
+}
+
 function projectCognitiveState(input: AuthorBrainTruth, state: CognitiveState): AuthorBrainTruth {
+  const currentEvents = state.events.filter((event) => state.currentEventIds.includes(event.id));
+  const selectedEvents = currentEvents.map((event) => event.summary);
   const selectedFacts = state.facts
     .filter((fact) => state.relevantFactIds.includes(fact.id))
-    .map((fact) => `${fact.predicate}: ${fact.value}`);
-  const selectedEvents = state.events
-    .filter((event) => state.currentEventIds.includes(event.id))
-    .map((event) => event.summary);
+    .map((fact) => `${fact.predicate}: ${fact.value}`)
+    .filter((fact) => !currentEvents.some((event) => overlapText(fact, event.summary) >= 0.75));
+  const fallbackFacts = input.facts
+    .flatMap(cleanSourceValue)
+    .filter((fact) => !selectedEvents.some((event) => overlapText(fact, event) >= 0.75));
 
   return {
     ...input,
-    facts: selectedFacts.length ? selectedFacts : input.facts,
+    facts: selectedFacts.length ? selectedFacts : fallbackFacts,
     sourceMoments: selectedEvents.length ? selectedEvents : input.sourceMoments,
-    memoryContext: [...new Set([
-      ...state.patterns.map((pattern) => `[pattern] ${pattern.statement}`),
-      ...(input.memoryContext ?? []),
-    ])].slice(0, 64),
+    memoryContext: state.patterns.map((pattern) => `[pattern] ${pattern.statement]`).slice(0, 64),
   };
 }
 
