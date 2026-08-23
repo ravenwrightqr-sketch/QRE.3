@@ -39,7 +39,7 @@ const BODY = /\b(?:tail|tails|legs|leg|ears|ear|paws|paw|eyes|eye|mouth|teeth|fa
 const BODY_IDIOM = /\b(?:in|under|over|on)\s+(?:hand|hands)\b/i;
 const SENSITIVE = /\b(?:memorial|funeral|tribute|grief|grieving|bereavement|condolence|passed away|death|deceased|eulogy)\b/i;
 const ACTION = /\b(?:came|arrived|left|got|stole|found|sent|ordered|changed|ran|returned|noticed|redlined|repaired|disappeared|stayed|moved|laughed|waited|opened|closed|called|signed|checked|cleaned|placed|listed|reviewed|diagnosed|approved|emerged|departed|took|secured|settled|turned|shifted|drew|broke|held|talked|connected|met|served|paid|showed|went|worked|walked)\b/i;
-const STATE = /\b(?:nervous|confident|quiet|loud|happy|sad|angry|excited|tired|ready|late|early|busy|empty|full|broken|fixed|clean|dirty|fresh|approved|rejected|missing|gone|fabulous|muddy|calm|bold|radiant|unsteady|successful|failed|resolved|unresolved|fierce|friendly|sweet|wild|proud|scared|alone|together|connected|private)\b/i;
+const STATE = /\b(?:nervous|confident|quiet|loud|happy|sad|angry|excited|tired|ready|late|early|busy|empty|full|broken|fixed|clean|dirty|fresh|approved|rejected|missing|gone|fabulous|muddy|calm|bold|radiant|unsteady|successful|failed|resolved|unresolved|fierce|friendly|sweet|wild|proud|scared|alone|together|connected|private|done|finished|complete|completed)\b/i;
 const CONTRAST = /\b(?:but|yet|still|until|instead|rather|then|suddenly|except|however|despite|temporary|again|already|finally)\b/i;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -221,6 +221,8 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "HARD REALITY LAW: do not invent a person, identity, relationship, place, room, object, body detail, sensory detail, dialogue, participant, ownership, tenancy, customer/client relationship, or literal event.",
     "A plausible detail is still invented. Do not infer physical props from actions. A bath does not authorize a sink; grooming does not authorize a towel; stealing does not authorize a trash can.",
     "Do not reorder, merge, or replace supplied events. You may compress language around them.",
+    "For the final payoff, prefer a short abstract consequence grounded in the supplied work (for example: Done. Finished. Work complete. Back to the day.). Do not introduce a new physical place, object, person, customer, or outcome just to make the ending sound cinematic.",
+    "If a supplied place exists, you may use it. If no place is supplied, do not invent one in the payoff. A service does not authorize a house, office, counter, customer, or premises.",
     "Do not explain cognition. Never write words such as meaning, transformation, symbol, tension, contrast, pressure, premise, operation, lens, trajectory, movie, state, or interpretation as the subject of a line.",
     "Make the viewer infer the creative move from concrete supplied reality.",
     JSON.stringify(payload),
