@@ -11,9 +11,9 @@ import {
   applyAdaptiveAnswer,
   buildAuthorPrompt,
   createEmptyAdaptiveBrief,
-  getAdaptiveState,
   recordAdaptiveInteraction,
 } from "../services/adaptiveIntakeEngine.js";
+import { getAdaptiveCognitiveState } from "../services/adaptiveIntakeCognition.js";
 import { createExperience } from "../services/experienceCreationServices.js";
 import { recordCreativeFeedback } from "../services/creativeLearning.js";
 
@@ -44,10 +44,10 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
 
     const sessionId = randomUUID();
     const brief = createEmptyAdaptiveBrief(sessionId, assetId, intent);
-    const state = await getAdaptiveState(brief);
+    const state = await getAdaptiveCognitiveState(brief, req.user?.userId);
 
     await recordAdaptiveInteraction(
-      brief,
+      state.brief,
       { stepId: "intake-start", action: "submit", value: intent },
       state.step,
     );
@@ -75,7 +75,7 @@ router.post("/next", requireAuth, async (req: AuthRequest, res) => {
     const updated = applyAdaptiveAnswer(brief, answer);
     if (previousStep) await recordAdaptiveInteraction(updated, answer, previousStep);
 
-    const state = await getAdaptiveState(updated);
+    const state = await getAdaptiveCognitiveState(updated, req.user?.userId);
     return res.json({ success: true, ...state });
   } catch (error) {
     console.error("Adaptive intake next-step failed:", error);
