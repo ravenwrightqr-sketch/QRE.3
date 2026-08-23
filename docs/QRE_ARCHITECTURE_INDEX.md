@@ -9,6 +9,7 @@ Start here before changing QRE. This is the fast architectural map: **what, wher
 | Layer | Owns | Does not own |
 |---|---|---|
 | `@qre/contracts` | Shared shapes and canonical analytics event names | Runtime decisions or persistence |
+| **The State** | Domain-neutral identity, active experience context, and the collection of experiences attached to one canonical asset | Creative wording, analytics persistence, feature-specific business engines |
 | Engine cognition | Reality typing, world/context cognition | Database persistence |
 | `IdentityState` | Accumulated identity/world state | Creative wording |
 | `CognitiveAuthorContext` | One structured author packet, including creative-safety classification | Persistence or timeline decisions |
@@ -30,6 +31,7 @@ input
 → reality typing / provenance
 → Memory + Geo + Presence + Analytics + Media + Domain Cognition
 → IdentityState
+→ The State / experience continuity
 → CognitiveAuthorContext + Creative Safety
 → Super Cog / Universal Author
 → Mouth
@@ -39,11 +41,69 @@ input
 → Player
 → outcome / new input
 → AuthorLearningLoop + behavioral learning
-→ stronger IdentityState
+→ stronger IdentityState / The State
 → better next experience
 ```
 
+## Universal identity / experience rule
+
+QRE does not create a new engine for every industry, object, animal, workflow, or UI mode.
+
+The universal architectural primitive is **The State**:
+
+```text
+THE STATE
+   ↓
+identity + experiences
+   ↓
+multiple experiences
+   ↓
+shared runtime history / memory / outcomes
+   ↓
+learning
+   ↓
+future adaptation
+```
+
+The UI may expose experiences as buttons, modes, or workflows. The underlying engine remains universal.
+
+Examples:
+
+```text
+ANIMAL
+→ social
+→ lost mode
+→ care
+→ vacations
+→ trips
+→ memories
+→ rewards
+```
+
+```text
+SURFBOARD
+→ trips
+→ beaches
+→ sessions
+→ repairs
+→ photos
+→ owners
+→ memories
+```
+
+These are not separate engines. They are different experience sets attached to different states.
+
+The same pattern applies to properties, vehicles, businesses, physical QR Art, equipment, and other identity-bearing assets.
+
 ## File map
+
+### The State
+
+- `packages/contracts/src/theState.ts` — canonical domain-neutral `TheState` contract.
+- `packages/contracts/src/experience/runtime.ts` — canonical `Experience` response now carries `state: TheState | null`.
+- `packages/engine/src/theState.ts` — pure asset → `TheState` projection.
+- `packages/engine/src/scanEngine.ts` — projects `TheState` as part of every successful scan response.
+- `docs/THE_STATE_ARCHITECTURE.md` — detailed universal identity/experience rule and future expansion constraints.
 
 ### Identity / context
 
@@ -96,7 +156,8 @@ input
 
 ### Runtime / analytics
 
-- `packages/engine/src/scanEngine.ts` — runtime entry; emits real scan/session/outcome analytics.
+- `packages/engine/src/scanEngine.ts` — runtime entry; emits real scan/session/outcome analytics and exposes The State alongside the active experience.
+- `packages/engine/src/theState.ts` — pure identity/experience projection; not a domain-specific runtime.
 - `packages/engine/src/analytics/trackEvent.ts` — analytics event boundary.
 - `apps/api/src/repositories/analyticsRepository.ts` — durable analytics persistence.
 - `apps/api/src/routes/learning.ts` — operator-facing learning/reporting surface.
@@ -115,6 +176,7 @@ canonical outcome taxonomy
 adaptive learned-lens consumer
 protected memorial realization rail
 universal author regression suite
+The State contract + scan projection
 ```
 
 ### IN PROGRESS
@@ -198,7 +260,7 @@ author:full-circle          author → timeline → runtime shape
 USER INPUT
 → Reality / Provenance
 → Memory + Geo + Presence + Analytics + Media
-→ IdentityState
+→ IdentityState / The State
 → CognitiveAuthorContext + Creative Safety
 → Super Cog
 → Mouth
@@ -208,7 +270,7 @@ USER INPUT
 → Player
 → Outcome / New Input
 → Universal Learning Loop
-→ stronger IdentityState
+→ stronger IdentityState / The State
 → materially changed next experience
 ```
 ✅ emitted event exists in code/contracts
