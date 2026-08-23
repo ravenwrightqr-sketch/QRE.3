@@ -1,7 +1,10 @@
-# QRE AUTHOR — TRUTH LEDGER MILESTONE
+# QRE AUTHOR — TRUTH LEDGER HISTORICAL MILESTONE
 
-**Date:** 2026-08-15  
-**Branch:** `elite-universal-rebuild-v10`
+**Status:** HISTORICAL / LESSON PRESERVED
+**Original milestone:** 2026-08-15
+**Current authority:** `docs/AUTHOR_CURRENT_STATE.md`, `docs/AUTHOR_ARCHITECTURE_INDEX.md`, and `docs/AUTHOR_WIRING_MAP.md`
+
+> This document preserves the engineering lesson discovered during the truth-ledger milestone. Its historical implementation references must not be treated as the current code path.
 
 ## What we tested
 
@@ -18,7 +21,7 @@ The fast COCO author repeatedly produced:
 
 A bag of strings is not enough for an enterprise creative compiler.
 
-The author needs to know the difference between:
+The author needs to distinguish:
 
 ```text
 IDENTITY
@@ -32,7 +35,7 @@ PRESENCE
 
 Those categories have different authority.
 
-### Canonical truth hierarchy
+### Canonical truth principle
 
 ```text
 identity truth
@@ -50,7 +53,7 @@ creative preference
 
 Preferences can guide creativity but can never become facts.
 
-## New canonical rule
+## Durable canonical rule
 
 **Creative freedom may transform meaning, but may not create new reality.**
 
@@ -96,36 +99,54 @@ rather than:
 
 > What extra event can I invent to make this feel like a story?
 
-## Current implementation milestone
+## Historical implementation milestone
 
-`authorBrain.ts` now builds a `sourceLedger` and passes it into the model context.
+The original implementation used an author-side `sourceLedger` and an earned-cut constraint. Those were stepping stones toward the current typed source-truth / RealityGraph architecture.
 
-It also permits an **earned cut count** up to four rather than forcing padding to an exact number.
+The old `authorBrain.ts` implementation referenced by the original milestone is **retired** and is not part of the current production author path.
 
-Latest commit:
-
-`6df213debdc660ff5567b33835cff44e7dd9e557`
-
-## Next hypothesis
-
-The next architectural step is to make the source ledger a first-class compiler contract rather than an author-side object. The universal world builder should emit typed evidence atoms that every creative subsystem consumes.
-
-That becomes:
+The current architecture instead routes through:
 
 ```text
-RAW INPUT
+SOURCE TRUTH / PROVENANCE
    ↓
-WORLD COMPILER
+REALITY GRAPH
    ↓
-TYPED EVIDENCE GRAPH
+COGNITION
    ↓
-SIGNIFICANCE / MEMORY / LEARNING
+LATENT MOVIE SEARCH
    ↓
-CREATIVE SEARCH
+MOVIE DIFFERENTIATION
    ↓
-UNIVERSAL AUTHOR
+MASTER AUTHOR
    ↓
-CUTS
+MOUTH
+   ↓
+FINAL EXPERIENCE SCENES
 ```
 
-This is the direction toward a genuinely intelligent universal creator instead of a prompt with increasingly elaborate guardrails.
+See the live references:
+
+```text
+docs/AUTHOR_CURRENT_STATE.md
+docs/AUTHOR_ARCHITECTURE_INDEX.md
+docs/AUTHOR_WIRING_MAP.md
+docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md
+```
+
+## What survived the milestone
+
+The following rules remain canonical:
+
+```text
+reality is immutable
+creative interpretation is not evidence
+identity is not a plot instruction
+emotion is evidence, not an automatic story arc
+sparse input should reduce invented-world surface
+truth is necessary but truth alone is not attention
+one cut should represent one attention moment
+sequence meaning must accumulate
+```
+
+These principles now live in the current author/cognition architecture rather than in the retired implementation that first demonstrated them.
