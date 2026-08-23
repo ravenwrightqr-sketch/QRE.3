@@ -43,6 +43,17 @@ router.post("/start", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const sessionId = randomUUID();
+    if (assetId) {
+      await db.scanSession.create({
+        data: {
+          id: sessionId,
+          assetId,
+          userId: req.user?.userId,
+          status: "adaptive_intake",
+        },
+      });
+    }
+
     const brief = createEmptyAdaptiveBrief(sessionId, assetId, intent);
     const state = await getAdaptiveCognitiveState(brief, req.user?.userId);
 
