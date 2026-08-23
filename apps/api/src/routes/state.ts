@@ -1,4 +1,5 @@
 import express from "express";
+import { Prisma } from "@prisma/client";
 import { db } from "@qre/db";
 import { buildTheState } from "@qre/engine";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
@@ -167,8 +168,10 @@ function normalizeConfiguration(value: unknown): TheStateConfiguration {
   };
 }
 
-function toJsonObject(value: TheStateConfiguration): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+function toJsonObject(
+  value: TheStateConfiguration,
+): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 function activeActor(actor: TheStateActor, now = Date.now()): boolean {
