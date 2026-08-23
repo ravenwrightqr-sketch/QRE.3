@@ -1,41 +1,4 @@
 import type { ScanResponse } from "@qre/contracts";
-
 import DemoExperience from "./DemoExperience";
 import UnlockedExperience from "./UnlockedExperience";
-
-
-type Props = {
-  data: ScanResponse;
-};
-
-
-export default function ScanAccessRouter({
-  data,
-}: Props) {
-
-
-  if(
-    data.access === "UNLOCKED"
-  ){
-
-    return (
-
-      <UnlockedExperience
-        data={data}
-      />
-
-    );
-
-  }
-
-
-
-  return (
-
-    <DemoExperience
-      data={data}
-    />
-
-  );
-
-}
+export default function ScanAccessRouter({data}:{data:ScanResponse}){const state=data.state;const mode=state?.current.modeId?state.modes.find(m=>m.id===state.current.modeId):undefined;const behavior=mode?.metadata&&typeof mode.metadata.scanBehavior==="string"?mode.metadata.scanBehavior:null;const slug=data.asset?.slug;if(behavior==="guest_contribution"&&slug){window.location.replace(`/add/${encodeURIComponent(slug)}`);return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#050505",color:"white"}}>Opening event contribution…</div>;}if(data.access==="UNLOCKED")return <UnlockedExperience data={data}/>;return <DemoExperience data={data}/>;}
