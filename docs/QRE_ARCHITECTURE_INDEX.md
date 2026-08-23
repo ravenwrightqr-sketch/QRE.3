@@ -9,9 +9,9 @@ Start here before changing QRE. This is the fast architectural map: **what, wher
 | Layer | Owns | Does not own |
 |---|---|---|
 | `@qre/contracts` | Shared shapes and canonical analytics event names | Runtime decisions or persistence |
-| **The State** | Domain-neutral identity, active experience context, and the collection of experiences attached to one canonical asset | Creative wording, analytics persistence, feature-specific business engines |
+| **The State** | Domain-neutral identity, capabilities, modes, current state, experiences, history, measurements, and learned continuity for one canonical asset | Creative wording, analytics persistence, feature-specific business engines |
 | Engine cognition | Reality typing, world/context cognition | Database persistence |
-| `IdentityState` | Accumulated identity/world state | Creative wording |
+| `IdentityState` | Author-side accumulated identity/learning context for cognition | Creative wording |
 | `CognitiveAuthorContext` | One structured author packet, including creative-safety classification | Persistence or timeline decisions |
 | Universal Author / Super Cog | Meaning selection, movie trajectory, creative competition | New factual reality |
 | Mouth | Grounded wording and realization | Timeline ownership or reality authority |
@@ -49,16 +49,16 @@ input
 
 QRE does not create a new engine for every industry, object, animal, workflow, or UI mode.
 
-The universal architectural primitive is **The State**:
+The universal architectural primitive for an identity-bearing asset is **The State**:
 
 ```text
 THE STATE
    ↓
-identity + experiences
+identity + capabilities + modes
    ↓
 multiple experiences
    ↓
-shared runtime history / memory / outcomes
+shared runtime history / measurements / memory / outcomes
    ↓
 learning
    ↓
@@ -95,6 +95,22 @@ These are not separate engines. They are different experience sets attached to d
 
 The same pattern applies to properties, vehicles, businesses, physical QR Art, equipment, and other identity-bearing assets.
 
+## The State is not the Author IdentityState
+
+QRE deliberately has both concepts, with different ownership:
+
+```text
+THE STATE
+  = asset / identity world
+  = capabilities + modes + current state + experiences + history + measurements + patterns
+
+IDENTITYSTATE
+  = author / cognition context
+  = memory-derived identity + learning + recurrence + context used to author the next experience
+```
+
+They can exchange bounded projections, but they are not the same object and should not be collapsed into one model.
+
 ## File map
 
 ### The State
@@ -107,9 +123,9 @@ The same pattern applies to properties, vehicles, businesses, physical QR Art, e
 
 ### Identity / context
 
-- `apps/api/src/services/authorIdentityState.ts` — composes memory, analytics, presence, creative learning, domain state, recurrence, and context.
+- `apps/api/src/services/authorIdentityState.ts` — composes memory, analytics, presence, creative learning, domain state, recurrence, and context for the author loop.
 - `apps/api/src/services/authorCognitiveContext.ts` — builds the single author packet and carries creative-safety state.
-- `packages/contracts/src/cogauthor/identityState.ts` — IdentityState contract.
+- `packages/contracts/src/cogauthor/identityState.ts` — author-side IdentityState contract.
 - `packages/contracts/src/cogauthor/cognitiveAuthorContext.ts` — author packet contract, including `creativeSafety`.
 
 ### Reality / provenance
