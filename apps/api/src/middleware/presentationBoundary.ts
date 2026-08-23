@@ -56,15 +56,12 @@ function presentScene(scene: any, index: number): any | null {
 
 export function presentExperienceForClient(experience: any): any {
   const rawScenes = Array.isArray(experience?.cinematicScenes) ? experience.cinematicScenes : [];
-  const rawMoments = Array.isArray(experience?.moments) ? experience.moments : [];
 
   const cinematicScenes = rawScenes
     .map((scene: any, index: number) => presentScene(scene, index))
     .filter(Boolean);
 
-  const moments = rawMoments
-    .map((moment: any, index: number) => presentMoment(moment, index))
-    .filter(Boolean);
+  const moments = cinematicScenes.map((scene: any) => scene.moment);
 
   return {
     sessionId: cleanText(experience?.sessionId) || undefined,
