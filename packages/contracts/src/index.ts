@@ -18,6 +18,7 @@ export type {
   TheStateHistoryEntry,
   TheStateMeasurement,
   TheStatePattern,
+  TheStateConfiguration,
 } from "./theState.js";
 export * from "./story.js";
 export * from "./entitlements.js";
