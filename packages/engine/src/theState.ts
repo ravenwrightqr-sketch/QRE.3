@@ -31,7 +31,6 @@ export function buildTheState(asset: TheStateAsset): TheState {
   const modes = config.modes ?? [];
   const capabilities = config.capabilities ?? [];
   const configuredCurrent = config.current ?? {};
-
   const activeModeId = configuredCurrent.modeId ?? config.defaultModeId ?? null;
   const activeMode = activeModeId
     ? modes.find((mode) => mode.id === activeModeId && mode.enabled)
