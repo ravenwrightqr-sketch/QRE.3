@@ -151,19 +151,17 @@ function ensureCognitiveState(input: AuthorBrainTruth): CognitiveState | null {
 }
 
 function projectCognitiveState(input: AuthorBrainTruth, state: CognitiveState): AuthorBrainTruth {
-  const semanticFacts = state.facts.map((fact) => `${fact.predicate}: ${fact.value}`);
-  const semanticEvents = state.events.map((event) => event.summary);
-  const subjectFacts = state.facts
+  const selectedFacts = state.facts
     .filter((fact) => state.relevantFactIds.includes(fact.id))
     .map((fact) => `${fact.predicate}: ${fact.value}`);
-  const currentEvents = state.events
+  const selectedEvents = state.events
     .filter((event) => state.currentEventIds.includes(event.id))
     .map((event) => event.summary);
 
   return {
     ...input,
-    facts: [...new Set([...subjectFacts, ...semanticFacts, ...input.facts])].slice(0, 120),
-    sourceMoments: [...new Set([...currentEvents, ...semanticEvents, ...input.sourceMoments])].slice(0, 64),
+    facts: selectedFacts.length ? selectedFacts : input.facts,
+    sourceMoments: selectedEvents.length ? selectedEvents : input.sourceMoments,
     memoryContext: [...new Set([
       ...state.patterns.map((pattern) => `[pattern] ${pattern.statement}`),
       ...(input.memoryContext ?? []),
