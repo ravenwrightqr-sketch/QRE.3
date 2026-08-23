@@ -19,13 +19,12 @@ type BeatFunction = "hook" | "question" | "turn" | "escalation" | "payoff";
 type CreativeMove = "contrast" | "status_shift" | "understatement" | "unexpected_verb" | "social_friction" | "deadpan" | "callback" | "implication" | "absurd_escalation" | "double_meaning";
 type Beat = { order: number; function: BeatFunction; source: string[]; change: string; setupFor?: number; paysOff?: number; creativeMove: CreativeMove };
 type Path = { id: string; thesis: string; move: CreativeMove; beats: Beat[]; budget: number; operation: string };
-type Candidate = { pathId: string; lines: string[] };
 type BeatMetrics = { factuality: number; specificity: number; attention: number; novelty: number; statusChange: number; nextBeatPull: number; creativeMove: number; repetition: number; cinematicity: number };
 type Validation = { ok: boolean; reasons: string[]; score: number; metrics: BeatMetrics[]; provenance: ProvenanceViolation[] };
 type ReferencePolicy = { subject: string; mode: "explicit_name"; allowPronouns: false; allowIdentityInference: false; instruction: string };
 type MovieLock = { approvedMeaning: string; creativeBudget: number; worldFreedom: "closed"; referencePolicy: ReferencePolicy; ending: string; sensitivity: "normal" | "sensitive"; preferredLens?: string; allowedMoves: CreativeMove[] };
 type ProvenanceFact = { text: string; provenance: ReturnType<typeof buildRealityProvenance> };
-type Packet = { subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; path: Path; thesis: string; movieCognition: ReturnType<typeof buildMovieCognition>; provenanceFacts: ProvenanceFact[] };
+type Packet = { prompt: string; subject: string; reality: string[]; ending: string; lineCount: number; maxWords: number; lock: MovieLock; path: Path; thesis: string; movieCognition: ReturnType<typeof buildMovieCognition>; provenanceFacts: ProvenanceFact[]; subjectModel: Record<string, unknown> | null };
 
 const MIN_SCORE = 0.74;
 const META = /\b(?:as an ai|the audience|the viewer|this means|this shows|the strategy|the beat|according to qre|cognitive|the truth is|status feels|pressure builds|the meaning|the transformation|the symbol|the tension|the contrast|the premise|the operation|the lens|the trajectory|the movie|the bow's meaning|a transformation followed)\b/i;
@@ -80,19 +79,60 @@ function reality(input: AuthorBrainTruth): string[] {
   ]);
 }
 
-function buildProvenanceFacts(source: string[], subject: string, authorizedInstructions: string[] = []): ProvenanceFact[] {
-  const facts = source.map((text) => ({
-    text,
-    provenance: buildRealityProvenance(text, "memory", { subject }),
-  }));
-  for (const instruction of authorizedInstructions) {
-    const text = clean(instruction);
-    if (!text || facts.some((fact) => fact.text.toLowerCase() === text.toLowerCase())) continue;
-    facts.push({
+function subjectModel(input: AuthorBrainTruth): Record<string, unknown> | null {
+  const identity = input.cognitiveContext?.identityState;
+  if (!identity) return null;
+  return {
+    subject: identity.subject,
+    kind: identity.kind,
+    canonicalFacts: identity.canonicalFacts.slice(0, 120).map((fact) => ({
+      text: fact.text,
+      source: fact.source,
+      status: fact.status,
+      confidence: fact.confidence,
+    })),
+    currentState: identity.currentState,
+    traits: identity.traits.map((fact) => fact.text),
+    preferences: identity.preferences.map((fact) => fact.text),
+    activities: identity.activities.map((fact) => fact.text),
+    relationships: identity.relationships,
+    history: identity.history.slice(0, 80),
+    recentEvents: identity.recentEvents.slice(0, 20),
+    recurringPatterns: identity.recurringPatterns,
+    goals: identity.goals,
+    intentions: identity.intentions,
+    locations: identity.locations,
+    activeContext: identity.activeContext,
+    confidence: identity.confidence,
+    creativeLearning: identity.creativeLearning,
+  };
+}
+
+function buildProvenanceFacts(
+  source: string[],
+  subject: string,
+  authorizedInstructions: string[] = [],
+  preserved: Array<{ text: string; provenance: ReturnType<typeof buildRealityProvenance> }> = [],
+  prompt = "",
+): ProvenanceFact[] {
+  const preservedByText = new Map(preserved.map((fact) => [clean(fact.text).toLowerCase(), fact]));
+  const facts = source.map((text) => {
+    const preservedFact = preservedByText.get(clean(text).toLowerCase());
+    return preservedFact ?? {
       text,
-      provenance: buildRealityProvenance(text, "prompt", { subject }),
+      provenance: buildRealityProvenance(text, "memory", { subject }),
+    };
+  });
+  const addInstruction = (text: string, sourceType: "prompt" | "memory") => {
+    const cleaned = clean(text);
+    if (!cleaned || facts.some((fact) => fact.text.toLowerCase() === cleaned.toLowerCase())) return;
+    facts.push({
+      text: cleaned,
+      provenance: buildRealityProvenance(cleaned, sourceType, { subject }),
     });
-  }
+  };
+  for (const instruction of authorizedInstructions) addInstruction(instruction, "prompt");
+  if (prompt) addInstruction(prompt, "prompt");
   return facts;
 }
 
@@ -156,18 +196,26 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
   const trajectory = packet.movieCognition.selected.trajectory.slice(0, packet.lineCount - 1);
   const payload = {
     subject: packet.subject,
-    reality: packet.reality,
-    orderedMovieTrajectory: trajectory,
-    cognitiveStates: packet.movieCognition.selected.states,
+    subjectModel: packet.subjectModel,
+    currentExperience: {
+      request: packet.prompt,
+      sourceReality: packet.reality,
+      orderedMovieTrajectory: trajectory,
+      cognitiveStates: packet.movieCognition.selected.states,
+    },
     operation: packet.movieCognition.selected.operation,
     lens: packet.movieCognition.selected.lens,
     ending: packet.ending,
   };
   return [{ role: "user", content: [
-    "QRE MOUTH. COG has already selected the movie. Render ONE sequence only.",
+    "QRE MOUTH. COG has already selected the experience. Render ONE final presentation sequence only.",
     `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.lineCount} lines.`,
     `Every non-final line is ${packet.maxWords} words or fewer.`,
     packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be the earned consequence.",
+    "The subject model is accumulated understanding. Use it to shape voice, emphasis, callbacks, framing, humor, tone, and characterization.",
+    "The subject model is NOT a license to invent biography. Do not turn a likely trait, preference, pattern, or inference into a new concrete fact.",
+    "A supplied preference is not its opposite. If the source says Coco loves dogs, do not claim Coco hates humans unless that claim is explicitly supplied.",
+    "A supplied trait can shape how an event is realized without creating a new event.",
     "Use the supplied movie trajectory in its supplied chronological order. Do not reorder events.",
     "Use the selected lens only to change framing, tone, emphasis, or implication. The lens NEVER adds facts.",
     "HARD REALITY LAW: do not invent a person, identity, relationship, place, room, object, body detail, sensory detail, dialogue, participant, ownership, tenancy, customer/client relationship, or literal event.",
@@ -299,7 +347,7 @@ function buildSequence(packet: Packet, lines: string[], score: number): Sequence
 }
 
 function brief(packet: Packet): AuthorCreativeBrief {
-  return { angle: packet.lock.approvedMeaning, engine: "reality → cognitive state → trajectory → selected movie → lens → mouth → truth gate", question: packet.movieCognition.attentionQuestion, strongestImage: packet.movieCognition.selected.trajectory.at(-1) ?? packet.reality.at(-1) ?? packet.subject, tension: packet.movieCognition.selected.tension, payoff: packet.ending || packet.movieCognition.selected.trajectory.at(-1) || packet.subject, callback: packet.movieCognition.selected.sources.at(-1) ?? packet.subject, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention"] };
+  return { angle: packet.lock.approvedMeaning, engine: "reality → subject model → cognitive state → trajectory → selected experience → lens → mouth → truth gate", question: packet.movieCognition.attentionQuestion, strongestImage: packet.movieCognition.selected.trajectory.at(-1) ?? packet.reality.at(-1) ?? packet.subject, tension: packet.movieCognition.selected.tension, payoff: packet.ending || packet.movieCognition.selected.trajectory.at(-1) || packet.subject, callback: packet.movieCognition.selected.sources.at(-1) ?? packet.subject, rhythm: ["hit", "short", "hit", "short", "hit"] as AuthorRhythm[], avoid: ["description", "fact parade", "restatement", "generic decoration", "unsupported identity", "unsupported world expansion", "weak next-beat pull", "random invention"] };
 }
 
 export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<AuthorResult> {
@@ -336,28 +384,46 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   const selected = movieCognition.selected;
   const path = makePath(movieCognition, subject, ending, budget);
   const lock: MovieLock = {
-  approvedMeaning: selected.premise,
-  creativeBudget: budget,
-  worldFreedom: "closed",
-  referencePolicy: {
-    subject,
-    mode: "explicit_name",
-    allowPronouns: false,
-    allowIdentityInference: false,
-    instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.`,
-  },
-  ending,
-  sensitivity: protectedMemorial ? "sensitive" : sensitive,
-  preferredLens: selected.lens.id,
-  allowedMoves: [path.move],
-};
+    approvedMeaning: selected.premise,
+    creativeBudget: budget,
+    worldFreedom: "closed",
+    referencePolicy: {
+      subject,
+      mode: "explicit_name",
+      allowPronouns: false,
+      allowIdentityInference: false,
+      instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.`,
+    },
+    ending,
+    sensitivity: protectedMemorial ? "sensitive" : sensitive,
+    preferredLens: selected.lens.id,
+    allowedMoves: [path.move],
+  };
 
-const provenanceFacts = buildProvenanceFacts(
-  source,
-  subject,
-  ending ? [ending] : [],
-);
-  const packet: Packet = { subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts };
+  const preservedProvenance = Array.isArray(input.cognitiveContext?.provenanceFacts)
+    ? input.cognitiveContext.provenanceFacts
+    : [];
+  const provenanceFacts = buildProvenanceFacts(
+    source,
+    subject,
+    input.cognitiveContext?.authorizedCreativeInstructions ?? [],
+    preservedProvenance,
+    input.prompt,
+  );
+  const packet: Packet = {
+    prompt: input.prompt,
+    subject,
+    reality: source,
+    ending,
+    lineCount: lineTotal,
+    maxWords,
+    lock,
+    path,
+    thesis: selected.premise,
+    movieCognition,
+    provenanceFacts,
+    subjectModel: subjectModel(input),
+  };
 
   const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1200, Math.max(420, lineTotal * 80)), temperature: sensitive ? 0.32 : 0.48 });
   const modelLines = parseSingle(modelResult.text).slice(0, lineTotal);
