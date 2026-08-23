@@ -19,7 +19,12 @@ export function createAssetRepository(): AssetRepository {
         return { id: experience.id, title: experience.title ?? null, sourcePrompt: typeof blueprint?.sourcePrompt === "string" ? blueprint.sourcePrompt : null, blueprint: experience.blueprint, createdAt: experience.createdAt.toISOString() };
       });
       return {
-        id: asset.id, slug: asset.slug, accountId: asset.accountId ?? null, paid: asset.paid, category: asset.category ?? null,
+        id: asset.id,
+        slug: asset.slug,
+        accountId: asset.accountId ?? null,
+        ownerId: asset.ownerId ?? null,
+        paid: asset.paid,
+        category: asset.category ?? null,
         stateConfig: (asset.stateConfig ?? null) as AssetRecord["stateConfig"],
         flow: activeFlow ? { id: activeFlow.id, steps: activeFlow.steps.map((step) => ({ id: step.id, order: step.order, type: step.type, payload: step.payload as unknown })) } : null,
         experience: experiences[experiences.length - 1] ?? null,
