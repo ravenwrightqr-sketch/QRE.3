@@ -292,6 +292,288 @@ After that, evolve `creativePolicy.ts` away from domain-specific prose templates
 
 ---
 
+## CURRENT TRUTH — 2026-08-22 · RUNTIME / ANALYTICS CONVERGENCE
+
+The runtime refactor established a separate runtime plane rather than pushing infrastructure into cognition or the author.
+
+Canonical reference:
+
+`docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md`
+
+### Runtime / cognition / analytics are separate planes
+
+```text
+RUNTIME
+  scan / access / moments / flow / geo / cinematic / delivery / session
+
+COGNITION
+  world understanding / significance / memory reasoning / creative learning
+
+ANALYTICS
+  runtime observations / registry semantics / repository persistence / dashboards
+```
+
+Runtime events travel through the Engine Event Spine. Analytics semantics are defined by the contracts registry. Database persistence is owned by `AnalyticsRepository`.
+
+### Engine Event Spine
+
+Canonical file:
+
+`packages/engine/src/spine/eventSpine.ts`
+
+Responsibilities:
+
+```text
+broadcast runtime lifecycle events
+keep runtime decoupled
+allow analytics / memory / reward listeners
+avoid Prisma
+avoid database writes
+```
+
+Presence and flow are now spine-native:
+
+```text
+CHECK_IN
+CHECK_OUT
+FLOW_STEP
+FLOW_COMPLETE
+```
+
+The scan lifecycle is also spine-native:
+
+```text
+SCAN_START
+SESSION_START
+AI_DECISION
+AI_MEMORY_USED
+AI_CINEMATIC_DECISION
+AI_MEMORY_LEARNED
+ERROR
+SESSION_END
+```
+
+### Analytics adapter
+
+Canonical adapter:
+
+`apps/api/src/services/analyticsSpineSubscriber.ts`
+
+Its job is:
+
+```text
+EngineEvent
+→ ENGINE_TO_ANALYTICS
+→ AnalyticsEventType
+→ AnalyticsRepository
+```
+
+The mapping is intentionally explicit because EngineEventType and AnalyticsEventType are different semantic vocabularies.
+
+The adapter validates that every mapped analytics type exists in:
+
+`ANALYTICS_EVENT_REGISTRY`
+
+### Analytics registry
+
+Canonical contracts:
+
+```text
+packages/contracts/src/analytics.ts
+packages/contracts/src/analyticsRegistry.ts
+```
+
+The registry defines:
+
+```text
+type
+category
+description
+defaultOutcome
+source
+learningRelevant
+customerVisible
+enterpriseRelevant
+investorRelevant
+```
+
+Current coverage:
+
+```text
+contractEvents=57
+registryEvents=57
+missing=none
+extra=none
+invalid=none
+REGISTRY COMPLETE: PASS
+```
+
+### Analytics persistence rule
+
+Direct analytics database persistence is centralized in:
+
+`apps/api/src/repositories/analyticsRepository.ts`
+
+The runtime may read analytics through repository interfaces, such as:
+
+```text
+getScanInsights(assetId, analyticsRepository)
+```
+
+but runtime orchestration must not write `db.analyticsEvent` directly.
+
+### Scan engine remains the single runtime orchestrator
+
+Both production scan routes converge on:
+
+```text
+apps/api/src/routes/scan.route.ts
+apps/api/src/routes/scan.index.ts
+        ↓
+packages/engine/src/scanEngine.ts
+```
+
+The scan engine was deliberately reduced by responsibility rather than moved into cognition.
+
+Current runtime seams:
+
+```text
+buildRuntimeMoments()
+selectCinematicScenes()
+buildRuntimeGeoStory()
+```
+
+A MemorySnapshot runtime boundary is also defined as the next seam.
+
+The canonical scan orchestration remains:
+
+```text
+asset
+→ session
+→ access
+→ runtime moments
+→ flow
+→ GeoStory
+→ cinematic selection
+→ MemorySnapshot
+→ story delivery
+→ service receipt when applicable
+→ analytics read-side insights
+→ session end
+```
+
+### GeoStory
+
+`packages/engine/src/geo/geoStoryCompiler.ts` is a pure geographic narrative compiler.
+
+It converts observed geographic points into:
+
+```text
+intro scene
+presence scenes grouped by rounded location
+exit scene
+summary
+```
+
+It is a presentation projection, not durable factual memory and not a creative author.
+
+### MemorySnapshot
+
+`packages/engine/src/geo/buildMemorySnapshot.ts` constructs a runtime experience-memory capsule from:
+
+```text
+moments
+GeoStory
+cinematicScenes
+optional prior snapshot
+```
+
+It derives bounded runtime properties such as:
+
+```text
+type
+locationTags
+timeline
+emotionalTone
+title
+summary
+highlights
+runtime metadata
+```
+
+It evolves runtime memory through `evolveRuntimeMemory(moments, prior)`.
+
+MemorySnapshot is not the durable factual memory database. Runtime behavior must not silently become a new fact about the world.
+
+One provenance caution is permanent: when a moment lacks a real time, the snapshot can create a synthetic timeline timestamp. Downstream code must not mistake that fallback for observed chronology.
+
+### Runtime cinematic selection
+
+The runtime selector is:
+
+`packages/engine/src/runtime/cinematic/selectCinematicScenes.ts`
+
+It owns:
+
+```text
+existing authored cinematic scenes
+collaborative-memory acceptance filtering
+scene normalization
+generated cinematic fallback
+selection policy
+```
+
+It is a presentation selector, not another author.
+
+### Dead spine paths removed
+
+The obsolete secondary handler path was removed:
+
+```text
+packages/engine/src/spine/handlers.ts
+```
+
+Stale generated handler and cognition-listener outputs were removed as well, and repository searches showed no remaining source references to the deleted handler/listener APIs.
+
+### Acceptance evidence
+
+After the runtime/analytics refactor, the following gates remained green:
+
+```text
+ENGINE SPINE PRESENCE ACCEPTANCE: PASS
+ENGINE SPINE FLOW ACCEPTANCE: PASS
+ANALYTICS SPINE ACCEPTANCE: PASS
+REGISTRY COMPLETE: PASS
+REAL ADAPTIVE LEARNING ACCEPTANCE: PASS
+```
+
+Adaptive learning also remained:
+
+```text
+baselineLens=deadpan
+learnedLens=courtroom
+learningPersisted=true
+identityStateProjection=true
+contextProjection=true
+realityPreserved=true
+assetIsolation=true
+```
+
+Builds and whitespace validation remained clean:
+
+```text
+contracts build ✅
+engine build ✅
+api build ✅
+git diff --check ✅
+```
+
+### Current engineering principle
+
+As intelligence expands, runtime orchestration should get simpler. The system should gain capabilities by extending canonical owners and boundaries, not by accumulating duplicate brains, buses, validators, or hidden repair systems.
+
+---
+
 ## HISTORICAL ENTRIES
 
 Older experiments are retained as evidence of discovered creative laws. They are not implementation authority.
