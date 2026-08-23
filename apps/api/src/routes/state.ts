@@ -2,18 +2,75 @@ import express from "express";
 import { db } from "@qre/db";
 import { buildTheState } from "@qre/engine";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
-import type { TheStateConfiguration } from "@qre/contracts";
+import type {
+  TheStateActor,
+  TheStateActorKind,
+  TheStateConfiguration,
+  TheStatePermission,
+} from "@qre/contracts";
 
 const router = express.Router();
+
+const ALL_PERMISSIONS: TheStatePermission[] = [
+  "VIEW_STATE",
+  "MANAGE_STATE",
+  "ACTIVATE_MODE",
+  "MANAGE_EXPERIENCES",
+  "MANAGE_HISTORY",
+];
+const MANAGER_ROLES = new Set(["OWNER", "ADMIN", "MANAGER"]);
+const ACTOR_KINDS = new Set<TheStateActorKind>([
+  "OWNER",
+  "MANAGER",
+  "RENTER",
+  "CARETAKER",
+  "STAFF",
+  "COLLABORATOR",
+  "CUSTOM",
+]);
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function normalizePermissions(value: unknown): TheStatePermission[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (permission): permission is TheStatePermission =>
+      typeof permission === "string" &&
+      ALL_PERMISSIONS.includes(permission as TheStatePermission),
+  );
+}
+
+function normalizeActors(value: unknown): TheStateActor[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .map((item) => item as Record<string, unknown>)
+    .map((item) => ({
+      userId: stringValue(item.userId) ?? "",
+      kind: ACTOR_KINDS.has(item.kind as TheStateActorKind)
+        ? (item.kind as TheStateActorKind)
+        : "CUSTOM",
+      label: stringValue(item.label) ?? undefined,
+      permissions: normalizePermissions(item.permissions),
+      startsAt: stringValue(item.startsAt),
+      endsAt: stringValue(item.endsAt),
+      metadata:
+        item.metadata &&
+        typeof item.metadata === "object" &&
+        !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : undefined,
+    }))
+    .filter((actor) => actor.userId && actor.permissions.length > 0);
+}
+
 function normalizeConfiguration(value: unknown): TheStateConfiguration {
-  const input = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
+  const input =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
 
   const capabilities = Array.isArray(input.capabilities)
     ? input.capabilities
@@ -25,9 +82,10 @@ function normalizeConfiguration(value: unknown): TheStateConfiguration {
           label: String(item.label),
           description: typeof item.description === "string" ? item.description : undefined,
           enabled: item.enabled !== false,
-          metadata: item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
-            ? item.metadata as Record<string, unknown>
-            : undefined,
+          metadata:
+            item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+              ? (item.metadata as Record<string, unknown>)
+              : undefined,
         }))
     : [];
 
@@ -41,15 +99,17 @@ function normalizeConfiguration(value: unknown): TheStateConfiguration {
           label: String(item.label),
           description: typeof item.description === "string" ? item.description : undefined,
           enabled: item.enabled !== false,
-          metadata: item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
-            ? item.metadata as Record<string, unknown>
-            : undefined,
+          metadata:
+            item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+              ? (item.metadata as Record<string, unknown>)
+              : undefined,
         }))
     : [];
 
-  const currentInput = input.current && typeof input.current === "object" && !Array.isArray(input.current)
-    ? input.current as Record<string, unknown>
-    : {};
+  const currentInput =
+    input.current && typeof input.current === "object" && !Array.isArray(input.current)
+      ? (input.current as Record<string, unknown>)
+      : {};
 
   return {
     capabilities,
@@ -59,39 +119,64 @@ function normalizeConfiguration(value: unknown): TheStateConfiguration {
       modeId: stringValue(currentInput.modeId),
       status: stringValue(currentInput.status),
       since: stringValue(currentInput.since),
-      context: currentInput.context && typeof currentInput.context === "object" && !Array.isArray(currentInput.context)
-        ? currentInput.context as Record<string, unknown>
-        : {},
+      context:
+        currentInput.context &&
+        typeof currentInput.context === "object" &&
+        !Array.isArray(currentInput.context)
+          ? (currentInput.context as Record<string, unknown>)
+          : {},
     },
+    authorizedActors: normalizeActors(input.authorizedActors),
   };
 }
 
-async function getOwnedAsset(assetId: string, userId: string) {
-  const asset = await db.asset.findUnique({
+function activeActor(actor: TheStateActor, now = Date.now()): boolean {
+  const startsAt = actor.startsAt ? Date.parse(actor.startsAt) : NaN;
+  const endsAt = actor.endsAt ? Date.parse(actor.endsAt) : NaN;
+  if (Number.isFinite(startsAt) && now < startsAt) return false;
+  if (Number.isFinite(endsAt) && now > endsAt) return false;
+  return true;
+}
+
+async function loadAsset(assetId: string) {
+  return db.asset.findUnique({
     where: { id: assetId },
     include: { experiences: { orderBy: { createdAt: "asc" } } },
   });
-
-  if (!asset) return null;
-  if (asset.ownerId === userId) return asset;
-
-  if (!asset.accountId) return null;
-  const membership = await db.accountUser.findFirst({
-    where: { accountId: asset.accountId, userId },
-  });
-
-  return membership ? asset : null;
 }
 
-function stateAsset(asset: Awaited<ReturnType<typeof getOwnedAsset>>) {
-  if (!asset) return null;
+async function isPermanentManager(asset: NonNullable<Awaited<ReturnType<typeof loadAsset>>>, userId: string) {
+  if (asset.ownerId === userId) return true;
+  if (!asset.accountId) return false;
+  const membership = await db.accountUser.findFirst({
+    where: { accountId: asset.accountId, userId },
+    select: { role: true },
+  });
+  return Boolean(membership?.role && MANAGER_ROLES.has(membership.role));
+}
+
+async function canControl(
+  asset: NonNullable<Awaited<ReturnType<typeof loadAsset>>>,
+  userId: string,
+  permission: TheStatePermission,
+) {
+  if (await isPermanentManager(asset, userId)) return true;
+  const config = normalizeConfiguration(asset.stateConfig);
+  const actor = config.authorizedActors?.find(
+    (candidate) => candidate.userId === userId && activeActor(candidate),
+  );
+  return Boolean(actor?.permissions.includes(permission));
+}
+
+function stateResponse(
+  asset: NonNullable<Awaited<ReturnType<typeof loadAsset>>>,
+) {
   const experiences = asset.experiences.map((experience) => ({
     id: experience.id,
     title: experience.title ?? null,
     createdAt: experience.createdAt.toISOString(),
   }));
-
-  return buildTheState({
+  const state = buildTheState({
     id: asset.id,
     slug: asset.slug,
     category: asset.category ?? null,
@@ -99,13 +184,20 @@ function stateAsset(asset: Awaited<ReturnType<typeof getOwnedAsset>>) {
     experience: experiences[experiences.length - 1] ?? null,
     experiences,
   });
+  return {
+    state,
+    authorizedActors: normalizeConfiguration(asset.stateConfig).authorizedActors ?? [],
+  };
 }
 
 router.get("/:assetId", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const asset = await getOwnedAsset(String(req.params.assetId ?? ""), req.user?.userId ?? "");
-    if (!asset) return res.status(404).json({ success: false, error: "Asset not found." });
-    return res.json({ success: true, state: stateAsset(asset) });
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "VIEW_STATE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
+    return res.json({ success: true, ...stateResponse(asset) });
   } catch (error) {
     console.error("State load failed:", error);
     return res.status(500).json({ success: false, error: "Failed to load State." });
@@ -114,18 +206,41 @@ router.get("/:assetId", requireAuth, async (req: AuthRequest, res) => {
 
 router.patch("/:assetId/config", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const assetId = String(req.params.assetId ?? "");
-    const asset = await getOwnedAsset(assetId, req.user?.userId ?? "");
-    if (!asset) return res.status(404).json({ success: false, error: "Asset not found." });
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "MANAGE_STATE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
 
-    const configuration = normalizeConfiguration(req.body);
-    if (configuration.defaultModeId && !configuration.modes?.some((mode) => mode.id === configuration.defaultModeId && mode.enabled)) {
-      return res.status(400).json({ success: false, error: "defaultModeId must reference an enabled mode." });
+    const existing = normalizeConfiguration(asset.stateConfig);
+    const configuration = normalizeConfiguration({
+      ...req.body,
+      authorizedActors: existing.authorizedActors,
+    });
+
+    if (
+      configuration.defaultModeId &&
+      !configuration.modes?.some(
+        (mode) => mode.id === configuration.defaultModeId && mode.enabled,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "defaultModeId must reference an enabled mode.",
+      });
     }
 
     const currentModeId = configuration.current?.modeId ?? null;
-    if (currentModeId && !configuration.modes?.some((mode) => mode.id === currentModeId && mode.enabled)) {
-      return res.status(400).json({ success: false, error: "current.modeId must reference an enabled mode." });
+    if (
+      currentModeId &&
+      !configuration.modes?.some(
+        (mode) => mode.id === currentModeId && mode.enabled,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "current.modeId must reference an enabled mode.",
+      });
     }
 
     const updated = await db.asset.update({
@@ -134,17 +249,101 @@ router.patch("/:assetId/config", requireAuth, async (req: AuthRequest, res) => {
       include: { experiences: { orderBy: { createdAt: "asc" } } },
     });
 
-    return res.json({ success: true, state: stateAsset(updated) });
+    return res.json({ success: true, ...stateResponse(updated) });
   } catch (error) {
     console.error("State configuration update failed:", error);
     return res.status(500).json({ success: false, error: "Failed to update State configuration." });
   }
 });
 
+router.post("/:assetId/actors", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "MANAGE_STATE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
+
+    const actorUserId = stringValue(req.body?.userId);
+    if (!actorUserId) return res.status(400).json({ success: false, error: "userId is required." });
+
+    const kind = ACTOR_KINDS.has(req.body?.kind as TheStateActorKind)
+      ? (req.body.kind as TheStateActorKind)
+      : "CUSTOM";
+    const permissions = normalizePermissions(req.body?.permissions);
+    if (!permissions.length) {
+      return res.status(400).json({ success: false, error: "At least one valid permission is required." });
+    }
+
+    const config = normalizeConfiguration(asset.stateConfig);
+    const actors = (config.authorizedActors ?? []).filter((actor) => actor.userId !== actorUserId);
+    const actor: TheStateActor = {
+      userId: actorUserId,
+      kind,
+      label: stringValue(req.body?.label) ?? undefined,
+      permissions,
+      startsAt: stringValue(req.body?.startsAt),
+      endsAt: stringValue(req.body?.endsAt),
+      metadata:
+        req.body?.metadata && typeof req.body.metadata === "object" && !Array.isArray(req.body.metadata)
+          ? req.body.metadata
+          : undefined,
+    };
+
+    if (actor.startsAt && !Number.isFinite(Date.parse(actor.startsAt))) {
+      return res.status(400).json({ success: false, error: "startsAt must be a valid ISO date." });
+    }
+    if (actor.endsAt && !Number.isFinite(Date.parse(actor.endsAt))) {
+      return res.status(400).json({ success: false, error: "endsAt must be a valid ISO date." });
+    }
+
+    const updated = await db.asset.update({
+      where: { id: asset.id },
+      data: { stateConfig: { ...config, authorizedActors: [...actors, actor] } },
+      include: { experiences: { orderBy: { createdAt: "asc" } } },
+    });
+
+    return res.status(201).json({ success: true, ...stateResponse(updated) });
+  } catch (error) {
+    console.error("State actor grant failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to grant State control." });
+  }
+});
+
+router.delete("/:assetId/actors/:userId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "MANAGE_STATE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
+
+    const config = normalizeConfiguration(asset.stateConfig);
+    const targetUserId = String(req.params.userId ?? "");
+    const updatedActors = (config.authorizedActors ?? []).filter(
+      (actor) => actor.userId !== targetUserId,
+    );
+
+    const updated = await db.asset.update({
+      where: { id: asset.id },
+      data: { stateConfig: { ...config, authorizedActors: updatedActors } },
+      include: { experiences: { orderBy: { createdAt: "asc" } } },
+    });
+
+    return res.json({ success: true, ...stateResponse(updated) });
+  } catch (error) {
+    console.error("State actor revoke failed:", error);
+    return res.status(500).json({ success: false, error: "Failed to revoke State control." });
+  }
+});
+
 router.post("/:assetId/modes/:modeId/activate", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const asset = await getOwnedAsset(String(req.params.assetId ?? ""), req.user?.userId ?? "");
-    if (!asset) return res.status(404).json({ success: false, error: "Asset not found." });
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "ACTIVATE_MODE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
 
     const config = normalizeConfiguration(asset.stateConfig);
     const modeId = String(req.params.modeId ?? "");
@@ -167,7 +366,7 @@ router.post("/:assetId/modes/:modeId/activate", requireAuth, async (req: AuthReq
       include: { experiences: { orderBy: { createdAt: "asc" } } },
     });
 
-    return res.json({ success: true, state: stateAsset(updated) });
+    return res.json({ success: true, ...stateResponse(updated) });
   } catch (error) {
     console.error("State mode activation failed:", error);
     return res.status(500).json({ success: false, error: "Failed to activate State mode." });
@@ -176,8 +375,11 @@ router.post("/:assetId/modes/:modeId/activate", requireAuth, async (req: AuthReq
 
 router.post("/:assetId/modes/:modeId/deactivate", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const asset = await getOwnedAsset(String(req.params.assetId ?? ""), req.user?.userId ?? "");
-    if (!asset) return res.status(404).json({ success: false, error: "Asset not found." });
+    const userId = req.user?.userId ?? "";
+    const asset = await loadAsset(String(req.params.assetId ?? ""));
+    if (!asset || !(await canControl(asset, userId, "ACTIVATE_MODE"))) {
+      return res.status(404).json({ success: false, error: "Asset not found." });
+    }
 
     const config = normalizeConfiguration(asset.stateConfig);
     const modeId = String(req.params.modeId ?? "");
@@ -201,7 +403,7 @@ router.post("/:assetId/modes/:modeId/deactivate", requireAuth, async (req: AuthR
       include: { experiences: { orderBy: { createdAt: "asc" } } },
     });
 
-    return res.json({ success: true, state: stateAsset(updated) });
+    return res.json({ success: true, ...stateResponse(updated) });
   } catch (error) {
     console.error("State mode deactivation failed:", error);
     return res.status(500).json({ success: false, error: "Failed to deactivate State mode." });
