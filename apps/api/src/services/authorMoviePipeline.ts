@@ -1,4 +1,5 @@
-import type { AuthorBrainTruth, AuthorResult, MovieBeatPlan } from "@qre/contracts";
+import { buildCognitiveState } from "@qre/engine";
+import type { AuthorBrainTruth, AuthorResult, CognitiveState, IdentityState, MemoryContext, MovieBeatPlan } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
 import { resolveLearnedCreativeLens } from "./authorCreativeLearningPressure.js";
 import { buildMovieBeatPlan } from "./authorMovieBeatPlan.js";
@@ -31,11 +32,132 @@ function sanitizeAuthorInput(input: AuthorBrainTruth): AuthorBrainTruth {
   };
 }
 
+function factSource(text: string, input: AuthorBrainTruth): "prompt" | "user" | "event" | "location" | "system" | "import" {
+  const preserved = input.cognitiveContext?.provenanceFacts?.find(
+    (fact) => fact.text.trim().toLowerCase() === text.trim().toLowerCase(),
+  );
+  switch (preserved?.provenance.source) {
+    case "prompt": return "prompt";
+    case "runtime": return "system";
+    case "memory": return "user";
+    default: return "prompt";
+  }
+}
+
+function semanticMemoryFromIdentity(input: AuthorBrainTruth, identity?: IdentityState | null): MemoryContext {
+  const now = new Date().toISOString();
+  const subjectName = String(identity?.subject?.value ?? input.subject ?? "the subject").trim();
+  const subjectEntityId = `subject:${subjectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const facts = [
+    ...(identity?.canonicalFacts ?? []),
+    ...(identity?.traits ?? []),
+    ...(identity?.preferences ?? []),
+    ...(identity?.activities ?? []),
+    ...(identity?.history ?? []),
+  ];
+
+  const memoryFacts = facts.map((fact, index) => ({
+    id: `identity-fact-${index + 1}`,
+    entityId: subjectEntityId,
+    kind: fact.source === "event" ? "event" as const
+      : identity?.preferences.includes(fact) ? "preference" as const
+      : identity?.activities.includes(fact) ? "behavior" as const
+      : identity?.traits.includes(fact) ? "attribute" as const
+      : fact.source === "history" ? "history" as const
+      : "attribute" as const,
+    predicate: fact.source === "event" ? "experienced" : "known",
+    value: fact.text,
+    confidence: fact.confidence,
+    source: fact.source === "prompt" ? "prompt" as const
+      : fact.source === "event" ? "event" as const
+      : fact.source === "location" ? "location" as const
+      : fact.source === "presence" ? "scan" as const
+      : "user" as const,
+    sourceRef: fact.provenance?.source ?? undefined,
+    status: fact.status === "superseded" ? "superseded" as const : "active" as const,
+    observedAt: fact.observedAt ?? identity?.generatedAt ?? now,
+    visibility: "shared" as const,
+  }));
+
+  const recentEvents = (identity?.recentEvents ?? []).map((summary, index) => ({
+    id: `identity-event-${index + 1}`,
+    type: "recent_identity_event",
+    summary,
+    occurredAt: identity?.generatedAt ?? now,
+    source: "event" as const,
+    confidence: identity?.confidence ?? 0.8,
+    entityIds: [subjectEntityId],
+  }));
+
+  const requestFacts = input.facts.filter((value) => cleanSourceValue(value).length > 0).flatMap(cleanSourceValue).map((value, index) => ({
+    id: `request-fact-${index + 1}`,
+    entityId: subjectEntityId,
+    kind: "context" as const,
+    predicate: "supplied",
+    value,
+    confidence: 1,
+    source: factSource(value, input),
+    sourceRef: "current-experience-request",
+    status: "active" as const,
+    observedAt: now,
+    visibility: "shared" as const,
+  }));
+
+  const requestEvents = input.sourceMoments.flatMap(cleanSourceValue).map((summary, index) => ({
+    id: `request-event-${index + 1}`,
+    type: "current_experience_event",
+    summary,
+    occurredAt: now,
+    source: "event" as const,
+    confidence: 1,
+    entityIds: [subjectEntityId],
+  }));
+
+  const entities = [{
+    id: subjectEntityId,
+    kind: identity?.kind === "pet" ? "animal" as const : identity?.kind === "person" ? "person" as const : "other" as const,
+    name: subjectName,
+    canonicalKey: subjectName.toLowerCase(),
+    confidence: identity?.confidence ?? 0.8,
+    visibility: "shared" as const,
+    createdAt: now,
+    updatedAt: now,
+  }];
+
+  return {
+    assetId: identity?.identityId ?? "unknown",
+    generatedAt: now,
+    entities,
+    facts: [...memoryFacts, ...requestFacts],
+    relations: [],
+    events: [...recentEvents, ...requestEvents],
+  };
+}
+
+function ensureCognitiveState(input: AuthorBrainTruth): CognitiveState | null {
+  if (input.cognitiveContext?.cognitiveState) return input.cognitiveContext.cognitiveState;
+  const identity = input.cognitiveContext?.identityState;
+  if (!identity) return null;
+  return buildCognitiveState({
+    prompt: input.prompt,
+    subjectTruth: {
+      name: String(identity.subject.value ?? input.subject ?? "").trim() || undefined,
+      kind: identity.kind === "pet" ? "animal" : identity.kind === "person" ? "person" : "unknown",
+      identityFacts: identity.canonicalFacts.map((fact) => fact.text),
+      provenance: "memory",
+    },
+    memoryContext: semanticMemoryFromIdentity(input, identity),
+    experienceGoal: input.cognitiveContext?.domain?.mode ?? "experience",
+    presentation: "cinematic",
+  });
+}
+
 export async function authorMoviePipeline(input: AuthorBrainTruth & {
   cta?: { text: string; sourceIds?: string[] };
   presentationMode?: "auto" | "manual";
 }): Promise<{ authored: AuthorResult; movieBeatPlan: MovieBeatPlan }> {
   const sanitizedInput = sanitizeAuthorInput(input);
+  const cognitiveState = ensureCognitiveState(sanitizedInput);
   const explicitLens = String(sanitizedInput.lens ?? "").trim().toLowerCase();
   const safety = classifyAuthorCreativeSafety({
     cognitivePlan: sanitizedInput.cognitivePlan,
@@ -53,6 +175,7 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
   });
   const cognitiveContext = {
     ...(sanitizedInput.cognitiveContext ?? {}),
+    cognitiveState,
     creativeSafety: safety,
   };
   const protectedContext = isSemanticProtectedContext(cognitiveContext);
