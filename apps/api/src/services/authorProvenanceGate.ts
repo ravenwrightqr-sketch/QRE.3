@@ -22,7 +22,7 @@ export type ProvenanceViolation = {
 
 const PLACE = /\b(?:street|office|room|chair|table|bed|floor|counter|dresser|park|restaurant|hotel|house|kitchen|bathroom|store|shop|court|church|school|hospital|lobby|door|window|hallway|garage|yard|living room|bedroom|dining room|desk|countertop|sink|trash|mirror|bar|venue|backyard|front yard|sidewalk|trail|beach|park)\b/i;
 const OBJECT = /\b(?:towel|towels|bow|bows|ball|balls|tennis ball|toy|toys|bone|bones|treat|treats|bowl|bowls|cup|glass|plate|dish|key|keys|phone|camera|mirror|photograph|photo|letter|note|bag|box|gift|shoes|shirt|dress|ring|flowers|candle|candles|menu|carpet|pillow|blanket|soap|brush|comb|leash|collar|receipt|contract|clause|document|paper|tool|engine|wheel|tire|warning light|ribbon|ribbons|stick|sticks|food|book|books|hat|hats|jacket|coat|umbrella|chair|table|lamp|wallet|watch)\b/i;
-const PERSON = /\b(?:man|woman|boy|girl|person|people|customer|client|owner|guest|buyer|seller|agent|doctor|nurse|lawyer|groomer|housekeeper|mechanic|barber|photographer|friend|partner|husband|wife|girlfriend|boyfriend|sister|brother|mother|father|son|daughter)\b/i;
+const PERSON = /\b(?:man|woman|boy|girl|person|people|human|humans|customer|client|owner|guest|buyer|seller|agent|doctor|nurse|lawyer|groomer|housekeeper|mechanic|barber|photographer|friend|partner|husband|wife|girlfriend|boyfriend|sister|brother|mother|father|son|daughter)\b/i;
 const BODY = /\b(?:tail|tails|legs|leg|ears|ear|paws|paw|eyes|eye|mouth|teeth|face|head|hands|hand|feet|foot|shoulder|hair|skin|body|gaze)\b/i;
 const CHRONOLOGY = /\b(?:before|after|earlier|later|first|next|then|finally|already|again|returned|back)\b/i;
 const PRIVATE = /\b(?:secretly|privately|deep down|inside|felt that|wanted|hated|loved them|dated|married|divorced|owned|rented|lived)\b/i;
@@ -140,7 +140,7 @@ export function validateAuthorProvenance(lines: string[], facts: GateFact[]): Pr
 
     const matchedIndex = facts.findIndex((fact) => factSupportsLine(line, fact));
     if (matchedIndex >= 0 && !promptAuthorized) {
-      const provenance = facts[matchedIndex]!.provenance;
+      const provenance = facts[matchedIndex]! .provenance;
       if (CHRONOLOGY.test(line) && !provenance.permissions.includes("reorder")) {
         if (matchedIndex < lastFactIndex) {
           violations.push({
