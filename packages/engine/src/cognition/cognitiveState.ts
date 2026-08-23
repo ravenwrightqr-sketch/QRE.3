@@ -52,13 +52,21 @@ function relevantFacts(prompt: string, subjectIds: Set<string>, memory: MemoryCo
 
 function relevantEvents(prompt: string, subjectIds: Set<string>, memory: MemoryContext): MemoryEvent[] {
   const ranked = memory.events
-    .map((event) => ({
+    .map((event, index) => ({
       event,
+      index,
       score: event.entityIds.some((id) => subjectIds.has(id)) ? 4 : 0,
     }))
     .map((item) => ({ ...item, score: item.score + overlap(item.event.summary, prompt) }))
     .sort((a, b) => b.score - a.score || b.event.occurredAt.localeCompare(a.event.occurredAt));
-  return unique(ranked.filter((item) => item.score > 0).map((item) => item.event)).slice(0, 48);
+
+  // Relevance is ranked newest-first above, but the cognitive timeline MUST remain chronological.
+  return unique(
+    ranked
+      .filter((item) => item.score > 0)
+      .sort((a, b) => a.event.occurredAt.localeCompare(b.event.occurredAt) || a.index - b.index)
+      .map((item) => item.event),
+  ).slice(0, 48);
 }
 
 function patternKind(fact: MemoryFact): CognitiveState["patterns"][number]["kind"] {
