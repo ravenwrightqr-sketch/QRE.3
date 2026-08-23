@@ -174,7 +174,7 @@ function projectCognitiveState(input: AuthorBrainTruth, state: CognitiveState): 
     ...input,
     facts: selectedFacts.length ? selectedFacts : fallbackFacts,
     sourceMoments: selectedEvents.length ? selectedEvents : input.sourceMoments,
-    memoryContext: state.patterns.map((pattern) => `[pattern] ${pattern.statement]`).slice(0, 64),
+    memoryContext: state.patterns.map((pattern) => `[pattern] ${pattern.statement}`).slice(0, 64),
   };
 }
 
