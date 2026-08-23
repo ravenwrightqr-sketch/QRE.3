@@ -36,7 +36,7 @@ function factSource(text: string, input: AuthorBrainTruth): "prompt" | "user" | 
   const preserved = input.cognitiveContext?.provenanceFacts?.find(
     (fact) => fact.text.trim().toLowerCase() === text.trim().toLowerCase(),
   );
-  switch (preserved?.provenance.source) {
+  switch (String(preserved?.provenance.source ?? "")) {
     case "prompt": return "prompt";
     case "runtime": return "system";
     case "memory": return "user";
@@ -165,7 +165,7 @@ function projectCognitiveState(input: AuthorBrainTruth, state: CognitiveState): 
     facts: [...new Set([...subjectFacts, ...semanticFacts, ...input.facts])].slice(0, 120),
     sourceMoments: [...new Set([...currentEvents, ...semanticEvents, ...input.sourceMoments])].slice(0, 64),
     memoryContext: [...new Set([
-      ...(state.patterns.map((pattern) => `[pattern] ${pattern.statement}`)),
+      ...state.patterns.map((pattern) => `[pattern] ${pattern.statement}`),
       ...(input.memoryContext ?? []),
     ])].slice(0, 64),
   };
