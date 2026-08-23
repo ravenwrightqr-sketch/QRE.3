@@ -89,7 +89,7 @@ function semanticMemoryFromIdentity(input: AuthorBrainTruth, identity?: Identity
     entityIds: [subjectEntityId],
   }));
 
-  const requestFacts = input.facts.filter((value) => cleanSourceValue(value).length > 0).flatMap(cleanSourceValue).map((value, index) => ({
+  const requestFacts = input.facts.flatMap(cleanSourceValue).map((value, index) => ({
     id: `request-fact-${index + 1}`,
     entityId: subjectEntityId,
     kind: "context" as const,
@@ -113,21 +113,19 @@ function semanticMemoryFromIdentity(input: AuthorBrainTruth, identity?: Identity
     entityIds: [subjectEntityId],
   }));
 
-  const entities = [{
-    id: subjectEntityId,
-    kind: identity?.kind === "pet" ? "animal" as const : identity?.kind === "person" ? "person" as const : "other" as const,
-    name: subjectName,
-    canonicalKey: subjectName.toLowerCase(),
-    confidence: identity?.confidence ?? 0.8,
-    visibility: "shared" as const,
-    createdAt: now,
-    updatedAt: now,
-  }];
-
   return {
     assetId: identity?.identityId ?? "unknown",
     generatedAt: now,
-    entities,
+    entities: [{
+      id: subjectEntityId,
+      kind: identity?.kind === "pet" ? "animal" as const : identity?.kind === "person" ? "person" as const : "other" as const,
+      name: subjectName,
+      canonicalKey: subjectName.toLowerCase(),
+      confidence: identity?.confidence ?? 0.8,
+      visibility: "shared" as const,
+      createdAt: now,
+      updatedAt: now,
+    }],
     facts: [...memoryFacts, ...requestFacts],
     relations: [],
     events: [...recentEvents, ...requestEvents],
@@ -152,29 +150,51 @@ function ensureCognitiveState(input: AuthorBrainTruth): CognitiveState | null {
   });
 }
 
+function projectCognitiveState(input: AuthorBrainTruth, state: CognitiveState): AuthorBrainTruth {
+  const semanticFacts = state.facts.map((fact) => `${fact.predicate}: ${fact.value}`);
+  const semanticEvents = state.events.map((event) => event.summary);
+  const subjectFacts = state.facts
+    .filter((fact) => state.relevantFactIds.includes(fact.id))
+    .map((fact) => `${fact.predicate}: ${fact.value}`);
+  const currentEvents = state.events
+    .filter((event) => state.currentEventIds.includes(event.id))
+    .map((event) => event.summary);
+
+  return {
+    ...input,
+    facts: [...new Set([...subjectFacts, ...semanticFacts, ...input.facts])].slice(0, 120),
+    sourceMoments: [...new Set([...currentEvents, ...semanticEvents, ...input.sourceMoments])].slice(0, 64),
+    memoryContext: [...new Set([
+      ...(state.patterns.map((pattern) => `[pattern] ${pattern.statement}`)),
+      ...(input.memoryContext ?? []),
+    ])].slice(0, 64),
+  };
+}
+
 export async function authorMoviePipeline(input: AuthorBrainTruth & {
   cta?: { text: string; sourceIds?: string[] };
   presentationMode?: "auto" | "manual";
 }): Promise<{ authored: AuthorResult; movieBeatPlan: MovieBeatPlan }> {
   const sanitizedInput = sanitizeAuthorInput(input);
   const cognitiveState = ensureCognitiveState(sanitizedInput);
-  const explicitLens = String(sanitizedInput.lens ?? "").trim().toLowerCase();
+  const semanticInput = cognitiveState ? projectCognitiveState(sanitizedInput, cognitiveState) : sanitizedInput;
+  const explicitLens = String(semanticInput.lens ?? "").trim().toLowerCase();
   const safety = classifyAuthorCreativeSafety({
-    cognitivePlan: sanitizedInput.cognitivePlan,
-    premise: sanitizedInput.cognitivePlan?.premise,
+    cognitivePlan: semanticInput.cognitivePlan,
+    premise: semanticInput.cognitivePlan?.premise,
     backstopText: [
-      sanitizedInput.prompt,
-      sanitizedInput.subject,
-      sanitizedInput.place ?? "",
-      ...(sanitizedInput.facts ?? []),
-      ...(sanitizedInput.sourceMoments ?? []),
-      ...(sanitizedInput.memoryContext ?? []),
-      ...(sanitizedInput.trajectory ?? []),
-      ...(sanitizedInput.presenceSummary ?? []),
+      semanticInput.prompt,
+      semanticInput.subject,
+      semanticInput.place ?? "",
+      ...(semanticInput.facts ?? []),
+      ...(semanticInput.sourceMoments ?? []),
+      ...(semanticInput.memoryContext ?? []),
+      ...(semanticInput.trajectory ?? []),
+      ...(semanticInput.presenceSummary ?? []),
     ],
   });
   const cognitiveContext = {
-    ...(sanitizedInput.cognitiveContext ?? {}),
+    ...(semanticInput.cognitiveContext ?? {}),
     cognitiveState,
     creativeSafety: safety,
   };
@@ -185,10 +205,10 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
     : resolveLearnedCreativeLens(cognitiveContext);
 
   const authorInput: AuthorBrainTruth = protectedContext
-    ? { ...sanitizedInput, lens: "neutral", cognitiveContext }
+    ? { ...semanticInput, lens: "neutral", cognitiveContext }
     : learnedLens
-      ? { ...sanitizedInput, lens: learnedLens, cognitiveContext }
-      : { ...sanitizedInput, cognitiveContext };
+      ? { ...semanticInput, lens: learnedLens, cognitiveContext }
+      : { ...semanticInput, cognitiveContext };
 
   const authored = await authorBrainUniversal(authorInput);
   const movieBeatPlan = buildMovieBeatPlan({
@@ -201,8 +221,8 @@ export async function authorMoviePipeline(input: AuthorBrainTruth & {
         attentionRole: scene.kind ?? "movement",
         durationHintMs: 1400,
       })),
-    media: sanitizedInput.cognitiveContext?.media ?? [],
-    textBeatTarget: sanitizedInput.cognitiveContext?.textBeatTarget ?? 5,
+    media: semanticInput.cognitiveContext?.media ?? [],
+    textBeatTarget: semanticInput.cognitiveContext?.textBeatTarget ?? 5,
     mode: input.presentationMode ?? "auto",
     cta: input.cta,
   });
