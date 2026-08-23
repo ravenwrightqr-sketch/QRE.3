@@ -18,6 +18,9 @@ export type {
   TheStateHistoryEntry,
   TheStateMeasurement,
   TheStatePattern,
+  TheStateActorKind,
+  TheStatePermission,
+  TheStateActor,
   TheStateConfiguration,
 } from "./theState.js";
 export * from "./story.js";
