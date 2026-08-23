@@ -71,7 +71,6 @@ function patternKind(fact: MemoryFact): CognitiveState["patterns"][number]["kind
       return "relationship";
     case "event":
     case "outcome":
-    case "state":
       return "state_transition";
     default:
       return "recurrence";
