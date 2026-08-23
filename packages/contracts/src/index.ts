@@ -8,7 +8,17 @@ export type { ScanResponse } from "./scanResponse.js";
 export type { ScanEvent } from "./scanEvent.js";
 export type { MemorySnapshot } from "./memorySnapshot.js";
 export type { ServiceReceipt } from "./serviceReceipt.js";
-export type { TheState, TheStateIdentity, TheStateExperience } from "./theState.js";
+export type {
+  TheState,
+  TheStateIdentity,
+  TheStateCapability,
+  TheStateMode,
+  TheStateCurrent,
+  TheStateExperience,
+  TheStateHistoryEntry,
+  TheStateMeasurement,
+  TheStatePattern,
+} from "./theState.js";
 export * from "./story.js";
 export * from "./entitlements.js";
 export * from "./entitlementRules.js";
