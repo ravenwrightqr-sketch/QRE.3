@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
-
 import userRouter from "./routes/user.js";
 import adminRouter from "./routes/admin.js";
 import analyticsRouter from "./routes/analytics.js";
@@ -24,6 +23,7 @@ import rewardsRouter from "./routes/rewards.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import learningRouter from "./routes/learning.js";
 import stateRouter from "./routes/state.js";
+import collectRouter from "./routes/collect.js";
 import { createAnalyticsRepository } from "./repositories/analyticsRepository.js";
 import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 import aiRouter from "./routes/ai.js";
@@ -34,9 +34,7 @@ import { requireAuth } from "./middleware/requireAuth.js";
 
 const app = express();
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
-startAnalyticsSpineSubscriber(
-  createAnalyticsRepository(),
-);
+startAnalyticsSpineSubscriber(createAnalyticsRepository());
 const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173").split(",").map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin(origin, callback) { if (!origin) return callback(null, true); if (corsOrigins.includes(origin)) return callback(null, true); return callback(new Error("CORS origin denied")); }, credentials: true }));
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
@@ -60,6 +58,7 @@ app.use("/api/rewards", rewardsRouter);
 app.use("/api/knowledge", knowledgeRouter);
 app.use("/api/learning", learningRouter);
 app.use("/api/state", stateRouter);
+app.use("/api/collect", collectRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/dashboard-geoproof", geoProofRouter);
