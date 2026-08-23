@@ -58,8 +58,15 @@ function candidatePacket(input: AuthorBrainTruth) {
   const cognition = buildMovieCognition(input, ending);
   const top = cognition.hypotheses.slice(0, 6);
   const protectedMemorial = input.cognitiveContext?.creativeSafety?.class === "memorial";
-  const hypotheses = protectedMemorial
-    ? cognition.hypotheses.slice(0, 1).map((hypothesis) => ({ ...hypothesis, lens: { ...hypothesis.lens, id: "neutral", pressure: "Honor the supplied memory through grounded continuity without genre transformation." } }))
+  const hypotheses: typeof cognition.hypotheses = protectedMemorial
+    ? cognition.hypotheses.slice(0, 1).map((hypothesis) => ({
+        ...hypothesis,
+        lens: {
+          ...hypothesis.lens,
+          id: "neutral" as const,
+          pressure: "Honor the supplied memory through grounded continuity without genre transformation.",
+        },
+      }))
     : top;
   return { subject, reality, ending, cognition, hypotheses };
 }
@@ -193,22 +200,26 @@ export async function generateCreativeCandidates(input: AuthorBrainTruth): Promi
   recoveryRequired: boolean;
 }> {
   const packet = candidatePacket(input);
-  const model = await localModelGenerate([{ role: "user", content: buildPrompt(input, packet) }], "json", {
-    numPredict: 1800,
-    temperature: packet.cognition.selected.lens.id === "neutral" ? 0.38 : 0.72,
-  });
-  const rawCandidates = parseCandidates(model.text);
-  const evaluated = rawCandidates.flatMap((candidate) => {
-    const hypothesis = packet.hypotheses.find((item) => item.lens.id === candidate.frame) ?? packet.cognition.selected;
+  if (!packet.hypotheses.length) return { candidates: [], model: "none", modelCalls: 0, recoveryRequired: true };
+
+  const result = await localModelGenerate(
+    [{ role: "user", content: buildPrompt(input, packet) }],
+    "json",
+    { numPredict: Math.min(1800, Math.max(700, lineCount(input.prompt) * 140)), temperature: input.cognitiveContext?.creativeSafety?.class === "memorial" ? 0.26 : 0.72 },
+  );
+
+  const generated = parseCandidates(result.text).slice(0, packet.hypotheses.length);
+  const evaluated = generated.map((candidate, index) => {
+    const hypothesis = packet.hypotheses[index] ?? packet.hypotheses[0]!;
     const validation = validateCandidate(candidate, input, packet, hypothesis);
-    return [{ ...candidate, validation }];
+    return { ...candidate, validation };
   });
-  const valid = evaluated.filter((candidate) => candidate.validation.ok).sort((a, b) => b.validation.score - a.validation.score);
+  const viable = evaluated.filter((candidate) => candidate.validation.ok).sort((a, b) => b.validation.score - a.validation.score);
   return {
     candidates: evaluated,
-    winner: valid[0],
-    model: model.model,
+    winner: viable[0],
+    model: result.model,
     modelCalls: 1,
-    recoveryRequired: valid.length === 0,
+    recoveryRequired: !viable.length,
   };
 }
