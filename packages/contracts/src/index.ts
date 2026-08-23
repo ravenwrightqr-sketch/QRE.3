@@ -30,6 +30,7 @@ export type { GeoStory, GeoStoryScene, GeoStorySceneType, GeoLocation } from "./
 export * from "./analytics.js";
 export * from "./events.js";
 export * from "./flow.js";
+export * from "./adaptiveIntake.js";
 
 export * from "./experience/indexV13.js";
 export * from "./experience/memoryIntelligenceV14.js";
