@@ -20,6 +20,7 @@ export function createAssetRepository(): AssetRepository {
       });
       return {
         id: asset.id, slug: asset.slug, accountId: asset.accountId ?? null, paid: asset.paid, category: asset.category ?? null,
+        stateConfig: (asset.stateConfig ?? null) as AssetRecord["stateConfig"],
         flow: activeFlow ? { id: activeFlow.id, steps: activeFlow.steps.map((step) => ({ id: step.id, order: step.order, type: step.type, payload: step.payload as unknown })) } : null,
         experience: experiences[experiences.length - 1] ?? null,
         experiences,
