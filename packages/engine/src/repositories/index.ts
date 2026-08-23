@@ -2,7 +2,7 @@ import type { AnalyticsEventType, TheStateConfiguration } from "@qre/contracts";
 /** QRE ENGINE REPOSITORY CONTRACTS */
 export type FlowStepRecord={id:string;order:number;type:string;payload:unknown};export type FlowRecord={id:string;steps:FlowStepRecord[]};
 export type AssetExperienceRecord={id:string;title:string|null;sourcePrompt:string|null;blueprint:unknown;createdAt?:string};
-export type AssetRecord={id:string;slug:string;accountId:string|null;paid:boolean;category:string|null;stateConfig?:TheStateConfiguration|null;flow:FlowRecord|null;experience?:AssetExperienceRecord|null;experiences?:AssetExperienceRecord[]};
+export type AssetRecord={id:string;slug:string;accountId:string|null;ownerId:string|null;paid:boolean;category:string|null;stateConfig?:TheStateConfiguration|null;flow:FlowRecord|null;experience?:AssetExperienceRecord|null;experiences?:AssetExperienceRecord[]};
 export interface AssetRepository{findBySlug(slug:string):Promise<AssetRecord|null>}
 export interface SessionRepository{create(input:{assetId:string;flowId?:string|null}):Promise<{id:string}>;update(sessionId:string,data:Record<string,unknown>):Promise<void>}
 export interface AccessRepository{findAssetAccessState(assetId:string):Promise<{id:string;slug:string;paid:boolean;accountId:string|null;ownershipStatus:string|null;ownerTier:string}|null>}
