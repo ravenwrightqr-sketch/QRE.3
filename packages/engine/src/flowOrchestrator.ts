@@ -1,6 +1,5 @@
-import { trackEvent } from "./analytics/trackEvent.js";
+import { emitSpineEvent } from "./spine/eventSpine.js";
 import type {
-  AnalyticsRepository,
   PresenceRepository,
   GeoMemoryRepository,
 } from "./repositories/index.js";
@@ -19,7 +18,6 @@ export async function runFlowActions(
   assetId: string,
   geo?: FlowRuntimeGeo,
   userId?: string,
-  analyticsRepository?: AnalyticsRepository,
   presenceRepository?: PresenceRepository,
   geoMemoryRepository?: GeoMemoryRepository,
 ) {
@@ -28,39 +26,51 @@ export async function runFlowActions(
   for (let i = 0; i < sorted.length; i += 1) {
     const moment = sorted[i];
 
-    if (analyticsRepository) {
-      await trackEvent(analyticsRepository, {
-        assetId,
-        sessionId,
-        stepIndex: i,
-        type: "FLOW_STEP",
-        meta: { momentType: moment.type },
-      });
-    }
+    await emitSpineEvent({
+      type: "FLOW_STEP",
+      assetId,
+      sessionId,
+      stepIndex: i,
+      meta: {
+        momentType: moment.type,
+      },
+    });
 
     if (moment.type === "location") {
       const meta = moment.meta ?? {};
+
       if (meta.geoMemory === true && geo && presenceRepository) {
         await checkIn(
-          { assetId, sessionId, userId, geo },
+          {
+            assetId,
+            sessionId,
+            userId,
+            geo,
+          },
           presenceRepository,
           geoMemoryRepository,
         );
       }
     }
 
-    const duration = typeof moment.meta?.duration === "number" ? moment.meta.duration : 0;
+    const duration =
+      typeof moment.meta?.duration === "number"
+        ? moment.meta.duration
+        : 0;
+
     if (duration > 0) {
-      await new Promise((resolve) => setTimeout(resolve, duration));
+      await new Promise((resolve) =>
+        setTimeout(resolve, duration),
+      );
     }
   }
 
-  if (analyticsRepository) {
-    await trackEvent(analyticsRepository, {
-      assetId,
-      sessionId,
-      type: "FLOW_COMPLETE",
-      meta: { steps: sorted.length },
-    });
-  }
+  await emitSpineEvent({
+    type: "FLOW_COMPLETE",
+    assetId,
+    sessionId,
+    meta: {
+      steps: sorted.length,
+    },
+  });
 }

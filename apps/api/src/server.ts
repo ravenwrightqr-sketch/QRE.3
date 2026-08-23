@@ -23,6 +23,8 @@ import quickExperienceRouter from "./routes/quickExperience.js";
 import rewardsRouter from "./routes/rewards.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import learningRouter from "./routes/learning.js";
+import { createAnalyticsRepository } from "./repositories/analyticsRepository.js";
+import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 import aiRouter from "./routes/ai.js";
 import { aiConfigured, aiProviderName } from "./services/aiProvider.js";
 import { authRoutes } from "./routes/auth.js";
@@ -31,6 +33,9 @@ import { requireAuth } from "./middleware/requireAuth.js";
 
 const app = express();
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
+startAnalyticsSpineSubscriber(
+  createAnalyticsRepository(),
+);
 const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173").split(",").map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin(origin, callback) { if (!origin) return callback(null, true); if (corsOrigins.includes(origin)) return callback(null, true); return callback(new Error("CORS origin denied")); }, credentials: true }));
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));

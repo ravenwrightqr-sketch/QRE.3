@@ -31,3 +31,14 @@ export * from "./cogauthor/identityState.js";
 export * from "./cogauthor/cognitiveAuthorContext.js";
 export * from "./cogauthor/movieBeatPlan.js";
 export * from "./experience/index.js";
+export {
+  ANALYTICS_EVENT_DEFINITIONS,
+  ANALYTICS_EVENT_REGISTRY,
+  getAnalyticsEventDefinition,
+} from "./analyticsRegistry.js";
+
+export type {
+  AnalyticsEventDefinition,
+  AnalyticsEventCategory,
+  AnalyticsEventSource,
+} from "./analyticsRegistry.js";

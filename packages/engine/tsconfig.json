@@ -2,36 +2,30 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
     "rootDir": "src",
     "outDir": "dist",
-
     "strict": true,
     "skipLibCheck": true,
-
     "declaration": true,
     "declarationMap": true,
-
     "emitDeclarationOnly": false,
-
     "types": ["node"],
-
     "baseUrl": ".",
-     
     "paths": {
       "@qre/contracts": ["../contracts/dist"],
       "@qre/db": ["../db/src"],
       "@qre/api": ["../../apps/api/src"]
     },
-
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-
-  
-  "exclude": ["dist", "node_modules"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "spine-presence-acceptance.ts",
+    "spine-flow-acceptance.ts"
+  ]
 }

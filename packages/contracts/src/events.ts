@@ -113,7 +113,11 @@ export const EngineEventTypes = {
   AI_MEMORY_USED:
     "AI_MEMORY_USED",
 
+    AI_MEMORY_LEARNED:
+    "AI_MEMORY_LEARNED",
 
+   AI_CINEMATIC_DECISION:
+    "AI_CINEMATIC_DECISION",
 
   /**
    * =========================

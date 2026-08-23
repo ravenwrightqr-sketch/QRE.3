@@ -211,3 +211,8 @@ USER INPUT
 → stronger IdentityState
 → materially changed next experience
 ```
+✅ emitted event exists in code/contracts
+✅ event exists in Prisma schema
+✅ migration exists
+✅ migration deployed to live DB
+✅ real persistence test passes
