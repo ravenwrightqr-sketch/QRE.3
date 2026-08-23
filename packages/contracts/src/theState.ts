@@ -60,6 +60,13 @@ export type TheStatePattern = {
   metadata?: Record<string, unknown>;
 };
 
+export type TheStateConfiguration = {
+  capabilities?: TheStateCapability[];
+  modes?: TheStateMode[];
+  defaultModeId?: string | null;
+  current?: TheStateCurrent;
+};
+
 /**
  * Canonical identity/state container beneath experiences.
  *
