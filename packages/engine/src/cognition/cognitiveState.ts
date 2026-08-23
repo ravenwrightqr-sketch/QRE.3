@@ -61,6 +61,23 @@ function relevantEvents(prompt: string, subjectIds: Set<string>, memory: MemoryC
   return unique(ranked.filter((item) => item.score > 0).map((item) => item.event)).slice(0, 48);
 }
 
+function patternKind(fact: MemoryFact): CognitiveState["patterns"][number]["kind"] {
+  switch (fact.kind) {
+    case "preference":
+      return "preference";
+    case "behavior":
+      return "behavior";
+    case "relationship":
+      return "relationship";
+    case "event":
+    case "outcome":
+    case "state":
+      return "state_transition";
+    default:
+      return "recurrence";
+  }
+}
+
 function buildPatterns(facts: MemoryFact[]): CognitiveState["patterns"] {
   const groups = new Map<string, MemoryFact[]>();
   for (const fact of facts) {
@@ -74,7 +91,7 @@ function buildPatterns(facts: MemoryFact[]): CognitiveState["patterns"] {
     .filter(([, group]) => group.length >= 2)
     .map(([key, group]) => ({
       id: `pattern-${++index}`,
-      kind: group[0]?.kind === "preference" ? "preference" : group[0]?.kind === "behavior" ? "behavior" : "recurrence",
+      kind: patternKind(group[0]!),
       statement: `${group[0]!.predicate}: ${group[0]!.value}`,
       confidence: Math.min(1, Math.max(...group.map((fact) => fact.confidence)) + Math.min(0.2, (group.length - 2) * 0.05)),
       supportingFactIds: group.map((fact) => fact.id),
