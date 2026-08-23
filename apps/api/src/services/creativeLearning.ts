@@ -1,5 +1,7 @@
 import { db } from "@qre/db";
+import type { AnalyticsRepository } from "@qre/engine";
 import { getAutonomousLearning } from "./autonomousLearning.js";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 
 export type CreativeFeedbackDecision = "accepted" | "rejected" | "selected";
 
@@ -38,27 +40,25 @@ export async function recordCreativeFeedback(input: {
   styleTags?: string[];
   trajectory?: string;
   score?: number;
-}): Promise<void> {
+}, analyticsRepository: AnalyticsRepository = createAnalyticsRepository()): Promise<void> {
   const type = input.decision === "accepted"
     ? "AI_CREATIVE_ACCEPTED"
     : input.decision === "selected"
       ? "AI_VARIATION_SELECTED"
       : "AI_CREATIVE_REJECTED";
 
-  await db.analyticsEvent.create({
-    data: {
-      assetId: input.assetId,
-      type,
-      meta: {
-        userId: input.userId ?? null,
-        prompt: clean(input.prompt).slice(0, 4000),
-        draft: clean(input.draft).slice(0, 12000),
-        feedback: clean(input.feedback).slice(0, 4000),
-        styleTags: unique(input.styleTags ?? []).slice(0, 20),
-        trajectory: clean(input.trajectory).slice(0, 120),
-        score: typeof input.score === "number" && Number.isFinite(input.score) ? input.score : null,
-        recordedAt: new Date().toISOString(),
-      },
+  await analyticsRepository.trackEvent({
+    assetId: input.assetId,
+    type,
+    meta: {
+      userId: input.userId ?? null,
+      prompt: clean(input.prompt).slice(0, 4000),
+      draft: clean(input.draft).slice(0, 12000),
+      feedback: clean(input.feedback).slice(0, 4000),
+      styleTags: unique(input.styleTags ?? []).slice(0, 20),
+      trajectory: clean(input.trajectory).slice(0, 120),
+      score: typeof input.score === "number" && Number.isFinite(input.score) ? input.score : null,
+      recordedAt: new Date().toISOString(),
     },
   });
 }
