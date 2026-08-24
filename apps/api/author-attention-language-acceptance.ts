@@ -36,7 +36,7 @@ const events = facts.map((summary, index) => ({
 
 const cognitiveState = buildCognitiveState({
   prompt,
-  subjectTruth: { name: subject, kind: "person", identityFacts: [], provenance: "prompt" },
+  subjectTruth: { name: subject, kind: "person", identityFacts: [], provenance: "explicit" },
   memoryContext: {
     assetId: entityId,
     generatedAt: now,
