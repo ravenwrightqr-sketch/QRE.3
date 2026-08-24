@@ -4,6 +4,7 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
+import { looksLikeIdentityAssertion } from "@qre/contracts";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -231,17 +232,20 @@ export function buildAuthorRealityGraph(input: {
 
   const rawReality = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? [])];
   const fragments = splitReality(rawReality);
-  const atomicEvidence: RealityEvidence[] = fragments.map((text, index) => ({ id: `evidence-atomic-${index + 1}`, text, kind: "fact" }));
+  const identityFragments = fragments.filter((text) => looksLikeIdentityAssertion(text, input.subject));
+  const experienceFragments = fragments.filter((text) => !looksLikeIdentityAssertion(text, input.subject));
+  const atomicIdentityEvidence: RealityEvidence[] = identityFragments.map((text, index) => ({ id: `evidence-identity-atomic-${index + 1}`, text, kind: "identity" }));
+  const atomicEvidence: RealityEvidence[] = experienceFragments.map((text, index) => ({ id: `evidence-atomic-${index + 1}`, text, kind: "fact" }));
   const events = atomicEvidence.map((source, index) => event(source.text, [source.id], input.subject, input.place, index));
   const relations = buildRelationships(events, input.subject);
   const sourceText = [input.prompt, ...rawReality].join(" ");
 
   return {
-    evidence: [...evidenceItems, ...atomicEvidence],
+    evidence: [...evidenceItems, ...atomicIdentityEvidence, ...atomicEvidence],
     events,
     relations,
     unresolvedTensions: deriveTensions(events, relations, sourceText),
-    recurringSignals: deriveRecurringSignals(fragments, input.memoryContext, input.trajectory),
-    sensorySignals: deriveSensorySignals(fragments),
+    recurringSignals: deriveRecurringSignals(experienceFragments, input.memoryContext, input.trajectory),
+    sensorySignals: deriveSensorySignals(experienceFragments),
   };
 }
