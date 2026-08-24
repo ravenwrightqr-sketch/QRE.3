@@ -14,20 +14,11 @@ export type AuthorCognitionInput = {
   priorStrategies?: string[];
   round?: number;
   movieMode?: boolean;
+  returning?: boolean;
 };
 
-export type AttentionCandidate = {
-  strategy: string;
-  reason: string;
-  score: number;
-};
-
-export type CharacterFrameCandidate = {
-  frame: string;
-  reason: string;
-  confidence: number;
-};
-
+export type AttentionCandidate = { strategy: string; reason: string; score: number };
+export type CharacterFrameCandidate = { frame: string; reason: string; confidence: number };
 export type CharacterRead = {
   coreTraits: string[];
   contradictions: string[];
@@ -38,7 +29,6 @@ export type CharacterRead = {
   allowedMoves: string[];
   avoidedMoves: string[];
 };
-
 export type AuthorCognitivePlan = {
   round: number;
   mode: "grounded" | "concept" | "living_memory" | "service" | "voice_first";
@@ -59,49 +49,28 @@ export type AuthorCognitivePlan = {
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const uniq = (values: readonly unknown[], limit = 24): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+const uniq = (values: readonly unknown[], limit = 24): string[] => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
 function modeFor(input: AuthorCognitionInput): AuthorCognitivePlan["mode"] {
   const text = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
   const evidence = input.facts.length + input.sourceMoments.length + (input.memoryContext?.length ?? 0);
-  if (/memory|returning|chapter|again|previous visit/.test(text) || (input.round ?? 1) > 1) return evidence ? "living_memory" : "concept";
+  if (/memory|returning|chapter|again|previous visit/.test(text) || (input.round ?? 1) > 1 || input.returning) return evidence ? "living_memory" : "concept";
   if (evidence) return /service|receipt|visit|appointment|cleaning|groom|repair|barber|salon|mechanic/.test(text) ? "service" : "grounded";
   return "concept";
 }
 
 function relationStrengthToEndpoint(graph: RealityGraph, eventId: string, endpointId: string): number {
-  return metric(
-    graph.relations
-      .filter((r) => (r.from === eventId && r.to === endpointId) || (r.to === eventId && r.from === endpointId))
-      .reduce((sum, r) => sum + r.strength, 0),
-  );
+  return metric(graph.relations.filter((r) => (r.from === eventId && r.to === endpointId) || (r.to === eventId && r.from === endpointId)).reduce((sum, r) => sum + r.strength, 0));
 }
-
-function incidentStrength(graph: RealityGraph, eventId: string): number {
-  return metric(graph.relations.filter((r) => r.from === eventId || r.to === eventId).reduce((sum, r) => sum + r.strength, 0));
-}
-
-function eventSpecificity(label: string): number {
-  const words = new Set(label.toLowerCase().split(/[^a-z0-9'-]+/i).filter((x) => x.length > 2));
-  return metric(Math.min(words.size, 8) / 8);
-}
-
-function chooseEndpoint(graph?: RealityGraph): string {
-  return graph?.events[graph.events.length - 1]?.id ?? "";
-}
-
-function relationBetween(graph: RealityGraph, a: string, b: string): RealityRelation | undefined {
-  return graph.relations
-    .filter((r) => (r.from === a && r.to === b) || (r.from === b && r.to === a))
-    .sort((x, y) => y.strength - x.strength)[0];
-}
+function incidentStrength(graph: RealityGraph, eventId: string): number { return metric(graph.relations.filter((r) => r.from === eventId || r.to === eventId).reduce((sum, r) => sum + r.strength, 0)); }
+function eventSpecificity(label: string): number { return metric(Math.min(new Set(label.toLowerCase().split(/[^a-z0-9'-]+/i).filter((x) => x.length > 2)).size, 8) / 8); }
+function chooseEndpoint(graph?: RealityGraph): string { return graph?.events[graph.events.length - 1]?.id ?? ""; }
+function relationBetween(graph: RealityGraph, a: string, b: string): RealityRelation | undefined { return graph.relations.filter((r) => (r.from === a && r.to === b) || (r.from === b && r.to === a)).sort((x, y) => y.strength - x.strength)[0]; }
+function callbackScore(graph: RealityGraph): number { return graph.recurringSignals.length ? metric(Math.min(graph.recurringSignals.length, 4) / 4) : 0; }
 
 function repairMovieTrajectory(candidate: LatentMovieCandidate, graph: RealityGraph): LatentMovieCandidate {
   const endpointId = chooseEndpoint(graph);
-  if (!endpointId || !graph.events.length) return candidate;
-
   const endpoint = graph.events.find((e) => e.id === endpointId);
   const nonEndpoint = graph.events.filter((e) => e.id !== endpointId);
   if (!endpoint || !nonEndpoint.length) return candidate;
@@ -111,42 +80,24 @@ function repairMovieTrajectory(candidate: LatentMovieCandidate, graph: RealityGr
     const bScore = relationStrengthToEndpoint(graph, b.id, endpointId) * 0.55 + incidentStrength(graph, b.id) * 0.3 + eventSpecificity(b.label) * 0.15;
     return bScore - aScore;
   });
-
   const existing = new Set(candidate.trajectory.flatMap((step) => step.eventIds));
   const opening = graph.events.find((e) => existing.has(e.id)) ?? ranked[0];
   const carriers = ranked.filter((e) => e.id !== opening.id).slice(0, 2);
-
-  const steps = [
-    {
-      order: 1,
-      operation: "establish" as const,
-      eventIds: [opening.id],
-      viewerChange: `Establish supplied evidence: ${opening.label}.`,
-      nextQuestion: "What does this detail make worth noticing next?",
-    },
-  ];
+  const trajectory: LatentMovieCandidate["trajectory"] = [{ order: 1, operation: "establish", eventIds: [opening.id], viewerChange: `Establish supplied evidence: ${opening.label}.`, nextQuestion: "What does this detail make worth noticing next?" }];
 
   for (const carrier of carriers) {
     const relation = relationBetween(graph, carrier.id, endpointId) ?? relationBetween(graph, opening.id, carrier.id);
     if (!relation) continue;
-    steps.push({
-      order: steps.length + 1,
-      operation: relation.kind === "repeats" ? "recur" as const : relation.kind === "contrasts" ? "contrast" as const : "reframe" as const,
+    trajectory.push({
+      order: trajectory.length + 1,
+      operation: relation.kind === "repeats" ? "recur" : relation.kind === "contrasts" ? "contrast" : "reframe",
       eventIds: [carrier.id, relation.to === endpointId || relation.from === endpointId ? endpointId : opening.id],
       viewerChange: `The supplied relationship changes the reading: ${relation.kind} involving ${carrier.label}.`,
       nextQuestion: "What becomes different about the ending because of this?",
     });
   }
+  trajectory.push({ order: trajectory.length + 1, operation: "payoff", eventIds: [endpointId], viewerChange: `Land the supplied endpoint: ${endpoint.label}.`, nextQuestion: "What is now true at the supplied ending?" });
 
-  steps.push({
-    order: steps.length + 1,
-    operation: "payoff" as const,
-    eventIds: [endpointId],
-    viewerChange: `Land the supplied endpoint: ${endpoint.label}.`,
-    nextQuestion: "What is now true at the supplied ending?",
-  });
-
-  const trajectory = steps.slice(0, 6);
   const thesis = candidate.storyThesis ?? {
     initialReading: candidate.hypothesis?.[0] ?? candidate.lens,
     semanticTurn: trajectory.slice(1, -1).map((s) => s.viewerChange).join(" ") || "A supplied relationship changes the reading.",
@@ -155,11 +106,10 @@ function repairMovieTrajectory(candidate: LatentMovieCandidate, graph: RealityGr
     payoffDependency: endpoint.label,
     counterfactualDependency: metric(trajectory.length >= 3 ? 0.8 : 0.4),
   };
-
   return {
     ...candidate,
     anchorEventIds: uniq([opening.id, ...carriers.map((e) => e.id), endpointId], 6),
-    trajectory,
+    trajectory: trajectory.slice(0, 6),
     payoff: endpoint.label,
     unresolvedQuestion: "What did the preceding evidence make inevitable about the supplied ending?",
     evidence: uniq([...candidate.evidence, opening.label, ...carriers.map((e) => e.label), endpoint.label], 12),
@@ -167,60 +117,36 @@ function repairMovieTrajectory(candidate: LatentMovieCandidate, graph: RealityGr
     storyThesis: thesis,
     specificity: Math.max(candidate.specificity, eventSpecificity(opening.label)),
     consequencePotential: Math.max(candidate.consequencePotential, metric(trajectory.length / 6)),
-    callbackPotential: Math.max(candidate.callbackPotential, inputlessCallbackScore(graph)),
+    callbackPotential: Math.max(candidate.callbackPotential, callbackScore(graph)),
     compressionPotential: Math.max(candidate.compressionPotential, metric(1 - Math.max(0, trajectory.length - 4) * 0.12)),
     score: metric(candidate.score * 0.55 + metric(trajectory.length / 6) * 0.2 + metric(candidate.truthRisk <= 0.25 ? 1 : 0.6) * 0.15 + metric(candidate.specificity) * 0.1),
   };
 }
 
-function inputlessCallbackScore(graph: RealityGraph): number {
-  return graph.recurringSignals.length ? metric(Math.min(graph.recurringSignals.length, 4) / 4) : 0;
-}
-
 function chooseMovies(input: AuthorCognitionInput, raw: LatentMovieCandidate[]): LatentMovieCandidate[] {
-  if (input.movieMode === false) return [];
-  if (!input.realityGraph || !raw.length) return [];
+  if (input.movieMode === false || !input.realityGraph || !raw.length) return [];
   const repaired = raw.map((candidate) => repairMovieTrajectory(candidate, input.realityGraph!));
   const endpointId = chooseEndpoint(input.realityGraph);
-  return repaired
-    .filter((candidate) => candidate.truthRisk <= 0.45)
-    .filter((candidate) => candidate.trajectory.some((step) => step.operation === "payoff" && step.eventIds.includes(endpointId)))
-    .sort((a, b) => {
-      const aScore = a.score + a.consequencePotential * 0.25 + a.specificity * 0.15 - a.truthRisk * 0.4;
-      const bScore = b.score + b.consequencePotential * 0.25 + b.specificity * 0.15 - b.truthRisk * 0.4;
-      return bScore - aScore;
-    })
-    .slice(0, 6);
+  return repaired.filter((candidate) => candidate.truthRisk <= 0.45).filter((candidate) => candidate.trajectory.some((step) => step.operation === "payoff" && step.eventIds.includes(endpointId))).sort((a, b) => {
+    const aScore = a.score + a.consequencePotential * 0.25 + a.specificity * 0.15 - a.truthRisk * 0.4;
+    const bScore = b.score + b.consequencePotential * 0.25 + b.specificity * 0.15 - b.truthRisk * 0.4;
+    return bScore - aScore;
+  }).slice(0, 6);
 }
 
 function traits(input: AuthorCognitionInput): string[] {
   const all = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? [])];
   return uniq(all.filter((v) => /\b(?:nervous|scared|fierce|sweet|gentle|wild|goofy|stubborn|proud|confident|quiet|loud|funny|mischievous|tired|calm|excited|happy|angry|afraid)\b/i.test(v)), 8);
 }
-
 function contradictions(input: AuthorCognitionInput): string[] {
   const graph = input.realityGraph;
-  const result = uniq([
-    ...(graph?.unresolvedTensions ?? []),
-    ...(graph?.relations.filter((r) => r.kind === "contrasts" || r.kind === "changes" || r.kind === "recontextualizes").slice(0, 6).map((r) => `supplied relationship: ${r.kind}`) ?? []),
-  ], 10);
-  return result.length ? result : [];
+  return uniq([...(graph?.unresolvedTensions ?? []), ...(graph?.relations.filter((r) => r.kind === "contrasts" || r.kind === "changes" || r.kind === "recontextualizes").slice(0, 6).map((r) => `supplied relationship: ${r.kind}`) ?? [])], 10);
 }
-
-function objectRelationships(input: AuthorCognitionInput): string[] {
-  return uniq(
-    input.realityGraph?.events
-      .filter((e) => e.entities.length > 1 || e.object || /object|bow|tag|keychain|kitchen|bathroom|door|house|car|room/i.test(e.label))
-      .map((e) => e.label) ?? [],
-    10,
-  );
-}
+function objectRelationships(input: AuthorCognitionInput): string[] { return uniq(input.realityGraph?.events.filter((e) => e.entities.length > 1 || e.object).map((e) => e.label) ?? [], 10); }
 
 function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undefined): CharacterFrameCandidate[] {
   const explicit = clean(input.lens);
-  if (explicit && explicit.toLowerCase() !== "let qre decide") {
-    return [{ frame: explicit, reason: "explicit user perspective", confidence: 0.95 }];
-  }
+  if (explicit && explicit.toLowerCase() !== "let qre decide") return [{ frame: explicit, reason: "explicit user perspective", confidence: 0.95 }];
   const relationKinds = new Set(input.realityGraph?.relations.map((r) => r.kind) ?? []);
   const out: CharacterFrameCandidate[] = [];
   if (relationKinds.has("contrasts")) out.push({ frame: "contrast", reason: "the supplied world contains a material contrast", confidence: 0.9 });
@@ -231,10 +157,7 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
 }
 
 function attentionCandidates(graph: RealityGraph | undefined, movieCandidates: LatentMovieCandidate[]): AttentionCandidate[] {
-  const relationKinds = graph?.relations.reduce<Record<string, number>>((acc, r) => {
-    acc[r.kind] = (acc[r.kind] ?? 0) + r.strength;
-    return acc;
-  }, {}) ?? {};
+  const relationKinds = graph?.relations.reduce<Record<string, number>>((acc, r) => { acc[r.kind] = (acc[r.kind] ?? 0) + r.strength; return acc; }, {}) ?? {};
   const candidates = [
     { strategy: "movie_discovery", reason: "find the strongest grounded interpretation in the supplied relationships", score: movieCandidates.length ? 90 : 55 },
     { strategy: "recontextualization", reason: "change what an earlier detail means without changing the fact", score: metric((relationKinds.recontextualizes ?? 0) / 2) * 100 },
@@ -252,9 +175,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const permanentTruths = uniq([...(input.facts ?? []), ...(input.memoryContext ?? [])], 30);
   const currentEvidence = uniq([...(input.sourceMoments ?? []), ...(graph?.events.map((e) => e.label) ?? [])], 30);
   const contradictionList = contradictions(input);
-  const rawMovies = graph
-    ? searchLatentMovieCandidates({ graph, subject: input.subject, lens: input.lens, limit: 8 })
-    : [];
+  const rawMovies = graph ? searchLatentMovieCandidates({ graph, subject: input.subject, lens: input.lens, limit: 8 }) : [];
   const latentMovieCandidates = chooseMovies(input, rawMovies);
   if (graph) graph.latentMovieCandidates = latentMovieCandidates;
   const movie = latentMovieCandidates[0];
@@ -272,7 +193,6 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const attention = attentionCandidates(graph, latentMovieCandidates);
   const chosenAttentionStrategy = attention[0]?.strategy ?? "movie_discovery";
   const callbackTargets = uniq([...(graph?.recurringSignals ?? []), ...(input.memoryContext ?? []), ...(input.priorScenes ?? [])], round > 1 ? 14 : 8);
-
   return {
     round,
     mode,
@@ -284,29 +204,11 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     attentionCandidates: attention,
     latentMovieCandidates,
     chosenAttentionStrategy,
-    operatorMix: movie
-      ? movie.trajectory.map((step) => step.operation).slice(0, 8)
-      : ["observe", "interpret", "payoff"],
+    operatorMix: movie ? movie.trajectory.map((step) => step.operation).slice(0, 8) : ["observe", "interpret", "payoff"],
     callbackTargets,
-    antiRepetitionRules: [
-      "Do not replay an earlier chapter unless recurrence changes meaning.",
-      "Do not turn every source item into its own cut.",
-      "Prefer graph relationships over isolated source-word repetition.",
-      "The endpoint belongs to reality and must remain the endpoint.",
-    ],
-    sceneRules: [
-      "A beat is one perceivable change in the viewer's mental model.",
-      "Later beats inherit earlier material and change its meaning or pressure.",
-      "Viewer text is realization, not Beat Graph metadata.",
-      "No invented people, objects, locations, actions, dialogue, reactions, chronology, or outcomes.",
-      "Finish when the supplied payoff becomes inevitable.",
-    ],
-    authorBrief: [
-      `Selected movie: ${movie?.hypothesis?.[0] ?? movie?.payoff ?? "none"}.`,
-      `Movie trajectory length: ${movie?.trajectory.length ?? 0}.`,
-      `Reality graph: ${graph?.events.length ?? 0} events / ${graph?.relations.length ?? 0} relations.`,
-      `Persistent context: ${input.memoryContext?.length ?? 0} supplied memory items.`,
-    ],
+    antiRepetitionRules: ["Do not replay an earlier chapter unless recurrence changes meaning.", "Do not turn every source item into its own cut.", "Prefer graph relationships over isolated source-word repetition.", "The endpoint belongs to reality and must remain the endpoint."],
+    sceneRules: ["A beat is one perceivable change in the viewer's mental model.", "Later beats inherit earlier material and change its meaning or pressure.", "Viewer text is realization, not Beat Graph metadata.", "No invented people, objects, locations, actions, dialogue, reactions, chronology, or outcomes.", "Finish when the supplied payoff becomes inevitable."],
+    authorBrief: [`Selected movie: ${movie?.hypothesis?.[0] ?? movie?.payoff ?? "none"}.`, `Movie trajectory length: ${movie?.trajectory.length ?? 0}.`, `Reality graph: ${graph?.events.length ?? 0} events / ${graph?.relations.length ?? 0} relations.`, `Persistent context: ${input.memoryContext?.length ?? 0} supplied memory items.`],
     realityGraph: graph,
   };
 }
