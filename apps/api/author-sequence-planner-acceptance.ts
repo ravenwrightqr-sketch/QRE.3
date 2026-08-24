@@ -23,10 +23,7 @@ const graph = buildAuthorRealityGraph({
   trajectory: [],
 });
 
-const envelope = buildAuthorRealityEnvelope({
-  graph,
-  subject: "Coco",
-});
+const envelope = buildAuthorRealityEnvelope({ graph, subject: "Coco" });
 
 const plan = buildGroundedAuthorSequence({
   graph,
@@ -36,11 +33,25 @@ const plan = buildGroundedAuthorSequence({
 });
 
 assert(plan, "planner returned no plan");
-assert(plan.beats.length >= 3, `rich Coco reality collapsed to ${plan.beats.length} beats`);
-assert(plan.beats.length <= 6, `planner produced ${plan.beats.length} beats; short-film cap drifted`);
-assert(plan.beats.at(-1)?.eventIds.includes(envelope.endpointEventId), "source-derived endpoint is not the final beat");
-assert(plan.beats.at(-1)?.attentionFunction === "payoff", "final beat is not a payoff");
-assert(plan.beats.every((beat) => beat.eventIds.every((id) => graph.events.some((event) => event.id === id))), "planner emitted an unknown reality event id");
+assert(plan.beats.length >= 3, `reality collapsed to ${plan.beats.length} beats`);
+assert(plan.beats.length <= 6, `planner produced ${plan.beats.length} beats`);
+assert(plan.beats.at(-1)?.eventIds.includes(envelope.endpointEventId), "source endpoint is not final");
+assert(plan.beats.at(-1)?.attentionFunction === "payoff", "final beat is not payoff");
+assert(
+  plan.beats.every((beat) => beat.eventIds.every((id) => graph.events.some((event) => event.id === id))),
+  "planner emitted an unknown reality event id",
+);
+
+const selectedIds = plan.beats.flatMap((beat) => beat.eventIds);
+assert(selectedIds.includes("event-3"), "movie did not use the supplied opening tension");
+assert(
+  selectedIds.includes("event-1") || selectedIds.includes("event-2") || selectedIds.includes("event-6"),
+  "movie failed to discover character/object material beyond the opening and endpoint",
+);
+assert(
+  selectedIds.includes("event-6") || selectedIds.includes("event-2"),
+  "movie discovery missed both the callback object and positive counterpoint",
+);
 
 const withPresence = buildGroundedAuthorSequence({
   graph,
@@ -54,13 +65,23 @@ const withPresence = buildGroundedAuthorSequence({
 });
 
 assert(withPresence, "presence planner returned no plan");
-assert(withPresence.beats.some((beat) => beat.role === "arrival" || beat.role === "location"), "authorized check-in/geolocation did not become a film cut");
-assert(withPresence.beats.some((beat) => beat.role === "release"), "authorized checkout did not become a release film cut");
-assert(withPresence.beats.at(-1)?.eventIds.includes(envelope.endpointEventId), "presence insertion displaced the source-derived endpoint");
+assert(
+  withPresence.beats.some((beat) => beat.role === "arrival" || beat.role === "location"),
+  "authorized check-in/geolocation did not become a film cut",
+);
+assert(
+  withPresence.beats.some((beat) => beat.role === "release"),
+  "authorized checkout did not become a release film cut",
+);
+assert(
+  withPresence.beats.at(-1)?.eventIds.includes(envelope.endpointEventId),
+  "presence displaced the source endpoint",
+);
 assert(withPresence.beats.length <= 6, `presence composition produced ${withPresence.beats.length} beats`);
 
-console.log("AUTHOR SEQUENCE PLANNER ACCEPTANCE: PASS");
+console.log("AUTHOR MOVIE DISCOVERY ACCEPTANCE: PASS");
 console.log(`Coco beats=${plan.beats.length}`);
+console.log(`Coco eventIds=${selectedIds.join(" → ")}`);
 console.log(`Coco arc=${plan.attentionArc}`);
 console.log(`Presence beats=${withPresence.beats.length}`);
 console.log(`Presence roles=${withPresence.beats.map((beat) => beat.role).join(" → ")}`);
