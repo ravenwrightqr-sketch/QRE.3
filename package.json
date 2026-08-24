@@ -10,7 +10,7 @@
     "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
     "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-contract-ownership.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
-    "author:reality": "tsx ./apps/api/reality-authority-acceptance.ts",
+    "author:reality": "tsx ./apps/api/reality-authority-fast-input-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
@@ -43,6 +43,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "stripe": "^22.2.1",
-    "zustand": "^5.0.14"
+    "zod": "^4.4.3",
+    "zustand": "5.0.14"
   }
 }
