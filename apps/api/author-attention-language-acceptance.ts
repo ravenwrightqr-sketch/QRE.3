@@ -62,9 +62,30 @@ const cognitiveContext: CognitiveAuthorContext = {
     noveltyPressure: 0.95,
   },
   creativeSafety: { class: "ordinary", confidence: 1, evidence: [] },
-  provenanceFacts: facts.map((text) => ({ text, provenance: { source: "prompt", permissions: ["compress", "reframe", "callback", "derive_recurrence", "derive_significance"], forbiddenExpansions: [] } })),
+  provenanceFacts: facts.map((text, index) => ({
+    text,
+    provenance: {
+      factType: "event",
+      source: "event",
+      observedAt: new Date(Date.parse(now) + index * 1000).toISOString(),
+      entity: entityId,
+      confidence: 1,
+      permissions: ["compress", "reframe", "callback", "derive_recurrence", "derive_significance"],
+      forbiddenExpansions: [
+        "invent_person",
+        "invent_relationship",
+        "invent_place",
+        "invent_object",
+        "invent_body_detail",
+        "invent_dialogue",
+        "invent_literal_event",
+        "invent_chronology",
+        "invent_business_fact",
+        "invent_private_fact",
+      ],
+    },
+  })),
   identityState: null,
-  geo: null,
   presence: { isReturning: false, visitNumber: 1, summary: [], places: [] },
   analytics: { scans: 0, completions: 0, abandons: 0, replays: 0, ctaClicks: 0, errors: 0, engagement: 0, friction: 0 },
   media: [],
@@ -116,7 +137,17 @@ console.log(`poetryDetected=${poetry.test(output)}`);
 console.log(`model=${result.diagnostics?.model}`);
 console.log(`modelCalls=${result.diagnostics?.modelCalls}`);
 console.log(`quality=${result.diagnostics?.qualityStatus}`);
+console.log(`renderable=${result.diagnostics?.renderable}`);
 console.log(`provenance=${result.diagnostics?.provenanceGate}`);
+console.log(`candidateSequences=${result.diagnostics?.candidateSequences}`);
+console.log(`acceptedCandidates=${result.diagnostics?.acceptedCandidates}`);
+
+if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
+  console.log("\nRAW MODEL OUTPUT");
+  console.log(result.diagnostics?.rawModelOutput ?? "<none>");
+  console.log("\nREJECTED CANDIDATES");
+  console.dir(result.diagnostics?.rejectedCandidates ?? [], { depth: null });
+}
 
 assert.equal(result.diagnostics?.modelCalls, 1, "attention: one model call");
 assert.equal(result.diagnostics?.qualityStatus, "ACCEPTED", "attention: accepted output");
