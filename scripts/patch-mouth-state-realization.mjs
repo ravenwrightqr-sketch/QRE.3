@@ -6,7 +6,7 @@ const target = path.join(root, "apps/api/src/services/authorMouthCandidateSearch
 
 if (!fs.existsSync(target)) throw new Error(`MOUTH PATCH FAILED: missing ${target}`);
 
-let source = fs.readFileSync(target, "utf8");
+let source = fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n");
 const original = source;
 
 function replaceOnce(label, before, after) {
