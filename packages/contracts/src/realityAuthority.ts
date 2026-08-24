@@ -21,7 +21,6 @@ export type RealityAuthorityKind =
   | "memory";
 
 const IDENTITY_TERMS = /\b(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle|breed|type|kind|owner|partner|spouse)\b/i;
-const COPULA = /\b(?:is|was|are|were|=|:)$?/i;
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
