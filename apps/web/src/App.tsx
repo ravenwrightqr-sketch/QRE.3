@@ -1,5 +1,6 @@
 import {BrowserRouter,Routes,Route,Navigate} from "react-router-dom";
 import Login from "./pages/Login";
+import UniversalCreate from "./pages/UniversalCreate";
 import Dashboard from "./pages/Dashboard";
 import AssetDashboard from "./pages/AssetDashboard";
 import EventDashboard from "./pages/EventDashboard";
@@ -27,7 +28,8 @@ export default function App(){
   return <BrowserRouter><Routes>
     <Route path="/login" element={isAuthed?<Navigate to="/dashboard" replace/>:<Login/>}/>
     <Route path="/" element={isAuthed?<Navigate to="/dashboard"/>:<Navigate to="/login"/>}/>
-    <Route path="/dashboard" element={gate(<Dashboard/>)}/>
+    <Route path="/dashboard" element={gate(<UniversalCreate/>)}/>
+    <Route path="/dashboard/legacy" element={gate(<Dashboard/>)}/>
     <Route path="/dashboard/info" element={gate(<QreInfo/>)}/>
     <Route path="/dashboard/assets/:slug" element={gate(<AssetDashboard/>)}/>
     <Route path="/dashboard/assets/:slug/event" element={gate(<EventDashboard/>)}/>
