@@ -16,6 +16,7 @@ export * from "./moments/flowToMoments.js";
 export * from "./moments/toMoment.js";
 export { compileCognitiveExperience, messageText } from "./cognition/universalMind.js";
 export { buildWorldModel } from "./cognition/worldModel.js";
+export { buildWorldModelFromFastInput, normalizeFastInput } from "./cognition/fastInput.js";
 export type { UniversalMindContext, UniversalMindResult, WorldModel } from "./cognition/universalMind.js";
 export { summarizeCognitiveAnalytics } from "./cognition/cognitiveAnalytics.js";
 export { recommendMemories } from "./cognition/memoryRecommendations.js";
