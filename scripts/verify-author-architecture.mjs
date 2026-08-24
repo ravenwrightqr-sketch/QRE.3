@@ -93,8 +93,13 @@ if (!/buildAuthorCognitivePlan\s*\(/.test(canonicalSource)) {
 if (!/BEAT-DISCOVERY/.test(canonicalSource)) {
   fail("Master Author must contain an explicit beat-discovery stage");
 }
-if (!/MOUTH-REALIZATION/.test(canonicalSource)) {
-  fail("Master Author must contain an explicit mouth-realization stage");
+const hasCanonicalMouth =
+  /MOUTH-REALIZATION/.test(canonicalSource) ||
+  /buildMouthCandidateMessages\s*\(/.test(canonicalSource) &&
+  /selectBestMouthSequence\s*\(/.test(canonicalSource) &&
+  /buildRealizationSlots\s*\(/.test(canonicalSource);
+if (!hasCanonicalMouth) {
+  fail("Master Author must contain the canonical mouth-realization path: realization slots → candidate generation → sequence selection");
 }
 if (!/from\s+["'][^"']*authorCutPolicy\.js["']/.test(canonicalSource)) {
   fail("Master Author must import the canonical authorCutPolicy directly");
