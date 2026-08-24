@@ -13,7 +13,6 @@ const facts = [
   "Left 11:11 AM",
 ];
 const entityId = "elm-street-client-1";
-
 const prompt = [
   "Create a five-line housekeeping service video receipt.",
   "QRE attention style: interruption, curiosity, escalation, contrast, callback, anticipation, payoff.",
@@ -62,29 +61,15 @@ const cognitiveContext: CognitiveAuthorContext = {
     noveltyPressure: 0.95,
   },
   creativeSafety: { class: "ordinary", confidence: 1, evidence: [] },
-  provenanceFacts: facts.map((text, index) => ({
-    text,
-    provenance: {
-      factType: "event",
-      source: "event",
-      observedAt: new Date(Date.parse(now) + index * 1000).toISOString(),
-      entity: entityId,
-      confidence: 1,
-      permissions: ["compress", "reframe", "callback", "derive_recurrence", "derive_significance"],
-      forbiddenExpansions: [
-        "invent_person",
-        "invent_relationship",
-        "invent_place",
-        "invent_object",
-        "invent_body_detail",
-        "invent_dialogue",
-        "invent_literal_event",
-        "invent_chronology",
-        "invent_business_fact",
-        "invent_private_fact",
-      ],
-    },
-  })),
+  provenanceFacts: facts.map((text, index) => ({ text, provenance: {
+    factType: "event",
+    source: "event",
+    observedAt: new Date(Date.parse(now) + index * 1000).toISOString(),
+    entity: entityId,
+    confidence: 1,
+    permissions: ["compress", "reframe", "callback", "derive_recurrence", "derive_significance"],
+    forbiddenExpansions: ["invent_person", "invent_relationship", "invent_place", "invent_object", "invent_body_detail", "invent_dialogue", "invent_literal_event", "invent_chronology", "invent_business_fact", "invent_private_fact"],
+  } })),
   identityState: null,
   presence: { isReturning: false, visitNumber: 1, summary: [], places: [] },
   analytics: { scans: 0, completions: 0, abandons: 0, replays: 0, ctaClicks: 0, errors: 0, engagement: 0, friction: 0 },
@@ -112,20 +97,12 @@ const input: AuthorBrainTruth = {
 const result = await authorBrainUniversal(input);
 const lines = result.scenes.map((scene) => scene.text);
 const output = lines.join(" ").toLowerCase();
-
 const poetry = /\b(?:gleam|gleams|glows|hums|breathes|whispers|dances|dreams|poetic|beautiful|beautifully|quietly|silently|ritual|uncluttered|gracefully|magically|softly|poetically|atmosphere|storm|symphony)\b/i;
 const attention = /\b(?:then|next|but|still|again|until|already|first|last|only|now|yet|except|suddenly|round|one more|not yet|and then|this time)\b/i;
 const interruption = /^(?:\d{1,2}:\d{2}|[^.!?]{1,24}[:—-])|—|:\s*$/i;
 const anticipation = /\b(?:next|then|until|again|still|not yet|before|what happened|one more|this time|wait)\b/i;
 const payoff = /\b(?:over|done|complete|finished|back|again|round|settled|cleared|final|next|more|matter|counted|won|lost|held|left)\b/i;
-
-const attentionSignals = lines.reduce((count, line, index) => {
-  const signal = (attention.test(line) ? 1 : 0)
-    + (index < lines.length - 1 && anticipation.test(line) ? 1 : 0)
-    + (index < lines.length - 1 && interruption.test(line) ? 1 : 0)
-    + (index === lines.length - 1 && payoff.test(line) ? 1 : 0);
-  return count + signal;
-}, 0);
+const attentionSignals = lines.reduce((count, line, index) => count + (attention.test(line) ? 1 : 0) + (index < lines.length - 1 && anticipation.test(line) ? 1 : 0) + (index < lines.length - 1 && interruption.test(line) ? 1 : 0) + (index === lines.length - 1 && payoff.test(line) ? 1 : 0), 0);
 
 console.log("=".repeat(72));
 console.log("QRE ATTENTION LANGUAGE ACCEPTANCE · POETRY MUST LOSE");
@@ -141,13 +118,15 @@ console.log(`renderable=${result.diagnostics?.renderable}`);
 console.log(`provenance=${result.diagnostics?.provenanceGate}`);
 console.log(`candidateSequences=${result.diagnostics?.candidateSequences}`);
 console.log(`acceptedCandidates=${result.diagnostics?.acceptedCandidates}`);
-
-if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-  console.log("\nRAW MODEL OUTPUT");
-  console.log(result.diagnostics?.rawModelOutput ?? "<none>");
-  console.log("\nREJECTED CANDIDATES");
-  console.dir(result.diagnostics?.rejectedCandidates ?? [], { depth: null });
-}
+console.log(`selectedScore=${result.diagnostics?.selectedScore}`);
+console.log(`qualityFloor=${result.diagnostics?.qualityFloor}`);
+console.log(`recoveryRendererUsed=${result.diagnostics?.recoveryRendererUsed}`);
+console.log("\nRAW MODEL OUTPUT");
+console.log(result.diagnostics?.rawModelOutput ?? "<none>");
+console.log("\nREJECTED CANDIDATES");
+console.dir(result.diagnostics?.rejectedCandidates ?? [], { depth: null });
+console.log("\nATTENTION METRICS");
+console.dir(result.diagnostics?.attentionMetrics ?? [], { depth: null });
 
 assert.equal(result.diagnostics?.modelCalls, 1, "attention: one model call");
 assert.equal(result.diagnostics?.qualityStatus, "ACCEPTED", "attention: accepted output");
