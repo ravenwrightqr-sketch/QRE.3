@@ -19,20 +19,22 @@ function ensureReplace(text, pattern, replacement, label, alreadyApplied) {
   return replaceOnce(text, pattern, replacement, label);
 }
 
+const NL = "\\r?\\n";
+
 const brainPath = "apps/api/src/services/authorBrainUniversal.ts";
 let brain = read(brainPath);
 
 brain = ensureReplace(
   brain,
-  /import\s*\{\s*recoverBeatPlanFromLatentMovie\s*,?\s*\}\s*from\s*["']\.\/authorBeatPlanRecovery\.js["']\s*;?/m,
+  new RegExp(`import\\s*\\{\\s*recoverBeatPlanFromLatentMovie\\s*,?\\s*\\}\\s*from\\s*[\\"']\\.\\/authorBeatPlanRecovery\\.js[\\"']\\s*;?`, "m"),
   'import { buildGroundedAuthorSequence } from "./authorSequencePlanner.js";',
   "authorBrainUniversal.ts · replace latent-recovery authority with grounded sequence planner",
-  (text) => /buildGroundedAuthorSequence\s*\}/.test(text) || /buildGroundedAuthorSequence\s+from\s+["']\.\/authorSequencePlanner\.js["']/.test(text),
+  (text) => /buildGroundedAuthorSequence\s+from\s+["']\.\/authorSequencePlanner\.js["']/.test(text),
 );
 
 brain = ensureReplace(
   brain,
-  /function buildFallbackBeatPlan\([\s\S]*?\n\}\n\nfunction buildBeatMessages\(/m,
+  new RegExp(`function buildFallbackBeatPlan\\([\\s\\S]*?${NL}\\}\\s*${NL}\\s*function buildBeatMessages\\(`, "m"),
   `function buildFallbackBeatPlan(
   cognition: ReturnType<typeof buildAuthorCognitivePlan>,
   realityGraph: ReturnType<typeof buildAuthorRealityGraph>,
@@ -59,7 +61,7 @@ function buildBeatMessages(`,
 
 brain = ensureReplace(
   brain,
-  /let beatPlan =\s*buildFallbackBeatPlan\(\s*cognition,\s*realityGraph,\s*\);/m,
+  new RegExp(`let beatPlan =${NL}\\s*buildFallbackBeatPlan\\([\\s\\S]*?${NL}\\s*\\);`, "m"),
   `let beatPlan =
     buildFallbackBeatPlan(
       cognition,
@@ -68,12 +70,12 @@ brain = ensureReplace(
       { ...input, realityGraph },
     );`,
   "authorBrainUniversal.ts · invoke grounded planner with full reality and presence",
-  (text) => /buildFallbackBeatPlan\(\s*cognition,\s*realityGraph,\s*realityEnvelope,/m.test(text),
+  (text) => /buildFallbackBeatPlan\(\s*cognition,\s*realityGraph,\s*realityEnvelope,/.test(text),
 );
 
 brain = ensureReplace(
   brain,
-  /beatPlanRecovered:\s*Boolean\(\s*cognition\s*\.latentMovieCandidates\s*\?\.length,\s*\),/m,
+  new RegExp(`beatPlanRecovered:\\s*Boolean\\([\\s\\S]*?${NL}\\s*\\),`, "m"),
   `beatPlanRecovered: false,
         beatPlanSource: "grounded_sequence_planner",`,
   "authorBrainUniversal.ts · stop reporting latent recovery as authoritative planning",
@@ -82,7 +84,7 @@ brain = ensureReplace(
 
 brain = ensureReplace(
   brain,
-  /last\.content\s*\+=\s*`\s*\\n\\s*\\nQRE REPAIR FEEDBACK:\\n\$\{feedback\}`;/m,
+  new RegExp(`last\\.content\\s*\\+=\\s*\\`[\\s\\S]*?QRE REPAIR FEEDBACK:[\\s\\S]*?feedback\\}\\`;`, "m"),
   `last.content +=
         "\\n\\nREPAIR: Regenerate only the failed viewer-facing film cuts. Preserve supplied reality, approved sequence, and endpoint. Return JSON only.";`,
   "authorBrainUniversal.ts · remove repair diagnostics from Mouth prompt",
@@ -180,7 +182,7 @@ planner = ensureReplace(
 
 planner = ensureReplace(
   planner,
-  /const normalized = beats\s*\.slice\(0, 6\)\s*\.map\(\(beat, index\) => \(\{ \.\.\.beat, order: index \+ 1 \}\)\);/m,
+  new RegExp(`const normalized = beats\\s*${NL}\\s*\\.slice\\(0, 6\\)\\s*${NL}\\s*\\.map\\(\\(beat, index\\) => \\(\\{ \\.\\.\\.beat, order: index \\+ 1 \\}\\)\\);`, "m"),
   `// Preserve the endpoint as the final cut. Presence/location cuts are protected
   // because the user explicitly authorized them as film material; semantic reality
   // beats fill the remaining capacity. There is no numeric quota beyond keeping the
