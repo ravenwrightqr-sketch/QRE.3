@@ -71,11 +71,23 @@ mouth = replaceOnce(
 mouth = replaceOnce(
   mouth,
   /"Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes\.",/,
-  `"Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes." ,\n    "Creative framing is allowed: deadpan, mock-serious, absurd, game, mission, noir, status, callback, personification, and rhetorical language when grounded by the supplied beat.",`,
+  `"Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes.",\n    "Creative framing is allowed: deadpan, mock-serious, absurd, game, mission, noir, status, callback, personification, and rhetorical language when grounded by the supplied beat.",`,
   "authorMouthCandidateSearch.ts · allow grounded creative framing without new reality",
 );
 
 write(mouthPath, mouth);
+
+const plannerPath = "apps/api/src/services/authorSequencePlanner.ts";
+let planner = read(plannerPath);
+
+planner = replaceOnce(
+  planner,
+  /  const normalized = beats\n    \.slice\(0, 6\)\n    \.map\(\(beat, index\) => \(\{ \.\.\.beat, order: index \+ 1 \}\)\);/,
+  `  // Preserve the endpoint as the final cut. Presence/location cuts may occupy\n  // the opening or closing neighborhood, but they can never displace the\n  // source-derived payoff. Keep the play short without deleting meaningful\n  // material just to satisfy a numeric quota.\n  const endpointBeat = beats.find((beat) => beat.eventIds.includes(endpointId) && beat.attentionFunction === "payoff");\n  const nonEndpoint = beats.filter((beat) => beat !== endpointBeat);\n  const capacityBeforeEndpoint = endpointBeat ? 5 : 6;\n  const normalized = [\n    ...nonEndpoint.slice(0, capacityBeforeEndpoint),\n    ...(endpointBeat ? [endpointBeat] : []),\n  ].map((beat, index) => ({ ...beat, order: index + 1 }));`,
+  "authorSequencePlanner.ts · preserve endpoint while mixing presence cuts",
+);
+
+write(plannerPath, planner);
 
 console.log("AUTHOR CANONICAL PATH PATCH COMPLETE");
 console.log("Next: build contracts, build engine, build api, run author:fast.");
