@@ -1,0 +1,2 @@
+ALTER TABLE "Asset"
+ADD COLUMN IF NOT EXISTS "stateConfig" JSONB;

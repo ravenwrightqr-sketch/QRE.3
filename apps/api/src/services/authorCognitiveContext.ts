@@ -1,6 +1,7 @@
-import type { AuthorBrainTruth, CognitiveAuthorContext, IdentityState, ExperiencePresenceContext } from "@qre/contracts";
+import type { AuthorBrainTruth, CognitiveAuthorContext, CognitiveState, IdentityState, ExperiencePresenceContext } from "@qre/contracts";
 
 export function buildCognitiveAuthorContext(input: {
+  cognitiveState?: CognitiveState | null;
   identityState?: IdentityState | null;
   geo?: CognitiveAuthorContext["geo"];
   presence?: ExperiencePresenceContext | null;
@@ -14,6 +15,7 @@ export function buildCognitiveAuthorContext(input: {
   textBeatTarget?: number;
 }): CognitiveAuthorContext {
   return {
+    cognitiveState: input.cognitiveState ?? null,
     identityState: input.identityState ?? null,
     geo: input.geo ?? null,
     presence: input.presence ?? null,

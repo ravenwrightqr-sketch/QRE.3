@@ -17,7 +17,15 @@
   "include": [
     "./author-acceptance-monster.ts",
     "./author-acceptance-suite.ts",
-    "./author-enterprise-realization-selfcheck.ts"
+    "./author-enterprise-realization-selfcheck.ts",
+    "./author-attention-language-acceptance.ts",
+    "./author-attention-loop-acceptance.ts",
+    "./author-beyond-prize-acceptance.ts",
+    "./author-creative-candidate-acceptance.ts",
+    "./author-prize-acceptance.ts",
+    "./author-prize-maria-acceptance.ts",
+    "./author-qre-frame-realization-acceptance.ts",
+    "./universal-creation-intake-acceptance.ts"
   ],
   "exclude": [
     "node_modules",
