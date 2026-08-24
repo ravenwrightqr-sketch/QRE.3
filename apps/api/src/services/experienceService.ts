@@ -37,6 +37,7 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
+  movieMode?: boolean;
   warnings?: string[];
   [key: string]: unknown;
 };
@@ -117,10 +118,12 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
+  movieMode?: boolean;
 }): Promise<CompiledExperienceResult> {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("Experience prompt required");
 
+  const movieMode = input.movieMode !== false;
   const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
@@ -184,44 +187,47 @@ export async function compileExperience(input: {
   const subject = String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? "").trim();
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
 
-  try {
-    const beats = await authorMicroBeats({
-      prompt,
-      lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
-      subject,
-      place: String(geo?.label ?? presence?.places?.[0] ?? ""),
-      subjectTruth,
-      cognitivePlan: compiled?.plan,
-      facts: [
-        ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
-        ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
-        ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
-        ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
-        ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
-        ...presence?.places?.slice(0, 12) ?? [],
-        presence?.visitNumber ? `visit ${presence.visitNumber}` : "",
-        presence?.isReturning ? "returning visit" : "first known visit",
-      ].filter(Boolean),
-      sourceMoments: [
-        ...(Array.isArray(compiled.moments) ? compiled.moments.map((moment: any) => String(moment?.text ?? moment?.description ?? "").trim()).filter(Boolean) : []),
-        ...memorySummary,
-        ...presenceSummary,
-      ].slice(0, 32),
-      memoryContext: [...memorySummary, ...presenceSummary],
-      creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
-      trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
-      returning: presence?.isReturning ?? false,
-      visitNumber: presence?.visitNumber,
-      presenceSummary,
-      presence: presence ?? undefined,
-      round: presence?.visitNumber ?? 1,
-    });
+  if (movieMode) {
+    try {
+      const beats = await authorMicroBeats({
+        prompt,
+        lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
+        subject,
+        place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+        subjectTruth,
+        cognitivePlan: compiled?.plan,
+        movieMode,
+        facts: [
+          ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
+          ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
+          ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
+          ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
+          ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
+          ...presence?.places?.slice(0, 12) ?? [],
+          presence?.visitNumber ? `visit ${presence.visitNumber}` : "",
+          presence?.isReturning ? "returning visit" : "first known visit",
+        ].filter(Boolean),
+        sourceMoments: [
+          ...(Array.isArray(compiled.moments) ? compiled.moments.map((moment: any) => String(moment?.text ?? moment?.description ?? "").trim()).filter(Boolean) : []),
+          ...memorySummary,
+          ...presenceSummary,
+        ].slice(0, 32),
+        memoryContext: [...memorySummary, ...presenceSummary],
+        creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
+        trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
+        returning: presence?.isReturning ?? false,
+        visitNumber: presence?.visitNumber,
+        presenceSummary,
+        presence: presence ?? undefined,
+        round: presence?.visitNumber ?? 1,
+      });
 
-    if (beats.length >= 2) compiled = applyMicroBeats(compiled, beats);
-    else warnings.push("micro_beat_mouth_fallback");
-  } catch (error) {
-    console.warn("[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.", error);
-    warnings.push("micro_beat_mouth_unavailable");
+      if (beats.length >= 2) compiled = applyMicroBeats(compiled, beats);
+      else warnings.push("micro_beat_mouth_fallback");
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.", error);
+      warnings.push("micro_beat_mouth_unavailable");
+    }
   }
 
   const enrichedBlueprint = {
@@ -243,6 +249,7 @@ export async function compileExperience(input: {
         presentation: "adaptive_line_rhythm",
         hardPunctuationRule: "no_comma_or_semicolon_scene_cuts",
         playerOwnsExactPresentation: true,
+        movieMode,
       },
     },
   };
@@ -252,6 +259,7 @@ export async function compileExperience(input: {
     blueprint: enrichedBlueprint,
     geo: geo ?? null,
     presence,
+    movieMode,
     warnings,
   };
 
