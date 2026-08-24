@@ -242,7 +242,7 @@ export function scoreMouthCandidate(input: {
 
   const payoffLabels = unique(
     (input.beat.paysOff ?? [])
-      .map((id) => eventLabel(input.envelope, id))
+      .map((value) => eventLabel(input.envelope, value) || clean(value))
       .filter(Boolean),
   );
   const isPayoff = Boolean(
