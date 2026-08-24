@@ -1,3 +1,16 @@
+/**
+ * QRE GROUNDED AUTHOR SEQUENCE PLANNER
+ *
+ * Canonical responsibility:
+ *   RealityGraph + RealityEnvelope + optional lens/presence
+ *     -> discover the strongest movie latent in supplied reality
+ *     -> express that movie as short semantic beats
+ *
+ * This is NOT a next-event picker and NOT prose generation.
+ * A movie is a relationship among supplied facts: tension, contrast,
+ * character, escalation, callback, transformation, and payoff.
+ * Reality remains immutable. The Mouth owns wording later.
+ */
 import type { RealityGraph, RealityRelation } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
@@ -18,7 +31,8 @@ export type PlannedAuthorBeat = {
     | "reframe"
     | "callback"
     | "payoff"
-    | "release";
+    | "release"
+    | "discovery";
   setsUp: string[];
   paysOff: string[];
   creativeMove:
@@ -34,6 +48,15 @@ export type PlannedAuthorBeat = {
   nextBeatPullTarget: number;
 };
 
+export type GroundedBeatPlan = {
+  premise: string;
+  baselineFacts: string[];
+  attentionArc: string;
+  beats: PlannedAuthorBeat[];
+  closing?: string;
+  source: "grounded_sequence_planner";
+};
+
 type PresenceCut = {
   text: string;
   role: "arrival" | "location" | "release";
@@ -41,11 +64,29 @@ type PresenceCut = {
   attentionFunction: "hook" | "discovery" | "payoff" | "release";
 };
 
+type MovieKind =
+  | "contradiction"
+  | "character"
+  | "callback"
+  | "transformation"
+  | "service"
+  | "relationship";
+
+type MovieCandidate = {
+  kind: MovieKind;
+  eventIds: string[];
+  endpointId: string;
+  score: number;
+  coverage: number;
+  tension: number;
+  relation: number;
+  contrast: number;
+  payoff: number;
+  lensFit: number;
+};
+
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
-
-const uniq = (values: readonly string[], limit = 24): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
 
 const words = (value: string): string[] =>
   clean(value)
@@ -56,155 +97,368 @@ const words = (value: string): string[] =>
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
+const uniq = (values: readonly string[], limit = 24): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+
 function eventById(graph: RealityGraph, id: string) {
   return graph.events.find((event) => event.id === id);
 }
 
+function label(graph: RealityGraph, id: string): string {
+  return clean(eventById(graph, id)?.label || "supplied detail");
+}
+
 function relationBetween(graph: RealityGraph, a: string, b: string): RealityRelation[] {
   return graph.relations
-    .filter(
-      (relation) =>
-        (relation.from === a && relation.to === b) ||
-        (relation.from === b && relation.to === a),
+    .filter((relation) =>
+      (relation.from === a && relation.to === b) ||
+      (relation.from === b && relation.to === a),
     )
     .sort((left, right) => right.strength - left.strength);
 }
 
-function relationScore(graph: RealityGraph, from: string, to: string): number {
-  const relation = relationBetween(graph, from, to)[0];
-  return relation ? relation.strength : 0;
+function relationScore(graph: RealityGraph, a: string, b: string): number {
+  return relationBetween(graph, a, b)[0]?.strength ?? 0;
 }
 
-function relationKind(graph: RealityGraph, from: string, to: string): RealityRelation["kind"] | undefined {
-  return relationBetween(graph, from, to)[0]?.kind;
+function relationKind(graph: RealityGraph, a: string, b: string): RealityRelation["kind"] | undefined {
+  return relationBetween(graph, a, b)[0]?.kind;
 }
 
-function eventSalience(
-  graph: RealityGraph,
-  eventId: string,
-  endpointId: string,
-  recurring: readonly string[],
-): number {
-  const event = eventById(graph, eventId);
-  if (!event) return 0;
-
-  const incident = graph.relations
-    .filter((relation) => relation.from === eventId || relation.to === eventId)
-    .reduce((sum, relation) => sum + relation.strength, 0);
-
-  const specificity = Math.min(1, words(event.label).length * 0.09 + event.entities.length * 0.04);
-  const repeated = recurring.some((signal) => event.label.toLowerCase().includes(signal.toLowerCase())) ? 0.18 : 0;
-  const endpoint = eventId === endpointId ? 0.22 : 0;
-  const state = /\b(?:nervous|scared|happy|proud|fierce|angry|sad|excited|calm|tired)\b/i.test(event.label) ? 0.13 : 0;
-  const action = /\b(?:came|arrived|started|met|stole|shook|cleaned|finished|left|returned|walked|made|got)\b/i.test(event.label) ? 0.12 : 0;
-
-  return metric(Math.min(1, incident * 0.22 + specificity * 0.28 + repeated + endpoint + state + action));
+function endpointId(graph: RealityGraph, envelope: RealityEnvelope): string {
+  return envelope.endpointEventId || graph.events.at(-1)?.id || "";
 }
 
-function relationTransition(kind: RealityRelation["kind"] | undefined) {
-  switch (kind) {
-    case "contrasts":
-      return { attention: "reframe" as const, role: "reframe", gain: "reframe", move: "contrast" as const };
-    case "recontextualizes":
-      return { attention: "reframe" as const, role: "reframe", gain: "reframe", move: "recontextualization" as const };
-    case "changes":
-      return { attention: "escalation" as const, role: "escalation", gain: "escalation", move: "status_inversion" as const };
-    case "repeats":
-      return { attention: "callback" as const, role: "callback", gain: "callback", move: "callback" as const };
-    case "before":
-    case "after":
-      return { attention: "turn" as const, role: "consequence", gain: "consequence", move: "recontextualization" as const };
-    case "involves":
-      return { attention: "turn" as const, role: "discovery", gain: "discovery", move: "implication" as const };
-    case "converges":
-      return { attention: "turn" as const, role: "discovery", gain: "discovery", move: "recontextualization" as const };
-    default:
-      return { attention: "turn" as const, role: "discovery", gain: "discovery", move: "none" as const };
-  }
-}
-
-function lexicalOverlap(a: string, b: string): number {
+function tokenOverlap(a: string, b: string): number {
   const left = new Set(words(a));
   const right = new Set(words(b));
   if (!left.size || !right.size) return 0;
   let hits = 0;
   for (const token of left) if (right.has(token)) hits += 1;
-  return hits / left.size;
+  return hits / Math.max(left.size, right.size);
 }
 
-function lensBoost(lens: string | undefined, label: string): number {
-  const value = `${lens ?? ""} ${label}`.toLowerCase();
-  if (/game|round|mission|heist|spy/.test(value) && /again|still|round|started|finished|clean|bath|kitchen|service/.test(value)) return 0.08;
-  if (/noir|horror|dark/.test(value) && /night|door|knife|glass|missing|again|still/.test(value)) return 0.08;
-  if (/funny|comedy|absurd|fierce/.test(value) && /hates|loves|stole|bow|dryer|bulldog|sand/.test(value)) return 0.08;
+function stateScore(text: string): number {
+  return /\b(?:nervous|scared|happy|sad|angry|proud|fierce|excited|calm|tired|relaxed)\b/i.test(text) ? 1 : 0;
+}
+
+function actionScore(text: string): number {
+  return /\b(?:arrived|came|started|began|met|stole|shook|cleaned|finished|left|returned|walked|made|got|visited|groomed|dropped)\b/i.test(text) ? 1 : 0;
+}
+
+function objectScore(text: string): number {
+  return /\b(?:bow|treat|dryer|bulldog|kitchen|bathroom|pool|sand|knife|photo|door|house)\b/i.test(text) ? 1 : 0;
+}
+
+function opposition(a: string, b: string): number {
+  const combined = `${a} ${b}`.toLowerCase();
+  const negative = /\b(?:hate|hates|scared|afraid|nervous|refused|enemy|against|no)\b/.test(combined);
+  const positive = /\b(?:love|loves|happy|favorite|again|still|approved|won|victory|likes)\b/.test(combined);
+  if (negative && positive) return 1;
+  if (negative) return 0.65;
   return 0;
 }
 
-function chooseOpening(graph: RealityGraph, envelope: RealityEnvelope): string | undefined {
-  const candidates = envelope.openingEventIds.length
-    ? envelope.openingEventIds
-    : graph.events.map((event) => event.id);
-
-  return candidates
-    .map((id) => ({
-      id,
-      score:
-        (envelope.openingEventIds.includes(id) ? 0.3 : 0) +
-        (/\b(?:nervous|scared|first|came|arrived|started|began)\b/i.test(eventById(graph, id)?.label ?? "") ? 0.24 : 0) +
-        eventSalience(graph, id, envelope.endpointEventId, envelope.recurringSignals),
-    }))
-    .sort((a, b) => b.score - a.score)[0]?.id;
+function lensFit(lens: string | undefined, labels: readonly string[]): number {
+  const value = `${lens ?? ""} ${labels.join(" ")}`.toLowerCase();
+  let score = 0.5;
+  if (/game|round|mission|heist|spy|noir|deadpan|mock|status|funny|fierce|absurd/.test(value)) score += 0.15;
+  if (/hates|loves|bow|dryer|bulldog|kitchen|bathroom|clean|tko|treat/.test(value)) score += 0.15;
+  return metric(score);
 }
 
-function chooseNext(
-  graph: RealityGraph,
-  selected: readonly string[],
-  endpointId: string,
-  lens: string | undefined,
-): { id: string; relation?: RealityRelation["kind"]; score: number } | undefined {
-  const used = new Set(selected);
-  const current = selected[selected.length - 1];
-  const unused = graph.events.filter((event) => !used.has(event.id) && event.id !== endpointId);
+function eventImportance(graph: RealityGraph, id: string, endpoint: string): number {
+  const event = eventById(graph, id);
+  if (!event) return 0;
+  const incident = graph.relations
+    .filter((relation) => relation.from === id || relation.to === id)
+    .reduce((sum, relation) => sum + relation.strength, 0);
 
-  const ranked = unused
-    .map((event) => {
-      const direct = current ? relationScore(graph, current, event.id) : 0;
-      const toSelected = Math.max(
-        ...selected.map((id) => relationScore(graph, id, event.id)),
-        0,
-      );
-      const endpointLink = endpointId ? relationScore(graph, event.id, endpointId) : 0;
-      const novelty = selected.length ? 1 - lexicalOverlap(event.label, selected.map((id) => eventById(graph, id)?.label ?? "").join(" ")) : 1;
-      const score = metric(
-        direct * 0.34 +
-        toSelected * 0.18 +
-        endpointLink * 0.2 +
-        eventSalience(graph, event.id, endpointId, []) * 0.16 +
-        novelty * 0.08 +
-        lensBoost(lens, event.label),
-      );
-      return { id: event.id, relation: relationKind(graph, current ?? "", event.id), score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0];
+  return metric(
+    incident * 0.28 +
+      stateScore(event.label) * 0.16 +
+      actionScore(event.label) * 0.12 +
+      objectScore(event.label) * 0.16 +
+      Math.min(0.18, words(event.label).length * 0.03) +
+      (id === endpoint ? 0.1 : 0),
+  );
 }
 
-function chooseBridge(
-  graph: RealityGraph,
-  selected: readonly string[],
-  endpointId: string,
-): string | undefined {
-  const used = new Set(selected);
-  return graph.events
-    .filter((event) => event.id !== endpointId && !used.has(event.id))
-    .map((event) => ({
+function openingCandidates(graph: RealityGraph, envelope: RealityEnvelope): string[] {
+  const preferred = envelope.openingEventIds.filter((id) => eventById(graph, id));
+  const ranked = graph.events
+    .map((event, index) => ({
       id: event.id,
       score:
-        Math.max(...selected.map((id) => relationScore(graph, id, event.id)), 0) * 0.58 +
-        relationScore(graph, event.id, endpointId) * 0.42,
+        (preferred.includes(event.id) ? 0.5 : 0) +
+        stateScore(event.label) * 0.28 +
+        actionScore(event.label) * 0.15 +
+        objectScore(event.label) * 0.07 -
+        index * 0.001,
     }))
-    .sort((a, b) => b.score - a.score)[0]?.id;
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.id);
+
+  return uniq([...preferred, ...ranked], 5);
+}
+
+function candidateEvents(graph: RealityGraph, endpoint: string, opening: string): string[] {
+  return graph.events
+    .filter((event) => event.id !== endpoint && event.id !== opening)
+    .map((event) => event.id)
+    .sort((a, b) => eventImportance(graph, b, endpoint) - eventImportance(graph, a, endpoint))
+    .slice(0, 8);
+}
+
+function movieKind(
+  graph: RealityGraph,
+  ids: readonly string[],
+): MovieKind {
+  const labels = ids.map((id) => label(graph, id));
+  const contradiction = ids.slice(0, -1).reduce((best, id, index) =>
+    Math.max(best, opposition(label(graph, id), label(graph, ids[index + 1]))), 0);
+  if (contradiction >= 0.8) return "contradiction";
+  if (ids.some((id) => /again|still|repeat|recurr/i.test(label(graph, id)))) return "callback";
+  if (ids.some((id) => stateScore(label(graph, id)) > 0)) return "transformation";
+  if (ids.some((id) => objectScore(label(graph, id)) > 0) && labels.some((text) => /hate|hates|love|loves/i.test(text))) return "character";
+  if (ids.some((id) => /groom|clean|kitchen|bath|pool|service/i.test(label(graph, id)))) return "service";
+  return "relationship";
+}
+
+function candidateScore(
+  graph: RealityGraph,
+  ids: readonly string[],
+  endpoint: string,
+  lens?: string,
+): Omit<MovieCandidate, "eventIds" | "endpointId" | "kind"> & { kind: MovieKind } {
+  const labels = ids.map((id) => label(graph, id));
+  const relationValues = ids.slice(1).map((id, index) => relationScore(graph, ids[index], id));
+  const relation = metric(relationValues.reduce((sum, value) => sum + value, 0) / Math.max(1, relationValues.length));
+  const tension = metric(ids.slice(0, -1).reduce((best, id, index) =>
+    Math.max(best, opposition(label(graph, id), label(graph, ids[index + 1]))), 0));
+  const contrast = metric(ids.slice(0, -1).reduce((best, id, index) =>
+    Math.max(best, tokenOverlap(label(graph, id), label(graph, ids[index + 1]))), 0));
+  const coverage = metric(ids.slice(0, -1).reduce((sum, id) => sum + eventImportance(graph, id, endpoint), 0) / Math.max(1, ids.length - 1));
+  const payoff = metric(relationScore(graph, ids.at(-2) ?? "", endpoint));
+  const lensFitScore = lensFit(lens, labels);
+  const kind = movieKind(graph, ids);
+  const lengthFit = ids.length === 4 ? 1 : ids.length === 3 || ids.length === 5 ? 0.9 : 0.75;
+  const attention = metric(
+    tension * 0.42 +
+      Math.min(1, ids.slice(1, -1).length / 3) * 0.2 +
+      lengthFit * 0.2 +
+      lensFitScore * 0.18,
+  );
+
+  return {
+    kind,
+    score: metric(
+      coverage * 0.18 +
+        relation * 0.18 +
+        tension * 0.22 +
+        contrast * 0.08 +
+        payoff * 0.14 +
+        attention * 0.15 +
+        lensFitScore * 0.05,
+    ),
+    coverage,
+    tension,
+    relation,
+    contrast,
+    payoff,
+    lensFit: lensFitScore,
+  };
+}
+
+function discoverMovies(
+  graph: RealityGraph,
+  envelope: RealityEnvelope,
+  lens?: string,
+): MovieCandidate[] {
+  const endpoint = endpointId(graph, envelope);
+  if (!endpoint) return [];
+
+  const movies: MovieCandidate[] = [];
+  const openings = openingCandidates(graph, envelope);
+
+  for (const opening of openings) {
+    const pool = candidateEvents(graph, endpoint, opening);
+
+    const candidates = new Set<string>();
+    for (const id of pool) candidates.add(id);
+
+    // Prefer semantic pairs that naturally create a contradiction/callback.
+    for (const a of pool) {
+      for (const b of pool) {
+        if (a === b) continue;
+        const al = label(graph, a);
+        const bl = label(graph, b);
+        if (tokenOverlap(al, bl) >= 0.2 || opposition(al, bl) >= 0.65) {
+          const ids = uniq([opening, a, b, endpoint], 6);
+          if (ids.length >= 3) {
+            const scored = candidateScore(graph, ids, endpoint, lens);
+            movies.push({ ...scored, eventIds: ids, endpointId: endpoint });
+          }
+        }
+      }
+    }
+
+    // Also discover graph-supported service/relationship movies.
+    for (const a of pool) {
+      const direct = relationScore(graph, opening, a);
+      const endpointLink = relationScore(graph, a, endpoint);
+      if (direct > 0 || endpointLink > 0) {
+        const ids = uniq([opening, a, endpoint], 6);
+        const scored = candidateScore(graph, ids, endpoint, lens);
+        movies.push({ ...scored, eventIds: ids, endpointId: endpoint });
+      }
+    }
+
+    for (const a of pool.slice(0, 6)) {
+      for (const b of pool.slice(0, 6)) {
+        if (a === b) continue;
+        if (relationScore(graph, a, b) < 0.15 && tokenOverlap(label(graph, a), label(graph, b)) < 0.2) continue;
+        const ids = uniq([opening, a, b, endpoint], 6);
+        if (ids.length < 4) continue;
+        const scored = candidateScore(graph, ids, endpoint, lens);
+        movies.push({ ...scored, eventIds: ids, endpointId: endpoint });
+      }
+    }
+  }
+
+  const dedup = new Map<string, MovieCandidate>();
+  for (const movie of movies) {
+    const key = movie.eventIds.join("|");
+    const existing = dedup.get(key);
+    if (!existing || movie.score > existing.score) dedup.set(key, movie);
+  }
+
+  return [...dedup.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+function beatForOpening(graph: RealityGraph, id: string): PlannedAuthorBeat {
+  const text = label(graph, id);
+  return {
+    order: 1,
+    role: "hook",
+    gainKind: "new_fact",
+    change: `Establish the supplied opening state: ${text}.`,
+    next: "The character or situation now has something to prove.",
+    frontier: text,
+    necessity: "The opening establishes the movie's initial state.",
+    eventIds: [id],
+    attentionFunction: "hook",
+    setsUp: [text],
+    paysOff: [],
+    creativeMove: "none",
+    nextBeatPullTarget: 0.65,
+  };
+}
+
+function beatForMiddle(
+  graph: RealityGraph,
+  ids: readonly string[],
+  index: number,
+  kind: MovieKind,
+): PlannedAuthorBeat {
+  const from = ids[index - 1];
+  const to = ids[index];
+  const fromLabel = label(graph, from);
+  const toLabel = label(graph, to);
+  const directRelation = relationKind(graph, from, to);
+  const shared = tokenOverlap(fromLabel, toLabel);
+  const opp = opposition(fromLabel, toLabel);
+
+  let attentionFunction: PlannedAuthorBeat["attentionFunction"] = "discovery";
+  let creativeMove: PlannedAuthorBeat["creativeMove"] = "implication";
+  let role = "discovery";
+  let gainKind = "discovery";
+  let change = `Make the supplied detail newly meaningful: ${toLabel}.`;
+
+  if (kind === "callback" || /again|still|repeat/i.test(toLabel)) {
+    attentionFunction = "callback";
+    role = "callback";
+    gainKind = "callback";
+    creativeMove = "callback";
+    change = `Bring the supplied recurring detail back: ${toLabel}.`;
+  } else if (opp >= 0.65 || (shared >= 0.25 && kind === "contradiction")) {
+    attentionFunction = "reframe";
+    role = "reframe";
+    gainKind = "reframe";
+    creativeMove = "status_inversion";
+    change = `Turn the supplied contradiction into the character tension: ${fromLabel} -> ${toLabel}.`;
+  } else if (directRelation === "changes") {
+    attentionFunction = "escalation";
+    role = "escalation";
+    gainKind = "escalation";
+    creativeMove = "status_inversion";
+    change = `Escalate the supplied change: ${fromLabel} -> ${toLabel}.`;
+  } else if (directRelation === "contrasts") {
+    attentionFunction = "reframe";
+    role = "reframe";
+    gainKind = "reframe";
+    creativeMove = "contrast";
+    change = `Reframe the supplied contrast: ${fromLabel} -> ${toLabel}.`;
+  } else if (directRelation === "recontextualizes") {
+    attentionFunction = "turn";
+    role = "turn";
+    gainKind = "reframe";
+    creativeMove = "recontextualization";
+    change = `Let the supplied relationship change the reading: ${fromLabel} -> ${toLabel}.`;
+  } else if (index === 1) {
+    attentionFunction = "turn";
+    role = "turn";
+    gainKind = "discovery";
+  }
+
+  return {
+    order: index + 1,
+    role,
+    gainKind,
+    change,
+    next: `What does ${toLabel} make the viewer expect now?`,
+    frontier: toLabel,
+    necessity: "This cut earns its place by changing the interpretation of supplied reality.",
+    eventIds: [from, to],
+    attentionFunction,
+    setsUp: [fromLabel],
+    paysOff: [],
+    creativeMove,
+    nextBeatPullTarget: metric(0.55 + relationScore(graph, from, to) * 0.35 + opp * 0.1),
+  };
+}
+
+function beatForPayoff(graph: RealityGraph, previous: string, endpoint: string, kind: MovieKind): PlannedAuthorBeat {
+  const endpointLabel = label(graph, endpoint);
+  const previousLabel = label(graph, previous);
+  return {
+    order: 99,
+    role: "payoff",
+    gainKind: "payoff",
+    change: `Land the supplied ending: ${endpointLabel}. Let the selected movie turn that supplied state into a clean final attitude without inventing a new fact.`,
+    next: endpointLabel,
+    frontier: endpointLabel,
+    necessity: "The supplied endpoint closes the discovered movie.",
+    eventIds: [previous, endpoint],
+    attentionFunction: "payoff",
+    setsUp: [previousLabel],
+    paysOff: [endpointLabel],
+    creativeMove:
+      kind === "character" || kind === "contradiction" || kind === "transformation"
+        ? "status_inversion"
+        : "recontextualization",
+    nextBeatPullTarget: 0,
+  };
+}
+
+function movieToBeats(graph: RealityGraph, movie: MovieCandidate): PlannedAuthorBeat[] {
+  const beats: PlannedAuthorBeat[] = [beatForOpening(graph, movie.eventIds[0])];
+  for (let index = 1; index < movie.eventIds.length - 1; index += 1) {
+    beats.push(beatForMiddle(graph, movie.eventIds, index, movie.kind));
+  }
+  const previous = movie.eventIds[movie.eventIds.length - 2];
+  beats.push(beatForPayoff(graph, previous, movie.endpointId, movie.kind));
+  return beats.slice(0, 6).map((beat, index) => ({ ...beat, order: index + 1 }));
 }
 
 function presenceCuts(values: readonly string[] | undefined): PresenceCut[] {
@@ -227,47 +481,65 @@ function presenceCuts(values: readonly string[] | undefined): PresenceCut[] {
     }
   }
 
-  return cuts.slice(0, 4);
+  return cuts.slice(0, 3);
 }
 
-function makeBeat(
-  graph: RealityGraph,
-  fromId: string | undefined,
-  toId: string,
-  order: number,
-  endpoint: boolean,
-  selected: readonly string[],
-  lens: string | undefined,
-): PlannedAuthorBeat {
-  const to = eventById(graph, toId);
-  const from = fromId ? eventById(graph, fromId) : undefined;
-  const kind = relationKind(graph, fromId ?? "", toId);
-  const transition = endpoint
-    ? { attention: "payoff" as const, role: "payoff", gain: "payoff", move: "recontextualization" as const }
-    : relationTransition(kind);
-  const source = to?.label ?? "supplied evidence";
-  const prior = from?.label ?? "the established reality";
-  const pull = endpoint ? 0 : metric(0.5 + lensBoost(lens, source) + relationScore(graph, fromId ?? "", toId) * 0.35);
+function composePresence(
+  beats: PlannedAuthorBeat[],
+  presence: readonly PresenceCut[],
+  endpointId: string,
+): PlannedAuthorBeat[] {
+  if (!presence.length) return beats.map((beat, index) => ({ ...beat, order: index + 1 }));
 
-  return {
-    order,
-    role: transition.role,
-    gainKind: transition.gain,
-    change: endpoint
-      ? `Land the supplied endpoint: ${source}.`
-      : `${kind ?? "connects"}: ${prior} -> ${source}.`,
-    next: endpoint ? source : `What does ${source} change next?`,
-    frontier: endpoint ? source : source,
-    necessity: selected.length === 0
-      ? "Establishes the strongest supplied opening state."
-      : "Earns the next cut through an evidence-backed relationship or changed significance.",
-    eventIds: [toId],
-    attentionFunction: transition.attention,
-    setsUp: from ? [from.label] : [],
-    paysOff: endpoint ? [source] : [],
-    creativeMove: transition.move,
-    nextBeatPullTarget: pull,
-  };
+  const endpoint = beats.find((beat) =>
+    beat.eventIds.includes(endpointId) && beat.attentionFunction === "payoff",
+  );
+  const regular = beats.filter((beat) => beat !== endpoint);
+  const arrivals = presence.filter((cut) => cut.role === "arrival" || cut.role === "location");
+  const releases = presence.filter((cut) => cut.role === "release");
+  const regularCapacity = Math.max(0, 6 - arrivals.length - releases.length - (endpoint ? 1 : 0));
+  const output: PlannedAuthorBeat[] = [];
+
+  for (const cut of arrivals) {
+    output.push({
+      order: 0,
+      role: cut.role,
+      gainKind: cut.gainKind,
+      change: `Use the authorized presence cut exactly as supplied: ${cut.text}.`,
+      next: "The experience begins.",
+      frontier: cut.text,
+      necessity: "User-authorized presence is an intentional film cut.",
+      eventIds: [],
+      attentionFunction: cut.attentionFunction,
+      setsUp: [],
+      paysOff: [],
+      creativeMove: "none",
+      nextBeatPullTarget: 0.55,
+    });
+  }
+
+  output.push(...regular.slice(0, regularCapacity));
+
+  for (const cut of releases) {
+    output.push({
+      order: 0,
+      role: "release",
+      gainKind: "payoff",
+      change: `Use the authorized checkout/presence cut exactly as supplied: ${cut.text}.`,
+      next: "The supplied experience has landed.",
+      frontier: cut.text,
+      necessity: "User-authorized checkout is an intentional film cut.",
+      eventIds: [],
+      attentionFunction: "release",
+      setsUp: output.length ? [output[output.length - 1]?.change ?? ""] : [],
+      paysOff: [],
+      creativeMove: "understatement",
+      nextBeatPullTarget: 0.4,
+    });
+  }
+
+  if (endpoint) output.push(endpoint);
+  return output.slice(0, 6).map((beat, index) => ({ ...beat, order: index + 1 }));
 }
 
 export function buildGroundedAuthorSequence(input: {
@@ -279,110 +551,28 @@ export function buildGroundedAuthorSequence(input: {
 }): GroundedBeatPlan | undefined {
   if (!input.graph.events.length) return undefined;
 
-  const endpointId = input.envelope.endpointEventId || input.graph.events[input.graph.events.length - 1]?.id || "";
-  if (!endpointId) return undefined;
+  const endpoint = endpointId(input.graph, input.envelope);
+  if (!endpoint) return undefined;
 
-  const opening = chooseOpening(input.graph, input.envelope) ?? input.graph.events[0]?.id;
-  if (!opening) return undefined;
+  const movies = discoverMovies(input.graph, input.envelope, input.lens);
+  const selected = movies[0];
+  if (!selected) return undefined;
 
-  const material = input.graph.events.length;
-  const relationCount = input.graph.relations.length;
-  const attentionRich = material >= 4 && relationCount >= 2;
-  const softTarget = Math.min(6, Math.max(3, Math.round(2.5 + material * 0.45)));
+  const beats = movieToBeats(input.graph, selected);
+  if (beats.length < 3) return undefined;
 
-  const selected: string[] = [opening];
-  const beats: PlannedAuthorBeat[] = [
-    makeBeat(input.graph, undefined, opening, 1, false, [], input.lens),
-  ];
-
-  while (selected.length < softTarget - 1) {
-    const next = chooseNext(input.graph, selected, endpointId, input.lens);
-    if (!next || next.score < 0.38) break;
-    selected.push(next.id);
-    beats.push(makeBeat(input.graph, selected[selected.length - 2], next.id, beats.length + 1, false, selected, input.lens));
-  }
-
-  if (attentionRich && beats.length < 3) {
-    const bridge = chooseBridge(input.graph, selected, endpointId);
-    if (bridge) {
-      selected.push(bridge);
-      beats.push(makeBeat(input.graph, selected[selected.length - 2], bridge, beats.length + 1, false, selected, input.lens));
-    }
-  }
-
-  if (!selected.includes(endpointId)) {
-    selected.push(endpointId);
-    beats.push(makeBeat(input.graph, selected.length > 1 ? selected[selected.length - 2] : undefined, endpointId, beats.length + 1, true, selected, input.lens));
-  } else {
-    const endpointIndex = beats.findIndex((beat) => beat.eventIds.includes(endpointId));
-    if (endpointIndex >= 0) {
-      beats.splice(endpointIndex, 1);
-      selected.splice(selected.indexOf(endpointId), 1);
-      selected.push(endpointId);
-      beats.push(makeBeat(input.graph, selected.length > 1 ? selected[selected.length - 2] : undefined, endpointId, beats.length + 1, true, selected, input.lens));
-    }
-  }
-
-  const presence = presenceCuts(input.presenceSummary);
-  if (presence.length) {
-    const arrival = presence.filter((cut) => cut.role === "arrival" || cut.role === "location");
-    const completion = presence.filter((cut) => cut.role === "completion");
-    const insertAt = Math.min(1, beats.length);
-
-    for (const cut of [...arrival].reverse()) {
-      beats.splice(insertAt, 0, {
-        order: 0,
-        role: cut.role,
-        gainKind: cut.gainKind,
-        change: cut.text,
-        next: "The real work starts here.",
-        frontier: cut.text,
-        necessity: "User-authorized presence is an intentional film moment.",
-        eventIds: [],
-        attentionFunction: cut.attentionFunction,
-        setsUp: [],
-        paysOff: [],
-        creativeMove: "none",
-        nextBeatPullTarget: 0.52,
-      });
-    }
-
-    for (const cut of completion) {
-      const end = beats.length - 1;
-      beats.splice(Math.max(0, end), 0, {
-        order: 0,
-        role: cut.role,
-        gainKind: cut.gainKind,
-        change: cut.text,
-        next: "",
-        frontier: cut.text,
-        necessity: "User-authorized check-out/presence is an intentional film moment.",
-        eventIds: [],
-        attentionFunction: cut.attentionFunction,
-        setsUp: beats.length ? [beats[Math.max(0, end - 1)]?.change ?? ""] : [],
-        paysOff: [],
-        creativeMove: "none",
-        nextBeatPullTarget: 0.45,
-      });
-    }
-  }
-
-  const normalized = beats
-    .slice(0, 6)
-    .map((beat, index) => ({ ...beat, order: index + 1 }));
-
-  const arc = normalized.map((beat) => beat.attentionFunction).join(" → ");
-  const baselineFacts = uniq([
-    ...(input.graph.events.slice(0, 8).map((event) => event.label)),
-    ...(input.envelope.recurringSignals ?? []),
-  ], 16);
+  const composed = composePresence(
+    beats,
+    presenceCuts(input.presenceSummary),
+    endpoint,
+  );
 
   return {
-    premise: `${input.subject ? `${input.subject}: ` : ""}grounded short-film sequence from supplied reality${input.lens ? ` through a ${input.lens} lens` : ""}.`,
-    baselineFacts,
-    attentionArc: arc,
-    beats: normalized,
-    closing: eventById(input.graph, endpointId)?.label,
+    premise: `${input.subject ? `${input.subject}: ` : ""}movie discovered from supplied reality${input.lens ? ` through a ${input.lens} lens` : ""}.`,
+    baselineFacts: uniq(input.graph.events.map((event) => event.label), 16),
+    attentionArc: composed.map((beat) => beat.attentionFunction).join(" → "),
+    beats: composed,
+    closing: label(input.graph, endpoint),
     source: "grounded_sequence_planner",
   };
 }
