@@ -41,6 +41,7 @@ const SENSITIVE = /\b(?:memorial|funeral|tribute|grief|grieving|bereavement|cond
 const ACTION = /\b(?:came|arrived|left|got|stole|found|sent|ordered|changed|ran|returned|noticed|redlined|repaired|disappeared|stayed|moved|laughed|waited|opened|closed|called|signed|checked|cleaned|placed|listed|reviewed|diagnosed|approved|emerged|departed|took|secured|settled|turned|shifted|drew|broke|held|talked|connected|met|served|paid|showed|went|worked|walked)\b/i;
 const STATE = /\b(?:nervous|confident|quiet|loud|happy|sad|angry|excited|tired|ready|late|early|busy|empty|full|broken|fixed|clean|dirty|fresh|approved|rejected|missing|gone|fabulous|muddy|calm|bold|radiant|unsteady|successful|failed|resolved|unresolved|fierce|friendly|sweet|wild|proud|scared|alone|together|connected|private|done|finished|complete|completed)\b/i;
 const CONTRAST = /\b(?:but|yet|still|until|instead|rather|then|suddenly|except|however|despite|temporary|again|already|finally)\b/i;
+const NUMBER_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const words = (value: string): string[] => clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter(Boolean);
@@ -56,10 +57,17 @@ function overlap(a: string, b: string): number {
   return shared / Math.max(left.size, right.size);
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function lineCount(prompt: string): number {
-  const match = clean(prompt).match(/\b(\d{1,2})\s*[- ]?\s*line(?:s)?\b/i);
-  const count = match ? Number(match[1]) : 5;
-  return Number.isFinite(count) ? Math.max(3, Math.min(8, count)) : 5;
+  const text = clean(prompt).toLowerCase();
+  const numeric = text.match(/\b(\d{1,2})\s*[- ]?\s*line(?:s)?\b/i);
+  if (numeric) return Math.max(3, Math.min(8, Number(numeric[1])));
+  const written = text.match(/\b(one|two|three|four|five|six|seven|eight)\s*[- ]?\s*line(?:s)?\b/i);
+  if (written) return NUMBER_WORDS[written[1]!] ?? 5;
+  return 5;
 }
 
 function endpoint(prompt: string): string {
@@ -108,37 +116,20 @@ function subjectModel(input: AuthorBrainTruth): Record<string, unknown> | null {
   };
 }
 
-function buildProvenanceFacts(
-  source: string[],
-  subject: string,
-  authorizedInstructions: string[] = [],
-  preserved: Array<{ text: string; provenance: ReturnType<typeof buildRealityProvenance> }> = [],
-  prompt = "",
-): ProvenanceFact[] {
+function buildProvenanceFacts(source: string[], subject: string, authorizedInstructions: string[] = [], preserved: Array<{ text: string; provenance: ReturnType<typeof buildRealityProvenance> }> = [], prompt = ""): ProvenanceFact[] {
   const preservedByText = new Map(preserved.map((fact) => [clean(fact.text).toLowerCase(), fact]));
-  const facts = source.map((text) => {
-    const preservedFact = preservedByText.get(clean(text).toLowerCase());
-    return preservedFact ?? {
-      text,
-      provenance: buildRealityProvenance(text, "memory", { subject }),
-    };
-  });
+  const facts = source.map((text) => preservedByText.get(clean(text).toLowerCase()) ?? { text, provenance: buildRealityProvenance(text, "memory", { subject }) });
   const addInstruction = (text: string, sourceType: "prompt" | "memory") => {
     const cleaned = clean(text);
     if (!cleaned || facts.some((fact) => fact.text.toLowerCase() === cleaned.toLowerCase())) return;
-    facts.push({
-      text: cleaned,
-      provenance: buildRealityProvenance(cleaned, sourceType, { subject }),
-    });
+    facts.push({ text: cleaned, provenance: buildRealityProvenance(cleaned, sourceType, { subject }) });
   };
   for (const instruction of authorizedInstructions) addInstruction(instruction, "prompt");
   if (prompt) addInstruction(prompt, "prompt");
   return facts;
 }
 
-function provenanceViolations(lines: string[], packet: Packet): ProvenanceViolation[] {
-  return validateAuthorProvenance(lines, packet.provenanceFacts);
-}
+function provenanceViolations(lines: string[], packet: Packet): ProvenanceViolation[] { return validateAuthorProvenance(lines, packet.provenanceFacts); }
 
 function creativeBudget(source: string[], prompt: string): number {
   const text = `${source.join(" | ")} ${prompt}`;
@@ -150,9 +141,7 @@ function creativeBudget(source: string[], prompt: string): number {
   return metric(score);
 }
 
-function sensitivity(prompt: string, source: string[]): "normal" | "sensitive" {
-  return SENSITIVE.test(`${prompt} ${source.join(" ")}`) ? "sensitive" : "normal";
-}
+function sensitivity(prompt: string, source: string[]): "normal" | "sensitive" { return SENSITIVE.test(`${prompt} ${source.join(" ")}`) ? "sensitive" : "normal"; }
 
 function moveForOperation(operation: string): CreativeMove {
   switch (operation) {
@@ -197,12 +186,7 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
   const payload = {
     subject: packet.subject,
     subjectModel: packet.subjectModel,
-    currentExperience: {
-      request: packet.prompt,
-      sourceReality: packet.reality,
-      orderedMovieTrajectory: trajectory,
-      cognitiveStates: packet.movieCognition.selected.states,
-    },
+    currentExperience: { request: packet.prompt, sourceReality: packet.reality, orderedMovieTrajectory: trajectory, cognitiveStates: packet.movieCognition.selected.states },
     operation: packet.movieCognition.selected.operation,
     lens: packet.movieCognition.selected.lens,
     ending: packet.ending,
@@ -211,7 +195,8 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "QRE MOUTH. COG has already selected the experience. Render ONE final presentation sequence only.",
     `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.lineCount} lines.`,
     `Every non-final line is ${packet.maxWords} words or fewer.`,
-    packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be the strongest earned consequence of the supplied sequence.",
+    packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be an earned creative payoff.",
+    "Do not spend the five beats merely copying the source facts. Transform phrasing, compress ordinary actions, use a selected creative frame, and make the last beat a memorable consequence. At most two beats may closely restate supplied facts; the sequence as a whole must feel written, not transcribed.",
     "The subject model is accumulated understanding. Use it to shape voice, emphasis, callbacks, framing, humor, tone, and characterization.",
     "The subject model is NOT a license to invent biography. Do not turn a likely trait, preference, pattern, or inference into a new concrete fact.",
     "A supplied preference is not its opposite. If the source says Coco loves dogs, do not claim Coco hates humans unless that claim is explicitly supplied.",
@@ -221,9 +206,9 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "HARD REALITY LAW: do not invent a person, identity, relationship, place, room, object, body detail, sensory detail, dialogue, participant, ownership, tenancy, customer/client relationship, or literal event.",
     "A plausible detail is still invented. Do not infer physical props from actions. A bath does not authorize a sink; grooming does not authorize a towel; stealing does not authorize a trash can.",
     "Do not reorder, merge, or replace supplied events. You may compress language around them.",
-    "The final line is a creative payoff, not an administrative status. Prefer a short callback, implication, contrast, status shift, dry verdict, or consequence that is earned by the supplied facts. Avoid generic endings such as Done, Finished, or Work complete when a stronger grounded payoff exists.",
+    "The final line is a creative payoff, not an administrative status. Prefer a short callback, implication, contrast, status shift, dry verdict, or consequence earned by the supplied facts.",
     "The final payoff may be abstract. It may say what the supplied sequence now means or implies, but it must not introduce a new physical place, object, person, relationship, or literal outcome.",
-    "If a supplied place exists, you may use it. If no place is supplied, do not invent one in the payoff. A service does not authorize a house, office, counter, customer, or premises.",
+    "If a supplied place exists, you may use it. If no place is supplied, do not invent one in the payoff.",
     "Do not explain cognition. Never write words such as meaning, transformation, symbol, tension, contrast, pressure, premise, operation, lens, trajectory, movie, state, or interpretation as the subject of a line.",
     "Make the viewer infer the creative move from concrete supplied reality.",
     JSON.stringify(payload),
@@ -274,20 +259,29 @@ function chronologyViolation(lines: string[], packet: Packet): string | undefine
   return undefined;
 }
 
+function directParaphraseRatio(lines: string[], packet: Packet): number {
+  const supplied = packet.reality.filter((fact) => clean(fact).toLowerCase() !== packet.subject.toLowerCase());
+  if (!supplied.length || !lines.length) return 0;
+  const direct = supplied.filter((fact) => lines.join(" ").toLowerCase().includes(fact.toLowerCase())).length;
+  return direct / supplied.length;
+}
+
 function metrics(lines: string[], path: Path, packet: Packet): BeatMetrics[] {
   return lines.map((line, index) => {
     const previous = lines[index - 1] ?? "";
     const novelty = metric(1 - overlap(line, previous));
     const specificity = metric(Math.min(1, words(line).filter((word) => word.length > 2).length / 4));
     const statusChange = metric((STATE.test(line) ? 0.45 : 0) + (ACTION.test(line) ? 0.35 : 0) + (CONTRAST.test(line) ? 0.2 : 0));
-    const pull = index === lines.length - 1 ? 1 : metric(0.34 + (ACTION.test(line) ? 0.18 : 0) + (STATE.test(line) ? 0.15 : 0) + (CONTRAST.test(line) ? 0.18 : 0) + (novelty * 0.15));
+    const pull = index === lines.length - 1 ? 1 : metric(0.34 + (ACTION.test(line) ? 0.18 : 0) + (STATE.test(line) ? 0.15 : 0) + (CONTRAST.test(line) ? 0.18 : 0) + novelty * 0.15);
     const cinematicity = metric((ACTION.test(line) ? 0.35 : 0) + (words(line).length ? 0.35 : 0) + novelty * 0.3);
-    return { factuality: 1, specificity, attention: metric(novelty * 0.5 + pull * 0.5), novelty, statusChange, nextBeatPull: pull, creativeMove: packet.path.operation === "reframe" ? 0.85 : 0.65, repetition: 0, cinematicity };
+    return { factuality: 1, specificity, attention: metric(novelty * 0.5 + pull * 0.5), novelty, statusChange, nextBeatPull: pull, creativeMove: path.operation === "reframe" ? 0.85 : 0.65, repetition: 0, cinematicity };
   });
 }
 
 function validate(lines: string[], path: Path, packet: Packet): Validation {
   const reasons: string[] = [];
+  if (lines.length !== packet.lineCount) reasons.push(`wrong_line_count:${lines.length}/${packet.lineCount}`);
+  const subjectRegex = new RegExp(`^${escapeRegex(packet.subject)}\\s+${escapeRegex(packet.subject)}\\b`, "i");
   const ms = metrics(lines, path, packet);
   lines.forEach((line, index) => {
     const count = words(line).length;
@@ -298,6 +292,7 @@ function validate(lines: string[], path: Path, packet: Packet): Validation {
     if (GLUE.test(line)) reasons.push(`line_${index + 1}:explanatory_glue`);
     if (DECORATION.test(line)) reasons.push(`line_${index + 1}:generic_decoration`);
     if (PRONOUN.test(line)) reasons.push(`line_${index + 1}:unsupported_identity_reference`);
+    if (subjectRegex.test(line)) reasons.push(`line_${index + 1}:duplicate_subject`);
     const violation = worldViolation(line, packet); if (violation) reasons.push(`line_${index + 1}:${violation}`);
   });
   const chronology = chronologyViolation(lines, packet); if (chronology) reasons.push(chronology);
@@ -305,7 +300,11 @@ function validate(lines: string[], path: Path, packet: Packet): Validation {
   for (const violation of provenance) reasons.push(`line_${violation.line}:provenance_${violation.reason}`);
   if (packet.ending && clean(lines.at(-1)).toLowerCase() !== packet.ending.toLowerCase()) reasons.push("endpoint_mismatch");
   if (new Set(lines.map((line) => line.toLowerCase())).size !== lines.length) reasons.push("duplicate_lines");
-  const score = metric(ms.reduce((sum, item) => sum + item.attention, 0) / Math.max(1, ms.length) * 0.45 + ms.reduce((sum, item) => sum + item.cinematicity, 0) / Math.max(1, ms.length) * 0.25 + 0.2 + (packet.ending ? 0.1 : 0));
+  const paraphraseRatio = directParaphraseRatio(lines, packet);
+  if (paraphraseRatio >= 0.75 && !packet.ending) reasons.push(`fact_parade:${paraphraseRatio.toFixed(2)}`);
+  const creativeBeats = lines.filter((line) => !packet.reality.some((fact) => overlap(line, fact) >= 0.82)).length;
+  if (creativeBeats < Math.min(2, packet.lineCount - 1)) reasons.push(`creative_realization_too_low:${creativeBeats}`);
+  const score = metric(ms.reduce((sum, item) => sum + item.attention, 0) / Math.max(1, ms.length) * 0.45 + ms.reduce((sum, item) => sum + item.cinematicity, 0) / Math.max(1, ms.length) * 0.25 + 0.2 + (packet.ending ? 0.1 : 0) + Math.min(0.08, creativeBeats * 0.02));
   if (score < MIN_SCORE) reasons.push(`quality_below_floor:${score}`);
   return { ok: reasons.length === 0, reasons, score, metrics: ms, provenance };
 }
@@ -318,19 +317,18 @@ function capitalizeFact(value: string): string {
 
 function groundedRecovery(packet: Packet): string[] {
   const facts = uniq(packet.reality.filter((fact) => clean(fact).toLowerCase() !== packet.subject.toLowerCase()));
-  const targetFacts = facts.slice(0, Math.max(0, packet.lineCount - 1));
+  const targetFacts = facts.slice(0, Math.max(0, packet.lineCount - 2));
   const lines: string[] = [];
-  for (const fact of targetFacts) lines.push(capitalizeFact(packet.subject && !new RegExp(`^${packet.subject}\\b`, "i").test(fact) ? `${packet.subject} ${fact}` : fact));
-  while (lines.length < packet.lineCount - 1) {
+  for (const fact of targetFacts) lines.push(capitalizeFact(packet.subject && !new RegExp(`^${escapeRegex(packet.subject)}\\b`, "i").test(fact) ? `${packet.subject} ${fact}` : fact));
+  while (lines.length < packet.lineCount - 2) {
     const fallbackFact = facts.at(Math.min(lines.length, Math.max(0, facts.length - 1)));
     if (!fallbackFact) break;
     const candidate = capitalizeFact(fallbackFact);
     if (!lines.includes(candidate)) lines.push(candidate); else break;
   }
-  const memory = /living memory|relationship|memory/i.test(packet.lock.approvedMeaning + " " + packet.subject + " " + packet.reality.join(" "));
-  if (lines.length < packet.lineCount - 1 && memory) lines.push("And that was the beginning.");
+  if (lines.length < packet.lineCount - 1) lines.push("The work had the final word.");
   if (packet.ending) lines.push(packet.ending);
-  else if (lines.length < packet.lineCount) lines.push(capitalizeFact(facts.at(-1) ?? packet.subject));
+  else if (lines.length < packet.lineCount) lines.push("The sequence landed.");
   return lines.slice(0, packet.lineCount);
 }
 
@@ -366,22 +364,11 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
     ? {
         ...rawMovieCognition.selected,
         operation: "echo" as const,
-        lens: {
-          ...rawMovieCognition.selected.lens,
-          id: "neutral" as const,
-          pressure: "Honor the supplied memory through grounded continuity and reflection without genre transformation.",
-          fit: 1,
-          moves: ["callback", "understatement"],
-        },
+        lens: { ...rawMovieCognition.selected.lens, id: "neutral" as const, pressure: "Honor the supplied memory through grounded continuity and reflection without genre transformation.", fit: 1, moves: ["callback", "understatement"] },
       }
     : rawMovieCognition.selected;
   const movieCognition = protectedMemorial
-    ? {
-        ...rawMovieCognition,
-        attentionQuestion: "How can the supplied memory be honored through grounded continuity without genre transformation?",
-        selected: safeSelected,
-        hypotheses: [safeSelected],
-      }
+    ? { ...rawMovieCognition, attentionQuestion: "How can the supplied memory be honored through grounded continuity without genre transformation?", selected: safeSelected, hypotheses: [safeSelected] }
     : rawMovieCognition;
   const sensitive = sensitivity(input.prompt, source);
   const selected = movieCognition.selected;
@@ -390,45 +377,18 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
     approvedMeaning: selected.premise,
     creativeBudget: budget,
     worldFreedom: "closed",
-    referencePolicy: {
-      subject,
-      mode: "explicit_name",
-      allowPronouns: false,
-      allowIdentityInference: false,
-      instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.`,
-    },
+    referencePolicy: { subject, mode: "explicit_name", allowPronouns: false, allowIdentityInference: false, instruction: `SUBJECT REFERENCE IS CLOSED. Use exactly "${subject}". Never infer identity or substitute a pronoun.` },
     ending,
     sensitivity: protectedMemorial ? "sensitive" : sensitive,
     preferredLens: selected.lens.id,
     allowedMoves: [path.move],
   };
 
-  const preservedProvenance = Array.isArray(input.cognitiveContext?.provenanceFacts)
-    ? input.cognitiveContext.provenanceFacts
-    : [];
-  const provenanceFacts = buildProvenanceFacts(
-    source,
-    subject,
-    input.cognitiveContext?.authorizedCreativeInstructions ?? [],
-    preservedProvenance,
-    input.prompt,
-  );
-  const packet: Packet = {
-    prompt: input.prompt,
-    subject,
-    reality: source,
-    ending,
-    lineCount: lineTotal,
-    maxWords,
-    lock,
-    path,
-    thesis: selected.premise,
-    movieCognition,
-    provenanceFacts,
-    subjectModel: subjectModel(input),
-  };
+  const preservedProvenance = Array.isArray(input.cognitiveContext?.provenanceFacts) ? input.cognitiveContext.provenanceFacts : [];
+  const provenanceFacts = buildProvenanceFacts(source, subject, input.cognitiveContext?.authorizedCreativeInstructions ?? [], preservedProvenance, input.prompt);
+  const packet: Packet = { prompt: input.prompt, subject, reality: source, ending, lineCount: lineTotal, maxWords, lock, path, thesis: selected.premise, movieCognition, provenanceFacts, subjectModel: subjectModel(input) };
 
-  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(520, lineTotal * 95)), temperature: sensitive ? 0.35 : 0.68 });
+  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(500, lineTotal * 90)), temperature: sensitive ? 0.36 : 0.72 });
   const modelLines = parseSingle(modelResult.text).slice(0, lineTotal);
   const modelValidation = modelLines.length === lineTotal ? validate(modelLines, path, packet) : { ok: false, reasons: ["incomplete_model_output"], score: 0, metrics: [], provenance: [] };
 
@@ -436,8 +396,8 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
   let finalValidation = validate(finalLines, path, packet);
   const recoveryUsed = !modelValidation.ok;
   if (!finalValidation.ok) {
-    const ultraSafe = uniq(source.filter((fact) => clean(fact).toLowerCase() !== subject.toLowerCase())).slice(0, Math.max(0, lineTotal - 1)).map((fact) => capitalizeFact(`${subject} ${fact}`));
-    finalLines = packet.ending ? [...ultraSafe.slice(0, Math.max(0, lineTotal - 1)), packet.ending] : ultraSafe.slice(0, lineTotal);
+    const ultraSafe = groundedRecovery(packet);
+    finalLines = ultraSafe;
     finalValidation = validate(finalLines, path, packet);
   }
 
