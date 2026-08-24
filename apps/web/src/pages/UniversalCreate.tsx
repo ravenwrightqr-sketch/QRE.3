@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/layout/DashboardLayout";
-import IdeaParticles from "../components/effects/IdeaParticles";
 import { getUserAssets } from "../lib/api";
 
 type Asset = { id: string; slug: string; displayName?: string | null };
@@ -9,13 +7,36 @@ type Context = { id: string; kind: string; name: string; factCount: number; even
 type Seed = { id: string; label: string; options: string[]; placeholder?: string; optional?: boolean };
 type Plan = { title: string; seeds: Seed[]; skipLabel: string; continueLabel: string };
 
+type IntakeStep = "intent" | "seed" | "create" | "done";
+
 const API = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem("token");
-  const response = await fetch(`${API}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers || {}) } });
+  const response = await fetch(`${API}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers || {}),
+    },
+  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "QRE request failed");
   return data as T;
+}
+
+function naturalQuestion(seed: Seed, index: number): string {
+  const id = seed.id.toLowerCase();
+  const label = seed.label.toLowerCase();
+
+  if (/context|client|location|property|entity|who|where/.test(id)) return "Who gets this one?";
+  if (/fact|event|happen|detail|story|reality|input/.test(id) || /happened|details|facts/.test(label)) return "What went down?";
+  if (/memory|remember|notable|moment|continuity/.test(id)) return "Anything worth remembering?";
+  if (/creative|tone|style|voice|preference/.test(id)) return "How should it feel?";
+  if (/media|photo|video/.test(id)) return "Anything to show?";
+  if (seed.optional) return "Anything else?";
+  return index === 0 ? seed.label : `What else should QRE know?`;
 }
 
 export default function UniversalCreate() {
@@ -27,71 +48,211 @@ export default function UniversalCreate() {
   const [prompt, setPrompt] = useState("");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [seedValues, setSeedValues] = useState<Record<string, string>>({});
+  const [seedIndex, setSeedIndex] = useState(0);
+  const [step, setStep] = useState<IntakeStep>("intent");
+  const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { void (async () => { const response: any = await getUserAssets(); const list = Array.isArray(response) ? response : response.assets ?? []; setAssets(list); if (list[0]?.id) setAssetId(list[0].id); })(); }, []);
-  useEffect(() => { if (!assetId) return; void request<{ contexts: Context[] }>(`/api/create/contexts/${encodeURIComponent(assetId)}`).then((data) => setContexts(data.contexts ?? [])).catch(() => setContexts([])); }, [assetId]);
+  useEffect(() => {
+    void (async () => {
+      const response: any = await getUserAssets();
+      const list = Array.isArray(response) ? response : response.assets ?? [];
+      setAssets(list);
+      if (list[0]?.id) setAssetId(list[0].id);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!assetId) return;
+    void request<{ contexts: Context[] }>(`/api/create/contexts/${encodeURIComponent(assetId)}`)
+      .then((data) => setContexts(data.contexts ?? []))
+      .catch(() => setContexts([]));
+  }, [assetId]);
+
+  const visibleSeeds = useMemo(() => (plan?.seeds ?? []).filter((seed) => !seed.optional || !seed.options.length || Boolean(seed.placeholder)), [plan]);
+  const currentSeed = visibleSeeds[seedIndex];
 
   async function begin() {
     if (!prompt.trim() || busy) return;
     setBusy(true);
-    try { const data = await request<{ plan: Plan }>("/api/create/plan", { method: "POST", body: JSON.stringify({ prompt }) }); setPlan(data.plan); setSeedValues({}); }
-    finally { setBusy(false); }
+    setError(null);
+    try {
+      const data = await request<{ plan: Plan }>("/api/create/plan", {
+        method: "POST",
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      setPlan(data.plan);
+      setSeedValues({});
+      setSeedIndex(0);
+      setAnswer("");
+      setStep("seed");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "QRE could not read that yet.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function create(skip = false) {
+  async function advance() {
+    if (!currentSeed || busy) return;
+    const value = answer.trim();
+    if (value) setSeedValues((existing) => ({ ...existing, [currentSeed.id]: value }));
+    const next = seedIndex + 1;
+    if (next < visibleSeeds.length) {
+      setSeedIndex(next);
+      setAnswer("");
+      return;
+    }
+    setStep("create");
+  }
+
+  async function create() {
     if (!prompt.trim() || !assetId || busy) return;
     setBusy(true);
+    setError(null);
     try {
-      const additions = Object.entries(seedValues).map(([id, value]) => value.trim() ? `${plan?.seeds.find((seed) => seed.id === id)?.label ?? id}: ${value.trim()}` : "").filter(Boolean);
-      const enriched = `${prompt.trim()}${additions.length && !skip ? `\n\nADDITIONAL CREATOR INPUT:\n${additions.join("\n")}` : ""}`;
-      const compiled: any = await request<any>("/api/contextual-experience/compile", { method: "POST", body: JSON.stringify({ prompt: enriched, assetId, entityName: contextName || undefined }) });
+      const values = { ...seedValues };
+      if (currentSeed && answer.trim()) values[currentSeed.id] = answer.trim();
+      const additions = Object.entries(values)
+        .map(([id, value]) => {
+          const seed = visibleSeeds.find((item) => item.id === id);
+          return value.trim() ? `${seed?.label ?? id}: ${value.trim()}` : "";
+        })
+        .filter(Boolean);
+
+      const enriched = `${prompt.trim()}${contextName ? `\n\nCONTEXT: ${contextName}` : ""}${
+        additions.length ? `\n\nCREATOR INPUT:\n${additions.join("\n")}` : ""
+      }`;
+
+      const compiled: any = await request<any>("/api/contextual-experience/compile", {
+        method: "POST",
+        body: JSON.stringify({ prompt: enriched, assetId, entityName: contextName || undefined }),
+      });
+
       sessionStorage.setItem("experiencePreview", JSON.stringify(compiled.experience ?? compiled));
       sessionStorage.setItem("experienceSourcePrompt", prompt.trim());
       sessionStorage.setItem("experienceAssetId", assetId);
       if (contextName) sessionStorage.setItem("experienceContextName", contextName);
+      setStep("done");
       navigate("/experience/preview");
-    } finally { setBusy(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "QRE could not create that.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  return <DashboardLayout><IdeaParticles /><main style={page}>
-    <section style={hero}>
-      <div style={eyebrow}>QRE</div>
-      <h1 style={title}>What do you want to create?</h1>
-      <p style={sub}>Say it normally. QRE learns what this creation needs.</p>
-      <select value={assetId} onChange={(e) => { setAssetId(e.target.value); setContextName(""); }} style={select} aria-label="QRE asset">{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName || asset.slug}</option>)}</select>
-      {contexts.length > 0 && <section style={contextRail}><div style={contextLabel}>CONTINUE SOMETHING YOU ALREADY STARTED</div><div style={contextRow}>{contexts.map((context) => <button key={context.id} type="button" onClick={() => setContextName(context.name)} style={{ ...contextButton, ...(contextName === context.name ? activeContext : {}) }}><strong>{context.name}</strong><span>{context.experienceCount ? `${context.experienceCount} experiences` : `${context.factCount} facts`}</span></button>)}</div></section>}
-      {contextName && <div style={selectedContext}>CONTINUING: {contextName}</div>}
-      <div style={inputShell}><textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void begin(); } }} placeholder="Make a wedding memory… / video receipts for my service… / bring my house to life…" rows={4} style={textarea} /><button type="button" disabled={busy || !prompt.trim()} onClick={() => void begin()} style={createButton}>{busy ? "THINKING…" : "CREATE"}</button></div>
-    </section>
-    {plan && <section style={planCard}><button type="button" onClick={() => setPlan(null)} style={back}>BACK</button><div style={eyebrow}>{plan.title}</div><div style={seedGrid}>{plan.seeds.map((seed) => <div key={seed.id} style={seedBlock}><div style={seedLabel}>{seed.label}</div>{seed.options.length > 0 && <div style={chips}>{seed.options.map((option) => <button key={option} type="button" onClick={() => setSeedValues((v) => ({ ...v, [seed.id]: option }))} style={{ ...chip, ...(seedValues[seed.id] === option ? chipActive : {}) }}>{option}</button>)}</div>}{seed.placeholder && <input value={seedValues[seed.id] ?? ""} onChange={(e) => setSeedValues((v) => ({ ...v, [seed.id]: e.target.value }))} placeholder={seed.placeholder} style={seedInput} />}</div>)}</div><div style={actions}><button type="button" onClick={() => void create(true)} style={secondary}>{plan.skipLabel}</button><button type="button" onClick={() => void create(false)} style={primary}>{plan.continueLabel}</button></div></section>}
-  </main></DashboardLayout>;
+  const question = currentSeed ? naturalQuestion(currentSeed, seedIndex) : "Anything worth remembering?";
+
+  return (
+    <main style={page}>
+      <div style={mark}>QRE</div>
+
+      {step === "intent" && (
+        <section style={stage}>
+          <div style={questionStyle}>What are you making?</div>
+          <textarea
+            autoFocus
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void begin();
+              }
+            }}
+            placeholder="Housekeeping receipts…"
+            rows={3}
+            style={input}
+          />
+          <button type="button" onClick={() => void begin()} disabled={busy || !prompt.trim()} style={arrowButton} aria-label="Continue">
+            ▸
+          </button>
+        </section>
+      )}
+
+      {step === "seed" && currentSeed && (
+        <section style={stage}>
+          <div style={contextLine}>{plan?.title ?? ""}</div>
+          <div style={questionStyle}>{question}</div>
+          {contexts.length > 0 && /context|client|location|property|entity|who|where/i.test(currentSeed.id) && (
+            <div style={suggestions}>
+              {contexts.slice(0, 4).map((context) => (
+                <button key={context.id} type="button" onClick={() => setAnswer(context.name)} style={suggestion}>
+                  {context.name} <span>▸</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <textarea
+            autoFocus
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void advance();
+              }
+            }}
+            placeholder={currentSeed.placeholder || "Short notes are perfect."}
+            rows={4}
+            style={input}
+          />
+          <button type="button" onClick={() => void advance()} disabled={busy || (!answer.trim() && !currentSeed.optional)} style={arrowButton} aria-label="Continue">
+            ▸
+          </button>
+          {currentSeed.optional && <button type="button" onClick={() => { setAnswer(""); void advance(); }} style={skip}>skip</button>}
+        </section>
+      )}
+
+      {step === "create" && (
+        <section style={stage}>
+          <div style={contextLine}>{contextName || plan?.title || ""}</div>
+          <div style={questionStyle}>Ready to make it memorable?</div>
+          <button type="button" onClick={() => void create()} disabled={busy} style={makeButton}>
+            {busy ? "…" : "△"}
+          </button>
+        </section>
+      )}
+
+      {error && <div style={errorStyle}>{error}</div>}
+    </main>
+  );
 }
 
-const page = { minHeight: "100vh", color: "#f7f7f7", background: "radial-gradient(circle at 50% 40%, rgba(80,255,220,.06), transparent 34%), #050608", padding: "40px 20px 100px", boxSizing: "border-box" as const };
-const hero = { maxWidth: 920, margin: "0 auto", minHeight: "70vh", display: "flex", flexDirection: "column" as const, justifyContent: "center", alignItems: "center" };
-const eyebrow = { fontSize: 10, letterSpacing: 6, opacity: .38, marginBottom: 14 };
-const title = { fontSize: "clamp(40px, 8vw, 78px)", letterSpacing: "-4px", lineHeight: .95, fontWeight: 500, textAlign: "center" as const, margin: 0 };
-const sub = { opacity: .5, maxWidth: 560, textAlign: "center" as const, margin: "18px 0 26px" };
-const select = { background: "rgba(255,255,255,.04)", color: "#fff", border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "10px 14px", marginBottom: 18 };
-const contextRail = { width: "min(860px, 94vw)", marginBottom: 20 };
-const contextLabel = { fontSize: 9, letterSpacing: 3, opacity: .32, marginBottom: 8 };
-const contextRow = { display: "flex", gap: 8, overflowX: "auto" as const, paddingBottom: 6 };
-const contextButton = { flex: "0 0 auto", display: "grid", gap: 4, textAlign: "left" as const, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: "#fff", borderRadius: 14, padding: "12px 14px", cursor: "pointer" };
-const activeContext = { borderColor: "rgba(120,255,230,.45)", boxShadow: "0 0 22px rgba(120,255,230,.1)" };
-const selectedContext = { fontSize: 11, letterSpacing: 2, opacity: .55, marginBottom: 8 };
-const inputShell = { width: "min(860px, 94vw)", position: "relative" as const, background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 24, padding: 12, boxSizing: "border-box" as const };
-const textarea = { width: "100%", resize: "vertical" as const, border: 0, outline: 0, background: "transparent", color: "#fff", fontSize: 18, lineHeight: 1.5, minHeight: 120, boxSizing: "border-box" as const, padding: 12 };
-const createButton = { border: 0, background: "#b9fff1", color: "#06100d", borderRadius: 999, padding: "12px 22px", fontWeight: 700, letterSpacing: 2, cursor: "pointer", float: "right" as const, margin: "0 4px 4px 0" };
-const planCard = { width: "min(860px, 94vw)", margin: "0 auto", background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 24, padding: 28, boxSizing: "border-box" as const };
-const back = { border: 0, background: "transparent", color: "rgba(255,255,255,.4)", cursor: "pointer", letterSpacing: 2, fontSize: 10 };
-const seedGrid = { display: "grid", gap: 18, marginTop: 18 };
-const seedBlock = { borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 16 };
-const seedLabel = { fontSize: 11, letterSpacing: 2, opacity: .55, marginBottom: 8 };
-const chips = { display: "flex", gap: 8, flexWrap: "wrap" as const };
-const chip = { border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.025)", color: "#fff", borderRadius: 999, padding: "9px 12px", cursor: "pointer" };
-const chipActive = { borderColor: "rgba(120,255,230,.45)", background: "rgba(120,255,230,.08)" };
-const seedInput = { width: "100%", marginTop: 8, boxSizing: "border-box" as const, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 12, color: "#fff", padding: 12 };
-const actions = { display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 };
-const secondary = { border: "1px solid rgba(255,255,255,.1)", background: "transparent", color: "#fff", borderRadius: 999, padding: "11px 16px", cursor: "pointer" };
-const primary = { border: 0, background: "#b9fff1", color: "#06100d", borderRadius: 999, padding: "11px 18px", fontWeight: 700, cursor: "pointer" };
+const page = {
+  minHeight: "100vh",
+  background: "#020304",
+  color: "#f5f7f7",
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "32px 24px",
+  boxSizing: "border-box" as const,
+};
+
+const mark = { position: "fixed" as const, top: 26, left: 28, fontSize: 11, letterSpacing: 7, opacity: 0.42 };
+const stage = { width: "min(760px, 92vw)", display: "flex", flexDirection: "column" as const, alignItems: "flex-start", gap: 18 };
+const contextLine = { fontSize: 11, letterSpacing: 3, textTransform: "uppercase" as const, opacity: 0.25 };
+const questionStyle = { fontSize: "clamp(34px, 7vw, 68px)", lineHeight: 0.98, letterSpacing: "-3px", fontWeight: 500, marginBottom: 12 };
+const input = {
+  width: "100%",
+  minHeight: 118,
+  resize: "vertical" as const,
+  background: "transparent",
+  color: "#fff",
+  border: 0,
+  outline: 0,
+  padding: "6px 0",
+  fontSize: 21,
+  lineHeight: 1.55,
+  boxSizing: "border-box" as const,
+};
+const arrowButton = { border: 0, background: "transparent", color: "#b9fff1", fontSize: 34, padding: 0, cursor: "pointer", opacity: 0.9 };
+const skip = { border: 0, background: "transparent", color: "rgba(255,255,255,.28)", fontSize: 12, padding: 0, cursor: "pointer" };
+const makeButton = { border: 0, background: "transparent", color: "#b9fff1", fontSize: 54, lineHeight: 1, padding: 0, cursor: "pointer" };
+const suggestions = { display: "grid", gap: 10, width: "100%" };
+const suggestion = { display: "flex", justifyContent: "space-between", width: "100%", border: 0, background: "transparent", color: "rgba(255,255,255,.72)", textAlign: "left" as const, padding: 0, fontSize: 16, cursor: "pointer" };
+const errorStyle = { position: "fixed" as const, bottom: 24, left: 24, right: 24, textAlign: "center" as const, color: "#ff8888", fontSize: 13 };
