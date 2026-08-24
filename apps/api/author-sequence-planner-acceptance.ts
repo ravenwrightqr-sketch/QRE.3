@@ -55,7 +55,7 @@ const withPresence = buildGroundedAuthorSequence({
 
 assert(withPresence, "presence planner returned no plan");
 assert(withPresence.beats.some((beat) => beat.role === "arrival" || beat.role === "location"), "authorized check-in/geolocation did not become a film cut");
-assert(withPresence.beats.some((beat) => beat.role === "completion"), "authorized checkout did not become a film cut");
+assert(withPresence.beats.some((beat) => beat.role === "release"), "authorized checkout did not become a release film cut");
 assert(withPresence.beats.at(-1)?.eventIds.includes(envelope.endpointEventId), "presence insertion displaced the source-derived endpoint");
 assert(withPresence.beats.length <= 6, `presence composition produced ${withPresence.beats.length} beats`);
 
