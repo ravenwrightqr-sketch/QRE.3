@@ -1,7 +1,8 @@
 import type { CognitiveEvidence, ExperienceEntities } from "@qre/contracts";
+import { looksLikeIdentityAssertion } from "@qre/contracts";
 
 export type CognitiveLens = "neutral" | "comedy" | "horror" | "romance" | "wild" | "mysterious";
-export type WorldKind = "entity" | "event" | "state" | "relationship" | "place" | "time" | "history" | "detail";
+export type WorldKind = "entity" | "attribute" | "event" | "state" | "relationship" | "place" | "time" | "history" | "detail";
 export type WorldEvidence = CognitiveEvidence & { id: string; kind: WorldKind; salience: number };
 export type WorldRelation = { from: string; relation: string; to: string; evidenceId: string };
 export type WorldEvent = {
@@ -10,7 +11,7 @@ export type WorldEvent = {
 };
 export type WorldModel = {
   prompt: string; lens: CognitiveLens; entities: string[]; participants: string[]; places: string[]; times: string[];
-  events: WorldEvent[]; relations: WorldRelation[]; evidence: WorldEvidence[]; memoryMatches: string[]; entitiesByKind: ExperienceEntities;
+  identityFacts: string[]; events: WorldEvent[]; relations: WorldRelation[]; evidence: WorldEvidence[]; memoryMatches: string[]; entitiesByKind: ExperienceEntities;
 };
 
 const ACTIONS = ["arrived","entered","walked","went","came","left","returned","found","cleaned","washed","groomed","repaired","fixed","restored","built","made","created","designed","wrote","cooked","served","prepared","opened","closed","visited","traveled","travelled","drove","rode","painted","danced","sang","played","chose","picked","selected","decided","touched","held","wore","tasted","smelled","looked","saw","watched","shared","gave","took","brought","received","checked","inspected","tested","installed","removed","changed","turned","transformed","finished","completed","celebrated","married","photographed","captured","recorded","taught","learned","discovered","collected","organized","decorated","styled","trimmed","cut","brushed","dried","massaged","relaxed","pampered","spoiled","treated","shook","chewed","stole","tore","ate","ran","called","rented","documented","started","stopped","hit","sat","stood","talked","met","stayed","slept","practiced","won","lost","broke","rescued","adopted","graduated","performed","settled","cried","laughed","loved","hated","feared","remembered","forgot","crossed","lasted","happened","surrendered","disappeared","appeared","continued","waited","lingered","kept","became","ended","got"] as const;
@@ -163,10 +164,22 @@ function eventFromChunk(raw: string, index: number, carryParticipants: string[],
 }
 
 export function buildWorldModel(prompt: string, options: { memoryMatches?: string[]; memorySources?: string[]; creativePreferences?: string[]; eventParticipants?: string[]; locationLabel?: string; eventVenue?: string } = {}): WorldModel {
-  const chunks = splitPrompt(prompt); const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = []; let carryParticipants = unique(options.eventParticipants ?? []).filter((name) => !PRONOUN_RE.test(name)); let carryPlace = options.locationLabel ?? options.eventVenue;
-  chunks.forEach((raw, index) => { const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []); events.push(event); allEvidence.push(...event.evidence); if (event.participants.length) carryParticipants = event.participants; if (event.place) carryPlace = event.place; });
+  const chunks = splitPrompt(prompt);
+  const configuredSubject = options.eventParticipants?.[0];
+  const inferredIdentitySubject = configuredSubject ?? (
+    chunks[0] && chunks.slice(1).some((chunk) => looksLikeIdentityAssertion(chunk, chunks[0]))
+      ? chunks[0]
+      : undefined
+  );
+  const identityFacts = chunks.filter((chunk) => looksLikeIdentityAssertion(chunk, inferredIdentitySubject));
+  const experienceChunks = chunks.filter((chunk) => !identityFacts.includes(chunk));
+  const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = [];
+  let carryParticipants = unique(options.eventParticipants ?? []).filter((name) => !PRONOUN_RE.test(name));
+  let carryPlace = options.locationLabel ?? options.eventVenue;
+  identityFacts.forEach((fact, index) => allEvidence.push(evidence(`identity-${index + 1}`, fact, "attribute", 1, "prompt")));
+  experienceChunks.forEach((raw, index) => { const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []); events.push(event); allEvidence.push(...event.evidence); if (event.participants.length) carryParticipants = event.participants; if (event.place) carryPlace = event.place; });
   const participantsList = unique(events.flatMap((event) => event.participants)); const places = unique(events.map((event) => event.place ?? "")); const times = unique(events.map((event) => event.time ?? ""));
-  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details])); const entities = unique([...participantsList, ...places, ...objects, ...events.map((event) => event.raw)]); const relations: WorldRelation[] = [];
+  const objects = unique(events.flatMap((event) => [event.object ?? "", ...event.details])); const entities = unique([...participantsList, ...places, ...identityFacts, ...objects]); const relations: WorldRelation[] = [];
   for (const event of events) {
     for (const participant of event.participants) {
       if (event.place) relations.push({ from: participant, relation: "experienced_at", to: event.place, evidenceId: `event-${event.order}-place` });
@@ -174,6 +187,6 @@ export function buildWorldModel(prompt: string, options: { memoryMatches?: strin
     }
     for (let i = 0; i < event.participants.length; i += 1) for (let j = i + 1; j < event.participants.length; j += 1) { const left = event.participants[i]!; const right = event.participants[j]!; relations.push({ from: left, relation: "shared_event", to: right, evidenceId: `event-${event.order}-raw` }); relations.push({ from: right, relation: "shared_event", to: left, evidenceId: `event-${event.order}-raw` }); }
   }
-  const entitiesByKind: ExperienceEntities = { people: participantsList, places, organizations: [], dates: [], times, events: events.map((event) => event.raw), products: [], objects, collections: [], concepts: [], other: [], urls: [], phones: [], media: [], emails: [], keywords: [] };
-  return { prompt, lens: lensOf(prompt, options.creativePreferences ?? []), entities, participants: participantsList, places, times, events, relations, evidence: allEvidence, memoryMatches: unique(options.memoryMatches ?? []), entitiesByKind };
+  const entitiesByKind: ExperienceEntities = { people: participantsList, places, organizations: [], dates: [], times, events: events.map((event) => event.raw), products: [], objects, collections: [], concepts: [], other: identityFacts, urls: [], phones: [], media: [], emails: [], keywords: [] };
+  return { prompt, lens: lensOf(prompt, options.creativePreferences ?? []), entities, participants: participantsList, places, times, identityFacts, events, relations, evidence: allEvidence, memoryMatches: unique(options.memoryMatches ?? []), entitiesByKind };
 }

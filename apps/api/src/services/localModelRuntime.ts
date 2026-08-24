@@ -22,7 +22,7 @@ function baseUrl() {
 }
 
 function modelName() {
-  return process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "qre-local";
+  return process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "qwen2.5vl:7b";
 }
 
 function timeoutMs() {

@@ -1,17 +1,34 @@
-import type { RealityEvent, RealityEvidence, RealityGraph, RealityRelation } from "@qre/contracts";
+import type {
+  RealityEvent,
+  RealityEvidence,
+  RealityGraph,
+  RealityRelation,
+} from "@qre/contracts";
+import { looksLikeIdentityAssertion } from "@qre/contracts";
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
+
 const lower = (value: string): string => clean(value).toLowerCase();
 
-const STOP = new Set(["the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "through", "after", "before", "then", "now", "very", "just", "still", "again", "this", "that", "it", "is", "are", "was", "were", "be", "been", "being", "as", "into", "my", "your", "our", "their", "his", "her", "its", "he", "she", "they", "them", "you", "we", "me"]);
-const ACTIONS = /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|make|gave|give|got|get|found|find|lost|lose|clean(?:ed|s|ing)?|finished|finish|started|start|opened|close(?:d|s|ing)?|walk(?:ed|s|ing)?|ran|run|drove|drive|ate|eat|drank|drink|kiss(?:ed|es|ing)?|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|paint(?:ed|s|ing)?|wore|wear|used|use|shook|shake|chewed|chew|connected|connect|stayed|stay|wait(?:ed|s|ing)?|called|call|laughed|laugh(?:ed|s|ing)?|cried|cry(?:ing|ied)?|look(?:ed|s|ing)?|felt|feel|seemed|seem|became|become|changed|change)\b/i;
+const STOP = new Set([
+  "the","a","an","and","or","but","to","of","in","on","at",
+  "for","with","from","by","through","after","before","then","now",
+  "very","just","still","again","this","that","it","is","are","was",
+  "were","be","been","being","as","into","my","your","our","their",
+  "his","her","its","he","she","they","them","you","we","me",
+]);
+
+/* Lexical classes are weak evidence features only. */
+const ACTIONS = /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean(?:ed|s|ing)?|finished|finish|started|start|opened|close(?:d|s|ing)?|walk(?:ed|s|ing)?|ran|run|drove|drive|ate|eat|drank|drink|kiss(?:ed|es|ing)?|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|paint(?:ed|s|ing)?|wore|wear|used|use|shook|shake|chewed|chew|connected|connect|stayed|stay|wait(?:ed|s|ing)?|called|call|laughed|laugh(?:ed|s|ing)?|cried|cry(?:ing|ied)?|look(?:ed|s|ing)?|felt|feel|seemed|seem|became|become|changed|change)\b/i;
 const STATE_WORDS = /\b(?:happy|sad|angry|calm|excited|nervous|scared|proud|confident|fun|funny|wild|goofy|sweet|gentle|fierce|stubborn|tired|quiet|loud|beautiful|strange|weird|odd|dark|bright|new|old|young|male|female|single|married|late|early|ready|clean|dirty|broken|fixed|alive|gone|back|again|first|second|third)\b/i;
 const TIME_WORDS = /\b(?:today|yesterday|tomorrow|morning|afternoon|evening|night|later|earlier|first|again|second|third|last|next|at \d|\d{1,2}:\d{2})\b/i;
 const RELATION_WORDS = /\b(?:because|therefore|so|which made|which caused|as a result|due to|until|while|after|before)\b/i;
 const RECURRENCE_WORDS = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once more)\b/i;
-const SENSORY_WORDS = /\b(?:smell|scent|sound|song|music|bass|taste|touch|feel|look|color|light|dark|glass|water|bubble|bow|bows|wine|rain|heat|cold|scratch|scar|texture|soft|rough|ball|balls|tie|ties)\b/i;
 
-function evidence(kind: RealityEvidence["kind"], text: string, index: number): RealityEvidence { return { id: `evidence-${kind}-${index + 1}`, text: clean(text), kind }; }
+function evidence(kind: RealityEvidence["kind"], text: string, index: number): RealityEvidence {
+  return { id: `evidence-${kind}-${index + 1}`, text: clean(text), kind };
+}
 
 /** Comma/list order is an input boundary, never a temporal fact. */
 function splitReality(values: readonly string[]): string[] {
@@ -29,10 +46,26 @@ function splitReality(values: readonly string[]): string[] {
 }
 
 function contentTokens(text: string): string[] {
-  return [...new Set(lower(text).replace(/[^a-z0-9'’-]+/g, " ").split(/\s+/).filter((token) => token.length >= 3 && !STOP.has(token)))].slice(0, 12);
+  return [
+    ...new Set(
+      lower(text)
+        .replace(/[^a-z0-9'’-]+/g, " ")
+        .split(/\s+/)
+        .filter((token) => token.length >= 3 && !STOP.has(token)),
+    ),
+  ].slice(0, 16);
 }
-function capitalizedEntities(text: string): string[] { return [...new Set(text.match(/\b[A-Z][A-Za-z0-9'’-]{1,}\b/g) ?? [])].slice(0, 8); }
-function eventKind(text: string): "event" | "state" | "observation" { if (ACTIONS.test(text) || TIME_WORDS.test(text)) return "event"; if (STATE_WORDS.test(text)) return "state"; return "observation"; }
+
+function capitalizedEntities(text: string): string[] {
+  return [...new Set(text.match(/\b[A-Z][A-Za-z0-9'’-]{1,}\b/g) ?? [])].slice(0, 8);
+}
+
+function eventKind(text: string): "event" | "state" | "observation" {
+  if (ACTIONS.test(text) || TIME_WORDS.test(text)) return "event";
+  if (STATE_WORDS.test(text)) return "state";
+  return "observation";
+}
+
 function explicitTime(text: string): number | undefined {
   const match = text.match(/\b(?:at\s*)?(\d{1,2}):(\d{2})\s*(am|pm)?\b/i);
   if (!match) return undefined;
@@ -46,22 +79,40 @@ function explicitTime(text: string): number | undefined {
 
 function event(label: string, sourceIds: string[], subject: string | undefined, place: string | undefined, index: number): RealityEvent {
   const concepts = contentTokens(label);
-  const entities = [...new Set([...(subject ? [clean(subject)] : []), ...capitalizedEntities(label), ...concepts.slice(0, 4)].filter(Boolean))].slice(0, 12);
+  const entities = [...new Set([...(subject ? [clean(subject)] : []), ...capitalizedEntities(label), ...concepts.slice(0, 5)].filter(Boolean))].slice(0, 12);
   const kind = eventKind(label);
-  return { id: `event-${index + 1}`, label: clean(label), sourceIds, entities, place: clean(place) || undefined, emotionalState: kind === "state" ? clean(label) : undefined, salient: true, provenance: "explicit" };
+  return {
+    id: `event-${index + 1}`,
+    label: clean(label),
+    sourceIds,
+    entities,
+    place: clean(place) || undefined,
+    emotionalState: kind === "state" ? clean(label) : undefined,
+    salient: true,
+    provenance: "explicit",
+  };
 }
 
 function addRelation(relations: RealityRelation[], from: string, to: string, kind: RealityRelation["kind"], strength: number): void {
   if (from === to) return;
   if (relations.some((relation) => relation.from === from && relation.to === to && relation.kind === kind)) return;
-  relations.push({ from, to, kind, strength });
+  relations.push({ from, to, kind, strength: Math.max(0, Math.min(1, strength)) });
+}
+
+function sharedDistinctiveTokens(a: string, b: string): string[] {
+  const left = new Set(contentTokens(a));
+  const right = new Set(contentTokens(b));
+  return [...left].filter((token) => right.has(token));
+}
+
+function specificityScore(event: RealityEvent): number {
+  return Math.min(1, contentTokens(event.label).length * 0.08 + event.entities.length * 0.04);
 }
 
 function buildRelationships(events: RealityEvent[], subject?: string): RealityRelation[] {
   const relations: RealityRelation[] = [];
   const subjectText = lower(subject ?? "");
 
-  // Chronology is earned. We only emit temporal edges when explicit clock times exist.
   for (let i = 0; i < events.length; i += 1) {
     const currentTime = explicitTime(events[i].label);
     if (currentTime === undefined) continue;
@@ -77,27 +128,39 @@ function buildRelationships(events: RealityEvent[], subject?: string): RealityRe
   for (let i = 0; i < events.length; i += 1) {
     const current = events[i];
     const currentText = lower(current.label);
-    const currentTokens = new Set(contentTokens(current.label));
 
     if (subjectText && currentText.includes(subjectText)) {
-      for (let j = 0; j < events.length; j += 1) if (i !== j && lower(events[j].label).includes(subjectText)) addRelation(relations, current.id, events[j].id, "involves", 0.62);
+      for (let j = 0; j < events.length; j += 1) {
+        if (i === j) continue;
+        if (lower(events[j].label).includes(subjectText)) addRelation(relations, current.id, events[j].id, "involves", 0.62);
+      }
     }
 
     for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j];
-      const otherText = lower(other.label);
-      const otherTokens = new Set(contentTokens(other.label));
-      const shared = [...currentTokens].filter((token) => otherTokens.has(token));
-      if (shared.length) addRelation(relations, current.id, other.id, "converges", Math.min(0.9, 0.5 + shared.length * 0.1));
+      const shared = sharedDistinctiveTokens(current.label, other.label);
 
-      if ((ACTIONS.test(current.label) && STATE_WORDS.test(other.label)) || (STATE_WORDS.test(current.label) && ACTIONS.test(other.label))) addRelation(relations, current.id, other.id, "changes", 0.42);
+      if (shared.length) addRelation(relations, current.id, other.id, "converges", Math.min(0.9, 0.46 + shared.length * 0.11));
       if (RELATION_WORDS.test(current.label) || RELATION_WORDS.test(other.label)) addRelation(relations, current.id, other.id, "recontextualizes", 0.82);
 
-      // Domain-neutral expectation violation hint: an explicitly supplied state/identity
-      // and a concrete sensory/object observation can be creatively contrasted. This is
-      // a hypothesis only; no domain-specific pair is hardcoded here.
-      const stateObjectPair = (STATE_WORDS.test(current.label) && SENSORY_WORDS.test(otherText)) || (SENSORY_WORDS.test(current.label) && STATE_WORDS.test(otherText));
-      if (stateObjectPair) addRelation(relations, current.id, other.id, "contrasts", 0.34);
+      const currentIsState = STATE_WORDS.test(current.label);
+      const otherIsState = STATE_WORDS.test(other.label);
+      const currentIsAction = ACTIONS.test(current.label);
+      const otherIsAction = ACTIONS.test(other.label);
+
+      if ((currentIsState && otherIsAction) || (currentIsAction && otherIsState)) {
+        const timeSupported = explicitTime(current.label) !== undefined && explicitTime(other.label) !== undefined;
+        addRelation(relations, current.id, other.id, "changes", shared.length > 0 || timeSupported ? 0.5 : 0.24);
+      }
+
+      const stateSpecificPair =
+        (currentIsState && !otherIsState && specificityScore(other) >= 0.32) ||
+        (otherIsState && !currentIsState && specificityScore(current) >= 0.32);
+
+      if (stateSpecificPair) {
+        const specificity = Math.max(specificityScore(current), specificityScore(other));
+        addRelation(relations, current.id, other.id, "contrasts", 0.3 + Math.min(0.2, specificity * 0.2));
+      }
 
       const a = explicitTime(current.label);
       const b = explicitTime(other.label);
@@ -105,8 +168,13 @@ function buildRelationships(events: RealityEvent[], subject?: string): RealityRe
     }
   }
 
-  const recurrence = events.filter((item) => RECURRENCE_WORDS.test(item.label));
-  for (const item of recurrence) for (const other of events) if (item.id !== other.id) addRelation(relations, item.id, other.id, "recontextualizes", 0.76);
+  for (const item of events.filter((candidate) => RECURRENCE_WORDS.test(candidate.label))) {
+    for (const other of events) {
+      if (item.id === other.id) continue;
+      addRelation(relations, item.id, other.id, "recontextualizes", 0.76);
+    }
+  }
+
   return relations.slice(0, 96);
 }
 
@@ -133,13 +201,28 @@ function deriveRecurringSignals(fragments: string[], memory: readonly string[] |
   const explicitRecurrence = fragments.filter((item) => RECURRENCE_WORDS.test(item)).map(clean);
   return [...new Set([...explicitRecurrence, ...repeated, ...repeatedTokens])].slice(0, 16);
 }
-function deriveSensorySignals(fragments: string[]): string[] { return fragments.filter((text) => SENSORY_WORDS.test(text)).slice(0, 16); }
 
-export function buildAuthorRealityGraph(input: { prompt: string; subject?: string; place?: string; facts: string[]; sourceMoments: string[]; memoryContext?: string[]; trajectory?: string[] }): RealityGraph {
+function deriveSensorySignals(fragments: string[]): string[] {
+  return fragments.filter((text) => contentTokens(text).length >= 3 && !STATE_WORDS.test(text)).slice(0, 16);
+}
+
+export function buildAuthorRealityGraph(input: {
+  prompt: string;
+  subject?: string;
+  place?: string;
+  facts: string[];
+  sourceMoments: string[];
+  memoryContext?: string[];
+  trajectory?: string[];
+}): RealityGraph {
   const evidenceItems: RealityEvidence[] = [];
   const pushEvidence = (kind: RealityEvidence["kind"], values: readonly string[] | undefined) => {
-    for (const value of values ?? []) { const text = clean(value); if (text) evidenceItems.push(evidence(kind, text, evidenceItems.length)); }
+    for (const value of values ?? []) {
+      const text = clean(value);
+      if (text) evidenceItems.push(evidence(kind, text, evidenceItems.length));
+    }
   };
+
   pushEvidence("prompt", [input.prompt]);
   pushEvidence("identity", input.subject ? [input.subject] : []);
   pushEvidence("fact", input.facts);
@@ -149,17 +232,20 @@ export function buildAuthorRealityGraph(input: { prompt: string; subject?: strin
 
   const rawReality = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? [])];
   const fragments = splitReality(rawReality);
-  const atomicEvidence: RealityEvidence[] = fragments.map((text, index) => ({ id: `evidence-atomic-${index + 1}`, text, kind: "fact" }));
+  const identityFragments = fragments.filter((text) => looksLikeIdentityAssertion(text, input.subject));
+  const experienceFragments = fragments.filter((text) => !looksLikeIdentityAssertion(text, input.subject));
+  const atomicIdentityEvidence: RealityEvidence[] = identityFragments.map((text, index) => ({ id: `evidence-identity-atomic-${index + 1}`, text, kind: "identity" }));
+  const atomicEvidence: RealityEvidence[] = experienceFragments.map((text, index) => ({ id: `evidence-atomic-${index + 1}`, text, kind: "fact" }));
   const events = atomicEvidence.map((source, index) => event(source.text, [source.id], input.subject, input.place, index));
   const relations = buildRelationships(events, input.subject);
   const sourceText = [input.prompt, ...rawReality].join(" ");
 
   return {
-    evidence: [...evidenceItems, ...atomicEvidence],
+    evidence: [...evidenceItems, ...atomicIdentityEvidence, ...atomicEvidence],
     events,
     relations,
     unresolvedTensions: deriveTensions(events, relations, sourceText),
-    recurringSignals: deriveRecurringSignals(fragments, input.memoryContext, input.trajectory),
-    sensorySignals: deriveSensorySignals(fragments),
+    recurringSignals: deriveRecurringSignals(experienceFragments, input.memoryContext, input.trajectory),
+    sensorySignals: deriveSensorySignals(experienceFragments),
   };
 }
