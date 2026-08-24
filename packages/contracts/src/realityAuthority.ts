@@ -20,8 +20,9 @@ export type RealityAuthorityKind =
   | "observation"
   | "memory";
 
-const IDENTITY_TERMS = /\b(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle|breed|type|kind|owner|partner|spouse)\b/i;
-const COPULA = /\b(?:is|was|are|were|=|:)\b/i;
+const IDENTITY_VALUE = /^(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle|breed|type|kind|owner|partner|spouse)$/i;
+const IDENTITY_PHRASE = /^(?:a|an)\s+(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle)$/i;
+const SUBJECT_ASSERTION = /^(?<subject>.+?)\s+(?:is|was|are|were)\s+(?<value>.+)$/i;
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -36,17 +37,17 @@ export function looksLikeIdentityAssertion(
   const subjectText = clean(subject).toLowerCase();
 
   if (/^(?:breed|type|kind|species|owner|partner|spouse)\s*[:=]/i.test(value)) return true;
-  if (!IDENTITY_TERMS.test(value)) return false;
+  if (IDENTITY_VALUE.test(value) || IDENTITY_PHRASE.test(value)) return true;
 
-  if (subjectText) {
-    const escaped = subjectText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const subjectAssertion = new RegExp(`^${escaped}\\s+(?:is|was|are|were)\\s+`, "i");
-    if (subjectAssertion.test(value)) return true;
-    if (normalized === subjectText) return true;
-  }
+  const assertion = value.match(SUBJECT_ASSERTION);
+  if (!assertion) return false;
+  const assertedSubject = clean(assertion.groups?.subject).toLowerCase();
+  const assertedValue = clean(assertion.groups?.value);
 
-  return /^(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle|breed|type|kind|owner|partner|spouse)$/i.test(value)
-    || /^(?:a|an)\s+(?:dog|puppy|poodle|cat|kitten|pet|animal|bird|horse|rabbit|person|woman|man|child|baby|family|business|company|restaurant|house|home|property|car|vehicle)$/i.test(value);
+  if (subjectText && assertedSubject === subjectText) return true;
+  if (IDENTITY_VALUE.test(assertedValue) || IDENTITY_PHRASE.test(assertedValue)) return true;
+
+  return normalized === subjectText;
 }
 
 export function classifyRealityFragment(
