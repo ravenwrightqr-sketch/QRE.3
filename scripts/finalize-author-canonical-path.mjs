@@ -82,8 +82,43 @@ let planner = read(plannerPath);
 
 planner = replaceOnce(
   planner,
+  /role: "completion", gainKind: "payoff", attentionFunction: "payoff"/,
+  `role: "release", gainKind: "payoff", attentionFunction: "release"`,
+  "authorSequencePlanner.ts · make checkout a release rather than a second payoff",
+);
+
+planner = replaceOnce(
+  planner,
+  /role: "completion" \| "location"/,
+  `role: "release" | "location"`,
+  "authorSequencePlanner.ts · allow release presence role",
+);
+
+planner = replaceOnce(
+  planner,
+  /\["arrival", "location", "completion"\]/g,
+  `["arrival", "location", "release"]`,
+  "authorSequencePlanner.ts · protect release presence cut",
+);
+
+planner = replaceOnce(
+  planner,
+  /beat\.role !== "completion"/g,
+  `beat.role !== "release"`,
+  "authorSequencePlanner.ts · keep opening presence separate from checkout release",
+);
+
+planner = replaceOnce(
+  planner,
+  /beat\.role === "completion"/g,
+  `beat.role === "release"`,
+  "authorSequencePlanner.ts · place checkout release before endpoint",
+);
+
+planner = replaceOnce(
+  planner,
   /  const normalized = beats\n    \.slice\(0, 6\)\n    \.map\(\(beat, index\) => \(\{ \.\.\.beat, order: index \+ 1 \}\)\);/,
-  `  // Preserve the endpoint as the final cut. Presence/location cuts are protected\n  // because the user explicitly authorized them as film material; the semantic\n  // reality beats still fill the remaining capacity.\n  const endpointBeat = beats.find((beat) => beat.eventIds.includes(endpointId) && beat.attentionFunction === "payoff");\n  const presenceBeats = beats.filter((beat) =>\n    beat.eventIds.length === 0 &&\n    ["arrival", "location", "completion"].includes(beat.role),\n  );\n  const regularBeats = beats.filter((beat) =>\n    beat !== endpointBeat && !presenceBeats.includes(beat),\n  );\n  const capacityForRegular = Math.max(0, 6 - presenceBeats.length - (endpointBeat ? 1 : 0));\n  const openingPresence = presenceBeats.filter((beat) => beat.role !== "completion");\n  const completionPresence = presenceBeats.filter((beat) => beat.role === "completion");\n  const normalized = [\n    ...openingPresence,\n    ...regularBeats.slice(0, capacityForRegular),\n    ...completionPresence,\n    ...(endpointBeat ? [endpointBeat] : []),\n  ].slice(0, 6).map((beat, index) => ({ ...beat, order: index + 1 }));`,
+  `  // Preserve the endpoint as the final cut. Presence/location cuts are protected\n  // because the user explicitly authorized them as film material; the semantic\n  // reality beats still fill the remaining capacity.\n  const endpointBeat = beats.find((beat) => beat.eventIds.includes(endpointId) && beat.attentionFunction === "payoff");\n  const presenceBeats = beats.filter((beat) =>\n    beat.eventIds.length === 0 &&\n    ["arrival", "location", "release"].includes(beat.role),\n  );\n  const regularBeats = beats.filter((beat) =>\n    beat !== endpointBeat && !presenceBeats.includes(beat),\n  );\n  const capacityForRegular = Math.max(0, 6 - presenceBeats.length - (endpointBeat ? 1 : 0));\n  const openingPresence = presenceBeats.filter((beat) => beat.role !== "release");\n  const completionPresence = presenceBeats.filter((beat) => beat.role === "release");\n  const normalized = [\n    ...openingPresence,\n    ...regularBeats.slice(0, capacityForRegular),\n    ...completionPresence,\n    ...(endpointBeat ? [endpointBeat] : []),\n  ].slice(0, 6).map((beat, index) => ({ ...beat, order: index + 1 }));`,
   "authorSequencePlanner.ts · protect presence cuts and source-derived endpoint",
 );
 
