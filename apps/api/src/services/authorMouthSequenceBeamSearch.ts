@@ -27,8 +27,11 @@ const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
 function legal(candidate: MouthCandidate): boolean {
+  const text = clean(candidate.text);
   return Boolean(
-    clean(candidate.text) &&
+    text &&
+    !/\.{3}$/.test(text) &&
+    !/^\.{2,}$/.test(text) &&
     candidate.inventionRisk < 0.35 &&
     candidate.forbiddenMoveRisk < 0.35 &&
     candidate.groundingScore >= 0.5,
@@ -44,7 +47,7 @@ function rank(candidate: MouthCandidate): number {
     candidate.compressionScore * 0.15 +
     candidate.noveltyScore * 0.1 +
     candidate.cohesionScore * 0.05;
-  const endpoint = candidate.endpointExactness * 0.2;
+  const endpoint = candidate.endpointExactness >= 0.999 ? 1 : candidate.endpointExactness * 0.2;
   return safety * 0.35 + semantic * 0.65 + endpoint;
 }
 
