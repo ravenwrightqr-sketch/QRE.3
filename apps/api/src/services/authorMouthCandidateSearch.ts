@@ -23,13 +23,12 @@ export type MouthCandidateGenerationInput = {
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const unique = (values: readonly unknown[], limit = Number.POSITIVE_INFINITY): string[] => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const bounded = (value: string): string => clean(value).split(/\s+/).filter(Boolean).slice(0, 7).join(" ");
 
 const META = /\b(?:qre|compiler|cognition|meaning spine|beat graph|information frontier|planner|planning|operator mix|viewer sees|audience sees|writing process)\b/i;
-const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?)\b/i;
+const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?)\b/i;
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|new chapter)\b/i;
-const INTERPRETIVE_WORDS = new Set(["apparently", "already", "again", "still", "only", "instead", "somehow", "perhaps", "maybe", "finally", "temporary", "temporarily", "absolutely", "just", "now", "then", "no", "yes", "round"]);
 
 const normalizeToken = (token: string): string => {
   const lower = token.toLowerCase();
