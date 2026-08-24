@@ -24,7 +24,7 @@ brain = replaceOnce(
 brain = replaceOnce(
   brain,
   /function buildFallbackBeatPlan\(\n  cognition:[\s\S]*?\n}\n\nfunction buildBeatMessages\(/,
-  `function buildFallbackBeatPlan(\n  cognition: ReturnType<typeof buildAuthorCognitivePlan>,\n  realityGraph: ReturnType<typeof buildAuthorRealityGraph>,\n  realityEnvelope: ReturnType<typeof buildAuthorRealityEnvelope>,\n  input: AuthorBrainTruth,\n): BeatPlan | undefined {\n  const planned = buildGroundedAuthorSequence({\n    graph: realityGraph,\n    envelope: realityEnvelope,\n    subject: input.subject,\n    lens: input.lens,\n    presenceSummary: input.presenceSummary ?? [],\n  });\n\n  if (!planned?.beats.length) return undefined;\n\n  return normalizeBeatPlan(planned);\n}\n\nfunction buildBeatMessages(`,
+  `function buildFallbackBeatPlan(\n  cognition: ReturnType<typeof buildAuthorCognitivePlan>,\n  realityGraph: ReturnType<typeof buildAuthorRealityGraph>,\n  realityEnvelope: ReturnType<typeof buildAuthorRealityEnvelope>,\n  input: AuthorBrainTruth,\n): BeatPlan | undefined {\n  const planned = buildGroundedAuthorSequence({\n    graph: realityGraph,\n    envelope: realityEnvelope,\n    subject: input.subject,\n    lens: input.lens,\n    presenceSummary: \${input.presenceSummary ?? []},\n  });\n\n  if (!planned?.beats.length) return undefined;\n\n  return normalizeBeatPlan(planned);\n}\n\nfunction buildBeatMessages(`,
   "authorBrainUniversal.ts · canonical beat-plan source",
 );
 
