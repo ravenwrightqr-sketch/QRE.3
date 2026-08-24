@@ -15,13 +15,14 @@ export type GeoAnchor = {
   time?: string;
 };
 
-type ExperienceIntent = { prompt: string; assetId?: string; geo?: GeoAnchor };
+type ExperienceIntent = { prompt: string; assetId?: string; geo?: GeoAnchor; movieMode?: boolean };
 
 export async function compileExperience(intent: ExperienceIntent): Promise<Experience> {
   const result = await apiPost("/experience/compile", {
     prompt: intent.prompt,
     ...(intent.assetId ? { assetId: intent.assetId } : {}),
     ...(intent.geo ? { geo: intent.geo } : {}),
+    movieMode: intent.movieMode !== false,
   });
   if (!result?.experience) throw new Error(result?.details || result?.error || "Invalid compiler response");
   return result.experience as Experience;
