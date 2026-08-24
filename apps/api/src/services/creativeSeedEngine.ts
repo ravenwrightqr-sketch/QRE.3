@@ -25,59 +25,19 @@ function clean(value: unknown) {
 }
 
 function fallbackPlan(prompt: string): CreativeSeedPlan {
-  const p = prompt.toLowerCase();
-  const promotional = /\b(create|make|build|generate|produce|write|turn)\b/.test(p) && /\b(video|ad|commercial|promo|business|brand|service|groom|restaurant|salon|clean|real estate|property)\b/.test(p);
-  const memory = /\b(memory|remember|wedding|anniversary|trip|rave|concert|family|grandma|childhood|vacation)\b/.test(p);
-  const event = /\b(wedding|party|event|birthday|festival|ceremony)\b/.test(p);
-  const mode: CreativeSeedPlan["mode"] = promotional ? "service_promo" : memory ? "memory" : event ? "event" : /\b(business|restaurant|shop|brand)\b/.test(p) ? "business" : "personal";
-
-  if (mode === "service_promo") {
-    return {
-      mode,
-      title: "Make it yours.",
-      prompt,
-      seeds: [
-        { id: "subject", label: "Who's in it?", kind: "subject", options: ["a dog", "a person", "a family"], placeholder: "Coco", optional: true },
-        { id: "moment", label: "What's the moment?", kind: "moment", options: ["arrival", "the service", "the transformation"], placeholder: "Coco arrives nervous", optional: true },
-        { id: "detail", label: "Give it one detail.", kind: "detail", options: ["a blue bow", "a surprise", "a little chaos"], placeholder: "blue bow", optional: true },
-        { id: "style", label: "What should it feel like?", kind: "style", options: ["funny", "fierce", "sweet", "unexpected"], optional: true },
-        { id: "ending", label: "How should it land?", kind: "ending", options: ["transformed", "fierce", "laugh out loud", "want to book"], optional: true },
-      ],
-      skipLabel: "JUST MAKE IT",
-      continueLabel: "MAKE IT",
-    };
-  }
-
-  if (mode === "memory" || mode === "event") {
-    return {
-      mode,
-      title: "Add a few sparks.",
-      prompt,
-      seeds: [
-        { id: "person", label: "Who matters?", kind: "person", options: ["me", "us", "family", "friends"], placeholder: "Who was there?", optional: true },
-        { id: "place", label: "Where was it?", kind: "place", options: ["home", "beach", "restaurant", "venue"], placeholder: "Name the place", optional: true },
-        { id: "moment", label: "What do you remember?", kind: "moment", options: ["the beginning", "the unexpected part", "the part everyone remembers"], placeholder: "Write one moment", optional: true },
-        { id: "detail", label: "One tiny detail.", kind: "detail", options: ["a photo", "something someone said", "something ridiculous", "a sound"], placeholder: "The detail you still see", optional: true },
-        { id: "feeling", label: "Leave us with…", kind: "feeling", options: ["warmth", "laughter", "wonder", "goosebumps"], optional: true },
-      ],
-      skipLabel: "JUST MAKE IT",
-      continueLabel: "BRING IT TO LIFE",
-    };
-  }
-
   return {
-    mode,
-    title: "Give QRE a few sparks.",
+    mode: "unknown",
+    title: "What would make this better?",
     prompt,
     seeds: [
-      { id: "subject", label: "What's at the center?", kind: "subject", options: ["a person", "a place", "a product", "a moment"], placeholder: "Name it", optional: true },
-      { id: "moment", label: "What happens?", kind: "moment", options: ["arrival", "change", "discovery", "surprise"], placeholder: "What happens?", optional: true },
-      { id: "detail", label: "What's the memorable detail?", kind: "detail", options: ["something visual", "something funny", "something unexpected"], placeholder: "Add one detail", optional: true },
-      { id: "style", label: "Pick a feeling.", kind: "style", options: ["funny", "romantic", "dark", "fierce", "warm"], optional: true },
-      { id: "ending", label: "Where should it land?", kind: "ending", options: ["reveal", "payoff", "transformation", "afterglow"], optional: true },
+      { id: "context", label: "What should QRE know?", kind: "custom", options: [], placeholder: "Add the person, place, job, object, event, or other context that matters.", optional: true },
+      { id: "moment", label: "What matters most?", kind: "moment", options: [], placeholder: "Give QRE one important moment, fact, or change.", optional: true },
+      { id: "detail", label: "One detail worth keeping.", kind: "detail", options: [], placeholder: "Add one specific detail.", optional: true },
+      { id: "style", label: "How should it feel?", kind: "style", options: ["funny", "cinematic", "dark", "warm", "unexpected"], optional: true },
+      { id: "ending", label: "How should it land?", kind: "ending", options: ["payoff", "reveal", "transformation", "quiet hit"], optional: true },
     ],
     skipLabel: "JUST MAKE IT",
-    continueLabel: "MAKE IT",
+    continueLabel: "CONTINUE",
   };
 }
 
@@ -100,7 +60,7 @@ function parseJson(text: string): CreativeSeedPlan | null {
       prompt: clean(parsed.prompt),
       seeds: seeds.slice(0, 6),
       skipLabel: clean(parsed.skipLabel) || "JUST MAKE IT",
-      continueLabel: clean(parsed.continueLabel) || "MAKE IT",
+      continueLabel: clean(parsed.continueLabel) || "CONTINUE",
     };
   } catch {
     return null;
@@ -117,23 +77,18 @@ export async function buildCreativeSeedPlan(prompt: string): Promise<CreativeSee
       {
         role: "system",
         content: [
-          "You are QRE's universal creative intake designer.",
-          "The user has already told QRE what they want to create. Your job is to design a tiny, fast, Apple-simple second screen that asks only for the highest-value creative ingredients that would make the result dramatically better.",
-          "Never create an industry-specific form. Infer the creation mode yourself.",
-          "Possible modes: memory, service_promo, business, event, personal, artifact, unknown.",
-          "Ask for at most 5 useful things. Prefer tappable options plus an optional one-line field.",
-          "Questions should feel playful and creative, not administrative.",
-          "Do not ask for information QRE can already infer from the prompt.",
-          "A service promotion may need subject, memorable detail, style, transformation, ending.",
-          "A memory may need person, place, moment, tiny detail, feeling.",
-          "A business/artifact may need what it is, why it matters, memorable detail, audience, desired effect.",
-          "An event may need who, place, standout moment, atmosphere, final feeling.",
-          "The user must be able to skip everything and let QRE create freely.",
+          "You are QRE's universal creation-intake designer.",
+          "The user has already said what they want to create. Never route the user into a hardcoded industry form.",
+          "Infer the creation intent and design a tiny second screen that asks only for the minimum useful missing information.",
+          "The missing context can be a person, client, property, job, pet, object, event, place, or anything else. Do not assume which.",
+          "If a persistent subject/context is already named by the user, focus follow-up questions on facts that advance that same context.",
+          "Ask at most 5 things. Prefer free text and small optional choices. Never insert stereotyped examples that imply unsupported reality.",
+          "The user must always be able to skip and let QRE create from the supplied reality.",
           "Return strict JSON: mode, title, prompt, seeds[], skipLabel, continueLabel.",
           "Each seed: id, label, kind, options[], placeholder?, optional.",
         ].join(" "),
       },
-      { role: "user", content: JSON.stringify({ prompt: source, fallbackMode: fallback.mode }) },
+      { role: "user", content: JSON.stringify({ prompt: source }) },
     ], "json");
     const parsed = parseJson(result.text);
     if (!parsed || parsed.seeds.length === 0) return fallback;
