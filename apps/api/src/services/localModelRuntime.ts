@@ -22,7 +22,7 @@ function baseUrl() {
 }
 
 function modelName() {
-  return process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "qre-local";
+  return process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "qwen2.5vl:7b";
 }
 
 function timeoutMs() {
@@ -285,22 +285,28 @@ async function realizeMouthOneBeat(
       : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. 2-7 words. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
     const singleSystem: LocalModelMessage = {
       ...system,
-      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse 2-7 words. Prefer 3-6.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
+      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts.\nUse the supplied beat as the creative job, but do not narrate the job.\n${retryInstruction}`,
     };
-    const singleUser: LocalModelMessage = { ...user, content: JSON.stringify(singleBeatPayload) };
-    const prepared = prepareMessages([singleSystem, singleUser]);
-    const data = await request("/api/chat", {
+
+    const singleUser: LocalModelMessage = {
+      role: "user",
+      content: JSON.stringify(singleBeatPayload),
+    };
+
+    const url = `${baseUrl()}/api/chat`;
+    const body = {
       model: modelName(),
+      messages: [singleSystem, singleUser],
+      format: "json",
       stream: false,
       keep_alive: keepAlive,
-      format: "json",
-      messages: prepared.map((message) => ({
-        role: message.role,
-        content: message.content,
-        ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
-      })),
-      options: { temperature, num_predict: numPredict },
-    });
+      options: {
+        temperature,
+        num_predict: numPredict,
+      },
+    };
+
+    const data = await request("/api/chat", body);
     const text = extractOneText(outputText(data));
     if (mouthAcceptable(text)) return text;
   }
@@ -313,69 +319,60 @@ export async function localModelGenerate(
   format?: "json",
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
-  const planner = messages.some((message) => message.role === "system" && META_PLANNER.test(message.content));
-  const preparedMessages = planner ? preparePlannerMessages(messages) : prepareMessages(messages);
+  const prepared = isCanonicalMouth(messages, format)
+    ? messages
+    : preparePlannerMessages(messages);
+  const model = modelName();
 
-  if (isCanonicalMouth(messages, format)) {
-    const payload = parseUserObject(messages);
-    const beats = Array.isArray(payload?.beats) ? payload.beats : [];
-    if (beats.length) {
-      const texts: string[] = [];
+  if (isCanonicalMouth(prepared, format)) {
+    const source = parseUserObject(prepared);
+    const beats = Array.isArray(source?.beats) ? source?.beats : [];
+    if (beats.length > 1) {
+      const outputs: Array<{ order: number; variants: string[] }> = [];
       for (const beat of beats) {
-        const text = await realizeMouthOneBeat(messages, beat, options);
-        if (text) texts.push(text);
-        if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-          console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-BEAT ---\n${text}\n--- END RAW MODEL OUTPUT · MOUTH-BEAT ---\n`);
-        }
+        const variants: string[] = [];
+        const baseVariants = [
+          await realizeMouthOneBeat(prepared, beat, options),
+        ].filter(Boolean);
+        variants.push(...baseVariants);
+        outputs.push({ order: Number((beat as any)?.order ?? outputs.length + 1), variants });
       }
-      const combined = JSON.stringify({ texts });
-      if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-        console.log(`\n--- QRE RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n${combined}\n--- END RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n`);
-      }
-      return { text: combined, model: modelName(), provider: "local" };
+      return {
+        text: JSON.stringify({ variantsByBeat: outputs }),
+        model,
+        provider: "local",
+      };
+    }
+
+    const beat = beats[0];
+    if (beat) {
+      const first = await realizeMouthOneBeat(prepared, beat, options);
+      return {
+        text: JSON.stringify({
+          variantsByBeat: [
+            { order: Number((beat as any)?.order ?? 1), variants: first ? [first] : [] },
+          ],
+        }),
+        model,
+        provider: "local",
+      };
     }
   }
 
-  const fast = process.env.QRE_AUTHOR_FAST === "true";
-  const temperature = options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.75 : 0.8));
-  const numPredict = options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || (fast ? 512 : 512));
-  const keepAlive = process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
-
   const data = await request("/api/chat", {
-    model: modelName(),
+    model,
+    messages: prepared,
+    format: format ?? undefined,
     stream: false,
-    keep_alive: keepAlive,
-    format,
-    messages: preparedMessages.map((message) => ({
-      role: message.role,
-      content: message.content,
-      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
-    })),
-    options: { temperature, num_predict: numPredict },
+    keep_alive: process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || "5m",
+    options: {
+      temperature: options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || 0.8),
+      num_predict: options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 512),
+    },
   });
-
-  const text = outputText(data);
-  if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-    console.log("\n--- QRE RAW MODEL OUTPUT ---\n" + text + "\n--- END RAW MODEL OUTPUT ---\n");
-  }
-
-  return { text, model: modelName(), provider: "local" };
-}
-
-export async function localModelHealthy(): Promise<boolean> {
-  try {
-    const response = await fetch(`${baseUrl()}/api/tags`, { signal: AbortSignal.timeout(3000) });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-export function localModelConfig() {
   return {
-    provider: "local" as const,
-    url: baseUrl(),
-    model: modelName(),
-    timeoutMs: timeoutMs(),
+    text: outputText(data),
+    model,
+    provider: "local",
   };
 }
