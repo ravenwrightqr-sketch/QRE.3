@@ -61,6 +61,17 @@ function sourceForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): str
   ]);
 }
 
+function semanticSourceForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+  return unique([
+    beat.change,
+    beat.next,
+    beat.frontier,
+    ...(beat.setsUp ?? []).map((id) => eventLabel(envelope, id) || id),
+    ...(beat.paysOff ?? []).map((id) => eventLabel(envelope, id) || id),
+    ...sourceForBeat(beat, envelope),
+  ]);
+}
+
 function fallback(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const labels = sourceForBeat(beat, envelope);
   const first = bounded(labels[0] ?? envelope.subject ?? "");
@@ -106,6 +117,8 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     "Your job is language realization only.",
     "Each beat becomes one short film moment. Keep the beats in order.",
     "2-7 words preferred. One thought. Make the next moment desirable.",
+    "For non-terminal relationship/change beats, do NOT merely restate the supplied fact. Express the approved semantic turn as attitude, status, implication, contrast, or comic consequence when the evidence supports it.",
+    "Example: a supplied state transition like 'scared at first -> grooming visit' may become 'Fear first. Now I own the place.' The second sentence is framing, not a new event.",
     "State/relationship beats may use attitude, implication, contrast, status, rhythm, or rhetorical punctuation without inventing a physical event.",
     "A rhetorical question such as 'Bows? Absolutely not.' is legal; it is not a request for user information.",
     "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes.",
@@ -176,6 +189,7 @@ export function scoreMouthCandidate(input: {
   }
 
   const source = tokenSet(sourceForBeat(input.beat, input.envelope).join(" "));
+  const semanticSource = tokenSet(semanticSourceForBeat(input.beat, input.envelope).join(" "));
   const current = tokenSet(text);
   const required = unique(input.beat.eventIds ?? []);
   const requiredEvents = input.envelope.events.filter((event) => required.includes(event.id));
@@ -213,37 +227,65 @@ export function scoreMouthCandidate(input: {
 
   const groundingScore = Math.max(
     0.35,
-    Math.min(
-      1,
-      overlap(current, source) * 0.55 +
-        requiredCoverage * 0.45,
-    ),
+    Math.min(1, overlap(current, source) * 0.45 + requiredCoverage * 0.45 + overlap(current, semanticSource) * 0.1),
   );
-  const interpretive = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready)\b/i.test(text) ? 0.2 : 0;
-  const meaningScore = Math.min(1, 0.45 + groundingScore * 0.35 + interpretive);
-  const transitionScore = Math.min(1, 0.4 + (input.beat.next || input.beat.frontier ? 0.15 : 0) + (input.beat.relationKinds?.length ? 0.25 : 0));
+
+  const semanticCoverage = overlap(current, semanticSource);
+  const interpretive = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready|now|fear|control|own|agency|status|mine|master|boss|command)\b/i.test(text) ? 0.22 : 0;
+  const meaningScore = Math.min(1, 0.45 + groundingScore * 0.3 + interpretive + semanticCoverage * 0.18);
+  const transitionScore = Math.min(1, 0.38 + semanticCoverage * 0.32 + (input.beat.next || input.beat.frontier ? 0.1 : 0) + (input.beat.relationKinds?.length ? 0.2 : 0));
   const noveltyScore = priorTexts.length ? Math.max(0.15, 1 - Math.max(...priorTexts.map((prior) => overlap(current, tokenSet(prior))))) : 1;
   const compressionScore = text.split(/\s+/).length <= 7 ? 1 : 0;
   const repetitionRisk = 1 - noveltyScore;
   const inventionRisk = legal(text, input.beat, input.envelope) ? 0.05 : 0.9;
   const forbiddenMoveRisk = META.test(text) || GENERIC.test(text) ? 1 : 0;
-  const endpointExactness = input.beat.paysOff?.length && /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`)
-    ? (text.replace(/[.!?]+$/g, "").toLowerCase() === clean(sourceForBeat(input.beat, input.envelope)[0]).replace(/[.!?]+$/g, "").toLowerCase() ? 1 : 0)
+
+  const payoffLabels = unique(
+    (input.beat.paysOff ?? [])
+      .map((id) => eventLabel(input.envelope, id))
+      .filter(Boolean),
+  );
+  const isPayoff = Boolean(
+    payoffLabels.length &&
+    /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
+  );
+  const normalizedText = text.replace(/[.!?]+$/g, "").toLowerCase();
+  const endpointExactness = isPayoff && payoffLabels.some(
+    (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
+  ) ? 1 : 0;
+
+  const sourceLabels = sourceForBeat(input.beat, input.envelope);
+  const literalSourceRestatement = !isPayoff && sourceLabels.some(
+    (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
+  );
+
+  const semanticBeat = Boolean(
+    input.beat.relationKinds?.length ||
+    /turn|reframe|discovery|escalation|reveal|consequence/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
+  );
+  const restatementPenalty = semanticBeat && literalSourceRestatement ? 0.25 : 0;
+  const creativeLift = semanticBeat && !literalSourceRestatement
+    ? Math.min(0.18, 0.08 + semanticCoverage * 0.1)
     : 0;
 
   const reasons = [
     /hook|arrival|establish/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`) ? "hook-scored-as-establishment" : "",
     fallbackTexts.includes(text) ? "grounded-fallback" : "",
-    text && text.toLowerCase() === sourceForBeat(input.beat, input.envelope)[0]?.toLowerCase() ? "fact-restatement" : "",
+    literalSourceRestatement ? "fact-restatement" : "",
+    semanticCoverage >= 0.2 ? "semantic-turn-grounded" : "",
+    endpointExactness === 1 ? "endpoint-exact" : "",
   ].filter(Boolean);
 
   const score = Math.min(1,
-    groundingScore * 0.3 +
-    meaningScore * 0.2 +
-    transitionScore * 0.15 +
-    noveltyScore * 0.1 +
-    compressionScore * 0.15 +
-    (1 - inventionRisk) * 0.1,
+    groundingScore * 0.24 +
+    meaningScore * 0.18 +
+    transitionScore * 0.2 +
+    noveltyScore * 0.08 +
+    compressionScore * 0.1 +
+    creativeLift * 0.1 +
+    (1 - inventionRisk) * 0.1 +
+    endpointExactness * 0.25 -
+    restatementPenalty,
   );
 
   return {
@@ -254,7 +296,7 @@ export function scoreMouthCandidate(input: {
     groundingScore,
     meaningScore,
     transitionScore,
-    obligationCoverage: Math.min(1, groundingScore * 0.6 + transitionScore * 0.4),
+    obligationCoverage: Math.min(1, groundingScore * 0.55 + transitionScore * 0.45),
     relationContractScore: input.beat.relationKinds?.length ? Math.max(0.4, supportedRelationPairs.length / input.beat.relationKinds.length) : 0.6,
     forbiddenMoveRisk,
     cohesionScore: priorTexts.length ? noveltyScore * 0.6 + 0.4 : 0.7,
