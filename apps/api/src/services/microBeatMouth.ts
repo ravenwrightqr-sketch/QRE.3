@@ -20,6 +20,7 @@ function sceneText(value: string): string {
 }
 
 export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<ExperienceBeat[]> {
+  if (input.movieMode === false) return [];
   if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return [];
 
   const brainInput: AuthorBrainTruth = {
@@ -29,6 +30,7 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     place: input.place,
     subjectTruth: input.subjectTruth,
     cognitivePlan: input.cognitivePlan,
+    movieMode: input.movieMode,
     returning: input.presence?.isReturning ?? input.returning,
     visitNumber: input.presence?.visitNumber ?? input.visitNumber,
     presenceSummary: input.presence?.summary ?? input.presenceSummary,
