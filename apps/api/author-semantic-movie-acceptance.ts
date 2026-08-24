@@ -10,48 +10,11 @@ const graph: RealityGraph = {
     { id: "e5", text: "happy after", kind: "fact" },
   ],
   events: [
-    {
-      id: "event-1",
-      label: "hates bows",
-      sourceIds: ["e1"],
-      entities: ["Coco", "bows"],
-      salient: true,
-      provenance: "explicit",
-    },
-    {
-      id: "event-2",
-      label: "scared at first",
-      sourceIds: ["e2"],
-      entities: ["Coco"],
-      emotionalState: "scared",
-      salient: true,
-      provenance: "explicit",
-    },
-    {
-      id: "event-3",
-      label: "grooming visit",
-      sourceIds: ["e3"],
-      entities: ["Coco", "grooming"],
-      salient: true,
-      provenance: "explicit",
-    },
-    {
-      id: "event-4",
-      label: "pink bow",
-      sourceIds: ["e4"],
-      entities: ["Coco", "pink", "bow"],
-      salient: true,
-      provenance: "explicit",
-    },
-    {
-      id: "event-5",
-      label: "happy after",
-      sourceIds: ["e5"],
-      entities: ["Coco"],
-      emotionalState: "happy",
-      salient: true,
-      provenance: "explicit",
-    },
+    { id: "event-1", label: "hates bows", sourceIds: ["e1"], entities: ["Coco", "bows"], salient: true, provenance: "explicit" },
+    { id: "event-2", label: "scared at first", sourceIds: ["e2"], entities: ["Coco"], emotionalState: "scared", salient: true, provenance: "explicit" },
+    { id: "event-3", label: "grooming visit", sourceIds: ["e3"], entities: ["Coco", "grooming"], salient: true, provenance: "explicit" },
+    { id: "event-4", label: "pink bow", sourceIds: ["e4"], entities: ["Coco", "pink", "bow"], salient: true, provenance: "explicit" },
+    { id: "event-5", label: "happy after", sourceIds: ["e5"], entities: ["Coco"], emotionalState: "happy", salient: true, provenance: "explicit" },
   ],
   relations: [
     { from: "event-1", to: "event-5", kind: "recontextualizes", strength: 0.82 },
@@ -85,9 +48,12 @@ const meaningful = movie?.trajectory.filter(
   (step) => step.operation !== "establish" && step.operation !== "payoff",
 ) ?? [];
 
-const endpoint = movie?.trajectory.find(
+const payoff = movie?.trajectory.find(
   (step) => step.operation === "payoff",
-)?.eventIds.at(-1);
+);
+const endpoint = payoff?.eventIds.length
+  ? payoff.eventIds[payoff.eventIds.length - 1]
+  : undefined;
 
 if (!movie) throw new Error("FAIL: no latent movie selected");
 if (!thesis) throw new Error("FAIL: selected movie has no story thesis");
