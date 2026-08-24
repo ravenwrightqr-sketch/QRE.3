@@ -11,40 +11,42 @@ function Replace-Exact([string]$old, [string]$new, [string]$label) {
 }
 
 Replace-Exact @'
-    "QRE MOUTH. COG selected the experience. Render ONE final five-beat sequence.",
-    `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.lineCount} lines.`,
+    "QRE MOUTH. COG selected the experience. Search for the strongest realization before selecting a winner.",
+    `Return JSON only as {\"candidates\":[{\"lines\":[\"...\"]},...]}. Generate exactly 4 materially different candidates, each with exactly ${packet.lineCount} lines.`,
 '@ @'
     "QRE MOUTH. COG selected the experience. Search for the strongest realization before selecting a winner.",
     `Return JSON only as {\"candidates\":[{\"lines\":[\"...\"]},...]}. Generate exactly 4 materially different candidates, each with exactly ${packet.lineCount} lines.`,
-'@ 'beam output shape'
+    "Candidate 1 = INTERRUPTION: establish the strongest supplied ordinary/current state, then break the expected read using only an existing fact, wording, chronology, contrast, or implication.",
+    "Candidate 2 = CURIOSITY: make one supplied detail newly interesting and create a truthful unresolved need that makes the next beat necessary. Do not invent a mystery or missing person/object/event.",
+    "Candidate 3 = CONTRAST/CALLBACK: make two supplied facts change each other's meaning, or bring an earlier supplied detail back with a new emphasis. Do not add a new fact.",
+    "Candidate 4 = PAYOFF: build toward the strongest supplied consequence, ending, callback, or dry verdict. The payoff must be earned by earlier supplied material.",
+'@ 'candidate mechanisms'
 
 Replace-Exact @'
-    "ATTENTION IS THE PRODUCT.",
-'@ @'
-    "ATTENTION IS THE PRODUCT.",
     "Do not make all four candidates minor paraphrases. Explore different truthful attention mechanisms: interruption, curiosity, contrast, callback, implication, dry reversal, or understated payoff.",
-    "At least one candidate should be extremely plain and sharp. At least one may use a rhetorical turn such as 'Or so it seemed.' or 'What came next?' when that wording changes attention without asserting a new fact.",
-    "The candidates are competing hypotheses. Do not force every supplied fact into every candidate. Find the strongest few relationships among the supplied facts and build around them.",
-'@ 'beam diversity'
+'@ @'
+    "The four candidates must use the assigned mechanism, not four versions of the same fact parade.",
+    "Do not turn beat 3 into a generic question about the writing itself. Never ask what is unresolved merely because the prompt asks for curiosity. Curiosity must arise from supplied material.",
+    "Do not manufacture absence, presence, mystery, conflict, motive, hidden action, or consequence to create curiosity.",
+'@ 'beam behavior'
 
 Replace-Exact @'
-    "Do not merely copy or mechanically paraphrase the source facts. Stay entirely inside supplied reality and accumulated identity memory while changing what the viewer notices about that reality.",
-'@ @'
-    "Do not merely copy or mechanically paraphrase the source facts. Stay entirely inside supplied reality and accumulated identity memory while changing what the viewer notices about that reality.",
     "Example of the target behavior (style only, not factual content): a normal-state line can be followed by a short interruption such as 'Or so it seemed.'; a supplied sequence can become curiosity with 'What came next?'; a supplied ending can become a callback instead of a status report.",
-'@ 'grounded attention examples'
+'@ @'
+    "Example of the target behavior (style only, not factual content): a normal-state line can be followed by a short interruption such as 'Or so it seemed.'; a supplied sequence can create a truthful forward question; an earlier supplied detail can return as a callback instead of another status report; a plain final line can act as the payoff. Do not copy these phrases mechanically.",
+'@ 'beam examples'
 
 Replace-Exact @'
   const modelResult = await localModelGenerate(
     modelMessage(packet),
     "json",
-    { numPredict: Math.min(3000, Math.max(1100, lineTotal * 220)), temperature: protectedMemorial || sensitive ? 0.28 : 0.72 },
+    { numPredict: Math.min(5200, Math.max(2200, lineTotal * 420)), temperature: protectedMemorial || sensitive ? 0.28 : 0.78 },
   );
 '@ @'
   const modelResult = await localModelGenerate(
     modelMessage(packet),
     "json",
-    { numPredict: Math.min(5200, Math.max(2200, lineTotal * 420)), temperature: protectedMemorial || sensitive ? 0.28 : 0.78 },
+    { numPredict: Math.min(6200, Math.max(2600, lineTotal * 500)), temperature: protectedMemorial || sensitive ? 0.28 : 0.82 },
   );
 '@ 'beam model budget'
 
