@@ -3,13 +3,15 @@ import { buildWorldModel, type WorldModel } from "./worldModel.js";
 /**
  * Canonical fast-input normalization.
  * Human shorthand is an intake format, never the persisted reality model.
+ * Delimiters become sentence boundaries for the existing world parser.
  */
 export function normalizeFastInput(input: string): string {
   return input
-    .replace(/\s*[\/|]\s*/g, "\n")
-    .replace(/\s*[•·]\s*/g, "\n")
-    .replace(/\s*;\s*/g, "\n")
-    .replace(/\n{2,}/g, "\n")
+    .replace(/\s*[\/|]\s*/g, ". ")
+    .replace(/\s*[•·]\s*/g, ". ")
+    .replace(/\s*;\s*/g, ". ")
+    .replace(/\.{2,}/g, ".")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
