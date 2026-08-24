@@ -211,7 +211,7 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "QRE MOUTH. COG has already selected the experience. Render ONE final presentation sequence only.",
     `Return JSON only: {\"lines\":[\"...\"]}. Exactly ${packet.lineCount} lines.`,
     `Every non-final line is ${packet.maxWords} words or fewer.`,
-    packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be the earned consequence.",
+    packet.ending ? `The final line must be EXACTLY: ${packet.ending}` : "The final line must be the strongest earned consequence of the supplied sequence.",
     "The subject model is accumulated understanding. Use it to shape voice, emphasis, callbacks, framing, humor, tone, and characterization.",
     "The subject model is NOT a license to invent biography. Do not turn a likely trait, preference, pattern, or inference into a new concrete fact.",
     "A supplied preference is not its opposite. If the source says Coco loves dogs, do not claim Coco hates humans unless that claim is explicitly supplied.",
@@ -221,7 +221,8 @@ function modelMessage(packet: Packet): Array<{ role: "user"; content: string }> 
     "HARD REALITY LAW: do not invent a person, identity, relationship, place, room, object, body detail, sensory detail, dialogue, participant, ownership, tenancy, customer/client relationship, or literal event.",
     "A plausible detail is still invented. Do not infer physical props from actions. A bath does not authorize a sink; grooming does not authorize a towel; stealing does not authorize a trash can.",
     "Do not reorder, merge, or replace supplied events. You may compress language around them.",
-    "For the final payoff, prefer a short abstract consequence grounded in the supplied work (for example: Done. Finished. Work complete. Back to the day.). Do not introduce a new physical place, object, person, customer, or outcome just to make the ending sound cinematic.",
+    "The final line is a creative payoff, not an administrative status. Prefer a short callback, implication, contrast, status shift, dry verdict, or consequence that is earned by the supplied facts. Avoid generic endings such as Done, Finished, or Work complete when a stronger grounded payoff exists.",
+    "The final payoff may be abstract. It may say what the supplied sequence now means or implies, but it must not introduce a new physical place, object, person, relationship, or literal outcome.",
     "If a supplied place exists, you may use it. If no place is supplied, do not invent one in the payoff. A service does not authorize a house, office, counter, customer, or premises.",
     "Do not explain cognition. Never write words such as meaning, transformation, symbol, tension, contrast, pressure, premise, operation, lens, trajectory, movie, state, or interpretation as the subject of a line.",
     "Make the viewer infer the creative move from concrete supplied reality.",
@@ -427,7 +428,7 @@ export async function authorBrainUniversal(input: AuthorBrainTruth): Promise<Aut
     subjectModel: subjectModel(input),
   };
 
-  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1200, Math.max(420, lineTotal * 80)), temperature: sensitive ? 0.32 : 0.48 });
+  const modelResult = await localModelGenerate(modelMessage(packet), "json", { numPredict: Math.min(1400, Math.max(520, lineTotal * 95)), temperature: sensitive ? 0.35 : 0.68 });
   const modelLines = parseSingle(modelResult.text).slice(0, lineTotal);
   const modelValidation = modelLines.length === lineTotal ? validate(modelLines, path, packet) : { ok: false, reasons: ["incomplete_model_output"], score: 0, metrics: [], provenance: [] };
 
