@@ -164,7 +164,18 @@ function eventFromChunk(raw: string, index: number, carryParticipants: string[],
 }
 
 export function buildWorldModel(prompt: string, options: { memoryMatches?: string[]; memorySources?: string[]; creativePreferences?: string[]; eventParticipants?: string[]; locationLabel?: string; eventVenue?: string } = {}): WorldModel {
-  const chunks = splitPrompt(prompt); const identityFacts = chunks.filter((chunk) => looksLikeIdentityAssertion(chunk, options.eventParticipants?.[0])); const experienceChunks = chunks.filter((chunk) => !identityFacts.includes(chunk)); const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = []; let carryParticipants = unique(options.eventParticipants ?? []).filter((name) => !PRONOUN_RE.test(name)); let carryPlace = options.locationLabel ?? options.eventVenue;
+  const chunks = splitPrompt(prompt);
+  const configuredSubject = options.eventParticipants?.[0];
+  const inferredIdentitySubject = configuredSubject ?? (
+    chunks[0] && chunks.slice(1).some((chunk) => looksLikeIdentityAssertion(chunk, chunks[0]))
+      ? chunks[0]
+      : undefined
+  );
+  const identityFacts = chunks.filter((chunk) => looksLikeIdentityAssertion(chunk, inferredIdentitySubject));
+  const experienceChunks = chunks.filter((chunk) => !identityFacts.includes(chunk));
+  const events: WorldEvent[] = []; const allEvidence: WorldEvidence[] = [];
+  let carryParticipants = unique(options.eventParticipants ?? []).filter((name) => !PRONOUN_RE.test(name));
+  let carryPlace = options.locationLabel ?? options.eventVenue;
   identityFacts.forEach((fact, index) => allEvidence.push(evidence(`identity-${index + 1}`, fact, "attribute", 1, "prompt")));
   experienceChunks.forEach((raw, index) => { const event = eventFromChunk(raw, index, carryParticipants, carryPlace, options.memoryMatches ?? [], options.memorySources ?? []); events.push(event); allEvidence.push(...event.evidence); if (event.participants.length) carryParticipants = event.participants; if (event.place) carryPlace = event.place; });
   const participantsList = unique(events.flatMap((event) => event.participants)); const places = unique(events.map((event) => event.place ?? "")); const times = unique(events.map((event) => event.time ?? ""));
