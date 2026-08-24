@@ -178,16 +178,47 @@ export function scoreMouthCandidate(input: {
   const source = tokenSet(sourceForBeat(input.beat, input.envelope).join(" "));
   const current = tokenSet(text);
   const required = unique(input.beat.eventIds ?? []);
+  const requiredEvents = input.envelope.events.filter((event) => required.includes(event.id));
   const supportedEventIds = input.envelope.events
     .filter((event) => current.size && overlap(current, tokenSet(event.label)) >= 0.25)
     .map((event) => event.id)
     .filter((id) => required.length === 0 || required.includes(id));
 
+  const phraseSupported = (candidateText: string, label: string): boolean => {
+    const phrase = clean(label).toLowerCase();
+    const candidate = clean(candidateText).toLowerCase();
+    if (!phrase || !candidate) return false;
+    return candidate.includes(phrase) || overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5;
+  };
+
+  const eventSupported = (event: RealityEnvelope["events"][number]): boolean =>
+    phraseSupported(text, event.label) ||
+    overlap(current, tokenSet(event.label)) >= 0.25;
+
+  const requiredCoverage = requiredEvents.length
+    ? requiredEvents.filter(eventSupported).length / requiredEvents.length
+    : 0;
+
+  const supportedRequiredIds = requiredEvents
+    .filter(eventSupported)
+    .map((event) => event.id);
+
+  for (const id of supportedRequiredIds) {
+    if (!supportedEventIds.includes(id)) supportedEventIds.push(id);
+  }
+
   const supportedRelationPairs = input.envelope.relations
     .filter((relation) => supportedEventIds.includes(relation.from) && supportedEventIds.includes(relation.to))
     .map((relation) => `${relation.from}->${relation.to}`);
 
-  const groundingScore = Math.max(0.35, overlap(current, source) * 0.7 + (supportedEventIds.length ? 0.3 : 0));
+  const groundingScore = Math.max(
+    0.35,
+    Math.min(
+      1,
+      overlap(current, source) * 0.55 +
+        requiredCoverage * 0.45,
+    ),
+  );
   const interpretive = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready)\b/i.test(text) ? 0.2 : 0;
   const meaningScore = Math.min(1, 0.45 + groundingScore * 0.35 + interpretive);
   const transitionScore = Math.min(1, 0.4 + (input.beat.next || input.beat.frontier ? 0.15 : 0) + (input.beat.relationKinds?.length ? 0.25 : 0));
