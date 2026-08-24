@@ -172,6 +172,7 @@ function operationSet(input: AuthorBrainTruth, facts: RealityFact[], relationshi
 function chooseLens(input: AuthorBrainTruth, operation: MovieOperation, facts: RealityFact[], tension: string): MovieLens {
   const requested = clean((input as AuthorBrainTruth & { lens?: string }).lens).toLowerCase();
   const text = `${input.prompt} ${facts.map((fact) => fact.text).join(" ")} ${tension}`.toLowerCase();
+  const creativeRequest = /\b(?:attention|attention-grabbing|creative|cinematic|movie|story|memorable|entertaining|playful|surprising|clever|funny)\b/i.test(`${requested} ${input.prompt}`);
   const catalog: Array<{ id: LensId; pressure: string; fit: number; moves: string[]; terms: RegExp }> = [
     { id: "noir", pressure: "Treat concrete details as evidence and let implication carry tension.", fit: 0.74, moves: ["implication", "understatement", "evidence"], terms: /\bevidence|case|handled|mystery|quiet|missing|returned|fine print\b/ },
     { id: "heist", pressure: "Frame existing actions as a small operation without inventing crew, targets, or equipment.", fit: 0.76, moves: ["operation", "acquisition", "escape"], terms: /\bstole|taken|missing|deal|secured|returned|disappeared\b/ },
@@ -185,6 +186,16 @@ function chooseLens(input: AuthorBrainTruth, operation: MovieOperation, facts: R
     { id: "mockumentary", pressure: "Play the factual situation completely straight while allowing the behavior to create the joke.", fit: 0.8, moves: ["observational", "understatement", "callback"], terms: /\breturned|waited|stayed|ordered|worked|checked|cleaned|talked\b/ },
     { id: "game", pressure: "Frame existing milestones as progression without inventing literal game objects or rules.", fit: 0.65, moves: ["milestone", "level", "unlock"], terms: /\bapproved|fixed|clean|complete|ready|won|finished\b/ },
   ];
+  const operationBias: Partial<Record<MovieOperation, LensId[]>> = {
+    contrast: ["deadpan", "noir"],
+    reframe: ["noir", "mockumentary"],
+    reversal: ["heist", "spy"],
+    amplification: ["absurd", "game"],
+    echo: ["noir", "mockumentary"],
+    enclosure: ["romance", "horror"],
+    reveal: ["courtroom", "spy"],
+    implication: ["noir", "courtroom"],
+  };
   if (requested && catalog.some((item) => item.id === requested)) {
     const match = catalog.find((item) => item.id === requested)!;
     return { id: match.id, pressure: match.pressure, fit: metric(Math.min(1, match.fit + 0.12)), moves: match.moves };
@@ -192,8 +203,9 @@ function chooseLens(input: AuthorBrainTruth, operation: MovieOperation, facts: R
   let best: { id: LensId; pressure: string; fit: number; moves: string[] } | undefined;
   for (const item of catalog) {
     const hits = (text.match(item.terms) ?? []).length;
-    const operationFit = operation === "echo" && item.id === "noir" ? 0.08 : operation === "contrast" && item.id === "deadpan" ? 0.06 : 0;
-    const score = item.fit + Math.min(0.16, hits * 0.04) + operationFit;
+    const preferred = operationBias[operation]?.includes(item.id) ? 0.11 : 0;
+    const noveltyBias = creativeRequest && item.id === "deadpan" && !/\bdeadpan\b/i.test(input.prompt) ? -0.08 : 0;
+    const score = item.fit + Math.min(0.16, hits * 0.04) + preferred + noveltyBias;
     if (!best || score > best.fit) best = { id: item.id, pressure: item.pressure, fit: score, moves: item.moves };
   }
   return best ? { id: best.id, pressure: best.pressure, fit: metric(best.fit), moves: best.moves } : { id: "neutral", pressure: "Use the strongest natural framing already present in the movie.", fit: 0.6, moves: [] };
@@ -346,7 +358,23 @@ export function buildMovieCognition(input: AuthorBrainTruth, ending: string): Mo
   const operations = operationSet(input, facts, relationships);
   const trajectories = trajectoryCandidates(facts, relationships, ending);
   const viableTrajectories = trajectories.length ? trajectories : [{ facts, relationStrength: 0.4, transitionFit: 0.35, novelty: 0.3, repetitionRisk: 0.1, opportunity: 0.4, payoffPotential: 0.4, baselineLift: 0.05, personalityCoherence: personalityCoherence(facts), score: 0.3 } satisfies TrajectoryCandidate];
-  const hypotheses = operations.flatMap((operation) => viableTrajectories.slice(0, 4).map((trajectory, index) => hypothesisFor(operation, subject, input, facts, relationships, trajectory, ending, index + 1))).sort((a, b) => b.score - a.score || b.causalFit - a.causalFit || b.payoffPotential - a.payoffPotential).slice(0, 12);
-  const selected = hypotheses[0] ?? hypothesisFor("reframe", subject, input, facts, relationships, viableTrajectories[0]!, ending, 1);
+  const ranked = operations.flatMap((operation) => viableTrajectories.slice(0, 4).map((trajectory, index) => hypothesisFor(operation, subject, input, facts, relationships, trajectory, ending, index + 1))).sort((a, b) => b.score - a.score || b.causalFit - a.causalFit || b.payoffPotential - a.payoffPotential);
+  const selectedHypotheses: MovieHypothesis[] = [];
+  const seenLenses = new Set<LensId>();
+  const seenOperations = new Set<MovieOperation>();
+  for (const hypothesis of ranked) {
+    if (selectedHypotheses.length >= 6) break;
+    if (seenLenses.has(hypothesis.lens.id) || seenOperations.has(hypothesis.operation)) continue;
+    selectedHypotheses.push(hypothesis);
+    seenLenses.add(hypothesis.lens.id);
+    seenOperations.add(hypothesis.operation);
+  }
+  for (const hypothesis of ranked) {
+    if (selectedHypotheses.length >= 12) break;
+    if (selectedHypotheses.some((item) => item.id === hypothesis.id)) continue;
+    selectedHypotheses.push(hypothesis);
+  }
+  const hypotheses = selectedHypotheses;
+  const selected = [...ranked].sort((a, b) => b.score - a.score)[0] ?? hypothesisFor("reframe", subject, input, facts, relationships, viableTrajectories[0]!, ending, 1);
   return { facts, relationships, hypotheses, selected, attentionQuestion: selected.tension };
 }
