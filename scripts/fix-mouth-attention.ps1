@@ -64,7 +64,7 @@ Replace-Exact @'
 '@ 'hard reality instruction'
 
 Replace-Exact @'
-    { numPredict: Math.min(2400, Math.max(900, lineTotal * 160)), temperature: protectedMemorial || sensitive ? 0.28 : 0.52 },
+    { numPredict: Math.min(2400, Math.max(900, lineTotal * 160)), temperature: protectedMemorial || sensitive ? 0.28 : 0.48 },
 '@ @'
     { numPredict: Math.min(3000, Math.max(1100, lineTotal * 220)), temperature: protectedMemorial || sensitive ? 0.28 : 0.72 },
 '@ 'model budget'
