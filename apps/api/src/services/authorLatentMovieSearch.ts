@@ -1,243 +1,623 @@
 /**
  * QRE LATENT MOVIE SEARCH · CANONICAL HYPOTHESIS LAYER
  *
- * RealityGraph is immutable source evidence. This module searches for different
- * ways the same evidence could play as a movie without turning hypotheses into
- * facts. It is intentionally domain-neutral and deterministic for now.
+ * RealityGraph is immutable source evidence. This module searches for
+ * materially different interpretations of the same evidence without turning
+ * hypotheses into facts.
  *
- * CRITICAL RULE:
- *   A different lens label is NOT a different movie.
- *   Evidence, graph relationships, trajectory operations, and payoff mechanism
- *   must materially differ before candidates are considered creative alternatives.
+ * Core law:
  *
- * Pipeline position:
- *   REALITY GRAPH → LATENT MOVIE CANDIDATES → DIFFERENTIATION → COGNITION → TRAJECTORY → MOUTH
+ *   lens = framing preference
+ *   relations = evidence
+ *   trajectory = discovered movement
+ *   endpoint = supplied landing
+ *
+ * A lens may bias a search. It may not dictate what the movie is about.
+ * A domain term may be meaningful. It may not be meaningful merely because
+ * this module has seen the term in historical examples.
  */
-import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
+import type {
+  LatentMovieCandidate,
+  LatentMovieTrajectoryStep,
+  RealityGraph,
+  RealityRelation,
+} from "@qre/contracts";
 import { selectDistinctMovieCandidates } from "./authorMovieDifferentiation.js";
+import {
+  findLatentMovieConvergence,
+  type LatentMovieConvergence,
+} from "./authorLatentMovieConvergence.js";
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
-const metric = (value: number): number => Number(clamp01(value).toFixed(3));
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
 
-const GENERIC_LENSES = ["comedy", "romance", "horror", "sentimental", "absurd", "neutral"] as const;
-type Lens = (typeof GENERIC_LENSES)[number];
-type RelationKind = RealityRelation["kind"];
+const clamp01 = (value: number): number =>
+  Math.max(0, Math.min(1, value));
 
-function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
-function eventById(graph: RealityGraph, id: string) { return graph.events.find((event) => event.id === id); }
+const metric = (value: number): number =>
+  Number(clamp01(value).toFixed(3));
 
-function requestedLenses(lens?: string): Lens[] {
-  const text = clean(lens).toLowerCase();
-  const hits: Lens[] = [];
-  for (const candidate of GENERIC_LENSES) if (text.includes(candidate)) hits.push(candidate);
-  if (/funny|comic|humor|playful/.test(text)) hits.push("comedy");
-  if (/romantic|love|tender/.test(text)) hits.push("romance");
-  if (/dark|eerie|creepy|dread/.test(text)) hits.push("horror");
-  if (/warm|heart|nostalgic|gentle/.test(text)) hits.push("sentimental");
-  if (/weird|chaotic|surreal|demented/.test(text)) hits.push("absurd");
-  return unique(hits.length ? hits : [...GENERIC_LENSES]);
+function unique<T>(values: readonly T[]): T[] {
+  return [...new Set(values)];
 }
 
-function preferredKinds(lens: Lens): RelationKind[] {
-  switch (lens) {
-    case "comedy": return ["contrasts", "converges", "changes", "recontextualizes"];
-    case "romance": return ["converges", "recontextualizes", "changes", "contrasts"];
-    case "horror": return ["changes", "recontextualizes", "contrasts", "converges"];
-    case "sentimental": return ["recontextualizes", "repeats", "converges", "changes"];
-    case "absurd": return ["contrasts", "converges", "recontextualizes", "changes"];
-    default: return ["changes", "converges", "recontextualizes", "contrasts", "repeats"];
+function eventById(graph: RealityGraph, id: string) {
+  return graph.events.find((event) => event.id === id);
+}
+
+function relationKindsByEvidence(graph: RealityGraph): RealityRelation["kind"][] {
+  const ranked = new Map<RealityRelation["kind"], { strength: number; count: number }>();
+
+  for (const relation of graph.relations) {
+    const current = ranked.get(relation.kind) ?? { strength: 0, count: 0 };
+    current.strength += relation.strength;
+    current.count += 1;
+    ranked.set(relation.kind, current);
+  }
+
+  return [...ranked.entries()]
+    .sort(([, a], [, b]) =>
+      b.strength + b.count * 0.05 - (a.strength + a.count * 0.05),
+    )
+    .map(([kind]) => kind);
+}
+
+function requestedLenses(lens?: string): string[] {
+  const value = clean(lens);
+  if (!value) return ["neutral"];
+
+  return [value, "neutral"].filter(
+    (candidate, index, values) => values.indexOf(candidate) === index,
+  );
+}
+
+function operationForRelation(
+  relation: RealityRelation["kind"],
+): LatentMovieTrajectoryStep["operation"] {
+  switch (relation) {
+    case "contrasts":
+      return "contrast";
+    case "recontextualizes":
+      return "reframe";
+    case "changes":
+      return "reveal";
+    case "repeats":
+      return "recur";
+    case "converges":
+      return "converge";
+    case "before":
+    case "after":
+      return "consequence";
+    case "involves":
+      return "reveal";
+    default:
+      return "converge";
   }
 }
 
-function lensOperation(lens: Lens, relation: RelationKind): LatentMovieTrajectoryStep["operation"] {
-  if (lens === "comedy") return relation === "contrasts" ? "contrast" : "consequence";
-  if (lens === "romance") return relation === "converges" ? "recur" : "reframe";
-  if (lens === "horror") return relation === "changes" ? "escalate" : "reframe";
-  if (lens === "sentimental") return relation === "recontextualizes" || relation === "repeats" ? "recur" : "reframe";
-  if (lens === "absurd") return relation === "contrasts" ? "contrast" : "converge";
-  return relation === "changes" ? "consequence" : "reframe";
+function relationBetween(
+  graph: RealityGraph,
+  from: string,
+  to: string,
+  preferredKind?: RealityRelation["kind"],
+): RealityRelation | undefined {
+  return graph.relations
+    .filter(
+      (relation) =>
+        ((relation.from === from && relation.to === to) ||
+          (relation.from === to && relation.to === from)) &&
+        (!preferredKind || relation.kind === preferredKind),
+    )
+    .sort((a, b) => b.strength - a.strength)[0];
 }
 
-/** Relations between selected anchors only. Incident relations are not enough to make a movie distinct. */
-function relationEvidence(graph: RealityGraph, ids: string[]): RealityRelation[] {
-  const set = new Set(ids);
-  return graph.relations.filter((relation) => set.has(relation.from) && set.has(relation.to));
-}
-
-function isConcreteDetail(graph: RealityGraph, eventId: string): boolean {
+function specificityScore(graph: RealityGraph, eventId: string): number {
   const event = eventById(graph, eventId);
-  if (!event) return false;
-  return graph.sensorySignals.some((signal) => signal.toLowerCase() === event.label.toLowerCase()) ||
-    /\b(?:bow|bows|ball|balls|tie|ties|dress|shoe|shoes|food|wine|glass|door|car|house|table|music|bath|kitchen|laundry)\b/i.test(event.label);
-}
+  if (!event) return 0;
 
-function lensEventBias(graph: RealityGraph, eventId: string, lens: Lens): number {
-  const incident = graph.relations.filter((relation) => relation.from === eventId || relation.to === eventId);
-  const kinds = new Set(incident.map((relation) => relation.kind));
-  const concrete = isConcreteDetail(graph, eventId);
-  const recurring = graph.recurringSignals.some((signal) => signal.toLowerCase() === (eventById(graph, eventId)?.label ?? "").toLowerCase());
-
-  switch (lens) {
-    case "comedy": return (kinds.has("contrasts") ? 0.5 : 0) + (concrete ? 0.35 : 0) + (kinds.has("changes") ? 0.08 : 0);
-    case "romance": return (kinds.has("converges") ? 0.5 : 0) + (kinds.has("recontextualizes") ? 0.25 : 0) + (kinds.has("involves") ? 0.12 : 0);
-    case "horror": return (kinds.has("changes") ? 0.48 : 0) + (kinds.has("recontextualizes") ? 0.3 : 0) + (!concrete ? 0.08 : 0);
-    case "sentimental": return (recurring ? 0.6 : 0) + (kinds.has("recontextualizes") ? 0.3 : 0) + (kinds.has("converges") ? 0.1 : 0);
-    case "absurd": return (kinds.has("contrasts") ? 0.4 : 0) + (concrete ? 0.38 : 0) + (kinds.has("converges") ? 0.16 : 0);
-    default: return incident.reduce((sum, relation) => sum + relation.strength, 0) * 0.08;
-  }
-}
-
-/**
- * Pick anchors according to the movie mechanism, not merely graph degree.
- * This is the first defense against six lenses selecting the same four events.
- */
-function chooseAnchors(graph: RealityGraph, lens: Lens): string[] {
-  const ranked = graph.events.map((event, index) => {
-    const incident = graph.relations.filter((relation) => relation.from === event.id || relation.to === event.id);
-    const relationWeight = incident.reduce((sum, relation) => sum + relation.strength, 0);
-    const recurring = graph.recurringSignals.some((signal) => signal.toLowerCase() === event.label.toLowerCase());
-    return {
-      id: event.id,
-      score: lensEventBias(graph, event.id, lens) + relationWeight * 0.05 + (recurring ? 0.15 : 0) - index * 0.0005,
-    };
-  });
-
-  return ranked.sort((a, b) => b.score - a.score).slice(0, Math.min(4, graph.events.length)).map((item) => item.id);
-}
-
-function buildTrajectory(graph: RealityGraph, anchors: string[], lens: Lens): LatentMovieTrajectoryStep[] {
-  const steps: LatentMovieTrajectoryStep[] = [];
-  if (!anchors.length) return steps;
-  const first = anchors[0];
-  const firstEvent = eventById(graph, first);
-  if (!firstEvent) return steps;
-
-  steps.push({
-    order: 1,
-    operation: "establish",
-    eventIds: [first],
-    viewerChange: `Establish the supplied detail: ${firstEvent.label}`,
-    nextQuestion: "Which relationship makes this detail worth the next cut?",
-  });
-
-  const relations = relationEvidence(graph, anchors)
-    .filter((relation) => preferredKinds(lens).includes(relation.kind))
-    .sort((a, b) => {
-      const ai = preferredKinds(lens).indexOf(a.kind);
-      const bi = preferredKinds(lens).indexOf(b.kind);
-      return ai - bi || b.strength - a.strength;
-    });
-
-  const used = new Set<string>([first]);
-  for (const relation of relations) {
-    const targetId = relation.from === first ? relation.to : relation.from;
-    if (used.has(targetId)) continue;
-    const target = eventById(graph, targetId);
-    if (!target) continue;
-    used.add(targetId);
-    steps.push({
-      order: steps.length + 1,
-      operation: lensOperation(lens, relation.kind),
-      eventIds: [first, targetId],
-      viewerChange: `${relation.kind}: the supplied relationship changes the reading of ${target.label}`,
-      nextQuestion: relation.kind === "contrasts" ? "What expectation does this violate?" : "What does this relationship make newly meaningful?",
-    });
-    if (steps.length >= 4) break;
-  }
-
-  for (const id of anchors) {
-    if (used.has(id)) continue;
-    const event = eventById(graph, id);
-    if (!event) continue;
-    used.add(id);
-    steps.push({
-      order: steps.length + 1,
-      operation: "converge",
-      eventIds: [id],
-      viewerChange: `Introduce another concrete supplied detail: ${event.label}`,
-      nextQuestion: "Does this detail complete, overturn, or sharpen the pattern?",
-    });
-    if (steps.length >= 5) break;
-  }
-
-  const payoffIds = unique(steps.flatMap((step) => step.eventIds)).slice(-2);
-  steps.push({
-    order: steps.length + 1,
-    operation: "payoff",
-    eventIds: payoffIds,
-    viewerChange: "Pay off the strongest supplied relationship without adding a new event.",
-    nextQuestion: "What meaning survives after the cut?",
-  });
-  return steps.slice(0, 6);
-}
-
-function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: Lens, rank: number): LatentMovieCandidate {
-  const anchors = chooseAnchors(graph, lens);
-  const trajectory = buildTrajectory(graph, anchors, lens);
-  const relations = relationEvidence(graph, anchors);
-  const evidence = unique(anchors.map((id) => eventById(graph, id)?.label).filter(Boolean) as string[]).slice(0, 8);
-  const relationKinds = unique(relations.map((relation) => relation.kind));
-  const strongRelations = relations.filter((relation) => relation.strength >= 0.5).length;
-  const weakRelations = relations.length - strongRelations;
-  const contrastCount = relations.filter((relation) => relation.kind === "contrasts").length;
-  const recurrenceCount = relations.filter((relation) => relation.kind === "recontextualizes" || relation.kind === "repeats").length;
-  const concreteCount = anchors.filter((id) => isConcreteDetail(graph, id)).length;
-  const unresolved = graph.unresolvedTensions[0] ?? (lens === "neutral" ? "Which supplied detail deserves attention next?" : "What does this relationship mean?");
-
-  const specificity = metric((concreteCount * 0.18) + (evidence.length / 8) * 0.52 + strongRelations * 0.06);
-  const novelty = metric(0.24 + contrastCount * 0.17 + recurrenceCount * 0.1 + relationKinds.length * 0.05);
-  const informationValue = metric(0.24 + relationKinds.length * 0.1 + specificity * 0.34);
-  const uncertainty = metric(0.18 + (unresolved ? 0.16 : 0) + weakRelations * 0.035 + Math.min(trajectory.length, 5) * 0.04);
-  const attentionPotential = metric(novelty * 0.28 + uncertainty * 0.25 + informationValue * 0.35 + (contrastCount ? 0.12 : 0));
-  const consequencePotential = metric((trajectory.length >= 3 ? 0.28 : 0.1) + recurrenceCount * 0.11 + contrastCount * 0.09);
-  const callbackPotential = metric((graph.recurringSignals.length ? 0.32 : 0.06) + recurrenceCount * 0.14);
-  const compressionPotential = metric(0.34 + specificity * 0.27 + Math.min(relationKinds.length, 4) * 0.08);
-  const repetitionRisk = metric(Math.max(0, (anchors.length - 3) * 0.1) + (relationKinds.length <= 1 ? 0.16 : 0));
-
-  // Weak relation strength is uncertainty, not invention. A low-confidence graph
-  // relation must never inflate truth-risk as if QRE invented an event.
-  const truthRisk = 0.02;
-  const lensFit = lens === "neutral"
-    ? 0.5
-    : metric(0.16 +
-      (lens === "comedy" && contrastCount ? 0.34 : 0) +
-      (lens === "romance" && relationKinds.includes("converges") ? 0.34 : 0) +
-      (lens === "horror" && relationKinds.includes("changes") ? 0.34 : 0) +
-      (lens === "sentimental" && recurrenceCount ? 0.34 : 0) +
-      (lens === "absurd" && contrastCount && concreteCount ? 0.34 : 0));
-
-  const score = metric(
-    novelty * 0.13 + uncertainty * 0.09 + informationValue * 0.16 + attentionPotential * 0.18 +
-    consequencePotential * 0.12 + callbackPotential * 0.08 + compressionPotential * 0.1 + specificity * 0.08 +
-    lensFit * 0.06 - repetitionRisk * 0.08 - truthRisk * 0.05,
+  const tokens = new Set(
+    event.label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3),
   );
 
-  const payoff = lens === "comedy"
-    ? "End on the strongest supplied contrast, letting the viewer perform the joke.":
-    lens === "horror"
-      ? "End on an ordinary supplied detail carrying a newly unsettling meaning.":
-    lens === "romance"
-      ? "End on a supplied detail whose meaning deepens through the observed connection.":
-    lens === "sentimental"
-      ? "End on the returning supplied detail after its context has changed.":
-    lens === "absurd"
-      ? "End by compressing several concrete supplied details into their strangest grounded relationship.":
-    "End when the strongest supplied relationship has been understood.";
+  return metric(
+    Math.min(8, tokens.size) * 0.07 +
+      Math.min(8, event.entities.length) * 0.04,
+  );
+}
+
+/** Reality owns the endpoint. Movie convergence never replaces it. */
+function endpointIdFor(
+  graph: RealityGraph,
+  _convergence: LatentMovieConvergence,
+): string {
+  return graph.events[graph.events.length - 1]?.id ?? "";
+}
+
+function chooseAnchors(
+  graph: RealityGraph,
+  focus: RealityRelation["kind"] | undefined,
+  endpointId: string,
+): string[] {
+  const incident = new Map<string, number>();
+
+  for (const relation of graph.relations) {
+    if (focus && relation.kind !== focus) continue;
+
+    incident.set(
+      relation.from,
+      (incident.get(relation.from) ?? 0) + relation.strength,
+    );
+    incident.set(
+      relation.to,
+      (incident.get(relation.to) ?? 0) + relation.strength,
+    );
+  }
+
+  const ranked = graph.events
+    .map((event, index) => ({
+      id: event.id,
+      score:
+        (incident.get(event.id) ?? 0) * 0.62 +
+        specificityScore(graph, event.id) * 0.28 +
+        (event.id === endpointId ? 0.16 : 0) -
+        index * 0.0005,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const anchors = ranked
+    .slice(0, Math.min(5, graph.events.length))
+    .map((item) => item.id);
+
+  if (endpointId && !anchors.includes(endpointId)) anchors.push(endpointId);
+  return unique(anchors);
+}
+
+function relationPriority(kind: RealityRelation["kind"]): number {
+  switch (kind) {
+    case "contrasts":
+      return 1;
+    case "recontextualizes":
+      return 0.96;
+    case "changes":
+      return 0.9;
+    case "repeats":
+      return 0.82;
+    case "converges":
+      return 0.72;
+    case "before":
+    case "after":
+      return 0.66;
+    default:
+      return 0.5;
+  }
+}
+
+function chooseIntermediateRelationship(
+  graph: RealityGraph,
+  trajectory: readonly LatentMovieTrajectoryStep[],
+  endpointId: string,
+  preferredKind?: RealityRelation["kind"],
+): {
+  from: string;
+  to: string;
+  relation: RealityRelation;
+} | undefined {
+  const payoffStep = trajectory.find((step) => step.operation === "payoff");
+  const payoffIds = payoffStep?.eventIds ?? [];
+  const actualEndpointId = payoffIds[payoffIds.length - 1] ?? endpointId;
+  const existing = new Set(trajectory.flatMap((step) => step.eventIds));
+
+  const candidates: Array<{
+    from: string;
+    to: string;
+    relation: RealityRelation;
+    score: number;
+  }> = [];
+
+  for (const relation of graph.relations) {
+    if (preferredKind && relation.kind !== preferredKind) continue;
+
+    if (
+      relation.from === endpointId ||
+      relation.to === endpointId ||
+      relation.from === actualEndpointId ||
+      relation.to === actualEndpointId ||
+      relation.from === relation.to
+    ) {
+      continue;
+    }
+
+    const fromKnown = existing.has(relation.from);
+    const toKnown = existing.has(relation.to);
+    if (fromKnown === toKnown) continue;
+
+    const from = fromKnown ? relation.from : relation.to;
+    const to = fromKnown ? relation.to : relation.from;
+
+    candidates.push({
+      from,
+      to,
+      relation,
+      score: relation.strength * 0.75 + relationPriority(relation.kind) * 0.25,
+    });
+  }
+
+  return candidates.sort((a, b) => b.score - a.score)[0];
+}
+
+function chooseSealingEvidence(
+  graph: RealityGraph,
+  trajectory: readonly LatentMovieTrajectoryStep[],
+  endpointId: string,
+): {
+  eventId: string;
+  relatedTo: string;
+  relation: RealityRelation;
+  score: number;
+} | undefined {
+  const meaningful = trajectory.filter(
+    (step) => step.operation !== "establish" && step.operation !== "payoff",
+  );
+  if (!meaningful.length) return undefined;
+
+  const seedIds = unique(meaningful.flatMap((step) => step.eventIds));
+  const used = new Set(trajectory.flatMap((step) => step.eventIds));
+  const endpointStep = trajectory.find((step) => step.operation === "payoff");
+  const payoffIds = endpointStep?.eventIds ?? [];
+  const actualEndpointId = payoffIds[payoffIds.length - 1] ?? endpointId;
+
+  const candidates: Array<{
+    eventId: string;
+    relatedTo: string;
+    relation: RealityRelation;
+    score: number;
+  }> = [];
+
+  for (const relation of graph.relations) {
+    const relatedTo = seedIds.includes(relation.from)
+      ? relation.from
+      : seedIds.includes(relation.to)
+        ? relation.to
+        : "";
+
+    if (!relatedTo) continue;
+
+    const eventId = relation.from === relatedTo ? relation.to : relation.from;
+    if (!eventId || used.has(eventId)) continue;
+    if (eventId === endpointId || eventId === actualEndpointId) continue;
+
+    const relatedIndex = graph.events.findIndex((event) => event.id === relatedTo);
+    const candidateIndex = graph.events.findIndex((event) => event.id === eventId);
+    const laterEvidence = candidateIndex > relatedIndex ? 0.22 : 0;
+
+    candidates.push({
+      eventId,
+      relatedTo,
+      relation,
+      score:
+        relation.strength * 0.62 +
+        relationPriority(relation.kind) * 0.23 +
+        laterEvidence * 0.15,
+    });
+  }
+
+  return candidates.sort((a, b) => b.score - a.score)[0];
+}
+
+function buildTrajectory(
+  graph: RealityGraph,
+  anchors: readonly string[],
+  convergence: LatentMovieConvergence,
+  focus?: RealityRelation["kind"],
+): LatentMovieTrajectoryStep[] {
+  const endpointId = endpointIdFor(graph, convergence);
+  const ordered = unique(
+    convergence.forwardPath.length ? convergence.forwardPath : anchors,
+  );
+
+  if (!ordered.length) return [];
+
+  const trajectory: LatentMovieTrajectoryStep[] = [];
+  const firstId = ordered[0];
+  const first = eventById(graph, firstId);
+
+  if (first) {
+    trajectory.push({
+      order: 1,
+      operation: "establish",
+      eventIds: [firstId],
+      viewerChange: `Establish supplied evidence: ${first.label}.`,
+      nextQuestion: "What relationship in the evidence deserves the next cut?",
+    });
+  }
+
+  for (let index = 1; index < ordered.length; index += 1) {
+    const fromId = ordered[index - 1];
+    const toId = ordered[index];
+    const from = eventById(graph, fromId);
+    const to = eventById(graph, toId);
+
+    if (!from || !to) continue;
+
+    const relation =
+      relationBetween(graph, fromId, toId, focus) ??
+      relationBetween(graph, fromId, toId);
+
+    if (toId === endpointId) {
+      trajectory.push({
+        order: trajectory.length + 1,
+        operation: "payoff",
+        eventIds: [fromId, endpointId],
+        viewerChange: `The supplied endpoint lands after the accumulated path: ${to.label}.`,
+        nextQuestion: "What is now true at the supplied ending?",
+      });
+      continue;
+    }
+
+    if (!relation) continue;
+
+    trajectory.push({
+      order: trajectory.length + 1,
+      operation: operationForRelation(relation.kind),
+      eventIds: [fromId, toId],
+      viewerChange: `${relation.kind}: ${from.label} -> ${to.label}.`,
+      nextQuestion:
+        relation.kind === "contrasts"
+          ? "What expectation changes here?"
+          : "What does this relationship make newly meaningful?",
+    });
+  }
+
+  if (trajectory.length < 3 && convergence.backwardPath.length) {
+    for (const id of convergence.backwardPath) {
+      if (
+        trajectory.some((step) => step.eventIds.includes(id)) ||
+        id === endpointId
+      ) {
+        continue;
+      }
+
+      const event = eventById(graph, id);
+      if (!event) continue;
+
+      trajectory.push({
+        order: trajectory.length + 1,
+        operation: "converge",
+        eventIds: [id],
+        viewerChange: `A supplied detail becomes newly relevant: ${event.label}.`,
+        nextQuestion: "Does this sharpen, overturn, or complete the current reading?",
+      });
+
+      if (trajectory.length >= 5) break;
+    }
+  }
+
+  // Recovery: do not accept establish -> payoff when reality supports a real turn.
+  if (
+    trajectory.length < 3 &&
+    trajectory.some((step) => step.operation === "payoff")
+  ) {
+    const intermediate =
+      chooseIntermediateRelationship(graph, trajectory, endpointId, focus) ??
+      chooseIntermediateRelationship(graph, trajectory, endpointId);
+
+    if (intermediate) {
+      const from = eventById(graph, intermediate.from);
+      const to = eventById(graph, intermediate.to);
+      const payoffIndex = trajectory.findIndex(
+        (step) => step.operation === "payoff",
+      );
+
+      if (from && to && payoffIndex >= 0) {
+        trajectory.splice(payoffIndex, 0, {
+          order: payoffIndex + 1,
+          operation: operationForRelation(intermediate.relation.kind),
+          eventIds: [intermediate.from, intermediate.to],
+          viewerChange: `${intermediate.relation.kind}: ${from.label} -> ${to.label}.`,
+          nextQuestion:
+            intermediate.relation.kind === "contrasts"
+              ? "What expectation changes here?"
+              : "What does this relationship make newly meaningful?",
+        });
+      }
+    }
+  }
+
+  // Recovery: seek a later, non-endpoint evidence event that seals the turn.
+  if (
+    trajectory.length < 4 &&
+    trajectory.some((step) => step.operation === "payoff")
+  ) {
+    const sealing = chooseSealingEvidence(graph, trajectory, endpointId);
+    const payoffIndex = trajectory.findIndex(
+      (step) => step.operation === "payoff",
+    );
+
+    if (sealing && payoffIndex >= 0) {
+      const event = eventById(graph, sealing.eventId);
+      const related = eventById(graph, sealing.relatedTo);
+
+      if (event && related) {
+        trajectory.splice(payoffIndex, 0, {
+          order: payoffIndex + 1,
+          operation: operationForRelation(sealing.relation.kind),
+          eventIds: [sealing.relatedTo, sealing.eventId],
+          viewerChange:
+            `supplied evidence deepens the discovered relationship: ${related.label} -> ${event.label}.`,
+          nextQuestion: "What does this later evidence make undeniable?",
+        });
+      }
+    }
+  }
+
+  trajectory.forEach((step, index) => {
+    step.order = index + 1;
+  });
+
+  return trajectory.slice(0, 6);
+}
+
+function candidateScore(input: {
+  graph: RealityGraph;
+  trajectory: readonly LatentMovieTrajectoryStep[];
+  evidence: readonly string[];
+  relations: readonly RealityRelation[];
+  convergence: LatentMovieConvergence;
+  endpointId: string;
+}): Omit<
+  LatentMovieCandidate,
+  | "id"
+  | "lens"
+  | "anchorEventIds"
+  | "supportingRelationKinds"
+  | "trajectory"
+  | "payoff"
+  | "unresolvedQuestion"
+  | "evidence"
+  | "hypothesis"
+  | "distinctiveness"
+  | "score"
+> & { score: number; distinctiveness: number } {
+  const contrastCount = input.relations.filter(
+    (relation) => relation.kind === "contrasts",
+  ).length;
+
+  const reframeCount = input.relations.filter(
+    (relation) => relation.kind === "recontextualizes",
+  ).length;
+
+  const recurrenceCount = input.relations.filter(
+    (relation) =>
+      relation.kind === "repeats" ||
+      relation.kind === "recontextualizes",
+  ).length;
+
+  const relationKinds = unique(
+    input.relations.map((relation) => relation.kind),
+  );
+
+  const strongRelations = input.relations.filter(
+    (relation) => relation.strength >= 0.5,
+  ).length;
+
+  const weakRelations = input.relations.length - strongRelations;
+
+  const eventSpecificity =
+    input.evidence.reduce((sum, label) => {
+      const event = input.graph.events.find(
+        (candidate) => candidate.label === label,
+      );
+      return sum + (event ? specificityScore(input.graph, event.id) : 0);
+    }, 0) / Math.max(1, input.evidence.length);
+
+  const endpointDependent = input.trajectory.some(
+    (step) =>
+      step.eventIds.includes(input.endpointId) &&
+      step.operation === "payoff",
+  );
+
+  const meaningfulSteps = input.trajectory.filter(
+    (step) => step.operation !== "establish" && step.operation !== "payoff",
+  ).length;
+
+  const sealingOpportunity =
+    chooseSealingEvidence(
+      input.graph,
+      input.trajectory,
+      input.endpointId,
+    ) !== undefined;
+
+  const trajectoryCompleteness = sealingOpportunity
+    ? metric(meaningfulSteps >= 2 ? 1 : meaningfulSteps === 1 ? 0.42 : 0.16)
+    : metric(meaningfulSteps >= 1 ? 0.82 : 0.3);
+
+  const truthRisk = metric(
+    weakRelations * 0.012 + (!endpointDependent ? 0.08 : 0),
+  );
+
+  const specificity = metric(
+    eventSpecificity * 0.55 +
+      Math.min(1, input.evidence.length / 6) * 0.25 +
+      strongRelations * 0.04,
+  );
+
+  const novelty = metric(
+    0.18 +
+      contrastCount * 0.16 +
+      reframeCount * 0.13 +
+      relationKinds.length * 0.07 +
+      input.convergence.convergence * 0.2,
+  );
+
+  const informationValue = metric(
+    relationKinds.length * 0.1 +
+      specificity * 0.36 +
+      input.convergence.convergence * 0.22 +
+      Math.min(1, input.trajectory.length / 5) * 0.12,
+  );
+
+  const uncertainty = metric(
+    input.graph.unresolvedTensions.length * 0.08 +
+      weakRelations * 0.035 +
+      (input.convergence.convergence < 0.45 ? 0.14 : 0.02),
+  );
+
+  const attentionPotential = metric(
+    novelty * 0.32 +
+      uncertainty * 0.22 +
+      informationValue * 0.34 +
+      (contrastCount ? 0.12 : 0),
+  );
+
+  const consequencePotential = metric(
+    Math.min(1, input.trajectory.length / 5) * 0.38 +
+      contrastCount * 0.08 +
+      reframeCount * 0.1 +
+      input.convergence.convergence * 0.18,
+  );
+
+  const callbackPotential = metric(
+    (input.graph.recurringSignals.length ? 0.34 : 0.04) +
+      recurrenceCount * 0.12,
+  );
+
+  const compressionPotential = metric(
+    0.32 + specificity * 0.32 + Math.min(relationKinds.length, 4) * 0.08,
+  );
+
+  const repetitionRisk = metric(
+    Math.max(0, (input.evidence.length - 4) * 0.06) +
+      (relationKinds.length <= 1 ? 0.14 : 0),
+  );
+
+  const distinctiveness = metric(
+    0.34 +
+      novelty * 0.28 +
+      informationValue * 0.22 +
+      (relationKinds.length > 1 ? 0.12 : 0),
+  );
+
+  const score = metric(
+    novelty * 0.14 +
+      uncertainty * 0.07 +
+      informationValue * 0.17 +
+      attentionPotential * 0.16 +
+      consequencePotential * 0.1 +
+      callbackPotential * 0.07 +
+      compressionPotential * 0.08 +
+      specificity * 0.07 +
+      trajectoryCompleteness * 0.12 +
+      input.convergence.convergence * 0.1 +
+      (endpointDependent ? 0.08 : 0) -
+      repetitionRisk * 0.05 -
+      truthRisk * 0.06,
+  );
 
   return {
-    id: `movie-${rank}-${lens}`,
-    lens,
-    anchorEventIds: anchors,
-    supportingRelationKinds: relationKinds,
-    trajectory,
-    payoff,
-    unresolvedQuestion: unresolved,
-    evidence,
-    hypothesis: [
-      `${subject ? `${subject}: ` : ""}the supplied relationships may support a ${lens} reading.`,
-      "This is a creative hypothesis, not a new fact.",
-    ],
     truthRisk,
     novelty,
     specificity,
@@ -248,15 +628,147 @@ function buildCandidate(graph: RealityGraph, subject: string | undefined, lens: 
     callbackPotential,
     compressionPotential,
     repetitionRisk,
-    distinctiveness: 1,
     score,
+    distinctiveness,
   };
 }
 
-/** Generate competing movies from one immutable reality graph, then diversity-gate them. */
-export function searchLatentMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
+function buildCandidate(
+  graph: RealityGraph,
+  subject: string | undefined,
+  lens: string,
+  rank: number,
+  focus?: RealityRelation["kind"],
+): LatentMovieCandidate {
+  const convergence = findLatentMovieConvergence(graph, {
+    preferredRelationKinds: relationKindsByEvidence(graph),
+    maxDepth: 4,
+    maxEndpoints: 3,
+    maxOpenings: 5,
+  });
+
+  const endpointId = endpointIdFor(graph, convergence);
+  const anchors = chooseAnchors(graph, focus, endpointId);
+  const trajectory = buildTrajectory(graph, anchors, convergence, focus);
+
+  const evidenceIds = unique([
+    ...trajectory.flatMap((step) => step.eventIds),
+    ...anchors,
+    ...(convergence.forwardPath ?? []),
+    ...(convergence.backwardPath ?? []),
+  ]);
+
+  const evidence = unique(
+    evidenceIds
+      .map((id) => eventById(graph, id)?.label)
+      .filter((value): value is string => Boolean(value)),
+  ).slice(0, 10);
+
+  const relations = relationBetweenEvidence(graph, evidenceIds);
+  const relationKinds = unique(relations.map((relation) => relation.kind));
+
+  const metrics = candidateScore({
+    graph,
+    trajectory,
+    evidence,
+    relations,
+    convergence,
+    endpointId,
+  });
+
+  const endpointEvent = endpointId
+    ? eventById(graph, endpointId)
+    : undefined;
+
+  const payoff = endpointEvent?.label ?? "the supplied sequence endpoint";
+  const focusText = focus ? ` Focus relation: ${focus}.` : "";
+
+  const hypothesis = [
+    `${subject ? `${subject}: ` : ""}the supplied evidence supports a ${lens} reading without changing the source facts.${focusText}`,
+    `The movie centers on ${relationKinds.join(", ") || "the strongest available evidence relationship"}.`,
+    `The trajectory uses ${evidence.length} supplied evidence anchors and ends at the source-derived endpoint.`,
+    "This is a creative hypothesis, never source truth.",
+  ];
+
+  const unresolvedQuestion =
+    graph.unresolvedTensions[0] ??
+    (convergence.openingCandidates.length
+      ? "What does the selected opening make newly important?"
+      : "What supplied relationship deserves the next cut?");
+
+  return {
+    id: `movie-${rank}-${focus ?? "center"}`,
+    lens,
+    anchorEventIds: evidenceIds.slice(0, 8),
+    supportingRelationKinds: relationKinds,
+    trajectory,
+    payoff,
+    unresolvedQuestion,
+    evidence,
+    hypothesis,
+    ...metrics,
+  };
+}
+
+function relationBetweenEvidence(
+  graph: RealityGraph,
+  ids: readonly string[],
+): RealityRelation[] {
+  const set = new Set(ids);
+
+  return graph.relations
+    .filter(
+      (relation) =>
+        set.has(relation.from) && set.has(relation.to),
+    )
+    .sort((a, b) => b.strength - a.strength);
+}
+
+export function searchLatentMovieCandidates(input: {
+  graph: RealityGraph;
+  subject?: string;
+  lens?: string;
+  limit?: number;
+}): LatentMovieCandidate[] {
   if (!input.graph.events.length) return [];
+
   const lenses = requestedLenses(input.lens);
-  const candidates = lenses.map((lens, index) => buildCandidate(input.graph, input.subject, lens, index + 1));
-  return selectDistinctMovieCandidates(candidates, Math.max(1, Math.min(input.limit ?? 6, 8)));
+  const relationFocuses = relationKindsByEvidence(input.graph).slice(0, 5);
+  const focuses = relationFocuses.length ? relationFocuses : [undefined];
+  const candidates: LatentMovieCandidate[] = [];
+  let rank = 1;
+
+  for (const lens of lenses) {
+    for (const focus of focuses) {
+      candidates.push(
+        buildCandidate(
+          input.graph,
+          input.subject,
+          lens,
+          rank,
+          focus,
+        ),
+      );
+      rank += 1;
+
+      if (
+        candidates.length >=
+        Math.max(8, Math.min((input.limit ?? 6) * 2, 14))
+      ) {
+        break;
+      }
+    }
+
+    if (
+      candidates.length >=
+      Math.max(8, Math.min((input.limit ?? 6) * 2, 14))
+    ) {
+      break;
+    }
+  }
+
+  return selectDistinctMovieCandidates(
+    candidates,
+    Math.max(1, Math.min(input.limit ?? 6, 8)),
+  );
 }
