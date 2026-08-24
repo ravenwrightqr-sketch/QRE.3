@@ -55,13 +55,25 @@ export function selectBestMouthSequence(
   const ordered = [...pools].sort((a, b) => a.order - b.order);
   const chosen: MouthCandidate[] = [];
 
-  for (const pool of ordered) {
+  for (let index = 0; index < ordered.length; index += 1) {
+    const pool = ordered[index];
     const candidates = pool.candidates
       .filter(legal)
       .sort((a, b) => rank(b) - rank(a));
 
     if (!candidates.length) {
       return { candidates: [], texts: [], score: 0 };
+    }
+
+    const isFinalPool = index === ordered.length - 1;
+    if (isFinalPool) {
+      const exactEndpoints = candidates.filter(
+        (candidate) => candidate.endpointExactness >= 0.999,
+      );
+      if (exactEndpoints.length) {
+        chosen.push(exactEndpoints[0]);
+        continue;
+      }
     }
 
     chosen.push(candidates[0]);
