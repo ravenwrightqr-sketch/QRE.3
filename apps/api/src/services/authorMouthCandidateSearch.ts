@@ -23,7 +23,7 @@ export type MouthCandidateGenerationInput = {
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const unique = (values: readonly unknown[], limit = Number.POSITIVE_INFINITY): string[] => [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
 const bounded = (value: string): string => clean(value).split(/\s+/).filter(Boolean).slice(0, 7).join(" ");
 
 const META = /\b(?:qre|compiler|cognition|meaning spine|beat graph|information frontier|planner|planning|operator mix|viewer sees|audience sees|writing process)\b/i;
