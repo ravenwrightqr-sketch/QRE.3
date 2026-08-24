@@ -1,4 +1,4 @@
-import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+import type { LatentMovieCandidate, RealityGraph, RealityRelation } from "@qre/contracts";
 import { searchLatentMovieCandidates } from "./authorLatentMovieSearch.js";
 
 export type AuthorCognitionInput = {
@@ -13,6 +13,7 @@ export type AuthorCognitionInput = {
   priorScenes?: string[];
   priorStrategies?: string[];
   round?: number;
+  movieMode?: boolean;
 };
 
 export type AttentionCandidate = {
@@ -40,12 +41,7 @@ export type CharacterRead = {
 
 export type AuthorCognitivePlan = {
   round: number;
-  mode:
-    | "grounded"
-    | "concept"
-    | "living_memory"
-    | "service"
-    | "voice_first";
+  mode: "grounded" | "concept" | "living_memory" | "service" | "voice_first";
   subjectIdentity: string;
   permanentTruths: string[];
   currentEvidence: string[];
@@ -62,1242 +58,255 @@ export type AuthorCognitivePlan = {
   realityGraph?: RealityGraph;
 };
 
-const SIGNALS: Array<[RegExp, string]> = [
-  [
-    /\bnervous|scared|shy|fierce|sweet|wild|goofy|stubborn|obsessed|hates|loves\b/i,
-    "personality_contrast",
-  ],
-  [
-    /\binherited|passed down|old|vintage|family|restored|years?\b/i,
-    "provenance_and_history",
-  ],
-  [
-    /\bfirst|again|second|third|return|back|next|visit|chapter\b/i,
-    "callback_and_continuity",
-  ],
-  [
-    /\bnight|9 pm|late|dark|moon\b/i,
-    "night_contrast",
-  ],
-  [
-    /\bbeach|ocean|shore|water|yacht|sea\b/i,
-    "scale_and_place",
-  ],
-  [
-    /\bhouse|home|room|kitchen|bathroom|living room|estate|property\b/i,
-    "space_as_character",
-  ],
-  [
-    /\bskateboard|scratches|worn|beat-up|scarred|faded\b/i,
-    "wear_as_evidence",
-  ],
-  [
-    /\bservice|client|customer|appointment|grooming|repair|cleaning|barber|salon\b/i,
-    "service_personality",
-  ],
-  [
-    /\bhorror|dark humor|knives|glass|doors|ceiling|wine\b/i,
-    "calm_reality_break",
-  ],
-  [
-    /\bfunny|comedy|humor|laugh|joke|sarcastic|mischievous\b/i,
-    "comic_status_inversion",
-  ],
-  [
-    /\bcreator|artist|work|audience|follow|social|attention\b/i,
-    "voice_and_attention",
-  ],
-  [
-    /\bqr|tag|keychain|plaque|wood|artifact|object|physical\b/i,
-    "object_to_world",
-  ],
-  [
-    /\bmillion|expensive|luxury|wealth|premium|high-end|valuable|price\b/i,
-    "status_to_meaning",
-  ],
-  [
-    /\bnew|brand new|pristine|first use|beginning\b/i,
-    "possibility_and_firstness",
-  ],
-  [
-    /\brelationship|love|wedding|anniversary|family|memory|inside joke|favorite\b/i,
-    "private_meaning",
-  ],
-];
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const uniq = (values: readonly unknown[], limit = 24): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
-const GENERIC_BANS = [
-  "beautiful transformation",
-  "magical moment",
-  "unforgettable experience",
-  "incredible journey",
-  "luxury experience",
-  "perfect day",
-  "special moment",
-  "living world",
-];
-
-function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+function modeFor(input: AuthorCognitionInput): AuthorCognitivePlan["mode"] {
+  const text = `${input.prompt} ${input.lens ?? ""}`.toLowerCase();
+  const evidence = input.facts.length + input.sourceMoments.length + (input.memoryContext?.length ?? 0);
+  if (/memory|returning|chapter|again|previous visit/.test(text) || (input.round ?? 1) > 1) return evidence ? "living_memory" : "concept";
+  if (evidence) return /service|receipt|visit|appointment|cleaning|groom|repair|barber|salon|mechanic/.test(text) ? "service" : "grounded";
+  return "concept";
 }
 
-function uniq(values: string[], limit = 20): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))].slice(0, limit);
+function relationStrengthToEndpoint(graph: RealityGraph, eventId: string, endpointId: string): number {
+  return metric(
+    graph.relations
+      .filter((r) => (r.from === eventId && r.to === endpointId) || (r.to === eventId && r.from === endpointId))
+      .reduce((sum, r) => sum + r.strength, 0),
+  );
 }
 
-function inferMode(
-  input: AuthorCognitionInput,
-): AuthorCognitivePlan["mode"] {
-  const text = `${input.prompt} ${input.lens ?? ""} ${
-    input.subject ?? ""
-  }`.toLowerCase();
-
-  const evidence =
-    input.facts.length +
-    input.sourceMoments.length +
-    (input.memoryContext?.length ?? 0);
-
-  if (
-    /service|client|customer|groom|grooming|clean|repair|barber|salon|mechanic|tattoo/.test(
-      text,
-    )
-  ) {
-    return evidence ? "service" : "concept";
-  }
-
-  if (
-    /wedding|memory|anniversary|family|remember|memorial/.test(
-      text,
-    )
-  ) {
-    return evidence ? "living_memory" : "concept";
-  }
-
-  if (
-    /creator|social|artist|portrait/.test(text)
-  ) {
-    return evidence ? "grounded" : "voice_first";
-  }
-
-  return evidence ? "grounded" : "concept";
+function incidentStrength(graph: RealityGraph, eventId: string): number {
+  return metric(graph.relations.filter((r) => r.from === eventId || r.to === eventId).reduce((sum, r) => sum + r.strength, 0));
 }
 
-function scoreCandidate(
-  strategy: string,
-  input: AuthorCognitionInput,
-  text: string,
-): number {
-  let score = 46;
-
-  const lower = text.toLowerCase();
-  const lens = `${input.lens ?? ""}`.toLowerCase();
-  const graph = input.realityGraph;
-
-  if (
-    strategy === "personality_contrast" &&
-    /sweet|scared|fierce|hates|loves|goofy|stubborn/.test(
-      lower,
-    )
-  ) {
-    score += 32;
-  }
-
-  if (
-    strategy === "provenance_and_history" &&
-    /inherited|vintage|family|restored|old/.test(lower)
-  ) {
-    score += 32;
-  }
-
-  if (
-    strategy === "callback_and_continuity" &&
-    ((input.round ?? 1) > 1 ||
-      Boolean(graph?.recurringSignals.length))
-  ) {
-    score += 38;
-  }
-
-  if (
-    strategy === "night_contrast" &&
-    /night|9 pm|moon|dark/.test(lower)
-  ) {
-    score += 28;
-  }
-
-  if (
-    strategy === "scale_and_place" &&
-    /beach|ocean|yacht|sea|shore/.test(lower)
-  ) {
-    score += 22;
-  }
-
-  if (
-    strategy === "space_as_character" &&
-    /house|home|room|kitchen|bathroom|estate|property/.test(
-      lower,
-    )
-  ) {
-    score += 24;
-  }
-
-  if (
-    strategy === "wear_as_evidence" &&
-    /scratches|worn|beat-up|scarred|faded/.test(lower)
-  ) {
-    score += 30;
-  }
-
-  if (
-    strategy === "service_personality" &&
-    /service|client|customer|groom|repair|clean/.test(lower)
-  ) {
-    score += 30;
-  }
-
-  if (
-    strategy === "calm_reality_break" &&
-    /horror|knives|glass|doors|ceiling|wine/.test(lower)
-  ) {
-    score += 42;
-  }
-
-  if (
-    strategy === "comic_status_inversion" &&
-    /funny|comedy|humor|laugh|sarcastic|mischievous/.test(
-      `${lower} ${lens}`,
-    )
-  ) {
-    score += 36;
-  }
-
-  if (
-    strategy === "voice_and_attention" &&
-    /creator|artist|social|follow|attention/.test(lower)
-  ) {
-    score += 28;
-  }
-
-  if (
-    strategy === "object_to_world" &&
-    /qr|tag|keychain|plaque|wood|artifact|object|physical/.test(
-      lower,
-    )
-  ) {
-    score += 28;
-  }
-
-  if (
-    strategy === "status_to_meaning" &&
-    /million|expensive|luxury|wealth|premium|high-end|valuable|price/.test(
-      lower,
-    )
-  ) {
-    score += 32;
-  }
-
-  if (
-    strategy === "possibility_and_firstness" &&
-    /new|brand new|pristine|first use|beginning/.test(lower)
-  ) {
-    score += 24;
-  }
-
-  if (
-    strategy === "private_meaning" &&
-    /relationship|love|wedding|anniversary|family|memory|inside joke|favorite/.test(
-      lower,
-    )
-  ) {
-    score += 30;
-  }
-
-  if (
-    graph &&
-    strategy === "private_meaning" &&
-    graph.relations.some(
-      (relation) =>
-        relation.kind === "involves" ||
-        relation.kind === "converges",
-    )
-  ) {
-    score += 12;
-  }
-
-  if (
-    graph &&
-    strategy === "object_to_world" &&
-    graph.events.some(
-      (event) => event.entities.length > 1,
-    )
-  ) {
-    score += 8;
-  }
-
-  if (
-    input.round &&
-    input.round > 1 &&
-    strategy === "callback_and_continuity"
-  ) {
-    score += 12;
-  }
-
-  return Math.min(score, 100);
+function eventSpecificity(label: string): number {
+  const words = new Set(label.toLowerCase().split(/[^a-z0-9'-]+/i).filter((x) => x.length > 2));
+  return metric(Math.min(words.size, 8) / 8);
 }
 
-function findContradictions(
-  values: string[],
-  graph?: RealityGraph,
-): string[] {
-  const joined = values.join(" ").toLowerCase();
-  const hits: string[] = [];
+function chooseEndpoint(graph?: RealityGraph): string {
+  return graph?.events[graph.events.length - 1]?.id ?? "";
+}
 
-  const pairs: Array<
-    [RegExp, RegExp, string]
-  > = [
-    [
-      /scared|nervous|shy/,
-      /fierce|wild|confident/,
-      "vulnerability vs attitude",
-    ],
-    [
-      /sweet|gentle/,
-      /hates|fierce|stubborn/,
-      "tenderness vs resistance",
-    ],
-    [
-      /old|vintage|inherited/,
-      /still|new|first/,
-      "age vs present life",
-    ],
-    [
-      /luxury|million|expensive/,
-      /family|ordinary|ritual|memory/,
-      "status vs intimacy",
-    ],
-    [
-      /night|dark|9 pm/,
-      /wedding|romantic|love/,
-      "darkness vs tenderness",
-    ],
-    [
-      /calm|conversation|wine/,
-      /knives|glass|doors|ceiling|horror/,
-      "social normality vs environmental violence",
-    ],
-    [
-      /service|client|customer|appointment/,
-      /funny|fierce|quirky|hates|loves/,
-      "routine service vs character personality",
-    ],
-    [
-      /missing|lost|vanished|gone/,
-      /packed|moved|loaded|finished/,
-      "completion vs unresolved absence",
-    ],
-    [
-      /same|again|returned|back/,
-      /different|changed|new/,
-      "repetition vs change",
-    ],
+function relationBetween(graph: RealityGraph, a: string, b: string): RealityRelation | undefined {
+  return graph.relations
+    .filter((r) => (r.from === a && r.to === b) || (r.from === b && r.to === a))
+    .sort((x, y) => y.strength - x.strength)[0];
+}
+
+function repairMovieTrajectory(candidate: LatentMovieCandidate, graph: RealityGraph): LatentMovieCandidate {
+  const endpointId = chooseEndpoint(graph);
+  if (!endpointId || !graph.events.length) return candidate;
+
+  const endpoint = graph.events.find((e) => e.id === endpointId);
+  const nonEndpoint = graph.events.filter((e) => e.id !== endpointId);
+  if (!endpoint || !nonEndpoint.length) return candidate;
+
+  const ranked = [...nonEndpoint].sort((a, b) => {
+    const aScore = relationStrengthToEndpoint(graph, a.id, endpointId) * 0.55 + incidentStrength(graph, a.id) * 0.3 + eventSpecificity(a.label) * 0.15;
+    const bScore = relationStrengthToEndpoint(graph, b.id, endpointId) * 0.55 + incidentStrength(graph, b.id) * 0.3 + eventSpecificity(b.label) * 0.15;
+    return bScore - aScore;
+  });
+
+  const existing = new Set(candidate.trajectory.flatMap((step) => step.eventIds));
+  const opening = graph.events.find((e) => existing.has(e.id)) ?? ranked[0];
+  const carriers = ranked.filter((e) => e.id !== opening.id).slice(0, 2);
+
+  const steps = [
+    {
+      order: 1,
+      operation: "establish" as const,
+      eventIds: [opening.id],
+      viewerChange: `Establish supplied evidence: ${opening.label}.`,
+      nextQuestion: "What does this detail make worth noticing next?",
+    },
   ];
 
-  for (const [a, b, label] of pairs) {
-    if (a.test(joined) && b.test(joined)) {
-      hits.push(label);
-    }
-  }
-
-  hits.push(
-    ...(graph?.unresolvedTensions ?? []),
-  );
-
-  return uniq(hits, 10);
-}
-
-function deriveCoreTraits(
-  input: AuthorCognitionInput,
-): string[] {
-  const all = [
-    ...input.facts,
-    ...input.sourceMoments,
-  ];
-
-  const traits = all.filter((value) =>
-    /\b(?:nervous|scared|shy|fierce|sweet|gentle|wild|goofy|stubborn|obsessed|proud|confident|quiet|loud|funny|mischievous|tired|calm|excited)\b/i.test(
-      value,
-    ),
-  );
-
-  return uniq(traits, 8);
-}
-
-function deriveObjectRelationships(
-  input: AuthorCognitionInput,
-): string[] {
-  const all = [
-    ...input.facts,
-    ...input.sourceMoments,
-  ];
-
-  const objects = all.filter((value) =>
-    /\b(?:bow|bows|ball|balls|tie|ties|bath|bathroom|kitchen|box|bag|car|tag|keychain|record|records|card|cards|song|pier|manual|paint|hvac|mirror)\b/i.test(
-      value,
-    ),
-  );
-
-  return uniq(objects, 10);
-}
-
-function deriveStatusPosture(
-  traits: string[],
-  contradictions: string[],
-): string {
-  const joined = `${traits.join(" ")} ${contradictions.join(
-    " ",
-  )}`.toLowerCase();
-
-  if (
-    /nervous|scared/.test(joined) &&
-    /fierce|wild|confident|stubborn/.test(joined)
-  ) {
-    return "guarded but defiant; resists looking powerless";
-  }
-
-  if (
-    /quiet|silent/.test(joined) &&
-    /mirror|appearance|fade|reveal/.test(joined)
-  ) {
-    return "controlled and observant; lets the result speak";
-  }
-
-  if (
-    /missing|lost|vanished/.test(joined) &&
-    /packed|moved|finished/.test(joined)
-  ) {
-    return "apparently complete while carrying an unresolved problem";
-  }
-
-  if (
-    /happy|proud|excited/.test(joined) &&
-    /nervous|scared|shy/.test(joined)
-  ) {
-    return "emotionally mixed; outward state is ahead of inner certainty";
-  }
-
-  if (
-    /old|vintage|inherited|family/.test(joined)
-  ) {
-    return "custodian of continuity; meaning lives in small details";
-  }
-
-  return "defined by the strongest supplied contradiction";
-}
-
-function deriveEmotionalPosture(
-  traits: string[],
-  contradictions: string[],
-): string {
-  if (contradictions.length) {
-    return `emotion sits inside ${contradictions[0]}`;
-  }
-
-  if (traits.length >= 2) {
-    return `emotion emerges from ${traits[0]} meeting ${traits[1]}`;
-  }
-
-  if (traits.length === 1) {
-    return `emotion is carried by ${traits[0]}`;
-  }
-
-  return "emotion should be inferred from behavior, not named";
-}
-
-function deriveCreativeFrames(
-  input: AuthorCognitionInput,
-  contradictions: string[],
-): CharacterFrameCandidate[] {
-  const text = `${input.prompt} ${input.lens ?? ""} ${
-    input.subject ?? ""
-  } ${input.facts.join(" ")} ${
-    input.sourceMoments.join(" ")
-  } ${(input.memoryContext ?? []).join(" ")} ${(input.priorScenes ?? []).join(" ")} ${(input.realityGraph?.recurringSignals ?? []).join(" ")} ${(input.realityGraph?.unresolvedTensions ?? []).join(" ")}`.toLowerCase();
-
-  const frames: CharacterFrameCandidate[] = [];
-
-  const add = (
-    frame: string,
-    reason: string,
-    confidence: number,
-  ) => {
-    frames.push({
-      frame,
-      reason,
-      confidence,
+  for (const carrier of carriers) {
+    const relation = relationBetween(graph, carrier.id, endpointId) ?? relationBetween(graph, opening.id, carrier.id);
+    if (!relation) continue;
+    steps.push({
+      order: steps.length + 1,
+      operation: relation.kind === "repeats" ? "recur" as const : relation.kind === "contrasts" ? "contrast" as const : "reframe" as const,
+      eventIds: [carrier.id, relation.to === endpointId || relation.from === endpointId ? endpointId : opening.id],
+      viewerChange: `The supplied relationship changes the reading: ${relation.kind} involving ${carrier.label}.`,
+      nextQuestion: "What becomes different about the ending because of this?",
     });
+  }
+
+  steps.push({
+    order: steps.length + 1,
+    operation: "payoff" as const,
+    eventIds: [endpointId],
+    viewerChange: `Land the supplied endpoint: ${endpoint.label}.`,
+    nextQuestion: "What is now true at the supplied ending?",
+  });
+
+  const trajectory = steps.slice(0, 6);
+  const thesis = candidate.storyThesis ?? {
+    initialReading: candidate.hypothesis?.[0] ?? candidate.lens,
+    semanticTurn: trajectory.slice(1, -1).map((s) => s.viewerChange).join(" ") || "A supplied relationship changes the reading.",
+    carrierEventIds: trajectory.slice(1, -1).flatMap((s) => s.eventIds),
+    sealingEventIds: [endpointId],
+    payoffDependency: endpoint.label,
+    counterfactualDependency: metric(trajectory.length >= 3 ? 0.8 : 0.4),
   };
 
-  if (
-    /nervous|fierce|hates|steals|stole|rebellion/.test(
-      text,
-    )
-  ) {
-    add(
-      "negotiation",
-      "character attitude makes an ordinary interaction feel like a status contest",
-      0.92,
-    );
+  return {
+    ...candidate,
+    anchorEventIds: uniq([opening.id, ...carriers.map((e) => e.id), endpointId], 6),
+    trajectory,
+    payoff: endpoint.label,
+    unresolvedQuestion: "What did the preceding evidence make inevitable about the supplied ending?",
+    evidence: uniq([...candidate.evidence, opening.label, ...carriers.map((e) => e.label), endpoint.label], 12),
+    hypothesis: uniq([...candidate.hypothesis, thesis.initialReading, thesis.semanticTurn], 6),
+    storyThesis: thesis,
+    specificity: Math.max(candidate.specificity, eventSpecificity(opening.label)),
+    consequencePotential: Math.max(candidate.consequencePotential, metric(trajectory.length / 6)),
+    callbackPotential: Math.max(candidate.callbackPotential, inputlessCallbackScore(graph)),
+    compressionPotential: Math.max(candidate.compressionPotential, metric(1 - Math.max(0, trajectory.length - 4) * 0.12)),
+    score: metric(candidate.score * 0.55 + metric(trajectory.length / 6) * 0.2 + metric(candidate.truthRisk <= 0.25 ? 1 : 0.6) * 0.15 + metric(candidate.specificity) * 0.1),
+  };
+}
 
-    add(
-      "rebellion",
-      "the supplied resistance or stealing can be framed as a tiny act of defiance",
-      0.88,
-    );
-  }
+function inputlessCallbackScore(graph: RealityGraph): number {
+  return graph.recurringSignals.length ? metric(Math.min(graph.recurringSignals.length, 4) / 4) : 0;
+}
 
-  if (
-    /groom|grooming|barber|salon|cleaning|repair|service/.test(
-      text,
-    )
-  ) {
-    add(
-      "operation",
-      "the routine service can be experienced as a focused operation when the facts create pressure or personality",
-      0.78,
-    );
-
-    add(
-      "transformation",
-      "before/after state change can carry the experience without becoming a template",
-      0.74,
-    );
-  }
-
-  if (
-    /moving|packed|missing|lost|vanished|box/.test(
-      text,
-    )
-  ) {
-    add(
-      "investigation",
-      "an unresolved missing object naturally creates a question worth following",
-      0.94,
-    );
-
-    add(
-      "spy extraction",
-      "the move can acquire extraction energy when the missing item creates an unresolved thread",
-      0.86,
-    );
-  }
-
-  if (
-    /wedding|vows|ceremony|love|romantic/.test(
-      text,
-    )
-  ) {
-    add(
-      "romantic tension",
-      "the supplied emotional contrast can create anticipation without inventing events",
-      0.9,
-    );
-
-    add(
-      "release",
-      "a supplied pre/post emotional shift can carry the payoff",
-      0.86,
-    );
-  }
-
-  if (
-    /same|again|returned|return|different year|back/.test(
-      text,
-    )
-  ) {
-    add(
-      "return",
-      "revisiting a supplied place or ritual can change its meaning",
-      0.92,
-    );
-
-    add(
-      "memory loop",
-      "repetition with changed context creates a natural callback",
-      0.88,
-    );
-  }
-
-  if (
-    /record|records|birthday card|same song|sundays|memorial|remember/.test(
-      text,
-    )
-  ) {
-    add(
-      "refrain",
-      "a recurring supplied detail can become the emotional anchor",
-      0.94,
-    );
-
-    add(
-      "portrait",
-      "small recurring details can imply a person without inventing biography",
-      0.9,
-    );
-
-    add(
-      "quiet observation",
-      "the material is stronger when observed than dramatized",
-      0.92,
-    );
-  }
-
-  if (
-    /filthy|dirty|brand new|before|after|clean|restored/.test(
-      text,
-    )
-  ) {
-    add(
-      "reveal",
-      "a visible supplied state change can create a compact reveal",
-      0.8,
-    );
-  }
-
-  const safeFrames = frames.filter(
-    (frame) =>
-      !(
-        /memorial/.test(text) &&
-        /spy|heist|mission|game|boss/.test(
-          frame.frame,
-        )
-      ),
-  );
-
-  if (contradictions.length) {
-    add(
-      "status inversion",
-      `the strongest contradiction is ${contradictions[0]}`,
-      0.84,
-    );
-  }
-
-  const seen = new Set<string>();
-
-  return safeFrames
-    .concat(frames)
-    .filter((frame) => {
-      if (seen.has(frame.frame)) return false;
-      seen.add(frame.frame);
-      return true;
+function chooseMovies(input: AuthorCognitionInput, raw: LatentMovieCandidate[]): LatentMovieCandidate[] {
+  if (input.movieMode === false) return [];
+  if (!input.realityGraph || !raw.length) return [];
+  const repaired = raw.map((candidate) => repairMovieTrajectory(candidate, input.realityGraph!));
+  const endpointId = chooseEndpoint(input.realityGraph);
+  return repaired
+    .filter((candidate) => candidate.truthRisk <= 0.45)
+    .filter((candidate) => candidate.trajectory.some((step) => step.operation === "payoff" && step.eventIds.includes(endpointId)))
+    .sort((a, b) => {
+      const aScore = a.score + a.consequencePotential * 0.25 + a.specificity * 0.15 - a.truthRisk * 0.4;
+      const bScore = b.score + b.consequencePotential * 0.25 + b.specificity * 0.15 - b.truthRisk * 0.4;
+      return bScore - aScore;
     })
-    .sort(
-      (a, b) => b.confidence - a.confidence,
-    )
     .slice(0, 6);
 }
 
-function selectFrame(
-  candidates: CharacterFrameCandidate[],
-  input: AuthorCognitionInput,
-  contradictions: string[],
-): CharacterFrameCandidate {
-  if (!candidates.length) {
-    return {
-      frame: "NONE",
-      reason: "the natural reality is the strongest available lens",
-      confidence: 1,
-    };
-  }
-
-  if (input.lens && clean(input.lens).toLowerCase() !== "let qre decide") {
-    return {
-      ...candidates[0],
-      confidence: Math.max(candidates[0].confidence, 0.9),
-      reason: "the supplied lens is an explicit perspective request; preserve it as perspective, never as a sequence",
-    };
-  }
-
-  if (
-    input.round &&
-    input.round > 1 &&
-    input.realityGraph?.recurringSignals.length
-  ) {
-    const continuity = candidates.find((candidate) =>
-      /return|memory loop|refrain|portrait|private|callback/i.test(
-        candidate.frame,
-      ),
-    );
-
-    if (continuity) return continuity;
-  }
-
-  const top = candidates[0];
-
-  if (top.confidence < 0.72 && !contradictions.length) {
-    return {
-      frame: "NONE",
-      reason: "no candidate materially improves the supplied reality",
-      confidence: 0.76,
-    };
-  }
-
-  return top;
+function traits(input: AuthorCognitionInput): string[] {
+  const all = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? [])];
+  return uniq(all.filter((v) => /\b(?:nervous|scared|fierce|sweet|gentle|wild|goofy|stubborn|proud|confident|quiet|loud|funny|mischievous|tired|calm|excited|happy|angry|afraid)\b/i.test(v)), 8);
 }
 
-function deriveCharacterRead(
-  input: AuthorCognitionInput,
-  contradictions: string[],
-): CharacterRead {
-  const coreTraits = deriveCoreTraits(input);
-  const objectRelationships =
-    deriveObjectRelationships(input);
-  const creativeFrames = deriveCreativeFrames(
-    input,
-    contradictions,
-  );
-
-  return {
-    coreTraits,
-    contradictions,
-    statusPosture: deriveStatusPosture(
-      coreTraits,
-      contradictions,
-    ),
-    emotionalPosture: deriveEmotionalPosture(
-      coreTraits,
-      contradictions,
-    ),
-    objectRelationships,
-    creativeFrames,
-    allowedMoves: [
-      "metaphor",
-      "personification",
-      "status language",
-      "double meaning",
-      "character-specific exaggeration",
-      "comic framing",
-      "understatement",
-      "callback",
-      "recontextualization",
-      "rhetorical game language when the frame genuinely increases the experience",
-    ],
-    avoidedMoves: [
-      "invented concrete events",
-      "invented dialogue",
-      "invented reactions",
-      "invented people",
-      "invented locations",
-      "invented physical props",
-      "literalizing a metaphorical frame",
-      "forced game mechanics when the evidence does not support them",
-      "generic emotional summary",
-    ],
-  };
+function contradictions(input: AuthorCognitionInput): string[] {
+  const graph = input.realityGraph;
+  const result = uniq([
+    ...(graph?.unresolvedTensions ?? []),
+    ...(graph?.relations.filter((r) => r.kind === "contrasts" || r.kind === "changes" || r.kind === "recontextualizes").slice(0, 6).map((r) => `supplied relationship: ${r.kind}`) ?? []),
+  ], 10);
+  return result.length ? result : [];
 }
 
-function candidateReason(strategy: string): string {
-  const reasons: Record<string, string> = {
-    personality_contrast:
-      "Make the subject's conflicting traits collide so the character feels specific.",
-    provenance_and_history:
-      "Use history and provenance as evidence of a life rather than exposition.",
-    callback_and_continuity:
-      "Make the current chapter remember earlier chapters and change their meaning.",
-    night_contrast:
-      "Exploit darkness and emotional material without inventing scenery.",
-    scale_and_place:
-      "Let the place create scale while keeping the human subject central.",
-    space_as_character:
-      "Treat the built environment as an opponent, witness, archive, or participant.",
-    wear_as_evidence:
-      "Turn scratches, fading, scars, and wear into evidence rather than decoration.",
-    service_personality:
-      "Turn the routine job into a character-specific ritual or negotiation.",
-    calm_reality_break:
-      "Keep people calm while the environment becomes impossible.",
-    comic_status_inversion:
-      "Reverse who seems to be in control and let the joke emerge from status.",
-    voice_and_attention:
-      "Use point of view, obsession, contradiction, and a pattern break.",
-    object_to_world:
-      "Make a small physical object imply a larger persistent world.",
-    status_to_meaning:
-      "Use price as context, then reveal why the thing matters.",
-    possibility_and_firstness:
-      "Treat newness as an opening, not a fake future biography.",
-    private_meaning:
-      "Use small shared details that become more meaningful when they recur.",
-  };
-
-  return (
-    reasons[strategy] ??
-    "Reframe the subject so familiar material feels newly alive."
+function objectRelationships(input: AuthorCognitionInput): string[] {
+  return uniq(
+    input.realityGraph?.events
+      .filter((e) => e.entities.length > 1 || e.object || /object|bow|tag|keychain|kitchen|bathroom|door|house|car|room/i.test(e.label))
+      .map((e) => e.label) ?? [],
+    10,
   );
 }
 
-function inferCandidates(
-  input: AuthorCognitionInput,
-  combined: string,
-): AttentionCandidate[] {
-  const matched = uniq(
-    SIGNALS
-      .filter(([pattern]) => pattern.test(combined))
-      .map(([, signal]) => signal),
-    16,
-  );
-
-  const pool = matched.length
-    ? matched
-    : [
-        "meaning_reframe",
-        "pattern_break",
-        "sensory_specificity",
-        "curiosity_gap",
-      ];
-
-  return pool
-    .map((strategy) => ({
-      strategy,
-      reason: candidateReason(strategy),
-      score: scoreCandidate(
-        strategy,
-        input,
-        combined,
-      ),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 7);
+function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undefined): CharacterFrameCandidate[] {
+  const explicit = clean(input.lens);
+  if (explicit && explicit.toLowerCase() !== "let qre decide") {
+    return [{ frame: explicit, reason: "explicit user perspective", confidence: 0.95 }];
+  }
+  const relationKinds = new Set(input.realityGraph?.relations.map((r) => r.kind) ?? []);
+  const out: CharacterFrameCandidate[] = [];
+  if (relationKinds.has("contrasts")) out.push({ frame: "contrast", reason: "the supplied world contains a material contrast", confidence: 0.9 });
+  if (relationKinds.has("recontextualizes")) out.push({ frame: "recontextualization", reason: "one supplied detail changes another detail's meaning", confidence: 0.9 });
+  if (relationKinds.has("repeats") || input.returning || (input.round ?? 1) > 1) out.push({ frame: "callback", reason: "the world contains continuity material", confidence: 0.88 });
+  if (movie?.storyThesis?.semanticTurn) out.push({ frame: "character consequence", reason: "the selected movie has a semantic turn", confidence: 0.86 });
+  return out.length ? out : [{ frame: "NONE", reason: "the natural supplied reality is the strongest lens", confidence: 1 }];
 }
 
-function chooseAttention(
-  candidates: AttentionCandidate[],
-  input: AuthorCognitionInput,
-): string {
-  const text =
-    `${input.prompt} ${input.lens ?? ""} ${input.facts.join(
-      " ",
-    )} ${input.sourceMoments.join(" ")}`.toLowerCase();
-
-  if (
-    /horror|knives|glass|doors|ceiling|wine/.test(
-      text,
-    )
-  ) {
-    return "calm_reality_break";
-  }
-
-  if (
-    input.round &&
-    input.round > 1 &&
-    candidates.some(
-      (candidate) =>
-        candidate.strategy ===
-        "callback_and_continuity",
-    )
-  ) {
-    return "callback_and_continuity";
-  }
-
-  if (
-    /nervous|scared|fierce|hates|loves|dog|poodle|bulldog/.test(
-      text,
-    )
-  ) {
-    return "personality_contrast";
-  }
-
-  if (
-    /million|expensive|luxury|wealth|yacht|estate/.test(
-      text,
-    )
-  ) {
-    return (
-      candidates.find(
-        (candidate) =>
-          candidate.strategy ===
-            "status_to_meaning" ||
-          candidate.strategy ===
-            "provenance_and_history",
-      )?.strategy ??
-      candidates[0]?.strategy ??
-      "meaning_reframe"
-    );
-  }
-
-  if (
-    /wedding|relationship|love|family|memory|inside joke/.test(
-      text,
-    )
-  ) {
-    return (
-      candidates.find(
-        (candidate) =>
-          candidate.strategy ===
-          "private_meaning",
-      )?.strategy ??
-      candidates[0]?.strategy ??
-      "meaning_reframe"
-    );
-  }
-
-  return (
-    candidates[0]?.strategy ??
-    "meaning_reframe"
-  );
+function attentionCandidates(graph: RealityGraph | undefined, movieCandidates: LatentMovieCandidate[]): AttentionCandidate[] {
+  const relationKinds = graph?.relations.reduce<Record<string, number>>((acc, r) => {
+    acc[r.kind] = (acc[r.kind] ?? 0) + r.strength;
+    return acc;
+  }, {}) ?? {};
+  const candidates = [
+    { strategy: "movie_discovery", reason: "find the strongest grounded interpretation in the supplied relationships", score: movieCandidates.length ? 90 : 55 },
+    { strategy: "recontextualization", reason: "change what an earlier detail means without changing the fact", score: metric((relationKinds.recontextualizes ?? 0) / 2) * 100 },
+    { strategy: "contrast", reason: "use a supplied contradiction or contrast as the pressure point", score: metric((relationKinds.contrasts ?? 0) / 2) * 100 },
+    { strategy: "consequence", reason: "carry an earlier condition into a supplied outcome", score: metric(((relationKinds.changes ?? 0) + (relationKinds.after ?? 0)) / 2) * 100 },
+    { strategy: "callback", reason: "reuse recurring material with changed meaning", score: graph?.recurringSignals.length ? 82 : 28 },
+  ];
+  return candidates.sort((a, b) => b.score - a.score).slice(0, 6);
 }
 
-function makeOperatorMix(
-  chosen: string,
-  round: number,
-  candidates: AttentionCandidate[],
-): string[] {
-  const secondary = candidates.find(
-    (candidate) =>
-      candidate.strategy !== chosen &&
-      candidate.score >= 68,
-  )?.strategy;
-
-  const mixes: Record<string, string[]> = {
-    personality_contrast: [
-      "sensory_hook",
-      "personification",
-      "contrast",
-      "status_inversion",
-      "comic_turn",
-      "callback",
-      "payoff",
-    ],
-    provenance_and_history: [
-      "sensory_hook",
-      "zoom_into_detail",
-      "provenance",
-      "callback",
-      "reframe",
-      "afterglow",
-    ],
-    callback_and_continuity: [
-      "callback",
-      "meaning_shift",
-      "escalation",
-      "contrast",
-      "payoff",
-      "afterglow",
-    ],
-    service_personality: [
-      "sensory_hook",
-      "ritual",
-      "personification",
-      "status_inversion",
-      "comic_turn",
-      "payoff",
-    ],
-    calm_reality_break: [
-      "ordinary_behavior",
-      "understatement",
-      "spatial_violation",
-      "calm_reaction",
-      "escalation",
-      "reality_reframe",
-    ],
-    comic_status_inversion: [
-      "ordinary_setup",
-      "status_inversion",
-      "understatement",
-      "escalation",
-      "comic_turn",
-      "payoff",
-    ],
-    private_meaning: [
-      "sensory_hook",
-      "specific_detail",
-      "understatement",
-      "callback",
-      "tender_turn",
-      "afterglow",
-    ],
-    object_to_world: [
-      "sensory_hook",
-      "touch",
-      "scale_contrast",
-      "mystery_turn",
-      "reveal",
-      "afterglow",
-    ],
-    status_to_meaning: [
-      "status_hint",
-      "human_detail",
-      "contrast",
-      "provenance",
-      "reframe",
-      "payoff",
-    ],
-  };
-
-  const base =
-    mixes[chosen] ??
-    [
-      "pattern_break",
-      "sensory_hook",
-      "contrast",
-      "micro_reveal",
-      "reversal",
-      "payoff",
-    ];
-
-  const merged =
-    secondary && round > 1
-      ? [...base, `secondary_${secondary}`]
-      : base;
-
-  return [...new Set(merged)].slice(0, 8);
-}
-
-export function buildAuthorCognitivePlan(
-  input: AuthorCognitionInput,
-): AuthorCognitivePlan {
-  const round = Math.max(
-    1,
-    input.round ?? 1,
-  );
-
-  const graphText = input.realityGraph
-    ? [
-        ...input.realityGraph.events.map(
-          (event) => event.label,
-        ),
-        ...input.realityGraph.unresolvedTensions,
-        ...input.realityGraph.recurringSignals,
-        ...input.realityGraph.sensorySignals,
-      ]
+export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
+  const round = Math.max(1, input.round ?? 1);
+  const mode = modeFor(input);
+  const graph = input.realityGraph;
+  const permanentTruths = uniq([...(input.facts ?? []), ...(input.memoryContext ?? [])], 30);
+  const currentEvidence = uniq([...(input.sourceMoments ?? []), ...(graph?.events.map((e) => e.label) ?? [])], 30);
+  const contradictionList = contradictions(input);
+  const rawMovies = graph
+    ? searchLatentMovieCandidates({ graph, subject: input.subject, lens: input.lens, limit: 8 })
     : [];
-
-  const all = uniq(
-    [
-      ...input.facts,
-      ...input.sourceMoments,
-      ...graphText,
-      ...(input.memoryContext ?? []),
-      ...(input.priorScenes ?? []),
-    ],
-    100,
-  );
-
-  const combined =
-    `${input.prompt} ${input.lens ?? ""} ${
-      input.subject ?? ""
-    } ${input.place ?? ""} ${all.join(" ")}`;
-
-  const mode = inferMode(input);
-
-  const permanentTruths = uniq(
-    [
-      ...input.facts,
-      ...(input.memoryContext ?? []),
-    ],
-    30,
-  );
-
-  const currentEvidence = uniq(
-    [
-      ...input.sourceMoments,
-      ...(input.realityGraph?.events.map(
-        (event) => event.label,
-      ) ?? []),
-    ],
-    30,
-  );
-
-  const contradictions = findContradictions(
-    [
-      ...permanentTruths,
-      ...currentEvidence,
-      input.prompt,
-    ],
-    input.realityGraph,
-  );
-
-  const characterRead =
-    deriveCharacterRead(
-      input,
-      contradictions,
-    );
-
-  const selectedFrame = selectFrame(
-    characterRead.creativeFrames,
-    input,
-    contradictions,
-  );
-
-  // The resolved frame is an internal lens. Preserve an explicitly supplied lens;
-  // otherwise feed the selected frame into the existing sequence/mouth path via
-  // the same input object already consumed by the canonical Author.
-  if (
-    !input.lens &&
-    selectedFrame.frame !== "NONE"
-  ) {
-    input.lens = selectedFrame.frame;
-  }
-
-  const attentionCandidates =
-    inferCandidates(input, combined);
-
-  const latentMovieCandidates =
-    input.realityGraph
-      ? searchLatentMovieCandidates({
-          graph: input.realityGraph,
-          subject: input.subject,
-          lens: input.lens,
-          limit: 6,
-        })
-      : [];
-
-  if (input.realityGraph) {
-    input.realityGraph.latentMovieCandidates =
-      latentMovieCandidates;
-  }
-
-  const chosen = chooseAttention(
-    attentionCandidates,
-    input,
-  );
-
-  const operatorMix = makeOperatorMix(
-    chosen,
-    round,
-    attentionCandidates,
-  );
-
-  const callbackTargets =
-    round > 1
-      ? uniq(
-          [
-            ...(input.priorScenes ?? []),
-            ...(input.realityGraph
-              ?.recurringSignals ?? []),
-            ...permanentTruths,
-          ],
-          14,
-        )
-      : uniq(
-          [
-            ...(input.realityGraph
-              ?.recurringSignals ?? []),
-            ...permanentTruths,
-          ],
-          10,
-        );
-
-  const antiRepetitionRules = [
-    "Do not repeat the previous chapter's emotional trajectory if one exists.",
-    "Every new cut must earn a fresh viewer reaction or a meaningful callback.",
-    "A callback must change meaning, not merely repeat wording.",
-    "Do not restart the subject's biography on every chapter.",
-    "Do not use the same opening image twice unless repetition itself is the point.",
-    "If the subject already had a joke, escalate, invert, or mutate it rather than retelling it.",
-    "Prefer the strongest two or three concrete details over complete coverage of the prompt.",
-    "Prefer events and relationships from the reality graph over isolated fact repetition.",
-    "Never spend a cut on stable identity metadata unless identity itself is the discovery.",
-  ];
-
-  const sceneRules = [
-    "A beat is a sentence cut: one perceivable movement of the film, then an immediate cut.",
-    "Viewer-facing text is normally 2-7 words; 3-6 is the sweet spot.",
-    "One beat carries one cognitive hit. Do not pack setup, reaction, explanation, and payoff together.",
-    "The image, when present, is a parallel layer. Text does not need to describe the image.",
-    "Do not enumerate every task in a service job. Select the moments that make the work feel alive.",
-    "Never emit labels such as hook, micro-reveal, status inversion, strategy, operator, or afterglow as viewer prose.",
-    "Never use paragraph-length text, stacked clauses, or mini-lists inside one cut.",
-    "Grounded modes preserve sourced reality; creativity may change framing, implication, juxtaposition, and attitude without inventing facts.",
-    "Funny should feel character-specific. Horror should make normality increasingly wrong. Romance should use private meaning.",
-    "Rhetorical game language is allowed only when a supplied contradiction, object, unresolved problem, or status shift genuinely supports it.",
-    "Do not force game or spy framing onto memorials, quiet memories, or realities without a meaningful tension.",
-    "Finish as soon as the payoff lands. Do not explain the lesson afterward.",
-  ];
-
-  const graphSummary = input.realityGraph
-    ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations, tensions=${input.realityGraph.unresolvedTensions.join(" | ") || "none"}.`
-    : "REALITY GRAPH: unavailable; rely on direct source evidence.";
-
-  const movieSummary =
-    latentMovieCandidates.length
-      ? `LATENT MOVIES: ${latentMovieCandidates
-          .slice(0, 4)
-          .map(
-            (candidate) =>
-              `${candidate.lens}=${candidate.score} [${candidate.evidence
-                .slice(0, 2)
-                .join(" + ")}]`,
-          )
-          .join(" | ")}. Treat these as competing hypotheses, never facts.`
-      : "LATENT MOVIES: none; do not invent a movie.";
-
-  const frameSummary =
-    characterRead.creativeFrames.length
-      ? `FRAME CANDIDATES: ${characterRead.creativeFrames
-          .slice(0, 5)
-          .map(
-            (frame) =>
-              `${frame.frame}=${frame.confidence}`,
-          )
-          .join(" | ")}. Selected lens: ${selectedFrame.frame}. A frame is a lens, never the story.`
-      : `FRAME CANDIDATES: none. Selected lens: ${selectedFrame.frame}. Stay natural.`;
-
-  const authorBrief = [
-    `ROUND ${round}: ${
-      round > 1
-        ? "continuation chapter; remember the world and change the meaning"
-        : "origin chapter; establish identity and plant a memorable detail"
-    }.`,
-    `FRAME LENS: ${selectedFrame.frame}. ${selectedFrame.reason}`,
-    `ATTENTION STRATEGY: ${chosen}. ${candidateReason(
-      chosen,
-    )}`,
-    graphSummary,
-    movieSummary,
-    frameSummary,
-    `CHARACTER READ: ${characterRead.statusPosture}. ${characterRead.emotionalPosture}.`,
-    `CHARACTER TRAITS: ${
-      characterRead.coreTraits.join(" | ") ||
-      "derive from observed behavior"
-    }.`,
-    `OBJECT RELATIONSHIPS: ${
-      characterRead.objectRelationships.join(
-        " | ",
-      ) || "none explicit"
-    }.`,
-    `CONTRADICTIONS: ${
-      contradictions.join(" | ") ||
-      "none detected; use tension from supplied relationships without inventing facts"
-    }`,
-    `OPERATOR MIX: ${operatorMix.join(
-      ", ",
-    )}. Treat these as private options, never as a forced sequence.`,
-    `CALLBACK TARGETS: ${
-      callbackTargets.join(" | ") || "none"
-    }.`,
-    "ATTENTION LADDER: recognition → jolt → jolt → escalation/meaning shift → payoff.",
-    "TASTE RULE: prefer specific, mischievous, emotionally intelligent, visually concrete language over generic prettiness.",
-    "HUMOR RULE: use humor when it emerges from personality, status, contradiction, or circumstance; do not force jokes into every world.",
-    "VALUE RULE: monetary value is context; find ownership, provenance, craft, ritual, history, or human meaning.",
-    `GENERIC BANS: ${GENERIC_BANS.join(", ")}.`,
-  ];
+  const latentMovieCandidates = chooseMovies(input, rawMovies);
+  if (graph) graph.latentMovieCandidates = latentMovieCandidates;
+  const movie = latentMovieCandidates[0];
+  const creativeFrames = frames(input, movie);
+  const characterRead: CharacterRead = {
+    coreTraits: traits(input),
+    contradictions: contradictionList,
+    statusPosture: contradictionList[0] ?? "defined by supplied evidence",
+    emotionalPosture: contradictionList[0] ? `emotion sits inside ${contradictionList[0]}` : "emotion is inferred from supplied evidence",
+    objectRelationships: objectRelationships(input),
+    creativeFrames,
+    allowedMoves: ["contrast", "status language", "double meaning", "personification", "understatement", "callback", "recontextualization", "implication"],
+    avoidedMoves: ["invented concrete events", "invented dialogue", "invented people", "invented locations", "invented objects", "invented outcomes", "generic emotional summary"],
+  };
+  const attention = attentionCandidates(graph, latentMovieCandidates);
+  const chosenAttentionStrategy = attention[0]?.strategy ?? "movie_discovery";
+  const callbackTargets = uniq([...(graph?.recurringSignals ?? []), ...(input.memoryContext ?? []), ...(input.priorScenes ?? [])], round > 1 ? 14 : 8);
 
   return {
     round,
     mode,
-    subjectIdentity:
-      clean(input.subject) ||
-      "unknown subject",
+    subjectIdentity: clean(input.subject),
     permanentTruths,
     currentEvidence,
-    contradictions,
+    contradictions: contradictionList,
     characterRead,
-    attentionCandidates,
+    attentionCandidates: attention,
     latentMovieCandidates,
-    chosenAttentionStrategy: chosen,
-    operatorMix,
+    chosenAttentionStrategy,
+    operatorMix: movie
+      ? movie.trajectory.map((step) => step.operation).slice(0, 8)
+      : ["observe", "interpret", "payoff"],
     callbackTargets,
-    antiRepetitionRules,
-    sceneRules,
-    authorBrief,
-    realityGraph: input.realityGraph,
+    antiRepetitionRules: [
+      "Do not replay an earlier chapter unless recurrence changes meaning.",
+      "Do not turn every source item into its own cut.",
+      "Prefer graph relationships over isolated source-word repetition.",
+      "The endpoint belongs to reality and must remain the endpoint.",
+    ],
+    sceneRules: [
+      "A beat is one perceivable change in the viewer's mental model.",
+      "Later beats inherit earlier material and change its meaning or pressure.",
+      "Viewer text is realization, not Beat Graph metadata.",
+      "No invented people, objects, locations, actions, dialogue, reactions, chronology, or outcomes.",
+      "Finish when the supplied payoff becomes inevitable.",
+    ],
+    authorBrief: [
+      `Selected movie: ${movie?.hypothesis?.[0] ?? movie?.payoff ?? "none"}.`,
+      `Movie trajectory length: ${movie?.trajectory.length ?? 0}.`,
+      `Reality graph: ${graph?.events.length ?? 0} events / ${graph?.relations.length ?? 0} relations.`,
+      `Persistent context: ${input.memoryContext?.length ?? 0} supplied memory items.`,
+    ],
+    realityGraph: graph,
   };
 }
