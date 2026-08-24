@@ -24,6 +24,8 @@ export type AuthorBrainTruth = {
   subjectTruth?: SubjectTruth;
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
+  /** User-level production switch: true = discover/render a movie, false = skip cinematic authoring. */
+  movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
   presenceSummary?: string[];
