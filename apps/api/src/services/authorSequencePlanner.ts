@@ -1,14 +1,3 @@
-/**
- * QRE GROUNDED AUTHOR SEQUENCE PLANNER
- *
- * One canonical responsibility:
- *   RealityGraph + Cognition + optional lens + optional presence
- *   -> a short sequence of grounded semantic cuts.
- *
- * This is the movie-selection boundary.
- * It never writes viewer prose and never invents facts.
- * Latent movies are hypotheses only; this planner owns beat selection.
- */
 import type { RealityGraph, RealityRelation } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
@@ -45,20 +34,11 @@ export type PlannedAuthorBeat = {
   nextBeatPullTarget: number;
 };
 
-export type GroundedBeatPlan = {
-  premise: string;
-  baselineFacts: string[];
-  attentionArc: string;
-  beats: PlannedAuthorBeat[];
-  closing?: string;
-  source: "grounded_sequence_planner";
-};
-
 type PresenceCut = {
   text: string;
-  role: "arrival" | "location" | "completion";
+  role: "arrival" | "location" | "release";
   gainKind: "new_fact" | "payoff";
-  attentionFunction: "hook" | "discovery" | "payoff";
+  attentionFunction: "hook" | "discovery" | "payoff" | "release";
 };
 
 const clean = (value: unknown): string =>
@@ -234,7 +214,7 @@ function presenceCuts(values: readonly string[] | undefined): PresenceCut[] {
   for (const row of rows) {
     const lower = row.toLowerCase();
     if (/checkout|check-out|depart|departure|left|exit/.test(lower)) {
-      cuts.push({ text: row, role: "completion", gainKind: "payoff", attentionFunction: "payoff" });
+      cuts.push({ text: row, role: "release", gainKind: "payoff", attentionFunction: "release" });
       continue;
     }
     if (/geo|location|pin|lat|lng|latitude|longitude|arrival|checkin|check-in|arrived|presence|timestamp|time/.test(lower)) {
