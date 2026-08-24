@@ -62,6 +62,7 @@ export type AuthorCognitivePlan = {
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = <T>(values: readonly T[], limit = 24): T[] => [...new Set(values)].slice(0, limit);
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
 const NEGATIVE_STATES = /\b(?:scared|afraid|nervous|worried|uncertain|shy|timid|overwhelmed|lost|intimidated|uneasy|anxious|hesitant|frightened|uncomfortable)\b/i;
 const POSITIVE_STATES = /\b(?:happy|proud|calm|confident|fierce|excited|content|comfortable|bold|brave|relaxed|joyful)\b/i;
@@ -73,25 +74,12 @@ function eventById(graph: RealityGraph | undefined, id: string) {
   return graph?.events.find((event) => event.id === id);
 }
 
-function statePhrase(graph: RealityGraph | undefined, ids: readonly string[]): string {
-  for (const id of ids) {
-    const event = eventById(graph, id);
-    if (!event) continue;
-    const value = clean(event.emotionalState || event.label);
-    if (NEGATIVE_STATES.test(value)) return value;
-    if (POSITIVE_STATES.test(value)) return value;
-  }
-  return "";
-}
-
 function semanticTurnForStep(
   graph: RealityGraph | undefined,
   step: LatentMovieTrajectoryStep,
   lens?: string,
 ): string {
-  if (!graph || step.eventIds.length < 1) {
-    return clean(step.viewerChange);
-  }
+  if (!graph || step.eventIds.length < 1) return clean(step.viewerChange);
 
   const from = eventById(graph, step.eventIds[0]);
   const to = eventById(graph, step.eventIds[step.eventIds.length - 1]);
@@ -100,9 +88,7 @@ function semanticTurnForStep(
   const lensText = clean(lens).toLowerCase();
   const playfulStatus = /funny|comedy|humou?r|playful|fierce|bold|devious|absurd/i.test(lensText);
 
-  if (step.operation === "payoff") {
-    return clean(step.viewerChange);
-  }
+  if (step.operation === "payoff") return clean(step.viewerChange);
 
   if (NEGATIVE_STATES.test(source) && (AGENCY_TERMS.test(target) || playfulStatus)) {
     return "semantic turn: initial vulnerability gives way to agency/status";
@@ -116,7 +102,7 @@ function semanticTurnForStep(
     return "semantic turn: the later supplied detail changes the meaning of the earlier one";
   }
 
-  if (POSITIVE_RELATIONS.has(step.operation === "reveal" ? "changes" : step.operation as RealityRelation["kind"])) {
+  if (POSITIVE_RELATIONS.has(step.operation as RealityRelation["kind"])) {
     return "semantic turn: the supplied relationship changes the earlier reading";
   }
 
@@ -135,9 +121,7 @@ function enrichMovieCandidate(
     viewerChange: semanticTurnForStep(graph, step, lens),
   }));
 
-  const firstMeaningful = trajectory.find(
-    (step) => step.operation !== "establish" && step.operation !== "payoff",
-  );
+  const firstMeaningful = trajectory.find((step) => step.operation !== "establish" && step.operation !== "payoff");
   const payoff = trajectory.find((step) => step.operation === "payoff");
 
   const carrierEventIds = uniq(
@@ -147,11 +131,7 @@ function enrichMovieCandidate(
     8,
   );
 
-  const sealingEventIds = uniq(
-    payoff?.eventIds ?? [],
-    8,
-  );
-
+  const sealingEventIds = uniq(payoff?.eventIds ?? [], 8);
   const initial = eventById(graph, trajectory[0]?.eventIds[0] ?? "")?.label ?? candidate.evidence[0] ?? "the supplied opening";
   const semanticTurn = firstMeaningful?.viewerChange ?? "the supplied relationship changes the reading";
   const payoffLabel = eventById(graph, payoff?.eventIds[payoff.eventIds.length - 1] ?? "")?.label ?? candidate.payoff;
