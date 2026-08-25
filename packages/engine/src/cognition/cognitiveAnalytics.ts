@@ -28,9 +28,11 @@ export function summarizeCognitiveAnalytics(events: readonly unknown[]): Cogniti
     const meta = event.meta && typeof event.meta === "object" ? event.meta as Record<string, unknown> : {};
 
     if (type === "SCAN") scans += 1;
-    if (type === "FLOW_COMPLETE" || type === "SESSION_END") completions += 1;
+    // SESSION_END is not completion: it can represent abandonment or a
+    // naturally terminated session without the experience actually completing.
+    if (type === "FLOW_COMPLETE") completions += 1;
     if (type === "FLOW_ABANDON") abandons += 1;
-    if (type === "REPLAY") replays += 1;
+    if (type === "REPLAY" || type === "EXPERIENCE_REPLAY" || type === "MEDIA_REPLAY") replays += 1;
     if (type === "CTA_CLICK") ctaClicks += 1;
     if (type === "ERROR") errors += 1;
 
