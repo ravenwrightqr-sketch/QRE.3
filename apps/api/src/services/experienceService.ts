@@ -181,7 +181,11 @@ export async function compileExperience(input: {
 
   const analytics = summarizeCognitiveAnalytics(analyticsEvents);
   const learnedProfile = buildAuthorBehaviorProfile([
-    ...(Array.isArray(analytics?.learningSignals) ? analytics.learningSignals : []),
+    ...analytics.accepted,
+    ...analytics.rejected.map((value) => `rejected:${value}`),
+    ...analytics.preferences.map((value) => `preference:${value}`),
+    `engagement:${analytics.engagement}`,
+    `friction:${analytics.friction}`,
     ...serializedPriorAuthorStates,
     ...presence?.summary ?? [],
   ]);
@@ -241,7 +245,12 @@ export async function compileExperience(input: {
         ].slice(0, 32),
         memoryContext: [...memorySummary, ...presenceSummary],
         creativeLearningContext: [
-          ...(Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary),
+          ...analytics.accepted,
+          ...analytics.rejected.map((value) => `rejected:${value}`),
+          ...analytics.preferences.map((value) => `preference:${value}`),
+          `engagement:${analytics.engagement}`,
+          `friction:${analytics.friction}`,
+          ...presenceSummary,
           ...serializedPriorAuthorStates,
         ],
         trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
