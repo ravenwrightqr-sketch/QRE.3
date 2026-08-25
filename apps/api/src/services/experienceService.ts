@@ -4,6 +4,15 @@ import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
+import {
+  authorExperienceMemoryContext,
+  authorExperienceStateToMemoryBatch,
+  extractAuthorExperienceStates,
+  mergeAuthorExperienceStates,
+} from "./authorExperienceMemory.js";
+import { buildAuthorExperienceState } from "./authorExperienceState.js";
+import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
+import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 import { authorMicroBeats } from "./microBeatMouth.js";
 import { resolveSubjectTruth } from "./authorTruth.js";
 
@@ -34,6 +43,7 @@ export type CompiledExperienceResult = {
   discoveries?: string[];
   learningSignals?: string[];
   cognition?: unknown;
+  authorExperienceState?: unknown;
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
@@ -135,7 +145,16 @@ export async function compileExperience(input: {
     }
   }
 
-  const memorySummary = memoryContext ? memoryContextToCognitiveSummary(memoryContext) : [];
+  const priorAuthorStates = memoryContext ? extractAuthorExperienceStates(memoryContext) : [];
+  const mergedPriorAuthorState = mergeAuthorExperienceStates(priorAuthorStates);
+  const persistedAuthorContext = memoryContext ? authorExperienceMemoryContext(memoryContext) : [];
+  const serializedPriorAuthorStates = priorAuthorStates.map(
+    (state) => `QRE_AUTHOR_EXPERIENCE_STATE::${JSON.stringify(state)}`,
+  );
+
+  const memorySummary = memoryContext
+    ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext]
+    : [];
   let analyticsEvents = input.analyticsEvents ?? [];
   if (input.assetId && analyticsEvents.length === 0) {
     try {
@@ -186,6 +205,7 @@ export async function compileExperience(input: {
 
   const subject = String(compiled?.observation?.subject ?? compiled?.movie?.subject ?? "").trim();
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
+  let authorExperienceState: any = undefined;
 
   if (movieMode) {
     try {
@@ -213,7 +233,10 @@ export async function compileExperience(input: {
           ...presenceSummary,
         ].slice(0, 32),
         memoryContext: [...memorySummary, ...presenceSummary],
-        creativeLearningContext: Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary,
+        creativeLearningContext: [
+          ...(Array.isArray(compiled.learningSignals) ? [...compiled.learningSignals.slice(0, 20), ...presenceSummary] : presenceSummary),
+          ...serializedPriorAuthorStates,
+        ],
         trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure) ? compiled.cognition.plan.storyStructure : [],
         returning: presence?.isReturning ?? false,
         visitNumber: presence?.visitNumber,
@@ -222,8 +245,60 @@ export async function compileExperience(input: {
         round: presence?.visitNumber ?? 1,
       });
 
-      if (beats.length >= 2) compiled = applyMicroBeats(compiled, beats);
-      else warnings.push("micro_beat_mouth_fallback");
+      if (beats.length >= 2) {
+        compiled = applyMicroBeats(compiled, beats);
+
+        if (input.assetId && input.memoryRepository) {
+          try {
+            const graph = buildAuthorRealityGraph({
+              prompt,
+              subject,
+              place: String(geo?.label ?? presence?.places?.[0] ?? ""),
+              facts: [
+                ...(Array.isArray(compiled?.observation?.entities?.people) ? compiled.observation.entities.people : []),
+                ...(Array.isArray(compiled?.observation?.entities?.places) ? compiled.observation.entities.places : []),
+                ...(Array.isArray(compiled?.observation?.entities?.events) ? compiled.observation.entities.events : []),
+                ...(Array.isArray(compiled?.observation?.entities?.objects) ? compiled.observation.entities.objects : []),
+                ...(Array.isArray(compiled?.observation?.temporal) ? compiled.observation.temporal : []),
+              ].filter(Boolean).map(String),
+              sourceMoments: beats.map((beat) => beat.text),
+              memoryContext: [...memorySummary, ...presenceSummary],
+              trajectory: beats.map((beat) => beat.text),
+            });
+
+            const movie = searchUniversalMovieCandidates({
+              graph,
+              subject,
+              lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
+              limit: 10,
+            })[0];
+
+            authorExperienceState = buildAuthorExperienceState({
+              graph,
+              movie,
+              lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
+              priorScenes: beats.map((beat) => beat.text),
+              memoryContext: [...memorySummary, ...presenceSummary],
+              priorExperienceStates: priorAuthorStates,
+              round: presence?.visitNumber ?? Math.max(1, priorAuthorStates.length + 1),
+            });
+
+            const stateBatch = authorExperienceStateToMemoryBatch({
+              assetId: input.assetId,
+              userId: input.userId,
+              state: authorExperienceState,
+              sourceRef: "qre-universal-author",
+            });
+
+            await input.memoryRepository.writeBatch(stateBatch);
+          } catch (error) {
+            console.warn("[QRE][AUTHORING] Author experience state persistence failed after successful authoring; preserving generated experience.", error);
+            warnings.push("author_experience_state_persistence_failed");
+          }
+        }
+      } else {
+        warnings.push("micro_beat_mouth_fallback");
+      }
     } catch (error) {
       console.warn("[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.", error);
       warnings.push("micro_beat_mouth_unavailable");
@@ -251,6 +326,7 @@ export async function compileExperience(input: {
         playerOwnsExactPresentation: true,
         movieMode,
       },
+      authorExperienceState: authorExperienceState ?? mergedPriorAuthorState ?? null,
     },
   };
 
@@ -260,6 +336,7 @@ export async function compileExperience(input: {
     geo: geo ?? null,
     presence,
     movieMode,
+    authorExperienceState: authorExperienceState ?? mergedPriorAuthorState,
     warnings,
   };
 
