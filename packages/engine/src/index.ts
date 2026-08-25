@@ -18,7 +18,7 @@ export { compileCognitiveExperience, messageText } from "./cognition/universalMi
 export { buildWorldModel } from "./cognition/worldModel.js";
 export { buildWorldModelFromFastInput, normalizeFastInput } from "./cognition/fastInput.js";
 export type { UniversalMindContext, UniversalMindResult, WorldModel } from "./cognition/universalMind.js";
-export { summarizeCognitiveAnalytics } from "./cognition/cognitiveAnalytics.js";
+export { classifyAnalyticsEvent, summarizeCognitiveAnalytics } from "./cognition/cognitiveAnalytics.js";
 export { recommendMemories } from "./cognition/memoryRecommendations.js";
 export { buildSponsorPolicy, REAL_ESTATE_SPONSOR_PLAYBOOK, BUSINESS_SPONSOR_PLAYBOOK } from "./cognition/sponsorPolicy.js";
 export * from "./intelligence/index.js";
