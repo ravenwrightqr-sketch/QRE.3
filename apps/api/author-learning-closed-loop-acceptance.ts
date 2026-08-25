@@ -33,13 +33,18 @@ const analytics = summarizeCognitiveAnalytics([
   },
   { type: "SCAN" },
   { type: "FLOW_COMPLETE" },
-  { type: "REPLAY" },
+  { type: "SESSION_END" },
+  { type: "EXPERIENCE_REPLAY" },
+  { type: "MEDIA_REPLAY" },
 ]);
 
 assert(analytics.accepted.some((value) => value.includes("sharper reveals")), "accepted creative learning did not enter analytics");
 assert(analytics.accepted.some((value) => value.includes("punchier ending")), "selected variation did not enter analytics");
 assert(analytics.rejected.some((value) => value.includes("too explanatory")), "rejected creative learning did not enter analytics");
 assert(analytics.preferences.length === 0, "raw creative feedback should not masquerade as explicit preference metadata");
+assert(analytics.completions === 1, "SESSION_END must not masquerade as completion");
+assert(analytics.replays === 2, "experience/media replay events must reach cognitive analytics");
+assert(analytics.engagement > 0.4, "engagement should reflect real completion and replay behavior");
 
 const result = compileCognitiveExperience("Coco returned happy and fun", {
   analytics,
