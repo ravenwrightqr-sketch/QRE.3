@@ -43,6 +43,8 @@ export type AuthorExperienceState = {
 
   futureEventIds: string[];
   futureThreadKeys: string[];
+  consumedFutureEventIds: string[];
+  retiredFutureThreadKeys: string[];
 
   semanticTurnKeys: string[];
   relationKinds: string[];
