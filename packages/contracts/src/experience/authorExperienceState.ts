@@ -1,15 +1,29 @@
 /**
  * QRE AUTHOR EXPERIENCE STATE
  *
- * The durable semantic state of an authored experience chapter.
+ * Durable semantic state for an authored chapter.
  * This is interpretation state, never source truth.
- *
- * The state records what the current experience has established,
- * changed, carried forward, opened for later, revisited, and earned.
- * It is intentionally domain-neutral so the same engine can author
- * pets, people, services, weddings, cities, concerts, neighborhoods,
- * and cross-world connections.
  */
+export type AuthorTempoMode =
+  | "hook"
+  | "accelerate"
+  | "tighten"
+  | "hold"
+  | "revisit"
+  | "release"
+  | "open";
+
+export type AuthorTempo = {
+  mode: AuthorTempoMode;
+  urgency: number;
+  compression: number;
+  revealSpacing: number;
+  holdPressure: number;
+  nextBeatPull: number;
+  reason: string;
+  arc: string[];
+};
+
 export type AuthorExperienceState = {
   version: 1;
 
@@ -37,6 +51,8 @@ export type AuthorExperienceState = {
   lookaheadValue: number;
   endpointPressure: number;
   attentionPotential: number;
+
+  tempo: AuthorTempo;
 
   selectedLens: string;
   selectedMovieId?: string;
