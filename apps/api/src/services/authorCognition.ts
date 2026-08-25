@@ -1,5 +1,5 @@
 import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
-import { searchLatentMovieCandidates } from "./authorLatentMovieSearch.js";
+import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -160,11 +160,11 @@ function movieFor(
 ): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate } {
   if (input.movieMode === false || !input.realityGraph) return { latentMovieCandidates: [] };
 
-  const candidates = searchLatentMovieCandidates({
+  const candidates = searchUniversalMovieCandidates({
     graph: input.realityGraph,
     subject: input.subject,
     lens: input.lens,
-    limit: 6,
+    limit: 10,
   }).map((candidate) => enrichMovieCandidate(candidate, input.realityGraph, input.lens));
 
   return { latentMovieCandidates: candidates, selectedMovie: candidates[0] };
@@ -181,9 +181,9 @@ function contradictions(input: AuthorCognitionInput): string[] {
     ...(graph?.unresolvedTensions ?? []),
     ...(graph?.relations
       .filter((r) => r.kind === "contrasts" || r.kind === "changes" || r.kind === "recontextualizes")
-      .slice(0, 6)
+      .slice(0, 8)
       .map((r) => `supplied relationship: ${r.kind}`) ?? []),
-  ], 10);
+  ], 12);
 }
 
 function objectRelationships(input: AuthorCognitionInput): string[] {
@@ -191,7 +191,7 @@ function objectRelationships(input: AuthorCognitionInput): string[] {
     input.realityGraph?.events
       .filter((event) => event.entities.length > 1)
       .map((event) => event.label) ?? [],
-    10,
+    12,
   );
 }
 
@@ -200,11 +200,12 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
   if (explicit && explicit.toLowerCase() !== "let qre decide") {
     return [{ frame: explicit, reason: "explicit user perspective", confidence: 0.95 }];
   }
+
   const relationKinds = new Set(input.realityGraph?.relations.map((r) => r.kind) ?? []);
   const out: CharacterFrameCandidate[] = [];
   if (relationKinds.has("contrasts")) out.push({ frame: "contrast", reason: "the supplied world contains a material contrast", confidence: 0.9 });
   if (relationKinds.has("recontextualizes")) out.push({ frame: "recontextualization", reason: "one supplied detail changes another detail's meaning", confidence: 0.9 });
-  if (relationKinds.has("repeats") || input.round && input.round > 1) out.push({ frame: "callback", reason: "the world contains continuity material", confidence: 0.88 });
+  if (relationKinds.has("repeats") || (input.round ?? 1) > 1) out.push({ frame: "callback", reason: "the world contains continuity material", confidence: 0.88 });
   if (movie?.storyThesis?.semanticTurn) out.push({ frame: "character consequence", reason: "the selected movie has a semantic turn", confidence: 0.86 });
   return out.length ? out : [{ frame: "NONE", reason: "the natural reality is the strongest available lens", confidence: 1 }];
 }
@@ -214,6 +215,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const permanentTruths = uniq([...input.facts, ...(input.memoryContext ?? [])], 30);
   const currentEvidence = uniq([...input.sourceMoments, ...(input.realityGraph?.events.map((event) => event.label) ?? [])], 30);
   const contradictionList = contradictions(input);
+
   const characterRead: CharacterRead = {
     coreTraits: traits(input),
     contradictions: contradictionList,
@@ -224,6 +226,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     allowedMoves: ["metaphor", "personification", "status language", "double meaning", "comic framing", "understatement", "callback", "recontextualization"],
     avoidedMoves: ["invented concrete events", "invented people", "invented locations", "invented reactions", "invented chronology", "planner language", "analytic explanation"],
   };
+
   const selectedFrame = characterRead.creativeFrames[0]?.frame ?? "NONE";
   const attentionCandidates: AttentionCandidate[] = [
     { strategy: "graph_relationship", reason: "Prefer supplied relationships over isolated facts.", score: 100 },
@@ -232,6 +235,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     { strategy: "recurrence", reason: "Use persistent repetition when memory makes it meaningful.", score: 90 },
     { strategy: "continuity", reason: "Use prior chapters when they materially change current meaning.", score: 88 },
   ];
+
   const chosen = movie.selectedMovie ? "latent_movie" : "direct_grounded";
   const operatorMix = movie.selectedMovie?.trajectory.map((step) => step.operation).filter(Boolean) as string[] ?? [];
   const callbackTargets = uniq([
@@ -244,18 +248,21 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "A callback must change meaning, not merely repeat wording.",
     "Prefer the strongest connected evidence over complete source coverage.",
     "Identity metadata is world state, not an automatic film cut.",
+    "Do not promote a lens phrase into a fact.",
+    "A semantic turn must cite a real graph relationship.",
   ];
   const sceneRules = [
     "One beat is one viewer-facing film moment.",
     "Short is good; do not turn the film into a paragraph.",
     "Creative language may change framing and attitude but never source truth.",
     "Finish when the selected payoff lands.",
+    "The last beat is authorized by the selected endpoint only.",
   ];
   const graphSummary = input.realityGraph
     ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations.`
     : "REALITY GRAPH: unavailable.";
   const movieSummary = movie.selectedMovie
-    ? `SELECTED MOVIE: ${movie.selectedMovie.hypothesis.join(" ")} Semantic turn: ${movie.selectedMovie.storyThesis?.semanticTurn ?? "none"}.`
+    ? `SELECTED MOVIE: ${movie.selectedMovie.hypothesis.join(" ")} Semantic turn: ${movie.selectedMovie.storyThesis?.semanticTurn ?? "none"}. Candidate count: ${movie.latentMovieCandidates.length}.`
     : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
   const frameSummary = `FRAME: ${selectedFrame}. A frame changes perspective, never reality.`;
   const authorBrief = [
@@ -265,6 +272,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     movieSummary,
     "Reality is immutable. Creativity never becomes evidence.",
   ];
+
   return {
     mode: chosen,
     selectedFrame,
