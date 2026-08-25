@@ -200,7 +200,7 @@ export function buildAuthorReadout(input: {
     sourceTruth: {
       eventCount: input.graph.events.length,
       relationCount: input.graph.relations.length,
-      entityCount: input.graph.entities.length,
+      entityCount: new Set(input.graph.events.flatMap((item) => item.entities)).size,
       recurringSignals: unique(input.graph.recurringSignals, 16),
       unresolvedTensions: unique(input.graph.unresolvedTensions, 16),
       eventLabels: input.graph.events.map((item) => clean(item.label)).filter(Boolean).slice(0, 32),
