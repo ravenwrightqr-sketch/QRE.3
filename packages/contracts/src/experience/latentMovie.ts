@@ -36,6 +36,11 @@ export type LatentMovie = {
 export type LatentStoryThesis = {
   initialReading: string;
   semanticTurn: string;
+  beforeMeaning: string[];
+  afterMeaning: string[];
+  beforeEventIds: string[];
+  afterEventIds: string[];
+  relationKind?: string;
   carrierEventIds: string[];
   sealingEventIds: string[];
   payoffDependency: string;

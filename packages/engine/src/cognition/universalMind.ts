@@ -42,14 +42,6 @@ const uniqueQuestions = (values: readonly string[]) => [...new Set(values.map(qu
 
 function momentType(index: number, total: number): ExperienceMoment["type"] { if (total <= 1) return "completion"; if (index === 0) return "introduction"; if (index === total - 1) return "completion"; return "story"; }
 function sceneType(index: number, total: number): CinematicScene["type"] { if (index === 0) return "intro"; if (index === total - 1) return "emotion"; return "action"; }
-function lensVisual(lens: WorldModel["lens"], index: number): NonNullable<CinematicScene["visual"]> {
-  if (lens === "horror") return { theme: "dark", animation: index % 2 ? "glitch" : "slow_zoom" };
-  if (lens === "romance") return { theme: "cinematic", animation: "slow_zoom" };
-  if (lens === "wild") return { theme: "cinematic", animation: "particles" };
-  if (lens === "mysterious") return { theme: "dark", animation: "parallax" };
-  if (lens === "comedy") return { theme: "cinematic", animation: "parallax" };
-  return { theme: "cinematic", animation: index === 0 ? "slow_zoom" : "parallax" };
-}
 function learnedLens(world: WorldModel, state: CognitiveMindState): void {
   if (world.lens !== "neutral") return;
   const preferred = state.creativeLearning.successfulLenses.at(-1);
@@ -97,7 +89,18 @@ function buildMoment(planned: ReturnType<typeof planExperience>["moments"][numbe
     meta: { source: "universal-mind", realityEventId: planned.event.id, lens: world.lens, place: planned.event.place, time: planned.event.time, duration: index === total - 1 ? 5200 : 3600 },
   };
 }
-function buildScenes(moments: ExperienceMoment[], world: WorldModel): CinematicScene[] { return moments.map((moment, index) => ({ id: `mind-scene-${index + 1}`, type: sceneType(index, moments.length), duration: Number(moment.meta?.duration ?? 3600), moment, order: index, transition: index === 0 ? "none" : world.lens === "horror" ? (index % 2 ? "fade" : "flash") : world.lens === "romance" ? "cinematic" : world.lens === "wild" ? "zoom" : "fade", visual: lensVisual(world.lens, index), preload: index < moments.length - 1 })); }
+function buildScenes(moments: ExperienceMoment[]): CinematicScene[] {
+  return moments.map((moment, index) => ({
+    id: `mind-scene-${index + 1}`,
+    type: sceneType(index, moments.length),
+    duration: Number(moment.meta?.duration ?? 3600),
+    moment,
+    order: index,
+    transition: "none",
+    preload: index < moments.length - 1,
+    meta: { source: "experience_sequence" },
+  }));
+}
 function buildFlow(moments: ExperienceMoment[]): FlowStep[] { return moments.map((moment, index) => ({ id: `mind-step-${index + 1}`, order: index, type: index === 0 ? "introduction" : index === moments.length - 1 ? "completion" : "story", payload: moment.payload })); }
 function mergeMemoryContext(prompt: string, context: UniversalMindContext) { const resolved = resolveMemory(prompt, context); return { resolved, eventParticipants: unique([...(context.event?.participants ?? []), ...resolved.participants]), resolvedPlace: resolved.place }; }
 
@@ -111,14 +114,6 @@ function preserveMemoryPlaces(world: WorldModel, places: readonly string[]) {
   return world;
 }
 
-function creativeEvidence(selected: CreativeCandidate[], world: WorldModel): void {
-  for (const candidate of selected) {
-    if (!candidate.creativeDetails.length) continue;
-    const event = world.events.find((item) => item.id === candidate.eventId);
-    if (!event) continue;
-    for (const detail of candidate.creativeDetails) if (!event.evidence.some((item) => item.source === "creative_realization" && item.detail === detail)) event.evidence.push({ id: `creative-${event.id}-${detail.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, kind: "detail", salience: Math.max(0.4, Math.min(1, candidate.creativity / 10)), source: "creative_realization", detail, confidence: Math.max(0.4, Math.min(0.95, candidate.creativity / 10)) });
-  }
-}
 
 function voiceCandidates(world: WorldModel): CreativeCandidate[] {
   const out: CreativeCandidate[] = [];
@@ -158,11 +153,10 @@ export function compileCognitiveExperience(prompt: string, context: UniversalMin
   const initialCandidates = [...primaryCandidates, ...adaptiveCandidates];
   const candidates = [...initialCandidates, ...reviseCandidates(world, initialCandidates)];
   const selected = selectCritically(world, candidates);
-  creativeEvidence(selected, world);
   const nextState = evolveMindState(mind, world, selected, context);
   const planned = planExperience(world, significance, selected);
   const moments = planned.moments.map((item, index) => buildMoment(item, index, planned.moments.length, world));
-  const cinematicScenes = buildScenes(moments, world);
+  const cinematicScenes = buildScenes(moments);
   const flowSteps = buildFlow(moments);
   const blueprint: ExperienceBlueprint = {
     title: planned.type === "story" && world.places[0] ? `${world.participants.length > 1 ? world.participants.join(" + ") : world.participants[0] ?? "Experience"} at ${world.places[0]}` : world.participants.length > 1 ? world.participants.join(" + ") : world.participants[0] ?? world.entities[0] ?? "This Experience",

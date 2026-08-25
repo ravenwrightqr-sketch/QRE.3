@@ -453,7 +453,6 @@ function counterfactualDependency(
       (endpointLinked ? 0.2 : 0),
   );
 }
-
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -463,37 +462,94 @@ export function deriveLatentStoryThesis(
     candidate,
   );
 
-  const carrierEventIds = chooseCarrierIds(
-    graph,
-    turn,
-    candidate,
-  );
+  const carrierEventIds =
+    chooseCarrierIds(
+      graph,
+      turn,
+      candidate,
+    );
 
-  const sealingEventIds = chooseSealingIds(
-    graph,
-    turn,
-    carrierEventIds,
-    candidate,
-  ).filter(
-    (id) => !carrierEventIds.includes(id),
-  );
+  const sealingEventIds =
+    chooseSealingIds(
+      graph,
+      turn,
+      carrierEventIds,
+      candidate,
+    ).filter(
+      (id) =>
+        !carrierEventIds.includes(
+          id,
+        ),
+    );
+
+  const turnFromId =
+    turn?.step.eventIds[0] ??
+    "";
+
+  const turnToId =
+    turn?.step.eventIds[1] ??
+    "";
+
+  const beforeMeaning =
+    turnFromId
+      ? [
+          eventLabel(
+            graph,
+            turnFromId,
+          ),
+        ].filter(Boolean)
+      : [];
+
+  const afterMeaning =
+    turnToId
+      ? [
+          eventLabel(
+            graph,
+            turnToId,
+          ),
+        ].filter(Boolean)
+      : [];
 
   return {
     initialReading:
-      buildInitialReading(candidate),
+      buildInitialReading(
+        candidate,
+      ),
+
     semanticTurn:
       buildSemanticTurn(
         graph,
         turn,
       ),
+
+    beforeMeaning,
+
+    afterMeaning,
+
+    beforeEventIds:
+      turnFromId
+        ? [turnFromId]
+        : [],
+
+    afterEventIds:
+      turnToId
+        ? [turnToId]
+        : [],
+
+    relationKind:
+      turn?.relation.kind,
+
     carrierEventIds,
+
     sealingEventIds,
+
     payoffDependency:
       buildPayoffDependency(
         graph,
         candidate,
         carrierEventIds,
       ),
+
     counterfactualDependency:
       counterfactualDependency(
         graph,

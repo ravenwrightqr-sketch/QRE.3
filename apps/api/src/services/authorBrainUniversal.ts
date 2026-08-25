@@ -2368,32 +2368,40 @@ async function realizeMouth(
         return {
           order:
             index + 1,
+
           role:
             cut.role,
+
           attentionFunction:
-            beat
-              ?.attentionFunction,
+            beat?.attentionFunction,
+
           creativeMove:
             beat?.creativeMove,
+
           realizationMode:
-            beat
-              ?.attentionFunction ??
+            beat?.attentionFunction ??
             cut.gainKind,
+
           eventIds:
             cut.sourceIds,
+
           change:
             cut.informationGain,
+
           next:
             cut.nextPromise,
+
           frontier:
             cut
               .momentum
               ?.after
               .informationFrontier
               ?.frontier,
+
           setsUp:
             beat?.setsUp ??
             [],
+
           paysOff:
             beat?.paysOff ??
             [],
@@ -2410,17 +2418,19 @@ async function realizeMouth(
       fast:
         risk === "safe",
     });
-   const canonicalBeats =
-  slots.map(
-    (slot) =>
-      candidateBeatFromSlot(
-        slot,
-        spine,
-        envelope,
-        slotBeats[slot.order - 1],
-      ),
-  );
-  
+
+  const canonicalBeats =
+    slots.map(
+      (slot) =>
+        candidateBeatFromSlot(
+          slot,
+          spine,
+          envelope,
+          slotBeats[
+            slot.order - 1
+          ],
+        ),
+    );
 
   let generated =
     await generateCandidatePools(
@@ -2468,7 +2478,201 @@ async function realizeMouth(
   let attentionRetry = 0;
   let cutRepair = 0;
 
-  
+  const MAX_ATTENTION_REPAIRS = 3;
+
+  while (
+    !attentionEdit.accepted &&
+    attentionRetry <
+      MAX_ATTENTION_REPAIRS
+  ) {
+    const weakOrders =
+      attentionEdit.weakBeats.filter(
+        (order) =>
+          Number.isInteger(
+            order,
+          ) &&
+          order >= 1 &&
+          order <=
+            canonicalBeats.length,
+      );
+
+    if (
+      !weakOrders.length
+    ) {
+      break;
+    }
+
+    const repairFeedback =
+      [
+        "QRE REPAIR TARGETS:",
+        ...attentionEdit.beats
+          .filter((beat) =>
+            weakOrders.includes(
+              beat.order,
+            ),
+          )
+          .map(
+            (beat) =>
+              [
+                `cut ${beat.order}`,
+                `reasons=${beat.reasons.join(",") || "unknown"}`,
+                "generate a new viewer-facing realization",
+                "do not repeat the rejected text",
+                "remain inside supplied evidence",
+              ].join(
+                " | ",
+              ),
+          ),
+      ].join("\n");
+
+    const repaired =
+      await generateCandidatePools(
+        envelope,
+        canonicalBeats,
+        input.lens,
+        texts,
+        risk,
+        repairFeedback,
+        weakOrders,
+      );
+
+    const mergedPools =
+      generated.pools.map(
+        (pool) => {
+          if (
+            !weakOrders.includes(
+              pool.order,
+            )
+          ) {
+            return pool;
+          }
+
+          const replacement =
+            repaired.pools.find(
+              (candidatePool) =>
+                candidatePool.order ===
+                pool.order,
+            );
+
+          return (
+            replacement ??
+            pool
+          );
+        },
+      );
+
+    for (
+      const repairedPool of
+      repaired.pools
+    ) {
+      if (
+        !mergedPools.some(
+          (pool) =>
+            pool.order ===
+            repairedPool.order,
+        )
+      ) {
+        mergedPools.push(
+          repairedPool,
+        );
+      }
+    }
+
+    generated = {
+      pools:
+        mergedPools.sort(
+          (a, b) =>
+            a.order -
+            b.order,
+        ),
+      rawText:
+        [
+          generated.rawText,
+          repaired.rawText,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+    };
+
+    ensureEndpointCandidate(
+      generated.pools,
+      envelope,
+      canonicalBeats,
+    );
+
+    beam =
+      selectBestMouthSequence(
+        generated.pools,
+        {
+          width: 12,
+          candidatesPerBeat: 8,
+        },
+      );
+
+    texts =
+      beam.texts;
+
+    attentionRetry +=
+      1;
+
+    cutRepair +=
+      weakOrders.length;
+
+    attentionEdit =
+      editAttentionSequence({
+        beats:
+          buildAttentionBeatInputs(
+            sequence,
+            texts,
+            plan,
+          ),
+        evidence: [
+          ...input.facts,
+          ...input.sourceMoments,
+          ...(input.memoryContext ??
+            []),
+        ],
+      });
+  }
+
+  /*
+   * Deterministic endpoint preservation remains mandatory after repair.
+   * If repair touched the terminal candidate, restore the canonical
+   * endpoint candidate before returning the beam.
+   */
+  ensureEndpointCandidate(
+    generated.pools,
+    envelope,
+    canonicalBeats,
+  );
+
+  beam =
+    selectBestMouthSequence(
+      generated.pools,
+      {
+        width: 12,
+        candidatesPerBeat: 8,
+      },
+    );
+
+  texts =
+    beam.texts;
+
+  attentionEdit =
+    editAttentionSequence({
+      beats:
+        buildAttentionBeatInputs(
+          sequence,
+          texts,
+          plan,
+        ),
+      evidence: [
+        ...input.facts,
+        ...input.sourceMoments,
+        ...(input.memoryContext ??
+          []),
+      ],
+    });
 
   return {
     texts,
@@ -2483,7 +2687,6 @@ async function realizeMouth(
       beam.score,
   };
 }
-
 
 
 function buildBeatMessages(

@@ -56,7 +56,7 @@ const cases: Record<string, AuthorAcceptanceCase> = {
       "Write Coco's second grooming chapter using what we already know plus today's update.",
     subject: "Coco",
     facts: [
-      "Coco is a poodle",
+      " poodle",
       "hates bows",
       "loves treats",
       "scared at first",

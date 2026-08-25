@@ -1,4 +1,4 @@
-import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
+import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 
 export type AuthorCognitionInput = {
@@ -64,48 +64,15 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 const uniq = <T>(values: readonly T[], limit = 24): T[] => [...new Set(values)].slice(0, limit);
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 
-const NEGATIVE_STATES = /\b(?:scared|afraid|nervous|worried|uncertain|shy|timid|overwhelmed|lost|intimidated|uneasy|anxious|hesitant|frightened|uncomfortable)\b/i;
-const POSITIVE_STATES = /\b(?:happy|proud|calm|confident|fierce|excited|content|comfortable|bold|brave|relaxed|joyful)\b/i;
-const AGENCY_TERMS = /\b(?:control|agency|status|dominant|confident|proud|fierce|brave|bold|ready|owns?|command|mastery)\b/i;
-const DISLIKE_TERMS = /\b(?:hates?|dislikes?|afraid|scared|avoids?|resists?|refuses?)\b/i;
-const POSITIVE_RELATIONS = new Set<RealityRelation["kind"]>(["changes", "contrasts", "recontextualizes", "converges"]);
-
 function eventById(graph: RealityGraph | undefined, id: string) {
   return graph?.events.find((event) => event.id === id);
 }
 
 function semanticTurnForStep(
-  graph: RealityGraph | undefined,
+  _graph: RealityGraph | undefined,
   step: LatentMovieTrajectoryStep,
-  lens?: string,
+  _lens?: string,
 ): string {
-  if (!graph || step.eventIds.length < 1) return clean(step.viewerChange);
-
-  const from = eventById(graph, step.eventIds[0]);
-  const to = eventById(graph, step.eventIds[step.eventIds.length - 1]);
-  const source = clean(from?.emotionalState || from?.label);
-  const target = clean(to?.emotionalState || to?.label);
-  const lensText = clean(lens).toLowerCase();
-  const playfulStatus = /funny|comedy|humou?r|playful|fierce|bold|devious|absurd/i.test(lensText);
-
-  if (step.operation === "payoff") return clean(step.viewerChange);
-
-  if (NEGATIVE_STATES.test(source) && (AGENCY_TERMS.test(target) || playfulStatus)) {
-    return "semantic turn: initial vulnerability gives way to agency/status";
-  }
-
-  if (DISLIKE_TERMS.test(source) && (POSITIVE_STATES.test(target) || playfulStatus)) {
-    return "semantic turn: resistance becomes participation/status";
-  }
-
-  if (step.operation === "contrast" || step.operation === "reframe") {
-    return "semantic turn: the later supplied detail changes the meaning of the earlier one";
-  }
-
-  if (POSITIVE_RELATIONS.has(step.operation as RealityRelation["kind"])) {
-    return "semantic turn: the supplied relationship changes the earlier reading";
-  }
-
   return clean(step.viewerChange);
 }
 
@@ -132,9 +99,17 @@ function enrichMovieCandidate(
   );
 
   const sealingEventIds = uniq(payoff?.eventIds ?? [], 8);
-  const initial = eventById(graph, trajectory[0]?.eventIds[0] ?? "")?.label ?? candidate.evidence[0] ?? "the supplied opening";
+  const initialEventId = trajectory[0]?.eventIds[0] ?? "";
+  const initial = eventById(graph, initialEventId)?.label ?? candidate.evidence[0] ?? "the supplied opening";
   const semanticTurn = firstMeaningful?.viewerChange ?? "the supplied relationship changes the reading";
   const payoffLabel = eventById(graph, payoff?.eventIds[payoff.eventIds.length - 1] ?? "")?.label ?? candidate.payoff;
+  const beforeEventIds = firstMeaningful?.eventIds?.length ? [firstMeaningful.eventIds[0]] : [initialEventId];
+  const afterEventIds = firstMeaningful?.eventIds?.length && firstMeaningful.eventIds.length > 1
+    ? [firstMeaningful.eventIds[firstMeaningful.eventIds.length - 1]]
+    : [];
+  const relationKind = candidate.supportingRelationKinds.find((kind) =>
+    ["before", "after", "causes", "changes", "contrasts", "repeats", "belongs_to", "involves", "recontextualizes", "converges"].includes(kind),
+  );
 
   return {
     ...candidate,
@@ -142,6 +117,11 @@ function enrichMovieCandidate(
     storyThesis: {
       initialReading: initial,
       semanticTurn,
+      beforeEventIds,
+      afterEventIds,
+      relationKind,
+      beforeMeaning: beforeEventIds.map((id) => clean(eventById(graph, id)?.label)).filter(Boolean),
+      afterMeaning: afterEventIds.map((id) => clean(eventById(graph, id)?.label)).filter(Boolean),
       carrierEventIds,
       sealingEventIds,
       payoffDependency: `The supplied endpoint (${payoffLabel}) must feel earned by the semantic turn, not by adding a new event.`,
@@ -247,12 +227,12 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "Do not restart the subject's biography on every chapter.",
     "A callback must change meaning, not merely repeat wording.",
     "Prefer the strongest connected evidence over complete source coverage.",
-    "Identity metadata is world state, not an automatic film cut.",
+    "Identity metadata is world state, not an automatic experience sequence item.",
     "Do not promote a lens phrase into a fact.",
     "A semantic turn must cite a real graph relationship.",
   ];
   const sceneRules = [
-    "One beat is one viewer-facing film moment.",
+    "One beat is one viewer-facing sequence moment.",
     "Short is good; do not turn the film into a paragraph.",
     "Creative language may change framing and attitude but never source truth.",
     "Finish when the selected payoff lands.",
