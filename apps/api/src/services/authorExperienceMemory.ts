@@ -15,7 +15,7 @@ export function mergeAuthorExperienceStates(
   states: readonly AuthorExperienceState[],
 ): AuthorExperienceState | undefined {
   const ordered = states.filter(Boolean);
-  const latest = ordered.at(-1);
+  const latest = ordered[ordered.length - 1];
   if (!latest) return undefined;
 
   const strings = (key: keyof AuthorExperienceState): string[] =>
