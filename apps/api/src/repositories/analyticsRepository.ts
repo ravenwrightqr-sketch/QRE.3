@@ -43,13 +43,89 @@ export function createAnalyticsRepository(): AnalyticsRepository {
 
     async findEvents(input) {
 
+      const asset =
+        await db.asset.findUnique({
+
+          where: {
+            id: input.assetId,
+          },
+
+          select: {
+            id: true,
+            ownerId: true,
+            accountId: true,
+          },
+
+        });
+
+      let scopeAssetIds = [
+        input.assetId,
+      ];
+
+      if (asset) {
+        const accountIds = asset.accountId
+          ? [asset.accountId]
+          : asset.ownerId
+            ? (
+                await db.accountUser.findMany({
+                  where: {
+                    userId: asset.ownerId,
+                  },
+                  select: {
+                    accountId: true,
+                  },
+                })
+              ).map(
+                (row) => row.accountId,
+              )
+            : [];
+
+        const relatedAssets =
+          await db.asset.findMany({
+            where: {
+              OR: [
+                ...(asset.ownerId
+                  ? [
+                      {
+                        ownerId:
+                          asset.ownerId,
+                      },
+                    ]
+                  : []),
+                ...(accountIds.length
+                  ? [
+                      {
+                        accountId: {
+                          in: accountIds,
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        if (relatedAssets.length) {
+          scopeAssetIds = [
+            ...new Set([
+              ...scopeAssetIds,
+              ...relatedAssets.map(
+                (row) => row.id,
+              ),
+            ]),
+          ];
+        }
+      }
+
       return db.analyticsEvent.findMany({
 
         where: {
-
-          assetId:
-            input.assetId,
-
+          assetId: {
+            in: scopeAssetIds,
+          },
         },
 
         orderBy: {
@@ -80,6 +156,14 @@ export function createAnalyticsRepository(): AnalyticsRepository {
           where: {
 
             assetId,
+
+            type: {
+              in: [
+                "SCAN",
+                "FLOW_COMPLETE",
+                "ERROR",
+              ],
+            },
 
           },
 
