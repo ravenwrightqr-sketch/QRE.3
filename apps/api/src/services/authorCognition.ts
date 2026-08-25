@@ -73,9 +73,24 @@ export type AuthorCognitivePlan = {
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniq = <T>(values: readonly T[], limit = 24): T[] => [...new Set(values)].slice(0, limit);
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
+const PRIOR_STATE_PREFIX = "QRE_AUTHOR_EXPERIENCE_STATE::";
 
 function eventById(graph: RealityGraph | undefined, id: string) {
   return graph?.events.find((event) => event.id === id);
+}
+
+function parsePriorExperienceStates(values?: string[]): AuthorExperienceState[] {
+  const states: AuthorExperienceState[] = [];
+  for (const value of values ?? []) {
+    if (!value.startsWith(PRIOR_STATE_PREFIX)) continue;
+    try {
+      const parsed = JSON.parse(value.slice(PRIOR_STATE_PREFIX.length)) as AuthorExperienceState;
+      if (parsed?.version === 1 && parsed.tempo) states.push(parsed);
+    } catch {
+      // Learning context is advisory; malformed state must never break Author.
+    }
+  }
+  return states;
 }
 
 function semanticTurnForStep(
@@ -202,6 +217,7 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
   const movie = movieFor(input);
+  const priorExperienceStates = parsePriorExperienceStates(input.priorStrategies);
   const experienceState = input.realityGraph && movie.selectedMovie
     ? buildAuthorExperienceState({
         graph: input.realityGraph,
@@ -209,6 +225,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
         lens: input.lens,
         priorScenes: input.priorScenes,
         memoryContext: input.memoryContext,
+        priorExperienceStates,
         round: input.round,
       })
     : undefined;
