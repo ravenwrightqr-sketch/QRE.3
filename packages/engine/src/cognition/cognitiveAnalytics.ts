@@ -1,6 +1,5 @@
 import type {
   AnalyticsEventClassification,
-  AnalyticsEventLearningClass,
   AnalyticsLearningClass,
   AnalyticsEventType,
   CognitiveAnalyticsSignal,
@@ -110,7 +109,7 @@ export function summarizeCognitiveAnalytics(events: readonly unknown[]): Cogniti
     const classification = classifyAnalyticsEvent(rawType);
     const meta = event.meta && typeof event.meta === "object" ? event.meta as Record<string, unknown> : {};
 
-    if (classification.learningClass === "NON_LEARNING") continue;
+    if (!classification.feedsAuthor) continue;
 
     if (rawType === "SCAN") scans += 1;
     if (rawType === "FLOW_COMPLETE") completions += 1;
