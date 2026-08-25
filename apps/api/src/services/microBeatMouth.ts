@@ -1,5 +1,6 @@
 import type { AuthorBrainTruth, ExperienceBeat, ExperiencePresenceContext } from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
+import { buildAuthorBehaviorProfile, summarizeAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 
 export type MicroBeatMouthInput = AuthorBrainTruth & {
   presence?: ExperiencePresenceContext;
@@ -23,6 +24,9 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
   if (input.movieMode === false) return [];
   if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return [];
 
+  const learnedProfile = buildAuthorBehaviorProfile(input.creativeLearningContext ?? []);
+  const learnedProfileContext = summarizeAuthorBehaviorProfile(learnedProfile);
+
   const brainInput: AuthorBrainTruth = {
     prompt: input.prompt,
     lens: input.lens,
@@ -44,6 +48,7 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     trajectory: input.trajectory ?? [],
     creativeLearningContext: [
       ...(input.creativeLearningContext ?? []),
+      ...learnedProfileContext,
       input.presence?.isReturning
         ? "returning chapter: callback must evolve meaning rather than restart"
         : "first known chapter: plant one detail worth remembering",
