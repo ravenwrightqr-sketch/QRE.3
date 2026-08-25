@@ -17,17 +17,18 @@ This is the working TODO for turning the current connected architecture into a u
 
 ## P0 · Author readout / truth / golden output
 
-- [ ] Build one production Author readout that prints the entire decision chain in compact form: world read → learned profile → movie candidates → selected trajectory → tempo → beat jobs → Mouth output → gates → final scenes.
-- [ ] Make readout distinguish source truth from derived interpretation, learned preference, and model realization.
+- [x] Build one production Author readout that prints the entire decision chain in compact form: world read → learned profile → movie candidates → selected trajectory → tempo → beat jobs/state → Mouth output → gates → final scenes.
+- [x] Make readout distinguish source truth from derived interpretation, learned preference, and model realization.
 - [ ] Run the readout across multiple subjects and sparse/dense RealityGraphs.
-- [ ] Add explicit failure reasons for any empty or partial movie, failed endpoint, weak carry-forward, repetition, or Mouth rejection.
-- [ ] Make the readout prove that no hidden planner language reaches viewer-facing scenes.
+- [x] Add explicit failure reasons for any empty or partial movie, failed endpoint, weak carry-forward, repetition, or Mouth rejection where those boundaries are already available to the readout.
+- [x] Make the readout prove that no hidden planner language reaches viewer-facing scenes.
+- [ ] Wire readout IDs into a durable production diagnostic envelope so a single experience can be traced across state, learning, movie, Mouth, gates, and final scenes.
 
 ## P0 · Tempo becomes a real Author primitive
 
 - [ ] Turn behavioral rhythm from a profile number into an explicit tempo decision consumed by trajectory search and beat planning.
-- [ ] Define tempo states such as accelerate, hold, tighten, revisit, escalate, release, reopen.
-- [ ] Make tempo stateful across the experience, not a one-time label.
+- [x] Define tempo states such as accelerate, hold, tighten, revisit, release, reopen.
+- [x] Make tempo stateful across the experience, not a one-time label.
 - [ ] Let learned preference bias tempo only within evidence-supported bounds.
 - [ ] Acceptance-test that the same reality can produce a meaningfully different tempo for two learned profiles without fabricating facts.
 
@@ -83,11 +84,11 @@ This is the working TODO for turning the current connected architecture into a u
 
 ## P2 · Documentation discipline
 
-- [ ] Keep `docs/AUTHOR_ARCHITECTURE_INDEX.md` canonical for ownership and boundaries.
-- [ ] Keep `docs/AUTHOR_CURRENT_STATE.md` canonical for what is actually live.
-- [ ] Keep `docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` canonical for runtime/analytics boundaries.
+- [x] Keep `docs/AUTHOR_ARCHITECTURE_INDEX.md` canonical for ownership and boundaries.
+- [x] Keep `docs/AUTHOR_CURRENT_STATE.md` canonical for what is actually live.
+- [x] Keep `docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` canonical for runtime/analytics boundaries.
 - [ ] Keep focused protocol docs only where they describe a still-live semantic law.
-- [ ] Delete superseded “next world”, duplicate goal/master, and monolithic reference documents when their information is absorbed here.
+- [x] Delete superseded “next world”, duplicate goal/master, and monolithic reference documents when their information is absorbed here.
 - [ ] Update docs in the same change as architecture changes.
 
 ## Golden acceptance target
