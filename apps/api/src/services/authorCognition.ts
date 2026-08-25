@@ -1,5 +1,14 @@
-import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+import type {
+  AuthorExperienceState,
+  LatentMovieCandidate,
+  LatentMovieTrajectoryStep,
+  RealityGraph,
+} from "@qre/contracts";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
+import {
+  buildAuthorExperienceState,
+  summarizeAuthorExperienceState,
+} from "./authorExperienceState.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -47,6 +56,7 @@ export type AuthorCognitivePlan = {
   characterRead: CharacterRead;
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
+  experienceState?: AuthorExperienceState;
   operatorMix: string[];
   callbackTargets: string[];
   antiRepetitionRules: string[];
@@ -192,6 +202,17 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
   const movie = movieFor(input);
+  const experienceState = input.realityGraph && movie.selectedMovie
+    ? buildAuthorExperienceState({
+        graph: input.realityGraph,
+        movie: movie.selectedMovie,
+        lens: input.lens,
+        priorScenes: input.priorScenes,
+        memoryContext: input.memoryContext,
+        round: input.round,
+      })
+    : undefined;
+
   const permanentTruths = uniq([...input.facts, ...(input.memoryContext ?? [])], 30);
   const currentEvidence = uniq([...input.sourceMoments, ...(input.realityGraph?.events.map((event) => event.label) ?? [])], 30);
   const contradictionList = contradictions(input);
@@ -203,7 +224,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     emotionalPosture: contradictionList[0] ? `emotion sits inside ${contradictionList[0]}` : "emotion should be inferred from supplied evidence",
     objectRelationships: objectRelationships(input),
     creativeFrames: frames(input, movie.selectedMovie),
-    allowedMoves: ["metaphor", "personification", "status language", "double meaning", "comic framing", "understatement", "callback", "recontextualization"],
+    allowedMoves: ["metaphor", "personification", "status language", "double meaning", "comic framing", "understatement", "callback", "recontextualization", "revisit", "future tease"],
     avoidedMoves: ["invented concrete events", "invented people", "invented locations", "invented reactions", "invented chronology", "planner language", "analytic explanation"],
   };
 
@@ -222,22 +243,29 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     ...(input.priorScenes ?? []),
     ...(input.realityGraph?.recurringSignals ?? []),
     ...permanentTruths,
-  ], 14);
+    ...(experienceState?.memoryHooks ?? []),
+  ], 20);
+
   const antiRepetitionRules = [
     "Do not restart the subject's biography on every chapter.",
     "A callback must change meaning, not merely repeat wording.",
+    "A revisit must return to established evidence only after new evidence exists to change its reading.",
     "Prefer the strongest connected evidence over complete source coverage.",
     "Identity metadata is world state, not an automatic experience sequence item.",
     "Do not promote a lens phrase into a fact.",
     "A semantic turn must cite a real graph relationship.",
+    "Leave an authorized future thread alive when continuation value is high.",
   ];
+
   const sceneRules = [
     "One beat is one viewer-facing sequence moment.",
     "Short is good; do not turn the film into a paragraph.",
     "Creative language may change framing and attitude but never source truth.",
-    "Finish when the selected payoff lands.",
-    "The last beat is authorized by the selected endpoint only.",
+    "A beat should either advance meaning, deepen a tension, establish a setup, revisit prior meaning, or land payoff.",
+    "Finish when the selected payoff lands; do not manufacture a final event.",
+    ...(experienceState ? summarizeAuthorExperienceState(experienceState) : []),
   ];
+
   const graphSummary = input.realityGraph
     ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations.`
     : "REALITY GRAPH: unavailable.";
@@ -250,6 +278,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     frameSummary,
     graphSummary,
     movieSummary,
+    ...(experienceState ? summarizeAuthorExperienceState(experienceState) : []),
     "Reality is immutable. Creativity never becomes evidence.",
   ];
 
@@ -261,6 +290,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     characterRead,
     latentMovieCandidates: movie.latentMovieCandidates,
     selectedMovie: movie.selectedMovie,
+    experienceState,
     operatorMix,
     callbackTargets,
     antiRepetitionRules,
