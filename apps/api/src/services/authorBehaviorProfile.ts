@@ -1,5 +1,3 @@
-import { } from "node:assert";
-
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const unique = (values: readonly string[]): string[] => [...new Set(values.map((value) => clean(value)).filter(Boolean))];
