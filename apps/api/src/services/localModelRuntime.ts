@@ -233,12 +233,12 @@ function wordCount(value: string): number {
 function isCanonicalMouth(messages: LocalModelMessage[], format?: "json") {
   if (format !== "json") return false;
   const system = messages.find((message) => message.role === "system")?.content ?? "";
-  return /QRE's theatrical mouth/i.test(system);
+  return /QRE CANONICAL MOUTH/i.test(system) || /QRE's theatrical mouth/i.test(system);
 }
 
 function mouthAcceptable(text: string): boolean {
   const words = wordCount(text);
-  if (!text || words < 2 || words > 7) return false;
+  if (!text || words < 2 || words > 28) return false;
   if (META_LANGUAGE.test(text)) return false;
   if (GENERIC_PROSE.test(text)) return false;
   if (/^[A-Z][A-Z _-]{5,}:/.test(text)) return false;
@@ -282,10 +282,10 @@ async function realizeMouthOneBeat(
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const retryInstruction = attempt === 0
       ? ""
-      : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. 2-7 words. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
+      : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. Prefer a compact sentence. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
     const singleSystem: LocalModelMessage = {
       ...system,
-      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse 2-7 words. Prefer 3-6.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
+      content: `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse Prefer a compact viewer-facing sentence. There is no fixed word count. Expand only when the wording itself is the hit; never pad or become a paragraph.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
     };
     const singleUser: LocalModelMessage = { ...user, content: JSON.stringify(singleBeatPayload) };
     const prepared = prepareMessages([singleSystem, singleUser]);

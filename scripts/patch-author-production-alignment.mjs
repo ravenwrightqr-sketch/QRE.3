@@ -10,9 +10,16 @@ function replaceOnce(path, label, from, to) {
   const target = file(path);
   const source = fs.readFileSync(target, "utf8");
   const count = source.split(from).length - 1;
+
+  if (count === 0 && source.includes(to)) {
+    console.log(`ALREADY PATCHED: ${path} · ${label}`);
+    return;
+  }
+
   if (count !== 1) {
     throw new Error(`${label}: expected exactly 1 match, found ${count}`);
   }
+
   fs.writeFileSync(target, source.replace(from, to), "utf8");
   console.log(`PATCHED: ${path} · ${label}`);
 }

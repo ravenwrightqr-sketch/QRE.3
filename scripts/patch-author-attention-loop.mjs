@@ -24,7 +24,7 @@ patch("apps/api/src/services/localModelRuntime.ts", "canonical Mouth + attention
 
   out = out.replace(
     /return\s+\/QRE's theatrical mouth\/i\.test\(system\);/,
-    'return /QRE CANONICAL MOUTH|QRE\\'s theatrical mouth/i.test(system);',
+    "return /QRE CANONICAL MOUTH|QRE's theatrical mouth/i.test(system);",
   );
 
   out = out.replace(
@@ -119,3 +119,4 @@ patch("apps/api/src/services/authorBrainUniversal.ts", "rich-reality beat expans
 });
 
 console.log("AUTHOR ATTENTION LOOP PATCH COMPLETE");
+

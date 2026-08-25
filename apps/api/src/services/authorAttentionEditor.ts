@@ -131,15 +131,21 @@ export function editAttentionSequence(input: {
   const sequenceScore = beats.length
     ? Number((beats.reduce((sum, beat) => sum + beat.score, 0) / beats.length).toFixed(3))
     : 0;
-
-  return {
-    accepted: weakBeats.length === 0,
-    sequenceScore,
-    beats,
-    weakBeats,
-    rewriteNeeded: false,
-    rewriteInstructions: [],
-  };
+   
+    return {
+  accepted: weakBeats.length === 0,
+  sequenceScore,
+  beats,
+  weakBeats,
+  rewriteNeeded: weakBeats.length > 0,
+  rewriteInstructions:
+    weakBeats.length > 0
+      ? weakBeats.map(
+          (order) =>
+            `Regenerate viewer-facing cut ${order} only.`,
+        )
+      : [],
+};
 }
 
 export function buildAttentionRewritePrompt(input: AttentionEdit): string {
@@ -149,3 +155,4 @@ export function buildAttentionRewritePrompt(input: AttentionEdit): string {
     `Diagnostics: ${JSON.stringify({ weakBeats: input.weakBeats, score: input.sequenceScore })}`,
   ].join("\n");
 }
+

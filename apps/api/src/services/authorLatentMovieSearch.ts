@@ -131,10 +131,10 @@ function specificityScore(graph: RealityGraph, eventId: string): number {
 
 /** Reality owns the endpoint. Movie convergence never replaces it. */
 function endpointIdFor(
-  graph: RealityGraph,
-  _convergence: LatentMovieConvergence,
+  _graph: RealityGraph,
+  convergence: LatentMovieConvergence,
 ): string {
-  return graph.events[graph.events.length - 1]?.id ?? "";
+  return convergence.endpointId;
 }
 
 function chooseAnchors(
@@ -315,9 +315,56 @@ function buildTrajectory(
   focus?: RealityRelation["kind"],
 ): LatentMovieTrajectoryStep[] {
   const endpointId = endpointIdFor(graph, convergence);
-  const ordered = unique(
+  const seed = unique(
     convergence.forwardPath.length ? convergence.forwardPath : anchors,
-  );
+  ).filter((id) => id !== endpointId);
+  const ordered: string[] = [];
+  const opening = seed[0] ?? graph.events.find((event) => event.id !== endpointId)?.id;
+  if (opening) ordered.push(opening);
+
+  const relationKindScore = (kind: RealityRelation["kind"]): number => {
+    switch (kind) {
+      case "contrasts": return 1;
+      case "recontextualizes": return 0.96;
+      case "changes": return 0.9;
+      case "repeats": return 0.84;
+      case "converges": return 0.74;
+      case "before":
+      case "after": return 0.68;
+      default: return 0.5;
+    }
+  };
+
+  const targetLength = Math.min(5, Math.max(3, graph.events.length - 1));
+  while (ordered.length < targetLength) {
+    const used = new Set(ordered);
+    const candidate = graph.events
+      .filter((event) => !used.has(event.id) && event.id !== endpointId)
+      .map((event) => {
+        const direct = ordered.length
+          ? Math.max(...ordered.map((id) => relationBetween(graph, id, event.id)?.strength ?? 0), 0)
+          : 0;
+        const endpoint = relationBetween(graph, event.id, endpointId)?.strength ?? 0;
+        const relation = ordered.length
+          ? ordered
+              .map((id) => relationBetween(graph, id, event.id))
+              .filter(Boolean)
+              .sort((a, b) => (b?.strength ?? 0) - (a?.strength ?? 0))[0]
+          : undefined;
+        const structural = relation ? relationKindScore(relation.kind) : 0;
+        const specificity = specificityScore(graph, event.id);
+        return {
+          id: event.id,
+          score: direct * 0.42 + endpoint * 0.28 + structural * 0.18 + specificity * 0.12,
+        };
+      })
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (!candidate) break;
+    ordered.push(candidate.id);
+  }
+
+  ordered.push(endpointId);
 
   if (!ordered.length) return [];
 

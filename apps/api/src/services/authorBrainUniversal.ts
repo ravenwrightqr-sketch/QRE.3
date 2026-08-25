@@ -84,7 +84,6 @@ import {
 
 import {
   editAttentionSequence,
-  buildAttentionRewritePrompt,
 } from "./authorAttentionEditor.js";
 
 import {
@@ -99,9 +98,7 @@ import {
 
 import { localModelGenerate } from "./localModelRuntime.js";
 
-import {
-  recoverBeatPlanFromLatentMovie,
-} from "./authorBeatPlanRecovery.js";
+import { normalizeLatentMovieBeatPlan } from "./authorLatentMovieBeatAdapter.js";
 
 import {
   groundAuthorBeat,
@@ -1710,13 +1707,15 @@ function buildAttentionBeatInputs(
     },
   );
 }
-
 function scenesFromSequence(
   sequence: SequencePlay,
   texts: string[],
   input: AuthorBrainTruth,
   cognition: ReturnType<
     typeof buildAuthorCognitivePlan
+  >,
+  realityEnvelope: ReturnType<
+    typeof buildAuthorRealityEnvelope
   >,
 ) {
   const attempted =
@@ -1759,6 +1758,13 @@ function scenesFromSequence(
         ] ?? 0) + 1;
       continue;
     }
+
+    const endpoint =
+      clean(
+        cut.role === "payoff"
+          ? text
+          : "",
+      );
 
     const policy =
       evaluateCut(
@@ -1813,7 +1819,95 @@ function scenesFromSequence(
         prior,
       );
 
-    if (!policy.accepted) {
+    /*
+     * These beats have already been authorized upstream:
+     *
+     * Reality Graph
+     *   -> latent movie
+     *   -> Beat Plan
+     *   -> Meaning Spine
+     *   -> realization slot
+     *   -> Mouth candidate
+     *
+     * A semantic-turn line is therefore allowed to have
+     * weak literal/token grounding. The language is expressing
+     * an approved change in meaning, not creating a new event.
+     */
+    const semanticTurnGrounded =
+      Boolean(
+        cut.sourceIds?.length &&
+        /^semantic turn:/i.test(
+          clean(
+            cut.informationGain,
+          ),
+        ),
+      );
+
+        /**
+     * The payoff endpoint has a separate deterministic
+     * authorization path. Exact endpoint text is canonical
+     * even when its lexical overlap with the source is low.
+     */
+          /**
+     * The payoff endpoint has a separate deterministic
+     * authorization path. Exact endpoint text is canonical
+     * even when its lexical overlap with the source is low.
+     */
+    const endpointExact =
+      cut.role === "payoff" &&
+      clean(text)
+        .replace(
+          /[.!?]+$/g,
+          "",
+        )
+        .toLowerCase() ===
+      endpointLabel(
+        realityEnvelope,
+      )
+        .replace(
+          /[.!?]+$/g,
+          "",
+        )
+        .toLowerCase();
+    /*
+     * Separate weak-grounding from every other rejection.
+     *
+     * We may waive ONLY weak-grounding when the beat has already
+     * been semantically authorized or is the exact canonical endpoint.
+     *
+     * Everything else still rejects:
+     *   missing text
+     *   invented concrete behavior
+     *   meta language
+     *   forbidden claims
+     *   unsafe output
+     *   etc.
+     */
+    const hardReasons =
+      policy.reasons.filter(
+        (reason) =>
+          reason !==
+          "weak-grounding",
+      );
+
+    const weakGroundingWaived =
+      policy.reasons.includes(
+        "weak-grounding",
+      ) &&
+      (
+        semanticTurnGrounded ||
+        endpointExact
+      );
+
+    const acceptedByPolicy =
+      policy.accepted ||
+      (
+        weakGroundingWaived &&
+        hardReasons.length ===
+          0
+      );
+
+    if (!acceptedByPolicy) {
       for (
         const reason of
           policy.reasons
@@ -1982,14 +2076,19 @@ async function generateCandidatePools(
   priorTexts: readonly string[],
   risk: string,
   feedback?: string,
+  requestedOrders?: readonly number[],
 ): Promise<{
   pools: MouthCandidatePool[];
   rawText: string;
 }> {
+  const promptBeats = requestedOrders?.length
+    ? beats.filter((beat) => requestedOrders.includes(beat.order))
+    : beats;
+
   const messages =
     buildMouthCandidateMessages({
       envelope,
-      beats,
+      beats: promptBeats,
       priorTexts,
       lens,
     });
@@ -2058,7 +2157,10 @@ async function generateCandidatePools(
 
   const pools:
     MouthCandidatePool[] =
-    beats.map(
+    (requestedOrders?.length
+      ? beats.filter((beat) => requestedOrders.includes(beat.order))
+      : beats
+    ).map(
       (beat) => {
         const entry =
           parsed.variantsByBeat.find(
@@ -2107,6 +2209,44 @@ async function generateCandidatePools(
     rawText:
       result.text,
   };
+}
+
+function mergeMouthCandidatePools(
+  base: MouthCandidatePool[],
+  patch: MouthCandidatePool[],
+): MouthCandidatePool[] {
+  const byOrder = new Map<number, MouthCandidatePool>();
+
+  for (const pool of base) {
+    byOrder.set(pool.order, {
+      order: pool.order,
+      candidates: [...pool.candidates],
+    });
+  }
+
+  for (const pool of patch) {
+    const existing = byOrder.get(pool.order);
+    if (!existing) {
+      byOrder.set(pool.order, {
+        order: pool.order,
+        candidates: [...pool.candidates],
+      });
+      continue;
+    }
+
+    const seen = new Set(existing.candidates.map((candidate) => clean(candidate.text).toLowerCase()));
+    for (const candidate of pool.candidates) {
+      const key = clean(candidate.text).toLowerCase();
+      if (key && !seen.has(key)) {
+        existing.candidates.push(candidate);
+        seen.add(key);
+      }
+    }
+
+    existing.candidates.sort((a, b) => b.score - a.score);
+  }
+
+  return [...byOrder.values()].sort((a, b) => a.order - b.order);
 }
 
 function ensureEndpointCandidate(
@@ -2328,183 +2468,7 @@ async function realizeMouth(
   let attentionRetry = 0;
   let cutRepair = 0;
 
-  if (
-    attentionEdit.rewriteNeeded
-  ) {
-    attentionRetry = 1;
-
-    const feedback =
-      buildAttentionRewritePrompt(
-        attentionEdit,
-      );
-
-    generated =
-      await generateCandidatePools(
-        envelope,
-        canonicalBeats,
-        input.lens,
-        [],
-        risk,
-        feedback,
-      );
-
-    ensureEndpointCandidate(
-      generated.pools,
-      envelope,
-      canonicalBeats,
-    );
-
-    const retryBeam =
-      selectBestMouthSequence(
-        generated.pools,
-        {
-          width: 12,
-          candidatesPerBeat: 8,
-        },
-      );
-
-    const retryTexts =
-      retryBeam.texts;
-
-    const retryAttention =
-      editAttentionSequence(
-        {
-          beats:
-            buildAttentionBeatInputs(
-              sequence,
-              retryTexts,
-              plan,
-            ),
-          evidence: [
-            ...input.facts,
-            ...input.sourceMoments,
-            ...(input.memoryContext ??
-              []),
-          ],
-        },
-      );
-
-    if (
-      retryTexts.length ===
-        sequence.cuts.length &&
-      (
-        retryAttention.accepted ||
-        retryAttention.sequenceScore >
-          attentionEdit.sequenceScore
-      )
-    ) {
-      texts =
-        retryTexts;
-      beam =
-        retryBeam;
-      attentionEdit =
-        retryAttention;
-    }
-  }
-
-  let sequenceResult =
-    scenesFromSequence(
-      sequence,
-      texts,
-      input,
-      cognition,
-    );
-
-  if (
-    sequenceResult.rejected > 0 ||
-    texts.length !==
-      sequence.cuts.length
-  ) {
-    cutRepair = 1;
-
-    const repairFeedback =
-      [
-        "The previous candidate sequence failed the final cut gate.",
-        "Rewrite only the weak beats.",
-        "Preserve the approved semantic trajectory.",
-        "Preserve the supplied endpoint exactly.",
-        "Do not add concrete facts.",
-        "Do not append earlier lines to the endpoint.",
-        `Diagnostics: ${JSON.stringify(
-          sequenceResult.rejectionReasons,
-        )}`,
-      ].join(
-        "\n",
-      );
-
-    generated =
-      await generateCandidatePools(
-        envelope,
-        canonicalBeats,
-        input.lens,
-        [],
-        risk,
-        repairFeedback,
-      );
-
-    ensureEndpointCandidate(
-      generated.pools,
-      envelope,
-      canonicalBeats,
-    );
-
-    const repairBeam =
-      selectBestMouthSequence(
-        generated.pools,
-        {
-          width: 16,
-          candidatesPerBeat: 8,
-        },
-      );
-
-    const repairTexts =
-      repairBeam.texts;
-
-    const repairAttention =
-      editAttentionSequence(
-        {
-          beats:
-            buildAttentionBeatInputs(
-              sequence,
-              repairTexts,
-              plan,
-            ),
-          evidence: [
-            ...input.facts,
-            ...input.sourceMoments,
-            ...(input.memoryContext ??
-              []),
-          ],
-        },
-      );
-
-    const repairResult =
-      scenesFromSequence(
-        sequence,
-        repairTexts,
-        input,
-        cognition,
-      );
-
-    if (
-      repairResult.rejected <
-        sequenceResult.rejected ||
-      (
-        repairResult.rejected ===
-          0 &&
-        repairAttention.accepted
-      )
-    ) {
-      texts =
-        repairTexts;
-      beam =
-        repairBeam;
-      attentionEdit =
-        repairAttention;
-      sequenceResult =
-        repairResult;
-    }
-  }
+  
 
   return {
     texts,
@@ -2520,31 +2484,7 @@ async function realizeMouth(
   };
 }
 
-function buildFallbackBeatPlan(
-  cognition: ReturnType<
-    typeof buildAuthorCognitivePlan
-  >,
-  realityGraph: ReturnType<
-    typeof buildAuthorRealityGraph
-  >,
-): BeatPlan | undefined {
-  const selected =
-    cognition.latentMovieCandidates?.[0];
 
-  if (!selected) {
-    return undefined;
-  }
-
-  const recovered =
-    recoverBeatPlanFromLatentMovie(
-      selected,
-      realityGraph,
-    );
-
-  return normalizeBeatPlan(
-    recovered,
-  );
-}
 
 function buildBeatMessages(
   input: AuthorBrainTruth,
@@ -2928,10 +2868,8 @@ export async function authorBrainUniversal(
         risk,
     };
 
-  let beatPlan =
-    buildFallbackBeatPlan(
-      cognition,
-      realityGraph,
+  let beatPlan: BeatPlan | undefined = normalizeLatentMovieBeatPlan(
+      cognition.latentMovieCandidates?.[0],
     );
 
   let beatPlanRetries =
@@ -3220,6 +3158,7 @@ export async function authorBrainUniversal(
         realityGraph,
       },
       cognition,
+      realityEnvelope,
     );
 
   const sequenceArcBeats:
@@ -3525,3 +3464,4 @@ export async function authorBrainUniversal(
     },
   };
 }
+
