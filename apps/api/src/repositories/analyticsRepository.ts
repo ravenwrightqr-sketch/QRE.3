@@ -157,14 +157,6 @@ export function createAnalyticsRepository(): AnalyticsRepository {
 
             assetId,
 
-            type: {
-              in: [
-                "SCAN",
-                "FLOW_COMPLETE",
-                "ERROR",
-              ],
-            },
-
           },
 
           _count: true,
