@@ -11,7 +11,7 @@ function file(name) {
 
 function read(name) {
   const target = file(name);
-  return { target, text: fs.readFileSync(target, "utf8") };
+  return { target, text: fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n") };
 }
 
 function replaceExact(name, source, from, to, label) {
@@ -26,7 +26,7 @@ function replaceExact(name, source, from, to, label) {
 }
 
 function write(target, text) {
-  fs.writeFileSync(target, text, "utf8");
+  fs.writeFileSync(target, text.replace(/\r\n/g, "\n"), "utf8");
 }
 
 let changed = [];
