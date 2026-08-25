@@ -5,7 +5,12 @@ type CinematicInput = {
   geoStory?: GeoStory | null;
 };
 
-/** Pure presentation projection. It never invents narrative meaning. */
+/**
+ * Pure sequence projection.
+ *
+ * The runtime does not invent visual scenes, imagery, animation, or audio.
+ * It preserves supplied/captured experience moments and orders them for the player.
+ */
 export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
   const scenes: CinematicScene[] = input.moments.map((moment, index) => ({
     id: `scene-${index}`,
@@ -13,12 +18,8 @@ export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
     duration: moment.meta?.duration ?? 2200,
     moment,
     order: index,
-    transition: transitionFor(moment, index),
-    visual: {
-      theme: "cinematic",
-      animation: index === 0 ? "slow_zoom" : "none",
-    },
-    preload: index < input.moments.length - 1,
+    transition: "none",
+    preload: false,
     meta: { source: "canonical_experience_moment" },
   }));
 
@@ -56,9 +57,8 @@ export function cinematicRuntime(input: CinematicInput): CinematicScene[] {
         type: "memory",
         duration: 2600,
         order,
-        transition: "fade",
+        transition: "none",
         moment,
-        visual: { theme: "cinematic", animation: "parallax" },
         preload: false,
         meta: { source: "geo_context" },
       });
@@ -78,11 +78,4 @@ function sceneTypeFor(moment: ExperienceMoment): CinematicScene["type"] {
     case "timeline": return "memory";
     default: return "emotion";
   }
-}
-
-function transitionFor(moment: ExperienceMoment, index: number): CinematicScene["transition"] {
-  if (moment.type === "system") return "none";
-  if (index === 0) return "zoom";
-  if (moment.type === "action") return "slide";
-  return "fade";
 }
