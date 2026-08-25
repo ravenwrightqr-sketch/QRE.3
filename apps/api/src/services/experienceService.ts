@@ -11,6 +11,8 @@ import {
   mergeAuthorExperienceStates,
 } from "./authorExperienceMemory.js";
 import { buildAuthorExperienceState } from "./authorExperienceState.js";
+import { adaptAuthorExperienceState } from "./authorAdaptiveTempo.js";
+import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 import { authorMicroBeats } from "./microBeatMouth.js";
@@ -178,6 +180,11 @@ export async function compileExperience(input: {
   }
 
   const analytics = summarizeCognitiveAnalytics(analyticsEvents);
+  const learnedProfile = buildAuthorBehaviorProfile([
+    ...(Array.isArray(analytics?.learningSignals) ? analytics.learningSignals : []),
+    ...serializedPriorAuthorStates,
+    ...presence?.summary ?? [],
+  ]);
   const geo = input.geoAnchor;
   const role = geo?.role ?? "experience_place";
   const presenceSummary = presence?.summary ?? [];
@@ -273,7 +280,7 @@ export async function compileExperience(input: {
               limit: 10,
             })[0];
 
-            authorExperienceState = buildAuthorExperienceState({
+            const baseAuthorExperienceState = buildAuthorExperienceState({
               graph,
               movie,
               lens: String(compiled?.cognition?.selectedHypothesis?.kind ?? compiled?.blueprint?.tone?.[0] ?? "neutral"),
@@ -282,6 +289,8 @@ export async function compileExperience(input: {
               priorExperienceStates: priorAuthorStates,
               round: presence?.visitNumber ?? Math.max(1, priorAuthorStates.length + 1),
             });
+
+            authorExperienceState = adaptAuthorExperienceState(baseAuthorExperienceState, learnedProfile);
 
             const stateBatch = authorExperienceStateToMemoryBatch({
               assetId: input.assetId,
