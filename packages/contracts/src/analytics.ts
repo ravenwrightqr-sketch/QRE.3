@@ -59,6 +59,25 @@ export const AnalyticsEventTypes = {
 
 export type AnalyticsEventType = (typeof AnalyticsEventTypes)[keyof typeof AnalyticsEventTypes];
 
+export const AnalyticsLearningClasses = {
+  FACTUAL_WORLD: "FACTUAL_WORLD",
+  BEHAVIORAL_SIGNAL: "BEHAVIORAL_SIGNAL",
+  CREATIVE_PREFERENCE: "CREATIVE_PREFERENCE",
+  FRICTION_SIGNAL: "FRICTION_SIGNAL",
+  MEMORY_SIGNAL: "MEMORY_SIGNAL",
+  BUSINESS_SIGNAL: "BUSINESS_SIGNAL",
+  RUNTIME_HEALTH: "RUNTIME_HEALTH",
+  NON_LEARNING: "NON_LEARNING",
+} as const;
+
+export type AnalyticsLearningClass = (typeof AnalyticsLearningClasses)[keyof typeof AnalyticsLearningClasses];
+
+export interface AnalyticsEventClassification {
+  type: AnalyticsEventType;
+  learningClass: AnalyticsLearningClass;
+  feedsAuthor: boolean;
+}
+
 export interface AnalyticsEvent {
   type: AnalyticsEventType;
   createdAt: Date;
