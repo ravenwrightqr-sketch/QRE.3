@@ -21,7 +21,8 @@
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.1.16",
     "qrcode": "^1.5.4",
-    "stripe": "^22.2.1"
+    "stripe": "^22.2.1",
+    "undici": "7.29.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",

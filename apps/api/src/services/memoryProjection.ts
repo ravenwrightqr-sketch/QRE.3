@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   Experience,
   MemoryContext,
@@ -177,7 +178,7 @@ function buildRelations(
   });
 }
 
-function buildEvents(
+  function buildEvents(
   assetId: string,
   world: WorldModel,
   source: MemorySource,
@@ -185,7 +186,7 @@ function buildEvents(
   sessionId?: string,
 ): MemoryEventWrite[] {
   return world.events.map((event) => ({
-    id: eventId(assetId, event),
+    id: randomUUID(),
     type: "world_event",
     summary: clean(event.raw).slice(0, 1000),
     occurredAt: observedAt,
