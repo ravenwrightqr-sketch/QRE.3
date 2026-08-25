@@ -164,6 +164,7 @@ try {
   const round1State: any = round1.authorExperienceState;
   const round2State: any = round2.authorExperienceState;
   const round3State: any = round3.authorExperienceState;
+  const latestPersistedState = statesRound3.length ? statesRound3[statesRound3.length - 1] : undefined;
 
   assert(
     round2State.tempo.nextBeatPull !== round1State.tempo.nextBeatPull ||
@@ -182,7 +183,7 @@ try {
   );
 
   assert(round3State.memoryHooks.some((hook: string) => hook.startsWith("adapted-tempo:")), "round 3 did not persist adaptive tempo hook");
-  assert(statesRound3.at(-1)?.tempo, "latest persisted Author state is malformed");
+  assert(Boolean(latestPersistedState?.tempo), "latest persisted Author state is malformed");
 
   console.log("AUTHOR RUNTIME PERSISTENCE ACCEPTANCE: PASS");
   console.log(`Asset=${assetId}`);
