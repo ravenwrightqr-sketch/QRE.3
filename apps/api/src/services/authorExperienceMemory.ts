@@ -21,10 +21,14 @@ export function mergeAuthorExperienceStates(
   const strings = (key: keyof AuthorExperienceState): string[] =>
     uniq(ordered.flatMap((state) => {
       const value = state[key];
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+      return Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string")
+        : [];
     }));
 
-  const numbers = (key: "continuationValue" | "lookaheadValue" | "endpointPressure" | "attentionPotential"): number =>
+  const numbers = (
+    key: "continuationValue" | "lookaheadValue" | "endpointPressure" | "attentionPotential",
+  ): number =>
     Math.max(...ordered.map((state) => Number(state[key] ?? 0)));
 
   return {
@@ -41,6 +45,8 @@ export function mergeAuthorExperienceStates(
     carryThreads: strings("carryThreads").slice(-32),
     futureEventIds: strings("futureEventIds").slice(-24),
     futureThreadKeys: strings("futureThreadKeys").slice(-32),
+    consumedFutureEventIds: strings("consumedFutureEventIds").slice(-24),
+    retiredFutureThreadKeys: strings("retiredFutureThreadKeys").slice(-32),
     semanticTurnKeys: strings("semanticTurnKeys"),
     relationKinds: strings("relationKinds"),
     continuationValue: numbers("continuationValue"),
@@ -64,6 +70,7 @@ export function authorExperienceStateToMemoryBatch(input: {
     `Tempo: ${input.state.tempo.mode}.`,
     `Changed: ${input.state.changedEventIds.join(", ") || "none"}.`,
     `Future: ${input.state.futureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
+    `Retired future: ${input.state.retiredFutureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
   ].join(" ");
 
   return {
@@ -109,6 +116,7 @@ export function authorExperienceMemoryContext(
     `prior tempo: ${state.tempo.mode}`,
     ...state.carryThreads.slice(0, 8).map((value) => `carry: ${value}`),
     ...state.futureThreadKeys.slice(0, 8).map((value) => `future: ${value}`),
+    ...state.retiredFutureThreadKeys.slice(0, 8).map((value) => `retired future: ${value}`),
     ...state.revisitedEventIds.slice(0, 8).map((value) => `revisit: ${value}`),
   ]);
 
