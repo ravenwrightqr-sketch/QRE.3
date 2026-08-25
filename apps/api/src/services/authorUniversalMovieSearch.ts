@@ -509,79 +509,210 @@ function lensKeywords(
       : LENS_HINTS.neutral,
   );
 }
-
 function relationPreference(
   kind: RealityRelation["kind"],
   lens?: string,
 ): number {
-  const preferred =
-    lensKeywords(lens);
+  const text = lower(lens);
 
-  const aliases: Record<
-    RealityRelation["kind"],
-    string[]
+  if (
+    !text ||
+    text === "let qre decide"
+  ) {
+    return 0.72;
+  }
+
+  const profiles: Record<
+    string,
+    Partial<
+      Record<
+        RealityRelation["kind"],
+        number
+      >
+    >
   > = {
-    contrasts: [
-      "contrast",
-    ],
+    funny: {
+      contrasts: 1,
+      recontextualizes: 0.92,
+      changes: 0.86,
+      causes: 0.68,
+      repeats: 0.55,
+      converges: 0.48,
+      before: 0.42,
+      after: 0.42,
+      involves: 0.36,
+      belongs_to: 0.4,
+    },
 
-    recontextualizes: [
-      "recontextualization",
-    ],
+    comedy: {
+      contrasts: 1,
+      recontextualizes: 0.92,
+      changes: 0.86,
+      causes: 0.68,
+      repeats: 0.55,
+      converges: 0.48,
+      before: 0.42,
+      after: 0.42,
+      involves: 0.36,
+      belongs_to: 0.4,
+    },
 
-    changes: [
-      "changes",
-      "change",
-    ],
+    humorous: {
+      contrasts: 1,
+      recontextualizes: 0.92,
+      changes: 0.86,
+      causes: 0.68,
+      repeats: 0.55,
+      converges: 0.48,
+      before: 0.42,
+      after: 0.42,
+      involves: 0.36,
+      belongs_to: 0.4,
+    },
 
-    repeats: [
-      "recurrence",
-      "recur",
-    ],
+    romance: {
+      converges: 1,
+      repeats: 0.9,
+      recontextualizes: 0.86,
+      causes: 0.84,
+      after: 0.82,
+      changes: 0.78,
+      contrasts: 0.55,
+      before: 0.5,
+      involves: 0.44,
+      belongs_to: 0.42,
+    },
 
-    converges: [
-      "convergence",
-      "converge",
-    ],
+    romantic: {
+      converges: 1,
+      repeats: 0.9,
+      recontextualizes: 0.86,
+      causes: 0.84,
+      after: 0.82,
+      changes: 0.78,
+      contrasts: 0.55,
+      before: 0.5,
+      involves: 0.44,
+      belongs_to: 0.42,
+    },
 
-    before: [
-      "before",
-      "consequence",
-    ],
+    horror: {
+      before: 1,
+      after: 1,
+      repeats: 0.96,
+      causes: 0.94,
+      contrasts: 0.9,
+      recontextualizes: 0.86,
+      changes: 0.72,
+      converges: 0.46,
+      involves: 0.4,
+      belongs_to: 0.38,
+    },
 
-    after: [
-      "after",
-      "consequence",
-    ],
+    creepy: {
+      before: 1,
+      after: 1,
+      repeats: 0.96,
+      causes: 0.94,
+      contrasts: 0.9,
+      recontextualizes: 0.86,
+      changes: 0.72,
+      converges: 0.46,
+      involves: 0.4,
+      belongs_to: 0.38,
+    },
 
-    causes: [
-      "cause",
-      "consequence",
-      "changes",
-    ],
+    sentimental: {
+      repeats: 1,
+      converges: 0.94,
+      recontextualizes: 0.88,
+      causes: 0.84,
+      after: 0.82,
+      changes: 0.78,
+      contrasts: 0.48,
+      before: 0.5,
+      involves: 0.44,
+      belongs_to: 0.42,
+    },
 
-    involves: [
-      "involves",
-      "reveal",
-    ],
+    emotional: {
+      repeats: 1,
+      converges: 0.94,
+      recontextualizes: 0.88,
+      causes: 0.84,
+      after: 0.82,
+      changes: 0.78,
+      contrasts: 0.48,
+      before: 0.5,
+      involves: 0.44,
+      belongs_to: 0.42,
+    },
 
-    belongs_to: [
-      "belongs_to",
-      "recontextualization",
-      "reveal",
-    ],
+    absurd: {
+      contrasts: 1,
+      converges: 0.88,
+      recontextualizes: 0.86,
+      changes: 0.82,
+      repeats: 0.64,
+      causes: 0.62,
+      before: 0.48,
+      after: 0.48,
+      involves: 0.4,
+      belongs_to: 0.42,
+    },
+
+    demented: {
+      contrasts: 1,
+      causes: 0.9,
+      recontextualizes: 0.88,
+      repeats: 0.84,
+      changes: 0.78,
+      converges: 0.58,
+      before: 0.5,
+      after: 0.5,
+      involves: 0.38,
+      belongs_to: 0.4,
+    },
+
+    chaotic: {
+      contrasts: 0.96,
+      causes: 0.92,
+      converges: 0.88,
+      recontextualizes: 0.84,
+      changes: 0.82,
+      repeats: 0.7,
+      before: 0.54,
+      after: 0.54,
+      involves: 0.4,
+      belongs_to: 0.4,
+    },
+
+    neutral: {
+      recontextualizes: 0.75,
+      changes: 0.75,
+      causes: 0.74,
+      converges: 0.73,
+      repeats: 0.72,
+      contrasts: 0.72,
+      before: 0.7,
+      after: 0.7,
+      involves: 0.62,
+      belongs_to: 0.62,
+    },
   };
 
-  return aliases[
-    kind
-  ].some(
-    (item) =>
-      preferred.includes(
-        item,
-      ),
-  )
-    ? 1
-    : 0.68;
+  const key =
+    Object.keys(
+      profiles,
+    ).find(
+      (candidate) =>
+        text.includes(candidate),
+    ) ?? "neutral";
+
+  return (
+    profiles[key]?.[kind] ??
+    0.45
+  );
 }
 
 function eventSpecificity(
@@ -1071,18 +1202,17 @@ function relationCandidateScore(
       graph,
       targetId,
     );
-
-  return metric(
+     return metric(
     relationStrength *
-      0.38 +
+      0.28 +
       preference *
-        0.18 +
+        0.34 +
       targetSpecificity *
-        0.13 +
-      targetCentrality *
         0.1 +
+      targetCentrality *
+        0.08 +
       targetTerminality *
-        0.11 +
+        0.1 +
       novelty *
         0.1,
   );
@@ -1279,27 +1409,26 @@ function choosePayoffEvent(
 
           return {
             id: item.id,
-
-            score:
+             score:
               connected *
-                0.42 +
+                0.34 +
               terminality(
                 graph,
                 item.id,
               ) *
-                0.25 +
+                0.22 +
               eventSpecificity(
                 graph,
                 item.id,
               ) *
-                0.1 +
+                0.08 +
               graphCentrality(
                 graph,
                 item.id,
               ) *
                 0.08 +
               preference *
-                0.07 +
+                0.2 +
               usedBonus *
                 0.08,
           };
