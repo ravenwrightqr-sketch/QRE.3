@@ -2,18 +2,20 @@
 
 **Status:** ACTIVE PRODUCTION ROADMAP  
 **Branch:** `author/mouth-production-product-final`  
-**Updated:** 2026-08-24
+**Updated:** 2026-08-25
 
 This is the working TODO for turning the current connected architecture into a universal, measurable, production Author.
 
 ## P0 · Prove the Author actually learns
 
-- [ ] Build a deterministic two-round acceptance: Round 1 creates state + learning evidence; Round 2 recovers both and demonstrates a measurable Author decision change.
+- [x] Build a deterministic two-round acceptance: Round 1 creates state + learning evidence; Round 2 recovers both and demonstrates a measurable Author decision change.
 - [ ] Make the acceptance expose the exact changed decisions, not only changed diagnostics.
 - [ ] Compare Round 1 vs Round 2 on: selected movie family, relation pattern, tempo, attention arc, revisit/callback usage, and Mouth realization behavior.
-- [ ] Prove learned preference can change strategy without changing RealityGraph evidence.
+- [x] Prove learned preference can change strategy without changing RealityGraph evidence.
 - [ ] Add a minimum-confidence rule so weak history cannot oversteer the Author.
 - [ ] Add bounded decay / revision so preferences evolve rather than becoming permanent personality labels.
+- [ ] Run the new three-round return-golden acceptance against the local production stack and promote it to a required production gate.
+- [ ] Expand the return-golden acceptance so the actual runtime route persists and recovers state between visits rather than simulating persistence in-process.
 
 ## P0 · Author readout / truth / golden output
 
@@ -26,11 +28,12 @@ This is the working TODO for turning the current connected architecture into a u
 
 ## P0 · Tempo becomes a real Author primitive
 
-- [ ] Turn behavioral rhythm from a profile number into an explicit tempo decision consumed by trajectory search and beat planning.
+- [x] Turn behavioral rhythm from a profile number into an explicit tempo decision consumed by trajectory/state adaptation.
 - [x] Define tempo states such as accelerate, hold, tighten, revisit, release, reopen.
 - [x] Make tempo stateful across the experience, not a one-time label.
-- [ ] Let learned preference bias tempo only within evidence-supported bounds.
-- [ ] Acceptance-test that the same reality can produce a meaningfully different tempo for two learned profiles without fabricating facts.
+- [x] Let learned preference bias tempo only within evidence-supported bounds.
+- [x] Acceptance-test that the same reality can produce a meaningfully different tempo shape for two learned profiles without fabricating facts.
+- [ ] Feed learned tempo back into trajectory search and beat planning so preference changes not only state metrics but the selected semantic route when multiple truth-safe candidates exist.
 
 ## P1 · Close the hidden learning circles
 
@@ -38,13 +41,13 @@ This is the working TODO for turning the current connected architecture into a u
 - [ ] Record confidence, evidence count, and last-updated information for each learned dimension.
 - [ ] Distinguish stable preference from transient session behavior.
 - [ ] Retire stale preferences safely rather than accumulating contradictory signals forever.
-- [ ] Add a governed mapping from all analytics classes to learning consumers so every event is explicitly observed, learned, or ignored.
+- [x] Add a governed mapping from all analytics classes to learning consumers so every event is explicitly observed, learned, or ignored.
 
 ## P1 · World continuity / social graph
 
 - [ ] Test cross-path future threads such as Coco → Jim → apples across multiple experiences.
 - [ ] Verify a thread opened in one asset can be discovered later from another related asset when authorized by memory/world relationships.
-- [ ] Verify consumed futures retire and become historical evidence.
+- [x] Verify consumed futures retire and become historical evidence.
 - [ ] Add tests for unresolved futures that remain live across several chapters.
 - [ ] Add tests where two different people/assets independently contribute to the same world relationship.
 - [ ] Preserve provenance for every cross-world learned fact.
@@ -89,7 +92,7 @@ This is the working TODO for turning the current connected architecture into a u
 - [x] Keep `docs/RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` canonical for runtime/analytics boundaries.
 - [ ] Keep focused protocol docs only where they describe a still-live semantic law.
 - [x] Delete superseded “next world”, duplicate goal/master, and monolithic reference documents when their information is absorbed here.
-- [ ] Update docs in the same change as architecture changes.
+- [x] Update docs in the same change as architecture changes.
 
 ## Golden acceptance target
 
@@ -118,5 +121,7 @@ LEARNING
   ↓
 NEXT EXPERIENCE IS DIFFERENT FOR A REASON
 ```
+
+The current three-round `author-return-golden-acceptance.ts` proves the deterministic semantic/adaptation core. The remaining production step is to run that same proof through the real persistence/runtime path.
 
 The system must get better at serving the same person without requiring the person to learn how the system works.
