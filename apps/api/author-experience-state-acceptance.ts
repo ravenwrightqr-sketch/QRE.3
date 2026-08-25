@@ -1,6 +1,7 @@
 import type {
   AuthorExperienceState,
   LatentMovieCandidate,
+  LatentMovieTrajectoryStep,
   MemoryContext,
   RealityGraph,
 } from "@qre/contracts";
@@ -42,16 +43,13 @@ const graph: RealityGraph = {
   sensorySignals: [],
 };
 
-const candidate = (
-  id: string,
-  trajectory: LatentMovieCandidate["trajectory"],
-): LatentMovieCandidate => ({
+const candidate = (id: string, trajectory: LatentMovieCandidate["trajectory"]): LatentMovieCandidate => ({
   id,
   lens: "natural, specific, emotionally intelligent",
   anchorEventIds: trajectory[0]?.eventIds ?? [],
   supportingRelationKinds: trajectory.map((step) => step.operation),
   trajectory,
-  payoff: trajectory.at(-1)?.eventIds.at(-1) === "apples" ? "favorite apples" : "fabulous",
+  payoff: trajectory[trajectory.length - 1]?.eventIds[trajectory[trajectory.length - 1].eventIds.length - 1] === "apples" ? "favorite apples" : "fabulous",
   unresolvedQuestion: "What comes next?",
   evidence: trajectory.flatMap((step) => step.eventIds),
   hypothesis: ["accumulated meaning"],
@@ -89,6 +87,8 @@ assert(chapterOne.changedEventIds.includes("nervous"), "chapter one must record 
 assert(chapterOne.carrierEventIds.includes("bows"), "chapter one must carry the bows thread");
 assert(chapterOne.payoffEventIds.includes("fabulous"), "chapter one must record payoff");
 assert(chapterOne.futureThreadKeys.length > 0, "chapter one must expose future threads");
+assert(chapterOne.futureEventIds.includes("jim"), "chapter one must expose Jim as a reachable future event");
+assert(chapterOne.lookaheadValue > 0, "chapter one must score reachable future movement");
 
 const chapterTwo = buildAuthorExperienceState({
   graph,
@@ -107,22 +107,18 @@ const chapterTwo = buildAuthorExperienceState({
 assert(chapterTwo.establishedEventIds.includes("coco"), "prior establishment must persist");
 assert(chapterTwo.changedEventIds.includes("nervous"), "prior semantic change must persist");
 assert(chapterTwo.carryThreads.some((value) => /peace is temporary/i.test(value)), "world tension must carry forward");
-assert(chapterTwo.futureThreadKeys.length > 0, "future threads must remain alive");
+assert(chapterTwo.retiredFutureThreadKeys.includes("future:jim"), "experienced future thread must retire");
+assert(!chapterTwo.futureEventIds.includes("jim"), "experienced future event must leave the active frontier");
+assert(!chapterTwo.futureThreadKeys.includes("future:jim"), "experienced future thread must leave the active frontier");
 assert(chapterTwo.tempo.mode !== "hook", "later chapter must not reset to hook");
 assert(chapterTwo.tempo.nextBeatPull > 0, "later chapter must have beat pull");
 
 const merged = mergeAuthorExperienceStates([chapterOne, chapterTwo]) as AuthorExperienceState;
 assert(merged.changedEventIds.includes("nervous"), "merged state lost prior change");
 assert(merged.carrierEventIds.includes("bows"), "merged state lost prior carrier");
-assert(merged.futureThreadKeys.length >= chapterTwo.futureThreadKeys.length, "merged state lost future threads");
+assert(merged.retiredFutureThreadKeys.includes("future:jim"), "merged state lost retired future thread");
 
-const batch = authorExperienceStateToMemoryBatch({
-  assetId: "asset-test",
-  userId: "user-test",
-  state: chapterTwo,
-  sourceRef: "author-experience-state-acceptance",
-});
-
+const batch = authorExperienceStateToMemoryBatch({ assetId: "asset-test", userId: "user-test", state: chapterTwo, sourceRef: "author-experience-state-acceptance" });
 const context: MemoryContext = {
   assetId: "asset-test",
   generatedAt: new Date().toISOString(),
@@ -136,6 +132,7 @@ const extracted = extractAuthorExperienceStates(context);
 assert(extracted.length === 1, "durable author state was not recoverable");
 assert(extracted[0]?.tempo.mode === chapterTwo.tempo.mode, "tempo did not survive memory projection");
 assert(authorExperienceMemoryContext(context).some((line) => line.startsWith("prior tempo:")), "memory context lost prior tempo");
+assert(authorExperienceMemoryContext(context).some((line) => line.includes("retired future: future:jim")), "memory context lost retired future history");
 
 console.log("AUTHOR EXPERIENCE STATE ACCEPTANCE: PASS");
 console.log(`Tempo1=${chapterOne.tempo.mode}`);
@@ -144,4 +141,5 @@ console.log(`Continuation=${chapterTwo.continuationValue}`);
 console.log(`Lookahead=${chapterTwo.lookaheadValue}`);
 console.log(`Attention=${chapterTwo.attentionPotential}`);
 console.log(`FutureThreads=${chapterTwo.futureThreadKeys.length}`);
+console.log(`RetiredFutures=${chapterTwo.retiredFutureThreadKeys.length}`);
 console.log(`MemoryEvents=${extracted.length}`);
