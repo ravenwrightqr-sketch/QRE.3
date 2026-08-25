@@ -46,6 +46,29 @@ function persistentHook(value: string, graph: RealityGraph): boolean {
   });
 }
 
+function futureRelationWeight(kind: RealityRelation["kind"]): number {
+  switch (kind) {
+    case "causes":
+      return 1;
+    case "changes":
+    case "recontextualizes":
+    case "contrasts":
+    case "after":
+    case "before":
+      return 0.95;
+    case "converges":
+      return 0.9;
+    case "repeats":
+      return 0.86;
+    case "involves":
+      return 0.78;
+    case "belongs_to":
+      return 0.72;
+    default:
+      return 0.65;
+  }
+}
+
 function deriveFutureEventIds(
   graph: RealityGraph,
   usedEventIds: readonly string[],
@@ -61,14 +84,18 @@ function deriveFutureEventIds(
           (relation.from === item.id || relation.to === item.id) &&
           (used.has(relation.from) || used.has(relation.to)),
       );
-      const unresolved = relations.some(
-        (relation) =>
-          ["contrasts", "changes", "recontextualizes", "causes", "after", "before"].includes(relation.kind) &&
-          !payoff.has(item.id),
+
+      const futureRelations = relations.filter((relation) => !payoff.has(item.id));
+      if (!futureRelations.length || used.has(item.id)) return { id: item.id, score: 0 };
+
+      const score = futureRelations.reduce(
+        (sum, relation) => sum + relation.strength * futureRelationWeight(relation.kind),
+        0,
       );
+
       return {
         id: item.id,
-        score: unresolved ? relations.reduce((sum, relation) => sum + relation.strength, 0) : 0,
+        score,
       };
     })
     .filter((item) => !used.has(item.id) && item.score > 0)
