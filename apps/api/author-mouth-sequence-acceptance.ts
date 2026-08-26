@@ -118,9 +118,13 @@ function parseTexts(raw: string): string[] {
     const value = JSON.parse(cleaned) as { texts?: unknown };
     if (Array.isArray(value.texts)) return value.texts.map((text) => String(text ?? "").trim()).filter(Boolean);
   } catch {
-    // Retry with a newline fallback for diagnostics only.
+    // Fallback is diagnostics only; malformed model JSON is not a pass.
   }
   return cleaned.split(/\r?\n+/).map((line) => line.replace(/^[-*]\s*/, "").trim()).filter(Boolean);
+}
+
+function validCutShape(cuts: string[]): boolean {
+  return cuts.length >= 3 && cuts.every((cut) => cut.split(/\s+/).filter(Boolean).length <= 12);
 }
 
 function summarizePlan(plan: ReturnType<typeof buildAuthorCognitivePlan>): string {
@@ -201,6 +205,7 @@ for (const item of cases) {
   );
 
   const cuts = parseTexts(result.text);
+  const shapeOk = validCutShape(cuts);
   const sequence = await critiqueMouthSequence({
     subject: item.subject,
     lens: plan.selectedFrame,
@@ -209,16 +214,21 @@ for (const item of cases) {
     cuts,
   });
 
+  const accepted = shapeOk && sequence.decision === "accept";
+
   console.log("\n" + "=".repeat(100));
   console.log(`CASE: ${item.name}`);
   console.log(`REQUESTED LENS: ${item.lens || "NONE"}`);
   console.log(`SELECTED FRAME: ${plan.selectedFrame}`);
   console.log(`ATTENTION: ${plan.chosenAttentionStrategy}`);
   console.log(`APPROVED CUT COUNT: ${approvedBeats.length}`);
+  console.log(`REALIZED CUT COUNT: ${cuts.length}`);
+  console.log(`CUT SHAPE: ${shapeOk ? "PASS" : "FAIL (need >=3 cuts; each <=12 words)"}`);
   console.log("QRE SEQUENCE:");
   cuts.forEach((cut, index) => console.log(`  [${index + 1}] ${cut}`));
   console.log(`SEQUENCE CRITIC: ${sequence.decision}`);
-  console.log(`FAILURES: ${sequence.failureCodes.join(" | ") || "none"}`);
+  console.log(`FINAL DECISION: ${accepted ? "ACCEPT" : "RETRY"}`);
+  console.log(`FAILURES: ${sequence.failureCodes.join(" | ") || (shapeOk ? "none" : "multi_cut_shape_failure")}`);
   console.log(`SCORES: truth=${sequence.scores.truth.toFixed(2)} distinct=${sequence.scores.cutDistinctness.toFixed(2)} progression=${sequence.scores.progression.toFixed(2)} attention=${sequence.scores.attentionPull.toFixed(2)} specificity=${sequence.scores.specificity.toFixed(2)} creative=${sequence.scores.creativeForce.toFixed(2)} lens=${sequence.scores.lensFit.toFixed(2)} payoff=${sequence.scores.payoff.toFixed(2)} overall=${sequence.scores.overall.toFixed(2)}`);
   console.log(`PLAN DEBUG: ${summarizePlan(plan)}`);
 }
