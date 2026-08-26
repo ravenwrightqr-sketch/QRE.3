@@ -32,20 +32,19 @@ const COUPLE_MOMENTS = [
 
 const cases: Record<string, AuthorAcceptanceCase> = {
   COCO: {
-    prompt: "Make a living memory story for Coco's dog tag.",
+    prompt: "Create a viewer-facing grooming memory from the supplied Coco reality.",
     subject: "Coco",
     facts: [
-      "Coco is a poodle",
-      "hates bows",
-      "loves treats",
-      "scared at first",
-      "happy after",
+      "Coco is a dog",
+      "Coco entered",
+      "the lawyer was already called",
+      "next came the bath and bubbles",
+      "bows appeared",
+      "the mirror approved",
+      "fabulous exit",
     ],
-    sourceMoments: [
-      "grooming visit",
-      "pink bow",
-    ],
-    lens: "funny, affectionate, slightly fierce",
+    sourceMoments: [],
+    lens: "funny, sharp, compressed, slightly fierce, forward-pulling",
     memoryContext: [],
     trajectory: [],
     creativeLearningContext: [],
@@ -56,22 +55,21 @@ const cases: Record<string, AuthorAcceptanceCase> = {
       "Write Coco's second grooming chapter using what we already know plus today's update.",
     subject: "Coco",
     facts: [
-      " poodle",
-      "hates bows",
-      "loves treats",
-      "scared at first",
+      "Coco is a dog",
+      "the bath was faster today",
+      "the pink bow was offered again",
+      "Coco walked out proud",
     ],
     sourceMoments: [
-      "bath was faster today",
-      "pink bow offered again",
-      "Coco walked out proud",
+      "the bow returned",
+      "the second visit changed the meaning of the first",
     ],
     lens: "callback comedy",
     memoryContext: [
-      "Chapter 1: Coco resisted the bow and left happy.",
+      "Chapter 1: Coco entered, the lawyer was already called, the bath and bubbles came next, bows appeared, the mirror approved, fabulous exit.",
     ],
     trajectory: [
-      "Chapter 1: Coco resisted the bow and left happy.",
+      "Chapter 1: Coco entered, the lawyer was already called, the bath and bubbles came next, bows appeared, the mirror approved, fabulous exit.",
     ],
     creativeLearningContext: [
       "Do not replay the first chapter. Make the returning bow mean something new.",
@@ -172,11 +170,11 @@ const cases: Record<string, AuthorAcceptanceCase> = {
 
 function splitReality(value: string): string[] {
   return value
-    .split(/[,\n.;â€¢]+/)
+    .split(/[,\n.;•]+/)
     .map((item) =>
       item
         .replace(
-          /^\s*(?:[-*â€¢]|\d+[.)])\s*/,
+          /^\s*(?:[-*•]|\d+[.)])\s*/,
           "",
         )
         .trim(),
@@ -235,14 +233,14 @@ const started = Date.now();
 
 console.log("=".repeat(80));
 console.log(
-  `QRE UNIVERSAL AUTHOR ACCEPTANCE Â· ${requested}`,
+  `QRE UNIVERSAL AUTHOR ACCEPTANCE · ${requested}`,
 );
-console.log("ONE MASTER BRAIN Â· ONE AUTHOR PATH");
+console.log("ONE MASTER BRAIN · ONE AUTHOR PATH");
 console.log(
-  "REALITY â†’ CANDIDATE SEARCH â†’ DIFFERENTIATION â†’ COGNITION â†’ MAGNET â†’ SEQUENCE â†’ MOUTH",
+  "REALITY → CANDIDATE SEARCH → DIFFERENTIATION → COGNITION → MAGNET → SEQUENCE → MOUTH",
 );
 console.log(
-  "VIEWER MOMENTUM Â· SOURCE TRUTH Â· CUT NECESSITY",
+  "VIEWER MOMENTUM · SOURCE TRUTH · CUT NECESSITY",
 );
 console.log(
   "RAW MODEL OUTPUT ENABLED FOR DIAGNOSTICS",
@@ -282,7 +280,7 @@ try {
     .slice(0, 12)
     .forEach((event) =>
       console.log(
-        `  ${event.id}: ${event.label} Â· entities=${event.entities.join(", ")}`,
+        `  ${event.id}: ${event.label} · entities=${event.entities.join(", ")}`,
       ),
     );
 
@@ -358,7 +356,7 @@ try {
   }
 
   console.log(
-    "GRAPH INVARIANT GREEN Â· chronology requires explicit clock evidence",
+    "GRAPH INVARIANT GREEN · chronology requires explicit clock evidence",
   );
 
   const latentMovies =
@@ -376,7 +374,7 @@ try {
   latentMovies.forEach(
     (candidate, index) => {
       console.log(
-        `[${index + 1}] ${candidate.lens} Â· SCORE=${candidate.score} Â· DISTINCT=${candidate.distinctiveness} Â· TRUTH-RISK=${candidate.truthRisk}`,
+        `[${index + 1}] ${candidate.lens} · SCORE=${candidate.score} · DISTINCT=${candidate.distinctiveness} · TRUTH-RISK=${candidate.truthRisk}`,
       );
 
       console.log(
@@ -397,7 +395,7 @@ try {
             (step) =>
               `${step.operation}:${step.eventIds.join("+")}`,
           )
-          .join(" â†’ ")}`,
+          .join(" → ")}`,
       );
 
       console.log(
@@ -428,14 +426,14 @@ try {
         )
       ) {
         console.warn(
-          `MOVIE DIFFERENTIATION WARNING Â· ${latentMovies[i].lens} and ${latentMovies[j].lens} are materially similar`,
+          `MOVIE DIFFERENTIATION WARNING · ${latentMovies[i].lens} and ${latentMovies[j].lens} are materially similar`,
         );
       }
     }
   }
 
   console.log(
-    `MOVIE DIFFERENTIATION GREEN Â· ${latentMovies.length} candidate(s) passed through diversity gate`,
+    `MOVIE DIFFERENTIATION GREEN · ${latentMovies.length} candidate(s) passed through diversity gate`,
   );
 
   const result =
@@ -495,7 +493,7 @@ try {
     result.sequence.cuts.forEach(
       (cut) => {
         console.log(
-          `[${cut.order}] ${cut.role} Â· GAIN: ${cut.informationGain}`,
+          `[${cut.order}] ${cut.role} · GAIN: ${cut.informationGain}`,
         );
 
         console.log(
@@ -522,33 +520,23 @@ try {
   );
 
   console.log(
-    `BEATS: ${result.scenes.length}`,
+    `BEATS: ${result.scenes?.length ?? 0}`,
   );
 
-  result.scenes.forEach(
-    (scene, index) =>
-      console.log(
-        `[${index + 1}] ${scene.kind ?? "line"} Â· ${scene.text}`,
-      ),
-  );
-
-  if (
-    !result.sequence ||
-    !result.scenes.length
-  ) {
-    console.error(
-      "FAIL: master Universal Author produced no usable sequence/scenes",
+  if (!result.scenes?.length) {
+    throw new Error(
+      "master Universal Author produced no usable sequence/scenes",
     );
-
-    process.exitCode = 1;
   }
+
+  console.log("AUTHOR UNIVERSAL ACCEPTANCE: PASS");
 } catch (error) {
   console.error(
-    "AUTHOR ERROR:",
-    error instanceof Error
-      ? error.message
-      : error,
+    `FAIL: ${
+      error instanceof Error
+        ? error.message
+        : String(error)
+    }`,
   );
-
   process.exitCode = 1;
 }
