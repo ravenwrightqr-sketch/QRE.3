@@ -32,8 +32,10 @@ const stem = (token: string): string => {
 };
 
 const STOP = new Set(
-  "the a an and or but for to of in on at with from this that is are was were be been as into by through after before then now very just still again his her their its it's he she they them you we me my our your what when where why how one two three four five six seven eight nine ten".split(/\s+/),
+  "the a an and or but for to of in on at with from this that it is are was were be been as into by through after before then now very just still again their its your our my what when where why how one two three four five six seven eight nine ten".split(/\s+/),
 );
+
+const IDENTITY_PRONOUNS = /\b(?:he|she|him|her|his|hers|they|them|their|theirs)\b/i;
 
 const SEMANTIC_VERBS = new Set(
   "mean means meant feel feels felt seem seems seemed read reads as carry carries carried become becomes became change changes changed shift shifts shifted turn turns turned leave leaves left remain remains remained hold holds held bring brings brought make makes made matter matters mattered signal signals hinted hints suggest suggests suggested sound sounds sounded imply implies implied look looks looked".split(/\s+/),
@@ -144,6 +146,33 @@ function unsupportedSoundRisk(text: string, envelope: RealityEnvelope): number {
   return metric(unsupported.length > 0 ? 1 : 0);
 }
 
+function identityPronounRisk(text: string, envelope: RealityEnvelope): number {
+  if (!IDENTITY_PRONOUNS.test(text)) return 0;
+
+  /*
+   * Identity pronouns are not harmless filler. They assert or imply a
+   * person/subject identity that must already be established by memory.
+   * The explicit subject name is not enough to establish gender.
+   *
+   * We therefore reject gendered/relational pronouns here. Neutral pronouns
+   * remain available when they are explicitly supplied by the source and are
+   * otherwise handled conservatively by the authoring context.
+   */
+  const normalizedSource = clean(
+    [envelope.subject, ...envelope.suppliedPhrases, ...envelope.suppliedEntities].join(" "),
+  ).toLowerCase();
+
+  if (/\b(?:he|him|his)\b/i.test(normalizedSource)) {
+    return /\b(?:she|her|hers)\b/i.test(text) ? 1 : 0;
+  }
+  if (/\b(?:she|her|hers)\b/i.test(normalizedSource)) {
+    return /\b(?:he|him|his)\b/i.test(text) ? 1 : 0;
+  }
+
+  /* No gender identity is established: gendered pronouns are unsupported. */
+  return 1;
+}
+
 function nonLatinMismatchRisk(text: string, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
@@ -201,6 +230,7 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   const unsupportedPhysicalRisk = unsupportedPhysicalStageRisk(value, envelope);
   const unsupportedFrameRisk = unsupportedInventedFrameRisk(value, envelope);
   const soundRisk = unsupportedSoundRisk(value, envelope);
+  const pronounRisk = identityPronounRisk(value, envelope);
   const languageMismatchRisk = nonLatinMismatchRisk(value, envelope);
 
   const actionWords = tokens(value).filter((token) => actionSet(envelope).has(stem(token))).length;
@@ -209,8 +239,9 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   const supportedActionRisk = actionWords === 0 ? 0 : metric(unsupportedRisk * 0.8);
   const supportedEntityRisk = entityWords === 0 ? 0 : metric(unsupportedRisk * 0.6);
   const naturalness = metric(1 - languageRisk);
+  const groundedQuestion = QUESTION.test(value) && unsupportedActionRisk === 0 && pronounRisk === 0;
 
-    const reasons: string[] = [];
+  const reasons: string[] = [];
   if (languageRisk > 0.45) reasons.push("weak-natural-language");
   if (keywordAssemblyRisk > 0.45) reasons.push("keyword-assembly");
   if (analyticLanguageRisk > 0.45) reasons.push("analytic-language");
@@ -219,8 +250,9 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
   if (unsupportedPhysicalRisk > 0) reasons.push("unsupported-physical-staging");
   if (unsupportedFrameRisk > 0) reasons.push("unsupported-invented-frame");
   if (soundRisk > 0) reasons.push("unsupported-concrete-sound");
+  if (pronounRisk > 0) reasons.push("unsupported-identity-pronoun");
   if (languageMismatchRisk > 0) reasons.push("language-mismatch");
-  if (QUESTION.test(value)) reasons.push("question-leak");
+  if (groundedQuestion) reasons.push("grounded-open-question");
 
   return {
     naturalness,
@@ -238,8 +270,8 @@ export function evaluateMouthLanguage(text: string, envelope: RealityEnvelope): 
       unsupportedPhysicalRisk === 0 &&
       unsupportedFrameRisk === 0 &&
       soundRisk === 0 &&
-      languageMismatchRisk === 0 &&
-      !QUESTION.test(value),
+      pronounRisk === 0 &&
+      languageMismatchRisk === 0,
     reasons,
   };
 }
