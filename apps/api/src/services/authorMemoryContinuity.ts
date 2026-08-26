@@ -4,7 +4,7 @@ const STOP = new Set([
   "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by",
   "this", "that", "it", "is", "are", "was", "were", "be", "been", "being", "as", "into", "my", "your",
   "our", "their", "his", "her", "its", "he", "she", "they", "them", "you", "we", "me", "again", "time",
-  "visit", "visited", "grooming", "groomed", "place", "now", "then", "first", "second", "third",
+  "visit", "visited", "grooming", "groomed", "place", "now", "then", "first", "second", "third", "would",
 ]);
 
 const STATE = new Set([
@@ -23,7 +23,7 @@ const ACTION = new Set([
   "made", "gave", "got", "found", "lost", "cleaned", "finished", "started", "opened", "closed", "walked", "ran", "drove",
   "ate", "drank", "kissed", "married", "celebrated", "played", "worked", "visited", "bought", "sold", "built", "fixed",
   "painted", "wore", "used", "shook", "chewed", "connected", "stayed", "waited", "called", "laughed", "cried", "looked",
-  "felt", "seemed", "became", "changed", "loved", "liked", "jumped", "would", "wouldn't", "wouldnt",
+  "felt", "seemed", "became", "changed", "loved", "liked", "jumped",
 ]);
 
 function normalize(text: string): string {
@@ -46,8 +46,8 @@ function actionTokens(text: string): string[] {
   return tokens(text).filter((token) => ACTION.has(token));
 }
 
-function distinctiveTokens(text: string): string[] {
-  return tokens(text).filter((token) => !STATE.has(token) && !ACTION.has(token));
+function distinctiveTokens(text: string, contextTokens: ReadonlySet<string>): string[] {
+  return tokens(text).filter((token) => !STATE.has(token) && !ACTION.has(token) && !contextTokens.has(token));
 }
 
 function colorTokens(text: string): string[] {
@@ -59,17 +59,35 @@ function shared(left: readonly string[], right: readonly string[]): string[] {
   return left.filter((token) => rightSet.has(token));
 }
 
-function continuityStrength(current: string, prior: string): number {
+function deriveContextTokens(priorAnchors: readonly string[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const anchor of priorAnchors) {
+    for (const token of new Set(tokens(anchor))) counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+
+  const threshold = Math.max(2, Math.ceil(priorAnchors.length * 0.35));
+  return new Set([...counts.entries()].filter(([, count]) => count >= threshold).map(([token]) => token));
+}
+
+function continuityStrength(
+  current: string,
+  prior: string,
+  contextTokens: ReadonlySet<string>,
+): number {
   const currentStates = stateTokens(current);
   const priorStates = stateTokens(prior);
   const sharedStates = shared(currentStates, priorStates);
-  const currentDistinctive = distinctiveTokens(current);
-  const priorDistinctive = distinctiveTokens(prior);
+  const currentDistinctive = distinctiveTokens(current, contextTokens);
+  const priorDistinctive = distinctiveTokens(prior, contextTokens);
   const sharedDistinctive = shared(currentDistinctive, priorDistinctive);
   const currentColors = colorTokens(current);
   const priorColors = colorTokens(prior);
   const sharedObject = sharedDistinctive.some((token) => !COLORS.has(token));
-  const colorReentry = currentColors.length > 0 && priorColors.length > 0 && currentColors.some((token) => !priorColors.includes(token)) && priorColors.some((token) => !currentColors.includes(token));
+  const colorReentry =
+    currentColors.length > 0 &&
+    priorColors.length > 0 &&
+    currentColors.some((token) => !priorColors.includes(token)) &&
+    priorColors.some((token) => !currentColors.includes(token));
 
   if (sharedStates.length > 0 && sharedDistinctive.length > 0) return 0.98;
   if (sharedStates.length > 0) return 0.9;
@@ -86,11 +104,12 @@ export function detectAuthorMemoryContinuity(
   priorAnchors: readonly string[],
 ): string[] {
   if (!currentEvents.length || !priorAnchors.length) return [];
+  const contextTokens = deriveContextTokens(priorAnchors);
 
   return currentEvents
     .filter((current) => {
       const currentLabel = current.label.trim();
-      return priorAnchors.some((prior) => continuityStrength(currentLabel, prior) >= 0.78);
+      return priorAnchors.some((prior) => continuityStrength(currentLabel, prior, contextTokens) >= 0.78);
     })
     .map((current) => current.id)
     .slice(0, 24);
@@ -101,10 +120,11 @@ export function summarizeAuthorMemoryContinuity(
   priorAnchors: readonly string[],
 ): string[] {
   if (!currentEvents.length || !priorAnchors.length) return [];
+  const contextTokens = deriveContextTokens(priorAnchors);
 
   return currentEvents.flatMap((current) => {
     const matches = priorAnchors
-      .map((prior) => ({ prior, strength: continuityStrength(current.label, prior) }))
+      .map((prior) => ({ prior, strength: continuityStrength(current.label, prior, contextTokens) }))
       .filter((match) => match.strength >= 0.78)
       .sort((a, b) => b.strength - a.strength)
       .slice(0, 2);
