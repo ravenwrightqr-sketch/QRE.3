@@ -55,10 +55,10 @@ export async function authorMicroBeats(
       scene.kind === "payoff" || index === scenes.length - 1
         ? "payoff"
         : index === 0
-          ? "hook"
+          ? "jolt"
           : scene.kind === "turn"
             ? "turn"
-            : "jolt",
+            : "reveal",
     order: index,
     attentionRole: index === scenes.length - 1 ? "payoff" : "next_cut_pressure",
     operator: index === 0 ? "reframe" : index === scenes.length - 1 ? "payoff" : "character_lens",
