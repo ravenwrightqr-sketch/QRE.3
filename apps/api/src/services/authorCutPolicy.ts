@@ -103,8 +103,12 @@ function compression(text: string): number {
   const count = words(text).length;
   if (!count) return 0;
   if (count <= 7) return 1;
-  if (count <= 10) return 0.5;
-  return 0.1;
+  if (count <= 12) return 0.96;
+  if (count <= 18) return 0.9;
+  if (count <= 25) return 0.82;
+  if (count <= 35) return 0.7;
+  if (count <= 50) return 0.55;
+  return 0.42;
 }
 
 function implication(text: string): number {
@@ -119,7 +123,7 @@ function explanation(text: string): number {
   let value = 0;
   if (EXPLANATION.test(text)) value += 0.6;
   if (META_ADDRESS.test(text)) value += 0.3;
-  if (words(text).length > 10) value += 0.15;
+  if (words(text).length > 20) value += 0.15;
   return Math.min(1, value);
 }
 
@@ -169,7 +173,6 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   const questionLeak = 0;
 
   if (!text) reasons.push("empty");
-  if (wordCount > 12) reasons.push("too-long");
   if (INTERNAL.test(text)) reasons.push("meta-language");
   if (CAMERA.test(text)) reasons.push("camera-language");
   if (GENERIC.test(text)) reasons.push("generic-prose");
