@@ -171,6 +171,7 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   const factRestatement = sourceText(world).some((source) => clean(source).toLowerCase() === text.toLowerCase()) ? 1 : 0;
   const semanticDensity = Math.min(1, compressed * 0.6 + implied * 0.4);
   const questionLeak = 0;
+  const sourceExactPayoffRepetition = intent.role === "payoff" && factRestatement === 1;
 
   if (!text) reasons.push("empty");
   if (INTERNAL.test(text)) reasons.push("meta-language");
@@ -180,7 +181,7 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   if (invented >= 0.75) reasons.push("invention-risk");
   if (explained >= 0.8) reasons.push("explanation-heavy");
   if (grounded < 0.2 && wordCount > 2) reasons.push("weak-grounding");
-  if (repeated >= 0.98 && priorCuts.length) reasons.push("repetition");
+  if (repeated >= 0.98 && priorCuts.length && !sourceExactPayoffRepetition) reasons.push("repetition");
   if (referenceCost >= 0.55 && explained >= 0.5 && novel < 0.25) reasons.push("wasted-subject-reference");
 
   return {
