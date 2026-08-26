@@ -60,7 +60,7 @@ const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|fade to|scene opens|
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|living world|emotional journey|positive transformation)\b/i;
 const EXPLANATION = /\b(?:because|therefore|which means|this means|in other words|the reason|symbolizes?|represents?|shows that|explains?)\b/i;
 const FUTURE = /\b(?:will always|will never|forever|from now on|in the future|ever again)\b/i;
-const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|hides?|opens?|closes?|throws?|pulls?|pushes?)\b/i;
+const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|opens?|closes?|throws?|pulls?|pushes?|swipes?|swiped|flicks?|flicked|snatches?|snatched|seizes?|seized|plucks?|plucked|scoops?|scooped|yanks?|yanked|tugs?|tugged)\b/i;
 const META_ADDRESS = /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
 
 function sourceText(world: CutWorld): string[] {
