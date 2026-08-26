@@ -2,10 +2,8 @@
  * QRE MOUTH INTERPRETATION
  *
  * Reality is immutable, but viewer-facing language may interpret the supplied
- * reality. This evaluator distinguishes:
- * - direct source restatement
- * - grounded creative interpretation
- * - unsupported concrete world invention
+ * reality. This evaluator distinguishes direct source restatement, grounded
+ * creative interpretation, and unsupported concrete world invention.
  *
  * The entire supplied reality corpus is available for interpretation. A beat
  * may therefore derive meaning from other supplied facts without pretending
@@ -32,16 +30,16 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
   return hits / Math.max(1, a.size);
 };
 
-const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|negotiations?|mission|round|danger|victory|upgrade|boss|royal|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season)\b/i;
+const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|negotiations?|mission|round|danger|victory|upgrade|boss|royal|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally)\b/i;
 
-const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season)\b/i;
+const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season|devotion)\b/i;
 
 /* Concrete verbs that normally assert a new world event rather than merely frame existing reality. */
-const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared)\b/i;
+const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?)\b/i;
 
-const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage)\b/i;
+const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage|sidewalk|road|house)\b/i;
 const FRAME_WORDS = /\b(?:mission|operation|round|boss|quest|game|speedrun|knockout|stun|finish|victory|championship|negotiations?|deal|terms?|case|verdict|heist|noir|royal|romance|rebel|pit\s*stop|upgrade|showtime|objective)\b/i;
-const HYPERBOLIC_FRAMING = /\b(?:everywhere|always|never|best|ultimate|dream|season|serious|finally|apparently|naturally|clearly|of course|nothing but|all|entire)\b/i;
+const HYPERBOLIC_FRAMING = /\b(?:everywhere|always|never|best|ultimate|dream|season|serious|finally|apparently|naturally|clearly|of course|nothing but|all|entire|only)\b/i;
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -82,6 +80,7 @@ export function evaluateMouthInterpretation(input: {
   const wholeSource = tokens(wholeSourceText);
   const sourceEventCount = input.envelope.events.length;
   const sourceHasAction = input.envelope.suppliedActions.length > 0;
+  const sourceHasState = input.envelope.suppliedStates.length > 0;
 
   const sourceAnchor = overlap(current, beatSource);
   const wholeSourceAnchor = overlap(current, wholeSource);
@@ -116,24 +115,30 @@ export function evaluateMouthInterpretation(input: {
   }
 
   /*
-   * A grounded creative interpretation may use the entire supplied world,
-   * not just the event currently being realized. This is the distinction that
-   * lets "An apple, finally." and "A joyous tumble." survive without allowing
-   * arbitrary scene invention.
+   * Once concrete invention is ruled out, a short viewer-facing interpretation
+   * can legitimately derive attitude from the supplied reality's existing
+   * action/state shape even when the exact paraphrase has low lexical overlap.
+   * This is the creative-bet lane: allowed, but it remains below direct source
+   * grounding in the score unless it actually earns strong interpretation.
    */
-  const derivedInterpretationAnchor = Math.max(
-    sourceAnchor,
-    wholeSourceAnchor,
-  );
+  const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 2;
+  const derivedInterpretationAnchor = Math.max(sourceAnchor, wholeSourceAnchor);
+  const shortInterpretation = text.split(/\s+/).filter(Boolean).length <= 8;
+  const safeCreativeBet =
+    unsupportedConcreteRisk === 0 &&
+    literalRestatement === 0 &&
+    sourceShapeSupport &&
+    shortInterpretation;
 
   const creativeFraming = Math.max(
     0,
     Math.min(
       1,
-      (1 - literalRestatement) * 0.28 +
-        Math.max(0, derivedInterpretationAnchor - 0.08) * 0.42 +
-        framingSignal * 0.18 +
-        frameSupport * 0.12,
+      (1 - literalRestatement) * 0.24 +
+        Math.max(0, derivedInterpretationAnchor - 0.05) * 0.34 +
+        framingSignal * 0.2 +
+        frameSupport * 0.12 +
+        (safeCreativeBet ? 0.1 : 0),
     ),
   );
 
@@ -150,6 +155,7 @@ export function evaluateMouthInterpretation(input: {
   if (
     unsupportedConcreteRisk === 0 &&
     literalRestatement === 0 &&
+    !safeCreativeBet &&
     derivedInterpretationAnchor < 0.05 &&
     frameSupport < 0.8 &&
     !strongStatusFraming
@@ -165,6 +171,7 @@ export function evaluateMouthInterpretation(input: {
   if (framingSignal) reasons.push("viewer-facing-framing");
   if (strongStatusFraming) reasons.push("strong-status-framing");
   if (hyperbolicFraming) reasons.push("bounded-hyperbole");
+  if (safeCreativeBet) reasons.push("bounded-creative-bet");
   if (unsupportedConcreteRisk > 0) reasons.push("unsupported-concrete-invention");
   if (interpretive >= 0.45 && !literalRestatement) reasons.push("grounded-creative-interpretation");
 
@@ -179,8 +186,8 @@ export function evaluateMouthInterpretation(input: {
     accepted:
       Boolean(text) &&
       unsupportedConcreteRisk < 0.9 &&
-      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || strongStatusFraming) &&
-      (literalRestatement === 1 || interpretive >= 0.45),
+      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
+      (literalRestatement === 1 || interpretive >= 0.38),
     reasons,
   };
 }
