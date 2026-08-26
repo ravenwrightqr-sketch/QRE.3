@@ -60,7 +60,7 @@ const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|fade to|scene opens|
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|living world|emotional journey|positive transformation)\b/i;
 const EXPLANATION = /\b(?:because|therefore|which means|this means|in other words|the reason|symbolizes?|represents?|shows that|explains?)\b/i;
 const FUTURE = /\b(?:will always|will never|forever|from now on|in the future|ever again)\b/i;
-const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|opens?|closes?|throws?|pulls?|pushes?|swipes?|swiped|flicks?|flicked|snatches?|snatched|seizes?|seized|plucks?|plucked|scoops?|scooped|yanks?|yanked|tugs?|tugged)\b/i;
+const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|opens?|closes?|throws?|pulls?|pushes?|swipes?|flicks?|snatches?|seizes?|plucks?|scoops?|yanks?|tugs?)\b/i;
 const META_ADDRESS = /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
 
 function sourceText(world: CutWorld): string[] {
@@ -178,7 +178,7 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   if (CAMERA.test(text)) reasons.push("camera-language");
   if (GENERIC.test(text)) reasons.push("generic-prose");
   if (META_ADDRESS.test(text)) reasons.push("meta-audience-language");
-  if (invented >= 0.75) reasons.push("invention-risk");
+  if (invented >= 0.6) reasons.push("invention-risk");
   if (explained >= 0.8) reasons.push("explanation-heavy");
   if (grounded < 0.2 && wordCount > 2) reasons.push("weak-grounding");
   if (repeated >= 0.98 && priorCuts.length && !sourceExactPayoffRepetition) reasons.push("repetition");
