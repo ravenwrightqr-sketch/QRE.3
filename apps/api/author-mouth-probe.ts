@@ -3,15 +3,24 @@ import { localModelGenerate } from "./src/services/localModelRuntime.js";
 import { groundAuthorBeat } from "./src/services/authorBeatTruthGate.js";
 import { critiqueMouthCandidates } from "./src/services/authorMouthCritic.js";
 
-const raw = process.argv.slice(2).join(" ").trim();
-if (!raw) throw new Error('Usage: pnpm exec tsx apps/api/author-mouth-probe.ts "Coco returned happy with bows, balls, ties"');
+const rawArgs = process.argv.slice(2);
+const subjectFlagIndex = rawArgs.findIndex((value) => value === "--subject");
+const subject = subjectFlagIndex >= 0 ? String(rawArgs[subjectFlagIndex + 1] ?? "").trim() : "";
+const promptParts = rawArgs.filter((_, index) => index !== subjectFlagIndex && index !== subjectFlagIndex + 1);
+const raw = promptParts.join(" ").trim();
 
-const facts = raw.split(/[,\n.;â€¢]+/).map((x) => x.trim()).filter(Boolean);
-const subject = facts[0] ?? "the subject";
-const evidence = facts.slice(1);
+if (!subject || !raw) {
+  throw new Error(
+    'Usage: pnpm exec tsx apps/api/author-mouth-probe.ts --subject "Coco" "Coco was nervous, Coco had blue bows, Coco was happy after the bath, Coco jumped when picked up"',
+  );
+}
+
+const facts = raw.split(/[,\n.;•]+/).map((x) => x.trim()).filter(Boolean);
+const evidence = facts;
 
 console.log("=== QRE FAST MOUTH PROBE ===");
 console.log(`SUBJECT: ${subject}`);
+console.log(`IDENTITY AUTHORITY: explicit probe subject only; no gender inferred`);
 console.log(`EVIDENCE: ${evidence.join(" | ")}`);
 
 const grounded = await groundAuthorBeat({
@@ -40,7 +49,7 @@ const operators = [
   "WORDPLAY: exploit a genuine double meaning, homonym, or semantic collision already present in the supplied words.",
   "UNDERSTATEMENT: say less than the obvious interpretation and let the reader finish the thought.",
   "REVERSAL: invert the expected framing without inventing an event or physical action.",
-  "CHARACTER: give the subject an attitude or comic voice that is clearly expressive framing, not a new factual event.",
+  "CHARACTER: give the established subject an attitude or comic voice that is clearly expressive framing, not a new factual event.",
   "STATUS: make the supplied change feel like a status move, without inventing a new action or outcome.",
   "IMPLICATION: leave one earned meaning unstated so the reader completes it.",
 ] as const;
@@ -55,11 +64,11 @@ const candidateResults = await Promise.all(operators.map(async (operator) => {
           "Generate exactly ONE candidate line.",
           operator,
           "Use only APPROVED_EVIDENCE as factual material.",
+          "The subject identity is exactly the explicit SUBJECT field. Do not infer gender, age, species, relationship status, or personality beyond supplied evidence.",
           "Do not invent a concrete event, location, object, physical placement, reaction, outcome, second character, chronology, or wardrobe state.",
-          "Identity metadata is context, not a plot device unless explicitly made relevant.",
+          "Do not use she/he/her/his unless that identity is explicitly supported by supplied evidence.",
           "FEEL-GOOD DOES NOT MEAN WHOLESOME: the line should create an earned viewer reward appropriate to the supplied beat.",
           "Viewer reward may be humor, tension, surprise, attitude, menace, irony, mischief, warmth, recognition, relief, curiosity, status, beauty, shock, or a sharp emotional turn.",
-          "Prefer a line that makes the viewer feel the semantic change instead of explaining it.",
           "After the subject is established, omit the subject name unless repeating it improves emphasis, rhythm, or the punch.",
           "Prefer 3-10 words, but do not flatten a stronger phrase just to hit a word count.",
           "Never explain the joke.",
