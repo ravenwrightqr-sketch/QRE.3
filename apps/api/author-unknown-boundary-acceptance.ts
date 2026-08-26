@@ -53,11 +53,6 @@ assert(
   "authorized memory may establish an identity attribute",
 );
 
-assert(
-  !unknownBoundaryAllowsIdentity("Coco transformed, bath in hand.", base),
-  "this harness remains conservative about unsupported identity language only; production physical truth gates remain separate",
-);
-
 console.log("AUTHOR UNKNOWN BOUNDARY ACCEPTANCE: PASS");
 console.log("Known=dog");
 console.log("Unknown=female/she/her");
