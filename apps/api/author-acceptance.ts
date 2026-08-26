@@ -1,19 +1,18 @@
-import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
+import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 
 const subject = process.argv[2] || "Coco";
 const facts = (process.argv[3] || "came in nervous|got a bath|stole a blue bow|left looking fabulous")
   .split("|")
   .map((value) => value.trim())
   .filter(Boolean);
-const prompt = process.argv[4] || "Write a 5-line sequence about Coco. Final line: Peace was temporary.";
+const prompt = process.argv[4] || "Write a short QRE-style living memory.";
 
-const result = await authorBrainUniversal({
+const result = await authorBrainCanonical({
   prompt,
   subject,
   facts,
   sourceMoments: facts,
   memoryContext: [],
-  trajectory: [],
   creativeLearningContext: [],
 });
 
@@ -21,7 +20,7 @@ const qualityStatus = String(result.diagnostics.qualityStatus ?? "UNKNOWN");
 const renderable = Boolean(result.diagnostics.renderable);
 
 console.log("=".repeat(72));
-console.log("QRE AUTHOR ACCEPTANCE · ONE BRAIN / ONE MODEL CALL");
+console.log("QRE AUTHOR ACCEPTANCE · CANONICAL BRAIN / ONE MODEL REALIZATION");
 console.log("=".repeat(72));
 console.log(`MODEL: ${String(result.diagnostics.model ?? "unknown")}`);
 console.log(`MODEL CALLS: ${String(result.diagnostics.modelCalls ?? 0)}`);
@@ -32,21 +31,23 @@ console.log(`RENDERABLE: ${renderable ? "YES" : "NO"}`);
 console.log(`SCORE: ${String(result.diagnostics.selectedScore ?? 0)}`);
 
 if (qualityStatus !== "ACCEPTED") {
-  console.log("\n--- REJECTED MODEL OUTPUT ---");
+  console.log("\n--- REJECTED ---");
   console.log(JSON.stringify(result.diagnostics.rejectedCandidates ?? [], null, 2));
-  console.log("--- NO MODEL PROSE RENDERED ---");
 } else {
-  console.log("\n--- OUTPUT ---");
+  console.log("\n--- QRE SEQUENCE ---");
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.text}`));
-  console.log("--- END OUTPUT ---");
+  console.log("--- END QRE SEQUENCE ---");
 }
 
 if (result.diagnostics.modelCalls !== 1) {
-  throw new Error("AUTHOR INVARIANT FAILED: expected exactly one model call");
+  throw new Error("AUTHOR INVARIANT FAILED: expected exactly one model realization call");
 }
 if (!result.diagnostics.complete) {
-  throw new Error("AUTHOR INVARIANT FAILED: no complete authored sequence");
+  throw new Error("AUTHOR INVARIANT FAILED: no complete grounded authored sequence");
 }
 if (!result.sequence || result.scenes.length !== result.sequence.cuts.length) {
   throw new Error("AUTHOR INVARIANT FAILED: scene/sequence count mismatch");
+}
+if (result.sequence.cuts.some((cut) => cut.sourceIds.length === 0)) {
+  throw new Error("AUTHOR INVARIANT FAILED: every cut must retain source provenance");
 }
