@@ -10,6 +10,7 @@ import type {
   MouthCandidateBatch,
   MouthCandidateBeat,
   MouthCandidateSelection,
+  ViewerStateCut,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
@@ -64,6 +65,10 @@ function overlap(a: Set<string>, b: Set<string>): number {
   return hits / Math.max(1, a.size);
 }
 
+function metric(value: number): number {
+  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
+}
+
 function phraseSupportedText(candidateText: string, label: string): boolean {
   const phrase = clean(label).toLowerCase();
   const candidate = clean(candidateText).toLowerCase();
@@ -102,6 +107,105 @@ function endpointExactForBeat(
     (label) =>
       normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase(),
   );
+}
+
+function deriveViewerStateCut(
+  beat: MouthCandidateBeat,
+  index: number,
+  beats: readonly MouthCandidateBeat[],
+  envelope: RealityEnvelope,
+): ViewerStateCut {
+  const currentIds = unique(beat.eventIds ?? []);
+  const priorIds = new Set(
+    beats
+      .slice(0, index)
+      .flatMap((item) => item.eventIds ?? [])
+      .filter(Boolean),
+  );
+  const newEventRatio = metric(
+    currentIds.length
+      ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length
+      : 0,
+  );
+
+  const currentSource = sourceForBeat(beat, envelope).join(" ");
+  const priorSource = beats
+    .slice(0, index)
+    .flatMap((item) => sourceForBeat(item, envelope))
+    .join(" ");
+  const continuity = priorSource
+    ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource)))
+    : 0.55;
+  const contrast = metric((1 - continuity) * 0.7 + newEventRatio * 0.3);
+  const interruption = metric(
+    newEventRatio * 0.62 +
+      contrast * 0.28 +
+      (index === 0 ? 0.1 : 0),
+  );
+  const curiosityPressure = metric(
+    beat.paysOff?.length
+      ? 0.12
+      : beat.relationKinds?.length
+        ? 0.9
+        : index < beats.length - 1
+          ? 0.72
+          : 0.42,
+  );
+  const tempo = metric(
+    index === 0
+      ? 0.45
+      : Math.abs(interruption - (index > 1 ? 0.55 : 0.35)) * 0.9 + 0.35,
+  );
+  const payoffPressure = metric(
+    beat.paysOff?.length
+      ? 1
+      : index === beats.length - 2
+        ? 0.78
+        : Math.min(0.7, 0.25 + index * 0.08),
+  );
+  const stateShift = metric(
+    contrast * 0.45 +
+      interruption * 0.35 +
+      curiosityPressure * 0.2,
+  );
+  const predictionError = metric(
+    contrast * 0.55 + newEventRatio * 0.45,
+  );
+
+  let attentionMove: ViewerStateCut["attentionMove"];
+  if (beat.paysOff?.length) attentionMove = "land";
+  else if (index === 0) attentionMove = "orient";
+  else if (interruption >= 0.78) attentionMove = "interrupt";
+  else if (contrast >= 0.72) attentionMove = "recontextualize";
+  else if (curiosityPressure >= 0.78) attentionMove = "tighten";
+  else if (stateShift >= 0.7) attentionMove = "escalate";
+  else attentionMove = "release";
+
+  const stateNames: Record<ViewerStateCut["attentionMove"], { before: string; after: string }> = {
+    orient: { before: "uncommitted", after: "oriented" },
+    interrupt: { before: "settled", after: "disrupted" },
+    tighten: { before: "curious", after: "pressurized" },
+    recontextualize: { before: "certain", after: "reframed" },
+    escalate: { before: "engaged", after: "pressurized" },
+    release: { before: "pressurized", after: "breathing" },
+    land: { before: "expectant", after: "resolved" },
+  };
+  const names = stateNames[attentionMove];
+
+  return {
+    beforeState: names.before,
+    afterState: names.after,
+    attentionMove,
+    curiosityPressure,
+    contrast,
+    interruption,
+    accumulation: metric(continuity * 0.7 + (1 - newEventRatio) * 0.3),
+    tempo,
+    payoffPressure,
+    stateShift,
+    predictionError,
+    evidenceEventIds: currentIds,
+  };
 }
 
 function legal(
@@ -194,19 +298,31 @@ export function buildMouthCandidateMessages(
     .filter((value) => !PLANNING_RESIDUE.test(value))
     .slice(0, 40);
 
+  const viewerBeats = input.beats.map((beat, index) => {
+    const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, index, input.beats, input.envelope);
+    return {
+      order: beat.order,
+      eventIds: beat.eventIds,
+      sourceLabels: sourceForBeat(beat, input.envelope),
+      viewerState,
+      terminal: Boolean(beat.paysOff?.length),
+    };
+  });
+
   const system = [
     "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
-    "The upstream Author already chose the reality, sequence, frame, and viewer-state movement.",
+    "The upstream Author already chose the reality and evidence. Your input now describes the viewer-state transition, not the planning process.",
     "Your job is language realization only.",
     "A cut can be one word, one sentence, several short sentences, or longer when the wording itself is the hit.",
     "Use the minimum language required for the cut to land. There is no fixed word count.",
-    "Do not expand merely to sound cinematic. Do not shorten merely to sound punchy.",
     "Optimize for attention, curiosity, contrast, interruption, accumulation, attitude, tempo, and payoff.",
-    "Tempo is variation in viewer state, not constant speed. A quiet cut can make the next interruption hit harder.",
-    "For non-terminal relationship/change beats, express the approved semantic movement as attitude, status, implication, contrast, comic consequence, or another grounded interpretive move.",
-    "A rhetorical question is allowed as a viewer-facing device; it is not a request for user information.",
+    "Write what changes in the viewer. Do not explain why the beat was selected.",
+    "A quiet cut can make the next interruption hit harder. A short interruption can land after a longer thought.",
+    "Use attitude, implication, contrast, compression, callbacks, status shifts, or grounded metaphor when they arise naturally from the supplied evidence.",
     "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes.",
-    "Do not output planner language, labels, diagnostics, or explanations.",
+    "Do not output planner language, role names, attention labels, diagnostics, explanations, or strategy vocabulary.",
+    "The viewer-state fields are steering signals, not facts and not prose to repeat.",
+    "SourceLabels and evidenceEventIds are the factual material you may use.",
     "Return JSON only: {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\"]}]}",
   ].join("\n");
 
@@ -215,24 +331,12 @@ export function buildMouthCandidateMessages(
     {
       role: "user",
       content: JSON.stringify({
-        task: "realize_approved_beats",
+        task: "realize_viewer_state_cuts",
         subject: input.envelope.subject,
         lens: input.lens ?? "natural, specific, attention-forward",
         suppliedEvidence: evidence,
         priorTexts: input.priorTexts ?? [],
-        beats: input.beats.map((beat) => ({
-          order: beat.order,
-          role: beat.role,
-          attentionFunction: beat.attentionFunction,
-          creativeMove: beat.creativeMove,
-          realizationMode: beat.realizationMode,
-          eventIds: beat.eventIds,
-          sourceLabels: sourceForBeat(beat, input.envelope),
-          change: PLANNING_RESIDUE.test(clean(beat.change)) ? "" : clean(beat.change),
-          next: PLANNING_RESIDUE.test(clean(beat.next)) ? "" : clean(beat.next),
-          frontier: PLANNING_RESIDUE.test(clean(beat.frontier)) ? "" : clean(beat.frontier),
-          paysOff: beat.paysOff,
-        })),
+        beats: viewerBeats,
       }),
     },
   ];
@@ -299,9 +403,6 @@ export function scoreMouthCandidate(input: {
   const candidateLegal = legal(modelText, input.beat, input.envelope);
   const fallbackTexts = groundedFallbackTexts(input.beat, input.envelope);
 
-  // A rejected model line stays rejected. We never mutate it into an
-  // apparently-authorized model candidate. When the model fails truth,
-  // the caller still receives a separately marked grounded fallback.
   const text = candidateLegal ? modelText : (fallbackTexts[0] ?? modelText);
   const isFallback = !candidateLegal && text !== modelText && Boolean(text);
   const effectiveLegal = legal(text, input.beat, input.envelope);
