@@ -161,8 +161,90 @@ function enrichMovieCandidate(
   };
 }
 
+const AUTO_LENS_RULES: ReadonlyArray<{
+  lens: string;
+  terms: readonly string[];
+  relationKinds: readonly RealityGraph["relations"][number]["kind"][];
+  base: number;
+}> = [
+  { lens: "game", terms: ["round", "level", "score", "boost", "power", "stage", "booted", "cleared", "complete", "completed", "next"], relationKinds: ["changes", "causes", "converges"], base: 0.46 },
+  { lens: "spy", terms: ["logged", "location", "geo", "watched", "corner", "evidence", "tracked", "target", "mission"], relationKinds: ["involves", "causes", "before", "after"], base: 0.43 },
+  { lens: "heist", terms: ["evidence", "stole", "stolen", "secured", "operation", "exit", "clean", "cleaned", "disappeared"], relationKinds: ["causes", "changes", "converges"], base: 0.4 },
+  { lens: "courtroom", terms: ["case", "defense", "court", "judge", "evidence", "verdict", "approved", "denied", "guilty", "innocent"], relationKinds: ["changes", "contrasts", "causes"], base: 0.4 },
+  { lens: "horror", terms: ["ghost", "shadow", "blood", "dead", "dark", "watching", "corner", "haunted", "disappeared", "quiet"], relationKinds: ["before", "after", "repeats", "contrasts", "changes"], base: 0.39 },
+  { lens: "noir", terms: ["case", "evidence", "quiet", "late", "dark", "watched", "secret", "missing", "returned"], relationKinds: ["before", "after", "changes", "recontextualizes"], base: 0.37 },
+  { lens: "romantic", terms: ["met", "rave", "eyes", "familiar", "connection", "talked", "every", "day", "vows", "married"], relationKinds: ["converges", "repeats", "recontextualizes", "changes"], base: 0.42 },
+  { lens: "documentary", terms: ["time", "miles", "location", "started", "finished", "recorded", "measured", "logged"], relationKinds: ["before", "after", "involves", "belongs_to"], base: 0.34 },
+];
+
+function evidenceText(input: AuthorCognitionInput): string {
+  return [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...((input.realityGraph?.events ?? []).map((event) => event.label))]
+    .map(clean)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function nativeRealityStrength(input: AuthorCognitionInput): number {
+  const events = input.realityGraph?.events ?? [];
+  if (!events.length) return 0.5;
+
+  const averageSpecificity = events.reduce((sum, event) => {
+    const tokenCount = clean(event.label).split(/\s+/).filter(Boolean).length;
+    const entityCount = event.entities?.length ?? 0;
+    return sum + Math.min(1, tokenCount / 9 + entityCount / 12);
+  }, 0) / events.length;
+
+  const strongAction = events.filter((event) =>
+    /\b(?:dodg(?:e|ed)|watch(?:ing|ed)?|met|talked|locked|opened|closed|returned|walked|ran|cleaned|finished|started|danced|married|kissed|built|bought|sold)\b/i.test(event.label),
+  ).length;
+
+  return metric(averageSpecificity * 0.72 + Math.min(1, strongAction / Math.max(1, events.length)) * 0.28);
+}
+
+function autoLensCandidates(input: AuthorCognitionInput): CharacterFrameCandidate[] {
+  const text = evidenceText(input);
+  const relationKinds = new Set(input.realityGraph?.relations.map((relation) => relation.kind) ?? []);
+  const native = nativeRealityStrength(input);
+
+  const scored = AUTO_LENS_RULES.map((rule) => {
+    const termHits = rule.terms.filter((term) => text.includes(term)).length;
+    const relationHits = rule.relationKinds.filter((kind) => relationKinds.has(kind)).length;
+    const keywordScore = Math.min(1, termHits / 4);
+    const relationScore = Math.min(1, relationHits / 3);
+    const confidence = metric(rule.base + keywordScore * 0.34 + relationScore * 0.16);
+    return {
+      frame: rule.lens,
+      reason: `${rule.lens} fits supplied vocabulary/relations without changing reality.`,
+      confidence,
+    };
+  }).sort((a, b) => b.confidence - a.confidence);
+
+  const best = scored[0];
+  if (!best || best.confidence < 0.68 || native >= best.confidence + 0.12) {
+    return [{
+      frame: "NONE",
+      reason: "No creative lens materially improves the supplied reality; preserve the native material.",
+      confidence: metric(Math.max(0.7, native)),
+    }];
+  }
+
+  return [best, {
+    frame: "NONE",
+    reason: "Natural reality remains the safe fallback when no lens is materially stronger.",
+    confidence: metric(Math.max(0.55, native)),
+  }];
+}
+
+function resolveLens(input: AuthorCognitionInput): string {
+  const explicit = clean(input.lens);
+  if (explicit && explicit.toLowerCase() !== "let qre decide") return explicit;
+  return autoLensCandidates(input)[0]?.frame ?? "NONE";
+}
+
 function movieFor(
   input: AuthorCognitionInput,
+  lens: string,
 ): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate } {
   if (input.movieMode === false || !input.realityGraph) return { latentMovieCandidates: [] };
 
@@ -171,10 +253,10 @@ function movieFor(
     searchUniversalMovieCandidates({
       graph: input.realityGraph,
       subject: input.subject,
-      lens: input.lens,
+      lens,
       limit: 10,
     }),
-  ).map((candidate) => enrichMovieCandidate(candidate, input.realityGraph, input.lens));
+  ).map((candidate) => enrichMovieCandidate(candidate, input.realityGraph, lens));
 
   return { latentMovieCandidates: candidates, selectedMovie: candidates[0] };
 }
@@ -204,11 +286,14 @@ function objectRelationships(input: AuthorCognitionInput): string[] {
   );
 }
 
-function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undefined): CharacterFrameCandidate[] {
+function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undefined, selectedLens: string): CharacterFrameCandidate[] {
   const explicit = clean(input.lens);
   if (explicit && explicit.toLowerCase() !== "let qre decide") {
     return [{ frame: explicit, reason: "explicit user perspective", confidence: 0.95 }];
   }
+
+  const automatic = autoLensCandidates(input);
+  if (automatic[0]?.frame === selectedLens && automatic[0]?.frame !== "NONE") return automatic;
 
   const relationKinds = new Set(input.realityGraph?.relations.map((r) => r.kind) ?? []);
   const out: CharacterFrameCandidate[] = [];
@@ -216,17 +301,18 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
   if (relationKinds.has("recontextualizes")) out.push({ frame: "recontextualization", reason: "one supplied detail changes another detail's meaning", confidence: 0.9 });
   if (relationKinds.has("repeats") || (input.round ?? 1) > 1) out.push({ frame: "callback", reason: "the world contains continuity material", confidence: 0.88 });
   if (movie?.storyThesis?.semanticTurn) out.push({ frame: "character consequence", reason: "the selected movie has a semantic turn", confidence: 0.86 });
-  return out.length ? out : [{ frame: "NONE", reason: "the natural reality is the strongest available lens", confidence: 1 }];
+  return out.length ? out : automatic;
 }
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
-  const movie = movieFor(input);
+  const selectedLens = resolveLens(input);
+  const movie = movieFor(input, selectedLens);
   const priorExperienceStates = parsePriorExperienceStates(input.priorStrategies);
   const experienceState = input.realityGraph && movie.selectedMovie
     ? buildAuthorExperienceState({
         graph: input.realityGraph,
         movie: movie.selectedMovie,
-        lens: input.lens,
+        lens: selectedLens,
         priorScenes: input.priorScenes,
         memoryContext: input.memoryContext,
         priorExperienceStates,
@@ -244,12 +330,12 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     statusPosture: contradictionList[0] ?? "defined by supplied reality",
     emotionalPosture: contradictionList[0] ? `emotion sits inside ${contradictionList[0]}` : "emotion should be inferred from supplied evidence",
     objectRelationships: objectRelationships(input),
-    creativeFrames: frames(input, movie.selectedMovie),
+    creativeFrames: frames(input, movie.selectedMovie, selectedLens),
     allowedMoves: ["metaphor", "personification", "status language", "double meaning", "comic framing", "understatement", "callback", "recontextualization", "revisit", "future tease"],
     avoidedMoves: ["invented concrete events", "invented people", "invented locations", "invented reactions", "invented chronology", "planner language", "analytic explanation"],
   };
 
-  const selectedFrame = characterRead.creativeFrames[0]?.frame ?? "NONE";
+  const selectedFrame = selectedLens;
   const attentionCandidates: AttentionCandidate[] = [
     { strategy: "graph_relationship", reason: "Prefer supplied relationships over isolated facts.", score: 100 },
     { strategy: "viewer_state_change", reason: "Prefer cuts that materially change attention, curiosity, expectation, or meaning.", score: 99 },
@@ -285,6 +371,8 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     "Creative language may change framing and attitude but never source truth.",
     "A cut should change the viewer state through attention, curiosity, contrast, interruption, accumulation, or payoff.",
     "Finish when the selected payoff lands; do not manufacture a final event.",
+    "Treat NONE as a valid authorial lens decision when the supplied material itself has stronger character than a genre frame.",
+    "A user-selected lens is authoritative and must be preserved exactly; automatic lens selection is subordinate to it.",
     ...(experienceState ? summarizeAuthorExperienceState(experienceState) : []),
   ];
 
