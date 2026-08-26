@@ -34,10 +34,10 @@ const unique = (values: readonly unknown[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
 const META = /\b(?:qre|compiler|cognition|meaning spine|beat graph|information frontier|planner|planning|operator mix|viewer sees|audience sees|writing process)\b/i;
-const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|swipes?|swiped|grips?|grabbed|throws?|threw|pulls?|pulled|pushes?|pushed|kicks?|kicked|touches?|touched|holds?|held|carries?|carried|opens?|opened|closes?|closed)\b/i;
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|new chapter)\b/i;
-const SEMANTIC_TURN_LANGUAGE = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready|now|fear|control|own|agency|status|mine|master|boss|command|brave|bravery|place|belongs|belongs? to|in charge|takes over|took over|owns?|owned)\b/i;
 const PLANNING_RESIDUE = /\b(?:perform the approved semantic change|maintain forward movement|anchor the realization|allow later supplied evidence|preserve the source-derived endpoint|terminate on the supplied endpoint|do not merely restate|what relationship deserves|what becomes connected|what does this relationship make newly meaningful|what is now true at the supplied ending|the supplied endpoint lands|establish supplied evidence)\b/i;
+const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|swipes?|swiped|grips?|grabbed|throws?|threw|pulls?|pulled|pushes?|pushed|kicks?|kicked|touches?|touched|holds?|held|carries?|carried|opens?|opened|closes?|closed)\b/i;
+const SEMANTIC_TURN_LANGUAGE = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready|now|fear|control|own|agency|status|mine|master|boss|command|brave|bravery|place|belongs|belongs? to|in charge|takes over|took over|owns?|owned)\b/i;
 
 const normalizeToken = (token: string): string => {
   const lower = token.toLowerCase();
@@ -48,14 +48,14 @@ const normalizeToken = (token: string): string => {
   return lower;
 };
 
-const tokens = (text: string): string[] =>
-  clean(text)
-    .toLowerCase()
-    .split(/[^a-z0-9'-]+/i)
-    .filter((token) => token.length >= 3)
-    .map(normalizeToken);
-
-const tokenSet = (text: string): Set<string> => new Set(tokens(text));
+const tokenSet = (text: string): Set<string> =>
+  new Set(
+    clean(text)
+      .toLowerCase()
+      .split(/[^a-z0-9'-]+/i)
+      .filter((token) => token.length >= 3)
+      .map(normalizeToken),
+  );
 
 function overlap(a: Set<string>, b: Set<string>): number {
   if (!a.size || !b.size) return 0;
@@ -68,74 +68,62 @@ function phraseSupportedText(candidateText: string, label: string): boolean {
   const phrase = clean(label).toLowerCase();
   const candidate = clean(candidateText).toLowerCase();
   if (!phrase || !candidate) return false;
-  return candidate.includes(phrase) || overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5;
+  return (
+    candidate.includes(phrase) ||
+    overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5
+  );
 }
 
 function eventLabel(envelope: RealityEnvelope, id: string): string {
   return clean(envelope.events.find((event) => event.id === id)?.label);
 }
 
-function sourceForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+function sourceForBeat(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string[] {
   return unique([
     ...(beat.eventIds ?? []).map((id) => eventLabel(envelope, id)),
-    ...(beat.setsUp ?? []).map((id) => eventLabel(envelope, id) || id),
-    ...(beat.paysOff ?? []).map((id) => eventLabel(envelope, id) || id),
+    ...(beat.setsUp ?? []).map((value) => eventLabel(envelope, value) || value),
+    ...(beat.paysOff ?? []).map((value) => eventLabel(envelope, value) || value),
   ]);
 }
 
-function safeSemanticSignals(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  return unique([
-    ...sourceForBeat(beat, envelope),
-  ].filter((value) => !PLANNING_RESIDUE.test(value)));
-}
-
-function fallback(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  const labels = sourceForBeat(beat, envelope);
-  const first = clean(labels[0] ?? envelope.subject ?? "");
-  const second = clean(labels[1] ?? "");
-  const attention = clean(beat.attentionFunction ?? beat.role).toLowerCase();
-  const out: string[] = [];
-
-  if (beat.paysOff?.length && /payoff|release/i.test(attention)) {
-    if (first) out.push(first);
-    return out;
-  }
-
-  if (first) out.push(first);
-  if (first && second && /reframe|contrast|turn|escalation|callback|payoff|release/i.test(attention)) {
-    out.push(`${first}. ${second}.`);
-  }
-  if (first && /hook|arrival|establish/i.test(attention)) out.push(`${first}.`);
-  if (first && /reframe|turn/i.test(attention)) out.push(`${first}, apparently.`);
-  if (first && /escalation/i.test(attention)) out.push(`${first}. Still not settled.`);
-  if (beat.next && /continuation/i.test(attention)) out.push("More to come.");
-
-  return unique(out).slice(0, 8);
-}
-
-function endpointExactForBeat(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
-  const labels = beat.paysOff?.length
-    ? beat.paysOff.map((value) => eventLabel(envelope, value) || clean(value)).filter(Boolean)
-    : [];
+function endpointExactForBeat(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): boolean {
+  const labels = (beat.paysOff ?? [])
+    .map((value) => eventLabel(envelope, value) || clean(value))
+    .filter(Boolean);
   const normalized = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
-  return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase());
+  return labels.some(
+    (label) =>
+      normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase(),
+  );
 }
 
-function legal(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
+function legal(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): boolean {
   const value = clean(text);
-  if (!value || META.test(value) || GENERIC.test(value) || PLANNING_RESIDUE.test(value)) return false;
+  if (!value || META.test(value) || GENERIC.test(value) || PLANNING_RESIDUE.test(value)) {
+    return false;
+  }
 
   const sourceText = sourceForBeat(beat, envelope).join(" ");
-  const semanticText = safeSemanticSignals(beat, envelope).join(" ");
   const current = tokenSet(value);
   const source = tokenSet(sourceText);
-  const semantic = tokenSet(semanticText);
   const sourceOverlap = overlap(current, source);
-  const semanticOverlap = overlap(current, semantic);
   const requiredIds = unique(beat.eventIds ?? []);
   const requiredEvents = envelope.events.filter((event) => requiredIds.includes(event.id));
   const eventSupported = requiredEvents.some(
-    (event) => phraseSupportedText(value, event.label) || overlap(current, tokenSet(event.label)) >= 0.25,
+    (event) =>
+      phraseSupportedText(value, event.label) ||
+      overlap(current, tokenSet(event.label)) >= 0.25,
   );
   const semanticBeat = Boolean(
     beat.relationKinds?.length ||
@@ -143,23 +131,68 @@ function legal(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope
         `${beat.attentionFunction ?? ""} ${beat.role ?? ""}`,
       ),
   );
+
   const groundedEnough =
     sourceOverlap >= 0.16 ||
-    semanticOverlap >= 0.16 ||
     eventSupported ||
     (semanticBeat && SEMANTIC_TURN_LANGUAGE.test(value)) ||
     endpointExactForBeat(value, beat, envelope);
 
   if (!groundedEnough) return false;
-  if (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) return false;
+  if (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) {
+    return false;
+  }
   return true;
 }
 
-export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
+function groundedFallbackTexts(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string[] {
+  const labels = sourceForBeat(beat, envelope);
+  const result: string[] = [];
+  const attention = clean(beat.attentionFunction ?? beat.role).toLowerCase();
+  const first = clean(labels[0] ?? envelope.subject ?? "");
+  const second = clean(labels[1] ?? "");
+
+  if (beat.paysOff?.length && /payoff|release/i.test(attention)) {
+    if (first && legal(first, beat, envelope)) result.push(first);
+    return result;
+  }
+
+  if (first && legal(first, beat, envelope)) result.push(first);
+
+  if (
+    first &&
+    second &&
+    /reframe|contrast|turn|escalation|callback|payoff|release/i.test(attention)
+  ) {
+    const joined = `${first}. ${second}.`;
+    if (legal(joined, beat, envelope)) result.push(joined);
+  }
+
+  if (first && /hook|arrival|establish/i.test(attention)) {
+    const hook = `${first}.`;
+    if (legal(hook, beat, envelope)) result.push(hook);
+  }
+
+  if (first && /reframe|turn/i.test(attention)) {
+    const semantic = `${first}, apparently.`;
+    if (legal(semantic, beat, envelope)) result.push(semantic);
+  }
+
+  return unique(result).slice(0, 8);
+}
+
+export function buildMouthCandidateMessages(
+  input: MouthCandidateGenerationInput,
+): Array<{ role: "system" | "user"; content: string }> {
   const evidence = unique([
     ...input.envelope.suppliedPhrases,
     ...input.envelope.events.map((event) => event.label),
-  ]).filter((value) => !PLANNING_RESIDUE.test(value)).slice(0, 40);
+  ])
+    .filter((value) => !PLANNING_RESIDUE.test(value))
+    .slice(0, 40);
 
   const system = [
     "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
@@ -170,7 +203,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     "Do not expand merely to sound cinematic. Do not shorten merely to sound punchy.",
     "Optimize for attention, curiosity, contrast, interruption, accumulation, attitude, tempo, and payoff.",
     "Tempo is variation in viewer state, not constant speed. A quiet cut can make the next interruption hit harder.",
-    "For non-terminal relationship/change beats, do NOT merely restate the supplied fact. Express the approved semantic movement as attitude, status, implication, contrast, comic consequence, or another grounded interpretive move.",
+    "For non-terminal relationship/change beats, express the approved semantic movement as attitude, status, implication, contrast, comic consequence, or another grounded interpretive move.",
     "A rhetorical question is allowed as a viewer-facing device; it is not a request for user information.",
     "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, or outcomes.",
     "Do not output planner language, labels, diagnostics, or explanations.",
@@ -188,10 +221,17 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         suppliedEvidence: evidence,
         priorTexts: input.priorTexts ?? [],
         beats: input.beats.map((beat) => ({
-          ...beat,
-          change: PLANNING_RESIDUE.test(clean(beat.change)) ? "" : beat.change,
-          next: PLANNING_RESIDUE.test(clean(beat.next)) ? "" : beat.next,
-          frontier: PLANNING_RESIDUE.test(clean(beat.frontier)) ? "" : beat.frontier,
+          order: beat.order,
+          role: beat.role,
+          attentionFunction: beat.attentionFunction,
+          creativeMove: beat.creativeMove,
+          realizationMode: beat.realizationMode,
+          eventIds: beat.eventIds,
+          sourceLabels: sourceForBeat(beat, input.envelope),
+          change: PLANNING_RESIDUE.test(clean(beat.change)) ? "" : clean(beat.change),
+          next: PLANNING_RESIDUE.test(clean(beat.next)) ? "" : clean(beat.next),
+          frontier: PLANNING_RESIDUE.test(clean(beat.frontier)) ? "" : clean(beat.frontier),
+          paysOff: beat.paysOff,
         })),
       }),
     },
@@ -199,25 +239,39 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
 }
 
 export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | null {
-  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  const text = clean(raw)
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
   if (!text) return null;
 
   try {
-    const parsed = JSON.parse(text) as Partial<MouthCandidateBatch> & { texts?: unknown[] };
+    const parsed = JSON.parse(text) as Partial<MouthCandidateBatch> & {
+      texts?: unknown[];
+    };
+
     if (Array.isArray(parsed.variantsByBeat)) {
       return {
         variantsByBeat: parsed.variantsByBeat
-          .map((entry) => ({ order: Number(entry.order), variants: unique(entry.variants ?? []).slice(0, 8) }))
+          .map((entry) => ({
+            order: Number(entry.order),
+            variants: unique(entry.variants ?? []).slice(0, 8),
+          }))
           .filter((entry) => Number.isFinite(entry.order)),
       };
     }
+
     if (Array.isArray(parsed.texts)) {
       return {
         variantsByBeat: parsed.texts
-          .map((value, index) => ({ order: index + 1, variants: clean(value) ? [clean(value)] : [] }))
+          .map((value, index) => ({
+            order: index + 1,
+            variants: clean(value) ? [clean(value)] : [],
+          }))
           .filter((entry) => entry.variants.length > 0),
       };
     }
+
     return null;
   } catch {
     return null;
@@ -241,98 +295,109 @@ export function scoreMouthCandidate(input: {
   envelope: RealityEnvelope;
   priorTexts?: readonly string[];
 }): MouthCandidate {
-  const text = clean(input.text);
-  const fallbackTexts = fallback(input.beat, input.envelope);
-  const priorTexts = input.priorTexts ?? [];
-  const candidateLegal = legal(text, input.beat, input.envelope);
+  const modelText = clean(input.text);
+  const candidateLegal = legal(modelText, input.beat, input.envelope);
+  const fallbackTexts = groundedFallbackTexts(input.beat, input.envelope);
 
+  // A rejected model line stays rejected. We never mutate it into an
+  // apparently-authorized model candidate. When the model fails truth,
+  // the caller still receives a separately marked grounded fallback.
+  const text = candidateLegal ? modelText : (fallbackTexts[0] ?? modelText);
+  const isFallback = !candidateLegal && text !== modelText && Boolean(text);
+  const effectiveLegal = legal(text, input.beat, input.envelope);
+
+  const priorTexts = input.priorTexts ?? [];
   const source = tokenSet(sourceForBeat(input.beat, input.envelope).join(" "));
-  const semanticSource = tokenSet(safeSemanticSignals(input.beat, input.envelope).join(" "));
   const current = tokenSet(text);
   const required = unique(input.beat.eventIds ?? []);
   const requiredEvents = input.envelope.events.filter((event) => required.includes(event.id));
 
-  const supportedEventIds = input.envelope.events
-    .filter((event) => current.size && overlap(current, tokenSet(event.label)) >= 0.25)
-    .map((event) => event.id)
-    .filter((id) => required.length === 0 || required.includes(id));
-
   const eventSupported = (event: RealityEnvelope["events"][number]): boolean =>
     phraseSupportedText(text, event.label) || overlap(current, tokenSet(event.label)) >= 0.25;
+  const supportedEventIds = requiredEvents.filter(eventSupported).map((event) => event.id);
   const requiredCoverage = requiredEvents.length
-    ? requiredEvents.filter(eventSupported).length / requiredEvents.length
+    ? supportedEventIds.length / requiredEvents.length
     : 0;
-
-  for (const id of requiredEvents.filter(eventSupported).map((event) => event.id)) {
-    if (!supportedEventIds.includes(id)) supportedEventIds.push(id);
-  }
 
   const supportedRelationPairs = input.envelope.relations
     .filter((relation) => supportedEventIds.includes(relation.from) && supportedEventIds.includes(relation.to))
     .map((relation) => `${relation.from}->${relation.to}`);
 
   const sourceCoverage = overlap(current, source);
-  const semanticCoverage = overlap(current, semanticSource);
-  const groundingScore = Math.max(0.35, Math.min(1, sourceCoverage * 0.45 + requiredCoverage * 0.4 + semanticCoverage * 0.15));
-  const meaningScore = Math.min(1, 0.42 + groundingScore * 0.3 + (SEMANTIC_TURN_LANGUAGE.test(text) ? 0.2 : 0) + semanticCoverage * 0.18);
-  const transitionScore = Math.min(1, 0.36 + semanticCoverage * 0.32 + (input.beat.next || input.beat.frontier ? 0.1 : 0) + (input.beat.relationKinds?.length ? 0.2 : 0));
+  const semanticBeat = Boolean(
+    input.beat.relationKinds?.length ||
+      /turn|reframe|discovery|escalation|reveal|consequence|payoff/i.test(
+        `${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`,
+      ),
+  );
+  const groundingScore = Math.max(
+    0,
+    Math.min(1, sourceCoverage * 0.58 + requiredCoverage * 0.42),
+  );
+  const meaningScore = Math.min(
+    1,
+    0.38 + groundingScore * 0.35 + (SEMANTIC_TURN_LANGUAGE.test(text) ? 0.18 : 0),
+  );
+  const transitionScore = Math.min(
+    1,
+    0.34 + groundingScore * 0.28 + (semanticBeat ? 0.22 : 0) + (input.beat.next || input.beat.frontier ? 0.1 : 0),
+  );
   const noveltyScore = priorTexts.length
     ? Math.max(0.15, 1 - Math.max(...priorTexts.map((prior) => overlap(current, tokenSet(prior)))))
     : 1;
   const compressionScore = softCompressionScore(text);
   const repetitionRisk = 1 - noveltyScore;
-  const inventionRisk = candidateLegal ? 0.04 : 0.9;
+  const inventionRisk = effectiveLegal ? (isFallback ? 0.18 : 0.04) : 0.9;
   const forbiddenMoveRisk = META.test(text) || GENERIC.test(text) || PLANNING_RESIDUE.test(text) ? 1 : 0;
   const collageRisk = text.split(/[.!?]+/).filter(Boolean).length >= 5 && sourceCoverage < 0.3 ? 0.25 : 0;
 
-  const payoffLabels = unique(
-    (input.beat.paysOff ?? [])
-      .map((value) => eventLabel(input.envelope, value) || clean(value))
-      .filter(Boolean),
-  );
+  const endpointLabels = (input.beat.paysOff ?? [])
+    .map((value) => eventLabel(input.envelope, value) || clean(value))
+    .filter(Boolean);
   const isPayoff = Boolean(
-    payoffLabels.length && /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
+    endpointLabels.length && /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
   );
   const normalizedText = text.replace(/[.!?]+$/g, "").toLowerCase();
-  const endpointExactness = isPayoff && payoffLabels.some(
+  const endpointExactness = isPayoff && endpointLabels.some(
     (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
   ) ? 1 : 0;
 
-  const sourceLabels = sourceForBeat(input.beat, input.envelope);
-  const literalSourceRestatement = !isPayoff && sourceLabels.some(
+  const literalSourceRestatement = !isPayoff && sourceForBeat(input.beat, input.envelope).some(
     (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
   );
-  const semanticBeat = Boolean(
-    input.beat.relationKinds?.length ||
-      /turn|reframe|discovery|escalation|reveal|consequence/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
-  );
-  const restatementPenalty = semanticBeat && literalSourceRestatement ? 0.25 : 0;
+  const restatementPenalty = semanticBeat && literalSourceRestatement ? 0.22 : 0;
   const creativeLift = semanticBeat && !literalSourceRestatement
-    ? Math.min(0.22, 0.09 + semanticCoverage * 0.13)
+    ? Math.min(0.22, 0.09 + sourceCoverage * 0.13)
     : 0;
 
   const reasons = [
-    /hook|arrival|establish/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`) ? "hook-scored-as-establishment" : "",
-    fallbackTexts.includes(text) ? "grounded-fallback" : "",
+    /hook|arrival|establish/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`)
+      ? "hook-scored-as-establishment"
+      : "",
+    isFallback ? "grounded-fallback" : "",
     literalSourceRestatement ? "fact-restatement" : "",
-    semanticCoverage >= 0.2 || SEMANTIC_TURN_LANGUAGE.test(text) ? "semantic-turn-grounded" : "",
+    semanticBeat && !literalSourceRestatement ? "semantic-turn-grounded" : "",
     endpointExactness === 1 ? "endpoint-exact" : "",
     !candidateLegal ? "candidate-truth-rejected" : "",
     PLANNING_RESIDUE.test(text) ? "planning-residue" : "",
   ].filter(Boolean);
 
-  const score = candidateLegal
-    ? Math.min(
-        1,
-        groundingScore * 0.23 +
-          meaningScore * 0.18 +
-          transitionScore * 0.2 +
-          noveltyScore * 0.08 +
-          compressionScore * 0.08 +
-          creativeLift * 0.13 +
-          (1 - inventionRisk) * 0.1 +
-          endpointExactness * 0.25 -
-          restatementPenalty,
+  const score = effectiveLegal
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          groundingScore * 0.24 +
+            meaningScore * 0.18 +
+            transitionScore * 0.2 +
+            noveltyScore * 0.08 +
+            compressionScore * 0.08 +
+            creativeLift * 0.12 +
+            (1 - inventionRisk) * 0.1 +
+            endpointExactness * 0.25 -
+            restatementPenalty -
+            (isFallback ? 0.12 : 0),
+        ),
       )
     : 0;
 
