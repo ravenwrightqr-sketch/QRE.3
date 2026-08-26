@@ -1,87 +1,121 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+/**
+ * QRE CANONICAL AUTHOR LAW
+ * ROLE: Verify the production Author wiring.
+ * LAW: QRE may surprise us.
+ * Guardrails protect truth; they are not a stylistic cage. A brilliant,
+ * grounded cut may win even when it breaks a preference. Provenance,
+ * architecture, and safety are hard; style is scored.
+ */
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 
 const root = resolve(process.cwd());
 const failures = [];
-const checks = [];
+const warnings = [];
 const check = (name, ok, detail) => {
-  checks.push({ name, ok, detail });
-  if (!ok) failures.push(`${name}: ${detail}`);
+  (ok ? warnings : failures).push(`${name}: ${detail}`);
 };
 const read = (path) => readFileSync(join(root, path), "utf8");
 
-const truth = "packages/contracts/src/experience/authorBrain.ts";
-const graphContract = "packages/contracts/src/experience/realityGraph.ts";
-const latentContract = "packages/contracts/src/experience/latentMovie.ts";
-const graphBuilder = "apps/api/src/services/authorRealityGraph.ts";
-const latentSearch = "apps/api/src/services/authorLatentMovieSearch.ts";
-const differentiation = "apps/api/src/services/authorMovieDifferentiation.ts";
-const master = "apps/api/src/services/authorBrainUniversal.ts";
+const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
-const mouth = "apps/api/src/services/localModelRuntime.ts";
-const cutPolicy = "apps/api/src/services/authorCutPolicy.ts";
-const acceptance = "apps/api/author-acceptance-suite.ts";
-const wiringMap = "docs/AUTHOR_WIRING_MAP.md";
+const realityGraph = "apps/api/src/services/authorRealityGraph.ts";
+const movieSearch = "apps/api/src/services/authorUniversalMovieSearch.ts";
+const mouth = "apps/api/src/services/authorMouthCandidateSearch.ts";
+const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
+const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
+const acceptance = "apps/api/author-acceptance.ts";
+const packageJson = "apps/api/package.json";
 
-for (const path of [truth, graphContract, latentContract, graphBuilder, latentSearch, differentiation, master, cognition, mouth, cutPolicy, acceptance, wiringMap]) {
-  check(`exists:${path}`, existsSync(join(root, path)), existsSync(join(root, path)) ? "canonical file present" : "required canonical file missing");
+const forbiddenFiles = [
+  "apps/api/src/services/authorBrainUniversal.ts",
+  "apps/api/src/services/authorBrainUniversal.ts.new",
+  "apps/api/src/services/cinematicAuthor.ts",
+  "apps/api/src/services/authorBrain.ts",
+  "apps/api/src/services/authorBrainMomentum.ts",
+  "apps/api/src/services/authorBrainMomentumV2.ts",
+  "apps/api/src/services/authorBrainMomentumV3.ts",
+  "apps/api/src/services/authorFastCore.ts",
+  "apps/api/src/services/creativeRelationOps.ts",
+  "apps/api/author-acceptance-suite.ts",
+];
+
+const forbiddenImportNames = [
+  "authorBrainUniversal",
+  "cinematicAuthor",
+  "authorBrainMomentum",
+  "authorFastCore",
+  "creativeRelationOps",
+];
+
+function walk(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (["node_modules", ".git", "dist", "build", ".next"].includes(entry.name)) continue;
+    const absolute = join(dir, entry.name);
+    if (entry.isDirectory()) walk(absolute, out);
+    else if (entry.isFile()) out.push(absolute);
+  }
+  return out;
 }
 
-if (existsSync(join(root, truth))) {
-  check("truth:realityGraph", /realityGraph\??:\s*RealityGraph/.test(read(truth)), "AuthorBrainTruth exposes RealityGraph");
+for (const path of [canonical, cognition, realityGraph, movieSearch, mouth, interpretation, beam, acceptance, packageJson]) {
+  check(`exists:${path}`, existsSync(join(root, path)), "canonical file present");
 }
-if (existsSync(join(root, graphBuilder))) {
-  const body = read(graphBuilder);
-  check("graph:typed", /RealityGraph/.test(body), "graph builder uses the canonical RealityGraph contract");
-  check("graph:provenance", /provenance/.test(body) && /sourceIds/.test(body), "graph events retain source provenance");
-  check("graph:relations", /relations/.test(body) && /addRelation\s*\(/.test(body) && /unresolvedTensions/.test(body), "graph builder emits typed relations and tension signals");
+
+for (const path of forbiddenFiles) {
+  if (existsSync(join(root, path))) failures.push(`forbidden-file: ${path}`);
 }
-if (existsSync(join(root, latentSearch))) {
-  const body = read(latentSearch);
-  check("movie-search:graph-input", /RealityGraph/.test(body), "latent movie search consumes canonical RealityGraph");
-  check("movie-search:diversity-gate", /selectDistinctMovieCandidates/.test(body), "latent movie search passes candidates through diversity gate");
-  check("movie-search:truth-boundary", /truthRisk/.test(body) && /creative hypothesis/.test(body), "latent movie search preserves epistemic boundary");
+
+for (const file of walk(join(root, "apps/api/src")).filter((path) => /\.(ts|tsx|js|mjs)$/.test(path))) {
+  const body = readFileSync(file, "utf8");
+  const rel = relative(root, file).replaceAll("\\", "/");
+  for (const forbidden of forbiddenImportNames) {
+    if (new RegExp(`from\\s+["'][^"']*${forbidden}\\.js["']`).test(body)) {
+      failures.push(`forbidden-import: ${rel} imports ${forbidden}`);
+    }
+  }
 }
-if (existsSync(join(root, differentiation))) {
-  const body = read(differentiation);
-  check("movie-differentiation:diversity", /movieCandidateDiversity/.test(body) && /selectDistinctMovieCandidates/.test(body), "differentiation compares evidence, relations, trajectory and payoff");
-  check("movie-differentiation:material", /hasMaterialMovieDifference/.test(body) && /0\.25/.test(body), "material movie difference has an explicit acceptance threshold");
-}
-if (existsSync(join(root, master))) {
-  const body = read(master);
-  check("master:cognition", /authorCognition\.js/.test(body) && /buildAuthorCognitivePlan\s*\(/.test(body), "Master Author executes canonical cognition");
-  check("master:cutPolicy", /authorCutPolicy\.js/.test(body) && /evaluateCut\s*\(/.test(body), "Master Author executes canonical cut policy");
-  check("master:graph-consumer", /realityGraph/.test(body), "Master Author consumes RealityGraph");
-  check("master:graph-builder", /authorRealityGraph\.js/.test(body), "Master Author wires deterministic RealityGraph compiler");
-}
-if (existsSync(join(root, cognition))) {
-  const body = read(cognition);
-  check("cognition:graph-input", /RealityGraph/.test(body), "authorCognition accepts/derives canonical graph");
-  check("cognition:relationship-use", /relations|unresolvedTensions|recurringSignals/.test(body), "cognition uses graph relationships/tensions/signals");
-}
-if (existsSync(join(root, mouth))) {
-  const body = read(mouth);
-  check("mouth:one-beat", /MOUTH-BEAT|realizeMouthOneBeat/.test(body), "mouth realizes beats individually");
-  check("mouth:short", /7 words maximum|words? > 7|wordCount/.test(body), "mouth enforces compact sequence text");
-}
-if (existsSync(join(root, cutPolicy))) {
-  const body = read(cutPolicy);
-  check("policy:short", /wordCount > 7/.test(body), "cut policy enforces seven-word default ceiling");
-  check("policy:invention", /inventionRisk/.test(body), "cut policy measures invention risk");
-}
-if (existsSync(join(root, acceptance))) {
-  const body = read(acceptance);
-  check("acceptance:master", /authorBrainUniversal/.test(body), "acceptance invokes the Master Author");
-  check("acceptance:same-reality-lenses", /COUPLE-FUNNY/.test(body) && /COUPLE-HORROR/.test(body), "acceptance exercises same truth through multiple lenses");
-  const acceptsArgv = /process\.argv\.slice\(2\)/.test(body) || /process\.argv\[\d+\]/.test(body);
-  const hasArbitraryFallback = /splitReality\s*\(/.test(body) && /\?\?\s*\(\(\)\s*=>/.test(body);
-  check("acceptance:arbitrary-input", acceptsArgv && hasArbitraryFallback, "acceptance supports arbitrary user reality input");
-}
+
+const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
+check("canonical:cognition", /buildAuthorCognitivePlan\s*\(/.test(canonicalSource), "Author invokes canonical cognition");
+check("canonical:graph", /buildAuthorRealityGraph\s*\(/.test(canonicalSource), "Author builds source RealityGraph");
+check("canonical:movie", /searchUniversalMovieCandidates\s*\(/.test(canonicalSource), "Author searches/selects latent movie");
+check("canonical:mouth", /buildMouthCandidateMessages\s*\(/.test(canonicalSource) && /selectBestMouthSequence\s*\(/.test(canonicalSource), "Author owns Mouth realization and sequence selection");
+check("canonical:attention", /editAttentionSequence\s*\(/.test(canonicalSource), "Author runs attention editing");
+check("canonical:arc", /evaluateSequenceArc\s*\(/.test(canonicalSource), "Author runs sequence arc gate");
+check("canonical:model", /localModelGenerate\s*\(/.test(canonicalSource), "Author owns model realization");
+check("canonical:no-legacy-compiler", !/compileCognitiveExperience/.test(canonicalSource), "Author does not invoke legacy creative compiler");
+
+const acceptanceSource = existsSync(join(root, acceptance)) ? read(acceptance) : "";
+check("acceptance:canonical", /authorBrainCanonical\.js/.test(acceptanceSource), "Acceptance invokes canonical Author");
+check("acceptance:no-legacy", !/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource), "Acceptance has no legacy Author path");
+
+const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(packageJson)) : {};
+check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
+
+const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
+check("mouth:provenance", /function sourceForBeat/.test(mouthSource), "Mouth has an explicit source provenance boundary");
+check("mouth:no-planner-label-promotion", !/setsUp.*sourceLabels|paysOff.*sourceLabels/s.test(mouthSource), "Planner labels cannot become source labels");
+
+const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";
+check("interpretation:whole-source", /wholeSourceAnchor/.test(interpretationSource), "Interpretation sees the supplied reality corpus");
+check("interpretation:creative-lane", /creativeFraming/.test(interpretationSource), "Interpretation exposes bounded creative framing");
+check("interpretation:concrete-risk", /unsupportedConcreteRisk/.test(interpretationSource), "Interpretation measures concrete invention risk");
+
+const beamSource = existsSync(join(root, beam)) ? read(beam) : "";
+check("beam:creative-ranking", /semanticQuality/.test(beamSource) && /sequenceFit/.test(beamSource), "Beam ranks semantic quality and sequence fit");
+check("beam:safety", /inventionRisk/.test(beamSource) && /forbiddenMoveRisk/.test(beamSource), "Beam enforces invention safety");
 
 console.log("=== QRE AUTHOR WIRING GUARD ===");
-for (const item of checks) console.log(`${item.ok ? "GREEN" : "FAIL"}: ${item.name} · ${item.detail}`);
+console.log(`CANONICAL AUTHOR: ${canonical}`);
+console.log(`CANONICAL COGNITION: ${cognition}`);
+console.log(`CANONICAL MOUTH: ${mouth}`);
+console.log(`CANONICAL BEAM: ${beam}`);
+for (const message of warnings) console.log(`GREEN: ${message}`);
+for (const message of failures) console.error(`FAIL: ${message}`);
 if (failures.length) {
-  console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length} wiring gap(s)`);
+  console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length} violation(s)`);
   process.exit(1);
 }
-console.log("AUTHOR WIRING GUARD GREEN · REALITY → MOVIE SEARCH → DIFFERENTIATION → COGNITION → MAGNET → SEQUENCE → MOUTH → CUT POLICY → ACCEPTANCE");
+console.log("AUTHOR WIRING GUARD GREEN · ONE AUTHOR · ONE SEQUENCE · ONE MOUTH · QRE MAY SURPRISE US");
