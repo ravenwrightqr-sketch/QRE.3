@@ -7,55 +7,57 @@ import type {
   SequenceCut,
   SequencePlay,
   ViewerAttentionRole,
+  ViewerState,
   ViewerMomentum,
 } from "@qre/contracts";
 
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 import {
   buildMouthCandidateMessages,
   parseMouthCandidateBatch,
   scoreMouthCandidate,
   type MouthCandidateBeat,
-  type MouthCandidatePool,
 } from "./authorMouthCandidateSearch.js";
-import { selectBestMouthSequence } from "./authorMouthSequenceBeamSearch.js";
+import { selectBestMouthSequence, type MouthCandidatePool } from "./authorMouthSequenceBeamSearch.js";
 import { editAttentionSequence } from "./authorAttentionEditor.js";
 import { evaluateSequenceArc } from "./authorSequenceArcGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
-const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const unique = (values: readonly unknown[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
-function lensFrom(input: AuthorBrainTruth, graph: ReturnType<typeof buildAuthorRealityGraph>): string {
-  const plan = buildAuthorCognitivePlan({
-    prompt: input.prompt,
+function buildCognition(input: AuthorBrainTruth, graph: ReturnType<typeof buildAuthorRealityGraph>) {
+  return buildAuthorCognitivePlan({
+    prompt: clean(input.prompt),
     lens: input.lens,
     subject: input.subject,
     place: input.place,
-    facts: input.facts,
-    sourceMoments: input.sourceMoments,
+    facts: unique(input.facts),
+    sourceMoments: unique(input.sourceMoments),
     realityGraph: graph,
-    memoryContext: input.memoryContext,
+    memoryContext: unique(input.memoryContext ?? []),
+    priorScenes: [],
+    priorStrategies: [],
+    round: input.visitNumber ?? 1,
     movieMode: input.movieMode,
   });
-  return clean(plan.selectedFrame || input.lens || "NONE");
 }
 
 function orderedSourceMovie(
   graph: ReturnType<typeof buildAuthorRealityGraph>,
-  subject: string,
   lens: string,
 ): LatentMovieCandidate | undefined {
   const events = graph.events.filter((event) => clean(event.label));
   if (events.length < 3) return undefined;
 
-  const limited = events.slice(0, 8);
-  const trajectory: LatentMovieTrajectoryStep[] = limited.map((event, index) => {
+  const selected = events.slice(0, 8);
+  const trajectory: LatentMovieTrajectoryStep[] = selected.map((event, index) => {
     const first = index === 0;
-    const last = index === limited.length - 1;
+    const last = index === selected.length - 1;
     return {
       order: index + 1,
       operation: first ? "establish" : last ? "payoff" : "reveal",
@@ -68,34 +70,42 @@ function orderedSourceMovie(
   });
 
   const specificity = metric(
-    limited.reduce((sum, event) => sum + Math.min(1, event.entities.length * 0.08 + event.label.split(/\s+/).length * 0.08), 0) /
-      Math.max(1, limited.length),
+    selected.reduce(
+      (sum, event) =>
+        sum + metric(
+          Math.min(
+            1,
+            event.label.split(/\s+/).filter(Boolean).length * 0.08 + event.entities.length * 0.04,
+          ),
+        ),
+      0,
+    ) / selected.length,
   );
-  const depth = metric(limited.length / 6);
+  const depth = metric(selected.length / 6);
 
   return {
     id: "movie-supplied-sequence",
     lens: lens || "NONE",
-    anchorEventIds: [limited[0]!.id, limited[limited.length - 1]!.id],
+    anchorEventIds: [selected[0]!.id, selected[selected.length - 1]!.id],
     supportingRelationKinds: [],
     trajectory,
-    payoff: clean(limited[limited.length - 1]!.label),
+    payoff: clean(selected[selected.length - 1]!.label),
     unresolvedQuestion: "What becomes newly meaningful next?",
-    evidence: limited.map((event) => clean(event.label)),
+    evidence: selected.map((event) => clean(event.label)),
     hypothesis: [
-      "This sequence preserves supplied order as presentation order only.",
-      "The source order is not treated as inferred chronology.",
-      "No bridge event is invented between supplied details.",
+      "Preserve supplied order as presentation order only.",
+      "Do not infer chronology from list order.",
+      "Do not invent bridge events between supplied details.",
     ],
     truthRisk: 0.01,
-    novelty: metric(0.48 + specificity * 0.2),
+    novelty: metric(0.5 + specificity * 0.2),
     specificity,
     informationValue: metric(0.5 + specificity * 0.3),
-    uncertainty: metric(0.25 + depth * 0.2),
+    uncertainty: metric(0.2 + depth * 0.25),
     attentionPotential: metric(0.45 + depth * 0.35),
-    consequencePotential: metric(0.22 + depth * 0.3),
+    consequencePotential: metric(0.2 + depth * 0.3),
     callbackPotential: 0.12,
-    compressionPotential: metric(0.52 + specificity * 0.18),
+    compressionPotential: metric(0.5 + specificity * 0.2),
     repetitionRisk: 0.02,
     distinctiveness: 1,
     score: metric(0.5 + specificity * 0.2 + depth * 0.2),
@@ -103,49 +113,50 @@ function orderedSourceMovie(
 }
 
 function chooseMovie(
-  graph: ReturnType<typeof buildAuthorRealityGraph>,
-  subject: string,
-  lens: string,
   input: AuthorBrainTruth,
+  graph: ReturnType<typeof buildAuthorRealityGraph>,
+  lens: string,
+  cognition: ReturnType<typeof buildCognition>,
 ): LatentMovieCandidate | undefined {
-  const cognitive = buildAuthorCognitivePlan({
-    prompt: input.prompt,
-    lens: input.lens,
-    subject,
-    place: input.place,
-    facts: input.facts,
-    sourceMoments: input.sourceMoments,
-    realityGraph: graph,
-    memoryContext: input.memoryContext,
-    priorScenes: [],
-    priorStrategies: [],
-    movieMode: input.movieMode,
-  });
-
-  const relational = cognitive.latentMovieCandidates.find(
-    (candidate) => candidate.trajectory.length >= 3 && candidate.trajectory.every((step) => step.eventIds.length > 0),
+  const preferred = cognition.latentMovieCandidates.find(
+    (candidate) =>
+      candidate.trajectory.length >= 3 &&
+      candidate.trajectory.every((step) => step.eventIds.length > 0),
   );
-  if (relational) return relational;
+  if (preferred) return preferred;
 
-  return orderedSourceMovie(graph, subject, lens);
+  const searched = searchUniversalMovieCandidates({
+    graph,
+    subject: clean(input.subject),
+    lens,
+    limit: 10,
+  }).find(
+    (candidate) =>
+      candidate.trajectory.length >= 3 &&
+      candidate.trajectory.every((step) => step.eventIds.length > 0),
+  );
+  if (searched) return searched;
+
+  return orderedSourceMovie(graph, lens);
 }
 
-function roleFor(operation: LatentMovieTrajectoryStep["operation"], first: boolean, last: boolean): ViewerAttentionRole {
+function roleFor(step: LatentMovieTrajectoryStep, first: boolean, last: boolean): ViewerAttentionRole {
   if (first) return "hook";
   if (last) return "payoff";
-  if (operation === "contrast" || operation === "reframe") return "reframe";
-  if (operation === "escalate" || operation === "consequence") return "escalation";
-  if (operation === "recur") return "callback";
+  if (step.operation === "contrast" || step.operation === "reframe") return "reframe";
+  if (step.operation === "escalate" || step.operation === "consequence") return "escalation";
+  if (step.operation === "recur") return "callback";
   return "discovery";
 }
 
-function gainFor(operation: LatentMovieTrajectoryStep["operation"], first: boolean, last: boolean): NonNullable<SequenceCut["gainKind"]> {
+function gainFor(step: LatentMovieTrajectoryStep, first: boolean, last: boolean): NonNullable<SequenceCut["gainKind"]> {
   if (first) return "new_fact";
   if (last) return "payoff";
-  if (operation === "contrast" || operation === "reframe") return "reframe";
-  if (operation === "escalate" || operation === "consequence") return "escalation";
-  if (operation === "recur") return "callback";
-  if (operation === "converge") return "discovery";
+  if (step.operation === "contrast" || step.operation === "reframe") return "reframe";
+  if (step.operation === "escalate") return "escalation";
+  if (step.operation === "consequence") return "consequence";
+  if (step.operation === "recur") return "callback";
+  if (step.operation === "converge") return "discovery";
   return "new_fact";
 }
 
@@ -155,94 +166,77 @@ function mouthBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
     const last = index === all.length - 1;
     return {
       order: step.order,
-      role: roleFor(step.operation, first, last),
-      gainKind: gainFor(step.operation, first, last),
+      role: roleFor(step, first, last),
+      attentionFunction: first ? "hook" : last ? "payoff" : "reframe",
+      creativeMove: "none",
+      eventIds: [...step.eventIds],
       change: clean(step.viewerChange),
       next: clean(step.nextQuestion),
       frontier: clean(step.nextQuestion),
-      necessity: first ? "establish the strongest supplied detail" : last ? "land the supplied endpoint" : "make the next supplied detail matter",
-      eventIds: unique(step.eventIds),
-      attentionFunction: first ? "hook" : last ? "payoff" : step.operation === "contrast" || step.operation === "reframe" ? "reframe" : step.operation === "escalate" ? "escalation" : "release",
-      setsUp: [],
-      paysOff: [],
-      creativeMove: "none",
-      nextBeatPullTarget: last ? 0.05 : 0.7,
+      obligations: [],
+      forbiddenMoves: [],
+      relationKinds: [],
+      relationStrength: 0,
     };
   });
 }
 
-function fallbackCandidates(
-  beats: readonly MouthCandidateBeat[],
-  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
-): MouthCandidatePool[] {
-  return beats.map((beat) => {
-    const source = beat.eventIds
-      ?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label))
-      .filter(Boolean) ?? [];
-    const text = source[0] ?? "";
-    return {
-      order: beat.order,
-      candidates: text
-        ? [scoreMouthCandidate({ text, beat, envelope })]
-        : [],
-    };
-  });
+function viewerState(index: number, total: number, text: string): ViewerState {
+  return {
+    known: index === 0 ? [] : [clean(text)],
+    expected: index === total - 1 ? undefined : "another supplied detail",
+    recentChange: clean(text),
+  };
 }
 
-function makeSequence(
-  selected: Awaited<ReturnType<typeof selectBestMouthSequence>>,
+function sequenceFromCandidates(
+  candidates: readonly { text: string; score: number }[],
   beats: readonly MouthCandidateBeat[],
   subject: string,
 ): SequencePlay {
-  const cuts: SequenceCut[] = selected.cuts.map((cut, index) => {
-    const beat = beats[index];
-    const before: ViewerMomentum = {
-      known: selected.cuts.slice(0, index).map((item) => clean(item.informationGain)).filter(Boolean),
-      expected: beat?.next,
-      currentWant: beat?.next,
-      subjectContinuity: {
-        established: index > 0,
-        subject,
-        referenceMode: index === 0 ? "name" : "implicit",
-        referenceCost: index === 0 ? 1 : 0,
-        lastExplicitReference: index === 0 ? 1 : undefined,
-      },
-    };
-    const after: ViewerMomentum = {
-      ...before,
-      known: [...before.known, clean(cut.text)].filter(Boolean),
-      forwardPull: beat?.next,
-    };
+  const cuts: SequenceCut[] = candidates.map((candidate, index) => {
+    const beat = beats[index]!;
+    const before = viewerState(index, candidates.length, candidates[index - 1]?.text ?? "");
+    const after = viewerState(index + 1, candidates.length, candidate.text);
+    const sourceIds = unique(beat.eventIds ?? []);
     return {
       id: `sequence-cut-${index + 1}`,
       order: index + 1,
-      role: beat?.role ?? "discovery",
-      gainKind: beat?.gainKind,
-      sourceIds: unique(beat?.eventIds ?? []),
-      informationGain: clean(cut.text),
-      attentionDelta: clean(beat?.next),
+      role: (beat.role ?? "discovery") as ViewerAttentionRole,
+      gainKind: gainFor(
+        {
+          order: beat.order,
+          operation: index === 0 ? "establish" : index === candidates.length - 1 ? "payoff" : "reveal",
+          eventIds: sourceIds,
+          viewerChange: beat.change ?? candidate.text,
+          nextQuestion: beat.next ?? "",
+        },
+        index === 0,
+        index === candidates.length - 1,
+      ),
+      sourceIds,
+      informationGain: clean(candidate.text),
+      attentionDelta: clean(beat.next),
       viewerBefore: before,
       viewerAfter: after,
       necessity: {
         necessary: true,
-        reason: beat?.necessity ?? "advances supplied reality",
+        reason: clean(beat.change) || "advances supplied reality",
       },
-      nextPromise: clean(beat?.next),
-      confidence: metric(cut.score),
+      nextPromise: clean(beat.next),
+      confidence: metric(candidate.score),
     };
   });
 
   return {
     subject,
-    premise: selected.cuts[0]?.text ?? "",
+    premise: cuts[0]?.informationGain ?? "",
     openingState: cuts[0]?.viewerBefore ?? { known: [] },
-    baselineFacts: cuts.map((cut) => cut.informationGain).filter(Boolean),
-    openingMomentum: cuts[0]?.viewerAfter,
+    baselineFacts: cuts.map((cut) => cut.informationGain),
     cuts,
-    closingMomentum: cuts[cuts.length - 1]?.viewerAfter,
-    closingState: cuts.length ? "resolved" : "unresolved",
-    continuity: true,
-    continuation: cuts.length ? "The memory can continue with the next supplied detail." : undefined,
+    closingMomentum: undefined,
+    closingState: cuts.length ? { known: cuts.map((cut) => cut.informationGain) } : undefined,
+    continuation: cuts.length ? "The memory can continue with another supplied detail." : undefined,
   };
 }
 
@@ -266,32 +260,30 @@ export type CanonicalAuthorResult = {
 
 export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<CanonicalAuthorResult> {
   const subject = clean(input.subject) || "the subject";
+  const facts = unique(input.facts);
+  const sourceMoments = unique(input.sourceMoments);
   const graph = buildAuthorRealityGraph({
     prompt: clean(input.prompt),
     subject,
     place: clean(input.place),
-    facts: unique(input.facts),
-    sourceMoments: unique(input.sourceMoments),
-    memoryContext: unique(input.memoryContext ?? []),
+    facts,
+    sourceMoments,
+    memoryContext: [],
     trajectory: [],
   });
 
-  const lens = lensFrom(input, graph);
-  const movie = input.movieMode === false ? undefined : chooseMovie(graph, subject, lens, input);
+  const cognition = buildCognition({ ...input, facts, sourceMoments }, graph);
+  const lens = clean(input.lens) || clean(cognition.selectedFrame) || "NONE";
+  const movie = input.movieMode === false ? undefined : chooseMovie(input, graph, lens, cognition);
 
   if (!movie || movie.trajectory.length < 3) {
     return {
       scenes: [],
-      sequence: {
-        subject,
-        premise: "",
-        openingState: { known: [] },
-        cuts: [],
-      },
+      sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] },
       movie,
       brief: {
         angle: lens,
-        engine: "grounded source sequence → single Mouth realization",
+        engine: "source reality → grounded sequence → single Mouth realization",
         question: "What supplied detail should land next?",
         strongestImage: graph.events[0]?.label ?? "",
         tension: "novelty → contrast → consequence → payoff",
@@ -319,8 +311,8 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const messages = buildMouthCandidateMessages({ envelope, beats, lens });
 
   let modelCalls = 0;
-  let pools: MouthCandidatePool[] = [];
   let modelName = process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown";
+  let pools: MouthCandidatePool[] = [];
 
   try {
     const generated = await localModelGenerate(messages, "json", {
@@ -329,86 +321,111 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     });
     modelCalls += 1;
     modelName = generated.model || modelName;
-
     const parsed = parseMouthCandidateBatch(generated.text);
     if (parsed) {
-      pools = beats.map((beat) => {
-        const variants = parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [];
-        return {
-          order: beat.order,
-          candidates: variants
-            .map((text) => scoreMouthCandidate({ text, beat, envelope }))
-            .filter((candidate) => candidate.text.length > 0),
-        };
-      });
+      pools = beats.map((beat) => ({
+        order: beat.order,
+        candidates: (parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [])
+          .map((text) => scoreMouthCandidate({ text, beat, envelope }))
+          .filter((candidate) => candidate.text.length > 0),
+      }));
     }
   } catch {
     modelCalls += 1;
   }
 
-  const usablePools = pools.every((pool) => pool.candidates.length > 0) ? pools : fallbackCandidates(beats, envelope);
-  const selected = selectBestMouthSequence(usablePools, { maxBeats: Math.min(6, beats.length) });
-  const selectedTexts = selected.cuts.map((cut) => clean(cut.text));
-  const sequence = makeSequence(selected, beats, subject);
+  const usablePools = pools.length === beats.length && pools.every((pool) => pool.candidates.length > 0)
+    ? pools
+    : beats.map((beat) => ({
+        order: beat.order,
+        candidates: (() => {
+          const source = beat.eventIds
+            ?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label))
+            .filter(Boolean)[0];
+          return source
+            ? [scoreMouthCandidate({ text: source, beat, envelope })]
+            : [];
+        })(),
+      }));
+
+  const selected = selectBestMouthSequence(usablePools, {
+    width: 12,
+    candidatesPerBeat: 8,
+  });
+
+  const selectedCandidates = selected.candidates.map((candidate) => ({
+    text: clean(candidate.text),
+    score: candidate.score,
+  }));
+  const sequence = sequenceFromCandidates(selectedCandidates, beats, subject);
 
   const attention = editAttentionSequence({
-    beats: selected.cuts.map((cut, index) => ({
+    beats: selected.candidates.map((candidate, index) => ({
       order: index + 1,
       role: beats[index]?.role,
-      gainKind: beats[index]?.gainKind,
-      text: cut.text,
-      sourceIds: beats[index]?.eventIds,
+      gainKind: beats[index] ? gainFor(
+        {
+          order: beats[index]!.order,
+          operation: index === 0 ? "establish" : index === selected.candidates.length - 1 ? "payoff" : "reveal",
+          eventIds: [...(beats[index]!.eventIds ?? [])],
+          viewerChange: beats[index]!.change ?? candidate.text,
+          nextQuestion: beats[index]!.next ?? "",
+        },
+        index === 0,
+        index === selected.candidates.length - 1,
+      ) : undefined,
+      text: clean(candidate.text),
+      sourceIds: [...(beats[index]?.eventIds ?? [])],
       attentionFunction: beats[index]?.attentionFunction,
       next: beats[index]?.next,
       frontier: beats[index]?.frontier,
-      setsUp: [],
-      paysOff: index === selected.cuts.length - 1 ? [movie.payoff] : [],
     })),
     evidence: movie.evidence,
   });
 
   const arc = evaluateSequenceArc(
-    selected.cuts.map((cut, index) => ({
+    selected.candidates.map((candidate, index) => ({
       order: index + 1,
       role: beats[index]?.role,
       attentionFunction: beats[index]?.attentionFunction,
       creativeMove: beats[index]?.creativeMove,
-      text: cut.text,
+      text: clean(candidate.text),
       change: beats[index]?.change,
       next: beats[index]?.next,
       frontier: beats[index]?.frontier,
       setsUp: [],
-      paysOff: index === selected.cuts.length - 1 ? [movie.payoff] : [],
+      paysOff: index === selected.candidates.length - 1 ? [movie.payoff] : [],
     })),
   );
 
-  const complete = selectedTexts.length >= 3 &&
-    selectedTexts.every(Boolean) &&
-    sequence.cuts.every((cut) => cut.sourceIds.length > 0) &&
+  const complete =
+    selected.candidates.length >= 3 &&
+    selected.candidates.length === beats.length &&
+    selected.candidates.every((candidate) => clean(candidate.text).length > 0) &&
+    beats.every((beat) => (beat.eventIds ?? []).length > 0) &&
     attention.accepted &&
     arc.accepted;
 
-  const score = metric((selected.score ?? 0) * 0.55 + attention.sequenceScore * 0.25 + arc.sequenceScore * 0.2);
-  const brief: AuthorCreativeBrief = {
-    angle: lens,
-    engine: "source reality → grounded sequence → single Mouth realization → deterministic gates",
-    question: movie.unresolvedQuestion,
-    strongestImage: movie.evidence[0] ?? "",
-    tension: "novelty → contrast → consequence → payoff",
-    payoff: movie.payoff,
-    callback: "none",
-    rhythm: ["hit", "standard", "hit", "short"],
-    avoid: ["fact parade", "invented events", "planner vocabulary", "summary prose"],
-  };
+  const score = metric((selected.score ?? 0) * 0.6 + attention.sequenceScore * 0.2 + arc.sequenceScore * 0.2);
 
   return {
-    scenes: selected.cuts.map((cut, index) => ({
-      text: clean(cut.text),
-      kind: index === 0 ? "hook" : index === selected.cuts.length - 1 ? "payoff" : "line",
+    scenes: selected.candidates.map((candidate, index) => ({
+      text: clean(candidate.text),
+      kind: index === 0 ? "hook" : index === selected.candidates.length - 1 ? "payoff" : "line",
     })),
     sequence,
     movie,
-    brief,
+    brief: {
+      angle: lens,
+      engine: "source reality → deterministic movie/sequence → single Mouth realization → gates",
+      question: movie.unresolvedQuestion,
+      strongestImage: movie.evidence[0] ?? "",
+      tension: "novelty → contrast → consequence → payoff",
+      payoff: movie.payoff,
+      callback: "none",
+      rhythm: ["hit", "standard", "hit", "short"],
+      avoid: ["fact parade", "invented events", "planner vocabulary", "summary prose"],
+    },
     diagnostics: {
       model: modelName,
       modelCalls,
