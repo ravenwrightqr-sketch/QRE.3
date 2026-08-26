@@ -80,6 +80,10 @@ export type LatentMovieCandidate = {
     interruption: number;
     accumulation: number;
     payoff: number;
+    tempo: number;
+    continuity: number;
+    predictionError: number;
+    stateShift: number;
     score: number;
   };
 
