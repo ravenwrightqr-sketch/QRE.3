@@ -8,7 +8,6 @@ import type {
   SequencePlay,
   ViewerAttentionRole,
   ViewerState,
-  ViewerMomentum,
 } from "@qre/contracts";
 
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
@@ -35,11 +34,14 @@ function looksLikeIdentityAssertion(text: string): boolean {
   return /^(?:\w+\s+)?(?:is|are|was|were)\s+(?:a|an|the)\b/.test(value);
 }
 
-function lensFrom(input: AuthorBrainTruth, cognition: any): string {
+function lensFrom(input: AuthorBrainTruth, cognition: ReturnType<typeof buildAuthorCognitivePlan>): string {
   return clean(input.lens) || clean(cognition.selectedFrame) || "NONE";
 }
 
-function buildCognition(input: AuthorBrainTruth, graph: ReturnType<typeof buildAuthorRealityGraph>) {
+function buildCognition(
+  input: AuthorBrainTruth,
+  graph: ReturnType<typeof buildAuthorRealityGraph>,
+): ReturnType<typeof buildAuthorCognitivePlan> {
   return buildAuthorCognitivePlan({
     prompt: clean(input.prompt),
     lens: clean(input.lens),
@@ -49,13 +51,9 @@ function buildCognition(input: AuthorBrainTruth, graph: ReturnType<typeof buildA
     sourceMoments: unique(input.sourceMoments),
     realityGraph: graph,
     memoryContext: [],
-    trajectory: [],
-    movieMode: input.movieMode,
-    returning: input.returning,
-    visitNumber: input.visitNumber,
-    presenceSummary: input.presenceSummary,
     priorScenes: [],
     priorStrategies: [],
+    movieMode: input.movieMode,
   });
 }
 
@@ -76,7 +74,12 @@ function orderedSourceCandidate(
   }));
 
   const evidence = selected.map((event) => event.label);
-  const specificity = metric(selected.reduce((sum, event) => sum + Math.min(1, event.entities.length * 0.08 + event.label.split(/\s+/).length * 0.05), 0) / Math.max(1, selected.length));
+  const specificity = metric(
+    selected.reduce(
+      (sum, event) => sum + Math.min(1, event.entities.length * 0.08 + event.label.split(/\s+/).length * 0.05),
+      0,
+    ) / Math.max(1, selected.length),
+  );
 
   return {
     id: "movie-ordered-source",
@@ -111,14 +114,13 @@ function chooseMovie(
   input: AuthorBrainTruth,
   graph: ReturnType<typeof buildAuthorRealityGraph>,
   lens: string,
-  cognition: any,
 ): LatentMovieCandidate | undefined {
   if (input.movieMode === false) return undefined;
 
   const candidates = searchUniversalMovieCandidates({
     graph,
     subject: clean(input.subject),
-    requestedLens: lens,
+    lens,
     maxCandidates: 8,
   });
 
@@ -218,7 +220,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const cognition = buildCognition({ ...input, facts, sourceMoments }, graph);
   const lens = lensFrom(input, cognition);
-  const movie = chooseMovie(input, graph, lens, cognition);
+  const movie = chooseMovie(input, graph, lens);
 
   if (!movie || movie.trajectory.length < 3) {
     return {
@@ -300,7 +302,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       role: beats[index]?.role,
       gainKind: index === 0 ? "baseline" : index === selected.candidates.length - 1 ? "payoff" : "new_fact",
       text: candidate.text,
-      sourceIds: beats[index]?.eventIds ?? [],
+      sourceIds: [...(beats[index]?.eventIds ?? [])],
       attentionFunction: beats[index]?.attentionFunction,
       next: beats[index]?.next,
       frontier: beats[index]?.frontier,
@@ -325,15 +327,16 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     })),
   );
 
-  const scenes: AuthorScene[] = attention.cuts.map((cut: any, index: number) => ({
-    text: clean(cut.text),
-    kind: index === attention.cuts.length - 1 ? "payoff" : index === 0 ? "hook" : "turn",
+  const scenes: AuthorScene[] = selected.candidates.map((candidate, index) => ({
+    text: clean(candidate.text),
+    kind: index === selected.candidates.length - 1 ? "payoff" : index === 0 ? "hook" : "turn",
   }));
 
   const complete =
     scenes.length >= 3 &&
     scenes.length === sequence.cuts.length &&
     sequence.cuts.every((cut) => cut.sourceIds.length > 0) &&
+    attention.accepted === true &&
     arc.accepted === true;
 
   return {
