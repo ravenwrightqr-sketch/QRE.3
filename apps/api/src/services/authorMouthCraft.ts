@@ -20,16 +20,17 @@ export function mouthCraftSystem(risk: string): string {
     "Do not add stock atmosphere such as laughter, sunset, golden light, silence, secrets, destiny, music, moonlight, shadows, suspense, or tears unless supplied.",
     "Do not explain the joke. Let the reader connect the dots.",
     "Do not repeat the subject unless the name genuinely improves the line.",
-   "Use the minimum language required for the cut to land.",
-   "A cut may be one word, several short sentences, or slightly longer when the wording itself is the phenomenal.",
+    "Use the minimum language required for the cut to land.",
+    "A cut may be one word, one sentence, several short sentences, or slightly longer when the wording itself is the hit.",
     "Never expand merely to satisfy a word-count target.",
-   "Never shorten merely to satisfy a word-count target.",
-   "Optimize for attention, curiosity, contrast, interruption, accumulation, and payoff.",
+    "Never shorten merely to satisfy a word-count target.",
+    "Optimize for attention, curiosity, contrast, interruption, accumulation, attitude, tempo, and payoff.",
+    "Tempo is variation in viewer state, not constant speed. Allow breathing room when it makes the next interruption hit harder.",
     `RISK DIAL: ${risk}. Be bold in language, conservative in facts.`,
     "The beat must feel like a frame of a movie, not a description of a movie.",
     "If the source is boring, find the sharpest relationship inside it. Do not manufacture spectacle.",
     "Return JSON exactly: {\"texts\":[\"line 1\",\"line 2\",...]}.",
-    "Return exactly one line for each approved beat, in order.",
+    "Return exactly one realized line or cut for each approved beat, in order.",
     "NEVER re-plan the movie, create new beats, summarize the sequence, or output a premise. Realize only the approved beats you receive.",
   ].join("\n");
 }
@@ -49,8 +50,14 @@ export function mouthCraftUser(input: { prompt: string; lens?: string; subject?:
 export function mouthQualityPenalty(text: string): number {
   const value = clean(text);
   let penalty = 0;
+  const wordCount = value ? value.split(/\s+/).length : 0;
   if (GENERIC.test(value)) penalty += 0.65;
   if (PROCESS.test(value)) penalty += 0.45;
-  if (value.split(/\s+/).length > 7) penalty += 0.25;
+  // Length is a soft naturalness signal only. There is deliberately no 7-word
+  // ceiling: long language is penalized only when it starts behaving like a
+  // paragraph instead of a cut.
+  if (wordCount > 28) penalty += Math.min(0.35, (wordCount - 28) * 0.03);
+  if ((value.match(/,/g) ?? []).length >= 3) penalty += 0.15;
+  if ((value.match(/\b(?:and|then|because|while|which)\b/gi) ?? []).length >= 3) penalty += 0.15;
   return penalty;
 }
