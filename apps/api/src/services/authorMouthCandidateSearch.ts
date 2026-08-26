@@ -13,6 +13,7 @@ import type {
   ViewerStateCut,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
+import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
 
 export type {
   MouthCandidate,
@@ -104,8 +105,7 @@ function endpointExactForBeat(
     .filter(Boolean);
   const normalized = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
   return labels.some(
-    (label) =>
-      normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase(),
+    (label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase(),
   );
 }
 
@@ -117,60 +117,27 @@ function deriveViewerStateCut(
 ): ViewerStateCut {
   const currentIds = unique(beat.eventIds ?? []);
   const priorIds = new Set(
-    beats
-      .slice(0, index)
-      .flatMap((item) => item.eventIds ?? [])
-      .filter(Boolean),
+    beats.slice(0, index).flatMap((item) => item.eventIds ?? []).filter(Boolean),
   );
   const newEventRatio = metric(
     currentIds.length
       ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length
       : 0,
   );
-
   const currentSource = sourceForBeat(beat, envelope).join(" ");
-  const priorSource = beats
-    .slice(0, index)
-    .flatMap((item) => sourceForBeat(item, envelope))
-    .join(" ");
-  const continuity = priorSource
-    ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource)))
-    : 0.55;
+  const priorSource = beats.slice(0, index).flatMap((item) => sourceForBeat(item, envelope)).join(" ");
+  const continuity = priorSource ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource))) : 0.55;
   const contrast = metric((1 - continuity) * 0.7 + newEventRatio * 0.3);
-  const interruption = metric(
-    newEventRatio * 0.62 +
-      contrast * 0.28 +
-      (index === 0 ? 0.1 : 0),
-  );
+  const interruption = metric(newEventRatio * 0.62 + contrast * 0.28 + (index === 0 ? 0.1 : 0));
   const curiosityPressure = metric(
-    beat.paysOff?.length
-      ? 0.12
-      : beat.relationKinds?.length
-        ? 0.9
-        : index < beats.length - 1
-          ? 0.72
-          : 0.42,
+    beat.paysOff?.length ? 0.12 : beat.relationKinds?.length ? 0.9 : index < beats.length - 1 ? 0.72 : 0.42,
   );
-  const tempo = metric(
-    index === 0
-      ? 0.45
-      : Math.abs(interruption - (index > 1 ? 0.55 : 0.35)) * 0.9 + 0.35,
-  );
+  const tempo = metric(index === 0 ? 0.45 : Math.abs(interruption - (index > 1 ? 0.55 : 0.35)) * 0.9 + 0.35);
   const payoffPressure = metric(
-    beat.paysOff?.length
-      ? 1
-      : index === beats.length - 2
-        ? 0.78
-        : Math.min(0.7, 0.25 + index * 0.08),
+    beat.paysOff?.length ? 1 : index === beats.length - 2 ? 0.78 : Math.min(0.7, 0.25 + index * 0.08),
   );
-  const stateShift = metric(
-    contrast * 0.45 +
-      interruption * 0.35 +
-      curiosityPressure * 0.2,
-  );
-  const predictionError = metric(
-    contrast * 0.55 + newEventRatio * 0.45,
-  );
+  const stateShift = metric(contrast * 0.45 + interruption * 0.35 + curiosityPressure * 0.2);
+  const predictionError = metric(contrast * 0.55 + newEventRatio * 0.45);
 
   let attentionMove: ViewerStateCut["attentionMove"];
   if (beat.paysOff?.length) attentionMove = "land";
@@ -208,51 +175,44 @@ function deriveViewerStateCut(
   };
 }
 
-function legal(
-  text: string,
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): boolean {
+function legal(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
   const value = clean(text);
-  if (!value || META.test(value) || GENERIC.test(value) || PLANNING_RESIDUE.test(value)) {
-    return false;
-  }
+  if (!value || META.test(value) || GENERIC.test(value) || PLANNING_RESIDUE.test(value)) return false;
 
-  const sourceText = sourceForBeat(beat, envelope).join(" ");
+  const sourceLabels = sourceForBeat(beat, envelope);
+  const sourceText = sourceLabels.join(" ");
   const current = tokenSet(value);
   const source = tokenSet(sourceText);
   const sourceOverlap = overlap(current, source);
   const requiredIds = unique(beat.eventIds ?? []);
   const requiredEvents = envelope.events.filter((event) => requiredIds.includes(event.id));
   const eventSupported = requiredEvents.some(
-    (event) =>
-      phraseSupportedText(value, event.label) ||
-      overlap(current, tokenSet(event.label)) >= 0.25,
+    (event) => phraseSupportedText(value, event.label) || overlap(current, tokenSet(event.label)) >= 0.25,
   );
   const semanticBeat = Boolean(
     beat.relationKinds?.length ||
-      /turn|reframe|discovery|escalation|reveal|consequence|payoff/i.test(
-        `${beat.attentionFunction ?? ""} ${beat.role ?? ""}`,
-      ),
+      /turn|reframe|discovery|escalation|reveal|consequence|payoff/i.test(`${beat.attentionFunction ?? ""} ${beat.role ?? ""}`),
   );
+  const interpretation = evaluateMouthInterpretation({
+    text: value,
+    sourceLabels,
+    envelope,
+  });
 
   const groundedEnough =
     sourceOverlap >= 0.16 ||
     eventSupported ||
     (semanticBeat && SEMANTIC_TURN_LANGUAGE.test(value)) ||
-    endpointExactForBeat(value, beat, envelope);
+    endpointExactForBeat(value, beat, envelope) ||
+    interpretation.accepted;
 
   if (!groundedEnough) return false;
-  if (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) {
-    return false;
-  }
+  if (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) return false;
+  if (interpretation.unsupportedConcreteRisk >= 1) return false;
   return true;
 }
 
-function groundedFallbackTexts(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
+function groundedFallbackTexts(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const labels = sourceForBeat(beat, envelope);
   const result: string[] = [];
   const attention = clean(beat.attentionFunction ?? beat.role).toLowerCase();
@@ -265,21 +225,14 @@ function groundedFallbackTexts(
   }
 
   if (first && legal(first, beat, envelope)) result.push(first);
-
-  if (
-    first &&
-    second &&
-    /reframe|contrast|turn|escalation|callback|payoff|release/i.test(attention)
-  ) {
+  if (first && second && /reframe|contrast|turn|escalation|callback|payoff|release/i.test(attention)) {
     const joined = `${first}. ${second}.`;
     if (legal(joined, beat, envelope)) result.push(joined);
   }
-
   if (first && /hook|arrival|establish/i.test(attention)) {
     const hook = `${first}.`;
     if (legal(hook, beat, envelope)) result.push(hook);
   }
-
   if (first && /reframe|turn/i.test(attention)) {
     const semantic = `${first}, apparently.`;
     if (legal(semantic, beat, envelope)) result.push(semantic);
@@ -343,39 +296,25 @@ export function buildMouthCandidateMessages(
 }
 
 export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | null {
-  const text = clean(raw)
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
+  const text = clean(raw).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   if (!text) return null;
 
   try {
-    const parsed = JSON.parse(text) as Partial<MouthCandidateBatch> & {
-      texts?: unknown[];
-    };
-
+    const parsed = JSON.parse(text) as Partial<MouthCandidateBatch> & { texts?: unknown[] };
     if (Array.isArray(parsed.variantsByBeat)) {
       return {
         variantsByBeat: parsed.variantsByBeat
-          .map((entry) => ({
-            order: Number(entry.order),
-            variants: unique(entry.variants ?? []).slice(0, 8),
-          }))
+          .map((entry) => ({ order: Number(entry.order), variants: unique(entry.variants ?? []).slice(0, 8) }))
           .filter((entry) => Number.isFinite(entry.order)),
       };
     }
-
     if (Array.isArray(parsed.texts)) {
       return {
         variantsByBeat: parsed.texts
-          .map((value, index) => ({
-            order: index + 1,
-            variants: clean(value) ? [clean(value)] : [],
-          }))
+          .map((value, index) => ({ order: index + 1, variants: clean(value) ? [clean(value)] : [] }))
           .filter((entry) => entry.variants.length > 0),
       };
     }
-
     return null;
   } catch {
     return null;
@@ -402,24 +341,25 @@ export function scoreMouthCandidate(input: {
   const modelText = clean(input.text);
   const candidateLegal = legal(modelText, input.beat, input.envelope);
   const fallbackTexts = groundedFallbackTexts(input.beat, input.envelope);
-
-  const text = candidateLegal ? modelText : (fallbackTexts[0] ?? modelText);
+  const text = candidateLegal ? modelText : fallbackTexts[0] ?? modelText;
   const isFallback = !candidateLegal && text !== modelText && Boolean(text);
   const effectiveLegal = legal(text, input.beat, input.envelope);
+  const sourceLabels = sourceForBeat(input.beat, input.envelope);
+  const interpretation = evaluateMouthInterpretation({
+    text,
+    sourceLabels,
+    envelope: input.envelope,
+  });
 
   const priorTexts = input.priorTexts ?? [];
-  const source = tokenSet(sourceForBeat(input.beat, input.envelope).join(" "));
+  const source = tokenSet(sourceLabels.join(" "));
   const current = tokenSet(text);
   const required = unique(input.beat.eventIds ?? []);
   const requiredEvents = input.envelope.events.filter((event) => required.includes(event.id));
-
   const eventSupported = (event: RealityEnvelope["events"][number]): boolean =>
     phraseSupportedText(text, event.label) || overlap(current, tokenSet(event.label)) >= 0.25;
   const supportedEventIds = requiredEvents.filter(eventSupported).map((event) => event.id);
-  const requiredCoverage = requiredEvents.length
-    ? supportedEventIds.length / requiredEvents.length
-    : 0;
-
+  const requiredCoverage = requiredEvents.length ? supportedEventIds.length / requiredEvents.length : 0;
   const supportedRelationPairs = input.envelope.relations
     .filter((relation) => supportedEventIds.includes(relation.from) && supportedEventIds.includes(relation.to))
     .map((relation) => `${relation.from}->${relation.to}`);
@@ -431,53 +371,45 @@ export function scoreMouthCandidate(input: {
         `${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`,
       ),
   );
-  const groundingScore = Math.max(
-    0,
-    Math.min(1, sourceCoverage * 0.58 + requiredCoverage * 0.42),
-  );
+  const groundingScore = Math.max(0, Math.min(1, sourceCoverage * 0.58 + requiredCoverage * 0.42));
+  const interpretationLift = interpretation.accepted ? interpretation.interpretive : 0;
   const meaningScore = Math.min(
     1,
-    0.38 + groundingScore * 0.35 + (SEMANTIC_TURN_LANGUAGE.test(text) ? 0.18 : 0),
+    Math.max(
+      0.38 + groundingScore * 0.35 + (SEMANTIC_TURN_LANGUAGE.test(text) ? 0.18 : 0),
+      interpretationLift * 0.82,
+    ),
   );
   const transitionScore = Math.min(
     1,
-    0.34 + groundingScore * 0.28 + (semanticBeat ? 0.22 : 0) + (input.beat.next || input.beat.frontier ? 0.1 : 0),
+    0.34 + groundingScore * 0.28 + (semanticBeat ? 0.22 : 0) + (input.beat.next || input.beat.frontier ? 0.1 : 0) + interpretationLift * 0.16,
   );
   const noveltyScore = priorTexts.length
     ? Math.max(0.15, 1 - Math.max(...priorTexts.map((prior) => overlap(current, tokenSet(prior)))))
     : 1;
   const compressionScore = softCompressionScore(text);
   const repetitionRisk = 1 - noveltyScore;
-  const inventionRisk = effectiveLegal ? (isFallback ? 0.18 : 0.04) : 0.9;
+  const inventionRisk = effectiveLegal ? (isFallback ? 0.18 : interpretation.unsupportedConcreteRisk > 0 ? 0.9 : 0.04) : 0.9;
   const forbiddenMoveRisk = META.test(text) || GENERIC.test(text) || PLANNING_RESIDUE.test(text) ? 1 : 0;
   const collageRisk = text.split(/[.!?]+/).filter(Boolean).length >= 5 && sourceCoverage < 0.3 ? 0.25 : 0;
 
-  const endpointLabels = (input.beat.paysOff ?? [])
-    .map((value) => eventLabel(input.envelope, value) || clean(value))
-    .filter(Boolean);
-  const isPayoff = Boolean(
-    endpointLabels.length && /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`),
-  );
+  const endpointLabels = (input.beat.paysOff ?? []).map((value) => eventLabel(input.envelope, value) || clean(value)).filter(Boolean);
+  const isPayoff = Boolean(endpointLabels.length && /payoff|release/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`));
   const normalizedText = text.replace(/[.!?]+$/g, "").toLowerCase();
-  const endpointExactness = isPayoff && endpointLabels.some(
-    (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
-  ) ? 1 : 0;
-
-  const literalSourceRestatement = !isPayoff && sourceForBeat(input.beat, input.envelope).some(
-    (label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase(),
-  );
+  const endpointExactness = isPayoff && endpointLabels.some((label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
+  const literalSourceRestatement = !isPayoff && sourceLabels.some((label) => normalizedText === label.replace(/[.!?]+$/g, "").toLowerCase());
   const restatementPenalty = semanticBeat && literalSourceRestatement ? 0.22 : 0;
-  const creativeLift = semanticBeat && !literalSourceRestatement
-    ? Math.min(0.22, 0.09 + sourceCoverage * 0.13)
+  const creativeLift = semanticBeat && interpretation.accepted && !literalSourceRestatement
+    ? Math.min(0.3, 0.12 + interpretationLift * 0.28)
     : 0;
 
   const reasons = [
-    /hook|arrival|establish/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`)
-      ? "hook-scored-as-establishment"
-      : "",
+    /hook|arrival|establish/i.test(`${input.beat.attentionFunction ?? ""} ${input.beat.role ?? ""}`) ? "hook-scored-as-establishment" : "",
     isFallback ? "grounded-fallback" : "",
     literalSourceRestatement ? "fact-restatement" : "",
     semanticBeat && !literalSourceRestatement ? "semantic-turn-grounded" : "",
+    interpretation.accepted && !literalSourceRestatement ? "derivable-interpretation" : "",
+    interpretation.frameSupport >= 0.8 ? "evidence-supported-frame" : "",
     endpointExactness === 1 ? "endpoint-exact" : "",
     !candidateLegal ? "candidate-truth-rejected" : "",
     PLANNING_RESIDUE.test(text) ? "planning-residue" : "",
@@ -488,13 +420,14 @@ export function scoreMouthCandidate(input: {
         0,
         Math.min(
           1,
-          groundingScore * 0.24 +
+          groundingScore * 0.18 +
             meaningScore * 0.18 +
-            transitionScore * 0.2 +
+            transitionScore * 0.16 +
             noveltyScore * 0.08 +
-            compressionScore * 0.08 +
-            creativeLift * 0.12 +
-            (1 - inventionRisk) * 0.1 +
+            compressionScore * 0.06 +
+            creativeLift * 0.18 +
+            interpretationLift * 0.08 +
+            (1 - inventionRisk) * 0.08 +
             endpointExactness * 0.25 -
             restatementPenalty -
             (isFallback ? 0.12 : 0),
