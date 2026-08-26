@@ -34,8 +34,8 @@ const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|agai
 
 const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season|devotion)\b/i;
 
-/* Concrete verbs that normally assert a new world event rather than merely frame existing reality. */
-const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?)\b/i;
+/* Concrete verbs/actions that normally assert a new world event. */
+const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?)\b/i;
 
 const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage|sidewalk|road|house)\b/i;
 const FRAME_WORDS = /\b(?:mission|operation|round|boss|quest|game|speedrun|knockout|stun|finish|victory|championship|negotiations?|deal|terms?|case|verdict|heist|noir|royal|romance|rebel|pit\s*stop|upgrade|showtime|objective)\b/i;
@@ -115,11 +115,10 @@ export function evaluateMouthInterpretation(input: {
   }
 
   /*
-   * Once concrete invention is ruled out, a short viewer-facing interpretation
-   * can legitimately derive attitude from the supplied reality's existing
-   * action/state shape even when the exact paraphrase has low lexical overlap.
-   * This is the creative-bet lane: allowed, but it remains below direct source
-   * grounding in the score unless it actually earns strong interpretation.
+   * A grounded creative interpretation may use the entire supplied world,
+   * not just the event currently being realized. This is the creative-bet
+   * lane: allowed when the source itself contains action/state material and
+   * the line remains short and free of unsupported concrete events.
    */
   const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 2;
   const derivedInterpretationAnchor = Math.max(sourceAnchor, wholeSourceAnchor);
@@ -187,7 +186,7 @@ export function evaluateMouthInterpretation(input: {
       Boolean(text) &&
       unsupportedConcreteRisk < 0.9 &&
       (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
-      (literalRestatement === 1 || interpretive >= 0.38),
+      (literalRestatement === 1 || (safeCreativeBet ? interpretive >= 0.28 : interpretive >= 0.38)),
     reasons,
   };
 }
