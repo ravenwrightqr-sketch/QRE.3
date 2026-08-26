@@ -78,10 +78,11 @@ function scoreBeat(beat: AttentionBeatInput, prior: string[], total: number): At
     ? Math.min(1, prior.filter((value) => clean(value).toLowerCase() === text.toLowerCase()).length)
     : 0;
   const role = clean(beat.attentionFunction ?? beat.role).toLowerCase();
-  const final = beat.paysOff?.length || role === "payoff" || role === "release";
+  const final = Boolean(beat.paysOff?.length || role === "payoff" || role === "release");
+  const canonicalEndpointRepetition = final && repetition > 0;
   const illegal = !text || internalLeak.test(text) || genericFiller.test(text);
   const invention = obviousInvention.test(text) ? 0.25 : 0;
-  const novelty = repetition ? 0 : 1;
+  const novelty = repetition && !canonicalEndpointRepetition ? 0 : 1;
   const density = softAttentionDensity(wc);
   const attention = density * 0.78 + (wc > 0 && wc <= 18 ? 0.22 : 0.12);
   const creativeMove = beat.creativeMove && beat.creativeMove !== "none" ? 0.8 : 0.55;
@@ -94,7 +95,7 @@ function scoreBeat(beat: AttentionBeatInput, prior: string[], total: number): At
   const reasons: string[] = [];
   if (!text) reasons.push("missing-text");
   if (illegal) reasons.push("viewer-leak");
-  if (repetition) reasons.push("repetition");
+  if (repetition && !canonicalEndpointRepetition) reasons.push("repetition");
   if (invention) reasons.push("possible-invention");
   if (wc > 18) reasons.push("long-cut-soft-cost");
 
@@ -119,7 +120,7 @@ function scoreBeat(beat: AttentionBeatInput, prior: string[], total: number): At
     sequenceCohesion: cohesion,
     cumulativeMeaning: prior.length ? 0.78 : 0.55,
     score: Number(score.toFixed(3)),
-    keep: !illegal && !repetition,
+    keep: !illegal && (!repetition || canonicalEndpointRepetition),
     reasons,
   };
 }
