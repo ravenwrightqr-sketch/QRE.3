@@ -1,8 +1,7 @@
 /**
  * STATUS: CANONICAL
  * ROLE: Ask the model for viewer-facing wording for already-approved beats.
- * MUST NOT: plan, invent events, or turn state/relationship material into
- * fabricated physical behavior.
+ * MUST NOT: plan, invent events, or turn state/relationship material into fabricated physical behavior.
  */
 
 import type {
@@ -127,11 +126,7 @@ function deriveViewerStateCut(
 ): ViewerStateCut {
   const currentIds = unique(beat.eventIds ?? []);
   const priorIds = new Set(beats.slice(0, index).flatMap((item) => item.eventIds ?? []).filter(Boolean));
-  const newEventRatio = metric(
-    currentIds.length
-      ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length
-      : 0,
-  );
+  const newEventRatio = metric(currentIds.length ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length : 0);
   const currentSource = sourceForBeat(beat, envelope).join(" ");
   const priorSource = beats.slice(0, index).flatMap((item) => sourceForBeat(item, envelope)).join(" ");
   const continuity = priorSource ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource))) : 0.55;
@@ -142,7 +137,6 @@ function deriveViewerStateCut(
   const payoffPressure = metric(beat.paysOff?.length ? 1 : index === beats.length - 2 ? 0.78 : Math.min(0.7, 0.25 + index * 0.08));
   const stateShift = metric(contrast * 0.45 + interruption * 0.35 + curiosityPressure * 0.2);
   const predictionError = metric(contrast * 0.55 + newEventRatio * 0.45);
-
   let attentionMove: ViewerStateCut["attentionMove"];
   if (beat.paysOff?.length) attentionMove = "land";
   else if (index === 0) attentionMove = "orient";
@@ -151,7 +145,6 @@ function deriveViewerStateCut(
   else if (curiosityPressure >= 0.78) attentionMove = "tighten";
   else if (stateShift >= 0.7) attentionMove = "escalate";
   else attentionMove = "release";
-
   const stateNames: Record<ViewerStateCut["attentionMove"], { before: string; after: string }> = {
     orient: { before: "uncommitted", after: "oriented" },
     interrupt: { before: "settled", after: "disrupted" },
@@ -162,7 +155,6 @@ function deriveViewerStateCut(
     land: { before: "expectant", after: "resolved" },
   };
   const names = stateNames[attentionMove];
-
   return {
     beforeState: names.before,
     afterState: names.after,
@@ -188,9 +180,22 @@ function evaluateCandidate(
   const value = clean(text);
   const sourceLabels = sourceForBeat(beat, envelope);
   const sourceText = sourceLabels.join(" ");
+  const wholeSourceText = [
+    envelope.subject,
+    ...envelope.events.map((event) => event.label),
+    ...envelope.suppliedPhrases,
+    ...envelope.suppliedEntities,
+    ...envelope.suppliedActions,
+    ...envelope.suppliedStates,
+    ...envelope.recurringSignals,
+    ...envelope.sensorySignals,
+    ...envelope.unresolvedTensions,
+  ].join(" ");
   const currentTokens = tokenSet(value);
   const sourceTokens = tokenSet(sourceText);
+  const wholeSourceTokens = tokenSet(wholeSourceText);
   const groundingScore = metric(overlap(currentTokens, sourceTokens));
+  const wholeSourceAnchor = metric(overlap(currentTokens, wholeSourceTokens));
   const supportedEvents = supportedEventsForBeat(beat, envelope);
   const supportedEventIds = supportedEvents
     .filter((event) => phraseSupportedText(value, event.label) || overlap(currentTokens, tokenSet(event.label)) >= 0.25)
@@ -212,10 +217,17 @@ function evaluateCandidate(
   const obligationCoverage = metric(supportedEventIds.length ? 0.55 + Math.min(0.35, supportedEventIds.length * 0.15) : groundingScore * 0.5);
   const relationContractScore = metric(supportedRelationPairs.length ? 0.8 : semanticBeat ? 0.35 : 0.2);
   const forbiddenMoveRisk = metric(
-    interpretation.unsupportedConcreteRisk >= 1 || (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) ? 1 : 0,
+    interpretation.unsupportedConcreteRisk >= 0.9 || (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(wholeSourceText)) ? 1 : interpretation.unsupportedConcreteRisk,
   );
-  const cohesionScore = metric(0.55 + (1 - repetitionRisk) * 0.25 + groundingScore * 0.2);
-  const inventionRisk = forbiddenMoveRisk > 0 ? 0.95 : metric(Math.max(0, 0.22 - groundingScore * 0.18));
+  const creativeLane = interpretation.accepted && literalRestatementFor(value, sourceLabels) === 0 && forbiddenMoveRisk < 0.9;
+  const effectiveGrounding = metric(
+    Math.max(
+      groundingScore,
+      creativeLane ? Math.min(0.55, wholeSourceAnchor * 0.5 + interpretation.creativeFraming * 0.55) : groundingScore,
+    ),
+  );
+  const cohesionScore = metric(0.55 + (1 - repetitionRisk) * 0.25 + effectiveGrounding * 0.2);
+  const inventionRisk = forbiddenMoveRisk > 0.35 ? Math.max(0.72, forbiddenMoveRisk) : metric(Math.max(0, 0.22 - effectiveGrounding * 0.18));
   const collageRisk = value.split(/[.!?]+/).filter(Boolean).length > 2 && wordCount > 22 ? 0.35 : 0;
 
   if (!value) reasons.push("missing-text");
@@ -225,15 +237,30 @@ function evaluateCandidate(
   if (BAD_INTERPRETIVE_EXPLANATION.test(value)) reasons.push("interpretive-explanation");
   if (wordCount > 24) reasons.push("too-long");
   if (!sourceLabels.length) reasons.push("missing-grounding");
-  if (groundingScore < 0.12 && !endpointExactness) reasons.push("weak-grounding");
+  if (effectiveGrounding < 0.08 && !endpointExactness && !creativeLane) reasons.push("weak-grounding");
   if (repetitionRisk > 0.75) reasons.push("repetition");
   if (forbiddenMoveRisk >= 0.9) reasons.push("invention-risk");
   if (supportedEventIds.length) reasons.push("event-grounded");
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
-  if (semanticBeat && !supportedEventIds.length && groundingScore >= 0.16) reasons.push("semantic-turn-grounded");
+  if (creativeLane) {
+    reasons.push("bounded-creative-bet");
+    reasons.push("semantic-turn-grounded");
+  } else if (semanticBeat && !supportedEventIds.length && effectiveGrounding >= 0.16) {
+    reasons.push("semantic-turn-grounded");
+  }
 
   const score = metric(
-    groundingScore * 0.24 + meaningScore * 0.18 + transitionScore * 0.15 + obligationCoverage * 0.1 + relationContractScore * 0.05 + cohesionScore * 0.08 + noveltyScore * 0.08 + compressionScore * 0.07 + (1 - inventionRisk) * 0.05 - collageRisk * 0.03,
+    effectiveGrounding * 0.18 +
+    meaningScore * 0.2 +
+    transitionScore * 0.15 +
+    obligationCoverage * 0.08 +
+    relationContractScore * 0.05 +
+    cohesionScore * 0.08 +
+    noveltyScore * 0.08 +
+    compressionScore * 0.07 +
+    (1 - inventionRisk) * 0.06 +
+    (creativeLane ? 0.05 : 0) -
+    collageRisk * 0.03,
   );
 
   return {
@@ -241,7 +268,7 @@ function evaluateCandidate(
     beatOrder: beat.order,
     supportedEventIds,
     supportedRelationPairs,
-    groundingScore,
+    groundingScore: effectiveGrounding,
     meaningScore,
     transitionScore,
     obligationCoverage,
@@ -257,6 +284,11 @@ function evaluateCandidate(
     score,
     reasons,
   };
+}
+
+function literalRestatementFor(value: string, labels: readonly string[]): number {
+  const normalized = clean(value).replace(/[.!?]+$/g, "").toLowerCase();
+  return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
 }
 
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
