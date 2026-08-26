@@ -32,19 +32,18 @@ const COUPLE_MOMENTS = [
 
 const cases: Record<string, AuthorAcceptanceCase> = {
   COCO: {
-    prompt: "Create a viewer-facing grooming memory from the supplied Coco reality.",
+    prompt: "Make a living dog tag for Coco.",
     subject: "Coco",
     facts: [
       "Coco is a dog",
-      "Coco entered",
-      "the lawyer was already called",
-      "next came the bath and bubbles",
-      "bows appeared",
-      "the mirror approved",
-      "fabulous exit",
+      "Coco is a poodle",
+      "Coco loves bacon",
+      "Coco loves the park",
+      "Coco walks",
+      "Coco likes squirrels",
     ],
     sourceMoments: [],
-    lens: "funny, sharp, compressed, slightly fierce, forward-pulling",
+    lens: "funny, specific, compressed, playful, slightly fierce, viewer-forward",
     memoryContext: [],
     trajectory: [],
     creativeLearningContext: [],
@@ -52,27 +51,28 @@ const cases: Record<string, AuthorAcceptanceCase> = {
 
   "COCO-RETURN": {
     prompt:
-      "Write Coco's second grooming chapter using what we already know plus today's update.",
+      "Write Coco's second dog-tag chapter using what we already know plus today's update.",
     subject: "Coco",
     facts: [
       "Coco is a dog",
-      "the bath was faster today",
-      "the pink bow was offered again",
-      "Coco walked out proud",
+      "Coco is a poodle",
+      "Coco loves bacon",
+      "Coco loves the park",
+      "Coco walks",
+      "Coco likes squirrels",
+      "Coco now waits at the park gate",
+      "Coco found a favorite bench",
     ],
-    sourceMoments: [
-      "the bow returned",
-      "the second visit changed the meaning of the first",
-    ],
+    sourceMoments: [],
     lens: "callback comedy",
     memoryContext: [
-      "Chapter 1: Coco entered, the lawyer was already called, the bath and bubbles came next, bows appeared, the mirror approved, fabulous exit.",
+      "Chapter 1: Coco is a poodle who loves bacon, loves the park, walks, and likes squirrels.",
     ],
     trajectory: [
-      "Chapter 1: Coco entered, the lawyer was already called, the bath and bubbles came next, bows appeared, the mirror approved, fabulous exit.",
+      "Chapter 1: Coco is a poodle who loves bacon, loves the park, walks, and likes squirrels.",
     ],
     creativeLearningContext: [
-      "Do not replay the first chapter. Make the returning bow mean something new.",
+      "Do not replay the first chapter. Make the returning park detail mean something new.",
     ],
   },
 
