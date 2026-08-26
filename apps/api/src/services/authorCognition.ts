@@ -5,6 +5,7 @@ import type {
   RealityGraph,
 } from "@qre/contracts";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
+import { rerankByViewerState } from "./authorViewerState.js";
 import {
   buildAuthorExperienceState,
   summarizeAuthorExperienceState,
@@ -165,12 +166,15 @@ function movieFor(
 ): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate } {
   if (input.movieMode === false || !input.realityGraph) return { latentMovieCandidates: [] };
 
-  const candidates = searchUniversalMovieCandidates({
-    graph: input.realityGraph,
-    subject: input.subject,
-    lens: input.lens,
-    limit: 10,
-  }).map((candidate) => enrichMovieCandidate(candidate, input.realityGraph, input.lens));
+  const candidates = rerankByViewerState(
+    input.realityGraph,
+    searchUniversalMovieCandidates({
+      graph: input.realityGraph,
+      subject: input.subject,
+      lens: input.lens,
+      limit: 10,
+    }),
+  ).map((candidate) => enrichMovieCandidate(candidate, input.realityGraph, input.lens));
 
   return { latentMovieCandidates: candidates, selectedMovie: candidates[0] };
 }
@@ -248,6 +252,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const selectedFrame = characterRead.creativeFrames[0]?.frame ?? "NONE";
   const attentionCandidates: AttentionCandidate[] = [
     { strategy: "graph_relationship", reason: "Prefer supplied relationships over isolated facts.", score: 100 },
+    { strategy: "viewer_state_change", reason: "Prefer cuts that materially change attention, curiosity, expectation, or meaning.", score: 99 },
     { strategy: "change", reason: "Prefer supplied changes that alter meaning.", score: 96 },
     { strategy: "contrast", reason: "Prefer supplied contrasts when they produce a stronger movie.", score: 94 },
     { strategy: "recurrence", reason: "Use persistent repetition when memory makes it meaningful.", score: 90 },
@@ -275,10 +280,10 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   ];
 
   const sceneRules = [
-    "One beat is one viewer-facing sequence moment.",
-    "Short is good; do not turn the film into a paragraph.",
+    "One cut is one viewer-facing sequence moment; there is no fixed word-count target.",
+    "Use the minimum language required for the cut to land.",
     "Creative language may change framing and attitude but never source truth.",
-    "A beat should either advance meaning, deepen a tension, establish a setup, revisit prior meaning, or land payoff.",
+    "A cut should change the viewer state through attention, curiosity, contrast, interruption, accumulation, or payoff.",
     "Finish when the selected payoff lands; do not manufacture a final event.",
     ...(experienceState ? summarizeAuthorExperienceState(experienceState) : []),
   ];
@@ -286,8 +291,9 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const graphSummary = input.realityGraph
     ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations.`
     : "REALITY GRAPH: unavailable.";
+  const dynamics = movie.selectedMovie?.viewerStateDynamics;
   const movieSummary = movie.selectedMovie
-    ? `SELECTED MOVIE: ${movie.selectedMovie.hypothesis.join(" ")} Semantic turn: ${movie.selectedMovie.storyThesis?.semanticTurn ?? "none"}. Candidate count: ${movie.latentMovieCandidates.length}.`
+    ? `SELECTED MOVIE: ${movie.selectedMovie.hypothesis.join(" ")} Semantic turn: ${movie.selectedMovie.storyThesis?.semanticTurn ?? "none"}. Candidate count: ${movie.latentMovieCandidates.length}. Viewer-state score: ${dynamics?.score ?? "n/a"}.`
     : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
   const frameSummary = `FRAME: ${selectedFrame}. A frame changes perspective, never reality.`;
   const authorBrief = [
