@@ -68,18 +68,12 @@ function overlap(a: Set<string>, b: Set<string>): number {
 }
 
 /**
- * A candidate is selectable only when Mouth Candidate Search
- * has supplied some evidence that the text is authorized.
- *
- * Literal grounded language is legal.
- * Exact endpoint language is legal.
- * Evidence-backed semantic turns are legal.
- *
- * Mere plausibility is not authorization.
+ * Literal language remains legal. Bounded creative interpretations are also
+ * legal when Mouth Candidate Search has explicitly marked them as grounded
+ * and their concrete-invention risk is low. Mere plausibility is not enough.
  */
 function authorized(candidate: MouthCandidate): boolean {
   const text = clean(candidate.text);
-
   if (!text) return false;
 
   if (
@@ -92,27 +86,29 @@ function authorized(candidate: MouthCandidate): boolean {
   const hasGrounding = candidate.groundingScore >= 0.5;
   const hasSupportedEvents = candidate.supportedEventIds.length > 0;
   const hasEndpoint = candidate.endpointExactness >= 0.999;
-  const hasSemanticAuthorization = candidate.reasons.includes(
-    "semantic-turn-grounded",
-  );
+  const hasSemanticAuthorization = candidate.reasons.includes("semantic-turn-grounded");
+  const hasCreativeAuthorization = candidate.reasons.includes("bounded-creative-bet");
 
   return (
     hasGrounding ||
     hasSupportedEvents ||
     hasEndpoint ||
-    hasSemanticAuthorization
+    hasSemanticAuthorization ||
+    hasCreativeAuthorization
   );
 }
 
 function semanticQuality(candidate: MouthCandidate): number {
-  return (
-    candidate.meaningScore * 0.26 +
-    candidate.transitionScore * 0.22 +
-    candidate.groundingScore * 0.22 +
-    candidate.obligationCoverage * 0.12 +
+  const creativeLift = candidate.reasons.includes("bounded-creative-bet") ? 0.12 : 0;
+  return clamp01(
+    candidate.meaningScore * 0.24 +
+    candidate.transitionScore * 0.2 +
+    candidate.groundingScore * 0.18 +
+    candidate.obligationCoverage * 0.1 +
     candidate.compressionScore * 0.08 +
     candidate.cohesionScore * 0.05 +
-    candidate.noveltyScore * 0.05
+    candidate.noveltyScore * 0.05 +
+    creativeLift,
   );
 }
 
@@ -124,139 +120,72 @@ function authorizationQuality(candidate: MouthCandidate): number {
   if (candidate.groundingScore >= 0.8) value += 0.2;
   else if (candidate.groundingScore >= 0.5) value += 0.1;
   if (candidate.reasons.includes("semantic-turn-grounded")) value += 0.2;
+  if (candidate.reasons.includes("bounded-creative-bet")) value += 0.16;
 
   return clamp01(value);
 }
 
 function rank(candidate: MouthCandidate): number {
-  const inventionSafety =
-    1 - Math.max(candidate.inventionRisk, candidate.forbiddenMoveRisk);
+  const inventionSafety = 1 - Math.max(candidate.inventionRisk, candidate.forbiddenMoveRisk);
   const authorization = authorizationQuality(candidate);
   const semantic = semanticQuality(candidate);
   const endpoint = candidate.endpointExactness >= 0.999 ? 1 : 0;
 
   return clamp01(
     inventionSafety * 0.28 +
-      authorization * 0.24 +
-      semantic * 0.40 +
-      endpoint * 0.08,
+    authorization * 0.24 +
+    semantic * 0.4 +
+    endpoint * 0.08,
   );
 }
 
 function compareCandidates(a: MouthCandidate, b: MouthCandidate): number {
   const rankDelta = rank(b) - rank(a);
   if (rankDelta !== 0) return rankDelta;
-
-  if (a.endpointExactness !== b.endpointExactness) {
-    return b.endpointExactness - a.endpointExactness;
+  if (a.endpointExactness !== b.endpointExactness) return b.endpointExactness - a.endpointExactness;
+  if (a.reasons.includes("bounded-creative-bet") !== b.reasons.includes("bounded-creative-bet")) {
+    return b.reasons.includes("bounded-creative-bet") ? 1 : -1;
   }
-
-  if (a.supportedEventIds.length !== b.supportedEventIds.length) {
-    return b.supportedEventIds.length - a.supportedEventIds.length;
-  }
-
-  if (a.groundingScore !== b.groundingScore) {
-    return b.groundingScore - a.groundingScore;
-  }
-
+  if (a.supportedEventIds.length !== b.supportedEventIds.length) return b.supportedEventIds.length - a.supportedEventIds.length;
+  if (a.groundingScore !== b.groundingScore) return b.groundingScore - a.groundingScore;
   const aWords = clean(a.text).split(/\s+/).length;
   const bWords = clean(b.text).split(/\s+/).length;
   if (aWords !== bWords) return aWords - bWords;
-
   return clean(a.text).localeCompare(clean(b.text));
 }
 
 function dedupeCandidates(candidates: readonly MouthCandidate[]): MouthCandidate[] {
   const seen = new Set<string>();
   const result: MouthCandidate[] = [];
-
   for (const candidate of candidates) {
     const text = clean(candidate.text);
     if (!text) continue;
-
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
-
     seen.add(key);
     result.push(candidate);
   }
-
   return result;
 }
 
-/**
- * Sequence-level Mouth quality.
- *
- * The existing candidate score answers "is this line good?".
- * This answers the missing product question: "is this still good
- * after the lines that came before it?"
- *
- * We reward selective continuity and penalize re-announcement,
- * paraphrase, and lexical echo. We deliberately do not punish
- * legitimate callback words when they produce a changed meaning.
- */
-function sequenceFit(
-  candidate: MouthCandidate,
-  priorTexts: readonly string[],
-): number {
+function sequenceFit(candidate: MouthCandidate, priorTexts: readonly string[]): number {
   if (!priorTexts.length) return 0.64;
-
   const current = tokenSet(candidate.text);
   const previous = priorTexts.map(tokenSet);
   const latest = previous[previous.length - 1];
-
   const latestOverlap = overlap(current, latest);
-  const maxOverlap = Math.max(
-    ...previous.map((tokens) => overlap(current, tokens)),
-  );
-
-  const exactRepeat = previous.some(
-    (text) => clean(text).toLowerCase() === clean(candidate.text).toLowerCase(),
-  );
-
+  const maxOverlap = Math.max(...previous.map((tokens) => overlap(current, tokens)));
+  const exactRepeat = previous.some((text) => clean(text).toLowerCase() === clean(candidate.text).toLowerCase());
   if (exactRepeat) return 0;
-
-  /*
-   * A very high lexical overlap usually means the Mouth is simply
-   * restating the previous cut. Moderate overlap is useful: callbacks,
-   * established subjects, and recurring details need some shared words.
-   */
-  const restatementPenalty =
-    latestOverlap >= 0.78
-      ? 0.44
-      : latestOverlap >= 0.62
-        ? 0.24
-        : maxOverlap >= 0.82
-          ? 0.2
-          : 0;
-
-  const callbackSweetSpot =
-    latestOverlap >= 0.18 && latestOverlap <= 0.52
-      ? 0.16
-      : 0;
-
-  const selectiveTurn =
-    candidate.reasons.includes("semantic-turn-grounded") &&
-    latestOverlap < 0.75
-      ? 0.12
-      : 0;
-
-  return clamp01(
-    0.62 + callbackSweetSpot + selectiveTurn - restatementPenalty,
-  );
+  const restatementPenalty = latestOverlap >= 0.78 ? 0.44 : latestOverlap >= 0.62 ? 0.24 : maxOverlap >= 0.82 ? 0.2 : 0;
+  const callbackSweetSpot = latestOverlap >= 0.18 && latestOverlap <= 0.52 ? 0.16 : 0;
+  const selectiveTurn = candidate.reasons.includes("semantic-turn-grounded") && latestOverlap < 0.75 ? 0.12 : 0;
+  const creativeTurn = candidate.reasons.includes("bounded-creative-bet") && latestOverlap < 0.75 ? 0.1 : 0;
+  return clamp01(0.62 + callbackSweetSpot + selectiveTurn + creativeTurn - restatementPenalty);
 }
 
-function pathScore(
-  candidate: MouthCandidate,
-  priorTexts: readonly string[],
-): number {
-  const base = rank(candidate);
-  const sequence = sequenceFit(candidate, priorTexts);
-
-  return clamp01(
-    base * 0.76 +
-      sequence * 0.24,
-  );
+function pathScore(candidate: MouthCandidate, priorTexts: readonly string[]): number {
+  return clamp01(rank(candidate) * 0.76 + sequenceFit(candidate, priorTexts) * 0.24);
 }
 
 export function selectBestMouthSequence(
@@ -264,71 +193,42 @@ export function selectBestMouthSequence(
   options: MouthBeamOptions = {},
 ): MouthSequencePath {
   const ordered = [...pools].sort((a, b) => a.order - b.order);
-
-  if (!ordered.length) {
-    return { candidates: [], texts: [], score: 0 };
-  }
+  if (!ordered.length) return { candidates: [], texts: [], score: 0 };
 
   const width = Math.max(1, Math.floor(options.width ?? 12));
-  const candidatesPerBeat = Math.max(
-    1,
-    Math.floor(options.candidatesPerBeat ?? 8),
-  );
+  const candidatesPerBeat = Math.max(1, Math.floor(options.candidatesPerBeat ?? 8));
 
-  type Path = {
-    candidates: MouthCandidate[];
-    score: number;
-  };
-
+  type Path = { candidates: MouthCandidate[]; score: number };
   let paths: Path[] = [{ candidates: [], score: 0 }];
 
   for (let index = 0; index < ordered.length; index += 1) {
     const pool = ordered[index];
-
     const eligible = dedupeCandidates(pool.candidates)
       .filter(authorized)
       .sort(compareCandidates)
       .slice(0, Math.max(candidatesPerBeat, width));
 
-    if (!eligible.length) {
-      return { candidates: [], texts: [], score: 0 };
-    }
+    if (!eligible.length) return { candidates: [], texts: [], score: 0 };
 
     const expanded: Path[] = [];
-
     for (const path of paths) {
       for (const candidate of eligible) {
         const priorTexts = path.candidates.map((item) => clean(item.text));
         const isFinal = index === ordered.length - 1;
-
         if (isFinal && candidate.endpointExactness >= 0.999) {
-          expanded.push({
-            candidates: [...path.candidates, candidate],
-            score: path.score + 1.15,
-          });
+          expanded.push({ candidates: [...path.candidates, candidate], score: path.score + 1.15 });
           continue;
         }
-
-        expanded.push({
-          candidates: [...path.candidates, candidate],
-          score: path.score + pathScore(candidate, priorTexts),
-        });
+        expanded.push({ candidates: [...path.candidates, candidate], score: path.score + pathScore(candidate, priorTexts) });
       }
     }
-
     expanded.sort((a, b) => b.score - a.score);
     paths = expanded.slice(0, width);
   }
 
-  if (!paths.length) {
-    return { candidates: [], texts: [], score: 0 };
-  }
-
+  if (!paths.length) return { candidates: [], texts: [], score: 0 };
   const best = paths[0];
-  const average = best.candidates.length
-    ? best.score / best.candidates.length
-    : 0;
-
+  const average = best.candidates.length ? best.score / best.candidates.length : 0;
   return {
     candidates: best.candidates,
     texts: best.candidates.map((candidate) => clean(candidate.text)),
