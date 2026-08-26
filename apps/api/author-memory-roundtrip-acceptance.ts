@@ -95,6 +95,18 @@ const roundTwoStateWithoutMemory = buildAuthorExperienceState({
   priorExperienceStates: [],
 });
 
+const revisitedLabels = roundTwoStateWithMemory.revisitedEventIds
+  .map((id) => roundTwoGraph.events.find((event) => event.id === id)?.label ?? "")
+  .map((label) => label.toLowerCase());
+
+assert(
+  roundTwoStateWithMemory.revisitedEventIds.length < roundTwoGraph.events.length,
+  "continuity detector treated every Round 2 event as a revisit",
+);
+assert(
+  revisitedLabels.some((label) => /less nervous|purple bows/.test(label)),
+  "continuity detector missed the changed established material",
+);
 assert(
   roundTwoStateWithMemory.revisitedEventIds.length >= roundTwoStateWithoutMemory.revisitedEventIds.length,
   "prior state did not preserve revisit awareness",
