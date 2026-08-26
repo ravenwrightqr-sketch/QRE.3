@@ -89,6 +89,6 @@ console.log(`RETRIES=${result.retries}`);
 console.log(`FALLBACKS=${result.fallbacks}`);
 
 assert(unsupportedIdentity.length === 0, "Mouth produced an identity claim not established by supplied reality");
-assert(subjectMentions <= 2, "subject was repeatedly re-announced instead of becoming active context");
+assert(subjectMentions <= 1, "subject was repeatedly re-announced instead of becoming active context");
 
 console.log("AUTHOR MOUTH SEQUENCE ACCEPTANCE: PASS");
