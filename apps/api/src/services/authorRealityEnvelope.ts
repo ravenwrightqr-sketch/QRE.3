@@ -48,6 +48,33 @@ const ACTION_RE =
 const STATE_RE =
   /\b(?:nervous|fierce|cool|happy|sad|proud|angry|afraid|scared|quiet|calm|excited|tired|ready|beautiful|fabulous|safe|finished|done|married|connected|alone|missing|lost|new|different|changed)\b/i;
 
+const AUTHORING_DIRECTIVE =
+  /^(?:(?:please\s+)?(?:make|write|tell|show|create|generate|return|preserve|keep|use|turn|make\s+it|make\s+this|make\s+that|do\s+not|don't|avoid|ensure|give)\b.*(?:experience|story|line|sentence|movie|film|copy|text|response|sharp|memorable|funny|comedy|horror|romance|cinematic|attention|viewer|audience)|(?:make|write|show|create|generate|turn)\s+(?:the|it|this|that)\b)/i;
+
+function stripAuthoringDirective(value: string): string {
+  const text = clean(value);
+  if (!text) return "";
+
+  const parts = text
+    .split(/(?<=[.!?])\s+/)
+    .map(clean)
+    .filter(Boolean);
+
+  const factual = parts.filter(
+    (part) => !AUTHORING_DIRECTIVE.test(part),
+  );
+
+  return clean(
+    factual.length
+      ? factual.join(" ")
+      : "",
+  );
+}
+
+function canonicalEventLabel(value: string): string {
+  return stripAuthoringDirective(value);
+}
+
 function tokens(values: readonly string[]): string[] {
   return unique(
     values.flatMap(
@@ -138,12 +165,23 @@ export function buildAuthorRealityEnvelope(input: {
   graph: RealityGraph;
   subject?: string;
 }): RealityEnvelope {
-  const graph = input.graph;
   const subject = clean(input.subject);
-  const eventLabels = graph.events.map((event) => event.label);
+  const events = input.graph.events
+    .map((event) => ({
+      ...event,
+      label: canonicalEventLabel(event.label),
+    }))
+    .filter((event) => Boolean(event.label));
+
+  const graph: RealityGraph = {
+    ...input.graph,
+    events,
+  };
+
+  const eventLabels = events.map((event) => event.label);
   const suppliedPhrases = unique(eventLabels);
   const suppliedEntities = unique(
-    graph.events.flatMap((event) =>
+    events.flatMap((event) =>
       (event.entities ?? []).filter(
         (entity) =>
           !ACTION_RE.test(entity) &&
@@ -156,6 +194,9 @@ export function buildAuthorRealityEnvelope(input: {
    * suppliedTerms is the canonical concrete vocabulary used by the Mouth.
    * It must include the explicit subject and supplied entity vocabulary, not
    * merely lexical tokens extracted from event labels.
+   *
+   * Authoring instructions are intentionally absent from event labels before
+   * this vocabulary is built, so they cannot become concrete Mouth material.
    */
   const suppliedTerms = tokens([
     subject,
@@ -169,7 +210,7 @@ export function buildAuthorRealityEnvelope(input: {
 
   return {
     subject,
-    events: graph.events.map((event) => ({
+    events: events.map((event) => ({
       id: event.id,
       label: event.label,
       sourceIds: event.sourceIds ?? [],
