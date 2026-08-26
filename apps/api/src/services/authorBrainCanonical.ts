@@ -121,7 +121,7 @@ function chooseMovie(
     graph,
     subject: clean(input.subject),
     lens,
-    maxCandidates: 8,
+    limit: 8,
   });
 
   const selected = candidates.find((candidate) => candidate.trajectory.length >= 3);
