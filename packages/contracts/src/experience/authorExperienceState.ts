@@ -27,6 +27,9 @@ export type AuthorTempo = {
 export type AuthorExperienceState = {
   version: 1;
 
+  /** Explicit factual labels retained only as provenance anchors for later comparison. */
+  realityAnchors?: string[];
+
   establishedEventIds: string[];
   changedEventIds: string[];
   carrierEventIds: string[];
