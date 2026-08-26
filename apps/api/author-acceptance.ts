@@ -20,10 +20,10 @@ const qualityStatus = String(result.diagnostics.qualityStatus ?? "UNKNOWN");
 const renderable = Boolean(result.diagnostics.renderable);
 
 console.log("=".repeat(72));
-console.log("QRE AUTHOR ACCEPTANCE · CANONICAL BRAIN / ONE MODEL REALIZATION");
+console.log("QRE AUTHOR ACCEPTANCE · CANONICAL BRAIN / ONE REALIZATION PATH");
 console.log("=".repeat(72));
 console.log(`MODEL: ${String(result.diagnostics.model ?? "unknown")}`);
-console.log(`MODEL CALLS: ${String(result.diagnostics.modelCalls ?? 0)}`);
+console.log(`MODEL REQUESTS: ${String(result.diagnostics.modelCalls ?? 0)}`);
 console.log(`CANDIDATES: ${String(result.diagnostics.candidateSequences ?? 0)}`);
 console.log(`ACCEPTED: ${String(result.diagnostics.acceptedCandidates ?? 0)}`);
 console.log(`STATUS: ${qualityStatus}`);
@@ -39,8 +39,9 @@ if (qualityStatus !== "ACCEPTED") {
   console.log("--- END QRE SEQUENCE ---");
 }
 
-if (result.diagnostics.modelCalls !== 1) {
-  throw new Error("AUTHOR INVARIANT FAILED: expected exactly one model realization call");
+const expectedRequests = result.sequence.cuts.length;
+if (result.diagnostics.modelCalls !== expectedRequests) {
+  throw new Error(`AUTHOR INVARIANT FAILED: expected ${expectedRequests} model realization requests, got ${result.diagnostics.modelCalls}`);
 }
 if (!result.diagnostics.complete) {
   throw new Error("AUTHOR INVARIANT FAILED: no complete grounded authored sequence");
