@@ -33,6 +33,7 @@ export function mergeAuthorExperienceStates(
 
   return {
     ...latest,
+    realityAnchors: strings("realityAnchors").slice(-64),
     establishedEventIds: strings("establishedEventIds"),
     changedEventIds: strings("changedEventIds"),
     carrierEventIds: strings("carrierEventIds"),
@@ -71,6 +72,7 @@ export function authorExperienceStateToMemoryBatch(input: {
     `Changed: ${input.state.changedEventIds.join(", ") || "none"}.`,
     `Future: ${input.state.futureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
     `Retired future: ${input.state.retiredFutureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
+    `Reality anchors: ${input.state.realityAnchors?.slice(0, 4).join(" | ") || "none"}.`,
   ].join(" ");
 
   return {
@@ -114,6 +116,7 @@ export function authorExperienceMemoryContext(
 ): string[] {
   const stateSummaries = extractAuthorExperienceStates(context).flatMap((state) => [
     `prior tempo: ${state.tempo.mode}`,
+    ...state.realityAnchors?.slice(0, 12).map((value) => `anchor: ${value}`) ?? [],
     ...state.carryThreads.slice(0, 8).map((value) => `carry: ${value}`),
     ...state.futureThreadKeys.slice(0, 8).map((value) => `future: ${value}`),
     ...state.retiredFutureThreadKeys.slice(0, 8).map((value) => `retired future: ${value}`),
