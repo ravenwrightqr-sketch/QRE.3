@@ -5,6 +5,10 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
+import {
+  detectAuthorMemoryContinuity,
+  summarizeAuthorMemoryContinuity,
+} from "./authorMemoryContinuity.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
@@ -60,9 +64,11 @@ function deriveTempo(input: {
   const operations = semanticSteps.map((step) => step.operation);
   const tail = operations[operations.length - 1];
   const urgency = metric(activeTensions * 0.32 + lookaheadValue * 0.28 + continuationValue * 0.18 + Math.min(1, semanticSteps.length / 4) * 0.12 + (round > 1 ? 0.1 : 0));
+
+  /* Cross-round continuity is recognized before movie selection. */
+  if (revisits > 0) return { mode: "revisit", urgency, compression: 0.68, revealSpacing: 0.58, holdPressure: 0.52, nextBeatPull: metric(0.58 + lookaheadValue * 0.32), reason: "New evidence exists that can change the meaning of established material.", arc: ["revisit", "reframe", lookaheadValue > 0.45 ? "tighten" : "hold"] };
   if (!semanticSteps.length) return { mode: "hook", urgency: 0.35, compression: 0.45, revealSpacing: 0.75, holdPressure: 0.25, nextBeatPull: 0.75, reason: "Establish the world before spending its meaning.", arc: ["hook", "reveal", "open"] };
   if (endpointPressure >= 0.82 || tail === "payoff") return { mode: "release", urgency, compression: 0.82, revealSpacing: 0.9, holdPressure: 0.12, nextBeatPull: metric(0.3 + continuationValue * 0.55), reason: "The selected payoff is close enough to release; do not invent another event.", arc: ["tighten", "release", continuationValue > 0.55 ? "open" : "hold"] };
-  if (revisits > 0) return { mode: "revisit", urgency, compression: 0.68, revealSpacing: 0.58, holdPressure: 0.52, nextBeatPull: metric(0.58 + lookaheadValue * 0.32), reason: "New evidence exists that can change the meaning of established material.", arc: ["revisit", "reframe", lookaheadValue > 0.45 ? "tighten" : "hold"] };
   if (activeTensions >= 2 && lookaheadValue >= 0.45) return { mode: "tighten", urgency: metric(Math.max(0.65, urgency)), compression: 0.76, revealSpacing: 0.48, holdPressure: 0.22, nextBeatPull: metric(0.66 + lookaheadValue * 0.25), reason: "Multiple live tensions and a viable next thread demand tighter cuts.", arc: ["hook", "accelerate", "tighten", "payoff"] };
   if (activeTensions > resolvedTensions || continuationValue >= 0.6) return { mode: "accelerate", urgency: metric(Math.max(0.55, urgency)), compression: 0.7, revealSpacing: 0.56, holdPressure: 0.2, nextBeatPull: metric(0.6 + lookaheadValue * 0.28), reason: "The experience has unresolved movement worth carrying forward.", arc: ["hook", "accelerate", "reveal", "open"] };
   return { mode: "hold", urgency, compression: 0.52, revealSpacing: 0.72, holdPressure: 0.58, nextBeatPull: metric(0.48 + continuationValue * 0.28), reason: "Let the current meaning settle before forcing another turn.", arc: ["hook", "hold", "reframe", "release"] };
@@ -82,7 +88,16 @@ export function buildAuthorExperienceState(input: {
   const semanticSteps = trajectory.filter((step) => step.operation !== "establish" && step.operation !== "payoff");
   const payoffStep = trajectory.find((step) => step.operation === "payoff");
   const previous = input.priorExperienceStates ?? [];
-  const prior = (key: keyof AuthorExperienceState): string[] => uniq(previous.flatMap((state) => (Array.isArray(state[key]) ? (state[key] as string[]) : [])));
+  const prior = (key: keyof AuthorExperienceState): string[] => uniq(previous.flatMap((state) => {
+    const value = state[key];
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  }));
+
+  const priorRealityAnchors = prior("realityAnchors");
+  const currentRealityAnchors = uniq(graph.events.map((item) => clean(item.label)).filter(Boolean), 64);
+  const realityAnchors = uniq([...priorRealityAnchors, ...currentRealityAnchors], 64);
+  const memoryRevisitIds = detectAuthorMemoryContinuity(graph.events, priorRealityAnchors);
+  const continuityHooks = summarizeAuthorMemoryContinuity(graph.events, priorRealityAnchors);
 
   const establishedEventIds = uniq([...prior("establishedEventIds"), ...trajectory.flatMap((step) => (step.operation === "establish" || step.operation !== "payoff" ? step.eventIds : []))]);
   const changedEventIds = uniq([...prior("changedEventIds"), ...semanticSteps.flatMap((step) => step.eventIds.slice(-1))]);
@@ -94,9 +109,19 @@ export function buildAuthorExperienceState(input: {
   const resolvedTensionKeys = uniq([...prior("resolvedTensionKeys"), ...relations.filter((relation) => ["causes", "after", "converges", "repeats"].includes(relation.kind)).map(relationKey)]);
   const setupEventIds = uniq([...prior("setupEventIds"), ...carrierEventIds, ...semanticSteps.flatMap((step) => step.eventIds.slice(0, 1))]);
   const callbackEventIds = uniq([...prior("callbackEventIds"), ...graph.events.filter((item) => persistentHook(item.label, graph)).map((item) => item.id)]);
-  const revisitedEventIds = uniq([...prior("revisitedEventIds"), ...semanticSteps.flatMap((step) => step.eventIds).filter((id, index, ids) => ids.indexOf(id) !== index)]);
+  const revisitedEventIds = uniq([
+    ...prior("revisitedEventIds"),
+    ...semanticSteps.flatMap((step) => step.eventIds).filter((id, index, ids) => ids.indexOf(id) !== index),
+    ...memoryRevisitIds,
+  ]);
   const unresolvedQuestions = uniq([...prior("unresolvedQuestions"), ...(movie?.unresolvedQuestion ? [movie.unresolvedQuestion] : []), ...relations.map((relation) => `What becomes newly meaningful after ${eventLabel(graph, relation.to)}?`)], 16);
-  const carryThreads = uniq([...prior("carryThreads"), ...graph.recurringSignals, ...graph.unresolvedTensions, ...(input.memoryContext ?? []).filter((value) => clean(value).length > 2)], 20);
+  const carryThreads = uniq([
+    ...prior("carryThreads"),
+    ...graph.recurringSignals,
+    ...graph.unresolvedTensions,
+    ...continuityHooks,
+    ...(input.memoryContext ?? []).filter((value) => clean(value).length > 2),
+  ], 24);
   const semanticTurnKeys = uniq([...prior("semanticTurnKeys"), ...relations.map(relationKey)]);
   const relationKinds = uniq([...prior("relationKinds"), ...relations.map((relation) => relation.kind)]);
   const operations = uniq(trajectory.map((step) => step.operation));
@@ -108,6 +133,7 @@ export function buildAuthorExperienceState(input: {
       Math.min(1, callbackEventIds.length / 4) * 0.12 +
       Math.min(1, changedEventIds.length / 5) * 0.12 +
       Math.min(1, previous.length / 3) * 0.11 +
+      Math.min(1, revisitedEventIds.length / 2) * 0.08 +
       ((input.round ?? 1) > 1 ? 0.15 : 0),
   );
 
@@ -132,14 +158,16 @@ export function buildAuthorExperienceState(input: {
     ...prior("memoryHooks").filter((hook) => !retiredFutureThreadKeys.includes(hook)),
     ...graph.recurringSignals.map((value) => `recurring:${value}`),
     ...graph.unresolvedTensions.map((value) => `tension:${value}`),
+    ...continuityHooks,
     ...revisitedEventIds.map((id) => `revisit:${id}`),
     ...futureThreadKeys,
     ...retiredFutureThreadKeys.slice(-8),
     `tempo:${tempo.mode}`,
-  ], 40);
+  ], 48);
 
   return {
     version: 1,
+    realityAnchors,
     establishedEventIds,
     changedEventIds,
     carrierEventIds,
@@ -178,6 +206,7 @@ export function buildAuthorExperienceState(input: {
 export function summarizeAuthorExperienceState(state: AuthorExperienceState): string[] {
   return [
     `EXPERIENCE STATE: ${state.chapter.operations.join(" → ") || "empty"}`,
+    `REALITY ANCHORS: ${state.realityAnchors?.length ?? 0}`,
     `ESTABLISHED: ${state.establishedEventIds.join(", ") || "none"}`,
     `CHANGED: ${state.changedEventIds.join(", ") || "none"}`,
     `ACTIVE TENSIONS: ${state.activeTensionKeys.length}`,
