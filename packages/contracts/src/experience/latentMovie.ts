@@ -72,6 +72,17 @@ export type LatentMovieCandidate = {
   compressionPotential: number;
   repetitionRisk: number;
 
+  /** Pre-language viewer-state trajectory diagnostics. */
+  viewerStateDynamics?: {
+    attention: number;
+    curiosity: number;
+    contrast: number;
+    interruption: number;
+    accumulation: number;
+    payoff: number;
+    score: number;
+  };
+
   /** How materially this movie differs from the other candidates in the same search. */
   distinctiveness: number;
   score: number;
