@@ -9,13 +9,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function replaceRegexOnce(source, regex, replacement, label) {
-  const match = source.match(regex);
-  assert(match, `Missing stable symbol for ${label}; refusing to patch.`);
-  return source.replace(regex, replacement);
-}
-
-function replaceLiteralOnce(source, from, to, label) {
+function replaceOnce(source, from, to, label) {
   assert(source.includes(from), `Missing stable anchor for ${label}; refusing to patch.`);
   return source.replace(from, to);
 }
@@ -29,58 +23,58 @@ let graph = fs.readFileSync(graphFile, "utf8");
  * FORBIDDEN: treating shared subject identity as convergence evidence.
  */
 
-const distinctTokenReplacement = [
-  "function sharedDistinctiveTokens(\n",
-  "  a: string,\n",
-  "  b: string,\n",
-  "  blockedTokens: ReadonlySet<string> = new Set(),\n",
-  "): string[] {\n",
-  "  const left = new Set(contentTokens(a));\n",
-  "  const right = new Set(contentTokens(b));\n",
-  "  return [...left].filter((token) => right.has(token) && !blockedTokens.has(token));\n",
-  "}\n\n",
-].join("");
+if (!graph.includes("blockedConvergenceTokens")) {
+  const oldHelper = `function sharedDistinctiveTokens(a: string, b: string): string[] {
+  const left = new Set(contentTokens(a));
+  const right = new Set(contentTokens(b));
+  return [...left].filter((token) => right.has(token));
+}
 
-graph = replaceRegexOnce(
-  graph,
-  /function sharedDistinctiveTokens[\s\S]*?(?=function specificityScore\()/,
-  distinctTokenReplacement,
-  "distinct convergence token helper",
-);
+`;
 
-graph = replaceRegexOnce(
-  graph,
-  /(function buildRelationships\(events: RealityEvent\[\], subject\?: string\): RealityRelation\[\] \{\n\s*const relations: RealityRelation\[\] = \[\];\n\s*const subjectText = lower\(subject \?\? \"\"\);)/,
-  [
-    "$1",
-    "\n",
-    "  const subjectTokens = new Set(contentTokens(subjectText));",
-    "  const blockedConvergenceTokens = subjectTokens;",
-  ].join(""),
-  "blocked convergence token setup",
-);
+  const newHelper = `function sharedDistinctiveTokens(
+  a: string,
+  b: string,
+  blockedTokens: ReadonlySet<string> = new Set(),
+): string[] {
+  const left = new Set(contentTokens(a));
+  const right = new Set(contentTokens(b));
+  return [...left].filter((token) => right.has(token) && !blockedTokens.has(token));
+}
 
-graph = replaceRegexOnce(
-  graph,
-  /\n\s*if \(subjectText && currentText\.includes\(subjectText\)\) \{[\s\S]*?\n\s*\}\n\n(?=    for \(let j = i \+ 1;)/,
-  "\n",
-  "remove subject-only event involves edges",
-);
+`;
 
-graph = replaceRegexOnce(
-  graph,
-  /const shared = sharedDistinctiveTokens\(current\.label, other\.label\);/,
-  [
-    "const shared = sharedDistinctiveTokens(\n",
-    "        current.label,\n",
-    "        other.label,\n",
-    "        blockedConvergenceTokens,\n",
-    "      );",
-  ].join(""),
-  "distinct convergence relation call",
-);
+  graph = replaceOnce(graph, oldHelper, newHelper, "distinct convergence token helper");
 
-fs.writeFileSync(graphFile, graph, "utf8");
+  const subjectAnchor = `  const subjectText = lower(subject ?? "");\n`;
+  const subjectSetup = `${subjectAnchor}  const subjectTokens = new Set(contentTokens(subjectText));\n  const blockedConvergenceTokens = subjectTokens;\n`;
+  graph = replaceOnce(graph, subjectAnchor, subjectSetup, "blocked convergence token setup");
+
+  const subjectEdge = `    if (subjectText && currentText.includes(subjectText)) {
+      for (let j = 0; j < events.length; j += 1) {
+        if (i === j) continue;
+        if (lower(events[j].label).includes(subjectText)) addRelation(relations, current.id, events[j].id, "involves", 0.62);
+      }
+    }
+
+`;
+  if (graph.includes(subjectEdge)) {
+    graph = graph.replace(subjectEdge, "");
+  }
+
+  const sharedLine = `      const shared = sharedDistinctiveTokens(current.label, other.label);`;
+  const sharedReplacement = `      const shared = sharedDistinctiveTokens(
+        current.label,
+        other.label,
+        blockedConvergenceTokens,
+      );`;
+  graph = replaceOnce(graph, sharedLine, sharedReplacement, "distinct convergence relation call");
+
+  fs.writeFileSync(graphFile, graph, "utf8");
+  console.log(`Patched ${path.relative(root, graphFile)}`);
+} else {
+  console.log("Already applied: RealityGraph sequence foundation changes");
+}
 
 let movie = fs.readFileSync(movieFile, "utf8");
 
@@ -156,7 +150,7 @@ if (!movie.includes("function buildOrderedSeedCandidate(")) {
     "}\n\n",
   ].join("");
 
-  movie = replaceLiteralOnce(
+  movie = replaceOnce(
     movie,
     "export function searchUniversalMovieCandidates(\n",
     `${orderedHelper}export function searchUniversalMovieCandidates(\n`,
@@ -178,7 +172,7 @@ if (!movie.includes("const orderedSeed = buildOrderedSeedCandidate(")) {
     anchor,
   ].join("");
 
-  movie = replaceLiteralOnce(
+  movie = replaceOnce(
     movie,
     anchor,
     insertion,
@@ -188,7 +182,6 @@ if (!movie.includes("const orderedSeed = buildOrderedSeedCandidate(")) {
 
 fs.writeFileSync(movieFile, movie, "utf8");
 
-console.log(`Patched ${path.relative(root, graphFile)}`);
 console.log(`Patched ${path.relative(root, movieFile)}`);
 console.log("QRE sequence foundation fix applied.");
 console.log("- subject identity no longer counts as convergence evidence");
