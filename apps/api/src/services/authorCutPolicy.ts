@@ -116,7 +116,7 @@ function compression(text: string): number {
 function implication(text: string): number {
   let value = compression(text) * 0.45;
   if (/\b(?:still|again|then|yet|only|apparently|already|after|before|now|round)\b/i.test(text)) value += 0.25;
-  if (/?|!/.test(text)) value += 0.15;
+  if (/\?|!/.test(text)) value += 0.15;
   if (!EXPLANATION.test(text)) value += 0.15;
   return Math.min(1, value);
 }
@@ -137,12 +137,6 @@ function inventionRisk(text: string, world: CutWorld): number {
   if (INVENTED_PHYSICAL.test(text) && !INVENTED_PHYSICAL.test(source)) risk += 0.6;
   if (UNSUPPORTED_PLACEMENT.test(text) && !UNSUPPORTED_PLACEMENT.test(source)) risk += 0.45;
   if (FUTURE.test(text)) risk += 0.25;
-
-  /*
-   * Identity is universally unknown until authoritative supplied reality
-   * establishes it. A viewer-facing line may use a gendered identity claim
-   * only when the source/memory already contains that claim.
-   */
   if (GENDERED_IDENTITY.test(text) && !GENDERED_IDENTITY.test(source)) risk += 0.9;
 
   return Math.min(1, risk);
