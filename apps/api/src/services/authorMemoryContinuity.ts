@@ -4,7 +4,7 @@ const STOP = new Set([
   "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by",
   "this", "that", "it", "is", "are", "was", "were", "be", "been", "being", "as", "into", "my", "your",
   "our", "their", "his", "her", "its", "he", "she", "they", "them", "you", "we", "me", "again", "time",
-  "visit", "visited", "grooming", "groomed", "place", "this", "that", "now", "then", "first", "second", "third",
+  "visit", "visited", "grooming", "groomed", "place", "now", "then", "first", "second", "third",
 ]);
 
 const STATE = new Set([
@@ -50,6 +50,10 @@ function distinctiveTokens(text: string): string[] {
   return tokens(text).filter((token) => !STATE.has(token) && !ACTION.has(token));
 }
 
+function colorTokens(text: string): string[] {
+  return tokens(text).filter((token) => COLORS.has(token));
+}
+
 function shared(left: readonly string[], right: readonly string[]): string[] {
   const rightSet = new Set(right);
   return left.filter((token) => rightSet.has(token));
@@ -62,15 +66,17 @@ function continuityStrength(current: string, prior: string): number {
   const currentDistinctive = distinctiveTokens(current);
   const priorDistinctive = distinctiveTokens(prior);
   const sharedDistinctive = shared(currentDistinctive, priorDistinctive);
+  const currentColors = colorTokens(current);
+  const priorColors = colorTokens(prior);
+  const sharedObject = sharedDistinctive.some((token) => !COLORS.has(token));
+  const colorReentry = currentColors.length > 0 && priorColors.length > 0 && currentColors.some((token) => !priorColors.includes(token)) && priorColors.some((token) => !currentColors.includes(token));
 
   if (sharedStates.length > 0 && sharedDistinctive.length > 0) return 0.98;
   if (sharedStates.length > 0) return 0.9;
   if (sharedDistinctive.length >= 2) return 0.86;
   if (sharedDistinctive.length === 1) {
-    const colorChanged = currentDistinctive.some((token) => COLORS.has(token)) !== priorDistinctive.some((token) => COLORS.has(token));
-    const objectOverlap = sharedDistinctive.some((token) => !COLORS.has(token));
-    if (colorChanged && objectOverlap) return 0.94;
-    if (objectOverlap && (actionTokens(current).length > 0 || actionTokens(prior).length > 0)) return 0.78;
+    if (colorReentry && sharedObject) return 0.94;
+    if (sharedObject && (actionTokens(current).length > 0 || actionTokens(prior).length > 0)) return 0.78;
   }
   return 0;
 }
