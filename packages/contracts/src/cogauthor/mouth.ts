@@ -4,6 +4,31 @@
  * Semantic structures shared by the canonical Mouth candidate, repair,
  * quality, and sequence-selection services. These are not viewer prose.
  */
+
+export type ViewerStateAttentionMove =
+  | "orient"
+  | "interrupt"
+  | "tighten"
+  | "recontextualize"
+  | "escalate"
+  | "release"
+  | "land";
+
+export type ViewerStateCut = {
+  beforeState: string;
+  afterState: string;
+  attentionMove: ViewerStateAttentionMove;
+  curiosityPressure: number;
+  contrast: number;
+  interruption: number;
+  accumulation: number;
+  tempo: number;
+  payoffPressure: number;
+  stateShift: number;
+  predictionError: number;
+  evidenceEventIds: string[];
+};
+
 export type MouthCandidateBeat = {
   order: number;
   role?: string;
@@ -20,6 +45,7 @@ export type MouthCandidateBeat = {
   forbiddenMoves?: readonly string[];
   relationKinds?: readonly string[];
   relationStrength?: number;
+  viewerState?: ViewerStateCut;
 };
 
 export type MouthCandidate = {
