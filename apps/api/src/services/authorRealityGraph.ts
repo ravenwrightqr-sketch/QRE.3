@@ -268,14 +268,13 @@ export function buildAuthorRealityGraph(input: {
   );
 
   /*
-   * ONLY prompt + factual inputs are eligible to become
-   * explicit reality events.
-   *
-   * This is the critical epistemic boundary.
+   * ONLY user-supplied factual material is eligible to become
+   * explicit reality events. Prompt text is authoring intent,
+   * not world evidence; memory/trajectory remain contextual.
    */
   const explicitReality = [
-    input.prompt,
     ...input.facts,
+    ...input.sourceMoments,
   ];
 
   const fragments =
@@ -337,7 +336,7 @@ export function buildAuthorRealityGraph(input: {
     );
 
   /*
-   * Tensions may consider the broader contextual material,
+   * Tensions may consider supplied reality plus prompt context,
    * but they remain interpretations/signals, not events.
    */
   const sourceText = [
