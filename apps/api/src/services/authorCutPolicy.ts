@@ -61,6 +61,8 @@ const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable expe
 const EXPLANATION = /\b(?:because|therefore|which means|this means|in other words|the reason|symbolizes?|represents?|shows that|explains?)\b/i;
 const FUTURE = /\b(?:will always|will never|forever|from now on|in the future|ever again)\b/i;
 const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|opens?|closes?|throws?|pulls?|pushes?|swipes?|flicks?|snatches?|seizes?|plucks?|scoops?|yanks?|tugs?)\b/i;
+const UNSUPPORTED_PLACEMENT = /\b(?:in hand|on (?:the|a|an) \w+|under (?:the|a|an) \w+|inside (?:the|a|an) \w+|behind (?:the|a|an) \w+|beside (?:the|a|an) \w+)\b/i;
+const GENDERED_IDENTITY = /\b(?:she|her|hers|he|him|his|female|male|woman|man|girl|boy)\b/i;
 const META_ADDRESS = /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
 
 function sourceText(world: CutWorld): string[] {
@@ -114,7 +116,7 @@ function compression(text: string): number {
 function implication(text: string): number {
   let value = compression(text) * 0.45;
   if (/\b(?:still|again|then|yet|only|apparently|already|after|before|now|round)\b/i.test(text)) value += 0.25;
-  if (/\?|!/.test(text)) value += 0.15;
+  if (/?|!/.test(text)) value += 0.15;
   if (!EXPLANATION.test(text)) value += 0.15;
   return Math.min(1, value);
 }
@@ -131,8 +133,18 @@ function inventionRisk(text: string, world: CutWorld): number {
   if (!text) return 1;
   const source = sourceText(world).join(" ");
   let risk = 0;
+
   if (INVENTED_PHYSICAL.test(text) && !INVENTED_PHYSICAL.test(source)) risk += 0.6;
+  if (UNSUPPORTED_PLACEMENT.test(text) && !UNSUPPORTED_PLACEMENT.test(source)) risk += 0.45;
   if (FUTURE.test(text)) risk += 0.25;
+
+  /*
+   * Identity is universally unknown until authoritative supplied reality
+   * establishes it. A viewer-facing line may use a gendered identity claim
+   * only when the source/memory already contains that claim.
+   */
+  if (GENDERED_IDENTITY.test(text) && !GENDERED_IDENTITY.test(source)) risk += 0.9;
+
   return Math.min(1, risk);
 }
 
