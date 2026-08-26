@@ -41,6 +41,8 @@ const operators = [
   "UNDERSTATEMENT: say less than the obvious interpretation and let the reader finish the thought.",
   "REVERSAL: invert the expected framing without inventing an event or physical action.",
   "CHARACTER: give the subject an attitude or comic voice that is clearly expressive framing, not a new factual event.",
+  "STATUS: make the supplied change feel like a status move, without inventing a new action or outcome.",
+  "IMPLICATION: leave one earned meaning unstated so the reader completes it.",
 ] as const;
 
 const candidateResults = await Promise.all(operators.map(async (operator) => {
@@ -55,7 +57,12 @@ const candidateResults = await Promise.all(operators.map(async (operator) => {
           "Use only APPROVED_EVIDENCE as factual material.",
           "Do not invent a concrete event, location, object, physical placement, reaction, outcome, second character, chronology, or wardrobe state.",
           "Identity metadata is context, not a plot device unless explicitly made relevant.",
-          "Prefer 3-10 words. Never explain the joke.",
+          "FEEL-GOOD DOES NOT MEAN WHOLESOME: the line should create an earned viewer reward appropriate to the supplied beat.",
+          "Viewer reward may be humor, tension, surprise, attitude, menace, irony, mischief, warmth, recognition, relief, curiosity, status, beauty, shock, or a sharp emotional turn.",
+          "Prefer a line that makes the viewer feel the semantic change instead of explaining it.",
+          "After the subject is established, omit the subject name unless repeating it improves emphasis, rhythm, or the punch.",
+          "Prefer 3-10 words, but do not flatten a stronger phrase just to hit a word count.",
+          "Never explain the joke.",
           "Return JSON exactly: {\"text\":\"...\"}.",
         ].join("\n"),
       },
@@ -65,7 +72,7 @@ const candidateResults = await Promise.all(operators.map(async (operator) => {
       },
     ],
     "json",
-    { numPredict: 120, temperature: 0.88 },
+    { numPredict: 140, temperature: 0.88 },
   );
   try {
     const parsed = JSON.parse(String(result.text ?? "").trim()) as { text?: unknown };
@@ -81,7 +88,7 @@ candidates.forEach((text, index) => console.log(`[${index + 1}] ${text}`));
 
 const critique = await critiqueMouthCandidates({
   prompt: "Fast creative probe",
-  lens: "funny, specific, surprising, affectionate",
+  lens: "specific, surprising, earned, attitude-forward",
   subject,
   facts,
   moments: [],
@@ -94,4 +101,10 @@ console.log(`CRITIC: ${critique.decision}`);
 console.log(`WINNER: ${critique.bestIndex >= 0 ? candidates[critique.bestIndex] ?? "none" : "none"}`);
 console.log(`FAILURES: ${critique.failureCodes?.join(" | ") || "none"}`);
 console.log(`REPAIR: ${critique.repairDirective || critique.reason}`);
-
+if (critique.scores?.[critique.bestIndex]) {
+  const score = critique.scores[critique.bestIndex];
+  console.log(`VIEWER_REWARD=${score.viewerReward ?? "n/a"}`);
+  console.log(`ATTENTION_PULL=${score.attentionPull ?? "n/a"}`);
+  console.log(`CREATIVE_FORCE=${score.creativeForce ?? "n/a"}`);
+  console.log(`AFTERIMAGE=${score.afterimage ?? "n/a"}`);
+}
