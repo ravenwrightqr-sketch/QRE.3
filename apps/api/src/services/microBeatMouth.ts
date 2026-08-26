@@ -1,13 +1,30 @@
-import type { AuthorBrainTruth, ExperienceBeat, ExperiencePresenceContext } from "@qre/contracts";
+/**
+ * QRE PRODUCTION AUTHOR PROJECTION · CANONICAL
+ *
+ * Sole responsibility:
+ *   Universal Author Brain scenes -> ExperienceBeat projection.
+ *
+ * This file is NOT an author, critic, planner, or second generation path.
+ * It must never manufacture narrative content or feed derived compiler prose
+ * back into the author.
+ */
+import type {
+  AuthorBrainTruth,
+  ExperienceBeat,
+  ExperiencePresenceContext,
+} from "@qre/contracts";
 import { authorBrainUniversal } from "./authorBrainUniversal.js";
-import { buildAuthorBehaviorProfile, summarizeAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
+import {
+  buildAuthorBehaviorProfile,
+  summarizeAuthorBehaviorProfile,
+} from "./authorBehaviorProfile.js";
 
 export type MicroBeatMouthInput = AuthorBrainTruth & {
   presence?: ExperiencePresenceContext;
   round?: number;
 };
 
-const MAX_CUTS = 6;
+const MAX_CUTS = 8;
 
 function kindFor(index: number, total: number): ExperienceBeat["kind"] {
   if (total <= 1 || index === total - 1) return "payoff";
@@ -20,12 +37,39 @@ function sceneText(value: string): string {
   return value.replace(/[,;]/g, "").replace(/\s+/g, " ").trim();
 }
 
-export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<ExperienceBeat[]> {
-  if (input.movieMode === false) return [];
-  if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return [];
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
 
-  const learnedProfile = buildAuthorBehaviorProfile(input.creativeLearningContext ?? []);
+export async function authorMicroBeats(
+  input: MicroBeatMouthInput,
+): Promise<ExperienceBeat[]> {
+  if (input.movieMode === false) return [];
+  if (
+    process.env.QRE_AI_ENABLED !== "true" ||
+    process.env.QRE_EXTERNAL_AI_ENABLED === "true"
+  ) {
+    return [];
+  }
+
+  const learnedProfile = buildAuthorBehaviorProfile(
+    input.creativeLearningContext ?? [],
+  );
   const learnedProfileContext = summarizeAuthorBehaviorProfile(learnedProfile);
+
+  /*
+   * IMPORTANT:
+   *
+   * The previous production adapter passed compiler-generated moments,
+   * trajectory prose, and a second cognitive plan into the Universal Author.
+   * That created mixed generations. The canonical brain must see source truth
+   * and learning context only; it owns its own cognition and sequence search.
+   */
+  const sourceTruth = unique([
+    ...input.facts,
+    ...(input.memoryContext ?? []),
+    ...(input.presence?.summary ?? []),
+  ]);
 
   const brainInput: AuthorBrainTruth = {
     prompt: input.prompt,
@@ -33,19 +77,18 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     subject: input.subject,
     place: input.place,
     subjectTruth: input.subjectTruth,
-    cognitivePlan: input.cognitivePlan,
     movieMode: input.movieMode,
     returning: input.presence?.isReturning ?? input.returning,
     visitNumber: input.presence?.visitNumber ?? input.visitNumber,
     presenceSummary: input.presence?.summary ?? input.presenceSummary,
-    facts: input.facts,
+    facts: sourceTruth,
     sourceMoments: [
-      ...input.sourceMoments,
-      ...(input.presence?.summary ?? []),
-      ...(input.presence?.places ?? []).map((place) => `return location ${place}`),
+      ...sourceTruth,
+      ...(input.presence?.places ?? []).map((place) => `location ${place}`),
     ],
-    memoryContext: input.memoryContext ?? [],
-    trajectory: input.trajectory ?? [],
+    memoryContext: unique(input.memoryContext ?? []),
+    cognitivePlan: undefined,
+    trajectory: [],
     creativeLearningContext: [
       ...(input.creativeLearningContext ?? []),
       ...learnedProfileContext,
@@ -64,13 +107,27 @@ export async function authorMicroBeats(input: MicroBeatMouthInput): Promise<Expe
     text: sceneText(scene.text),
     kind: kindFor(index, all.length),
     order: index,
-    attentionRole: index === all.length - 1 ? "payoff" : "next_cut_pressure",
-    operator: index === 0 ? "reframe" : index === all.length - 1 ? "payoff" : "character_lens",
-    callback: Boolean(input.presence?.isReturning || input.returning) && index === 0,
-    durationHintMs: index === all.length - 1 ? 1800 : Math.max(850, Math.min(1700, 850 + sceneText(scene.text).split(/\s+/).length * 85)),
+    attentionRole:
+      index === all.length - 1 ? "payoff" : "next_cut_pressure",
+    operator:
+      index === 0 ? "reframe" : index === all.length - 1 ? "payoff" : "character_lens",
+    callback:
+      Boolean(input.presence?.isReturning || input.returning) && index === 0,
+    durationHintMs:
+      index === all.length - 1
+        ? 1800
+        : Math.max(
+            850,
+            Math.min(
+              1700,
+              850 + sceneText(scene.text).split(/\s+/).length * 85,
+            ),
+          ),
     meta: {
       source: "universal-author-brain",
-      wordCount: sceneText(scene.text).split(/\s+/).filter(Boolean).length,
+      wordCount: sceneText(scene.text)
+        .split(/\s+/)
+        .filter(Boolean).length,
       returning: Boolean(input.presence?.isReturning || input.returning),
       visitNumber: input.presence?.visitNumber ?? input.visitNumber ?? null,
       creativeAngle: result.brief.angle,
