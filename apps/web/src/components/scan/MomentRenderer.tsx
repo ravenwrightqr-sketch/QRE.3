@@ -147,8 +147,85 @@ export default function MomentRenderer({ moment }: MomentProps) {
           )}
         </div>
       );
-    case "media":
-      return moment.media?.length ? <CinematicText text={text || ""} /> : null;
+      case "media": {
+  const media = moment.media ?? [];
+
+  return (
+    <div
+      style={{
+        width: "min(92vw, 1000px)",
+        display: "grid",
+        gap: 18,
+        justifyItems: "center",
+      }}
+    >
+      {media.map((item) => {
+        if (item.type === "image") {
+          return (
+            <img
+              key={item.id}
+              src={item.url}
+              alt={item.caption ?? item.title ?? ""}
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: "72dvh",
+                objectFit: "contain",
+                borderRadius: 18,
+              }}
+            />
+          );
+        }
+
+        if (item.type === "video") {
+          return (
+            <video
+              key={item.id}
+              src={item.url}
+              poster={item.thumbnail}
+              controls
+              playsInline
+              preload="metadata"
+              style={{
+                display: "block",
+                width: "100%",
+                maxHeight: "72dvh",
+                borderRadius: 18,
+              }}
+            />
+          );
+        }
+
+        if (item.type === "audio") {
+          return (
+            <div
+              key={item.id}
+              style={{
+                width: "min(88vw, 720px)",
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, opacity: 0.65 }}>
+                {item.title ?? "Audio"}
+              </div>
+              <audio
+                src={item.url}
+                controls
+                preload="metadata"
+                style={{ width: "100%" }}
+              />
+            </div>
+          );
+        }
+
+        return null;
+      })}
+
+      {text ? <CinematicText text={text} /> : null}
+    </div>
+  );
+}
     default:
       return <CinematicText text={text} />;
   }

@@ -48,8 +48,8 @@ function opening(lens: CognitiveLens, event: WorldEvent, index: number): string 
   const choices = lens === "comedy"
     ? ["The day had a plan.", "Everything was normal for approximately a minute.", "There was, technically, a sensible explanation."]
     : lens === "horror"
-      ? ["Nothing announced itself as wrong.", "At first, every detail behaved.", "The room offered no warning."]
-      : lens === "romance"
+      ? [
+    "Nothing announced itself as wrong.",  "At first, every detail behaved.", "Nothing in the supplied details offered a warning.",]: lens === "romance"
         ? ["At the time, it looked small.", "Nobody needed to call it important yet.", "The moment was ordinary enough to pass quietly."]
         : lens === "mysterious"
           ? ["The facts were ordinary.", "Every detail had a plausible explanation.", "Nothing looked strange on its own."]

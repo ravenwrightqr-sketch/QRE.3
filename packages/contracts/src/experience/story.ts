@@ -96,10 +96,6 @@ export type StoryScenePlan = {
   entities: string[];
   duration: number;
   transition: "none" | "fade" | "slide" | "zoom" | "cinematic" | "flash";
-  visual: {
-    theme: "dark" | "light" | "cinematic" | "glass";
-    animation: "none" | "slow_zoom" | "parallax" | "particles" | "glitch";
-  };
   audio?: { mood?: string; type: "ambient" | "music" | "voice" };
   provenance: StoryProvenance[];
 };

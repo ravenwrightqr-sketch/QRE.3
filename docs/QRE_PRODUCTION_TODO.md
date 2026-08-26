@@ -125,3 +125,6 @@ NEXT EXPERIENCE IS DIFFERENT FOR A REASON
 The current three-round `author-return-golden-acceptance.ts` proves the deterministic semantic/adaptation core. The remaining production step is to run that same proof through the real persistence/runtime path.
 
 The system must get better at serving the same person without requiring the person to learn how the system works.
+
+
+And this is actually a useful architectural discovery: your repo currently has database configuration nested under packages/db, while Prisma commands are being run from the workspace root. We should eventually make the DB tooling invocation consistently load the canonical DB environment rather than relying on us manually setting it. That belongs on the production-hardening TODO after we get this runtime proof green.

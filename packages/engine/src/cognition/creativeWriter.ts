@@ -81,7 +81,8 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
 
   if (kernel === "ornament") add(`${raw}. The ${noun} was technically an accessory; memory had clearly promoted it`, "poet", "object elevation", "specific association");
   if (kernel === "memory-artifact") add(`${raw}. The ${noun} had stopped being an object and started behaving like evidence`, "historian", "artifact-as-history", "memory framing");
-  if (kernel === "voice") add(`${raw}. The ${noun} was doing what good witnesses do: saying more than the room did`, "poet", "object personification", "witness framing");
+ if (kernel === "voice") add( `${raw}. The ${noun} was doing what good witnesses do: saying more than the facts did`, "poet", "object personification",
+  "witness framing",);
   if (kernel === "witness") add(`${raw}. The ${noun} did not merely record the moment; it quietly became part of it`, "observer", "witness inversion", "media significance");
   if (kernel === "talisman") add(`${raw}. The ${noun} looked practical until the story gave it a second job`, "historian", "symbolic elevation", "double function");
   if (kernel === "traveler") add(`${raw}. The ${noun} carried the geography; the people around it supplied the meaning`, "historian", "object journey", "human context");
@@ -93,14 +94,16 @@ function writerDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEven
     switch (move) {
       case "observer": add(`${raw}. The interesting part was not that it happened, but which detail refused to disappear afterward`, move, "attention shift", "memorable detail"); break;
       case "trickster": add(`${raw}. The situation had quietly become more confident than anyone had authorized`, move, "comic incongruity", "personification"); break;
-      case "poet": add(`${raw}. The smallest fact was carrying the largest shadow`, move, "compressed metaphor", "semantic compression"); break;
-      case "director": add(`${raw}. Put the camera there: the scene was already telling on itself`, move, "cinematic attention", "visual direction"); break;
+      case "poet": add(`${raw}. The smallest fact was carrying the largest meaning`, move, "compressed metaphor", "semantic compression"); break;
+     case "director":if (/\b(?:camera|photo|photograph|video|film|recorded|recording|captured)\b/i.test(event.raw)) { add(
+      `${raw}. The recorded perspective was already telling on itself`,move, "cinematic attention", "witness framing", );} else {
+    add(`${raw}. The moment was already telling on itself`, move,"cinematic attention","attention framing",  );} break;
       case "historian": add(`${raw}. That detail changed the event from something that happened into something that could be remembered`, move, "memory conversion", "historical framing"); break;
       case "comic": add(`${raw}. Nobody had ordered the ridiculous version, but it had clearly arrived anyway`, move, "comic escalation", "surprise"); break;
       case "suspense": add(`${raw}. Everything made sense separately; together, the details were asking a different question`, move, "implication", "withheld explanation"); break;
       case "tender": add(`${raw}. It was small enough to miss and exact enough to become important later`, move, "emotional compression", "future-memory cue"); break;
       case "reversal": add(`${raw}. What looked like the point of the moment was only the setup for what it meant`, move, "reversal", "reinterpretation"); break;
-      case "understatement": add(`${raw}. No fireworks required. The detail had already done its job`, move, "understatement", "restraint"); break;
+      case "understatement": add( `${raw}. Nothing more was required. The detail had already done its job`, move, "understatement", "restraint",);  break;
       case "detail-first": if (object) add(`${object} was the part that refused to behave like background`, move, "detail elevation"); break;
       case "implication-first": if (event.details[0]) add(`${event.details[0]} was enough to make the rest of the facts read differently`, move, "implication-first"); break;
       case "consequence-first": if (previous) add(`After that, ${noun} carried more consequence than it had a moment earlier`, move, "consequence-first"); break;

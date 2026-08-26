@@ -28,7 +28,7 @@ import { aiConfigured, aiProviderName } from "./services/aiProvider.js";
 import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
-
+import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 const app = express();
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
 const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173").split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -61,4 +61,9 @@ app.use("/api/stripe", stripeWebhookRouter);
 app.use("/api/stripe", stripeTestRouter);
 app.get("/", (_req: Request, res: Response) => res.json({ status: "ok", service: "qre-api", ai: aiConfigured(), provider: aiConfigured() ? aiProviderName() : null }));
 const PORT = Number(process.env.PORT || 3000);
+startAnalyticsSpineSubscriber();
+
+app.listen(PORT, () =>
+  console.log(`⚡ QRE API running on port ${PORT}`),
+);
 app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));

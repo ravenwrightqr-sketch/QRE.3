@@ -63,7 +63,6 @@ function makeScene(index: number): CinematicScene {
     },
     order: index,
     transition: index === 0 ? "none" : "fade",
-    visual: { theme: "cinematic", animation: "parallax" },
   };
 }
 

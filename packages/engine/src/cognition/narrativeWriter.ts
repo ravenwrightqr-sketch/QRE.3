@@ -83,7 +83,18 @@ function genericCandidates(event: WorldEvent, world: WorldModel): CreativeCandid
 
   if (p) out.push(candidate(event, world, `${raw} ${sentence(p)} was the detail that kept the scene from becoming just another report`, "object-turn", ["specificity", "report-to-memory"], 8.4));
   if (p && q) out.push(candidate(event, world, `${raw} ${sentence(p)} drew the eye; ${sentence(q)} was what gave the moment its shape`, "contrast-turn", ["foreground", "counterpoint"], 8.7));
-  if (event.place && p) out.push(candidate(event, world, `${raw} ${sentence(event.place)} was more than a backdrop; it was the room in which ${sentence(p)} changed meaning`, "setting-turn", ["setting-as-witness", "semantic-shift"], 8.9));
+ if (event.place && p) {
+  out.push(
+    candidate(
+      event,
+      world,
+      `${raw} ${sentence(event.place)} was more than a backdrop; it was where ${sentence(p)} changed meaning`,
+      "setting-turn",
+      ["setting-as-witness", "semantic-shift"],
+      8.9,
+    ),
+  );
+}
   if (event.time && p) out.push(candidate(event, world, `${raw} ${sentence(event.time)} was only a timestamp until ${sentence(p)} gave it something worth remembering`, "time-turn", ["time-to-memory", "future-recall"], 8.9));
   if (hasReturn(event.raw) && p) out.push(candidate(event, world, `${raw} Returning changed the detail: ${sentence(p)} was no longer just part of the place; it was part of the history there`, "return-payoff", ["recurrence", "memory-evolution"], 9.2));
   if (hasLongMemory(event.raw) && p) out.push(candidate(event, world, `${raw} Years can change what an object means without changing the object at all; ${sentence(p)} had already crossed that line`, "memory-turn", ["long-memory", "reinterpretation"], 9.3));

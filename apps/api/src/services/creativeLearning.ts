@@ -1,3 +1,4 @@
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { db } from "@qre/db";
 import { getAutonomousLearning } from "./autonomousLearning.js";
 
@@ -45,22 +46,21 @@ export async function recordCreativeFeedback(input: {
       ? "AI_VARIATION_SELECTED"
       : "AI_CREATIVE_REJECTED";
 
-  await db.analyticsEvent.create({
-    data: {
-      assetId: input.assetId,
-      type,
-      meta: {
-        userId: input.userId ?? null,
-        prompt: clean(input.prompt).slice(0, 4000),
-        draft: clean(input.draft).slice(0, 12000),
-        feedback: clean(input.feedback).slice(0, 4000),
-        styleTags: unique(input.styleTags ?? []).slice(0, 20),
-        trajectory: clean(input.trajectory).slice(0, 120),
-        score: typeof input.score === "number" && Number.isFinite(input.score) ? input.score : null,
-        recordedAt: new Date().toISOString(),
-      },
-    },
-  });
+   const analytics = createAnalyticsRepository();
+
+await analytics.trackEvent({
+  assetId: input.assetId,
+  type,
+  meta: {
+    userId: input.userId ?? null,
+    prompt: input.prompt,
+    draft: input.draft,
+    feedback: input.feedback ?? null,
+    styleTags: input.styleTags ?? [],
+    trajectory: input.trajectory ?? null,
+    score: input.score ?? null,
+  },
+});
 }
 
 export async function getCreativeLearningContext(input: {

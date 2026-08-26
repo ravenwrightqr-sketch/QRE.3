@@ -1,4 +1,11 @@
-import type { AssetRepository, SessionRepository, AccessRepository, AnalyticsRepository, StoryDeliveryRepository, FlowStepRecord } from "./repositories/index.js";
+import type {
+  AssetRepository,
+  SessionRepository,
+  AccessRepository,
+  AnalyticsRepository,
+  StoryDeliveryRepository,
+  FlowStepRecord,
+} from "./repositories/index.js";
 import { resolveAccessEngine } from "./accessEngine.js";
 import { flowToMoment } from "./moments/flowToMoments.js";
 import { systemMoments } from "./moments/systemMoments.js";
@@ -10,11 +17,29 @@ import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 import { getScanInsights } from "./analytics/analyticsService.js";
 import { runFlowActions } from "./flowOrchestrator.js";
 import { buildServiceReceipt } from "./receiptBuilder.js";
-import type { FlowStepType, ExperienceMoment, Experience, CinematicScene } from "@qre/contracts";
+import type {
+  AnalyticsEventType,
+  FlowStepType,
+  ExperienceMoment,
+  Experience,
+  CinematicScene,
+} from "@qre/contracts";
 
-type ScanEngineInput = { slug: string; userId?: string; geo?: { lat: number; lng: number; accuracy?: number } };
+type ScanEngineInput = {
+  slug: string;
+  userId?: string;
+  geo?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  };
+};
+
 type BlueprintRecord = Record<string, unknown>;
-type AuthoredSceneRecord = CinematicScene & { meta?: Record<string, unknown> };
+
+type AuthoredSceneRecord = CinematicScene & {
+  meta?: Record<string, unknown>;
+};
 
 type ExperienceChapterRecord = {
   id: string;
@@ -26,102 +51,397 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function acceptedAuthoredScenes(asset: { experiences?: ExperienceChapterRecord[] }): CinematicScene[] {
-  const records = Array.isArray(asset.experiences) ? asset.experiences : [];
-  const scenes: AuthoredSceneRecord[] = records.flatMap((record): AuthoredSceneRecord[] => {
-    const blueprint: BlueprintRecord = isRecord(record.blueprint) ? record.blueprint : {};
-    const collaboration = isRecord(blueprint.collaboration) ? blueprint.collaboration : undefined;
-    if (collaboration?.kind === "collaborative_memory_contribution" && collaboration.status !== "ACCEPTED") return [];
+function acceptedAuthoredScenes(
+  asset: { experiences?: ExperienceChapterRecord[] },
+): CinematicScene[] {
+  const records = Array.isArray(asset.experiences)
+    ? asset.experiences
+    : [];
 
-    const cinematicSequence = isRecord(blueprint.cinematicSequence) ? blueprint.cinematicSequence : undefined;
-    const clip = cinematicSequence && isRecord(cinematicSequence.clip) ? cinematicSequence.clip : undefined;
-    const rawScenes = clip?.scenes;
-    if (!Array.isArray(rawScenes)) return [];
+  const scenes: AuthoredSceneRecord[] = records.flatMap(
+    (record): AuthoredSceneRecord[] => {
+      const blueprint: BlueprintRecord = isRecord(record.blueprint)
+        ? record.blueprint
+        : {};
 
-    return rawScenes.filter((scene): scene is AuthoredSceneRecord => isRecord(scene) && typeof scene.id === "string" && typeof scene.type === "string" && typeof scene.duration === "number" && isRecord(scene.moment)).map((scene) => ({
+      const collaboration = isRecord(blueprint.collaboration)
+        ? blueprint.collaboration
+        : undefined;
+
+      if (
+        collaboration?.kind ===
+          "collaborative_memory_contribution" &&
+        collaboration.status !== "ACCEPTED"
+      ) {
+        return [];
+      }
+
+      const cinematicSequence = isRecord(blueprint.cinematicSequence)
+        ? blueprint.cinematicSequence
+        : undefined;
+
+      const clip =
+        cinematicSequence &&
+        isRecord(cinematicSequence.clip)
+          ? cinematicSequence.clip
+          : undefined;
+
+      const rawScenes = clip?.scenes;
+
+      if (!Array.isArray(rawScenes)) return [];
+
+      return rawScenes
+        .filter(
+          (
+            scene,
+          ): scene is AuthoredSceneRecord =>
+            isRecord(scene) &&
+            typeof scene.id === "string" &&
+            typeof scene.type === "string" &&
+            typeof scene.duration === "number" &&
+            isRecord(scene.moment),
+        )
+        .map((scene) => ({
+          ...scene,
+          meta: {
+            ...(scene.meta ?? {}),
+            chapterId: record.id,
+            chapterCreatedAt: record.createdAt ?? null,
+          },
+        }));
+    },
+  );
+
+  return scenes.map(
+    (
+      scene: AuthoredSceneRecord,
+      index: number,
+    ): CinematicScene => ({
       ...scene,
-      meta: {
-        ...(scene.meta ?? {}),
-        chapterId: record.id,
-        chapterCreatedAt: record.createdAt ?? null,
-      },
-    }));
-  });
-
-  return scenes.map((scene: AuthoredSceneRecord, index: number): CinematicScene => ({
-    ...scene,
-    id: `world-scene-${index + 1}`,
-    order: index,
-  }));
+      id: `world-scene-${index + 1}`,
+      order: index,
+    }),
+  );
 }
 
-export async function scanEngine(input: ScanEngineInput, repos: { assetRepository: AssetRepository; sessionRepository: SessionRepository; analyticsRepository: AnalyticsRepository; accessRepository: AccessRepository; storyDeliveryRepository: StoryDeliveryRepository }): Promise<Experience> {
+export async function scanEngine(
+  input: ScanEngineInput,
+  repos: {
+    assetRepository: AssetRepository;
+    sessionRepository: SessionRepository;
+    analyticsRepository: AnalyticsRepository;
+    accessRepository: AccessRepository;
+    storyDeliveryRepository: StoryDeliveryRepository;
+  },
+): Promise<Experience> {
   const asset = await repos.assetRepository.findBySlug(input.slug);
-  if (!asset) return { sessionId: null, access: "DEMO", preview: true, asset: null, moments: [], geoStory: null, cinematicScenes: [], memorySnapshot: null, receipt: null, insights: [], timestamp: new Date().toISOString() };
 
-  const session = await repos.sessionRepository.create({ assetId: asset.id, flowId: asset.flow?.id ?? null });
-  const track = (type: string, meta?: unknown) => repos.analyticsRepository.trackEvent({ assetId: asset.id, sessionId: session.id, flowId: asset.flow?.id ?? null, type, meta });
-  await track("SESSION_START", { access: "pending", authoredExperienceId: asset.experience?.id ?? null, experienceChapters: asset.experiences?.length ?? 0 });
+  if (!asset) {
+    return {
+      sessionId: null,
+      access: "DEMO",
+      preview: true,
+      asset: null,
+      moments: [],
+      geoStory: null,
+      cinematicScenes: [],
+      memorySnapshot: null,
+      receipt: null,
+      insights: [],
+      timestamp: new Date().toISOString(),
+    };
+  }
 
-  const access = await resolveAccessEngine({ assetId: asset.id, userId: input.userId }, repos.accessRepository);
-  await track("AI_DECISION", { stage: "access", accessState: access.state, sponsorConfigured: Boolean((asset.experience?.blueprint as BlueprintRecord | null)?.sponsor) });
+  const session = await repos.sessionRepository.create({
+    assetId: asset.id,
+    flowId: asset.flow?.id ?? null,
+  });
 
-  const moments: ExperienceMoment[] = [...systemMoments(access.state)];
-  if (access.state !== "UNLOCKED") moments.push(...purchaseMoments(access.state, asset.slug));
+  const track = (
+    type: AnalyticsEventType,
+    meta?: unknown,
+  ) =>
+    repos.analyticsRepository.trackEvent({
+      assetId: asset.id,
+      sessionId: session.id,
+      flowId: asset.flow?.id ?? null,
+      type,
+      meta,
+    });
 
-  if (access.state === "UNLOCKED" && asset.flow?.steps?.length) {
-    const steps = asset.flow.steps.map((step: FlowStepRecord) => ({ id: step.id, order: step.order, type: step.type as FlowStepType, payload: typeof step.payload === "object" && step.payload !== null && !Array.isArray(step.payload) ? step.payload as Record<string, unknown> : {} }));
-    const flowMoments = flowToMoment(steps as Parameters<typeof flowToMoment>[0]);
+  await track("SESSION_START", {
+    access: "pending",
+    authoredExperienceId: asset.experience?.id ?? null,
+    experienceChapters: asset.experiences?.length ?? 0,
+  });
+
+  const access = await resolveAccessEngine(
+    {
+      assetId: asset.id,
+      userId: input.userId,
+    },
+    repos.accessRepository,
+  );
+
+  await track("AI_DECISION", {
+    stage: "access",
+    accessState: access.state,
+    sponsorConfigured: Boolean(
+      (
+        asset.experience?.blueprint as
+          | BlueprintRecord
+          | null
+          | undefined
+      )?.sponsor,
+    ),
+  });
+
+  const moments: ExperienceMoment[] = [
+    ...systemMoments(access.state),
+  ];
+
+  if (access.state !== "UNLOCKED") {
+    moments.push(
+      ...purchaseMoments(access.state, asset.slug),
+    );
+  }
+
+  if (
+    access.state === "UNLOCKED" &&
+    asset.flow?.steps?.length
+  ) {
+    const steps = asset.flow.steps.map(
+      (step: FlowStepRecord) => ({
+        id: step.id,
+        order: step.order,
+        type: step.type as FlowStepType,
+        payload:
+          typeof step.payload === "object" &&
+          step.payload !== null &&
+          !Array.isArray(step.payload)
+            ? (step.payload as Record<string, unknown>)
+            : {},
+      }),
+    );
+
+    const flowMoments = flowToMoment(
+      steps as Parameters<typeof flowToMoment>[0],
+    );
+
     const offset = moments.length;
-    moments.push(...flowMoments.map((moment) => ({ ...moment, order: moment.order + offset })));
+
+    moments.push(
+      ...flowMoments.map((moment) => ({
+        ...moment,
+        order: moment.order + offset,
+      })),
+    );
   }
 
   moments.sort((a, b) => a.order - b.order);
-  await track("AI_MEMORY_USED", { memoryAware: Boolean(asset.experience), momentCount: moments.length, locations: moments.map((moment) => moment.location?.label ?? moment.meta?.label).filter(Boolean) });
+
+  await track("AI_MEMORY_USED", {
+    memoryAware: Boolean(asset.experience),
+    momentCount: moments.length,
+    locations: moments
+      .map(
+        (moment) =>
+          moment.location?.label ??
+          moment.meta?.label,
+      )
+      .filter(Boolean),
+  });
 
   try {
-    await runFlowActions(moments, session.id, asset.id, input.geo, input.userId, repos.analyticsRepository);
+    await runFlowActions(
+      moments,
+      session.id,
+      asset.id,
+      input.geo,
+      input.userId,
+      repos.analyticsRepository,
+    );
   } catch (err) {
     console.warn("[FLOW ACTION FAILED]", err);
-    await track("ERROR", { stage: "flow-actions", error: String(err) });
+
+    await track("ERROR", {
+      stage: "flow-actions",
+      error: String(err),
+    });
   }
 
   let geoStory = null;
+
   try {
-    geoStory = await buildGeoStory(asset.id, input.geo ? [{ lat: input.geo.lat, lng: input.geo.lng, createdAt: new Date() }] : []);
+    geoStory = await buildGeoStory(
+      asset.id,
+      input.geo
+        ? [
+            {
+              lat: input.geo.lat,
+              lng: input.geo.lng,
+              createdAt: new Date(),
+            },
+          ]
+        : [],
+    );
   } catch (err) {
     console.warn("[GEO STORY FAILED]", err);
-    await track("ERROR", { stage: "geo-story", error: String(err) });
+
+    await track("ERROR", {
+      stage: "geo-story",
+      error: String(err),
+    });
   }
 
-  const generatedScenes = cinematicRuntime({ moments, geoStory });
-  const authoredScenes = access.state === "UNLOCKED" ? acceptedAuthoredScenes(asset) : [];
-  const cinematicScenes = authoredScenes.length ? authoredScenes : generatedScenes;
-  await track("AI_CINEMATIC_DECISION", { scenes: cinematicScenes.length, authoredChapters: asset.experiences?.length ?? 0, audioCapable: true });
+  const generatedScenes = cinematicRuntime({
+    moments,
+    geoStory,
+  });
+
+  const authoredScenes =
+    access.state === "UNLOCKED"
+      ? acceptedAuthoredScenes(asset)
+      : [];
+
+  const cinematicScenes =
+    authoredScenes.length
+      ? authoredScenes
+      : generatedScenes;
+
+  await track("AI_CINEMATIC_DECISION", {
+    scenes: cinematicScenes.length,
+    authoredChapters:
+      asset.experiences?.length ?? 0,
+    audioCapable: true,
+  });
 
   let memorySnapshot = null;
+
   if (access.state === "UNLOCKED") {
-    memorySnapshot = buildMemorySnapshot({ assetId: asset.id, moments, geoStory, cinematicScenes });
-    await track("AI_MEMORY_LEARNED", { entities: (memorySnapshot?.entities ?? []).length, highlights: (memorySnapshot?.highlights ?? []).slice(0, 5), locationTags: memorySnapshot?.locationTags ?? [] });
+    memorySnapshot = buildMemorySnapshot({
+      assetId: asset.id,
+      moments,
+      geoStory,
+      cinematicScenes,
+    });
+
+    await track("AI_MEMORY_LEARNED", {
+      entities:
+        (memorySnapshot?.entities ?? []).length,
+      highlights:
+        (memorySnapshot?.highlights ?? []).slice(0, 5),
+      locationTags:
+        memorySnapshot?.locationTags ?? [],
+    });
   }
 
   if (access.state === "UNLOCKED") {
     try {
-      await createStoryDelivery({ assetId: asset.id, sessionId: session.id, userId: input.userId ?? null, moments, geoStory, cinematicScenes }, repos.storyDeliveryRepository);
+      await createStoryDelivery(
+        {
+          assetId: asset.id,
+          sessionId: session.id,
+          userId: input.userId ?? null,
+          moments,
+          geoStory,
+          cinematicScenes,
+        },
+        repos.storyDeliveryRepository,
+      );
     } catch (err) {
-      console.warn("[STORY DELIVERY FAILED]", err);
-      await track("ERROR", { stage: "story-delivery", error: String(err) });
+      console.warn(
+        "[STORY DELIVERY FAILED]",
+        err,
+      );
+
+      await track("ERROR", {
+        stage: "story-delivery",
+        error: String(err),
+      });
     }
   }
 
-  const hasServiceCompletion = moments.some((moment) => moment.type === "system" && moment.meta?.event === "SERVICE_COMPLETE");
-  const isServiceAsset = asset.category === "service" || asset.category === "business";
-  const receipt = access.state === "UNLOCKED" && isServiceAsset && hasServiceCompletion ? buildServiceReceipt({ asset, sessionId: session.id, moments }) : null;
-  if (receipt) await track("AI_DECISION", { stage: "service-experience-delivery", receiptKind: receipt.kind, experienceId: receipt.experienceId, sponsorPresent: Boolean((asset.experience?.blueprint as BlueprintRecord | null)?.sponsor) });
+  const hasServiceCompletion = moments.some(
+    (moment) =>
+      moment.type === "system" &&
+      moment.meta?.event === "SERVICE_COMPLETE",
+  );
 
-  const insights = await getScanInsights(asset.id, repos.analyticsRepository);
-  await repos.sessionRepository.update(session.id, { moments, geoStory, cinematicScenes, memorySnapshot, receipt, endedAt: new Date(), status: "completed" });
-  await track("SESSION_END", { completed: true, moments: moments.length, cinematicScenes: cinematicScenes.length, memoryLearned: Boolean(memorySnapshot), serviceExperience: Boolean(receipt) });
+  const isServiceAsset =
+    asset.category === "service" ||
+    asset.category === "business";
 
-  return { sessionId: session.id, access: access.state, preview: access.state !== "UNLOCKED", timestamp: new Date().toISOString(), moments, geoStory, cinematicScenes, memorySnapshot, receipt, insights, asset: { id: asset.id, slug: asset.slug, category: asset.category ?? undefined, accountId: asset.accountId, paid: asset.paid } };
+  const receipt =
+    access.state === "UNLOCKED" &&
+    isServiceAsset &&
+    hasServiceCompletion
+      ? buildServiceReceipt({
+          asset,
+          sessionId: session.id,
+          moments,
+        })
+      : null;
+
+  if (receipt) {
+    await track("AI_DECISION", {
+      stage: "service-experience-delivery",
+      receiptKind: receipt.kind,
+      experienceId: receipt.experienceId,
+      sponsorPresent: Boolean(
+        (
+          asset.experience?.blueprint as
+            | BlueprintRecord
+            | null
+            | undefined
+        )?.sponsor,
+      ),
+    });
+  }
+
+  const insights = await getScanInsights(
+    asset.id,
+    repos.analyticsRepository,
+  );
+
+  await repos.sessionRepository.update(
+    session.id,
+    {
+      moments,
+      geoStory,
+      cinematicScenes,
+      memorySnapshot,
+      receipt,
+      endedAt: new Date(),
+      status: "completed",
+    },
+  );
+
+  await track("SESSION_END", {
+    completed: true,
+    moments: moments.length,
+    cinematicScenes: cinematicScenes.length,
+    memoryLearned: Boolean(memorySnapshot),
+    serviceExperience: Boolean(receipt),
+  });
+
+  return {
+    sessionId: session.id,
+    access: access.state,
+    preview: access.state !== "UNLOCKED",
+    timestamp: new Date().toISOString(),
+    moments,
+    geoStory,
+    cinematicScenes,
+    memorySnapshot,
+    receipt,
+    insights,
+    asset: {
+      id: asset.id,
+      slug: asset.slug,
+      category: asset.category ?? undefined,
+      accountId: asset.accountId,
+      paid: asset.paid,
+    },
+  };
 }

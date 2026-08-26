@@ -93,7 +93,16 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     };
 
     const row = await db.insight.create({ data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: finalValue } });
-    await db.analyticsEvent.create({ data: { assetId: asset.id, type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED", meta: { source: payload.source, category: finalCategory, label: finalLabel, confidence: payload.confidence } } });
+   await analyticsRepository.trackEvent({
+  assetId: asset.id,
+  type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED",
+  meta: {
+    source: payload.source,
+    category: finalCategory,
+    label: finalLabel,
+    confidence: payload.confidence,
+  },
+});
     return res.status(201).json({ success: true, item: { id: row.id, createdAt: row.createdAt, ...payload } });
   } catch (error) {
     console.error("Knowledge write failed:", error);
@@ -110,7 +119,14 @@ router.delete("/:slug/:itemId", requireAuth, async (req: AuthRequest, res) => {
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
     await db.insight.deleteMany({ where: { id: itemId, assetId: asset.id, type: "KNOWLEDGE" } });
-    await db.analyticsEvent.create({ data: { assetId: asset.id, type: "MEMORY_UPDATED", meta: { source: "knowledge_delete", itemId } } });
+    await analyticsRepository.trackEvent({
+    assetId: asset.id,
+    type: "MEMORY_UPDATED",
+     meta: {
+    source: "knowledge_delete",
+    itemId,
+  },
+  });
     return res.json({ success: true });
   } catch (error) {
     console.error("Knowledge delete failed:", error);

@@ -216,36 +216,173 @@ export function buildAuthorRealityGraph(input: {
   trajectory?: string[];
 }): RealityGraph {
   const evidenceItems: RealityEvidence[] = [];
-  const pushEvidence = (kind: RealityEvidence["kind"], values: readonly string[] | undefined) => {
+
+  const pushEvidence = (
+    kind: RealityEvidence["kind"],
+    values: readonly string[] | undefined,
+  ) => {
     for (const value of values ?? []) {
       const text = clean(value);
-      if (text) evidenceItems.push(evidence(kind, text, evidenceItems.length));
+      if (text) {
+        evidenceItems.push(
+          evidence(
+            kind,
+            text,
+            evidenceItems.length,
+          ),
+        );
+      }
     }
   };
 
+  /*
+   * Preserve provenance at the evidence boundary.
+   *
+   * Prompt/facts are source reality.
+   * Identity is subject context.
+   * Moments, memory, and trajectory are contextual inputs.
+   *
+   * Context may inform authoring, but it must never be promoted
+   * into an explicit RealityEvent merely because it was supplied
+   * to this function.
+   */
   pushEvidence("prompt", [input.prompt]);
-  pushEvidence("identity", input.subject ? [input.subject] : []);
+  pushEvidence(
+    "identity",
+    input.subject
+      ? [input.subject]
+      : [],
+  );
   pushEvidence("fact", input.facts);
-  pushEvidence("moment", input.sourceMoments);
-  pushEvidence("memory", input.memoryContext);
-  pushEvidence("trajectory", input.trajectory);
+  pushEvidence(
+    "moment",
+    input.sourceMoments,
+  );
+  pushEvidence(
+    "memory",
+    input.memoryContext,
+  );
+  pushEvidence(
+    "trajectory",
+    input.trajectory,
+  );
 
-  const rawReality = [...input.facts, ...input.sourceMoments, ...(input.memoryContext ?? []), ...(input.trajectory ?? [])];
-  const fragments = splitReality(rawReality);
-  const identityFragments = fragments.filter((text) => looksLikeIdentityAssertion(text, input.subject));
-  const experienceFragments = fragments.filter((text) => !looksLikeIdentityAssertion(text, input.subject));
-  const atomicIdentityEvidence: RealityEvidence[] = identityFragments.map((text, index) => ({ id: `evidence-identity-atomic-${index + 1}`, text, kind: "identity" }));
-  const atomicEvidence: RealityEvidence[] = experienceFragments.map((text, index) => ({ id: `evidence-atomic-${index + 1}`, text, kind: "fact" }));
-  const events = atomicEvidence.map((source, index) => event(source.text, [source.id], input.subject, input.place, index));
-  const relations = buildRelationships(events, input.subject);
-  const sourceText = [input.prompt, ...rawReality].join(" ");
+  /*
+   * ONLY prompt + factual inputs are eligible to become
+   * explicit reality events.
+   *
+   * This is the critical epistemic boundary.
+   */
+  const explicitReality = [
+    input.prompt,
+    ...input.facts,
+  ];
+
+  const fragments =
+    splitReality(explicitReality);
+
+  const identityFragments =
+    fragments.filter((text) =>
+      looksLikeIdentityAssertion(
+        text,
+        input.subject,
+      ),
+    );
+
+  const experienceFragments =
+    fragments.filter(
+      (text) =>
+        !looksLikeIdentityAssertion(
+          text,
+          input.subject,
+        ),
+    );
+
+  const atomicIdentityEvidence: RealityEvidence[] =
+    identityFragments.map(
+      (text, index) => ({
+        id:
+          `evidence-identity-atomic-${index + 1}`,
+        text,
+        kind: "identity",
+      }),
+    );
+
+  const atomicEvidence: RealityEvidence[] =
+    experienceFragments.map(
+      (text, index) => ({
+        id:
+          `evidence-atomic-${index + 1}`,
+        text,
+        kind: "fact",
+      }),
+    );
+
+  const events =
+    atomicEvidence.map(
+      (source, index) =>
+        event(
+          source.text,
+          [source.id],
+          input.subject,
+          input.place,
+          index,
+        ),
+    );
+
+  const relations =
+    buildRelationships(
+      events,
+      input.subject,
+    );
+
+  /*
+   * Tensions may consider the broader contextual material,
+   * but they remain interpretations/signals, not events.
+   */
+  const sourceText = [
+    input.prompt,
+    ...input.facts,
+    ...input.sourceMoments,
+  ].join(" ");
+
+  /*
+   * Recurring and sensory signals must come from explicit
+   * reality only. Memory and trajectory must not become
+   * "supplied vocabulary" through this derived channel.
+   */
+  const recurringSignals =
+    deriveRecurringSignals(
+      fragments,
+      undefined,
+      undefined,
+    );
+
+  const sensorySignals =
+    deriveSensorySignals(
+      fragments,
+    );
 
   return {
-    evidence: [...evidenceItems, ...atomicIdentityEvidence, ...atomicEvidence],
+    evidence: [
+      ...evidenceItems,
+      ...atomicIdentityEvidence,
+      ...atomicEvidence,
+    ],
+
     events,
+
     relations,
-    unresolvedTensions: deriveTensions(events, relations, sourceText),
-    recurringSignals: deriveRecurringSignals(experienceFragments, input.memoryContext, input.trajectory),
-    sensorySignals: deriveSensorySignals(experienceFragments),
+
+    unresolvedTensions:
+      deriveTensions(
+        events,
+        relations,
+        sourceText,
+      ),
+
+    recurringSignals,
+
+    sensorySignals,
   };
 }

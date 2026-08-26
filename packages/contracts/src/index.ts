@@ -1,6 +1,6 @@
 /** QRE CONTRACTS PUBLIC API */
 
-export type { CinematicScene, CinematicSceneType, SceneAudio, SceneVisual, SceneTransition } from "./cinematic.js";
+export type { CinematicScene, CinematicSceneType, SceneAudio, SceneTransition } from "./cinematic.js";
 export type { SequencePlay, SequenceCut, SequenceCut as SequenceBeat, ViewerState, ViewerAttentionRole, SequenceGainKind, ViewerMomentum, MagnetCircle, CutNecessity, SequenceTransition } from "./sequencePlay.js";
 export type { ViewerMomentum as ViewerMomentumContract, MagnetCircle as MagnetCircleContract, MemoryReentryMagnet, SubjectContinuity, InformationFrontier, CutNecessity as CutNecessityContract, SequenceTransition as SequenceTransitionContract } from "./viewerMomentum.js";
 export * from "./scan.js";

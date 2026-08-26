@@ -61,13 +61,128 @@ function novelty(text: string, prior: string[], usedPhrases: string[]): number {
   const phrasePenalty = usedPhrases.filter((phrase) => lower(text).includes(lower(phrase))).length * 0.15;
   return Math.max(0, 1 - Math.max(...overlaps, 0) - phrasePenalty);
 }
+function learnedBias(
+  draft: CandidateDraft,
+  preferences: string[],
+  accepted: string[],
+  rejected: string[],
+): number {
+  const signals = unique([
+    draft.move,
+    ...draft.creativeDetails,
+  ]).map(lower);
 
-function learnedBias(text: string, preferences: string[], accepted: string[], rejected: string[]): number {
-  const body = lower(text);
+  const has = (pattern: RegExp): boolean =>
+    signals.some((value) => pattern.test(value));
+
+  const wordCount = lower(draft.text)
+    .split(/\s+/)
+    .filter(Boolean)
+    .length;
+
   let score = 0;
-  for (const preference of preferences) if (body.includes(lower(preference))) score += 1.6;
-  for (const value of accepted) if (body.includes(lower(value))) score += 1.2;
-  for (const value of rejected) if (body.includes(lower(value))) score -= 3.5;
+
+  const apply = (
+    values: string[],
+    weight: number,
+    direction: "positive" | "negative",
+  ) => {
+    for (const value of values) {
+      const token = lower(value);
+
+      let matched = false;
+
+      switch (token) {
+        case "short":
+          matched = wordCount <= 16;
+          break;
+
+        case "callback":
+          matched =
+            has(/\b(?:callback|reinterpretation|continuity|revisit)\b/) ||
+            draft.move === "callback" ||
+            draft.move === "midpoint";
+          break;
+
+        case "surprise":
+          matched =
+            has(/\b(?:surprise|reversal|contrast|reframe|mystery|turn|payoff)\b/) ||
+            /(?:reversal|surprise|reframe|contrast)/i.test(
+              draft.move,
+            );
+          break;
+
+        case "acceleration":
+          matched =
+            has(/\b(?:anticipation|forward pull|escalation|attention|hook|turn)\b/) ||
+            /(?:anticipation|wild|cause-turn)/i.test(
+              draft.move,
+            );
+          break;
+
+        case "explanation":
+          matched =
+            wordCount > 24 ||
+            has(/\b(?:explanation|context|summary|longform)\b/);
+          break;
+
+        case "repetition":
+          matched =
+            has(/\b(?:repeat|repetition|retread)\b/);
+          break;
+
+        case "comedy":
+          matched =
+            has(/\b(?:comic|comedy|humor|playful|absurd)\b/) ||
+            draft.move === "comedy" ||
+            draft.move === "contextual-comedy";
+          break;
+
+        case "horror":
+          matched =
+            has(/\b(?:horror|ominous|danger|unsettling)\b/) ||
+            draft.move === "horror" ||
+            draft.move === "contextual-horror";
+          break;
+
+        case "romance":
+          matched =
+            has(/\b(?:romantic|romance|tender|memory spotlight)\b/) ||
+            draft.move === "romance" ||
+            draft.move === "contextual-romance";
+          break;
+
+        case "mystery":
+          matched =
+            has(/\b(?:mystery|withheld|unresolved|implication)\b/) ||
+            draft.move === "mystery" ||
+            draft.move === "contextual-mystery";
+          break;
+
+        case "wild":
+          matched =
+            has(/\b(?:wild|escalation|comic momentum)\b/) ||
+            draft.move === "wild" ||
+            draft.move === "contextual-wild";
+          break;
+
+        default:
+          matched = false;
+      }
+
+      if (!matched) continue;
+
+      score +=
+        direction === "positive"
+          ? weight
+          : -weight;
+    }
+  };
+
+  apply(preferences, 1.6, "positive");
+  apply(accepted, 1.2, "positive");
+  apply(rejected, 3.5, "negative");
+
   return score;
 }
 
@@ -97,11 +212,11 @@ function endingMoves(lens: CognitiveLens, subjectText: string, detail?: string):
       `There are worse ways to leave with a story.`,
     ];
     case "horror": return [
-      `The ordinary part ended there.`,
-      `Nothing followed the detail, which was somehow worse.`,
-      `The room gave no explanation.${noun}`,
-      `It would have been easier if anything had looked obviously wrong.`,
-    ];
+  `The ordinary part ended there.`,
+  `Nothing followed the detail, which was somehow worse.`,
+  `The detail gave no explanation.${noun}`,
+  `It would have been easier if anything had looked obviously wrong.`,
+];
     case "romance": return [
       `It was the kind of detail memory refuses to throw away.`,
       `The moment passed. The meaning stayed.`,
@@ -109,11 +224,11 @@ function endingMoves(lens: CognitiveLens, subjectText: string, detail?: string):
       `Years later, the smallness of it would be the point.`,
     ];
     case "mysterious": return [
-      `The answer stayed one step behind the evidence.`,
-      `Nothing in the room volunteered an explanation.`,
-      `The detail remained, unresolved.`,
-      `That was the part no one could quite account for.`,
-    ];
+  `The answer stayed one step behind the evidence.`,
+  `Nothing in the supplied details volunteered an explanation.`,
+  `The detail remained, unresolved.`,
+  `That was the part no one could quite account for.`,
+];
     case "wild": return [
       `By then, ordinary was no longer on the itinerary.`,
       `The plan survived. Somehow, everything around it got louder.`,
@@ -148,7 +263,12 @@ function contextualTurn(event: WorldEvent, lens: CognitiveLens): CandidateDraft[
   else if (/\bconcert|rave|festival|crowd|sunrise\b/.test(corpus)) add(`${raw}. The event had a schedule; the atmosphere clearly had other plans.`, ["atmospheric contrast", "event momentum"], "contextual-event");
   else if (/\brestaurant|bakery|salon|groomer|hotel|housekeeper|client\b/.test(corpus)) add(`${raw}. Routine was the official description. The details were already making a better story.`, ["routine-to-story turn", "specificity"], "contextual-service");
   else if (/\bkeychain|watch|teapot|guitar|camera|suitcase|compass|ticket\b/.test(corpus)) add(`${raw}. The object stayed the same; the places around it kept changing what it meant.`, ["object continuity", "meaning evolution"], "contextual-object");
-  else if (/\b(?:room|hallway|motel|hotel room|lights|chairs|door|window|ocean)\b/.test(corpus)) add(`${raw}. Nothing about the setting needed to announce itself. The arrangement was enough to change the feeling.`, ["setting inversion", "atmospheric implication"], "contextual-setting");
+  else if (
+  /\b(?:room|hallway|motel|hotel room|lights|chairs|door|window|ocean)\b/.test(corpus)
+) {add(
+    `${raw}. Nothing about the supplied setting needed to announce itself. The arrangement was enough to change the feeling.`,
+    ["setting inversion", "atmospheric implication"],
+    "contextual-setting",);}
   else if (primary || secondary) add(`${raw}. ${primary && secondary && lower(primary) !== lower(secondary) ? `${primary} was the visible fact; ${secondary} was where the meaning started to move.` : `${primary ?? "One small detail"} gave the facts something to catch on to.`}`, ["detail hierarchy", "semantic turn"], "contextual-pivot");
 
   if (lens === "comedy") add(`${raw}. The situation had somehow acquired more confidence than evidence.`, ["comic incongruity"], "contextual-comedy");
@@ -204,16 +324,18 @@ function makeDrafts(event: WorldEvent, world: WorldModel, previous?: WorldEvent,
     `${personify(s, action, primary)}. The situation had acquired exactly the amount of attitude it did not need.`,
   ].map((text) => ({ text, creativeDetails: ["comic reframing", "personification"], move: "comedy" })));
 
-  if (world.lens === "horror" && action) drafts.push(...[
-    `${personify(s, action, primary)}. The familiar details stayed in place, which was the unsettling part.`,
-    `${personify(s, action, primary)}. Nothing announced danger; the pattern itself was enough.`,
-    `${personify(s, action, primary)}. The room had not changed. The meaning had.`,
-    `${personify(s, action, primary)}. It would have been easier if anything had looked wrong.`,
-  ].map((text) => ({ text, creativeDetails: ["horror implication", "atmospheric turn"], move: "horror" })));
+  if (world.lens === "horror" && action) {
+  drafts.push(
+    ...[
+      `${personify(s, action, primary)}. The familiar details stayed in place, which was the unsettling part.`,
+      `${personify(s, action, primary)}. Nothing announced danger; the pattern itself was enough.`,
+      `${personify(s, action, primary)}. The supplied details had not changed. The meaning had.`,
+      `${personify(s, action, primary)}. It would have been easier if anything had looked wrong.`,
+    ].map((text) => ({ text, creativeDetails: [  "horror implication",  "atmospheric turn",  ], move: "horror", })), );}
 
   if (world.lens === "romance" && action) drafts.push(...[
     `${personify(s, action, primary)}. Small in the moment, larger in the memory.`,
-    `${personify(s, action, primary)}. It was only a detail then; memory would give it a larger room later.`,
+    `${personify(s, action, primary)}. It was only a detail then; memory would give it a larger place later.`,
     `${personify(s, action, primary)}. Nothing about it asked to be important. That is often how important memories begin.`,
     `${personify(s, action, primary)}. The clock moved on. The detail stayed.`,
   ].map((text) => ({ text, creativeDetails: ["romantic compression", "memory foreshadowing"], move: "romance" })));
@@ -293,7 +415,7 @@ export function generateCandidates(
       const causalFit = priorRef && lower(draft.text).includes(priorRef) ? 1 : event.order === 0 ? 0.95 : 0.86;
       const attention = Math.min(1.6, Math.max(0.25, (significance.scores.get(event.id) ?? 1) / 8));
       const creativity = Math.min(10, Math.max(0, strategyValue(draft.move) * 3 + draft.creativeDetails.length * 0.8 + Math.min(2, draft.text.length / 120)));
-      const learned = learnedBias(draft.text, preferences, accepted, rejected);
+      const learned = learnedBias(draft, preferences,accepted,rejected,);
       const rawPenalty = draft.move === "reality-anchor" ? -7 : 0;
       const repetitionPenalty = prior.some((item) => lower(item) === lower(draft.text)) ? 12 : 0;
       const protectedScore = evidenceCoverage >= 1 ? 44 : evidenceCoverage >= 0.75 ? -25 : -110;

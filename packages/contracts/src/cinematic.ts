@@ -1,7 +1,3 @@
-/**
- * STATUS: CANONICAL CINEMATIC RUNTIME CONTRACT
- * Pipeline: ExperienceMoment -> CinematicScene -> Player.
- */
 import type { ExperienceMoment } from "./experience/moment.js";
 
 export type CinematicSceneType =
@@ -27,17 +23,6 @@ export type SceneAudio = {
   autoplay?: boolean;
 };
 
-export type SceneVisual = {
-  background?: string;
-  animation?:
-    | "none"
-    | "slow_zoom"
-    | "parallax"
-    | "particles"
-    | "glitch";
-  theme?: "dark" | "light" | "cinematic" | "glass";
-};
-
 export type CinematicScene = {
   id: string;
   type: CinematicSceneType;
@@ -46,7 +31,6 @@ export type CinematicScene = {
   order?: number;
   transition?: SceneTransition;
   audio?: SceneAudio;
-  visual?: SceneVisual;
   preload?: boolean;
   meta?: Record<string, unknown>;
 };

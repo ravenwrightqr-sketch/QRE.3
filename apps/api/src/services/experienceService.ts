@@ -64,7 +64,6 @@ function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
     type: "action",
     duration: 1200,
     transition: "fade",
-    visual: { theme: "cinematic", animation: "parallax" },
     meta: {},
   };
 
