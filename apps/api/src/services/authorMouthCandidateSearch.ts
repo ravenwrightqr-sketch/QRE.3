@@ -74,10 +74,7 @@ function phraseSupportedText(candidateText: string, label: string): boolean {
   const phrase = clean(label).toLowerCase();
   const candidate = clean(candidateText).toLowerCase();
   if (!phrase || !candidate) return false;
-  return (
-    candidate.includes(phrase) ||
-    overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5
-  );
+  return candidate.includes(phrase) || overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5;
 }
 
 function eventLabel(envelope: RealityEnvelope, id: string): string {
@@ -86,15 +83,10 @@ function eventLabel(envelope: RealityEnvelope, id: string): string {
 
 /*
  * HARD PROVENANCE BOUNDARY:
- *
  * Only event IDs resolve into source labels.
- * setsUp/paysOff are planning metadata and may contain semantic prose;
- * they are never promoted into source truth for the Mouth prompt.
+ * setsUp/paysOff are planning metadata and are never promoted into source truth.
  */
-function sourceForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
+function sourceForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   return unique(
     (beat.eventIds ?? [])
       .map((id) => eventLabel(envelope, id))
@@ -102,18 +94,28 @@ function sourceForBeat(
   );
 }
 
-function endpointExactForBeat(
-  text: string,
+function supportedEventsForBeat(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
-): boolean {
-  const labels = (beat.eventIds ?? [])
-    .map((id) => eventLabel(envelope, id))
-    .filter(Boolean);
-  const normalized = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
-  return labels.some(
-    (label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase(),
+): Array<{ id: string; label: string }> {
+  return (beat.eventIds ?? [])
+    .map((id) => ({ id, label: eventLabel(envelope, id) }))
+    .filter((event) => Boolean(event.label));
+}
+
+function relationPairsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+  const ids = new Set(beat.eventIds ?? []);
+  return unique(
+    envelope.relations
+      .filter((relation) => ids.has(relation.from) && ids.has(relation.to))
+      .map((relation) => `${relation.from}:${relation.kind}:${relation.to}`),
   );
+}
+
+function endpointExactForBeat(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
+  const labels = supportedEventsForBeat(beat, envelope).map((event) => event.label);
+  const normalized = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
+  return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase());
 }
 
 function deriveViewerStateCut(
@@ -123,9 +125,7 @@ function deriveViewerStateCut(
   envelope: RealityEnvelope,
 ): ViewerStateCut {
   const currentIds = unique(beat.eventIds ?? []);
-  const priorIds = new Set(
-    beats.slice(0, index).flatMap((item) => item.eventIds ?? []).filter(Boolean),
-  );
+  const priorIds = new Set(beats.slice(0, index).flatMap((item) => item.eventIds ?? []).filter(Boolean));
   const newEventRatio = metric(
     currentIds.length
       ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length
@@ -136,13 +136,9 @@ function deriveViewerStateCut(
   const continuity = priorSource ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource))) : 0.55;
   const contrast = metric((1 - continuity) * 0.7 + newEventRatio * 0.3);
   const interruption = metric(newEventRatio * 0.62 + contrast * 0.28 + (index === 0 ? 0.1 : 0));
-  const curiosityPressure = metric(
-    beat.paysOff?.length ? 0.12 : beat.relationKinds?.length ? 0.9 : index < beats.length - 1 ? 0.72 : 0.42,
-  );
+  const curiosityPressure = metric(beat.paysOff?.length ? 0.12 : beat.relationKinds?.length ? 0.9 : index < beats.length - 1 ? 0.72 : 0.42);
   const tempo = metric(index === 0 ? 0.45 : Math.abs(interruption - (index > 1 ? 0.55 : 0.35)) * 0.9 + 0.35);
-  const payoffPressure = metric(
-    beat.paysOff?.length ? 1 : index === beats.length - 2 ? 0.78 : Math.min(0.7, 0.25 + index * 0.08),
-  );
+  const payoffPressure = metric(beat.paysOff?.length ? 1 : index === beats.length - 2 ? 0.78 : Math.min(0.7, 0.25 + index * 0.08));
   const stateShift = metric(contrast * 0.45 + interruption * 0.35 + curiosityPressure * 0.2);
   const predictionError = metric(contrast * 0.55 + newEventRatio * 0.45);
 
@@ -182,70 +178,111 @@ function deriveViewerStateCut(
   };
 }
 
-function legal(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
+function evaluateCandidate(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+  priorTexts: readonly string[] = [],
+): MouthCandidate {
   const value = clean(text);
-  if (!value || META.test(value) || GENERIC.test(value) || PLANNING_RESIDUE.test(value)) return false;
-
   const sourceLabels = sourceForBeat(beat, envelope);
   const sourceText = sourceLabels.join(" ");
-  const current = tokenSet(value);
-  const source = tokenSet(sourceText);
-  const sourceOverlap = overlap(current, source);
-  const requiredIds = unique(beat.eventIds ?? []);
-  const requiredEvents = envelope.events.filter((event) => requiredIds.includes(event.id));
-  const eventSupported = requiredEvents.some(
-    (event) => phraseSupportedText(value, event.label) || overlap(current, tokenSet(event.label)) >= 0.25,
-  );
-  const semanticBeat = Boolean(
-    beat.relationKinds?.length ||
-      /turn|reframe|discovery|escalation|reveal|consequence|payoff/i.test(`${beat.attentionFunction ?? ""} ${beat.role ?? ""}`),
-  );
+  const currentTokens = tokenSet(value);
+  const sourceTokens = tokenSet(sourceText);
+  const groundingScore = metric(overlap(currentTokens, sourceTokens));
+  const supportedEvents = supportedEventsForBeat(beat, envelope);
+  const supportedEventIds = supportedEvents
+    .filter((event) => phraseSupportedText(value, event.label) || overlap(currentTokens, tokenSet(event.label)) >= 0.25)
+    .map((event) => event.id);
+  const supportedRelationPairs = relationPairsForBeat(beat, envelope);
+  const endpointExactness = endpointExactForBeat(value, beat, envelope) ? 1 : 0;
+  const semanticBeat = Boolean(beat.relationKinds?.length || beat.attentionFunction || beat.role);
   const interpretation = evaluateMouthInterpretation({
     text: value,
     sourceLabels,
     envelope,
   });
 
-  const groundedEnough =
-    sourceOverlap >= 0.16 ||
-    eventSupported ||
-    (semanticBeat && SEMANTIC_TURN_LANGUAGE.test(value)) ||
-    endpointExactForBeat(value, beat, envelope) ||
-    interpretation.accepted;
+  const reasons: string[] = [];
+  const repetitionSet = new Set(priorTexts.flatMap((item) => [...tokenSet(item)]));
+  const repetitionRisk = priorTexts.length ? metric(overlap(currentTokens, repetitionSet)) : 0;
+  const noveltyScore = metric(1 - Math.min(1, repetitionRisk * 1.25));
+  const wordCount = value.split(/\s+/).filter(Boolean).length;
+  const compressionScore = wordCount <= 12 ? 1 : wordCount <= 20 ? 0.9 : wordCount <= 30 ? 0.76 : wordCount <= 40 ? 0.62 : 0.48;
+  const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, 0, [beat], envelope);
+  const meaningScore = metric(
+    (viewerState.stateShift ?? 0.5) * 0.35 +
+    (viewerState.curiosityPressure ?? 0.5) * 0.25 +
+    (viewerState.contrast ?? 0.5) * 0.2 +
+    (semanticBeat ? 0.2 : 0.1),
+  );
+  const transitionScore = metric(
+    (viewerState.predictionError ?? 0.4) * 0.5 +
+    (viewerState.interruption ?? 0.4) * 0.25 +
+    (viewerState.accumulation ?? 0.5) * 0.25,
+  );
+  const obligationCoverage = metric(
+    supportedEventIds.length ? 0.55 + Math.min(0.35, supportedEventIds.length * 0.15) : groundingScore * 0.5,
+  );
+  const relationContractScore = metric(
+    supportedRelationPairs.length ? 0.8 : semanticBeat ? 0.35 : 0.2,
+  );
+  const forbiddenMoveRisk = metric(
+    interpretation.unsupportedConcreteRisk >= 1 || (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) ? 1 : 0,
+  );
+  const cohesionScore = metric(0.55 + (1 - repetitionRisk) * 0.25 + groundingScore * 0.2);
+  const inventionRisk = forbiddenMoveRisk > 0 ? 0.95 : metric(Math.max(0, 0.22 - groundingScore * 0.18));
+  const collageRisk = value.split(/[.!?]+/).filter(Boolean).length > 2 && wordCount > 22 ? 0.35 : 0;
 
-  if (!groundedEnough) return false;
-  if (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(sourceText)) return false;
-  if (interpretation.unsupportedConcreteRisk >= 1) return false;
-  return true;
-}
+  if (!value) reasons.push("missing-text");
+  if (META.test(value)) reasons.push("meta-language");
+  if (GENERIC.test(value)) reasons.push("generic-summary");
+  if (PLANNING_RESIDUE.test(value)) reasons.push("planning-residue");
+  if (BAD_INTERPRETIVE_EXPLANATION.test(value)) reasons.push("interpretive-explanation");
+  if (wordCount > 24) reasons.push("too-long");
+  if (!sourceLabels.length) reasons.push("missing-grounding");
+  if (groundingScore < 0.12 && !endpointExactness) reasons.push("weak-grounding");
+  if (repetitionRisk > 0.75) reasons.push("repetition");
+  if (forbiddenMoveRisk >= 0.9) reasons.push("invention-risk");
 
-function groundedFallbackTexts(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  const labels = sourceForBeat(beat, envelope);
-  const result: string[] = [];
-  const attention = clean(beat.attentionFunction ?? beat.role).toLowerCase();
-  const first = clean(labels[0] ?? envelope.subject ?? "");
-  const second = clean(labels[1] ?? "");
+  if (supportedEventIds.length) reasons.push("event-grounded");
+  if (supportedRelationPairs.length) reasons.push("relation-grounded");
+  if (semanticBeat && !supportedEventIds.length && groundingScore >= 0.16) reasons.push("semantic-turn-grounded");
 
-  if (beat.paysOff?.length && /payoff|release/i.test(attention)) {
-    if (first && legal(first, beat, envelope)) result.push(first);
-    return result;
-  }
+  const score = metric(
+    groundingScore * 0.24 +
+    meaningScore * 0.18 +
+    transitionScore * 0.15 +
+    obligationCoverage * 0.1 +
+    relationContractScore * 0.05 +
+    cohesionScore * 0.08 +
+    noveltyScore * 0.08 +
+    compressionScore * 0.07 +
+    (1 - inventionRisk) * 0.05 -
+    collageRisk * 0.03,
+  );
 
-  if (first && legal(first, beat, envelope)) result.push(first);
-  if (first && second && /reframe|contrast|turn|escalation|callback|payoff|release/i.test(attention)) {
-    const joined = `${first}. ${second}.`;
-    if (legal(joined, beat, envelope)) result.push(joined);
-  }
-  if (first && /hook|arrival|establish/i.test(attention)) {
-    const hook = `${first}.`;
-    if (legal(hook, beat, envelope)) result.push(hook);
-  }
-  if (first && /reframe|turn/i.test(attention)) {
-    const semantic = `${first}, apparently.`;
-    if (legal(semantic, beat, envelope)) result.push(semantic);
-  }
-
-  return unique(result).slice(0, 8);
+  return {
+    text: value,
+    beatOrder: beat.order,
+    supportedEventIds,
+    supportedRelationPairs,
+    groundingScore,
+    meaningScore,
+    transitionScore,
+    obligationCoverage,
+    relationContractScore,
+    forbiddenMoveRisk,
+    cohesionScore,
+    noveltyScore,
+    compressionScore,
+    inventionRisk,
+    repetitionRisk,
+    collageRisk,
+    endpointExactness,
+    score,
+    reasons,
+  };
 }
 
 export function buildMouthCandidateMessages(
@@ -273,23 +310,22 @@ export function buildMouthCandidateMessages(
     "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
     "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
     "Write for the viewer's felt experience, not for the planner. The line should make the supplied beat land.",
-    "VIEWER REWARD IS THE CREATIVE TARGET. Feel-good does not mean wholesome or positive. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
-    "Ask: what does this line give the viewer? A grin, a wince, a reveal, a satisfying turn, a laugh, a pause, a jolt, a recognition, or simply the desire to experience the next cut.",
+    "VIEWER REWARD IS THE CREATIVE TARGET. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
     "Never manufacture a cliffhanger. Forward pull may come from contrast, implication, rhythm, attitude, accumulation, callback, unresolved pressure, or an earned payoff.",
     "The viewer should feel the semantic move rather than receive an explanation of it.",
     "A source fact is material, not the destination. Prefer fact → semantic move → attitude → compressed realization.",
-    "Once a subject has been established, treat it as active context. Do not repeatedly re-announce the subject. Spend the next line on what changed, collided, mattered, or became interesting.",
-    "A good sequence breathes: some cuts are blunt facts, some are sharp turns, some are quiet, some are wicked, and some land hard. Do not make every line perform the same trick.",
+    "Once a subject has been established, treat it as active context. Do not repeatedly re-announce the subject.",
+    "A good sequence breathes: some cuts are blunt facts, some are sharp turns, some are quiet, some are wicked, and some land hard.",
     "Prefer collisions between supplied details, status reversals, callbacks, double meanings, understatement, grounded metaphor, specific verbs, and surprising compression.",
-    "Do not summarize happy, sad, special, memorable, emotional, meaningful, magical, beautiful, or dramatic. Make the viewer feel it through the supplied material.",
+    "Do not summarize emotion or meaning. Make the viewer feel it through supplied material.",
     "Do not add stock atmosphere, trailer narration, poetic filler, film-direction language, or abstract explanation.",
     "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, wardrobe, body position, dialogue, or outcomes.",
     "Unknown stays unknown. Do not infer missing identity, gender, age, relationship, ownership, preference, history, or location.",
-    "A creative interpretation may change the attitude or meaning of supplied facts, but it cannot create a new concrete event.",
-    "Use the viewerState fields as steering signals. Never repeat their labels or planning language in the output.",
-    "Use the whole beat set to create a connected experience. Avoid restating the same source phrase in consecutive cuts unless repetition itself is the meaningful callback.",
-    "Choose language that would make a real viewer want to keep going, not language that merely sounds literary.",
-    "There is no fixed word count. A one-word hit can beat a sentence. A longer line is acceptable only when the rhythm or realization itself earns it.",
+    "A creative interpretation may change attitude or implication, but it cannot create a new concrete event.",
+    "Use viewerState only as steering. Never repeat planning labels in viewer-facing text.",
+    "Use the whole beat set to create a connected experience.",
+    "Choose language that makes a real viewer want the next cut.",
+    "There is no fixed word count. A one-word hit can beat a sentence.",
     "Return JSON only: {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\"]}]}",
   ].join("\n");
 
@@ -326,51 +362,11 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | nul
   return null;
 }
 
-function wordQuality(text: string): number {
-  const words = clean(text).split(/\s+/).filter(Boolean).length;
-  if (words <= 12) return 1;
-  if (words <= 20) return 0.9;
-  if (words <= 30) return 0.76;
-  if (words <= 40) return 0.62;
-  return 0.48;
-}
-
 export function scoreMouthCandidate(input: {
   text: string;
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
   priorTexts?: readonly string[];
 }): MouthCandidate {
-  const text = clean(input.text);
-  const labels = sourceForBeat(input.beat, input.envelope);
-  const sourceTokens = tokenSet(labels.join(" "));
-  const textTokens = tokenSet(text);
-  const grounding = metric(overlap(textTokens, sourceTokens));
-  const repeated = new Set((input.priorTexts ?? []).flatMap((value) => [...tokenSet(value)]));
-  const repetition = repeated.size ? metric(overlap(textTokens, repeated)) : 0;
-  const viewerLift = input.beat.viewerState
-    ? metric((input.beat.viewerState.stateShift ?? 0) * 0.45 + (input.beat.viewerState.predictionError ?? 0) * 0.25 + (input.beat.viewerState.curiosityPressure ?? 0) * 0.3)
-    : 0.5;
-  const words = text.split(/\s+/).filter(Boolean).length;
-
-  const reasons: string[] = [];
-  if (!text) reasons.push("missing-text");
-  if (META.test(text)) reasons.push("meta-language");
-  if (GENERIC.test(text)) reasons.push("generic-summary");
-  if (PLANNING_RESIDUE.test(text)) reasons.push("planning-residue");
-  if (BAD_INTERNAL.test(text)) reasons.push("internal-language");
-  if (BAD_INTERPRETIVE_EXPLANATION.test(text)) reasons.push("interpretive-explanation");
-  if (words > 24) reasons.push("too-long");
-  if (!labels.length) reasons.push("missing-grounding");
-  if (grounding < 0.12) reasons.push("weak-grounding");
-  if (repetition > 0.75) reasons.push("repetition");
-
-  return {
-    text,
-    score: metric(grounding * 0.36 + viewerLift * 0.28 + wordQuality(text) * 0.2 + (1 - repetition) * 0.16),
-    grounding,
-    viewerLift,
-    repetition,
-    reasons,
-  };
+  return evaluateCandidate(input.text, input.beat, input.envelope, input.priorTexts ?? []);
 }
