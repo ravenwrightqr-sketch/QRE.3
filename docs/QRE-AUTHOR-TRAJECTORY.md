@@ -47,7 +47,6 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - Attitude is first-class: rhetorical framing, status play, mock authority, absurdity, melodrama, irony, confidence, menace, comedy, and other posture can be invented as framing without becoming source facts.
 - Supplied preferences, actions, relationships, states, details, and other collected material may be amplified, compressed, connected, repeated, or reframed when the resulting claim remains grounded.
 - A short action fragment may compress an explicitly supplied action; compression itself does not create a new occurrence.
-- A high-confidence contextual possibility may inform interpretation, but QRE must not silently convert an optional detail into subject fact merely because it is common in a domain.
 - The creative target is the minimum reality commitment that produces the maximum viewer reward.
 - **Do not hard-code the example. Generalize the behavior.**
 
@@ -85,6 +84,7 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - Expanded the interpretation boundary so creative attitude can be strong without weakening concrete-world provenance.
 - Removed example-specific prop/color/scenery acceptance logic after observing that it was overfitting the proof harness.
 - Reframed the Mouth policy around universal behavioral principles: use collected reality, maximize creative expression inside it, and guard unsupported concrete claims rather than enumerating forbidden domains.
+- Replaced example-specific prop/color/scenery rules with a universal language-level distinction between creative framing and unsupported concrete world assertions.
 
 ## Current cleanup rule
 
