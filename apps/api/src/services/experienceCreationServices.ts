@@ -1,7 +1,12 @@
-/** Production creation boundary: prompt → canonical Author → experience → flow. */
+/**
+ * QRE CANONICAL AUTHOR LAW
+ * ROLE: Production creation boundary: canonical Author → durable experience/flow.
+ * LAW: QRE may surprise us.
+ * Guardrails protect truth, provenance, architecture, and safety; style is scored.
+ */
 
 import { randomUUID } from "node:crypto";
-import { db } from "@qre/db";
+import { db, type Prisma } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
 import { buildSponsorPolicy } from "@qre/engine";
@@ -129,7 +134,7 @@ export async function createExperience(input: CreateExperienceInput) {
       estimatedDurationMs: cinematicScenes.reduce((sum: number, scene: any) => sum + Number(scene?.duration || 0), 0),
       scenes: cinematicScenes,
     },
-  };
+  } as Prisma.InputJsonValue;
 
   const learningProfile = {
     lens,
@@ -138,7 +143,7 @@ export async function createExperience(input: CreateExperienceInput) {
     generativeAuthor: true,
     memoryAware: true,
     autonomousLearningEnabled: true,
-  };
+  } as Prisma.InputJsonValue;
 
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
@@ -162,7 +167,7 @@ export async function createExperience(input: CreateExperienceInput) {
     },
     learningProfile,
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
-  };
+  } as Prisma.InputJsonValue;
 
   const experience = await db.experience.create({
     data: {
@@ -177,18 +182,18 @@ export async function createExperience(input: CreateExperienceInput) {
       name: experience.title ?? "Experience",
       version: 1,
       actions: {
-        category: compiled.blueprint.type ?? "experience",
+        category: String((compiled.blueprint as Record<string, unknown>).type ?? "experience"),
         sourcePrompt: input.prompt.trim(),
         sponsor,
         cinematicSequence,
         learningAware: true,
         learningProfile,
-      },
+      } as Prisma.InputJsonValue,
       steps: {
         create: compiled.flowSteps.map((step) => ({
           order: Number(step.order ?? 0),
           type: String(step.type ?? "message"),
-          payload: step.payload ?? null,
+          payload: (step.payload ?? {}) as Prisma.InputJsonValue,
         })),
       },
     },
