@@ -1,20 +1,19 @@
 
-
 /** QRE EXPERIENCE ROUTES: authoring, memory, recommendation, cognition, collaboration. */
 
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import { compileCognitiveExperience, recommendMemories, resolveGeoLabel } from "@qre/engine";
+import { recommendMemories, resolveGeoLabel } from "@qre/engine";
 import { ENTITLEMENT_RULES, type AccountPlan } from "@qre/contracts";
 import { db } from "@qre/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience, type GeoAnchorInput } from "../services/experienceService.js";
-import { createExperience } from "../services/experienceCreationServices.js";
-import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "../services/memoryProjection.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { loadEntityMemory } from "../services/entityMemoryService.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
+import { buildAuthorRealityGraph } from "../services/authorRealityGraph.js";
+import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "../services/memoryProjection.js";
 
 const router = Router();
 const analyticsRepository = createAnalyticsRepository();
@@ -332,24 +331,30 @@ router.post("/memory/:assetId", requireAuth, async (req, res) => {
     }
 
     const repository = createMemoryRepository();
-
     const context = await repository.loadContext({
       assetId,
       userId: req.user?.userId,
     });
 
-    const compiled = compileCognitiveExperience(prompt, {
-      memorySummary: memoryContextToCognitiveSummary(context),
-      feedback: {
-        accepted: ["memory-update"],
-        rejected: [],
-      },
+    const facts = context.facts
+      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
+      .map((fact) => `${fact.predicate}: ${fact.value}`)
+      .slice(0, 80);
+    const sourceMoments = [
+      prompt,
+      ...context.events.slice(0, 20).map((event) => event.summary),
+    ];
+    const graph = buildAuthorRealityGraph({
+      prompt,
+      facts,
+      sourceMoments,
+      memoryContext: memoryContextToCognitiveSummary(context),
     });
 
     const batch = buildExperienceMemoryBatch({
       assetId,
       userId: req.user?.userId,
-      world: compiled.world,
+      graph,
       source: "user",
     });
 
@@ -371,9 +376,9 @@ router.post("/memory/:assetId", requireAuth, async (req, res) => {
       recommendations: recommendMemories(updated, prompt),
       interpretation: {
         prompt,
-        places: compiled.world.places,
-        participants: compiled.world.participants,
-        events: compiled.world.events.length,
+        places: [...new Set(graph.events.map((event) => event.place).filter(Boolean))],
+        participants: [...new Set(graph.events.flatMap((event) => event.entities))],
+        events: graph.events.length,
       },
     });
   } catch (error) {
@@ -431,407 +436,9 @@ router.get("/contribute/:slug", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: "Contribution surface unavailable.",
+      error: "Failed to load contribution settings.",
     });
   }
 });
-
-router.post("/contribute/:slug", async (req, res) => {
-  try {
-    const slug = String(req.params.slug ?? "").trim();
-    const prompt =
-      typeof req.body?.prompt === "string"
-        ? req.body.prompt.trim()
-        : "";
-    const contributorName =
-      typeof req.body?.contributorName === "string"
-        ? req.body.contributorName.trim().slice(0, 120)
-        : null;
-
-    if (!slug || !prompt) {
-      return res.status(400).json({
-        success: false,
-        error: "Memory is required.",
-      });
-    }
-
-    const asset = await db.asset.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        displayName: true,
-        status: true,
-        templateData: true,
-        account: {
-          select: { plan: true },
-        },
-        User: {
-          select: { tier: true },
-        },
-      },
-    });
-
-    if (!asset || asset.status !== "active") {
-      return res.status(404).json({
-        success: false,
-        error: "QRE object not found.",
-      });
-    }
-
-    if (
-      !hasCollaborationEntitlement(asset) ||
-      !getCollaboration(asset).enabled
-    ) {
-      return res.status(403).json({
-        success: false,
-        error: "Collaborative memory is not unlocked for this QRE object.",
-      });
-    }
-
-    const collaboration = {
-      kind: "collaborative_memory_contribution",
-      status: "PENDING",
-      contributorName,
-      prompt,
-      createdAt: new Date().toISOString(),
-      source: "public_scan",
-    };
-
-    const pending = await db.experience.create({
-      data: {
-        assetId: asset.id,
-        title: contributorName
-          ? `Memory from ${contributorName}`
-          : "New Memory",
-        blueprint: { collaboration },
-      },
-    });
-
-    return res.status(201).json({
-      success: true,
-      pendingId: pending.id,
-      message: "Memory sent to the owner for approval.",
-    });
-  } catch (error) {
-    console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Could not save this memory.",
-    });
-  }
-});
-
-router.get(
-  "/collaboration/:assetId",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const asset = await ownedAsset(
-        String(req.params.assetId ?? ""),
-        req.user?.userId,
-      );
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          error: "QRE object not found.",
-        });
-      }
-
-      const plan = planForAsset(asset);
-      const eligible = Boolean(
-        ENTITLEMENT_RULES[plan]?.collaborativeMemory,
-      );
-      const collaboration = getCollaboration(asset);
-
-      return res.json({
-        success: true,
-        eligible,
-        plan,
-        collaboration,
-        addUrl: collaboration.enabled
-          ? `/add/${(asset as any).slug}`
-          : null,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Failed to load collaboration status.",
-      });
-    }
-  },
-);
-
-router.post(
-  "/collaboration/:assetId/toggle",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const asset = await ownedAsset(
-        String(req.params.assetId ?? ""),
-        req.user?.userId,
-      );
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          error: "QRE object not found.",
-        });
-      }
-
-      if (!hasCollaborationEntitlement(asset)) {
-        return res.status(402).json({
-          success: false,
-          error:
-            "Collaborative memory requires an eligible subscription tier.",
-        });
-      }
-
-      const enabled = req.body?.enabled === true;
-
-      const current =
-        asset.templateData &&
-        typeof asset.templateData === "object" &&
-        !Array.isArray(asset.templateData)
-          ? (asset.templateData as Record<string, unknown>)
-          : {};
-
-      const templateData = {
-        ...current,
-        collaboration: {
-          ...(current.collaboration as
-            | Record<string, unknown>
-            | undefined),
-          enabled,
-          inviteOnly: req.body?.inviteOnly === true,
-        },
-      };
-
-      await db.asset.update({
-        where: { id: asset.id },
-        data: { templateData },
-      });
-
-      return res.json({
-        success: true,
-        collaboration: templateData.collaboration,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Failed to update collaboration.",
-      });
-    }
-  },
-);
-
-function isPendingContribution(experience: any) {
-  return (
-    experience?.blueprint?.collaboration?.kind ===
-      "collaborative_memory_contribution" &&
-    experience?.blueprint?.collaboration?.status === "PENDING"
-  );
-}
-
-router.get(
-  "/collaboration/:assetId/pending",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const asset = await ownedAsset(
-        String(req.params.assetId ?? ""),
-        req.user?.userId,
-      );
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          error: "QRE object not found.",
-        });
-      }
-
-      const experiences = await db.experience.findMany({
-        where: { assetId: asset.id },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const pending = experiences
-        .filter(isPendingContribution)
-        .map((experience) => ({
-          id: experience.id,
-          title: experience.title,
-          createdAt: experience.createdAt,
-          ...(experience.blueprint as any).collaboration,
-        }));
-
-      return res.json({
-        success: true,
-        pending,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Failed to load pending memories.",
-      });
-    }
-  },
-);
-
-router.post(
-  "/collaboration/:assetId/pending/:contributionId/approve",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const asset = await ownedAsset(
-        String(req.params.assetId ?? ""),
-        req.user?.userId,
-      );
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          error: "QRE object not found.",
-        });
-      }
-
-      if (!hasCollaborationEntitlement(asset)) {
-        return res.status(402).json({
-          success: false,
-          error:
-            "Collaborative memory requires an eligible subscription tier.",
-        });
-      }
-
-      const pending = await db.experience.findFirst({
-        where: {
-          id: String(req.params.contributionId),
-          assetId: asset.id,
-        },
-      });
-
-      if (!pending || !isPendingContribution(pending)) {
-        return res.status(404).json({
-          success: false,
-          error: "Pending memory not found.",
-        });
-      }
-
-      const collaboration = (pending.blueprint as any).collaboration;
-
-      const created = await createExperience({
-        assetId: asset.id,
-        prompt: String(collaboration.prompt),
-        title: pending.title ?? "Memory",
-        userId: req.user?.userId,
-      });
-
-      const blueprint = {
-        ...(pending.blueprint as Record<string, unknown>),
-        collaboration: {
-          ...collaboration,
-          status: "ACCEPTED",
-          reviewedAt: new Date().toISOString(),
-          reviewedBy: req.user?.userId ?? null,
-          generatedExperienceId: created.experience.id,
-        },
-      };
-
-      await db.experience.update({
-        where: { id: pending.id },
-        data: { blueprint },
-      });
-
-      await analyticsRepository.trackEvent({
-        assetId: asset.id,
-        type: "MEMORY_CREATED",
-        meta: {
-          source: "public_collaboration",
-          contributionId: pending.id,
-          generatedExperienceId: created.experience.id,
-        },
-      });
-
-      return res.json({
-        success: true,
-        generatedExperienceId: created.experience.id,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Could not approve this memory.",
-      });
-    }
-  },
-);
-
-router.post(
-  "/collaboration/:assetId/pending/:contributionId/reject",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const asset = await ownedAsset(
-        String(req.params.assetId ?? ""),
-        req.user?.userId,
-      );
-
-      if (!asset) {
-        return res.status(404).json({
-          success: false,
-          error: "QRE object not found.",
-        });
-      }
-
-      const pending = await db.experience.findFirst({
-        where: {
-          id: String(req.params.contributionId),
-          assetId: asset.id,
-        },
-      });
-
-      if (!pending || !isPendingContribution(pending)) {
-        return res.status(404).json({
-          success: false,
-          error: "Pending memory not found.",
-        });
-      }
-
-      const blueprint = {
-        ...(pending.blueprint as Record<string, unknown>),
-        collaboration: {
-          ...((pending.blueprint as any).collaboration),
-          status: "REJECTED",
-          reviewedAt: new Date().toISOString(),
-          reviewedBy: req.user?.userId ?? null,
-        },
-      };
-
-      await db.experience.update({
-        where: { id: pending.id },
-        data: { blueprint },
-      });
-
-      return res.json({
-        success: true,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Could not reject this memory.",
-      });
-    }
-  },
-);
 
 export default router;
