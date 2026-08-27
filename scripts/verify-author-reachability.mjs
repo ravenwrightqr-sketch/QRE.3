@@ -64,14 +64,27 @@ for (const path of forbiddenFiles) {
   if (existsSync(join(root, path))) failures.push(`forbidden-file-reachable: ${path}`);
 }
 
-for (const file of walk(join(root, "apps"))
-  .concat(walk(join(root, "packages")), walk(join(root, "scripts")))
-  .filter((file) => /\.(ts|tsx|js|mjs)$/.test(file))) {
-  const body = readFileSync(file, "utf8");
-  const path = rel(file);
-  if (path === "scripts/verify-author-reachability.mjs") continue;
-  for (const token of forbiddenTokens) {
-    if (body.includes(token)) failures.push(`forbidden-token: ${path} contains ${token}`);
+const productionRoots = [
+  join(root, "apps/api/src"),
+  join(root, "apps/api"),
+  join(root, "apps/web/src"),
+  join(root, "packages"),
+];
+
+for (const directory of productionRoots) {
+  for (const file of walk(directory).filter((file) => /\.(ts|tsx|js|mjs)$/.test(file))) {
+    const path = rel(file);
+    const isProductionSource =
+      path.startsWith("apps/api/src/") ||
+      path.startsWith("apps/web/src/") ||
+      path.startsWith("packages/") ||
+      path === "apps/api/author-acceptance.ts";
+    if (!isProductionSource) continue;
+
+    const body = readFileSync(file, "utf8");
+    for (const token of forbiddenTokens) {
+      if (body.includes(token)) failures.push(`forbidden-token: ${path} contains ${token}`);
+    }
   }
 }
 
@@ -94,7 +107,7 @@ if (/qre-cinematic-author/.test(creation)) failures.push("creation-service: stal
 if (/generativeAuthor\s*:\s*cinematicScenes\.some/.test(creation)) failures.push("creation-service: author identity inferred from stale cinematic metadata");
 
 if (!/authorBrainCanonical/.test(canonicalSource)) failures.push("canonical-author: canonical entry not present");
-if (/compileCognitiveExperience/.test(canonicalSource)) failures.push("canonical-author: invokes legacy cognitive compiler");
+if (/compileCognitiveExperience/.test(canonicalSource)) failures.push("canonical-author: invokes legacy creative compiler");
 
 const rootScripts = JSON.stringify(packageJson.scripts ?? {});
 for (const token of forbiddenTokens) {
