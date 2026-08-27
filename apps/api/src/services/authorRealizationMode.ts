@@ -15,8 +15,8 @@ const IDENTITY = /^(?:[a-z0-9'’.-]+\s+)?(?:is|are|was|were)\s+(?:a|an|the)\b/i
 const PREFERENCE = /\b(?:likes?|loves?|hates?|prefers?|favorite|favourite|usually|often|always|never|wants?|enjoys?|avoids?)\b/i;
 const STATE = /\b(?:happy|sad|angry|calm|excited|nervous|scared|proud|confident|tired|quiet|loud|ready|clean|dirty|broken|fixed|alive|gone|afraid|upset|relieved)\b/i;
 const TIME_OR_CONTEXT = /\b(?:today|yesterday|tomorrow|this\s+(?:morning|afternoon|evening|night)|last\s+(?:night|week|month)|next\s+(?:day|week|month)|at\s+\d|\d{1,2}:\d{2}|round\s+\d+|level\s+\d+|mile\b|miles\b|geo\b|location\b)\b/i;
-const OCCURRENCE = /\b(?:arrived|entered|met|talked|spoke|said|left|came|went|found|lost|got|cleaned|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|saw|observed|rolled|booted|slapped|won|kicked|packed|moved|traveled|travelled|returned|became|changed|stole|stole)\b/i;
-const EXPLICIT_CREATIVE = /\b(?:make|create|turn|build|write|give\s+me|show\s+me)\b.{0,60}\b(?:movie|film|cinematic|sequence\s+film|adventure|epic|story|fiction|horror|noir|spy|cyber|game)\b/i;
+const OCCURRENCE = /\b(?:arrived|entered|met|talked|spoke|said|left|came|went|found|lost|got|cleaned|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|saw|observed|rolled|booted|slapped|won|kicked|packed|moved|traveled|travelled|returned|became|changed|stole)\b/i;
+const EXPLICIT_CREATIVE = /\b(?:make|create|turn|build|write|give\s+me|show\s+me)\b.{0,60}\b(?:movie|film|cinematic|sequence\s+film|adventure|epic|story|fiction)\b/i;
 
 function fragments(input: { facts: string[]; sourceMoments: string[] }): string[] {
   return [...input.facts, ...input.sourceMoments]
