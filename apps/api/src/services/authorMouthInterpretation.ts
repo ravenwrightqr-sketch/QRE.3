@@ -50,7 +50,13 @@ const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|agai
 const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season|devotion)\b/i;
 
 /* Concrete verbs/actions that normally assert a new world event. */
-const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?)\b/i;
+const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?|moved?|move|scurried?|bolted?)\b/i;
+
+/*
+ * A scene-level sensory or spatial assertion is still an invented concrete
+ * situation when the source did not supply that sensory/spatial fact.
+ */
+const UNSUPPORTED_SCENE_ASSERTION = /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|feel(?:s|felt|ing)?|look(?:s|ed|ing)?|suddenly|sudden|ahead|behind|nearby|outside|inside|under|beside|changed|change|different|new\s+scent|something\s+moved|something\s+changed)\b/i;
 
 const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage|sidewalk|road|house)\b/i;
 const FRAME_WORDS = /\b(?:mission|operation|round|boss|quest|game|speedrun|knockout|stun|finish|victory|championship|negotiations?|deal|terms?|case|verdict|heist|noir|royal|romance|rebel|pit\s*stop|upgrade|showtime|objective)\b/i;
@@ -194,6 +200,11 @@ export function evaluateMouthInterpretation(input: {
     !groundedActionFragment
   ) {
     unsupportedConcreteRisk = Math.max(unsupportedConcreteRisk, 1);
+  } else if (
+    UNSUPPORTED_SCENE_ASSERTION.test(text) &&
+    !UNSUPPORTED_SCENE_ASSERTION.test(wholeSourceText)
+  ) {
+    unsupportedConcreteRisk = Math.max(unsupportedConcreteRisk, 0.92);
   } else if (
     INVENTED_FRAME_OBJECT.test(text) &&
     !INVENTED_FRAME_OBJECT.test(wholeSourceText) &&
