@@ -6,6 +6,8 @@
 
 Guardrails protect truth, provenance, architecture, and safety. They do not become a stylistic cage. A brilliant grounded cut may win even when it breaks a preference. Style is scored, not written in stone.
 
+**Universality law:** examples teach the shape of behavior; they are never domain rules. Do not hard-code a subject, industry, prop, color, place, stock phrase, or one-off example merely because it exposed an edge case. Every new rule must generalize across subjects, contexts, and future supplied material. Prefer fewer, stronger principles over exception piles.
+
 ## Canonical production trajectory
 
 `SOURCE REALITY → REALITY GRAPH → COGNITION → MOVIE / TRAJECTORY → GROUNDED CUTS → MOUTH REALIZATION → CREATIVE/TRUTH GATING → FINAL SEQUENCE → PLAYER`
@@ -17,7 +19,7 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - `authorCognition.ts` owns cognitive interpretation and attention/movie planning.
 - `authorUniversalMovieSearch.ts` owns universal trajectory discovery.
 - `authorMouthCandidateSearch.ts` owns viewer-facing language candidates and source provenance.
-- `authorMouthInterpretation.ts` distinguishes source restatement, grounded creative interpretation, and unsupported concrete invention.
+- `authorMouthInterpretation.ts` distinguishes source grounding, creative framing, and unsupported concrete invention.
 - `authorMouthSequenceBeamSearch.ts` selects the strongest connected candidate sequence.
 - `authorAttentionEditor.ts` and `authorSequenceArcGate.ts` gate sequence quality.
 - `localModelRuntime.ts` supplies model language realization; it does not own QRE reality.
@@ -41,15 +43,13 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - Literal facts are safe but do not automatically win.
 - Grounded interpretation can be stronger than literal restatement.
 - Cross-fact meaning is allowed when the supplied corpus supports it.
-- A creative line may be fragmentary, compressed, odd, funny, sharp, emotional, or longer when the realization earns it.
-- A hot payoff or realization is allowed to win even when it violates a stylistic preference.
-- Concrete inventions remain heavily penalized unless their claims are actually supported by supplied reality.
-- Supplied preferences may be amplified into inner-life framing such as obsession, favorite thought, fixation, or dream without inventing a physical event.
-- Supplied actions may be compressed into short action fragments when the action itself is evidenced; compression does not create a new occurrence.
-- Attitude is a first-class creative lane: rhetorical framing, status play, mock authority, absurdity, melodrama, irony, confidence, menace, and comedic posture may be invented as framing without becoming source facts.
-- Optional concrete props, colors, objects, people, locations, sensory details, and scene events remain source-bound. Domain familiarity can suggest possibilities to QRE, but does not turn a possibility into a subject fact.
-- Context may expose high-confidence situational affordances, but only explicit/user-supplied material establishes optional subject-specific details.
+- A creative line may be fragmentary, compressed, odd, funny, sharp, emotional, strange, or longer when the realization earns it.
+- Attitude is first-class: rhetorical framing, status play, mock authority, absurdity, melodrama, irony, confidence, menace, comedy, and other posture can be invented as framing without becoming source facts.
+- Supplied preferences, actions, relationships, states, details, and other collected material may be amplified, compressed, connected, repeated, or reframed when the resulting claim remains grounded.
+- A short action fragment may compress an explicitly supplied action; compression itself does not create a new occurrence.
+- A high-confidence contextual possibility may inform interpretation, but QRE must not silently convert an optional detail into subject fact merely because it is common in a domain.
 - The creative target is the minimum reality commitment that produces the maximum viewer reward.
+- **Do not hard-code the example. Generalize the behavior.**
 
 ## Recorded moves
 
@@ -80,11 +80,14 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 ### 2026-08-26 — Expressive cut spectrum
 
 - Added a deterministic cut-spectrum acceptance harness proving that one-word cuts, preference-to-inner-framing, cross-fact compression, grounded action fragments, and high-attitude framing are valid creative lanes.
-- Added rejection cases for unsupported physical events and unsupported location events.
-- Added a provenance rule for optional concrete props and colors: common domain expectations do not establish subject facts.
-- Added rejection coverage for inferred sensory and movement scenes such as an unsupplied change, scent, or movement at a supplied place.
-- Extended the canonical Mouth interpretation boundary so creative attitude can be strong without weakening concrete-world provenance.
+- Added rejection coverage for unsupported physical events and unsupported location events.
+- Added rejection coverage for inferred sensory and movement scenes that introduce unsupplied concrete situations.
+- Expanded the interpretation boundary so creative attitude can be strong without weakening concrete-world provenance.
+- Removed example-specific prop/color/scenery acceptance logic after observing that it was overfitting the proof harness.
+- Reframed the Mouth policy around universal behavioral principles: use collected reality, maximize creative expression inside it, and guard unsupported concrete claims rather than enumerating forbidden domains.
 
 ## Current cleanup rule
 
 Do not revive deleted Author generations or create parallel creative adapters. When a new capability is needed, extend the canonical path or replace a canonical component deliberately, then record the move here before continuing.
+
+Before adding a new rule, ask: **is this a universal principle, or are we hard-coding the example that happened to reveal it?** If it is the latter, do not add it. Generalize instead.
