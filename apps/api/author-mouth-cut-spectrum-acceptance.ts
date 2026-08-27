@@ -118,6 +118,20 @@ const cases = [
     expectAccepted: true,
   },
   {
+    name: "inferred_place_sensory_scene",
+    text: "The park smells different now.",
+    labels: ["Coco loves the park"],
+    events: ["Coco loves the park"],
+    expectAccepted: false,
+  },
+  {
+    name: "inferred_movement_scene",
+    text: "Something moved.",
+    labels: ["Coco likes squirrels", "Coco loves the park"],
+    events: ["Coco likes squirrels", "Coco loves the park"],
+    expectAccepted: false,
+  },
+  {
     name: "invented_physical_event",
     text: "She chased them all afternoon.",
     labels: ["Coco likes squirrels", "Coco loves the park"],
