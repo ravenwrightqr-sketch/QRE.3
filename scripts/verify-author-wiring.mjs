@@ -95,9 +95,14 @@ const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(pack
 check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-const sourceForBeatMatch = mouthSource.match(/function sourceForBeat\([\s\S]*?\n}\n\nfunction supportedEventsForBeat/);
-const sourceForBeatBody = sourceForBeatMatch?.[0] ?? "";
-check("mouth:provenance", /function sourceForBeat\(/.test(mouthSource), "Mouth has an explicit source provenance boundary");
+const sourceForBeatStart = mouthSource.indexOf("function sourceForBeat(");
+const sourceForBeatEnd = sourceForBeatStart >= 0
+  ? mouthSource.indexOf("function supportedEventsForBeat(", sourceForBeatStart)
+  : -1;
+const sourceForBeatBody = sourceForBeatStart >= 0 && sourceForBeatEnd > sourceForBeatStart
+  ? mouthSource.slice(sourceForBeatStart, sourceForBeatEnd)
+  : "";
+check("mouth:provenance", sourceForBeatStart >= 0, "Mouth has an explicit source provenance boundary");
 check(
   "mouth:no-planner-label-promotion",
   /beat\.eventIds/.test(sourceForBeatBody)
