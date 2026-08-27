@@ -61,6 +61,7 @@ function buildCognition(
 function orderedSourceCandidate(
   graph: ReturnType<typeof buildAuthorRealityGraph>,
   lens: string,
+  materialOnly = false,
 ): LatentMovieCandidate | undefined {
   const events = graph.events.filter((event) => !looksLikeIdentityAssertion(event.label) && clean(event.label));
   if (!events.length) return undefined;
@@ -83,13 +84,13 @@ function orderedSourceCandidate(
   );
 
   return {
-    id: "movie-ordered-source",
+    id: materialOnly ? "memory-material" : "movie-ordered-source",
     lens,
     anchorEventIds: selected.length >= 2 ? [selected[0].id, selected[selected.length - 1].id] : [selected[0].id],
     supportingRelationKinds: [],
     trajectory,
-    payoff: selected[selected.length - 1]?.label ?? "",
-    unresolvedQuestion: "What becomes newly meaningful?",
+    payoff: materialOnly ? "" : selected[selected.length - 1]?.label ?? "",
+    unresolvedQuestion: materialOnly ? "" : "What becomes newly meaningful?",
     evidence,
     hypothesis: [
       "Preserve supplied order as presentation order only.",
@@ -120,11 +121,11 @@ function chooseMovie(
   if (input.movieMode === false) return undefined;
 
   /*
-   * Collection/state material still becomes a viewer-facing sequence,
-   * but it must not be promoted into latent cinematic discovery.
-   * Sequence Film is earned by evidence density or explicit direction.
+   * Collection/state material is still realized through the canonical Mouth,
+   * but it is passed as one material pool rather than a manufactured trajectory.
+   * Sequence Film keeps the deeper trajectory search.
    */
-  if (realizationMode !== "sequence-film") return orderedSourceCandidate(graph, lens);
+  if (realizationMode !== "sequence-film") return orderedSourceCandidate(graph, lens, true);
 
   const candidates = searchUniversalMovieCandidates({
     graph,
@@ -138,6 +139,21 @@ function chooseMovie(
 }
 
 function mouthBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
+  if (movie.id === "memory-material") {
+    const eventIds = unique(movie.trajectory.flatMap((step) => step.eventIds ?? []));
+    return [{
+      order: 1,
+      role: "establishing",
+      attentionFunction: "Realize the supplied material; do not manufacture an episode.",
+      eventIds,
+      change: "Surface whatever supplied material has the strongest realization.",
+      next: "",
+      frontier: "",
+      paysOff: [],
+      relationKinds: [],
+    }];
+  }
+
   return movie.trajectory.map((step, index) => ({
     order: step.order,
     role: index === 0 ? "establishing" : index === movie.trajectory.length - 1 ? "payoff" : "reveal",
