@@ -121,8 +121,9 @@ function chooseMovie(
   if (input.movieMode === false) return undefined;
 
   /*
-   * Collection/state material is still realized through the canonical Mouth,
-   * but it is passed as one material pool rather than a manufactured trajectory.
+   * Collection/state material remains one Living Memory source pool. It does
+   * not imply an episode or chronology. The Mouth may realize multiple
+   * independent cuts from that pool.
    * Sequence Film keeps the deeper trajectory search.
    */
   if (realizationMode !== "sequence-film") return orderedSourceCandidate(graph, lens, true);
@@ -141,17 +142,17 @@ function chooseMovie(
 function mouthBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
   if (movie.id === "memory-material") {
     const eventIds = unique(movie.trajectory.flatMap((step) => step.eventIds ?? []));
-    return [{
-      order: 1,
-      role: "establishing",
-      attentionFunction: "Realize the supplied material; do not manufacture an episode.",
-      eventIds,
-      change: "Surface whatever supplied material has the strongest realization.",
+    return eventIds.map((eventId, index) => ({
+      order: index + 1,
+      role: "material",
+      attentionFunction: "Realize one supplied Living Memory detail or a grounded relationship among supplied details.",
+      eventIds: [eventId],
+      change: "Make this supplied material interesting without turning it into an invented occurrence.",
       next: "",
       frontier: "",
       paysOff: [],
       relationKinds: [],
-    }];
+    }));
   }
 
   return movie.trajectory.map((step, index) => ({
@@ -388,20 +389,20 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       strongestImage: movie.evidence[0] ?? "",
       tension: "novelty → contrast → consequence → payoff",
       payoff: movie.payoff,
-      callback: movie.storyThesis ? movie.storyThesis.semanticTurn : "none",
-      rhythm: ["hit", "standard", "hit", "short"],
-      avoid: ["fact parade", "invented events", "planner prose"],
+      callback: "none",
+      rhythm: selected.candidates.map((candidate) => clean(candidate.text)).filter(Boolean),
+      avoid: ["invented event", "unsupported bridge", "generic summary"],
     },
     diagnostics: {
       model: modelName,
       modelCalls,
       candidateSequences: 1,
-      acceptedCandidates: complete ? 1 : 0,
+      acceptedCandidates: selected.candidates.length,
       qualityStatus: complete ? "ACCEPTED" : "REJECTED",
       renderable: complete,
       complete,
-      selectedScore: metric(selected.score),
-      rejectedCandidates: complete ? [] : [{ reason: "sequence-quality-gate" }],
+      selectedScore: selected.score,
+      rejectedCandidates: [],
     },
   };
 }
