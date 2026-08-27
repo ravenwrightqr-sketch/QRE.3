@@ -44,6 +44,12 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - A creative line may be fragmentary, compressed, odd, funny, sharp, emotional, or longer when the realization earns it.
 - A hot payoff or realization is allowed to win even when it violates a stylistic preference.
 - Concrete inventions remain heavily penalized unless their claims are actually supported by supplied reality.
+- Supplied preferences may be amplified into inner-life framing such as obsession, favorite thought, fixation, or dream without inventing a physical event.
+- Supplied actions may be compressed into short action fragments when the action itself is evidenced; compression does not create a new occurrence.
+- Attitude is a first-class creative lane: rhetorical framing, status play, mock authority, absurdity, melodrama, irony, confidence, menace, and comedic posture may be invented as framing without becoming source facts.
+- Optional concrete props, colors, objects, people, locations, sensory details, and scene events remain source-bound. Domain familiarity can suggest possibilities to QRE, but does not turn a possibility into a subject fact.
+- Context may expose high-confidence situational affordances, but only explicit/user-supplied material establishes optional subject-specific details.
+- The creative target is the minimum reality commitment that produces the maximum viewer reward.
 
 ## Recorded moves
 
@@ -70,6 +76,14 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - Replaced the API memory projection dependency on engine `WorldModel` with the contracts-owned `RealityGraph` type.
 - Changed experience creation to require an accepted, renderable, complete canonical Author result and to identify the author from canonical metadata.
 - Added `scripts/verify-author-reachability.mjs` and wired it into the root `author:guard` / build path.
+
+### 2026-08-26 — Expressive cut spectrum
+
+- Added a deterministic cut-spectrum acceptance harness proving that one-word cuts, preference-to-inner-framing, cross-fact compression, grounded action fragments, and high-attitude framing are valid creative lanes.
+- Added rejection cases for unsupported physical events and unsupported location events.
+- Added a provenance rule for optional concrete props and colors: common domain expectations do not establish subject facts.
+- Added rejection coverage for inferred sensory and movement scenes such as an unsupplied change, scent, or movement at a supplied place.
+- Extended the canonical Mouth interpretation boundary so creative attitude can be strong without weakening concrete-world provenance.
 
 ## Current cleanup rule
 
