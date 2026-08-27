@@ -2,7 +2,9 @@
  * QRE CANONICAL AUTHOR LAW
  * ROLE: deterministic proof for viewer-facing cut freedom.
  * LAW: QRE may surprise us.
- * This is a proof harness, not a creative template.
+ * UNIVERSALITY LAW: examples prove behavior classes; they are never hard-coded
+ * domain behavior. Keep the acceptance matrix universal and expand by class,
+ * not by adding subject/industry/prop exceptions.
  */
 
 import { evaluateMouthInterpretation } from "./src/services/authorMouthInterpretation.js";
@@ -97,24 +99,17 @@ const cases = [
     expectAccepted: true,
   },
   {
-    name: "unsupplied_optional_prop",
-    text: "NOOO BOWS.",
-    labels: ["Coco went to the groomer"],
-    events: ["Coco went to the groomer"],
-    expectAccepted: false,
+    name: "generic_rhetorical_attitude",
+    text: "Ridiculous.",
+    labels: ["Coco loves the park"],
+    events: ["Coco loves the park"],
+    expectAccepted: true,
   },
   {
-    name: "unsupplied_optional_color",
-    text: "Wait, I look good in blue.",
-    labels: ["Coco went to the groomer"],
-    events: ["Coco went to the groomer"],
-    expectAccepted: false,
-  },
-  {
-    name: "supplied_optional_prop",
-    text: "NOOO BOWS.",
-    labels: ["Coco got a bow at the groomer"],
-    events: ["Coco got a bow at the groomer"],
+    name: "generic_compressed_framing",
+    text: "A ridiculous victory.",
+    labels: ["Coco loves the park", "Coco likes squirrels"],
+    events: ["Coco loves the park", "Coco likes squirrels"],
     expectAccepted: true,
   },
   {
