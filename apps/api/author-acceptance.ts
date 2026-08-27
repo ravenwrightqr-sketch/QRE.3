@@ -23,6 +23,7 @@ console.log("=".repeat(72));
 console.log("QRE AUTHOR ACCEPTANCE · CANONICAL BRAIN / ONE REALIZATION PATH");
 console.log("=".repeat(72));
 console.log(`MODEL: ${String(result.diagnostics.model ?? "unknown")}`);
+console.log(`REALIZATION MODE: ${result.realizationMode}`);
 console.log(`MODEL REQUESTS: ${String(result.diagnostics.modelCalls ?? 0)}`);
 console.log(`CANDIDATES: ${String(result.diagnostics.candidateSequences ?? 0)}`);
 console.log(`ACCEPTED: ${String(result.diagnostics.acceptedCandidates ?? 0)}`);
