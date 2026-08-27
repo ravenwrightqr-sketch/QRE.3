@@ -8,6 +8,11 @@
  * The entire supplied reality corpus is available for interpretation. A beat
  * may therefore derive meaning from other supplied facts without pretending
  * those facts belong to the current beat.
+ *
+ * QRE CANONICAL AUTHOR LAW:
+ * ROLE: protect source truth while leaving the realization layer expressive.
+ * LAW: QRE may surprise us.
+ * Creative freedom is a scoring preference, not a stylistic cage.
  */
 
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
@@ -30,7 +35,7 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
   return hits / Math.max(1, a.size);
 };
 
-const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|negotiations?|mission|round|danger|victory|upgrade|boss|royal|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally)\b/i;
+const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|negotiations?|mission|round|danger|victory|upgrade|boss|royal|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
 
 const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season|devotion)\b/i;
 
@@ -39,7 +44,11 @@ const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?
 
 const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage|sidewalk|road|house)\b/i;
 const FRAME_WORDS = /\b(?:mission|operation|round|boss|quest|game|speedrun|knockout|stun|finish|victory|championship|negotiations?|deal|terms?|case|verdict|heist|noir|royal|romance|rebel|pit\s*stop|upgrade|showtime|objective)\b/i;
-const HYPERBOLIC_FRAMING = /\b(?:everywhere|always|never|best|ultimate|dream|season|serious|finally|apparently|naturally|clearly|of course|nothing but|all|entire|only)\b/i;
+const HYPERBOLIC_FRAMING = /\b(?:everywhere|always|never|best|ultimate|dream|season|serious|finally|apparently|naturally|clearly|of course|nothing but|all|entire|only|so many)\b/i;
+
+/* Universal inner-life framing licensed by supplied preference/affinity facts. */
+const PREFERENCE_SOURCE = /\b(?:like|likes|liked|love|loves|loved|adore|adores|adored|enjoy|enjoys|enjoyed|prefer|prefers|preferred|favorite|fond of|care about|cares about|cared about)\b/i;
+const INNER_FRAMING = /\b(?:favorite|obsession|obsessed|fixation|devotion|thought|dream|dreaming|wish|wonder|problem)\b/i;
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -98,6 +107,10 @@ export function evaluateMouthInterpretation(input: {
   const framingSignal = ABSTRACT_FRAMING.test(text) ? 1 : 0;
   const strongStatusFraming = STRONG_STATUS_FRAMING.test(text);
   const hyperbolicFraming = HYPERBOLIC_FRAMING.test(text) ? 1 : 0;
+  const preferenceFrameSupport =
+    PREFERENCE_SOURCE.test(beatSourceText || wholeSourceText) && INNER_FRAMING.test(text)
+      ? 0.9
+      : 0;
 
   let unsupportedConcreteRisk = 0;
 
@@ -119,6 +132,11 @@ export function evaluateMouthInterpretation(input: {
    * not just the event currently being realized. This is the creative-bet
    * lane: allowed when the source itself contains action/state material and
    * the line remains short and free of unsupported concrete events.
+   *
+   * Preference/affinity facts also license inner-life framing. This is not a
+   * pet rule: any supplied like/love/preference may become a favorite thought,
+   * obsession, fixation, dream, devotion, or similarly compressed framing,
+   * without implying a new physical event.
    */
   const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 2;
   const derivedInterpretationAnchor = Math.max(sourceAnchor, wholeSourceAnchor);
@@ -126,8 +144,8 @@ export function evaluateMouthInterpretation(input: {
   const safeCreativeBet =
     unsupportedConcreteRisk === 0 &&
     literalRestatement === 0 &&
-    sourceShapeSupport &&
-    shortInterpretation;
+    shortInterpretation &&
+    (sourceShapeSupport || preferenceFrameSupport >= 0.8);
 
   const creativeFraming = Math.max(
     0,
@@ -137,6 +155,7 @@ export function evaluateMouthInterpretation(input: {
         Math.max(0, derivedInterpretationAnchor - 0.05) * 0.34 +
         framingSignal * 0.2 +
         frameSupport * 0.12 +
+        preferenceFrameSupport * 0.14 +
         (safeCreativeBet ? 0.1 : 0),
     ),
   );
@@ -157,6 +176,7 @@ export function evaluateMouthInterpretation(input: {
     !safeCreativeBet &&
     derivedInterpretationAnchor < 0.05 &&
     frameSupport < 0.8 &&
+    preferenceFrameSupport < 0.8 &&
     !strongStatusFraming
   ) {
     unsupportedConcreteRisk = 0.72;
@@ -167,6 +187,7 @@ export function evaluateMouthInterpretation(input: {
   if (sourceAnchor >= 0.18) reasons.push("beat-source-anchored");
   if (wholeSourceAnchor >= 0.18) reasons.push("whole-reality-anchored");
   if (frameSupport > 0) reasons.push("evidence-supported-frame");
+  if (preferenceFrameSupport >= 0.8) reasons.push("preference-supported-inner-framing");
   if (framingSignal) reasons.push("viewer-facing-framing");
   if (strongStatusFraming) reasons.push("strong-status-framing");
   if (hyperbolicFraming) reasons.push("bounded-hyperbole");
@@ -178,14 +199,14 @@ export function evaluateMouthInterpretation(input: {
     interpretive: Number(interpretive.toFixed(3)),
     sourceAnchor: Number(sourceAnchor.toFixed(3)),
     wholeSourceAnchor: Number(wholeSourceAnchor.toFixed(3)),
-    frameSupport: Number(frameSupport.toFixed(3)),
+    frameSupport: Number(Math.max(frameSupport, preferenceFrameSupport).toFixed(3)),
     literalRestatement,
     creativeFraming: Number(creativeFraming.toFixed(3)),
     unsupportedConcreteRisk: Number(unsupportedConcreteRisk.toFixed(3)),
     accepted:
       Boolean(text) &&
       unsupportedConcreteRisk < 0.9 &&
-      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
+      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || preferenceFrameSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
       (literalRestatement === 1 || (safeCreativeBet ? interpretive >= 0.28 : interpretive >= 0.38)),
     reasons,
   };
