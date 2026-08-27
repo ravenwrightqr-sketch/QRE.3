@@ -39,7 +39,6 @@ const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable expe
 const BAD_INTERPRETIVE_EXPLANATION = /\b(?:the viewer|this reveals|this means|which means|in this context|is now transformed into|was a cover for|reveals? that|symbolizes?|represents?|the mystery|what does .* mean|why does .* mean|the final revelation|the punchline here)\b/i;
 const PLANNING_RESIDUE = /\b(?:perform the approved semantic change|maintain forward movement|anchor the realization|allow later supplied evidence|preserve the source-derived endpoint|terminate on the supplied endpoint|do not merely restate|what relationship deserves|what becomes connected|what does this relationship make newly meaningful|what is now true at the supplied ending|the supplied endpoint lands|establish supplied evidence)\b/i;
 const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|swipes?|swiped|grips?|grabbed|throws?|threw|pulls?|pulled|pushes?|pushed|kicks?|kicked|touches?|touched|holds?|held|carries?|carried|opens?|opened|closes?|closed)\b/i;
-const SEMANTIC_TURN_LANGUAGE = /\b(?:apparently|again|still|only|instead|absolutely|no|yes|temporary|round|ready|now|fear|control|own|agency|status|mine|master|boss|command|brave|bravery|place|belongs|belongs? to|in charge|takes over|took over|owns?|owned)\b/i;
 
 const normalizeToken = (token: string): string => {
   const lower = token.toLowerCase();
@@ -212,7 +211,13 @@ function evaluateCandidate(
   const wordCount = value.split(/\s+/).filter(Boolean).length;
   const compressionScore = wordCount <= 12 ? 1 : wordCount <= 20 ? 0.9 : wordCount <= 30 ? 0.76 : wordCount <= 40 ? 0.62 : 0.48;
   const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, 0, [beat], envelope);
-  const meaningScore = metric((viewerState.stateShift ?? 0.5) * 0.35 + (viewerState.curiosityPressure ?? 0.5) * 0.25 + (viewerState.contrast ?? 0.5) * 0.2 + (semanticBeat ? 0.2 : 0.1));
+  const meaningScore = metric(
+    (viewerState.stateShift ?? 0.5) * 0.3 +
+    (viewerState.curiosityPressure ?? 0.5) * 0.22 +
+    (viewerState.contrast ?? 0.5) * 0.17 +
+    (interpretation.creativeFraming ?? 0.5) * 0.21 +
+    (semanticBeat ? 0.1 : 0),
+  );
   const transitionScore = metric((viewerState.predictionError ?? 0.4) * 0.5 + (viewerState.interruption ?? 0.4) * 0.25 + (viewerState.accumulation ?? 0.5) * 0.25);
   const obligationCoverage = metric(supportedEventIds.length ? 0.55 + Math.min(0.35, supportedEventIds.length * 0.15) : groundingScore * 0.5);
   const relationContractScore = metric(supportedRelationPairs.length ? 0.8 : semanticBeat ? 0.35 : 0.2);
@@ -250,16 +255,17 @@ function evaluateCandidate(
   }
 
   const score = metric(
-    effectiveGrounding * 0.18 +
-    meaningScore * 0.2 +
-    transitionScore * 0.15 +
+    effectiveGrounding * 0.16 +
+    meaningScore * 0.18 +
+    transitionScore * 0.14 +
     obligationCoverage * 0.08 +
     relationContractScore * 0.05 +
-    cohesionScore * 0.08 +
+    cohesionScore * 0.06 +
     noveltyScore * 0.08 +
-    compressionScore * 0.07 +
+    compressionScore * 0.06 +
     (1 - inventionRisk) * 0.06 +
-    (creativeLane ? 0.05 : 0) -
+    (creativeLane ? 0.08 : 0) +
+    interpretation.creativeFraming * 0.05 -
     collageRisk * 0.03,
   );
 
@@ -291,6 +297,24 @@ function literalRestatementFor(value: string, labels: readonly string[]): number
   return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
 }
 
+function buildGoldRealizationDoctrine(): string {
+  return [
+    "FIND THE GOLD before you write.",
+    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, or memorable observation.",
+    "Do not merely categorize the subject. Do not turn the material into generic life advice, motivational prose, or a summary.",
+    "The gold may already be the supplied insight itself. Recognizing it is often better than adding another layer.",
+    "Interpretation may sharpen meaning without creating a new concrete occurrence.",
+    "Examples are demonstrations of the move, not phrases to copy and not domain rules:",
+    "SUPPLIED: Coco loves bacon. GOOD: Bacon first.",
+    "SUPPLIED: Coco likes apples. GOOD: An apple. Finally.",
+    "SUPPLIED: Coco rolled in mud; mud bath was free. GOOD: Five-star mud bath. Complimentary.",
+    "SUPPLIED: A cat watched the worker the whole time; cat approved. GOOD: The cat was the judge. Cat approved.",
+    "SUPPLIED: Grandma's house; never-ending snacks; known memory: Coco loves squirrels. GOOD: Grandma's house. Never-ending snacks. Squirrel. Anyway.",
+    "The examples show compression, attitude, implication, and associative surprise. Invent new realizations for the actual material.",
+    "Never explain why something is interesting. Make the interesting thing land.",
+  ].join(" ");
+}
+
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const evidence = unique([
     ...input.envelope.suppliedPhrases,
@@ -306,6 +330,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
     "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
     "Write for the viewer's felt experience, not for the planner. The line should make the supplied beat land.",
+    buildGoldRealizationDoctrine(),
     "VIEWER REWARD IS THE CREATIVE TARGET. Feel-good does not mean wholesome or positive. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
     "Ask: what does this line give the viewer? A grin, a wince, a reveal, a satisfying turn, a laugh, a pause, a jolt, a recognition, or simply the desire to experience the next cut.",
     "Never manufacture a cliffhanger. Forward pull may come from contrast, implication, rhythm, attitude, accumulation, callback, unresolved pressure, or an earned payoff.",
