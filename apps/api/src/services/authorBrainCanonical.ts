@@ -14,6 +14,7 @@ import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
+import { classifyAuthorRealizationMode, type AuthorRealizationMode } from "./authorRealizationMode.js";
 import {
   buildMouthCandidateMessages,
   parseMouthCandidateBatch,
@@ -62,7 +63,7 @@ function orderedSourceCandidate(
   lens: string,
 ): LatentMovieCandidate | undefined {
   const events = graph.events.filter((event) => !looksLikeIdentityAssertion(event.label) && clean(event.label));
-  if (events.length < 3) return undefined;
+  if (!events.length) return undefined;
 
   const selected = events.slice(0, Math.min(6, events.length));
   const trajectory: LatentMovieTrajectoryStep[] = selected.map((event, index) => ({
@@ -114,8 +115,16 @@ function chooseMovie(
   input: AuthorBrainTruth,
   graph: ReturnType<typeof buildAuthorRealityGraph>,
   lens: string,
+  realizationMode: AuthorRealizationMode,
 ): LatentMovieCandidate | undefined {
   if (input.movieMode === false) return undefined;
+
+  /*
+   * Collection/state material still becomes a viewer-facing sequence,
+   * but it must not be promoted into latent cinematic discovery.
+   * Sequence Film is earned by evidence density or explicit direction.
+   */
+  if (realizationMode !== "sequence-film") return orderedSourceCandidate(graph, lens);
 
   const candidates = searchUniversalMovieCandidates({
     graph,
@@ -190,6 +199,7 @@ export type CanonicalAuthorResult = {
   scenes: AuthorScene[];
   sequence: SequencePlay;
   movie?: LatentMovieCandidate;
+  realizationMode: AuthorRealizationMode;
   brief: AuthorCreativeBrief;
   diagnostics: {
     model: string;
@@ -219,17 +229,25 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   });
 
   const cognition = buildCognition({ ...input, facts, sourceMoments }, graph);
+  const realizationMode = classifyAuthorRealizationMode({
+    prompt: clean(input.prompt),
+    facts,
+    sourceMoments,
+    relationKinds: graph.relations.map((relation) => relation.kind),
+    movieMode: input.movieMode,
+  });
   const lens = lensFrom(input, cognition);
-  const movie = chooseMovie(input, graph, lens);
+  const movie = chooseMovie(input, graph, lens, realizationMode);
 
-  if (!movie || movie.trajectory.length < 3) {
+  if (!movie || movie.trajectory.length < 1) {
     return {
       scenes: [],
       sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] },
       movie,
+      realizationMode,
       brief: {
         angle: lens,
-        engine: "source reality → grounded sequence → single Mouth realization",
+        engine: `source reality → ${realizationMode} → single Mouth realization`,
         question: "What supplied detail should land next?",
         strongestImage: graph.events.find((event) => !looksLikeIdentityAssertion(event.label))?.label ?? "",
         tension: "novelty → contrast → consequence → payoff",
@@ -247,7 +265,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
         renderable: false,
         complete: false,
         selectedScore: 0,
-        rejectedCandidates: [{ reason: "no-complete-grounded-movie" }],
+        rejectedCandidates: [{ reason: "no-supplied-sequence-material" }],
       },
     };
   }
@@ -312,28 +330,31 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     evidence: movie.evidence,
   });
 
-  const arc = evaluateSequenceArc(
-    selected.candidates.map((candidate, index) => ({
-      order: index + 1,
-      role: beats[index]?.role,
-      attentionFunction: beats[index]?.attentionFunction,
-      creativeMove: beats[index]?.creativeMove,
-      text: candidate.text,
-      change: beats[index]?.change,
-      next: beats[index]?.next,
-      frontier: beats[index]?.frontier,
-      setsUp: [],
-      paysOff: index === selected.candidates.length - 1 ? [movie.payoff] : [],
-    })),
-  );
+  const arc = selected.candidates.length >= 3
+    ? evaluateSequenceArc(
+        selected.candidates.map((candidate, index) => ({
+          order: index + 1,
+          role: beats[index]?.role,
+          attentionFunction: beats[index]?.attentionFunction,
+          creativeMove: beats[index]?.creativeMove,
+          text: candidate.text,
+          change: beats[index]?.change,
+          next: beats[index]?.next,
+          frontier: beats[index]?.frontier,
+          setsUp: [],
+          paysOff: index === selected.candidates.length - 1 ? [movie.payoff] : [],
+        })),
+      )
+    : { accepted: true };
 
   const scenes: AuthorScene[] = selected.candidates.map((candidate, index) => ({
     text: clean(candidate.text),
     kind: index === selected.candidates.length - 1 ? "payoff" : index === 0 ? "hook" : "turn",
   }));
 
+  const minimumCuts = realizationMode === "sequence-film" ? 3 : 1;
   const complete =
-    scenes.length >= 3 &&
+    scenes.length >= minimumCuts &&
     scenes.length === sequence.cuts.length &&
     sequence.cuts.every((cut) => cut.sourceIds.length > 0) &&
     attention.accepted === true &&
@@ -343,9 +364,10 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     scenes,
     sequence,
     movie,
+    realizationMode,
     brief: {
       angle: lens,
-      engine: "source reality → deterministic trajectory → single Mouth realization",
+      engine: `source reality → ${realizationMode} → deterministic sequence → single Mouth realization`,
       question: movie.unresolvedQuestion,
       strongestImage: movie.evidence[0] ?? "",
       tension: "novelty → contrast → consequence → payoff",
