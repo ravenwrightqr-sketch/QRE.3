@@ -95,8 +95,16 @@ const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(pack
 check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-check("mouth:provenance", /function sourceForBeat/.test(mouthSource), "Mouth has an explicit source provenance boundary");
-check("mouth:no-planner-label-promotion", !/setsUp.*sourceLabels|paysOff.*sourceLabels/s.test(mouthSource), "Planner labels cannot become source labels");
+const sourceForBeatMatch = mouthSource.match(/function sourceForBeat\([\s\S]*?\n}\n\nfunction supportedEventsForBeat/);
+const sourceForBeatBody = sourceForBeatMatch?.[0] ?? "";
+check("mouth:provenance", /function sourceForBeat\(/.test(mouthSource), "Mouth has an explicit source provenance boundary");
+check(
+  "mouth:no-planner-label-promotion",
+  /beat\.eventIds/.test(sourceForBeatBody)
+    && !/setsUp|paysOff/.test(sourceForBeatBody)
+    && !/sourceLabels/.test(sourceForBeatBody),
+  "Only beat eventIds may resolve into source labels",
+);
 
 const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";
 check("interpretation:whole-source", /wholeSourceAnchor/.test(interpretationSource), "Interpretation sees the supplied reality corpus");
