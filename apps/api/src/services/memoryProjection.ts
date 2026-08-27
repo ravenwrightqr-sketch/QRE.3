@@ -9,16 +9,16 @@ import type {
   MemorySource,
   MemoryVisibility,
   MemoryWriteBatch,
+  RealityGraph,
+  RealityEvent,
 } from "@qre/contracts";
-import type { WorldModel } from "@qre/engine";
 
 /**
- * MEMORY PROJECTION
+ * API-side durable-memory projection.
  *
- * API-side persistence projection. Cognition owns the world model; this layer
- * converts that model into the durable memory contract used by the repository.
- * No database code belongs here and no domain/topic vocabulary is used to
- * decide entity kinds.
+ * ROLE: persistence projection only.
+ * AUTHORITY: RealityGraph from the canonical Author path.
+ * HARD BOUNDARY: no API dependency on engine-internal cognition types.
  */
 
 const VISIBILITY: MemoryVisibility = "shared";
@@ -42,8 +42,8 @@ function entityId(assetId: string, kind: MemoryEntityKind, value: string): strin
   return stableId(assetId, kind, value);
 }
 
-function eventId(assetId: string, event: WorldModel["events"][number]): string {
-  return stableId(assetId, "event", `${event.id}|${event.raw}`);
+function eventId(assetId: string, event: RealityEvent): string {
+  return stableId(assetId, "event", `${event.id}|${event.label}`);
 }
 
 function addEntity(
@@ -53,7 +53,7 @@ function addEntity(
   name: string,
   confidence = 1,
   metadata?: Record<string, unknown>,
-) {
+): void {
   const cleanName = clean(name);
   if (!cleanName) return;
   const id = entityId(assetId, kind, cleanName);
@@ -68,22 +68,27 @@ function addEntity(
   });
 }
 
-function buildEntities(assetId: string, world: WorldModel) {
+function buildEntities(assetId: string, graph: RealityGraph) {
   const entities = new Map<string, MemoryWriteBatch["entities"][number]>();
 
-  for (const participant of world.participants) {
-    addEntity(entities, assetId, "person", participant, 1, { worldRole: "participant" });
-  }
+  for (const event of graph.events) {
+    addEntity(entities, assetId, "event", event.label, 0.95, {
+      realityRole: "event",
+      realityEventId: event.id,
+    });
 
-  for (const place of world.places) {
-    addEntity(entities, assetId, "place", place, 1, { worldRole: "place" });
-  }
+    for (const value of event.entities) {
+      addEntity(entities, assetId, "object", value, 0.85, {
+        realityRole: "event_entity",
+        realityEventId: event.id,
+      });
+    }
 
-  for (const event of world.events) {
-    addEntity(entities, assetId, "event", event.raw, 0.95, { worldRole: "event", eventId: event.id });
-    if (event.object) addEntity(entities, assetId, "object", event.object, 0.9, { worldRole: "object" });
-    for (const detail of event.details) {
-      addEntity(entities, assetId, "object", detail, 0.8, { worldRole: "detail", eventId: event.id });
+    if (event.place) {
+      addEntity(entities, assetId, "place", event.place, 1, {
+        realityRole: "place",
+        realityEventId: event.id,
+      });
     }
   }
 
@@ -92,52 +97,49 @@ function buildEntities(assetId: string, world: WorldModel) {
 
 function buildFacts(
   assetId: string,
-  world: WorldModel,
+  graph: RealityGraph,
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
 ): MemoryFactWrite[] {
   const facts: MemoryFactWrite[] = [];
 
-  for (const event of world.events) {
+  for (const event of graph.events) {
     const id = eventId(assetId, event);
-    const participants = event.participants.length ? event.participants : [undefined];
-    for (const participant of participants) {
-      const entity = participant ? entityId(assetId, "person", participant) : id;
-      const predicate = event.action ?? event.state ?? "occurred";
-      facts.push({
-        entityId: entity,
-        kind: event.action ? "event" : "context",
-        predicate,
-        value: event.raw,
-        confidence: 1,
-        source,
-        sourceRef: sessionId,
-        status: "active",
-        observedAt,
-        visibility: VISIBILITY,
-        metadata: {
-          eventId: event.id,
-          place: event.place,
-          time: event.time,
-          details: event.details,
-        },
-      });
-    }
+    facts.push({
+      entityId: id,
+      kind: "event",
+      predicate: "occurred",
+      value: event.label,
+      confidence: 1,
+      source,
+      sourceRef: sessionId,
+      status: "active",
+      observedAt,
+      visibility: VISIBILITY,
+      metadata: {
+        realityEventId: event.id,
+        sourceIds: event.sourceIds,
+        entities: event.entities,
+        place: event.place,
+        time: event.time,
+        provenance: event.provenance,
+      },
+    });
 
     if (event.place) {
       facts.push({
         entityId: entityId(assetId, "place", event.place),
         kind: "context",
         predicate: "experienced_event",
-        value: event.raw,
+        value: event.label,
         confidence: 1,
         source,
         sourceRef: sessionId,
         status: "active",
         observedAt,
         visibility: VISIBILITY,
-        metadata: { eventId: event.id, participants: event.participants },
+        metadata: { realityEventId: event.id },
       });
     }
   }
@@ -145,69 +147,67 @@ function buildFacts(
   return facts;
 }
 
+function relationKindForEndpoint(graph: RealityGraph, endpoint: string): MemoryEntityKind {
+  if (graph.events.some((event) => event.id === endpoint)) return "event";
+  if (graph.events.some((event) => event.place === endpoint)) return "place";
+  return "object";
+}
+
 function buildRelations(
   assetId: string,
-  world: WorldModel,
+  graph: RealityGraph,
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
 ): MemoryRelationWrite[] {
-  return world.relations.map((relation) => {
-    const fromKind: MemoryEntityKind = world.participants.includes(relation.from)
-      ? "person"
-      : world.places.includes(relation.from)
-        ? "place"
-        : "object";
-    const toKind: MemoryEntityKind = world.participants.includes(relation.to)
-      ? "person"
-      : world.places.includes(relation.to)
-        ? "place"
-        : "object";
+  return graph.relations.map((relation) => {
+    const fromKind = relationKindForEndpoint(graph, relation.from);
+    const toKind = relationKindForEndpoint(graph, relation.to);
 
     return {
-      fromEntityId: entityId(assetId, fromKind, relation.from),
-      toEntityId: entityId(assetId, toKind, relation.to),
-      relation: clean(relation.relation) || "connected_to",
-      confidence: 1,
+      fromEntityId: fromKind === "event"
+        ? stableId(assetId, "event", `${relation.from}|${graph.events.find((event) => event.id === relation.from)?.label ?? relation.from}`)
+        : entityId(assetId, fromKind, relation.from),
+      toEntityId: toKind === "event"
+        ? stableId(assetId, "event", `${relation.to}|${graph.events.find((event) => event.id === relation.to)?.label ?? relation.to}`)
+        : entityId(assetId, toKind, relation.to),
+      relation: clean(relation.kind) || "connected_to",
+      confidence: Math.min(1, Math.max(0, relation.strength)),
       source,
       sourceRef: sessionId,
       observedAt,
       visibility: VISIBILITY,
-      metadata: { evidenceId: relation.evidenceId },
+      metadata: { realityRelation: relation.kind },
     };
   });
 }
 
-  function buildEvents(
+function buildEvents(
   assetId: string,
-  world: WorldModel,
+  graph: RealityGraph,
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
 ): MemoryEventWrite[] {
-  return world.events.map((event) => ({
+  return graph.events.map((event) => ({
     id: randomUUID(),
     type: "world_event",
-    summary: clean(event.raw).slice(0, 1000),
+    summary: clean(event.label).slice(0, 1000),
     occurredAt: observedAt,
     source,
     confidence: 1,
     entityIds: [
-      ...event.participants.map((value) => entityId(assetId, "person", value)),
+      entityId(assetId, "event", event.label),
+      ...event.entities.map((value) => entityId(assetId, "object", value)),
       ...(event.place ? [entityId(assetId, "place", event.place)] : []),
-      entityId(assetId, "event", event.raw),
-      ...(event.object ? [entityId(assetId, "object", event.object)] : []),
-      ...event.details.map((detail) => entityId(assetId, "object", detail)),
     ],
     sessionId,
     metadata: {
-      worldEventId: event.id,
-      action: event.action,
-      state: event.state,
-      object: event.object,
+      realityEventId: event.id,
+      sourceIds: event.sourceIds,
       place: event.place,
       time: event.time,
-      details: event.details,
+      provenance: event.provenance,
     },
   }));
 }
@@ -215,7 +215,7 @@ function buildRelations(
 export function buildExperienceMemoryBatch(input: {
   assetId: string;
   userId?: string;
-  world: WorldModel;
+  graph: RealityGraph;
   sessionId?: string;
   source?: MemorySource;
   observedAt?: string;
@@ -226,10 +226,10 @@ export function buildExperienceMemoryBatch(input: {
   return {
     assetId: input.assetId,
     userId: input.userId,
-    entities: buildEntities(input.assetId, input.world),
-    facts: buildFacts(input.assetId, input.world, source, observedAt, input.sessionId),
-    relations: buildRelations(input.assetId, input.world, source, observedAt, input.sessionId),
-    events: buildEvents(input.assetId, input.world, source, observedAt, input.sessionId),
+    entities: buildEntities(input.assetId, input.graph),
+    facts: buildFacts(input.assetId, input.graph, source, observedAt, input.sessionId),
+    relations: buildRelations(input.assetId, input.graph, source, observedAt, input.sessionId),
+    events: buildEvents(input.assetId, input.graph, source, observedAt, input.sessionId),
   };
 }
 
@@ -241,9 +241,7 @@ export function buildScanMemoryBatch(input: {
   const now = new Date().toISOString();
   const firstMoment = input.experience.moments[0];
   const momentText = firstMoment && "text" in firstMoment ? firstMoment.text : undefined;
-  const summary = momentText
-    ?? input.experience.memorySnapshot?.summary
-    ?? "QRE experience scanned";
+  const summary = momentText ?? input.experience.memorySnapshot?.summary ?? "QRE experience scanned";
 
   return {
     assetId: input.assetId,
