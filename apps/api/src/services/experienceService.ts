@@ -1,13 +1,13 @@
 /**
- * Production authoring adapter.
- *
- * ROLE: compose durable context, invoke the canonical Author exactly once,
- * project its result into the existing experience response, and persist
- * memory/Author state. This file must not perform a second creative pass.
+ * QRE CANONICAL AUTHOR LAW
+ * ROLE: Production authoring adapter: canonical Author → durable experience/flow.
+ * LAW: QRE may surprise us.
+ * Guardrails protect truth, provenance, architecture, and safety; style is scored.
  */
 import { buildPresenceContext } from "@qre/engine";
 import type {
   AuthorBrainTruth,
+  AuthorExperienceState,
   ExperienceBeat,
   ExperiencePresenceContext,
   MemoryContext,
@@ -26,14 +26,8 @@ import { buildAuthorExperienceState } from "./authorExperienceState.js";
 import { authorBrainCanonical } from "./authorBrainCanonical.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { resolveSubjectTruth } from "./authorTruth.js";
-import {
-  getCreativeLearningContext,
-  learningContextLines,
-} from "./creativeLearning.js";
-import {
-  buildExperienceMemoryBatch,
-  memoryContextToCognitiveSummary,
-} from "./memoryProjection.js";
+import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
+import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -69,12 +63,7 @@ export type CompiledExperienceResult = {
   cognition?: unknown;
   authorExperienceState?: unknown;
   authorDiagnostics?: unknown;
-  memory?: {
-    entities: number;
-    facts: number;
-    relations: number;
-    events: number;
-  } | null;
+  memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
   movieMode?: boolean;
@@ -100,10 +89,7 @@ function inferSubject(prompt: string, context?: MemoryContext): string {
   return candidate ?? "the subject";
 }
 
-function experienceBeats(
-  scenes: Array<{ text: string; kind?: string }>,
-  sourceIds: string[][],
-): ExperienceBeat[] {
+function experienceBeats(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): ExperienceBeat[] {
   return scenes.map((scene, index) => ({
     id: `canonical-beat-${index + 1}`,
     text: clean(scene.text),
@@ -125,35 +111,19 @@ function experienceBeats(
   }));
 }
 
-function cinematicScenes(
-  scenes: Array<{ text: string; kind?: string }>,
-  sourceIds: string[][],
-): Array<Record<string, unknown>> {
+function cinematicScenes(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     id: `canonical-scene-${index + 1}`,
-    type:
-      index === 0
-        ? "intro"
-        : index === scenes.length - 1
-          ? "emotion"
-          : "action",
+    type: index === 0 ? "intro" : index === scenes.length - 1 ? "emotion" : "action",
     duration: index === scenes.length - 1 ? 2200 : 1700,
-    transition:
-      index === 0
-        ? "none"
-        : index === scenes.length - 1
-          ? "cinematic"
-          : "fade",
+    transition: index === 0 ? "none" : index === scenes.length - 1 ? "cinematic" : "fade",
     order: index,
     moment: {
       type: "message",
       editable: false,
       demo: false,
       order: index,
-      payload: {
-        text: clean(scene.text),
-        sourceIds: sourceIds[index] ?? [],
-      },
+      payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [] },
     },
     meta: {
       authoredBy: "qre-author-canonical",
@@ -164,20 +134,13 @@ function cinematicScenes(
   }));
 }
 
-function moments(
-  scenes: Array<{ text: string; kind?: string }>,
-  sourceIds: string[][],
-): Array<Record<string, unknown>> {
+function moments(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     type: "message",
     editable: false,
     demo: false,
     order: index,
-    payload: {
-      text: clean(scene.text),
-      sourceIds: sourceIds[index] ?? [],
-      author: "qre-author-canonical",
-    },
+    payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [], author: "qre-author-canonical" },
   }));
 }
 
@@ -193,17 +156,13 @@ export async function compileExperience(input: {
 }): Promise<CompiledExperienceResult> {
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
-
   const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
     try {
-      memoryContext = await input.memoryRepository.loadContext({
-        assetId: input.assetId,
-        userId: input.userId,
-      });
+      memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
     } catch (error) {
       console.warn("[QRE][AUTHORING] Memory context unavailable.", error);
       warnings.push("memory_context_unavailable");
@@ -213,35 +172,22 @@ export async function compileExperience(input: {
   let presence: ExperiencePresenceContext | null = null;
   if (input.assetId) {
     try {
-      presence = await buildPresenceContext(
-        input.assetId,
-        createPresenceRepository(),
-        input.sessionId,
-      );
+      presence = await buildPresenceContext(input.assetId, createPresenceRepository(), input.sessionId);
     } catch (error) {
       console.warn("[QRE][AUTHORING] Presence context unavailable.", error);
       warnings.push("presence_context_unavailable");
     }
   }
 
-  const priorAuthorStates = memoryContext
-    ? extractAuthorExperienceStates(memoryContext)
-    : [];
+  const priorAuthorStates = memoryContext ? extractAuthorExperienceStates(memoryContext) : [];
   const mergedPriorAuthorState = mergeAuthorExperienceStates(priorAuthorStates);
-  const persistedAuthorContext = memoryContext
-    ? authorExperienceMemoryContext(memoryContext)
-    : [];
-  const memorySummary = memoryContext
-    ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext]
-    : [];
+  const persistedAuthorContext = memoryContext ? authorExperienceMemoryContext(memoryContext) : [];
+  const memorySummary = memoryContext ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext] : [];
 
   let learningContext;
   if (input.assetId) {
     try {
-      learningContext = await getCreativeLearningContext({
-        assetId: input.assetId,
-        userId: input.userId,
-      });
+      learningContext = await getCreativeLearningContext({ assetId: input.assetId, userId: input.userId });
     } catch (error) {
       console.warn("[QRE][AUTHORING] Learning context unavailable.", error);
       learningContext = undefined;
@@ -249,28 +195,15 @@ export async function compileExperience(input: {
     }
   }
 
-  const learningLines = learningContext
-    ? learningContextLines(learningContext)
-    : [];
+  const learningLines = learningContext ? learningContextLines(learningContext) : [];
   const learnedProfile = buildAuthorBehaviorProfile(learningLines);
-
   const subject = inferSubject(prompt, memoryContext);
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
-  const sourceMoments = unique([
-    prompt,
-    ...(memoryContext?.events ?? []).map((event) => clean(event.summary)),
-  ]).slice(0, 40);
-  const facts = unique([
-    ...(memoryContext?.facts ?? [])
-      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
-      .map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`),
-  ]).slice(0, 80);
-  const trajectory = unique([
-    ...priorScenes,
-    ...(presence?.summary ?? []),
-  ]).slice(0, 40);
+  const sourceMoments = unique([prompt, ...(memoryContext?.events ?? []).map((event) => clean(event.summary))]).slice(0, 40);
+  const facts = unique([...(memoryContext?.facts ?? []).filter((fact) => fact.status === "active" && fact.confidence >= 0.7).map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`)]).slice(0, 80);
+  const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
 
   const authorInput: AuthorBrainTruth = {
@@ -291,10 +224,7 @@ export async function compileExperience(input: {
 
   const canonical = await authorBrainCanonical(authorInput);
   const sourceIds = canonical.sequence.cuts.map((cut) => [...cut.sourceIds]);
-  const authoredScenes = canonical.scenes.map((scene) => ({
-    text: clean(scene.text),
-    kind: scene.kind,
-  }));
+  const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
   const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
@@ -309,25 +239,14 @@ export async function compileExperience(input: {
     trajectory,
   });
 
-  let authorExperienceState: unknown = mergedPriorAuthorState;
+  let authorExperienceState: AuthorExperienceState = mergedPriorAuthorState;
   let memory: CompiledExperienceResult["memory"] = null;
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({
-        assetId: input.assetId,
-        userId: input.userId,
-        graph,
-        sessionId: input.sessionId,
-        source: "prompt",
-      });
+      const batch = buildExperienceMemoryBatch({ assetId: input.assetId, userId: input.userId, graph, sessionId: input.sessionId, source: "prompt" });
       await input.memoryRepository.writeBatch(batch);
-      memory = {
-        entities: batch.entities.length,
-        facts: batch.facts.length,
-        relations: batch.relations.length,
-        events: batch.events.length,
-      };
+      memory = { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length };
     } catch (error) {
       console.warn("[QRE][AUTHORING] Memory projection failed after authoring.", error);
       warnings.push("memory_projection_failed");
@@ -345,12 +264,7 @@ export async function compileExperience(input: {
       });
       authorExperienceState = adaptAuthorExperienceState(nextState, learnedProfile);
 
-      const stateBatch = authorExperienceStateToMemoryBatch({
-        assetId: input.assetId,
-        userId: input.userId,
-        state: authorExperienceState,
-        sourceRef: "qre-author-canonical",
-      });
+      const stateBatch = authorExperienceStateToMemoryBatch({ assetId: input.assetId, userId: input.userId, state: authorExperienceState, sourceRef: "qre-author-canonical" });
       await input.memoryRepository.writeBatch(stateBatch);
     } catch (error) {
       console.warn("[QRE][AUTHORING] Author state persistence failed.", error);
@@ -358,12 +272,8 @@ export async function compileExperience(input: {
     }
   }
 
-  const title = clean(canonical.brief.strongestImage) ||
-    (subject !== "the subject" ? subject : "QRE Experience");
-  const estimatedDuration = renderedScenes.reduce(
-    (sum, scene) => sum + Number(scene.duration ?? 0),
-    0,
-  );
+  const title = clean(canonical.brief.strongestImage) || (subject !== "the subject" ? subject : "QRE Experience");
+  const estimatedDuration = renderedScenes.reduce((sum, scene) => sum + Number(scene.duration ?? 0), 0);
   const authorDiagnostics = canonical.diagnostics;
 
   return {
@@ -381,24 +291,13 @@ export async function compileExperience(input: {
           learnedPreferenceLines: learningLines,
         },
         geoAnchor: input.geoAnchor
-          ? {
-              role: input.geoAnchor.role ?? "experience_place",
-              label: input.geoAnchor.label ?? null,
-              latitude: input.geoAnchor.latitude ?? null,
-              longitude: input.geoAnchor.longitude ?? null,
-              source: input.geoAnchor.source ?? "dashboard",
-              time: input.geoAnchor.time ?? null,
-            }
+          ? { role: input.geoAnchor.role ?? "experience_place", label: input.geoAnchor.label ?? null, latitude: input.geoAnchor.latitude ?? null, longitude: input.geoAnchor.longitude ?? null, source: input.geoAnchor.source ?? "dashboard", time: input.geoAnchor.time ?? null }
           : null,
         presence: presence ?? null,
         authorExperienceState,
       },
     },
-    flowSteps: renderedMoments.map((moment, index) => ({
-      order: index + 1,
-      type: "message",
-      payload: moment.payload,
-    })),
+    flowSteps: renderedMoments.map((moment, index) => ({ order: index + 1, type: "message", payload: moment.payload })),
     moments: renderedMoments,
     cinematicScenes: renderedScenes,
     beats,
@@ -406,17 +305,10 @@ export async function compileExperience(input: {
     momentCount: renderedMoments.length,
     plan: canonical.sequence,
     world: graph,
-    adaptiveQuestions: canonical.sequence.cuts
-      .map((cut) => clean(cut.nextPromise))
-      .filter(Boolean),
-    discoveries: canonical.sequence.cuts
-      .map((cut) => clean(cut.informationGain))
-      .filter(Boolean),
+    adaptiveQuestions: canonical.sequence.cuts.map((cut) => clean(cut.nextPromise)).filter(Boolean),
+    discoveries: canonical.sequence.cuts.map((cut) => clean(cut.informationGain)).filter(Boolean),
     learningSignals: learningLines,
-    cognition: {
-      brief: canonical.brief,
-      diagnostics: authorDiagnostics,
-    },
+    cognition: { brief: canonical.brief, diagnostics: authorDiagnostics },
     authorExperienceState,
     authorDiagnostics,
     memory,
