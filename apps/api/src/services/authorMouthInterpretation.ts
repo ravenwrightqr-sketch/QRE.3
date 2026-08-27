@@ -20,12 +20,22 @@ import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
+const normalizeToken = (token: string): string => {
+  const lower = token.toLowerCase();
+  if (lower.length > 6 && lower.endsWith("ing")) return lower.slice(0, -3);
+  if (lower.length > 5 && lower.endsWith("ed")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("es")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("s")) return lower.slice(0, -1);
+  return lower;
+};
+
 const tokens = (value: string): Set<string> =>
   new Set(
     clean(value)
       .toLowerCase()
       .split(/[^a-z0-9'-]+/i)
-      .filter((token) => token.length >= 3),
+      .filter((token) => token.length >= 3)
+      .map(normalizeToken),
   );
 
 const overlap = (a: Set<string>, b: Set<string>): number => {
@@ -49,6 +59,14 @@ const HYPERBOLIC_FRAMING = /\b(?:everywhere|always|never|best|ultimate|dream|sea
 /* Universal inner-life framing licensed by supplied preference/affinity facts. */
 const PREFERENCE_SOURCE = /\b(?:like|likes|liked|love|loves|loved|adore|adores|adored|enjoy|enjoys|enjoyed|prefer|prefers|preferred|favorite|fond of|care about|cares about|cared about)\b/i;
 const INNER_FRAMING = /\b(?:favorite|obsession|obsessed|fixation|devotion|thought|dream|dreaming|wish|wonder|problem)\b/i;
+
+/*
+ * A short nominal fragment can compress an explicitly supplied action without
+ * asserting that the action newly happened here. Example: "Squirrel chase."
+ * A clause with a subject and tense remains an event claim and stays guarded.
+ */
+const GROUNDED_ACTION_NOUN = /\b(?:chase|attack|kiss|hug|dance|run|walk|jump|snatch|grab|swipe|stare|smile|laugh|cry|whisper|scream|hold|carry|open|close|enter|leave|return|turn|kick|push|pull|throw|catch|pause|tumble|roll|wiggle|wriggle|wobble)\b/i;
+const CLAUSE_SUBJECT_MARKER = /^(?:she|he|they|it|we|you|i|coco|someone|someone's|the\s+dog|the\s+girl|the\s+boy)\b/i;
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -112,11 +130,19 @@ export function evaluateMouthInterpretation(input: {
       ? 0.9
       : 0;
 
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const groundedActionFragment =
+    wordCount <= 4 &&
+    GROUNDED_ACTION_NOUN.test(text) &&
+    !CLAUSE_SUBJECT_MARKER.test(text) &&
+    overlap(current, wholeSource) >= 0.5;
+
   let unsupportedConcreteRisk = 0;
 
   if (
     CONCRETE_INVENTION.test(text) &&
-    !CONCRETE_INVENTION.test(wholeSourceText)
+    !CONCRETE_INVENTION.test(wholeSourceText) &&
+    !groundedActionFragment
   ) {
     unsupportedConcreteRisk = 1;
   } else if (
@@ -138,9 +164,9 @@ export function evaluateMouthInterpretation(input: {
    * obsession, fixation, dream, devotion, or similarly compressed framing,
    * without implying a new physical event.
    */
-  const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 2;
+  const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 1;
   const derivedInterpretationAnchor = Math.max(sourceAnchor, wholeSourceAnchor);
-  const shortInterpretation = text.split(/\s+/).filter(Boolean).length <= 8;
+  const shortInterpretation = wordCount <= 8;
   const safeCreativeBet =
     unsupportedConcreteRisk === 0 &&
     literalRestatement === 0 &&
@@ -188,6 +214,7 @@ export function evaluateMouthInterpretation(input: {
   if (wholeSourceAnchor >= 0.18) reasons.push("whole-reality-anchored");
   if (frameSupport > 0) reasons.push("evidence-supported-frame");
   if (preferenceFrameSupport >= 0.8) reasons.push("preference-supported-inner-framing");
+  if (groundedActionFragment) reasons.push("grounded-action-fragment");
   if (framingSignal) reasons.push("viewer-facing-framing");
   if (strongStatusFraming) reasons.push("strong-status-framing");
   if (hyperbolicFraming) reasons.push("bounded-hyperbole");
