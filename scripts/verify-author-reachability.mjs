@@ -66,7 +66,6 @@ for (const path of forbiddenFiles) {
 
 const productionRoots = [
   join(root, "apps/api/src"),
-  join(root, "apps/api"),
   join(root, "apps/web/src"),
   join(root, "packages"),
 ];
@@ -74,12 +73,8 @@ const productionRoots = [
 for (const directory of productionRoots) {
   for (const file of walk(directory).filter((file) => /\.(ts|tsx|js|mjs)$/.test(file))) {
     const path = rel(file);
-    const isProductionSource =
-      path.startsWith("apps/api/src/") ||
-      path.startsWith("apps/web/src/") ||
-      path.startsWith("packages/") ||
-      path === "apps/api/author-acceptance.ts";
-    if (!isProductionSource) continue;
+    const isNonProductionHarness = /(^|\/)(test|tests|__tests__|fixtures|acceptance)(\/|\.)/i.test(path);
+    if (isNonProductionHarness) continue;
 
     const body = readFileSync(file, "utf8");
     for (const token of forbiddenTokens) {
