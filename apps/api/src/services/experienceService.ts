@@ -1,22 +1,39 @@
-import { buildPresenceContext, compileCognitiveExperience, summarizeCognitiveAnalytics } from "@qre/engine";
-import type { ExperienceBeat, ExperiencePresenceContext, MemoryContext } from "@qre/contracts";
+/**
+ * Production authoring adapter.
+ *
+ * ROLE: compose durable context, invoke the canonical Author exactly once,
+ * project its result into the existing experience response, and persist
+ * memory/Author state. This file must not perform a second creative pass.
+ */
+import { buildPresenceContext } from "@qre/engine";
+import type {
+  AuthorBrainTruth,
+  ExperienceBeat,
+  ExperiencePresenceContext,
+  MemoryContext,
+} from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
-import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
-import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
 import {
   authorExperienceMemoryContext,
   authorExperienceStateToMemoryBatch,
   extractAuthorExperienceStates,
   mergeAuthorExperienceStates,
 } from "./authorExperienceMemory.js";
-import { buildAuthorExperienceState } from "./authorExperienceState.js";
 import { adaptAuthorExperienceState } from "./authorAdaptiveTempo.js";
 import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
+import { buildAuthorExperienceState } from "./authorExperienceState.js";
+import { authorBrainCanonical } from "./authorBrainCanonical.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
-import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
-import { authorMicroBeats } from "./microBeatMouth.js";
 import { resolveSubjectTruth } from "./authorTruth.js";
+import {
+  getCreativeLearningContext,
+  learningContextLines,
+} from "./creativeLearning.js";
+import {
+  buildExperienceMemoryBatch,
+  memoryContextToCognitiveSummary,
+} from "./memoryProjection.js";
 
 export type GeoAnchorInput = {
   label?: string;
@@ -25,17 +42,22 @@ export type GeoAnchorInput = {
   country?: string;
   latitude?: number;
   longitude?: number;
-  role?: "physical_site" | "experience_place" | "event_venue" | "memory_place" | "reference_place";
+  role?:
+    | "physical_site"
+    | "experience_place"
+    | "event_venue"
+    | "memory_place"
+    | "reference_place";
   source?: string;
   time?: string;
 };
 
 export type CompiledExperienceResult = {
   title: string;
-  blueprint: any;
-  flowSteps: any[];
-  moments: any[];
-  cinematicScenes: any[];
+  blueprint: Record<string, unknown>;
+  flowSteps: Array<Record<string, unknown>>;
+  moments: Array<Record<string, unknown>>;
+  cinematicScenes: Array<Record<string, unknown>>;
   beats?: ExperienceBeat[];
   estimatedDuration: number;
   momentCount: number;
@@ -46,7 +68,13 @@ export type CompiledExperienceResult = {
   learningSignals?: string[];
   cognition?: unknown;
   authorExperienceState?: unknown;
-  memory?: { entities: number; facts: number; relations: number; events: number } | null;
+  authorDiagnostics?: unknown;
+  memory?: {
+    entities: number;
+    facts: number;
+    relations: number;
+    events: number;
+  } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
   movieMode?: boolean;
@@ -54,71 +82,103 @@ export type CompiledExperienceResult = {
   [key: string]: unknown;
 };
 
-function applyMicroBeats(compiled: any, beats: ExperienceBeat[]): any {
-  if (!beats.length) return compiled;
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
 
-  const templateScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
-  const templateMoments = Array.isArray(compiled.moments) ? compiled.moments : [];
-  const baseScene = templateScenes[0] ?? {
-    id: "micro-beat-scene-1",
-    type: "action",
-    duration: 1200,
-    transition: "fade",
-    meta: {},
-  };
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values.map(clean).filter(Boolean))];
+}
 
-  const cinematicScenes = beats.map((beat, index) => {
-    const template = templateScenes[index] ?? baseScene;
-    const baseMoment = templateMoments[index] ?? template.moment ?? { type: "message", order: index, meta: {} };
-    const duration = beat.durationHintMs ?? template.duration ?? 1200;
-    return {
-      ...template,
-      id: `micro-beat-scene-${index + 1}`,
+function inferSubject(prompt: string, context?: MemoryContext): string {
+  const normalizedPrompt = prompt.toLowerCase();
+  const candidate = context?.entities
+    .map((entity) => clean(entity.name))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .find((name) => normalizedPrompt.includes(name.toLowerCase()));
+  return candidate ?? "the subject";
+}
+
+function experienceBeats(
+  scenes: Array<{ text: string; kind?: string }>,
+  sourceIds: string[][],
+): ExperienceBeat[] {
+  return scenes.map((scene, index) => ({
+    id: `canonical-beat-${index + 1}`,
+    text: clean(scene.text),
+    kind:
+      index === scenes.length - 1
+        ? "payoff"
+        : index === 0
+          ? "jolt"
+          : scene.kind === "turn"
+            ? "turn"
+            : "reveal",
+    order: index + 1,
+    callback: false,
+    meta: {
+      authoredBy: "qre-author-canonical",
+      sourceIds: sourceIds[index] ?? [],
+      realizationPath: "authorBrainCanonical",
+    },
+  }));
+}
+
+function cinematicScenes(
+  scenes: Array<{ text: string; kind?: string }>,
+  sourceIds: string[][],
+): Array<Record<string, unknown>> {
+  return scenes.map((scene, index) => ({
+    id: `canonical-scene-${index + 1}`,
+    type:
+      index === 0
+        ? "intro"
+        : index === scenes.length - 1
+          ? "emotion"
+          : "action",
+    duration: index === scenes.length - 1 ? 2200 : 1700,
+    transition:
+      index === 0
+        ? "none"
+        : index === scenes.length - 1
+          ? "cinematic"
+          : "fade",
+    order: index,
+    moment: {
+      type: "message",
+      editable: false,
+      demo: false,
       order: index,
-      duration,
-      type: index === 0 ? "intro" : index === beats.length - 1 ? "emotion" : "action",
-      transition: index === 0 ? "none" : index === beats.length - 1 ? "cinematic" : "fade",
-      moment: {
-        ...baseMoment,
-        type: "message",
-        order: index,
-        text: beat.text,
-        title: undefined,
-        description: undefined,
-        meta: {
-          ...(baseMoment.meta ?? {}),
-          authoredBy: "qre-universal-author",
-          beatId: beat.id,
-          beatKind: beat.kind,
-          attentionRole: beat.attentionRole ?? null,
-          operator: beat.operator ?? null,
-          callback: beat.callback ?? false,
-          sceneRule: "one_micro_thought_per_beat",
-          creativeAngle: beat.meta?.creativeAngle ?? null,
-          creativeEngine: beat.meta?.creativeEngine ?? null,
-        },
+      payload: {
+        text: clean(scene.text),
+        sourceIds: sourceIds[index] ?? [],
       },
-      meta: {
-        ...(template.meta ?? {}),
-        authoredBy: "qre-universal-author",
-        beatId: beat.id,
-        beatKind: beat.kind,
-        callback: beat.callback ?? false,
-        sceneRule: "one_micro_thought_per_beat",
-        creativeAngle: beat.meta?.creativeAngle ?? null,
-        creativeEngine: beat.meta?.creativeEngine ?? null,
-      },
-    };
-  });
+    },
+    meta: {
+      authoredBy: "qre-author-canonical",
+      sourceIds: sourceIds[index] ?? [],
+      sceneKind: scene.kind ?? "line",
+      realizationPath: "authorBrainCanonical",
+    },
+  }));
+}
 
-  return {
-    ...compiled,
-    beats,
-    moments: cinematicScenes.map((scene) => scene.moment),
-    cinematicScenes,
-    momentCount: cinematicScenes.length,
-    estimatedDuration: cinematicScenes.reduce((sum, scene) => sum + Number(scene.duration || 1200), 0),
-  };
+function moments(
+  scenes: Array<{ text: string; kind?: string }>,
+  sourceIds: string[][],
+): Array<Record<string, unknown>> {
+  return scenes.map((scene, index) => ({
+    type: "message",
+    editable: false,
+    demo: false,
+    order: index,
+    payload: {
+      text: clean(scene.text),
+      sourceIds: sourceIds[index] ?? [],
+      author: "qre-author-canonical",
+    },
+  }));
 }
 
 export async function compileExperience(input: {
@@ -131,14 +191,13 @@ export async function compileExperience(input: {
   geoAnchor?: GeoAnchorInput;
   movieMode?: boolean;
 }): Promise<CompiledExperienceResult> {
-  const prompt = input.prompt.trim();
+  const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
 
-  const movieMode = input.movieMode !== false;
+  const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
 
   let memoryContext: MemoryContext | undefined;
-
   if (input.assetId && input.memoryRepository) {
     try {
       memoryContext = await input.memoryRepository.loadContext({
@@ -146,41 +205,12 @@ export async function compileExperience(input: {
         userId: input.userId,
       });
     } catch (error) {
-      console.warn("[QRE][AUTHORING] Memory context unavailable; continuing with prompt-only cognition.", error);
+      console.warn("[QRE][AUTHORING] Memory context unavailable.", error);
       warnings.push("memory_context_unavailable");
     }
   }
 
-  const priorAuthorStates = memoryContext ? extractAuthorExperienceStates(memoryContext) : [];
-  const mergedPriorAuthorState = mergeAuthorExperienceStates(priorAuthorStates);
-  const persistedAuthorContext = memoryContext ? authorExperienceMemoryContext(memoryContext) : [];
-
-  const serializedPriorAuthorStates = priorAuthorStates.map(
-    (state) => `QRE_AUTHOR_EXPERIENCE_STATE::${JSON.stringify(state)}`,
-  );
-
-  const memorySummary = memoryContext
-    ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext]
-    : [];
-
-  let analyticsEvents = input.analyticsEvents ?? [];
-
-  if (input.assetId && analyticsEvents.length === 0) {
-    try {
-      const analyticsRepository = createAnalyticsRepository();
-      analyticsEvents = await analyticsRepository.findEvents({
-        assetId: input.assetId,
-        limit: 200,
-      });
-    } catch (error) {
-      console.warn("[QRE][AUTHORING] Analytics context unavailable; continuing without historical analytics.", error);
-      analyticsEvents = [];
-      warnings.push("analytics_context_unavailable");
-    }
-  }
-
   let presence: ExperiencePresenceContext | null = null;
-
   if (input.assetId) {
     try {
       presence = await buildPresenceContext(
@@ -189,348 +219,210 @@ export async function compileExperience(input: {
         input.sessionId,
       );
     } catch (error) {
-      console.warn("[QRE][AUTHORING] Presence context unavailable; continuing without presence history.", error);
+      console.warn("[QRE][AUTHORING] Presence context unavailable.", error);
       warnings.push("presence_context_unavailable");
     }
   }
 
-  const analytics = summarizeCognitiveAnalytics(analyticsEvents);
+  const priorAuthorStates = memoryContext
+    ? extractAuthorExperienceStates(memoryContext)
+    : [];
+  const mergedPriorAuthorState = mergeAuthorExperienceStates(priorAuthorStates);
+  const persistedAuthorContext = memoryContext
+    ? authorExperienceMemoryContext(memoryContext)
+    : [];
+  const memorySummary = memoryContext
+    ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext]
+    : [];
 
-  const learnedProfile = buildAuthorBehaviorProfile([
-    ...analytics.accepted,
-    ...analytics.rejected.map((value) => `rejected:${value}`),
-    ...analytics.preferences.map((value) => `preference:${value}`),
-    `engagement:${analytics.engagement}`,
-    `friction:${analytics.friction}`,
-    ...serializedPriorAuthorStates,
-    ...presence?.summary ?? [],
-  ]);
-
-  const geo = input.geoAnchor;
-  const role = geo?.role ?? "experience_place";
-  const presenceSummary = presence?.summary ?? [];
-
-  let compiled: any = compileCognitiveExperience(prompt, {
-    memorySummary: [...memorySummary, ...presenceSummary],
-    presence: presence ?? undefined,
-    analytics,
-    location: geo
-      ? {
-          label: geo.label,
-          city: geo.city,
-          region: geo.region,
-          country: geo.country,
-          latitude: geo.latitude,
-          longitude: geo.longitude,
-          role,
-          source: geo.source,
-        }
-      : undefined,
-    event: geo
-      ? {
-          venue: geo.label,
-          date: geo.time,
-          description:
-            role === "physical_site"
-              ? "Persistent physical site for this QRE asset."
-              : undefined,
-        }
-      : undefined,
-  });
-
-  const subject = String(
-    compiled?.observation?.subject ??
-      compiled?.movie?.subject ??
-      "",
-  ).trim();
-
-  const subjectTruth = resolveSubjectTruth(
-    subject,
-    prompt,
-    memoryContext,
-  );
-
-  let authorExperienceState: any = undefined;
-
-  if (movieMode) {
-    const lens = String(
-      compiled?.cognition?.selectedHypothesis?.kind ??
-        compiled?.blueprint?.tone?.[0] ??
-        "neutral",
-    );
-
-    const mouthFacts = [
-      ...(Array.isArray(compiled?.observation?.entities?.people)
-        ? compiled.observation.entities.people
-        : []),
-      ...(Array.isArray(compiled?.observation?.entities?.places)
-        ? compiled.observation.entities.places
-        : []),
-      ...(Array.isArray(compiled?.observation?.entities?.events)
-        ? compiled.observation.entities.events
-        : []),
-      ...(Array.isArray(compiled?.observation?.entities?.objects)
-        ? compiled.observation.entities.objects
-        : []),
-      ...(Array.isArray(compiled?.observation?.temporal)
-        ? compiled.observation.temporal
-        : []),
-      ...presence?.places?.slice(0, 12) ?? [],
-      presence?.visitNumber ? `visit ${presence.visitNumber}` : "",
-      presence?.isReturning ? "returning visit" : "first known visit",
-    ].filter(Boolean);
-
-    const mouthSourceMoments = [
-      ...(Array.isArray(compiled.moments)
-        ? compiled.moments
-            .map((moment: any) =>
-              String(moment?.text ?? moment?.description ?? "").trim(),
-            )
-            .filter(Boolean)
-        : []),
-      ...memorySummary,
-      ...presenceSummary,
-    ].slice(0, 32);
-
-    const mouthMemoryContext = [
-      ...memorySummary,
-      ...presenceSummary,
-    ];
-
-    const creativeLearningContext = [
-      ...analytics.accepted,
-      ...analytics.rejected.map((value) => `rejected:${value}`),
-      ...analytics.preferences.map((value) => `preference:${value}`),
-      `engagement:${analytics.engagement}`,
-      `friction:${analytics.friction}`,
-      ...presenceSummary,
-      ...serializedPriorAuthorStates,
-    ];
-
-    let beats: ExperienceBeat[] = [];
-
+  let learningContext;
+  if (input.assetId) {
     try {
-      const generatedBeats = await authorMicroBeats({
-        prompt,
-        lens,
-        subject,
-        place: String(
-          geo?.label ??
-            presence?.places?.[0] ??
-            "",
-        ),
-        subjectTruth,
-        cognitivePlan: compiled?.plan,
-        movieMode,
-        facts: mouthFacts,
-        sourceMoments: mouthSourceMoments,
-        memoryContext: mouthMemoryContext,
-        creativeLearningContext,
-        trajectory: Array.isArray(compiled?.cognition?.plan?.storyStructure)
-          ? compiled.cognition.plan.storyStructure
-          : [],
-        returning: presence?.isReturning ?? false,
-        visitNumber: presence?.visitNumber,
-        presenceSummary,
-        presence: presence ?? undefined,
-        round: presence?.visitNumber ?? 1,
+      learningContext = await getCreativeLearningContext({
+        assetId: input.assetId,
+        userId: input.userId,
       });
-
-      if (Array.isArray(generatedBeats) && generatedBeats.length >= 2) {
-        beats = generatedBeats;
-      } else {
-        warnings.push("micro_beat_mouth_fallback");
-      }
     } catch (error) {
-      console.warn(
-        "[QRE][AUTHORING] Universal micro-beat mouth unavailable; preserving deterministic sequence.",
-        error,
-      );
-      warnings.push("micro_beat_mouth_unavailable");
-    }
-
-    if (beats.length >= 2) {
-      compiled = applyMicroBeats(compiled, beats);
-    }
-
-    /*
-     * IMPORTANT ARCHITECTURAL BOUNDARY:
-     *
-     * Mouth realization is optional.
-     *
-     * Author experience state is not.
-     *
-     * When Mouth succeeds, beats provide the preferred realized sequence.
-     * When Mouth fails, the existing compiled moments remain the deterministic
-     * experience representation. Author state construction must continue from
-     * that representation rather than disappearing with the model failure.
-     */
-    const authorStateSourceMoments =
-      beats.length > 0
-        ? beats.map((beat) => String(beat.text ?? "").trim()).filter(Boolean)
-        : Array.isArray(compiled.moments)
-          ? compiled.moments
-              .map((moment: any) =>
-                String(moment?.text ?? moment?.description ?? "").trim(),
-              )
-              .filter(Boolean)
-          : [];
-
-    if (input.assetId && input.memoryRepository) {
-      try {
-        const graph = buildAuthorRealityGraph({
-          prompt,
-          subject,
-          place: String(
-            geo?.label ??
-              presence?.places?.[0] ??
-              "",
-          ),
-          facts: [
-            ...(Array.isArray(compiled?.observation?.entities?.people)
-              ? compiled.observation.entities.people
-              : []),
-            ...(Array.isArray(compiled?.observation?.entities?.places)
-              ? compiled.observation.entities.places
-              : []),
-            ...(Array.isArray(compiled?.observation?.entities?.events)
-              ? compiled.observation.entities.events
-              : []),
-            ...(Array.isArray(compiled?.observation?.entities?.objects)
-              ? compiled.observation.entities.objects
-              : []),
-            ...(Array.isArray(compiled?.observation?.temporal)
-              ? compiled.observation.temporal
-              : []),
-          ]
-            .filter(Boolean)
-            .map(String),
-          sourceMoments: authorStateSourceMoments,
-          memoryContext: [...memorySummary, ...presenceSummary],
-          trajectory:
-            authorStateSourceMoments.length > 0
-              ? authorStateSourceMoments
-              : Array.isArray(compiled?.cognition?.plan?.storyStructure)
-                ? compiled.cognition.plan.storyStructure
-                : [],
-        });
-
-        const movie = searchUniversalMovieCandidates({
-          graph,
-          subject,
-          lens,
-          limit: 10,
-        })[0];
-
-        const baseAuthorExperienceState = buildAuthorExperienceState({
-          graph,
-          movie,
-          lens,
-          priorScenes: authorStateSourceMoments,
-          memoryContext: [...memorySummary, ...presenceSummary],
-          priorExperienceStates: priorAuthorStates,
-          round:
-            presence?.visitNumber ??
-            Math.max(1, priorAuthorStates.length + 1),
-        });
-
-        authorExperienceState = adaptAuthorExperienceState(
-          baseAuthorExperienceState,
-          learnedProfile,
-        );
-
-        const stateBatch = authorExperienceStateToMemoryBatch({
-          assetId: input.assetId,
-          userId: input.userId,
-          state: authorExperienceState,
-          sourceRef: "qre-universal-author",
-        });
-
-        await input.memoryRepository.writeBatch(stateBatch);
-      } catch (error) {
-        console.warn(
-          "[QRE][AUTHORING] Author experience state persistence failed after successful authoring; preserving generated experience.",
-          error,
-        );
-        warnings.push("author_experience_state_persistence_failed");
-      }
+      console.warn("[QRE][AUTHORING] Learning context unavailable.", error);
+      learningContext = undefined;
+      warnings.push("creative_learning_context_unavailable");
     }
   }
 
-  const enrichedBlueprint = {
-    ...(compiled.blueprint as Record<string, unknown>),
-    metadata: {
-      ...((compiled.blueprint as any)?.metadata ?? {}),
-      geoAnchor: geo
-        ? {
-            role,
-            label: geo.label ?? null,
-            latitude: geo.latitude ?? null,
-            longitude: geo.longitude ?? null,
-            source: geo.source ?? "dashboard",
-            time: geo.time ?? null,
-          }
-        : null,
-      presence: presence ?? null,
-      cinematicAuthor: {
-        authoringAtom: "experience_beat",
-        sceneRule: "one_micro_thought_per_beat",
-        presentation: "adaptive_line_rhythm",
-        hardPunctuationRule: "no_comma_or_semicolon_scene_cuts",
-        playerOwnsExactPresentation: true,
-        movieMode,
-      },
-      authorExperienceState:
-        authorExperienceState ??
-        mergedPriorAuthorState ??
-        null,
-    },
+  const learningLines = learningContext
+    ? learningContextLines(learningContext)
+    : [];
+  const learnedProfile = buildAuthorBehaviorProfile(learningLines);
+
+  const subject = inferSubject(prompt, memoryContext);
+  const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
+  const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
+  const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
+  const sourceMoments = unique([
+    prompt,
+    ...(memoryContext?.events ?? []).map((event) => clean(event.summary)),
+  ]).slice(0, 40);
+  const facts = unique([
+    ...(memoryContext?.facts ?? [])
+      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
+      .map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`),
+  ]).slice(0, 80);
+  const trajectory = unique([
+    ...priorScenes,
+    ...(presence?.summary ?? []),
+  ]).slice(0, 40);
+  const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
+
+  const authorInput: AuthorBrainTruth = {
+    prompt,
+    subject,
+    place,
+    subjectTruth,
+    movieMode: requestedMovieMode,
+    returning: presence?.isReturning ?? false,
+    visitNumber: presence?.visitNumber,
+    presenceSummary,
+    facts,
+    sourceMoments,
+    memoryContext: memorySummary.slice(0, 80),
+    trajectory,
+    creativeLearningContext: learningLines.slice(0, 100),
   };
 
-  const result: CompiledExperienceResult = {
-    ...compiled,
-    blueprint: enrichedBlueprint,
-    geo: geo ?? null,
-    presence,
-    movieMode,
-    authorExperienceState:
-      authorExperienceState ??
-      mergedPriorAuthorState,
-    warnings,
-  };
+  const canonical = await authorBrainCanonical(authorInput);
+  const sourceIds = canonical.sequence.cuts.map((cut) => [...cut.sourceIds]);
+  const authoredScenes = canonical.scenes.map((scene) => ({
+    text: clean(scene.text),
+    kind: scene.kind,
+  }));
+  const beats = experienceBeats(authoredScenes, sourceIds);
+  const renderedMoments = moments(authoredScenes, sourceIds);
+  const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
+
+  const graph = buildAuthorRealityGraph({
+    prompt,
+    subject,
+    place,
+    facts,
+    sourceMoments: [prompt, ...sourceMoments],
+    memoryContext: memorySummary.slice(0, 80),
+    trajectory,
+  });
+
+  let authorExperienceState: unknown = mergedPriorAuthorState;
+  let memory: CompiledExperienceResult["memory"] = null;
 
   if (input.assetId && input.memoryRepository) {
     try {
       const batch = buildExperienceMemoryBatch({
         assetId: input.assetId,
         userId: input.userId,
-        world: compiled.world,
+        graph,
+        sessionId: input.sessionId,
         source: "prompt",
       });
-
       await input.memoryRepository.writeBatch(batch);
-
-      return {
-        ...result,
-        memory: {
-          entities: batch.entities.length,
-          facts: batch.facts.length,
-          relations: batch.relations.length,
-          events: batch.events.length,
-        },
+      memory = {
+        entities: batch.entities.length,
+        facts: batch.facts.length,
+        relations: batch.relations.length,
+        events: batch.events.length,
       };
     } catch (error) {
-      console.warn(
-        "[QRE][AUTHORING] Memory projection failed after compile; preserving generated experience.",
-        error,
-      );
+      console.warn("[QRE][AUTHORING] Memory projection failed after authoring.", error);
       warnings.push("memory_projection_failed");
-      return {
-        ...result,
-        warnings,
-      };
+    }
+
+    try {
+      const nextState = buildAuthorExperienceState({
+        graph,
+        movie: canonical.movie,
+        lens: canonical.brief.angle,
+        priorScenes: authoredScenes.map((scene) => scene.text),
+        memoryContext: [...memorySummary, ...presenceSummary],
+        priorExperienceStates: priorAuthorStates,
+        round: presence?.visitNumber ?? Math.max(1, priorAuthorStates.length + 1),
+      });
+      authorExperienceState = adaptAuthorExperienceState(nextState, learnedProfile);
+
+      const stateBatch = authorExperienceStateToMemoryBatch({
+        assetId: input.assetId,
+        userId: input.userId,
+        state: authorExperienceState,
+        sourceRef: "qre-author-canonical",
+      });
+      await input.memoryRepository.writeBatch(stateBatch);
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Author state persistence failed.", error);
+      warnings.push("author_experience_state_persistence_failed");
     }
   }
 
-  return result;
+  const title = clean(canonical.brief.strongestImage) ||
+    (subject !== "the subject" ? subject : "QRE Experience");
+  const estimatedDuration = renderedScenes.reduce(
+    (sum, scene) => sum + Number(scene.duration ?? 0),
+    0,
+  );
+  const authorDiagnostics = canonical.diagnostics;
+
+  return {
+    title,
+    blueprint: {
+      type: "experience",
+      sourcePrompt: prompt,
+      metadata: {
+        authoring: {
+          author: "qre-author-canonical",
+          realizationPath: "authorBrainCanonical",
+          lens: canonical.brief.angle,
+          movieMode: requestedMovieMode,
+          diagnostics: authorDiagnostics,
+          learnedPreferenceLines: learningLines,
+        },
+        geoAnchor: input.geoAnchor
+          ? {
+              role: input.geoAnchor.role ?? "experience_place",
+              label: input.geoAnchor.label ?? null,
+              latitude: input.geoAnchor.latitude ?? null,
+              longitude: input.geoAnchor.longitude ?? null,
+              source: input.geoAnchor.source ?? "dashboard",
+              time: input.geoAnchor.time ?? null,
+            }
+          : null,
+        presence: presence ?? null,
+        authorExperienceState,
+      },
+    },
+    flowSteps: renderedMoments.map((moment, index) => ({
+      order: index + 1,
+      type: "message",
+      payload: moment.payload,
+    })),
+    moments: renderedMoments,
+    cinematicScenes: renderedScenes,
+    beats,
+    estimatedDuration,
+    momentCount: renderedMoments.length,
+    plan: canonical.sequence,
+    world: graph,
+    adaptiveQuestions: canonical.sequence.cuts
+      .map((cut) => clean(cut.nextPromise))
+      .filter(Boolean),
+    discoveries: canonical.sequence.cuts
+      .map((cut) => clean(cut.informationGain))
+      .filter(Boolean),
+    learningSignals: learningLines,
+    cognition: {
+      brief: canonical.brief,
+      diagnostics: authorDiagnostics,
+    },
+    authorExperienceState,
+    authorDiagnostics,
+    memory,
+    geo: input.geoAnchor ?? null,
+    presence,
+    movieMode: requestedMovieMode,
+    warnings,
+  };
 }
