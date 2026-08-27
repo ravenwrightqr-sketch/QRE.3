@@ -1,4 +1,4 @@
-/** Production creation boundary: prompt → cognition → experience → flow. */
+/** Production creation boundary: prompt → canonical Author → experience → flow. */
 
 import { randomUUID } from "node:crypto";
 import { db } from "@qre/db";
@@ -28,7 +28,9 @@ export type CreateExperienceInput = {
   sponsor?: SponsorInput;
 };
 
-function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+function normalize(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
 
 function promptShape(prompt: string): string {
   const words = prompt.trim().split(/\s+/).filter(Boolean).length;
@@ -73,31 +75,48 @@ async function resolveExperienceEntity(assetId: string, prompt: string) {
     return nameKey.length >= 2 && promptKey.includes(nameKey);
   });
   if (!entity) return undefined;
-  return { id: entity.id, kind: entity.kind, name: entity.name, canonicalKey: entity.canonical_key, confidence: Number(entity.confidence), scope: "asset" };
-}
-
-function compiledFacts(compiled: any): string[] {
-  const world = compiled?.world;
-  return [
-    ...(world?.participants ?? []),
-    ...(world?.places ?? []),
-    ...(world?.times ?? []),
-    ...(world?.entities ?? []),
-    ...(compiled?.moments ?? []).map((moment: any) => typeof moment?.text === "string" ? moment.text : ""),
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 120);
+  return {
+    id: entity.id,
+    kind: entity.kind,
+    name: entity.name,
+    canonicalKey: entity.canonical_key,
+    confidence: Number(entity.confidence),
+    scope: "asset",
+  };
 }
 
 export async function createExperience(input: CreateExperienceInput) {
-  if (!input.assetId || !input.prompt.trim()) throw new Error("Asset and prompt required.");
+  if (!input.assetId || !input.prompt.trim()) {
+    throw new Error("Asset and prompt required.");
+  }
 
   const memoryRepository = createMemoryRepository();
-  const compiled = await compileExperience({ prompt: input.prompt.trim(), assetId: input.assetId, userId: input.userId, memoryRepository });
+  const compiled = await compileExperience({
+    prompt: input.prompt.trim(),
+    assetId: input.assetId,
+    userId: input.userId,
+    memoryRepository,
+  });
+
+  const authorDiagnostics = compiled.authorDiagnostics as
+    | { qualityStatus?: string; renderable?: boolean; complete?: boolean }
+    | undefined;
+  if (
+    !authorDiagnostics ||
+    authorDiagnostics.qualityStatus !== "ACCEPTED" ||
+    authorDiagnostics.renderable !== true ||
+    authorDiagnostics.complete !== true
+  ) {
+    throw new Error("Canonical Author rejected the requested experience.");
+  }
+
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
   const sponsor = buildSponsorPolicy(input.sponsor ?? {});
-  const compiledWorld = compiled?.world as { lens?: string } | undefined;
   const learning = await getCreativeLearningContext({ assetId: input.assetId, userId: input.userId });
+  const authoringMetadata = (compiled.blueprint?.metadata as Record<string, unknown> | undefined)?.authoring as Record<string, unknown> | undefined;
+  const lens = typeof authoringMetadata?.lens === "string" ? authoringMetadata.lens : "neutral";
 
-  const cinematicScenes = Array.isArray(compiled?.cinematicScenes) ? compiled.cinematicScenes : [];
+  const cinematicScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
   const cinematicSequence = {
     version: 1,
     appendOnly: true,
@@ -113,10 +132,10 @@ export async function createExperience(input: CreateExperienceInput) {
   };
 
   const learningProfile = {
-    lens: compiledWorld?.lens ?? "neutral",
+    lens,
     promptShape: promptShape(input.prompt),
     promptSignals: promptSignals(input.prompt),
-    generativeAuthor: cinematicScenes.some((scene: any) => scene?.meta?.authoredBy === "qre-cinematic-author"),
+    generativeAuthor: true,
     memoryAware: true,
     autonomousLearningEnabled: true,
   };
@@ -128,11 +147,12 @@ export async function createExperience(input: CreateExperienceInput) {
     cinematicSequence,
     authoring: {
       kind: "service_experience",
-      authoredBy: input.userId ?? null,
+      authoredBy: "qre-author-canonical",
+      realizationPath: "authorBrainCanonical",
       memoryAware: true,
       behaviorAware: true,
       sponsorAware: Boolean(sponsor),
-      generativeAuthor: learningProfile.generativeAuthor,
+      generativeAuthor: true,
       learningAware: true,
       learnedCreativePreferences: learningContextLines(learning),
       autonomousLearning: {
@@ -144,7 +164,14 @@ export async function createExperience(input: CreateExperienceInput) {
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
   };
 
-  const experience = await db.experience.create({ data: { assetId: input.assetId, title: input.title ?? compiled.title, blueprint } });
+  const experience = await db.experience.create({
+    data: {
+      assetId: input.assetId,
+      title: input.title ?? compiled.title,
+      blueprint,
+    },
+  });
+
   const flow = await db.flow.create({
     data: {
       name: experience.title ?? "Experience",
@@ -157,10 +184,29 @@ export async function createExperience(input: CreateExperienceInput) {
         learningAware: true,
         learningProfile,
       },
-      steps: { create: compiled.flowSteps.map((step) => ({ order: step.order, type: step.type, payload: step.payload })) },
+      steps: {
+        create: compiled.flowSteps.map((step) => ({
+          order: Number(step.order ?? 0),
+          type: String(step.type ?? "message"),
+          payload: step.payload ?? null,
+        })),
+      },
     },
     include: { steps: true },
   });
-  await db.experience.update({ where: { id: experience.id }, data: { flow: { connect: { id: flow.id } } } });
-  return { experience, flow, compiled, entityMemory, sponsor, cinematicSequence, learning };
+
+  await db.experience.update({
+    where: { id: experience.id },
+    data: { flow: { connect: { id: flow.id } } },
+  });
+
+  return {
+    experience,
+    flow,
+    compiled,
+    entityMemory,
+    sponsor,
+    cinematicSequence,
+    learning,
+  };
 }
