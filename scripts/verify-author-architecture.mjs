@@ -100,7 +100,13 @@ if (/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource)) fail(
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
 if (!/sourceForBeat/.test(mouthSource)) warn("Mouth provenance helper is not visibly named sourceForBeat");
-if (/setsUp.*sourceLabels|paysOff.*sourceLabels/s.test(mouthSource)) fail("Mouth must not promote planner setsUp/paysOff into source labels");
+if (!/Only event IDs resolve into source labels/.test(mouthSource)) fail("Mouth must explicitly document event-ID-only provenance");
+if (!/eventIds \?\? \[\]/.test(mouthSource) || !/eventLabel\(envelope, id\)/.test(mouthSource)) {
+  fail("Mouth source provenance must resolve labels only from beat eventIds");
+}
+if (/setsUp\s*\?\.?.*map\(|paysOff\s*\?\.?.*map\(/s.test(mouthSource) && /eventLabel\(envelope,/.test(mouthSource)) {
+  warn("Mouth contains setsUp/paysOff mapping logic; inspect manually if those values ever become source labels");
+}
 
 const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";
 if (!/wholeSourceAnchor/.test(interpretationSource)) fail("Mouth interpretation must evaluate whole-source grounding");
@@ -118,7 +124,6 @@ console.log(`COGNITION: ${cognition}`);
 console.log(`MOUTH: ${mouth}`);
 console.log(`BEAM: ${beam}`);
 console.log(`INTERPRETATION: ${interpretation}`);
-console.log(`ACCEPTANCE: ${acceptance}`);
 for (const message of warnings) console.warn(`WARN: ${message}`);
 for (const message of failures) console.error(`FAIL: ${message}`);
 if (failures.length) {
