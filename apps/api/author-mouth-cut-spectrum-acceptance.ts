@@ -97,6 +97,27 @@ const cases = [
     expectAccepted: true,
   },
   {
+    name: "unsupplied_optional_prop",
+    text: "NOOO BOWS.",
+    labels: ["Coco went to the groomer"],
+    events: ["Coco went to the groomer"],
+    expectAccepted: false,
+  },
+  {
+    name: "unsupplied_optional_color",
+    text: "Wait, I look good in blue.",
+    labels: ["Coco went to the groomer"],
+    events: ["Coco went to the groomer"],
+    expectAccepted: false,
+  },
+  {
+    name: "supplied_optional_prop",
+    text: "NOOO BOWS.",
+    labels: ["Coco got a bow at the groomer"],
+    events: ["Coco got a bow at the groomer"],
+    expectAccepted: true,
+  },
+  {
     name: "invented_physical_event",
     text: "She chased them all afternoon.",
     labels: ["Coco likes squirrels", "Coco loves the park"],
