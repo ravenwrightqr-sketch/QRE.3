@@ -49,7 +49,9 @@ const ABSTRACT_FRAMING = /\b(?:apparently|clearly|somehow|finally|now|still|agai
 
 const STRONG_STATUS_FRAMING = /\b(?:own|owns|owned|belongs|belonged|in charge|control|controls|controlled|mine|master|boss|victory|won|win|winner|defeat|defeated|negotiations?|deal|terms?|verdict|guilty|innocent|case|mission|operation|round|quest|game|heist|royal|noir|romance|rebel|upgrade|showtime|pit\s*stop|speedrun|knockout|stun|finish|dream|season|devotion)\b/i;
 
-/* Concrete verbs/actions that normally assert a new world event. */
+/*
+ * Concrete verbs/actions that normally assert a new world event.
+ */
 const CONCRETE_INVENTION = /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?)\b/i;
 
 const INVENTED_FRAME_OBJECT = /\b(?:room|door|window|chair|table|floor|street|car|crowd|forest|castle|courtroom|office|hospital|bedroom|bathroom|kitchen|spotlight|stage|sidewalk|road|house)\b/i;
@@ -67,6 +69,34 @@ const INNER_FRAMING = /\b(?:favorite|obsession|obsessed|fixation|devotion|though
  */
 const GROUNDED_ACTION_NOUN = /\b(?:chase|attack|kiss|hug|dance|run|walk|jump|snatch|grab|swipe|stare|smile|laugh|cry|whisper|scream|hold|carry|open|close|enter|leave|return|turn|kick|push|pull|throw|catch|pause|tumble|roll|wiggle|wriggle|wobble)\b/i;
 const CLAUSE_SUBJECT_MARKER = /^(?:she|he|they|it|we|you|i|coco|someone|someone's|the\s+dog|the\s+girl|the\s+boy)\b/i;
+
+/*
+ * ATTITUDE / RHETORICAL FRAMING
+ *
+ * This is intentionally about linguistic posture, not domain templates.
+ * Short rhetorical moves can introduce an imagined social frame, mock
+ * authority, melodrama, irony, or status without asserting that the framed
+ * prop/event exists in the world. Concrete subject facts still require source
+ * evidence.
+ *
+ * Examples of the class, not mandatory outputs:
+ *   "Already call the lawyer."
+ *   "Absolutely not."
+ *   "Fabulous exit."
+ *   "Peace is temporary."
+ *
+ * Optional subject props remain source-bound: a bow, color, object, person,
+ * location, or specific event may not become a subject fact merely because it
+ * is common in the surrounding domain.
+ */
+const RHETORICAL_ATTITUDE = /\b(?:already\s+call|call\s+(?:the|my|a)\s+lawyer|call\s+the\s+law|your\s+honor|case\s+closed|absolutely\s+not|no+[,!]?|yes+[,!]?|please|seriously|of\s+course|fabulous|legendary|ridiculous|peace\s+is\s+temporary|temporary\s+peace|we\s+have\s+a\s+problem|problem\s+solved|disaster|crisis|emergency|negotiations|negotiation|officially|respectfully|excuse\s+me|excuse\s+this|well\s+then|there\s+it\s+is|game\s+over|showtime|enough|fine|fantastic|perfectly\s+acceptable|what\s+a\s+mistake|not\s+today|good\s+luck|plot\s+twist|fabulous\s+exit|mic\s+drop)\b/i;
+
+function attitudeFramingSupport(beatSourceText: string, wholeSourceText: string): number {
+  if (!RHETORICAL_ATTITUDE.test(beatSourceText) && !RHETORICAL_ATTITUDE.test(wholeSourceText)) {
+    return 0;
+  }
+  return 0.88;
+}
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -129,6 +159,7 @@ export function evaluateMouthInterpretation(input: {
     PREFERENCE_SOURCE.test(beatSourceText || wholeSourceText) && INNER_FRAMING.test(text)
       ? 0.9
       : 0;
+  const attitudeSupport = attitudeFramingSupport(beatSourceText, wholeSourceText);
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const groundedActionFragment =
@@ -163,6 +194,10 @@ export function evaluateMouthInterpretation(input: {
    * pet rule: any supplied like/love/preference may become a favorite thought,
    * obsession, fixation, dream, devotion, or similarly compressed framing,
    * without implying a new physical event.
+   *
+   * Rhetorical attitude is its own lane. It may add invented posture or comic
+   * framing, but never upgrades an optional subject prop or concrete event into
+   * source truth.
    */
   const sourceShapeSupport = sourceHasAction || sourceHasState || sourceEventCount >= 1;
   const derivedInterpretationAnchor = Math.max(sourceAnchor, wholeSourceAnchor);
@@ -171,7 +206,7 @@ export function evaluateMouthInterpretation(input: {
     unsupportedConcreteRisk === 0 &&
     literalRestatement === 0 &&
     shortInterpretation &&
-    (sourceShapeSupport || preferenceFrameSupport >= 0.8);
+    (sourceShapeSupport || preferenceFrameSupport >= 0.8 || attitudeSupport >= 0.8);
 
   const creativeFraming = Math.max(
     0,
@@ -179,9 +214,10 @@ export function evaluateMouthInterpretation(input: {
       1,
       (1 - literalRestatement) * 0.24 +
         Math.max(0, derivedInterpretationAnchor - 0.05) * 0.34 +
-        framingSignal * 0.2 +
-        frameSupport * 0.12 +
-        preferenceFrameSupport * 0.14 +
+        framingSignal * 0.16 +
+        frameSupport * 0.1 +
+        preferenceFrameSupport * 0.12 +
+        attitudeSupport * 0.16 +
         (safeCreativeBet ? 0.1 : 0),
     ),
   );
@@ -192,7 +228,8 @@ export function evaluateMouthInterpretation(input: {
       1,
       creativeFraming +
         wholeSourceAnchor * 0.18 +
-        hyperbolicFraming * 0.08,
+        hyperbolicFraming * 0.08 +
+        attitudeSupport * 0.08,
     ),
   );
 
@@ -203,6 +240,7 @@ export function evaluateMouthInterpretation(input: {
     derivedInterpretationAnchor < 0.05 &&
     frameSupport < 0.8 &&
     preferenceFrameSupport < 0.8 &&
+    attitudeSupport < 0.8 &&
     !strongStatusFraming
   ) {
     unsupportedConcreteRisk = 0.72;
@@ -214,6 +252,7 @@ export function evaluateMouthInterpretation(input: {
   if (wholeSourceAnchor >= 0.18) reasons.push("whole-reality-anchored");
   if (frameSupport > 0) reasons.push("evidence-supported-frame");
   if (preferenceFrameSupport >= 0.8) reasons.push("preference-supported-inner-framing");
+  if (attitudeSupport >= 0.8) reasons.push("attitude-supported-framing");
   if (groundedActionFragment) reasons.push("grounded-action-fragment");
   if (framingSignal) reasons.push("viewer-facing-framing");
   if (strongStatusFraming) reasons.push("strong-status-framing");
@@ -226,14 +265,14 @@ export function evaluateMouthInterpretation(input: {
     interpretive: Number(interpretive.toFixed(3)),
     sourceAnchor: Number(sourceAnchor.toFixed(3)),
     wholeSourceAnchor: Number(wholeSourceAnchor.toFixed(3)),
-    frameSupport: Number(Math.max(frameSupport, preferenceFrameSupport).toFixed(3)),
+    frameSupport: Number(Math.max(frameSupport, preferenceFrameSupport, attitudeSupport).toFixed(3)),
     literalRestatement,
     creativeFraming: Number(creativeFraming.toFixed(3)),
     unsupportedConcreteRisk: Number(unsupportedConcreteRisk.toFixed(3)),
     accepted:
       Boolean(text) &&
       unsupportedConcreteRisk < 0.9 &&
-      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || preferenceFrameSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
+      (derivedInterpretationAnchor >= 0.12 || frameSupport >= 0.8 || preferenceFrameSupport >= 0.8 || attitudeSupport >= 0.8 || strongStatusFraming || safeCreativeBet) &&
       (literalRestatement === 1 || (safeCreativeBet ? interpretive >= 0.28 : interpretive >= 0.38)),
     reasons,
   };
