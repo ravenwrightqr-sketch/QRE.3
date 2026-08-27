@@ -239,7 +239,7 @@ export async function compileExperience(input: {
     trajectory,
   });
 
-  let authorExperienceState: AuthorExperienceState = mergedPriorAuthorState;
+  let authorExperienceState: AuthorExperienceState | undefined = mergedPriorAuthorState;
   let memory: CompiledExperienceResult["memory"] = null;
 
   if (input.assetId && input.memoryRepository) {
@@ -318,3 +318,4 @@ export async function compileExperience(input: {
     warnings,
   };
 }
+
