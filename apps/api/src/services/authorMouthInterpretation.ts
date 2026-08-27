@@ -48,22 +48,23 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
 };
 
 /*
- * Compact semantic-risk vocabulary. This is not a domain rule or prop list;
- * it only catches common concrete-event claims so rhetorical creativity can
- * remain broad.
+ * Generic language-level claim classes only. These are not domain rules.
+ * Concrete events can be safely compressed when evidenced; unsupported event
+ * claims remain unsafe.
  */
 const CONCRETE_CLAIM =
   /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?|moved?|move|scurried?|bolted?)\b/i;
 
+/* Externally observable state/sensation assertions are concrete claims too. */
+const EXTERNAL_STATE_CLAIM =
+  /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|taste(?:s|d|ing)?|look(?:s|ed|ing)?|changed|change|shifted|shift|different|new\s+(?:scent|sound|look|feeling))\b/i;
+
 const CLAUSE_SUBJECT_MARKER =
   /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
 
-/*
- * Generic framing signals. These describe rhetorical posture/abstraction,
- * not particular subjects or industries.
- */
+/* Generic rhetorical/abstract framing signals; never domain-specific. */
 const ABSTRACT_FRAMING =
-  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|finish|championship|joyous|dream|season|devotion|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
+  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -123,25 +124,36 @@ export function evaluateMouthInterpretation(input: {
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const concreteClaim = CONCRETE_CLAIM.test(text);
+  const externalStateClaim = EXTERNAL_STATE_CLAIM.test(text);
   const groundedConcreteFragment =
     wordCount <= 5 &&
     concreteClaim &&
     !CLAUSE_SUBJECT_MARKER.test(text) &&
     wholeSourceAnchor >= 0.45;
 
-  const unsupportedConcreteRisk =
+  let unsupportedConcreteRisk = 0;
+
+  if (
     concreteClaim &&
     !CONCRETE_CLAIM.test(wholeSourceText) &&
     !groundedConcreteFragment
-      ? 1
-      : 0;
+  ) {
+    unsupportedConcreteRisk = 1;
+  }
+
+  if (
+    externalStateClaim &&
+    !EXTERNAL_STATE_CLAIM.test(wholeSourceText)
+  ) {
+    unsupportedConcreteRisk = Math.max(unsupportedConcreteRisk, 1);
+  }
 
   /*
-   * Creative freedom deliberately stays broad. The source corpus supplies
-   * grounding; the model supplies the particular attitude, joke, obsession,
-   * dream, repetition, status play, metaphor, or payoff.
+   * Creative freedom stays deliberately broad. The source corpus supplies
+   * grounding; the realization supplies the attitude, joke, obsession, dream,
+   * repetition, status play, metaphor, or payoff.
    *
-   * Do not add example-specific prop, color, place, or industry rules here.
+   * No prop list, color list, place list, or industry list belongs here.
    */
   const frameSignal = ABSTRACT_FRAMING.test(text) || compactRhetoricalShape(text);
   const sourceExists = input.envelope.events.length > 0 || Boolean(wholeSourceText);
@@ -156,8 +168,8 @@ export function evaluateMouthInterpretation(input: {
     (derivedAnchor >= 0.08 || frameSignal || !CLAUSE_SUBJECT_MARKER.test(text));
 
   const groundingContribution = Math.min(0.45, derivedAnchor * 0.5);
-  const framingContribution = frameSignal ? 0.3 : 0;
-  const compressionContribution = shortCreativeForm ? 0.16 : 0;
+  const framingContribution = frameSignal ? 0.36 : 0;
+  const compressionContribution = shortCreativeForm ? 0.14 : 0;
   const creativeFraming = Number(
     Math.max(
       0,
@@ -166,7 +178,7 @@ export function evaluateMouthInterpretation(input: {
         groundingContribution +
           framingContribution +
           compressionContribution +
-          (safeCreativeBet ? 0.18 : 0),
+          (safeCreativeBet ? 0.2 : 0),
       ),
     ).toFixed(3),
   );
@@ -176,7 +188,7 @@ export function evaluateMouthInterpretation(input: {
       0,
       Math.min(
         1,
-        creativeFraming + wholeSourceAnchor * 0.2 + (frameSignal ? 0.08 : 0),
+        creativeFraming + wholeSourceAnchor * 0.22 + (frameSignal ? 0.1 : 0),
       ),
     ).toFixed(3),
   );
