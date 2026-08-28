@@ -1,221 +1,235 @@
 # QRE AUTHOR WIRING MAP
 
-**Status:** CANONICAL AUTHOR WIRING REFERENCE  
-**Branch:** `author/mouth-production-product-final`  
-**Updated:** 2026-08-24
+**Status:** CANONICAL  
+**Branch:** `supplied-media-sequence-convergence`  
+**Updated:** 2026-08-28
 
-This document describes the live semantic Author path. Current architecture references override historical documents.
-
-## 1. Required connected Author path
+## 1. SINGLE PRODUCTION PATH
 
 ```text
 experience input
-  ↓
+   ↓
 source truth / provenance
-  ↓
+   ↓
 RealityGraph
-  ↓
-durable memory + Author Experience State
-  ↓
-governed learning signals
-  ↓
-behavioral profile
-  ↓
-latent-movie candidates
-  ↓
-movie differentiation
-  ↓
-trajectory / Magnet / tempo selection
-  ↓
-SequencePlay / Beat Graph
-  ↓
-one-beat Mouth realization
-  ↓
-attention / cut / truth gates
-  ↓
-final experience scenes
-  ↓
-cinematic runtime
-  ↓
-analytics observation
-  ↓
-learning + state/memory update
-  ↺
+   ↓
+Canonical Cognition
+   ├── character / frame read
+   ├── Universal Movie Search
+   └── Viewer-State Rerank
+   ↓
+selectedMovie
+   ↓
+Canonical Author
+   ├── beat projection
+   ├── Mouth candidate generation
+   ├── Mouth interpretation / quality
+   ├── sequence beam
+   ├── attention editing
+   └── sequence arc diagnostics
+   ↓
+approved viewer-facing scenes
+   ↓
+Runtime / Player
+   ↓
+Analytics observation
+   ↓
+Governed learning
+   ↺
 ```
 
-## 2. Canonical owners
+## 2. CANONICAL OWNERS
 
-| Responsibility | Canonical owner | Rule |
+| Responsibility | Owner | Rule |
 |---|---|---|
-| Master Author | `apps/api/src/services/authorBrainUniversal.ts` | one production Author |
-| Reality graph | `apps/api/src/services/authorRealityGraph.ts` | source-truth / provenance boundary |
-| Cognition | `apps/api/src/services/authorCognition.ts` + `packages/engine/src/cognition/universalMind.ts` | grounded interpretation |
-| Movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` | competing grounded trajectories |
-| Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` | prevents duplicate movies |
+| Canonical Author | `apps/api/src/services/authorBrainCanonical.ts` | orchestration only; consumes Cognition's movie |
+| Reality graph | `apps/api/src/services/authorRealityGraph.ts` | source truth / provenance |
+| Cognition | `apps/api/src/services/authorCognition.ts` | understanding, frame, movie authority |
+| Movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` | deterministic grounded trajectories |
+| Viewer-state rerank | `apps/api/src/services/authorViewerState.ts` | viewer-dynamics score |
+| Mouth generation | `apps/api/src/services/authorMouthCandidateSearch.ts` | viewer-facing language realization |
+| Mouth interpretation | `apps/api/src/services/authorMouthInterpretation.ts` | semantic / linguistic safety boundary |
+| Mouth quality | `apps/api/src/services/authorMouthQualityAdapter.ts` | downstream candidate quality adaptation |
+| Mouth beam | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | sequence selection among authorized candidates |
+| Attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` | cut-level attention diagnostics |
+| Sequence arc | `apps/api/src/services/authorSequenceArcGate.ts` | sequence-shape diagnostics |
 | Experience State | `apps/api/src/services/authorExperienceState.ts` | short-horizon continuity |
-| Memory bridge | `apps/api/src/services/authorExperienceMemory.ts` | durable memory integration |
-| Behavior profile | `apps/api/src/services/authorBehaviorProfile.ts` | learned preference only |
-| Sequence semantics | `packages/contracts/src/sequencePlay.ts` | canonical sequence representation |
-| Magnet semantics | `packages/contracts/src/viewerMomentum.ts` | attention / momentum representation |
-| Mouth / model transport | `apps/api/src/services/microBeatMouth.ts` + `localModelRuntime.ts` | realization only |
-| Attention evaluator | `apps/api/src/services/authorAttentionEditor.ts` | editor, not Author |
-| Truth / cut acceptance | `apps/api/src/services/authorBeatTruthGate.ts` + `authorCutPolicy.ts` | final semantic gate |
-| Analytics semantics | `packages/engine/src/cognition/cognitiveAnalytics.ts` | event classification / learning boundary |
-| Analytics persistence | `apps/api/src/repositories/analyticsRepository.ts` | direct durable analytics writes |
-| Acceptance | focused Author acceptance suites | observe canonical path |
+| Behavior Profile | `apps/api/src/services/authorBehaviorProfile.ts` | bounded preference |
 
-## 3. Truth boundary
+## 3. MOVIE AUTHORITY — IMPORTANT
 
-`RealityGraph` may represent:
+There is exactly one production movie-selection chain:
 
 ```text
-relationships
+authorCognition.ts
+   ↓
+searchUniversalMovieCandidates()
+   ↓
+rerankByViewerState()
+   ↓
+selectedMovie
+   ↓
+authorBrainCanonical.ts
+```
+
+`authorBrainCanonical.ts` must **not** independently call `searchUniversalMovieCandidates()`.
+
+This prevents two competing movie brains from disagreeing about the same RealityGraph.
+
+## 4. REALITY BOUNDARY
+
+RealityGraph is immutable source truth.
+
+```text
+facts / events / entities / provenance / relations
+```
+
+Derived information is never silently promoted back into reality.
+
+Source order has soft gravitational value. It is not proof of chronology.
+
+## 5. MOVIE SEARCH BOUNDARY
+
+Universal Movie Search can create hypotheses using:
+
+```text
+relation structure
+semantic transitions
+contrast
+recontextualization
+change
 recurrence
-contradiction
-chronology when evidenced
-provenance
-sensory signals
+convergence
+causation
+before / after
+material presentation continuity
 ```
 
-It may not rewrite source truth.
+The output is a candidate trajectory, never a fact.
 
-Creative lenses may change framing and interpretation. They may not silently create concrete facts in reality-locked mode.
-
-## 4. Sequence invariant
-
-A beat is a perceivable change in the viewer's mental model.
+Viewer-state reranking adds:
 
 ```text
-Beat N
-  establishes / changes something
-      ↓
-Beat N+1
-  inherits it
-      ↓
-Beat N+1
-  changes its meaning / pressure / status / consequence
+attention
+curiosity
+contrast
+interruption
+accumulation
+payoff
+tempo
+state shift
+prediction error
+source-order continuity
 ```
 
-Viewer-facing text is not the Beat Graph. Beat metadata remains private authoring state.
+Source-order influence stays small enough that semantics can override it.
 
-## 5. Analytics / learning boundary
+## 6. MOUTH BOUNDARY
 
-Runtime observations use the Engine Event Spine:
+Mouth receives approved beats.
+
+The linguistic system distinguishes:
 
 ```text
-runtime event
-  → Engine Event Spine
-  → analytics adapter
-  → AnalyticsEventType / registry
-  → AnalyticsRepository
-  → semantic learning classifier
-  → Author learning context
+lexical overlap
+semantic compression
+interpretive framing
+unsupported characterization
+unsupported concrete invention
 ```
 
-Canonical learning classes:
+This permits:
 
 ```text
-FACTUAL_WORLD
-BEHAVIORAL_SIGNAL
-CREATIVE_PREFERENCE
-FRICTION_SIGNAL
-MEMORY_SIGNAL
-BUSINESS_SIGNAL
-RUNTIME_HEALTH
-NON_LEARNING
+talked til close → We stayed.
+feeling good → Fabulous.
+mud bath was free → Complimentary.
 ```
 
-Important semantics:
+It blocks unsupported world additions such as an invented physical action or an unsupported property asserted about a supplied object/place/person.
+
+### Genre restraint
+
+Horror does not require strange language.
+
+The strongest realization may be:
 
 ```text
-FLOW_COMPLETE       = completion
-SESSION_END         ≠ completion
-EXPERIENCE_REPLAY   = replay
-MEDIA_REPLAY        = replay
-FLOW_ABANDON        = friction
+extreme supplied circumstance
++
+ordinary posture / language
++
+underreaction
+=
+stronger tension
 ```
 
-Unknown events default to `NON_LEARNING`.
+The same principle applies across other lenses: the lens changes reading, not reality.
 
-## 6. Learning / memory invariant
+## 7. BEAM BOUNDARY
+
+The Mouth beam is a selector, not an author.
 
 ```text
+candidate generation
+   ↓
+authorized candidates
+   ↓
+sequence continuity
+   ↓
+quality ranking
+   ↓
+one selected language path
+```
+
+Exact textual repetition is not a useful new cut, but semantic callbacks remain legal when wording and function change.
+
+## 8. GATE BOUNDARY
+
+Attention and arc layers evaluate the approved sequence.
+
+They do not invent new beats.
+
+Truth / invention remains upstream and explicit; attention quality cannot legitimize unsupported reality.
+
+## 9. MEMORY / STATE / LEARNING
+
+```text
+memory    = durable world truth
+state     = current experience continuity
+profile   = bounded preference
 analytics = observation
-learning  = governed interpretation of behavior
-memory    = durable world truth / relationships
-state     = current narrative continuity
-profile   = bounded user preference
+learning  = governed adaptation
 ```
 
-These must not collapse into one undifferentiated “memory” object.
+These are separate semantic planes.
 
-A behavioral profile may influence Author choices but cannot alter RealityGraph evidence.
-
-A future thread may be opened, carried, consumed, and retired. It must not remain a permanent ghost.
-
-## 7. Acceptance invariants
+## 10. ACCEPTANCE INVARIANTS
 
 ```text
-one Master Author
-one RealityGraph representation
-one cognition path
-one movie differentiation boundary
-one Experience State
-one behavioral profile
-one analytics learning boundary
-one mouth
-one truth/cut boundary
-
-no invented concrete fact in reality-locked mode
-no planning vocabulary in viewer text
-no paragraph-like text cuts
-no silent fallback Author
-no domain-specific Author branch
+one canonical Author
+one cognition owner
+one movie authority
+one RealityGraph
+one Mouth
+one beam
+one attention / arc boundary
+no legacy Author path
+no planner language in viewer text
+no invented concrete reality
 ```
 
-## 8. Current production gates
+## 11. CHANGE PROTOCOL
 
-```powershell
-pnpm --filter @qre/contracts build
-pnpm --filter @qre/engine build
-pnpm --filter @qre/api build
-git diff --check
-
-pnpm exec tsx apps/api/author-experience-state-acceptance.ts
-pnpm exec tsx apps/api/author-learning-closed-loop-acceptance.ts
-pnpm exec tsx apps/api/author-behavior-profile-acceptance.ts
-pnpm exec tsx apps/api/author-universal-movie-search-acceptance.ts
-```
-
-The acceptance suites currently prove state persistence, learning classification, behavioral profile inference, and universal movie search independently. The next major proof is cross-round measurable Author adaptation.
-
-## 9. Runtime boundary
-
-Author terminates at approved experience scenes.
-
-```text
-Master Author
-  ↓
-experience moments / cinematic scenes
-  ↓
-QRE runtime
-```
-
-Runtime helpers are not cognition modules and not additional Author brains.
-
-## 10. Change protocol
-
-For every architectural change:
+For every change:
 
 ```text
 identify semantic owner
-→ close the first broken boundary
-→ build contracts
-→ build engine
-→ build API
+→ change the canonical owner
+→ build
 → run focused acceptance
 → run broader acceptance
-→ document the generalized law
+→ update the generalized architecture law
 ```
 
-A green compiler is not proof of correct semantic wiring. Runtime import boundaries, persistence boundaries, and closed-loop behavior must be acceptance-tested.
+Never create a second semantic owner simply because the first implementation needs improvement.
