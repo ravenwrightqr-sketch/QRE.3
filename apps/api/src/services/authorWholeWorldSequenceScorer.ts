@@ -118,9 +118,9 @@ function sourceOrderValue(
 
   const forwardRate = forward / measured;
 
-  // Source order is gravity, never a rail. An intentionally reordered film
-  // therefore retains a neutral baseline rather than being rejected.
-  return metric(0.5 + Math.abs(forwardRate - 0.5) * 0.55);
+  // Source order is soft gravity: forward presentation is rewarded, but
+  // reordered films retain a neutral floor rather than being rejected.
+  return metric(0.5 + forwardRate * 0.4);
 }
 
 function territoryMovementValue(
