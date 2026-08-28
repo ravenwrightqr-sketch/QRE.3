@@ -57,7 +57,7 @@ const CLAUSE_SUBJECT_MARKER =
   /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
 
 const ABSTRACT_FRAMING =
-  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|complimentary|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
+  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
 
 const SEMANTIC_COMPRESSION_VERBS = new Set([
   "stay", "stayed", "stays", "remain", "remained", "remains",
@@ -70,8 +70,6 @@ const FUNCTION_WORDS = new Set([
   "the", "a", "an", "we", "us", "i", "you", "he", "she", "they", "it",
   "our", "my", "your", "their", "still", "just", "finally", "again", "already", "apparently",
 ]);
-
-const SEMANTIC_COMPRESSION_FRAMING = new Set(["fabulous", "complimentary"]);
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -117,8 +115,7 @@ function semanticCompressionShape(text: string, sourceLabels: readonly string[])
   const source = tokens(sourceLabels.join(" "));
   const significant = [...current].filter((token) => !FUNCTION_WORDS.has(token));
   const compressionVerb = significant.some((token) => SEMANTIC_COMPRESSION_VERBS.has(token));
-  const framing = ABSTRACT_FRAMING.test(text) ||
-    significant.some((token) => SEMANTIC_COMPRESSION_FRAMING.has(token));
+  const framing = ABSTRACT_FRAMING.test(text) || compactRhetoricalShape(text);
 
   if (!compressionVerb && !framing) return false;
 
@@ -126,17 +123,17 @@ function semanticCompressionShape(text: string, sourceLabels: readonly string[])
     (token) =>
       !source.has(token) &&
       !SEMANTIC_COMPRESSION_VERBS.has(token) &&
-      !ABSTRACT_FRAMING.test(token) &&
-      !SEMANTIC_COMPRESSION_FRAMING.has(token),
+      !ABSTRACT_FRAMING.test(token),
   );
 
   const touchesBeat = overlap(current, source) >= 0.04;
 
-  // Do not let an unsupported property piggyback on a supplied noun.
+  // A source-backed noun plus an unsupported evaluative property is not a
+  // semantic compression. Keep that distinction deterministic.
   if (touchesBeat) return unknown.length === 0;
 
-  // Permit one rhetorical noun for compact framing, while still rejecting
-  // unrelated concrete reuse such as "Free mud." on a "feeling good" beat.
+  // A compact rhetorical realization may carry one new noun when it is still
+  // an expression of the approved beat rather than a new concrete event.
   return unknown.length <= 1;
 }
 
@@ -180,17 +177,11 @@ export function evaluateMouthInterpretation(input: {
     unsupportedConcreteRisk = 1;
   }
 
-  if (
-    externalStateClaim &&
-    !EXTERNAL_STATE_CLAIM.test(wholeSourceText)
-  ) {
+  if (externalStateClaim && !EXTERNAL_STATE_CLAIM.test(wholeSourceText)) {
     unsupportedConcreteRisk = Math.max(unsupportedConcreteRisk, 1);
   }
 
-  const frameSignal =
-    ABSTRACT_FRAMING.test(text) ||
-    compactRhetoricalShape(text);
-
+  const frameSignal = ABSTRACT_FRAMING.test(text) || compactRhetoricalShape(text);
   const sourceExists = input.envelope.events.length > 0 || Boolean(wholeSourceText);
   const shortCreativeForm = wordCount <= 12;
   const hasBeatSource = input.sourceLabels.length > 0;
@@ -198,9 +189,9 @@ export function evaluateMouthInterpretation(input: {
   const semanticCompression = semanticCompressionShape(text, input.sourceLabels);
 
   /*
-   * Lexical overlap is diagnostic, not the definition of semantic ownership.
-   * The approved beat may be realized by a compact non-concrete compression
-   * whose words do not occur in the source.
+   * Lexical overlap is evidence, not the definition of semantic ownership.
+   * An approved beat can be realized by a compact non-concrete compression
+   * whose words never appear in the source.
    */
   const semanticBeatSupport = hasBeatSource
     ? (
