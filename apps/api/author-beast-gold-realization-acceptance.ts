@@ -8,7 +8,7 @@ const assert = (condition: unknown, message: string): asserts condition => {
   if (!condition) throw new Error(message);
 };
 
-function envelopeFor(facts: string[]) {
+function makeWorld(facts: string[]) {
   const graph = buildAuthorRealityGraph({
     prompt: "Create a cinematic sequence.",
     subject: "memory",
@@ -17,15 +17,21 @@ function envelopeFor(facts: string[]) {
     memoryContext: [],
     trajectory: [],
   });
-  return buildAuthorRealityEnvelope({ graph, subject: "memory" });
+  return {
+    graph,
+    envelope: buildAuthorRealityEnvelope({ graph, subject: "memory" }),
+  };
 }
 
-function beat(order: number, label: string) {
+function beatFor(world: ReturnType<typeof makeWorld>, order: number, label: string) {
+  const event = world.graph.events.find((item) => item.label === label);
+  assert(event, `beat: source event not found: ${label}`);
+
   return {
     order,
     role: "reveal",
     attentionFunction: label,
-    eventIds: [label],
+    eventIds: [event.id],
     change: label,
     next: "What changes next?",
     frontier: "What changes next?",
@@ -40,7 +46,7 @@ function checkCreative(
   source: string,
   text: string,
 ) {
-  const envelope = envelopeFor(facts);
+  const { envelope } = makeWorld(facts);
   const evaluation = evaluateMouthInterpretation({
     text,
     sourceLabels: [source],
@@ -67,7 +73,7 @@ function checkRejected(
   source: string,
   text: string,
 ) {
-  const envelope = envelopeFor(facts);
+  const { envelope } = makeWorld(facts);
   const evaluation = evaluateMouthInterpretation({
     text,
     sourceLabels: [source],
@@ -132,16 +138,18 @@ checkRejected(
 // The sequence beam must actually prefer the authorized semantic realization
 // over a literal fallback when both are available for the same beat.
 {
-  const envelope = envelopeFor(["talked until close"]);
+  const world = makeWorld(["talked until close"]);
+  const beat = beatFor(world, 1, "talked until close");
+
   const semantic = scoreMouthCandidate({
     text: "We stayed.",
-    beat: beat(1, "talked until close"),
-    envelope,
+    beat,
+    envelope: world.envelope,
   });
   const literal = scoreMouthCandidate({
     text: "talked until close",
-    beat: beat(1, "talked until close"),
-    envelope,
+    beat,
+    envelope: world.envelope,
   });
 
   const selected = selectBestMouthSequence([
