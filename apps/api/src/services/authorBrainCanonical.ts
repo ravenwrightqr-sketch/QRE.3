@@ -13,7 +13,6 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 import { classifyAuthorRealizationMode, type AuthorRealizationMode } from "./authorRealizationMode.js";
 import {
   buildMouthCandidateMessages,
@@ -111,32 +110,28 @@ function orderedSourceCandidate(
     score: metric(0.48 + specificity * 0.2 + Math.min(0.18, selected.length * 0.03)),
   };
 }
+
 function chooseMovie(
   input: AuthorBrainTruth,
   graph: ReturnType<typeof buildAuthorRealityGraph>,
   lens: string,
   realizationMode: AuthorRealizationMode,
+  cognition: ReturnType<typeof buildAuthorCognitivePlan>,
 ): LatentMovieCandidate | undefined {
   if (input.movieMode === false) return undefined;
 
   /*
    * Non-sequence modes keep the safe supplied-material path.
    *
-   * Sequence Film uses the existing Universal Movie Search as the
-   * authoritative trajectory selector. The ordered source candidate
-   * is fallback only; raw input order must never outrank a discovered
-   * semantic trajectory merely because it contains more facts.
+   * Sequence Film consumes the movie already discovered and reranked by
+   * Canonical Cognition. This function is an adapter/guard, not a second
+   * movie authority.
    */
   if (realizationMode !== "sequence-film") {
     return orderedSourceCandidate(graph, lens, true);
   }
 
-  const candidates = searchUniversalMovieCandidates({
-    graph,
-    subject: clean(input.subject),
-    lens,
-    limit: 8,
-  });
+  const candidates = cognition.latentMovieCandidates;
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE MOVIE CANDIDATES ---");
@@ -261,6 +256,7 @@ export type CanonicalAuthorResult = {
     rejectedCandidates: unknown[];
   };
 };
+
 export async function authorBrainCanonical(
   input: AuthorBrainTruth,
 ): Promise<CanonicalAuthorResult> {
@@ -268,585 +264,281 @@ export async function authorBrainCanonical(
     clean(input.subject) ||
     "the subject";
 
-  const facts =
-    unique(input.facts);
+  const facts = unique(input.facts);
+  const sourceMoments = unique(input.sourceMoments);
 
-  const sourceMoments =
-    unique(input.sourceMoments);
+  const graph = buildAuthorRealityGraph({
+    prompt: clean(input.prompt),
+    subject,
+    place: clean(input.place),
+    facts,
+    sourceMoments,
+    memoryContext: [],
+    trajectory: [],
+  });
 
-  const graph =
-    buildAuthorRealityGraph({
-      prompt: clean(input.prompt),
-      subject,
-      place: clean(input.place),
+  const cognition = buildCognition(
+    {
+      ...input,
       facts,
       sourceMoments,
-      memoryContext: [],
-      trajectory: [],
-    });
+    },
+    graph,
+  );
 
-  const cognition =
-    buildCognition(
-      {
-        ...input,
-        facts,
-        sourceMoments,
-      },
-      graph,
-    );
+  const realizationMode = classifyAuthorRealizationMode({
+    prompt: clean(input.prompt),
+    facts,
+    sourceMoments,
+    relationKinds: graph.relations.map((relation) => relation.kind),
+    movieMode: input.movieMode,
+  });
 
-  const realizationMode =
-    classifyAuthorRealizationMode({
-      prompt: clean(input.prompt),
-      facts,
-      sourceMoments,
-      relationKinds:
-        graph.relations.map(
-          (relation) =>
-            relation.kind,
-        ),
-      movieMode:
-        input.movieMode,
-    });
+  const lens = lensFrom(input, cognition);
 
-  const lens =
-    lensFrom(
-      input,
-      cognition,
-    );
+  const movie = chooseMovie(
+    input,
+    graph,
+    lens,
+    realizationMode,
+    cognition,
+  );
 
-  const movie =
-    chooseMovie(
-      input,
-      graph,
-      lens,
-      realizationMode,
-    );
+  if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
+    console.log("\n--- QRE AUTHOR MOVIE ---");
+    console.log(`movieId=${movie?.id ?? "none"}`);
+    console.log(`trajectoryLength=${movie?.trajectory.length ?? 0}`);
 
-  if (
-    process.env.QRE_AUTHOR_DEBUG_MOVIE ===
-    "true"
-  ) {
-    console.log(
-      "\n--- QRE AUTHOR MOVIE ---",
-    );
+    for (const step of movie?.trajectory ?? []) {
+      const labels = step.eventIds
+        .map(
+          (id) =>
+            graph.events.find((event) => event.id === id)?.label ?? id,
+        )
+        .join(" -> ");
 
-    console.log(
-      `movieId=${movie?.id ?? "none"}`,
-    );
-
-    console.log(
-      `trajectoryLength=${movie?.trajectory.length ?? 0}`,
-    );
-
-    for (
-      const step of
-        movie?.trajectory ?? []
-    ) {
-      const labels =
-        step.eventIds
-          .map(
-            (id) =>
-              graph.events.find(
-                (event) =>
-                  event.id === id,
-              )?.label ?? id,
-          )
-          .join(" -> ");
-
-      console.log(
-        `[${step.order}] operation=${step.operation} | ${labels}`,
-      );
+      console.log(`[${step.order}] operation=${step.operation} | ${labels}`);
     }
 
-    console.log(
-      "--- END QRE AUTHOR MOVIE ---\n",
-    );
+    console.log("--- END QRE AUTHOR MOVIE ---\n");
   }
 
-  if (
-    !movie ||
-    movie.trajectory.length < 1
-  ) {
+  if (!movie || movie.trajectory.length < 1) {
     return {
       scenes: [],
       sequence: {
         subject,
         premise: "",
-        openingState: {
-          known: [],
-        },
+        openingState: { known: [] },
         cuts: [],
       },
       movie,
       realizationMode,
       brief: {
         angle: lens,
-        engine:
-          `source reality → ${realizationMode} → single Mouth realization`,
-        question:
-          "What supplied detail should land next?",
-        strongestImage:
-          graph.events.find(
-            (event) =>
-              !looksLikeIdentityAssertion(
-                event.label,
-              ),
-          )?.label ?? "",
-        tension:
-          "novelty → contrast → consequence → payoff",
-        payoff:
-          movie?.payoff ?? "",
+        engine: `source reality → ${realizationMode} → single Mouth realization`,
+        question: "What supplied detail should land next?",
+        strongestImage: graph.events.find((event) => !looksLikeIdentityAssertion(event.label))?.label ?? "",
+        tension: "novelty → contrast → consequence → payoff",
+        payoff: movie?.payoff ?? "",
         callback: "none",
-        rhythm: [
-          "hit",
-          "standard",
-          "hit",
-          "short",
-        ],
-        avoid: [
-          "fact parade",
-          "invented events",
-          "planner prose",
-        ],
+        rhythm: ["hit", "standard", "hit", "short"],
+        avoid: ["fact parade", "invented events", "planner prose"],
       },
       diagnostics: {
-        model:
-          process.env
-            .QRE_AUTHOR_FAST_MODEL ||
-          process.env.QRE_LOCAL_MODEL ||
-          "unknown",
+        model: process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown",
         modelCalls: 0,
         candidateSequences: 0,
         acceptedCandidates: 0,
-        qualityStatus:
-          "REJECTED",
+        qualityStatus: "REJECTED",
         renderable: false,
         complete: false,
         selectedScore: 0,
-        rejectedCandidates: [
-          {
-            reason:
-              "no-supplied-sequence-material",
-          },
-        ],
+        rejectedCandidates: [{ reason: "no-supplied-sequence-material" }],
       },
     };
   }
 
-  const envelope =
-    buildAuthorRealityEnvelope({
-      graph,
-      subject,
-    });
+  const envelope = buildAuthorRealityEnvelope({ graph, subject });
+  const beats = mouthBeats(movie);
+  const messages = buildMouthCandidateMessages({ envelope, beats, lens });
 
-  const beats =
-    mouthBeats(movie);
-
-  const messages =
-    buildMouthCandidateMessages({
-      envelope,
-      beats,
-      lens,
-    });
-
-  let modelName =
-    process.env
-      .QRE_AUTHOR_FAST_MODEL ||
-    process.env.QRE_LOCAL_MODEL ||
-    "unknown";
-
+  let modelName = process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown";
   let modelCalls = 0;
-
-  let pools:
-    MouthCandidatePool[] =
-    [];
+  let pools: MouthCandidatePool[] = [];
 
   try {
-    const generated =
-      await localModelGenerate(
-        messages,
-        "json",
-        {
-          numPredict: 1024,
-          temperature: 0.7,
-        },
-      );
+    const generated = await localModelGenerate(
+      messages,
+      "json",
+      { numPredict: 1024, temperature: 0.7 },
+    );
 
-    modelCalls =
-      beats.length;
+    modelCalls = beats.length;
+    modelName = generated.model || modelName;
 
-    modelName =
-      generated.model ||
-      modelName;
-
-    const parsed =
-      parseMouthCandidateBatch(
-        generated.text,
-      );
+    const parsed = parseMouthCandidateBatch(generated.text);
 
     if (parsed) {
-      pools =
-        beats.map(
-          (beat) => ({
-            order:
-              beat.order,
-
-            candidates:
-              (
-                parsed.variantsByBeat.find(
-                  (item) =>
-                    item.order ===
-                    beat.order,
-                )?.variants ?? []
-              )
-                .map(
-                  (text) =>
-                    scoreMouthCandidate({
-                      text,
-                      beat,
-                      envelope,
-                    }),
-                )
-                .filter(
-                  (candidate) =>
-                    candidate.text.length >
-                    0,
-                ),
-          }),
-        );
+      pools = beats.map((beat) => ({
+        order: beat.order,
+        candidates: (
+          parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []
+        )
+          .map((text) => scoreMouthCandidate({ text, beat, envelope }))
+          .filter((candidate) => candidate.text.length > 0),
+      }));
     }
   } catch {
-    modelCalls =
-      Math.max(
-        1,
-        beats.length,
-      );
+    modelCalls = Math.max(1, beats.length);
   }
 
   const usablePools =
-    pools.length ===
-      beats.length &&
-    pools.every(
-      (pool) =>
-        pool.candidates.length >
-        0,
-    )
+    pools.length === beats.length && pools.every((pool) => pool.candidates.length > 0)
       ? pools
-      : beats.map(
-          (beat) => ({
-            order:
-              beat.order,
+      : beats.map((beat) => ({
+          order: beat.order,
+          candidates: (() => {
+            const source = beat.eventIds
+              ?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label))
+              .filter(Boolean)[0];
 
-            candidates:
-              (() => {
-                const source =
-                  beat.eventIds
-                    ?.map(
-                      (id) =>
-                        clean(
-                          envelope.events.find(
-                            (
-                              event,
-                            ) =>
-                              event.id ===
-                              id,
-                          )?.label,
-                        ),
-                    )
-                    .filter(Boolean)[0];
+            return source
+              ? [scoreMouthCandidate({ text: source, beat, envelope })]
+              : [];
+          })(),
+        }));
 
-                return source
-                  ? [
-                      scoreMouthCandidate({
-                        text: source,
-                        beat,
-                        envelope,
-                      }),
-                    ]
-                  : [];
-              })(),
-          }),
-        );
+  if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
+    console.log("\n--- QRE MOUTH POOLS ---");
 
-  if (
-    process.env.QRE_AUTHOR_DEBUG_MOVIE ===
-    "true"
-  ) {
-    console.log(
-      "\n--- QRE MOUTH POOLS ---",
-    );
-
-    for (
-      const pool of usablePools
-    ) {
-      console.log(
-        `beat=${pool.order} candidates=${pool.candidates.length}`,
-      );
-
-      for (
-        const candidate of
-          pool.candidates
-      ) {
+    for (const pool of usablePools) {
+      console.log(`beat=${pool.order} candidates=${pool.candidates.length}`);
+      for (const candidate of pool.candidates) {
         console.log(
           `  - ${candidate.text} | score=${candidate.score} | events=${candidate.supportedEventIds.join(",")}`,
         );
       }
     }
 
-    console.log(
-      "--- END QRE MOUTH POOLS ---\n",
-    );
+    console.log("--- END QRE MOUTH POOLS ---\n");
   }
 
-  const selected =
-    selectBestMouthSequence(
-      usablePools,
-      {
-        width: 12,
-        candidatesPerBeat: 8,
-      },
-    );
-
-  const sequence =
-    makeSequence(
-      selected,
-      beats,
-      subject,
-      movie,
-    );
-
-  const attention =
-    editAttentionSequence({
-      beats:
-        selected.candidates.map(
-          (
-            candidate,
-            index,
-          ) => ({
-            order: index + 1,
-            role:
-              beats[index]?.role,
-            gainKind:
-              index === 0
-                ? "baseline"
-                : index ===
-                    selected.candidates.length -
-                      1
-                  ? "payoff"
-                  : "new_fact",
-            text:
-              candidate.text,
-            sourceIds: [
-              ...(beats[index]
-                ?.eventIds ?? []),
-            ],
-            attentionFunction:
-              beats[index]
-                ?.attentionFunction,
-            next:
-              beats[index]?.next,
-            frontier:
-              beats[index]
-                ?.frontier,
-            setsUp: [],
-            paysOff:
-              index ===
-              selected.candidates.length -
-                1
-                ? [movie.payoff]
-                : [],
-          }),
-        ),
-      evidence:
-        movie.evidence,
-    });
-
-  const arc =
-    selected.candidates.length >= 3
-      ? evaluateSequenceArc(
-          selected.candidates.map(
-            (
-              candidate,
-              index,
-            ) => ({
-              order:
-                index + 1,
-              role:
-                beats[index]?.role,
-              attentionFunction:
-                beats[index]
-                  ?.attentionFunction,
-              creativeMove:
-                beats[index]
-                  ?.creativeMove,
-              text:
-                candidate.text,
-              change:
-                beats[index]
-                  ?.change,
-              next:
-                beats[index]?.next,
-              frontier:
-                beats[index]
-                  ?.frontier,
-              setsUp: [],
-              paysOff:
-                index ===
-                selected.candidates.length -
-                  1
-                  ? [movie.payoff]
-                  : [],
-            }),
-          ),
-        )
-      : {
-          accepted: true,
-        };
-       const scenes: AuthorScene[] =
-    selected.candidates.map(
-      (
-        candidate,
-        index,
-      ) => ({
-        text:
-          clean(
-            candidate.text,
-          ),
-        kind:
-          (
-            index ===
-            selected.candidates.length - 1
-              ? "payoff"
-              : index === 0
-                ? "hook"
-                : "turn"
-          ) as AuthorScene["kind"],
-      }),
-    );
-
-  const minimumCuts =
-    realizationMode ===
-    "sequence-film"
-      ? 3
-      : 1;
-
-    const sequenceSourcesComplete =
-  sequence.cuts.every(
-    (cut) =>
-      cut.sourceIds.length > 0,
+  const selected = selectBestMouthSequence(
+    usablePools,
+    { width: 12, candidatesPerBeat: 8 },
   );
 
-const complete =
-  scenes.length >= minimumCuts &&
-  scenes.length === sequence.cuts.length &&
-  sequenceSourcesComplete &&
-  attention.accepted === true &&
-  arc.accepted === true;
+  const sequence = makeSequence(selected, beats, subject, movie);
 
-if (
-  process.env.QRE_AUTHOR_DEBUG_MOVIE ===
-  "true"
-) {
-  console.log(
-    "\n--- QRE AUTHOR COMPLETENESS ---",
+  const attention = editAttentionSequence({
+    beats: selected.candidates.map((candidate, index) => ({
+      order: index + 1,
+      role: beats[index]?.role,
+      gainKind:
+        index === 0
+          ? "baseline"
+          : index === selected.candidates.length - 1
+            ? "payoff"
+            : "new_fact",
+      text: candidate.text,
+      sourceIds: [...(beats[index]?.eventIds ?? [])],
+      attentionFunction: beats[index]?.attentionFunction,
+      next: beats[index]?.next,
+      frontier: beats[index]?.frontier,
+      setsUp: [],
+      paysOff:
+        index === selected.candidates.length - 1
+          ? [movie.payoff]
+          : [],
+    })),
+    evidence: movie.evidence,
+  });
+
+  const arc = selected.candidates.length >= 3
+    ? evaluateSequenceArc(
+        selected.candidates.map((candidate, index) => ({
+          order: index + 1,
+          role: beats[index]?.role,
+          attentionFunction: beats[index]?.attentionFunction,
+          creativeMove: beats[index]?.creativeMove,
+          text: candidate.text,
+          change: beats[index]?.change,
+          next: beats[index]?.next,
+          frontier: beats[index]?.frontier,
+          setsUp: [],
+          paysOff:
+            index === selected.candidates.length - 1
+              ? [movie.payoff]
+              : [],
+        })),
+      )
+    : { accepted: true };
+
+  const scenes: AuthorScene[] = selected.candidates.map((candidate, index) => ({
+    text: clean(candidate.text),
+    kind: (
+      index === selected.candidates.length - 1
+        ? "payoff"
+        : index === 0
+          ? "hook"
+          : "turn"
+    ) as AuthorScene["kind"],
+  }));
+
+  const minimumCuts = realizationMode === "sequence-film" ? 3 : 1;
+
+  const sequenceSourcesComplete = sequence.cuts.every(
+    (cut) => cut.sourceIds.length > 0,
   );
 
-  console.log(
-    `minimumCuts=${minimumCuts}`,
-  );
+  const complete =
+    scenes.length >= minimumCuts &&
+    scenes.length === sequence.cuts.length &&
+    sequenceSourcesComplete &&
+    attention.accepted === true &&
+    arc.accepted === true;
 
-  console.log(
-    `sceneCount=${scenes.length}`,
-  );
-
-  console.log(
-    `sequenceCutCount=${sequence.cuts.length}`,
-  );
-
-  console.log(
-    `sequenceSourcesComplete=${sequenceSourcesComplete}`,
-  );
-
-  console.log(
-    `attentionAccepted=${attention.accepted}`,
-  );
-
-  console.log(
-    `arcAccepted=${arc.accepted}`,
-  );
-
-  console.log(
-    `complete=${complete}`,
-  );
-
-  console.log(
-    "--- END QRE AUTHOR COMPLETENESS ---\n",
-  );
-}
+  if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
+    console.log("\n--- QRE AUTHOR COMPLETENESS ---");
+    console.log(`minimumCuts=${minimumCuts}`);
+    console.log(`sceneCount=${scenes.length}`);
+    console.log(`sequenceCutCount=${sequence.cuts.length}`);
+    console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
+    console.log(`attentionAccepted=${attention.accepted}`);
+    console.log(`arcAccepted=${arc.accepted}`);
+    console.log(`complete=${complete}`);
+    console.log("--- END QRE AUTHOR COMPLETENESS ---\n");
+  }
 
   return {
     scenes,
     sequence,
     movie,
     realizationMode,
-
     brief: {
       angle: lens,
-      engine:
-        `source reality → ${realizationMode} → deterministic sequence → single Mouth realization`,
-      question:
-        movie.unresolvedQuestion,
-      strongestImage:
-        movie.evidence[0] ??
-        "",
-      tension:
-        "novelty → contrast → consequence → payoff",
-      payoff:
-        movie.payoff,
-      callback:
-        "none",
-      rhythm:
-        selected.candidates.map(
-          (candidate) => {
-            const wordCount =
-              clean(
-                candidate.text,
-              )
-                .split(/\s+/)
-                .filter(Boolean)
-                .length;
-
-            return wordCount <= 7
-              ? "short"
-              : wordCount <=
-                  20
-                ? "standard"
-                : "long";
-          },
-        ),
-      avoid: [
-        "invented event",
-        "unsupported bridge",
-        "generic summary",
-      ],
+      engine: `source reality → ${realizationMode} → deterministic sequence → single Mouth realization`,
+      question: movie.unresolvedQuestion,
+      strongestImage: movie.evidence[0] ?? "",
+      tension: "novelty → contrast → consequence → payoff",
+      payoff: movie.payoff,
+      callback: "none",
+      rhythm: selected.candidates.map((candidate) => {
+        const wordCount = clean(candidate.text).split(/\s+/).filter(Boolean).length;
+        return wordCount <= 7 ? "short" : wordCount <= 20 ? "standard" : "long";
+      }),
+      avoid: ["invented event", "unsupported bridge", "generic summary"],
     },
-
     diagnostics: {
       model: modelName,
       modelCalls,
       candidateSequences: 1,
-      acceptedCandidates:
-        selected.candidates.length,
-      qualityStatus:
-        complete
-          ? "ACCEPTED"
-          : "REJECTED",
-      renderable:
-        complete,
+      acceptedCandidates: selected.candidates.length,
+      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
+      renderable: complete,
       complete,
-      selectedScore:
-        selected.score,
+      selectedScore: selected.score,
       rejectedCandidates: [],
     },
   };
