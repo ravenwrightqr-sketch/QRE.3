@@ -1,243 +1,183 @@
 # QRE AUTHOR — LATENT MOVIE SEARCH
 
-**Status:** ACTIVE / CANONICAL / DIVERSITY-GATED  
-**Date:** 2026-08-15  
-**Branch:** `qre/latent-movie-search-v1`  
-**Purpose:** Preserve the engineering truth for the layer between Reality and the Author's beat trajectory.
+**Status:** ACTIVE / CANONICAL  
+**Branch:** `supplied-media-sequence-convergence`  
+**Updated:** 2026-08-28  
+**Purpose:** Define the deterministic movie-search layer used by Canonical Cognition.
 
-> **Reality is immutable. A movie is a hypothesis about how that reality could play. A different lens label is not automatically a different movie.**
+> **Reality is immutable. A movie is a hypothesis about how supplied reality can play. A lens label is not a movie.**
 
-## 1. WHY THIS FILE EXISTS
+## 1. AUTHORITY
 
-QRE was repeatedly producing planning labels instead of movie moves:
+The movie authority is owned by Cognition:
 
 ```text
-Discover Coco's backstory.
-Coco's feelings.
-The unexpected.
-Show transformation.
+apps/api/src/services/authorCognition.ts
 ```
 
-Those are analysis labels. They do not tell the system what should happen to the viewer from cut to cut.
-
-The missing intelligence is a search layer that asks:
+Cognition calls:
 
 ```text
-Given exactly what happened,
-what different movies are latent inside those relationships?
+apps/api/src/services/authorUniversalMovieSearch.ts
+    ↓
+searchUniversalMovieCandidates()
+    ↓
+apps/api/src/services/authorViewerState.ts
+    ↓
+rerankByViewerState()
+    ↓
+selectedMovie
 ```
 
-This file is the detailed reference. Do not replace this architecture with a prompt, a template list, or a domain-specific branch.
+Canonical Author consumes `selectedMovie`. It does not perform a second movie search.
 
-## 2. CANONICAL PIPELINE
+## 2. SEARCH MODEL
+
+The movie search operates over immutable `RealityGraph` evidence.
 
 ```text
-SOURCE INPUT
+RealityGraph
     ↓
-REALITY GRAPH
+competing trajectory hypotheses
     ↓
-LATENT MOVIE CANDIDATE SEARCH
+semantic / material path expansion
     ↓
-MOVIE DIFFERENTIATION / DUPLICATE PRUNING
+trajectory scoring
     ↓
-COGNITION
+differentiation / diversity
     ↓
-TRAJECTORY SEARCH
-    ↓
-MAGNET / CUT NECESSITY
-    ↓
-SENTENCE CUTS
-    ↓
-MOUTH
+candidate movies
 ```
 
-The graph owns **what exists and how supplied evidence relates**.
-
-Latent Movie Search owns **competing interpretations of those relationships**.
-
-Movie Differentiation owns **whether those interpretations are actually different movies rather than lens labels applied to the same path**.
-
-Cognition owns **which interpretation is useful for the current authoring context**.
-
-Trajectory owns **the viewer-state path**.
-
-The Mouth owns **language realization only**.
-
-## 3. CONTRACTS
-
-Canonical shared types live in:
+Supported semantic mechanisms include:
 
 ```text
-packages/contracts/src/experience/realityGraph.ts
-packages/contracts/src/experience/latentMovie.ts
+contrast
+recontextualization
+change
+recurrence
+convergence
+causation
+before / after
+membership
+involvement
+material presentation continuity
 ```
 
-`RealityGraph.latentMovieCandidates` is derived data only. It must never be treated as source evidence.
+A candidate is a hypothesis, never a fact.
 
-`LatentMovieCandidate` contains:
+## 3. SOURCE ORDER
+
+Supplied order is useful evidence of presentation continuity, especially for memories and naturally sequential material.
+
+It is **not** proof of chronology.
+
+The search therefore uses:
 
 ```text
-id
-lens
-anchorEventIds
-supportingRelationKinds
-trajectory
-payoff
-unresolvedQuestion
-evidence
-hypothesis
-truthRisk
-novelty
+source-order gravity
+```
+
+rather than a chronology rule.
+
+Forward / nearby supplied progression receives a modest preference. Stronger semantic relationships may still override it.
+
+## 4. MATERIAL-FIRST PATHS
+
+When explicit graph relations are sparse, the search can construct a presentation sequence from supplied events.
+
+```text
+supplied event A
+   ↓
+supplied event B
+   ↓
+supplied event C
+   ↓
+...
+   ↓
+payoff from accumulated supplied material
+```
+
+This is a presentation hypothesis only.
+
+It must not invent chronology, causation, dialogue, physical actions, or bridge events.
+
+Material continuation is scored using:
+
+```text
 specificity
-informationValue
-uncertainty
-attentionPotential
-consequencePotential
-callbackPotential
-compressionPotential
-repetitionRisk
-distinctiveness
-score
+freshness
+source-order affinity
+centrality
+terminality
+recurrence
+unresolved tension
+lookahead
+callback opportunity
+rhythm
+camping risk
 ```
 
-A candidate is a **hypothesis**, never a fact.
+The system permits meaningful short repetition while penalizing semantic camping.
 
-## 4. SEARCH STRATEGY
+## 5. RELATION PATHS
 
-The first implementation is deliberately deterministic. It does not ask an LLM to invent a complete story.
+Relation-derived trajectories remain available for worlds with strong semantic structure.
 
-It searches the graph for:
+Each trajectory step records:
 
 ```text
-CONTRAST
-RECURRENCE / RECONTEXTUALIZATION
-CHANGE
-CONVERGENCE
-SENSORY SPECIFICITY
-RELATION DENSITY
+operation
+eventIds
+viewerChange
+nextQuestion
 ```
 
-Then it competes across domain-neutral lenses:
+`nextQuestion` is private cognitive metadata and never viewer-facing prose.
+
+## 6. VIEWER-STATE RERANK
+
+Candidate trajectories are scored before language realization.
+
+`authorViewerState.ts` measures:
 
 ```text
-comedy
-romance
-horror
-sentimental
-absurd
-neutral
+attention
+curiosity
+contrast
+interruption
+accumulation
+payoff
+tempo
+state shift
+prediction error
+source-order continuity
 ```
 
-The requested lens can prioritize a branch, but the underlying RealityGraph does not change.
+Source-order continuity is deliberately a small contributor. It improves naturally sequential supplied sequences without turning input order into a hard rail.
 
-## 5. MOVIE DIFFERENTIATION — CRITICAL INVARIANT
-
-The first candidate implementation exposed an important failure mode: six lenses could produce almost the same evidence, relationships, trajectory shape, and payoff while merely changing words such as `contrast`, `reframe`, or `escalate`.
-
-That is **not creative diversity**.
-
-Canonical rule:
+## 7. MOVIE DIFFERENTIATION
 
 ```text
-DIFFERENT LENS LABEL
-        ≠
-DIFFERENT MOVIE
+lens label difference ≠ movie difference
 ```
 
-A candidate is materially different only when the search changes enough of:
+Candidates may share evidence. They must differ materially in trajectory structure, relation mechanism, payoff structure, or other meaning-bearing path properties to count as distinct movies.
+
+Duplicate pruning must not punish legitimate evidence reuse merely because the same source facts are relevant to multiple interpretations.
+
+## 8. TRUTH LAW
+
+The search may alter:
 
 ```text
-anchor evidence
-relationship mechanism
-trajectory operations
-payoff mechanism
-```
-
-The canonical gate is:
-
-```text
-apps/api/src/services/authorMovieDifferentiation.ts
-```
-
-It measures candidate diversity using:
-
-```text
-34% evidence difference
-20% relationship difference
-30% trajectory difference
-12% payoff difference
- 4% lens difference
-```
-
-The small lens contribution is intentional. The system is forbidden from declaring two movies different merely because one says `comedy` and another says `horror`.
-
-Candidates are greedily selected by a mixture of:
-
-```text
-candidate quality
-+
-diversity from already-selected candidates
-```
-
-The contract exposes `distinctiveness` so diagnostics can show whether the search actually explored different territory.
-
-## 6. SAME REALITY / DIFFERENT MOVIE
-
-Given:
-
-```text
-Mike and Joe met.
-Luigi's.
-They talked until closing.
-They connected.
-```
-
-The graph remains identical.
-
-A comedy candidate can search for:
-
-```text
-ordinary meeting
-→ prolonged conversation
-→ social absurdity / status contrast
-→ payoff
-```
-
-A romance candidate can search for:
-
-```text
-meeting
-→ shared attention
-→ connection
-→ changed meaning
-```
-
-A horror candidate can search for:
-
-```text
-ordinary place
-→ unusually persistent conversation
-→ closing-time boundary
-→ normality becomes strange
-```
-
-Those are different interpretations of the same supplied world. The lens cannot add a door slam, kiss, confession, disappearance, or other event unless the source actually supplies it.
-
-## 7. TRUTH BOUNDARY
-
-The candidate layer may change:
-
-```text
+sequence presentation
 framing
-attitude
 juxtaposition
-withholding
 emphasis
-metaphor
-personification
-meaning
-lens
-sequence order when chronology permits it
+withholding
+recontextualization
+semantic interpretation
 ```
 
 It may not create:
@@ -249,277 +189,68 @@ dates
 dialogue
 physical actions
 outcomes
-relationships
-emotions presented as facts
+unsupported relationships
+unsupported chronology
 ```
 
-If a candidate needs an unsupported event to work, its truth risk must rise or the candidate must be discarded.
+Weak evidence creates uncertainty. Unsupported facts create truth risk. These are different semantic states.
 
-### Important epistemic correction
+## 9. EXAMPLES OF CORRECT BEHAVIOR
 
-A weak graph relationship is **not automatically invention**.
-
-For example:
+A sequential living memory may naturally resolve toward:
 
 ```text
-relation strength = 0.34
+walk
+→ squirrels
+→ trees
+→ mud
+→ bath
+→ feeling good
+→ looking good
 ```
 
-means the relationship is uncertain or weakly supported. It does not mean QRE invented a fact.
-
-Therefore:
+A horror memory may preserve:
 
 ```text
-weak relation → uncertainty
-unsupported event → truth risk
+met at coffee shop
+→ Friday the 13th
+→ knew it
+→ talked until close
+→ just us in our world
+→ knives flew past us
+→ nevermore
 ```
 
-These must never be conflated.
+The lens may affect interpretation, but the search does not need to inject horror tropes. An extraordinary supplied fact may become more powerful when surrounding behavior remains ordinary.
 
-## 8. TRAJECTORY SHAPE
+## 10. LLM ROLE
 
-A candidate is not a paragraph. It is a compact semantic path.
+The LLM is downstream from movie selection for primary production realization.
 
-Example:
+Current production boundary:
 
 ```text
-ESTABLISH
-  ↓
-CONTRAST
-  ↓
-REFRAME
-  ↓
-ESCALATE / CONVERGE
-  ↓
-PAYOFF
+search substrate = deterministic
+movie selection = Cognition
+language realization = Mouth / local model
 ```
 
-Every trajectory step contains:
+Future model-assisted hypothesis expansion must still validate candidates against the same graph and truth contract.
+
+## 11. DEFINITION OF DONE
+
+Latent Movie Search is successful when:
 
 ```text
-operation
-eventIds
-viewerChange
-nextQuestion
+one RealityGraph
+→ multiple grounded trajectory hypotheses
+→ materially different movies
+→ source-order gravity without chronology fraud
+→ viewer-state reranking
+→ one selected movie
+→ clean handoff to Mouth
 ```
 
-The `nextQuestion` is private cognition. It is not viewer-facing prose.
+The movie layer's job is not to write beautiful prose.
 
-## 9. SCORING
-
-Candidate scoring is intentionally multi-dimensional.
-
-```text
-novelty
-specificity
-information value
-uncertainty
-attention potential
-consequence potential
-callback potential
-compression potential
-
-minus
-
-repetition risk
-truth risk
-```
-
-No single metric defines creativity.
-
-The important distinction is:
-
-> **A strong candidate is a strong trajectory hypothesis, not a strong sentence.**
-
-## 10. MAGNET RELATIONSHIP
-
-Magnet is downstream of candidate discovery.
-
-A candidate should create the raw material for:
-
-```text
-NOVELTY
-×
-UNCERTAINTY
-×
-INFORMATION VALUE
-×
-ATTENTION
-×
-TENSION
-×
-INFORMATION SEEKING
-×
-NARRATIVE ENGAGEMENT
-```
-
-The future trajectory scorer can use the candidate's semantic dimensions before language exists.
-
-That is preferable to trying to infer whether a finished sentence is interesting after the fact.
-
-## 11. WHY DETERMINISTIC FIRST
-
-The first candidate search is deterministic because we need to know whether the representation itself is powerful.
-
-If an LLM is allowed to generate the candidate movie immediately, we cannot tell whether an improvement came from:
-
-```text
-better representation
-better search
-better prompt
-luck
-```
-
-The deterministic layer gives QRE a stable search substrate.
-
-Later, a model can propose additional hypotheses, but QRE should still validate them against the graph and score them through the same contract.
-
-## 12. LLM ROLE AFTER THIS LAYER
-
-The model should eventually become one search operator, not the architecture.
-
-Possible future role:
-
-```text
-RealityGraph
-    ↓
-Deterministic candidate generation
-    ↓
-LLM hypothesis expansion
-    ↓
-Graph-grounding validator
-    ↓
-Differentiation gate
-    ↓
-Trajectory search
-```
-
-This is how QRE avoids the trap of:
-
-> "Try a better prompt."
-
-## 13. WHAT THIS KILLS
-
-The following patterns are explicitly non-canonical:
-
-```text
-frontier = "What is the hidden movie?"
-change = "Discover the character's backstory"
-necessity = "Show transformation"
-next = "Build anticipation"
-```
-
-Those are placeholders for cognition, not cognition itself.
-
-They may still appear in diagnostics when tracing legacy model behavior, but they are not valid semantic representations.
-
-## 14. DOMAIN NEUTRALITY
-
-There is no groomer movie engine.
-
-There is no wedding movie engine.
-
-There is no horror movie engine.
-
-There is one search system over reality relationships.
-
-Domain specialists may eventually contribute:
-
-```text
-domain vocabulary
-domain constraints
-domain actions
-domain opportunities
-```
-
-They must not replace the universal Reality → Movie search.
-
-## 15. ACCEPTANCE REQUIREMENTS
-
-Every candidate search implementation must prove:
-
-```text
-same RealityGraph → multiple lenses
-same facts → materially different candidate paths
-no invented chronology
-no unsupported events promoted to evidence
-candidate evidence points to graph events
-truth risk is explicit
-weak relations remain uncertainty, not fake invention
-trajectory is structured
-payoff does not require a new fact
-near-duplicate movies are penalized / pruned
-```
-
-The canonical acceptance harness is:
-
-```text
-apps/api/author-acceptance-suite.ts
-```
-
-It prints the candidate field before the live Author run and reports candidate distinctiveness.
-
-## 16. NEXT ENGINEERING STEP
-
-The next layer is **trajectory-level search**.
-
-```text
-candidate A
-    ↓ expand
-    ↓ simulate viewer-state movement
-    ↓ score
-    ↓ prune
-
-candidate B
-    ↓ expand
-    ↓ simulate viewer-state movement
-    ↓ score
-    ↓ prune
-
-candidate C
-    ↓ expand
-    ↓ simulate viewer-state movement
-    ↓ score
-    ↓ prune
-
-BEST COMPLETE TRAJECTORY
-```
-
-The scorer must evaluate the whole sequence, not isolated lines.
-
-## 17. DEFINITION OF DONE
-
-Latent Movie Search is successful when sparse reality such as:
-
-```text
-Coco, returned, happy, fun, bows, balls, ties, male
-```
-
-does not become a checklist or six copies of the same story.
-
-Instead QRE should expose multiple grounded possibilities, for example:
-
-```text
-recurrence
-+ concrete objects
-+ expectation violation
-+ character/status relationship
-→ candidate movie A
-
-same reality
-+ recurrence
-+ altered meaning
-+ callback
-→ candidate movie B
-
-same reality
-+ ordinary detail
-+ change/recontextualization
-→ candidate movie C
-```
-
-Then the next layer chooses the trajectory that makes the viewer want the next cut.
-
-The exact wording is downstream.
-
-The **movie discovery is the intelligence.**
+Its job is to discover the **path that makes the supplied reality worth watching**.
