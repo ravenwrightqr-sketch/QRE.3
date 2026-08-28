@@ -1,0 +1,36 @@
+name: Apply Mouth Attitude Runtime Patch
+
+on:
+  push:
+    branches:
+      - author-mouth-attitude-runtime
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch
+        run: git apply mouth-attitude-runtime.patch
+
+      - name: Remove patch helper
+        run: rm mouth-attitude-runtime.patch
+
+      - name: Commit patched runtime
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/services/localModelRuntime.ts .github/workflows/apply-mouth-attitude-runtime.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "refine canonical mouth attitude runtime"
+          git push
