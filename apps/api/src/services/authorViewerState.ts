@@ -14,6 +14,7 @@ import type {
   LatentMovieTrajectoryStep,
   RealityGraph,
 } from "@qre/contracts";
+import { scoreWholeWorldSequence } from "./authorWholeWorldSequenceScorer.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
@@ -338,20 +339,22 @@ export function scoreViewerStateTrajectory(
       : 0,
   );
 
-  // Interruption is useful only when continuity survives it. This prevents
-  // the scorer from rewarding random state jumps every cut.
   const interruptionBalance = interruptionValue * (0.55 + accumulationValue * 0.45);
 
+  // Existing viewer dynamics remain the core score. Whole-world sequence
+  // fitness is an additional trajectory property rather than a source-coverage
+  // requirement.
   const score = metric(
-    attentionValue * 0.18 +
-    curiosityValue * 0.17 +
-    contrastValue * 0.13 +
-    interruptionBalance * 0.08 +
-    accumulationValue * 0.15 +
-    payoffValue * 0.13 +
-    tempoValue * 0.08 +
+    attentionValue * 0.16 +
+    curiosityValue * 0.15 +
+    contrastValue * 0.12 +
+    interruptionBalance * 0.07 +
+    accumulationValue * 0.13 +
+    payoffValue * 0.12 +
+    tempoValue * 0.07 +
     stateShiftValue * 0.04 +
-    predictionValue * 0.04,
+    predictionValue * 0.04 +
+    scoreWholeWorldSequence(graph, candidate).score * 0.10,
   );
 
   return {
@@ -376,7 +379,7 @@ export function rerankByViewerState(
   return candidates
     .map((candidate) => {
       const dynamics = scoreViewerStateTrajectory(graph, candidate);
-      const score = metric(candidate.score * 0.6 + dynamics.score * 0.4);
+      const score = metric(candidate.score * 0.57 + dynamics.score * 0.43);
       return {
         ...candidate,
         score,
