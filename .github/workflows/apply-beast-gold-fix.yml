@@ -1,0 +1,36 @@
+name: apply-beast-gold-fix
+
+on:
+  push:
+    branches:
+      - supplied-media-sequence-convergence
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: supplied-media-sequence-convergence
+          fetch-depth: 0
+
+      - name: Apply Beast gold fix
+        run: node scripts/apply-beast-gold-fix.mjs
+
+      - name: Commit and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/services/authorBrainCanonical.ts apps/api/src/services/authorMouthInterpretation.ts
+          git rm .github/workflows/apply-beast-gold-fix.yml
+          if git diff --cached --quiet; then
+            echo "No changes produced by Beast gold fix."
+            exit 1
+          fi
+          git commit -m "fix: align Beast movie authority and semantic gold"
+          git push origin supplied-media-sequence-convergence
