@@ -1,356 +1,204 @@
 # QRE AUTHOR · CURRENT STATE
 
 **Status:** CANONICAL CURRENT-STATE REFERENCE  
-**Branch:** `author/mouth-production-product-final`  
-**Updated:** 2026-08-24  
-**Purpose:** Single fast reference for the live Universal Author architecture. Read this before changing author, mouth, attention, beat planning, recovery, cut policy, local-model transport, memory, learning, readouts, or the runtime boundary.
+**Branch:** `supplied-media-sequence-convergence`  
+**Updated:** 2026-08-28  
+**Purpose:** Single fast reference for the live Universal Author path.
 
-## 1. NON-NEGOTIABLE MOTTO
-
-> **NO GAPS IN THE PIPELINE.**
-
-A component is not complete because it compiles. Its output must be consumed correctly by the next canonical layer, validated there, and remain semantically aligned all the way to final viewer-facing scenes and the next learning cycle.
-
-## 2. PRODUCT QUALITY LAW · THE MOVIE MUST ACCUMULATE
-
-QRE does not exist to turn a list of facts into prettier list items.
-
-A source fact is material, not the destination.
+## 1. LIVE PIPELINE
 
 ```text
-fact
-  ↓
-meaning
-  ↓
-consequence
-  ↓
-recontextualization
-  ↓
-payoff
-```
-
-The experience should accumulate rather than reset on every cut. A later beat inherits something from an earlier beat and changes its meaning, pressure, status, or consequence.
-
-## 3. CURRENT AUTHOR PIPELINE
-
-```text
-SOURCE TRUTH
+SOURCE INPUT
    ↓
-REALITY GRAPH
+REALITY GRAPH / PROVENANCE
    ↓
-COGNITION / CHARACTER READ
+CANONICAL COGNITION
+   ├── character/frame read
+   ├── Universal Movie Search
+   └── viewer-state movie rerank
    ↓
-MEMORY + EXPERIENCE STATE
+SELECTED MOVIE
    ↓
-LEARNED BEHAVIOR PROFILE
+CANONICAL AUTHOR
+   ├── beat projection
+   ├── Mouth candidate generation
+   ├── Mouth quality adaptation
+   ├── sequence beam selection
+   ├── attention editing
+   └── arc diagnostics
    ↓
-LATENT MOVIE SEARCH / DIFFERENTIATION
+FINAL SCENES
    ↓
-BEAT DISCOVERY / TEMPO
+RUNTIME / PLAYER
    ↓
-CANONICAL BEAT GRAPH
-   ↓
-VIEWER MOMENTUM / MAGNET
-   ↓
-MOUTH REALIZATION
-   ↓
-ATTENTION EDITOR
-   ↓
-CUT POLICY / TRUTH GATE
-   ↓
-FINAL EXPERIENCE SCENES
-   ↓
-AUTHOR READOUT
-   ↓
-CINEMATIC RUNTIME / PLAYER
-   ↓
-ANALYTICS OBSERVATION
+ANALYTICS
    ↓
 GOVERNED LEARNING
    ↺
 ```
 
-There is one semantic authority for each stage. The Author readout observes this path; it does not add another decision layer.
-
-## 4. CANONICAL OWNERS
+## 2. CANONICAL OWNERS
 
 | Concern | Owner |
 |---|---|
-| Source truth / reality graph | `apps/api/src/services/authorRealityGraph.ts` |
-| Cognition / character read | `apps/api/src/services/authorCognition.ts` |
-| Latent movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` |
-| Movie differentiation | `apps/api/src/services/authorMovieDifferentiation.ts` |
-| Master author | `apps/api/src/services/authorBrainUniversal.ts` |
+| Reality / provenance | `apps/api/src/services/authorRealityGraph.ts` |
+| Cognition | `apps/api/src/services/authorCognition.ts` |
+| Movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` |
+| Viewer-state rerank | `apps/api/src/services/authorViewerState.ts` |
+| Master orchestration | `apps/api/src/services/authorBrainCanonical.ts` |
+| Mouth generation / realization | `apps/api/src/services/authorMouthCandidateSearch.ts` |
+| Mouth interpretation | `apps/api/src/services/authorMouthInterpretation.ts` |
+| Mouth quality | `apps/api/src/services/authorMouthQualityAdapter.ts` |
+| Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` |
+| Attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` |
+| Sequence arc diagnostics | `apps/api/src/services/authorSequenceArcGate.ts` |
 | Experience state | `apps/api/src/services/authorExperienceState.ts` |
-| Experience memory bridge | `apps/api/src/services/authorExperienceMemory.ts` |
-| Learned behavior profile | `apps/api/src/services/authorBehaviorProfile.ts` |
-| Beat recovery | `apps/api/src/services/authorBeatPlanRecovery.ts` |
-| Latent beat adaptation | `apps/api/src/services/authorLatentMovieBeatAdapter.ts` |
-| Mouth realization | canonical mouth path through `localModelRuntime.ts` + author mouth craft layer |
-| Attention/editor scoring | `apps/api/src/services/authorAttentionEditor.ts` |
-| Truth / cut acceptance | `apps/api/src/services/authorBeatTruthGate.ts` + `apps/api/src/services/authorCutPolicy.ts` |
-| Author diagnostic readout | `apps/api/src/services/authorReadout.ts` |
-| Acceptance | current Author acceptance / monster acceptance surfaces |
+| Behavior profile | `apps/api/src/services/authorBehaviorProfile.ts` |
 
-## 5. EXPERIENCE STATE IS NOW LIVE
+There is **one movie authority**: Cognition searches and selects. Canonical Author consumes that result and must not launch a second movie search.
 
-The current state compiler records:
+## 3. MOVIE LAW
+
+A movie is a structured hypothesis over immutable supplied reality.
 
 ```text
-established events
-changed events
-carrier events
-active / resolved tensions
-setup
-callbacks
-revisits
-unresolved questions
-carry threads
-future threads
-consumed futures
-retired futures
-semantic turn keys
-relation kinds
-continuation
-lookahead
-endpoint pressure
-attention potential
-tempo
-selected lens / movie
-payoff evidence
-memory hooks
+RealityGraph
+ → competing trajectories
+ → viewer-state scoring
+ → selectedMovie
 ```
 
-Future threads have explicit lifecycle behavior instead of living forever:
+Source order is **soft evidence**, not chronology. It may influence a sequence when supplied material naturally reads as progression, but a stronger semantic trajectory may override it.
+
+## 4. MOUTH LAW
+
+Mouth is language realization, not story invention.
+
+The target is:
 
 ```text
-opened
-→ active
-→ consumed / reached
-→ retired
-→ historical evidence
-```
-
-## 6. BEHAVIORAL LEARNING IS BOUNDED
-
-The learned profile currently exposes:
-
-```text
-confidence
-compressionPreference
-explanationAversion
-callbackAffinity
-surprisePreference
-accelerationPreference
-revisitAffinity
-learnedSignals
-```
-
-It is preference-only. It does not modify RealityGraph truth, provenance, or concrete facts.
-
-The next required production step is making confidence, evidence count, and revision/decay explicit enough that repeated learning cannot become an unbounded personality label.
-
-## 7. LATENT MOVIE SEARCH IS PRODUCTION-GROUNDED
-
-The movie is searched deterministically over immutable RealityGraph evidence.
-
-A candidate carries:
-
-```text
-trajectory
-relation kinds
-evidence
-payoff
-truth risk
-specificity
-information value
-uncertainty
-attention potential
-consequence potential
-callback potential
-compression potential
-repetition risk
-score
-distinctiveness
-```
-
-Evidence reuse is allowed. Same-evidence candidates count as different movies only when the semantic path actually differs.
-
-## 8. TEMPO IS STATEFUL
-
-Current tempo states include:
-
-```text
-hook
-hold
-revisit
-tighten
-accelerate
-release
-```
-
-Tempo is derived from the current semantic trajectory and state variables including tension, continuation, lookahead, endpoint pressure, and revisit behavior. The next step is to make learned behavior preference explicitly bias tempo within evidence-supported bounds and prove the decision changes across rounds.
-
-## 9. AUTHOR READOUT · NOW IMPLEMENTED
-
-Production diagnostic boundary:
-
-`apps/api/src/services/authorReadout.ts`
-
-Acceptance:
-
-`apps/api/author-readout-acceptance.ts`
-
-The readout is an observer envelope containing:
-
-```text
-identity / round
-source truth summary
-learned behavior profile
-competing movie candidates
-selected movie
-experience state / tempo
-Mouth output
-final scenes
-explicit gates
-truth / preference / ordering invariants
-```
-
-It distinguishes the four layers that must never be confused:
-
-```text
-SOURCE TRUTH
-DERIVED INTERPRETATION
-LEARNED PREFERENCE
-MODEL REALIZATION
-```
-
-The readout can expose internal diagnostic metadata to developers/operators. Viewer-facing text must remain free of planner language and internal reasoning labels.
-
-## 10. MOUTH RULE
-
-The Mouth receives an already-selected sequence. Its job is realization, not story invention.
-
-```text
-source evidence
+approved beat
 +
-chosen movie / beat job
+semantic obligation
 +
-character relationship
-+
-carry-forward meaning
-+
-learned preference context
+whole supplied context
 ↓
-short specific viewer-facing realization
+specific viewer-facing cut
 ```
 
-The next production benchmark must prove learned profile changes realization style without changing approved beat semantics or truth constraints.
-
-## 11. ATTENTION / CUT / TRUTH BOUNDARIES
-
-The Attention Editor is an editor, not another author.
-
-The Cut Policy and Truth Gate remain authoritative for viewer-facing acceptance.
-
-A line that scores well for attention but fails grounding is rejected or repaired.
-
-## 12. ACCEPTANCE SURFACE
-
-Current Author-specific acceptance surfaces:
+Lexical overlap is evidence, not authority.
 
 ```text
-apps/api/author-experience-state-acceptance.ts
-apps/api/author-learning-closed-loop-acceptance.ts
-apps/api/author-behavior-profile-acceptance.ts
-apps/api/author-universal-movie-search-acceptance.ts
-apps/api/author-readout-acceptance.ts
-apps/api/author-acceptance-suite.ts
+semantic compression
+status / register
+implication
+irony
+understatement
+callback
+recontextualization
+normalcy-under-pressure
 ```
 
-Minimum local validation sequence:
+are legitimate realization mechanisms when grounded.
+
+Hard boundaries remain:
+
+```text
+unsupported concrete world claim → reject
+unsupported characterization → reject
+planner / diagnostic residue → reject
+```
+
+Examples of desired behavior:
+
+```text
+talked til close → We stayed.
+feeling good → Fabulous.
+mud bath was free → Complimentary.
+```
+
+An expressive line must not silently add a property to reality merely because that property sounds genre-appropriate.
+
+## 5. GENRE LAW
+
+A lens changes interpretation, not reality.
+
+Horror does not mean “make everything strange.” A stronger horror cut may be:
+
+```text
+extraordinary supplied circumstance
++
+ordinary social behavior
++
+underreaction / restraint
+=
+tension
+```
+
+Comedy may contain straight facts. Romance may be restrained. Sentiment may be quiet. Absurdity may come from status or juxtaposition. The lens is a pressure on interpretation, not an event generator.
+
+## 6. VIEWER-STATE LAW
+
+Viewer-state scoring evaluates:
+
+```text
+attention
+curiosity
+contrast
+interruption
+accumulation
+payoff
+tempo
+state shift
+prediction error
+source-order continuity
+```
+
+Source-order continuity is deliberately a minor factor. It gives natural supplied sequences gravitational pull without converting list order into chronology.
+
+## 7. MEMORY / STATE / LEARNING
+
+```text
+memory = durable world truth
+state = current experience continuity
+profile = bounded user preference
+analytics = observation
+learning = governed adaptation
+```
+
+None may mutate source truth.
+
+## 8. ACCEPTANCE
+
+Compilation is necessary but not sufficient.
+
+After Author changes, validate:
 
 ```powershell
-pnpm --filter @qre/contracts build
-pnpm --filter @qre/engine build
 pnpm --filter @qre/api build
-
 git diff --check
 
-pnpm exec tsx apps/api/author-experience-state-acceptance.ts
-pnpm exec tsx apps/api/author-learning-closed-loop-acceptance.ts
-pnpm exec tsx apps/api/author-behavior-profile-acceptance.ts
-pnpm exec tsx apps/api/author-universal-movie-search-acceptance.ts
-pnpm exec tsx apps/api/author-readout-acceptance.ts
+pnpm exec tsx apps/api/author-acceptance.ts
 ```
 
-## 13. RUNTIME / ANALYTICS / LEARNING BOUNDARY
+Then run the broader Author-specific acceptance surfaces that are relevant to the change.
 
-Authoring ends at approved experience scenes. Runtime is separate.
+## 9. DEFINITION OF DONE
+
+The system is successful when it reliably does this:
 
 ```text
-AUTHOR
-source truth
-→ reality
-→ cognition
-→ movie search
-→ state / tempo
-→ Master Author
-→ mouth
-→ gates
-→ scenes
-
-RUNTIME
-scenes
-→ scan / access / flow / geo / cinematic / delivery / session
-→ Engine Event Spine
-→ analytics adapter / registry / repository
-
-LEARNING
-analytics observations
-→ governed learning signals
-→ behavior profile / state
-→ future Author decisions
+supplied reality
+   ↓
+find the strongest movie hidden inside it
+   ↓
+keep the sequence alive across cuts
+   ↓
+let language become concise / strange / funny / ominous / elegant as earned
+   ↓
+never fabricate the world
+   ↓
+learn from actual interaction
 ```
 
-No layer becomes another layer by convenience.
-
-## 14. CURRENT PRODUCTION GAP
-
-The hardest remaining proof is no longer “does the system remember?” It is:
-
-```text
-Round 1
-→ Author makes decision A
-→ user behavior creates evidence
-
-Round 2
-→ same reality or related reality
-→ memory + learned profile are recovered
-→ Author deliberately makes decision B
-→ B is different for a measured reason
-→ truth is unchanged
-→ continuity is improved
-
-Round 3+
-→ adaptation remains stable, bounded, and reversible
-```
-
-That is the path to the golden universal Author.
-
-## 15. DEVELOPMENT LAW
-
-Do not add architecture merely because a failure occurred.
-
-For each change ask:
-
-```text
-What semantic gap exists?
-Which canonical owner should close it?
-What evidence proves the gap is closed?
-What acceptance run demonstrates the improvement?
-```
-
-A beautiful intermediate artifact that never survives to the final player does not count.
-
-**The goal is not better prose. The goal is a movie you want to keep watching—and a system that learns why you kept watching.**
+**The goal is not better prose. The goal is a system that finds a movie worth watching inside real supplied material and can do it again.**
