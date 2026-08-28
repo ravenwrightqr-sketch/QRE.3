@@ -29,7 +29,7 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
-
+import { scoreWholeWorldSequence } from "./authorWholeWorldSequenceScorer.js";
 const clean = (value: unknown): string =>
   String(value ?? "")
     .replace(/\s+/g, " ")
@@ -3471,6 +3471,129 @@ function materialSeedState(
 
 }
 
+function buildSourceTraversalTrajectory(
+  graph: RealityGraph,
+): LatentMovieTrajectoryStep[] {
+  const events = graph.events
+    .filter((event) => clean(event.label))
+    .slice();
+
+  if (events.length < 3) {
+    return [];
+  }
+
+  /*
+   * This is not chronology.
+   *
+   * It is a presentation traversal through supplied material in the order
+   * presented to QRE. The order is therefore soft continuity, not a factual
+   * claim about when events occurred.
+   *
+   * The purpose is to give the Movie Search a genuine whole-world candidate
+   * against which relation-heavy clusters can compete.
+   */
+
+  const maxCuts = Math.min(
+    7,
+    events.length,
+  );
+
+  const selected =
+    events.length <= maxCuts
+      ? events
+      : [
+          ...events.slice(
+            0,
+            maxCuts - 1,
+          ),
+          events[events.length - 1]!,
+        ];
+
+  const trajectory: LatentMovieTrajectoryStep[] = [];
+
+  const first = selected[0];
+
+  if (first) {
+    trajectory.push({
+      order: 1,
+      operation: "establish",
+      eventIds: [first.id],
+      viewerChange:
+        `Establish supplied evidence: ${first.label}.`,
+      nextQuestion:
+        "What part of this world deserves the next cut?",
+    });
+  }
+
+  for (
+    let index = 1;
+    index < selected.length;
+    index += 1
+  ) {
+    const current = selected[index];
+
+    if (!current) {
+      continue;
+    }
+
+    const isFinal =
+      index === selected.length - 1;
+
+    if (isFinal) {
+      trajectory.push({
+        order: trajectory.length + 1,
+        operation: "payoff",
+        eventIds: [current.id],
+        viewerChange:
+          `The supplied sequence lands here: ${current.label}.`,
+        nextQuestion:
+          "What is now true at the supplied ending?",
+      });
+
+      continue;
+    }
+
+    const previous =
+      selected[index - 1];
+
+    const relation =
+      previous
+        ? relationBetween(
+            graph,
+            previous.id,
+            current.id,
+          )
+        : undefined;
+
+    trajectory.push({
+      order: trajectory.length + 1,
+      operation:
+        relation
+          ? operationForRelation(
+              relation.kind,
+            )
+          : "reveal",
+      eventIds: [current.id],
+      viewerChange:
+        relation
+          ? `${relation.kind}: ${previous.label} -> ${current.label}.`
+          : `Another supplied part of the world enters: ${current.label}.`,
+      nextQuestion:
+        relation?.kind === "contrasts"
+          ? "What expectation changes here?"
+          : "What does this next part of the world make newly meaningful?",
+    });
+  }
+
+  trajectory.forEach(
+    (step, index) => {
+      step.order = index + 1;
+    },
+  );
+
+  return trajectory;
+}
+
 function buildMaterialPathVariants(
   graph: RealityGraph,
   lens?: string,
@@ -3490,11 +3613,34 @@ function buildMaterialPathVariants(
         ),
     );
 
+  /*
+   * WHOLE-WORLD SOURCE TRAVERSAL
+   *
+   * This is a legitimate movie hypothesis:
+   * travel through supplied material in source presentation order.
+   *
+   * It does NOT claim chronology or causality.
+   * It simply gives the downstream movie scorer a real whole-world film
+   * to compare against locally dense semantic trajectories.
+   */
+  const sourceTraversal =
+    buildSourceTraversalTrajectory(
+      graph,
+    );
+
+  const sourceTraversalCandidates =
+    sourceTraversal.length >= 3
+      ? [sourceTraversal]
+      : [];
+
   const tokenOverlap = (
     a: Set<string>,
     b: Set<string>,
   ): number => {
-    if (!a.size || !b.size) {
+    if (
+      !a.size ||
+      !b.size
+    ) {
       return 0;
     }
 
@@ -3503,7 +3649,9 @@ function buildMaterialPathVariants(
     for (
       const token of a
     ) {
-      if (b.has(token)) {
+      if (
+        b.has(token)
+      ) {
         hits += 1;
       }
     }
@@ -3521,32 +3669,33 @@ function buildMaterialPathVariants(
   };
 
   /*
-   * A semantic-neighborhood approximation based on supplied labels
-   * and their existing graph relations.
+   * Compare the CURRENT frontier of two paths.
    *
-   * This is intentionally local and deterministic.
-   * It is NOT a new semantic engine.
+   * Older cuts are intentionally ignored so a later callback can return
+   * after intervening material.
    */
   const frontierDistance = (
     a: TrajectoryState,
     b: TrajectoryState,
   ): number => {
-    const aEventId =
+    const aLastStep =
       a.steps[
         a.steps.length - 1
-      ]?.eventIds[
-        a.steps[
-          a.steps.length - 1
-        ]?.eventIds.length - 1
+      ];
+
+    const bLastStep =
+      b.steps[
+        b.steps.length - 1
+      ];
+
+    const aEventId =
+      aLastStep?.eventIds[
+        aLastStep.eventIds.length - 1
       ];
 
     const bEventId =
-      b.steps[
-        b.steps.length - 1
-      ]?.eventIds[
-        b.steps[
-          b.steps.length - 1
-        ]?.eventIds.length - 1
+      bLastStep?.eventIds[
+        bLastStep.eventIds.length - 1
       ];
 
     if (
@@ -3611,10 +3760,10 @@ function buildMaterialPathVariants(
   };
 
   /*
-   * Seed selection is intentionally diverse.
+   * Diverse material seeds.
    *
-   * We do not want the eight strongest events to all come from one
-   * semantic neighborhood.
+   * The old behavior remains available; we are only broadening the set of
+   * trajectories the Beast can consider.
    */
   const seedPool =
     graph.events
@@ -3704,7 +3853,7 @@ function buildMaterialPathVariants(
               )?.label,
             );
 
-          const overlap =
+          const wordingOverlap =
             tokenOverlap(
               candidateTokens,
               tokenSetForLabel(
@@ -3727,9 +3876,11 @@ function buildMaterialPathVariants(
               : 0;
 
           return (
-            overlap >= 0.58 ||
+            wordingOverlap >=
+              0.58 ||
             (
-              overlap >= 0.38 &&
+              wordingOverlap >=
+                0.38 &&
               relationStrength >=
                 0.55
             )
@@ -3741,11 +3892,6 @@ function buildMaterialPathVariants(
       tooSimilar &&
       seeds.length < 3
     ) {
-      /*
-       * Keep the first few strongest seeds even when the graph
-       * naturally contains a cluster. This prevents sparse worlds
-       * from collapsing to nothing.
-       */
       continue;
     }
 
@@ -3755,9 +3901,7 @@ function buildMaterialPathVariants(
   }
 
   /*
-   * Sparse-world safety:
-   * if diversity filtering produced too few seeds, fill from the
-   * original ranked pool.
+   * Sparse-world fallback.
    */
   if (
     seeds.length < 3
@@ -3792,7 +3936,8 @@ function buildMaterialPathVariants(
     }
   }
 
-  let beam: TrajectoryState[] =
+  let beam:
+    TrajectoryState[] =
     seeds.map(
       (seed) =>
         materialSeedState(
@@ -3845,8 +3990,7 @@ function buildMaterialPathVariants(
               );
 
             if (
-              continuation <
-              0.2
+              continuation < 0.2
             ) {
               continue;
             }
@@ -3871,11 +4015,61 @@ function buildMaterialPathVariants(
                 ],
 
                 viewerChange:
-                  `Advance to another supplied detail: ${itemLabel}.`,
+                  `Advance to another supplied part of the world: ${itemLabel}.`,
 
                 nextQuestion:
-                  "What supplied detail deserves the next cut?",
+                  "What part of this world becomes newly meaningful?",
               };
+
+            /*
+             * Local territory novelty.
+             *
+             * The candidate does not have to be unrelated to the prior cut.
+             * It simply should not remain trapped in the same neighborhood.
+             */
+            const novelty =
+              state.usedEventIds.length
+                ? metric(
+                    1 -
+                      Math.max(
+                        ...state.usedEventIds.map(
+                          (
+                            usedId,
+                          ) =>
+                            semanticTerritorySimilarity(
+                              graph,
+                              item.id,
+                              usedId,
+                            ),
+                        ),
+                        0,
+                      ),
+                  )
+                : 1;
+
+            const breadthPressure =
+              state.steps.length <=
+              1
+                ? 0.08
+                : state.steps.length ===
+                    2
+                  ? 0.14
+                  : 0.2;
+
+            const territoryPenalty =
+              novelty < 0.2
+                ? 0.34
+                : novelty < 0.35
+                  ? 0.18
+                  : 0;
+
+            const future =
+              lookaheadValue(
+                graph,
+                state,
+                item.id,
+                lens,
+              );
 
             const nextState:
               TrajectoryState =
@@ -3935,7 +4129,7 @@ function buildMaterialPathVariants(
                 unresolvedQuestionKeys:
                   unique([
                     ...state.unresolvedQuestionKeys,
-                    "what supplied detail deserves the next cut?",
+                    "what part of this world becomes newly meaningful?",
                   ]),
 
                 endpointPressure:
@@ -3954,19 +4148,17 @@ function buildMaterialPathVariants(
                     state.continuationValue *
                       0.62 +
                       continuation *
-                        0.38,
+                        0.28 +
+                      novelty *
+                        breadthPressure *
+                        0.1,
                   ),
 
                 lookaheadValue:
                   metric(
                     state.lookaheadValue *
                       0.62 +
-                      lookaheadValue(
-                        graph,
-                        state,
-                        item.id,
-                        lens,
-                      ) *
+                      future *
                         0.38,
                   ),
 
@@ -3976,13 +4168,14 @@ function buildMaterialPathVariants(
                 score:
                   state.score +
                   continuation *
-                    0.82 +
-                  lookaheadValue(
-                    graph,
-                    state,
-                    item.id,
-                    lens,
-                  ) *
+                    0.72 +
+                  novelty *
+                    (
+                      0.2 +
+                      breadthPressure
+                    ) -
+                  territoryPenalty +
+                  future *
                     0.08,
               };
 
@@ -3995,17 +4188,14 @@ function buildMaterialPathVariants(
         },
       );
 
+    if (
+      !expanded.length
+    ) {
+      break;
+    }
+
     /*
-     * Rank by quality first, then select a diverse beam.
-     *
-     * This is the critical anti-Mud-Wars step.
-     *
-     * We keep high-quality paths, but we refuse to spend the entire
-     * beam on paths whose CURRENT frontier represents essentially
-     * the same semantic neighborhood.
-     *
-     * Older cuts are deliberately not compared here, so a later
-     * callback can still return after the sequence has moved on.
+     * Rank quality, then preserve different frontiers.
      */
     const ranked =
       expanded
@@ -4068,9 +4258,7 @@ function buildMaterialPathVariants(
     }
 
     /*
-     * If the graph is unusually sparse, fill remaining beam slots
-     * by quality so the search never collapses purely because of
-     * the diversity heuristic.
+     * Sparse-world fallback.
      */
     if (
       diverseBeam.length <
@@ -4108,23 +4296,74 @@ function buildMaterialPathVariants(
       diverseBeam;
   }
 
-  return beam
-    .map(
-      (state) =>
-        normalizeTrajectory(
-          buildTrajectoryFromState(
-            graph,
-            state,
-            lens,
+  const beamTrajectories =
+    beam
+      .map(
+        (state) =>
+          normalizeTrajectory(
+            buildTrajectoryFromState(
+              graph,
+              state,
+              lens,
+            ),
           ),
+      )
+      .filter(
+        (trajectory) =>
+          trajectory.length >=
+          3,
+      );
+
+  /*
+   * WHOLE-WORLD CANDIDATE COMPETES WITH THE MATERIAL BEAM.
+   *
+   * Crucially, this is not forced to win. It simply exists as a genuinely
+   * different movie hypothesis for the universal search / viewer reranker.
+   */
+  const allCandidates = [
+    ...sourceTraversalCandidates,
+    ...beamTrajectories,
+  ];
+
+  /*
+   * Exact trajectory deduplication.
+   */
+  const seen = new Set<string>();
+
+  const uniqueTrajectories:
+    LatentMovieTrajectoryStep[][] =
+    [];
+
+  for (
+    const trajectory of
+      allCandidates
+  ) {
+    const key =
+      [
+        pathKey(
+          trajectory,
         ),
-    )
-    .filter(
-      (trajectory) =>
-        trajectory.length >=
-        3,
+        operationKey(
+          trajectory,
+        ),
+      ].join("::");
+
+    if (
+      seen.has(key)
+    ) {
+      continue;
+    }
+
+    seen.add(key);
+
+    uniqueTrajectories.push(
+      trajectory,
     );
+  }
+
+  return uniqueTrajectories;
 }
+
 function buildPathVariants(
   graph: RealityGraph,
   focus: RealityRelation,
@@ -5103,8 +5342,32 @@ function diversitySimilarity(
       0.14,
   );
 }
+function isWholeWorldCandidate(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): boolean {
+  const world =
+    scoreWholeWorldSequence(
+      graph,
+      candidate,
+    );
 
+  /*
+   * A whole-world candidate is one that already demonstrates:
+   * - meaningful breadth
+   * - sequence shape
+   * - movement between territories
+   *
+   * This does not require complete source coverage.
+   */
+  return (
+    world.breadth >= 0.58 &&
+    world.territoryMovement >= 0.45 &&
+    world.shape >= 0.68
+  );
+}
 function diversifyCandidates(
+  graph: RealityGraph,
   candidates: LatentMovieCandidate[],
   limit: number,
 ): LatentMovieCandidate[] {
@@ -5125,15 +5388,170 @@ function diversifyCandidates(
       number
     >();
 
+  const selectedMovieKeys =
+    new Set<string>();
+
+  /*
+   * WHOLE-WORLD STRUCTURAL DETECTOR
+   *
+   * This does not ask whether the movie is "good."
+   *
+   * It asks whether the trajectory genuinely traverses supplied material
+   * across the source rather than living inside one semantic neighborhood.
+   *
+   * It is presentation structure, not subject-specific logic.
+   */
+  const isSourceSpanningMovie = (
+    candidate: LatentMovieCandidate,
+  ): boolean => {
+    const ids =
+      unique(
+        candidate.trajectory.flatMap(
+          (step) =>
+            step.eventIds,
+        ),
+      );
+
+    if (
+      ids.length < 5 ||
+      graph.events.length < 5
+    ) {
+      return false;
+    }
+
+    const positions =
+      ids
+        .map(
+          (id) =>
+            graph.events.findIndex(
+              (event) =>
+                event.id === id,
+            ),
+        )
+        .filter(
+          (index) =>
+            index >= 0,
+        );
+
+    if (
+      positions.length < 5
+    ) {
+      return false;
+    }
+
+    let forwardMoves =
+      0;
+
+    for (
+      let index = 1;
+      index < positions.length;
+      index += 1
+    ) {
+      if (
+        positions[index]! >
+        positions[index - 1]!
+      ) {
+        forwardMoves += 1;
+      }
+    }
+
+    const sourceOrder =
+      forwardMoves /
+      Math.max(
+        1,
+        positions.length - 1,
+      );
+
+    const span =
+      (
+        Math.max(
+          ...positions,
+        ) -
+        Math.min(
+          ...positions,
+        )
+      ) /
+      Math.max(
+        1,
+        graph.events.length - 1,
+      );
+
+    /*
+     * At least five distinct supplied events, materially spanning the source,
+     * with predominantly forward presentation movement.
+     *
+     * This intentionally does NOT require every event.
+     */
+    return (
+      sourceOrder >= 0.65 &&
+      span >= 0.55
+    );
+  };
+
+  /*
+   * Preserve one source-spanning movie before ordinary diversity selection.
+   *
+   * This candidate is not declared the winner.
+   * It is simply kept alive so viewer-state reranking can judge it.
+   */
+  const wholeWorldCandidate =
+    ranked.find(
+      isSourceSpanningMovie,
+    );
+
+  if (
+    wholeWorldCandidate &&
+    limit > 1
+  ) {
+    wholeWorldCandidate.distinctiveness =
+      1;
+
+    selected.push(
+      wholeWorldCandidate,
+    );
+
+    const family =
+      candidateFamilyKey(
+        wholeWorldCandidate,
+      );
+
+    familyCounts.set(
+      family,
+      1,
+    );
+
+    selectedMovieKeys.add(
+      movieKey(
+        wholeWorldCandidate,
+      ),
+    );
+  }
+
+  /*
+   * Ordinary diversity selection.
+   */
   for (
     const candidate of
-    ranked
+      ranked
   ) {
     if (
       selected.length >=
       limit
     ) {
       break;
+    }
+
+    const candidateKey =
+      movieKey(
+        candidate,
+      );
+
+    if (
+      selectedMovieKeys.has(
+        candidateKey,
+      )
+    ) {
+      continue;
     }
 
     const family =
@@ -5144,16 +5562,9 @@ function diversifyCandidates(
     const familyCount =
       familyCounts.get(
         family,
-      ) ?? 0;
+      ) ??
+      0;
 
-    /*
-     * Evidence reuse is legal.
-     *
-     * What QRE must prevent is identical interpretation dressed
-     * up as separate movies. A family may therefore contribute
-     * multiple candidates only when the trajectory structure is
-     * genuinely different.
-     */
     const maxFamilyReuse =
       limit >= 8
         ? 3
@@ -5182,13 +5593,13 @@ function diversifyCandidates(
         : 0;
 
     const pathDistinctiveness =
-      1 -
-      tokenOverlap(
-        candidate.evidence.join(
-          " ",
-        ),
-        selected.length
-          ? selected
+      selected.length
+        ? 1 -
+          tokenOverlap(
+            candidate.evidence.join(
+              " ",
+            ),
+            selected
               .map(
                 (
                   existing,
@@ -5199,9 +5610,9 @@ function diversifyCandidates(
               )
               .join(
                 " ",
-              )
-          : "",
-      );
+              ),
+          )
+        : 1;
 
     const operationDistinctiveness =
       selected.length
@@ -5246,7 +5657,9 @@ function diversifyCandidates(
     const evidenceReuseBonus =
       selected.length &&
       candidate.evidence.every(
-        (label) =>
+        (
+          label,
+        ) =>
           selected.some(
             (
               existing,
@@ -5264,18 +5677,16 @@ function diversifyCandidates(
         pathDistinctiveness *
           0.34 +
           operationDistinctiveness *
-          0.25 +
+            0.25 +
           relationDistinctiveness *
-          0.21 +
-          (1 -
-            similarity) *
-          0.2,
+            0.21 +
+          (
+            1 -
+            similarity
+          ) *
+            0.2,
       );
 
-    /*
-     * Preserve strong candidates even when evidence overlaps.
-     * The structural differences are what make them different movies.
-     */
     candidate.distinctiveness =
       distinctiveness;
 
@@ -5284,7 +5695,7 @@ function diversifyCandidates(
         candidate.score *
           0.82 +
           distinctiveness *
-          0.12 +
+            0.12 +
           evidenceReuseBonus +
           (
             similarity <
@@ -5298,19 +5709,64 @@ function diversifyCandidates(
       candidate,
     );
 
+    selectedMovieKeys.add(
+      candidateKey,
+    );
+
     familyCounts.set(
       family,
       familyCount + 1,
     );
   }
 
-  return selected.sort(
-    (a, b) =>
-      b.score -
-      a.score,
-  );
-}
+  /*
+   * HARD SURVIVAL INVARIANT
+   *
+   * A source-spanning movie is a legitimate competing hypothesis.
+   * If ordinary diversity selection somehow removed it, restore it by
+   * replacing the weakest selected movie.
+   */
+  if (
+    wholeWorldCandidate &&
+    limit > 1 &&
+    !selectedMovieKeys.has(
+      movieKey(
+        wholeWorldCandidate,
+      ),
+    )
+  ) {
+    if (
+      selected.length >=
+      limit
+    ) {
+      selected.sort(
+        (a, b) =>
+          a.score -
+          b.score,
+      );
 
+      selected.shift();
+    }
+
+    wholeWorldCandidate.distinctiveness =
+      1;
+
+    selected.push(
+      wholeWorldCandidate,
+    );
+  }
+
+  return selected
+    .sort(
+      (a, b) =>
+        b.score -
+        a.score,
+    )
+    .slice(
+      0,
+      limit,
+    );
+}
 function buildFallbackTrajectory(
   graph: RealityGraph,
   focus: RealityRelation,
@@ -5497,7 +5953,6 @@ const payoffId =
     steps,
   );
 }
-
 function scoreMaterialTrajectory(
   graph: RealityGraph,
   trajectory: readonly LatentMovieTrajectoryStep[],
@@ -5575,13 +6030,16 @@ function scoreMaterialTrajectory(
           graph.unresolvedTensions,
         ) >= 0.35,
     ).length;
-     /*
+
+  /*
+   * ================================================================
    * SEQUENCE-LOCAL MATERIAL MOVEMENT
+   * ================================================================
    *
    * Global pairwise diversity is intentionally avoided.
    *
-   * QRE is allowed to repeat a semantic territory when the
-   * repetition has a different sequence function:
+   * A material film may revisit a semantic territory when the return
+   * serves a different sequence function:
    *
    *   accumulation
    *   rhythm
@@ -5609,6 +6067,7 @@ function scoreMaterialTrajectory(
       sequenceLabels[i - 1]!,
       sequenceLabels[i]!,
     );
+
     localPairs += 1;
   }
 
@@ -5661,8 +6120,8 @@ function scoreMaterialTrajectory(
   /*
    * A later return is not treated as global repetition.
    *
-   * We explicitly reward separated recurrence because that is
-   * how callbacks and associative memory emerge.
+   * Separated recurrence is useful because it allows associative
+   * memory / callback structure to emerge.
    */
   let separatedReturns = 0;
 
@@ -5709,131 +6168,327 @@ function scoreMaterialTrajectory(
         localCampingPenalty * 0.18,
     );
 
+  /*
+   * ================================================================
+   * ENDPOINT
+   * ================================================================
+   */
   const finalEventId =
     eventIds[eventIds.length - 1];
 
-  const finalLabel = clean(
-    event(
-      graph,
-      finalEventId ?? "",
-    )?.label,
-  );
+  const finalLabel =
+    clean(
+      event(
+        graph,
+        finalEventId ?? "",
+      )?.label,
+    );
 
-  const endpointValue = metric(
-    terminality(
-      graph,
-      finalEventId ?? "",
-    ) *
-      0.48 +
-      eventSpecificity(
+  const endpointValue =
+    metric(
+      terminality(
         graph,
         finalEventId ?? "",
       ) *
+        0.48 +
+        eventSpecificity(
+          graph,
+          finalEventId ?? "",
+        ) *
         0.22 +
-      persistentSignalAffinity(
-        finalLabel,
-        graph.recurringSignals,
-      ) *
+        persistentSignalAffinity(
+          finalLabel,
+          graph.recurringSignals,
+        ) *
         0.12 +
-      persistentSignalAffinity(
-        finalLabel,
-        graph.unresolvedTensions,
-      ) *
+        persistentSignalAffinity(
+          finalLabel,
+          graph.unresolvedTensions,
+        ) *
         0.18,
-  );
+    );
 
-  const pathLengthScore = metric(
-    Math.min(
-      1,
-      trajectory.length / 5,
-    ),
-  );
+  const pathLengthScore =
+    metric(
+      Math.min(
+        1,
+        trajectory.length / 5,
+      ),
+    );
 
-  const informationValue = metric(
-    specificity * 0.22 +
-      semanticDiversity * 0.26 +
-      pathLengthScore * 0.18 +
-      endpointValue * 0.18 +
+  /*
+   * ================================================================
+   * INFORMATION / ATTENTION / COMPRESSION
+   * ================================================================
+   */
+  const informationValue =
+    metric(
+      specificity * 0.22 +
+        semanticDiversity * 0.26 +
+        pathLengthScore * 0.18 +
+        endpointValue * 0.18 +
+        Math.min(
+          1,
+          recurringCount / 2,
+        ) *
+          0.08 +
+        Math.min(
+          1,
+          tensionCount / 2,
+        ) *
+          0.08,
+    );
+
+  const attentionPotential =
+    metric(
+      informationValue * 0.42 +
+        semanticDiversity * 0.24 +
+        specificity * 0.12 +
+        endpointValue * 0.14 +
+        centrality * 0.08,
+    );
+
+  const compressionPotential =
+    metric(
+      semanticDiversity * 0.32 +
+        pathLengthScore * 0.32 +
+        specificity * 0.18 +
+        attentionPotential * 0.18,
+    );
+
+  const callbackPotential =
+    metric(
       Math.min(
         1,
         recurringCount / 2,
       ) *
-        0.08 +
-      Math.min(
-        1,
-        tensionCount / 2,
-      ) *
-        0.08,
-  );
-
-  const attentionPotential = metric(
-    informationValue * 0.42 +
-      semanticDiversity * 0.24 +
-      specificity * 0.12 +
-      endpointValue * 0.14 +
-      centrality * 0.08,
-  );
-
-  const compressionPotential = metric(
-    semanticDiversity * 0.32 +
-      pathLengthScore * 0.32 +
-      specificity * 0.18 +
-      attentionPotential * 0.18,
-  );
-
-  const callbackPotential = metric(
-    Math.min(
-      1,
-      recurringCount / 2,
-    ) *
-      0.7 +
-      (
-        recurringCount > 0
-          ? 0.3
-          : 0
-      ),
-  );
-
-  const truthRisk = metric(
-    Math.max(
-      0,
-      1 -
+        0.7 +
         (
-          specificity * 0.34 +
-          semanticDiversity * 0.18 +
-          endpointValue * 0.16 +
-          pathLengthScore * 0.18 +
-          centrality * 0.14
+          recurringCount > 0
+            ? 0.3
+            : 0
         ),
-    ),
-  );
+    );
 
-  const score = metric(
-    specificity * 0.14 +
-      semanticDiversity * 0.18 +
-      informationValue * 0.18 +
-      attentionPotential * 0.17 +
-      endpointValue * 0.14 +
-      compressionPotential * 0.06 +
-      callbackPotential * 0.04 +
-      pathLengthScore * 0.05 +
-      centrality * 0.04 -
-      truthRisk * 0.08,
-  );
+  /*
+   * ================================================================
+   * TRUTH RISK
+   * ================================================================
+   *
+   * Material paths remain presentation sequencing over supplied
+   * evidence. No chronology or causality is invented.
+   */
+  const truthRisk =
+    metric(
+      Math.max(
+        0,
+        1 -
+          (
+            specificity * 0.34 +
+            semanticDiversity * 0.18 +
+            endpointValue * 0.16 +
+            pathLengthScore * 0.18 +
+            centrality * 0.14
+          ),
+      ),
+    );
+
+  /*
+   * ================================================================
+   * WHOLE-WORLD STRUCTURE
+   * ================================================================
+   *
+   * This is the critical correction.
+   *
+   * Material trajectories are legitimate movie hypotheses in their
+   * own right. A path that actually traverses the supplied world must
+   * be evaluated for:
+   *
+   *   breadth
+   *   source movement
+   *   territorial movement
+   *   operator variation
+   *   overall sequence shape
+   *   camping avoidance
+   *
+   * The whole-world scorer is therefore part of the MATERIAL SEARCH
+   * score itself, not merely a late viewer-state bonus.
+   *
+   * scoreWholeWorldSequence expects a candidate-shaped object, so
+   * construct a deterministic provisional candidate from the exact
+   * material evidence already computed here.
+   */
+  const provisionalCandidate:
+    LatentMovieCandidate =
+    {
+      id:
+        "material-scoring-provisional",
+
+      lens:
+        clean(lens) ||
+        "neutral",
+
+      anchorEventIds:
+        eventIds.slice(
+          0,
+          Math.min(
+            2,
+            eventIds.length,
+          ),
+        ),
+
+      supportingRelationKinds: [],
+
+      trajectory: [
+        ...trajectory,
+      ],
+
+      payoff:
+        finalLabel,
+
+      unresolvedQuestion:
+        "What supplied detail deserves the next cut?",
+
+      evidence,
+
+      hypothesis: [
+        "The sequence is constructed from supplied reality without assuming chronology.",
+        "Distinct supplied details are allowed to become successive presentation cuts.",
+        "The sequence favors semantic variety while preserving factual grounding.",
+        "The lens changes interpretation without changing supplied reality.",
+      ],
+
+      truthRisk,
+
+      novelty:
+        semanticDiversity,
+
+      specificity,
+
+      informationValue,
+
+      uncertainty:
+        metric(
+          semanticDiversity * 0.5 +
+            endpointValue * 0.3 +
+            pathLengthScore * 0.2,
+        ),
+
+      attentionPotential,
+
+      consequencePotential:
+        endpointValue,
+
+      callbackPotential,
+
+      compressionPotential,
+
+      repetitionRisk:
+        metric(
+          1 -
+            semanticDiversity,
+        ),
+
+      score:
+        0,
+
+      distinctiveness:
+        0,
+    };
+
+  const wholeWorld =
+    scoreWholeWorldSequence(
+      graph,
+      provisionalCandidate,
+    );
+
+  /*
+   * Composite whole-world fitness.
+   *
+   * score is included directly, while the component terms make the
+   * intended structural preference explicit and stable.
+   */
+  const wholeWorldFitness =
+    metric(
+      wholeWorld.score * 0.42 +
+        wholeWorld.breadth * 0.18 +
+        wholeWorld.territoryMovement * 0.18 +
+        wholeWorld.sourceOrder * 0.07 +
+        wholeWorld.operatorDiversity * 0.06 +
+        wholeWorld.shape * 0.14 -
+        wholeWorld.campingPenalty * 0.15,
+    );
+
+  /*
+   * A sufficiently broad trajectory gets an explicit structural
+   * identity bonus.
+   *
+   * This does NOT force broad-world movies to win.
+   * It prevents the search from treating a genuine whole-world film
+   * as equivalent to a narrow semantic cluster.
+   */
+  const sourceSpanning =
+    eventIds.length >=
+      Math.min(
+        5,
+        graph.events.length,
+      ) &&
+    wholeWorld.breadth >=
+      0.58 &&
+    wholeWorld.territoryMovement >=
+      0.35;
+
+  const wholeWorldBonus =
+    sourceSpanning
+      ? 0.08
+      : 0;
+
+  /*
+   * ================================================================
+   * FINAL MATERIAL SCORE
+   * ================================================================
+   *
+   * Whole-world structure is now a first-class search property.
+   *
+   * The material candidate still needs specificity, semantic movement,
+   * endpoint quality and grounding, but a narrow cluster no longer gets
+   * to dominate simply because its graph relations are denser.
+   */
+  const score =
+    metric(
+      specificity * 0.10 +
+        semanticDiversity * 0.10 +
+        informationValue * 0.12 +
+        attentionPotential * 0.12 +
+        endpointValue * 0.09 +
+        compressionPotential * 0.04 +
+        callbackPotential * 0.03 +
+        pathLengthScore * 0.04 +
+        centrality * 0.02 +
+        wholeWorldFitness * 0.30 +
+        wholeWorldBonus -
+        truthRisk * 0.04,
+    );
 
   return {
-    anchorEventIds: eventIds.slice(
-      0,
-      Math.min(2, eventIds.length),
-    ),
+    anchorEventIds:
+      eventIds.slice(
+        0,
+        Math.min(
+          2,
+          eventIds.length,
+        ),
+      ),
 
-    supportingRelationKinds: [],
+    supportingRelationKinds:
+      [],
 
     trajectory: [
       ...trajectory,
     ],
 
-    payoff: finalLabel,
+    payoff:
+      finalLabel,
 
     unresolvedQuestion:
       "What supplied detail deserves the next cut?",
@@ -5844,26 +6499,48 @@ function scoreMaterialTrajectory(
       "The sequence is constructed from supplied reality without assuming chronology.",
       "Distinct supplied details are allowed to become successive presentation cuts.",
       "The sequence favors semantic variety while preserving factual grounding.",
+      "Whole-world traversal is treated as a legitimate movie structure rather than noise.",
       "The lens changes interpretation without changing supplied reality.",
     ],
 
     truthRisk,
-    novelty: semanticDiversity,
+
+    novelty:
+      semanticDiversity,
+
     specificity,
+
     informationValue,
-    uncertainty: metric(
-      semanticDiversity * 0.5 +
-        endpointValue * 0.3 +
-        pathLengthScore * 0.2,
-    ),
+
+    uncertainty:
+      metric(
+        semanticDiversity * 0.42 +
+          wholeWorldFitness * 0.32 +
+          endpointValue * 0.18 +
+          pathLengthScore * 0.08,
+      ),
+
     attentionPotential,
-    consequencePotential: endpointValue,
+
+    consequencePotential:
+      endpointValue,
+
     callbackPotential,
+
     compressionPotential,
-    repetitionRisk: metric(
-      1 -
-        semanticDiversity,
-    ),
+
+    repetitionRisk:
+      metric(
+        Math.max(
+          0,
+          1 -
+            (
+              semanticDiversity * 0.72 +
+              wholeWorldFitness * 0.28
+            ),
+        ),
+      ),
+
     score,
   };
 }
@@ -5942,16 +6619,81 @@ export function searchUniversalMovieCandidates(
     new Set<string>();
 
   /*
-   * MATERIAL-FIRST TRAJECTORIES
+   * ================================================================
+   * CANONICAL WHOLE-WORLD MOVIE
+   * ================================================================
    *
-   * Supplied reality may form a strong sequence even when the graph
-   * does not contain explicit relations between every consecutive cut.
+   * The source traversal is not merely another beam candidate.
    *
-   * This is presentation sequencing only.
-   * It never invents chronology, causality, or bridge events.
+   * It is the explicit hypothesis:
+   *
+   *   "Show me the supplied world as a connected sequence."
+   *
+   * It uses ONLY supplied RealityGraph events.
+   * It does not invent chronology, causality, or bridge events.
+   *
+   * This candidate must exist independently of relation density.
+   */
+  const sourceTraversal =
+    buildSourceTraversalTrajectory(
+      input.graph,
+    );
+
+  if (
+    sourceTraversal.length >=
+    3
+  ) {
+    const scored =
+      scoreMaterialTrajectory(
+        input.graph,
+        sourceTraversal,
+        input.lens,
+      );
+
+    const wholeWorldCandidate:
+      LatentMovieCandidate =
+      {
+        id:
+          "movie-material-whole-world",
+
+        lens:
+          clean(
+            input.lens,
+          ) ||
+          "neutral",
+
+        ...scored,
+
+        distinctiveness:
+          1,
+      };
+
+    const key =
+      movieKey(
+        wholeWorldCandidate,
+      );
+
+    seenMovieKeys.add(
+      key,
+    );
+
+    rawCandidates.push(
+      wholeWorldCandidate,
+    );
+  }
+
+  /*
+   * ================================================================
+   * ADDITIONAL MATERIAL MOVIE VARIANTS
+   * ================================================================
+   *
+   * These are still useful alternatives:
+   * different seeds, different presentation paths, callbacks,
+   * local territory changes, etc.
+   *
+   * The canonical source traversal above remains independently alive.
    */
   const materialTrajectories =
-
     buildMaterialPathVariants(
       input.graph,
       input.lens,
@@ -5959,7 +6701,7 @@ export function searchUniversalMovieCandidates(
 
   for (
     const trajectory of
-    materialTrajectories
+      materialTrajectories
   ) {
     if (
       trajectory.length <
@@ -5968,6 +6710,10 @@ export function searchUniversalMovieCandidates(
       continue;
     }
 
+    /*
+     * Do not re-add the canonical source traversal if the material
+     * variant generator returned it.
+     */
     const scored =
       scoreMaterialTrajectory(
         input.graph,
@@ -6016,13 +6762,15 @@ export function searchUniversalMovieCandidates(
   }
 
   /*
-   * RELATION-DERIVED TRAJECTORIES
+   * ================================================================
+   * RELATION-DERIVED MOVIES
+   * ================================================================
    *
-   * Keep the existing semantic movie search intact.
+   * Existing semantic search remains intact.
    */
   for (
     const focus of
-    relationCandidates
+      relationCandidates
   ) {
     const paths =
       buildPathVariants(
@@ -6031,11 +6779,6 @@ export function searchUniversalMovieCandidates(
         input.lens,
       );
 
-    /*
-     * Sparse graphs can legitimately produce only one path.
-     * The fallback still guarantees a complete movie candidate
-     * whenever a focus relation can produce an endpoint.
-     */
     const candidatePaths =
       paths.length
         ? paths
@@ -6049,7 +6792,7 @@ export function searchUniversalMovieCandidates(
 
     for (
       const trajectory of
-      candidatePaths
+        candidatePaths
     ) {
       if (
         trajectory.length <
@@ -6108,8 +6851,9 @@ export function searchUniversalMovieCandidates(
   }
 
   /*
-   * If the relation graph is sparse, harvest additional endpoint-
-   * centered candidates directly from semantically terminal events.
+   * ================================================================
+   * ENDPOINT-CENTERED RECOVERY
+   * ================================================================
    */
   if (
     rawCandidates.length <
@@ -6119,7 +6863,9 @@ export function searchUniversalMovieCandidates(
       input.graph.events
         .map(
           (item) => ({
-            id: item.id,
+            id:
+              item.id,
+
             score:
               terminality(
                 input.graph,
@@ -6146,7 +6892,7 @@ export function searchUniversalMovieCandidates(
 
     for (
       const terminalEvent of
-      terminalEvents
+        terminalEvents
     ) {
       if (
         rawCandidates.length >=
@@ -6184,10 +6930,10 @@ export function searchUniversalMovieCandidates(
 
       for (
         const focus of
-        connectedRelations.slice(
-          0,
-          4,
-        )
+          connectedRelations.slice(
+            0,
+            4,
+          )
       ) {
         const fallback =
           buildFallbackTrajectory(
@@ -6254,11 +7000,9 @@ export function searchUniversalMovieCandidates(
   }
 
   /*
-   * Exact graph/material-path duplicates are never allowed.
-   *
-   * Evidence overlap alone is NOT a duplicate.
-   * Different trajectories may legitimately use the same supplied
-   * facts while creating different sequence meaning.
+   * ================================================================
+   * EXACT DEDUPLICATION
+   * ================================================================
    */
   const exactDeduped =
     rawCandidates.filter(
@@ -6280,7 +7024,12 @@ export function searchUniversalMovieCandidates(
     );
 
   /*
-   * Preserve strong alternatives long enough for diversity selection.
+   * ================================================================
+   * DIVERSIFICATION
+   * ================================================================
+   *
+   * Whole-world candidate is now guaranteed to have entered this
+   * stage independently.
    */
   const sorted =
     [...exactDeduped].sort(
@@ -6291,67 +7040,79 @@ export function searchUniversalMovieCandidates(
 
   const diversified =
     diversifyCandidates(
+      input.graph,
       sorted,
       limit,
     );
 
   /*
-   * Final completeness guard:
-   * when multiple distinct movie paths exist, do not accidentally
-   * collapse back to one candidate.
+   * ================================================================
+   * HARD WHOLE-WORLD SURVIVAL
+   * ================================================================
+   *
+   * Do not permit ordinary ranking/diversification to erase the
+   * canonical source-spanning hypothesis.
    */
+  const canonicalWholeWorld =
+    exactDeduped.find(
+      (
+        candidate,
+      ) =>
+        candidate.id ===
+        "movie-material-whole-world",
+    );
+
   if (
-    diversified.length <
-      Math.min(
-        limit,
-        2,
-      ) &&
-    sorted.length >= 2
+    canonicalWholeWorld &&
+    limit > 1
   ) {
-    const alternate =
-      sorted.find(
-        (candidate) =>
-          !diversified.some(
-            (
-              selected,
-            ) =>
-              movieKey(
-                selected,
-              ) ===
-              movieKey(
-                candidate,
-              ),
+    const alreadyPresent =
+      diversified.some(
+        (
+          candidate,
+        ) =>
+          movieKey(
+            candidate,
+          ) ===
+          movieKey(
+            canonicalWholeWorld,
           ),
       );
 
-    if (
-      alternate
-    ) {
-      alternate.distinctiveness =
-        metric(
-          1 -
-            Math.max(
-              ...diversified.map(
-                (
-                  selected,
-                ) =>
-                  diversitySimilarity(
-                    alternate,
-                    selected,
-                  ),
-              ),
-            ),
+    if (!alreadyPresent) {
+      if (
+        diversified.length >=
+        limit
+      ) {
+        diversified.sort(
+          (a, b) =>
+            a.score -
+            b.score,
         );
 
+        diversified.shift();
+      }
+
+      canonicalWholeWorld.distinctiveness =
+        1;
+
       diversified.push(
-        alternate,
+        canonicalWholeWorld,
       );
     }
   }
 
+  /*
+   * ================================================================
+   * FINAL RETURN
+   * ================================================================
+   */
   return diversified
     .sort(
-      (a, b) =>
+      (
+        a,
+        b,
+      ) =>
         b.score -
         a.score,
     )

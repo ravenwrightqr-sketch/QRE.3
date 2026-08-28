@@ -176,62 +176,591 @@ function interruption(
 
   return metric(jumps / Math.max(1, trajectory.length - 1));
 }
-
 function continuity(
   graph: RealityGraph,
   trajectory: readonly LatentMovieTrajectoryStep[],
 ): number {
-  if (trajectory.length < 2) return trajectory.length ? 0.7 : 0;
-
-  let carried = 0;
-  let measured = 0;
-  const established = new Set<string>();
-
-  for (let index = 0; index < trajectory.length; index += 1) {
-    const step = trajectory[index]!;
-    const priorKnown = step.eventIds.filter((id) => established.has(id)).length;
-    const signalCarry = step.eventIds.length
-      ? priorKnown / Math.max(1, step.eventIds.length)
+  if (
+    trajectory.length < 2
+  ) {
+    return trajectory.length
+      ? 0.7
       : 0;
-
-    if (index > 0) {
-      measured += 1;
-      carried += signalCarry;
-    }
-
-    for (const id of step.eventIds) established.add(id);
   }
 
-  const recurrent = graph.recurringSignals.length
-    ? trajectory.reduce((sum, step) => {
-        const labels = step.eventIds.map((id) => eventLabel(graph, id));
-        const hit = Math.max(
-          0,
-          ...graph.recurringSignals.map((signal) =>
-            Math.max(0, ...labels.map((label) => overlap(label, signal))),
-          ),
-        );
-        return sum + hit;
-      }, 0) / Math.max(1, trajectory.length)
-    : 0;
+  /*
+   * CONTINUITY IS NOT REPETITION.
+   *
+   * A coherent film can move through entirely different supplied
+   * details while remaining continuous because:
+   *
+   *   - adjacent cuts are related in the source
+   *   - supplied relations connect the cuts
+   *   - wording carries a semantic thread
+   *   - prior material is intentionally revisited
+   *   - recurring/tension signals remain alive
+   *
+   * Exact event reuse is therefore only ONE continuity mechanism,
+   * not the definition of continuity.
+   */
 
-  const tensionCarry = graph.unresolvedTensions.length
-    ? trajectory.reduce((sum, step) => {
-        const labels = step.eventIds.map((id) => eventLabel(graph, id));
-        const hit = Math.max(
-          0,
-          ...graph.unresolvedTensions.map((tension) =>
-            Math.max(0, ...labels.map((label) => overlap(label, tension))),
-          ),
-        );
-        return sum + hit;
-      }, 0) / Math.max(1, trajectory.length)
-    : 0;
+  const sourceIndex = new Map<
+    string,
+    number
+  >(
+    graph.events.map(
+      (item, index) => [
+        item.id,
+        index,
+      ],
+    ),
+  );
 
+  const relationWeight = (
+    kind: RealityGraph["relations"][number]["kind"],
+  ): number => {
+    switch (kind) {
+      case "contrasts":
+        return 0.9;
+
+      case "recontextualizes":
+        return 0.96;
+
+      case "changes":
+        return 0.94;
+
+      case "repeats":
+        return 1;
+
+      case "converges":
+        return 0.9;
+
+      case "causes":
+        return 0.95;
+
+      case "before":
+      case "after":
+        return 0.78;
+
+      case "belongs_to":
+        return 0.72;
+
+      case "involves":
+        return 0.68;
+
+      default:
+        return 0.55;
+    }
+  };
+
+  const relationBetween = (
+    leftId: string,
+    rightId: string,
+  ) => {
+    return graph.relations
+      .filter(
+        (relation) =>
+          (
+            relation.from === leftId &&
+            relation.to === rightId
+          ) ||
+          (
+            relation.from === rightId &&
+            relation.to === leftId
+          ),
+      )
+      .sort(
+        (left, right) =>
+          (
+            right.strength *
+            relationWeight(
+              right.kind,
+            )
+          ) -
+          (
+            left.strength *
+            relationWeight(
+              left.kind,
+            )
+          ),
+      )[0];
+  };
+
+  const sourceProximity = (
+    leftId: string,
+    rightId: string,
+  ): number => {
+    const left =
+      sourceIndex.get(
+        leftId,
+      );
+
+    const right =
+      sourceIndex.get(
+        rightId,
+      );
+
+    if (
+      left === undefined ||
+      right === undefined
+    ) {
+      return 0;
+    }
+
+    const distance =
+      Math.abs(
+        left - right,
+      );
+
+    if (
+      distance === 0
+    ) {
+      return 1;
+    }
+
+    if (
+      distance === 1
+    ) {
+      return 1;
+    }
+
+    if (
+      distance === 2
+    ) {
+      return 0.78;
+    }
+
+    if (
+      distance === 3
+    ) {
+      return 0.5;
+    }
+
+    if (
+      distance <= 5
+    ) {
+      return 0.24;
+    }
+
+    return 0;
+  };
+
+  const transitionScores: number[] =
+    [];
+
+  for (
+    let index = 1;
+    index < trajectory.length;
+    index += 1
+  ) {
+    const previous =
+      trajectory[index - 1]!;
+
+    const current =
+      trajectory[index]!;
+
+    /*
+     * Evaluate the BEST legitimate continuity relationship between
+     * any event carried by the previous cut and any event introduced
+     * by the current cut.
+     *
+     * This matters because a trajectory step can contain more than
+     * one event, especially semantic/payoff steps.
+     */
+    let bestTransition = 0;
+
+    for (
+      const previousId of
+        previous.eventIds
+    ) {
+      for (
+        const currentId of
+          current.eventIds
+      ) {
+        if (
+          previousId ===
+          currentId
+        ) {
+          bestTransition =
+            Math.max(
+              bestTransition,
+              1,
+            );
+
+          continue;
+        }
+
+        const relation =
+          relationBetween(
+            previousId,
+            currentId,
+          );
+
+        const relationContinuity =
+          relation
+            ? relation.strength *
+              relationWeight(
+                relation.kind,
+              )
+            : 0;
+
+        const previousLabel =
+          eventLabel(
+            graph,
+            previousId,
+          );
+
+        const currentLabel =
+          eventLabel(
+            graph,
+            currentId,
+          );
+
+        const semanticCarry =
+          overlap(
+            previousLabel,
+            currentLabel,
+          );
+
+        const sourceCarry =
+          sourceProximity(
+            previousId,
+            currentId,
+          );
+
+        /*
+         * Different supplied facts can still form a continuous
+         * sequence when the source itself places them close together.
+         *
+         * Source proximity is deliberately weaker than an explicit
+         * semantic relation, so source order cannot manufacture a
+         * semantic claim.
+         */
+        const pairContinuity =
+          relationContinuity * 0.48 +
+          sourceCarry * 0.24 +
+          semanticCarry * 0.18 +
+          (
+            relation
+              ? 0.1
+              : 0
+          );
+
+        bestTransition =
+          Math.max(
+            bestTransition,
+            pairContinuity,
+          );
+      }
+    }
+
+    /*
+     * A step with completely different material is still allowed to
+     * remain coherent when it is a deliberate source-world movement.
+     *
+     * This prevents whole-world films from collapsing merely because
+     * every cut introduces a new event.
+     */
+    if (
+      bestTransition === 0 &&
+      current.eventIds.length
+    ) {
+      const sourceBackbone =
+        current.eventIds.some(
+          (currentId) =>
+            previous.eventIds.some(
+              (previousId) =>
+                sourceProximity(
+                  previousId,
+                  currentId,
+                ) >= 0.78,
+            ),
+        );
+
+      bestTransition =
+        sourceBackbone
+          ? 0.52
+          : 0.18;
+    }
+
+    transitionScores.push(
+      metric(
+        bestTransition,
+      ),
+    );
+  }
+
+  const measuredTransitions =
+    transitionScores.length
+      ? transitionScores.reduce(
+          (
+            sum,
+            value,
+          ) =>
+            sum + value,
+          0,
+        ) /
+        transitionScores.length
+      : 0.55;
+
+  /*
+   * ================================================================
+   * RECURRING THREAD CARRY
+   * ================================================================
+   *
+   * Recurrence strengthens continuity when the trajectory actually
+   * carries a recurring signal across multiple cuts.
+   */
+  const recurrent =
+    graph.recurringSignals.length
+      ? trajectory.reduce(
+          (
+            sum,
+            step,
+          ) => {
+            const labels =
+              step.eventIds.map(
+                (id) =>
+                  eventLabel(
+                    graph,
+                    id,
+                  ),
+              );
+
+            const hit =
+              Math.max(
+                0,
+                ...graph.recurringSignals.map(
+                  (
+                    signal,
+                  ) =>
+                    Math.max(
+                      0,
+                      ...labels.map(
+                        (
+                          label,
+                        ) =>
+                          overlap(
+                            label,
+                            signal,
+                          ),
+                      ),
+                    ),
+                ),
+              );
+
+            return (
+              sum + hit
+            );
+          },
+          0,
+        ) /
+        Math.max(
+          1,
+          trajectory.length,
+        )
+      : 0;
+
+  /*
+   * ================================================================
+   * TENSION CARRY
+   * ================================================================
+   *
+   * A tension thread can maintain continuity even when individual
+   * event labels change.
+   */
+  const tension =
+    graph.unresolvedTensions.length
+      ? trajectory.reduce(
+          (
+            sum,
+            step,
+          ) => {
+            const labels =
+              step.eventIds.map(
+                (id) =>
+                  eventLabel(
+                    graph,
+                    id,
+                  ),
+              );
+
+            const hit =
+              Math.max(
+                0,
+                ...graph.unresolvedTensions.map(
+                  (
+                    unresolved,
+                  ) =>
+                    Math.max(
+                      0,
+                      ...labels.map(
+                        (
+                          label,
+                        ) =>
+                          overlap(
+                            label,
+                            unresolved,
+                          ),
+                      ),
+                    ),
+                ),
+              );
+
+            return (
+              sum + hit
+            );
+          },
+          0,
+        ) /
+        Math.max(
+          1,
+          trajectory.length,
+        )
+      : 0;
+
+  /*
+   * ================================================================
+   * SOURCE-WORLD COHERENCE
+   * ================================================================
+   *
+   * Reward trajectories that move through supplied material in a
+   * reasonably coherent presentation neighborhood without requiring
+   * them to remain in one semantic territory.
+   */
+  let sourceOrderedTransitions =
+    0;
+
+  let sourceMeasuredTransitions =
+    0;
+
+  for (
+    let index = 1;
+    index < trajectory.length;
+    index += 1
+  ) {
+    const previous =
+      trajectory[index - 1]!;
+
+    const current =
+      trajectory[index]!;
+
+    const previousPositions =
+      previous.eventIds
+        .map(
+          (id) =>
+            sourceIndex.get(
+              id,
+            ),
+        )
+        .filter(
+          (
+            value,
+          ): value is number =>
+            value !== undefined,
+        );
+
+    const currentPositions =
+      current.eventIds
+        .map(
+          (id) =>
+            sourceIndex.get(
+              id,
+            ),
+        )
+        .filter(
+          (
+            value,
+          ): value is number =>
+            value !== undefined,
+        );
+
+    if (
+      !previousPositions.length ||
+      !currentPositions.length
+    ) {
+      continue;
+    }
+
+    const previousMax =
+      Math.max(
+        ...previousPositions,
+      );
+
+    const previousMin =
+      Math.min(
+        ...previousPositions,
+      );
+
+    const currentMax =
+      Math.max(
+        ...currentPositions,
+      );
+
+    const currentMin =
+      Math.min(
+        ...currentPositions,
+      );
+
+    /*
+     * Forward or locally adjacent source movement is coherent.
+     * Large backward jumps are not forbidden, but they receive less
+     * continuity credit.
+     */
+    if (
+      currentMin >=
+      previousMin
+    ) {
+      sourceOrderedTransitions +=
+        1;
+    } else if (
+      Math.abs(
+        currentMax -
+          previousMin,
+      ) <= 2
+    ) {
+      sourceOrderedTransitions +=
+        0.6;
+    }
+
+    sourceMeasuredTransitions +=
+      1;
+  }
+
+  const sourceCoherence =
+    sourceMeasuredTransitions
+      ? metric(
+          sourceOrderedTransitions /
+            sourceMeasuredTransitions,
+        )
+      : 0.5;
+
+  /*
+   * ================================================================
+   * FINAL CONTINUITY
+   * ================================================================
+   *
+   * Explicit graph continuity is strongest.
+   * Source continuity is meaningful.
+   * Semantic overlap helps.
+   * Exact event reuse remains valuable but is NOT required.
+   */
   return metric(
-    (measured ? carried / measured : 0.55) * 0.62 +
-    recurrent * 0.2 +
-    tensionCarry * 0.18,
+    measuredTransitions * 0.54 +
+    sourceCoherence * 0.18 +
+    recurrent * 0.14 +
+    tension * 0.10 +
+    (
+      trajectory.some(
+        (
+          step,
+        ) =>
+          step.eventIds.length >=
+          2,
+      )
+        ? 0.04
+        : 0
+    ),
   );
 }
 
