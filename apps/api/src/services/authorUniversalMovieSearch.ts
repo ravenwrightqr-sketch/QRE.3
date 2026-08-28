@@ -1870,6 +1870,381 @@ function lookaheadValue(
       )
     : 0;
 }
+
+function semanticTerritorySimilarity(
+  graph: RealityGraph,
+  leftEventId: string,
+  rightEventId: string,
+): number {
+  const left = event(
+    graph,
+    leftEventId,
+  );
+
+  const right = event(
+    graph,
+    rightEventId,
+  );
+
+  if (
+    !left ||
+    !right
+  ) {
+    return 0;
+  }
+
+  const leftText =
+    clean(left.label);
+
+  const rightText =
+    clean(right.label);
+
+  if (
+    !leftText ||
+    !rightText
+  ) {
+    return 0;
+  }
+
+  const wording =
+    tokenOverlap(
+      leftText,
+      rightText,
+    );
+
+  const relation =
+    relationBetween(
+      graph,
+      leftEventId,
+      rightEventId,
+    );
+
+  const relationSimilarity =
+    relation
+      ? metric(
+          relation.strength *
+            relationWeight(
+              relation.kind,
+            ),
+        )
+      : 0;
+
+  return metric(
+    wording * 0.62 +
+      relationSimilarity * 0.38,
+  );
+}
+function materialSequenceFunction(
+  graph: RealityGraph,
+  state: TrajectoryState,
+  eventId: string,
+): {
+  recentPeak: number;
+  recentCount: number;
+  consecutivePeak: number;
+  gap: number;
+  callbackOpportunity: number;
+  campingRisk: number;
+  rhythmValue: number;
+} {
+  const history = state.usedEventIds;
+
+  if (!history.length) {
+    return {
+      recentPeak: 0,
+      recentCount: 0,
+      consecutivePeak: 0,
+      gap: history.length,
+      callbackOpportunity: 0,
+      campingRisk: 0,
+      rhythmValue: 0,
+    };
+  }
+
+  const recentWindow = history.slice(-4);
+
+  const similarities = recentWindow.map(
+    (priorId) =>
+      semanticTerritorySimilarity(
+        graph,
+        eventId,
+        priorId,
+      ),
+  );
+
+  const recentPeak = similarities.length
+    ? Math.max(...similarities)
+    : 0;
+
+  const recentCount = similarities.filter(
+    (value) => value >= 0.58,
+  ).length;
+
+  let consecutivePeak = 0;
+  let consecutiveCount = 0;
+
+  for (
+    let index = recentWindow.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const value =
+      semanticTerritorySimilarity(
+        graph,
+        eventId,
+        recentWindow[index]!,
+      );
+
+    if (value >= 0.58) {
+      consecutiveCount += 1;
+      consecutivePeak = Math.max(
+        consecutivePeak,
+        value,
+      );
+    } else {
+      break;
+    }
+  }
+
+  let lastReturnIndex = -1;
+
+  for (
+    let index = history.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const similarity =
+      semanticTerritorySimilarity(
+        graph,
+        eventId,
+        history[index]!,
+      );
+
+    if (similarity >= 0.58) {
+      lastReturnIndex = index;
+      break;
+    }
+  }
+
+  const gap =
+    lastReturnIndex >= 0
+      ? history.length - 1 - lastReturnIndex
+      : history.length;
+
+  const callbackOpportunity =
+    lastReturnIndex >= 0 && gap >= 2
+      ? metric(
+          Math.min(
+            1,
+            0.35 +
+              gap * 0.12 +
+              recentPeak * 0.18,
+          ),
+        )
+      : 0;
+
+  /*
+   * Camping means the candidate is still sitting in the
+   * same semantic neighborhood without enough intervening
+   * material to make the return interesting.
+   */
+  const campingRisk = metric(
+    Math.min(
+      1,
+      consecutiveCount * 0.34 +
+        recentCount * 0.18 +
+        recentPeak * 0.18,
+    ),
+  );
+
+  /*
+   * Rhythm explicitly permits short runs.
+   *
+   * One or two nearby returns can be useful.
+   * The third/fourth unbroken return is where camping pressure
+   * rises sharply.
+   */
+  const rhythmValue = metric(
+    consecutiveCount === 0
+      ? 0.45
+      : consecutiveCount === 1
+        ? 0.72
+        : consecutiveCount === 2
+          ? 0.62
+          : 0.28,
+  );
+
+  return {
+    recentPeak,
+    recentCount,
+    consecutivePeak,
+    gap,
+    callbackOpportunity,
+    campingRisk,
+    rhythmValue,
+  };
+}
+function materialContinuationScore(
+  graph: RealityGraph,
+  state: TrajectoryState,
+  eventId: string,
+  lens?: string,
+): number {
+  const item = event(
+    graph,
+    eventId,
+  );
+
+  if (
+    !item ||
+    !clean(item.label)
+  ) {
+    return 0;
+  }
+
+  if (
+    state.usedEventIds.includes(
+      eventId,
+    )
+  ) {
+    return 0;
+  }
+
+  const specificity =
+    eventSpecificity(
+      graph,
+      eventId,
+    );
+
+  const centrality =
+    graphCentrality(
+      graph,
+      eventId,
+    );
+
+  const terminal =
+    terminality(
+      graph,
+      eventId,
+    );
+
+  const recurring =
+    persistentSignalAffinity(
+      item.label,
+      graph.recurringSignals,
+    );
+
+  const tension =
+    persistentSignalAffinity(
+      item.label,
+      graph.unresolvedTensions,
+    );
+
+  const future =
+    lookaheadValue(
+      graph,
+      state,
+      eventId,
+      lens,
+    );
+
+  const connected =
+    incidentRelations(
+      graph,
+      eventId,
+    ).some(
+      (relation) =>
+        state.usedEventIds.includes(
+          relation.from,
+        ) ||
+        state.usedEventIds.includes(
+          relation.to,
+        ),
+    );
+
+  const sequenceFunction =
+    materialSequenceFunction(
+      graph,
+      state,
+      eventId,
+    );
+
+  /*
+   * A fresh territory is useful,
+   * but we do NOT require every cut to be fresh.
+   *
+   * Short repetition can create rhythm or obsession.
+   */
+  const freshness =
+    metric(
+      1 -
+        sequenceFunction.recentPeak *
+          0.42,
+    );
+
+  /*
+   * A return after intervening material is fundamentally
+   * different from camping on the same neighborhood.
+   */
+  const callbackBonus =
+    sequenceFunction.callbackOpportunity *
+    0.2;
+
+  const rhythmBonus =
+    sequenceFunction.rhythmValue *
+    0.09;
+
+  const salienceProtection =
+    metric(
+      recurring * 0.7 +
+        tension * 0.3,
+    );
+
+  /*
+   * Strong punishment only for uninterrupted semantic camping.
+   *
+   * This is what kills:
+   *
+   *   mud → mud → mud → mud
+   *
+   * without killing:
+   *
+   *   walk → walk → walk
+   *
+   * or:
+   *
+   *   mud → mud → park → mud
+   */
+  const campingPenalty =
+    sequenceFunction.campingRisk *
+    0.24;
+
+  /*
+   * If the candidate is both fresh and connected to already
+   * established material, prefer it as a meaningful turn rather
+   * than treating freshness as random shuffling.
+   */
+  const contrastOpportunity =
+    connected &&
+    freshness >= 0.5
+      ? 0.08
+      : 0;
+
+  return metric(
+    specificity * 0.2 +
+      freshness * 0.18 +
+      centrality * 0.08 +
+      terminal * 0.08 +
+      recurring * 0.1 +
+      tension * 0.08 +
+      future * 0.08 +
+      contrastOpportunity +
+      callbackBonus +
+      rhythmBonus +
+      salienceProtection * 0.06 -
+      campingPenalty,
+  );
+}
 function expandTrajectory(
   graph: RealityGraph,
   state: TrajectoryState,
@@ -1877,313 +2252,390 @@ function expandTrajectory(
   width = 6,
 ): TrajectoryState[] {
   const lastStep =
-    state.steps[
-      state.steps.length -
-        1
-    ];
+    state.steps[state.steps.length - 1];
 
   const currentEventId =
-    lastStep?.eventIds[
-      lastStep.eventIds.length -
-        1
-    ];
+    lastStep?.eventIds[lastStep.eventIds.length - 1];
 
   if (!currentEventId) {
     return [];
   }
 
-  const candidates =
-    incidentRelations(
-      graph,
-      currentEventId,
-    )
-      .filter(
-        (relation) =>
-          SEARCH_RELATION_KINDS.includes(
-            relation.kind,
-          ),
+  type Expansion =
+    | {
+        kind: "relation";
+        relation: RealityRelation;
+        target: string;
+        score: number;
+      }
+    | {
+        kind: "material";
+        target: string;
+        score: number;
+      };
+
+  const relationExpansions: Expansion[] =
+    incidentRelations(graph, currentEventId)
+      .filter((relation) =>
+        SEARCH_RELATION_KINDS.includes(relation.kind),
       )
       .filter(
         (relation) =>
           !state.usedRelationKeys.includes(
-            relationKey(
-              relation,
-            ),
+            relationKey(relation),
           ),
       )
-      .map(
-        (
+      .map((relation) => ({
+        kind: "relation" as const,
+        relation,
+        target: orientedOtherEnd(
           relation,
-        ) => ({
+          currentEventId,
+        ),
+        score: relationCandidateScore(
+          graph,
           relation,
-          target:
-            orientedOtherEnd(
-              relation,
-              currentEventId,
-            ),
-          score:
-            relationCandidateScore(
-              graph,
-              relation,
-              currentEventId,
-              state.usedEventIds,
-              lens,
-              state,
-            ),
-        }),
-      )
-      .sort(
-        (a, b) =>
-          b.score -
-          a.score,
-      )
-      .slice(
-        0,
-        width,
+          currentEventId,
+          state.usedEventIds,
+          lens,
+          state,
+        ),
+      }));
+
+  /*
+   * GROUNDED MATERIAL CONTINUATION
+   *
+   * When the graph has weak/no useful edge from the current cut,
+   * another explicit supplied event may still earn the next cut.
+   *
+   * This preserves QRE's distinction between:
+   *   semantic relation
+   * and
+   *   presentation order.
+   *
+   * No chronology or causality is invented.
+   */
+  const materialExpansions: Expansion[] =
+    graph.events
+      .filter((item) => clean(item.label))
+      
+      .filter((item) => !state.usedEventIds.includes(item.id))
+      .map((item) => ({
+        kind: "material" as const,
+        target: item.id,
+        score: materialContinuationScore(
+          graph,
+          state,
+          item.id,
+          lens,
+        ),
+      }))
+      .filter((candidate) => candidate.score >= 0.34);
+
+  const expansions = [
+    ...relationExpansions,
+    ...materialExpansions,
+  ]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, width);
+
+  return expansions.map((expansion) => {
+    if (expansion.kind === "material") {
+      const targetLabel = eventLabel(
+        graph,
+        expansion.target,
       );
-        return candidates.map(
-    ({
+
+      return {
+        steps: [
+          ...state.steps,
+          {
+            order: state.steps.length + 1,
+            operation: "reveal",
+            eventIds: [expansion.target],
+            viewerChange:
+              `Advance to another supplied detail: ${targetLabel}.`,
+            nextQuestion:
+              "What supplied detail deserves the next cut?",
+          },
+        ],
+
+        usedEventIds: unique([
+          ...state.usedEventIds,
+          expansion.target,
+        ]),
+
+        usedRelationKeys: [
+          ...state.usedRelationKeys,
+        ],
+
+        establishedEventIds: unique([
+          ...state.establishedEventIds,
+          expansion.target,
+        ]),
+
+        semanticTurnKeys: [
+          ...state.semanticTurnKeys,
+        ],
+
+        activeTensionKeys: [
+          ...state.activeTensionKeys,
+        ],
+
+        resolvedTensionKeys: [
+          ...state.resolvedTensionKeys,
+        ],
+
+        setupEventIds: unique([
+          ...state.setupEventIds,
+          expansion.target,
+        ]),
+
+        recurringThreadKeys: unique([
+          ...state.recurringThreadKeys,
+          ...(persistentSignalAffinity(
+            targetLabel,
+            graph.recurringSignals,
+          ) >= 0.35
+            ? [`recurrence:${expansion.target}`]
+            : []),
+        ]),
+
+        unresolvedQuestionKeys: unique([
+          ...state.unresolvedQuestionKeys,
+          "what supplied detail deserves the next cut?",
+        ]),
+
+        endpointPressure: metric(
+          state.endpointPressure * 0.72 +
+            terminality(
+              graph,
+              expansion.target,
+            ) * 0.18,
+        ),
+
+        continuationValue: metric(
+          state.continuationValue * 0.62 +
+            materialContinuationScore(
+              graph,
+              state,
+              expansion.target,
+              lens,
+            ) * 0.38,
+        ),
+
+        lookaheadValue: metric(
+          state.lookaheadValue * 0.62 +
+            lookaheadValue(
+              graph,
+              state,
+              expansion.target,
+              lens,
+            ) * 0.38,
+        ),
+
+        lensPressure: state.lensPressure,
+
+        score:
+          state.score +
+          expansion.score * 0.82 +
+          lookaheadValue(
+            graph,
+            state,
+            expansion.target,
+            lens,
+          ) * 0.08,
+      };
+    }
+
+    const {
       relation,
       target,
       score,
-    }) => {
-      const operation =
-        operationForRelation(
-          relation.kind,
-        );
+    } = expansion;
 
-      const futureValue =
-        lookaheadValue(
-          graph,
-          state,
-          target,
-          lens,
-        );
-       const carryValue =
-        inheritanceValue(
-         graph,
-         relation,
-         state,
-         );
-      const targetLabel =
-        eventLabel(
-          graph,
-          target,
-        );
+    const operation =
+      operationForRelation(relation.kind);
 
-      const setupValue =
-        setupValueForRelation(
-          graph,
-          relation,
-          state,
-        );
+    const futureValue =
+      lookaheadValue(
+        graph,
+        state,
+        target,
+        lens,
+      );
 
-      const recurringAffinity =
-        persistentSignalAffinity(
-          targetLabel,
-          graph.recurringSignals,
-        );
+    const carryValue =
+      inheritanceValue(
+        graph,
+        relation,
+        state,
+      );
 
-      const tensionAffinity =
-        persistentSignalAffinity(
-          targetLabel,
-          graph.unresolvedTensions,
-        );
+    const targetLabel =
+      eventLabel(
+        graph,
+        target,
+      );
 
-      const resolution =
-        resolutionAffinity(
-          graph,
-          relation,
-          state,
-        );
+    const setupValue =
+      setupValueForRelation(
+        graph,
+        relation,
+        state,
+      );
 
-      const nextActiveTensions =
-        unique([
-          ...state.activeTensionKeys,
-          ...(
-            relation.kind ===
-              "contrasts" ||
-            relation.kind ===
-              "changes" ||
-            relation.kind ===
-              "recontextualizes"
-          )
-            ? [
-                relationKey(
-                  relation,
-                ),
-              ]
-            : [],
-        ]).filter(
-          (key) =>
-            !resolution.resolvedKeys.includes(
-              key,
-            ),
-        );
+    const recurringAffinity =
+      persistentSignalAffinity(
+        targetLabel,
+        graph.recurringSignals,
+      );
 
-      const nextResolvedTensions =
-        unique([
-          ...state.resolvedTensionKeys,
-          ...resolution.resolvedKeys,
-        ]);
+    const tensionAffinity =
+      persistentSignalAffinity(
+        targetLabel,
+        graph.unresolvedTensions,
+      );
 
-      const nextQuestionText =
-        nextQuestion(
-          relation,
-        );
+    const resolution =
+      resolutionAffinity(
+        graph,
+        relation,
+        state,
+      );
 
-      const step:
-        LatentMovieTrajectoryStep =
+    const nextActiveTensions =
+      unique([
+        ...state.activeTensionKeys,
+        ...(relation.kind === "contrasts" ||
+        relation.kind === "changes" ||
+        relation.kind === "recontextualizes"
+          ? [relationKey(relation)]
+          : []),
+      ]).filter(
+        (key) =>
+          !resolution.resolvedKeys.includes(key),
+      );
+
+    const nextResolvedTensions =
+      unique([
+        ...state.resolvedTensionKeys,
+        ...resolution.resolvedKeys,
+      ]);
+
+    const nextQuestionText =
+      nextQuestion(relation);
+
+    return {
+      steps: [
+        ...state.steps,
         {
-          order:
-            state.steps.length +
-            1,
-
+          order: state.steps.length + 1,
           operation,
-
           eventIds: [
             currentEventId,
             target,
           ],
-
           viewerChange:
             semanticTurn(
               graph,
               relation,
             ),
-
           nextQuestion:
-          nextQuestionText,
-           };
+            nextQuestionText,
+        },
+      ],
 
-      return {
-        steps: [
-          ...state.steps,
-          step,
-        ],
+      usedEventIds: unique([
+        ...state.usedEventIds,
+        target,
+      ]),
 
-        usedEventIds:
-          unique([
-            ...state.usedEventIds,
+      usedRelationKeys: unique([
+        ...state.usedRelationKeys,
+        relationKey(relation),
+      ]),
+
+      establishedEventIds: unique([
+        ...state.establishedEventIds,
+        currentEventId,
+        target,
+      ]),
+
+      semanticTurnKeys: unique([
+        ...state.semanticTurnKeys,
+        semanticTransitionKey(
+          graph,
+          relation,
+        ),
+      ]),
+
+      activeTensionKeys:
+        nextActiveTensions,
+
+      resolvedTensionKeys:
+        nextResolvedTensions,
+
+      setupEventIds: unique([
+        ...state.setupEventIds,
+        ...(setupValue >= 0.56
+          ? [target]
+          : []),
+      ]),
+
+      recurringThreadKeys: unique([
+        ...state.recurringThreadKeys,
+        ...(recurringAffinity >= 0.35
+          ? [`recurrence:${target}`]
+          : []),
+      ]),
+
+      unresolvedQuestionKeys:
+        unique([
+          ...state.unresolvedQuestionKeys,
+          nextQuestionText.toLowerCase(),
+        ]),
+
+      endpointPressure: metric(
+        state.endpointPressure * 0.72 +
+          terminality(
+            graph,
             target,
-          ]),
+          ) * 0.18 +
+          resolution.score * 0.1,
+      ),
 
-        usedRelationKeys:
-          unique([
-            ...state.usedRelationKeys,
-            relationKey(
-              relation,
-            ),
-          ]),
+      continuationValue: metric(
+        state.continuationValue * 0.62 +
+          carryValue * 0.22 +
+          (
+            recurringAffinity * 0.4 +
+            setupValue * 0.3 +
+            tensionAffinity * 0.2
+          ) * 0.2,
+      ),
 
-        establishedEventIds:
-          unique([
-            ...state.establishedEventIds,
-            currentEventId,
-            target,
-          ]),
+      lookaheadValue: metric(
+        state.lookaheadValue * 0.62 +
+          futureValue * 0.38,
+      ),
 
-        semanticTurnKeys:
-          unique([
-            ...state.semanticTurnKeys,
-            semanticTransitionKey(
-              graph,
-              relation,
-            ),
-          ]),
-
-        activeTensionKeys:
-          nextActiveTensions,
-
-        resolvedTensionKeys:
-          nextResolvedTensions,
-
-        setupEventIds:
-          unique([
-            ...state.setupEventIds,
-            ...(setupValue >= 0.56
-              ? [target]
-              : []),
-          ]),
-
-        recurringThreadKeys:
-          unique([
-            ...state.recurringThreadKeys,
-            ...(recurringAffinity >=
-            0.35
-              ? [
-                  `recurrence:${target}`,
-                ]
-              : []),
-          ]),
-
-        unresolvedQuestionKeys:
-         unique([
-    ...state.unresolvedQuestionKeys,
-    nextQuestionText.toLowerCase(),
-          ]),
-
-        endpointPressure:
-          metric(
-            state.endpointPressure *
-              0.72 +
-              terminality(
-                graph,
-                target,
-              ) *
-                0.18 +
-              resolution.score *
-                0.1,
-          ),
-
-       continuationValue:
-  metric(
-    state.continuationValue *
-      0.62 +
-      carryValue *
-      0.22 +
-      (
-      recurringAffinity *
-        0.4 +
-      setupValue *
-        0.3 +
-      tensionAffinity *
-        0.2
-         ) *
-        0.2,
-          ),
-
-         lookaheadValue:
-         metric(
-    state.lookaheadValue *
-      0.62 +
-    futureValue *
-      0.38,
-          ),
-
-        lensPressure:
-          metric(
-            state.lensPressure *
-              0.72 +
-              relationPreference(
-                relation.kind,
-                lens,
-              ) *
-                0.28,
-          ),
+      lensPressure: metric(
+        state.lensPressure * 0.72 +
+          relationPreference(
+            relation.kind,
+            lens,
+          ) * 0.28,
+      ),
 
       score:
-      state.score +
-      score +
-      carryValue *
-     0.14 +
-      resolution.score *
-     0.1 +
-        futureValue *
-       0.08,
-      };
-    },
-  );
+        state.score +
+        score +
+        carryValue * 0.14 +
+        resolution.score * 0.1 +
+        futureValue * 0.08,
+    };
+  });
 }
 function choosePayoffEvent(
   graph: RealityGraph,
@@ -2195,8 +2647,42 @@ function choosePayoffEvent(
       state.usedEventIds,
     );
 
+  /*
+   * MATERIAL-FIRST PATHS
+   *
+   * Material trajectories are built from supplied presentation
+   * cuts rather than semantic relation chains.
+   *
+   * Their payoff must therefore come from the material already
+   * accumulated by THIS trajectory.
+   *
+   * A relation-derived trajectory has usedRelationKeys.
+   * A material trajectory does not.
+   */
+  const materialPath =
+    state.usedRelationKeys.length === 0 &&
+    state.steps.length >= 3;
+
+  const candidateEvents =
+    materialPath
+      ? graph.events.filter(
+          (item) =>
+            used.has(
+              item.id,
+            ) &&
+            clean(
+              item.label,
+            ),
+        )
+      : graph.events.filter(
+          (item) =>
+            clean(
+              item.label,
+            ),
+        );
+
   const candidates =
-    graph.events
+    candidateEvents
       .map(
         (item) => {
           const endpoint =
@@ -2282,10 +2768,6 @@ function choosePayoffEvent(
               item.id,
             );
 
-          /*
-           * A payoff becomes much stronger when it is connected
-           * to the semantic work already performed by the trajectory.
-           */
           const payoffRelations =
             incidentRelations(
               graph,
@@ -2323,10 +2805,6 @@ function choosePayoffEvent(
               ),
             );
 
-          /*
-           * Reward endpoints that resolve something the trajectory
-           * actually created, rather than unrelated terminal facts.
-           */
           const resolvesActive =
             state.activeTensionKeys.some(
               (tensionKey) => {
@@ -2389,11 +2867,6 @@ function choosePayoffEvent(
               ? 0.22
               : 0;
 
-          /*
-           * A payoff should not erase every possible future thread.
-           * Leave a little continuation value alive unless this is
-           * genuinely an endpoint.
-           */
           const continuation =
             metric(
               state.continuationValue *
@@ -2428,23 +2901,67 @@ function choosePayoffEvent(
               ? 0.08
               : 0;
 
+          /*
+           * Recentness matters for material films.
+           *
+           * A payoff should usually land on something already
+           * accumulated near the end of the supplied sequence,
+           * not merely on the globally strongest fact.
+           */
+          const recency =
+            state.usedEventIds.length
+              ? Math.max(
+                  0,
+                  state.usedEventIds.indexOf(
+                    item.id,
+                  ) + 1,
+                ) /
+                Math.max(
+                  1,
+                  state.usedEventIds.length,
+                )
+              : 0;
+
+          const materialRecencyBonus =
+            materialPath
+              ? recency *
+                0.22
+              : 0;
+
+          /*
+           * Material paths favor the trajectory's own supplied
+           * evidence over global graph endpoint strength.
+           */
+          const materialBoundaryBonus =
+            materialPath
+              ? 0.18
+              : 0;
+
           return {
             id:
               item.id,
 
             score:
               endpoint *
-                0.18 +
+                (materialPath
+                  ? 0.1
+                  : 0.18) +
               terminal *
-                0.16 +
+                (materialPath
+                  ? 0.12
+                  : 0.16) +
               specificity *
                 0.06 +
               centrality *
                 0.05 +
               preference *
-                0.08 +
+                (materialPath
+                  ? 0.04
+                  : 0.08) +
               connectedPayoff *
-                0.14 +
+                (materialPath
+                  ? 0.08
+                  : 0.14) +
               resolutionValue +
               futureValue *
                 0.08 +
@@ -2455,7 +2972,9 @@ function choosePayoffEvent(
               continuation *
                 0.04 +
               establishedBonus +
-              setupBonus -
+              setupBonus +
+              materialRecencyBonus +
+              materialBoundaryBonus -
               usedPenalty,
           };
         },
@@ -2893,6 +3412,719 @@ function relationPatternKey(
     .join(">");
 }
 
+function materialSeedState(
+  graph: RealityGraph,
+  eventId: string,
+): TrajectoryState {
+  const item = event(graph, eventId);
+
+  if (!item) {
+    return {
+      steps: [],
+      usedEventIds: [],
+      usedRelationKeys: [],
+      establishedEventIds: [],
+      semanticTurnKeys: [],
+      activeTensionKeys: [],
+      resolvedTensionKeys: [],
+      setupEventIds: [],
+      recurringThreadKeys: [],
+      unresolvedQuestionKeys: [],
+      endpointPressure: 0,
+      continuationValue: 0,
+      lookaheadValue: 0,
+      lensPressure: 0,
+      score: 0,
+    };
+  }
+
+  return {
+    steps: [
+      {
+        order: 1,
+        operation: "establish",
+        eventIds: [eventId],
+        viewerChange:
+          `Establish supplied evidence: ${item.label}.`,
+        nextQuestion:
+          "What supplied detail deserves the next cut?",
+      },
+    ],
+    usedEventIds: [eventId],
+    usedRelationKeys: [],
+    establishedEventIds: [eventId],
+    semanticTurnKeys: [],
+    activeTensionKeys: [],
+    resolvedTensionKeys: [],
+    setupEventIds: [],
+    recurringThreadKeys: [],
+    unresolvedQuestionKeys: [],
+    endpointPressure: terminality(graph, eventId),
+    continuationValue: 0,
+    lookaheadValue: 0,
+    lensPressure: 0,
+    score:
+      eventSpecificity(graph, eventId) * 0.4 +
+      graphCentrality(graph, eventId) * 0.25 +
+      terminality(graph, eventId) * 0.1,
+  };
+
+}
+
+function buildMaterialPathVariants(
+  graph: RealityGraph,
+  lens?: string,
+): LatentMovieTrajectoryStep[][] {
+  const tokenSetForLabel = (
+    label: string,
+  ): Set<string> =>
+    new Set(
+      clean(label)
+        .toLowerCase()
+        .split(
+          /[^a-z0-9'-]+/i,
+        )
+        .filter(
+          (token) =>
+            token.length >= 3,
+        ),
+    );
+
+  const tokenOverlap = (
+    a: Set<string>,
+    b: Set<string>,
+  ): number => {
+    if (!a.size || !b.size) {
+      return 0;
+    }
+
+    let hits = 0;
+
+    for (
+      const token of a
+    ) {
+      if (b.has(token)) {
+        hits += 1;
+      }
+    }
+
+    return (
+      hits /
+      Math.max(
+        1,
+        Math.min(
+          a.size,
+          b.size,
+        ),
+      )
+    );
+  };
+
+  /*
+   * A semantic-neighborhood approximation based on supplied labels
+   * and their existing graph relations.
+   *
+   * This is intentionally local and deterministic.
+   * It is NOT a new semantic engine.
+   */
+  const frontierDistance = (
+    a: TrajectoryState,
+    b: TrajectoryState,
+  ): number => {
+    const aEventId =
+      a.steps[
+        a.steps.length - 1
+      ]?.eventIds[
+        a.steps[
+          a.steps.length - 1
+        ]?.eventIds.length - 1
+      ];
+
+    const bEventId =
+      b.steps[
+        b.steps.length - 1
+      ]?.eventIds[
+        b.steps[
+          b.steps.length - 1
+        ]?.eventIds.length - 1
+      ];
+
+    if (
+      !aEventId ||
+      !bEventId
+    ) {
+      return 1;
+    }
+
+    const aItem =
+      event(
+        graph,
+        aEventId,
+      );
+
+    const bItem =
+      event(
+        graph,
+        bEventId,
+      );
+
+    if (
+      !aItem ||
+      !bItem
+    ) {
+      return 1;
+    }
+
+    const wordingOverlap =
+      tokenOverlap(
+        tokenSetForLabel(
+          aItem.label,
+        ),
+        tokenSetForLabel(
+          bItem.label,
+        ),
+      );
+
+    const relation =
+      relationBetween(
+        graph,
+        aEventId,
+        bEventId,
+      );
+
+    const relationProximity =
+      relation
+        ? metric(
+            relation.strength,
+          )
+        : 0;
+
+    return metric(
+      1 -
+        (
+          wordingOverlap *
+            0.62 +
+          relationProximity *
+            0.38
+        ),
+    );
+  };
+
+  /*
+   * Seed selection is intentionally diverse.
+   *
+   * We do not want the eight strongest events to all come from one
+   * semantic neighborhood.
+   */
+  const seedPool =
+    graph.events
+      .filter(
+        (item) =>
+          clean(
+            item.label,
+          ),
+      )
+      .map(
+        (item) => ({
+          id: item.id,
+          score:
+            eventSpecificity(
+              graph,
+              item.id,
+            ) *
+              0.34 +
+            graphCentrality(
+              graph,
+              item.id,
+            ) *
+              0.12 +
+            terminality(
+              graph,
+              item.id,
+            ) *
+              0.08 +
+            persistentSignalAffinity(
+              item.label,
+              graph.recurringSignals,
+            ) *
+              0.14 +
+            persistentSignalAffinity(
+              item.label,
+              graph.unresolvedTensions,
+            ) *
+              0.1 +
+            clean(
+              item.label,
+            ).length *
+              0.002,
+        }),
+      )
+      .sort(
+        (a, b) =>
+          b.score -
+          a.score,
+      );
+
+  const seeds: {
+    id: string;
+    score: number;
+  }[] = [];
+
+  for (
+    const candidate of
+      seedPool
+  ) {
+    if (
+      seeds.length >= 8
+    ) {
+      break;
+    }
+
+    const candidateLabel =
+      clean(
+        event(
+          graph,
+          candidate.id,
+        )?.label,
+      );
+
+    const candidateTokens =
+      tokenSetForLabel(
+        candidateLabel,
+      );
+
+    const tooSimilar =
+      seeds.some(
+        (selected) => {
+          const selectedLabel =
+            clean(
+              event(
+                graph,
+                selected.id,
+              )?.label,
+            );
+
+          const overlap =
+            tokenOverlap(
+              candidateTokens,
+              tokenSetForLabel(
+                selectedLabel,
+              ),
+            );
+
+          const relation =
+            relationBetween(
+              graph,
+              candidate.id,
+              selected.id,
+            );
+
+          const relationStrength =
+            relation
+              ? metric(
+                  relation.strength,
+                )
+              : 0;
+
+          return (
+            overlap >= 0.58 ||
+            (
+              overlap >= 0.38 &&
+              relationStrength >=
+                0.55
+            )
+          );
+        },
+      );
+
+    if (
+      tooSimilar &&
+      seeds.length < 3
+    ) {
+      /*
+       * Keep the first few strongest seeds even when the graph
+       * naturally contains a cluster. This prevents sparse worlds
+       * from collapsing to nothing.
+       */
+      continue;
+    }
+
+    seeds.push(
+      candidate,
+    );
+  }
+
+  /*
+   * Sparse-world safety:
+   * if diversity filtering produced too few seeds, fill from the
+   * original ranked pool.
+   */
+  if (
+    seeds.length < 3
+  ) {
+    for (
+      const candidate of
+        seedPool
+    ) {
+      if (
+        seeds.length >=
+        Math.min(
+          8,
+          seedPool.length,
+        )
+      ) {
+        break;
+      }
+
+      if (
+        seeds.some(
+          (seed) =>
+            seed.id ===
+            candidate.id,
+        )
+      ) {
+        continue;
+      }
+
+      seeds.push(
+        candidate,
+      );
+    }
+  }
+
+  let beam: TrajectoryState[] =
+    seeds.map(
+      (seed) =>
+        materialSeedState(
+          graph,
+          seed.id,
+        ),
+    );
+
+  const maxDepth = 5;
+
+  for (
+    let depth = 0;
+    depth < maxDepth;
+    depth += 1
+  ) {
+    const expanded:
+      TrajectoryState[] =
+      beam.flatMap(
+        (state) => {
+          const nextStates:
+            TrajectoryState[] =
+            [];
+
+          for (
+            const item of
+              graph.events
+          ) {
+            if (
+              !clean(
+                item.label,
+              )
+            ) {
+              continue;
+            }
+
+            if (
+              state.usedEventIds.includes(
+                item.id,
+              )
+            ) {
+              continue;
+            }
+
+            const continuation =
+              materialContinuationScore(
+                graph,
+                state,
+                item.id,
+                lens,
+              );
+
+            if (
+              continuation <
+              0.2
+            ) {
+              continue;
+            }
+
+            const itemLabel =
+              clean(
+                item.label,
+              );
+
+            const step:
+              LatentMovieTrajectoryStep =
+              {
+                order:
+                  state.steps.length +
+                  1,
+
+                operation:
+                  "reveal",
+
+                eventIds: [
+                  item.id,
+                ],
+
+                viewerChange:
+                  `Advance to another supplied detail: ${itemLabel}.`,
+
+                nextQuestion:
+                  "What supplied detail deserves the next cut?",
+              };
+
+            const nextState:
+              TrajectoryState =
+              {
+                steps: [
+                  ...state.steps,
+                  step,
+                ],
+
+                usedEventIds:
+                  unique([
+                    ...state.usedEventIds,
+                    item.id,
+                  ]),
+
+                usedRelationKeys: [
+                  ...state.usedRelationKeys,
+                ],
+
+                establishedEventIds:
+                  unique([
+                    ...state.establishedEventIds,
+                    item.id,
+                  ]),
+
+                semanticTurnKeys: [
+                  ...state.semanticTurnKeys,
+                ],
+
+                activeTensionKeys: [
+                  ...state.activeTensionKeys,
+                ],
+
+                resolvedTensionKeys: [
+                  ...state.resolvedTensionKeys,
+                ],
+
+                setupEventIds:
+                  unique([
+                    ...state.setupEventIds,
+                    item.id,
+                  ]),
+
+                recurringThreadKeys:
+                  unique([
+                    ...state.recurringThreadKeys,
+                    ...(persistentSignalAffinity(
+                      itemLabel,
+                      graph.recurringSignals,
+                    ) >= 0.35
+                      ? [
+                          `recurrence:${item.id}`,
+                        ]
+                      : []),
+                  ]),
+
+                unresolvedQuestionKeys:
+                  unique([
+                    ...state.unresolvedQuestionKeys,
+                    "what supplied detail deserves the next cut?",
+                  ]),
+
+                endpointPressure:
+                  metric(
+                    state.endpointPressure *
+                      0.72 +
+                      terminality(
+                        graph,
+                        item.id,
+                      ) *
+                        0.18,
+                  ),
+
+                continuationValue:
+                  metric(
+                    state.continuationValue *
+                      0.62 +
+                      continuation *
+                        0.38,
+                  ),
+
+                lookaheadValue:
+                  metric(
+                    state.lookaheadValue *
+                      0.62 +
+                      lookaheadValue(
+                        graph,
+                        state,
+                        item.id,
+                        lens,
+                      ) *
+                        0.38,
+                  ),
+
+                lensPressure:
+                  state.lensPressure,
+
+                score:
+                  state.score +
+                  continuation *
+                    0.82 +
+                  lookaheadValue(
+                    graph,
+                    state,
+                    item.id,
+                    lens,
+                  ) *
+                    0.08,
+              };
+
+            nextStates.push(
+              nextState,
+            );
+          }
+
+          return nextStates;
+        },
+      );
+
+    /*
+     * Rank by quality first, then select a diverse beam.
+     *
+     * This is the critical anti-Mud-Wars step.
+     *
+     * We keep high-quality paths, but we refuse to spend the entire
+     * beam on paths whose CURRENT frontier represents essentially
+     * the same semantic neighborhood.
+     *
+     * Older cuts are deliberately not compared here, so a later
+     * callback can still return after the sequence has moved on.
+     */
+    const ranked =
+      expanded
+        .map(
+          (state) => ({
+            state,
+            quality:
+              state.score +
+              state.continuationValue *
+                0.16 +
+              state.lookaheadValue *
+                0.16,
+          }),
+        )
+        .sort(
+          (a, b) =>
+            b.quality -
+            a.quality,
+        );
+
+    const diverseBeam:
+      TrajectoryState[] =
+      [];
+
+    for (
+      const entry of
+        ranked
+    ) {
+      if (
+        diverseBeam.length >=
+        12
+      ) {
+        break;
+      }
+
+      const candidate =
+        entry.state;
+
+      const tooSimilar =
+        diverseBeam.some(
+          (selected) =>
+            frontierDistance(
+              candidate,
+              selected,
+            ) <
+            0.38,
+        );
+
+      if (
+        tooSimilar &&
+        diverseBeam.length <
+          4
+      ) {
+        continue;
+      }
+
+      diverseBeam.push(
+        candidate,
+      );
+    }
+
+    /*
+     * If the graph is unusually sparse, fill remaining beam slots
+     * by quality so the search never collapses purely because of
+     * the diversity heuristic.
+     */
+    if (
+      diverseBeam.length <
+      Math.min(
+        12,
+        ranked.length,
+      )
+    ) {
+      for (
+        const entry of
+          ranked
+      ) {
+        if (
+          diverseBeam.length >=
+          12
+        ) {
+          break;
+        }
+
+        if (
+          diverseBeam.includes(
+            entry.state,
+          )
+        ) {
+          continue;
+        }
+
+        diverseBeam.push(
+          entry.state,
+        );
+      }
+    }
+
+    beam =
+      diverseBeam;
+  }
+
+  return beam
+    .map(
+      (state) =>
+        normalizeTrajectory(
+          buildTrajectoryFromState(
+            graph,
+            state,
+            lens,
+          ),
+        ),
+    )
+    .filter(
+      (trajectory) =>
+        trajectory.length >=
+        3,
+    );
+}
 function buildPathVariants(
   graph: RealityGraph,
   focus: RealityRelation,
@@ -3122,6 +4354,7 @@ function buildPathVariants(
       12,
     );
 }
+
 function buildTrajectoryFingerprint(
   graph: RealityGraph,
   state: TrajectoryState,
@@ -3212,255 +4445,169 @@ function scoreCandidate(
   LatentMovieCandidate,
   "id" | "lens" | "distinctiveness"
 > {
-  const eventIds =
-    unique(
-      trajectory.flatMap(
-        (step) =>
-          step.eventIds,
+  const eventIds = unique(
+    trajectory.flatMap((step) => step.eventIds),
+  );
+
+  const relationKinds = unique(
+    trajectory
+      .slice(1)
+      .map((step) => {
+        if (step.eventIds.length < 2) {
+          return undefined;
+        }
+
+        const relation = relationBetween(
+          graph,
+          step.eventIds[0],
+          step.eventIds[step.eventIds.length - 1],
+        );
+
+        return relation?.kind;
+      })
+      .filter(
+        (
+          kind,
+        ): kind is RealityRelation["kind"] =>
+          Boolean(kind),
       ),
-    );
-    
-  const relationKinds =
-    unique(
-      trajectory
-        .slice(1)
-        .map(
-          (step) => {
-            if (
-              step.eventIds.length <
-              2
-            ) {
-              return undefined;
-            }
+  );
 
-            const relation =
-              relationBetween(
-                graph,
-                step.eventIds[0],
-                step.eventIds[
-                  step.eventIds.length -
-                    1
-                ],
-              );
-
-            return relation?.kind;
-          },
-        )
-        .filter(
-          (
-            kind,
-          ): kind is RealityRelation["kind"] =>
-            Boolean(kind),
-        ),
-    );
-
-  const payoffStep =
-    trajectory.find(
-      (step) =>
-        step.operation ===
-        "payoff",
-    );
+  const payoffStep = trajectory.find(
+    (step) => step.operation === "payoff",
+  );
 
   const payoffId =
     payoffStep?.eventIds[
-      payoffStep.eventIds.length -
-        1
+      payoffStep.eventIds.length - 1
     ];
 
-  const payoff =
-    clean(
-      event(
-        graph,
-        payoffId ?? "",
-      )?.label,
-    );
+  const payoff = clean(
+    event(
+      graph,
+      payoffId ?? "",
+    )?.label,
+  );
 
-  const evidence =
-    unique(
-      eventIds
-        .map(
-          (id) =>
-            clean(
-              event(
-                graph,
-                id,
-              )?.label,
-            ),
-        )
-        .filter(Boolean),
-    );
-
-  const semanticTurns =
-    trajectory.filter(
-      (step) =>
-        step.operation !==
-          "establish" &&
-        step.operation !==
-          "payoff",
-    );
-
-  const relations =
-    semanticTurns
-      .map(
-        (step) =>
-          step.eventIds.length >=
-            2
-            ? relationBetween(
-                graph,
-                step.eventIds[0],
-                step.eventIds[
-                  step.eventIds.length -
-                    1
-                ],
-              )
-            : undefined,
-      )
-      .filter(
-        (
-          relation,
-        ): relation is RealityRelation =>
-          Boolean(relation),
-      );
-
-  const relationStrengths =
-    relations
-      .map(
-        (relation) =>
-          relation.strength,
-      )
-      .filter(
-        Number.isFinite,
-      );
-
-  const grounding =
-    relationStrengths.length
-      ? relationStrengths.reduce(
-          (
-            sum,
-            value,
-          ) =>
-            sum + value,
-          0,
-        ) /
-        relationStrengths.length
-      : focus.strength;
-
-  const specificity =
-    metric(
-      evidence.reduce(
-        (
-          sum,
-          label,
-        ) =>
-          sum +
-          eventSpecificity(
-            graph,
-            graph.events.find(
-              (
-                item,
-              ) =>
-                item.label ===
-                label,
-            )?.id ?? "",
-          ),
-        0,
-      ) /
-        Math.max(
-          1,
-          evidence.length,
+  const evidence = unique(
+    eventIds
+      .map((id) =>
+        clean(
+          event(graph, id)?.label,
         ),
+      )
+      .filter(Boolean),
+  );
+
+  const semanticTurns = trajectory.filter(
+    (step) =>
+      step.operation !== "establish" &&
+      step.operation !== "payoff",
+  );
+
+  const relations = semanticTurns
+    .map((step) =>
+      step.eventIds.length >= 2
+        ? relationBetween(
+            graph,
+            step.eventIds[0],
+            step.eventIds[step.eventIds.length - 1],
+          )
+        : undefined,
+    )
+    .filter(
+      (
+        relation,
+      ): relation is RealityRelation =>
+        Boolean(relation),
     );
 
-  const relationDiversity =
-    metric(
-      Math.min(
-        1,
-        relationKinds.length /
-          4,
-      ),
-    );
+  const relationStrengths = relations
+    .map((relation) => relation.strength)
+    .filter(Number.isFinite);
 
-  const operationDiversity =
-    metric(
-      Math.min(
-        1,
-        unique(
-          trajectory.map(
-            (step) =>
-              step.operation,
-          ),
-        ).length /
-          4,
-      ),
-    );
+  const grounding = relationStrengths.length
+    ? relationStrengths.reduce(
+        (sum, value) => sum + value,
+        0,
+      ) / relationStrengths.length
+    : focus.strength;
+
+  const specificity = metric(
+    evidence.reduce(
+      (sum, label) =>
+        sum +
+        eventSpecificity(
+          graph,
+          graph.events.find(
+            (item) => item.label === label,
+          )?.id ?? "",
+        ),
+      0,
+    ) / Math.max(1, evidence.length),
+  );
+
+  const relationDiversity = metric(
+    Math.min(
+      1,
+      relationKinds.length / 4,
+    ),
+  );
+
+  const operationDiversity = metric(
+    Math.min(
+      1,
+      unique(
+        trajectory.map(
+          (step) => step.operation,
+        ),
+      ).length / 4,
+    ),
+  );
 
   /*
    * CUMULATIVE SEMANTIC MOVEMENT
-   *
-   * A trajectory earns this score when later relations do something
-   * to meaning already established earlier in the path.
    */
   const semanticTransitionKeys =
-    semanticTurns.map(
-      (step) => {
-        if (
-          step.eventIds.length <
-          2
-        ) {
-          return "";
-        }
+    semanticTurns.map((step) => {
+      if (step.eventIds.length < 2) {
+        return "";
+      }
 
-        const relation =
-          relationBetween(
+      const relation = relationBetween(
+        graph,
+        step.eventIds[0],
+        step.eventIds[step.eventIds.length - 1],
+      );
+
+      return relation
+        ? semanticTransitionKey(
             graph,
-            step.eventIds[0],
-            step.eventIds[
-              step.eventIds.length -
-                1
-            ],
-          );
+            relation,
+          )
+        : "";
+    });
 
-        return relation
-          ? semanticTransitionKey(
-              graph,
-              relation,
-            )
-          : "";
-      },
-    );
+  const uniqueSemanticTransitions = unique(
+    semanticTransitionKeys.filter(Boolean),
+  );
 
-  const uniqueSemanticTransitions =
-    unique(
-      semanticTransitionKeys.filter(
-        Boolean,
-      ),
-    );
-
-  const semanticMovement =
-    metric(
+  const semanticMovement = metric(
+    Math.min(
+      1,
+      uniqueSemanticTransitions.length / 4,
+    ) * 0.52 +
       Math.min(
         1,
-        uniqueSemanticTransitions.length /
-          4,
+        semanticTurns.length / 4,
       ) *
-        0.52 +
-        Math.min(
-          1,
-          semanticTurns.length /
-            4,
-        ) *
-          0.2 +
-        relationDiversity *
-          0.14 +
-        operationDiversity *
-          0.14,
-    );
+        0.2 +
+      relationDiversity * 0.14 +
+      operationDiversity * 0.14,
+  );
 
   /*
    * THREAD CONTINUITY
-   *
-   * Reward a trajectory that keeps returning to a meaningful
-   * supplied thread instead of jumping through unrelated evidence.
    */
   const recurringLabels =
     graph.recurringSignals;
@@ -3472,367 +4619,273 @@ function scoreCandidate(
             persistentSignalAffinity(
               label,
               recurringLabels,
-            ) >=
-            0.35,
+            ) >= 0.35,
         )
       : [];
 
-  const recurrenceContinuity =
-    metric(
-      Math.min(
-        1,
-        recurringEvidence.length /
-          2,
-      ) *
-        0.55 +
-        (
-          trajectory.some(
-            (step) =>
-              step.operation ===
-              "recur",
-          )
-            ? 0.3
-            : 0
-        ) +
-        (
-          recurringEvidence.length &&
-          semanticTurns.length
-            ? 0.15
-            : 0
-        ),
-    );
+  const recurrenceContinuity = metric(
+    Math.min(
+      1,
+      recurringEvidence.length / 2,
+    ) *
+      0.55 +
+      (trajectory.some(
+        (step) =>
+          step.operation === "recur",
+      )
+        ? 0.3
+        : 0) +
+      (recurringEvidence.length &&
+      semanticTurns.length
+        ? 0.15
+        : 0),
+  );
 
   /*
    * TENSION DEVELOPMENT
-   *
-   * A strong sequence should not merely contain relations.
-   * It should create, preserve, deepen, or resolve something.
    */
   const tensionBearingRelations =
     relations.filter(
       (relation) =>
-        relation.kind ===
-          "contrasts" ||
-        relation.kind ===
-          "changes" ||
-        relation.kind ===
-          "recontextualizes" ||
-        relation.kind ===
-          "causes" ||
-        relation.kind ===
-          "after" ||
-        relation.kind ===
-          "before",
+        relation.kind === "contrasts" ||
+        relation.kind === "changes" ||
+        relation.kind === "recontextualizes" ||
+        relation.kind === "causes" ||
+        relation.kind === "after" ||
+        relation.kind === "before",
     );
 
-  const tensionKeys =
-    unique(
-      tensionBearingRelations.map(
-        (relation) =>
-          relationKey(
-            relation,
-          ),
-      ),
-    );
+  const tensionKeys = unique(
+    tensionBearingRelations.map(
+      (relation) =>
+        relationKey(relation),
+    ),
+  );
 
-  const tensionDevelopment =
-    metric(
-      Math.min(
-        1,
-        tensionKeys.length /
-          3,
-      ) *
-        0.5 +
-        (
-          tensionBearingRelations.length >=
-          2
-            ? 0.22
-            : 0
-        ) +
-        (
-          payoff &&
-          tensionBearingRelations.length
-            ? 0.16
-            : 0
-        ) +
-        (
-          unique(
-            tensionBearingRelations.map(
-              (relation) =>
-                relation.kind,
-            ),
-          ).length >
-          1
-            ? 0.12
-            : 0
+  const tensionDevelopment = metric(
+    Math.min(
+      1,
+      tensionKeys.length / 3,
+    ) *
+      0.5 +
+      (tensionBearingRelations.length >= 2
+        ? 0.22
+        : 0) +
+      (payoff &&
+      tensionBearingRelations.length
+        ? 0.16
+        : 0) +
+      (unique(
+        tensionBearingRelations.map(
+          (relation) =>
+            relation.kind,
         ),
-    );
+      ).length > 1
+        ? 0.12
+        : 0),
+  );
 
   /*
    * SETUP → PAYOFF LINKAGE
-   *
-   * The endpoint is stronger when it is connected to something
-   * already established by the trajectory rather than simply being
-   * terminal in isolation.
    */
-  const payoffConnected =
-    payoffId
-      ? incidentRelations(
-          graph,
-          payoffId,
-        ).filter(
-          (relation) =>
-            eventIds.includes(
-              relation.from,
-            ) ||
-            eventIds.includes(
-              relation.to,
-            ),
-        )
-      : [];
+  const payoffConnected = payoffId
+    ? incidentRelations(
+        graph,
+        payoffId,
+      ).filter(
+        (relation) =>
+          eventIds.includes(
+            relation.from,
+          ) ||
+          eventIds.includes(
+            relation.to,
+          ),
+      )
+    : [];
 
-  const payoffLinkage =
-    metric(
-      (
-        payoff
-          ? 0.22
-          : 0
+  const payoffLinkage = metric(
+    (payoff ? 0.22 : 0) +
+      Math.min(
+        0.42,
+        payoffConnected.length * 0.12,
       ) +
-        Math.min(
-          0.42,
-          payoffConnected.length *
-            0.12,
-        ) +
-        terminality(
-          graph,
-          payoffId ?? "",
-        ) *
-          0.2 +
-        (
-          payoffConnected.some(
-            (relation) =>
-              relation.kind ===
-                "changes" ||
-              relation.kind ===
-                "recontextualizes" ||
-              relation.kind ===
-                "contrasts" ||
-              relation.kind ===
-                "causes" ||
-              relation.kind ===
-                "repeats",
-          )
-            ? 0.16
-            : 0
-        ),
-    );
+      terminality(
+        graph,
+        payoffId ?? "",
+      ) *
+        0.2 +
+      (payoffConnected.some(
+        (relation) =>
+          relation.kind === "changes" ||
+          relation.kind === "recontextualizes" ||
+          relation.kind === "contrasts" ||
+          relation.kind === "causes" ||
+          relation.kind === "repeats",
+      )
+        ? 0.16
+        : 0),
+  );
 
   /*
    * INFORMATION VALUE
    */
-  const informationValue =
-    metric(
-      grounding *
-        0.24 +
-        semanticMovement *
-          0.2 +
-        specificity *
-          0.12 +
-        tensionDevelopment *
-          0.14 +
-        recurrenceContinuity *
-          0.08 +
-        payoffLinkage *
-          0.12 +
-        relationDiversity *
-          0.05 +
-        operationDiversity *
-          0.05,
-    );
+  const informationValue = metric(
+    grounding * 0.24 +
+      semanticMovement * 0.2 +
+      specificity * 0.12 +
+      tensionDevelopment * 0.14 +
+      recurrenceContinuity * 0.08 +
+      payoffLinkage * 0.12 +
+      relationDiversity * 0.05 +
+      operationDiversity * 0.05,
+  );
 
   const contrastOrReframe =
     trajectory.some(
       (step) =>
-        step.operation ===
-          "contrast" ||
-        step.operation ===
-          "reframe",
+        step.operation === "contrast" ||
+        step.operation === "reframe",
     );
 
   const convergence =
     trajectory.some(
       (step) =>
-        step.operation ===
-        "converge",
+        step.operation === "converge",
     );
 
   const recurrence =
     trajectory.some(
       (step) =>
-        step.operation ===
-        "recur",
+        step.operation === "recur",
     );
 
   const consequence =
     trajectory.some(
       (step) =>
-        step.operation ===
-        "consequence",
+        step.operation === "consequence",
     );
 
-  const uncertainty =
-    metric(
-      Math.min(
-        1,
-        semanticTurns.length /
-          4,
+  const uncertainty = metric(
+    Math.min(
+      1,
+      semanticTurns.length / 4,
+    ) *
+      0.28 +
+      (contrastOrReframe ? 0.2 : 0) +
+      (convergence ? 0.12 : 0) +
+      (recurrence ? 0.1 : 0) +
+      (consequence ? 0.1 : 0) +
+      tensionDevelopment * 0.2,
+  );
+
+  const attentionPotential = metric(
+    informationValue * 0.38 +
+      uncertainty * 0.28 +
+      semanticMovement * 0.16 +
+      specificity * 0.08 +
+      operationDiversity * 0.1,
+  );
+
+  const consequencePotential = metric(
+    payoffLinkage * 0.52 +
+      tensionDevelopment * 0.18 +
+      semanticMovement * 0.12 +
+      (consequence ? 0.1 : 0) +
+      terminality(
+        graph,
+        payoffId ?? "",
       ) *
-        0.28 +
-        (
-          contrastOrReframe
-            ? 0.2
-            : 0
-        ) +
-        (
-          convergence
-            ? 0.12
-            : 0
-        ) +
-        (
-          recurrence
-            ? 0.1
-            : 0
-        ) +
-        (
-          consequence
-            ? 0.1
-            : 0
-        ) +
-        (
-          tensionDevelopment *
-          0.2
-        ),
-    );
+        0.08,
+  );
 
-  const attentionPotential =
-    metric(
-      informationValue *
-        0.38 +
-        uncertainty *
-          0.28 +
-        semanticMovement *
-          0.16 +
-        specificity *
-          0.08 +
-        operationDiversity *
-          0.1,
-    );
-
-  const consequencePotential =
-    metric(
-      payoffLinkage *
-        0.52 +
-        tensionDevelopment *
-          0.18 +
-        semanticMovement *
-          0.12 +
-        (
-          consequence
-            ? 0.1
-            : 0
-        ) +
-        terminality(
-          graph,
-          payoffId ?? "",
+  const callbackPotential = metric(
+    graph.recurringSignals.length
+      ? Math.min(
+          1,
+          graph.recurringSignals.length / 4,
         ) *
-          0.08,
-    );
-
-  const callbackPotential =
-    metric(
-      graph.recurringSignals
-        .length
-        ? Math.min(
-            1,
-            graph.recurringSignals.length /
-              4,
-          ) *
-            0.38 +
-            recurrenceContinuity *
-              0.36 +
-            (
-              recurrence
-                ? 0.26
-                : 0
-            )
-        : recurrence
-          ? 0.32
-          : 0.04,
-    );
+          0.38 +
+          recurrenceContinuity * 0.36 +
+          (recurrence ? 0.26 : 0)
+      : recurrence
+        ? 0.32
+        : 0.04,
+  );
 
   const repeatedEvents =
     eventIds.length -
-    unique(
-      eventIds,
-    ).length;
+    unique(eventIds).length;
 
-  const repetitionRisk =
-    metric(
-      Math.max(
-        0,
-        repeatedEvents *
-          0.12,
-      ),
+  const repeatedEventTransitions =
+    trajectory.reduce(
+      (sum, step, index) => {
+        if (index === 0) {
+          return sum;
+        }
+
+        const previous = new Set(
+          trajectory[index - 1]?.eventIds ??
+            [],
+        );
+
+        const current = new Set(
+          step.eventIds ?? [],
+        );
+
+        const shared = [
+          ...current,
+        ].filter((id) =>
+          previous.has(id),
+        ).length;
+
+        return sum + (shared >= 2 ? 1 : 0);
+      },
+      0,
     );
 
-  const pathLengthScore =
+  const semanticStagnationPenalty =
     metric(
       Math.min(
         1,
-        trajectory.length /
-          5,
+        repeatedEventTransitions * 0.22,
       ),
     );
 
-  const compressionPotential =
-    metric(
-      semanticMovement *
-        0.34 +
-        pathLengthScore *
-          0.3 +
-        specificity *
-          0.18 +
-        operationDiversity *
-          0.18,
-    );
+  const repetitionRisk = metric(
+    Math.max(
+      0,
+      repeatedEvents * 0.12,
+    ),
+  );
 
-  /*
-   * Truth risk stays conservative.
-   *
-   * A richer interpretation must never be rewarded by pretending
-   * it has stronger factual grounding than the graph actually has.
-   */
-  const truthRisk =
-    metric(
-      Math.max(
-        0,
-        1 -
-          (
-            grounding *
-              0.46 +
-            specificity *
-              0.1 +
-            relationDiversity *
-              0.1 +
-            payoffLinkage *
-              0.14 +
-            semanticMovement *
-              0.1 +
-            pathLengthScore *
-              0.1
-          ),
-      ),
-    );
+  const pathLengthScore = metric(
+    Math.min(
+      1,
+      trajectory.length / 5,
+    ),
+  );
+
+  const compressionPotential = metric(
+    semanticMovement * 0.34 +
+      pathLengthScore * 0.3 +
+      specificity * 0.18 +
+      operationDiversity * 0.18,
+  );
+
+  const truthRisk = metric(
+    Math.max(
+      0,
+      1 -
+        (
+          grounding * 0.46 +
+          specificity * 0.1 +
+          relationDiversity * 0.1 +
+          payoffLinkage * 0.14 +
+          semanticMovement * 0.1 +
+          pathLengthScore * 0.1
+        ),
+    ),
+  );
 
   const focusPreference =
     relationPreference(
@@ -3840,44 +4893,25 @@ function scoreCandidate(
       lens,
     );
 
-  const score =
-    metric(
-      grounding *
-        0.13 +
-        specificity *
-          0.07 +
-        informationValue *
-          0.14 +
-        semanticMovement *
-          0.12 +
-        tensionDevelopment *
-          0.1 +
-        attentionPotential *
-          0.13 +
-        consequencePotential *
-          0.11 +
-        payoffLinkage *
-          0.06 +
-        callbackPotential *
-          0.05 +
-        recurrenceContinuity *
-          0.04 +
-        compressionPotential *
-          0.03 +
-        relationDiversity *
-          0.03 +
-        operationDiversity *
-          0.03 +
-        focusPreference *
-          0.03 +
-        (
-          1 -
-          repetitionRisk
-        ) *
-          0.04 -
-        truthRisk *
-          0.11,
-    );
+  const score = metric(
+    grounding * 0.13 +
+      specificity * 0.07 +
+      informationValue * 0.14 +
+      semanticMovement * 0.12 +
+      tensionDevelopment * 0.1 +
+      attentionPotential * 0.13 +
+      consequencePotential * 0.11 +
+      payoffLinkage * 0.06 +
+      callbackPotential * 0.05 +
+      recurrenceContinuity * 0.04 +
+      compressionPotential * 0.03 +
+      relationDiversity * 0.03 +
+      operationDiversity * 0.03 +
+      focusPreference * 0.03 +
+      (1 - repetitionRisk) * 0.04 -
+      semanticStagnationPenalty * 0.09 -
+      truthRisk * 0.11,
+  );
 
   return {
     anchorEventIds: [
@@ -3888,9 +4922,7 @@ function scoreCandidate(
     supportingRelationKinds:
       relationKinds.length
         ? relationKinds
-        : [
-            focus.kind,
-          ],
+        : [focus.kind],
 
     trajectory: [
       ...trajectory,
@@ -3901,8 +4933,7 @@ function scoreCandidate(
     unresolvedQuestion:
       trajectory.length > 0
         ? trajectory[
-            trajectory.length -
-              1
+            trajectory.length - 1
           ]?.nextQuestion ??
           "What becomes newly meaningful?"
         : "What becomes newly meaningful?",
@@ -3920,26 +4951,19 @@ function scoreCandidate(
     ],
 
     truthRisk,
-
-    novelty:
-      metric(
-        1 -
-          tokenOverlap(
-            evidence.join(
-              " ",
-            ),
-            graph.events
-              .map(
-                (item) =>
-                  item.label,
-              )
-              .join(
-                " ",
-              ),
-          ) *
-            0.35,
-      ),
-
+    novelty: metric(
+      1 -
+        tokenOverlap(
+          evidence.join(" "),
+          graph.events
+            .map(
+              (item) =>
+                item.label,
+            )
+            .join(" "),
+        ) *
+          0.35,
+    ),
     specificity,
     informationValue,
     uncertainty,
@@ -4474,6 +5498,375 @@ const payoffId =
   );
 }
 
+function scoreMaterialTrajectory(
+  graph: RealityGraph,
+  trajectory: readonly LatentMovieTrajectoryStep[],
+  lens?: string,
+): Omit<
+  LatentMovieCandidate,
+  "id" | "lens" | "distinctiveness"
+> {
+  const eventIds = unique(
+    trajectory.flatMap(
+      (step) => step.eventIds,
+    ),
+  );
+
+  const evidence = unique(
+    eventIds
+      .map((id) =>
+        clean(
+          event(graph, id)?.label,
+        ),
+      )
+      .filter(Boolean),
+  );
+
+  const eventSpecificities = eventIds.map(
+    (id) =>
+      eventSpecificity(
+        graph,
+        id,
+      ),
+  );
+
+  const specificity = metric(
+    eventSpecificities.reduce(
+      (sum, value) =>
+        sum + value,
+      0,
+    ) /
+      Math.max(
+        1,
+        eventSpecificities.length,
+      ),
+  );
+
+  const centrality = metric(
+    eventIds.reduce(
+      (sum, id) =>
+        sum +
+        graphCentrality(
+          graph,
+          id,
+        ),
+      0,
+    ) /
+      Math.max(
+        1,
+        eventIds.length,
+      ),
+  );
+
+  const recurringCount =
+    evidence.filter(
+      (label) =>
+        persistentSignalAffinity(
+          label,
+          graph.recurringSignals,
+        ) >= 0.35,
+    ).length;
+
+  const tensionCount =
+    evidence.filter(
+      (label) =>
+        persistentSignalAffinity(
+          label,
+          graph.unresolvedTensions,
+        ) >= 0.35,
+    ).length;
+     /*
+   * SEQUENCE-LOCAL MATERIAL MOVEMENT
+   *
+   * Global pairwise diversity is intentionally avoided.
+   *
+   * QRE is allowed to repeat a semantic territory when the
+   * repetition has a different sequence function:
+   *
+   *   accumulation
+   *   rhythm
+   *   obsession
+   *   interruption
+   *   callback
+   *
+   * What matters is whether the sequence camps locally.
+   */
+  const sequenceLabels =
+    evidence.map(
+      (label) =>
+        clean(label),
+    );
+
+  let localOverlap = 0;
+  let localPairs = 0;
+
+  for (
+    let i = 1;
+    i < sequenceLabels.length;
+    i += 1
+  ) {
+    localOverlap += tokenOverlap(
+      sequenceLabels[i - 1]!,
+      sequenceLabels[i]!,
+    );
+    localPairs += 1;
+  }
+
+  const localSemanticFreshness =
+    metric(
+      1 -
+        (
+          localPairs
+            ? localOverlap /
+              localPairs
+            : 0
+        ),
+    );
+
+  let repeatedLocalTransitions = 0;
+
+  for (
+    let i = 2;
+    i < sequenceLabels.length;
+    i += 1
+  ) {
+    const previousSimilarity =
+      tokenOverlap(
+        sequenceLabels[i - 2]!,
+        sequenceLabels[i - 1]!,
+      );
+
+    const currentSimilarity =
+      tokenOverlap(
+        sequenceLabels[i - 1]!,
+        sequenceLabels[i]!,
+      );
+
+    if (
+      previousSimilarity >= 0.58 &&
+      currentSimilarity >= 0.58
+    ) {
+      repeatedLocalTransitions += 1;
+    }
+  }
+
+  const localCampingPenalty =
+    metric(
+      Math.min(
+        1,
+        repeatedLocalTransitions * 0.24,
+      ),
+    );
+
+  /*
+   * A later return is not treated as global repetition.
+   *
+   * We explicitly reward separated recurrence because that is
+   * how callbacks and associative memory emerge.
+   */
+  let separatedReturns = 0;
+
+  for (
+    let i = 0;
+    i < sequenceLabels.length;
+    i += 1
+  ) {
+    for (
+      let j = i + 2;
+      j < sequenceLabels.length;
+      j += 1
+    ) {
+      const similarity =
+        tokenOverlap(
+          sequenceLabels[i]!,
+          sequenceLabels[j]!,
+        );
+
+      const intervening =
+        j - i - 1;
+
+      if (
+        similarity >= 0.58 &&
+        intervening >= 1
+      ) {
+        separatedReturns += 1;
+      }
+    }
+  }
+
+  const callbackStructure =
+    metric(
+      Math.min(
+        1,
+        separatedReturns * 0.18,
+      ),
+    );
+
+  const semanticDiversity =
+    metric(
+      localSemanticFreshness * 0.72 +
+        callbackStructure * 0.28 -
+        localCampingPenalty * 0.18,
+    );
+
+  const finalEventId =
+    eventIds[eventIds.length - 1];
+
+  const finalLabel = clean(
+    event(
+      graph,
+      finalEventId ?? "",
+    )?.label,
+  );
+
+  const endpointValue = metric(
+    terminality(
+      graph,
+      finalEventId ?? "",
+    ) *
+      0.48 +
+      eventSpecificity(
+        graph,
+        finalEventId ?? "",
+      ) *
+        0.22 +
+      persistentSignalAffinity(
+        finalLabel,
+        graph.recurringSignals,
+      ) *
+        0.12 +
+      persistentSignalAffinity(
+        finalLabel,
+        graph.unresolvedTensions,
+      ) *
+        0.18,
+  );
+
+  const pathLengthScore = metric(
+    Math.min(
+      1,
+      trajectory.length / 5,
+    ),
+  );
+
+  const informationValue = metric(
+    specificity * 0.22 +
+      semanticDiversity * 0.26 +
+      pathLengthScore * 0.18 +
+      endpointValue * 0.18 +
+      Math.min(
+        1,
+        recurringCount / 2,
+      ) *
+        0.08 +
+      Math.min(
+        1,
+        tensionCount / 2,
+      ) *
+        0.08,
+  );
+
+  const attentionPotential = metric(
+    informationValue * 0.42 +
+      semanticDiversity * 0.24 +
+      specificity * 0.12 +
+      endpointValue * 0.14 +
+      centrality * 0.08,
+  );
+
+  const compressionPotential = metric(
+    semanticDiversity * 0.32 +
+      pathLengthScore * 0.32 +
+      specificity * 0.18 +
+      attentionPotential * 0.18,
+  );
+
+  const callbackPotential = metric(
+    Math.min(
+      1,
+      recurringCount / 2,
+    ) *
+      0.7 +
+      (
+        recurringCount > 0
+          ? 0.3
+          : 0
+      ),
+  );
+
+  const truthRisk = metric(
+    Math.max(
+      0,
+      1 -
+        (
+          specificity * 0.34 +
+          semanticDiversity * 0.18 +
+          endpointValue * 0.16 +
+          pathLengthScore * 0.18 +
+          centrality * 0.14
+        ),
+    ),
+  );
+
+  const score = metric(
+    specificity * 0.14 +
+      semanticDiversity * 0.18 +
+      informationValue * 0.18 +
+      attentionPotential * 0.17 +
+      endpointValue * 0.14 +
+      compressionPotential * 0.06 +
+      callbackPotential * 0.04 +
+      pathLengthScore * 0.05 +
+      centrality * 0.04 -
+      truthRisk * 0.08,
+  );
+
+  return {
+    anchorEventIds: eventIds.slice(
+      0,
+      Math.min(2, eventIds.length),
+    ),
+
+    supportingRelationKinds: [],
+
+    trajectory: [
+      ...trajectory,
+    ],
+
+    payoff: finalLabel,
+
+    unresolvedQuestion:
+      "What supplied detail deserves the next cut?",
+
+    evidence,
+
+    hypothesis: [
+      "The sequence is constructed from supplied reality without assuming chronology.",
+      "Distinct supplied details are allowed to become successive presentation cuts.",
+      "The sequence favors semantic variety while preserving factual grounding.",
+      "The lens changes interpretation without changing supplied reality.",
+    ],
+
+    truthRisk,
+    novelty: semanticDiversity,
+    specificity,
+    informationValue,
+    uncertainty: metric(
+      semanticDiversity * 0.5 +
+        endpointValue * 0.3 +
+        pathLengthScore * 0.2,
+    ),
+    attentionPotential,
+    consequencePotential: endpointValue,
+    callbackPotential,
+    compressionPotential,
+    repetitionRisk: metric(
+      1 -
+        semanticDiversity,
+    ),
+    score,
+  };
+}
 export function searchUniversalMovieCandidates(
   input: {
     graph: RealityGraph;
@@ -4487,8 +5880,7 @@ export function searchUniversalMovieCandidates(
       3,
       Math.min(
         12,
-        input.limit ??
-          8,
+        input.limit ?? 8,
       ),
     );
 
@@ -4504,8 +5896,7 @@ export function searchUniversalMovieCandidates(
         (a, b) => {
           const score =
             (
-              relation:
-                RealityRelation,
+              relation: RealityRelation,
             ) =>
               relation.strength *
                 relationWeight(
@@ -4551,8 +5942,83 @@ export function searchUniversalMovieCandidates(
     new Set<string>();
 
   /*
-   * Generate from every relation focus.
-   * Each focus can spawn several different graph trajectories.
+   * MATERIAL-FIRST TRAJECTORIES
+   *
+   * Supplied reality may form a strong sequence even when the graph
+   * does not contain explicit relations between every consecutive cut.
+   *
+   * This is presentation sequencing only.
+   * It never invents chronology, causality, or bridge events.
+   */
+  const materialTrajectories =
+
+    buildMaterialPathVariants(
+      input.graph,
+      input.lens,
+    );
+
+  for (
+    const trajectory of
+    materialTrajectories
+  ) {
+    if (
+      trajectory.length <
+      3
+    ) {
+      continue;
+    }
+
+    const scored =
+      scoreMaterialTrajectory(
+        input.graph,
+        trajectory,
+        input.lens,
+      );
+
+    const candidate:
+      LatentMovieCandidate =
+      {
+        id:
+          `movie-material-${rawCandidates.length + 1}`,
+
+        lens:
+          clean(
+            input.lens,
+          ) ||
+          "neutral",
+
+        ...scored,
+
+        distinctiveness:
+          0,
+      };
+
+    const key =
+      movieKey(
+        candidate,
+      );
+
+    if (
+      seenMovieKeys.has(
+        key,
+      )
+    ) {
+      continue;
+    }
+
+    seenMovieKeys.add(
+      key,
+    );
+
+    rawCandidates.push(
+      candidate,
+    );
+  }
+
+  /*
+   * RELATION-DERIVED TRAJECTORIES
+   *
+   * Keep the existing semantic movie search intact.
    */
   for (
     const focus of
@@ -4644,14 +6110,12 @@ export function searchUniversalMovieCandidates(
   /*
    * If the relation graph is sparse, harvest additional endpoint-
    * centered candidates directly from semantically terminal events.
-   *
-   * This is deliberately deterministic and still graph-grounded.
    */
   if (
     rawCandidates.length <
     limit
   ) {
-        const terminalEvents =
+    const terminalEvents =
       input.graph.events
         .map(
           (item) => ({
@@ -4790,12 +6254,11 @@ export function searchUniversalMovieCandidates(
   }
 
   /*
-   * Exact graph-path duplicates are never allowed.
+   * Exact graph/material-path duplicates are never allowed.
    *
    * Evidence overlap alone is NOT a duplicate.
-   * Two movies can legitimately use the same facts while
-   * deriving different meaning through different relation/operation
-   * structures.
+   * Different trajectories may legitimately use the same supplied
+   * facts while creating different sequence meaning.
    */
   const exactDeduped =
     rawCandidates.filter(
@@ -4815,9 +6278,9 @@ export function searchUniversalMovieCandidates(
             ),
         ),
     );
+
   /*
-   * Preserve strong same-evidence alternatives long enough for
-   * diversity selection to distinguish them.
+   * Preserve strong alternatives long enough for diversity selection.
    */
   const sorted =
     [...exactDeduped].sort(
@@ -4825,15 +6288,17 @@ export function searchUniversalMovieCandidates(
         b.score -
         a.score,
     );
+
   const diversified =
     diversifyCandidates(
       sorted,
       limit,
     );
+
   /*
    * Final completeness guard:
-   * when the graph can support more than one distinct movie family,
-   * do not accidentally collapse back to one candidate.
+   * when multiple distinct movie paths exist, do not accidentally
+   * collapse back to one candidate.
    */
   if (
     diversified.length <
@@ -4900,6 +6365,7 @@ export function searchUniversalMovieCandidates(
         index,
       ) => ({
         ...candidate,
+
         id:
           `movie-${index + 1}-${clean(
             candidate.lens,

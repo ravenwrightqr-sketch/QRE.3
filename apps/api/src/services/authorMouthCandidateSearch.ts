@@ -169,7 +169,6 @@ function deriveViewerStateCut(
     evidenceEventIds: currentIds,
   };
 }
-
 function evaluateCandidate(
   text: string,
   beat: MouthCandidateBeat,
@@ -177,11 +176,30 @@ function evaluateCandidate(
   priorTexts: readonly string[] = [],
 ): MouthCandidate {
   const value = clean(text);
-  const sourceLabels = sourceForBeat(beat, envelope);
-  const sourceText = sourceLabels.join(" ");
+
+  const sourceLabels =
+    sourceForBeat(
+      beat,
+      envelope,
+    );
+
+  const sourceText =
+    sourceLabels.join(" ");
+
+  /*
+   * The whole world remains visible to Mouth for associative creativity,
+   * callbacks, contrast, and surprise.
+   *
+   * But the approved beat owns the realization.
+   *
+   * WORLD MATERIAL may enrich the line.
+   * WORLD MATERIAL may not silently replace the beat.
+   */
   const wholeSourceText = [
     envelope.subject,
-    ...envelope.events.map((event) => event.label),
+    ...envelope.events.map(
+      (event) => event.label,
+    ),
     ...envelope.suppliedPhrases,
     ...envelope.suppliedEntities,
     ...envelope.suppliedActions,
@@ -190,91 +208,591 @@ function evaluateCandidate(
     ...envelope.sensorySignals,
     ...envelope.unresolvedTensions,
   ].join(" ");
-  const currentTokens = tokenSet(value);
-  const sourceTokens = tokenSet(sourceText);
-  const wholeSourceTokens = tokenSet(wholeSourceText);
-  const groundingScore = metric(overlap(currentTokens, sourceTokens));
-  const wholeSourceAnchor = metric(overlap(currentTokens, wholeSourceTokens));
-  const supportedEvents = supportedEventsForBeat(beat, envelope);
-  const supportedEventIds = supportedEvents
-    .filter((event) => phraseSupportedText(value, event.label) || overlap(currentTokens, tokenSet(event.label)) >= 0.25)
-    .map((event) => event.id);
-  const supportedRelationPairs = relationPairsForBeat(beat, envelope);
-  const endpointExactness = endpointExactForBeat(value, beat, envelope) ? 1 : 0;
-  const semanticBeat = Boolean(beat.relationKinds?.length || beat.attentionFunction || beat.role);
-  const interpretation = evaluateMouthInterpretation({ text: value, sourceLabels, envelope });
+
+  const currentTokens =
+    tokenSet(value);
+
+  const sourceTokens =
+    tokenSet(sourceText);
+
+  const wholeSourceTokens =
+    tokenSet(wholeSourceText);
+
+  const groundingScore =
+    metric(
+      overlap(
+        currentTokens,
+        sourceTokens,
+      ),
+    );
+
+  const wholeSourceAnchor =
+    metric(
+      overlap(
+        currentTokens,
+        wholeSourceTokens,
+      ),
+    );
+
+  const supportedEvents =
+    supportedEventsForBeat(
+      beat,
+      envelope,
+    );
+
+  const supportedEventIds =
+    supportedEvents
+      .filter(
+        (event) =>
+          phraseSupportedText(
+            value,
+            event.label,
+          ) ||
+          overlap(
+            currentTokens,
+            tokenSet(
+              event.label,
+            ),
+          ) >= 0.25,
+      )
+      .map(
+        (event) =>
+          event.id,
+      );
+
+  const supportedRelationPairs =
+    relationPairsForBeat(
+      beat,
+      envelope,
+    );
+
+  const endpointExactness =
+    endpointExactForBeat(
+      value,
+      beat,
+      envelope,
+    )
+      ? 1
+      : 0;
+
+  const semanticBeat =
+    Boolean(
+      beat.relationKinds?.length ||
+      beat.attentionFunction ||
+      beat.role,
+    );
+
+  const interpretation =
+    evaluateMouthInterpretation({
+      text: value,
+      sourceLabels,
+      envelope,
+    });
 
   const reasons: string[] = [];
-  const repetitionSet = new Set(priorTexts.flatMap((item) => [...tokenSet(item)]));
-  const repetitionRisk = priorTexts.length ? metric(overlap(currentTokens, repetitionSet)) : 0;
-  const noveltyScore = metric(1 - Math.min(1, repetitionRisk * 1.25));
-  const wordCount = value.split(/\s+/).filter(Boolean).length;
-  const compressionScore = wordCount <= 12 ? 1 : wordCount <= 20 ? 0.9 : wordCount <= 30 ? 0.76 : wordCount <= 40 ? 0.62 : 0.48;
-  const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, 0, [beat], envelope);
-  const meaningScore = metric(
-    (viewerState.stateShift ?? 0.5) * 0.3 +
-    (viewerState.curiosityPressure ?? 0.5) * 0.22 +
-    (viewerState.contrast ?? 0.5) * 0.17 +
-    (interpretation.creativeFraming ?? 0.5) * 0.21 +
-    (semanticBeat ? 0.1 : 0),
-  );
-  const transitionScore = metric((viewerState.predictionError ?? 0.4) * 0.5 + (viewerState.interruption ?? 0.4) * 0.25 + (viewerState.accumulation ?? 0.5) * 0.25);
-  const obligationCoverage = metric(supportedEventIds.length ? 0.55 + Math.min(0.35, supportedEventIds.length * 0.15) : groundingScore * 0.5);
-  const relationContractScore = metric(supportedRelationPairs.length ? 0.8 : semanticBeat ? 0.35 : 0.2);
-  const forbiddenMoveRisk = metric(
-    interpretation.unsupportedConcreteRisk >= 0.9 || (PHYSICAL_INVENTION.test(value) && !PHYSICAL_INVENTION.test(wholeSourceText)) ? 1 : interpretation.unsupportedConcreteRisk,
-  );
-  const creativeLane = interpretation.accepted && literalRestatementFor(value, sourceLabels) === 0 && forbiddenMoveRisk < 0.9;
-  const effectiveGrounding = metric(
-    Math.max(
-      groundingScore,
-      creativeLane ? Math.min(0.55, wholeSourceAnchor * 0.5 + interpretation.creativeFraming * 0.55) : groundingScore,
-    ),
-  );
-  const cohesionScore = metric(0.55 + (1 - repetitionRisk) * 0.25 + effectiveGrounding * 0.2);
-  const inventionRisk = forbiddenMoveRisk > 0.35 ? Math.max(0.72, forbiddenMoveRisk) : metric(Math.max(0, 0.22 - effectiveGrounding * 0.18));
-  const collageRisk = value.split(/[.!?]+/).filter(Boolean).length > 2 && wordCount > 22 ? 0.35 : 0;
 
-  if (!value) reasons.push("missing-text");
-  if (META.test(value)) reasons.push("meta-language");
-  if (GENERIC.test(value)) reasons.push("generic-summary");
-  if (PLANNING_RESIDUE.test(value)) reasons.push("planning-residue");
-  if (BAD_INTERPRETIVE_EXPLANATION.test(value)) reasons.push("interpretive-explanation");
-  if (wordCount > 24) reasons.push("too-long");
-  if (!sourceLabels.length) reasons.push("missing-grounding");
-  if (effectiveGrounding < 0.08 && !endpointExactness && !creativeLane) reasons.push("weak-grounding");
-  if (repetitionRisk > 0.75) reasons.push("repetition");
-  if (forbiddenMoveRisk >= 0.9) reasons.push("invention-risk");
-  if (supportedEventIds.length) reasons.push("event-grounded");
-  if (supportedRelationPairs.length) reasons.push("relation-grounded");
-  if (creativeLane) {
-    reasons.push("bounded-creative-bet");
-    reasons.push("semantic-turn-grounded");
-  } else if (semanticBeat && !supportedEventIds.length && effectiveGrounding >= 0.16) {
-    reasons.push("semantic-turn-grounded");
+  const repetitionSet =
+    new Set(
+      priorTexts.flatMap(
+        (item) =>
+          [
+            ...tokenSet(
+              item,
+            ),
+          ],
+      ),
+    );
+
+  const repetitionRisk =
+    priorTexts.length
+      ? metric(
+          overlap(
+            currentTokens,
+            repetitionSet,
+          ),
+        )
+      : 0;
+
+  const noveltyScore =
+    metric(
+      1 -
+        Math.min(
+          1,
+          repetitionRisk *
+            1.25,
+        ),
+    );
+
+  const wordCount =
+    value
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const compressionScore =
+    wordCount <= 12
+      ? 1
+      : wordCount <= 20
+        ? 0.9
+        : wordCount <= 30
+          ? 0.76
+          : wordCount <= 40
+            ? 0.62
+            : 0.48;
+
+  const viewerState =
+    beat.viewerState ??
+    deriveViewerStateCut(
+      beat,
+      0,
+      [beat],
+      envelope,
+    );
+
+  /*
+   * Beat ownership.
+   *
+   * This measures whether the line actually touches the approved
+   * source material for THIS beat.
+   *
+   * Whole-world grounding remains available for creative enrichment,
+   * but it is no longer sufficient by itself.
+   */
+  const beatCoverage =
+    sourceLabels.length
+      ? metric(
+          overlap(
+            currentTokens,
+            sourceTokens,
+          ),
+        )
+      : 0;
+
+  const beatHasConcreteEvidence =
+    beat.eventIds?.length
+      ? true
+      : false;
+
+  const beatObligation =
+    beatHasConcreteEvidence
+      ? metric(
+          beatCoverage *
+            0.72 +
+            (
+              supportedEventIds.length
+                ? 0.28
+                : 0
+            ),
+        )
+      : metric(
+          wholeSourceAnchor *
+            0.35 +
+            (
+              interpretation.creativeFraming ??
+              0.5
+            ) *
+              0.65,
+        );
+
+  /*
+   * A creative line may draw associative meaning from the whole world,
+   * but it must still remain tethered to the approved beat.
+   *
+   * This is the crucial difference between:
+   *
+   *   "feeling good" → funny mud realization
+   *
+   * and:
+   *
+   *   "feeling good" → unrelated free-mud fact
+   */
+  const associativeLift =
+    metric(
+      Math.min(
+        1,
+        wholeSourceAnchor *
+          0.55 +
+          (
+            interpretation.creativeFraming ??
+            0.5
+          ) *
+            0.45,
+      ),
+    );
+
+  const meaningScore =
+    metric(
+      (
+        viewerState.stateShift ??
+        0.5
+      ) *
+        0.24 +
+      (
+        viewerState.curiosityPressure ??
+        0.5
+      ) *
+        0.18 +
+      (
+        viewerState.contrast ??
+        0.5
+      ) *
+        0.14 +
+      (
+        interpretation.creativeFraming ??
+        0.5
+      ) *
+        0.18 +
+      beatObligation *
+        0.18 +
+      (
+        semanticBeat
+          ? 0.08
+          : 0
+      ),
+    );
+
+  const transitionScore =
+    metric(
+      (
+        viewerState.predictionError ??
+        0.4
+      ) *
+        0.5 +
+      (
+        viewerState.interruption ??
+        0.4
+      ) *
+        0.25 +
+      (
+        viewerState.accumulation ??
+        0.5
+      ) *
+        0.25,
+    );
+
+  /*
+   * Obligation is now explicitly beat-local.
+   *
+   * A line cannot get a high obligation score simply because some
+   * other fact elsewhere in the world matches it.
+   */
+  const obligationCoverage =
+    metric(
+      beatObligation *
+        0.78 +
+      (
+        supportedEventIds.length
+          ? Math.min(
+              0.22,
+              supportedEventIds.length *
+                0.11,
+            )
+          : 0
+      ),
+    );
+
+  const relationContractScore =
+    metric(
+      supportedRelationPairs.length
+        ? 0.8
+        : semanticBeat
+          ? 0.35
+          : 0.2,
+    );
+
+  const forbiddenMoveRisk =
+    metric(
+      interpretation.unsupportedConcreteRisk >=
+        0.9 ||
+      (
+        PHYSICAL_INVENTION.test(
+          value,
+        ) &&
+        !PHYSICAL_INVENTION.test(
+          wholeSourceText,
+        )
+      )
+        ? 1
+        : interpretation.unsupportedConcreteRisk,
+    );
+
+  /*
+   * Creative lane:
+   *
+   * We still allow metaphor, attitude, compression, implication,
+   * wordplay, and associative surprise.
+   *
+   * But whole-world association alone cannot authorize an unrelated
+   * concrete realization.
+   */
+  const creativeLane =
+    interpretation.accepted &&
+    literalRestatementFor(
+      value,
+      sourceLabels,
+    ) === 0 &&
+    forbiddenMoveRisk <
+      0.9 &&
+    (
+      beatCoverage >=
+        0.12 ||
+      endpointExactness ===
+        1 ||
+      (
+        beatHasConcreteEvidence ===
+          false &&
+        wholeSourceAnchor >=
+          0.2
+      )
+    );
+
+  const effectiveGrounding =
+    metric(
+      Math.max(
+        groundingScore,
+        creativeLane
+          ? Math.min(
+              0.72,
+              beatObligation *
+                0.62 +
+                associativeLift *
+                  0.28,
+            )
+          : 0,
+      ),
+    );
+
+  const cohesionScore =
+    metric(
+      0.55 +
+        (
+          1 -
+          repetitionRisk
+        ) *
+          0.25 +
+        effectiveGrounding *
+          0.2,
+    );
+
+  const inventionRisk =
+    forbiddenMoveRisk >
+      0.35
+      ? Math.max(
+          0.72,
+          forbiddenMoveRisk,
+        )
+      : metric(
+          Math.max(
+            0,
+            0.22 -
+              effectiveGrounding *
+                0.18,
+          ),
+        );
+
+  const collageRisk =
+    value
+      .split(
+        /[.!?]+/,
+      )
+      .filter(Boolean)
+      .length > 2 &&
+    wordCount > 22
+      ? 0.35
+      : 0;
+
+  if (!value) {
+    reasons.push(
+      "missing-text",
+    );
   }
 
-  const score = metric(
-    effectiveGrounding * 0.16 +
-    meaningScore * 0.18 +
-    transitionScore * 0.14 +
-    obligationCoverage * 0.08 +
-    relationContractScore * 0.05 +
-    cohesionScore * 0.06 +
-    noveltyScore * 0.08 +
-    compressionScore * 0.06 +
-    (1 - inventionRisk) * 0.06 +
-    (creativeLane ? 0.08 : 0) +
-    interpretation.creativeFraming * 0.05 -
-    collageRisk * 0.03,
-  );
+  if (
+    META.test(value)
+  ) {
+    reasons.push(
+      "meta-language",
+    );
+  }
+
+  if (
+    GENERIC.test(value)
+  ) {
+    reasons.push(
+      "generic-summary",
+    );
+  }
+
+  if (
+    PLANNING_RESIDUE.test(
+      value,
+    )
+  ) {
+    reasons.push(
+      "planning-residue",
+    );
+  }
+
+  if (
+    BAD_INTERPRETIVE_EXPLANATION.test(
+      value,
+    )
+  ) {
+    reasons.push(
+      "interpretive-explanation",
+    );
+  }
+
+  if (
+    wordCount > 24
+  ) {
+    reasons.push(
+      "too-long",
+    );
+  }
+
+  if (
+    !sourceLabels.length
+  ) {
+    reasons.push(
+      "missing-grounding",
+    );
+  }
+
+  if (
+    beatHasConcreteEvidence &&
+    beatObligation <
+      0.16 &&
+    !endpointExactness &&
+    !creativeLane
+  ) {
+    reasons.push(
+      "weak-beat-obligation",
+    );
+  }
+
+  if (
+    effectiveGrounding <
+      0.08 &&
+    !endpointExactness &&
+    !creativeLane
+  ) {
+    reasons.push(
+      "weak-grounding",
+    );
+  }
+
+  if (
+    repetitionRisk >
+    0.75
+  ) {
+    reasons.push(
+      "repetition",
+    );
+  }
+
+  if (
+    forbiddenMoveRisk >=
+    0.9
+  ) {
+    reasons.push(
+      "invention-risk",
+    );
+  }
+
+  if (
+    supportedEventIds.length
+  ) {
+    reasons.push(
+      "event-grounded",
+    );
+  }
+
+  if (
+    supportedRelationPairs.length
+  ) {
+    reasons.push(
+      "relation-grounded",
+    );
+  }
+
+  if (
+    beatObligation >=
+    0.45
+  ) {
+    reasons.push(
+      "beat-grounded",
+    );
+  }
+
+  if (
+    creativeLane
+  ) {
+    reasons.push(
+      "bounded-creative-bet",
+    );
+
+    reasons.push(
+      "semantic-turn-grounded",
+    );
+  } else if (
+    semanticBeat &&
+    beatObligation >=
+      0.16 &&
+    effectiveGrounding >=
+      0.16
+  ) {
+    reasons.push(
+      "semantic-turn-grounded",
+    );
+  }
+
+  const score =
+    metric(
+      effectiveGrounding *
+        0.15 +
+        beatObligation *
+          0.18 +
+        meaningScore *
+          0.16 +
+        transitionScore *
+          0.12 +
+        obligationCoverage *
+          0.09 +
+        relationContractScore *
+          0.04 +
+        cohesionScore *
+          0.05 +
+        noveltyScore *
+          0.07 +
+        compressionScore *
+          0.05 +
+        (
+          1 -
+          inventionRisk
+        ) *
+          0.06 +
+        (
+          creativeLane
+            ? 0.08
+            : 0
+        ) +
+        (
+          interpretation.creativeFraming ??
+          0.5
+        ) *
+          0.05 -
+        collageRisk *
+          0.03,
+    );
 
   return {
     text: value,
     beatOrder: beat.order,
     supportedEventIds,
     supportedRelationPairs,
-    groundingScore: effectiveGrounding,
+    groundingScore:
+      effectiveGrounding,
     meaningScore,
     transitionScore,
     obligationCoverage,
@@ -291,26 +809,37 @@ function evaluateCandidate(
     reasons,
   };
 }
-
 function literalRestatementFor(value: string, labels: readonly string[]): number {
   const normalized = clean(value).replace(/[.!?]+$/g, "").toLowerCase();
   return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
 }
-
-function buildGoldRealizationDoctrine(): string {
+ function buildGoldRealizationDoctrine(): string {
   return [
     "FIND THE GOLD before you write.",
-    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, or memorable observation.",
-    "Do not merely categorize the subject. Do not turn the material into generic life advice, motivational prose, or a summary.",
+    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, memorable observation, or ominous pressure.",
+    "Do not merely categorize the subject. Do not turn the material into generic life advice, motivational prose, biography, or a summary.",
     "The gold may already be the supplied insight itself. Recognizing it is often better than adding another layer.",
     "Interpretation may sharpen meaning without creating a new concrete occurrence.",
-    "Examples are demonstrations of the move, not phrases to copy and not domain rules:",
+    "LESS IS MORE. Remove words that do not materially improve the cut.",
+    "A fragment can be better than a sentence. A one-word cut can be the entire hit.",
+    "Do not force grammatical completeness when compression makes the line stronger.",
+    "UNKNOWN STAYS OPEN. Do not resolve identity, gender, age, motivation, relationship, history, ownership, location, or other unknowns unless identifying them materially improves the cut.",
+    "WEIRD IS ALLOWED. Do not normalize an unusual but grounded realization merely because a conventional sentence would be easier.",
+    "IMPLICATION OVER EXPLANATION. Let the viewer complete the thought when the supplied material supports it.",
+    "ATTITUDE IS A PRIMARY CREATIVE TOOL. The same supplied fact may land as deadpan, regal, cocky, petty, elegant, ominous, suspicious, mischievous, absurd, restrained, dramatic, or matter-of-fact without changing the underlying reality.",
+    "OMINOUS PRESSURE IS ALLOWED. An ordinary supplied detail may acquire a sense of consequence, warning, or temporary calm without inventing what happens next.",
+    "SURPRISE IS ALLOWED. An older supplied detail may return suddenly after the sequence has moved elsewhere.",
+    "Repetition is allowed when it creates rhythm, accumulation, obsession, callback, interruption, or a changed reading.",
+    "Do not repeat a semantic territory merely because it is salient. Return to it because the return does something.",
+    "The examples below demonstrate the move, not fixed phrases or domain rules:",
     "SUPPLIED: Coco loves bacon. GOOD: Bacon first.",
     "SUPPLIED: Coco likes apples. GOOD: An apple. Finally.",
     "SUPPLIED: Coco rolled in mud; mud bath was free. GOOD: Five-star mud bath. Complimentary.",
     "SUPPLIED: A cat watched the worker the whole time; cat approved. GOOD: The cat was the judge. Cat approved.",
     "SUPPLIED: Grandma's house; never-ending snacks; known memory: Coco loves squirrels. GOOD: Grandma's house. Never-ending snacks. Squirrel. Anyway.",
-    "The examples show compression, attitude, implication, and associative surprise. Invent new realizations for the actual material.",
+    "SUPPLIED: A walk sequence with a later squirrel memory. GOOD: Walk. Walk. Walk. Thought I heard something. Squirrels in the trees.",
+    "SUPPLIED: Ordinary supplied events with a status-heavy framing. GOOD: Fabulous. But peace is temporary.",
+    "The examples show compression, attitude, implication, rhythm, obsession, callback, and surprise. Invent new realizations for the actual material.",
     "Never explain why something is interesting. Make the interesting thing land.",
   ].join(" ");
 }

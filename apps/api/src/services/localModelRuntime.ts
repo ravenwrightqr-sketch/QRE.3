@@ -836,16 +836,17 @@ function isCanonicalMouth(
 function mouthAcceptable(
   text: string,
 ): boolean {
+
   const words =
     wordCount(text);
 
-  if (
-    !text ||
-    words < 2 ||
-    words > 28
-  ) {
-    return false;
-  }
+   if (
+  !text ||
+  words < 1 ||
+  words > 28
+) {
+  return false;
+}
 
   if (
     META_LANGUAGE.test(
@@ -1034,7 +1035,6 @@ async function generateMouthCandidate(
     outputText(data),
   );
 }
-
 async function realizeMouthOneBeat(
   messages: LocalModelMessage[],
   beat: unknown,
@@ -1070,16 +1070,114 @@ async function realizeMouthOneBeat(
       messages,
     ) ?? {};
 
+  const beatRecord =
+    beat &&
+    typeof beat ===
+      "object"
+      ? (beat as Record<string, unknown>)
+      : {};
+
+  const beatSourceLabels =
+    Array.isArray(
+      beatRecord.sourceLabels,
+    )
+      ? beatRecord.sourceLabels
+          .map(String)
+          .filter(Boolean)
+      : [];
+
+  const beatEventIds =
+    Array.isArray(
+      beatRecord.eventIds,
+    )
+      ? beatRecord.eventIds
+          .map(String)
+          .filter(Boolean)
+      : [];
+
+  const wholeEvidence =
+    Array.isArray(
+      base.suppliedEvidence,
+    )
+      ? base.suppliedEvidence
+          .map(String)
+          .filter(Boolean)
+      : [];
+
+  /*
+   * CURRENT BEAT IS PRIMARY.
+   *
+   * The complete supplied corpus remains available as associative
+   * memory, but it is explicitly secondary so one salient fact cannot
+   * hijack every independent cut.
+   */
+  const secondaryEvidence =
+    wholeEvidence
+      .filter(
+        (value) =>
+          !beatSourceLabels.some(
+            (source) =>
+              source
+                .toLowerCase() ===
+              value
+                .toLowerCase(),
+          ),
+      )
+      .slice(
+        0,
+        24,
+      );
+
   const singleBeatPayload =
     {
       ...base,
-      beats: [beat],
+
+      beats: [
+        beat,
+      ],
+
+      currentBeat: {
+        eventIds:
+          beatEventIds,
+        sourceLabels:
+          beatSourceLabels,
+      },
+
+      currentBeatSource:
+        beatSourceLabels,
+
+      associativeMemory:
+        secondaryEvidence,
     };
 
+  /*
+   * Keep the source block truthful and local to the approved beat.
+   *
+   * The rest of the memory is provided separately as associative
+   * context rather than being allowed to silently become the beat's
+   * factual source.
+   */
   const sourceTruth =
-    mouthSourceTruth(
-      base,
-    );
+    JSON.stringify({
+      subject:
+        typeof base.subject ===
+        "string"
+          ? base.subject
+          : "",
+
+      currentBeat: {
+        eventIds:
+          beatEventIds,
+        sourceLabels:
+          beatSourceLabels,
+      },
+
+      currentBeatSource:
+        beatSourceLabels,
+
+      associativeMemory:
+        secondaryEvidence,
+    });
 
   const fast =
     process.env.QRE_AUTHOR_FAST ===
@@ -1132,13 +1230,92 @@ async function realizeMouthOneBeat(
     const retryInstruction =
       attempt === 0
         ? ""
-        : `\nRETRY ${attempt}: Reject the previous line internally. Rewrite ONLY this beat. Prefer a compact sentence. Use only the source-truth details below. Make the next thing happen or become newly meaningful. No summary. No explanation. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
+        : `\nRETRY ${attempt}: Reject the previous line internally.Rewrite ONLY this beat. Use the smallest effective cut; a fragment or one-word realization is valid.  Prefer the smallest effective cut. A fragment or one-word realization is valid. The CURRENT BEAT SOURCE is authoritative. Use the associative memory only for a surprising connection, callback, attitude, or implication that still belongs to this beat. No summary. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
 
     const attemptSystem =
       {
         ...system,
+
         content:
-          `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse Prefer a compact viewer-facing sentence. There is no fixed word count. Expand only when the wording itself is the hit; never pad or become a paragraph.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.${retryInstruction}`,
+          `${system.content}
+
+QRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:
+SOURCE TRUTH IS IMMUTABLE.
+
+CURRENT BEAT IS PRIMARY.
+The CURRENT BEAT SOURCE below is the material this line must realize.
+
+CURRENT BEAT SOURCE:
+${JSON.stringify(
+  beatSourceLabels,
+)}
+
+CURRENT BEAT EVENT IDS:
+${JSON.stringify(
+  beatEventIds,
+)}
+
+ASSOCIATIVE MEMORY IS SECONDARY.
+It may provide a callback, contrast, attitude, wordplay, implication, obsession, or surprising connection, but it must NOT replace the current beat or silently become a different concrete event.
+
+ASSOCIATIVE MEMORY:
+${JSON.stringify(
+  secondaryEvidence,
+)}
+
+The current line must belong to the current beat.
+Do not repeatedly realize the same semantic territory simply because it is salient elsewhere in the memory.
+A later callback is allowed after the sequence has moved on.
+Surprise is good. Semantic camping is not.
+
+Do not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.
+
+Creative language may change attitude, rhythm, metaphor, implication, compression, personification, or associative surprise only when grounded in supplied details.
+
+This is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.
+Write exactly ONE short viewer-facing cut for the supplied beat.
+
+The cut may be:
+- one word,
+- a fragment,
+- a sentence,
+- or a very short sequence of fragments.
+
+Choose the smallest form that makes the beat land.
+
+Do not force grammatical completeness.
+Do not add words merely to make a sentence.
+A single word may be the strongest realization.
+
+One line = one hit: a concrete supplied detail, sensory detail, social turn, implication, reversal, attitude, interruption, callback, ominous pressure, or payoff.
+
+Do not summarize the whole experience.
+Do not narrate a paragraph.
+Do not explain the emotion.
+Do not introduce unsupported facts.
+Do not turn an unrelated secondary fact into the current beat.
+
+The line must feel like it belongs between the previous and next cuts.
+
+Funny can be sly, absurd, deadpan, or status-based.
+Horror can stay calm while reality goes wrong.
+Romance can be intimate and restrained.
+Demented can be sharp and unpredictable.
+
+No emojis.
+No headings.
+JSON exactly: {"text":"short line"}.${retryInstruction}`,
+      };
+
+    const singleUser:
+      LocalModelMessage =
+      {
+        ...user,
+
+        content:
+          JSON.stringify(
+            singleBeatPayload,
+          ),
       };
 
     try {
@@ -1147,7 +1324,7 @@ async function realizeMouthOneBeat(
           messages,
           singleBeatPayload,
           attemptSystem,
-          user,
+          singleUser,
           sourceTruth,
           temperature,
           numPredict,
@@ -1178,12 +1355,6 @@ async function realizeMouthOneBeat(
         `code=${errorCode(error) ?? "unknown"}`,
       );
 
-      /*
-       * A transport failure is not a semantic rejection.
-       * Do not burn the remaining four semantic repair attempts
-       * on a dead/slow model. Give the configured fallback model
-       * one chance to produce the same beat through the same gates.
-       */
       if (
         fallbackModel &&
         !transportFallbackUsed
@@ -1197,7 +1368,7 @@ async function realizeMouthOneBeat(
               messages,
               singleBeatPayload,
               attemptSystem,
-              user,
+              singleUser,
               sourceTruth,
               temperature,
               numPredict,
@@ -1220,7 +1391,9 @@ async function realizeMouthOneBeat(
           ) {
             return fallbackText;
           }
-        } catch (fallbackError) {
+        } catch (
+          fallbackError
+        ) {
           if (
             !isTransportError(
               fallbackError,
@@ -1239,11 +1412,6 @@ async function realizeMouthOneBeat(
         }
       }
 
-      /*
-       * Once transport is broken for the primary model and the
-       * fallback has been attempted, stop hammering the endpoint.
-       * The caller can use the deterministic realization path.
-       */
       break;
     }
   }
@@ -1324,11 +1492,40 @@ export async function localModelGenerate(
         }
       }
 
-      const combined =
-        JSON.stringify({
-          texts,
-        });
+      const variantsByBeat = beats.map((beat, index) => {
+  const raw = texts[index] ?? "";
 
+  try {
+    const parsed = JSON.parse(raw) as {
+      variantsByBeat?: Array<{
+        variants?: unknown[];
+      }>;
+      text?: unknown;
+    };
+
+    const variants =
+      parsed?.variantsByBeat?.[0]?.variants
+        ?.map(String)
+        .filter(Boolean)
+        .slice(0, 8) ??
+      (parsed?.text ? [String(parsed.text)] : []);
+
+    return {
+      order: Number((beat as { order?: number }).order ?? index + 1),
+      variants,
+    };
+  } catch {
+    return {
+      order: Number((beat as { order?: number }).order ?? index + 1),
+      variants: raw ? [raw] : [],
+    };
+  }
+});
+
+    const combined = JSON.stringify({
+     variantsByBeat,
+    });
+      
       if (
         process.env
           .QRE_AUTHOR_DEBUG_RAW ===

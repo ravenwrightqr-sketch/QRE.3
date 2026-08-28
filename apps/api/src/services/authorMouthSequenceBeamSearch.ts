@@ -187,51 +187,206 @@ function sequenceFit(candidate: MouthCandidate, priorTexts: readonly string[]): 
 function pathScore(candidate: MouthCandidate, priorTexts: readonly string[]): number {
   return clamp01(rank(candidate) * 0.76 + sequenceFit(candidate, priorTexts) * 0.24);
 }
-
 export function selectBestMouthSequence(
   pools: readonly MouthCandidatePool[],
   options: MouthBeamOptions = {},
 ): MouthSequencePath {
-  const ordered = [...pools].sort((a, b) => a.order - b.order);
-  if (!ordered.length) return { candidates: [], texts: [], score: 0 };
+  const ordered =
+    [...pools].sort(
+      (a, b) =>
+        a.order - b.order,
+    );
 
-  const width = Math.max(1, Math.floor(options.width ?? 12));
-  const candidatesPerBeat = Math.max(1, Math.floor(options.candidatesPerBeat ?? 8));
-
-  type Path = { candidates: MouthCandidate[]; score: number };
-  let paths: Path[] = [{ candidates: [], score: 0 }];
-
-  for (let index = 0; index < ordered.length; index += 1) {
-    const pool = ordered[index];
-    const eligible = dedupeCandidates(pool.candidates)
-      .filter(authorized)
-      .sort(compareCandidates)
-      .slice(0, Math.max(candidatesPerBeat, width));
-
-    if (!eligible.length) return { candidates: [], texts: [], score: 0 };
-
-    const expanded: Path[] = [];
-    for (const path of paths) {
-      for (const candidate of eligible) {
-        const priorTexts = path.candidates.map((item) => clean(item.text));
-        const isFinal = index === ordered.length - 1;
-        if (isFinal && candidate.endpointExactness >= 0.999) {
-          expanded.push({ candidates: [...path.candidates, candidate], score: path.score + 1.15 });
-          continue;
-        }
-        expanded.push({ candidates: [...path.candidates, candidate], score: path.score + pathScore(candidate, priorTexts) });
-      }
-    }
-    expanded.sort((a, b) => b.score - a.score);
-    paths = expanded.slice(0, width);
+  if (!ordered.length) {
+    return {
+      candidates: [],
+      texts: [],
+      score: 0,
+    };
   }
 
-  if (!paths.length) return { candidates: [], texts: [], score: 0 };
-  const best = paths[0];
-  const average = best.candidates.length ? best.score / best.candidates.length : 0;
+  const width =
+    Math.max(
+      1,
+      Math.floor(
+        options.width ?? 12,
+      ),
+    );
+
+  const candidatesPerBeat =
+    Math.max(
+      1,
+      Math.floor(
+        options.candidatesPerBeat ?? 8,
+      ),
+    );
+
+  type Path = {
+    candidates: MouthCandidate[];
+    score: number;
+  };
+
+  let paths: Path[] = [
+    {
+      candidates: [],
+      score: 0,
+    },
+  ];
+
+  for (
+    let index = 0;
+    index < ordered.length;
+    index += 1
+  ) {
+    const pool =
+      ordered[index];
+
+    const eligible =
+      dedupeCandidates(
+        pool.candidates,
+      )
+        .filter(authorized)
+        .sort(compareCandidates)
+        .slice(
+          0,
+          Math.max(
+            candidatesPerBeat,
+            width,
+          ),
+        );
+
+    if (!eligible.length) {
+      return {
+        candidates: [],
+        texts: [],
+        score: 0,
+      };
+    }
+
+    const expanded: Path[] = [];
+
+    for (
+      const path of paths
+    ) {
+      for (
+        const candidate of eligible
+      ) {
+        const priorTexts =
+          path.candidates.map(
+            (item) =>
+              clean(item.text),
+          );
+
+        /*
+         * Exact textual repetition is not a useful new cut.
+         *
+         * This applies to every beat, not only the endpoint.
+         * Deliberate callbacks remain legal when they change the wording
+         * or realization; exact repetition is the thing we reject here.
+         */
+        const exactRepeat =
+          path.candidates.some(
+            (prior) =>
+              clean(
+                prior.text,
+              ).toLowerCase() ===
+              clean(
+                candidate.text,
+              ).toLowerCase(),
+          );
+
+        if (
+          exactRepeat
+        ) {
+          continue;
+        }
+
+        const isFinal =
+          index ===
+          ordered.length - 1;
+
+        const fit =
+          sequenceFit(
+            candidate,
+            priorTexts,
+          );
+
+        /*
+         * Endpoint exactness is a bonus to an otherwise valid path.
+         * It does not bypass sequence continuity or duplicate protection.
+         */
+        const candidateScore =
+          clamp01(
+            rank(candidate) *
+              0.76 +
+              fit * 0.24,
+          );
+
+        expanded.push({
+          candidates: [
+            ...path.candidates,
+            candidate,
+          ],
+          score:
+            path.score +
+            candidateScore +
+            (
+              isFinal &&
+              candidate.endpointExactness >=
+                0.999
+                ? 1.15
+                : 0
+            ),
+        });
+      }
+    }
+
+    expanded.sort(
+      (a, b) =>
+        b.score - a.score,
+    );
+
+    paths =
+      expanded.slice(
+        0,
+        width,
+      );
+  }
+
+  if (!paths.length) {
+    return {
+      candidates: [],
+      texts: [],
+      score: 0,
+    };
+  }
+
+  const best =
+    paths[0];
+
+  const average =
+    best.candidates.length
+      ? best.score /
+        best.candidates.length
+      : 0;
+
   return {
-    candidates: best.candidates,
-    texts: best.candidates.map((candidate) => clean(candidate.text)),
-    score: Number(clamp01(average).toFixed(3)),
+    candidates:
+      best.candidates,
+
+    texts:
+      best.candidates.map(
+        (candidate) =>
+          clean(
+            candidate.text,
+          ),
+      ),
+
+    score:
+      Number(
+        clamp01(
+          average,
+        ).toFixed(3),
+      ),
   };
 }
