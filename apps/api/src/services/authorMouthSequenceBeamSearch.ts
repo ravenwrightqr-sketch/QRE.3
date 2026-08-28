@@ -62,18 +62,25 @@ const tokenSet = (value: string): Set<string> =>
 
 function overlap(a: Set<string>, b: Set<string>): number {
   if (!a.size || !b.size) return 0;
+
   let hits = 0;
-  for (const token of a) if (b.has(token)) hits += 1;
+
+  for (const token of a) {
+    if (b.has(token)) hits += 1;
+  }
+
   return hits / Math.max(1, a.size);
 }
 
 /**
- * Literal language remains legal. Bounded creative interpretations are also
- * legal when Mouth Candidate Search has explicitly marked them as grounded
- * and their concrete-invention risk is low. Mere plausibility is not enough.
+ * A candidate is eligible only when it is safe and has some explicit
+ * grounding/authorization signal.
+ *
+ * Semantic compression is not required to preserve source wording.
  */
 function authorized(candidate: MouthCandidate): boolean {
   const text = clean(candidate.text);
+
   if (!text) return false;
 
   if (
@@ -84,10 +91,14 @@ function authorized(candidate: MouthCandidate): boolean {
   }
 
   const hasGrounding = candidate.groundingScore >= 0.5;
-  const hasSupportedEvents = candidate.supportedEventIds.length > 0;
-  const hasEndpoint = candidate.endpointExactness >= 0.999;
-  const hasSemanticAuthorization = candidate.reasons.includes("semantic-turn-grounded");
-  const hasCreativeAuthorization = candidate.reasons.includes("bounded-creative-bet");
+  const hasSupportedEvents =
+    candidate.supportedEventIds.length > 0;
+  const hasEndpoint =
+    candidate.endpointExactness >= 0.999;
+  const hasSemanticAuthorization =
+    candidate.reasons.includes("semantic-turn-grounded");
+  const hasCreativeAuthorization =
+    candidate.reasons.includes("bounded-creative-bet");
 
   return (
     hasGrounding ||
@@ -98,104 +109,381 @@ function authorized(candidate: MouthCandidate): boolean {
   );
 }
 
+/**
+ * General semantic quality. This remains secondary to explicit semantic
+ * authorization; it must not overpower provenance.
+ */
 function semanticQuality(candidate: MouthCandidate): number {
-  const creativeLift = candidate.reasons.includes("bounded-creative-bet") ? 0.12 : 0;
+  const creativeLift = candidate.reasons.includes(
+    "bounded-creative-bet",
+  )
+    ? 0.12
+    : 0;
+
   return clamp01(
     candidate.meaningScore * 0.24 +
-    candidate.transitionScore * 0.2 +
-    candidate.groundingScore * 0.18 +
-    candidate.obligationCoverage * 0.1 +
-    candidate.compressionScore * 0.08 +
-    candidate.cohesionScore * 0.05 +
-    candidate.noveltyScore * 0.05 +
-    creativeLift,
+      candidate.transitionScore * 0.2 +
+      candidate.groundingScore * 0.18 +
+      candidate.obligationCoverage * 0.1 +
+      candidate.compressionScore * 0.08 +
+      candidate.cohesionScore * 0.05 +
+      candidate.noveltyScore * 0.05 +
+      creativeLift,
   );
 }
 
+/**
+ * Authorization quality is provenance evidence, not lexical similarity.
+ */
 function authorizationQuality(candidate: MouthCandidate): number {
   let value = 0;
 
-  if (candidate.supportedEventIds.length > 0) value += 0.35;
-  if (candidate.supportedRelationPairs.length > 0) value += 0.25;
-  if (candidate.groundingScore >= 0.8) value += 0.2;
-  else if (candidate.groundingScore >= 0.5) value += 0.1;
-  if (candidate.reasons.includes("semantic-turn-grounded")) value += 0.2;
-  if (candidate.reasons.includes("bounded-creative-bet")) value += 0.16;
+  if (candidate.supportedEventIds.length > 0) {
+    value += 0.35;
+  }
+
+  if (candidate.supportedRelationPairs.length > 0) {
+    value += 0.25;
+  }
+
+  if (candidate.groundingScore >= 0.8) {
+    value += 0.2;
+  } else if (candidate.groundingScore >= 0.5) {
+    value += 0.1;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "semantic-turn-grounded",
+    )
+  ) {
+    value += 0.2;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "bounded-creative-bet",
+    )
+  ) {
+    value += 0.16;
+  }
 
   return clamp01(value);
 }
 
-function rank(candidate: MouthCandidate): number {
-  const inventionSafety = 1 - Math.max(candidate.inventionRisk, candidate.forbiddenMoveRisk);
-  const authorization = authorizationQuality(candidate);
-  const semantic = semanticQuality(candidate);
-  const endpoint = candidate.endpointExactness >= 0.999 ? 1 : 0;
-
-  return clamp01(
-    inventionSafety * 0.28 +
-    authorization * 0.24 +
-    semantic * 0.4 +
-    endpoint * 0.08,
+/**
+ * Semantic compression is an explicit realization mode.
+ *
+ * It must outrank ordinary lexical advantage when both candidates are safe.
+ */
+function isSemanticGold(candidate: MouthCandidate): boolean {
+  return candidate.reasons.includes(
+    "semantic-compression",
   );
 }
 
-function compareCandidates(a: MouthCandidate, b: MouthCandidate): number {
-  const rankDelta = rank(b) - rank(a);
-  if (rankDelta !== 0) return rankDelta;
-  if (a.endpointExactness !== b.endpointExactness) return b.endpointExactness - a.endpointExactness;
-  if (a.reasons.includes("bounded-creative-bet") !== b.reasons.includes("bounded-creative-bet")) {
-    return b.reasons.includes("bounded-creative-bet") ? 1 : -1;
-  }
-  if (a.supportedEventIds.length !== b.supportedEventIds.length) return b.supportedEventIds.length - a.supportedEventIds.length;
-  if (a.groundingScore !== b.groundingScore) return b.groundingScore - a.groundingScore;
-  const aWords = clean(a.text).split(/\s+/).length;
-  const bWords = clean(b.text).split(/\s+/).length;
-  if (aWords !== bWords) return aWords - bWords;
-  return clean(a.text).localeCompare(clean(b.text));
+function isCreativeGold(candidate: MouthCandidate): boolean {
+  return candidate.reasons.includes(
+    "bounded-creative-bet",
+  );
 }
 
-function dedupeCandidates(candidates: readonly MouthCandidate[]): MouthCandidate[] {
+function isSafe(candidate: MouthCandidate): boolean {
+  return (
+    candidate.inventionRisk < 0.35 &&
+    candidate.forbiddenMoveRisk < 0.35
+  );
+}
+
+function rank(candidate: MouthCandidate): number {
+  const inventionSafety =
+    1 -
+    Math.max(
+      candidate.inventionRisk,
+      candidate.forbiddenMoveRisk,
+    );
+
+  const authorization =
+    authorizationQuality(candidate);
+
+  const semantic =
+    semanticQuality(candidate);
+
+  const endpoint =
+    candidate.endpointExactness >= 0.999
+      ? 1
+      : 0;
+
+  const semanticGold =
+    isSemanticGold(candidate)
+      ? 1
+      : 0;
+
+  const creativeGold =
+    isCreativeGold(candidate)
+      ? 1
+      : 0;
+
+  /*
+   * Provenance dominates style metrics.
+   *
+   * A semantic realization that has passed the concrete-reality firewall
+   * must not be forced below a literal realization merely because the literal
+   * retains more source words or happens to terminate an approved endpoint.
+   */
+  return clamp01(
+    inventionSafety * 0.24 +
+      semanticGold * 0.32 +
+      creativeGold * 0.14 +
+      authorization * 0.14 +
+      semantic * 0.12 +
+      endpoint * 0.04,
+  );
+}
+
+/**
+ * Candidate ordering is a deterministic expression of the same authority.
+ *
+ * Safe semantic gold beats safe non-semantic language.
+ * Safety always wins over both.
+ */
+function compareCandidates(
+  a: MouthCandidate,
+  b: MouthCandidate,
+): number {
+  const aSemantic = isSemanticGold(a);
+  const bSemantic = isSemanticGold(b);
+
+  const aSafe = isSafe(a);
+  const bSafe = isSafe(b);
+
+  if (
+    aSafe &&
+    bSafe &&
+    aSemantic !== bSemantic
+  ) {
+    return aSemantic ? -1 : 1;
+  }
+
+  const rankDelta = rank(b) - rank(a);
+
+  if (rankDelta !== 0) {
+    return rankDelta;
+  }
+
+  if (
+    a.endpointExactness !==
+    b.endpointExactness
+  ) {
+    return (
+      b.endpointExactness -
+      a.endpointExactness
+    );
+  }
+
+  const aCreative =
+    isCreativeGold(a);
+
+  const bCreative =
+    isCreativeGold(b);
+
+  if (aCreative !== bCreative) {
+    return bCreative ? 1 : -1;
+  }
+
+  if (
+    a.supportedEventIds.length !==
+    b.supportedEventIds.length
+  ) {
+    return (
+      b.supportedEventIds.length -
+      a.supportedEventIds.length
+    );
+  }
+
+  if (
+    a.groundingScore !==
+    b.groundingScore
+  ) {
+    return (
+      b.groundingScore -
+      a.groundingScore
+    );
+  }
+
+  const aWords =
+    clean(a.text).split(/\s+/).filter(Boolean)
+      .length;
+
+  const bWords =
+    clean(b.text).split(/\s+/).filter(Boolean)
+      .length;
+
+  if (aWords !== bWords) {
+    return aWords - bWords;
+  }
+
+  return clean(a.text).localeCompare(
+    clean(b.text),
+  );
+}
+
+function dedupeCandidates(
+  candidates: readonly MouthCandidate[],
+): MouthCandidate[] {
   const seen = new Set<string>();
   const result: MouthCandidate[] = [];
+
   for (const candidate of candidates) {
     const text = clean(candidate.text);
+
     if (!text) continue;
+
     const key = text.toLowerCase();
+
     if (seen.has(key)) continue;
+
     seen.add(key);
     result.push(candidate);
   }
+
   return result;
 }
 
-function sequenceFit(candidate: MouthCandidate, priorTexts: readonly string[]): number {
-  if (!priorTexts.length) return 0.64;
-  const current = tokenSet(candidate.text);
-  const previous = priorTexts.map(tokenSet);
-  const latest = previous[previous.length - 1];
-  const latestOverlap = overlap(current, latest);
-  const maxOverlap = Math.max(...previous.map((tokens) => overlap(current, tokens)));
-  const exactRepeat = previous.some((text) => clean(text).toLowerCase() === clean(candidate.text).toLowerCase());
-  if (exactRepeat) return 0;
-  const restatementPenalty = latestOverlap >= 0.78 ? 0.44 : latestOverlap >= 0.62 ? 0.24 : maxOverlap >= 0.82 ? 0.2 : 0;
-  const callbackSweetSpot = latestOverlap >= 0.18 && latestOverlap <= 0.52 ? 0.16 : 0;
-  const selectiveTurn = candidate.reasons.includes("semantic-turn-grounded") && latestOverlap < 0.75 ? 0.12 : 0;
-  const creativeTurn = candidate.reasons.includes("bounded-creative-bet") && latestOverlap < 0.75 ? 0.1 : 0;
-  return clamp01(0.62 + callbackSweetSpot + selectiveTurn + creativeTurn - restatementPenalty);
+/**
+ * Sequence continuity rewards useful callbacks and turns while discouraging
+ * exact repetition and excessive lexical restatement.
+ */
+function sequenceFit(
+  candidate: MouthCandidate,
+  priorTexts: readonly string[],
+): number {
+  if (!priorTexts.length) {
+    return 0.64;
+  }
+
+  const current = tokenSet(
+    candidate.text,
+  );
+
+  const previous =
+    priorTexts.map(tokenSet);
+
+  const latest =
+    previous[previous.length - 1];
+
+  const latestOverlap =
+    overlap(current, latest);
+
+  const maxOverlap =
+    Math.max(
+      ...previous.map((text) =>
+        overlap(current, text),
+      ),
+    );
+
+  const exactRepeat =
+    previous.some(
+      (text) =>
+        clean(text).toLowerCase() ===
+        clean(candidate.text).toLowerCase(),
+    );
+
+  if (exactRepeat) {
+    return 0;
+  }
+
+  const restatementPenalty =
+    latestOverlap >= 0.78
+      ? 0.44
+      : latestOverlap >= 0.62
+        ? 0.24
+        : maxOverlap >= 0.82
+          ? 0.2
+          : 0;
+
+  const callbackSweetSpot =
+    latestOverlap >= 0.18 &&
+    latestOverlap <= 0.52
+      ? 0.16
+      : 0;
+
+  const selectiveTurn =
+    candidate.reasons.includes(
+      "semantic-turn-grounded",
+    ) &&
+    latestOverlap < 0.75
+      ? 0.12
+      : 0;
+
+  const creativeTurn =
+    candidate.reasons.includes(
+      "bounded-creative-bet",
+    ) &&
+    latestOverlap < 0.75
+      ? 0.1
+      : 0;
+
+  return clamp01(
+    0.62 +
+      callbackSweetSpot +
+      selectiveTurn +
+      creativeTurn -
+      restatementPenalty,
+  );
 }
 
-function pathScore(candidate: MouthCandidate, priorTexts: readonly string[]): number {
-  return clamp01(rank(candidate) * 0.76 + sequenceFit(candidate, priorTexts) * 0.24);
+/**
+ * Path score combines candidate quality with how well that realization fits
+ * the cuts that came immediately before it.
+ *
+ * Explicit semantic authorization gets an additional path-level priority.
+ * This is the important distinction: provenance is evaluated where the
+ * candidate actually competes for path survival, not merely when candidates
+ * are pre-sorted.
+ */
+function pathCandidateScore(
+  candidate: MouthCandidate,
+  priorTexts: readonly string[],
+  hasLiteralAlternative: boolean,
+): number {
+  const fit =
+    sequenceFit(
+      candidate,
+      priorTexts,
+    );
+
+  const semanticPriority =
+    isSemanticGold(candidate) &&
+    hasLiteralAlternative
+      ? 0.32
+      : 0;
+
+  /*
+   * Endpoint exactness is deliberately small. A literal endpoint cannot
+   * overpower a semantically authorized realization.
+   */
+  const endpointPriority =
+    candidate.endpointExactness >= 0.999 &&
+    !isSemanticGold(candidate)
+      ? 0.04
+      : 0;
+
+  return clamp01(
+    rank(candidate) * 0.68 +
+      fit * 0.28 +
+      semanticPriority +
+      endpointPriority,
+  );
 }
+
 export function selectBestMouthSequence(
   pools: readonly MouthCandidatePool[],
   options: MouthBeamOptions = {},
 ): MouthSequencePath {
-  const ordered =
-    [...pools].sort(
-      (a, b) =>
-        a.order - b.order,
-    );
+  const ordered = [...pools].sort(
+    (a, b) => a.order - b.order,
+  );
 
   if (!ordered.length) {
     return {
@@ -205,13 +493,10 @@ export function selectBestMouthSequence(
     };
   }
 
-  const width =
-    Math.max(
-      1,
-      Math.floor(
-        options.width ?? 12,
-      ),
-    );
+  const width = Math.max(
+    1,
+    Math.floor(options.width ?? 12),
+  );
 
   const candidatesPerBeat =
     Math.max(
@@ -238,8 +523,7 @@ export function selectBestMouthSequence(
     index < ordered.length;
     index += 1
   ) {
-    const pool =
-      ordered[index];
+    const pool = ordered[index];
 
     const eligible =
       dedupeCandidates(
@@ -263,27 +547,24 @@ export function selectBestMouthSequence(
       };
     }
 
+    const hasLiteralAlternative =
+      eligible.some(
+        (candidate) =>
+          !isSemanticGold(candidate),
+      );
+
     const expanded: Path[] = [];
 
-    for (
-      const path of paths
-    ) {
+    for (const path of paths) {
+      const priorTexts =
+        path.candidates.map(
+          (candidate) =>
+            clean(candidate.text),
+        );
+
       for (
         const candidate of eligible
       ) {
-        const priorTexts =
-          path.candidates.map(
-            (item) =>
-              clean(item.text),
-          );
-
-        /*
-         * Exact textual repetition is not a useful new cut.
-         *
-         * This applies to every beat, not only the endpoint.
-         * Deliberate callbacks remain legal when they change the wording
-         * or realization; exact repetition is the thing we reject here.
-         */
         const exactRepeat =
           path.candidates.some(
             (prior) =>
@@ -295,31 +576,15 @@ export function selectBestMouthSequence(
               ).toLowerCase(),
           );
 
-        if (
-          exactRepeat
-        ) {
+        if (exactRepeat) {
           continue;
         }
 
-        const isFinal =
-          index ===
-          ordered.length - 1;
-
-        const fit =
-          sequenceFit(
+        const candidateScore =
+          pathCandidateScore(
             candidate,
             priorTexts,
-          );
-
-        /*
-         * Endpoint exactness is a bonus to an otherwise valid path.
-         * It does not bypass sequence continuity or duplicate protection.
-         */
-        const candidateScore =
-          clamp01(
-            rank(candidate) *
-              0.76 +
-              fit * 0.24,
+            hasLiteralAlternative,
           );
 
         expanded.push({
@@ -329,28 +594,19 @@ export function selectBestMouthSequence(
           ],
           score:
             path.score +
-            candidateScore +
-            (
-              isFinal &&
-              candidate.endpointExactness >=
-                0.999
-                ? 1.15
-                : 0
-            ),
+            candidateScore,
         });
       }
     }
 
     expanded.sort(
-      (a, b) =>
-        b.score - a.score,
+      (a, b) => b.score - a.score,
     );
 
-    paths =
-      expanded.slice(
-        0,
-        width,
-      );
+    paths = expanded.slice(
+      0,
+      width,
+    );
   }
 
   if (!paths.length) {
@@ -361,8 +617,7 @@ export function selectBestMouthSequence(
     };
   }
 
-  const best =
-    paths[0];
+  const best = paths[0];
 
   const average =
     best.candidates.length
@@ -377,16 +632,11 @@ export function selectBestMouthSequence(
     texts:
       best.candidates.map(
         (candidate) =>
-          clean(
-            candidate.text,
-          ),
+          clean(candidate.text),
       ),
 
-    score:
-      Number(
-        clamp01(
-          average,
-        ).toFixed(3),
-      ),
+    score: Number(
+      clamp01(average).toFixed(3),
+    ),
   };
 }

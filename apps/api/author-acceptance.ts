@@ -39,8 +39,8 @@ if (qualityStatus !== "ACCEPTED") {
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.text}`));
   console.log("--- END QRE SEQUENCE ---");
 }
-
-const expectedRequests = result.sequence.cuts.length;
+const expectedRequests =
+  result.sequence.cuts.length > 0 ? 1 : 0;
 if (result.diagnostics.modelCalls !== expectedRequests) {
   throw new Error(`AUTHOR INVARIANT FAILED: expected ${expectedRequests} model realization requests, got ${result.diagnostics.modelCalls}`);
 }

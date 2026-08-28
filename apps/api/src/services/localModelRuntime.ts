@@ -1,5 +1,4 @@
 import { Agent } from "undici";
-import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 
 export type LocalModelMessage = {
   role: "system" | "user" | "assistant";
@@ -18,14 +17,16 @@ export type LocalModelOptions = {
   temperature?: number;
 };
 
-function baseUrl() {
+function baseUrl(): string {
   return (
     process.env.QRE_LOCAL_MODEL_URL ||
     "http://127.0.0.1:11434"
   ).replace(/\/$/, "");
 }
 
-function modelName(modelOverride?: string) {
+function modelName(
+  modelOverride?: string,
+): string {
   return (
     modelOverride ||
     process.env.QRE_AUTHOR_FAST_MODEL ||
@@ -34,12 +35,13 @@ function modelName(modelOverride?: string) {
   );
 }
 
-function fallbackModelName(primaryModel: string) {
-  const configured =
-    String(
-      process.env.QRE_AUTHOR_FALLBACK_MODEL ||
-        "qwen2.5vl:7b",
-    ).trim();
+function fallbackModelName(
+  primaryModel: string,
+): string {
+  const configured = String(
+    process.env.QRE_AUTHOR_FALLBACK_MODEL ||
+      "qwen2.5vl:7b",
+  ).trim();
 
   if (!configured) {
     return "";
@@ -52,7 +54,7 @@ function fallbackModelName(primaryModel: string) {
   return configured;
 }
 
-function timeoutMs() {
+function timeoutMs(): number {
   const raw = Number(
     process.env.QRE_LOCAL_MODEL_TIMEOUT_MS ||
       600000,
@@ -63,7 +65,7 @@ function timeoutMs() {
     : 600000;
 }
 
-function headersTimeoutMs() {
+function headersTimeoutMs(): number {
   const raw = Number(
     process.env.QRE_LOCAL_MODEL_HEADERS_TIMEOUT_MS ||
       timeoutMs(),
@@ -74,7 +76,7 @@ function headersTimeoutMs() {
     : timeoutMs();
 }
 
-function bodyTimeoutMs() {
+function bodyTimeoutMs(): number {
   const raw = Number(
     process.env.QRE_LOCAL_MODEL_BODY_TIMEOUT_MS ||
       timeoutMs(),
@@ -85,7 +87,7 @@ function bodyTimeoutMs() {
     : timeoutMs();
 }
 
-function connectTimeoutMs() {
+function connectTimeoutMs(): number {
   const raw = Number(
     process.env.QRE_LOCAL_MODEL_CONNECT_TIMEOUT_MS ||
       15000,
@@ -96,24 +98,60 @@ function connectTimeoutMs() {
     : 15000;
 }
 
-function maxMouthAttempts() {
-  const raw = Number(
-    process.env.QRE_LOCAL_MODEL_MAX_MOUTH_ATTEMPTS ||
-      4,
-  );
+function keepAlive(): string {
+  const fast =
+    process.env.QRE_AUTHOR_FAST ===
+    "true";
 
-  return Number.isFinite(raw) && raw > 0
-    ? Math.max(1, Math.min(8, Math.floor(raw)))
-    : 4;
+  return (
+    process.env.QRE_LOCAL_MODEL_KEEP_ALIVE ||
+    (fast ? "10m" : "5m")
+  );
 }
 
-function stripDataUrl(value: string) {
+function defaultTemperature(
+  options: LocalModelOptions,
+): number {
+  const fast =
+    process.env.QRE_AUTHOR_FAST ===
+    "true";
+
+  return (
+    options.temperature ??
+    Number(
+      process.env.QRE_LOCAL_MODEL_TEMPERATURE ||
+        (fast ? 0.78 : 0.82),
+    )
+  );
+}
+
+function defaultNumPredict(
+  options: LocalModelOptions,
+): number {
+  const fast =
+    process.env.QRE_AUTHOR_FAST ===
+    "true";
+
+  return (
+    options.numPredict ??
+    Number(
+      process.env.QRE_LOCAL_MODEL_NUM_PREDICT ||
+        (fast ? 384 : 512),
+    )
+  );
+}
+
+function stripDataUrl(
+  value: string,
+): string {
   const match =
     /^data:[^;]+;base64,(.+)$/s.exec(
       value,
     );
 
-  return match ? match[1] : value;
+  return match
+    ? match[1]
+    : value;
 }
 
 let dispatcher:
@@ -124,14 +162,17 @@ function getDispatcher(): Agent {
   if (!dispatcher) {
     dispatcher = new Agent({
       connect: {
-        timeout: connectTimeoutMs(),
+        timeout:
+          connectTimeoutMs(),
       },
       headersTimeout:
         headersTimeoutMs(),
       bodyTimeout:
         bodyTimeoutMs(),
-      keepAliveTimeout: 30_000,
-      keepAliveMaxTimeout: 120_000,
+      keepAliveTimeout:
+        30_000,
+      keepAliveMaxTimeout:
+        120_000,
       connections: 4,
       pipelining: 1,
     });
@@ -140,28 +181,36 @@ function getDispatcher(): Agent {
   return dispatcher;
 }
 
-function resetDispatcher() {
+function resetDispatcher(): void {
   if (!dispatcher) {
     return;
   }
 
-  const current = dispatcher;
+  const current =
+    dispatcher;
+
   dispatcher = undefined;
 
-  void current.close().catch(() => {});
+  void current
+    .close()
+    .catch(() => {});
 }
 
 function elapsedMs(
   startedAt: number,
 ): number {
-  return Date.now() - startedAt;
+  return (
+    Date.now() -
+    startedAt
+  );
 }
 
 function errorCode(
   error: unknown,
 ): string | undefined {
   if (
-    typeof error === "object" &&
+    typeof error ===
+      "object" &&
     error !== null &&
     "code" in error
   ) {
@@ -171,15 +220,19 @@ function errorCode(
       }
     ).code;
 
-    return typeof code === "string"
-      ? code
-      : undefined;
+    if (
+      typeof code ===
+      "string"
+    ) {
+      return code;
+    }
   }
 
   const cause =
-    typeof error === "object" &&
-    error !== null &&
-    "cause" in error
+    typeof error ===
+        "object" &&
+      error !== null &&
+      "cause" in error
       ? (
           error as {
             cause?: unknown;
@@ -188,7 +241,8 @@ function errorCode(
       : undefined;
 
   if (
-    typeof cause === "object" &&
+    typeof cause ===
+      "object" &&
     cause !== null &&
     "code" in cause
   ) {
@@ -198,9 +252,12 @@ function errorCode(
       }
     ).code;
 
-    return typeof code === "string"
-      ? code
-      : undefined;
+    if (
+      typeof code ===
+      "string"
+    ) {
+      return code;
+    }
   }
 
   return undefined;
@@ -210,25 +267,30 @@ function isAbortError(
   error: unknown,
 ): boolean {
   return (
-    typeof error === "object" &&
+    typeof error ===
+      "object" &&
     error !== null &&
     "name" in error &&
     (
       error as {
         name?: unknown;
       }
-    ).name === "AbortError"
+    ).name ===
+      "AbortError"
   );
 }
 
 function isTransportError(
   error: unknown,
 ): boolean {
-  if (isAbortError(error)) {
+  if (
+    isAbortError(error)
+  ) {
     return true;
   }
 
-  const code = errorCode(error);
+  const code =
+    errorCode(error);
 
   if (
     code &&
@@ -247,28 +309,147 @@ function isTransportError(
     return true;
   }
 
-  if (
-    error instanceof TypeError &&
+  return (
+    error instanceof
+      TypeError &&
     /fetch failed/i.test(
       error.message,
     )
+  );
+}
+
+function outputText(
+  data: unknown,
+): string {
+  if (
+    typeof data !==
+      "object" ||
+    data === null
   ) {
-    return true;
+    return "";
   }
 
-  return false;
+  const record =
+    data as Record<
+      string,
+      unknown
+    >;
+
+  const message =
+    record.message;
+
+  if (
+    typeof message ===
+      "object" &&
+    message !== null
+  ) {
+    const content = (
+      message as {
+        content?: unknown;
+      }
+    ).content;
+
+    if (
+      typeof content ===
+      "string"
+    ) {
+      return content.trim();
+    }
+  }
+
+  const response =
+    record.response;
+
+  if (
+    typeof response ===
+    "string"
+  ) {
+    return response.trim();
+  }
+
+  const choices =
+    record.choices;
+
+  if (
+    Array.isArray(
+      choices,
+    ) &&
+    choices.length > 0
+  ) {
+    const first =
+      choices[0];
+
+    if (
+      typeof first ===
+        "object" &&
+      first !== null
+    ) {
+      const firstRecord =
+        first as Record<
+          string,
+          unknown
+        >;
+
+      const choiceMessage =
+        firstRecord.message;
+
+      if (
+        typeof choiceMessage ===
+          "object" &&
+        choiceMessage !==
+          null
+      ) {
+        const content = (
+          choiceMessage as {
+            content?: unknown;
+          }
+        ).content;
+
+        if (
+          typeof content ===
+          "string"
+        ) {
+          return content.trim();
+        }
+      }
+    }
+  }
+
+  return "";
 }
+
+type LocalRequestBody = {
+  model: string;
+  stream: false;
+  keep_alive: string;
+  format?: "json";
+  messages: Array<{
+    role:
+      | "system"
+      | "user"
+      | "assistant";
+    content: string;
+    images?: string[];
+  }>;
+  options: {
+    temperature: number;
+    num_predict: number;
+  };
+};
 
 async function request(
   path: string,
-  body: unknown,
+  body: LocalRequestBody,
   modelOverride?: string,
-) {
+): Promise<unknown> {
   const controller =
     new AbortController();
 
   const timeout =
     timeoutMs();
+
+  const startedAt =
+    Date.now();
 
   const timer =
     setTimeout(() => {
@@ -286,79 +467,73 @@ async function request(
   const serializedBody =
     JSON.stringify(body);
 
-  const requestStartedAt =
-    Date.now();
-
   const selectedModel =
     modelName(
       modelOverride,
     );
 
-  console.log(
-    "QRE REQUEST START",
-  );
-  console.log(
-    "QRE REQUEST URL:",
-    url,
-  );
-  console.log(
-    "QRE REQUEST MODEL:",
-    selectedModel,
-  );
-  console.log(
-    "QRE REQUEST FORMAT:",
-    (body as any)?.format,
-  );
-  console.log(
-    "QRE REQUEST MESSAGE COUNT:",
-    Array.isArray(
-      (body as any)?.messages,
-    )
-      ? (body as any).messages.length
-      : "none",
-  );
-  console.log(
-    "QRE REQUEST BODY BYTES:",
-    Buffer.byteLength(
-      serializedBody,
-      "utf8",
-    ),
-  );
-  console.log(
-    "QRE REQUEST CONTENT CHARS:",
-    Array.isArray(
-      (body as any)?.messages,
-    )
-      ? (
-          body as any
-        ).messages.reduce(
-          (
-            total: number,
-            message: any,
-          ) =>
-            total +
-            String(
-              message?.content ??
-                "",
-            ).length,
-          0,
-        )
-      : "none",
-  );
-  console.log(
-    "QRE REQUEST TIMEOUT:",
-    timeout,
-  );
-  console.log(
-    "QRE REQUEST HEADERS TIMEOUT:",
-    headersTimeoutMs(),
-  );
-  console.log(
-    "QRE REQUEST BODY TIMEOUT:",
-    bodyTimeoutMs(),
-  );
-
   try {
+    console.log(
+      "QRE REQUEST START",
+    );
+
+    console.log(
+      "QRE REQUEST URL:",
+      url,
+    );
+
+    console.log(
+      "QRE REQUEST MODEL:",
+      selectedModel,
+    );
+
+    console.log(
+      "QRE REQUEST FORMAT:",
+      body.format ??
+        "default",
+    );
+
+    console.log(
+      "QRE REQUEST MESSAGE COUNT:",
+      body.messages.length,
+    );
+
+    console.log(
+      "QRE REQUEST BODY BYTES:",
+      Buffer.byteLength(
+        serializedBody,
+        "utf8",
+      ),
+    );
+
+    console.log(
+      "QRE REQUEST CONTENT CHARS:",
+      body.messages.reduce(
+        (
+          total,
+          message,
+        ) =>
+          total +
+          message.content.length,
+        0,
+      ),
+    );
+
+    console.log(
+      "QRE REQUEST TIMEOUT:",
+      timeout,
+    );
+
+    console.log(
+      "QRE REQUEST HEADERS TIMEOUT:",
+      headersTimeoutMs(),
+    );
+
+    console.log(
+      "QRE REQUEST BODY TIMEOUT:",
+      bodyTimeoutMs(),
+    );
+
     console.log(
       "QRE FETCH ENTER",
     );
@@ -372,7 +547,8 @@ async function request(
             "Content-Type":
               "application/json",
           },
-          body: serializedBody,
+          body:
+            serializedBody,
           signal:
             controller.signal,
           dispatcher:
@@ -382,28 +558,31 @@ async function request(
         },
       );
 
-    const headersReceivedAt =
-      elapsedMs(
-        requestStartedAt,
-      );
-
     console.log(
       "QRE FETCH RETURNED",
     );
+
     console.log(
       "QRE RESPONSE STATUS:",
       response.status,
     );
+
     console.log(
       "QRE TIME TO HEADERS MS:",
-      headersReceivedAt,
+      elapsedMs(
+        startedAt,
+      ),
     );
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
       const detail =
         await response
           .text()
-          .catch(() => "");
+          .catch(
+            () => "",
+          );
 
       console.log(
         "QRE RESPONSE ERROR BODY:",
@@ -425,41 +604,42 @@ async function request(
     const json =
       await response.json();
 
-    const totalMs =
-      elapsedMs(
-        requestStartedAt,
-      );
-
     console.log(
       "QRE RESPONSE JSON RECEIVED",
     );
+
     console.log(
       "QRE REQUEST TOTAL MS:",
-      totalMs,
+      elapsedMs(
+        startedAt,
+      ),
     );
 
     return json;
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.log(
       "QRE LOCAL REQUEST ERROR:",
       error,
     );
 
     if (
-      isTransportError(error)
+      isTransportError(
+        error,
+      )
     ) {
+      const code =
+        errorCode(error);
+
       console.log(
         "QRE LOCAL REQUEST TRANSPORT FAILURE",
-        `code=${errorCode(error) ?? "unknown"}`,
+        `code=${code ?? "unknown"}`,
         `elapsedMs=${elapsedMs(
-          requestStartedAt,
+          startedAt,
         )}`,
       );
 
-      /*
-       * If the dispatcher itself has been destroyed by a socket-level
-       * failure, rebuild it before the next request.
-       */
       if (
         [
           "UND_ERR_SOCKET",
@@ -467,7 +647,7 @@ async function request(
           "ECONNRESET",
           "EPIPE",
         ].includes(
-          errorCode(error) ?? "",
+          code ?? "",
         )
       ) {
         resetDispatcher();
@@ -483,1099 +663,48 @@ async function request(
     console.log(
       "QRE REQUEST FINISHED",
       `totalMs=${elapsedMs(
-        requestStartedAt,
+        startedAt,
       )}`,
     );
   }
 }
 
-function outputText(
-  data: any,
-): string {
-  return String(
-    data?.message?.content ??
-      data?.response ??
-      data?.choices?.[0]
-        ?.message?.content ??
-      "",
-  ).trim();
-}
-
-const UNIVERSAL_AUTHOR_COGNITION = [
-  "QRE AUTHOR COGNITIVE DISCIPLINE · hidden planning, finished output only:",
-  "Treat supplied facts as world memory, not a checklist of sentences.",
-  "Search relationships among facts before choosing a sequence: contradiction, recurrence, recontextualization, implication, callback, status shift, convergence, mismatch, unresolved object, sensory fingerprint, and detail hierarchy.",
-  "Select the strongest latent movie, not the easiest story template.",
-  "A sequence is a chain of sentence cuts. Each cut is a tiny film moment, not a paragraph, scene summary, or explanation.",
-  "Every cut must create a new viewer state: see something, notice something, suspect something, realize something, feel a reversal, or receive a payoff.",
-  "Use novelty, uncertainty, prediction shift, information value, and consequence together. Engagement is the interaction of those forces, not a pile of adjectives.",
-  "Identity and established facts belong to baseline world state; do not spend cuts repeating them unless the repetition itself changes meaning.",
-  "For memories, preserve the supplied sensory/social/personal fingerprint. Do not replace it with category shorthand or generic biography.",
-  "Creative lenses change framing, rhythm, metaphor, implication, and escalation; they do not authorize invented facts.",
-  "Never expose planning vocabulary, strategy labels, operator names, beat metadata, or author instructions in viewer-facing text.",
-  "Do not explain the joke, emotion, meaning, or cinematic intent when a concrete short line can imply it.",
-].join(
-  "\n",
-);
-
-const FILM_CUT_PLANNER = [
-  "QRE FILM-CUT PLANNER:",
-  "Think of each beat as the next moving message in a film.",
-  "Beat 1: hook the eye or mind with the strongest concrete detail.",
-  "Beat 2: jolt the expectation with a different meaningful detail.",
-  "Beat 3: jolt again through contrast, consequence, reversal, callback, or escalation.",
-  "Beat 4+: escalate only when the source has enough material; otherwise stop cleanly at payoff.",
-  "The beats must not narrate the same fact repeatedly.",
-  "The beats must not enumerate every task in order merely because the prompt lists them.",
-  "For service receipts, preserve factual work order but convert each useful change into a watchable cut.",
-  "For comedy, exploit personality/status contradiction already present in the facts.",
-  "For horror, keep ordinary behavior intact while reality becomes increasingly wrong.",
-  "For romance, use private details, recurrence, restraint, and emotional consequence.",
-  "For demented/chaotic styles, increase unpredictability and juxtaposition without inventing concrete events.",
-  "Every beat needs a compact `change`, a compact `frontier`, and a compact `necessity`.",
-  "Target 3-6 beats. Keep `change` and `frontier` short enough to realize as a single sentence cut.",
-  "Do not put strategy names or cognitive language into change/frontier/next/necessity.",
-].join(
-  "\n",
-);
-
-const META_LANGUAGE =
-  /\b(?:attention strategy|operator(?: mix|s)?|build from beat|cognitive(?: plan| language)?|preserve forward information|land the chosen meaning|find subtle tension|viewer momentum|information frontier|beat plan|writing process|author brief|necessity of this beat|strategy names?)\b/i;
-
-const GENERIC_PROSE =
-  /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|positive outcome|newfound confidence|happy-go-lucky|tale of transformation|a testament to|satisfaction is our priority)\b/i;
-
-const META_PLANNER =
-  /QRE's latent-movie planner|QRE FILM-CUT PLANNER|Output JSON only: \{premise:string/i;
-
-function prepareMessages(
-  messages: LocalModelMessage[],
-): LocalModelMessage[] {
-  const firstSystem =
-    messages.find(
-      (message) =>
-        message.role ===
-        "system",
-    );
-
-  if (!firstSystem) {
-    return messages;
-  }
-
-  if (
-    !/QRE's universal creative author|QRE's universal latent-movie discovery brain|QRE's theatrical mouth|QRE's latent-movie planner/i.test(
-      firstSystem.content,
-    )
-  ) {
-    return messages;
-  }
-
-  return messages.map(
-    (message) =>
-      message === firstSystem
-        ? {
-            ...message,
-            content: `${UNIVERSAL_AUTHOR_COGNITION}\n\n${firstSystem.content}`,
-          }
-        : message,
-  );
-}
-
-function parseUserObject(
-  messages: LocalModelMessage[],
-): Record<
-  string,
-  unknown
-> | null {
-  const user =
-    [
-      ...messages,
-    ]
-      .reverse()
-      .find(
-        (message) =>
-          message.role ===
-          "user",
-      );
-
-  if (!user) {
-    return null;
-  }
-
-  try {
-    const value =
-      JSON.parse(
-        user.content,
-      );
-
-    return value &&
-      typeof value ===
-        "object"
-      ? (value as Record<
-          string,
-          unknown
-        >)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function preparePlannerMessages(
-  messages: LocalModelMessage[],
-): LocalModelMessage[] {
-  const prepared =
-    prepareMessages(
-      messages,
-    );
-
-  const system =
-    prepared.find(
-      (message) =>
-        message.role ===
-        "system",
-    );
-
-  if (
-    !system ||
-    !META_PLANNER.test(
-      system.content,
-    )
-  ) {
-    return prepared;
-  }
-
-  const source =
-    parseUserObject(
-      prepared,
-    );
-
-  const realityGraph =
-    source
-      ? buildAuthorRealityGraph({
-          prompt: String(
-            source.prompt ??
-              "",
-          ),
-          subject: String(
-            source.subject ??
-              "",
-          ),
-          place: String(
-            source.place ??
-              "",
-          ),
-          facts:
-            Array.isArray(
-              source.facts,
-            )
-              ? source.facts.map(
-                  String,
-                )
-              : [],
-          sourceMoments:
-            Array.isArray(
-              source.moments,
-            )
-              ? source.moments.map(
-                  String,
-                )
-              : [],
-          memoryContext:
-            Array.isArray(
-              source.memory,
-            )
-              ? source.memory.map(
-                  String,
-                )
-              : [],
-          trajectory:
-            Array.isArray(
-              source.trajectory,
-            )
-              ? source.trajectory.map(
-                  String,
-                )
-              : [],
-        })
-      : undefined;
-
-  const graphContext =
-    realityGraph
-      ? [
-          "\nQRE REALITY GRAPH · SOURCE-TRUTH CONTEXT:",
-          "Use this graph to discover relationships before inventing narrative structure.",
-          `events=${JSON.stringify(
-            realityGraph.events.slice(
-              0,
-              10,
-            ),
-          )}`,
-          `relations=${JSON.stringify(
-            realityGraph.relations.slice(
-              0,
-              16,
-            ),
-          )}`,
-          `tensions=${JSON.stringify(
-            realityGraph.unresolvedTensions,
-          )}`,
-          `recurring=${JSON.stringify(
-            realityGraph.recurringSignals,
-          )}`,
-          `sensory=${JSON.stringify(
-            realityGraph.sensorySignals,
-          )}`,
-          "Every grounded beat must be traceable to evidence/events or to a clearly marked creative interpretation of those events.",
-          "Do not invent concrete objects, people, places, dates, actions, dialogue, or outcomes in reality-locked mode.",
-        ].join("\n")
-      : "";
-
-  return prepared.map(
-    (message) =>
-      message === system
-        ? {
-            ...message,
-            content:
-              `${message.content}\n\n${FILM_CUT_PLANNER}${graphContext}\n\nPLANNER OUTPUT RULES:\n- 3 to 6 beats.\n- Each beat is one sentence-cut opportunity, not a paragraph.\n- ` +
-              "`change`, `next`, `frontier`, and `necessity` must describe supplied reality or a safe interpretive relationship.\n" +
-              "- `change` should normally be 3-12 words.\n" +
-              "- `frontier` should normally be 2-10 words.\n" +
-              "- `necessity` should be one compact reason, not an explanation of the writing process.\n" +
-              "- Never output `ATTENTION STRATEGY:`, `OPERATOR MIX:`, `BUILD FROM BEAT`, `CONTRADICTIONS`, or similar internal language inside beat fields.\n" +
-              "- A service sequence should feel like a receipt that became a tiny film, not a checklist.\n" +
-              "- A successful sequence should read plausibly as separate short messages shown one after another.",
-          }
-        : message,
-  );
-}
-
-function extractOneText(
-  raw: string,
-): string {
-  try {
-    const value =
-      JSON.parse(raw);
-
-    if (
-      value &&
-      typeof value ===
-        "object"
-    ) {
-      if (
-        typeof value.text ===
-        "string"
-      ) {
-        return value.text.trim();
-      }
-
-      if (
-        Array.isArray(
-          value.texts,
-        ) &&
-        typeof value.texts[0] ===
-          "string"
-      ) {
-        return value.texts[0].trim();
-      }
-
-      if (
-        Array.isArray(
-          value.scenes,
-        ) &&
-        typeof value.scenes[0] ===
-          "string"
-      ) {
-        return value.scenes[0].trim();
-      }
-    }
-  } catch {
-    // Canonical mouth requests JSON; preserve raw text as a last-resort diagnostic value.
-  }
-
-  return String(
-    raw ?? "",
-  ).trim();
-}
-
-function wordCount(
-  value: string,
-): number {
-  return value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .length;
-}
-
-function isCanonicalMouth(
-  messages: LocalModelMessage[],
-  format?: "json",
-) {
-  if (format !== "json") {
-    return false;
-  }
-
-  const system =
-    messages.find(
-      (message) =>
-        message.role ===
-        "system",
-    )?.content ?? "";
-
-  return (
-    /QRE CANONICAL MOUTH/i.test(
-      system,
-    ) ||
-    /QRE's theatrical mouth/i.test(
-      system,
-    )
-  );
-}
-
-function mouthAcceptable(
-  text: string,
-): boolean {
-
-  const words =
-    wordCount(text);
-
-   if (
-  !text ||
-  words < 1 ||
-  words > 28
-) {
-  return false;
-}
-
-  if (
-    META_LANGUAGE.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    GENERIC_PROSE.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    /^[A-Z][A-Z _-]{5,}:/.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    /\b(?:what happens next|what will happen next|more to come|this beat|this scene|the viewer)\b/i.test(
-      text,
-    )
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function mouthSourceTruth(
-  base: Record<
-    string,
-    unknown
-  >,
-): string {
-  const source = {
-    prompt:
-      typeof base.prompt ===
-      "string"
-        ? base.prompt
-        : "",
-    subject:
-      typeof base.subject ===
-      "string"
-        ? base.subject
-        : "",
-    place:
-      typeof base.place ===
-      "string"
-        ? base.place
-        : "",
-    facts:
-      Array.isArray(
-        base.facts,
-      )
-        ? base.facts
-            .map(String)
-            .slice(0, 24)
-        : [],
-    moments:
-      Array.isArray(
-        base.moments,
-      )
-        ? base.moments
-            .map(String)
-            .slice(0, 18)
-        : [],
-    sourceMoments:
-      Array.isArray(
-        base.sourceMoments,
-      )
-        ? base.sourceMoments
-            .map(String)
-            .slice(0, 18)
-        : [],
-    memory:
-      Array.isArray(
-        base.memory,
-      )
-        ? base.memory
-            .map(String)
-            .slice(0, 14)
-        : [],
-    trajectory:
-      Array.isArray(
-        base.trajectory,
-      )
-        ? base.trajectory
-            .map(String)
-            .slice(0, 14)
-        : [],
-    subjectTruth:
-      base.subjectTruth ??
-      null,
-    realityGraph:
-      base.realityGraph ??
-      null,
-  };
-
-  return JSON.stringify(
-    source,
-  );
-}
-
-async function generateMouthCandidate(
-  messages: LocalModelMessage[],
-  payload: Record<
-    string,
-    unknown
-  >,
-  system: LocalModelMessage,
-  user: LocalModelMessage,
-  sourceTruth: string,
-  temperature: number,
-  numPredict: number,
-  keepAlive: string,
-  model: string,
-): Promise<string> {
-  const singleSystem:
-    LocalModelMessage = {
-      ...system,
-      content:
-        `${system.content}\n\nQRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:\nSOURCE TRUTH IS IMMUTABLE. The JSON source block below is the complete factual authority for this line.\nDo not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.\nCreative language may change attitude, rhythm, metaphor, implication, or personification only when it remains grounded in supplied details.\nIf the source says bows, balls, or ties, those are available. If the source does not say sunset, golden light, a bath, a room, a door, or another concrete detail, do not introduce it.\nRealize the supplied beat from the source truth, not from a generic memory-story pattern.\nSOURCE TRUTH: ${sourceTruth}\n\nThis is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.\nWrite exactly ONE short viewer-facing sentence for the supplied beat.\nUse Prefer a compact viewer-facing sentence. There is no fixed word count. Expand only when the wording itself is the hit; never pad or become a paragraph.\nOne line = one hit: a concrete action, supplied sensory detail, social turn, implication, reversal, or payoff.\nDo not summarize the whole experience. Do not narrate a paragraph. Do not explain the emotion. Do not introduce unsupported facts.\nThe line must feel like it belongs between the previous and next cuts.\nFunny can be sly, absurd, deadpan, or status-based. Horror can stay calm while reality goes wrong. Romance can be intimate and restrained. Demented can be sharp and unpredictable.\nNo emojis. No headings. JSON exactly: {"text":"short line"}.`,
-    };
-
-  const singleUser:
-    LocalModelMessage = {
-    ...user,
-    content:
-      JSON.stringify({
-        ...payload,
-      }),
-  };
-
-  const prepared =
-    prepareMessages([
-      singleSystem,
-      singleUser,
-    ]);
-
-  const data =
-    await request(
-      "/api/chat",
-      {
-        model,
-        stream: false,
-        keep_alive:
-          keepAlive,
-        format: "json",
-        messages:
-          prepared.map(
-            (message) => ({
-              role:
-                message.role,
-              content:
-                message.content,
-              ...(message
-                .images
-                ?.length
-                ? {
-                    images:
-                      message.images.map(
-                        stripDataUrl,
-                      ),
-                  }
-                : {}),
-            }),
-          ),
-        options: {
-          temperature,
-          num_predict:
-            numPredict,
-        },
-      },
-      model,
-    );
-
-  return extractOneText(
-    outputText(data),
-  );
-}
-async function realizeMouthOneBeat(
-  messages: LocalModelMessage[],
-  beat: unknown,
-  options: LocalModelOptions,
-): Promise<string> {
-  const system =
-    messages.find(
-      (message) =>
-        message.role ===
-        "system",
-    );
-
-  const user =
-    [
-      ...messages,
-    ]
-      .reverse()
-      .find(
-        (message) =>
-          message.role ===
-          "user",
-      );
-
-  if (
-    !system ||
-    !user
-  ) {
-    return "";
-  }
-
-  const base =
-    parseUserObject(
-      messages,
-    ) ?? {};
-
-  const beatRecord =
-    beat &&
-    typeof beat ===
-      "object"
-      ? (beat as Record<string, unknown>)
-      : {};
-
-  const beatSourceLabels =
-    Array.isArray(
-      beatRecord.sourceLabels,
-    )
-      ? beatRecord.sourceLabels
-          .map(String)
-          .filter(Boolean)
-      : [];
-
-  const beatEventIds =
-    Array.isArray(
-      beatRecord.eventIds,
-    )
-      ? beatRecord.eventIds
-          .map(String)
-          .filter(Boolean)
-      : [];
-
-  const wholeEvidence =
-    Array.isArray(
-      base.suppliedEvidence,
-    )
-      ? base.suppliedEvidence
-          .map(String)
-          .filter(Boolean)
-      : [];
-
-  /*
-   * CURRENT BEAT IS PRIMARY.
-   *
-   * The complete supplied corpus remains available as associative
-   * memory, but it is explicitly secondary so one salient fact cannot
-   * hijack every independent cut.
-   */
-  const secondaryEvidence =
-    wholeEvidence
-      .filter(
-        (value) =>
-          !beatSourceLabels.some(
-            (source) =>
-              source
-                .toLowerCase() ===
-              value
-                .toLowerCase(),
-          ),
-      )
-      .slice(
-        0,
-        24,
-      );
-
-  const singleBeatPayload =
-    {
-      ...base,
-
-      beats: [
-        beat,
-      ],
-
-      currentBeat: {
-        eventIds:
-          beatEventIds,
-        sourceLabels:
-          beatSourceLabels,
-      },
-
-      currentBeatSource:
-        beatSourceLabels,
-
-      associativeMemory:
-        secondaryEvidence,
-    };
-
-  /*
-   * Keep the source block truthful and local to the approved beat.
-   *
-   * The rest of the memory is provided separately as associative
-   * context rather than being allowed to silently become the beat's
-   * factual source.
-   */
-  const sourceTruth =
-    JSON.stringify({
-      subject:
-        typeof base.subject ===
-        "string"
-          ? base.subject
-          : "",
-
-      currentBeat: {
-        eventIds:
-          beatEventIds,
-        sourceLabels:
-          beatSourceLabels,
-      },
-
-      currentBeatSource:
-        beatSourceLabels,
-
-      associativeMemory:
-        secondaryEvidence,
-    });
-
-  const fast =
-    process.env.QRE_AUTHOR_FAST ===
-    "true";
-
-  const temperature =
-    options.temperature ??
-    Number(
-      process.env
-        .QRE_LOCAL_MODEL_TEMPERATURE ||
-        (fast
-          ? 0.78
-          : 0.82),
-    );
-
-  const numPredict =
-    options.numPredict ??
-    Number(
-      process.env
-        .QRE_LOCAL_MODEL_NUM_PREDICT ||
-        (fast
-          ? 192
-          : 256),
-    );
-
-  const keepAlive =
-    process.env
-      .QRE_LOCAL_MODEL_KEEP_ALIVE ||
-    (fast
-      ? "10m"
-      : "5m");
-
-  const primaryModel =
-    modelName();
-
-  const fallbackModel =
-    fallbackModelName(
-      primaryModel,
-    );
-
-  let transportFallbackUsed =
-    false;
-
-  for (
-    let attempt = 0;
-    attempt <
-    maxMouthAttempts();
-    attempt += 1
-  ) {
-    const retryInstruction =
-      attempt === 0
-        ? ""
-        : `\nRETRY ${attempt}: Reject the previous line internally.Rewrite ONLY this beat. Use the smallest effective cut; a fragment or one-word realization is valid.  Prefer the smallest effective cut. A fragment or one-word realization is valid. The CURRENT BEAT SOURCE is authoritative. Use the associative memory only for a surprising connection, callback, attitude, or implication that still belongs to this beat. No summary. No invented object, place, action, person, date, outcome, weather, time-of-day, or sensory setting.`;
-
-    const attemptSystem =
-      {
-        ...system,
-
-        content:
-          `${system.content}
-
-QRE MOUTH · SOURCE-LOCKED MOVING MESSAGE MODE:
-SOURCE TRUTH IS IMMUTABLE.
-
-CURRENT BEAT IS PRIMARY.
-The CURRENT BEAT SOURCE below is the material this line must realize.
-
-CURRENT BEAT SOURCE:
-${JSON.stringify(
-  beatSourceLabels,
-)}
-
-CURRENT BEAT EVENT IDS:
-${JSON.stringify(
-  beatEventIds,
-)}
-
-ASSOCIATIVE MEMORY IS SECONDARY.
-It may provide a callback, contrast, attitude, wordplay, implication, obsession, or surprising connection, but it must NOT replace the current beat or silently become a different concrete event.
-
-ASSOCIATIVE MEMORY:
-${JSON.stringify(
-  secondaryEvidence,
-)}
-
-The current line must belong to the current beat.
-Do not repeatedly realize the same semantic territory simply because it is salient elsewhere in the memory.
-A later callback is allowed after the sequence has moved on.
-Surprise is good. Semantic camping is not.
-
-Do not import imagery, objects, settings, actions, weather, lighting, time-of-day, locations, people, or outcomes from general world knowledge.
-
-Creative language may change attitude, rhythm, metaphor, implication, compression, personification, or associative surprise only when grounded in supplied details.
-
-This is one film cut. The viewer sees this line alone for a moment, then it cuts to the next line.
-Write exactly ONE short viewer-facing cut for the supplied beat.
-
-The cut may be:
-- one word,
-- a fragment,
-- a sentence,
-- or a very short sequence of fragments.
-
-Choose the smallest form that makes the beat land.
-
-Do not force grammatical completeness.
-Do not add words merely to make a sentence.
-A single word may be the strongest realization.
-
-One line = one hit: a concrete supplied detail, sensory detail, social turn, implication, reversal, attitude, interruption, callback, ominous pressure, or payoff.
-
-Do not summarize the whole experience.
-Do not narrate a paragraph.
-Do not explain the emotion.
-Do not introduce unsupported facts.
-Do not turn an unrelated secondary fact into the current beat.
-
-The line must feel like it belongs between the previous and next cuts.
-
-Funny can be sly, absurd, deadpan, or status-based.
-Horror can stay calm while reality goes wrong.
-Romance can be intimate and restrained.
-Demented can be sharp and unpredictable.
-
-No emojis.
-No headings.
-JSON exactly: {"text":"short line"}.${retryInstruction}`,
-      };
-
-    const singleUser:
-      LocalModelMessage =
-      {
-        ...user,
-
-        content:
-          JSON.stringify(
-            singleBeatPayload,
-          ),
-      };
-
-    try {
-      const text =
-        await generateMouthCandidate(
-          messages,
-          singleBeatPayload,
-          attemptSystem,
-          singleUser,
-          sourceTruth,
-          temperature,
-          numPredict,
-          keepAlive,
-          primaryModel,
-        );
-
-      if (
-        mouthAcceptable(
-          text,
-        )
-      ) {
-        return text;
-      }
-    } catch (error) {
-      if (
-        !isTransportError(
-          error,
-        )
-      ) {
-        throw error;
-      }
-
-      console.log(
-        "QRE MOUTH PRIMARY TRANSPORT FAILURE",
-        `model=${primaryModel}`,
-        `attempt=${attempt + 1}`,
-        `code=${errorCode(error) ?? "unknown"}`,
-      );
-
-      if (
-        fallbackModel &&
-        !transportFallbackUsed
-      ) {
-        transportFallbackUsed =
-          true;
-
-        try {
-          const fallbackText =
-            await generateMouthCandidate(
-              messages,
-              singleBeatPayload,
-              attemptSystem,
-              singleUser,
-              sourceTruth,
-              temperature,
-              numPredict,
-              keepAlive,
-              fallbackModel,
-            );
-
-          console.log(
-            "QRE MOUTH FALLBACK RESULT",
-            `model=${fallbackModel}`,
-            `acceptable=${mouthAcceptable(
-              fallbackText,
-            )}`,
-          );
-
-          if (
-            mouthAcceptable(
-              fallbackText,
-            )
-          ) {
-            return fallbackText;
-          }
-        } catch (
-          fallbackError
-        ) {
-          if (
-            !isTransportError(
-              fallbackError,
-            )
-          ) {
-            throw fallbackError;
-          }
-
-          console.log(
-            "QRE MOUTH FALLBACK TRANSPORT FAILURE",
-            `model=${fallbackModel}`,
-            `code=${errorCode(
-              fallbackError,
-            ) ?? "unknown"}`,
-          );
-        }
-      }
-
-      break;
-    }
-  }
-
-  return "";
-}
-
+/**
+ * PURE LOCAL MODEL TRANSPORT.
+ *
+ * This module deliberately does NOT:
+ *
+ * - build a RealityGraph
+ * - choose a movie
+ * - choose a lens
+ * - plan beats
+ * - interpret a thesis
+ * - realize one beat at a time
+ * - run Mouth policy
+ * - score Mouth candidates
+ * - select a sequence
+ *
+ * Those responsibilities belong upstream.
+ *
+ * Canonical path:
+ *
+ * Cognition
+ *   ↓ selectedMovie
+ * Brain
+ *   ↓ approved beats
+ * Mouth
+ *   ↓ one batch request
+ * localModelGenerate()
+ *   ↓
+ * local model transport
+ */
 export async function localModelGenerate(
   messages: LocalModelMessage[],
   format?: "json",
   options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
-  const planner =
-    messages.some(
-      (message) =>
-        message.role ===
-          "system" &&
-        META_PLANNER.test(
-          message.content,
-        ),
-    );
 
-  const preparedMessages =
-    planner
-      ? preparePlannerMessages(
-          messages,
-        )
-      : prepareMessages(
-          messages,
-        );
-
-  if (
-    isCanonicalMouth(
-      messages,
-      format,
-    )
-  ) {
-    const payload =
-      parseUserObject(
-        messages,
-      );
-
-    const beats =
-      Array.isArray(
-        payload?.beats,
-      )
-        ? payload.beats
-        : [];
-
-    if (
-      beats.length
-    ) {
-      const texts: string[] =
-        [];
-
-      for (
-        const beat of beats
-      ) {
-        const text =
-          await realizeMouthOneBeat(
-            messages,
-            beat,
-            options,
-          );
-
-        if (text) {
-          texts.push(text);
-        }
-
-        if (
-          process.env
-            .QRE_AUTHOR_DEBUG_RAW ===
-          "true"
-        ) {
-          console.log(
-            `\n--- QRE RAW MODEL OUTPUT · MOUTH-BEAT ---\n${text}\n--- END RAW MODEL OUTPUT · MOUTH-BEAT ---\n`,
-          );
-        }
-      }
-
-      const variantsByBeat = beats.map((beat, index) => {
-  const raw = texts[index] ?? "";
-
-  try {
-    const parsed = JSON.parse(raw) as {
-      variantsByBeat?: Array<{
-        variants?: unknown[];
-      }>;
-      text?: unknown;
-    };
-
-    const variants =
-      parsed?.variantsByBeat?.[0]?.variants
-        ?.map(String)
-        .filter(Boolean)
-        .slice(0, 8) ??
-      (parsed?.text ? [String(parsed.text)] : []);
-
-    return {
-      order: Number((beat as { order?: number }).order ?? index + 1),
-      variants,
-    };
-  } catch {
-    return {
-      order: Number((beat as { order?: number }).order ?? index + 1),
-      variants: raw ? [raw] : [],
-    };
-  }
-});
-
-    const combined = JSON.stringify({
-     variantsByBeat,
-    });
-      
-      if (
-        process.env
-          .QRE_AUTHOR_DEBUG_RAW ===
-        "true"
-      ) {
-        console.log(
-          `\n--- QRE RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n${combined}\n--- END RAW MODEL OUTPUT · MOUTH-REALIZATION-BATCH ---\n`,
-        );
-      }
-
-      return {
-        text: combined,
-        model:
-          modelName(),
-        provider: "local",
-      };
-    }
-  }
-
-  const fast =
-    process.env.QRE_AUTHOR_FAST ===
-    "true";
-
-  const temperature =
-    options.temperature ??
-    Number(
-      process.env
-        .QRE_LOCAL_MODEL_TEMPERATURE ||
-        (fast
-          ? 0.75
-          : 0.8),
-    );
-
-  const numPredict =
-    options.numPredict ??
-    Number(
-      process.env
-        .QRE_LOCAL_MODEL_NUM_PREDICT ||
-        (fast
-          ? 512
-          : 512),
-    );
-
-  const keepAlive =
-    process.env
-      .QRE_LOCAL_MODEL_KEEP_ALIVE ||
-    (fast
-      ? "10m"
-      : "5m");
-
+  
   const primaryModel =
     modelName();
 
@@ -1584,41 +713,62 @@ export async function localModelGenerate(
       primaryModel,
     );
 
+  const temperature =
+    defaultTemperature(
+      options,
+    );
+
+  const numPredict =
+    defaultNumPredict(
+      options,
+    );
+
+  const requestBody:
+    LocalRequestBody = {
+    model:
+      primaryModel,
+
+    stream:
+      false,
+
+    keep_alive:
+      keepAlive(),
+
+    format,
+
+    messages:
+      messages.map(
+        (message) => ({
+          role:
+            message.role,
+
+          content:
+            message.content,
+
+          ...(message
+            .images?.length
+            ? {
+                images:
+                  message.images.map(
+                    stripDataUrl,
+                  ),
+              }
+            : {}),
+        }),
+      ),
+
+    options: {
+      temperature,
+      num_predict:
+        numPredict,
+    },
+  };
+
   try {
     const data =
       await request(
         "/api/chat",
-        {
-          model:
-            primaryModel,
-          stream: false,
-          keep_alive:
-            keepAlive,
-          format,
-          messages:
-            preparedMessages.map(
-              (message) => ({
-                role:
-                  message.role,
-                content:
-                  message.content,
-                ...(message.images
-                  ?.length
-                  ? {
-                      images:
-                        message.images.map(
-                          stripDataUrl,
-                        ),
-                    }
-                  : {}),
-              }),
-            ),
-          options: {
-            temperature,
-            num_predict:
-              numPredict,
-          },
-        },
+        requestBody,
         primaryModel,
       );
 
@@ -1633,7 +783,7 @@ export async function localModelGenerate(
       console.log(
         "\n--- QRE RAW MODEL OUTPUT ---\n" +
           text +
-          "\n--- END RAW MODEL OUTPUT ---\n",
+          "\n--- END QRE RAW MODEL OUTPUT ---\n",
       );
     }
 
@@ -1641,9 +791,12 @@ export async function localModelGenerate(
       text,
       model:
         primaryModel,
-      provider: "local",
+      provider:
+        "local",
     };
-  } catch (error) {
+  } catch (
+    error
+  ) {
     if (
       !isTransportError(
         error,
@@ -1660,40 +813,17 @@ export async function localModelGenerate(
       `code=${errorCode(error) ?? "unknown"}`,
     );
 
+    const fallbackBody:
+      LocalRequestBody = {
+      ...requestBody,
+      model:
+        fallbackModel,
+    };
+
     const data =
       await request(
         "/api/chat",
-        {
-          model:
-            fallbackModel,
-          stream: false,
-          keep_alive:
-            keepAlive,
-          format,
-          messages:
-            preparedMessages.map(
-              (message) => ({
-                role:
-                  message.role,
-                content:
-                  message.content,
-                ...(message.images
-                  ?.length
-                  ? {
-                      images:
-                        message.images.map(
-                          stripDataUrl,
-                        ),
-                    }
-                  : {}),
-              }),
-            ),
-          options: {
-            temperature,
-            num_predict:
-              numPredict,
-          },
-        },
+        fallbackBody,
         fallbackModel,
       );
 
@@ -1716,21 +846,31 @@ export async function localModelGenerate(
       text,
       model:
         fallbackModel,
-      provider: "local",
+      provider:
+        "local",
     };
   }
 }
 
 export async function localModelHealthy(): Promise<boolean> {
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () => {
+        controller.abort();
+      },
+      3000,
+    );
+
   try {
     const response =
       await fetch(
         `${baseUrl()}/api/tags`,
         {
           signal:
-            AbortSignal.timeout(
-              3000,
-            ),
+            controller.signal,
           dispatcher:
             getDispatcher(),
         } as RequestInit & {
@@ -1741,29 +881,45 @@ export async function localModelHealthy(): Promise<boolean> {
     return response.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(
+      timer,
+    );
   }
 }
 
 export function localModelConfig() {
+  const model =
+    modelName();
+
   return {
     provider:
       "local" as const,
-    url: baseUrl(),
-    model:
-      modelName(),
+
+    url:
+      baseUrl(),
+
+    model,
+
     fallbackModel:
       fallbackModelName(
-        modelName(),
-      ) || undefined,
+        model,
+      ) ||
+      undefined,
+
     timeoutMs:
       timeoutMs(),
+
     headersTimeoutMs:
       headersTimeoutMs(),
+
     bodyTimeoutMs:
       bodyTimeoutMs(),
+
     connectTimeoutMs:
       connectTimeoutMs(),
-    maxMouthAttempts:
-      maxMouthAttempts(),
+
+    keepAlive:
+      keepAlive(),
   };
 }

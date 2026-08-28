@@ -99,18 +99,57 @@ export function scoreMouthCandidate(input: {
       "bounded-creative-bet",
     ]),
   ];
-
   return {
     ...legacy,
+
+    /*
+     * The canonical evaluator has already established that this realization
+     * contains no unsupported concrete world claim. Do not let a legacy
+     * lexical/invention heuristic veto a semantically authorized realization.
+     *
+     * The concrete-reality firewall remains owned by
+     * evaluateMouthInterpretation().
+     */
+    inventionRisk: Math.min(
+      legacy.inventionRisk,
+      interpretation.unsupportedConcreteRisk,
+    ),
+
     supportedEventIds:
       authorizedEventIds.length > 0
         ? authorizedEventIds
         : legacy.supportedEventIds,
-    groundingScore: Math.max(legacy.groundingScore, 0.5),
-    obligationCoverage: Math.max(legacy.obligationCoverage, 0.5),
-    meaningScore: Math.max(legacy.meaningScore, interpretation.creativeFraming),
-    noveltyScore: Math.max(legacy.noveltyScore, 0.75),
+
+    groundingScore:
+      Math.max(
+        legacy.groundingScore,
+        0.5,
+      ),
+
+    obligationCoverage:
+      Math.max(
+        legacy.obligationCoverage,
+        0.5,
+      ),
+
+    meaningScore:
+      Math.max(
+        legacy.meaningScore,
+        interpretation.creativeFraming,
+      ),
+
+    noveltyScore:
+      Math.max(
+        legacy.noveltyScore,
+        0.75,
+      ),
+
     reasons,
-    score: Math.max(legacy.score, 0.68),
+
+    score:
+      Math.max(
+        legacy.score,
+        0.68,
+      ),
   };
 }

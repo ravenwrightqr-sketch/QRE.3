@@ -36,9 +36,36 @@ const clamp01 = (value: number): number =>
 
 const metric = (value: number): number =>
   Number(clamp01(value).toFixed(3));
-
 function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
+}
+
+function overlap(left: string, right: string): number {
+  const a = new Set(
+    clean(left)
+      .toLowerCase()
+      .replace(/[^a-z0-9'’-]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3),
+  );
+
+  const b = new Set(
+    clean(right)
+      .toLowerCase()
+      .replace(/[^a-z0-9'’-]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3),
+  );
+
+  if (!a.size || !b.size) return 0;
+
+  let hits = 0;
+
+  for (const token of a) {
+    if (b.has(token)) hits += 1;
+  }
+
+  return hits / Math.max(1, Math.min(a.size, b.size));
 }
 
 function eventById(graph: RealityGraph, id: string) {
@@ -307,205 +334,532 @@ function chooseSealingEvidence(
 
   return candidates.sort((a, b) => b.score - a.score)[0];
 }
-
 function buildTrajectory(
   graph: RealityGraph,
   anchors: readonly string[],
   convergence: LatentMovieConvergence,
   focus?: RealityRelation["kind"],
 ): LatentMovieTrajectoryStep[] {
-  const endpointId = endpointIdFor(graph, convergence);
-  const seed = unique(
-    convergence.forwardPath.length ? convergence.forwardPath : anchors,
-  ).filter((id) => id !== endpointId);
-  const ordered: string[] = [];
-  const opening = seed[0] ?? graph.events.find((event) => event.id !== endpointId)?.id;
-  if (opening) ordered.push(opening);
+  const endpointId = endpointIdFor(
+    graph,
+    convergence,
+  );
 
-  const relationKindScore = (kind: RealityRelation["kind"]): number => {
+  const sourceIndex = new Map(
+    graph.events.map((event, index) => [
+      event.id,
+      index,
+    ]),
+  );
+
+  const endpointEvent = eventById(
+    graph,
+    endpointId,
+  );
+
+  /*
+   * The endpoint is sacred and terminal.
+   * It may not appear as an ordinary intermediate cut.
+   */
+  const eligibleEvents = graph.events.filter(
+    (event) => event.id !== endpointId,
+  );
+
+  if (!eligibleEvents.length) {
+    return [];
+  }
+
+  /*
+   * Start from the supplied world, not from the most salient relation cluster.
+   *
+   * Convergence is evidence for later movement; it does not get to choose the
+   * opening of the whole film.
+   */
+  const opening =
+    [...eligibleEvents].sort(
+      (a, b) =>
+        (sourceIndex.get(a.id) ?? 0) -
+        (sourceIndex.get(b.id) ?? 0),
+    )[0];
+
+  if (!opening) {
+    return [];
+  }
+
+  const ordered: string[] = [
+    opening.id,
+  ];
+
+  const used = new Set<string>(
+    ordered,
+  );
+
+  const relationKindScore = (
+    kind: RealityRelation["kind"],
+  ): number => {
     switch (kind) {
-      case "contrasts": return 1;
-      case "recontextualizes": return 0.96;
-      case "changes": return 0.9;
-      case "repeats": return 0.84;
-      case "converges": return 0.74;
+      case "contrasts":
+        return 1;
+      case "recontextualizes":
+        return 0.96;
+      case "changes":
+        return 0.9;
+      case "repeats":
+        return 0.84;
+      case "converges":
+        return 0.74;
       case "before":
-      case "after": return 0.68;
-      default: return 0.5;
+      case "after":
+        return 0.68;
+      default:
+        return 0.5;
     }
   };
 
-  const targetLength = Math.min(5, Math.max(3, graph.events.length - 1));
-  while (ordered.length < targetLength) {
-    const used = new Set(ordered);
-    const candidate = graph.events
-      .filter((event) => !used.has(event.id) && event.id !== endpointId)
+  const eventSimilarity = (
+    leftId: string,
+    rightId: string,
+  ): number => {
+    const left = eventById(
+      graph,
+      leftId,
+    );
+    const right = eventById(
+      graph,
+      rightId,
+    );
+
+    if (!left || !right) {
+      return 0;
+    }
+
+    const leftTokens = new Set(
+      clean(left.label)
+        .toLowerCase()
+        .replace(/[^a-z0-9'’-]+/g, " ")
+        .split(/\s+/)
+        .filter(
+          (token) =>
+            token.length >= 3,
+        ),
+    );
+
+    const rightTokens = new Set(
+      clean(right.label)
+        .toLowerCase()
+        .replace(/[^a-z0-9'’-]+/g, " ")
+        .split(/\s+/)
+        .filter(
+          (token) =>
+            token.length >= 3,
+        ),
+    );
+
+    if (
+      !leftTokens.size ||
+      !rightTokens.size
+    ) {
+      return 0;
+    }
+
+    let hits = 0;
+
+    for (const token of leftTokens) {
+      if (rightTokens.has(token)) {
+        hits += 1;
+      }
+    }
+
+    return (
+      hits /
+      Math.max(
+        1,
+        Math.min(
+          leftTokens.size,
+          rightTokens.size,
+        ),
+      )
+    );
+  };
+
+  const noveltyFor = (
+    candidateId: string,
+  ): number => {
+    if (!ordered.length) {
+      return 1;
+    }
+
+    const maximumSimilarity = Math.max(
+      ...ordered.map(
+        (selectedId) =>
+          eventSimilarity(
+            selectedId,
+            candidateId,
+          ),
+      ),
+      0,
+    );
+
+    return clamp01(
+      1 - maximumSimilarity,
+    );
+  };
+
+  const continuityFor = (
+    candidateId: string,
+  ): number => {
+    const previousId =
+      ordered[ordered.length - 1];
+
+    if (!previousId) {
+      return 0.5;
+    }
+
+    const previousIndex =
+      sourceIndex.get(
+        previousId,
+      );
+
+    const candidateIndex =
+      sourceIndex.get(
+        candidateId,
+      );
+
+    if (
+      previousIndex === undefined ||
+      candidateIndex === undefined
+    ) {
+      return 0.5;
+    }
+
+    if (
+      candidateIndex >
+      previousIndex
+    ) {
+      return 1;
+    }
+
+    if (
+      candidateIndex ===
+      previousIndex
+    ) {
+      return 0.5;
+    }
+
+    return 0.25;
+  };
+
+  const relationFor = (
+    fromId: string,
+    toId: string,
+  ): RealityRelation | undefined =>
+    relationBetween(
+      graph,
+      fromId,
+      toId,
+      focus,
+    ) ??
+    relationBetween(
+      graph,
+      fromId,
+      toId,
+    );
+
+  /*
+   * Five ordinary cuts plus the final supplied endpoint gives enough room for
+   * a real little film without forcing every source event into the sequence.
+   */
+  const ordinaryTarget = Math.min(
+    5,
+    Math.max(
+      3,
+      eligibleEvents.length,
+    ),
+  );
+
+  while (
+    ordered.length <
+    ordinaryTarget
+  ) {
+    const candidates = eligibleEvents
+      .filter(
+        (event) =>
+          !used.has(event.id),
+      )
       .map((event) => {
-        const direct = ordered.length
-          ? Math.max(...ordered.map((id) => relationBetween(graph, id, event.id)?.strength ?? 0), 0)
-          : 0;
-        const endpoint = relationBetween(graph, event.id, endpointId)?.strength ?? 0;
-        const relation = ordered.length
-          ? ordered
-              .map((id) => relationBetween(graph, id, event.id))
-              .filter(Boolean)
-              .sort((a, b) => (b?.strength ?? 0) - (a?.strength ?? 0))[0]
-          : undefined;
-        const structural = relation ? relationKindScore(relation.kind) : 0;
-        const specificity = specificityScore(graph, event.id);
+        const relationStrength =
+          Math.max(
+            ...ordered.map(
+              (selectedId) =>
+                relationFor(
+                  selectedId,
+                  event.id,
+                )?.strength ?? 0,
+            ),
+            0,
+          );
+
+        const relation =
+          ordered.length
+            ? ordered
+                .map(
+                  (selectedId) =>
+                    relationFor(
+                      selectedId,
+                      event.id,
+                    ),
+                )
+                .filter(
+                  (
+                    value,
+                  ): value is RealityRelation =>
+                    Boolean(value),
+                )
+                .sort(
+                  (a, b) =>
+                    b.strength -
+                    a.strength,
+                )[0]
+            : undefined;
+
+        const structural =
+          relation
+            ? relationKindScore(
+                relation.kind,
+              )
+            : 0;
+
+        const novelty =
+          noveltyFor(
+            event.id,
+          );
+
+        const continuity =
+          continuityFor(
+            event.id,
+          );
+
+        const specificity =
+          specificityScore(
+            graph,
+            event.id,
+          );
+
+        /*
+         * Once the opening is established, novelty carries enough weight to
+         * escape a salient semantic cluster while connection remains required.
+         */
+        const score =
+          relationStrength * 0.24 +
+          structural * 0.12 +
+          novelty * 0.36 +
+          continuity * 0.16 +
+          specificity * 0.12;
+
         return {
           id: event.id,
-          score: direct * 0.42 + endpoint * 0.28 + structural * 0.18 + specificity * 0.12,
+          score,
+          novelty,
+          continuity,
         };
       })
-      .sort((a, b) => b.score - a.score)[0];
+      .sort(
+        (a, b) => {
+          if (
+            b.score !==
+            a.score
+          ) {
+            return b.score -
+              a.score;
+          }
 
-    if (!candidate) break;
-    ordered.push(candidate.id);
+          if (
+            b.novelty !==
+            a.novelty
+          ) {
+            return b.novelty -
+              a.novelty;
+          }
+
+          return (
+            (sourceIndex.get(
+              a.id,
+            ) ?? 0) -
+            (sourceIndex.get(
+              b.id,
+            ) ?? 0)
+          );
+        },
+      );
+
+    const next =
+      candidates[0];
+
+    if (!next) {
+      break;
+    }
+
+    ordered.push(
+      next.id,
+    );
+
+    used.add(
+      next.id,
+    );
   }
 
-  ordered.push(endpointId);
+  /*
+   * Endpoint enters exactly once, at the end.
+   */
+  if (
+    endpointId &&
+    !used.has(endpointId)
+  ) {
+    ordered.push(
+      endpointId,
+    );
+  }
 
-  if (!ordered.length) return [];
+  const trajectory: LatentMovieTrajectoryStep[] =
+    [];
 
-  const trajectory: LatentMovieTrajectoryStep[] = [];
-  const firstId = ordered[0];
-  const first = eventById(graph, firstId);
+  const first =
+    eventById(
+      graph,
+      ordered[0] ?? "",
+    );
 
   if (first) {
     trajectory.push({
       order: 1,
       operation: "establish",
-      eventIds: [firstId],
-      viewerChange: `Establish supplied evidence: ${first.label}.`,
-      nextQuestion: "What relationship in the evidence deserves the next cut?",
+      eventIds: [
+        first.id,
+      ],
+      viewerChange:
+        `Establish supplied evidence: ${first.label}.`,
+      nextQuestion:
+        "What part of this world deserves the next cut?",
     });
   }
 
-  for (let index = 1; index < ordered.length; index += 1) {
-    const fromId = ordered[index - 1];
-    const toId = ordered[index];
-    const from = eventById(graph, fromId);
-    const to = eventById(graph, toId);
+  for (
+    let index = 1;
+    index < ordered.length;
+    index += 1
+  ) {
+    const fromId =
+      ordered[index - 1];
 
-    if (!from || !to) continue;
+    const toId =
+      ordered[index];
 
-    const relation =
-      relationBetween(graph, fromId, toId, focus) ??
-      relationBetween(graph, fromId, toId);
-
-    if (toId === endpointId) {
-      trajectory.push({
-        order: trajectory.length + 1,
-        operation: "payoff",
-        eventIds: [fromId, endpointId],
-        viewerChange: `The supplied endpoint lands after the accumulated path: ${to.label}.`,
-        nextQuestion: "What is now true at the supplied ending?",
-      });
+    if (
+      !fromId ||
+      !toId
+    ) {
       continue;
     }
 
-    if (!relation) continue;
+    const from =
+      eventById(
+        graph,
+        fromId,
+      );
+
+    const to =
+      eventById(
+        graph,
+        toId,
+      );
+
+    if (
+      !from ||
+      !to
+    ) {
+      continue;
+    }
+   if (toId === endpointId) {
+  trajectory.push({
+    order: trajectory.length + 1,
+    operation: "payoff",
+    eventIds: [endpointId],
+    viewerChange: `The supplied endpoint lands after the accumulated path: ${to.label}.`,
+    nextQuestion: "What is now true at the supplied ending?",
+  });
+  continue;
+}
+
+    const relation =
+      relationFor(
+        fromId,
+        toId,
+      );
 
     trajectory.push({
-      order: trajectory.length + 1,
-      operation: operationForRelation(relation.kind),
-      eventIds: [fromId, toId],
-      viewerChange: `${relation.kind}: ${from.label} -> ${to.label}.`,
+      order:
+        trajectory.length +
+        1,
+      operation:
+        relation
+          ? operationForRelation(
+              relation.kind,
+            )
+          : "converge",
+      eventIds: [
+        toId,
+      ],
+      viewerChange:
+        relation
+          ? `${relation.kind}: ${from.label} -> ${to.label}.`
+          : `A new supplied part of the world enters: ${to.label}.`,
       nextQuestion:
-        relation.kind === "contrasts"
+        relation?.kind ===
+        "contrasts"
           ? "What expectation changes here?"
-          : "What does this relationship make newly meaningful?",
+          : "What does this make newly meaningful?",
     });
   }
 
-  if (trajectory.length < 3 && convergence.backwardPath.length) {
-    for (const id of convergence.backwardPath) {
+  trajectory.forEach(
+    (step, index) => {
+      step.order =
+        index + 1;
+    },
+  );
+
+  /*
+   * Hard invariant:
+   * - no event appears in an ordinary step more than once
+   * - endpoint appears only in payoff
+   */
+  const seen = new Set<string>();
+
+  return trajectory.filter(
+    (step) => {
       if (
-        trajectory.some((step) => step.eventIds.includes(id)) ||
-        id === endpointId
+        step.operation ===
+          "payoff"
       ) {
-        continue;
+        return true;
       }
 
-      const event = eventById(graph, id);
-      if (!event) continue;
+      const fresh =
+        step.eventIds.every(
+          (id) =>
+            id !== endpointId &&
+            !seen.has(id),
+        );
 
-      trajectory.push({
-        order: trajectory.length + 1,
-        operation: "converge",
-        eventIds: [id],
-        viewerChange: `A supplied detail becomes newly relevant: ${event.label}.`,
-        nextQuestion: "Does this sharpen, overturn, or complete the current reading?",
-      });
-
-      if (trajectory.length >= 5) break;
-    }
-  }
-
-  // Recovery: do not accept establish -> payoff when reality supports a real turn.
-  if (
-    trajectory.length < 3 &&
-    trajectory.some((step) => step.operation === "payoff")
-  ) {
-    const intermediate =
-      chooseIntermediateRelationship(graph, trajectory, endpointId, focus) ??
-      chooseIntermediateRelationship(graph, trajectory, endpointId);
-
-    if (intermediate) {
-      const from = eventById(graph, intermediate.from);
-      const to = eventById(graph, intermediate.to);
-      const payoffIndex = trajectory.findIndex(
-        (step) => step.operation === "payoff",
-      );
-
-      if (from && to && payoffIndex >= 0) {
-        trajectory.splice(payoffIndex, 0, {
-          order: payoffIndex + 1,
-          operation: operationForRelation(intermediate.relation.kind),
-          eventIds: [intermediate.from, intermediate.to],
-          viewerChange: `${intermediate.relation.kind}: ${from.label} -> ${to.label}.`,
-          nextQuestion:
-            intermediate.relation.kind === "contrasts"
-              ? "What expectation changes here?"
-              : "What does this relationship make newly meaningful?",
-        });
+      if (fresh) {
+        for (const id of step.eventIds) {
+          seen.add(id);
+        }
       }
-    }
-  }
 
-  // Recovery: seek a later, non-endpoint evidence event that seals the turn.
-  if (
-    trajectory.length < 4 &&
-    trajectory.some((step) => step.operation === "payoff")
-  ) {
-    const sealing = chooseSealingEvidence(graph, trajectory, endpointId);
-    const payoffIndex = trajectory.findIndex(
-      (step) => step.operation === "payoff",
-    );
-
-    if (sealing && payoffIndex >= 0) {
-      const event = eventById(graph, sealing.eventId);
-      const related = eventById(graph, sealing.relatedTo);
-
-      if (event && related) {
-        trajectory.splice(payoffIndex, 0, {
-          order: payoffIndex + 1,
-          operation: operationForRelation(sealing.relation.kind),
-          eventIds: [sealing.relatedTo, sealing.eventId],
-          viewerChange:
-            `supplied evidence deepens the discovered relationship: ${related.label} -> ${event.label}.`,
-          nextQuestion: "What does this later evidence make undeniable?",
-        });
-      }
-    }
-  }
-
-  trajectory.forEach((step, index) => {
-    step.order = index + 1;
-  });
-
-  return trajectory.slice(0, 6);
+      return fresh;
+    },
+  );
 }
 
 function candidateScore(input: {
