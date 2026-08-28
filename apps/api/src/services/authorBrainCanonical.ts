@@ -19,7 +19,7 @@ import {
   parseMouthCandidateBatch,
   scoreMouthCandidate,
   type MouthCandidateBeat,
-} from "./authorMouthCandidateSearch.js";
+} from "./authorMouthCandidateSearchCanonical.js";
 import { selectBestMouthSequence, type MouthCandidatePool } from "./authorMouthSequenceBeamSearch.js";
 import { editAttentionSequence } from "./authorAttentionEditor.js";
 import { evaluateSequenceArc } from "./authorSequenceArcGate.js";
@@ -122,7 +122,6 @@ function chooseMovie(
 
   /*
    * Non-sequence modes keep the safe supplied-material path.
-   *
    * Sequence Film consumes the movie already discovered and reranked by
    * Canonical Cognition. This function is an adapter/guard, not a second
    * movie authority.
@@ -260,10 +259,7 @@ export type CanonicalAuthorResult = {
 export async function authorBrainCanonical(
   input: AuthorBrainTruth,
 ): Promise<CanonicalAuthorResult> {
-  const subject =
-    clean(input.subject) ||
-    "the subject";
-
+  const subject = clean(input.subject) || "the subject";
   const facts = unique(input.facts);
   const sourceMoments = unique(input.sourceMoments);
 
@@ -278,11 +274,7 @@ export async function authorBrainCanonical(
   });
 
   const cognition = buildCognition(
-    {
-      ...input,
-      facts,
-      sourceMoments,
-    },
+    { ...input, facts, sourceMoments },
     graph,
   );
 
@@ -311,12 +303,8 @@ export async function authorBrainCanonical(
 
     for (const step of movie?.trajectory ?? []) {
       const labels = step.eventIds
-        .map(
-          (id) =>
-            graph.events.find((event) => event.id === id)?.label ?? id,
-        )
+        .map((id) => graph.events.find((event) => event.id === id)?.label ?? id)
         .join(" -> ");
-
       console.log(`[${step.order}] operation=${step.operation} | ${labels}`);
     }
 
