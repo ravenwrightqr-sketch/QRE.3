@@ -1,7 +1,7 @@
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { evaluateMouthInterpretation } from "./src/services/authorMouthInterpretation.js";
-import { scoreMouthCandidate } from "./src/services/authorMouthCandidateSearch.js";
+import { scoreMouthCandidate } from "./src/services/authorMouthCandidateSearchCanonical.js";
 import { selectBestMouthSequence } from "./src/services/authorMouthSequenceBeamSearch.js";
 
 const assert = (condition: unknown, message: string): asserts condition => {
@@ -135,8 +135,8 @@ checkRejected(
   "Coffee shop. Already strange.",
 );
 
-// The sequence beam must actually prefer the authorized semantic realization
-// over a literal fallback when both are available for the same beat.
+// The canonical Mouth adapter must carry semantic authorization through the
+// final sequence selector instead of letting raw lexical grounding win.
 {
   const world = makeWorld(["talked until close"]);
   const beat = beatFor(world, 1, "talked until close");
