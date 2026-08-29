@@ -4,6 +4,18 @@ import type { SubjectTruth } from "./subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
+export type AuthorDomainContext = {
+  category?: string;
+  businessType?: string;
+  businessName?: string;
+  businessDescription?: string;
+  serviceType?: string;
+  serviceName?: string;
+  subjectKind?: string;
+  knownCapabilities?: string[];
+  contextualSignals?: string[];
+};
+
 export type AuthorCreativeBrief = {
   angle: string;
   engine: string;
@@ -24,6 +36,7 @@ export type AuthorBrainTruth = {
   subjectTruth?: SubjectTruth;
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
+  domainContext?: AuthorDomainContext;
   /** User-level production switch: true = discover/render a movie, false = skip cinematic authoring. */
   movieMode?: boolean;
   returning?: boolean;
