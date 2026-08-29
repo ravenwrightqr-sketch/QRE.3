@@ -2637,355 +2637,36 @@ function expandTrajectory(
     };
   });
 }
+function suppliedEndpointId(
+  graph: RealityGraph,
+): string | undefined {
+  const events = graph.events.filter(
+    (item) => clean(item.label),
+  );
+
+  return events[events.length - 1]?.id;
+}
+
 function choosePayoffEvent(
   graph: RealityGraph,
-  state: TrajectoryState,
-  lens?: string,
+  _state: TrajectoryState,
+  _lens?: string,
 ): string | undefined {
-  const used =
-    new Set(
-      state.usedEventIds,
-    );
-
   /*
-   * MATERIAL-FIRST PATHS
+   * CANONICAL ENDPOINT AUTHORITY
    *
-   * Material trajectories are built from supplied presentation
-   * cuts rather than semantic relation chains.
+   * The final supplied RealityEvent is the source endpoint.
    *
-   * Their payoff must therefore come from the material already
-   * accumulated by THIS trajectory.
+   * Movie search may decide how the memory travels toward it.
+   * It may interpret the journey.
+   * It may not replace the supplied ending with an earlier
+   * semantic relationship merely because that relationship scores higher.
    *
-   * A relation-derived trajectory has usedRelationKeys.
-   * A material trajectory does not.
+   * Source order here is presentation/source order, not an invented
+   * chronology claim. The endpoint is simply the final supplied
+   * material presented to QRE.
    */
-  const materialPath =
-    state.usedRelationKeys.length === 0 &&
-    state.steps.length >= 3;
-
-  const candidateEvents =
-    materialPath
-      ? graph.events.filter(
-          (item) =>
-            used.has(
-              item.id,
-            ) &&
-            clean(
-              item.label,
-            ),
-        )
-      : graph.events.filter(
-          (item) =>
-            clean(
-              item.label,
-            ),
-        );
-
-  const candidates =
-    candidateEvents
-      .map(
-        (item) => {
-          const endpoint =
-            endpointAffinity(
-              graph,
-              item.id,
-              state.usedEventIds,
-            );
-
-          const terminal =
-            terminality(
-              graph,
-              item.id,
-            );
-
-          const specificity =
-            eventSpecificity(
-              graph,
-              item.id,
-            );
-
-          const centrality =
-            graphCentrality(
-              graph,
-              item.id,
-            );
-
-          const preference =
-            (
-              incidentRelations(
-                graph,
-                item.id,
-              )
-                .map(
-                  (
-                    relation,
-                  ) =>
-                    relationPreference(
-                      relation.kind,
-                      lens,
-                    ),
-                )
-                .sort(
-                  (
-                    a,
-                    b,
-                  ) =>
-                    b - a,
-                )[0] ??
-              0.5
-            );
-
-          const label =
-            eventLabel(
-              graph,
-              item.id,
-            );
-
-          const recurring =
-            persistentSignalAffinity(
-              label,
-              graph.recurringSignals,
-            );
-
-          const tension =
-            persistentSignalAffinity(
-              label,
-              graph.unresolvedTensions,
-            );
-
-          const established =
-            state.establishedEventIds.includes(
-              item.id,
-            );
-
-          const setup =
-            state.setupEventIds.includes(
-              item.id,
-            );
-
-          const alreadyUsed =
-            used.has(
-              item.id,
-            );
-
-          const payoffRelations =
-            incidentRelations(
-              graph,
-              item.id,
-            ).filter(
-              (relation) =>
-                state.usedEventIds.includes(
-                  relation.from,
-                ) ||
-                state.usedEventIds.includes(
-                  relation.to,
-                ),
-            );
-
-          const payoffRelationStrength =
-            payoffRelations.reduce(
-              (
-                sum,
-                relation,
-              ) =>
-                sum +
-                relation.strength *
-                  relationWeight(
-                    relation.kind,
-                  ),
-              0,
-            );
-
-          const connectedPayoff =
-            metric(
-              Math.min(
-                1,
-                payoffRelationStrength *
-                  0.22,
-              ),
-            );
-
-          const resolvesActive =
-            state.activeTensionKeys.some(
-              (tensionKey) => {
-                const parts =
-                  tensionKey.split(
-                    ":",
-                  );
-
-                if (
-                  parts.length <
-                  3
-                ) {
-                  return false;
-                }
-
-                const fromId =
-                  parts[1];
-
-                const toId =
-                  parts[2];
-
-                return (
-                  item.id ===
-                    fromId ||
-                  item.id ===
-                    toId ||
-                  payoffRelations.some(
-                    (relation) =>
-                      (
-                        relation.from ===
-                          fromId &&
-                        relation.to ===
-                          item.id
-                      ) ||
-                      (
-                        relation.to ===
-                          fromId &&
-                        relation.from ===
-                          item.id
-                      ) ||
-                      (
-                        relation.from ===
-                          toId &&
-                        relation.to ===
-                          item.id
-                      ) ||
-                      (
-                        relation.to ===
-                          toId &&
-                        relation.from ===
-                          item.id
-                      ),
-                  )
-                );
-              },
-            );
-
-          const resolutionValue =
-            resolvesActive
-              ? 0.22
-              : 0;
-
-          const continuation =
-            metric(
-              state.continuationValue *
-                0.55 +
-                state.lookaheadValue *
-                  0.45,
-            );
-
-          const futureValue =
-            lookaheadValue(
-              graph,
-              state,
-              item.id,
-              lens,
-            );
-
-          const usedPenalty =
-            alreadyUsed
-              ? terminal >=
-                0.65
-                ? 0.04
-                : 0.14
-              : 0;
-
-          const establishedBonus =
-            established
-              ? 0.08
-              : 0;
-
-          const setupBonus =
-            setup
-              ? 0.08
-              : 0;
-
-          /*
-           * Recentness matters for material films.
-           *
-           * A payoff should usually land on something already
-           * accumulated near the end of the supplied sequence,
-           * not merely on the globally strongest fact.
-           */
-          const recency =
-            state.usedEventIds.length
-              ? Math.max(
-                  0,
-                  state.usedEventIds.indexOf(
-                    item.id,
-                  ) + 1,
-                ) /
-                Math.max(
-                  1,
-                  state.usedEventIds.length,
-                )
-              : 0;
-
-          const materialRecencyBonus =
-            materialPath
-              ? recency *
-                0.22
-              : 0;
-
-          /*
-           * Material paths favor the trajectory's own supplied
-           * evidence over global graph endpoint strength.
-           */
-          const materialBoundaryBonus =
-            materialPath
-              ? 0.18
-              : 0;
-
-          return {
-            id:
-              item.id,
-
-            score:
-              endpoint *
-                (materialPath
-                  ? 0.1
-                  : 0.18) +
-              terminal *
-                (materialPath
-                  ? 0.12
-                  : 0.16) +
-              specificity *
-                0.06 +
-              centrality *
-                0.05 +
-              preference *
-                (materialPath
-                  ? 0.04
-                  : 0.08) +
-              connectedPayoff *
-                (materialPath
-                  ? 0.08
-                  : 0.14) +
-              resolutionValue +
-              futureValue *
-                0.08 +
-              recurring *
-                0.05 +
-              tension *
-                0.04 +
-              continuation *
-                0.04 +
-              establishedBonus +
-              setupBonus +
-              materialRecencyBonus +
-              materialBoundaryBonus -
-              usedPenalty,
-          };
-        },
-      )
-      .sort(
-        (a, b) =>
-          b.score -
-          a.score,
-      );
-
-  return candidates[0]?.id;
+  return suppliedEndpointId(graph);
 }
 
 function payoffRelation(
@@ -3075,15 +2756,9 @@ function buildTrajectoryFromState(
       lens,
     );
 
-  const finalEventIds =
-    relation
-      ? unique([
-          relation.from,
-          relation.to,
-        ])
-      : [
-          payoffId,
-        ];
+  const finalEventIds = [
+  payoffId,
+];
 
   return [
     ...state.steps,

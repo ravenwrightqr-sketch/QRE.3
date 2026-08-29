@@ -287,6 +287,7 @@ function evaluateCandidate(
       text: value,
       sourceLabels,
       envelope,
+      beat,
     });
 
   const reasons: string[] = [];
@@ -471,7 +472,7 @@ function evaluateCandidate(
     );
 
   /*
-   * Obligation is now explicitly beat-local.
+   * Obligation is explicitly beat-local.
    *
    * A line cannot get a high obligation score simply because some
    * other fact elsewhere in the world matches it.
@@ -600,6 +601,27 @@ function evaluateCandidate(
     wordCount > 22
       ? 0.35
       : 0;
+
+  /*
+   * DISTINCTIVE REALIZATION
+   *
+   * This is intentionally derived from signals we already have.
+   * It is not a new contract field and it does not invent "fire".
+   *
+   * Fire is treated as unusually alive/distinctive realization,
+   * not automatically as dramatic language.
+   */
+  const distinctiveRealization =
+    metric(
+      (
+        interpretation.creativeFraming ??
+        0
+      ) * 0.34 +
+      meaningScore * 0.24 +
+      transitionScore * 0.16 +
+      noveltyScore * 0.16 +
+      compressionScore * 0.10,
+    );
 
   if (!value) {
     reasons.push(
@@ -747,6 +769,29 @@ function evaluateCandidate(
     );
   }
 
+  /*
+   * Distinctiveness is a recognition signal, not a command to become louder.
+   *
+   * A quiet line can qualify.
+   * A one-word line can qualify.
+   * A weird line can qualify.
+   * A dramatic line does not qualify merely because it is dramatic.
+   */
+  if (
+    interpretation.accepted &&
+    distinctiveRealization >= 0.68 &&
+    (
+      interpretation.reasons.includes(
+        "semantic-compression",
+      ) ||
+      creativeLane
+    )
+  ) {
+    reasons.push(
+      "distinctive-realization",
+    );
+  }
+
   const score =
     metric(
       effectiveGrounding *
@@ -777,6 +822,8 @@ function evaluateCandidate(
             ? 0.08
             : 0
         ) +
+        distinctiveRealization *
+          0.06 +
         (
           interpretation.creativeFraming ??
           0.5
@@ -809,29 +856,121 @@ function evaluateCandidate(
     reasons,
   };
 }
+
 function literalRestatementFor(value: string, labels: readonly string[]): number {
   const normalized = clean(value).replace(/[.!?]+$/g, "").toLowerCase();
   return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
 }
- function buildGoldRealizationDoctrine(): string {
+function buildGoldRealizationDoctrine(): string {
   return [
     "FIND THE GOLD before you write.",
-    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, memorable observation, or ominous pressure.",
+    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, memorable observation, coincidence, or ominous pressure.",
     "Do not merely categorize the subject. Do not turn the material into generic life advice, motivational prose, biography, or a summary.",
     "The gold may already be the supplied insight itself. Recognizing it is often better than adding another layer.",
     "Interpretation may sharpen meaning without creating a new concrete occurrence.",
+    "THE OPENING MUST ANCHOR THE HUMAN SITUATION. The opening sequence must establish the human situation before the abstraction outruns recognition.",
+"OBSERVER EXPERIENCE OVER EXPLANATION. The observer should experience more of the feeling, relationship, tension, humor, wonder, or unease than receive an explanation of what that feeling means.",
+"LET THE OBSERVER DISCOVER THE MEANING. Give enough supplied reality to understand what is happening, then let implication, compression, attitude, and unexpected language reveal what it means.",
+"ABSTRACTION MUST HAVE A HUMAN PLACE TO LAND. Abstract language is welcome after recognition has been established. Do not let abstraction arrive so early or so completely that the observer no longer knows whose experience they are watching.",
+"FIRST-PERSON EXPERIENCE IS AVAILABLE, NOT REQUIRED. When useful, language may express what the person noticed, felt, remembered, wanted, feared, or suddenly understood. Do not force 'I' or 'we' into every cut.",
     "LESS IS MORE. Remove words that do not materially improve the cut.",
     "A fragment can be better than a sentence. A one-word cut can be the entire hit.",
     "Do not force grammatical completeness when compression makes the line stronger.",
+    "A fragment does not need to explain itself when the surrounding sequence already supplies its meaning.",
+     "NEW MEANING: When supplied reality contains a change in how something is experienced, understood, noticed, or felt, let the realization expose that change without explaining it.",
+"FAMILIAR MADE DIFFERENT: A familiar person, place, object, relationship, or event may be rendered newly strange, intimate, funny, important, beautiful, unsettling, or charged when the supplied material supports that change in meaning.",
+"OBSERVER RESONANCE: Prefer realizations that let the observer recognize the feeling of something becoming different, rather than simply telling them what changed.",
+  "FUTURE-SELF POKE: When the supplied memory earns it, the final realization may gently address the creator's future self through remembrance, recognition, or a quiet invitation to retain the feeling.",
+"The future-self poke must remain viewer-facing and emotionally earned. It must not predict the future, invent consequences, or become generic advice.",
+"A future-self ending may be extremely small: a short phrase, a fragment, or a few words can be enough.",
+    "FRAGMENTS AND ONE-WORD CUTS ARE VALID. A cut may be one word, a fragment, a short phrase, or a full sentence.",
+    "Use fragments when they make supplied reality, identity, attitude, recognition, rhythm, callback, relationship, implication, or emotional realization land harder.",
+    "Do not confuse a valid fragment with a label for the movie's internal machinery.",
+    "BAD: The pull. The tightening. The deepening. The afterglow. The end.",
+    "BETTER: Felt the pull towards us. Still felt it. Almost. Something shifted.",
+    "The problem is not abstraction. The problem is abstraction that has become detached from the lived material.",
+
+    "ABSTRACT LANGUAGE IS ALLOWED. Do not remove abstraction merely because it is abstract.",
+    "A strange, compressed, metaphorical, formal, slangy, blunt, poetic, or unexpectedly precise phrase may be excellent when it gives the supplied material a stronger human-facing realization.",
+    "Unexpected wording is welcome when it sharpens the memory instead of merely decorating it.",
+    "Do not mechanically begin cuts with 'the', 'this', or 'that'. Use them naturally when they make the realization stronger.",
+    "A one-word or fragmentary cut may be excellent when it carries recognizable supplied meaning.",
+
+    "SUPPLIED: Coco, poodle, female, loves walks, apples. GOOD: Queen Coco. Poo-dle. Walk. Walk. Walk. And then the apple. Love.",
+
     "UNKNOWN STAYS OPEN. Do not resolve identity, gender, age, motivation, relationship, history, ownership, location, or other unknowns unless identifying them materially improves the cut.",
+
     "WEIRD IS ALLOWED. Do not normalize an unusual but grounded realization merely because a conventional sentence would be easier.",
+
     "IMPLICATION OVER EXPLANATION. Let the viewer complete the thought when the supplied material supports it.",
-    "ATTITUDE IS A PRIMARY CREATIVE TOOL. The same supplied fact may land as deadpan, regal, cocky, petty, elegant, ominous, suspicious, mischievous, absurd, restrained, dramatic, or matter-of-fact without changing the underlying reality.",
-    "OMINOUS PRESSURE IS ALLOWED. An ordinary supplied detail may acquire a sense of consequence, warning, or temporary calm without inventing what happens next.",
-    "SURPRISE IS ALLOWED. An older supplied detail may return suddenly after the sequence has moved elsewhere.",
+
+    "ATTITUDE IS A PRIMARY CREATIVE TOOL. The same supplied fact may land as deadpan, regal, cocky, petty, elegant, ominous, suspicious, mischievous, absurd, restrained, dramatic, intimate, possessive, triumphant, resigned, or matter-of-fact without changing the underlying reality.",
+
+    "TWIST THE FRAMING, NOT THE REALITY. You may make supplied reality feel funnier, stranger, more powerful, more pathetic, more suspicious, more important, more ridiculous, more luxurious, more romantic, or more ominous without inventing a new event.",
+
+    "LOOK FOR STATUS. Ask who appears to have power, authority, approval, disapproval, control, obsession, indifference, or the last word in the supplied material. A supplied relationship may be compressed into a status framing when that framing is supported by the material.",
+
+    "A supplied person, animal, object, place, or behavior may acquire a human role such as judge, witness, boss, accomplice, royalty, tyrant, celebrity, enemy, therapist, or authority ONLY when the supplied relationships support that framing.",
+
+    "STATUS FLIPS ARE ALLOWED. The apparently central person may become the one being judged. The smallest supplied detail may become the authority. An ordinary supplied action may suddenly feel official, luxurious, criminal, romantic, suspicious, ridiculous, or important when the supplied material supports that reading.",
+
+    "LOOK FOR THE INCONGRUITY. When ordinary supplied reality contains something oddly serious, oddly funny, unexpectedly intimate, disproportionately important, or quietly absurd, lean into that contrast.",
+
+    "UNDERPLAY THE TWIST. The strongest attitude may be delivered casually. Do not explain the joke or announce the weirdness.",
+
+    "OMINOUS PRESSURE IS ALLOWED. An ordinary supplied detail may acquire a sense of consequence, warning, temporary calm, gravity, danger, or something-not-quite-right without inventing what happens next.",
+
+    "SURPRISE IS ALLOWED. An older supplied detail may return suddenly after the sequence has moved elsewhere. Let the return change how the viewer reads the earlier cuts.",
+
+    "RELATIONSHIP IMMERSION: When the supplied material establishes a strong relationship state, the surrounding world may become exaggerated, surreal, absurd, chaotic, ominous, funny, or visually extreme as a presentation of that relationship state.",
+
+    "The outer world may become noisy while the relationship remains quiet; the outer world may become absurd while the relationship remains sincere; the outer world may become threatening while the people remain absorbed in each other.",
+
+    "OUTER-WORLD DISTORTION DOES NOT REWRITE INNER TRUTH. Use outer-world disturbance as cinematic realization, not as fabricated biography. A surreal or extreme background must not become a new factual memory claim.",
+
+    "HORROR AND OTHER GENRE REALIZATIONS MAY DISTORT THE OUTER WORLD WHEN THE APPROVED MOVIE SUPPORTS IT. The life event remains the spine; genre changes the presentation around it.",
+
+    "DISCOVERY: Do not explain the meaning of a sequence as soon as it becomes available. Let the viewer discover a relationship, implication, contradiction, emotional truth, or deeper meaning through the progression of cuts.",
+
+    "REVEAL BY DEGREES: An early cut may establish only enough reality to let the viewer enter. Later cuts may add implication, attitude, or a strange realization that causes the viewer to reinterpret what came before.",
+
+    "LET THE VIEWER NOTICE: Prefer language that lets the viewer arrive at the realization themselves over language that announces the realization directly.",
+
+    "DISCOVERY IS NOT CONFUSION. The viewer should have enough recognizable supplied reality to understand who or what they are watching and the basic human situation involved even while the deeper meaning remains partially undisclosed.",
+
+    "MEMORY ANCHOR: Early in the sequence, preserve enough recognizable supplied reality that a viewer with no image or outside context can understand who or what they are watching and the basic human situation involved.",
+
+    "The memory anchor may be extremely compressed: a name, relationship, encounter, place, concrete action, recognizable object, or other supplied detail may be enough to establish the memory before the language loosens.",
+
+    "Once the memory is anchored, later cuts may become much more compressed, abstract, strange, metaphorical, ominous, funny, rhythmic, or fragmentary without restating the situation.",
+
+    "Do not turn the memory anchor into exposition. Establish the human situation; do not explain the entire story.",
+
+    "DISCOVERY CAN BE OMINOUS. A sequence may begin ordinary or intimate and gradually acquire a quiet sense that something is deeper, stranger, more important, slightly wrong, or unexpectedly consequential without resolving that feeling.",
+
+    "ROMANCE MAY CARRY A SHADOW. When supplied material supports intimacy or attraction, the realization may carry tenderness, gravity, obsession, danger, distance, possession, or unease without inventing a new event.",
+
+    "FIRE OPPORTUNITY: Across the sequence, look for one moment that has unusually strong identity: a strange relationship, sharp attitude, unexpected implication, memorable detail, status flip, contradiction, coincidence, callback, or phrase that suddenly makes the memory feel unmistakably like itself.",
+
+    "FIRE IS DISTINCTIVENESS, NOT DRAMA. A fire line may be quiet, funny, absurd, intimate, ominous, elegant, strange, blunt, or almost casual.",
+
+    "Do not manufacture intensity merely to create a fire line. Do not make the line darker, bigger, more poetic, or more emotional unless the supplied material earns it.",
+
+    "The fire line may be a fragment, one word, a metaphor, a status flip, a strange observation, a callback, an attitude shift, or a suddenly exact phrase.",
+
+    "The strongest line should feel like a discovery hiding inside the supplied memory. It should make the viewer think 'oh', 'wait', 'of course', laugh, wince, or look again—not simply sound cinematic.",
+
+    "The fire line should feel authored by the material, not pasted onto it. Prefer a specific, surprising realization of this memory over a generic dramatic phrase that could belong to almost any memory.",
+
+    "One strong distinctive realization is enough. The surrounding cuts should remain free to be ordinary, restrained, factual, rhythmic, weird, or sparse.",
+
+    "Do not force a fire line. If the supplied material does not earn one, stay restrained.",
+
+    "Let the surrounding cuts earn the fire line. It may arrive suddenly, but it should belong to what came before and change how the viewer feels the memory.",
+
     "Repetition is allowed when it creates rhythm, accumulation, obsession, callback, interruption, or a changed reading.",
     "Do not repeat a semantic territory merely because it is salient. Return to it because the return does something.",
-    "The examples below demonstrate the move, not fixed phrases or domain rules:",
+
     "SUPPLIED: Coco loves bacon. GOOD: Bacon first.",
     "SUPPLIED: Coco likes apples. GOOD: An apple. Finally.",
     "SUPPLIED: Coco rolled in mud; mud bath was free. GOOD: Five-star mud bath. Complimentary.",
@@ -839,10 +978,15 @@ function literalRestatementFor(value: string, labels: readonly string[]): number
     "SUPPLIED: Grandma's house; never-ending snacks; known memory: Coco loves squirrels. GOOD: Grandma's house. Never-ending snacks. Squirrel. Anyway.",
     "SUPPLIED: A walk sequence with a later squirrel memory. GOOD: Walk. Walk. Walk. Thought I heard something. Squirrels in the trees.",
     "SUPPLIED: Ordinary supplied events with a status-heavy framing. GOOD: Fabulous. But peace is temporary.",
-    "The examples show compression, attitude, implication, rhythm, obsession, callback, and surprise. Invent new realizations for the actual material.",
+    "SUPPLIED: started nervous; met someone; talked until close. GOOD: Met someone. A pull toward another. Deep. Nerves first. A dangerous current.",
+    "The examples demonstrate compression, attitude, implication, rhythm, obsession, callback, status, discovery, ominous pressure, and distinctive realization. Invent new realizations for the actual material.",
+
     "Never explain why something is interesting. Make the interesting thing land.",
+
+    "NO INTERNAL LANGUAGE. Never write about planning, cognition, trajectories, beats, semantic turns, realization modes, candidate selection, scoring, viewers, the writing process, or any other machinery. The finished line must feel like human-facing language, not system commentary.",
   ].join(" ");
 }
+
 
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const evidence = unique([
@@ -854,31 +998,71 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, index, input.beats, input.envelope);
     return { order: beat.order, eventIds: beat.eventIds, sourceLabels: sourceForBeat(beat, input.envelope), viewerState, terminal: Boolean(beat.paysOff?.length) };
   });
-
   const system = [
-    "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
-    "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
-    "Write for the viewer's felt experience, not for the planner. The line should make the supplied beat land.",
-    buildGoldRealizationDoctrine(),
-    "VIEWER REWARD IS THE CREATIVE TARGET. Feel-good does not mean wholesome or positive. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
-    "Ask: what does this line give the viewer? A grin, a wince, a reveal, a satisfying turn, a laugh, a pause, a jolt, a recognition, or simply the desire to experience the next cut.",
-    "Never manufacture a cliffhanger. Forward pull may come from contrast, implication, rhythm, attitude, accumulation, callback, unresolved pressure, or an earned payoff.",
-    "The viewer should feel the semantic move rather than receive an explanation of it.",
-    "A source fact is material, not the destination. Prefer fact → semantic move → attitude → compressed realization.",
-    "Once a subject has been established, treat it as active context. Do not repeatedly re-announce the subject. Spend the next line on what changed, collided, mattered, or became interesting.",
-    "A good sequence breathes: some cuts are blunt facts, some are sharp turns, some are quiet, some are wicked, and some land hard. Do not make every line perform the same trick.",
-    "Prefer collisions between supplied details, status reversals, callbacks, double meanings, understatement, grounded metaphor, specific verbs, and surprising compression.",
-    "Do not summarize happy, sad, special, memorable, emotional, meaningful, magical, beautiful, or dramatic. Make the viewer feel it through the supplied material.",
-    "Do not add stock atmosphere, trailer narration, poetic filler, film-direction language, or abstract explanation.",
-    "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, wardrobe, body position, dialogue, or outcomes.",
-    "Unknown stays unknown. Do not infer missing identity, gender, age, relationship, ownership, preference, history, or location.",
-    "A creative interpretation may change the attitude or meaning of supplied facts, but it cannot create a new concrete event.",
-    "Use the viewerState fields as steering signals. Never repeat their labels or planning language in the output.",
-    "Use the whole beat set to create a connected experience. Avoid restating the same source phrase in consecutive cuts unless repetition itself is the meaningful callback.",
-    "Choose language that would make a real viewer want to keep going, not language that merely sounds literary.",
-    "There is no fixed word count. A one-word hit can beat a sentence. A longer line is acceptable only when the rhythm or realization itself earns it.",
-    "Return JSON only: {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\"]}]}",
-  ].join("\n");
+  "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
+
+  "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
+
+  "Write for the viewer's felt experience, not for the planner. The line should make the supplied beat land.",
+
+  buildGoldRealizationDoctrine(),
+
+  "VIEWER REWARD IS THE CREATIVE TARGET. Feel-good does not mean wholesome or positive. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
+
+  "Ask: what does this line give the viewer? A grin, a wince, a reveal, a satisfying turn, a laugh, a pause, a jolt, a recognition, or simply the desire to experience the next cut.",
+
+  "Never manufacture a cliffhanger. Forward pull may come from contrast, implication, rhythm, attitude, accumulation, callback, unresolved pressure, discovery, or an earned payoff.",
+
+  "The viewer should feel the semantic move rather than receive an explanation of it.",
+
+  "A source fact is material, not the destination. Prefer fact → semantic move → attitude → compressed realization.",
+
+  "Once a subject has been established, treat it as active context. Do not repeatedly re-announce the subject. Spend the next line on what changed, collided, mattered, or became interesting.",
+
+  "A good sequence breathes: some cuts are blunt facts, some are sharp turns, some are quiet, some are wicked, and some land hard. Do not make every line perform the same trick.",
+
+  "Prefer collisions between supplied details, status reversals, callbacks, double meanings, understatement, grounded metaphor, specific verbs, surprising compression, and unexpectedly exact framing.",
+
+  "Do not summarize happy, sad, special, memorable, emotional, meaningful, magical, beautiful, or dramatic. Make the viewer feel it through the supplied material.",
+
+  "Do not add stock atmosphere, trailer narration, poetic filler, film-direction language, or abstract explanation.",
+
+  "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, wardrobe, body position, dialogue, or outcomes.",
+
+  "Unknown stays unknown. Do not infer missing identity, gender, age, relationship, ownership, preference, history, or location.",
+
+  "A creative interpretation may change the attitude or meaning of supplied facts, but it cannot create a new concrete event.",
+
+  "Use the viewerState fields as steering signals. Never repeat their labels or planning language in the output.",
+
+  "Use the whole beat set to create a connected experience. Avoid restating the same source phrase in consecutive cuts unless repetition itself is the meaningful callback.",
+
+  "Choose language that would make a real viewer want to keep going, not language that merely sounds literary.",
+
+  "There is no fixed word count. A one-word hit can beat a sentence. A longer line is acceptable only when the rhythm or realization itself earns it.",
+
+  "OUTPUT CONTRACT: Return exactly one JSON object with exactly one key: variantsByBeat.",
+
+  "variantsByBeat must contain exactly one object for every supplied beat, in ascending order.",
+
+  "Each beat object must contain exactly two keys: order and variants.",
+
+  "order must match the supplied beat order exactly.",
+
+  "variants must contain exactly 3 unique strings.",
+
+  "Never output fewer than 3 variants. Never output more than 3 variants.",
+
+  "Do not duplicate variants within a beat.",
+
+  "Do not duplicate a beat object.",
+
+  "After the final variant of the final beat, immediately close the JSON object.",
+
+  "Return JSON only. No markdown, commentary, explanation, code fence, or trailing text.",
+
+  "Return JSON only: {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\",\"...\",\"...\"]},{\"order\":2,\"variants\":[\"...\",\"...\",\"...\"]}]}",
+].join("\n");
 
   const user = JSON.stringify({
     task: "realize_viewer_state_cuts",
@@ -894,18 +1078,123 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     { role: "user", content: user },
   ];
 }
-
-export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {
+export function parseMouthCandidateBatch(
+  raw: string,
+): MouthCandidateBatch | undefined {
   try {
-    const parsed = JSON.parse(clean(raw)) as MouthCandidateBatch;
-    if (!parsed || !Array.isArray(parsed.variantsByBeat)) return undefined;
+    const parsed =
+      JSON.parse(clean(raw)) as {
+        variantsByBeat?: Array<{
+          order?: unknown;
+          variants?: unknown;
+        }>;
+      };
+
+    if (
+      !parsed ||
+      !Array.isArray(
+        parsed.variantsByBeat,
+      ) ||
+      !parsed.variantsByBeat.length
+    ) {
+      return undefined;
+    }
+
+    const variantsByBeat =
+      parsed.variantsByBeat.map(
+        (item) => {
+          const order =
+            Number(item.order);
+
+          const variants =
+            Array.isArray(
+              item.variants,
+            )
+              ? item.variants
+                  .map(String)
+                  .map(clean)
+                  .filter(Boolean)
+              : [];
+
+          return {
+            order,
+            variants,
+          };
+        },
+      );
+
+    /*
+     * Every beat must have exactly three variants.
+     */
+    if (
+      variantsByBeat.some(
+        (item) =>
+          !Number.isFinite(
+            item.order,
+          ) ||
+          item.variants.length !==
+            3,
+      )
+    ) {
+      return undefined;
+    }
+
+    /*
+     * Beat order must be contiguous:
+     *
+     * 1, 2, 3, ... N
+     *
+     * This catches malformed output where a duplicate JSON key causes
+     * one beat to disappear after JSON.parse().
+     */
+    const orders =
+      variantsByBeat
+        .map(
+          (item) =>
+            item.order,
+        )
+        .sort(
+          (a, b) =>
+            a - b,
+        );
+
+    for (
+      let index = 0;
+      index < orders.length;
+      index += 1
+    ) {
+      if (
+        orders[index] !==
+        index + 1
+      ) {
+        return undefined;
+      }
+    }
+
+    /*
+     * No duplicate variants within a beat.
+     */
+    if (
+      variantsByBeat.some(
+        (item) =>
+          new Set(
+            item.variants.map(
+              (value) =>
+                value.toLowerCase(),
+            ),
+          ).size !==
+          item.variants.length,
+      )
+    ) {
+      return undefined;
+    }
+
     return {
-      variantsByBeat: parsed.variantsByBeat
-        .map((item) => ({
-          order: Number(item.order),
-          variants: Array.isArray(item.variants) ? item.variants.map(String).filter(Boolean).slice(0, 8) : [],
-        }))
-        .filter((item) => Number.isFinite(item.order)),
+      variantsByBeat:
+        variantsByBeat.sort(
+          (a, b) =>
+            a.order - b.order,
+        ),
     };
   } catch {
     return undefined;

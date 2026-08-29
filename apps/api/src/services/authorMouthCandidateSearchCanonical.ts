@@ -74,11 +74,12 @@ export function scoreMouthCandidate(input: {
 }): MouthCandidate {
   const legacy = scoreLegacyCandidate(input);
   const sourceLabels = sourceLabelsForBeat(input.beat, input.envelope);
-  const interpretation = evaluateMouthInterpretation({
-    text: input.text,
-    sourceLabels,
-    envelope: input.envelope,
-  });
+ const interpretation = evaluateMouthInterpretation({
+  text: input.text,
+  sourceLabels,
+  envelope: input.envelope,
+  beat: input.beat,
+});
 
   if (!interpretation.reasons.includes("semantic-compression")) {
     return legacy;

@@ -187,15 +187,22 @@ function isCreativeGold(candidate: MouthCandidate): boolean {
     "bounded-creative-bet",
   );
 }
-
+function isDistinctiveGold(
+  candidate: MouthCandidate,
+): boolean {
+  return candidate.reasons.includes(
+    "distinctive-realization",
+  );
+}
 function isSafe(candidate: MouthCandidate): boolean {
   return (
     candidate.inventionRisk < 0.35 &&
     candidate.forbiddenMoveRisk < 0.35
   );
 }
-
-function rank(candidate: MouthCandidate): number {
+function rank(
+  candidate: MouthCandidate,
+): number {
   const inventionSafety =
     1 -
     Math.max(
@@ -204,10 +211,14 @@ function rank(candidate: MouthCandidate): number {
     );
 
   const authorization =
-    authorizationQuality(candidate);
+    authorizationQuality(
+      candidate,
+    );
 
   const semantic =
-    semanticQuality(candidate);
+    semanticQuality(
+      candidate,
+    );
 
   const endpoint =
     candidate.endpointExactness >= 0.999
@@ -224,47 +235,58 @@ function rank(candidate: MouthCandidate): number {
       ? 1
       : 0;
 
-  /*
-   * Provenance dominates style metrics.
-   *
-   * A semantic realization that has passed the concrete-reality firewall
-   * must not be forced below a literal realization merely because the literal
-   * retains more source words or happens to terminate an approved endpoint.
-   */
+  const distinctiveGold =
+    isDistinctiveGold(candidate)
+      ? 1
+      : 0;
+
   return clamp01(
     inventionSafety * 0.24 +
-      semanticGold * 0.32 +
-      creativeGold * 0.14 +
-      authorization * 0.14 +
-      semantic * 0.12 +
-      endpoint * 0.04,
+      semanticGold * 0.30 +
+      creativeGold * 0.13 +
+      distinctiveGold * 0.13 +
+      authorization * 0.12 +
+      semantic * 0.08,
   );
 }
-
-/**
- * Candidate ordering is a deterministic expression of the same authority.
- *
- * Safe semantic gold beats safe non-semantic language.
- * Safety always wins over both.
- */
 function compareCandidates(
   a: MouthCandidate,
   b: MouthCandidate,
 ): number {
-  const aSemantic = isSemanticGold(a);
-  const bSemantic = isSemanticGold(b);
+const aSemantic = isSemanticGold(a);
+const bSemantic = isSemanticGold(b);
+
+const aDistinctive =
+  isDistinctiveGold(a);
+
+const bDistinctive =
+  isDistinctiveGold(b);
 
   const aSafe = isSafe(a);
   const bSafe = isSafe(b);
 
-  if (
-    aSafe &&
-    bSafe &&
-    aSemantic !== bSemantic
-  ) {
-    return aSemantic ? -1 : 1;
-  }
+ if (
+  aSafe &&
+  bSafe
+) {
+  const aGoldLevel =
+    (aSemantic ? 1 : 0) +
+    (aDistinctive ? 1 : 0);
 
+  const bGoldLevel =
+    (bSemantic ? 1 : 0) +
+    (bDistinctive ? 1 : 0);
+
+  if (
+    aGoldLevel !==
+    bGoldLevel
+  ) {
+    return (
+      bGoldLevel -
+      aGoldLevel
+    );
+  }
+}
   const rankDelta = rank(b) - rank(a);
 
   if (rankDelta !== 0) {
@@ -446,7 +468,14 @@ function pathCandidateScore(
   candidate: MouthCandidate,
   priorTexts: readonly string[],
   hasLiteralAlternative: boolean,
+  fireAlreadyUsed: boolean,
 ): number {
+
+    const firePriority =
+    isDistinctiveGold(candidate) &&
+    !fireAlreadyUsed
+      ? 0.18
+      : 0;
   const fit =
     sequenceFit(
       candidate,
@@ -454,10 +483,15 @@ function pathCandidateScore(
     );
 
   const semanticPriority =
-    isSemanticGold(candidate) &&
-    hasLiteralAlternative
-      ? 0.32
-      : 0;
+  isSemanticGold(candidate) &&
+  hasLiteralAlternative
+    ? 0.28
+    : 0;
+
+const distinctivePriority =
+  isDistinctiveGold(candidate)
+    ? 0.12
+    : 0;
 
   /*
    * Endpoint exactness is deliberately small. A literal endpoint cannot
@@ -469,12 +503,14 @@ function pathCandidateScore(
       ? 0.04
       : 0;
 
-  return clamp01(
-    rank(candidate) * 0.68 +
-      fit * 0.28 +
-      semanticPriority +
-      endpointPriority,
-  );
+   return clamp01(
+  rank(candidate) * 0.64 +
+    fit * 0.24 +
+    semanticPriority +
+    distinctivePriority +
+    firePriority +
+    endpointPriority,
+); 
 }
 
 export function selectBestMouthSequence(
@@ -579,12 +615,19 @@ export function selectBestMouthSequence(
         if (exactRepeat) {
           continue;
         }
+        
+         const fireAlreadyUsed =
+          path.candidates.some(
+            (prior) =>
+              isDistinctiveGold(prior),
+          );
 
         const candidateScore =
           pathCandidateScore(
             candidate,
             priorTexts,
             hasLiteralAlternative,
+            fireAlreadyUsed,
           );
 
         expanded.push({

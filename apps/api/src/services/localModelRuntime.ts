@@ -129,14 +129,13 @@ function defaultNumPredict(
   options: LocalModelOptions,
 ): number {
   const fast =
-    process.env.QRE_AUTHOR_FAST ===
-    "true";
+    process.env.QRE_AUTHOR_FAST === "true";
 
   return (
     options.numPredict ??
     Number(
       process.env.QRE_LOCAL_MODEL_NUM_PREDICT ||
-        (fast ? 384 : 512),
+        768,
     )
   );
 }
@@ -492,7 +491,10 @@ async function request(
       body.format ??
         "default",
     );
-
+     console.log(
+  "QRE REQUEST NUM_PREDICT:",
+  body.options.num_predict,
+);
     console.log(
       "QRE REQUEST MESSAGE COUNT:",
       body.messages.length,

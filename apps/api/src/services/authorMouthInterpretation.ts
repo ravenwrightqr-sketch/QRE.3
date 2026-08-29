@@ -13,10 +13,11 @@
  *
  * The evaluator protects one thing directly: unsupported concrete world claims.
  * Everything else may be compressed, strange, funny, sharp, emotional,
- * rhetorical, fragmentary, hyperbolic, or otherwise creative when grounded in
- * the supplied corpus.
+ * rhetorical, fragmentary, hyperbolic, metaphorical, or otherwise creative
+ * when grounded in the approved beat and supplied corpus.
  */
 
+import type { MouthCandidateBeat } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
 const clean = (value: unknown): string =>
@@ -24,10 +25,35 @@ const clean = (value: unknown): string =>
 
 const normalizeToken = (token: string): string => {
   const lower = token.toLowerCase();
-  if (lower.length > 6 && lower.endsWith("ing")) return lower.slice(0, -3);
-  if (lower.length > 5 && lower.endsWith("ed")) return lower.slice(0, -2);
-  if (lower.length > 4 && lower.endsWith("es")) return lower.slice(0, -2);
-  if (lower.length > 4 && lower.endsWith("s")) return lower.slice(0, -1);
+
+  if (
+    lower.length > 6 &&
+    lower.endsWith("ing")
+  ) {
+    return lower.slice(0, -3);
+  }
+
+  if (
+    lower.length > 5 &&
+    lower.endsWith("ed")
+  ) {
+    return lower.slice(0, -2);
+  }
+
+  if (
+    lower.length > 4 &&
+    lower.endsWith("es")
+  ) {
+    return lower.slice(0, -2);
+  }
+
+  if (
+    lower.length > 4 &&
+    lower.endsWith("s")
+  ) {
+    return lower.slice(0, -1);
+  }
+
   return lower;
 };
 
@@ -40,12 +66,18 @@ const tokens = (value: string): Set<string> =>
       .map(normalizeToken),
   );
 
-const overlap = (a: Set<string>, b: Set<string>): number => {
+const overlap = (
+  a: Set<string>,
+  b: Set<string>,
+): number => {
   if (!a.size || !b.size) return 0;
 
   let hits = 0;
+
   for (const token of a) {
-    if (b.has(token)) hits += 1;
+    if (b.has(token)) {
+      hits += 1;
+    }
   }
 
   return hits / Math.max(1, a.size);
@@ -61,7 +93,7 @@ const CLAUSE_SUBJECT_MARKER =
   /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
 
 const ABSTRACT_FRAMING =
-  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder)\b/i;
+  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder|feeling|pull|current|pressure|warmth|silence|familiar|close|closer|distance|spark|gravity|drift|rush|calm|heat|cold|lightness|weight|connection|tension)\b/i;
 
 const SEMANTIC_COMPRESSION_VERBS = new Set([
   "stay",
@@ -111,6 +143,15 @@ const FUNCTION_WORDS = new Set([
   "apparently",
 ]);
 
+/*
+ * These are not "bad words" in the ordinary sense.
+ *
+ * They are machine-facing concepts that must never leak into the
+ * viewer-facing realization.
+ */
+const INTERNAL_MACHINE_LANGUAGE =
+  /\b(?:qre|compiler|cognition|meaning\s+spine|beat\s+graph|information\s+frontier|planner|planning|operator\s+mix|viewer\s+state|viewer\s+sees|audience\s+sees|writing\s+process|semantic\s+turn|semantic\s+trajectory|trajectory|realization\s+mode|information\s+gain|candidate\s+pool|candidate\s+sequence|sequence\s+arc|creative\s+lane|canonical\s+authority|approved\s+beat|beat\s+obligation|semantic\s+compression|grounding\s+score|novelty\s+score)\b/i;
+
 export type MouthInterpretationEvaluation = {
   interpretive: number;
   sourceAnchor: number;
@@ -123,11 +164,15 @@ export type MouthInterpretationEvaluation = {
   reasons: string[];
 };
 
-function wholeSourceCorpus(envelope: RealityEnvelope): string {
+function wholeSourceCorpus(
+  envelope: RealityEnvelope,
+): string {
   return clean(
     [
       envelope.subject,
-      ...envelope.events.map((event) => event.label),
+      ...envelope.events.map(
+        (event) => event.label,
+      ),
       ...envelope.suppliedPhrases,
       ...envelope.suppliedEntities,
       ...envelope.suppliedActions,
@@ -139,34 +184,53 @@ function wholeSourceCorpus(envelope: RealityEnvelope): string {
   );
 }
 
-function compactRhetoricalShape(text: string): boolean {
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
+function compactRhetoricalShape(
+  text: string,
+): boolean {
+  const wordCount = text
+    .split(/\s+/)
+    .filter(Boolean).length;
 
-  if (!wordCount || wordCount > 12) return false;
+  if (
+    !wordCount ||
+    wordCount > 12
+  ) {
+    return false;
+  }
 
   const terminal = /[.!?]$/.test(text);
-  const fragment =
-    !CLAUSE_SUBJECT_MARKER.test(text) && wordCount <= 6;
-  const framing = ABSTRACT_FRAMING.test(text);
 
-  return terminal && (fragment || framing);
+  const fragment =
+    !CLAUSE_SUBJECT_MARKER.test(text) &&
+    wordCount <= 6;
+
+  const framing =
+    ABSTRACT_FRAMING.test(text);
+
+  return (
+    terminal &&
+    (fragment || framing)
+  );
 }
 
 /**
  * Semantic realization is not lexical substitution.
  *
- * An approved beat may be realized with different language provided the
- * realization remains:
- *   - short
- *   - non-concrete
- *   - rhetorically framed or semantically compressive
+ * Historically this function required overlap with source vocabulary.
+ * That was too strict for approved semantic realizations such as:
  *
- * Crucially, this function must not require the transformed wording to repeat
- * source vocabulary. The Movie/Beat layer already owns the semantic territory.
+ *   "started nervous" -> "Nerves. Then..."
+ *   "talked until close" -> "A dangerous current."
+ *
+ * The approved beat now owns the semantic territory.
+ *
+ * This function still protects against pure atmosphere and detached
+ * cinematic labels when no beat-local evidence exists.
  */
 function semanticCompressionShape(
   text: string,
   sourceLabels: readonly string[],
+  beat?: MouthCandidateBeat,
 ): boolean {
   const wordCount = text
     .split(/\s+/)
@@ -187,6 +251,12 @@ function semanticCompressionShape(
     return false;
   }
 
+  if (
+    INTERNAL_MACHINE_LANGUAGE.test(text)
+  ) {
+    return false;
+  }
+
   const current = tokens(text);
   const source = tokens(
     sourceLabels.join(" "),
@@ -200,10 +270,11 @@ function semanticCompressionShape(
   );
 
   const compressionVerb =
-    significant.some((token) =>
-      SEMANTIC_COMPRESSION_VERBS.has(
-        token,
-      ),
+    significant.some(
+      (token) =>
+        SEMANTIC_COMPRESSION_VERBS.has(
+          token,
+        ),
     );
 
   const framing =
@@ -217,104 +288,206 @@ function semanticCompressionShape(
     return false;
   }
 
-  /*
-   * A compressed realization still has to belong
-   * to the approved beat.
-   *
-   * Pure atmosphere is NOT semantic ownership.
-   *
-   * Examples that must fail:
-   *
-   *   "The pull."
-   *   "The deepening."
-   *   "The afterglow."
-   *   "The almost."
-   *
-   * Those describe an abstract cinematic feeling
-   * without proving which supplied beat they realize.
-   */
   const beatOverlap =
     overlap(
       current,
       source,
     );
 
+  /*
+   * Existing lexical path.
+   *
+   * When the realization clearly belongs to the source wording,
+   * keep the stricter existing behavior.
+   */
   if (
-    beatOverlap < 0.12
+    beatOverlap >= 0.12
+  ) {
+    const unknown =
+      significant.filter(
+        (token) =>
+          !source.has(token) &&
+          !SEMANTIC_COMPRESSION_VERBS.has(
+            token,
+          ) &&
+          !ABSTRACT_FRAMING.test(
+            token,
+          ),
+      );
+
+    return (
+      unknown.length <=
+      Math.max(
+        1,
+        Math.floor(
+          significant.length / 3,
+        ),
+      )
+    );
+  }
+
+  /*
+   * Canonical semantic ownership path.
+   *
+   * The beat has already been approved upstream by Cognition/Brain.
+   * Therefore lexical overlap is NOT required for a transformed realization.
+   *
+   * What we still reject is a line that is merely naming the movie's
+   * internal cinematic function.
+   */
+
+  const hasApprovedBeat =
+    Boolean(
+      beat &&
+      (
+        beat.eventIds?.length ||
+        beat.attentionFunction ||
+        beat.change ||
+        beat.role ||
+        beat.relationKinds?.length
+      ),
+    );
+
+  if (
+    !hasApprovedBeat
   ) {
     return false;
   }
 
-  const unknown = significant.filter(
-    (token) =>
-      !source.has(token) &&
-      !SEMANTIC_COMPRESSION_VERBS.has(
-        token,
-      ) &&
-      !ABSTRACT_FRAMING.test(token),
-  );
+  /*
+   * A bare nominal label is not enough by itself.
+   *
+   * Examples:
+   *   "The pull."
+   *   "The tightening."
+   *   "The deepening."
+   *   "The afterglow."
+   *
+   * These name an abstract cinematic state instead of expressing the
+   * supplied experience.
+   */
+  const bareNominalLabel =
+    /^(?:the|a|an)\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\.?$/i.test(
+      text,
+    );
+
+  if (
+    bareNominalLabel
+  ) {
+    return false;
+  }
 
   /*
-   * Once the line demonstrably belongs to the
-   * current beat, permit some creative language,
-   * but do not let an entirely invented lexical
-   * payload sneak through as "compression."
+   * Approved beats may therefore authorize:
+   *
+   *   "Nerves. Then..."
+   *   "A dangerous current."
+   *   "Felt the pull towards us."
+   *   "Almost."
+   *   "Love."
+   *
+   * without requiring those lines to reuse source vocabulary.
    */
-  return (
-    unknown.length <=
-    Math.max(
-      1,
-      Math.floor(
-        significant.length / 3,
-      ),
-    )
-  );
+  return true;
 }
+
 export function evaluateMouthInterpretation(input: {
   text: string;
   sourceLabels: readonly string[];
   envelope: RealityEnvelope;
+  beat?: MouthCandidateBeat;
 }): MouthInterpretationEvaluation {
   const text = clean(input.text);
-  const beatSourceText = clean(input.sourceLabels.join(" "));
-  const wholeSourceText = wholeSourceCorpus(input.envelope);
+
+  const beatSourceText =
+    clean(
+      input.sourceLabels.join(" "),
+    );
+
+  const wholeSourceText =
+    wholeSourceCorpus(
+      input.envelope,
+    );
 
   const current = tokens(text);
-  const beatSource = tokens(beatSourceText);
-  const wholeSource = tokens(wholeSourceText);
+  const beatSource = tokens(
+    beatSourceText,
+  );
+  const wholeSource = tokens(
+    wholeSourceText,
+  );
 
-  const sourceAnchor = overlap(current, beatSource);
-  const wholeSourceAnchor = overlap(current, wholeSource);
+  const sourceAnchor =
+    overlap(
+      current,
+      beatSource,
+    );
 
-  const literalRestatement = input.sourceLabels.some((label) => {
-    const a = text
-      .replace(/[.!?]+$/g, "")
-      .toLowerCase();
+  const wholeSourceAnchor =
+    overlap(
+      current,
+      wholeSource,
+    );
 
-    const b = clean(label)
-      .replace(/[.!?]+$/g, "")
-      .toLowerCase();
+  const literalRestatement =
+    input.sourceLabels.some(
+      (label) => {
+        const a = text
+          .replace(
+            /[.!?]+$/g,
+            "",
+          )
+          .toLowerCase();
 
-    return Boolean(a && b && a === b);
-  })
-    ? 1
-    : 0;
+        const b = clean(label)
+          .replace(
+            /[.!?]+$/g,
+            "",
+          )
+          .toLowerCase();
 
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
-  const concreteClaim = CONCRETE_CLAIM.test(text);
-  const externalStateClaim = EXTERNAL_STATE_CLAIM.test(text);
+        return Boolean(
+          a &&
+          b &&
+          a === b,
+        );
+      },
+    )
+      ? 1
+      : 0;
+
+  const wordCount =
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const concreteClaim =
+    CONCRETE_CLAIM.test(
+      text,
+    );
+
+  const externalStateClaim =
+    EXTERNAL_STATE_CLAIM.test(
+      text,
+    );
 
   const groundedConcreteFragment =
     wordCount <= 5 &&
     concreteClaim &&
-    !CLAUSE_SUBJECT_MARKER.test(text) &&
-    wholeSourceAnchor >= 0.45;
+    !CLAUSE_SUBJECT_MARKER.test(
+      text,
+    ) &&
+    wholeSourceAnchor >=
+      0.45;
 
   let unsupportedConcreteRisk = 0;
 
   if (
     concreteClaim &&
-    !CONCRETE_CLAIM.test(wholeSourceText) &&
+    !CONCRETE_CLAIM.test(
+      wholeSourceText,
+    ) &&
     !groundedConcreteFragment
   ) {
     unsupportedConcreteRisk = 1;
@@ -322,12 +495,30 @@ export function evaluateMouthInterpretation(input: {
 
   if (
     externalStateClaim &&
-    !EXTERNAL_STATE_CLAIM.test(wholeSourceText)
+    !EXTERNAL_STATE_CLAIM.test(
+      wholeSourceText,
+    )
   ) {
-    unsupportedConcreteRisk = Math.max(
-      unsupportedConcreteRisk,
-      1,
-    );
+    unsupportedConcreteRisk =
+      Math.max(
+        unsupportedConcreteRisk,
+        1,
+      );
+  }
+
+  /*
+   * Developer/machine language is never a valid viewer-facing realization.
+   */
+  if (
+    INTERNAL_MACHINE_LANGUAGE.test(
+      text,
+    )
+  ) {
+    unsupportedConcreteRisk =
+      Math.max(
+        unsupportedConcreteRisk,
+        1,
+      );
   }
 
   const frameSignal =
@@ -335,158 +526,296 @@ export function evaluateMouthInterpretation(input: {
     compactRhetoricalShape(text);
 
   const sourceExists =
-    input.envelope.events.length > 0 ||
-    Boolean(wholeSourceText);
+    input.envelope.events.length >
+      0 ||
+    Boolean(
+      wholeSourceText,
+    );
 
-  const shortCreativeForm = wordCount <= 12;
-  const hasBeatSource = input.sourceLabels.length > 0;
-  const beatTouchesLanguage = sourceAnchor >= 0.08;
+  const shortCreativeForm =
+    wordCount <= 12;
 
-  const semanticCompression = semanticCompressionShape(
-    text,
-    input.sourceLabels,
-  );
+  const hasBeatSource =
+    input.sourceLabels.length >
+    0;
+
+  const beatTouchesLanguage =
+    sourceAnchor >= 0.08;
+
+  const semanticCompression =
+    semanticCompressionShape(
+      text,
+      input.sourceLabels,
+      input.beat,
+    );
 
   /*
-   * An approved beat can own a transformed realization without lexical overlap.
+   * An approved beat can authorize a transformed realization even when
+   * lexical overlap disappears completely.
    */
-  const semanticBeatSupport = hasBeatSource
-    ? (
-        beatTouchesLanguage ||
-        literalRestatement === 1 ||
-        semanticCompression ||
-        (frameSignal && sourceAnchor >= 0.04)
-      )
-    : (
-        wholeSourceAnchor >= 0.08 ||
-        frameSignal
-      );
+  const approvedSemanticBeat =
+    Boolean(
+      input.beat &&
+      (
+        input.beat.eventIds?.length ||
+        input.beat.attentionFunction ||
+        input.beat.change ||
+        input.beat.role ||
+        input.beat.relationKinds?.length
+      ),
+    );
 
-  const associativeWorldSupport = Math.max(
-    0,
-    Math.min(
-      1,
-      wholeSourceAnchor * 0.55 +
-        sourceAnchor * 0.45,
-    ),
-  );
+  const semanticBeatSupport =
+    hasBeatSource
+      ? (
+          beatTouchesLanguage ||
+          literalRestatement === 1 ||
+          semanticCompression ||
+          (
+            approvedSemanticBeat &&
+            frameSignal &&
+            unsupportedConcreteRisk === 0
+          )
+        )
+      : (
+          wholeSourceAnchor >= 0.08 ||
+          frameSignal
+        );
+
+  const associativeWorldSupport =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        wholeSourceAnchor * 0.55 +
+          sourceAnchor * 0.45,
+      ),
+    );
 
   const safeCreativeBet =
     Boolean(text) &&
-    unsupportedConcreteRisk === 0 &&
-    literalRestatement === 0 &&
+    unsupportedConcreteRisk ===
+      0 &&
+    literalRestatement ===
+      0 &&
     shortCreativeForm &&
     sourceExists &&
     semanticBeatSupport &&
     (
       hasBeatSource
         ? true
-        : associativeWorldSupport >= 0.08 ||
+        : associativeWorldSupport >=
+            0.08 ||
           frameSignal
     );
 
-  const groundingContribution = hasBeatSource
-    ? Math.min(0.45, sourceAnchor * 0.5)
-    : Math.min(0.45, wholeSourceAnchor * 0.5);
+  const groundingContribution =
+    hasBeatSource
+      ? Math.min(
+          0.45,
+          sourceAnchor * 0.5,
+        )
+      : Math.min(
+          0.45,
+          wholeSourceAnchor * 0.5,
+        );
 
-  const framingContribution = frameSignal ? 0.36 : 0;
-  const compressionContribution = shortCreativeForm
-    ? 0.14
-    : 0;
+  /*
+   * Approved semantic beats receive a bounded grounding floor even when
+   * lexical overlap is zero. This is authorization from Cognition/Brain,
+   * not invented source evidence.
+   */
+  const approvedBeatGrounding =
+    approvedSemanticBeat &&
+    semanticCompression
+      ? 0.36
+      : approvedSemanticBeat &&
+          semanticBeatSupport &&
+          frameSignal
+        ? 0.28
+        : 0;
 
-  const beatOwnershipContribution = hasBeatSource
-    ? Math.min(0.3, sourceAnchor * 0.6)
-    : 0;
+  const framingContribution =
+    frameSignal
+      ? 0.36
+      : 0;
 
-  const creativeFraming = Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        groundingContribution +
-          framingContribution +
-          compressionContribution +
-          beatOwnershipContribution +
-          (safeCreativeBet ? 0.2 : 0),
-      ),
-    ).toFixed(3),
-  );
+  const compressionContribution =
+    shortCreativeForm
+      ? 0.14
+      : 0;
 
-  const interpretive = Number(
-    Math.max(
-      0,
-      Math.min(
-        1,
-        creativeFraming +
-          (hasBeatSource
-            ? sourceAnchor
-            : wholeSourceAnchor) *
-            0.22 +
-          (frameSignal ? 0.1 : 0),
-      ),
-    ).toFixed(3),
-  );
+  const beatOwnershipContribution =
+    hasBeatSource
+      ? Math.min(
+          0.3,
+          sourceAnchor * 0.6,
+        )
+      : 0;
+
+  const creativeFraming =
+    Number(
+      Math.max(
+        0,
+        Math.min(
+          1,
+          groundingContribution +
+            approvedBeatGrounding +
+            framingContribution +
+            compressionContribution +
+            beatOwnershipContribution +
+            (safeCreativeBet
+              ? 0.2
+              : 0),
+        ),
+      ).toFixed(3),
+    );
+
+  const interpretive =
+    Number(
+      Math.max(
+        0,
+        Math.min(
+          1,
+          creativeFraming +
+            (
+              hasBeatSource
+                ? sourceAnchor
+                : wholeSourceAnchor
+            ) *
+              0.22 +
+            (
+              frameSignal
+                ? 0.1
+                : 0
+            ),
+        ),
+      ).toFixed(3),
+    );
 
   const reasons: string[] = [];
 
-  if (literalRestatement) {
-    reasons.push("literal-source-restatement");
-  }
-
-  if (sourceAnchor >= 0.18) {
-    reasons.push("beat-source-anchored");
-  }
-
-  if (wholeSourceAnchor >= 0.18) {
-    reasons.push("whole-reality-anchored");
-  }
-
-  if (groundedConcreteFragment) {
-    reasons.push("grounded-concrete-fragment");
-  }
-
-  if (frameSignal) {
-    reasons.push("viewer-facing-framing");
-  }
-
-  if (hasBeatSource && semanticBeatSupport) {
-    reasons.push("beat-obligation-satisfied");
-  }
-
-  if (semanticCompression) {
-    reasons.push("semantic-compression");
-  }
-
-  if (safeCreativeBet) {
-    reasons.push("bounded-creative-bet");
-  }
-
-  if (unsupportedConcreteRisk > 0) {
-    reasons.push("unsupported-concrete-invention");
+  if (
+    literalRestatement
+  ) {
+    reasons.push(
+      "literal-source-restatement",
+    );
   }
 
   if (
-    interpretive >= 0.45 &&
+    sourceAnchor >=
+    0.18
+  ) {
+    reasons.push(
+      "beat-source-anchored",
+    );
+  }
+
+  if (
+    wholeSourceAnchor >=
+    0.18
+  ) {
+    reasons.push(
+      "whole-reality-anchored",
+    );
+  }
+
+  if (
+    groundedConcreteFragment
+  ) {
+    reasons.push(
+      "grounded-concrete-fragment",
+    );
+  }
+
+  if (
+    frameSignal
+  ) {
+    reasons.push(
+      "viewer-facing-framing",
+    );
+  }
+
+  if (
+    approvedSemanticBeat
+  ) {
+    reasons.push(
+      "approved-beat-authority",
+    );
+  }
+
+  if (
+    hasBeatSource &&
+    semanticBeatSupport
+  ) {
+    reasons.push(
+      "beat-obligation-satisfied",
+    );
+  }
+
+  if (
+    semanticCompression
+  ) {
+    reasons.push(
+      "semantic-compression",
+    );
+  }
+
+  if (
+    safeCreativeBet
+  ) {
+    reasons.push(
+      "bounded-creative-bet",
+    );
+  }
+
+  if (
+    unsupportedConcreteRisk >
+    0
+  ) {
+    reasons.push(
+      "unsupported-concrete-invention",
+    );
+  }
+
+  if (
+    interpretive >=
+      0.45 &&
     !literalRestatement
   ) {
-    reasons.push("grounded-creative-interpretation");
+    reasons.push(
+      "grounded-creative-interpretation",
+    );
   }
 
   return {
     interpretive,
-    sourceAnchor: Number(sourceAnchor.toFixed(3)),
-    wholeSourceAnchor: Number(
-      wholeSourceAnchor.toFixed(3),
-    ),
-    frameSupport: Number(
-      (frameSignal ? 0.8 : 0).toFixed(3),
-    ),
+    sourceAnchor:
+      Number(
+        sourceAnchor.toFixed(3),
+      ),
+    wholeSourceAnchor:
+      Number(
+        wholeSourceAnchor.toFixed(
+          3,
+        ),
+      ),
+    frameSupport:
+      Number(
+        (
+          frameSignal
+            ? 0.8
+            : 0
+        ).toFixed(3),
+      ),
     literalRestatement,
     creativeFraming,
     unsupportedConcreteRisk,
     accepted:
       Boolean(text) &&
-      unsupportedConcreteRisk < 0.9 &&
+      unsupportedConcreteRisk <
+        0.9 &&
       (
         literalRestatement === 1 ||
         safeCreativeBet ||
@@ -494,7 +823,8 @@ export function evaluateMouthInterpretation(input: {
           !hasBeatSource &&
           (
             frameSignal ||
-            wholeSourceAnchor >= 0.08
+            wholeSourceAnchor >=
+              0.08
           )
         )
       ),
