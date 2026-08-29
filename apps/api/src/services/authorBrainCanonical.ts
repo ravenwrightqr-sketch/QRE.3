@@ -13,6 +13,7 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import { deriveViewerStateCut } from "./authorMouthCandidateSearch.js";
 import {
   classifyAuthorRealizationMode,
   type AuthorRealizationMode,
@@ -749,8 +750,18 @@ export async function authorBrainCanonical(
    * approved semantic meaning without becoming a second planner.
    */
   const beats =
-    mouthBeats(movie);
-
+  mouthBeats(movie).map(
+    (beat, index, allBeats) => ({
+      ...beat,
+      viewerState:
+        deriveViewerStateCut(
+          beat,
+          index,
+          allBeats,
+          envelope,
+        ),
+    }),
+  );
   if (
     process.env
       .QRE_AUTHOR_DEBUG_MOVIE ===
@@ -824,61 +835,94 @@ export async function authorBrainCanonical(
 
   try {
     const generated =
-      await localModelGenerate(
-        messages,
-        "json",
-        {
-          numPredict: 1024,
-          temperature: 0.7,
+  await localModelGenerate(
+    messages,
+    "json",
+    {
+      numPredict: 2048,
+      temperature: 0.7,
+      jsonSchema: {
+        type: "object",
+        properties: {
+          variantsByBeat: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                order: {
+                  type: "integer",
+                },
+                variants: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                  },
+                  minItems: 3,
+                  maxItems: 3,
+                },
+              },
+              required: [
+                "order",
+                "variants",
+              ],
+              additionalProperties: false,
+            },
+          },
         },
-      );
+        required: [
+          "variantsByBeat",
+        ],
+        additionalProperties: false,
+      },
+    },
+  );
     modelCalls = 1;
 
     modelName =
       generated.model ||
       modelName;
+     let parsed =
+  parseMouthCandidateBatch(
+    generated.text,
+  );
 
-    const parsed =
-      parseMouthCandidateBatch(
-        generated.text,
-      );
 
-    if (parsed) {
-      pools =
-        beats.map(
-          (beat) => ({
-            order:
-              beat.order,
+if (parsed) {
+  pools =
+    beats.map(
+      (beat) => ({
+        order:
+          beat.order,
 
-            candidates:
+        candidates:
+          (
+            parsed.variantsByBeat.find(
               (
-                parsed.variantsByBeat.find(
-                  (
-                    item,
-                  ) =>
-                    item.order ===
-                    beat.order,
-                )?.variants ??
-                []
-              )
-                .map(
-                  (text) =>
-                    scoreMouthCandidate(
-                      {
-                        text,
-                        beat,
-                        envelope,
-                      },
-                    ),
-                )
-                .filter(
-                  (candidate) =>
-                    candidate.text
-                      .length > 0,
+                item,
+              ) =>
+                item.order ===
+                beat.order,
+            )?.variants ??
+            []
+          )
+            .map(
+              (text) =>
+                scoreMouthCandidate(
+                  {
+                    text,
+                    beat,
+                    envelope,
+                  },
                 ),
-          }),
-        );
-    }
+            )
+            .filter(
+              (candidate) =>
+                candidate.text
+                  .length > 0,
+            ),
+      }),
+    );
+}
      } catch {
     modelCalls = 1;
   }
@@ -952,7 +996,7 @@ export async function authorBrainCanonical(
           pool.candidates
       ) {
         console.log(
-          `  - ${candidate.text} | score=${candidate.score} | events=${candidate.supportedEventIds.join(",")}`,
+          `  - ${candidate.text} | score=${candidate.score} | events=${candidate.supportedEventIds.join(",")} | reasons=${candidate.reasons.join("|")}`,
         );
       }
     }

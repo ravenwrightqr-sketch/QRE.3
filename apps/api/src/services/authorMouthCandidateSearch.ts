@@ -64,7 +64,29 @@ function overlap(a: Set<string>, b: Set<string>): number {
   for (const token of a) if (b.has(token)) hits += 1;
   return hits / Math.max(1, a.size);
 }
+function matchesInternalViewerState(
+  text: string,
+  viewerState?: ViewerStateCut,
+): boolean {
+  if (!viewerState) {
+    return false;
+  }
 
+  const candidateTokens =
+    tokenSet(text);
+
+  const internalTokens =
+    tokenSet(
+      `${viewerState.beforeState} ${viewerState.afterState}`,
+    );
+
+  return (
+    overlap(
+      candidateTokens,
+      internalTokens,
+    ) >= 0.75
+  );
+}
 function metric(value: number): number {
   return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
@@ -117,7 +139,7 @@ function endpointExactForBeat(text: string, beat: MouthCandidateBeat, envelope: 
   return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase());
 }
 
-function deriveViewerStateCut(
+export function deriveViewerStateCut(
   beat: MouthCandidateBeat,
   index: number,
   beats: readonly MouthCandidateBeat[],
@@ -340,15 +362,20 @@ function evaluateCandidate(
           : wordCount <= 40
             ? 0.62
             : 0.48;
+   const viewerState =
+  beat.viewerState ??
+  deriveViewerStateCut(
+    beat,
+    0,
+    [beat],
+    envelope,
+  );
 
-  const viewerState =
-    beat.viewerState ??
-    deriveViewerStateCut(
-      beat,
-      0,
-      [beat],
-      envelope,
-    );
+const internalViewerStateLeak =
+  matchesInternalViewerState(
+    value,
+    beat.viewerState,
+  );
 
   /*
    * Beat ownership.
@@ -636,7 +663,13 @@ function evaluateCandidate(
       "meta-language",
     );
   }
-
+  if (
+  internalViewerStateLeak
+) {
+  reasons.push(
+    "internal-viewer-state-language",
+  );
+}
   if (
     GENERIC.test(value)
   ) {
@@ -994,10 +1027,15 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     ...input.envelope.events.map((event) => event.label),
   ]).filter((value) => !PLANNING_RESIDUE.test(value)).slice(0, 40);
 
-  const viewerBeats = input.beats.map((beat, index) => {
-    const viewerState = beat.viewerState ?? deriveViewerStateCut(beat, index, input.beats, input.envelope);
-    return { order: beat.order, eventIds: beat.eventIds, sourceLabels: sourceForBeat(beat, input.envelope), viewerState, terminal: Boolean(beat.paysOff?.length) };
-  });
+ const viewerBeats = input.beats.map((beat) => {
+  return {
+    order: beat.order,
+    eventIds: beat.eventIds,
+    sourceLabels: sourceForBeat(beat, input.envelope),
+    change: clean(beat.change),
+    terminal: Boolean(beat.paysOff?.length),
+  };
+});
   const system = [
   "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
 

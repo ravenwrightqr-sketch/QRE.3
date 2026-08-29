@@ -11,10 +11,17 @@ export type LocalModelResult = {
   model: string;
   provider: "local";
 };
+export type LocalModelJsonSchema = {
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+};
 
 export type LocalModelOptions = {
   numPredict?: number;
   temperature?: number;
+  jsonSchema?: LocalModelJsonSchema;
 };
 
 function baseUrl(): string {
@@ -416,12 +423,11 @@ function outputText(
 
   return "";
 }
-
 type LocalRequestBody = {
   model: string;
   stream: false;
   keep_alive: string;
-  format?: "json";
+  format?: "json" | LocalModelJsonSchema;
   messages: Array<{
     role:
       | "system"
@@ -604,11 +610,44 @@ async function request(
     );
 
     const json =
-      await response.json();
+  await response.json();
 
-    console.log(
-      "QRE RESPONSE JSON RECEIVED",
-    );
+if (
+  typeof json === "object" &&
+  json !== null
+) {
+  const record =
+    json as Record<string, unknown>;
+
+  console.log(
+    "QRE RESPONSE DONE:",
+    record.done,
+  );
+
+  console.log(
+    "QRE RESPONSE DONE_REASON:",
+    record.done_reason,
+  );
+
+  console.log(
+    "QRE RESPONSE PROMPT_EVAL_COUNT:",
+    record.prompt_eval_count,
+  );
+
+  console.log(
+    "QRE RESPONSE EVAL_COUNT:",
+    record.eval_count,
+  );
+
+  console.log(
+    "QRE RESPONSE EVAL_DURATION_NS:",
+    record.eval_duration,
+  );
+}
+
+console.log(
+  "QRE RESPONSE JSON RECEIVED",
+);
 
     console.log(
       "QRE REQUEST TOTAL MS:",
@@ -736,7 +775,9 @@ export async function localModelGenerate(
     keep_alive:
       keepAlive(),
 
-    format,
+    format:
+  options.jsonSchema ??
+  format,
 
     messages:
       messages.map(
