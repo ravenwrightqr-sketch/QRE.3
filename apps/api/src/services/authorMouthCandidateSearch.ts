@@ -1,7 +1,18 @@
 /**
  * STATUS: CANONICAL
  * ROLE: Ask the model for viewer-facing wording for already-approved beats.
- * MUST NOT: plan, invent events, or turn state/relationship material into fabricated physical behavior.
+ *
+ * CORE LAW:
+ *
+ * Reality is immutable. Expression is not.
+ *
+ * Mouth may compress, sharpen, reframe, surprise, imply, metaphorize,
+ * contradict, fragment, or otherwise find stronger human expression of
+ * already-approved material.
+ *
+ * The evaluator protects unsupported concrete reality directly.
+ *
+ * Candidate diversity is a search-space law, not a style template.
  */
 
 import type {
@@ -11,8 +22,12 @@ import type {
   MouthCandidateSelection,
   ViewerStateCut,
 } from "@qre/contracts";
+
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
+
+import {
+  evaluateMouthInterpretation,
+} from "./authorMouthInterpretation.js";
 
 export type {
   MouthCandidate,
@@ -28,42 +43,433 @@ export type MouthCandidateGenerationInput = {
   lens?: string;
 };
 
-const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (
+  value: unknown,
+): string =>
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const unique = (values: readonly unknown[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
+const unique = (
+  values: readonly unknown[],
+): string[] =>
+  [...new Set(
+    values
+      .map(clean)
+      .filter(Boolean),
+  )];
 
-const META = /\b(?:qre|compiler|cognition|meaning spine|beat graph|information frontier|planner|planning|operator mix|viewer sees|audience sees|writing process)\b/i;
-const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|new chapter)\b/i;
-const BAD_INTERPRETIVE_EXPLANATION = /\b(?:the viewer|this reveals|this means|which means|in this context|is now transformed into|was a cover for|reveals? that|symbolizes?|represents?|the mystery|what does .* mean|why does .* mean|the final revelation|the punchline here)\b/i;
-const PLANNING_RESIDUE = /\b(?:perform the approved semantic change|maintain forward movement|anchor the realization|allow later supplied evidence|preserve the source-derived endpoint|terminate on the supplied endpoint|do not merely restate|what relationship deserves|what becomes connected|what does this relationship make newly meaningful|what is now true at the supplied ending|the supplied endpoint lands|establish supplied evidence)\b/i;
-const PHYSICAL_INVENTION = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|swipes?|swiped|grips?|grabbed|throws?|threw|pulls?|pulled|pushes?|pushed|kicks?|kicked|touches?|touched|holds?|held|carries?|carried|opens?|opened|closes?|closed)\b/i;
+const META =
+  /\b(?:qre|compiler|cognition|meaning spine|beat graph|information frontier|planner|planning|operator mix|viewer sees|audience sees|writing process)\b/i;
 
-const normalizeToken = (token: string): string => {
-  const lower = token.toLowerCase();
-  if (lower.length > 6 && lower.endsWith("ing")) return lower.slice(0, -3);
-  if (lower.length > 5 && lower.endsWith("ed")) return lower.slice(0, -2);
-  if (lower.length > 4 && lower.endsWith("es")) return lower.slice(0, -2);
-  if (lower.length > 4 && lower.endsWith("s")) return lower.slice(0, -1);
+const GENERIC =
+  /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|new chapter)\b/i;
+
+const BAD_INTERPRETIVE_EXPLANATION =
+  /\b(?:the viewer|this reveals|this means|which means|in this context|is now transformed into|was a cover for|reveals? that|symbolizes?|represents?|the mystery|what does .* mean|why does .* mean|the final revelation|the punchline here)\b/i;
+
+const PLANNING_RESIDUE =
+  /\b(?:perform the approved semantic change|maintain forward movement|anchor the realization|allow later supplied evidence|preserve the source-derived endpoint|terminate on the supplied endpoint|do not merely restate|what relationship deserves|what becomes connected|what does this relationship make newly meaningful|what is now true at the supplied ending|the supplied endpoint lands|establish supplied evidence)\b/i;
+
+const PHYSICAL_INVENTION =
+  /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|swipes?|swiped|grips?|grabbed|throws?|threw|pulls?|pulled|pushes?|pushed|kicks?|kicked|touches?|touched|holds?|held|carries?|carried|opens?|opened|closes?|closed|drifts?|drifted|vanishes?|vanished)\b/i;
+
+const INTERNAL_VIEWER_LANGUAGE =
+  /\b(?:uncommitted|oriented|settled|disrupted|curious|pressurized|certain|reframed|engaged|breathing|expectant|resolved)\b/i;
+
+const ABSTRACT_NOUNISH =
+  /\b(?:warmth|connection|recognition|loosening|ease|momentum|lightness|relief|anticipation|possibility|opening|silence|current|pull|tension|distance|gravity|comfort|energy|rhythm|feeling|shift|bloom|flow|stillness|space|pressure|weight|closeness|uncertainty|quiet|heat|cold|spark|drift|rush|calm)\b/i;
+
+const LOW_INFORMATION_PHRASE =
+  /^(?:something(?:\s+\w+){0,3}|it was something|a moment|the moment|a feeling|the feeling|something changed|something shifted|everything changed)\.?$/i;
+
+const CONTRAST_LANGUAGE =
+  /\b(?:but|yet|still|almost|only|except|instead|rather|never|not|no|nothing|everything|suddenly|until|before|after|then)\b/i;
+
+/**
+ * Generic concrete-world signals rather than domain rules.
+ *
+ * These exist only to detect newly introduced factual-looking details
+ * absent from the supplied corpus.
+ *
+ * Experiential language remains open.
+ */
+const CONCRETE_DETAIL_MARKER =
+  /\b(?:footsteps?|room|rooms|street|streets|door|doors|window|windows|table|tables|chair|chairs|floor|floors|wall|walls|ceiling|bed|beds|car|cars|truck|trucks|road|roads|sidewalk|sidewalks|house|houses|building|buildings|garden|gardens|yard|yards|sky|cloud|clouds|rain|snow|sunlight|moonlight|lamp|lamps|lighting|lights|music|song|songs|voice|voices|skin|hand|hands|finger|fingers|eyes|eye|face|faces|hair|clothes|shirt|dress|phone|phones|coffee|cup|cups|glass|glasses|food|drink)\b/i;
+
+const IDENTITY_DETAIL_MARKER =
+  /\b(?:her|him|his|hers|girlfriend|boyfriend|wife|husband|woman|man|girl|boy|mother|father|daughter|son|sister|brother|partner)\b/i;
+
+const normalizeToken = (
+  token: string,
+): string => {
+  const lower =
+    token.toLowerCase();
+
+  if (
+    lower.length > 6 &&
+    lower.endsWith("ing")
+  ) {
+    return lower.slice(
+      0,
+      -3,
+    );
+  }
+
+  if (
+    lower.length > 5 &&
+    lower.endsWith("ed")
+  ) {
+    return lower.slice(
+      0,
+      -2,
+    );
+  }
+
+  if (
+    lower.length > 4 &&
+    lower.endsWith("es")
+  ) {
+    return lower.slice(
+      0,
+      -2,
+    );
+  }
+
+  if (
+    lower.length > 4 &&
+    lower.endsWith("s")
+  ) {
+    return lower.slice(
+      0,
+      -1,
+    );
+  }
+
   return lower;
 };
 
-const tokenSet = (text: string): Set<string> =>
+const tokenSet = (
+  text: string,
+): Set<string> =>
   new Set(
     clean(text)
       .toLowerCase()
-      .split(/[^a-z0-9'-]+/i)
-      .filter((token) => token.length >= 3)
-      .map(normalizeToken),
+      .split(
+        /[^a-z0-9'-]+/i,
+      )
+      .filter(
+        (token) =>
+          token.length >= 3,
+      )
+      .map(
+        normalizeToken,
+      ),
   );
 
-function overlap(a: Set<string>, b: Set<string>): number {
-  if (!a.size || !b.size) return 0;
+function overlap(
+  a: Set<string>,
+  b: Set<string>,
+): number {
+  if (
+    !a.size ||
+    !b.size
+  ) {
+    return 0;
+  }
+
   let hits = 0;
-  for (const token of a) if (b.has(token)) hits += 1;
-  return hits / Math.max(1, a.size);
+
+  for (
+    const token of a
+  ) {
+    if (
+      b.has(token)
+    ) {
+      hits += 1;
+    }
+  }
+
+  return (
+    hits /
+    Math.max(
+      1,
+      a.size,
+    )
+  );
 }
+
+function metric(
+  value: number,
+): number {
+  return Number(
+    Math.max(
+      0,
+      Math.min(
+        1,
+        value,
+      ),
+    ).toFixed(3),
+  );
+}
+
+function phraseSupportedText(
+  candidateText: string,
+  label: string,
+): boolean {
+  const phrase =
+    clean(
+      label,
+    ).toLowerCase();
+
+  const candidate =
+    clean(
+      candidateText,
+    ).toLowerCase();
+
+  if (
+    !phrase ||
+    !candidate
+  ) {
+    return false;
+  }
+
+  return (
+    candidate.includes(
+      phrase,
+    ) ||
+    overlap(
+      tokenSet(candidate),
+      tokenSet(phrase),
+    ) >= 0.5
+  );
+}
+
+function eventLabel(
+  envelope: RealityEnvelope,
+  id: string,
+): string {
+  return clean(
+    envelope.events.find(
+      (event) =>
+        event.id === id,
+    )?.label,
+  );
+}
+
+function identityEvidenceText(
+  envelope: RealityEnvelope,
+): string {
+  return clean(
+    [
+      envelope.subject,
+      ...envelope.events.map(
+        (event) =>
+          event.label,
+      ),
+      ...envelope.suppliedPhrases,
+      ...envelope.suppliedEntities,
+      ...envelope.suppliedActions,
+      ...envelope.suppliedStates,
+      ...envelope.recurringSignals,
+      ...envelope.sensorySignals,
+      ...envelope.unresolvedTensions,
+    ].join(" "),
+  );
+}
+
+/**
+ * Candidate-specific identity compatibility.
+ *
+ * Important:
+ *
+ * Identity is not permitted merely because some identity exists somewhere
+ * in the corpus. The candidate's actual identity-bearing language must be
+ * supported by supplied evidence.
+ */
+function hasSupportedIdentityLanguage(
+  text: string,
+  envelope: RealityEnvelope,
+): boolean {
+  const candidate =
+    clean(
+      text,
+    ).toLowerCase();
+
+  if (
+    !IDENTITY_DETAIL_MARKER.test(
+      candidate,
+    )
+  ) {
+    return true;
+  }
+
+  const evidence =
+    identityEvidenceText(
+      envelope,
+    );
+
+  const feminineEvidence =
+    /\b(?:female|woman|girl|lady|wife|girlfriend|daughter|sister|she|her|hers)\b/i.test(
+      evidence,
+    );
+
+  const masculineEvidence =
+    /\b(?:male|man|boy|guy|husband|boyfriend|son|brother|he|him|his)\b/i.test(
+      evidence,
+    );
+
+  const relationalEvidence =
+    /\b(?:partner|mother|father|daughter|son|sister|brother|wife|husband|girlfriend|boyfriend)\b/i.test(
+      evidence,
+    );
+
+  if (
+    /\b(?:she|her|hers|the woman|the girl|the lady|my girlfriend|her girlfriend|his girlfriend|my wife)\b/i.test(
+      candidate,
+    )
+  ) {
+    return feminineEvidence;
+  }
+
+  if (
+    /\b(?:he|him|his|the man|the boy|the guy|my boyfriend|her boyfriend|his boyfriend|my husband)\b/i.test(
+      candidate,
+    )
+  ) {
+    return masculineEvidence;
+  }
+
+  if (
+    /\b(?:my partner|their partner|the partner|partner)\b/i.test(
+      candidate,
+    )
+  ) {
+    return relationalEvidence;
+  }
+
+  if (
+    /\b(?:mother|father|daughter|son|sister|brother|wife|husband|girlfriend|boyfriend)\b/i.test(
+      candidate,
+    )
+  ) {
+    return relationalEvidence;
+  }
+
+  return true;
+}
+
+/**
+ * HARD PROVENANCE BOUNDARY:
+ * Only event IDs resolve into source labels.
+ * Planning metadata never becomes source truth.
+ */
+function sourceForBeat(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string[] {
+  return unique(
+    (beat.eventIds ?? [])
+      .map(
+        (id) =>
+          eventLabel(
+            envelope,
+            id,
+          ),
+      )
+      .filter(Boolean),
+  );
+}
+
+function supportedEventsForBeat(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): Array<{
+  id: string;
+  label: string;
+}> {
+  return (
+    beat.eventIds ?? []
+  )
+    .map(
+      (id) => ({
+        id,
+        label:
+          eventLabel(
+            envelope,
+            id,
+          ),
+      }),
+    )
+    .filter(
+      (event) =>
+        Boolean(
+          event.label,
+        ),
+    );
+}
+
+function relationPairsForBeat(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string[] {
+  const ids =
+    new Set(
+      beat.eventIds ?? [],
+    );
+
+  return unique(
+    envelope.relations
+      .filter(
+        (relation) =>
+          ids.has(
+            relation.from,
+          ) &&
+          ids.has(
+            relation.to,
+          ),
+      )
+      .map(
+        (relation) =>
+          `${relation.from}:${relation.kind}:${relation.to}`,
+      ),
+  );
+}
+
+function endpointExactForBeat(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): boolean {
+  const labels =
+    supportedEventsForBeat(
+      beat,
+      envelope,
+    ).map(
+      (event) =>
+        event.label,
+    );
+
+  const normalized =
+    clean(text)
+      .replace(
+        /[.!?]+$/g,
+        "",
+      )
+      .toLowerCase();
+
+  return labels.some(
+    (label) =>
+      normalized ===
+      clean(label)
+        .replace(
+          /[.!?]+$/g,
+          "",
+        )
+        .toLowerCase(),
+  );
+}
+
 function matchesInternalViewerState(
   text: string,
   viewerState?: ViewerStateCut,
@@ -72,71 +478,99 @@ function matchesInternalViewerState(
     return false;
   }
 
-  const candidateTokens =
-    tokenSet(text);
-
-  const internalTokens =
-    tokenSet(
-      `${viewerState.beforeState} ${viewerState.afterState}`,
-    );
-
   return (
+    INTERNAL_VIEWER_LANGUAGE.test(
+      text,
+    ) &&
     overlap(
-      candidateTokens,
-      internalTokens,
+      tokenSet(text),
+      tokenSet(
+        `${viewerState.beforeState} ${viewerState.afterState}`,
+      ),
     ) >= 0.75
   );
 }
-function metric(value: number): number {
-  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
-}
 
-function phraseSupportedText(candidateText: string, label: string): boolean {
-  const phrase = clean(label).toLowerCase();
-  const candidate = clean(candidateText).toLowerCase();
-  if (!phrase || !candidate) return false;
-  return candidate.includes(phrase) || overlap(tokenSet(candidate), tokenSet(phrase)) >= 0.5;
-}
-
-function eventLabel(envelope: RealityEnvelope, id: string): string {
-  return clean(envelope.events.find((event) => event.id === id)?.label);
-}
-
-/*
- * HARD PROVENANCE BOUNDARY:
- * Only event IDs resolve into source labels.
- * setsUp/paysOff are planning metadata and are never promoted into source truth.
+/**
+ * Protects against new factual-looking world details.
+ *
+ * Identity is deliberately handled separately so candidate-specific identity
+ * compatibility becomes part of the same final concrete-risk boundary.
+ *
+ * This function therefore handles:
+ * - unsupported generic physical/environmental detail
+ * - unsupported physical action
+ *
+ * while leaving metaphor, attitude, compression, and experiential language
+ * available to Mouth.
  */
-function sourceForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  return unique(
-    (beat.eventIds ?? [])
-      .map((id) => eventLabel(envelope, id))
-      .filter(Boolean),
+function introducesUnsupportedConcreteDetail(
+  text: string,
+  wholeSourceText: string,
+): boolean {
+  const value =
+    clean(text);
+
+  if (!value) {
+    return false;
+  }
+
+  const source =
+    clean(
+      wholeSourceText,
+    );
+
+  if (
+    CONCRETE_DETAIL_MARKER.test(
+      value,
+    )
+  ) {
+    const abstractOnly =
+      ABSTRACT_NOUNISH.test(
+        value,
+      ) &&
+      !/\b(?:the|a|an|my|your|our|their|his|her|this|that)\s+\w+/i.test(
+        value,
+      );
+
+    if (!abstractOnly) {
+      const sourceTokens =
+        tokenSet(source);
+
+      const matchedConcreteToken =
+        value
+          .toLowerCase()
+          .match(
+            CONCRETE_DETAIL_MARKER,
+          )?.[0];
+
+      if (
+        matchedConcreteToken
+      ) {
+        const normalized =
+          normalizeToken(
+            matchedConcreteToken,
+          );
+
+        if (
+          !sourceTokens.has(
+            normalized,
+          )
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return (
+    PHYSICAL_INVENTION.test(
+      value,
+    ) &&
+    !PHYSICAL_INVENTION.test(
+      source,
+    )
   );
-}
-
-function supportedEventsForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): Array<{ id: string; label: string }> {
-  return (beat.eventIds ?? [])
-    .map((id) => ({ id, label: eventLabel(envelope, id) }))
-    .filter((event) => Boolean(event.label));
-}
-
-function relationPairsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  const ids = new Set(beat.eventIds ?? []);
-  return unique(
-    envelope.relations
-      .filter((relation) => ids.has(relation.from) && ids.has(relation.to))
-      .map((relation) => `${relation.from}:${relation.kind}:${relation.to}`),
-  );
-}
-
-function endpointExactForBeat(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
-  const labels = supportedEventsForBeat(beat, envelope).map((event) => event.label);
-  const normalized = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
-  return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase());
 }
 
 export function deriveViewerStateCut(
@@ -145,59 +579,730 @@ export function deriveViewerStateCut(
   beats: readonly MouthCandidateBeat[],
   envelope: RealityEnvelope,
 ): ViewerStateCut {
-  const currentIds = unique(beat.eventIds ?? []);
-  const priorIds = new Set(beats.slice(0, index).flatMap((item) => item.eventIds ?? []).filter(Boolean));
-  const newEventRatio = metric(currentIds.length ? currentIds.filter((id) => !priorIds.has(id)).length / currentIds.length : 0);
-  const currentSource = sourceForBeat(beat, envelope).join(" ");
-  const priorSource = beats.slice(0, index).flatMap((item) => sourceForBeat(item, envelope)).join(" ");
-  const continuity = priorSource ? metric(overlap(tokenSet(currentSource), tokenSet(priorSource))) : 0.55;
-  const contrast = metric((1 - continuity) * 0.7 + newEventRatio * 0.3);
-  const interruption = metric(newEventRatio * 0.62 + contrast * 0.28 + (index === 0 ? 0.1 : 0));
-  const curiosityPressure = metric(beat.paysOff?.length ? 0.12 : beat.relationKinds?.length ? 0.9 : index < beats.length - 1 ? 0.72 : 0.42);
-  const tempo = metric(index === 0 ? 0.45 : Math.abs(interruption - (index > 1 ? 0.55 : 0.35)) * 0.9 + 0.35);
-  const payoffPressure = metric(beat.paysOff?.length ? 1 : index === beats.length - 2 ? 0.78 : Math.min(0.7, 0.25 + index * 0.08));
-  const stateShift = metric(contrast * 0.45 + interruption * 0.35 + curiosityPressure * 0.2);
-  const predictionError = metric(contrast * 0.55 + newEventRatio * 0.45);
-  let attentionMove: ViewerStateCut["attentionMove"];
-  if (beat.paysOff?.length) attentionMove = "land";
-  else if (index === 0) attentionMove = "orient";
-  else if (interruption >= 0.78) attentionMove = "interrupt";
-  else if (contrast >= 0.72) attentionMove = "recontextualize";
-  else if (curiosityPressure >= 0.78) attentionMove = "tighten";
-  else if (stateShift >= 0.7) attentionMove = "escalate";
-  else attentionMove = "release";
-  const stateNames: Record<ViewerStateCut["attentionMove"], { before: string; after: string }> = {
-    orient: { before: "uncommitted", after: "oriented" },
-    interrupt: { before: "settled", after: "disrupted" },
-    tighten: { before: "curious", after: "pressurized" },
-    recontextualize: { before: "certain", after: "reframed" },
-    escalate: { before: "engaged", after: "pressurized" },
-    release: { before: "pressurized", after: "breathing" },
-    land: { before: "expectant", after: "resolved" },
+  const currentIds =
+    unique(
+      beat.eventIds ?? [],
+    );
+
+  const priorIds =
+    new Set(
+      beats
+        .slice(
+          0,
+          index,
+        )
+        .flatMap(
+          (item) =>
+            item.eventIds ?? [],
+        )
+        .filter(Boolean),
+    );
+
+  const newEventRatio =
+    metric(
+      currentIds.length
+        ? currentIds.filter(
+            (id) =>
+              !priorIds.has(
+                id,
+              ),
+          ).length /
+            currentIds.length
+        : 0,
+    );
+
+  const currentSource =
+    sourceForBeat(
+      beat,
+      envelope,
+    ).join(" ");
+
+  const priorSource =
+    beats
+      .slice(
+        0,
+        index,
+      )
+      .flatMap(
+        (item) =>
+          sourceForBeat(
+            item,
+            envelope,
+          ),
+      )
+      .join(" ");
+
+  const continuity =
+    priorSource
+      ? metric(
+          overlap(
+            tokenSet(
+              currentSource,
+            ),
+            tokenSet(
+              priorSource,
+            ),
+          ),
+        )
+      : 0.55;
+
+  const contrast =
+    metric(
+      (1 - continuity) *
+        0.7 +
+        newEventRatio *
+        0.3,
+    );
+
+  const interruption =
+    metric(
+      newEventRatio *
+        0.62 +
+        contrast *
+        0.28 +
+        (
+          index === 0
+            ? 0.1
+            : 0
+        ),
+    );
+
+  const curiosityPressure =
+    metric(
+      beat.paysOff?.length
+        ? 0.12
+        : beat.relationKinds?.length
+          ? 0.9
+          : index <
+              beats.length - 1
+            ? 0.72
+            : 0.42,
+    );
+
+  const tempo =
+    metric(
+      index === 0
+        ? 0.45
+        : Math.abs(
+            interruption -
+              (
+                index > 1
+                  ? 0.55
+                  : 0.35
+              ),
+          ) *
+            0.9 +
+            0.35,
+    );
+
+  const payoffPressure =
+    metric(
+      beat.paysOff?.length
+        ? 1
+        : index ===
+            beats.length - 2
+          ? 0.78
+          : Math.min(
+              0.7,
+              0.25 +
+                index *
+                  0.08,
+            ),
+    );
+
+  const stateShift =
+    metric(
+      contrast *
+        0.45 +
+        interruption *
+        0.35 +
+        curiosityPressure *
+        0.2,
+    );
+
+  const predictionError =
+    metric(
+      contrast *
+        0.55 +
+        newEventRatio *
+        0.45,
+    );
+
+  let attentionMove:
+    ViewerStateCut["attentionMove"];
+
+  if (
+    beat.paysOff?.length
+  ) {
+    attentionMove =
+      "land";
+  } else if (
+    index === 0
+  ) {
+    attentionMove =
+      "orient";
+  } else if (
+    interruption >=
+    0.78
+  ) {
+    attentionMove =
+      "interrupt";
+  } else if (
+    contrast >=
+    0.72
+  ) {
+    attentionMove =
+      "recontextualize";
+  } else if (
+    curiosityPressure >=
+    0.78
+  ) {
+    attentionMove =
+      "tighten";
+  } else if (
+    stateShift >=
+    0.7
+  ) {
+    attentionMove =
+      "escalate";
+  } else {
+    attentionMove =
+      "release";
+  }
+
+  const stateNames: Record<
+    ViewerStateCut["attentionMove"],
+    {
+      before: string;
+      after: string;
+    }
+  > = {
+    orient: {
+      before:
+        "uncommitted",
+      after:
+        "oriented",
+    },
+
+    interrupt: {
+      before:
+        "settled",
+      after:
+        "disrupted",
+    },
+
+    tighten: {
+      before:
+        "curious",
+      after:
+        "pressurized",
+    },
+
+    recontextualize: {
+      before:
+        "certain",
+      after:
+        "reframed",
+    },
+
+    escalate: {
+      before:
+        "engaged",
+      after:
+        "pressurized",
+    },
+
+    release: {
+      before:
+        "pressurized",
+      after:
+        "breathing",
+    },
+
+    land: {
+      before:
+        "expectant",
+      after:
+        "resolved",
+    },
   };
-  const names = stateNames[attentionMove];
+
+  const names =
+    stateNames[
+      attentionMove
+    ];
+
   return {
-    beforeState: names.before,
-    afterState: names.after,
+    beforeState:
+      names.before,
+
+    afterState:
+      names.after,
+
     attentionMove,
+
     curiosityPressure,
     contrast,
     interruption,
-    accumulation: metric(continuity * 0.7 + (1 - newEventRatio) * 0.3),
+
+    accumulation:
+      metric(
+        continuity *
+          0.7 +
+          (
+            1 -
+            newEventRatio
+          ) *
+            0.3,
+      ),
+
     tempo,
     payoffPressure,
     stateShift,
     predictionError,
-    evidenceEventIds: currentIds,
+    evidenceEventIds:
+      currentIds,
   };
 }
+
+function rhetoricalForm(
+  value: string,
+): string {
+  const text =
+    clean(value);
+
+  if (
+    /[?]$/.test(
+      text,
+    )
+  ) {
+    return "question";
+  }
+
+  if (
+    /^(?:a|an|the)\b/i.test(
+      text,
+    )
+  ) {
+    return "article-fragment";
+  }
+
+  if (
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .length === 1
+  ) {
+    return "single-word";
+  }
+
+  if (
+    /^(?:almost|still|suddenly|finally|then|and then|just)\b/i.test(
+      text,
+    )
+  ) {
+    return "adverb-led";
+  }
+
+  if (
+    /^(?:felt|feel|feels|kept|keep|continued|continue|found|noticed|remember|forgot|forgotten|stayed|stay|remain|remains|became|becomes|was|were|is|it's|it was)\b/i.test(
+      text,
+    )
+  ) {
+    return "verb-led";
+  }
+
+  if (
+    CONTRAST_LANGUAGE.test(
+      text,
+    )
+  ) {
+    return "contrastive";
+  }
+
+  return "free";
+}
+
+function realizationMode(
+  value: string,
+): string {
+  const text =
+    clean(value);
+
+  const words =
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const form =
+    rhetoricalForm(
+      text,
+    );
+
+  if (
+    LOW_INFORMATION_PHRASE.test(
+      text,
+    )
+  ) {
+    return "generic-abstract";
+  }
+
+  if (
+    PHYSICAL_INVENTION.test(
+      text,
+    )
+  ) {
+    return "physical-action";
+  }
+
+  if (
+    form ===
+    "single-word"
+  ) {
+    return "compressed-hit";
+  }
+
+  if (
+    form ===
+    "question"
+  ) {
+    return "question";
+  }
+
+  if (
+    CONTRAST_LANGUAGE.test(
+      text,
+    )
+  ) {
+    return "contrast";
+  }
+
+  if (
+    ABSTRACT_NOUNISH.test(
+      text,
+    ) &&
+    words <= 5
+  ) {
+    return "experiential-nominal";
+  }
+
+  if (
+    form ===
+    "verb-led"
+  ) {
+    return "experiential-verb";
+  }
+
+  if (
+    form ===
+    "article-fragment"
+  ) {
+    return "compressed-fragment";
+  }
+
+  if (
+    words <= 5
+  ) {
+    return "compressed-expression";
+  }
+
+  return "sentence-expression";
+}
+
+function genericAbstractionRisk(
+  value: string,
+): number {
+  const text =
+    clean(value);
+
+  if (!text) {
+    return 1;
+  }
+
+  if (
+    LOW_INFORMATION_PHRASE.test(
+      text,
+    )
+  ) {
+    return 1;
+  }
+
+  const words =
+    text
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const abstractWords =
+    text.match(
+      /\b(?:something|everything|feeling|moment|connection|warmth|ease|recognition|lightness|relief|possibility|shift|opening|momentum|flow|current|pull|tension|silence)\b/gi,
+    )?.length ?? 0;
+
+  const concreteWords =
+    text.match(
+      /\b(?:conversation|talking|words|walk|house|wedding|music|laugh|voice|name|dog|cat|home|door|car|business|work|friend|family)\b/gi,
+    )?.length ?? 0;
+
+  return metric(
+    (
+      abstractWords /
+      Math.max(
+        1,
+        words,
+      )
+    ) *
+      0.65 +
+      (
+        concreteWords === 0
+          ? 0.25
+          : 0
+      ) +
+      (
+        words <= 2
+          ? 0.1
+          : 0
+      ),
+  );
+}
+
+/**
+ * Measures expressive diversity without deciding that one form is always
+ * better than another.
+ */
+function candidateDiversityValue(
+  value: string,
+): number {
+  const form =
+    rhetoricalForm(
+      value,
+    );
+
+  const mode =
+    realizationMode(
+      value,
+    );
+
+  const formValue:
+    Record<string, number> = {
+      question: 1,
+      contrastive: 0.96,
+      "single-word": 0.94,
+      "verb-led": 0.9,
+      "adverb-led": 0.84,
+      "article-fragment": 0.62,
+      free: 0.74,
+    };
+
+  const modeValue:
+    Record<string, number> = {
+      "compressed-hit": 1,
+      question: 0.96,
+      contrast: 0.98,
+      "experiential-verb": 0.92,
+      "experiential-nominal": 0.68,
+      "compressed-expression": 0.82,
+      "compressed-fragment": 0.74,
+      "sentence-expression": 0.76,
+      "generic-abstract": 0.18,
+      "physical-action": 0.08,
+    };
+
+  return metric(
+    (
+      formValue[form] ??
+      0.7
+    ) *
+      0.42 +
+      (
+        modeValue[mode] ??
+        0.7
+      ) *
+        0.58 -
+      genericAbstractionRisk(
+        value,
+      ) *
+        0.2,
+  );
+}
+
+function semanticContrastPotential(
+  value: string,
+  sourceText: string,
+  wholeSourceText: string,
+): number {
+  const text =
+    clean(value);
+
+  if (!text) {
+    return 0;
+  }
+
+  const current =
+    tokenSet(text);
+
+  const source =
+    tokenSet(
+      sourceText,
+    );
+
+  const whole =
+    tokenSet(
+      wholeSourceText,
+    );
+
+  const localAnchor =
+    overlap(
+      current,
+      source,
+    );
+
+  const worldAnchor =
+    overlap(
+      current,
+      whole,
+    );
+
+  const contradiction =
+    CONTRAST_LANGUAGE.test(
+      text,
+    );
+
+  const experiential =
+    ABSTRACT_NOUNISH.test(
+      text,
+    );
+
+  const relational =
+    /\b(?:close|closer|distance|between|toward|towards|with|together|apart|us|me|you|them)\b/i.test(
+      text,
+    );
+
+  const tension =
+    /\b(?:tension|pressure|edge|danger|uneasy|wrong|strange|sharp|heavy|quiet|silence)\b/i.test(
+      text,
+    );
+
+  const warmth =
+    /\b(?:warm|warmth|ease|soft|soften|light|close|comfort|gentle|easy)\b/i.test(
+      text,
+    );
+
+  return metric(
+    localAnchor *
+      0.4 +
+      worldAnchor *
+        0.25 +
+      (
+        contradiction
+          ? 0.15
+          : 0
+      ) +
+      (
+        experiential
+          ? 0.08
+          : 0
+      ) +
+      (
+        relational
+          ? 0.06
+          : 0
+      ) +
+      (
+        tension ||
+        warmth
+          ? 0.06
+          : 0
+      ),
+  );
+}
+
+function semanticContrastLabel(
+  value: string,
+): string {
+  const text =
+    clean(value);
+
+  if (
+    /\b(?:but|yet|instead|rather|never|not|no|nothing)\b/i.test(
+      text,
+    )
+  ) {
+    return "reversal";
+  }
+
+  if (
+    /\b(?:danger|uneasy|wrong|strange|tension|edge|heavy)\b/i.test(
+      text,
+    )
+  ) {
+    return "tension";
+  }
+
+  if (
+    /\b(?:warm|warmth|ease|soft|soften|light|comfort|gentle)\b/i.test(
+      text,
+    )
+  ) {
+    return "warmth";
+  }
+
+  if (
+    /\b(?:close|closer|between|toward|towards|together)\b/i.test(
+      text,
+    )
+  ) {
+    return "connection";
+  }
+
+  if (
+    /\b(?:distance|apart|space|silence|away)\b/i.test(
+      text,
+    )
+  ) {
+    return "distance";
+  }
+
+  if (
+    /\b(?:recognized|recognition|noticed|remember)\b/i.test(
+      text,
+    )
+  ) {
+    return "recognition";
+  }
+
+  if (
+    rhetoricalForm(text) ===
+    "single-word"
+  ) {
+    return "compressed-hit";
+  }
+
+  if (
+    rhetoricalForm(text) ===
+    "question"
+  ) {
+    return "question";
+  }
+
+  if (
+    rhetoricalForm(text) ===
+    "verb-led"
+  ) {
+    return "movement";
+  }
+
+  return "neutral";
+}
+
 function evaluateCandidate(
   text: string,
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
   priorTexts: readonly string[] = [],
 ): MouthCandidate {
-  const value = clean(text);
+  const value =
+    clean(text);
 
   const sourceLabels =
     sourceForBeat(
@@ -206,21 +1311,15 @@ function evaluateCandidate(
     );
 
   const sourceText =
-    sourceLabels.join(" ");
+    sourceLabels.join(
+      " ",
+    );
 
-  /*
-   * The whole world remains visible to Mouth for associative creativity,
-   * callbacks, contrast, and surprise.
-   *
-   * But the approved beat owns the realization.
-   *
-   * WORLD MATERIAL may enrich the line.
-   * WORLD MATERIAL may not silently replace the beat.
-   */
   const wholeSourceText = [
     envelope.subject,
     ...envelope.events.map(
-      (event) => event.label,
+      (event) =>
+        event.label,
     ),
     ...envelope.suppliedPhrases,
     ...envelope.suppliedEntities,
@@ -235,10 +1334,14 @@ function evaluateCandidate(
     tokenSet(value);
 
   const sourceTokens =
-    tokenSet(sourceText);
+    tokenSet(
+      sourceText,
+    );
 
   const wholeSourceTokens =
-    tokenSet(wholeSourceText);
+    tokenSet(
+      wholeSourceText,
+    );
 
   const groundingScore =
     metric(
@@ -304,6 +1407,9 @@ function evaluateCandidate(
       beat.role,
     );
 
+  /**
+   * Interpretation happens before special realization lanes.
+   */
   const interpretation =
     evaluateMouthInterpretation({
       text: value,
@@ -312,7 +1418,8 @@ function evaluateCandidate(
       beat,
     });
 
-  const reasons: string[] = [];
+  const reasons: string[] =
+    [];
 
   const repetitionSet =
     new Set(
@@ -353,39 +1460,45 @@ function evaluateCandidate(
       .length;
 
   const compressionScore =
-    wordCount <= 12
+    wordCount <= 4
       ? 1
-      : wordCount <= 20
-        ? 0.9
-        : wordCount <= 30
-          ? 0.76
-          : wordCount <= 40
-            ? 0.62
-            : 0.48;
-   const viewerState =
-  beat.viewerState ??
-  deriveViewerStateCut(
-    beat,
-    0,
-    [beat],
-    envelope,
-  );
+      : wordCount <= 8
+        ? 0.98
+        : wordCount <= 12
+          ? 0.94
+          : wordCount <= 20
+            ? 0.88
+            : wordCount <= 30
+              ? 0.76
+              : wordCount <= 40
+                ? 0.62
+                : 0.48;
 
-const internalViewerStateLeak =
-  matchesInternalViewerState(
-    value,
-    beat.viewerState,
-  );
+  const viewerState =
+    beat.viewerState ??
+    deriveViewerStateCut(
+      beat,
+      0,
+      [beat],
+      envelope,
+    );
 
-  /*
-   * Beat ownership.
-   *
-   * This measures whether the line actually touches the approved
-   * source material for THIS beat.
-   *
-   * Whole-world grounding remains available for creative enrichment,
-   * but it is no longer sufficient by itself.
+  const internalViewerStateLeak =
+    matchesInternalViewerState(
+      value,
+      viewerState,
+    );
+
+  /**
+   * Identity is candidate-specific and now feeds the actual concrete
+   * safety boundary below.
    */
+  const unsupportedIdentityLanguage =
+    !hasSupportedIdentityLanguage(
+      value,
+      envelope,
+    );
+
   const beatCoverage =
     sourceLabels.length
       ? metric(
@@ -397,18 +1510,77 @@ const internalViewerStateLeak =
       : 0;
 
   const beatHasConcreteEvidence =
-    beat.eventIds?.length
-      ? true
-      : false;
+    Boolean(
+      beat.eventIds?.length,
+    );
 
+  const approvedSemanticRealization =
+    interpretation.accepted &&
+    interpretation.unsupportedConcreteRisk ===
+      0 &&
+    semanticBeat &&
+    (
+      interpretation.creativeFraming >=
+        0.38 ||
+      interpretation.reasons.includes(
+        "semantic-compression",
+      ) ||
+      interpretation.reasons.includes(
+        "grounded-creative-interpretation",
+      )
+    );
+
+  const concreteDetailRisk =
+    introducesUnsupportedConcreteDetail(
+      value,
+      wholeSourceText,
+    )
+      ? 1
+      : 0;
+
+  /**
+   * CANONICAL CONCRETE SAFETY BOUNDARY.
+   *
+   * Every unsupported concrete claim feeds the same risk:
+   *
+   * interpretation risk
+   * + unsupported identity
+   * + unsupported world detail/action
+   *
+   * That single boundary then controls forbiddenMoveRisk,
+   * creativeLane, inventionRisk, and ultimately Beam authorization.
+   */
+  const unsupportedConcreteRisk =
+    Math.max(
+      interpretation.unsupportedConcreteRisk,
+      unsupportedIdentityLanguage
+        ? 1
+        : 0,
+      concreteDetailRisk,
+    );
+
+  const forbiddenMoveRisk =
+    metric(
+      unsupportedConcreteRisk,
+    );
+
+  /**
+   * An approved semantic beat may authorize a safe experiential realization
+   * even when lexical overlap is zero.
+   */
   const beatObligation =
     beatHasConcreteEvidence
       ? metric(
           beatCoverage *
-            0.72 +
+            0.62 +
             (
               supportedEventIds.length
-                ? 0.28
+                ? 0.18
+                : 0
+            ) +
+            (
+              approvedSemanticRealization
+                ? 0.20
                 : 0
             ),
         )
@@ -422,18 +1594,6 @@ const internalViewerStateLeak =
               0.65,
         );
 
-  /*
-   * A creative line may draw associative meaning from the whole world,
-   * but it must still remain tethered to the approved beat.
-   *
-   * This is the crucial difference between:
-   *
-   *   "feeling good" → funny mud realization
-   *
-   * and:
-   *
-   *   "feeling good" → unrelated free-mud fact
-   */
   const associativeLift =
     metric(
       Math.min(
@@ -448,35 +1608,44 @@ const internalViewerStateLeak =
       ),
     );
 
+  const contrastPotential =
+    semanticContrastPotential(
+      value,
+      sourceText,
+      wholeSourceText,
+    );
+
   const meaningScore =
     metric(
       (
         viewerState.stateShift ??
         0.5
       ) *
-        0.24 +
-      (
-        viewerState.curiosityPressure ??
-        0.5
-      ) *
-        0.18 +
-      (
-        viewerState.contrast ??
-        0.5
-      ) *
-        0.14 +
-      (
-        interpretation.creativeFraming ??
-        0.5
-      ) *
-        0.18 +
-      beatObligation *
-        0.18 +
-      (
-        semanticBeat
-          ? 0.08
-          : 0
-      ),
+        0.19 +
+        (
+          viewerState.curiosityPressure ??
+          0.5
+        ) *
+          0.14 +
+        (
+          viewerState.contrast ??
+          0.5
+        ) *
+          0.13 +
+        (
+          interpretation.creativeFraming ??
+          0.5
+        ) *
+          0.18 +
+        beatObligation *
+          0.18 +
+        (
+          semanticBeat
+            ? 0.08
+            : 0
+        ) +
+        contrastPotential *
+          0.10,
     );
 
   const transitionScore =
@@ -485,38 +1654,32 @@ const internalViewerStateLeak =
         viewerState.predictionError ??
         0.4
       ) *
-        0.5 +
-      (
-        viewerState.interruption ??
-        0.4
-      ) *
-        0.25 +
-      (
-        viewerState.accumulation ??
-        0.5
-      ) *
-        0.25,
+        0.48 +
+        (
+          viewerState.interruption ??
+          0.4
+        ) *
+          0.27 +
+        (
+          viewerState.accumulation ??
+          0.5
+        ) *
+          0.25,
     );
 
-  /*
-   * Obligation is explicitly beat-local.
-   *
-   * A line cannot get a high obligation score simply because some
-   * other fact elsewhere in the world matches it.
-   */
   const obligationCoverage =
     metric(
       beatObligation *
         0.78 +
-      (
-        supportedEventIds.length
-          ? Math.min(
-              0.22,
-              supportedEventIds.length *
-                0.11,
-            )
-          : 0
-      ),
+        (
+          supportedEventIds.length
+            ? Math.min(
+                0.22,
+                supportedEventIds.length *
+                  0.11,
+              )
+            : 0
+        ),
     );
 
   const relationContractScore =
@@ -528,30 +1691,15 @@ const internalViewerStateLeak =
           : 0.2,
     );
 
-  const forbiddenMoveRisk =
-    metric(
-      interpretation.unsupportedConcreteRisk >=
-        0.9 ||
-      (
-        PHYSICAL_INVENTION.test(
-          value,
-        ) &&
-        !PHYSICAL_INVENTION.test(
-          wholeSourceText,
-        )
-      )
-        ? 1
-        : interpretation.unsupportedConcreteRisk,
-    );
-
-  /*
-   * Creative lane:
+  /**
+   * Creative realization may enter the expressive lane only when:
    *
-   * We still allow metaphor, attitude, compression, implication,
-   * wordplay, and associative surprise.
-   *
-   * But whole-world association alone cannot authorize an unrelated
-   * concrete realization.
+   * - interpretation accepts it
+   * - it is not a literal restatement
+   * - the concrete safety boundary permits it
+   * - it is grounded by the beat, endpoint, approved semantic realization,
+   *   or whole-source evidence
+   * - it is not internal viewer-state language
    */
   const creativeLane =
     interpretation.accepted &&
@@ -559,18 +1707,15 @@ const internalViewerStateLeak =
       value,
       sourceLabels,
     ) === 0 &&
-    forbiddenMoveRisk <
-      0.9 &&
+    forbiddenMoveRisk < 0.9 &&
+    !internalViewerStateLeak &&
     (
-      beatCoverage >=
-        0.12 ||
-      endpointExactness ===
-        1 ||
+      beatCoverage >= 0.12 ||
+      endpointExactness === 1 ||
+      approvedSemanticRealization ||
       (
-        beatHasConcreteEvidence ===
-          false &&
-        wholeSourceAnchor >=
-          0.2
+        !beatHasConcreteEvidence &&
+        wholeSourceAnchor >= 0.2
       )
     );
 
@@ -584,7 +1729,12 @@ const internalViewerStateLeak =
               beatObligation *
                 0.62 +
                 associativeLift *
-                  0.28,
+                  0.18 +
+                (
+                  approvedSemanticRealization
+                    ? 0.18
+                    : 0
+                ),
             )
           : 0,
       ),
@@ -603,8 +1753,7 @@ const internalViewerStateLeak =
     );
 
   const inventionRisk =
-    forbiddenMoveRisk >
-      0.35
+    forbiddenMoveRisk > 0.35
       ? Math.max(
           0.72,
           forbiddenMoveRisk,
@@ -629,30 +1778,202 @@ const internalViewerStateLeak =
       ? 0.35
       : 0;
 
-  /*
-   * DISTINCTIVE REALIZATION
-   *
-   * This is intentionally derived from signals we already have.
-   * It is not a new contract field and it does not invent "fire".
-   *
-   * Fire is treated as unusually alive/distinctive realization,
-   * not automatically as dramatic language.
-   */
+  const startsWithArticle =
+    /^(?:a|an|the)\b/i.test(
+      value,
+    );
+
+  const singleWord =
+    wordCount === 1;
+
+  const questionForm =
+    /[?]$/.test(
+      value,
+    );
+
+  const contrastiveForm =
+    CONTRAST_LANGUAGE.test(
+      value,
+    ) &&
+    /[.!?]$/.test(
+      value,
+    );
+
+  const experientialForm =
+    startsWithArticle
+      ? "article-fragment"
+      : singleWord
+        ? "single-word"
+        : questionForm
+          ? "question"
+          : contrastiveForm
+            ? "contrastive"
+            : rhetoricalForm(
+                value,
+              );
+
+  const recentForms =
+    priorTexts
+      .slice(-2)
+      .map(
+        rhetoricalForm,
+      );
+
+  const repeatedFormCount =
+    recentForms.filter(
+      (form) =>
+        form ===
+        experientialForm,
+    ).length;
+
+  const articleRepetitionCount =
+    recentForms.filter(
+      (form) =>
+        form ===
+        "article-fragment",
+    ).length;
+
+  const articleRepetitionPenalty =
+    startsWithArticle
+      ? articleRepetitionCount *
+        0.05
+      : 0;
+
+  const formDiversityPenalty =
+    repeatedFormCount *
+    0.08;
+
+  const candidateDiversity =
+    candidateDiversityValue(
+      value,
+    );
+
+  const genericRisk =
+    genericAbstractionRisk(
+      value,
+    );
+
   const distinctiveRealization =
     metric(
       (
         interpretation.creativeFraming ??
         0
-      ) * 0.34 +
-      meaningScore * 0.24 +
-      transitionScore * 0.16 +
-      noveltyScore * 0.16 +
-      compressionScore * 0.10,
+      ) *
+        0.25 +
+        meaningScore *
+          0.18 +
+        transitionScore *
+          0.13 +
+        noveltyScore *
+          0.12 +
+        compressionScore *
+          0.09 +
+        candidateDiversity *
+          0.10 +
+        contrastPotential *
+          0.13,
     );
+
+  /**
+   * Experiential realization remains creatively open.
+   *
+   * Unsupported concrete risk blocks it; expressive language itself does not.
+   */
+  const experientialRealization =
+    interpretation.accepted &&
+    (
+      supportedEventIds.length > 0 ||
+      approvedSemanticRealization
+    ) &&
+    endpointExactness === 0 &&
+    literalRestatementFor(
+      value,
+      sourceLabels,
+    ) === 0 &&
+    unsupportedConcreteRisk === 0 &&
+    (
+      interpretation.reasons.includes(
+        "semantic-compression",
+      ) ||
+      interpretation.reasons.includes(
+        "grounded-creative-interpretation",
+      ) ||
+      interpretation.creativeFraming >=
+        0.38 ||
+      approvedSemanticRealization
+    ) &&
+    !internalViewerStateLeak;
+
+  const experientialStrength =
+    experientialRealization
+      ? metric(
+          (
+            interpretation.creativeFraming
+          ) *
+            0.30 +
+            distinctiveRealization *
+              0.21 +
+            compressionScore *
+              0.14 +
+            transitionScore *
+              0.10 +
+            candidateDiversity *
+              0.11 +
+            contrastPotential *
+              0.14,
+        )
+      : 0;
+
+  const semanticSpecificity =
+    metric(
+      meaningScore *
+        0.26 +
+        transitionScore *
+          0.16 +
+        (
+          1 -
+          genericRisk
+        ) *
+          0.20 +
+        noveltyScore *
+          0.11 +
+        candidateDiversity *
+          0.10 +
+        contrastPotential *
+          0.17,
+    );
+
+  const abstractionPenalty =
+    genericRisk >= 0.8
+      ? 0.14
+      : genericRisk >= 0.6
+        ? 0.08
+        : genericRisk >= 0.4
+          ? 0.04
+          : 0;
+
+  const experientialFormNovelty =
+    experientialRealization
+      ? metric(
+          repeatedFormCount === 0
+            ? 1
+            : repeatedFormCount === 1
+              ? 0.55
+              : 0.2,
+        )
+      : 0;
 
   if (!value) {
     reasons.push(
       "missing-text",
+    );
+  }
+
+  if (
+    unsupportedIdentityLanguage
+  ) {
+    reasons.push(
+      "unsupported-identity-language",
     );
   }
 
@@ -663,18 +1984,30 @@ const internalViewerStateLeak =
       "meta-language",
     );
   }
+
   if (
-  internalViewerStateLeak
-) {
-  reasons.push(
-    "internal-viewer-state-language",
-  );
-}
+    internalViewerStateLeak
+  ) {
+    reasons.push(
+      "internal-viewer-state-language",
+    );
+  }
+
   if (
     GENERIC.test(value)
   ) {
     reasons.push(
       "generic-summary",
+    );
+  }
+
+  if (
+    LOW_INFORMATION_PHRASE.test(
+      value,
+    )
+  ) {
+    reasons.push(
+      "low-information-abstraction",
     );
   }
 
@@ -716,8 +2049,7 @@ const internalViewerStateLeak =
 
   if (
     beatHasConcreteEvidence &&
-    beatObligation <
-      0.16 &&
+    beatObligation < 0.16 &&
     !endpointExactness &&
     !creativeLane
   ) {
@@ -727,8 +2059,7 @@ const internalViewerStateLeak =
   }
 
   if (
-    effectiveGrounding <
-      0.08 &&
+    effectiveGrounding < 0.08 &&
     !endpointExactness &&
     !creativeLane
   ) {
@@ -752,6 +2083,14 @@ const internalViewerStateLeak =
   ) {
     reasons.push(
       "invention-risk",
+    );
+  }
+
+  if (
+    concreteDetailRisk > 0
+  ) {
+    reasons.push(
+      "unsupported-concrete-detail",
     );
   }
 
@@ -781,43 +2120,48 @@ const internalViewerStateLeak =
   }
 
   if (
+    approvedSemanticRealization
+  ) {
+    reasons.push(
+      "approved-semantic-realization",
+    );
+  }
+
+  if (
     creativeLane
   ) {
     reasons.push(
       "bounded-creative-bet",
-    );
-
-    reasons.push(
       "semantic-turn-grounded",
     );
   } else if (
     semanticBeat &&
-    beatObligation >=
-      0.16 &&
-    effectiveGrounding >=
-      0.16
+    beatObligation >= 0.16 &&
+    effectiveGrounding >= 0.16
   ) {
     reasons.push(
       "semantic-turn-grounded",
     );
   }
 
-  /*
-   * Distinctiveness is a recognition signal, not a command to become louder.
-   *
-   * A quiet line can qualify.
-   * A one-word line can qualify.
-   * A weird line can qualify.
-   * A dramatic line does not qualify merely because it is dramatic.
-   */
+  if (
+    experientialRealization
+  ) {
+    reasons.push(
+      "experiential-realization",
+    );
+  }
+
   if (
     interpretation.accepted &&
-    distinctiveRealization >= 0.68 &&
+    distinctiveRealization >=
+      0.68 &&
     (
       interpretation.reasons.includes(
         "semantic-compression",
       ) ||
-      creativeLane
+      creativeLane ||
+      approvedSemanticRealization
     )
   ) {
     reasons.push(
@@ -825,303 +2169,387 @@ const internalViewerStateLeak =
     );
   }
 
+  if (
+    contrastPotential >=
+    0.55
+  ) {
+    reasons.push(
+      "semantic-contrast",
+    );
+  }
+
+  const contrastLabel =
+    semanticContrastLabel(
+      value,
+    );
+
+  if (
+    contrastLabel !==
+    "neutral"
+  ) {
+    reasons.push(
+      `contrast:${contrastLabel}`,
+    );
+  }
+
   const score =
     metric(
       effectiveGrounding *
-        0.15 +
+        0.12 +
         beatObligation *
-          0.18 +
+          0.13 +
         meaningScore *
-          0.16 +
+          0.15 +
         transitionScore *
-          0.12 +
+          0.11 +
         obligationCoverage *
-          0.09 +
+          0.08 +
         relationContractScore *
           0.04 +
         cohesionScore *
           0.05 +
         noveltyScore *
-          0.07 +
+          0.06 +
         compressionScore *
           0.05 +
         (
           1 -
           inventionRisk
         ) *
-          0.06 +
+          0.08 +
         (
           creativeLane
-            ? 0.08
+            ? 0.06
             : 0
         ) +
         distinctiveRealization *
+          0.05 +
+        experientialStrength *
           0.06 +
-        (
-          interpretation.creativeFraming ??
-          0.5
-        ) *
+        semanticSpecificity *
+          0.08 +
+        experientialFormNovelty *
+          0.02 +
+        candidateDiversity *
+          0.03 +
+        contrastPotential *
           0.05 -
+        articleRepetitionPenalty -
+        formDiversityPenalty *
+          0.5 -
+        abstractionPenalty -
         collageRisk *
-          0.03,
+          0.025,
     );
 
   return {
     text: value,
-    beatOrder: beat.order,
+
+    beatOrder:
+      beat.order,
+
     supportedEventIds,
+
     supportedRelationPairs,
+
     groundingScore:
       effectiveGrounding,
+
     meaningScore,
+
     transitionScore,
+
     obligationCoverage,
+
     relationContractScore,
+
     forbiddenMoveRisk,
+
     cohesionScore,
+
     noveltyScore,
+
     compressionScore,
+
     inventionRisk,
+
     repetitionRisk,
+
     collageRisk,
+
     endpointExactness,
+
     score,
+
     reasons,
   };
 }
 
-function literalRestatementFor(value: string, labels: readonly string[]): number {
-  const normalized = clean(value).replace(/[.!?]+$/g, "").toLowerCase();
-  return labels.some((label) => normalized === clean(label).replace(/[.!?]+$/g, "").toLowerCase()) ? 1 : 0;
+function literalRestatementFor(
+  value: string,
+  labels: readonly string[],
+): number {
+  const normalized =
+    clean(value)
+      .replace(
+        /[.!?]+$/g,
+        "",
+      )
+      .toLowerCase();
+
+  return labels.some(
+    (label) =>
+      normalized ===
+      clean(label)
+        .replace(
+          /[.!?]+$/g,
+          "",
+        )
+        .toLowerCase(),
+  )
+    ? 1
+    : 0;
 }
+
 function buildGoldRealizationDoctrine(): string {
   return [
     "FIND THE GOLD before you write.",
-    "Inspect the supplied material as a whole and look for the most alive piece of meaning already present: a joke, attitude, obsession, contradiction, relationship meaning, irony, unexpected implication, status shift, callback, memorable observation, coincidence, or ominous pressure.",
-    "Do not merely categorize the subject. Do not turn the material into generic life advice, motivational prose, biography, or a summary.",
-    "The gold may already be the supplied insight itself. Recognizing it is often better than adding another layer.",
-    "Interpretation may sharpen meaning without creating a new concrete occurrence.",
-    "THE OPENING MUST ANCHOR THE HUMAN SITUATION. The opening sequence must establish the human situation before the abstraction outruns recognition.",
-"OBSERVER EXPERIENCE OVER EXPLANATION. The observer should experience more of the feeling, relationship, tension, humor, wonder, or unease than receive an explanation of what that feeling means.",
-"LET THE OBSERVER DISCOVER THE MEANING. Give enough supplied reality to understand what is happening, then let implication, compression, attitude, and unexpected language reveal what it means.",
-"ABSTRACTION MUST HAVE A HUMAN PLACE TO LAND. Abstract language is welcome after recognition has been established. Do not let abstraction arrive so early or so completely that the observer no longer knows whose experience they are watching.",
-"FIRST-PERSON EXPERIENCE IS AVAILABLE, NOT REQUIRED. When useful, language may express what the person noticed, felt, remembered, wanted, feared, or suddenly understood. Do not force 'I' or 'we' into every cut.",
-    "LESS IS MORE. Remove words that do not materially improve the cut.",
-    "A fragment can be better than a sentence. A one-word cut can be the entire hit.",
-    "Do not force grammatical completeness when compression makes the line stronger.",
-    "A fragment does not need to explain itself when the surrounding sequence already supplies its meaning.",
-     "NEW MEANING: When supplied reality contains a change in how something is experienced, understood, noticed, or felt, let the realization expose that change without explaining it.",
-"FAMILIAR MADE DIFFERENT: A familiar person, place, object, relationship, or event may be rendered newly strange, intimate, funny, important, beautiful, unsettling, or charged when the supplied material supports that change in meaning.",
-"OBSERVER RESONANCE: Prefer realizations that let the observer recognize the feeling of something becoming different, rather than simply telling them what changed.",
-  "FUTURE-SELF POKE: When the supplied memory earns it, the final realization may gently address the creator's future self through remembrance, recognition, or a quiet invitation to retain the feeling.",
-"The future-self poke must remain viewer-facing and emotionally earned. It must not predict the future, invent consequences, or become generic advice.",
-"A future-self ending may be extremely small: a short phrase, a fragment, or a few words can be enough.",
-    "FRAGMENTS AND ONE-WORD CUTS ARE VALID. A cut may be one word, a fragment, a short phrase, or a full sentence.",
-    "Use fragments when they make supplied reality, identity, attitude, recognition, rhythm, callback, relationship, implication, or emotional realization land harder.",
-    "Do not confuse a valid fragment with a label for the movie's internal machinery.",
-    "BAD: The pull. The tightening. The deepening. The afterglow. The end.",
-    "BETTER: Felt the pull towards us. Still felt it. Almost. Something shifted.",
-    "The problem is not abstraction. The problem is abstraction that has become detached from the lived material.",
-
-    "ABSTRACT LANGUAGE IS ALLOWED. Do not remove abstraction merely because it is abstract.",
-    "A strange, compressed, metaphorical, formal, slangy, blunt, poetic, or unexpectedly precise phrase may be excellent when it gives the supplied material a stronger human-facing realization.",
-    "Unexpected wording is welcome when it sharpens the memory instead of merely decorating it.",
-    "Do not mechanically begin cuts with 'the', 'this', or 'that'. Use them naturally when they make the realization stronger.",
-    "A one-word or fragmentary cut may be excellent when it carries recognizable supplied meaning.",
-
-    "SUPPLIED: Coco, poodle, female, loves walks, apples. GOOD: Queen Coco. Poo-dle. Walk. Walk. Walk. And then the apple. Love.",
-
-    "UNKNOWN STAYS OPEN. Do not resolve identity, gender, age, motivation, relationship, history, ownership, location, or other unknowns unless identifying them materially improves the cut.",
-
-    "WEIRD IS ALLOWED. Do not normalize an unusual but grounded realization merely because a conventional sentence would be easier.",
-
-    "IMPLICATION OVER EXPLANATION. Let the viewer complete the thought when the supplied material supports it.",
-
-    "ATTITUDE IS A PRIMARY CREATIVE TOOL. The same supplied fact may land as deadpan, regal, cocky, petty, elegant, ominous, suspicious, mischievous, absurd, restrained, dramatic, intimate, possessive, triumphant, resigned, or matter-of-fact without changing the underlying reality.",
-
-    "TWIST THE FRAMING, NOT THE REALITY. You may make supplied reality feel funnier, stranger, more powerful, more pathetic, more suspicious, more important, more ridiculous, more luxurious, more romantic, or more ominous without inventing a new event.",
-
-    "LOOK FOR STATUS. Ask who appears to have power, authority, approval, disapproval, control, obsession, indifference, or the last word in the supplied material. A supplied relationship may be compressed into a status framing when that framing is supported by the material.",
-
-    "A supplied person, animal, object, place, or behavior may acquire a human role such as judge, witness, boss, accomplice, royalty, tyrant, celebrity, enemy, therapist, or authority ONLY when the supplied relationships support that framing.",
-
-    "STATUS FLIPS ARE ALLOWED. The apparently central person may become the one being judged. The smallest supplied detail may become the authority. An ordinary supplied action may suddenly feel official, luxurious, criminal, romantic, suspicious, ridiculous, or important when the supplied material supports that reading.",
-
-    "LOOK FOR THE INCONGRUITY. When ordinary supplied reality contains something oddly serious, oddly funny, unexpectedly intimate, disproportionately important, or quietly absurd, lean into that contrast.",
-
-    "UNDERPLAY THE TWIST. The strongest attitude may be delivered casually. Do not explain the joke or announce the weirdness.",
-
-    "OMINOUS PRESSURE IS ALLOWED. An ordinary supplied detail may acquire a sense of consequence, warning, temporary calm, gravity, danger, or something-not-quite-right without inventing what happens next.",
-
-    "SURPRISE IS ALLOWED. An older supplied detail may return suddenly after the sequence has moved elsewhere. Let the return change how the viewer reads the earlier cuts.",
-
-    "RELATIONSHIP IMMERSION: When the supplied material establishes a strong relationship state, the surrounding world may become exaggerated, surreal, absurd, chaotic, ominous, funny, or visually extreme as a presentation of that relationship state.",
-
-    "The outer world may become noisy while the relationship remains quiet; the outer world may become absurd while the relationship remains sincere; the outer world may become threatening while the people remain absorbed in each other.",
-
-    "OUTER-WORLD DISTORTION DOES NOT REWRITE INNER TRUTH. Use outer-world disturbance as cinematic realization, not as fabricated biography. A surreal or extreme background must not become a new factual memory claim.",
-
-    "HORROR AND OTHER GENRE REALIZATIONS MAY DISTORT THE OUTER WORLD WHEN THE APPROVED MOVIE SUPPORTS IT. The life event remains the spine; genre changes the presentation around it.",
-
-    "DISCOVERY: Do not explain the meaning of a sequence as soon as it becomes available. Let the viewer discover a relationship, implication, contradiction, emotional truth, or deeper meaning through the progression of cuts.",
-
-    "REVEAL BY DEGREES: An early cut may establish only enough reality to let the viewer enter. Later cuts may add implication, attitude, or a strange realization that causes the viewer to reinterpret what came before.",
-
-    "LET THE VIEWER NOTICE: Prefer language that lets the viewer arrive at the realization themselves over language that announces the realization directly.",
-
-    "DISCOVERY IS NOT CONFUSION. The viewer should have enough recognizable supplied reality to understand who or what they are watching and the basic human situation involved even while the deeper meaning remains partially undisclosed.",
-
-    "MEMORY ANCHOR: Early in the sequence, preserve enough recognizable supplied reality that a viewer with no image or outside context can understand who or what they are watching and the basic human situation involved.",
-
-    "The memory anchor may be extremely compressed: a name, relationship, encounter, place, concrete action, recognizable object, or other supplied detail may be enough to establish the memory before the language loosens.",
-
-    "Once the memory is anchored, later cuts may become much more compressed, abstract, strange, metaphorical, ominous, funny, rhythmic, or fragmentary without restating the situation.",
-
-    "Do not turn the memory anchor into exposition. Establish the human situation; do not explain the entire story.",
-
-    "DISCOVERY CAN BE OMINOUS. A sequence may begin ordinary or intimate and gradually acquire a quiet sense that something is deeper, stranger, more important, slightly wrong, or unexpectedly consequential without resolving that feeling.",
-
-    "ROMANCE MAY CARRY A SHADOW. When supplied material supports intimacy or attraction, the realization may carry tenderness, gravity, obsession, danger, distance, possession, or unease without inventing a new event.",
-
-    "FIRE OPPORTUNITY: Across the sequence, look for one moment that has unusually strong identity: a strange relationship, sharp attitude, unexpected implication, memorable detail, status flip, contradiction, coincidence, callback, or phrase that suddenly makes the memory feel unmistakably like itself.",
-
-    "FIRE IS DISTINCTIVENESS, NOT DRAMA. A fire line may be quiet, funny, absurd, intimate, ominous, elegant, strange, blunt, or almost casual.",
-
-    "Do not manufacture intensity merely to create a fire line. Do not make the line darker, bigger, more poetic, or more emotional unless the supplied material earns it.",
-
-    "The fire line may be a fragment, one word, a metaphor, a status flip, a strange observation, a callback, an attitude shift, or a suddenly exact phrase.",
-
-    "The strongest line should feel like a discovery hiding inside the supplied memory. It should make the viewer think 'oh', 'wait', 'of course', laugh, wince, or look again—not simply sound cinematic.",
-
-    "The fire line should feel authored by the material, not pasted onto it. Prefer a specific, surprising realization of this memory over a generic dramatic phrase that could belong to almost any memory.",
-
-    "One strong distinctive realization is enough. The surrounding cuts should remain free to be ordinary, restrained, factual, rhythmic, weird, or sparse.",
-
-    "Do not force a fire line. If the supplied material does not earn one, stay restrained.",
-
-    "Let the surrounding cuts earn the fire line. It may arrive suddenly, but it should belong to what came before and change how the viewer feels the memory.",
-
-    "Repetition is allowed when it creates rhythm, accumulation, obsession, callback, interruption, or a changed reading.",
-    "Do not repeat a semantic territory merely because it is salient. Return to it because the return does something.",
-
-    "SUPPLIED: Coco loves bacon. GOOD: Bacon first.",
-    "SUPPLIED: Coco likes apples. GOOD: An apple. Finally.",
-    "SUPPLIED: Coco rolled in mud; mud bath was free. GOOD: Five-star mud bath. Complimentary.",
-    "SUPPLIED: A cat watched the worker the whole time; cat approved. GOOD: The cat was the judge. Cat approved.",
-    "SUPPLIED: Grandma's house; never-ending snacks; known memory: Coco loves squirrels. GOOD: Grandma's house. Never-ending snacks. Squirrel. Anyway.",
-    "SUPPLIED: A walk sequence with a later squirrel memory. GOOD: Walk. Walk. Walk. Thought I heard something. Squirrels in the trees.",
-    "SUPPLIED: Ordinary supplied events with a status-heavy framing. GOOD: Fabulous. But peace is temporary.",
-    "SUPPLIED: started nervous; met someone; talked until close. GOOD: Met someone. A pull toward another. Deep. Nerves first. A dangerous current.",
-    "The examples demonstrate compression, attitude, implication, rhythm, obsession, callback, status, discovery, ominous pressure, and distinctive realization. Invent new realizations for the actual material.",
-
-    "Never explain why something is interesting. Make the interesting thing land.",
-
-    "NO INTERNAL LANGUAGE. Never write about planning, cognition, trajectories, beats, semantic turns, realization modes, candidate selection, scoring, viewers, the writing process, or any other machinery. The finished line must feel like human-facing language, not system commentary.",
-  ].join(" ");
+    "Reality is immutable. Expression is not.",
+    "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Mouth realizes them; it does not rewrite them.",
+    "Search the whole supplied material for the most alive meaning already present: attitude, contradiction, relationship meaning, irony, implication, status, coincidence, callback, humor, tenderness, tension, experiential quality, or memorable detail.",
+    "FIND THE EXPERIENCE INSIDE THE EVENT. When an existing occurrence carries a felt quality, express that quality without creating a second occurrence.",
+    "Experiential realization may be more vivid than the source wording while remaining faithful to what actually happened.",
+    "Do not add factual specificity merely to create impact.",
+    "A supplied laugh may become a rumble, vibration, warmth, sharpness, weight, rhythm, or another expressive quality when the supplied occurrence supports it.",
+    "A supplied conversation may become still talking, words flowing, a current, ease, awkwardness, pause, tension, rhythm, or another earned expression.",
+    "A supplied relationship may become warmth, tension, gravity, recognition, distance, pull, ease, uncertainty, or another supported quality.",
+    "FORM VARIATION MATTERS. Do not repeatedly produce a/an + noun.",
+    "Do not turn every feeling into a noun.",
+    "Prefer the sharpest form, not the most poetic form.",
+    "A one-word cut can be the hit.",
+    "A fragment can beat a sentence.",
+    "A sentence can beat a fragment.",
+    "Short often penetrates harder, but brevity is not a law.",
+    "SEMANTIC CONTRAST: search for materially different pressures when the supplied material permits them.",
+    "Contrast may be warmth versus tension, closeness versus distance, recognition versus uncertainty, continuation versus interruption, ordinary versus ominous, humor versus seriousness, directness versus implication, relief versus lingering pressure, or simplicity versus status.",
+    "Contrast is a search direction, not a fixed template.",
+    "Do not force a contrast the material does not earn.",
+    "UNKNOWN STAYS OPEN. Never resolve identity, gender, age, relationship, ownership, location, history, or motivation unless supplied.",
+    "Do not turn met someone into her, him, my girlfriend, the woman, or the man unless that identity exists in supplied reality.",
+    "Do not infer identity from grammatical convenience.",
+    "Do not turn a state into a new physical action.",
+    "Do not turn an event into a new environmental fact.",
+    "Do not manufacture time, weather, lighting, scenery, objects, sounds, wardrobe, body position, gestures, dialogue, or outcomes.",
+    "A new concrete world detail is not the same thing as experiential language. Keep the former grounded and leave the latter creatively open.",
+    "IMPLICATION OVER EXPLANATION.",
+    "ATTITUDE IS A PRIMARY CREATIVE TOOL.",
+    "TWIST THE FRAMING, NOT THE REALITY.",
+    "LOOK FOR STATUS.",
+    "LOOK FOR THE INCONGRUITY.",
+    "UNDERPLAY THE TWIST.",
+    "SURPRISE is allowed when an older supplied detail can return and change its meaning.",
+    "FIRE IS DISTINCTIVENESS, NOT DRAMA.",
+    "No beat position is reserved for literal language, abstraction, or fire.",
+    "Let the supplied sequence decide.",
+    "No internal machinery language.",
+  ].join(
+    " ",
+  );
 }
 
+export function buildMouthCandidateMessages(
+  input: MouthCandidateGenerationInput,
+): Array<{
+  role: "system" | "user";
+  content: string;
+}> {
+  const evidence =
+    unique([
+      ...input.envelope.suppliedPhrases,
+      ...input.envelope.events.map(
+        (event) =>
+          event.label,
+      ),
+      ...input.envelope.suppliedEntities,
+      ...input.envelope.suppliedActions,
+      ...input.envelope.suppliedStates,
+      ...input.envelope.recurringSignals,
+      ...input.envelope.sensorySignals,
+      ...input.envelope.unresolvedTensions,
+    ])
+      .filter(
+        (value) =>
+          !PLANNING_RESIDUE.test(
+            value,
+          ),
+      )
+      .slice(
+        0,
+        50,
+      );
 
-export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
-  const evidence = unique([
-    ...input.envelope.suppliedPhrases,
-    ...input.envelope.events.map((event) => event.label),
-  ]).filter((value) => !PLANNING_RESIDUE.test(value)).slice(0, 40);
+  const viewerBeats =
+    input.beats.map(
+      (beat) => ({
+        order:
+          beat.order,
 
- const viewerBeats = input.beats.map((beat) => {
-  return {
-    order: beat.order,
-    eventIds: beat.eventIds,
-    sourceLabels: sourceForBeat(beat, input.envelope),
-    change: clean(beat.change),
-    terminal: Boolean(beat.paysOff?.length),
-  };
-});
+        eventIds:
+          beat.eventIds,
+
+        sourceLabels:
+          sourceForBeat(
+            beat,
+            input.envelope,
+          ),
+
+        change:
+          clean(
+            beat.change,
+          ),
+
+        attentionFunction:
+          clean(
+            beat.attentionFunction,
+          ),
+
+        role:
+          clean(
+            beat.role,
+          ),
+
+        relationKinds:
+          beat.relationKinds,
+
+        terminal:
+          Boolean(
+            beat.paysOff?.length,
+          ),
+      }),
+    );
+
+  const recent =
+    input.priorTexts ??
+    [];
+
   const system = [
-  "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
+    "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
+    "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
+    "Write for the viewer's felt experience, not for the planner.",
+    buildGoldRealizationDoctrine(),
+    "Every candidate must preserve supplied reality.",
+    "Never invent identity, behavior, environment, chronology, dialogue, objects, sounds, wardrobe, body position, or outcome.",
+    "A candidate may be concrete only when that concrete fact is already supported.",
+    "A candidate may be abstract, metaphorical, compressed, funny, strange, sharp, intimate, ominous, or fragmentary when that expression is grounded.",
+    "Generate exactly three meaningfully different candidate possibilities for each beat when the material permits.",
+    "Do not make three synonyms.",
+    "Do not make three versions of the same A + noun construction.",
+    "Search different semantic pressures when possible: recognition, experience, contrast, interruption, callback, status, implication, compressed hit, or another materially different realization.",
+    "These are flexible search directions, not required slots.",
+    "Prefer a direct verb or phrase when it hits harder than a nominal abstraction.",
+    "Do not overuse A, AN, or THE.",
+    "Do not turn every feeling into a noun.",
+    "Short often penetrates harder. One-word lines are valid. Full sentences are valid.",
+    "A new world detail such as footsteps, a room, a street, a hand, a sound, weather, or lighting is not authorized merely because it makes the line cinematic.",
+    "Experiential language such as tension, warmth, current, pull, rhythm, pressure, closeness, or release may remain expressive when it does not create a new factual event.",
+    "No beat position is reserved for literal language, abstraction, or fire.",
+    "Let the sequence decide.",
+    "Do not resolve unknown identity.",
+    "Never use internal viewer-state labels in the output.",
+    "OUTPUT CONTRACT: Return exactly one JSON object with exactly one key: variantsByBeat.",
+    "variantsByBeat must contain exactly one object for every supplied beat, in ascending order.",
+    "Each beat object must contain exactly two keys: order and variants.",
+    "order must match the supplied beat order exactly.",
+    "variants must contain exactly 3 unique strings.",
+    "Never output fewer than 3 variants. Never output more than 3 variants.",
+    "Do not duplicate variants within a beat.",
+    "Do not duplicate beat objects.",
+    "Every variant must be viewer-facing language.",
+    "Every variant must belong to the approved beat.",
+    "Every variant must preserve the supplied reality boundary.",
+    "Return JSON only.",
+    'Return JSON only: {"variantsByBeat":[{"order":1,"variants":["...","...","..."]},{"order":2,"variants":["...","...","..."]}]}',
+  ].join(
+    "\n",
+  );
 
-  "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
+  const user =
+    JSON.stringify({
+      task:
+        "realize_viewer_state_cuts",
 
-  "Write for the viewer's felt experience, not for the planner. The line should make the supplied beat land.",
+      subject:
+        input.envelope.subject,
 
-  buildGoldRealizationDoctrine(),
+      lens:
+        clean(
+          input.lens,
+        ),
 
-  "VIEWER REWARD IS THE CREATIVE TARGET. Feel-good does not mean wholesome or positive. Reward can be humor, tension, surprise, mischief, attitude, status, recognition, relief, beauty, dread, shock, irony, warmth, curiosity, or a sharp 'oh shit' moment.",
+      suppliedEvidence:
+        evidence,
 
-  "Ask: what does this line give the viewer? A grin, a wince, a reveal, a satisfying turn, a laugh, a pause, a jolt, a recognition, or simply the desire to experience the next cut.",
+      priorTexts:
+        recent,
 
-  "Never manufacture a cliffhanger. Forward pull may come from contrast, implication, rhythm, attitude, accumulation, callback, unresolved pressure, discovery, or an earned payoff.",
+      beats:
+        viewerBeats,
 
-  "The viewer should feel the semantic move rather than receive an explanation of it.",
+      generationGuidance: {
+        objective:
+          "maximize meaningful experiential and semantic diversity without changing supplied reality",
 
-  "A source fact is material, not the destination. Prefer fact → semantic move → attitude → compressed realization.",
+        searchDirections: [
+          "recognition",
+          "experiential realization",
+          "semantic contrast",
+          "distinctive interruption",
+          "callback",
+          "status",
+          "implication",
+          "compressed hit",
+          "unexpectedly exact phrasing",
+        ],
 
-  "Once a subject has been established, treat it as active context. Do not repeatedly re-announce the subject. Spend the next line on what changed, collided, mattered, or became interesting.",
-
-  "A good sequence breathes: some cuts are blunt facts, some are sharp turns, some are quiet, some are wicked, and some land hard. Do not make every line perform the same trick.",
-
-  "Prefer collisions between supplied details, status reversals, callbacks, double meanings, understatement, grounded metaphor, specific verbs, surprising compression, and unexpectedly exact framing.",
-
-  "Do not summarize happy, sad, special, memorable, emotional, meaningful, magical, beautiful, or dramatic. Make the viewer feel it through the supplied material.",
-
-  "Do not add stock atmosphere, trailer narration, poetic filler, film-direction language, or abstract explanation.",
-
-  "Do not invent physical actions, reactions, objects, people, locations, sounds, chronology, wardrobe, body position, dialogue, or outcomes.",
-
-  "Unknown stays unknown. Do not infer missing identity, gender, age, relationship, ownership, preference, history, or location.",
-
-  "A creative interpretation may change the attitude or meaning of supplied facts, but it cannot create a new concrete event.",
-
-  "Use the viewerState fields as steering signals. Never repeat their labels or planning language in the output.",
-
-  "Use the whole beat set to create a connected experience. Avoid restating the same source phrase in consecutive cuts unless repetition itself is the meaningful callback.",
-
-  "Choose language that would make a real viewer want to keep going, not language that merely sounds literary.",
-
-  "There is no fixed word count. A one-word hit can beat a sentence. A longer line is acceptable only when the rhythm or realization itself earns it.",
-
-  "OUTPUT CONTRACT: Return exactly one JSON object with exactly one key: variantsByBeat.",
-
-  "variantsByBeat must contain exactly one object for every supplied beat, in ascending order.",
-
-  "Each beat object must contain exactly two keys: order and variants.",
-
-  "order must match the supplied beat order exactly.",
-
-  "variants must contain exactly 3 unique strings.",
-
-  "Never output fewer than 3 variants. Never output more than 3 variants.",
-
-  "Do not duplicate variants within a beat.",
-
-  "Do not duplicate a beat object.",
-
-  "After the final variant of the final beat, immediately close the JSON object.",
-
-  "Return JSON only. No markdown, commentary, explanation, code fence, or trailing text.",
-
-  "Return JSON only: {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\",\"...\",\"...\"]},{\"order\":2,\"variants\":[\"...\",\"...\",\"...\"]}]}",
-].join("\n");
-
-  const user = JSON.stringify({
-    task: "realize_viewer_state_cuts",
-    subject: input.envelope.subject,
-    lens: clean(input.lens),
-    suppliedEvidence: evidence,
-    priorTexts: input.priorTexts ?? [],
-    beats: viewerBeats,
-  });
+        avoid: [
+          "three synonyms",
+          "repeated article-led fragments",
+          "generic emotional nouns",
+          "unsupported identity",
+          "unsupported physical behavior",
+          "unsupported environmental detail",
+          "unsupported concrete world detail",
+          "internal viewer-state language",
+          "planning language",
+        ],
+      },
+    });
 
   return [
-    { role: "system", content: system },
-    { role: "user", content: user },
+    {
+      role:
+        "system",
+      content:
+        system,
+    },
+
+    {
+      role:
+        "user",
+      content:
+        user,
+    },
   ];
 }
+
 export function parseMouthCandidateBatch(
   raw: string,
 ): MouthCandidateBatch | undefined {
   try {
     const parsed =
-      JSON.parse(clean(raw)) as {
+      JSON.parse(
+        clean(raw),
+      ) as {
         variantsByBeat?: Array<{
           order?: unknown;
           variants?: unknown;
@@ -1140,11 +2568,13 @@ export function parseMouthCandidateBatch(
 
     const variantsByBeat =
       parsed.variantsByBeat.map(
-        (item) => {
-          const order =
-            Number(item.order);
+        (item) => ({
+          order:
+            Number(
+              item.order,
+            ),
 
-          const variants =
+          variants:
             Array.isArray(
               item.variants,
             )
@@ -1152,18 +2582,10 @@ export function parseMouthCandidateBatch(
                   .map(String)
                   .map(clean)
                   .filter(Boolean)
-              : [];
-
-          return {
-            order,
-            variants,
-          };
-        },
+              : [],
+        }),
       );
 
-    /*
-     * Every beat must have exactly three variants.
-     */
     if (
       variantsByBeat.some(
         (item) =>
@@ -1177,14 +2599,6 @@ export function parseMouthCandidateBatch(
       return undefined;
     }
 
-    /*
-     * Beat order must be contiguous:
-     *
-     * 1, 2, 3, ... N
-     *
-     * This catches malformed output where a duplicate JSON key causes
-     * one beat to disappear after JSON.parse().
-     */
     const orders =
       variantsByBeat
         .map(
@@ -1198,7 +2612,8 @@ export function parseMouthCandidateBatch(
 
     for (
       let index = 0;
-      index < orders.length;
+      index <
+      orders.length;
       index += 1
     ) {
       if (
@@ -1209,9 +2624,6 @@ export function parseMouthCandidateBatch(
       }
     }
 
-    /*
-     * No duplicate variants within a beat.
-     */
     if (
       variantsByBeat.some(
         (item) =>
@@ -1231,7 +2643,8 @@ export function parseMouthCandidateBatch(
       variantsByBeat:
         variantsByBeat.sort(
           (a, b) =>
-            a.order - b.order,
+            a.order -
+            b.order,
         ),
     };
   } catch {
@@ -1239,11 +2652,19 @@ export function parseMouthCandidateBatch(
   }
 }
 
-export function scoreMouthCandidate(input: {
-  text: string;
-  beat: MouthCandidateBeat;
-  envelope: RealityEnvelope;
-  priorTexts?: readonly string[];
-}): MouthCandidate {
-  return evaluateCandidate(input.text, input.beat, input.envelope, input.priorTexts ?? []);
+export function scoreMouthCandidate(
+  input: {
+    text: string;
+    beat: MouthCandidateBeat;
+    envelope: RealityEnvelope;
+    priorTexts?: readonly string[];
+  },
+): MouthCandidate {
+  return evaluateCandidate(
+    input.text,
+    input.beat,
+    input.envelope,
+    input.priorTexts ??
+      [],
+  );
 }
