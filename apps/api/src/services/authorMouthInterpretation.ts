@@ -87,8 +87,8 @@ const CONCRETE_CLAIM =
   /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?|moved?|move|scurried?|bolted?)\b/i;
 
 const EXTERNAL_STATE_CLAIM =
-  /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|taste(?:s|d|ing)?|look(?:s|ed|ing)?|changed|change|shifted|shift|different|new\s+(?:scent|sound|look|feeling))\b/i;
-
+  /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|taste(?:s|d|ing)?|new\s+(?:scent|sound|look))\b/i;
+  
 const CLAUSE_SUBJECT_MARKER =
   /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
 
@@ -212,7 +212,82 @@ function compactRhetoricalShape(
     (fragment || framing)
   );
 }
+function introducesUnsupportedPhysicalRelation(
+  text: string,
+  envelope: RealityEnvelope,
+): boolean {
+  const sourceCorpus =
+    wholeSourceCorpus(
+      envelope,
+    );
 
+  const sourceTokens =
+    tokens(sourceCorpus);
+
+  const candidateTokens =
+    tokens(text);
+
+  /*
+   * Physical relation language is structural rather than
+   * domain-specific. These markers describe an asserted relation
+   * between entities, locations, surfaces, bodies, environments,
+   * or physical effects.
+   *
+   * This is intentionally NOT a list of physical nouns such as
+   * "sun", "skin", "rain", etc.
+   */
+  const physicalRelationMarker =
+    /\b(?:on|onto|under|beneath|above|over|behind|beside|inside|within|through|across|against|around|between|near|next\s+to|inside|outside|into|out\s+of|from|with|without)\b/i.test(
+      text,
+    );
+
+  if (
+    !physicalRelationMarker
+  ) {
+    return false;
+  }
+
+  /*
+   * A relation marker by itself is insufficient. We need at least
+   * two meaningful lexical units around which a physical relation
+   * could be asserted.
+   */
+  const significant =
+    [...candidateTokens].filter(
+      (token) =>
+        !FUNCTION_WORDS.has(
+          token,
+        ),
+    );
+
+  if (
+    significant.length < 2
+  ) {
+    return false;
+  }
+
+  /*
+   * Count how much of the asserted material is actually represented
+   * in the supplied reality.
+   *
+   * A transformed expression may use new language freely, but a
+   * physical relation cannot introduce unsupported concrete entities.
+   */
+  const grounded =
+    significant.filter(
+      (token) =>
+        sourceTokens.has(token),
+    ).length;
+
+  return (
+    grounded /
+      Math.max(
+        1,
+        significant.length,
+      ) <
+    0.5
+  );
+}
 /**
  * Semantic realization is not lexical substitution.
  *
@@ -258,6 +333,7 @@ function semanticCompressionShape(
   }
 
   const current = tokens(text);
+
   const source = tokens(
     sourceLabels.join(" "),
   );
@@ -293,16 +369,20 @@ function semanticCompressionShape(
       current,
       source,
     );
+  
 
-  /*
-   * Existing lexical path.
-   *
-   * When the realization clearly belongs to the source wording,
-   * keep the stricter existing behavior.
-   */
-  if (
-    beatOverlap >= 0.12
-  ) {
+
+/*
+ * Existing lexical path.
+ *
+ * When the realization clearly belongs to the source wording,
+ * keep the stricter existing behavior.
+ */
+if (
+  beatOverlap >= 0.12
+) {
+
+  
     const unknown =
       significant.filter(
         (token) =>
@@ -330,12 +410,12 @@ function semanticCompressionShape(
    * Canonical semantic ownership path.
    *
    * The beat has already been approved upstream by Cognition/Brain.
-   * Therefore lexical overlap is NOT required for a transformed realization.
+   * Therefore lexical overlap is NOT required for a transformed
+   * realization.
    *
-   * What we still reject is a line that is merely naming the movie's
-   * internal cinematic function.
+   * A short fragment may be a completely valid realization even when
+   * it shares no literal vocabulary with the beat.
    */
-
   const hasApprovedBeat =
     Boolean(
       beat &&
@@ -355,36 +435,48 @@ function semanticCompressionShape(
   }
 
   /*
-   * A bare nominal label is not enough by itself.
+   * Machine-like abstract labels remain disallowed.
    *
-   * Examples:
+   * Human-facing fragments remain allowed.
+   *
+   * Examples of valid expression:
    *   "The pull."
+   *   "A familiar tremor."
+   *   "Almost."
+   *   "Love."
+   *
+   * Examples of machine residue:
    *   "The tightening."
    *   "The deepening."
    *   "The afterglow."
-   *
-   * These name an abstract cinematic state instead of expressing the
-   * supplied experience.
+   *   "Oriented."
    */
   const bareNominalLabel =
     /^(?:the|a|an)\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\.?$/i.test(
       text,
     );
 
+  const machineLikeNominalLabel =
+    /^(?:the|a|an)\s+(?:tightening|deepening|afterglow|orientation|oriented|reframed|pressurized|resolved|disrupted|release)\.?$/i.test(
+      text,
+    );
+
   if (
-    bareNominalLabel
+    bareNominalLabel &&
+    machineLikeNominalLabel
   ) {
     return false;
   }
 
   /*
-   * Approved beats may therefore authorize:
+   * Approved beats may authorize:
    *
    *   "Nerves. Then..."
    *   "A dangerous current."
    *   "Felt the pull towards us."
    *   "Almost."
    *   "Love."
+   *   "Nothing happened. Everything changed."
    *
    * without requiring those lines to reuse source vocabulary.
    */
@@ -410,12 +502,16 @@ export function evaluateMouthInterpretation(input: {
     );
 
   const current = tokens(text);
-  const beatSource = tokens(
-    beatSourceText,
-  );
-  const wholeSource = tokens(
-    wholeSourceText,
-  );
+
+  const beatSource =
+    tokens(
+      beatSourceText,
+    );
+
+  const wholeSource =
+    tokens(
+      wholeSourceText,
+    );
 
   const sourceAnchor =
     overlap(
@@ -432,19 +528,21 @@ export function evaluateMouthInterpretation(input: {
   const literalRestatement =
     input.sourceLabels.some(
       (label) => {
-        const a = text
-          .replace(
-            /[.!?]+$/g,
-            "",
-          )
-          .toLowerCase();
+        const a =
+          text
+            .replace(
+              /[.!?]+$/g,
+              "",
+            )
+            .toLowerCase();
 
-        const b = clean(label)
-          .replace(
-            /[.!?]+$/g,
-            "",
-          )
-          .toLowerCase();
+        const b =
+          clean(label)
+            .replace(
+              /[.!?]+$/g,
+              "",
+            )
+            .toLowerCase();
 
         return Boolean(
           a &&
@@ -471,43 +569,50 @@ export function evaluateMouthInterpretation(input: {
     EXTERNAL_STATE_CLAIM.test(
       text,
     );
-
+   const unsupportedPhysicalRelation =
+  introducesUnsupportedPhysicalRelation(
+    text,
+    input.envelope,
+  );
   const groundedConcreteFragment =
     wordCount <= 5 &&
     concreteClaim &&
     !CLAUSE_SUBJECT_MARKER.test(
       text,
     ) &&
-    wholeSourceAnchor >=
-      0.45;
-
-  let unsupportedConcreteRisk = 0;
-
-  if (
-    concreteClaim &&
-    !CONCRETE_CLAIM.test(
-      wholeSourceText,
-    ) &&
-    !groundedConcreteFragment
-  ) {
-    unsupportedConcreteRisk = 1;
-  }
-
-  if (
-    externalStateClaim &&
-    !EXTERNAL_STATE_CLAIM.test(
-      wholeSourceText,
-    )
-  ) {
-    unsupportedConcreteRisk =
-      Math.max(
-        unsupportedConcreteRisk,
-        1,
-      );
-  }
+    wholeSourceAnchor >= 0.45;
 
   /*
-   * Developer/machine language is never a valid viewer-facing realization.
+   * A candidate that is concrete or externally sensory must have actual
+   * support somewhere in the supplied corpus. We deliberately do not
+   * maintain a domain-specific forbidden-word list.
+   */
+  const concreteOrExternalClaim =
+    concreteClaim ||
+    externalStateClaim;
+
+  const concreteSourceSupport =
+    concreteOrExternalClaim &&
+    wholeSourceAnchor >= 0.45;
+
+  let unsupportedConcreteRisk =
+  concreteOrExternalClaim &&
+  !concreteSourceSupport
+    ? 1
+    : 0;
+
+if (
+  unsupportedPhysicalRelation
+) {
+  unsupportedConcreteRisk =
+    Math.max(
+      unsupportedConcreteRisk,
+      1,
+    );
+}
+
+  /*
+   * Machine-facing language is never viewer-facing language.
    */
   if (
     INTERNAL_MACHINE_LANGUAGE.test(
@@ -526,8 +631,7 @@ export function evaluateMouthInterpretation(input: {
     compactRhetoricalShape(text);
 
   const sourceExists =
-    input.envelope.events.length >
-      0 ||
+    input.envelope.events.length > 0 ||
     Boolean(
       wholeSourceText,
     );
@@ -536,8 +640,7 @@ export function evaluateMouthInterpretation(input: {
     wordCount <= 12;
 
   const hasBeatSource =
-    input.sourceLabels.length >
-    0;
+    input.sourceLabels.length > 0;
 
   const beatTouchesLanguage =
     sourceAnchor >= 0.08;
@@ -550,8 +653,9 @@ export function evaluateMouthInterpretation(input: {
     );
 
   /*
-   * An approved beat can authorize a transformed realization even when
-   * lexical overlap disappears completely.
+   * The approved beat is the semantic authority.
+   * It may authorize transformed expression without requiring lexical
+   * overlap with the supplied wording.
    */
   const approvedSemanticBeat =
     Boolean(
@@ -594,18 +698,15 @@ export function evaluateMouthInterpretation(input: {
 
   const safeCreativeBet =
     Boolean(text) &&
-    unsupportedConcreteRisk ===
-      0 &&
-    literalRestatement ===
-      0 &&
+    unsupportedConcreteRisk === 0 &&
+    literalRestatement === 0 &&
     shortCreativeForm &&
     sourceExists &&
     semanticBeatSupport &&
     (
       hasBeatSource
         ? true
-        : associativeWorldSupport >=
-            0.08 ||
+        : associativeWorldSupport >= 0.08 ||
           frameSignal
     );
 
@@ -664,9 +765,11 @@ export function evaluateMouthInterpretation(input: {
             framingContribution +
             compressionContribution +
             beatOwnershipContribution +
-            (safeCreativeBet
-              ? 0.2
-              : 0),
+            (
+              safeCreativeBet
+                ? 0.2
+                : 0
+            ),
         ),
       ).toFixed(3),
     );
@@ -682,8 +785,7 @@ export function evaluateMouthInterpretation(input: {
               hasBeatSource
                 ? sourceAnchor
                 : wholeSourceAnchor
-            ) *
-              0.22 +
+            ) * 0.22 +
             (
               frameSignal
                 ? 0.1
@@ -704,8 +806,7 @@ export function evaluateMouthInterpretation(input: {
   }
 
   if (
-    sourceAnchor >=
-    0.18
+    sourceAnchor >= 0.18
   ) {
     reasons.push(
       "beat-source-anchored",
@@ -713,8 +814,7 @@ export function evaluateMouthInterpretation(input: {
   }
 
   if (
-    wholeSourceAnchor >=
-    0.18
+    wholeSourceAnchor >= 0.18
   ) {
     reasons.push(
       "whole-reality-anchored",
@@ -771,8 +871,7 @@ export function evaluateMouthInterpretation(input: {
   }
 
   if (
-    unsupportedConcreteRisk >
-    0
+    unsupportedConcreteRisk > 0
   ) {
     reasons.push(
       "unsupported-concrete-invention",
@@ -780,8 +879,7 @@ export function evaluateMouthInterpretation(input: {
   }
 
   if (
-    interpretive >=
-      0.45 &&
+    interpretive >= 0.45 &&
     !literalRestatement
   ) {
     reasons.push(
@@ -791,16 +889,17 @@ export function evaluateMouthInterpretation(input: {
 
   return {
     interpretive,
+
     sourceAnchor:
       Number(
         sourceAnchor.toFixed(3),
       ),
+
     wholeSourceAnchor:
       Number(
-        wholeSourceAnchor.toFixed(
-          3,
-        ),
+        wholeSourceAnchor.toFixed(3),
       ),
+
     frameSupport:
       Number(
         (
@@ -809,13 +908,16 @@ export function evaluateMouthInterpretation(input: {
             : 0
         ).toFixed(3),
       ),
+
     literalRestatement,
+
     creativeFraming,
+
     unsupportedConcreteRisk,
+
     accepted:
       Boolean(text) &&
-      unsupportedConcreteRisk <
-        0.9 &&
+      unsupportedConcreteRisk < 0.9 &&
       (
         literalRestatement === 1 ||
         safeCreativeBet ||
@@ -823,11 +925,11 @@ export function evaluateMouthInterpretation(input: {
           !hasBeatSource &&
           (
             frameSignal ||
-            wholeSourceAnchor >=
-              0.08
+            wholeSourceAnchor >= 0.08
           )
         )
       ),
+
     reasons,
   };
 }
