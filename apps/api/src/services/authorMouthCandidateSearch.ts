@@ -98,8 +98,7 @@ const CONCRETE_DETAIL_MARKER =
   /\b(?:footsteps?|room|rooms|street|streets|door|doors|window|windows|table|tables|chair|chairs|floor|floors|wall|walls|ceiling|bed|beds|car|cars|truck|trucks|road|roads|sidewalk|sidewalks|house|houses|building|buildings|garden|gardens|yard|yards|sky|cloud|clouds|rain|snow|sunlight|moonlight|lamp|lamps|lighting|lights|music|song|songs|voice|voices|skin|hand|hands|finger|fingers|eyes|eye|face|faces|hair|clothes|shirt|dress|phone|phones|coffee|cup|cups|glass|glasses|food|drink)\b/i;
 
 const IDENTITY_DETAIL_MARKER =
-  /\b(?:her|him|his|hers|girlfriend|boyfriend|wife|husband|woman|man|girl|boy|mother|father|daughter|son|sister|brother|partner)\b/i;
-
+  /\b(?:he|him|his|she|her|hers|the man|the woman|the boy|the girl|the guy|the lady|girlfriend|boyfriend|wife|husband|mother|father|daughter|son|sister|brother|partner)\b/i;
 const normalizeToken = (
   token: string,
 ): string => {

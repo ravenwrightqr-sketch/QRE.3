@@ -134,6 +134,7 @@ router.post("/compile", requireAuth, async (req, res) => {
         ? req.body.assetId
         : undefined;
     const movieMode = req.body?.movieMode !== false;
+    const lens = typeof req.body?.lens === "string" ? req.body.lens.trim() : undefined;
     const rawGeo = parseGeoAnchor(req.body?.geo);
 
     if (typeof prompt !== "string" || !prompt.trim()) {

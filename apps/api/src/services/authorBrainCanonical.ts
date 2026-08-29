@@ -80,9 +80,10 @@ function buildCognition(
     facts: unique(input.facts),
     sourceMoments: unique(input.sourceMoments),
     realityGraph: graph,
-    memoryContext: [],
-    priorScenes: [],
-    priorStrategies: [],
+    memoryContext: input.memoryContext ?? [],
+    domainContext: input.domainContext,
+    priorScenes: input.trajectory ?? [],
+    priorStrategies: input.creativeLearningContext ?? [],
     movieMode: input.movieMode,
   });
 }
@@ -517,8 +518,8 @@ export async function authorBrainCanonical(
       ),
       facts,
       sourceMoments,
-      memoryContext: [],
-      trajectory: [],
+      memoryContext: input.memoryContext ?? [],
+      trajectory: input.trajectory ?? [],
     });
 
   const cognition =
@@ -819,6 +820,7 @@ export async function authorBrainCanonical(
       envelope,
       beats,
       lens,
+      domainContext: input.domainContext,
     });
 
   let modelName =
