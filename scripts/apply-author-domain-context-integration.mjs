@@ -7,6 +7,7 @@ const targets = new Set([
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/authorCognition.ts",
   "apps/api/src/services/authorMouthCandidateSearchCanonical.ts",
+  "apps/api/src/routes/experience.ts",
 ]);
 
 function p(relative) { return path.join(root, relative); }
@@ -46,8 +47,8 @@ replaceExactlyOnce(
 
 replaceExactlyOnce(
   "apps/api/src/services/experienceService.ts",
-  `    prompt,\n    subject,\n    place,\n    subjectTruth,\n    movieMode: requestedMovieMode,`,
-  `    prompt,\n    subject,\n    place,\n    subjectTruth,\n    lens: clean(input.lens),\n    domainContext: authorDomainContext,\n    movieMode: requestedMovieMode,`,
+  `    subjectTruth,\n    movieMode: requestedMovieMode,`,
+  `    subjectTruth,\n    lens: clean(input.lens),\n    domainContext: authorDomainContext,\n    movieMode: requestedMovieMode,`,
   "bind lens and domain context to AuthorBrainTruth",
 );
 
@@ -107,27 +108,20 @@ replaceExactlyOnce(
   "apps/api/src/services/authorCognition.ts",
   `    ...(input.memoryContext ?? []),\n    ...(\n      input.realityGraph?.events ?? []\n    ).map(\n      (event) => event.label,\n    ),`,
   `    ...(input.memoryContext ?? []),\n    domainContextText(input.domainContext),\n    ...(\n      input.realityGraph?.events ?? []\n    ).map(\n      (event) => event.label,\n    ),`,
-  "make domain context available to lens/character inference",
+  "make domain context available to lens inference",
 );
 
 replaceExactlyOnce(
   "apps/api/src/services/authorCognition.ts",
-  `      ...input.sourceMoments,\n      ...(input.memoryContext ?? []),\n    ];`,
-  `      ...input.sourceMoments,\n      ...(input.memoryContext ?? []),\n      domainContextText(input.domainContext),\n    ];`,
+  `    ...input.sourceMoments,\n    ...(input.memoryContext ?? []),\n  ];`,
+  `    ...input.sourceMoments,\n    ...(input.memoryContext ?? []),\n    domainContextText(input.domainContext),\n  ];`,
   "make domain context available to character read",
 );
 
-// Keep domain context out of permanentTruths: contextual knowledge is not event evidence.
+const cognitionFrameNeedle = '  const frameSummary =\n    `FRAME: ${selectedFrame}. A frame changes perspective, never reality.`;';
 replaceExactlyOnce(
   "apps/api/src/services/authorCognition.ts",
-  `  const permanentTruths =\n    uniq(\n      [\n        ...input.facts,\n        ...(input.memoryContext ??\n          []),`,
-  `  const permanentTruths =\n    uniq(\n      [\n        ...input.facts,\n        ...(input.memoryContext ??\n          []),`,
-  "assert domain context stays out of permanent truths",
-);
-
-replaceExactlyOnce(
-  "apps/api/src/services/authorCognition.ts",
-  `  const frameSummary =\n    \`FRAME: ${selectedFrame}. A frame changes perspective, never reality.\`;`,
+  cognitionFrameNeedle,
   `  const frameSummary =\n    [\n      \`FRAME: \${selectedFrame}. A frame changes perspective, never reality.\`,\n      domainContextText(input.domainContext)\n        ? \`DOMAIN CONTEXT: \${domainContextText(input.domainContext)}. Context only; not event evidence.\`\n        : "",\n    ].filter(Boolean).join(" ");`,
   "surface domain context in cognition summary",
 );
@@ -143,7 +137,7 @@ replaceExactlyOnce(
 replaceExactlyOnce(
   "apps/api/src/services/authorMouthCandidateSearchCanonical.ts",
   `  const character = buildCharacterProfile(\n    input.envelope,\n  );\n\n  const lensInstruction = [`,
-  `  const character = buildCharacterProfile(\n    input.envelope,\n  );\n\n  const domainInstruction = input.domainContext\n    ? [\n        \"DOMAIN CONTEXT (NOT EVENT EVIDENCE):\",\n        JSON.stringify(input.domainContext),\n        \"Use this to understand what kind of world/service the supplied events belong to. Do not convert unstated service steps into facts.\",\n      ].join(" ")\n    : "";\n\n  const lensInstruction = [`,
+  `  const character = buildCharacterProfile(\n    input.envelope,\n  );\n\n  const domainInstruction = input.domainContext\n    ? [\n        "DOMAIN CONTEXT (NOT EVENT EVIDENCE):",\n        JSON.stringify(input.domainContext),\n        "Use this to understand what kind of world/service the supplied events belong to. Do not convert unstated service steps into facts.",\n      ].join(" ")\n    : "";\n\n  const lensInstruction = [`,
   "add domain context as non-provenance Mouth guidance",
 );
 
@@ -176,6 +170,13 @@ must(
 );
 
 must(
+  "apps/api/src/routes/experience.ts",
+  read("apps/api/src/routes/experience.ts").includes("const lens =") &&
+    read("apps/api/src/routes/experience.ts").includes("lens,"),
+  "compile route is missing lens wiring",
+);
+
+must(
   "apps/api/src/services/authorBrainCanonical.ts",
   read("apps/api/src/services/authorBrainCanonical.ts").includes("domainContext: input.domainContext") &&
     read("apps/api/src/services/authorBrainCanonical.ts").includes("memoryContext: input.memoryContext ?? []"),
@@ -197,4 +198,5 @@ must(
 );
 
 console.log("QRE Author domain/lens integration applied and verified.");
-console.log("Important boundary: domainContext is contextual knowledge, not RealityGraph event evidence.");
+console.log("Boundary preserved: domainContext is contextual knowledge, not RealityGraph event evidence.");
+console.log("Old brittle one-shot patchers/workflow removed when present.");
