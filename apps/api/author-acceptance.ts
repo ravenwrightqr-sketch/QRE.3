@@ -6,6 +6,7 @@ const facts = (process.argv[3] || "came in nervous|got a bath|stole a blue bow|l
   .map((value) => value.trim())
   .filter(Boolean);
 const prompt = process.argv[4] || "Write a short QRE-style living memory.";
+const lens = process.argv[5]?.trim() || undefined;
 
 const result = await authorBrainCanonical({
   prompt,
@@ -14,6 +15,7 @@ const result = await authorBrainCanonical({
   sourceMoments: facts,
   memoryContext: [],
   creativeLearningContext: [],
+  lens,
 });
 
 const qualityStatus = String(result.diagnostics.qualityStatus ?? "UNKNOWN");
@@ -24,6 +26,7 @@ console.log("QRE AUTHOR ACCEPTANCE · CANONICAL BRAIN / ONE REALIZATION PATH");
 console.log("=".repeat(72));
 console.log(`MODEL: ${String(result.diagnostics.model ?? "unknown")}`);
 console.log(`REALIZATION MODE: ${result.realizationMode}`);
+console.log(`LENS: ${lens || "AUTO"}`);
 console.log(`MODEL REQUESTS: ${String(result.diagnostics.modelCalls ?? 0)}`);
 console.log(`CANDIDATES: ${String(result.diagnostics.candidateSequences ?? 0)}`);
 console.log(`ACCEPTED: ${String(result.diagnostics.acceptedCandidates ?? 0)}`);
@@ -39,6 +42,7 @@ if (qualityStatus !== "ACCEPTED") {
   result.scenes.forEach((scene, index) => console.log(`[${index + 1}] ${scene.text}`));
   console.log("--- END QRE SEQUENCE ---");
 }
+
 const expectedRequests =
   result.sequence.cuts.length > 0 ? 1 : 0;
 if (result.diagnostics.modelCalls !== expectedRequests) {
