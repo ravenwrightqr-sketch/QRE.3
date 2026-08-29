@@ -51,6 +51,7 @@ export type MouthCandidateGenerationInput = {
   beats: readonly MouthCandidateBeat[];
   priorTexts?: readonly string[];
   lens?: string;
+  domainContext?: import("@qre/contracts").AuthorDomainContext;
 };
 
 /**
@@ -288,6 +289,14 @@ export function buildMouthCandidateMessages(
   }
 
   const messages = buildLegacyMessages(input);
+
+  const domainContextInstruction = domainContextText(input.domainContext)
+    ? [
+        "DOMAIN CONTEXT IS CONTEXT, NOT FACT.",
+        `DOMAIN CONTEXT: ${domainContextText(input.domainContext)}`,
+        "Use this context to understand the service/world and discover better framing. Never convert an unstated service step into a new factual event.",
+      ].join(" ")
+    : "";
   const lens = classifyLens(input.lens);
   const character = buildCharacterProfile(
     input.envelope,
@@ -307,14 +316,35 @@ export function buildMouthCandidateMessages(
     "Prefer a line with a recognizable semantic anchor and a surprising realization over a merely poetic line.",
   ].join(" ");
 
-  return messages.map((message, index) => ({
-    ...message,
-    content:
-      index === 0
-        ? `${message.content}\n${lensInstruction}`
-        : `${message.content}\n${lensInstruction}`,
-  }));
+
+function domainContextText(
+  context: MouthCandidateGenerationInput["domainContext"],
+): string {
+  return context
+    ? [
+        context.category,
+        context.businessType,
+        context.businessName,
+        context.businessDescription,
+        context.serviceType,
+        context.serviceName,
+        context.subjectKind,
+        ...(context.knownCapabilities ?? []),
+        ...(context.contextualSignals ?? []),
+      ]
+        .map(clean)
+        .filter(Boolean)
+        .join(" | ")
+    : "";
 }
+
+return messages.map((message) => ({
+  ...message,
+  content:
+    `${message.content}\n${lensInstruction}\n${domainContextInstruction}`,
+}));
+}
+
 
 export function parseMouthCandidateBatch(
   raw: string,

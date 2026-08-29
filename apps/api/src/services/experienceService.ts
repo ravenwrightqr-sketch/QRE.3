@@ -5,8 +5,10 @@
  * Guardrails protect truth, provenance, architecture, and safety; style is scored.
  */
 import { buildPresenceContext } from "@qre/engine";
+import { db } from "@qre/db";
 import type {
   AuthorBrainTruth,
+  AuthorDomainContext,
   AuthorExperienceState,
   ExperienceBeat,
   ExperiencePresenceContext,
@@ -78,6 +80,45 @@ function clean(value: unknown): string {
 function unique(values: readonly string[]): string[] {
   return [...new Set(values.map(clean).filter(Boolean))];
 }
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function stringList(value: unknown): string[] {
+  if (typeof value === "string") return value.split(/[,|]/).map(clean).filter(Boolean);
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string").map(clean).filter(Boolean)
+    : [];
+}
+
+function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
+  if (!asset) return undefined;
+  const data = asRecord(asset.templateData);
+  const context: AuthorDomainContext = {
+    category: clean(asset.category || data?.category),
+    businessType: clean(data?.businessType || asset.account?.type),
+    businessName: clean(data?.businessName || asset.account?.name || asset.displayName),
+    businessDescription: clean(data?.businessDescription || data?.description),
+    serviceType: clean(data?.serviceType || data?.service_type),
+    serviceName: clean(data?.serviceName || data?.service || data?.offering),
+    subjectKind: clean(data?.subjectKind || data?.subject_kind),
+    knownCapabilities: unique([
+      ...stringList(data?.services),
+      ...stringList(data?.capabilities),
+      ...stringList(data?.offerings),
+      ...stringList(data?.serviceNames),
+    ]).slice(0, 24),
+    contextualSignals: unique([
+      ...stringList(data?.contextualSignals),
+      ...stringList(data?.signals),
+    ]).slice(0, 24),
+  };
+  return Object.values(context).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value)) ? context : undefined;
+}
+
 
 function inferSubject(prompt: string, context?: MemoryContext): string {
   const normalizedPrompt = prompt.toLowerCase();
@@ -153,11 +194,31 @@ export async function compileExperience(input: {
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
   movieMode?: boolean;
+  lens?: string;
 }): Promise<CompiledExperienceResult> {
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
   const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
+
+  let domainContext: AuthorDomainContext | undefined;
+  if (input.assetId) {
+    try {
+      const asset = await db.asset.findUnique({
+        where: { id: input.assetId },
+        select: {
+          displayName: true,
+          category: true,
+          templateData: true,
+          account: { select: { name: true, type: true } },
+        },
+      });
+      domainContext = buildAssetDomainContext(asset);
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] Domain context unavailable.", error);
+      warnings.push("domain_context_unavailable");
+    }
+  }
 
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {

@@ -1,4 +1,5 @@
 import type {
+  AuthorDomainContext,
   AuthorExperienceState,
   LatentMovieCandidate,
   RealityGraph,
@@ -18,6 +19,7 @@ export type AuthorCognitionInput = {
   facts: string[];
   sourceMoments: string[];
   realityGraph?: RealityGraph;
+  domainContext?: AuthorDomainContext;
   memoryContext?: string[];
   priorScenes?: string[];
   priorStrategies?: string[];
@@ -88,6 +90,21 @@ const metric = (value: number): number =>
 const PRIOR_STATE_PREFIX =
   "QRE_AUTHOR_EXPERIENCE_STATE::";
 
+
+function domainContextText(context?: AuthorDomainContext): string[] {
+  if (!context) return [];
+  return [
+    context.category ? `domain category: ${context.category}` : "",
+    context.businessType ? `business type: ${context.businessType}` : "",
+    context.businessName ? `business name: ${context.businessName}` : "",
+    context.businessDescription ? `business description: ${context.businessDescription}` : "",
+    context.serviceType ? `service type: ${context.serviceType}` : "",
+    context.serviceName ? `service: ${context.serviceName}` : "",
+    context.subjectKind ? `subject kind: ${context.subjectKind}` : "",
+    ...(context.knownCapabilities ?? []).map((item) => `known capability: ${item}`),
+    ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
+  ].filter(Boolean);
+}
 function eventById(
   graph: RealityGraph | undefined,
   id: string,
@@ -379,6 +396,7 @@ function evidenceText(
   input: AuthorCognitionInput,
 ): string {
   return [
+    ...domainContextText(input.domainContext),
     ...input.facts,
     ...input.sourceMoments,
     ...(input.memoryContext ?? []),
