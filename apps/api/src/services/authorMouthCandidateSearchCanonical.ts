@@ -1,4 +1,4 @@
-/**
+/*
  * QRE CANONICAL MOUTH CANDIDATE ADAPTER
  *
  * The legacy candidate search remains responsible for generation and its
@@ -54,13 +54,6 @@ export type MouthCandidateGenerationInput = {
   domainContext?: import("@qre/contracts").AuthorDomainContext;
 };
 
-/**
- * Carries the active lens from generation into candidate scoring without
- * changing the contracts package or adding hidden fields to persisted data.
- *
- * WeakMap makes this concurrency-safe: each in-flight beat object owns its
- * own lens context.
- */
 const activeLensByBeat =
   new WeakMap<object, string>();
 
@@ -140,9 +133,8 @@ function sourceLabelsForBeat(
  * Measures whether the candidate realizes the active lens rather than merely
  * being compatible with it by name.
  *
- * Framing bias tells us what kind of interpretation the lens prefers;
- * realization preferences tell us how that interpretation tends to arrive.
- * Both are soft signals. Safety and semantic authorization remain hard.
+ * These are deliberately soft signals. Safety and semantic authorization
+ * remain hard boundaries elsewhere.
  */
 function lensFitForCandidate(
   text: string,
@@ -188,16 +180,123 @@ function lensFitForCandidate(
 }
 
 /**
- * Grounded surprise is the specific quality we want from the Mouth:
+ * A direct state transformation makes change visible without requiring a
+ * new concrete event.
  *
- *   unexpected wording
- *   + recognizable supplied meaning
- *   + active lens coherence
- *   + accepted semantic realization
- *   + low unsupported-concrete risk
+ * Examples of the desired shape:
+ *   nerves eased
+ *   nervousness faded
+ *   tension gave way
+ *   words flowed
+ *   time dissolved
  *
- * This is deliberately not a generic "creativity" score.
+ * This is intentionally structural rather than lexical: it does not ban
+ * articles and it does not enumerate preferred phrases.
  */
+function directTransformationSignal(
+  text: string,
+): number {
+  const value = clean(text);
+
+  if (!value) {
+    return 0;
+  }
+
+  const transformationVerb =
+    /\b(?:became|becomes|turned|turns|faded|fade|eased|ease|lifted|lifts|softened|softens|opened|opens|gave|give|flowed|flows|dissolved|dissolve|bled|bleed|released|releases|settled|settles|loosened|loosens|lightened|lightens|changed|changes|shifted|shifts|broke|breaks|melted|melts)\b/i;
+
+  const transformationStructure =
+    /\b(?:\w+(?:ness)?\s+(?:became|became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted)\b|\b(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted)\b)/i.test(value);
+
+  if (!transformationVerb.test(value)) {
+    return 0;
+  }
+
+  const words = value.split(/\s+/).filter(Boolean).length;
+  const concise = words <= 7 ? 0.2 : words <= 11 ? 0.1 : 0;
+
+  return metric(
+    0.58 +
+      (transformationStructure ? 0.2 : 0) +
+      concise,
+  );
+}
+
+/**
+ * Distinguishes an expressive realization from a bare conceptual label.
+ *
+ * This is not a ban on abstract nouns or article-led forms. The question is
+ * whether the line creates a felt/imageable/active realization rather than
+ * simply naming a concept.
+ */
+function expressiveRealizationSignal(
+  text: string,
+  sourceLabels: readonly string[],
+  beat: MouthCandidateBeat,
+): number {
+  const value = clean(text);
+  if (!value) return 0;
+
+  const words = value.split(/\s+/).filter(Boolean).length;
+  const current = tokenSet(value);
+  const source = tokenSet(sourceLabels.join(" "));
+  const localOverlap = overlap(current, source);
+
+  const directTransformation =
+    directTransformationSignal(value);
+
+  const activeVerb =
+    /\b(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted|stayed|keep|kept|continued|continued|waited|felt|feel)\b/i.test(value)
+      ? 0.2
+      : 0;
+
+  const compressed =
+    words <= 6 ? 0.14 : words <= 10 ? 0.06 : 0;
+
+  const contrastive =
+    /\b(?:but|yet|still|almost|only|except|instead|rather|never|not|nothing|everything|then|before|after|until)\b/i.test(value)
+      ? 0.12
+      : 0;
+
+  const imageableAbstraction =
+    /\b(?:current|pull|weight|spark|rush|drift|heat|cold|light|shadow|gravity|rumble|vibration|flow|quiet|tremor|pressure|edge|space|wave|fire|supernova|echo)\b/i.test(value)
+      ? 0.18
+      : 0;
+
+  const bareArticleLabel =
+    /^(?:a|an|the)\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}[.!?]?$/i.test(value);
+
+  const conceptualLabel =
+    /\b(?:assent|approval|recognition|connection|possibility|momentum|lightness|warmth|ease|release|permission|agreement|confirmation)\b/i.test(value);
+
+  const labelPenalty =
+    bareArticleLabel && conceptualLabel
+      ? 0.18
+      : conceptualLabel && words <= 3 && directTransformation < 0.5
+        ? 0.08
+        : 0;
+
+  const beatAuthority =
+    beat.eventIds?.length ||
+    beat.change ||
+    beat.attentionFunction ||
+    beat.relationKinds?.length
+      ? 0.18
+      : 0;
+
+  return metric(
+    0.18 +
+      directTransformation * 0.3 +
+      activeVerb +
+      compressed +
+      contrastive +
+      imageableAbstraction +
+      beatAuthority * 0.4 +
+      (localOverlap >= 0.08 ? 0.08 : 0) -
+      labelPenalty,
+  );
+}
+
 function groundedSurpriseForCandidate(
   text: string,
   beat: MouthCandidateBeat,
@@ -206,15 +305,9 @@ function groundedSurpriseForCandidate(
   interpretation: ReturnType<typeof evaluateMouthInterpretation>,
   lensInput: string | undefined,
 ): number {
-  const sourceLabels = sourceLabelsForBeat(
-    beat,
-    envelope,
-  );
-
+  const sourceLabels = sourceLabelsForBeat(beat, envelope);
   const candidateTokens = tokenSet(text);
-  const localTokens = tokenSet(
-    sourceLabels.join(" "),
-  );
+  const localTokens = tokenSet(sourceLabels.join(" "));
 
   const worldTokens = tokenSet(
     [
@@ -230,22 +323,9 @@ function groundedSurpriseForCandidate(
     ].join(" "),
   );
 
-  const localAnchor = overlap(
-    candidateTokens,
-    localTokens,
-  );
-
-  const worldAnchor = overlap(
-    candidateTokens,
-    worldTokens,
-  );
-
-  const semanticDistance = metric(
-    Math.max(
-      0,
-      1 - localAnchor,
-    ),
-  );
+  const localAnchor = overlap(candidateTokens, localTokens);
+  const worldAnchor = overlap(candidateTokens, worldTokens);
+  const semanticDistance = metric(Math.max(0, 1 - localAnchor));
 
   const recognition = metric(
     Math.max(
@@ -255,10 +335,8 @@ function groundedSurpriseForCandidate(
     ),
   );
 
-  const lensFit = lensFitForCandidate(
-    text,
-    lensInput,
-  );
+  const lensFit = lensFitForCandidate(text, lensInput);
+  const expressiveness = expressiveRealizationSignal(text, sourceLabels, beat);
 
   const safety = metric(
     1 - Math.max(
@@ -269,12 +347,12 @@ function groundedSurpriseForCandidate(
   );
 
   return metric(
-    semanticDistance * 0.22 +
-      recognition * 0.26 +
-      lensFit * 0.22 +
-      (interpretation.accepted ? 0.18 : 0) +
-      legacy.noveltyScore * 0.07 +
-      safety * 0.05,
+    semanticDistance * 0.19 +
+      recognition * 0.24 +
+      lensFit * 0.2 +
+      expressiveness * 0.16 +
+      (interpretation.accepted ? 0.16 : 0) +
+      legacy.noveltyScore * 0.05,
   );
 }
 
@@ -282,10 +360,7 @@ export function buildMouthCandidateMessages(
   input: MouthCandidateGenerationInput,
 ): Array<{ role: "system" | "user"; content: string }> {
   for (const beat of input.beats) {
-    activeLensByBeat.set(
-      beat as object,
-      clean(input.lens),
-    );
+    activeLensByBeat.set(beat as object, clean(input.lens));
   }
 
   const messages = buildLegacyMessages(input);
@@ -297,10 +372,9 @@ export function buildMouthCandidateMessages(
         "Use this context to understand the service/world and discover better framing. Never convert an unstated service step into a new factual event.",
       ].join(" ")
     : "";
+
   const lens = classifyLens(input.lens);
-  const character = buildCharacterProfile(
-    input.envelope,
-  );
+  const character = buildCharacterProfile(input.envelope);
 
   const lensInstruction = [
     `ACTIVE LENS: ${lens.label || "custom"}.`,
@@ -310,41 +384,44 @@ export function buildMouthCandidateMessages(
     `SUBJECT POSTURE: ${character.statusPosture}.`,
     `EMOTIONAL POSTURE: ${character.emotionalPosture}.`,
     "Use the lens to discover an unexpectedly exact framing of supplied meaning.",
+    "Search for materially different semantic angles of the approved beat; do not merely rewrite the same idea three ways.",
+    "When the approved meaning contains a state change, a direct transformation is a strong realization form: nerves eased, tension gave way, words flowed, time dissolved. Discover the actual wording; do not copy these examples.",
+    "Prefer active transformation, continuation, contrast, recognition, consequence, imageable abstraction, or compressed residue when one naturally expresses the approved meaning.",
+    "Article-led forms such as A, An, and The are fully allowed. Do not avoid them mechanically; prefer a more direct or active realization only when it is genuinely stronger.",
+    "Avoid bare conceptual labels that merely name an interpretation without making the experience newly observable.",
     "Aim for grounded surprise: the wording can make the viewer think 'what the fuck was that?' and then immediately recognize why it fits.",
     "Do not force a joke, metaphor, genre trope, or dramatic flourish when the supplied material does not earn it.",
     "The lens may change attitude, framing, status, implication, rhythm, or emotional interpretation; it may not add concrete reality.",
     "Prefer a line with a recognizable semantic anchor and a surprising realization over a merely poetic line.",
   ].join(" ");
 
+  function domainContextText(
+    context: MouthCandidateGenerationInput["domainContext"],
+  ): string {
+    return context
+      ? [
+          context.category,
+          context.businessType,
+          context.businessName,
+          context.businessDescription,
+          context.serviceType,
+          context.serviceName,
+          context.subjectKind,
+          ...(context.knownCapabilities ?? []),
+          ...(context.contextualSignals ?? []),
+        ]
+          .map(clean)
+          .filter(Boolean)
+          .join(" | ")
+      : "";
+  }
 
-function domainContextText(
-  context: MouthCandidateGenerationInput["domainContext"],
-): string {
-  return context
-    ? [
-        context.category,
-        context.businessType,
-        context.businessName,
-        context.businessDescription,
-        context.serviceType,
-        context.serviceName,
-        context.subjectKind,
-        ...(context.knownCapabilities ?? []),
-        ...(context.contextualSignals ?? []),
-      ]
-        .map(clean)
-        .filter(Boolean)
-        .join(" | ")
-    : "";
+  return messages.map((message) => ({
+    ...message,
+    content:
+      `${message.content}\n${lensInstruction}\n${domainContextInstruction}`,
+  }));
 }
-
-return messages.map((message) => ({
-  ...message,
-  content:
-    `${message.content}\n${lensInstruction}\n${domainContextInstruction}`,
-}));
-}
-
 
 export function parseMouthCandidateBatch(
   raw: string,
@@ -359,10 +436,7 @@ export function scoreMouthCandidate(input: {
   priorTexts?: readonly string[];
 }): MouthCandidate {
   const legacy = scoreLegacyCandidate(input);
-  const sourceLabels = sourceLabelsForBeat(
-    input.beat,
-    input.envelope,
-  );
+  const sourceLabels = sourceLabelsForBeat(input.beat, input.envelope);
 
   const interpretation = evaluateMouthInterpretation({
     text: input.text,
@@ -388,6 +462,13 @@ export function scoreMouthCandidate(input: {
     lensInput,
   );
 
+  const directTransformation = directTransformationSignal(input.text);
+  const expressiveRealization = expressiveRealizationSignal(
+    input.text,
+    sourceLabels,
+    input.beat,
+  );
+
   const groundedSurprise = groundedSurpriseForCandidate(
     input.text,
     input.beat,
@@ -397,9 +478,9 @@ export function scoreMouthCandidate(input: {
     lensInput,
   );
 
-  const strongLensRealization =
-    lensFit >= 0.46 &&
-    groundedSurprise >= 0.62;
+  const strongExpressiveRealization =
+    expressiveRealization >= 0.66 &&
+    groundedSurprise >= 0.6;
 
   const reasons = [
     ...new Set([
@@ -407,41 +488,40 @@ export function scoreMouthCandidate(input: {
       "semantic-compression",
       "semantic-turn-grounded",
       "bounded-creative-bet",
-      ...(strongLensRealization
-        ? ["lens-realization", "grounded-surprise"]
+      ...(directTransformation >= 0.58
+        ? ["direct-transformation"]
+        : []),
+      ...(strongExpressiveRealization
+        ? ["expressive-realization", "grounded-surprise"]
         : []),
     ]),
   ];
 
   const meaningLift = metric(
-    interpretation.creativeFraming * 0.56 +
-      lensFit * 0.16 +
-      groundedSurprise * 0.28,
+    interpretation.creativeFraming * 0.5 +
+      expressiveRealization * 0.24 +
+      lensFit * 0.1 +
+      groundedSurprise * 0.16,
   );
 
   const transitionLift = metric(
-    legacy.transitionScore * 0.56 +
-      groundedSurprise * 0.24 +
-      lensFit * 0.2,
+    legacy.transitionScore * 0.48 +
+      directTransformation * 0.18 +
+      expressiveRealization * 0.12 +
+      groundedSurprise * 0.14 +
+      lensFit * 0.08,
   );
 
   const scoreLift = metric(
-    legacy.score * 0.52 +
-      groundedSurprise * 0.3 +
-      lensFit * 0.18,
+    legacy.score * 0.48 +
+      groundedSurprise * 0.24 +
+      expressiveRealization * 0.18 +
+      lensFit * 0.1,
   );
 
   return {
     ...legacy,
 
-    /*
-     * The canonical evaluator has already established that this realization
-     * contains no unsupported concrete world claim. Do not let a legacy
-     * lexical/invention heuristic veto a semantically authorized realization.
-     *
-     * The concrete-reality firewall remains owned by
-     * evaluateMouthInterpretation().
-     */
     inventionRisk: Math.min(
       legacy.inventionRisk,
       interpretation.unsupportedConcreteRisk,
@@ -452,17 +532,15 @@ export function scoreMouthCandidate(input: {
         ? authorizedEventIds
         : legacy.supportedEventIds,
 
-    groundingScore:
-      Math.max(
-        legacy.groundingScore,
-        0.5,
-      ),
+    groundingScore: Math.max(
+      legacy.groundingScore,
+      0.5,
+    ),
 
-    obligationCoverage:
-      Math.max(
-        legacy.obligationCoverage,
-        0.5,
-      ),
+    obligationCoverage: Math.max(
+      legacy.obligationCoverage,
+      0.5,
+    ),
 
     meaningScore: Math.max(
       legacy.meaningScore,
