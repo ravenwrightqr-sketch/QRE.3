@@ -42,8 +42,14 @@ function entityId(assetId: string, kind: MemoryEntityKind, value: string): strin
   return stableId(assetId, kind, value);
 }
 
-function eventId(assetId: string, event: RealityEvent): string {
-  return stableId(assetId, "event", `${event.id}|${event.label}`);
+/**
+ * Canonical durable ID for a RealityGraph event entity.
+ *
+ * Every projection surface uses this exact identity rule. The event entity,
+ * its fact, relations, and memory-event references therefore cannot drift.
+ */
+function eventEntityId(assetId: string, event: RealityEvent): string {
+  return entityId(assetId, "event", event.label);
 }
 
 function addEntity(
@@ -72,9 +78,18 @@ function buildEntities(assetId: string, graph: RealityGraph) {
   const entities = new Map<string, MemoryWriteBatch["entities"][number]>();
 
   for (const event of graph.events) {
-    addEntity(entities, assetId, "event", event.label, 0.95, {
-      realityRole: "event",
-      realityEventId: event.id,
+    const id = eventEntityId(assetId, event);
+    entities.set(id, {
+      id,
+      kind: "event",
+      name: clean(event.label),
+      canonicalKey: lower(event.label),
+      confidence: 0.95,
+      visibility: VISIBILITY,
+      metadata: {
+        realityRole: "event",
+        realityEventId: event.id,
+      },
     });
 
     for (const value of event.entities) {
@@ -105,9 +120,8 @@ function buildFacts(
   const facts: MemoryFactWrite[] = [];
 
   for (const event of graph.events) {
-    const id = eventId(assetId, event);
     facts.push({
-      entityId: id,
+      entityId: eventEntityId(assetId, event),
       kind: "event",
       predicate: "occurred",
       value: event.label,
@@ -153,6 +167,13 @@ function relationKindForEndpoint(graph: RealityGraph, endpoint: string): MemoryE
   return "object";
 }
 
+function eventForEndpoint(
+  graph: RealityGraph,
+  endpoint: string,
+): RealityEvent | undefined {
+  return graph.events.find((event) => event.id === endpoint);
+}
+
 function buildRelations(
   assetId: string,
   graph: RealityGraph,
@@ -161,15 +182,17 @@ function buildRelations(
   sessionId?: string,
 ): MemoryRelationWrite[] {
   return graph.relations.map((relation) => {
+    const fromEvent = eventForEndpoint(graph, relation.from);
+    const toEvent = eventForEndpoint(graph, relation.to);
     const fromKind = relationKindForEndpoint(graph, relation.from);
     const toKind = relationKindForEndpoint(graph, relation.to);
 
     return {
-      fromEntityId: fromKind === "event"
-        ? stableId(assetId, "event", `${relation.from}|${graph.events.find((event) => event.id === relation.from)?.label ?? relation.from}`)
+      fromEntityId: fromEvent
+        ? eventEntityId(assetId, fromEvent)
         : entityId(assetId, fromKind, relation.from),
-      toEntityId: toKind === "event"
-        ? stableId(assetId, "event", `${relation.to}|${graph.events.find((event) => event.id === relation.to)?.label ?? relation.to}`)
+      toEntityId: toEvent
+        ? eventEntityId(assetId, toEvent)
         : entityId(assetId, toKind, relation.to),
       relation: clean(relation.kind) || "connected_to",
       confidence: Math.min(1, Math.max(0, relation.strength)),
@@ -197,7 +220,7 @@ function buildEvents(
     source,
     confidence: 1,
     entityIds: [
-      entityId(assetId, "event", event.label),
+      eventEntityId(assetId, event),
       ...event.entities.map((value) => entityId(assetId, "object", value)),
       ...(event.place ? [entityId(assetId, "place", event.place)] : []),
     ],
