@@ -143,15 +143,17 @@ router.post("/compile", requireAuth, async (req, res) => {
         error: "Experience prompt is required.",
       });
     }
-
     const geo = rawGeo ? await enrichGeo(rawGeo) : undefined;
-    const sessionId = randomUUID();
-    const experience = await compileExperience({
+const sessionId = randomUUID();
+
+const experience = await compileExperience({
   prompt,
   assetId,
   userId: req.user?.userId,
   sessionId,
-  memoryRepository: assetId ? createMemoryRepository() : undefined,
+  memoryRepository: assetId
+    ? createMemoryRepository()
+    : undefined,
   geoAnchor: geo,
   movieMode,
   lens,
@@ -166,7 +168,7 @@ router.post("/compile", requireAuth, async (req, res) => {
       try {
         await createPresenceRepository().createGeoProof({
           assetId,
-          sessionId: randomUUID(),
+          sessionId,
           userId: req.user?.userId,
           lat: geo.latitude,
           lng: geo.longitude,
