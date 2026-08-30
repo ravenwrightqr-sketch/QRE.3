@@ -1,29 +1,27 @@
 /*
  * QRE CANONICAL MOUTH CANDIDATE ADAPTER
  *
- * The legacy candidate search remains responsible for generation and its
- * existing safety metrics. This adapter is the canonical bridge that lets a
- * grounded semantic compression survive lexical-overlap scoring.
+ * Legacy candidate search remains responsible for generation and its existing
+ * safety metrics. This adapter is the canonical bridge that lets grounded
+ * semantic realization survive lexical-overlap scoring without weakening the
+ * reality boundary.
  *
- * The distinction is intentional:
+ * CORE DISTINCTION:
  *   source wording -> diagnostic evidence
- *   approved beat   -> semantic ownership
- *   final language  -> realization
+ *   approved beat  -> semantic ownership
+ *   final language -> realization
  *
- * Semantic compression can therefore change every source word while still
- * being authorized by the approved beat. Unsupported concrete invention is
- * still rejected by the existing evaluator.
- *
- * UNIVERSAL REALITY-SHAPE RULE:
+ * UNIVERSAL REALITY SHAPE:
  *   stable supplied reality -> discovery / accumulation / recurrence / attitude
- *   supplied event           -> event realization / story movement
- *
- * Reality shape changes what the source has actually authorized.
- * It does NOT create a new domain-specific Author.
+ *   supplied event          -> event realization / story movement
+ *   supplied state          -> experiential state / transformation
  *
  * DEEPER EXPERIENCE:
  *   what happened -> what did that do -> what did it make newly meaningful
- *   -> Mouth expresses that consequence without explaining it.
+ *   -> Mouth realizes that consequence instead of merely restating the source.
+ *
+ * The consequence layer interprets supplied reality. It never authorizes a new
+ * concrete event.
  *
  * LENS WIRING:
  *   active lens -> model realization guidance
@@ -38,18 +36,15 @@ import {
   parseMouthCandidateBatch as parseLegacyBatch,
   scoreMouthCandidate as scoreLegacyCandidate,
 } from "./authorMouthCandidateSearch.js";
-
 import type {
   MouthCandidate,
   MouthCandidateBatch,
   MouthCandidateBeat,
 } from "@qre/contracts";
-
 import {
   buildCharacterProfile,
   classifyLens,
 } from "./authorCharacterLensEngine.js";
-
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
 
@@ -68,8 +63,7 @@ export type MouthCandidateGenerationInput = {
   domainContext?: import("@qre/contracts").AuthorDomainContext;
 };
 
-const activeLensByBeat =
-  new WeakMap<object, string>();
+const activeLensByBeat = new WeakMap<object, string>();
 
 function clean(value: unknown): string {
   return String(value ?? "")
@@ -78,22 +72,15 @@ function clean(value: unknown): string {
 }
 
 function unique(values: readonly string[]): string[] {
-  return [
-    ...new Set(
-      values
-        .map(clean)
-        .filter(Boolean),
-    ),
-  ];
+  return [...new Set(values.map(clean).filter(Boolean))];
 }
 
 const FUNCTION_WORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on",
-  "at", "for", "with", "from", "by", "through", "after", "before",
-  "then", "now", "very", "just", "still", "again", "this", "that",
-  "it", "is", "are", "was", "were", "be", "been", "being", "as",
-  "into", "my", "your", "our", "their", "his", "her", "its", "he",
-  "she", "they", "them", "you", "we", "me",
+  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at",
+  "for", "with", "from", "by", "through", "after", "before", "then", "now",
+  "very", "just", "still", "again", "this", "that", "it", "is", "are", "was",
+  "were", "be", "been", "being", "as", "into", "my", "your", "our", "their",
+  "his", "her", "its", "he", "she", "they", "them", "you", "we", "me",
 ]);
 
 function normalizeToken(token: string): string {
@@ -117,9 +104,7 @@ function tokenSet(value: string): Set<string> {
 
 function meaningfulTokenSet(value: string): Set<string> {
   return new Set(
-    [...tokenSet(value)].filter(
-      (token) => !FUNCTION_WORDS.has(token),
-    ),
+    [...tokenSet(value)].filter((token) => !FUNCTION_WORDS.has(token)),
   );
 }
 
@@ -133,9 +118,7 @@ function overlap(a: Set<string>, b: Set<string>): number {
 }
 
 function metric(value: number): number {
-  return Number(
-    Math.max(0, Math.min(1, value)).toFixed(3),
-  );
+  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
 
 function sourceLabelsForBeat(
@@ -147,9 +130,7 @@ function sourceLabelsForBeat(
       (beat.eventIds ?? [])
         .map(
           (id) =>
-            envelope.events.find(
-              (event) => event.id === id,
-            )?.label ?? "",
+            envelope.events.find((event) => event.id === id)?.label ?? "",
         )
         .map(clean)
         .filter(Boolean),
@@ -160,15 +141,7 @@ function sourceLabelsForBeat(
 /**
  * Universal supplied-reality shape.
  *
- * stable:
- *   likes squirrels / likes the park / walks / likes apples
- * event:
- *   went to the park / saw squirrels / walked 25 minutes
- * state:
- *   nervous / happy
- *
- * This is not a domain mode. It only determines what the source itself has
- * actually authorized.
+ * This is about what the supplied material actually says, not the domain.
  */
 type MouthRealityShape =
   | "stable"
@@ -176,19 +149,12 @@ type MouthRealityShape =
   | "state"
   | "observation";
 
-function realityShapeForLabel(
-  label: string,
-): MouthRealityShape {
+function realityShapeForLabel(label: string): MouthRealityShape {
   const value = clean(label).toLowerCase();
   if (!value) return "observation";
 
   if (
-    /\b(?:went|came|arrived|left|returned|saw|met|found|lost|got|stole|took|gave|made|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|visited|bought|sold|built|fixed|painted|wrote|called|laughed|cried|looked|felt|became|changed|did)\b/i.test(value)
-  ) {
-    return "event";
-  }
-
-  if (
+    /\b(?:went|came|arrived|left|returned|saw|met|found|lost|got|stole|took|gave|made|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|visited|bought|sold|built|fixed|painted|wrote|called|laughed|cried|looked|felt|became|changed|did)\b/i.test(value) ||
     /\b(?:\d+\s*(?:minute|minutes|hour|hours|day|days|times?)|at\s+\d|today|yesterday|tomorrow|this\s+(?:morning|afternoon|evening|night)|last\s+(?:night|week|month|year)|next\s+(?:day|week|month|year))\b/i.test(value)
   ) {
     return "event";
@@ -239,13 +205,17 @@ function expressiveVocabulary(text: string): boolean {
   return /\b(?:current|pull|weight|spark|rush|drift|heat|cold|light|shadow|gravity|rumble|vibration|flow|quiet|tremor|pressure|edge|space|wave|fire|supernova|echo|warmth|ease|lightness|tension|silence|distance|connection|recognition|release|calm|nerves|nervousness|awkwardness|closeness|uncertainty|comfort|relief|energy|rhythm|stillness|solace|familiar|strange|guard|grip|belonging|absence|presence)\b/i.test(clean(text));
 }
 
+/**
+ * Stable-world language may introduce new words. Novel vocabulary is not
+ * itself invention. The hard question is whether the candidate asserts a new
+ * occurrence, environment, physical action, sensorium, or chronology.
+ */
 function stableRealityEscalationRisk(
   text: string,
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): number {
   const realityShape = realityShapeForBeat(beat, envelope);
-
   if (realityShape !== "stable" && realityShape !== "state") return 0;
 
   const sourceLabels = sourceLabelsForBeat(beat, envelope);
@@ -300,8 +270,35 @@ function stableRealityEscalationRisk(
 
   if (assertedClause || externalClaim) return 1;
 
-  // Novel vocabulary is allowed. It is not, by itself, invention.
   return 0;
+}
+
+function lensFitForCandidate(
+  text: string,
+  lensInput: string | undefined,
+): number {
+  const lens = classifyLens(lensInput);
+  const candidateTokens = meaningfulTokenSet(text);
+  const framingTokens = meaningfulTokenSet(lens.framingBias.join(" "));
+  const preferenceTokens = meaningfulTokenSet(lens.realizationPreferences.join(" "));
+
+  const framingFit = overlap(candidateTokens, framingTokens);
+  const preferenceFit = overlap(candidateTokens, preferenceTokens);
+
+  const antiGeneric =
+    /\b(?:beautiful|magical|special|incredible|perfect|amazing|wonderful|journey|moment)\b/i.test(clean(text))
+      ? 0.2
+      : 0;
+
+  return metric(
+    Math.max(
+      0,
+      framingFit * 0.52 +
+        preferenceFit * 0.28 +
+        lens.intensity * 0.2 -
+        antiGeneric,
+    ),
+  );
 }
 
 function directTransformationSignal(text: string): number {
@@ -312,7 +309,7 @@ function directTransformationSignal(text: string): number {
     /\b(?:became|becomes|turned|turns|faded|fade|eased|ease|lifted|lifts|softened|softens|opened|opens|gave|give|flowed|flows|dissolved|dissolve|bled|bleed|released|releases|settled|settles|loosened|loosens|lightened|lightens|changed|changes|shifted|shifts|broke|breaks|melted|melts)\b/i;
 
   const transformationStructure =
-    /\b(?:\w+(?:ness)?\s+(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted)\b|\b(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted)\b)/i.test(value);
+    /\b(?:\w+(?:ness)?\s+(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted)|(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted))\b/i.test(value);
 
   if (!transformationVerb.test(value)) return 0;
 
@@ -326,6 +323,16 @@ function directTransformationSignal(text: string): number {
   );
 }
 
+/**
+ * Deeper experiential consequence.
+ *
+ * Search one level below literal wording:
+ *   what happened -> what did it do -> what did that make newly felt,
+ *   meaningful, familiar, strange, possible, difficult, connected,
+ *   wanted, or important?
+ *
+ * This is not permission to invent another event.
+ */
 function experientialConsequenceSignal(
   text: string,
   sourceLabels: readonly string[],
@@ -354,12 +361,8 @@ function experientialConsequenceSignal(
       ? 0.22
       : 0;
 
-  const compressed =
-    words <= 8 ? 0.12 : words <= 12 ? 0.06 : 0;
-
-  const semanticDeparture =
-    sourceOverlap < 0.65 ? 0.1 : 0;
-
+  const compressed = words <= 8 ? 0.12 : words <= 12 ? 0.06 : 0;
+  const semanticDeparture = sourceOverlap < 0.65 ? 0.1 : 0;
   const beatAuthority =
     beat.eventIds?.length ||
     beat.change ||
@@ -391,7 +394,11 @@ function expressiveRealizationSignal(
   const source = meaningfulTokenSet(sourceLabels.join(" "));
   const localOverlap = overlap(current, source);
   const directTransformation = directTransformationSignal(value);
-  const experientialConsequence = experientialConsequenceSignal(value, sourceLabels, beat);
+  const experientialConsequence = experientialConsequenceSignal(
+    value,
+    sourceLabels,
+    beat,
+  );
 
   const activeVerb =
     /\b(?:became|turned|faded|eased|lifted|softened|opened|gave|flowed|dissolved|bled|released|settled|loosened|lightened|changed|shifted|broke|melted|stayed|keep|kept|continued|waited|felt|feel)\b/i.test(value)
@@ -482,13 +489,13 @@ function groundedSurpriseForCandidate(
 
   const lensFit = lensFitForCandidate(text, lensInput);
   const expressiveness = expressiveRealizationSignal(text, sourceLabels, beat);
-
   const safety = metric(
-    1 - Math.max(
-      legacy.inventionRisk,
-      legacy.forbiddenMoveRisk,
-      interpretation.unsupportedConcreteRisk,
-    ),
+    1 -
+      Math.max(
+        legacy.inventionRisk,
+        legacy.forbiddenMoveRisk,
+        interpretation.unsupportedConcreteRisk,
+      ),
   );
 
   return metric(
@@ -502,54 +509,6 @@ function groundedSurpriseForCandidate(
   );
 }
 
-function lensFitForCandidate(
-  text: string,
-  lensInput: string | undefined,
-): number {
-  const lens = classifyLens(lensInput);
-  const candidateTokens = tokenSet(text);
-  const framingTokens = tokenSet(lens.framingBias.join(" "));
-  const preferenceTokens = tokenSet(lens.realizationPreferences.join(" "));
-  const framingFit = overlap(candidateTokens, framingTokens);
-  const preferenceFit = overlap(candidateTokens, preferenceTokens);
-
-  const antiGeneric =
-    /\b(?:beautiful|magical|special|incredible|perfect|amazing|wonderful|journey|moment)\b/i.test(clean(text))
-      ? 0.2
-      : 0;
-
-  return metric(
-    Math.max(
-      0,
-      framingFit * 0.52 +
-        preferenceFit * 0.28 +
-        lens.intensity * 0.2 -
-        antiGeneric,
-    ),
-  );
-}
-
-function domainContextText(
-  context: MouthCandidateGenerationInput["domainContext"],
-): string {
-  return context
-    ? [
-        context.category,
-        context.businessType,
-        context.businessName,
-        context.businessDescription,
-        context.serviceType,
-        context.serviceName,
-        context.subjectKind,
-        ...(context.knownCapabilities ?? []),
-        ...(context.contextualSignals ?? []),
-      ]
-        .map(clean)
-        .filter(Boolean)
-        .join(" | ")
-    : "";
-}
-
 export function buildMouthCandidateMessages(
   input: MouthCandidateGenerationInput,
 ): Array<{ role: "system" | "user"; content: string }> {
@@ -558,11 +517,12 @@ export function buildMouthCandidateMessages(
   }
 
   const messages = buildLegacyMessages(input);
+  const contextText = domainContextText(input.domainContext);
 
-  const domainContextInstruction = domainContextText(input.domainContext)
+  const domainContextInstruction = contextText
     ? [
         "DOMAIN CONTEXT IS CONTEXT, NOT FACT.",
-        `DOMAIN CONTEXT: ${domainContextText(input.domainContext)}`,
+        `DOMAIN CONTEXT: ${contextText}`,
         "Use this context to understand the service/world and discover better framing. Never convert an unstated service step into a new factual event.",
       ].join(" ")
     : "";
@@ -580,11 +540,10 @@ export function buildMouthCandidateMessages(
     "Use the lens to discover an unexpectedly exact framing of supplied meaning.",
     "Do not stop at literal restatement of what happened.",
     "Ask internally: what the fuck did that do to me?",
-    "Then ask: what did it make newly felt, newly meaningful, newly familiar, newly strange, newly possible, newly difficult, newly connected, newly wanted, or newly important?",
-    "Search for the deeper experiential consequence of the supplied reality before choosing the final wording.",
-    "The experiential consequence is an interpretation of supplied reality, not a new event or factual claim.",
-    "Do not merely paraphrase when the accumulated material supports a deeper consequence.",
-    "Let the realization express what changed inside the experience rather than explaining that change to the viewer.",
+    "Then ask what it made newly felt, newly meaningful, newly familiar, newly strange, newly possible, newly difficult, newly connected, newly wanted, or newly important.",
+    "Search for the deeper experiential consequence before choosing the final wording.",
+    "The experiential consequence is interpretation of supplied reality, not a new factual event.",
+    "Do not merely paraphrase an unexpected event as a sentence about its unexpectedness; discover what the unexpectedness actually changed or revealed.",
     "Look for meaningful collisions between things already established in the sequence.",
     "A collision may join meanings that seem opposite, distant, repetitive, unexpectedly compatible, newly familiar, newly strange, or newly important.",
     "Do not manufacture a contradiction. Discover a relationship already earned by the supplied material.",
@@ -593,39 +552,38 @@ export function buildMouthCandidateMessages(
     "When the approved meaning contains a state change, a direct transformation is a strong realization form: nerves eased, tension gave way, words flowed, time dissolved. Discover the actual wording; do not copy these examples.",
     "Prefer active transformation, continuation, contrast, recognition, consequence, imageable abstraction, or compressed residue when one naturally expresses the approved meaning.",
     "Article-led forms such as A, An, and The are fully allowed. Do not avoid them mechanically; prefer a more direct or active realization only when it is genuinely stronger.",
-    "Avoid bare conceptual labels that merely name an interpretation without making the experience newly observable.",
-    "Aim for grounded surprise: the wording can make the viewer think 'what the fuck was that?' and then immediately recognize why it fits.",
-    "Do not force a joke, metaphor, genre trope, or dramatic flourish when the supplied material does not earn it.",
+    "Do not equate shortness with quality. A tiny line is valuable when accumulated context gives it force; a longer line is valuable when it earns the extra words.",
+    "Obsessive repetition, fragments, questions, weird observations, and abrupt compression are allowed when they emerge naturally from the supplied world.",
+    "Do not force a joke, metaphor, genre trope, dramatic flourish, tension, romance, ominousness, or lesson when the supplied material does not earn it.",
     "The lens may change attitude, framing, status, implication, rhythm, or emotional interpretation; it may not add concrete reality.",
+    "Aim for grounded surprise: the wording can make the viewer think 'what the fuck was that?' and then immediately recognize why it fits.",
     "Prefer a line with a recognizable semantic anchor and a surprising realization over a merely poetic line.",
   ].join(" ");
 
-  return messages.map((message) => {
-    const beatLines = input.beats
-      .map((beat) => {
-        const shape = realityShapeForBeat(beat, input.envelope);
-        const source = sourceLabelsForBeat(beat, input.envelope);
+  const beatInstructions = input.beats
+    .map((beat) => {
+      const shape = realityShapeForBeat(beat, input.envelope);
+      const source = sourceLabelsForBeat(beat, input.envelope);
 
-        return [
-          `BEAT ${beat.order} REALITY SHAPE: ${shape}.`,
-          `BEAT ${beat.order} SUPPLIED MATERIAL: ${source.join(" | ") || "none"}.`,
-          shape === "stable"
-            ? "This beat contains stable supplied world knowledge, preference, habit, or persistent material. You may compress it, repeat it, obsess over it, compare it, joke about it, or give it attitude. Do not turn it into a new encounter, physical event, environmental condition, sensory occurrence, or chronology."
-            : shape === "state"
-              ? "This beat contains a supplied state. You may realize the state experientially or show a supported transformation of it. Do not invent a new physical event."
-              : shape === "event"
-                ? "This beat contains supplied event material. You may realize what happened, compress it, reframe it, connect it to the sequence, or let it participate in an actual story."
-                : "This beat contains supplied observational material. Keep the observation grounded while allowing expressive realization.",
-        ].join(" ");
-      })
-      .join(" ");
+      return [
+        `BEAT ${beat.order} REALITY SHAPE: ${shape}.`,
+        `BEAT ${beat.order} SUPPLIED MATERIAL: ${source.join(" | ") || "none"}.`,
+        shape === "stable"
+          ? "This beat contains stable supplied world knowledge, preference, habit, or persistent material. You may compress it, repeat it, obsess over it, compare it, joke about it, or give it attitude. Do not turn it into a new encounter, physical event, environmental condition, sensory occurrence, or chronology."
+          : shape === "state"
+            ? "This beat contains a supplied state. You may realize the state experientially or show a supported transformation of it. Do not invent a new physical event."
+            : shape === "event"
+              ? "This beat contains supplied event material. You may realize what happened, compress it, reframe it, connect it to the sequence, or let it participate in an actual story."
+              : "This beat contains supplied observational material. Keep the observation grounded while allowing expressive realization.",
+      ].join(" ");
+    })
+    .join(" ");
 
-    return {
-      ...message,
-      content:
-        `${message.content}\n${lensInstruction}\n${domainContextInstruction}\n${beatLines}`,
-    };
-  });
+  return messages.map((message) => ({
+    ...message,
+    content:
+      `${message.content}\n${lensInstruction}\n${domainContextInstruction}\n${beatInstructions}`,
+  }));
 }
 
 export function parseMouthCandidateBatch(
@@ -667,10 +625,7 @@ export function scoreMouthCandidate(input: {
   if (realityEscalationRisk >= 0.9) {
     return {
       ...legacy,
-      inventionRisk: Math.max(
-        1,
-        legacy.inventionRisk,
-      ),
+      inventionRisk: Math.max(1, legacy.inventionRisk),
       forbiddenMoveRisk: 1,
       supportedEventIds: [],
       groundingScore: Math.min(legacy.groundingScore, 0),
@@ -707,10 +662,17 @@ export function scoreMouthCandidate(input: {
     interpretation,
     lensInput,
   );
+  const experientialConsequence = experientialConsequenceSignal(
+    input.text,
+    sourceLabels,
+    input.beat,
+  );
 
   const strongExpressiveRealization =
-    expressiveRealization >= 0.66 &&
-    groundedSurprise >= 0.6;
+    expressiveRealization >= 0.66 && groundedSurprise >= 0.6;
+
+  const strongExperientialConsequence =
+    experientialConsequence >= 0.58 && groundedSurprise >= 0.58;
 
   const reasons = [
     ...new Set([
@@ -722,34 +684,37 @@ export function scoreMouthCandidate(input: {
         ? ["direct-transformation"]
         : []),
       ...(strongExpressiveRealization
-        ? [
-            "expressive-realization",
-            "grounded-surprise",
-          ]
+        ? ["expressive-realization", "grounded-surprise"]
+        : []),
+      ...(strongExperientialConsequence
+        ? ["experiential-consequence"]
         : []),
     ]),
   ];
 
   const meaningLift = metric(
-    interpretation.creativeFraming * 0.5 +
-      expressiveRealization * 0.24 +
-      lensFit * 0.1 +
-      groundedSurprise * 0.16,
+    interpretation.creativeFraming * 0.42 +
+      expressiveRealization * 0.22 +
+      experientialConsequence * 0.18 +
+      lensFit * 0.08 +
+      groundedSurprise * 0.1,
   );
 
   const transitionLift = metric(
-    legacy.transitionScore * 0.48 +
-      directTransformation * 0.18 +
-      expressiveRealization * 0.12 +
-      groundedSurprise * 0.14 +
-      lensFit * 0.08,
+    legacy.transitionScore * 0.42 +
+      directTransformation * 0.16 +
+      experientialConsequence * 0.18 +
+      expressiveRealization * 0.1 +
+      groundedSurprise * 0.1 +
+      lensFit * 0.04,
   );
 
   const scoreLift = metric(
-    legacy.score * 0.48 +
-      groundedSurprise * 0.24 +
-      expressiveRealization * 0.18 +
-      lensFit * 0.1,
+    legacy.score * 0.42 +
+      groundedSurprise * 0.22 +
+      expressiveRealization * 0.14 +
+      experientialConsequence * 0.14 +
+      lensFit * 0.08,
   );
 
   return {
@@ -767,26 +732,11 @@ export function scoreMouthCandidate(input: {
       authorizedEventIds.length > 0
         ? authorizedEventIds
         : legacy.supportedEventIds,
-    groundingScore: Math.max(
-      legacy.groundingScore,
-      0.5,
-    ),
-    obligationCoverage: Math.max(
-      legacy.obligationCoverage,
-      0.5,
-    ),
-    meaningScore: Math.max(
-      legacy.meaningScore,
-      meaningLift,
-    ),
-    transitionScore: Math.max(
-      legacy.transitionScore,
-      transitionLift,
-    ),
-    noveltyScore: Math.max(
-      legacy.noveltyScore,
-      0.75,
-    ),
+    groundingScore: Math.max(legacy.groundingScore, 0.5),
+    obligationCoverage: Math.max(legacy.obligationCoverage, 0.5),
+    meaningScore: Math.max(legacy.meaningScore, meaningLift),
+    transitionScore: Math.max(legacy.transitionScore, transitionLift),
+    noveltyScore: Math.max(legacy.noveltyScore, 0.75),
     reasons,
     score: Math.max(
       legacy.score,
