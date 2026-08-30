@@ -63,6 +63,7 @@ assert(
 );
 
 const templateData = asRecord(asset.templateData);
+
 const domainSignals = [
   asset.category,
   asset.account?.name,
@@ -91,8 +92,10 @@ assert(
 );
 
 const sessionId = crypto.randomUUID();
+
 const lens =
   process.env.QRE_AUTHOR_FULL_SYSTEM_LENS?.trim() || "fierce";
+
 const userId =
   process.env.QRE_AUTHOR_FULL_SYSTEM_USER_ID?.trim() || undefined;
 
@@ -102,7 +105,26 @@ const prompt =
 
 const memoryRepository = createMemoryRepository();
 
+let scanSessionCreated = false;
+
 try {
+  /*
+   * The Author acceptance uses one sessionId across the entire compile.
+   *
+   * AnalyticsEvent.sessionId is a real foreign key to ScanSession.id,
+   * so the test must create the corresponding ScanSession first.
+   */
+  await db.scanSession.create({
+    data: {
+      id: sessionId,
+      assetId: asset.id,
+      userId: userId ?? null,
+      status: "active",
+    },
+  });
+
+  scanSessionCreated = true;
+
   const beforeMemory = await memoryRepository.loadContext({
     assetId: asset.id,
     userId,
@@ -133,6 +155,21 @@ try {
   );
 
   assert(
+    !result.warnings?.includes("author_memory_analytics_failed"),
+    "AI_MEMORY_USED analytics persistence failed during compile",
+  );
+
+  assert(
+    !result.warnings?.includes("author_decision_analytics_failed"),
+    "AI_CINEMATIC_DECISION analytics persistence failed during compile",
+  );
+
+  assert(
+    !result.warnings?.includes("author_learning_analytics_failed"),
+    "AI_MEMORY_LEARNED analytics persistence failed during compile",
+  );
+
+  assert(
     result.authorDiagnostics &&
       typeof result.authorDiagnostics === "object",
     "Author diagnostics missing",
@@ -149,14 +186,17 @@ try {
     diagnostics.qualityStatus === "ACCEPTED",
     `Author quality status was ${String(diagnostics.qualityStatus)}`,
   );
+
   assert(
     diagnostics.complete === true,
     "Author sequence was incomplete",
   );
+
   assert(
     diagnostics.renderable === true,
     "Author result was not renderable",
   );
+
   assert(
     typeof diagnostics.selectedScore === "number" &&
       Number.isFinite(diagnostics.selectedScore),
@@ -167,10 +207,12 @@ try {
     result.moments.length > 0,
     "no authored moments were produced",
   );
+
   assert(
     result.cinematicScenes.length === result.moments.length,
     "cinematic scene count does not match moment count",
   );
+
   assert(
     result.beats?.length === result.moments.length,
     "beat count does not match authored moment count",
@@ -179,10 +221,12 @@ try {
   const authoringMeta = asRecord(
     asRecord(result.blueprint.metadata)?.authoring,
   );
+
   assert(
     authoringMeta?.realizationPath === "authorBrainCanonical",
     "canonical Author path was not recorded in the compiled experience",
   );
+
   assert(
     String(authoringMeta?.lens ?? "").toLowerCase() === lens.toLowerCase(),
     `lens did not survive compile boundary: expected ${lens}, got ${String(authoringMeta?.lens)}`,
@@ -208,6 +252,7 @@ try {
     assetId: asset.id,
     userId,
   });
+
   assert(
     learningAfter && typeof learningAfter === "object",
     "creative learning context could not be reloaded after authoring",
@@ -233,23 +278,29 @@ try {
     },
   });
 
-  const types = new Set(analyticsEvents.map((event) => event.type));
+  const types = new Set(
+    analyticsEvents.map((event) => event.type),
+  );
 
   assert(
     types.has(AnalyticsEventTypes.AI_MEMORY_USED),
     "AI_MEMORY_USED analytics event was not persisted",
   );
+
   assert(
     types.has(AnalyticsEventTypes.AI_CINEMATIC_DECISION),
     "AI_CINEMATIC_DECISION analytics event was not persisted",
   );
+
   assert(
     types.has(AnalyticsEventTypes.AI_MEMORY_LEARNED),
     "AI_MEMORY_LEARNED analytics event was not persisted",
   );
 
   assert(
-    analyticsEvents.every((event) => event.sessionId === sessionId),
+    analyticsEvents.every(
+      (event) => event.sessionId === sessionId,
+    ),
     "Author analytics events did not retain the compile session id",
   );
 
@@ -268,21 +319,40 @@ try {
 
   console.log("AUTHOR FULL SYSTEM ACCEPTANCE: PASS");
   console.log(`Asset=${asset.id}`);
-  console.log(`Subject=${String(result.blueprint.sourcePrompt ?? prompt).slice(0, 120)}`);
+  console.log(
+    `Subject=${String(result.blueprint.sourcePrompt ?? prompt).slice(0, 120)}`,
+  );
   console.log(`Lens=${lens}`);
+  console.log(`Session=${sessionId}`);
   console.log(`Moments=${result.moments.length}`);
   console.log(`Scenes=${result.cinematicScenes.length}`);
-  console.log(`MemoryBefore=${beforeMemory.entities}/${beforeMemory.facts}/${beforeMemory.relations}/${beforeMemory.events}`);
-  console.log(`MemoryAfter=${afterMemory.entities}/${afterMemory.facts}/${afterMemory.relations}/${afterMemory.events}`);
+  console.log(
+    `MemoryBefore=${beforeMemory.entities}/${beforeMemory.facts}/${beforeMemory.relations}/${beforeMemory.events}`,
+  );
+  console.log(
+    `MemoryAfter=${afterMemory.entities}/${afterMemory.facts}/${afterMemory.relations}/${afterMemory.events}`,
+  );
   console.log(`LearningSignals=${learningAfter.signals.length}`);
   console.log(`Analytics=${[...types].sort().join(",")}`);
 } finally {
+  /*
+   * Remove test analytics first because AnalyticsEvent.sessionId
+   * references the ScanSession created above.
+   */
   await db.analyticsEvent.deleteMany({
     where: {
       assetId: asset.id,
       sessionId,
     },
   });
+
+  if (scanSessionCreated) {
+    await db.scanSession.delete({
+      where: {
+        id: sessionId,
+      },
+    });
+  }
 
   await db.$disconnect();
 }

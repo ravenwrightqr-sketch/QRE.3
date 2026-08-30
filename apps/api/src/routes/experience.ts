@@ -145,16 +145,17 @@ router.post("/compile", requireAuth, async (req, res) => {
     }
 
     const geo = rawGeo ? await enrichGeo(rawGeo) : undefined;
-
+    const sessionId = randomUUID();
     const experience = await compileExperience({
-      prompt,
-      assetId,
-      userId: req.user?.userId,
-      memoryRepository: assetId ? createMemoryRepository() : undefined,
-      geoAnchor: geo,
-      movieMode,
-    });
-
+  prompt,
+  assetId,
+  userId: req.user?.userId,
+  sessionId,
+  memoryRepository: assetId ? createMemoryRepository() : undefined,
+  geoAnchor: geo,
+  movieMode,
+  lens,
+});
     const warnings = [...(experience.warnings ?? [])];
 
     if (

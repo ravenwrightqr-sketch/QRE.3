@@ -97,15 +97,45 @@ if (/compileCognitiveExperience/.test(canonicalSource)) fail("Canonical Author m
 const acceptanceSource = existsSync(join(root, acceptance)) ? read(acceptance) : "";
 if (!/authorBrainCanonical\.js/.test(acceptanceSource)) fail("Acceptance must invoke authorBrainCanonical directly");
 if (/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource)) fail("Acceptance contains a legacy Author path");
-
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-if (!/sourceForBeat/.test(mouthSource)) warn("Mouth provenance helper is not visibly named sourceForBeat");
-if (!/Only event IDs resolve into source labels/.test(mouthSource)) fail("Mouth must explicitly document event-ID-only provenance");
-if (!/eventIds \?\? \[\]/.test(mouthSource) || !/eventLabel\(envelope, id\)/.test(mouthSource)) {
-  fail("Mouth source provenance must resolve labels only from beat eventIds");
+
+if (!/sourceForBeat\s*\(/.test(mouthSource)) {
+  fail("Mouth must resolve source labels through sourceForBeat");
 }
-if (/setsUp\s*\?\.?.*map\(|paysOff\s*\?\.?.*map\(/s.test(mouthSource) && /eventLabel\(envelope,/.test(mouthSource)) {
-  warn("Mouth contains setsUp/paysOff mapping logic; inspect manually if those values ever become source labels");
+
+if (!/eventIds\s*\?\?\s*\[\]/.test(mouthSource)) {
+  fail("Mouth source provenance must read only beat.eventIds");
+}
+
+const eventLabelMatch = mouthSource.match(
+  /function\s+eventLabel\s*\([\s\S]*?\n\}/,
+);
+
+if (!eventLabelMatch) {
+  fail("Mouth must define eventLabel for source provenance");
+} else {
+  const eventLabelSource = eventLabelMatch[0];
+
+  if (!/envelope\.events\.find\s*\(/.test(eventLabelSource)) {
+    fail("eventLabel must resolve against envelope.events");
+  }
+
+  if (!/event\.id\s*===\s*id/.test(eventLabelSource)) {
+    fail("eventLabel must match events by event ID");
+  }
+
+  if (!/label/.test(eventLabelSource)) {
+    fail("eventLabel must return the matched event label");
+  }
+}
+
+if (
+  /setsUp\s*\?\..*map\(|paysOff\s*\?\..*map\(/s.test(mouthSource) &&
+  /eventLabel\s*\(\s*envelope\s*,/.test(mouthSource)
+) {
+  warn(
+    "Mouth contains setsUp/paysOff mapping logic; inspect manually if those values ever become source labels",
+  );
 }
 
 const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";

@@ -80,7 +80,16 @@ for (const file of walk(join(root, "apps/api/src")).filter((path) => /\.(ts|tsx|
 const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
 check("canonical:cognition", /buildAuthorCognitivePlan\s*\(/.test(canonicalSource), "Author invokes canonical cognition");
 check("canonical:graph", /buildAuthorRealityGraph\s*\(/.test(canonicalSource), "Author builds source RealityGraph");
-check("canonical:movie", /searchUniversalMovieCandidates\s*\(/.test(canonicalSource), "Author searches/selects latent movie");
+const cognitionSource = existsSync(join(root, cognition))
+  ? read(cognition)
+  : "";
+
+check(
+  "cognition:movie",
+  /searchUniversalMovieCandidates\s*\(/.test(cognitionSource)
+    && /selectedMovie/.test(cognitionSource),
+  "Cognition owns movie discovery and selected-movie authority",
+);
 check("canonical:mouth", /buildMouthCandidateMessages\s*\(/.test(canonicalSource) && /selectBestMouthSequence\s*\(/.test(canonicalSource), "Author owns Mouth realization and sequence selection");
 check("canonical:attention", /editAttentionSequence\s*\(/.test(canonicalSource), "Author runs attention editing");
 check("canonical:arc", /evaluateSequenceArc\s*\(/.test(canonicalSource), "Author runs sequence arc gate");

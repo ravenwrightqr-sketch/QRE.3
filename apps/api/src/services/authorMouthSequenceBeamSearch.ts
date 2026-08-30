@@ -418,7 +418,132 @@ function isExperientialGold(
     "experiential-realization",
   );
 }
+/**
+ * A semantic collision happens when the current realization sits between
+ * two already-established meanings and makes their relationship newly
+ * interesting.
+ *
+ * This is not a contradiction requirement and not a synonym detector.
+ *
+ * Examples of the structural shape:
+ *
+ *   unexpected + familiar -> a realization of both
+ *   nervous + powerful   -> a realization of both
+ *   repetition + novelty -> a realization of both
+ *
+ * The sequence may collide without using overlapping vocabulary.
+ */
+function semanticCollision(
+  candidate: MouthCandidate,
+  priorTexts: readonly string[],
+): number {
+  if (priorTexts.length < 2) {
+    return 0;
+  }
 
+  const current = tokenSet(candidate.text);
+
+  const latest = tokenSet(
+    priorTexts[priorTexts.length - 1],
+  );
+
+  const earlier = priorTexts
+    .slice(0, -1)
+    .map(tokenSet);
+
+  const latestOverlap = overlap(
+    current,
+    latest,
+  );
+
+  const earlierOverlap = earlier.length
+    ? Math.max(
+        ...earlier.map((text) =>
+          overlap(current, text),
+        ),
+      )
+    : 0;
+
+  /*
+   * A bridge is interesting when it does not simply repeat the latest cut,
+   * but still connects meaningfully to something earlier.
+   */
+  const bridge =
+    earlierOverlap >= 0.12 &&
+    latestOverlap < 0.62
+      ? clamp01(
+          earlierOverlap -
+            latestOverlap +
+            0.42,
+        )
+      : 0;
+
+  /*
+   * Expressive candidates are allowed to carry meaning that is not present
+   * as literal vocabulary in either neighboring line.
+   */
+  const expressive =
+    isExperientialGold(candidate) ||
+    isDistinctiveGold(candidate) ||
+    isSemanticGold(candidate)
+      ? 0.18
+      : 0;
+
+  /*
+   * Contrastive language is one possible collision form, but never required.
+   */
+  const contrastive =
+    /\b(?:but|yet|still|almost|nothing|everything|never|not|no|again|already|finally|somehow|unexpected|familiar|strange|different|same|again)\b/i.test(
+      candidate.text,
+    )
+      ? 0.16
+      : 0;
+
+  /*
+   * Short realizations can carry a collision more powerfully once context
+   * has accumulated.
+   */
+  const words =
+    clean(candidate.text)
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+
+  const compression =
+    words <= 3
+      ? 0.14
+      : words <= 7
+        ? 0.06
+        : 0;
+
+  /*
+   * Form interruption helps the collision register as a new arrival.
+   */
+  const currentShape =
+    rhetoricalShape(candidate.text);
+
+  const recentShapes =
+    priorTexts
+      .slice(-2)
+      .map(rhetoricalShape);
+
+  const formBreak =
+    recentShapes.length > 0 &&
+    recentShapes.every(
+      (shape) =>
+        shape !== currentShape,
+    )
+      ? 0.1
+      : 0;
+
+  return clamp01(
+    bridge * 0.34 +
+      expressive +
+      contrastive +
+      compression +
+      formBreak,
+  );
+}
 function isSafe(
   candidate: MouthCandidate,
 ): boolean {
@@ -788,7 +913,11 @@ function sequenceEffect(
     )
       ? 0.12
       : 0;
-
+    const collision =
+  semanticCollision(
+    candidate,
+    priorTexts,
+  );
   return clamp01(
     freshTerritory * 0.16 +
       connectiveTurn +
@@ -805,7 +934,8 @@ function sequenceEffect(
       recontextualizingReturn +
       experientialContext +
       rhythmBreak +
-      semanticReturn,
+      semanticReturn+
+      collision * 0.32,
   );
 }
 
@@ -1015,7 +1145,11 @@ function pathCandidateScore(
       candidate,
       priorTexts,
     );
-
+    const collision =
+  semanticCollision(
+    candidate,
+    priorTexts,
+  );
   const candidateGold =
     semanticGoldPotential(
       candidate,
@@ -1153,9 +1287,10 @@ function pathCandidateScore(
       semanticPriority +
       distinctivePriority +
       firePriority +
-      formNovelty,
+      formNovelty+
+      collision * 0.12,
   );
-}
+} 
 
 /**
  * Base candidate rank.

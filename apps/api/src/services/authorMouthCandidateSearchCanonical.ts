@@ -508,7 +508,26 @@ function groundedSurpriseForCandidate(
       safety * 0.02,
   );
 }
-
+function domainContextText(
+  context: MouthCandidateGenerationInput["domainContext"],
+): string {
+  return context
+    ? [
+        context.category,
+        context.businessType,
+        context.businessName,
+        context.businessDescription,
+        context.serviceType,
+        context.serviceName,
+        context.subjectKind,
+        ...(context.knownCapabilities ?? []),
+        ...(context.contextualSignals ?? []),
+      ]
+        .map(clean)
+        .filter(Boolean)
+        .join(" | ")
+    : "";
+}
 export function buildMouthCandidateMessages(
   input: MouthCandidateGenerationInput,
 ): Array<{ role: "system" | "user"; content: string }> {
