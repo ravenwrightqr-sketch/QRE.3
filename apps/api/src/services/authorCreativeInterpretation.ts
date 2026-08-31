@@ -131,13 +131,6 @@ function buildCandidate(
   };
 }
 
-function sequenceIds(
-  orderedEventIds: readonly string[],
-  predicate: (label: string) => boolean,
-): string[] {
-  return orderedEventIds.filter((id) => predicate(labelFor as never));
-}
-
 function span(
   orderedEventIds: readonly string[],
   selectedIds: readonly string[],
