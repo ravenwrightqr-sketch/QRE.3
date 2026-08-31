@@ -236,8 +236,8 @@ function buildEvents(
 }
 
 export function buildExperienceMemoryBatch(input: {
-  assetId: string;
   operationId?: string;
+  assetId: string;
   userId?: string;
   graph: RealityGraph;
   sessionId?: string;
