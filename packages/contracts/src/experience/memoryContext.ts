@@ -110,6 +110,7 @@ export type MemoryRelationWrite = Omit<MemoryRelation, "id"> & { id?: string };
 export type MemoryEventWrite = Omit<MemoryEvent, "id"> & { id?: string };
 
 export type MemoryWriteBatch = {
+  operationId?: string;
   assetId: string;
   userId?: string;
   entities: Array<Omit<MemoryEntity, "id" | "createdAt" | "updatedAt"> & { id?: string }>;
