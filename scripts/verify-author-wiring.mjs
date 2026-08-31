@@ -126,7 +126,13 @@ check("interpretation:creative-lane", /creativeFraming/.test(interpretationSourc
 check("interpretation:concrete-risk", /unsupportedConcreteRisk/.test(interpretationSource), "Interpretation measures concrete invention risk");
 
 const beamSource = existsSync(join(root, beam)) ? read(beam) : "";
-check("beam:creative-ranking", /semanticQuality/.test(beamSource) && /sequenceFit/.test(beamSource), "Beam ranks semantic quality and sequence fit");
+check(
+  "beam:creative-ranking",
+  /viewerStateFit\s*\(/.test(beamSource)
+    && /sequenceTransition\s*\(/.test(beamSource)
+    && /expressionQuality\s*\(/.test(beamSource),
+  "Beam ranks semantic/state quality, sequence transition, and expression quality",
+);
 check("beam:safety", /inventionRisk/.test(beamSource) && /forbiddenMoveRisk/.test(beamSource), "Beam enforces invention safety");
 
 console.log("=== QRE AUTHOR WIRING GUARD ===");
