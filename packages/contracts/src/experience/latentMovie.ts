@@ -33,6 +33,19 @@ export type LatentMovie = {
   continuation?: string;
 };
 
+/**
+ * One internal observer-facing objective derived from the winning semantic
+ * interpretation. It is direction for realization, never viewer prose.
+ */
+export type ObserverExperienceObjective = {
+  objective: string;
+  surprise: string;
+  curiosity: string;
+  attention: string[];
+  landing: string;
+  explanationForbidden: boolean;
+};
+
 export type LatentStoryThesis = {
   initialReading: string;
   semanticTurn: string;
@@ -45,6 +58,7 @@ export type LatentStoryThesis = {
   sealingEventIds: string[];
   payoffDependency: string;
   counterfactualDependency: number;
+  observerExperience?: ObserverExperienceObjective;
 };
 
 /** A semantic hypothesis discovered from RealityGraph. It is never source truth. */
