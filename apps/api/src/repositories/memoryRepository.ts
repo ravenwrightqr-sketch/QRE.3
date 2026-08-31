@@ -223,14 +223,25 @@ export function createMemoryRepository(): MemoryRepository {
 
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO "qre_memory_audit"
-            ("id", "asset_id", "user_id", "operation", "target_type", "payload")
+            ("id", "asset_id", "user_id", "operation_id", "operation", "target_type", "payload")
           VALUES
-            (${randomUUID()}, ${batch.assetId}, ${batch.userId ?? null}, 'memory_batch', 'memory', ${json({
-              entityCount: batch.entities.length,
-              factCount: batch.facts.length,
-              relationCount: batch.relations.length,
-              eventCount: batch.events.length,
-            })})
+            (
+              ${randomUUID()},
+              ${batch.assetId},
+              ${batch.userId ?? null},
+              ${batch.operationId ?? null},
+              'memory_batch',
+              'memory',
+              ${json({
+                entityCount: batch.entities.length,
+                factCount: batch.facts.length,
+                relationCount: batch.relations.length,
+                eventCount: batch.events.length,
+              })}
+            )
+          ON CONFLICT ("operation_id")
+          WHERE "operation_id" IS NOT NULL
+          DO NOTHING
         `);
       });
     },
