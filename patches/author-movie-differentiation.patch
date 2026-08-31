@@ -1,0 +1,37 @@
+diff --git a/apps/api/src/services/authorCognition.ts b/apps/api/src/services/authorCognition.ts
+index 01d137f..REPLACE 100644
+--- a/apps/api/src/services/authorCognition.ts
++++ b/apps/api/src/services/authorCognition.ts
+@@ -3,6 +3,7 @@ import type {
+ } from "@qre/contracts";
+ import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
+ import { rerankByViewerState } from "./authorViewerState.js";
++import { selectDistinctMovieCandidates } from "./authorMovieDifferentiation.js";
+ import {
+   buildAuthorExperienceState,
+   summarizeAuthorExperienceState,
+@@ -622,10 +623,12 @@ function movieFor(
+   searched.map((candidate) =>
+     enrichMovieCandidate(
+       candidate,
+       input.realityGraph,
+     ),
+   );
+ 
++const differentiated =
++  selectDistinctMovieCandidates(
++    enriched,
++    6,
++  );
++
+ const candidates =
+   rerankByViewerState(
+     input.realityGraph,
+-    enriched,
++    differentiated,
+   );
+ 
+ return {
+   latentMovieCandidates: candidates,
+   selectedMovie: candidates[0],
+ };
