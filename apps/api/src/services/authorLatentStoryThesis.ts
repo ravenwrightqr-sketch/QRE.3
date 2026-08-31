@@ -9,8 +9,11 @@
  * Rules:
  *   - payoff is not a semantic turn
  *   - the carrier must participate in the selected turn
- *   - sealing evidence must occur after the turn when possible
+ *   - sealing evidence should occur after the turn when possible
  *   - counterfactual dependency measures path dependence, not graph density
+ *   - when graph edges are too sparse, supplied sequence language may still
+ *     establish a semantic interpretation; that interpretation is not a fact
+ *     and never becomes reality merely because cognition derives it
  *
  * This module is domain-neutral. No example, industry, object, or entity type
  * is special-cased here.
@@ -22,6 +25,7 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
+import { deriveSequenceBackedCreativeInterpretation } from "./authorCreativeInterpretation.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -78,12 +82,16 @@ function relationPriority(kind: RealityRelation["kind"]): number {
   }
 }
 
-function meaningfulTurnSteps(
-  candidate: LatentMovieCandidate,
-): Array<{
+type StructuralTurn = {
   step: LatentMovieTrajectoryStep;
   index: number;
-}> {
+  relation?: RealityRelation;
+  interpretation?: string;
+};
+
+function meaningfulTurnSteps(
+  candidate: LatentMovieCandidate,
+): Array<{ step: LatentMovieTrajectoryStep; index: number }> {
   return candidate.trajectory
     .map((step, index) => ({ step, index }))
     .filter(
@@ -97,11 +105,7 @@ function meaningfulTurnSteps(
 function strongestStructuralTurn(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
-): {
-  step: LatentMovieTrajectoryStep;
-  index: number;
-  relation: RealityRelation;
-} | undefined {
+): StructuralTurn | undefined {
   const explicit = meaningfulTurnSteps(candidate)
     .map(({ step, index }) => {
       const relation = relationBetween(
@@ -138,9 +142,7 @@ function strongestStructuralTurn(
 
   const endpoint = endpointId(candidate);
   const support = unique(
-    candidate.trajectory.flatMap(
-      (step) => step.eventIds,
-    ),
+    candidate.trajectory.flatMap((step) => step.eventIds),
   ).filter((id) => id !== endpoint);
 
   const fallback: Array<{
@@ -176,31 +178,72 @@ function strongestStructuralTurn(
     return bScore - aScore;
   })[0];
 
-  if (!best) return undefined;
+  if (best) {
+    const synthetic: LatentMovieTrajectoryStep = {
+      order: 2,
+      operation:
+        best.relation.kind === "contrasts"
+          ? "contrast"
+          : best.relation.kind === "recontextualizes"
+            ? "reframe"
+            : best.relation.kind === "repeats"
+              ? "recur"
+              : best.relation.kind === "converges"
+                ? "converge"
+                : best.relation.kind === "changes"
+                  ? "reveal"
+                  : "consequence",
+      eventIds: [best.from, best.to],
+      viewerChange: `${best.relation.kind}: ${eventLabel(graph, best.from)} -> ${eventLabel(graph, best.to)}.`,
+      nextQuestion: "What later supplied evidence makes this change matter?",
+    };
 
-  const synthetic: LatentMovieTrajectoryStep = {
-    order: 2,
-    operation:
-      best.relation.kind === "contrasts"
-        ? "contrast"
-        : best.relation.kind === "recontextualizes"
-          ? "reframe"
-          : best.relation.kind === "repeats"
-            ? "recur"
-            : best.relation.kind === "converges"
-              ? "converge"
-              : best.relation.kind === "changes"
-                ? "reveal"
-                : "consequence",
-    eventIds: [best.from, best.to],
-    viewerChange: `${best.relation.kind}: ${eventLabel(graph, best.from)} -> ${eventLabel(graph, best.to)}.`,
-    nextQuestion: "What later supplied evidence makes this change matter?",
-  };
+    return {
+      step: synthetic,
+      index: 1,
+      relation: best.relation,
+    };
+  }
+
+  /*
+   * A sparse graph does not mean a flat experience.
+   *
+   * The source sequence itself can contain an earned semantic progression:
+   * unexpected -> state -> continuation, encounter -> continuation, action ->
+   * state, recurrence, or supplied contrast. Those are interpretations over
+   * explicit language, not newly invented facts.
+   */
+  const sequenceInterpretation =
+    deriveSequenceBackedCreativeInterpretation(
+      graph,
+      candidate,
+    );
+
+  if (!sequenceInterpretation) return undefined;
+
+  const operation: LatentMovieTrajectoryStep["operation"] =
+    sequenceInterpretation.mechanism === "contrast"
+      ? "contrast"
+      : sequenceInterpretation.mechanism === "recurrence"
+        ? "recur"
+        : sequenceInterpretation.mechanism === "convergence"
+          ? "converge"
+          : sequenceInterpretation.mechanism === "expectation_shift"
+            ? "reframe"
+            : sequenceInterpretation.mechanism === "state_change"
+              ? "reveal"
+              : "consequence";
 
   return {
-    step: synthetic,
+    step: {
+      order: 2,
+      operation,
+      eventIds: sequenceInterpretation.evidenceEventIds,
+      viewerChange: sequenceInterpretation.statement,
+      nextQuestion: "What does this newly meaningful relationship make possible next?",
+    },
     index: 1,
-    relation: best.relation,
+    interpretation: sequenceInterpretation.statement,
   };
 }
 
@@ -220,15 +263,15 @@ function buildInitialReading(
 
 function buildSemanticTurn(
   graph: RealityGraph,
-  turn:
-    | {
-        step: LatentMovieTrajectoryStep;
-        index: number;
-        relation: RealityRelation;
-      }
-    | undefined,
+  turn: StructuralTurn | undefined,
 ): string {
   if (!turn) return "";
+
+  if (turn.interpretation) {
+    return clean(turn.interpretation);
+  }
+
+  if (!turn.relation) return "";
 
   const from = eventLabel(
     graph,
@@ -248,13 +291,7 @@ function buildSemanticTurn(
 
 function chooseCarrierIds(
   graph: RealityGraph,
-  turn:
-    | {
-        step: LatentMovieTrajectoryStep;
-        index: number;
-        relation: RealityRelation;
-      }
-    | undefined,
+  turn: StructuralTurn | undefined,
   candidate: LatentMovieCandidate,
 ): string[] {
   if (!turn) return [];
@@ -279,17 +316,14 @@ function chooseCarrierIds(
             relation.to === id,
         )
         .reduce(
-          (sum, relation) =>
-            sum + relation.strength,
+          (sum, relation) => sum + relation.strength,
           0,
         ),
     }))
     .sort(
       (a, b) =>
-        b.laterParticipation -
-          a.laterParticipation ||
-        b.relationStrength -
-          a.relationStrength,
+        b.laterParticipation - a.laterParticipation ||
+        b.relationStrength - a.relationStrength,
     )
     .slice(0, 1)
     .map((item) => item.id);
@@ -297,13 +331,7 @@ function chooseCarrierIds(
 
 function chooseSealingIds(
   graph: RealityGraph,
-  turn:
-    | {
-        step: LatentMovieTrajectoryStep;
-        index: number;
-        relation: RealityRelation;
-      }
-    | undefined,
+  turn: StructuralTurn | undefined,
   carriers: readonly string[],
   candidate: LatentMovieCandidate,
 ): string[] {
@@ -314,7 +342,9 @@ function chooseSealingIds(
   const candidates: Array<{ id: string; score: number }> = [];
   const pushCandidate = (id: string, score: number) => {
     if (!id || carrierSet.has(id) || id === endpoint) return;
-    if (!candidates.some((item) => item.id === id)) candidates.push({ id, score });
+    if (!candidates.some((item) => item.id === id)) {
+      candidates.push({ id, score });
+    }
   };
 
   // Prefer evidence that appears after the turn in the selected trajectory.
@@ -324,7 +354,8 @@ function chooseSealingIds(
       const carrierRelation = carriers.some((carrier) => Boolean(relationBetween(graph, carrier, id)));
       pushCandidate(
         id,
-        (step.operation === "payoff" ? 0.2 : 0.7) + (carrierRelation ? 0.3 : 0),
+        (step.operation === "payoff" ? 0.2 : 0.7) +
+          (carrierRelation ? 0.3 : 0),
       );
     }
   }
@@ -332,15 +363,27 @@ function chooseSealingIds(
   // When the selected trajectory is only establish -> turn -> payoff,
   // recover a distinct sealing event from source evidence instead of failing the thesis.
   if (!candidates.length) {
-    const trajectoryIds = new Set(candidate.trajectory.flatMap((step) => step.eventIds));
+    const trajectoryIds = new Set(
+      candidate.trajectory.flatMap((step) => step.eventIds),
+    );
     for (const relation of graph.relations) {
-      const touchesCarrier = carriers.some((carrier) => relation.from === carrier || relation.to === carrier);
+      const touchesCarrier = carriers.some(
+        (carrier) =>
+          relation.from === carrier ||
+          relation.to === carrier,
+      );
       if (!touchesCarrier) continue;
 
-      const otherId = carriers.includes(relation.from) ? relation.to : relation.from;
+      const otherId = carriers.includes(relation.from)
+        ? relation.to
+        : relation.from;
       if (trajectoryIds.has(otherId) || otherId === endpoint) continue;
 
-      pushCandidate(otherId, relation.strength * 0.75 + relationPriority(relation.kind) * 0.25);
+      pushCandidate(
+        otherId,
+        relation.strength * 0.75 +
+          relationPriority(relation.kind) * 0.25,
+      );
     }
   }
 
@@ -349,6 +392,7 @@ function chooseSealingIds(
     .map((item) => item.id)
     .slice(0, 2);
 }
+
 function buildPayoffDependency(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -388,13 +432,7 @@ function buildPayoffDependency(
 function counterfactualDependency(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
-  turn:
-    | {
-        step: LatentMovieTrajectoryStep;
-        index: number;
-        relation: RealityRelation;
-      }
-    | undefined,
+  turn: StructuralTurn | undefined,
   carriers: readonly string[],
 ): number {
   if (!turn || !carriers.length) return 0;
@@ -406,45 +444,28 @@ function counterfactualDependency(
   );
 
   const carrier = carriers[0];
-  const laterSteps = meaningful.filter((step) =>
-    candidate.trajectory.indexOf(step) > turn.index,
+  const laterSteps = meaningful.filter(
+    (step) => candidate.trajectory.indexOf(step) > turn.index,
   );
 
   const dependentLaterSteps = laterSteps.filter((step) => {
     if (step.eventIds.includes(carrier)) return true;
 
     return step.eventIds.some((id) =>
-      Boolean(
-        relationBetween(
-          graph,
-          carrier,
-          id,
-        ),
-      ),
+      Boolean(relationBetween(graph, carrier, id)),
     );
   });
 
   const downstream =
     laterSteps.length > 0
-      ? dependentLaterSteps.length /
-        laterSteps.length
+      ? dependentLaterSteps.length / laterSteps.length
       : 0;
 
-  const turnAnchored = turn.step.eventIds.includes(
-    carrier,
-  )
-    ? 1
-    : 0;
+  const turnAnchored = turn.step.eventIds.includes(carrier) ? 1 : 0;
 
   const endpoint = endpointId(candidate);
   const endpointLinked = endpoint
-    ? Boolean(
-        relationBetween(
-          graph,
-          carrier,
-          endpoint,
-        ),
-      )
+    ? Boolean(relationBetween(graph, carrier, endpoint))
     : false;
 
   return metric(
@@ -453,6 +474,7 @@ function counterfactualDependency(
       (endpointLinked ? 0.2 : 0),
   );
 }
+
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -462,100 +484,52 @@ export function deriveLatentStoryThesis(
     candidate,
   );
 
-  const carrierEventIds =
-    chooseCarrierIds(
-      graph,
-      turn,
-      candidate,
-    );
+  const carrierEventIds = chooseCarrierIds(
+    graph,
+    turn,
+    candidate,
+  );
 
-  const sealingEventIds =
-    chooseSealingIds(
-      graph,
-      turn,
-      carrierEventIds,
-      candidate,
-    ).filter(
-      (id) =>
-        !carrierEventIds.includes(
-          id,
-        ),
-    );
+  const sealingEventIds = chooseSealingIds(
+    graph,
+    turn,
+    carrierEventIds,
+    candidate,
+  ).filter(
+    (id) => !carrierEventIds.includes(id),
+  );
 
-  const turnFromId =
-    turn?.step.eventIds[0] ??
-    "";
+  const turnFromId = turn?.step.eventIds[0] ?? "";
+  const turnToId = turn?.step.eventIds[1] ?? "";
 
-  const turnToId =
-    turn?.step.eventIds[1] ??
-    "";
+  const beforeMeaning = turnFromId
+    ? [eventLabel(graph, turnFromId)].filter(Boolean)
+    : [];
 
-  const beforeMeaning =
-    turnFromId
-      ? [
-          eventLabel(
-            graph,
-            turnFromId,
-          ),
-        ].filter(Boolean)
-      : [];
-
-  const afterMeaning =
-    turnToId
-      ? [
-          eventLabel(
-            graph,
-            turnToId,
-          ),
-        ].filter(Boolean)
-      : [];
+  const afterMeaning = turnToId
+    ? [eventLabel(graph, turnToId)].filter(Boolean)
+    : [];
 
   return {
-    initialReading:
-      buildInitialReading(
-        candidate,
-      ),
-
-    semanticTurn:
-      buildSemanticTurn(
-        graph,
-        turn,
-      ),
-
+    initialReading: buildInitialReading(candidate),
+    semanticTurn: buildSemanticTurn(graph, turn),
     beforeMeaning,
-
     afterMeaning,
-
-    beforeEventIds:
-      turnFromId
-        ? [turnFromId]
-        : [],
-
-    afterEventIds:
-      turnToId
-        ? [turnToId]
-        : [],
-
-    relationKind:
-      turn?.relation.kind,
-
+    beforeEventIds: turnFromId ? [turnFromId] : [],
+    afterEventIds: turnToId ? [turnToId] : [],
+    relationKind: turn?.relation?.kind,
     carrierEventIds,
-
     sealingEventIds,
-
-    payoffDependency:
-      buildPayoffDependency(
-        graph,
-        candidate,
-        carrierEventIds,
-      ),
-
-    counterfactualDependency:
-      counterfactualDependency(
-        graph,
-        candidate,
-        turn,
-        carrierEventIds,
-      ),
+    payoffDependency: buildPayoffDependency(
+      graph,
+      candidate,
+      carrierEventIds,
+    ),
+    counterfactualDependency: counterfactualDependency(
+      graph,
+      candidate,
+      turn,
+      carrierEventIds,
+    ),
   };
 }
