@@ -297,7 +297,23 @@ function unsupportedConcreteClaimRisk(
       candidateTokens,
       sourceTokens,
     );
+   const directlySuppliedSource =
+  sourceLabels.some((label) => {
+    const labelTokens = meaningfulTokenSet(label);
 
+    if (!labelTokens.size || !candidateTokens.size) {
+      return false;
+    }
+
+    return (
+      overlap(candidateTokens, labelTokens) === 1 &&
+      overlap(labelTokens, candidateTokens) === 1
+    );
+  });
+
+if (directlySuppliedSource) {
+  return 0;
+}
   /*
    * Direct experiential transformation is allowed when the supplied
    * material actually supports that kind of transformation.

@@ -227,7 +227,7 @@ function wordCount(
  * The Beam chooses among already-authorized candidates.
  * It never repairs authorization.
  */
-function authorized(
+export function isAuthorizedMouthCandidate(
   candidate: MouthCandidate,
 ): boolean {
   const text =
@@ -1998,7 +1998,7 @@ export function selectBestMouthSequence(
         pool.candidates,
       )
         .filter(
-          authorized,
+          isAuthorizedMouthCandidate,
         )
         .sort(
           compareCandidates,

@@ -31,6 +31,7 @@ import { editAttentionSequence } from "./authorAttentionEditor.js";
 import { evaluateSequenceArc } from "./authorSequenceArcGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 import {
+  isAuthorizedMouthCandidate,
   selectBestMouthSequence,
 } from "./authorMouthSequenceBeamSearch.js";
 const clean = (value: unknown): string =>
@@ -307,18 +308,9 @@ function mouthBeats(
 
         attentionFunction,
 
-        eventIds:
-          index ===
-            movie.trajectory.length - 1 &&
-          movie.storyThesis
-            ?.sealingEventIds?.length
-            ? unique(
-                movie.storyThesis
-                  .sealingEventIds,
-              )
-            : unique(
-                step.eventIds,
-              ),
+        eventIds: unique(
+  step.eventIds,
+),
 
         change,
 
@@ -1183,15 +1175,17 @@ export async function authorBrainCanonical(
               beat.order,
           );
 
-        if (
-          generatedPool &&
-          generatedPool
-            .candidates
-            .length >
-            0
-        ) {
-          return generatedPool;
-        }
+        const hasAuthorizedCandidate =
+  generatedPool?.candidates.some(
+    isAuthorizedMouthCandidate,
+  ) ?? false;
+
+if (
+  generatedPool &&
+  hasAuthorizedCandidate
+) {
+  return generatedPool;
+}
 
         recoveryUsed =
           true;

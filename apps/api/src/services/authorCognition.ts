@@ -6,6 +6,7 @@ import type {
 } from "@qre/contracts";
 import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
 import { rerankByViewerState } from "./authorViewerState.js";
+import { selectDistinctMovieCandidates } from "./authorMovieDifferentiation.js";
 import {
   buildAuthorExperienceState,
   summarizeAuthorExperienceState,
@@ -639,10 +640,16 @@ const enriched =
     ),
   );
 
+const differentiated =
+  selectDistinctMovieCandidates(
+    enriched,
+    6,
+  );
+
 const candidates =
   rerankByViewerState(
     input.realityGraph,
-    enriched,
+    differentiated,
   );
 
 return {
