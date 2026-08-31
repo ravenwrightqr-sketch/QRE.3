@@ -106,6 +106,18 @@ function strongestStructuralTurn(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): StructuralTurn | undefined {
+  const sequenceInterpretation =
+    deriveSequenceBackedCreativeInterpretation(
+      graph,
+      candidate,
+    );
+
+  const sequenceInterpretationScore =
+    sequenceInterpretation
+      ? sequenceInterpretation.confidence +
+        sequenceInterpretation.evidenceEventIds.length * 0.08
+      : 0;
+
   const explicit = meaningfulTurnSteps(candidate)
     .map(({ step, index }) => {
       const relation = relationBetween(
@@ -136,8 +148,55 @@ function strongestStructuralTurn(
     )
     .sort((a, b) => b.score - a.score);
 
-  if (explicit.length) {
-    return explicit[0];
+  const bestExplicit = explicit[0];
+
+  /*
+   * A multi-event interpretation is preferred when it explains materially
+   * more of the supplied sequence than a weak pairwise graph edge. This is
+   * the distinction between:
+   *
+   *   "kept talking -> felt easy"
+   *
+   * and:
+   *
+   *   "what began unexpectedly acquired a reason to continue."
+   *
+   * The latter is still grounded entirely in supplied events; it simply
+   * captures the relationship among more of them.
+   */
+  if (
+    sequenceInterpretation &&
+    (
+      !bestExplicit ||
+      sequenceInterpretationScore >= bestExplicit.score + 0.08
+    )
+  ) {
+    return {
+      step: {
+        order: 2,
+        operation:
+          sequenceInterpretation.mechanism === "contrast"
+            ? "contrast"
+            : sequenceInterpretation.mechanism === "recurrence"
+              ? "recur"
+              : sequenceInterpretation.mechanism === "convergence"
+                ? "converge"
+                : sequenceInterpretation.mechanism === "expectation_shift"
+                  ? "reframe"
+                  : sequenceInterpretation.mechanism === "state_change"
+                    ? "reveal"
+                    : "consequence",
+        eventIds: sequenceInterpretation.evidenceEventIds,
+        viewerChange: sequenceInterpretation.statement,
+        nextQuestion: "What does this newly meaningful relationship make possible next?",
+      },
+      index: 1,
+      interpretation: sequenceInterpretation.statement,
+    };
+  }
+
+  if (bestExplicit) {
+    return bestExplicit;
   }
 
   const endpoint = endpointId(candidate);
@@ -205,46 +264,7 @@ function strongestStructuralTurn(
     };
   }
 
-  /*
-   * A sparse graph does not mean a flat experience.
-   *
-   * The source sequence itself can contain an earned semantic progression:
-   * unexpected -> state -> continuation, encounter -> continuation, action ->
-   * state, recurrence, or supplied contrast. Those are interpretations over
-   * explicit language, not newly invented facts.
-   */
-  const sequenceInterpretation =
-    deriveSequenceBackedCreativeInterpretation(
-      graph,
-      candidate,
-    );
-
-  if (!sequenceInterpretation) return undefined;
-
-  const operation: LatentMovieTrajectoryStep["operation"] =
-    sequenceInterpretation.mechanism === "contrast"
-      ? "contrast"
-      : sequenceInterpretation.mechanism === "recurrence"
-        ? "recur"
-        : sequenceInterpretation.mechanism === "convergence"
-          ? "converge"
-          : sequenceInterpretation.mechanism === "expectation_shift"
-            ? "reframe"
-            : sequenceInterpretation.mechanism === "state_change"
-              ? "reveal"
-              : "consequence";
-
-  return {
-    step: {
-      order: 2,
-      operation,
-      eventIds: sequenceInterpretation.evidenceEventIds,
-      viewerChange: sequenceInterpretation.statement,
-      nextQuestion: "What does this newly meaningful relationship make possible next?",
-    },
-    index: 1,
-    interpretation: sequenceInterpretation.statement,
-  };
+  return undefined;
 }
 
 function buildInitialReading(
