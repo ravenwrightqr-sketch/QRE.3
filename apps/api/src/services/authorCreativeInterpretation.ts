@@ -5,7 +5,8 @@
  * supplied reality already supports.
  *
  * This module does NOT write viewer prose and does NOT create facts.
- * It produces a semantic interpretation that downstream Mouth may realize.
+ * It produces semantic interpretations that downstream cognition may rank and
+ * later realize through Mouth.
  *
  * The important distinction is:
  *
@@ -14,7 +15,7 @@
  *
  * A sequence can contain a meaningful turn even when RealityGraph has no
  * explicit relation edge between adjacent events. In that case this module
- * derives a sequence-backed interpretation from the supplied language itself.
+ * derives sequence-backed interpretations from the supplied language itself.
  */
 
 import type {
@@ -131,24 +132,24 @@ function buildCandidate(
 }
 
 /**
- * Discover a semantic relationship in supplied sequence material when the
- * graph does not already expose an explicit relation edge.
- *
- * The result is deliberately an interpretation, not a factual relationship.
+ * Discover every bounded semantic interpretation supported by the selected
+ * sequence. Candidate generation deliberately preserves discovery order.
+ * Ranking/selection belongs downstream so the full cognitive competition can
+ * be inspected and differentiated rather than collapsed here.
  */
-export function deriveSequenceBackedCreativeInterpretation(
+export function deriveSequenceBackedCreativeInterpretations(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
-): CreativeInterpretation | undefined {
+): CreativeInterpretation[] {
   const orderedEventIds = unique(
     candidate.trajectory.flatMap((step) => step.eventIds),
   );
 
-  if (orderedEventIds.length < 2) return undefined;
+  if (orderedEventIds.length < 2) return [];
 
   const labels = orderedEventIds.map((id) => labelFor(graph, id));
   const meaningful = labels.filter(Boolean);
-  if (meaningful.length < 2) return undefined;
+  if (meaningful.length < 2) return [];
 
   const expectations = meaningful.filter((label) =>
     containsAny(label, EXPECTATION),
@@ -171,13 +172,6 @@ export function deriveSequenceBackedCreativeInterpretation(
 
   const candidates: CreativeInterpretation[] = [];
 
-  /*
-   * Strongest generic pattern:
-   * unexpected -> experiential state -> continuation/desire.
-   *
-   * This is precisely the class of sequence where isolated facts become a
-   * newly meaningful whole without inventing another occurrence.
-   */
   if (expectations.length && states.length && continuation.length) {
     const ids = orderedEventIds.filter((id) => {
       const label = labelFor(graph, id);
@@ -196,10 +190,6 @@ export function deriveSequenceBackedCreativeInterpretation(
     );
   }
 
-  /*
-   * Encounter -> continuation -> desire is a second universal pattern.
-   * It does not name a relationship and does not claim a new event.
-   */
   if (encounters.length && continuation.length) {
     const ids = orderedEventIds.filter((id) => {
       const label = labelFor(graph, id);
@@ -216,7 +206,6 @@ export function deriveSequenceBackedCreativeInterpretation(
     );
   }
 
-  /* Action -> state is a meaningful consequence even without a graph edge. */
   if (encounters.length && states.length) {
     let bestPair = { left: "", right: "", score: -1 };
 
@@ -286,12 +275,19 @@ export function deriveSequenceBackedCreativeInterpretation(
     );
   }
 
-  if (!candidates.length) return undefined;
+  return candidates;
+}
 
-  /* Prefer interpretations that explain more supplied events, then confidence. */
-  return candidates.sort(
-    (left, right) =>
-      (right.evidenceEventIds.length * 0.08 + right.confidence) -
-      (left.evidenceEventIds.length * 0.08 + left.confidence),
+/**
+ * Backward-compatible single-winner API. New code should consume the plural
+ * API above so Cognition can inspect and differentiate the candidate set.
+ */
+export function deriveSequenceBackedCreativeInterpretation(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): CreativeInterpretation | undefined {
+  return deriveSequenceBackedCreativeInterpretations(
+    graph,
+    candidate,
   )[0];
 }
