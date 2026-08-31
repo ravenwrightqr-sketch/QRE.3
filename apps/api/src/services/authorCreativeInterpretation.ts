@@ -151,6 +151,10 @@ function span(
  * sequence. Candidate generation deliberately preserves discovery order.
  * Ranking/selection belongs downstream so the full cognitive competition can
  * be inspected and differentiated rather than collapsed here.
+ *
+ * These statements are semantic targets, not viewer copy. They intentionally
+ * describe the experience without explaining it to the viewer. Mouth remains
+ * responsible for the actual expression.
  */
 export function deriveSequenceBackedCreativeInterpretations(
   graph: RealityGraph,
@@ -191,10 +195,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = unique([...expectations, ...states, ...continuation]);
     candidates.push(
       buildCandidate(
-        "What began unexpectedly acquired a reason to continue.",
+        "The encounter outlasted the expectation.",
         "expectation_shift",
         ids,
-        0.92,
+        0.86,
       ),
     );
   }
@@ -203,7 +207,7 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = unique([...encounters, ...continuation]);
     candidates.push(
       buildCandidate(
-        "The experience moved from an encounter into something wanted again.",
+        "A brief encounter became something worth continuing.",
         "continuation",
         ids,
         0.87,
@@ -235,10 +239,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     if (bestPair.score >= 0.7) {
       candidates.push(
         buildCandidate(
-          "The important part of what happened is what it became.",
+          "The surprising change is how little had to happen for the encounter to feel easy.",
           "state_change",
           [bestPair.left, bestPair.right],
-          0.82,
+          0.86,
         ),
       );
     }
@@ -249,10 +253,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const sequenceSpan = span(orderedEventIds, ids);
     candidates.push(
       buildCandidate(
-        "The expectation matters because the experience continued past it.",
+        "The unexpected part is that the moment did not end where it should have.",
         "consequence",
         ids,
-        0.78 + sequenceSpan * 0.08,
+        0.84 + sequenceSpan * 0.06,
       ),
     );
   }
@@ -262,10 +266,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const sequenceSpan = span(orderedEventIds, ids);
     candidates.push(
       buildCandidate(
-        "Several supplied moments accumulate toward the same change in feeling.",
+        "Small changes in feeling begin pointing in the same direction.",
         "convergence",
         ids,
-        0.75 + sequenceSpan * 0.1,
+        0.82 + sequenceSpan * 0.08,
       ),
     );
   }
@@ -274,7 +278,7 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = recurrence.slice();
     candidates.push(
       buildCandidate(
-        "A return turns an isolated detail into a thread.",
+        "A return turns one moment into an ongoing thread.",
         "recurrence",
         ids,
         0.79,
@@ -286,10 +290,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = contrasts.slice();
     candidates.push(
       buildCandidate(
-        "The supplied material holds two readings at once.",
+        "The same material begins to carry a different reading after the contrast.",
         "contrast",
         ids,
-        0.76,
+        0.78,
       ),
     );
   }
