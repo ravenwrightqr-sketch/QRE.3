@@ -14,6 +14,7 @@
  *   - when graph edges are too sparse, supplied sequence language may still
  *     establish a semantic interpretation; that interpretation is not a fact
  *     and never becomes reality merely because cognition derives it
+ *   - observer experience is an instruction for realization, never viewer prose
  *
  * This module is domain-neutral. No example, industry, object, or entity type
  * is special-cased here.
@@ -22,6 +23,7 @@ import type {
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
   LatentStoryThesis,
+  ObserverExperienceObjective,
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
@@ -258,11 +260,6 @@ function strongestStructuralTurn(
 
   const bestExplicit = explicit[0];
 
-  /*
-   * A multi-event interpretation is preferred when it explains materially
-   * more of the supplied sequence than a weak pairwise graph edge. This is
-   * the distinction between a local relation and a sequence-level reading.
-   */
   if (
     sequenceInterpretation &&
     (
@@ -408,187 +405,83 @@ function buildSemanticTurn(
   );
 }
 
-function chooseCarrierIds(
-  graph: RealityGraph,
-  turn: StructuralTurn | undefined,
-  candidate: LatentMovieCandidate,
-): string[] {
-  if (!turn) return [];
-
-  const endpoint = endpointId(candidate);
-  const ids = turn.step.eventIds.filter(
-    (id) => id !== endpoint,
-  );
-
-  if (ids.length <= 1) return ids;
-
-  return ids
-    .map((id) => ({
-      id,
-      laterParticipation: candidate.trajectory
-        .slice(turn.index + 1)
-        .filter((step) => step.eventIds.includes(id)).length,
-      relationStrength: graph.relations
-        .filter(
-          (relation) =>
-            relation.from === id ||
-            relation.to === id,
-        )
-        .reduce(
-          (sum, relation) => sum + relation.strength,
-          0,
-        ),
-    }))
-    .sort(
-      (a, b) =>
-        b.laterParticipation - a.laterParticipation ||
-        b.relationStrength - a.relationStrength,
-    )
-    .slice(0, 1)
-    .map((item) => item.id);
-}
-
-function chooseSealingIds(
-  graph: RealityGraph,
-  turn: StructuralTurn | undefined,
-  carriers: readonly string[],
-  candidate: LatentMovieCandidate,
-): string[] {
-  if (!turn) return [];
-
-  const carrierSet = new Set(carriers);
-  const endpoint = endpointId(candidate);
-  const candidates: Array<{ id: string; score: number }> = [];
-  const pushCandidate = (id: string, score: number) => {
-    if (!id || carrierSet.has(id) || id === endpoint) return;
-    if (!candidates.some((item) => item.id === id)) {
-      candidates.push({ id, score });
-    }
-  };
-
-  for (let index = turn.index + 1; index < candidate.trajectory.length; index += 1) {
-    const step = candidate.trajectory[index];
-    for (const id of step.eventIds) {
-      const carrierRelation = carriers.some((carrier) => Boolean(relationBetween(graph, carrier, id)));
-      pushCandidate(
-        id,
-        (step.operation === "payoff" ? 0.2 : 0.7) +
-          (carrierRelation ? 0.3 : 0),
-      );
-    }
-  }
-
-  if (!candidates.length) {
-    const trajectoryIds = new Set(
-      candidate.trajectory.flatMap((step) => step.eventIds),
-    );
-    for (const relation of graph.relations) {
-      const touchesCarrier = carriers.some(
-        (carrier) =>
-          relation.from === carrier ||
-          relation.to === carrier,
-      );
-      if (!touchesCarrier) continue;
-
-      const otherId = carriers.includes(relation.from)
-        ? relation.to
-        : relation.from;
-      if (trajectoryIds.has(otherId) || otherId === endpoint) continue;
-
-      pushCandidate(
-        otherId,
-        relation.strength * 0.75 +
-          relationPriority(relation.kind) * 0.25,
-      );
-    }
-  }
-
-  return candidates
-    .sort((a, b) => b.score - a.score)
-    .map((item) => item.id)
-    .slice(0, 2);
-}
-
-function buildPayoffDependency(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-  carriers: readonly string[],
-): string {
-  const endpoint = endpointId(candidate);
-
-  if (!endpoint) {
-    return "";
-  }
-
-  const carrier = carriers[0];
-  if (carrier) {
-    const relation = relationBetween(
-      graph,
-      endpoint,
-      carrier,
-    );
-
-    if (relation) {
-      return `The supplied endpoint depends on its ${relation.kind} relationship with ${eventLabel(graph, carrier)}.`;
-    }
-  }
-
-  const lastMeaningful = candidate.trajectory
-    .slice(0, -1)
-    .flatMap((step) => step.eventIds)
-    .find((id) => id !== endpoint);
-
-  if (lastMeaningful) {
-    return `The supplied endpoint follows the selected trajectory from ${eventLabel(graph, lastMeaningful)}.`;
-  }
-
-  return "";
-}
-
-function counterfactualDependency(
+function buildObserverExperienceObjective(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
   turn: StructuralTurn | undefined,
-  carriers: readonly string[],
-): number {
-  if (!turn || !carriers.length) return 0;
-
-  const meaningful = candidate.trajectory.filter(
-    (step) =>
-      step.operation !== "establish" &&
-      step.operation !== "payoff",
-  );
-
-  const carrier = carriers[0];
-  const laterSteps = meaningful.filter(
-    (step) => candidate.trajectory.indexOf(step) > turn.index,
-  );
-
-  const dependentLaterSteps = laterSteps.filter((step) => {
-    if (step.eventIds.includes(carrier)) return true;
-
-    return step.eventIds.some((id) =>
-      Boolean(relationBetween(graph, carrier, id)),
-    );
-  });
-
-  const downstream =
-    laterSteps.length > 0
-      ? dependentLaterSteps.length / laterSteps.length
-      : 0;
-
-  const turnAnchored = turn.step.eventIds.includes(carrier) ? 1 : 0;
+): ObserverExperienceObjective | undefined {
+  if (!turn?.interpretation) return undefined;
 
   const endpoint = endpointId(candidate);
-  const endpointLinked = endpoint
-    ? Boolean(relationBetween(graph, carrier, endpoint))
-    : false;
+  const mechanism = turn.step.operation;
+  const semanticTurn = clean(turn.interpretation);
+  const endpointLabel = endpoint ? eventLabel(graph, endpoint) : "the supplied ending";
 
-  return metric(
-    downstream * 0.5 +
-      turnAnchored * 0.3 +
-      (endpointLinked ? 0.2 : 0),
-  );
+  switch (mechanism) {
+    case "reframe":
+      return {
+        objective: `Let the observer first accept the supplied reality, then discover that ${semanticTurn.toLowerCase()}`,
+        surprise: "The meaningful change should arrive as a reinterpretation, not as a new event.",
+        curiosity: "What changed even though the world itself did not?"," +
+        attention: ["establish the ordinary", "introduce a small discrepancy", "withhold the explanation", "let supplied evidence recontextualize what came before", "land on the supplied endpoint"],
+        landing: `Make the supplied ending ${endpointLabel} feel newly meaningful without explaining why it matters.`,
+        explanationForbidden: true,
+      };
+    case "recur":
+      return {
+        objective: `Make the observer notice that repetition has become meaning in ${semanticTurn.toLowerCase()}`,
+        surprise: "The second occurrence should feel more significant than the first without inventing anything new.",
+        curiosity: "Why does this return matter now when it did not before?",
+        attention: ["establish the first occurrence", "create distance", "reintroduce the supplied recurring detail", "let recognition arrive", "land"],
+        landing: `Let the supplied endpoint ${endpointLabel} carry the accumulated recognition.`,
+        explanationForbidden: true,
+      };
+    case "contrast":
+      return {
+        objective: `Let the observer hold the supplied material in tension until ${semanticTurn.toLowerCase()} becomes felt rather than stated`,
+        surprise: "Reveal the difference between two supplied readings without announcing the contrast.",
+        curiosity: "Which reading is the observer supposed to trust now?",
+        attention: ["establish one reading", "introduce the conflicting supplied detail", "delay resolution", "recontextualize", "land"],
+        landing: `Let the endpoint ${endpointLabel} resolve the tension through experience, not explanation.`,
+        explanationForbidden: true,
+      };
+    case "converge":
+      return {
+        objective: `Let separate supplied details accumulate until ${semanticTurn.toLowerCase()} becomes obvious in retrospect`,
+        surprise: "The realization should emerge from accumulation rather than a narrated conclusion.",
+        curiosity: "What are these details quietly pointing toward?",
+        attention: ["plant independent details", "leave their relationship unstated", "repeat or deepen the pattern", "allow recognition", "land"],
+        landing: `Make ${endpointLabel} feel like the natural consequence of what the observer has already noticed.`,
+        explanationForbidden: true,
+      };
+    case "reveal":
+      return {
+        objective: `Let the observer experience the shift from supplied action into its newly meaningful state: ${semanticTurn.toLowerCase()}`,
+        surprise: "The state should feel discovered through the action rather than announced afterward.",
+        curiosity: "What did that action change?",
+        attention: ["show the supplied action", "stay with its immediate consequence", "delay naming the state", "let the observer recognize the shift", "land"],
+        landing: `Let ${endpointLabel} carry the realized state without a summary sentence.`,
+        explanationForbidden: true,
+      };
+    case "consequence":
+      return {
+        objective: `Let the observer recognize the consequence of the supplied path: ${semanticTurn.toLowerCase()}`,
+        surprise: "The payoff should feel earned by what came before rather than explained by it.",
+        curiosity: "What did the earlier moment set in motion?",
+        attention: ["establish cause", "move through supplied consequences", "delay interpretation", "let the endpoint answer the question", "land"],
+        landing: `Make ${endpointLabel} feel earned by the accumulated path.`,
+        explanationForbidden: true,
+      };
+    default:
+      return {
+        objective: `Let the observer discover the supplied semantic movement: ${semanticTurn.toLowerCase()}`,
+        surprise: "Prefer a small perceptual discovery over a stated explanation.",
+        curiosity: "What is becoming newly meaningful here?",
+        attention: ["establish", "accumulate", "interrupt expectation", "recontextualize", "land"],
+        landing: `Let ${endpointLabel} complete the discovery without stating the thesis.`,
+        explanationForbidden: true,
+      };
+  }
 }
 
 export function deriveLatentStoryThesis(
@@ -646,6 +539,11 @@ export function deriveLatentStoryThesis(
       candidate,
       turn,
       carrierEventIds,
+    ),
+    observerExperience: buildObserverExperienceObjective(
+      graph,
+      candidate,
+      turn,
     ),
   };
 }
