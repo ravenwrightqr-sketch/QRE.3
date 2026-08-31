@@ -1,52 +1,13 @@
 /**
- * QRE COGAUTHOR REALITY GRAPH CONTRACT
+ * Compatibility surface for legacy/direct COGAUTHOR imports.
  *
- * Immutable source-world representation for Author cognition.
+ * The canonical RealityGraph contract is owned by experience/realityGraph.ts.
+ * Keep this file as a thin re-export so direct COGAUTHOR imports resolve to
+ * the same immutable source-reality types used by the live Author path.
  */
-import type { LatentMovieCandidate } from "./latentMovie.js";
-
-export type RealityEvidence = {
-  id: string;
-  text: string;
-  kind: "fact" | "moment" | "memory" | "trajectory" | "prompt" | "identity";
-};
-
-export type RealityEvent = {
-  id: string;
-  label: string;
-  sourceIds: string[];
-  entities: string[];
-  place?: string;
-  time?: string;
-  goal?: string;
-  emotionalState?: string;
-  salient: boolean;
-  provenance: "explicit" | "memory" | "prompt";
-};
-
-export type RealityRelation = {
-  from: string;
-  to: string;
-  kind:
-    | "before"
-    | "after"
-    | "causes"
-    | "changes"
-    | "contrasts"
-    | "repeats"
-    | "belongs_to"
-    | "involves"
-    | "recontextualizes"
-    | "converges";
-  strength: number;
-};
-
-export type RealityGraph = {
-  evidence: RealityEvidence[];
-  events: RealityEvent[];
-  relations: RealityRelation[];
-  unresolvedTensions: string[];
-  recurringSignals: string[];
-  sensorySignals: string[];
-  latentMovieCandidates?: LatentMovieCandidate[];
-};
+export type {
+  RealityEvidence,
+  RealityEvent,
+  RealityRelation,
+  RealityGraph,
+} from "../experience/realityGraph.js";
