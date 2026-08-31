@@ -76,13 +76,13 @@ packages/contracts/src/cogauthor/realityGraph.ts
 
 This arrangement means there is one concrete definition for Cognition and RealityGraph while preserving compatibility imports.
 
-## Engine Cognition boundary
+## Engine boundary
 
-`packages/engine/src/cognition/` contains a substantial older cognition/creative stack, including `universalMind.ts`, `experiencePlanner.ts`, `worldModel.ts`, narrative writers, creative composition, critics, revision, and related state.
+The old `packages/engine/src/cognition/` UniversalMind/compiler stack has been **retired and removed**.
 
-That stack is **not the Author semantic owner** merely because it exists or is exported. The production Author path is owned by `apps/api/src/services/authorBrainCanonical.ts` and `authorCognition.ts`.
+It is not a second Author, cognition service, or supported engine capability. The production engine package exposes runtime/flow/analytics/geo/cinematic/presence functionality only. Historical cognition acceptance programs were removed with the retired implementation.
 
-Before removing the engine cognition surface, run the repository audit and prove that no production consumer depends on `compileCognitiveExperience` or `universalMind`.
+The repository must not reintroduce `compileCognitiveExperience`, `UniversalMind`, `worldModel`, or the retired compiler/cognition directory as a production capability.
 
 ## Historical tooling
 
@@ -94,15 +94,13 @@ They remain until their consumers and maintenance value are proven to be gone. D
 
 ### Mouth
 
-The Mouth is currently a migration seam: the canonical boundary is `authorMouthCandidateSearchCanonical.ts`, while portions of the older implementation remain in `authorMouthCandidateSearch.ts`.
+The Mouth remains a migration seam: the canonical boundary is `authorMouthCandidateSearchCanonical.ts`, while portions of the older implementation remain in `authorMouthCandidateSearch.ts`.
 
 Do not delete the implementation until its remaining consumers and tested behavior have been replaced.
 
 ### Creative interpretation
 
-`authorCreativeInterpretation.ts` and `authorLatentStoryThesis.ts` now expose and select multiple sequence-backed interpretations, but the current candidate generator still produces semantically overlapping interpretations for simple relationship examples.
-
-The next creative task is to improve differentiation in Cognition, not add another Mouth scorer.
+`authorCreativeInterpretation.ts` and `authorLatentStoryThesis.ts` expose and select sequence-backed interpretations. The current candidate generator is intentionally still under creative evaluation; candidate differentiation must happen in Cognition before Mouth realization.
 
 ## Required audit command
 
@@ -118,15 +116,16 @@ The audit is read-only. It reports:
 - relative reachability from `authorBrainCanonical.ts`;
 - legacy/orphan review signals;
 - core contract owner and compatibility-shim status;
-- engine cognition consumers;
+- retired engine cognition boundary;
 - historical Author tooling;
 - empty/temp artifacts.
 
-A warning is not permission to delete. Deletion requires an explicit consumer proof and a passing broader acceptance.
+A warning is not permission to delete. Deletion requires explicit consumer proof and a passing broader acceptance.
 
 ## Required validation after cleanup changes
 
 ```powershell
+pnpm --filter @qre/engine build
 pnpm --filter @qre/api build
 git diff --check
 pnpm exec tsx apps/api/author-acceptance.ts
@@ -148,6 +147,7 @@ ONE Beam
 ONE attention/arc boundary
 ONE concrete contract definition per semantic object
 NO production path reaches retired creative brains
+NO legacy engine cognition package
 NO unexplained duplicate semantic owners
 ```
 
