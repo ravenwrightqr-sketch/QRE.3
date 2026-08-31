@@ -2381,6 +2381,8 @@ function evaluateCandidate(
 
     meaningScore,
 
+    observerDiscoveryScore: 0,
+
     transitionScore,
 
     obligationCoverage,

@@ -191,12 +191,17 @@ export async function compileExperience(input: {
   assetId?: string;
   userId?: string;
   sessionId?: string;
+  operationId?: string;
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
   movieMode?: boolean;
   lens?: string;
 }): Promise<CompiledExperienceResult> {
+  const operationId =
+  input.operationId ??
+  input.sessionId ??
+  `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
   const requestedMovieMode = input.movieMode !== false;
@@ -369,7 +374,7 @@ const authorInput: AuthorBrainTruth = {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({ assetId: input.assetId, userId: input.userId, graph, sessionId: input.sessionId, source: "prompt" });
+      const batch = buildExperienceMemoryBatch({ operationId, assetId: input.assetId, userId: input.userId, graph, sessionId: input.sessionId, source: "prompt" });
       await input.memoryRepository.writeBatch(batch);
       memory = { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length };
     } catch (error) {
@@ -389,7 +394,7 @@ const authorInput: AuthorBrainTruth = {
       });
       authorExperienceState = adaptAuthorExperienceState(nextState, learnedProfile);
 
-      const stateBatch = authorExperienceStateToMemoryBatch({ assetId: input.assetId, userId: input.userId, state: authorExperienceState, sourceRef: "qre-author-canonical" });
+      const stateBatch = authorExperienceStateToMemoryBatch({ operationId, assetId: input.assetId, userId: input.userId, state: authorExperienceState, sourceRef: "qre-author-canonical" });
       await input.memoryRepository.writeBatch(stateBatch);
       try {
   await createAnalyticsRepository().trackEvent({

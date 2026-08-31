@@ -10,6 +10,7 @@ import type {
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
   LatentStoryThesis,
+  ObserverExperienceObjective,
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
@@ -502,46 +503,233 @@ function counterfactualDependency(
   );
 }
 
+function buildObserverExperienceObjective(
+  turn: StructuralTurn | undefined,
+): ObserverExperienceObjective | undefined {
+  const interpretation = clean(turn?.interpretation);
+
+  if (!interpretation) {
+    return undefined;
+  }
+
+  const mechanism =
+    turn?.step.operation ?? "consequence";
+
+  const byMechanism: Record<
+    string,
+    {
+      surprise: string;
+      curiosity: string;
+      attention: string[];
+      landing: string;
+    }
+  > = {
+    reframe: {
+      surprise:
+        "Let the observer discover that the thing that first seemed incidental did not stay incidental.",
+      curiosity:
+        "Keep the reason for the change unresolved until the supplied sequence earns it.",
+      attention: [
+        "establish the ordinary starting point",
+        "accumulate the supplied change",
+        "delay the conclusion",
+        "let the observer recognize the reframe",
+      ],
+      landing:
+        "Make the supplied ending feel like the answer to something the observer has already begun to notice.",
+    },
+
+    consequence: {
+      surprise:
+        "Let the observer discover that the significance comes from what the supplied sequence caused, not from a dramatic new event.",
+      curiosity:
+        "Create pressure around what the accumulated details are becoming.",
+      attention: [
+        "establish",
+        "accumulate",
+        "withhold explanation",
+        "reveal the consequence",
+      ],
+      landing:
+        "Let the final supplied detail complete the realization.",
+    },
+
+    reveal: {
+      surprise:
+        "Let the observer notice a change that was already forming inside the supplied material.",
+      curiosity:
+        "Make the observer wonder what changed before naming it.",
+      attention: [
+        "notice",
+        "accumulate",
+        "reframe",
+        "recognize",
+      ],
+      landing:
+        "Make the realization arrive through the supplied evidence.",
+    },
+
+    recur: {
+      surprise:
+        "Let repetition make an earlier detail feel newly important.",
+      curiosity:
+        "Invite the observer to notice why this detail keeps mattering.",
+      attention: [
+        "establish",
+        "return",
+        "recognize the pattern",
+        "land on the new meaning",
+      ],
+      landing:
+        "Make the recurrence feel like an answer rather than an explanation.",
+    },
+
+    contrast: {
+      surprise:
+        "Let two supplied meanings coexist until the observer notices the tension between them.",
+      curiosity:
+        "Delay which reading wins.",
+      attention: [
+        "establish one reading",
+        "introduce the second",
+        "hold the tension",
+        "resolve through recognition",
+      ],
+      landing:
+        "Let the observer resolve the contrast from the supplied material.",
+    },
+
+    converge: {
+      surprise:
+        "Let separate supplied details begin pointing toward the same realization.",
+      curiosity:
+        "Make the observer notice the pattern before stating it.",
+      attention: [
+        "introduce",
+        "accumulate",
+        "connect",
+        "recognize",
+      ],
+      landing:
+        "Let the supplied ending complete the pattern.",
+    },
+  };
+
+  const guidance =
+    byMechanism[mechanism] ??
+    byMechanism.consequence;
+
+  return {
+    objective: interpretation,
+    surprise: guidance.surprise,
+    curiosity: guidance.curiosity,
+    attention: guidance.attention,
+    landing: guidance.landing,
+    explanationForbidden: true,
+  };
+}
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): LatentStoryThesis {
-  const turn = strongestStructuralTurn(graph, candidate);
-  const carrierEventIds = chooseCarrierIds(graph, turn, candidate);
-  const sealingEventIds = chooseSealingIds(
+  const turn = strongestStructuralTurn(
     graph,
-    turn,
-    carrierEventIds,
     candidate,
-  ).filter((id) => !carrierEventIds.includes(id));
+  );
 
-  const turnFromId = turn?.step.eventIds[0] ?? "";
-  const turnToId = turn?.step.eventIds[1] ?? "";
+  const observerExperience =
+    buildObserverExperienceObjective(
+      turn,
+    );
 
-  return {
-    initialReading: buildInitialReading(candidate),
-    semanticTurn: buildSemanticTurn(graph, turn),
-    beforeMeaning: turnFromId
-      ? [eventLabel(graph, turnFromId)].filter(Boolean)
-      : [],
-    afterMeaning: turnToId
-      ? [eventLabel(graph, turnToId)].filter(Boolean)
-      : [],
-    beforeEventIds: turnFromId ? [turnFromId] : [],
-    afterEventIds: turnToId ? [turnToId] : [],
-    relationKind: turn?.relation?.kind,
-    carrierEventIds,
-    sealingEventIds,
-    payoffDependency: buildPayoffDependency(
+  const carrierEventIds =
+    chooseCarrierIds(
       graph,
+      turn,
       candidate,
-      carrierEventIds,
-    ),
-    counterfactualDependency: counterfactualDependency(
+    );
+
+  const sealingEventIds =
+    chooseSealingIds(
       graph,
-      candidate,
       turn,
       carrierEventIds,
-    ),
+      candidate,
+    ).filter(
+      (id) =>
+        !carrierEventIds.includes(id),
+    );
+
+  const turnFromId =
+    turn?.step.eventIds[0] ?? "";
+
+  const turnToId =
+    turn?.step.eventIds[1] ?? "";
+
+  return {
+    initialReading:
+      buildInitialReading(
+        candidate,
+      ),
+
+    semanticTurn:
+      buildSemanticTurn(
+        graph,
+        turn,
+      ),
+
+    beforeMeaning:
+      turnFromId
+        ? [
+            eventLabel(
+              graph,
+              turnFromId,
+            ),
+          ].filter(Boolean)
+        : [],
+
+    afterMeaning:
+      turnToId
+        ? [
+            eventLabel(
+              graph,
+              turnToId,
+            ),
+          ].filter(Boolean)
+        : [],
+
+    beforeEventIds:
+      turnFromId
+        ? [turnFromId]
+        : [],
+
+    afterEventIds:
+      turnToId
+        ? [turnToId]
+        : [],
+
+    relationKind:
+      turn?.relation?.kind,
+
+    carrierEventIds,
+
+    sealingEventIds,
+
+    payoffDependency:
+      buildPayoffDependency(
+        graph,
+        candidate,
+        carrierEventIds,
+      ),
+
+    counterfactualDependency:
+      counterfactualDependency(
+        graph,
+        candidate,
+        turn,
+        carrierEventIds,
+      ),
+
+    observerExperience,
   };
 }

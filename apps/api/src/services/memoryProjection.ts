@@ -237,6 +237,7 @@ function buildEvents(
 
 export function buildExperienceMemoryBatch(input: {
   assetId: string;
+  operationId?: string;
   userId?: string;
   graph: RealityGraph;
   sessionId?: string;
@@ -247,6 +248,7 @@ export function buildExperienceMemoryBatch(input: {
   const source = input.source ?? "prompt";
 
   return {
+    operationId: input.operationId,
     assetId: input.assetId,
     userId: input.userId,
     entities: buildEntities(input.assetId, input.graph),

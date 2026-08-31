@@ -65,6 +65,7 @@ export type MouthCandidate = {
   supportedRelationPairs: string[];
   groundingScore: number;
   meaningScore: number;
+  observerDiscoveryScore: number;
   transitionScore: number;
   obligationCoverage: number;
   relationContractScore: number;

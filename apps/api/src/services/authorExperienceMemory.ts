@@ -59,6 +59,7 @@ export function mergeAuthorExperienceStates(
 }
 
 export function authorExperienceStateToMemoryBatch(input: {
+  operationId?: string;
   assetId: string;
   userId?: string;
   state: AuthorExperienceState;
@@ -76,6 +77,7 @@ export function authorExperienceStateToMemoryBatch(input: {
   ].join(" ");
 
   return {
+    operationId: input.operationId,
     assetId: input.assetId,
     userId: input.userId,
     entities: [],

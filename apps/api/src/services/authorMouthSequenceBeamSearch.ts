@@ -353,24 +353,6 @@ function hasReason(
   );
 }
 
-function isSemanticRealization(
-  candidate: MouthCandidate,
-): boolean {
-  return hasReason(
-    candidate,
-    "semantic-compression",
-  );
-}
-
-function isCreativeRealization(
-  candidate: MouthCandidate,
-): boolean {
-  return hasReason(
-    candidate,
-    "bounded-creative-bet",
-  );
-}
-
 function isDistinctiveRealization(
   candidate: MouthCandidate,
 ): boolean {
@@ -1043,7 +1025,157 @@ function localAuthority(
         0.08,
   );
 }
+function observerCompletionScore(
+  candidate: MouthCandidate,
+): number {
+  const value = clean(candidate.text);
 
+  if (!value) {
+    return 0;
+  }
+
+  /*
+   * Observer completion is not a style preference.
+   *
+   * It measures whether the line leaves meaningful semantic work for the
+   * observer to perform after the line lands.
+   *
+   * The candidate must already be authorized. This signal may reward an
+   * open realization, but it can never authorize one.
+   */
+
+  const words = wordCount(value);
+  const discovery = metric(
+    candidate.observerDiscoveryScore,
+  );
+
+  /*
+   * Strongest case:
+   *
+   * a short fragment can carry a large amount of earned meaning because
+   * the sequence has already supplied the context.
+   *
+   * Examples:
+   *   Unexpected.
+   *   Still.
+   *   Again.
+   *   Not yet.
+   *   Enough.
+   *   There was more.
+   *
+   * Do NOT hard-code those words as required forms. Detect the structure.
+   */
+  const fragmentForm =
+    !/[,:;()[\]{}]/.test(value) &&
+    words <= 4 &&
+    !/[?]$/.test(value) &&
+    !/^(?:i|you|we|they|he|she|it|this|that)\b/i.test(value);
+
+  /*
+   * A single word is especially capable of leaving completion to the
+   * observer because its referent / consequence can remain unresolved.
+   */
+  const singleWord =
+    words === 1 &&
+    /^[a-z][a-z'-]*[.!?]?$/i.test(value);
+
+  /*
+   * Elliptical continuation:
+   *
+   * The sentence points toward something without fully stating it.
+   */
+  const elliptical =
+    /\b(?:still|again|yet|already|almost|somehow|not yet|not quite|only|enough)\b/i.test(
+      value,
+    ) ||
+    /^(?:there was|there is|there remained|it remained|something|nothing|more)\b/i.test(
+      value,
+    );
+
+  /*
+   * Residual / unresolved language tends to leave the observer looking
+   * backward through the sequence to decide what the line completes.
+   */
+  const unresolved =
+    /\b(?:unexpected|strange|familiar|different|unfinished|remaining|remained|left|more|enough|still|again|yet|almost|somehow|maybe|perhaps)\b/i.test(
+      value,
+    );
+
+  /*
+   * Declarative closure explains the answer instead of making the observer
+   * complete it.
+   */
+  const explanatoryClosure =
+    /\b(?:means|shows|proves|reveals|because|therefore|the reason|the meaning|important|meaningful|relationship|lesson|purpose|connection|bond|conclusion|this means|this shows)\b/i.test(
+      value,
+    );
+
+  /*
+   * Explicit emotional labeling can also close the interpretive space.
+   *
+   * We are not banning emotion. We are distinguishing "felt" from language
+   * that tells the observer exactly what the experience was.
+   */
+  const explicitEmotionalClosure =
+    /\b(?:was happy|was sad|was relieved|was in love|was afraid|felt happy|felt sad|felt relieved|felt safe|felt close|felt connected)\b/i.test(
+      value,
+    );
+
+  /*
+   * Directly telling the observer what to think destroys completion.
+   */
+  const directObserverAddress =
+    /\b(?:you|your|viewer|observer)\b/i.test(
+      value,
+    );
+
+  /*
+   * Longer explanatory sentences usually consume more of the semantic work,
+   * while very short lines can leave the sequence doing more of the work.
+   *
+   * This is deliberately a gentle signal, not a "shorter is better" rule.
+   */
+  const compressionOpen =
+    words <= 2
+      ? 0.22
+      : words <= 4
+        ? 0.14
+        : words <= 7
+          ? 0.06
+          : 0;
+
+  let score =
+    discovery * 0.45 +
+    (singleWord ? 0.26 : 0) +
+    (fragmentForm ? 0.16 : 0) +
+    (elliptical ? 0.13 : 0) +
+    (unresolved ? 0.10 : 0) +
+    compressionOpen;
+
+  if (explanatoryClosure) {
+    score -= 0.35;
+  }
+
+  if (explicitEmotionalClosure) {
+    score -= 0.18;
+  }
+
+  if (directObserverAddress) {
+    score -= 0.25;
+  }
+
+  /*
+   * Completion never rescues an unauthorized candidate.
+   */
+  if (
+    !isAuthorizedMouthCandidate(candidate) ||
+    !isSafe(candidate)
+  ) {
+    return 0;
+  }
+
+  return metric(score);
+}
 /* ================================================================
  * STATE-BASED GOLD
  * ================================================================ */
@@ -1054,6 +1186,7 @@ function localAuthority(
  * Gold emerges from the actual transition, not from a fixed stylistic
  * label and not from a designated "fire beat".
  */
+
 function stateGoldPotential(
   candidate: MouthCandidate,
   priorCandidates: readonly MouthCandidate[],
@@ -1181,10 +1314,19 @@ function pathCandidateScore(
     );
 
   const expression =
-    expressionQuality(
-      candidate,
-    );
+  expressionQuality(
+    candidate,
+  );
 
+const observerDiscovery =
+  metric(
+    candidate.observerDiscoveryScore,
+  );
+
+const observerCompletion =
+  observerCompletionScore(
+    candidate,
+  );
   const compression =
     compressionQuality(
       candidate,
@@ -1252,15 +1394,17 @@ function pathCandidateScore(
    * State transition is the center of gravity.
    */
   const score =
-    transition * 0.34 +
-    sequence * 0.20 +
-    future * 0.16 +
-    expression * 0.10 +
-    canonicalStrength * 0.05 +
-    authority * 0.05 +
-    compression * 0.02 +
-    diversity * 0.02 +
-    dynamicGold * 0.06;
+  transition * 0.30 +
+  sequence * 0.18 +
+  future * 0.15 +
+  expression * 0.09 +
+  observerDiscovery * 0.06 +
+  observerCompletion * 0.12 +
+  canonicalStrength * 0.05 +
+  authority * 0.05 +
+  compression * 0.02 +
+  diversity * 0.02 +
+  dynamicGold * 0.06;
 
   /*
    * Very weak state movement cannot win merely through pretty wording.
@@ -1276,28 +1420,29 @@ function pathCandidateScore(
       score *
         stateFloor,
     );
-
-  debugBeamCandidate(
-    candidate,
-    priorCandidates,
-    state,
-    nextPromise,
-    pool,
-    {
-      transition,
-      sequence,
-      future,
-      expression,
-      compression,
-      diversity,
-      authority,
-      stateStrength:
-        canonicalStrength,
-      relativeGold,
-      dynamicGold,
-      finalScore,
-    },
-  );
+   debugBeamCandidate(
+  candidate,
+  priorCandidates,
+  state,
+  nextPromise,
+  pool,
+  {
+    transition,
+    sequence,
+    future,
+    expression,
+    observerDiscovery,
+    observerCompletion,
+    compression,
+    diversity,
+    authority,
+    stateStrength:
+      canonicalStrength,
+    relativeGold,
+    dynamicGold,
+    finalScore,
+  },
+);
 
   return finalScore;
 }
@@ -1761,6 +1906,8 @@ function debugBeamCandidate(
     sequence: number;
     future: number;
     expression: number;
+    observerDiscovery: number;
+    observerCompletion: number;
     compression: number;
     diversity: number;
     authority: number;
@@ -1855,7 +2002,18 @@ function debugBeamCandidate(
             3,
           ),
         ),
-
+      observerDiscovery:
+        Number(
+          values.observerDiscovery.toFixed(
+            3,
+          ),
+        ),
+      observerCompletion:
+        Number(
+         values.observerCompletion.toFixed(
+           3,
+         ),
+        ),
       compression:
         Number(
           values.compression.toFixed(
@@ -2190,7 +2348,14 @@ export function selectBestMouthSequence(
                 expressionQuality(
                   candidate,
                 ),
-
+              observerDiscovery:
+              metric(
+              candidate.observerDiscoveryScore,
+              ),
+              observerCompletion:
+               observerCompletionScore(
+                 candidate,
+              ),
               compression:
                 compressionQuality(
                   candidate,
@@ -2221,43 +2386,49 @@ export function selectBestMouthSequence(
                   nextPromise,
                 ),
 
-              dynamicGold:
-                Math.max(
-                  0,
-                  candidateScore -
-                  (
-                    viewerStateFit(
-                      candidate,
-                      state,
-                    ) * 0.34 +
-                    sequenceTransition(
-                      candidate,
-                      priorCandidates,
-                      state,
-                    ) * 0.20 +
-                    nextStatePressure(
-                      candidate,
-                      state,
-                      nextPromise,
-                    ) * 0.16 +
-                    expressionQuality(
-                      candidate,
-                    ) * 0.10 +
-                    canonicalStateSignal(
-                      state,
-                    ) * 0.05 +
-                    localAuthority(
-                      candidate,
-                    ) * 0.05 +
-                    compressionQuality(
-                      candidate,
-                    ) * 0.02 +
-                    formDiversity(
-                      candidate,
-                      priorCandidates,
-                    ) * 0.02
-                  ),
-                ),
+            dynamicGold:
+             Math.max(
+             0,
+            candidateScore -
+           (
+     viewerStateFit(
+  candidate,
+  state,
+) * 0.30 +
+sequenceTransition(
+  candidate,
+  priorCandidates,
+  state,
+) * 0.18 +
+nextStatePressure(
+  candidate,
+  state,
+  nextPromise,
+) * 0.15 +
+expressionQuality(
+  candidate,
+) * 0.09 +
+metric(
+  candidate.observerDiscoveryScore,
+) * 0.06 +
+observerCompletionScore(
+  candidate,
+) * 0.12 +
+canonicalStateSignal(
+  state,
+) * 0.05 +
+localAuthority(
+  candidate,
+) * 0.05 +
+compressionQuality(
+  candidate,
+) * 0.02 +
+formDiversity(
+  candidate,
+  priorCandidates,
+) * 0.02
+    ),
+  ),
 
               finalScore:
                 candidateScore,

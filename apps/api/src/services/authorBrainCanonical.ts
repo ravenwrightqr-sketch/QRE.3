@@ -136,7 +136,8 @@ function realizationAuthorityForBeat(
 
   const payoffDependency =
     clean(thesis.payoffDependency);
-
+  const observerExperience =
+  thesis.observerExperience;
   const thesisEventIds =
     unique([
       ...(thesis.beforeEventIds ?? []),
@@ -206,6 +207,20 @@ function realizationAuthorityForBeat(
     lines.push(
       "CURRENT CUT IS SUPPORTING SEQUENCE MATERIAL: preserve the approved thesis as context without forcing this cut to perform the entire turn.",
     );
+
+    if (observerExperience) {
+  lines.push(
+    `OBSERVER EXPERIENCE OBJECTIVE: ${observerExperience.objective}`,
+    `OBSERVER SURPRISE: ${observerExperience.surprise}`,
+    `OBSERVER CURIOSITY: ${observerExperience.curiosity}`,
+    `OBSERVER ATTENTION: ${observerExperience.attention.join(" -> ")}`,
+    `OBSERVER LANDING: ${observerExperience.landing}`,
+    "OBSERVER RULE: cause discovery; do not explain the meaning.",
+    observerExperience.explanationForbidden
+      ? "EXPLANATION FORBIDDEN: do not state the thesis, significance, relationship, lesson, or conclusion."
+      : "",
+  );
+}
   }
 
   lines.push(
@@ -242,6 +257,8 @@ function mouthBeats(
         frontier: "",
         paysOff: [],
         relationKinds: [],
+        observerExperience:
+       movie.storyThesis?.observerExperience,
       }),
     );
   }
