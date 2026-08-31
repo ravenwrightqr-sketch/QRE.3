@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
 const root = resolve(process.cwd());
@@ -63,14 +63,10 @@ function resolveRelative(importer, specifier) {
     `${base}.ts`,
     `${base}.tsx`,
     `${base}.js`.replace(/\.js$/, ".ts"),
-    `${base}.mjs`.replace(/\.mjs$/, ".mjs"),
+    `${base}.mjs`,
     join(base, "index.ts"),
   ];
   return candidates.find((candidate) => existsSync(candidate));
-}
-
-function importsFrom(source, specifierPattern) {
-  return source.match(specifierPattern) ?? [];
 }
 
 function directImports(file) {
@@ -105,14 +101,15 @@ for (const [name, path] of Object.entries(canonical)) {
 }
 
 for (const path of forbiddenAuthorFiles) {
-  if (existsSync(join(root, path))) {
-    warnings.push(`legacy surface present: ${path}`);
-  }
+  if (existsSync(join(root, path))) warnings.push(`legacy surface present: ${path}`);
 }
 
-const serviceRoot = join(root, "apps/api/src/services");
-const serviceFiles = walk(serviceRoot).filter((file) => /^author[A-Z].*\.ts$/.test(file.split("/").pop() ?? ""));
-const sourceRoot = join(root, "apps/api/src");
+const serviceRoot = join(root, "apps", "api", "src", "services");
+const serviceFiles = walk(serviceRoot).filter((file) => {
+  const name = file.match(/[^\\/]+$/)?.[0] ?? "";
+  return /^author[A-Z].*\.ts$/.test(name);
+});
+const sourceRoot = join(root, "apps", "api", "src");
 const sourceFiles = walk(sourceRoot).filter((file) => /\.(ts|tsx|js|mjs)$/.test(extname(file)));
 const reachable = transitiveReachable([canonical.author]);
 
@@ -150,66 +147,60 @@ for (const [label, ok] of ownershipChecks) {
 }
 
 console.log("\n--- CONTRACT OWNERSHIP ---");
-const contractRoot = join(root, "packages/contracts/src");
-const canonicalContractPaths = {
+const contractOwners = {
   cognition: "packages/contracts/src/experience/cognition.ts",
   realityGraph: "packages/contracts/src/experience/realityGraph.ts",
   latentMovie: "packages/contracts/src/experience/latentMovie.ts",
   authorBrain: "packages/contracts/src/experience/authorBrain.ts",
   mouth: "packages/contracts/src/cogauthor/mouth.ts",
 };
-for (const [name, path] of Object.entries(canonicalContractPaths)) {
+for (const [name, path] of Object.entries(contractOwners)) {
   if (existsSync(join(root, path))) console.log(`CANONICAL · ${name} · ${path}`);
   else failures.push(`missing contract owner: ${path}`);
 }
 
-const compatibilityExpectations = {
+const shims = {
   "packages/contracts/src/cogauthor/cognition.ts": "../experience/cognition.js",
   "packages/contracts/src/cogauthor/realityGraph.ts": "../experience/realityGraph.js",
   "packages/contracts/src/cogauthor/latentMovie.ts": "../experience/latentMovie.js",
   "packages/contracts/src/cogauthor/authorBrain.ts": "../experience/authorBrain.js",
 };
-for (const [path, target] of Object.entries(compatibilityExpectations)) {
+for (const [path, target] of Object.entries(shims)) {
   const absolute = join(root, path);
   if (!existsSync(absolute)) {
     failures.push(`missing compatibility contract: ${path}`);
     continue;
   }
   const body = readFileSync(absolute, "utf8");
-  if (!body.includes(`from \"${target}\"`)) {
-    failures.push(`compatibility surface is not a re-export shim: ${path}`);
-  } else {
-    console.log(`SHIM · ${path} → ${target}`);
-  }
+  if (!body.includes(`from \"${target}\"`)) failures.push(`compatibility surface is not a re-export shim: ${path}`);
+  else console.log(`SHIM · ${path} → ${target}`);
 }
 
 console.log("\n--- ENGINE COGNITION BOUNDARY ---");
-const engineCognitionRoot = join(root, "packages/engine/src/cognition");
+const engineCognitionRoot = join(root, "packages", "engine", "src", "cognition");
 const engineFiles = walk(engineCognitionRoot).filter((file) => /\.(ts|tsx|js|mjs)$/.test(extname(file)));
-const engineConsumers = [];
-for (const file of sourceFiles) {
+const engineConsumers = sourceFiles.filter((file) => {
   const body = readFileSync(file, "utf8");
-  if (/from\s+["']@qre\/engine["']/.test(body) && /compileCognitiveExperience|universalMind/.test(body)) {
-    engineConsumers.push(rel(file));
-  }
-}
+  return /from\s+["']@qre\/engine["']/.test(body) && /compileCognitiveExperience|universalMind/.test(body);
+});
 console.log(`Engine cognition files: ${engineFiles.length}`);
 if (engineConsumers.length) {
-  for (const consumer of engineConsumers) warnings.push(`engine cognition consumer requires review: ${consumer}`);
+  for (const file of engineConsumers) warnings.push(`engine cognition consumer requires review: ${rel(file)}`);
 } else {
   console.log("No API source file was found importing UniversalMind/compileCognitiveExperience from @qre/engine.");
 }
 
 console.log("\n--- HISTORICAL TOOLING ---");
 const scripts = walk(join(root, "scripts")).filter((file) => /\.(mjs|js)$/.test(extname(file)));
-const historical = scripts.filter((file) => historicalScriptPattern.test(rel(file)) || /author/.test(rel(file)));
-for (const file of historical.sort()) console.log(`TOOL/HISTORY · ${rel(file)}`);
+for (const file of scripts.filter((file) => historicalScriptPattern.test(rel(file)) || /author/.test(rel(file))).sort()) {
+  console.log(`TOOL/HISTORY · ${rel(file)}`);
+}
 
 console.log("\n--- EMPTY / TEMPORARY ARTIFACTS ---");
 const suspect = [];
-for (const base of [join(root, "apps/api"), join(root, "packages")]) {
+for (const base of [join(root, "apps", "api"), join(root, "packages")]) {
   for (const file of walk(base)) {
-    if (!extname(file) || statSize(file) === 0 || /\.tmp$/.test(file) || /\.done$/.test(file)) suspect.push(rel(file));
+    if (!extname(file) || statSafe(file).size === 0 || /\.tmp$/.test(file) || /\.done$/.test(file)) suspect.push(rel(file));
   }
 }
 for (const item of suspect.sort()) console.log(`REVIEW · ${item}`);
@@ -217,17 +208,16 @@ for (const item of suspect.sort()) console.log(`REVIEW · ${item}`);
 console.log("\n--- VERDICT ---");
 for (const warning of warnings) console.warn(`WARN · ${warning}`);
 for (const failure of failures) console.error(`FAIL · ${failure}`);
-
 if (failures.length) {
   console.error(`AUTHOR CANONICAL AUDIT FAILED · ${failures.length} hard violation(s)`);
   process.exit(1);
 }
 console.log("AUTHOR CANONICAL AUDIT GREEN · hard ownership invariants hold; review warnings separately");
 
-function statSize(path) {
+function statSafe(path) {
   try {
-    return readFileSync(path).byteLength;
+    return statSync(path);
   } catch {
-    return -1;
+    return { size: -1 };
   }
 }
