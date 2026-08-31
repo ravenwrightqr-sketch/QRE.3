@@ -1,5 +1,4 @@
 diff --git a/apps/api/src/services/authorCognition.ts b/apps/api/src/services/authorCognition.ts
-index 01d137f..REPLACE 100644
 --- a/apps/api/src/services/authorCognition.ts
 +++ b/apps/api/src/services/authorCognition.ts
 @@ -3,6 +3,7 @@ import type {
