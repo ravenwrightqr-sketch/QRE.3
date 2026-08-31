@@ -81,14 +81,10 @@ for (const file of walk(join(root, "apps/api/src")).filter((path) => /\.(ts|tsx|
 const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
 check("canonical:cognition", /buildAuthorCognitivePlan\s*\(/.test(canonicalSource), "Author invokes canonical cognition");
 check("canonical:graph", /buildAuthorRealityGraph\s*\(/.test(canonicalSource), "Author builds source RealityGraph");
-const cognitionSource = existsSync(join(root, cognition))
-  ? read(cognition)
-  : "";
-
+const cognitionSource = existsSync(join(root, cognition)) ? read(cognition) : "";
 check(
   "cognition:movie",
-  /searchUniversalMovieCandidates\s*\(/.test(cognitionSource)
-    && /selectedMovie/.test(cognitionSource),
+  /searchUniversalMovieCandidates\s*\(/.test(cognitionSource) && /selectedMovie/.test(cognitionSource),
   "Cognition owns movie discovery and selected-movie authority",
 );
 check("canonical:mouth", /buildMouthCandidateMessages\s*\(/.test(canonicalSource) && /selectBestMouthSequence\s*\(/.test(canonicalSource), "Author owns Mouth realization and sequence selection");
@@ -105,20 +101,17 @@ const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(pack
 check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-const sourceForBeatStart = mouthSource.indexOf("function sourceForBeat(");
-const sourceForBeatEnd = sourceForBeatStart >= 0
-  ? mouthSource.indexOf("function supportedEventsForBeat(", sourceForBeatStart)
-  : -1;
+const mouthBoundarySource = mouthSource;
+const sourceForBeatStart = mouthBoundarySource.indexOf("function sourceLabelsForBeat(");
+const sourceForBeatEnd = sourceForBeatStart >= 0 ? mouthBoundarySource.indexOf("function relationalCompressionAuthorized(", sourceForBeatStart) : -1;
 const sourceForBeatBody = sourceForBeatStart >= 0 && sourceForBeatEnd > sourceForBeatStart
-  ? mouthSource.slice(sourceForBeatStart, sourceForBeatEnd)
+  ? mouthBoundarySource.slice(sourceForBeatStart, sourceForBeatEnd)
   : "";
-check("mouth:provenance", sourceForBeatStart >= 0, "Mouth has an explicit source provenance boundary");
+check("mouth:provenance", /function sourceLabelsForBeat\s*\(/.test(mouthBoundarySource) && /beat\.eventIds/.test(sourceForBeatBody), "Canonical Mouth boundary resolves provenance from approved beat eventIds");
 check(
   "mouth:no-planner-label-promotion",
-  /beat\.eventIds/.test(sourceForBeatBody)
-    && !/setsUp|paysOff/.test(sourceForBeatBody)
-    && !/sourceLabels/.test(sourceForBeatBody),
-  "Only beat eventIds may resolve into source labels",
+  /beat\.eventIds/.test(sourceForBeatBody) && !/setsUp|paysOff/.test(sourceForBeatBody),
+  "Only approved beat eventIds may resolve source labels",
 );
 
 const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";
@@ -129,9 +122,7 @@ check("interpretation:concrete-risk", /unsupportedConcreteRisk/.test(interpretat
 const beamSource = existsSync(join(root, beam)) ? read(beam) : "";
 check(
   "beam:creative-ranking",
-  /viewerStateFit\s*\(/.test(beamSource)
-    && /sequenceTransition\s*\(/.test(beamSource)
-    && /expressionQuality\s*\(/.test(beamSource),
+  /viewerStateFit\s*\(/.test(beamSource) && /sequenceTransition\s*\(/.test(beamSource) && /expressionQuality\s*\(/.test(beamSource),
   "Beam ranks semantic/state quality, sequence transition, and expression quality",
 );
 check("beam:safety", /inventionRisk/.test(beamSource) && /forbiddenMoveRisk/.test(beamSource), "Beam enforces invention safety");
