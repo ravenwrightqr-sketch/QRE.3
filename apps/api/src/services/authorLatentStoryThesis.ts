@@ -25,7 +25,10 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
-import { deriveSequenceBackedCreativeInterpretation } from "./authorCreativeInterpretation.js";
+import {
+  deriveSequenceBackedCreativeInterpretations,
+  type CreativeInterpretation,
+} from "./authorCreativeInterpretation.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -102,20 +105,125 @@ function meaningfulTurnSteps(
     );
 }
 
+function interpretationScore(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  interpretation: CreativeInterpretation,
+): number {
+  const trajectoryIds = unique(
+    candidate.trajectory.flatMap((step) => step.eventIds),
+  );
+  const trajectoryIndex = new Map(
+    trajectoryIds.map((id, index) => [id, index]),
+  );
+
+  const supported = interpretation.evidenceEventIds.filter((id) =>
+    trajectoryIndex.has(id),
+  ).length;
+  const coverage =
+    interpretation.evidenceEventIds.length > 0
+      ? supported / interpretation.evidenceEventIds.length
+      : 0;
+
+  const positions = interpretation.evidenceEventIds
+    .map((id) => trajectoryIndex.get(id))
+    .filter((value): value is number => value !== undefined);
+  const spread =
+    positions.length >= 2 && trajectoryIds.length >= 2
+      ? (Math.max(...positions) - Math.min(...positions)) /
+        Math.max(1, trajectoryIds.length - 1)
+      : 0;
+
+  const endpoint = endpointId(candidate);
+  const endpointSupport = endpoint &&
+    interpretation.evidenceEventIds.includes(endpoint)
+    ? 1
+    : 0;
+
+  const firstLabel = interpretation.evidenceEventIds[0]
+    ? eventLabel(graph, interpretation.evidenceEventIds[0])
+    : "";
+  const lastLabel = interpretation.evidenceEventIds[
+    interpretation.evidenceEventIds.length - 1
+  ]
+    ? eventLabel(
+        graph,
+        interpretation.evidenceEventIds[
+          interpretation.evidenceEventIds.length - 1
+        ],
+      )
+    : "";
+  const sequenceCarry = firstLabel && lastLabel
+    ? metric(1 - Math.min(1, Math.abs(
+        trajectoryIds.indexOf(interpretation.evidenceEventIds[0] ?? "") -
+        trajectoryIds.indexOf(
+          interpretation.evidenceEventIds[
+            interpretation.evidenceEventIds.length - 1
+          ] ?? "",
+        ),
+      ) / Math.max(1, trajectoryIds.length)))
+    : 0;
+
+  const mechanismPriority: Record<CreativeInterpretation["mechanism"], number> = {
+    contrast: 1,
+    expectation_shift: 0.96,
+    convergence: 0.92,
+    consequence: 0.9,
+    recurrence: 0.88,
+    state_change: 0.84,
+    continuation: 0.8,
+  };
+
+  return metric(
+    interpretation.confidence * 0.35 +
+      coverage * 0.2 +
+      spread * 0.18 +
+      endpointSupport * 0.12 +
+      sequenceCarry * 0.05 +
+      mechanismPriority[interpretation.mechanism] * 0.1,
+  );
+}
+
+function selectCreativeInterpretation(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  interpretations: readonly CreativeInterpretation[],
+): CreativeInterpretation | undefined {
+  return interpretations
+    .map((interpretation, index) => ({
+      interpretation,
+      index,
+      score: interpretationScore(graph, candidate, interpretation),
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.interpretation.confidence - left.interpretation.confidence ||
+        right.interpretation.evidenceEventIds.length -
+          left.interpretation.evidenceEventIds.length ||
+        left.index - right.index,
+    )[0]?.interpretation;
+}
+
 function strongestStructuralTurn(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): StructuralTurn | undefined {
-  const sequenceInterpretation =
-    deriveSequenceBackedCreativeInterpretation(
+  const sequenceInterpretations =
+    deriveSequenceBackedCreativeInterpretations(
       graph,
       candidate,
     );
 
+  const sequenceInterpretation = selectCreativeInterpretation(
+    graph,
+    candidate,
+    sequenceInterpretations,
+  );
+
   const sequenceInterpretationScore =
     sequenceInterpretation
-      ? sequenceInterpretation.confidence +
-        sequenceInterpretation.evidenceEventIds.length * 0.08
+      ? interpretationScore(graph, candidate, sequenceInterpretation)
       : 0;
 
   const explicit = meaningfulTurnSteps(candidate)
@@ -153,16 +261,7 @@ function strongestStructuralTurn(
   /*
    * A multi-event interpretation is preferred when it explains materially
    * more of the supplied sequence than a weak pairwise graph edge. This is
-   * the distinction between:
-   *
-   *   "kept talking -> felt easy"
-   *
-   * and:
-   *
-   *   "what began unexpectedly acquired a reason to continue."
-   *
-   * The latter is still grounded entirely in supplied events; it simply
-   * captures the relationship among more of them.
+   * the distinction between a local relation and a sequence-level reading.
    */
   if (
     sequenceInterpretation &&
@@ -367,7 +466,6 @@ function chooseSealingIds(
     }
   };
 
-  // Prefer evidence that appears after the turn in the selected trajectory.
   for (let index = turn.index + 1; index < candidate.trajectory.length; index += 1) {
     const step = candidate.trajectory[index];
     for (const id of step.eventIds) {
@@ -380,8 +478,6 @@ function chooseSealingIds(
     }
   }
 
-  // When the selected trajectory is only establish -> turn -> payoff,
-  // recover a distinct sealing event from source evidence instead of failing the thesis.
   if (!candidates.length) {
     const trajectoryIds = new Set(
       candidate.trajectory.flatMap((step) => step.eventIds),
