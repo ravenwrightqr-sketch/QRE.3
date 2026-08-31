@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
   Experience,
   MemoryContext,
@@ -213,7 +212,14 @@ function buildEvents(
   sessionId?: string,
 ): MemoryEventWrite[] {
   return graph.events.map((event) => ({
-    id: randomUUID(),
+    /*
+     * Deliberately omit an explicit ID.
+     *
+     * memoryRepository.ts derives the durable event ID from the stable
+     * operationId, event position, type, summary, timestamp, and session.
+     * That means transaction retries reuse the same event identity instead
+     * of inserting duplicate history.
+     */
     type: "world_event",
     summary: clean(event.label).slice(0, 1000),
     occurredAt: observedAt,
