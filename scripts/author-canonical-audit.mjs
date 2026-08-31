@@ -57,23 +57,32 @@ function walk(dir, out = []) {
 
 function resolveRelative(importer, specifier) {
   if (!specifier.startsWith(".")) return undefined;
+
   const base = join(dirname(importer), specifier);
+  const stripped = base.replace(/\.(?:js|jsx|mjs|cjs)$/i, "");
   const candidates = [
     base,
-    `${base}.ts`,
-    `${base}.tsx`,
-    `${base}.js`.replace(/\.js$/, ".ts"),
-    `${base}.mjs`,
-    join(base, "index.ts"),
+    `${stripped}.ts`,
+    `${stripped}.tsx`,
+    `${stripped}.js`,
+    `${stripped}.mjs`,
+    `${stripped}.cjs`,
+    join(stripped, "index.ts"),
   ];
+
   return candidates.find((candidate) => existsSync(candidate));
 }
 
 function directImports(file) {
   const body = readFileSync(file, "utf8");
   const imports = [];
-  for (const match of body.matchAll(/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g)) {
-    imports.push({ specifier: match[1], resolved: resolveRelative(file, match[1]) });
+  for (const match of body.matchAll(
+    /(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g,
+  )) {
+    imports.push({
+      specifier: match[1],
+      resolved: resolveRelative(file, match[1]),
+    });
   }
   return imports;
 }
