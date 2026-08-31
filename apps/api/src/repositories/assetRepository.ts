@@ -7,7 +7,10 @@ export function createAssetRepository(): AssetRepository {
       const asset = await db.asset.findUnique({
         where: { slug },
         include: {
-          flows: { where: { active: true }, orderBy: { priority: "desc" }, include: { flow: { include: { steps: true } } } },
+          flows: { where: { active: true },orderBy: [
+  { priority: "desc" },
+  { createdAt: "desc" },
+],  include: { flow: { include: { steps: true } } } },
           experiences: { orderBy: { createdAt: "asc" } },
         },
       });

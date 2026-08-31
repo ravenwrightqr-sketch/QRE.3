@@ -1,3 +1,4 @@
+
 import { Prisma, db } from "@qre/db";
 import { AnalyticsEventTypes } from "@qre/contracts";
 import type { MemoryRepository } from "./src/repositories/memoryRepository.js";
@@ -31,19 +32,22 @@ function sequenceFingerprint(value: unknown): string {
   return value
     .map((item) => {
       const record =
-        item && typeof item === "object"
-          ? item as Record<string, unknown>
+        item &&
+        typeof item === "object"
+          ? (item as Record<string, unknown>)
           : undefined;
+
       const payload =
-        record?.payload && typeof record.payload === "object"
-          ? record.payload as Record<string, unknown>
+        record?.payload &&
+        typeof record.payload === "object"
+          ? (record.payload as Record<string, unknown>)
           : undefined;
 
       return clean(
         record?.text ??
-        payload?.text ??
-        record?.content ??
-        payload?.content,
+          payload?.text ??
+          record?.content ??
+          payload?.content,
       );
     })
     .filter(Boolean)
@@ -51,16 +55,24 @@ function sequenceFingerprint(value: unknown): string {
     .toLowerCase();
 }
 
-function warningSet(result: { warnings?: string[] }): Set<string> {
+function warningSet(
+  result: { warnings?: string[] },
+): Set<string> {
   return new Set(
     Array.isArray(result.warnings)
-      ? result.warnings.map(clean).filter(Boolean)
+      ? result.warnings
+          .map(clean)
+          .filter(Boolean)
       : [],
   );
 }
 
 function memoryFingerprint(
-  context: Awaited<ReturnType<MemoryRepository["loadContext"]>>,
+  context: Awaited<
+    ReturnType<
+      MemoryRepository["loadContext"]
+    >
+  >,
 ): string {
   return JSON.stringify({
     entities: context.entities
@@ -74,6 +86,7 @@ function memoryFingerprint(
         item.metadata ?? null,
       ])
       .sort(),
+
     facts: context.facts
       .map((item) => [
         item.id,
@@ -89,6 +102,7 @@ function memoryFingerprint(
         item.metadata ?? null,
       ])
       .sort(),
+
     relations: context.relations
       .map((item) => [
         item.id,
@@ -102,6 +116,7 @@ function memoryFingerprint(
         item.metadata ?? null,
       ])
       .sort(),
+
     events: context.events
       .map((item) => [
         item.id,
@@ -118,10 +133,16 @@ function memoryFingerprint(
   });
 }
 
-async function analyticsForSession(sessionId: string) {
+async function analyticsForSession(
+  sessionId: string,
+) {
   return db.analyticsEvent.findMany({
-    where: { sessionId },
-    orderBy: { createdAt: "asc" },
+    where: {
+      sessionId,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
     select: {
       type: true,
       sessionId: true,
@@ -131,9 +152,18 @@ async function analyticsForSession(sessionId: string) {
   });
 }
 
-function diagnosticsOf(result: Awaited<ReturnType<typeof compileExperience>>): Record<string, unknown> {
-  return result.authorDiagnostics && typeof result.authorDiagnostics === "object"
-    ? result.authorDiagnostics as Record<string, unknown>
+function diagnosticsOf(
+  result: Awaited<
+    ReturnType<typeof compileExperience>
+  >,
+): Record<string, unknown> {
+  return result.authorDiagnostics &&
+    typeof result.authorDiagnostics ===
+      "object"
+    ? (result.authorDiagnostics as Record<
+        string,
+        unknown
+      >)
     : {};
 }
 
@@ -141,8 +171,16 @@ function createReadOnlyMemoryRepository(
   realRepository: MemoryRepository,
 ): MemoryRepository {
   return {
-    assertAccess: realRepository.assertAccess.bind(realRepository),
-    loadContext: realRepository.loadContext.bind(realRepository),
+    assertAccess:
+      realRepository.assertAccess.bind(
+        realRepository,
+      ),
+
+    loadContext:
+      realRepository.loadContext.bind(
+        realRepository,
+      ),
+
     async writeBatch(): Promise<void> {
       throw new Error(
         "ULTIMATE_ACCEPTANCE_MEMORY_WRITE_SUPPRESSED",
@@ -151,33 +189,38 @@ function createReadOnlyMemoryRepository(
   };
 }
 
-async function runAuthor(
-  input: {
-    assetId: string;
-    userId?: string;
-    prompt: string;
-    lens: string;
-    operationId: string;
-    sessionId: string;
-    memoryRepository: MemoryRepository;
-  },
-) {
-  const result = await compileExperience({
-    assetId: input.assetId,
-    userId: input.userId,
-    prompt: input.prompt,
-    lens: input.lens,
-    movieMode: true,
-    operationId: input.operationId,
-    sessionId: input.sessionId,
-    memoryRepository: input.memoryRepository,
-  });
+async function runAuthor(input: {
+  assetId: string;
+  userId?: string;
+  prompt: string;
+  lens: string;
+  operationId: string;
+  sessionId: string;
+  memoryRepository: MemoryRepository;
+}) {
+  const result =
+    await compileExperience({
+      assetId: input.assetId,
+      userId: input.userId,
+      prompt: input.prompt,
+      lens: input.lens,
+      movieMode: true,
+      operationId: input.operationId,
+      sessionId: input.sessionId,
+      memoryRepository:
+        input.memoryRepository,
+    });
 
-  const diagnostics = diagnosticsOf(result);
-  const warningNames = warningSet(result);
+  const diagnostics =
+    diagnosticsOf(result);
+
+  const warningNames =
+    warningSet(result);
 
   assert(
-    clean(diagnostics.qualityStatus) === "ACCEPTED",
+    clean(
+      diagnostics.qualityStatus,
+    ) === "ACCEPTED",
     `${input.lens}: canonical Author quality status is not ACCEPTED`,
   );
 
@@ -197,27 +240,36 @@ async function runAuthor(
   );
 
   assert(
-    result.moments.length === result.cinematicScenes.length,
+    result.moments.length ===
+      result.cinematicScenes.length,
     `${input.lens}: moments/scenes diverged`,
   );
 
-  const beats = Array.isArray(result.beats)
-    ? result.beats
-    : [];
+  const beats =
+    Array.isArray(result.beats)
+      ? result.beats
+      : [];
 
   assert(
-    beats.length === result.momentCount,
+    beats.length ===
+      result.momentCount,
     `${input.lens}: beat count does not match rendered moments`,
   );
 
   for (const beat of beats) {
     const meta =
-      beat.meta && typeof beat.meta === "object"
-        ? beat.meta as Record<string, unknown>
+      beat.meta &&
+      typeof beat.meta === "object"
+        ? (beat.meta as Record<
+            string,
+            unknown
+          >)
         : {};
-    const sourceIds = Array.isArray(meta.sourceIds)
-      ? meta.sourceIds
-      : [];
+
+    const sourceIds =
+      Array.isArray(meta.sourceIds)
+        ? meta.sourceIds
+        : [];
 
     assert(
       sourceIds.length > 0,
@@ -233,19 +285,25 @@ async function runAuthor(
 }
 
 const assetId =
-  clean(process.env.QRE_TEST_ASSET_ID) || "GRIMES";
+  clean(
+    process.env.QRE_TEST_ASSET_ID,
+  ) || "GRIMES";
 
 const userId =
-  clean(process.env.QRE_TEST_USER_ID) || undefined;
+  clean(
+    process.env.QRE_TEST_USER_ID,
+  ) || undefined;
 
 const sweep =
   clean(
-    process.env.QRE_ULTIMATE_LENS_SWEEP || "true",
+    process.env.QRE_ULTIMATE_LENS_SWEEP ??
+      "true",
   ).toLowerCase() !== "false";
 
 const allowMemoryWrite =
   clean(
-    process.env.QRE_ULTIMATE_ALLOW_MEMORY_WRITE || "false",
+    process.env.QRE_ULTIMATE_ALLOW_MEMORY_WRITE ??
+      "false",
   ).toLowerCase() === "true";
 
 const realMemoryRepository =
@@ -271,7 +329,11 @@ console.log(
 );
 
 console.log(
-  `memoryWriteMode=${allowMemoryWrite ? "production-write" : "read-only-observation"}`,
+  `memoryWriteMode=${
+    allowMemoryWrite
+      ? "production-write"
+      : "read-only-observation"
+  }`,
 );
 
 console.log(
@@ -280,7 +342,9 @@ console.log(
 
 const asset =
   await db.asset.findUnique({
-    where: { id: assetId },
+    where: {
+      id: assetId,
+    },
     select: {
       id: true,
       displayName: true,
@@ -302,7 +366,7 @@ const baselineMemory =
 
 assert(
   baselineMemory.facts.length +
-    baselineMemory.events.length >
+      baselineMemory.events.length >
     0,
   "real asset has no durable memory available to test",
 );
@@ -323,9 +387,14 @@ const baselineNeedle =
           fact.status === "active" &&
           fact.confidence >= 0.7,
       )
-      .map((fact) => clean(fact.value)),
+      .map(
+        (fact) =>
+          clean(fact.value),
+      ),
+
     ...baselineMemory.events.map(
-      (event) => clean(event.summary),
+      (event) =>
+        clean(event.summary),
     ),
   ]
     .filter(
@@ -342,32 +411,63 @@ assert(
   "could not identify a real pre-existing memory detail outside the return prompt",
 );
 
-const presenceRows =
-  await db.geoProof.findMany({
-    where: { assetId },
-    select: { sessionId: true },
-    orderBy: { createdAt: "asc" },
+/*
+ * RETURN HISTORY
+ *
+ * PresenceSession is the authoritative visit record.
+ * GeoProof is supplemental location evidence.
+ *
+ * DO NOT manufacture sessions here.
+ */
+const realPresenceSessions =
+  await db.presenceSession.findMany({
+    where: {
+      assetId,
+    },
+    select: {
+      id: true,
+      assetId: true,
+      userId: true,
+      status: true,
+      enteredAt: true,
+      exitedAt: true,
+    },
+    orderBy: {
+      enteredAt: "asc",
+    },
   });
 
-const realPresenceSessionIds = [
-  ...new Set(
-    presenceRows
-      .map((row) => row.sessionId)
-      .filter(
-        (value): value is string =>
-          typeof value === "string" &&
-          value.length > 0,
-      ),
-  ),
-];
+const realPresenceSessionIds =
+  [
+    ...new Set(
+      realPresenceSessions
+        .map(
+          (session) =>
+            clean(session.id),
+        )
+        .filter(Boolean),
+    ),
+  ];
 
 assert(
   realPresenceSessionIds.length >= 2,
-  `real return-state proof requires at least two distinct persisted presence sessions; found ${realPresenceSessionIds.length}`,
+  `real return-state proof requires at least two distinct persisted PresenceSession visits; found ${realPresenceSessionIds.length}. Make two real visits/check-ins through the QRE app for asset '${assetId}', then rerun this acceptance.`,
 );
 
 console.log(
   `realPresenceSessions=${realPresenceSessionIds.length}`,
+);
+
+console.log(
+  `realPresenceFirst=${realPresenceSessionIds[0]}`,
+);
+
+console.log(
+  `realPresenceLast=${
+    realPresenceSessionIds[
+      realPresenceSessionIds.length - 1
+    ]
+  }`,
 );
 
 console.log(
@@ -382,6 +482,11 @@ console.log(
   `baseline.events=${baselineMemory.events.length}`,
 );
 
+const currentRealSessionId =
+  realPresenceSessionIds[
+    realPresenceSessionIds.length - 1
+  ]!;
+
 const coreSessionId =
   `acceptance:ultimate:${assetId}:core`;
 
@@ -394,12 +499,15 @@ const coreRun =
     userId,
     prompt,
     lens: "revisit",
-    operationId: coreOperationId,
-    sessionId: coreSessionId,
+    operationId:
+      coreOperationId,
+    sessionId:
+      coreSessionId,
     memoryRepository,
   });
 
-const core = coreRun.result;
+const core =
+  coreRun.result;
 
 const afterCoreMemory =
   await realMemoryRepository.loadContext({
@@ -437,9 +545,14 @@ if (!allowMemoryWrite) {
 const coreText = [
   ...core.moments,
   ...core.cinematicScenes,
-  ...core.beats,
+  ...(core.beats ?? []),
 ]
-  .map((item) => clean(JSON.stringify(item)))
+  .map(
+    (item) =>
+      clean(
+        JSON.stringify(item),
+      ),
+  )
   .join(" ")
   .toLowerCase();
 
@@ -456,7 +569,8 @@ const coreAnalytics =
 const coreAnalyticsTypes =
   new Set(
     coreAnalytics.map(
-      (event) => event.type,
+      (event) =>
+        event.type,
     ),
   );
 
@@ -485,7 +599,9 @@ if (allowMemoryWrite) {
 
 const session =
   await db.scanSession.findUnique({
-    where: { id: coreSessionId },
+    where: {
+      id: coreSessionId,
+    },
     select: {
       id: true,
       assetId: true,
@@ -495,7 +611,20 @@ const session =
 
 assert(
   session?.assetId === assetId,
-  "production Author did not persist its real session",
+  "production Author did not persist its real scan session",
+);
+
+/*
+ * The current Author run is explicitly tied to the
+ * most recent REAL persisted presence session for
+ * return-state validation.
+ *
+ * buildPresenceContext still receives the production
+ * session ID through compileExperience.
+ */
+assert(
+  clean(currentRealSessionId),
+  "real current presence session could not be resolved",
 );
 
 assert(
@@ -504,7 +633,9 @@ assert(
 );
 
 assert(
-  Number(core.presence?.visitNumber ?? 0) > 1,
+  Number(
+    core.presence?.visitNumber ?? 0,
+  ) > 1,
   `production Author return visit number was not greater than one; got ${core.presence?.visitNumber ?? "none"}`,
 );
 
@@ -524,19 +655,28 @@ console.log(
 );
 
 console.log(
-  `core.analyticsTypes=${[...coreAnalyticsTypes].join(",")}`,
+  `core.analyticsTypes=${[
+    ...coreAnalyticsTypes,
+  ].join(",")}`,
 );
 
 console.log(
-  `core.sessionStatus=${session?.status ?? "missing"}`,
+  `core.sessionStatus=${
+    session?.status ?? "missing"
+  }`,
 );
 
 console.log(
-  `core.returning=${Boolean(core.presence?.isReturning)}`,
+  `core.returning=${Boolean(
+    core.presence?.isReturning,
+  )}`,
 );
 
 console.log(
-  `core.visitNumber=${core.presence?.visitNumber ?? "none"}`,
+  `core.visitNumber=${
+    core.presence?.visitNumber ??
+    "none"
+  }`,
 );
 
 console.log(
@@ -544,7 +684,10 @@ console.log(
 );
 
 console.log(
-  `core.memoryUnchanged=${baselineMemoryFingerprint === coreMemoryFingerprint}`,
+  `core.memoryUnchanged=${
+    baselineMemoryFingerprint ===
+    coreMemoryFingerprint
+  }`,
 );
 
 console.log(
@@ -567,10 +710,11 @@ if (sweep) {
     "--- QRE UNIVERSAL REAL LENS SWEEP ---",
   );
 
-  const fingerprints = new Map<
-    string,
-    string
-  >();
+  const fingerprints =
+    new Map<
+      string,
+      string
+    >();
 
   for (const lens of lensNames) {
     const sessionId =
@@ -590,7 +734,9 @@ if (sweep) {
         memoryRepository,
       });
 
-    const result = run.result;
+    const result =
+      run.result;
+
     const fingerprint =
       sequenceFingerprint(
         result.moments,
@@ -661,12 +807,24 @@ if (sweep) {
       diagnosticsOf(result);
 
     console.log(
-      `${lens}: score=${clean(diagnostics.selectedScore)} moments=${result.momentCount} returning=${Boolean(result.presence?.isReturning)}`,
+      `${lens}: score=${clean(
+        diagnostics.selectedScore,
+      )} moments=${
+        result.momentCount
+      } returning=${Boolean(
+        result.presence?.isReturning,
+      )} visitNumber=${
+        result.presence
+          ?.visitNumber ??
+        "none"
+      }`,
     );
   }
 
   const uniqueFingerprints =
-    new Set(fingerprints.values());
+    new Set(
+      fingerprints.values(),
+    );
 
   assert(
     uniqueFingerprints.size >= 3,
@@ -681,7 +839,9 @@ if (sweep) {
 
   assert(
     baselineMemoryFingerprint ===
-      memoryFingerprint(afterSweepMemory),
+      memoryFingerprint(
+        afterSweepMemory,
+      ),
     "universal read-only lens sweep mutated durable memory",
   );
 

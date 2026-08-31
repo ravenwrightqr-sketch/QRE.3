@@ -4,6 +4,7 @@ import type {
   AccessRepository,
   AnalyticsRepository,
   StoryDeliveryRepository,
+  PresenceRepository,
   FlowStepRecord,
 } from "./repositories/index.js";
 import { resolveAccessEngine } from "./accessEngine.js";
@@ -131,6 +132,7 @@ export async function scanEngine(
     sessionRepository: SessionRepository;
     analyticsRepository: AnalyticsRepository;
     accessRepository: AccessRepository;
+    presenceRepository: PresenceRepository;
     storyDeliveryRepository: StoryDeliveryRepository;
   },
 ): Promise<Experience> {
@@ -251,25 +253,24 @@ export async function scanEngine(
       )
       .filter(Boolean),
   });
+try {
+  await runFlowActions(
+    moments,
+    session.id,
+    asset.id,
+    input.geo,
+    input.userId,
+    repos.analyticsRepository,
+    repos.presenceRepository,
+  );
+} catch (err) {
+  console.warn("[FLOW ACTION FAILED]", err);
 
-  try {
-    await runFlowActions(
-      moments,
-      session.id,
-      asset.id,
-      input.geo,
-      input.userId,
-      repos.analyticsRepository,
-    );
-  } catch (err) {
-    console.warn("[FLOW ACTION FAILED]", err);
-
-    await track("ERROR", {
-      stage: "flow-actions",
-      error: String(err),
-    });
-  }
-
+  await track("ERROR", {
+    stage: "flow-actions",
+    error: String(err),
+  });
+}
   let geoStory = null;
 
   try {

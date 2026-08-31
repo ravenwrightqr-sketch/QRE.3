@@ -191,4 +191,8 @@ export interface PresenceRepository {
   getPresenceTimeline(
     assetId: string,
   ): Promise<unknown[]>;
+
+    getPresenceSessions(
+    assetId: string,
+  ): Promise<unknown[]>;
 }

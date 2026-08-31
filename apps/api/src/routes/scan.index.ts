@@ -8,7 +8,9 @@ import {
 import {
   scanRoute,
 } from "./scan.route.js";
-
+import {
+  createPresenceRepository,
+} from "../repositories/presenceRepository.js";
 
 import {
   createAssetRepository,
@@ -253,7 +255,8 @@ router.get(
       const storyDeliveryRepository =
         createStoryDeliveryRepository();
 
-
+      const presenceRepository =
+         createPresenceRepository();
 
 
 
@@ -269,19 +272,14 @@ router.get(
 
           },
 
-          {
-
-            assetRepository,
-
-            sessionRepository,
-
-            analyticsRepository,
-
-            accessRepository,
-
-            storyDeliveryRepository,
-
-          }
+        {
+         assetRepository,
+         sessionRepository,
+         analyticsRepository,
+         accessRepository,
+         presenceRepository,
+         storyDeliveryRepository,
+}
 
         );
 
