@@ -1,6 +1,5 @@
-
 /**
- * STATUS: CANONICAL COMPATIBILITY
+ * STATUS: CANONICAL
  * ROLE: Select one already-authorized language candidate per approved beat.
  *
  * MUST NOT:
@@ -8,68 +7,147 @@
  * - create story beats
  * - reinterpret reality
  * - bypass candidate authorization
+ * - reconstruct viewer authority
  *
- * The historical "beam" name remains for compatibility with the master Author.
+ * ================================================================
+ * SELECTION LAW
+ * ================================================================
  *
- * SELECTION AUTHORITY:
- *   1. candidate safety
- *   2. candidate authorization / provenance
- *   3. semantic execution
- *   4. sequence meaning
- *   5. experiential realization
- *   6. transition / interruption
- *   7. grounding
- *   8. compression
- *   9. novelty / cohesion
- *   10. sequence continuity
- *   11. endpoint exactness
+ * The Beam does not decide what the story means.
  *
- * CORE SEQUENCE LAW:
+ * Cognition owns:
+ *   reality
+ *   approved meaning
+ *   movie
+ *   beats
+ *   viewer-state transition
+ *
+ * Mouth owns:
+ *   expression
+ *
+ * Attention owns:
+ *   whether an expression creates a useful transition
+ *
+ * The Beam owns:
+ *   which already-authorized expressions form the strongest STATE PATH.
+ *
+ * Canonical hierarchy:
+ *
+ *   1. safety
+ *   2. authorization / provenance
+ *   3. viewer-state transition
+ *   4. next-state pressure
+ *   5. sequence coherence
+ *   6. expressive quality
+ *
+ * ================================================================
+ * CORE SEQUENCE LAW
+ * ================================================================
  *
  * A good line is not necessarily the best line.
  *
- * The best line is the line whose relationship to the surrounding cuts
- * creates the strongest useful change in meaning, feeling, rhythm,
- * attention, recognition, interruption, or anticipation.
+ * The best line is the authorized expression that creates the strongest
+ * useful transition from the state established by preceding cuts and
+ * leaves the sequence in the most useful state for what follows.
  *
  * Gold is emergent.
  *
  * No beat is assigned a fire position.
  * No candidate is guaranteed to become the fire line.
  * The sequence discovers where exceptional realization belongs.
+ *
+ * ================================================================
+ * STATE LAW
+ * ================================================================
+ *
+ * BEFORE
+ *   What semantic / experiential state has already been established?
+ *
+ * CUT
+ *   What approved expression enters?
+ *
+ * AFTER
+ *   What is different now?
+ *
+ * NEXT
+ *   What unresolved pressure survives because the new state exists?
+ *
+ * The Beam therefore evaluates transitions, not merely sentences.
+ *
+ * ================================================================
+ * AUTHORITY LAW
+ * ================================================================
+ *
+ * ViewerStateCut is authoritative upstream state.
+ *
+ * It is created by:
+ *
+ *   Cognition
+ *      ↓
+ *   approved beat
+ *      ↓
+ *   deriveViewerStateCut()
+ *
+ * The Beam receives that state through MouthCandidatePool.
+ *
+ * The Beam does not:
+ *   - create a second state
+ *   - infer a replacement state
+ *   - attach state to individual candidates
+ *   - fall back to candidate-local state
+ *
+ * A pool is therefore a transport boundary:
+ *
+ *   viewerState
+ *   nextPromise
+ *   frontier
+ *   candidates[]
+ *
+ * The authority remains singular.
  */
+import type {
+  MouthCandidate,
+  MouthCandidatePool,
+  MouthSequencePath,
+  MouthBeamOptions,
+  ViewerStateCut,
+} from "@qre/contracts";
 
-import type { MouthCandidate } from "./authorMouthCandidateSearch.js";
 
-export type MouthCandidatePool = {
-  order: number;
-  candidates: MouthCandidate[];
-};
-
-export type MouthSequencePath = {
-  candidates: MouthCandidate[];
-  texts: string[];
-  score: number;
-};
-
-export type MouthBeamOptions = {
-  width?: number;
-  candidatesPerBeat?: number;
-};
-
-const clean = (value: unknown): string =>
+const clean = (
+  value: unknown,
+): string =>
   String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
 
-const clamp01 = (value: number): number =>
+const clamp01 = (
+  value: number,
+): number =>
   Math.max(
     0,
     Math.min(
       1,
-      value,
+      Number.isFinite(value)
+        ? value
+        : 0,
     ),
   );
+
+const metric = (
+  value: number,
+): number =>
+  Number(
+    clamp01(value).toFixed(3),
+  );
+
+const DEBUG_BEAM =
+  process.env.QRE_AUTHOR_DEBUG_BEAM ===
+  "true";
+
+/* ================================================================
+ * TEXT UTILITIES
+ * ================================================================ */
 
 const tokenSet = (
   value: string,
@@ -109,21 +187,46 @@ function overlap(
     }
   }
 
-  return (
+  return clamp01(
     hits /
-    Math.max(
-      1,
-      a.size,
-    )
+      Math.max(
+        1,
+        a.size,
+      ),
   );
 }
+
+function textOverlap(
+  a: string,
+  b: string,
+): number {
+  return overlap(
+    tokenSet(a),
+    tokenSet(b),
+  );
+}
+
+function wordCount(
+  text: string,
+): number {
+  return clean(
+    text,
+  )
+    .split(/\s+/)
+    .filter(Boolean)
+    .length;
+}
+
+/* ================================================================
+ * HARD AUTHORIZATION
+ * ================================================================ */
 
 /**
  * Candidate authorization is a hard boundary.
  *
- * The Beam never turns an unsafe candidate into a safe candidate.
+ * The Beam chooses among already-authorized candidates.
+ * It never repairs authorization.
  */
-
 function authorized(
   candidate: MouthCandidate,
 ): boolean {
@@ -137,11 +240,8 @@ function authorized(
   }
 
   /*
-   * HARD SAFETY FLOOR.
-   *
-   * The Beam never repairs or overrides an unsafe candidate.
-   * Candidate Search must already have established that the line
-   * remains inside the permitted reality boundary.
+   * Candidate Search already establishes the concrete safety boundary.
+   * The Beam cannot override it.
    */
   if (
     candidate.inventionRisk >=
@@ -153,8 +253,7 @@ function authorized(
   }
 
   /*
-   * Viewer-facing language must never expose internal viewer-state
-   * machinery.
+   * Internal cognitive machinery must never reach viewer-facing output.
    */
   if (
     candidate.reasons.includes(
@@ -165,19 +264,7 @@ function authorized(
   }
 
   /*
-   * Identity provenance is a hard boundary.
-   *
-   * Candidate Search decides whether identity-bearing language is
-   * actually supported by supplied reality.
-   *
-   * Therefore:
-   *
-   *   "met someone" -> "she"
-   *
-   * is rejected unless upstream reality authorized that identity.
-   *
-   * This does NOT ban "she", "he", "her", "him", etc. when the supplied
-   * material genuinely establishes the identity.
+   * Identity provenance remains hard.
    */
   if (
     candidate.reasons.includes(
@@ -186,26 +273,26 @@ function authorized(
   ) {
     return false;
   }
-   if (
-  candidate.reasons.includes(
-    "unsupported-concrete-detail",
-  )
-) {
-  return false;
-}
+
   /*
-   * Authorization signals.
-   *
-   * The Beam chooses among candidates that already have provenance
-   * or semantic authorization. It never creates authorization itself.
+   * Unsupported concrete reality remains hard.
    */
+  if (
+    candidate.reasons.includes(
+      "unsupported-concrete-detail",
+    )
+  ) {
+    return false;
+  }
+
   const hasGrounding =
     candidate.groundingScore >=
     0.5;
 
   const hasSupportedEvents =
     candidate.supportedEventIds
-      .length > 0;
+      .length >
+    0;
 
   const hasEndpoint =
     candidate.endpointExactness >=
@@ -242,308 +329,6 @@ function authorized(
   );
 }
 
-
-/**
- * General semantic quality.
- *
- * Provenance remains primary.
- * This function cannot override safety.
- */
-function semanticQuality(
-  candidate: MouthCandidate,
-): number {
-  const reasons =
-    candidate.reasons;
-
-  const creative =
-    reasons.includes(
-      "bounded-creative-bet",
-    );
-
-  const semanticGold =
-    reasons.includes(
-      "semantic-compression",
-    );
-
-  const experiential =
-    reasons.includes(
-      "experiential-realization",
-    );
-
-  const distinctive =
-    reasons.includes(
-      "distinctive-realization",
-    );
-
-  const semanticContrast =
-    reasons.includes(
-      "semantic-contrast",
-    );
-
-  const base =
-    candidate.meaningScore * 0.22 +
-    candidate.transitionScore * 0.15 +
-    candidate.groundingScore * 0.12 +
-    candidate.obligationCoverage * 0.10 +
-    candidate.compressionScore * 0.08 +
-    candidate.cohesionScore * 0.05 +
-    candidate.noveltyScore * 0.07;
-
-  const experientialLift =
-    experiential
-      ? 0.1
-      : 0;
-
-  const compressionLift =
-    semanticGold
-      ? 0.08
-      : 0;
-
-  const distinctiveLift =
-    distinctive
-      ? 0.08
-      : 0;
-
-  const creativeLift =
-    creative
-      ? 0.05
-      : 0;
-
-  const contrastLift =
-    semanticContrast
-      ? 0.05
-      : 0;
-
-  return clamp01(
-    base +
-      experientialLift +
-      compressionLift +
-      distinctiveLift +
-      creativeLift +
-      contrastLift,
-  );
-}
-
-/**
- * Provenance strength, not lexical similarity alone.
- */
-function authorizationQuality(
-  candidate: MouthCandidate,
-): number {
-  let value = 0;
-
-  if (
-    candidate.supportedEventIds.length >
-    0
-  ) {
-    value += 0.32;
-  }
-
-  if (
-    candidate.supportedRelationPairs.length >
-    0
-  ) {
-    value += 0.24;
-  }
-
-  if (
-    candidate.groundingScore >=
-    0.8
-  ) {
-    value += 0.2;
-  } else if (
-    candidate.groundingScore >=
-    0.5
-  ) {
-    value += 0.1;
-  }
-
-  if (
-    candidate.reasons.includes(
-      "semantic-turn-grounded",
-    )
-  ) {
-    value += 0.18;
-  }
-
-  if (
-    candidate.reasons.includes(
-      "bounded-creative-bet",
-    )
-  ) {
-    value += 0.12;
-  }
-
-  if (
-    candidate.reasons.includes(
-      "experiential-realization",
-    )
-  ) {
-    value += 0.08;
-  }
-
-  return clamp01(
-    value,
-  );
-}
-
-function isSemanticGold(
-  candidate: MouthCandidate,
-): boolean {
-  return candidate.reasons.includes(
-    "semantic-compression",
-  );
-}
-
-function isCreativeGold(
-  candidate: MouthCandidate,
-): boolean {
-  return candidate.reasons.includes(
-    "bounded-creative-bet",
-  );
-}
-
-function isDistinctiveGold(
-  candidate: MouthCandidate,
-): boolean {
-  return candidate.reasons.includes(
-    "distinctive-realization",
-  );
-}
-
-function isExperientialGold(
-  candidate: MouthCandidate,
-): boolean {
-  return candidate.reasons.includes(
-    "experiential-realization",
-  );
-}
-/**
- * A semantic collision happens when the current realization sits between
- * two already-established meanings and makes their relationship newly
- * interesting.
- *
- * This is not a contradiction requirement and not a synonym detector.
- *
- * Examples of the structural shape:
- *
- *   unexpected + familiar -> a realization of both
- *   nervous + powerful   -> a realization of both
- *   repetition + novelty -> a realization of both
- *
- * The sequence may collide without using overlapping vocabulary.
- */
-function semanticCollision(
-  candidate: MouthCandidate,
-  priorTexts: readonly string[],
-): number {
-  if (priorTexts.length < 2) {
-    return 0;
-  }
-
-  const current = tokenSet(candidate.text);
-
-  const latest = tokenSet(
-    priorTexts[priorTexts.length - 1],
-  );
-
-  const earlier = priorTexts
-    .slice(0, -1)
-    .map(tokenSet);
-
-  const latestOverlap = overlap(
-    current,
-    latest,
-  );
-
-  const earlierOverlap = earlier.length
-    ? Math.max(
-        ...earlier.map((text) =>
-          overlap(current, text),
-        ),
-      )
-    : 0;
-
-  /*
-   * A bridge is interesting when it does not simply repeat the latest cut,
-   * but still connects meaningfully to something earlier.
-   */
-  const bridge =
-    earlierOverlap >= 0.12 &&
-    latestOverlap < 0.62
-      ? clamp01(
-          earlierOverlap -
-            latestOverlap +
-            0.42,
-        )
-      : 0;
-
-  /*
-   * Expressive candidates are allowed to carry meaning that is not present
-   * as literal vocabulary in either neighboring line.
-   */
-  const expressive =
-    isExperientialGold(candidate) ||
-    isDistinctiveGold(candidate) ||
-    isSemanticGold(candidate)
-      ? 0.18
-      : 0;
-
-  /*
-   * Contrastive language is one possible collision form, but never required.
-   */
-  const contrastive =
-    /\b(?:but|yet|still|almost|nothing|everything|never|not|no|again|already|finally|somehow|unexpected|familiar|strange|different|same|again)\b/i.test(
-      candidate.text,
-    )
-      ? 0.16
-      : 0;
-
-  /*
-   * Short realizations can carry a collision more powerfully once context
-   * has accumulated.
-   */
-  const words =
-    clean(candidate.text)
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
-
-  const compression =
-    words <= 3
-      ? 0.14
-      : words <= 7
-        ? 0.06
-        : 0;
-
-  /*
-   * Form interruption helps the collision register as a new arrival.
-   */
-  const currentShape =
-    rhetoricalShape(candidate.text);
-
-  const recentShapes =
-    priorTexts
-      .slice(-2)
-      .map(rhetoricalShape);
-
-  const formBreak =
-    recentShapes.length > 0 &&
-    recentShapes.every(
-      (shape) =>
-        shape !== currentShape,
-    )
-      ? 0.1
-      : 0;
-
-  return clamp01(
-    bridge * 0.34 +
-      expressive +
-      contrastive +
-      compression +
-      formBreak,
-  );
-}
 function isSafe(
   candidate: MouthCandidate,
 ): boolean {
@@ -555,114 +340,94 @@ function isSafe(
   );
 }
 
-/**
- * Dynamic semantic-gold potential.
- *
- * This is deliberately NOT a fixed "fire" flag.
- *
- * It asks:
- *   - Does the candidate carry meaning?
- *   - Does it move the sequence?
- *   - Does it feel distinctive?
- *   - Does it realize experience?
- *   - Does it create contrast?
- *   - Is it compact?
- *   - Is it novel?
- *
- * A quiet line can therefore become gold.
- * A dramatic line can fail to become gold.
- */
-function semanticGoldPotential(
+/* ================================================================
+ * CANDIDATE CLASSIFICATION
+ * ================================================================ */
+
+function hasReason(
   candidate: MouthCandidate,
-): number {
-  const explicitSignals =
-    (
-      isDistinctiveGold(candidate)
-        ? 0.24
-        : 0
-    ) +
-    (
-      isExperientialGold(candidate)
-        ? 0.18
-        : 0
-    ) +
-    (
-      isSemanticGold(candidate)
-        ? 0.12
-        : 0
-    ) +
-    (
-      isCreativeGold(candidate)
-        ? 0.08
-        : 0
-    );
-
-  const semanticSignals =
-    candidate.meaningScore * 0.18 +
-    candidate.transitionScore * 0.12 +
-    candidate.noveltyScore * 0.08 +
-    candidate.compressionScore * 0.06 +
-    candidate.cohesionScore * 0.04 +
-    (
-      candidate.reasons.includes(
-        "semantic-contrast",
-      )
-        ? 0.1
-        : 0
-    );
-
-  return clamp01(
-    explicitSignals +
-      semanticSignals,
+  reason: string,
+): boolean {
+  return candidate.reasons.includes(
+    reason,
   );
 }
 
-/**
- * Gold emergence is sequence-relative.
- *
- * A candidate becomes more interesting when it materially exceeds the
- * average quality of the current beat's alternatives.
- */
-function relativeGoldPotential(
+function isSemanticRealization(
   candidate: MouthCandidate,
-  beatPoolMax: number,
-): number {
-  const potential =
-    semanticGoldPotential(
-      candidate,
-    );
-
-  if (
-    beatPoolMax <= 0
-  ) {
-    return potential;
-  }
-
-  return clamp01(
-    potential /
-    Math.max(
-      0.25,
-      beatPoolMax,
-    ),
+): boolean {
+  return hasReason(
+    candidate,
+    "semantic-compression",
   );
 }
 
+function isCreativeRealization(
+  candidate: MouthCandidate,
+): boolean {
+  return hasReason(
+    candidate,
+    "bounded-creative-bet",
+  );
+}
+
+function isDistinctiveRealization(
+  candidate: MouthCandidate,
+): boolean {
+  return hasReason(
+    candidate,
+    "distinctive-realization",
+  );
+}
+
+function isExperientialRealization(
+  candidate: MouthCandidate,
+): boolean {
+  return hasReason(
+    candidate,
+    "experiential-realization",
+  );
+}
+
+function isExperientialConsequence(
+  candidate: MouthCandidate,
+): boolean {
+  return hasReason(
+    candidate,
+    "experiential-consequence",
+  );
+}
+
+function isSemanticContrast(
+  candidate: MouthCandidate,
+): boolean {
+  return hasReason(
+    candidate,
+    "semantic-contrast",
+  );
+}
+
+/* ================================================================
+ * RHETORICAL FORM
+ * ================================================================ */
+
 /**
- * Identifies rhetorical arrival form.
- *
  * No form is inherently good or bad.
+ *
+ * Form is used only as a bounded sequence signal.
  */
 function rhetoricalShape(
   text: string,
 ): string {
   const value =
-    clean(text);
+    clean(
+      text,
+    );
 
   const words =
-    value
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
+    wordCount(
+      value,
+    );
 
   if (
     /^(?:a|an)\s+/i.test(
@@ -681,7 +446,8 @@ function rhetoricalShape(
   }
 
   if (
-    words === 1
+    words ===
+    1
   ) {
     return "single-word";
   }
@@ -724,17 +490,223 @@ function rhetoricalShape(
   return "free";
 }
 
+/* ================================================================
+ * CANONICAL VIEWER STATE
+ * ================================================================ */
+
 /**
- * Sequence effect asks what this line DOES to what came before.
+ * Canonical viewer-state strength.
+ *
+ * This function reads the upstream state.
+ * It does not create state.
  */
-function sequenceEffect(
-  candidate: MouthCandidate,
-  priorTexts: readonly string[],
+function canonicalStateSignal(
+  state: ViewerStateCut,
 ): number {
+  return metric(
+    state.stateShift * 0.30 +
+      state.predictionError *
+        0.18 +
+      state.curiosityPressure *
+        0.18 +
+      state.contrast *
+        0.14 +
+      state.interruption *
+        0.10 +
+      state.accumulation *
+        0.10,
+  );
+}
+
+/**
+ * Determine how strongly a candidate expresses the authorized
+ * transition.
+ *
+ * IMPORTANT:
+ *
+ * The state is authoritative.
+ * The candidate is only the expression being tested against it.
+ */
+function viewerStateFit(
+  candidate: MouthCandidate,
+  state: ViewerStateCut,
+): number {
+  const value =
+    clean(
+      candidate.text,
+    );
+
+  if (!value) {
+    return 0;
+  }
+
+  const before =
+    clean(
+      state.beforeState,
+    );
+
+  const after =
+    clean(
+      state.afterState,
+    );
+
+  const beforeSimilarity =
+    before
+      ? textOverlap(
+          value,
+          before,
+        )
+      : 0;
+
+  const afterSimilarity =
+    after
+      ? textOverlap(
+          value,
+          after,
+        )
+      : 0;
+
+  /*
+   * A useful realization should participate in the resulting state
+   * without simply restating the prior state.
+   */
+  const directionalShift =
+    clamp01(
+      0.5 +
+        (
+          afterSimilarity -
+          beforeSimilarity
+        ) * 0.75,
+    );
+
+  const stateStrength =
+    canonicalStateSignal(
+      state,
+    );
+
+  const experiential =
+    isExperientialRealization(
+      candidate,
+    )
+      ? 0.08
+      : 0;
+
+  const consequence =
+    isExperientialConsequence(
+      candidate,
+    )
+      ? 0.08
+      : 0;
+
+  return metric(
+    directionalShift * 0.38 +
+      stateStrength * 0.44 +
+      experiential +
+      consequence +
+      candidate.transitionScore *
+        0.06 +
+      candidate.meaningScore *
+        0.04,
+  );
+}
+
+/* ================================================================
+ * NEXT-STATE PRESSURE
+ * ================================================================ */
+
+/**
+ * Future pressure is different from current state change.
+ *
+ * A large transition is not enough if it kills useful continuation.
+ */
+function nextStatePressure(
+  candidate: MouthCandidate,
+  state: ViewerStateCut,
+  nextPromise: string,
+): number {
+  const expectation =
+    clean(
+      nextPromise,
+    );
+
+  const baseCuriosity =
+    clamp01(
+      state.curiosityPressure,
+    );
+
+  if (!expectation) {
+    return metric(
+      baseCuriosity,
+    );
+  }
+
+  const candidateExpectationOverlap =
+    textOverlap(
+      candidate.text,
+      expectation,
+    );
+
+  /*
+   * Moderate overlap means the candidate belongs to the same living
+   * thread without spelling out the next beat.
+   */
+  const continuity =
+    candidateExpectationOverlap >=
+      0.15 &&
+    candidateExpectationOverlap <=
+      0.65
+      ? 1
+      : 0;
+
+  /*
+   * High overlap risks saying tomorrow's line today.
+   */
+  const prematureResolution =
+    candidateExpectationOverlap >=
+    0.80
+      ? 1
+      : 0;
+
+  return metric(
+    baseCuriosity * 0.60 +
+      continuity * 0.24 +
+      (1 -
+        prematureResolution) *
+        0.16,
+  );
+}
+
+/* ================================================================
+ * SEQUENCE TRANSITION
+ * ================================================================ */
+
+/**
+ * Measures what the expression does to the preceding sequence while
+ * respecting the already-authorized viewer transition.
+ *
+ * Lexical novelty remains a supporting signal only.
+ */
+function sequenceTransition(
+  candidate: MouthCandidate,
+  priorCandidates: readonly MouthCandidate[],
+  state: ViewerStateCut,
+): number {
+  const stateFit =
+    viewerStateFit(
+      candidate,
+      state,
+    );
+
   if (
-    !priorTexts.length
+    !priorCandidates.length
   ) {
-    return 0.5;
+    return metric(
+      stateFit * 0.62 +
+        candidate.transitionScore *
+          0.24 +
+        candidate.meaningScore *
+          0.14,
+    );
   }
 
   const current =
@@ -742,565 +714,301 @@ function sequenceEffect(
       candidate.text,
     );
 
-  const previous =
-    priorTexts.map(
-      tokenSet,
+  const priorTexts =
+    priorCandidates.map(
+      (item) =>
+        clean(
+          item.text,
+        ),
     );
 
   const latest =
-    previous[
-      previous.length - 1
+    priorTexts[
+      priorTexts.length - 1
     ];
 
   const latestOverlap =
     overlap(
       current,
-      latest,
+      tokenSet(
+        latest,
+      ),
     );
 
   const older =
-    previous.slice(
+    priorTexts.slice(
       0,
       -1,
     );
 
-  const olderMaxOverlap =
+  const olderMax =
     older.length
       ? Math.max(
           ...older.map(
-            (text) =>
+            (
+              text,
+            ) =>
               overlap(
                 current,
-                text,
+                tokenSet(
+                  text,
+                ),
               ),
           ),
         )
       : 0;
 
-  const olderReturn =
-    older.length &&
-    olderMaxOverlap >= 0.18 &&
-    latestOverlap < 0.55
-      ? clamp01(
-          olderMaxOverlap -
-            latestOverlap +
-            0.35,
-        )
-      : 0;
-
-  const freshTerritory =
+  /*
+   * New territory is good only when it remains inside the living sequence.
+   */
+  const lexicalNovelty =
     clamp01(
       1 -
         Math.max(
           latestOverlap,
-          olderMaxOverlap,
+          olderMax,
         ),
     );
 
-  const meaningfulCallback =
-    older.length &&
-    olderMaxOverlap >= 0.18 &&
-    latestOverlap < 0.62 &&
-    olderMaxOverlap >
-      latestOverlap
-      ? 0.22
+  const callback =
+    olderMax >=
+      0.18 &&
+    latestOverlap <
+      0.62
+      ? 1
       : 0;
 
-  const connectiveTurn =
-    latestOverlap >= 0.12 &&
-    latestOverlap <= 0.58
-      ? 0.18
+  const connectiveBand =
+    latestOverlap >=
+      0.10 &&
+    latestOverlap <=
+      0.58
+      ? 1
       : 0;
 
-  const contradictionShape =
-    /\b(?:but|yet|still|almost|neither|nothing|everything|never|not|no|then)\b/i.test(
+  const formBreak =
+    rhetoricalShape(
       candidate.text,
-    ) &&
-    /[.!?]/.test(
-      candidate.text,
-    )
-      ? 0.16
-      : 0;
-
-  const distinctive =
-    isDistinctiveGold(candidate)
-      ? 0.18
+    ) !==
+      rhetoricalShape(
+        latest,
+      ) &&
+    priorTexts
+      .slice(-2)
+      .every(
+        (
+          text,
+        ) =>
+          rhetoricalShape(
+            text,
+          ) !==
+          rhetoricalShape(
+            candidate.text,
+          ),
+      )
+      ? 1
       : 0;
 
   const experiential =
-    isExperientialGold(candidate)
-      ? 0.2
+    isExperientialRealization(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  const consequence =
+    isExperientialConsequence(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  return metric(
+    stateFit * 0.42 +
+      lexicalNovelty * 0.12 +
+      callback * 0.10 +
+      connectiveBand * 0.08 +
+      formBreak * 0.08 +
+      experiential * 0.08 +
+      consequence * 0.12,
+  );
+}
+
+/* ================================================================
+ * EXPRESSION QUALITY
+ * ================================================================ */
+
+/**
+ * Expression quality is downstream of state.
+ *
+ * Beautiful wording cannot rescue an unauthorized candidate or a weak
+ * state transition.
+ */
+function expressionQuality(
+  candidate: MouthCandidate,
+): number {
+  const safety =
+    1 -
+    Math.max(
+      candidate.inventionRisk,
+      candidate.forbiddenMoveRisk,
+    );
+
+  const grounding =
+    candidate.groundingScore;
+
+  const semantic =
+    candidate.meaningScore;
+
+  const experiential =
+    isExperientialRealization(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  const consequence =
+    isExperientialConsequence(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  const distinctive =
+    isDistinctiveRealization(
+      candidate,
+    )
+      ? 1
       : 0;
 
   const compression =
-    isSemanticGold(candidate)
-      ? 0.12
-      : 0;
+    candidate.compressionScore;
 
-  const compressionStrength =
-    candidate.compressionScore >=
-    0.94
-      ? 0.1
-      : candidate.compressionScore >=
-          0.88
-        ? 0.06
-        : 0;
+  const novelty =
+    candidate.noveltyScore;
 
-  const sequenceNovelty =
-    candidate.noveltyScore *
-    0.16;
-
-  const currentShape =
-    rhetoricalShape(
-      candidate.text,
-    );
-
-  const recentShapes =
-    priorTexts
-      .slice(-2)
-      .map(
-        rhetoricalShape,
-      );
-
-  const formBreak =
-    recentShapes.length > 0 &&
-    recentShapes.every(
-      (shape) =>
-        shape !==
-        currentShape,
+  const contrast =
+    isSemanticContrast(
+      candidate,
     )
-      ? 0.16
+      ? 1
       : 0;
 
-  const attentionInterrupt =
-    freshTerritory > 0.58 &&
-    formBreak > 0
-      ? 0.18
-      : 0;
-
-  const recontextualizingReturn =
-    latestOverlap >= 0.12 &&
-    latestOverlap <= 0.58 &&
-    formBreak > 0 &&
-    (
-      isExperientialGold(candidate) ||
-      isDistinctiveGold(candidate) ||
-      contradictionShape > 0
-    )
-      ? 0.18
-      : 0;
-
-  const experientialContext =
-    isExperientialGold(candidate) &&
-    priorTexts.length >= 2 &&
-    latestOverlap < 0.75
-      ? 0.12
-      : 0;
-
-  const rhythmBreak =
-    formBreak > 0 &&
-    freshTerritory > 0.42
-      ? 0.1
-      : 0;
-
-  const semanticReturn =
-    older.length >= 2 &&
-    olderMaxOverlap >= 0.18 &&
-    latestOverlap < 0.58 &&
-    (
-      isSemanticGold(candidate) ||
-      isExperientialGold(candidate)
-    )
-      ? 0.12
-      : 0;
-    const collision =
-  semanticCollision(
-    candidate,
-    priorTexts,
-  );
-  return clamp01(
-    freshTerritory * 0.16 +
-      connectiveTurn +
-      meaningfulCallback +
-      olderReturn * 0.18 +
-      contradictionShape +
-      distinctive +
-      experiential +
-      compression +
-      compressionStrength +
-      sequenceNovelty +
-      formBreak +
-      attentionInterrupt +
-      recontextualizingReturn +
-      experientialContext +
-      rhythmBreak +
-      semanticReturn+
-      collision * 0.32,
+  return metric(
+    safety * 0.14 +
+      grounding * 0.14 +
+      semantic * 0.18 +
+      experiential * 0.16 +
+      consequence * 0.12 +
+      distinctive * 0.10 +
+      compression * 0.06 +
+      novelty * 0.05 +
+      contrast * 0.05,
   );
 }
 
-/**
- * Sequence continuity.
- */
-function sequenceFit(
+function compressionQuality(
   candidate: MouthCandidate,
-  priorTexts: readonly string[],
 ): number {
-  if (
-    !priorTexts.length
-  ) {
-    return 0.64;
-  }
-
-  const current =
-    tokenSet(
+  const count =
+    wordCount(
       candidate.text,
     );
 
-  const previous =
-    priorTexts.map(
-      tokenSet,
-    );
-
-  const latest =
-    previous[
-      previous.length - 1
-    ];
-
-  const latestOverlap =
-    overlap(
-      current,
-      latest,
-    );
-
-  const maxOverlap =
-    Math.max(
-      ...previous.map(
-        (text) =>
-          overlap(
-            current,
-            text,
-          ),
-      ),
-    );
-
-  const exactRepeat =
-    previous.some(
-      (text) =>
-        clean(
-          text,
-        ).toLowerCase() ===
-        clean(
-          candidate.text,
-        ).toLowerCase(),
-    );
-
   if (
-    exactRepeat
+    count <=
+    3
   ) {
-    return candidate.reasons.includes(
-      "semantic-turn-grounded",
-    )
-      ? 0.3
-      : 0;
+    return 1;
   }
 
-  const restatementPenalty =
-    latestOverlap >= 0.78
-      ? 0.44
-      : latestOverlap >= 0.62
-        ? 0.24
-        : maxOverlap >= 0.82
-          ? 0.2
-          : 0;
+  if (
+    count <=
+    7
+  ) {
+    return 0.92;
+  }
 
-  const callbackSweetSpot =
-    latestOverlap >= 0.12 &&
-    latestOverlap <= 0.52
-      ? 0.16
-      : 0;
+  if (
+    count <=
+    12
+  ) {
+    return 0.72;
+  }
 
-  const semanticTurn =
-    candidate.reasons.includes(
-      "semantic-turn-grounded",
-    ) &&
-    latestOverlap < 0.75
-      ? 0.12
-      : 0;
+  if (
+    count <=
+    20
+  ) {
+    return 0.54;
+  }
 
-  const creativeTurn =
-    isCreativeGold(candidate) &&
-    latestOverlap < 0.75
-      ? 0.1
-      : 0;
+  return 0.25;
+}
 
-  const distinctiveTurn =
-    isDistinctiveGold(candidate)
-      ? 0.14
-      : 0;
+function formDiversity(
+  candidate: MouthCandidate,
+  priorCandidates: readonly MouthCandidate[],
+): number {
+  if (
+    !priorCandidates.length
+  ) {
+    return 0.75;
+  }
 
-  const experientialTurn =
-    isExperientialGold(candidate)
-      ? 0.15
-      : 0;
-
-  const currentShape =
+  const shape =
     rhetoricalShape(
       candidate.text,
     );
 
-  const recentShapes =
-    priorTexts
-      .slice(-2)
+  const recent =
+    priorCandidates
+      .slice(-3)
       .map(
-        rhetoricalShape,
+        (item) =>
+          rhetoricalShape(
+            item.text,
+          ),
       );
 
-  const formRepetitionCount =
-    recentShapes.filter(
-      (shape) =>
-        shape ===
-        currentShape,
+  const repeats =
+    recent.filter(
+      (item) =>
+        item ===
+        shape,
     ).length;
 
-  const formRepetitionPenalty =
-    formRepetitionCount *
-    0.12;
+  if (
+    repeats ===
+    0
+  ) {
+    return 1;
+  }
 
-  const formBreakBonus =
-    recentShapes.length > 0 &&
-    recentShapes.every(
-      (shape) =>
-        shape !==
-        currentShape,
-    )
-      ? 0.12
-      : 0;
+  if (
+    repeats ===
+    1
+  ) {
+    return 0.62;
+  }
 
-  const experientialContextBonus =
-    isExperientialGold(candidate) &&
-    priorTexts.length >= 2 &&
-    latestOverlap < 0.75
-      ? 0.1
-      : 0;
-
-  const effect =
-    sequenceEffect(
-      candidate,
-      priorTexts,
-    );
-
-  const penetrationBonus =
-    priorTexts.length >= 1
-      ? candidate.compressionScore >= 0.94
-        ? 0.08
-        : candidate.compressionScore >= 0.88
-          ? 0.04
-          : 0
-      : 0;
-
-  return clamp01(
-    0.5 +
-      callbackSweetSpot +
-      semanticTurn +
-      creativeTurn +
-      distinctiveTurn +
-      experientialTurn +
-      experientialContextBonus +
-      formBreakBonus +
-      penetrationBonus +
-      effect * 0.32 -
-      restatementPenalty -
-      formRepetitionPenalty,
-  );
+  return 0.28;
 }
 
-/**
- * Path-level scoring.
- *
- * Gold is dynamic:
- *
- * - no fixed beat gets the fire role
- * - a candidate earns extra weight when it is materially stronger
- *   than its alternatives
- * - sequence context changes the value
- * - multiple gold moments remain possible
- * - repeated gold intensity gets diminishing returns
- */
-function pathCandidateScore(
-  candidate: MouthCandidate,
-  priorTexts: readonly string[],
-  hasLiteralAlternative: boolean,
-  previousGoldCount: number,
-  beatPoolMaxGold: number,
-): number {
-  const fit =
-    sequenceFit(
-      candidate,
-      priorTexts,
-    );
-
-  const effect =
-    sequenceEffect(
-      candidate,
-      priorTexts,
-    );
-    const collision =
-  semanticCollision(
-    candidate,
-    priorTexts,
-  );
-  const candidateGold =
-    semanticGoldPotential(
-      candidate,
-    );
-
-  const relativeGold =
-    relativeGoldPotential(
-      candidate,
-      beatPoolMaxGold,
-    );
-
-  const hasContext =
-    priorTexts.length >= 2;
-
-  /*
-   * Contextual gold is stronger after the sequence has established enough
-   * material for a realization to suddenly mean more.
-   */
-  const contextualGoldLift =
-    hasContext
-      ? candidateGold *
-        0.1
-      : candidateGold *
-        0.04;
-
-  /*
-   * Relative strength is the crucial dynamic mechanism.
-   *
-   * A merely decent candidate does not get "fire" because it carries a
-   * distinctive label. It must actually stand out among alternatives.
-   */
-  const emergenceLift =
-    relativeGold >= 0.92 &&
-    candidateGold >= 0.62
-      ? 0.12
-      : relativeGold >= 0.78 &&
-          candidateGold >= 0.58
-        ? 0.07
-        : 0;
-
-  /*
-   * Diminishing returns prevent the sequence from becoming six consecutive
-   * fireworks without imposing a hard single-fire rule.
-   */
-  const goldDiminishing =
-    previousGoldCount === 0
-      ? 1
-      : previousGoldCount === 1
-        ? 0.58
-        : previousGoldCount === 2
-          ? 0.28
-          : 0.12;
-
-  const dynamicGold =
-    candidateGold *
-      0.08 *
-      goldDiminishing +
-    contextualGoldLift *
-      goldDiminishing +
-    emergenceLift *
-      goldDiminishing;
-
-  const candidateIsDistinctive =
-    isDistinctiveGold(
-      candidate,
-    );
-
-  const candidateIsExperiential =
-    isExperientialGold(
-      candidate,
-    );
-
-  const candidateIsSemantic =
-    isSemanticGold(
-      candidate,
-    );
-
-  const firePriority =
-    candidateIsDistinctive &&
-    previousGoldCount === 0
-      ? 0.06
-      : 0;
-
-  const experientialPriority =
-    candidateIsExperiential
-      ? 0.06
-      : 0;
-
-  const semanticPriority =
-    candidateIsSemantic &&
-    hasLiteralAlternative
-      ? 0.16
-      : 0;
-
-  const distinctivePriority =
-    candidateIsDistinctive
-      ? 0.07
-      : 0;
-
-  const currentShape =
-    rhetoricalShape(
-      candidate.text,
-    );
-
-  const recentShapes =
-    priorTexts
-      .slice(-2)
-      .map(
-        rhetoricalShape,
-      );
-
-  const formNovelty =
-    recentShapes.length > 0 &&
-    recentShapes.every(
-      (shape) =>
-        shape !==
-        currentShape,
-    )
-      ? 0.08
-      : 0;
-
-  const experientialFormBreak =
-    candidateIsExperiential &&
-    formNovelty > 0
-      ? 0.07
-      : 0;
-
-  return clamp01(
-    rank(candidate) * 0.34 +
-      fit * 0.2 +
-      effect * 0.3 +
-      dynamicGold +
-      experientialPriority +
-      experientialFormBreak +
-      semanticPriority +
-      distinctivePriority +
-      firePriority +
-      formNovelty+
-      collision * 0.12,
-  );
-} 
+/* ================================================================
+ * LOCAL AUTHORITY
+ * ================================================================ */
 
 /**
- * Base candidate rank.
+ * Local candidate authority.
  *
- * This is deliberately less dominant than sequence-level scoring.
+ * This remains a tie-breaker and quality signal.
+ * It does not replace the canonical viewer state.
  */
-function rank(
+function localAuthority(
   candidate: MouthCandidate,
 ): number {
-  const inventionSafety =
+  const safety =
     1 -
     Math.max(
       candidate.inventionRisk,
@@ -1308,87 +1016,369 @@ function rank(
     );
 
   const authorization =
-    authorizationQuality(
-      candidate,
-    );
-
-  const semantic =
-    semanticQuality(
-      candidate,
-    );
-
-  const semanticGold =
-    isSemanticGold(candidate)
+    candidate.supportedEventIds.length >
+    0
       ? 1
-      : 0;
+      : candidate.endpointExactness >=
+          0.999
+        ? 0.92
+        : candidate.reasons.includes(
+              "semantic-turn-grounded",
+            )
+          ? 0.88
+          : candidate.reasons.includes(
+                "approved-semantic-realization",
+              )
+            ? 0.84
+            : 0.70;
 
-  const experientialGold =
-    isExperientialGold(candidate)
-      ? 1
-      : 0;
-
-  const distinctiveGold =
-    isDistinctiveGold(candidate)
-      ? 1
-      : 0;
-
-  const creativeGold =
-    isCreativeGold(candidate)
-      ? 1
-      : 0;
-
-  return clamp01(
-    inventionSafety * 0.2 +
-      authorization * 0.15 +
-      semantic * 0.22 +
-      semanticGold * 0.08 +
-      experientialGold * 0.09 +
-      distinctiveGold * 0.08 +
-      creativeGold * 0.05 +
-      candidate.meaningScore * 0.05 +
-      candidate.transitionScore * 0.08,
+  return metric(
+    safety * 0.34 +
+      authorization * 0.30 +
+      candidate.groundingScore *
+        0.18 +
+      candidate.meaningScore *
+        0.10 +
+      candidate.transitionScore *
+        0.08,
   );
 }
 
+/* ================================================================
+ * STATE-BASED GOLD
+ * ================================================================ */
+
+/**
+ * State-based gold.
+ *
+ * Gold emerges from the actual transition, not from a fixed stylistic
+ * label and not from a designated "fire beat".
+ */
+function stateGoldPotential(
+  candidate: MouthCandidate,
+  priorCandidates: readonly MouthCandidate[],
+  state: ViewerStateCut,
+  nextPromise: string,
+): number {
+  const transition =
+    viewerStateFit(
+      candidate,
+      state,
+    );
+
+  const sequence =
+    sequenceTransition(
+      candidate,
+      priorCandidates,
+      state,
+    );
+
+  const future =
+    nextStatePressure(
+      candidate,
+      state,
+      nextPromise,
+    );
+
+  const expression =
+    expressionQuality(
+      candidate,
+    );
+
+  return metric(
+    transition * 0.48 +
+      sequence * 0.24 +
+      future * 0.12 +
+      expression * 0.16,
+  );
+}
+
+/**
+ * Relative gold compares candidates inside their own beat.
+ *
+ * This allows a candidate to emerge because it is meaningfully stronger
+ * than the alternatives for that beat.
+ */
+function relativeGoldPotential(
+  candidate: MouthCandidate,
+  pool: readonly MouthCandidate[],
+  priorCandidates: readonly MouthCandidate[],
+  state: ViewerStateCut,
+  nextPromise: string,
+): number {
+  const candidatePotential =
+    stateGoldPotential(
+      candidate,
+      priorCandidates,
+      state,
+      nextPromise,
+    );
+
+  const potentials =
+    pool.map(
+      (item) =>
+        stateGoldPotential(
+          item,
+          priorCandidates,
+          state,
+          nextPromise,
+        ),
+    );
+
+  const maximum =
+    potentials.length
+      ? Math.max(
+          ...potentials,
+        )
+      : 0;
+
+  if (
+    maximum <=
+    0
+  ) {
+    return candidatePotential;
+  }
+
+  return metric(
+    candidatePotential /
+      Math.max(
+        0.35,
+        maximum,
+      ),
+  );
+}
+
+/* ================================================================
+ * PATH SCORING
+ * ================================================================ */
+
+function pathCandidateScore(
+  candidate: MouthCandidate,
+  priorCandidates: readonly MouthCandidate[],
+  pool: readonly MouthCandidate[],
+  state: ViewerStateCut,
+  nextPromise: string,
+  previousGoldCount: number,
+): number {
+  const transition =
+    viewerStateFit(
+      candidate,
+      state,
+    );
+
+  const sequence =
+    sequenceTransition(
+      candidate,
+      priorCandidates,
+      state,
+    );
+
+  const future =
+    nextStatePressure(
+      candidate,
+      state,
+      nextPromise,
+    );
+
+  const expression =
+    expressionQuality(
+      candidate,
+    );
+
+  const compression =
+    compressionQuality(
+      candidate,
+    );
+
+  const diversity =
+    formDiversity(
+      candidate,
+      priorCandidates,
+    );
+
+  const authority =
+    localAuthority(
+      candidate,
+    );
+
+  const canonicalStrength =
+    canonicalStateSignal(
+      state,
+    );
+
+  const relativeGold =
+    relativeGoldPotential(
+      candidate,
+      pool,
+      priorCandidates,
+      state,
+      nextPromise,
+    );
+
+  const emergence =
+    relativeGold >=
+        0.90 &&
+    transition >=
+        0.68
+      ? 0.10
+      : relativeGold >=
+            0.80 &&
+          transition >=
+            0.58
+        ? 0.055
+        : 0;
+
+  const goldDiminishing =
+    previousGoldCount ===
+      0
+      ? 1
+      : previousGoldCount ===
+          1
+        ? 0.64
+        : previousGoldCount ===
+            2
+          ? 0.36
+          : 0.18;
+
+  const dynamicGold =
+    (
+      relativeGold *
+        0.08 +
+      emergence
+    ) *
+    goldDiminishing;
+
+  /*
+   * State transition is the center of gravity.
+   */
+  const score =
+    transition * 0.34 +
+    sequence * 0.20 +
+    future * 0.16 +
+    expression * 0.10 +
+    canonicalStrength * 0.05 +
+    authority * 0.05 +
+    compression * 0.02 +
+    diversity * 0.02 +
+    dynamicGold * 0.06;
+
+  /*
+   * Very weak state movement cannot win merely through pretty wording.
+   */
+  const stateFloor =
+    transition <
+    0.28
+      ? 0.52
+      : 1;
+
+  const finalScore =
+    metric(
+      score *
+        stateFloor,
+    );
+
+  debugBeamCandidate(
+    candidate,
+    priorCandidates,
+    state,
+    nextPromise,
+    pool,
+    {
+      transition,
+      sequence,
+      future,
+      expression,
+      compression,
+      diversity,
+      authority,
+      stateStrength:
+        canonicalStrength,
+      relativeGold,
+      dynamicGold,
+      finalScore,
+    },
+  );
+
+  return finalScore;
+}
+
+/* ================================================================
+ * CANDIDATE ORDERING
+ * ================================================================ */
+
+/**
+ * Local ordering.
+ *
+ * This is only the entry ordering before sequence expansion.
+ * Final selection remains path-relative.
+ */
 function compareCandidates(
   a: MouthCandidate,
   b: MouthCandidate,
 ): number {
   const aSafe =
-    isSafe(a);
+    isSafe(
+      a,
+    );
 
   const bSafe =
-    isSafe(b);
+    isSafe(
+      b,
+    );
 
   if (
-    aSafe &&
+    aSafe !==
     bSafe
   ) {
-    const aGold =
-      semanticGoldPotential(
-        a,
-      );
-
-    const bGold =
-      semanticGoldPotential(
-        b,
-      );
-
-    if (
-      aGold !== bGold
-    ) {
-      return bGold - aGold;
-    }
+    return aSafe
+      ? -1
+      : 1;
   }
 
-  const rankDelta =
-    rank(b) -
-    rank(a);
+  const aAuthority =
+    localAuthority(
+      a,
+    );
+
+  const bAuthority =
+    localAuthority(
+      b,
+    );
 
   if (
-    rankDelta !== 0
+    aAuthority !==
+    bAuthority
   ) {
-    return rankDelta;
+    return (
+      bAuthority -
+      aAuthority
+    );
+  }
+
+  const aStateProxy =
+    metric(
+      a.transitionScore *
+        0.55 +
+        a.meaningScore *
+          0.45,
+    );
+
+  const bStateProxy =
+    metric(
+      b.transitionScore *
+        0.55 +
+        b.meaningScore *
+          0.45,
+    );
+
+  if (
+    aStateProxy !==
+    bStateProxy
+  ) {
+    return (
+      bStateProxy -
+      aStateProxy
+    );
   }
 
   if (
@@ -1419,25 +1409,6 @@ function compareCandidates(
       b.groundingScore -
       a.groundingScore
     );
-  }
-
-  const aWords =
-    clean(a.text)
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
-
-  const bWords =
-    clean(b.text)
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
-
-  if (
-    aWords !==
-    bWords
-  ) {
-    return aWords - bWords;
   }
 
   return clean(
@@ -1475,7 +1446,9 @@ function dedupeCandidates(
       text.toLowerCase();
 
     if (
-      seen.has(key)
+      seen.has(
+        key,
+      )
     ) {
       continue;
     }
@@ -1491,6 +1464,453 @@ function dedupeCandidates(
 
   return result;
 }
+/* ================================================================
+ * PATH STATE
+ * ================================================================ */
+
+/**
+ * A Beam path contains ONLY the candidate choices.
+ *
+ * Canonical viewer state is owned by MouthCandidatePool.
+ *
+ * The path never:
+ * - creates viewer state
+ * - stores viewer state
+ * - reconstructs viewer state
+ * - attaches viewer state to a candidate
+ *
+ * This keeps authority singular:
+ *
+ *   Pool -> viewerState
+ *   Path -> candidate choices
+ */
+type Path = {
+  candidates: MouthCandidate[];
+  score: number;
+  stateQuality: number;
+};
+
+function priorCandidatesFromPath(
+  path: Path,
+): MouthCandidate[] {
+  return path.candidates;
+}
+
+function poolForCandidate(
+  candidate: MouthCandidate,
+  pools: readonly MouthCandidatePool[],
+): MouthCandidatePool | undefined {
+  return pools.find(
+    (pool) =>
+      pool.order ===
+      candidate.beatOrder,
+  );
+}
+
+/* ================================================================
+ * PATH QUALITY
+ * ================================================================ */
+
+function pathTransitionProfile(
+  path: Path,
+  pools: readonly MouthCandidatePool[],
+): number {
+  if (
+    !path.candidates.length
+  ) {
+    return 0;
+  }
+
+  let total = 0;
+
+  for (
+    let index = 0;
+    index <
+    path.candidates.length;
+    index += 1
+  ) {
+    const candidate =
+      path.candidates[index];
+
+    const pool =
+      poolForCandidate(
+        candidate,
+        pools,
+      );
+
+    if (!pool) {
+      continue;
+    }
+
+    total +=
+      sequenceTransition(
+        candidate,
+        path.candidates.slice(
+          0,
+          index,
+        ),
+        pool.viewerState,
+      );
+  }
+
+  return metric(
+    total /
+      path.candidates.length,
+  );
+}
+
+function pathMeaningPeak(
+  path: Path,
+  pools: readonly MouthCandidatePool[],
+): number {
+  if (
+    path.candidates.length <
+    2
+  ) {
+    return 0;
+  }
+
+  let peak = 0;
+
+  for (
+    let index = 1;
+    index <
+    path.candidates.length;
+    index += 1
+  ) {
+    const candidate =
+      path.candidates[index];
+
+    const pool =
+      poolForCandidate(
+        candidate,
+        pools,
+      );
+
+    if (!pool) {
+      continue;
+    }
+
+    const nextPromise =
+      clean(
+        pool.nextPromise ??
+        pool.frontier ??
+        "",
+      );
+
+    const value =
+      stateGoldPotential(
+        candidate,
+        path.candidates.slice(
+          0,
+          index,
+        ),
+        pool.viewerState,
+        nextPromise,
+      );
+
+    peak =
+      Math.max(
+        peak,
+        value,
+      );
+  }
+
+  return metric(
+    peak,
+  );
+}
+
+function pathFuturePressure(
+  path: Path,
+  pools: readonly MouthCandidatePool[],
+): number {
+  if (
+    !path.candidates.length
+  ) {
+    return 0;
+  }
+
+  let total = 0;
+
+  for (
+    const candidate of
+      path.candidates
+  ) {
+    const pool =
+      poolForCandidate(
+        candidate,
+        pools,
+      );
+
+    if (!pool) {
+      continue;
+    }
+
+    total +=
+      nextStatePressure(
+        candidate,
+        pool.viewerState,
+        clean(
+          pool.nextPromise ??
+          pool.frontier ??
+          "",
+        ),
+      );
+  }
+
+  return metric(
+    total /
+      path.candidates.length,
+  );
+}
+
+function pathExpressionQuality(
+  path: Path,
+): number {
+  if (
+    !path.candidates.length
+  ) {
+    return 0;
+  }
+
+  let total = 0;
+
+  for (
+    const candidate of
+      path.candidates
+  ) {
+    total +=
+      expressionQuality(
+        candidate,
+      );
+  }
+
+  return metric(
+    total /
+      path.candidates.length,
+  );
+}
+
+/**
+ * Final path quality.
+ *
+ * The pool owns state.
+ * The path owns choices.
+ *
+ * Therefore the final evaluator always receives both explicitly.
+ */
+function pathFinalQuality(
+  path: Path,
+  pools: readonly MouthCandidatePool[],
+): number {
+  if (
+    !path.candidates.length
+  ) {
+    return 0;
+  }
+
+  const average =
+    path.score /
+    path.candidates.length;
+
+  const transition =
+    pathTransitionProfile(
+      path,
+      pools,
+    );
+
+  const meaningPeak =
+    pathMeaningPeak(
+      path,
+      pools,
+    );
+
+  const future =
+    pathFuturePressure(
+      path,
+      pools,
+    );
+
+  const expression =
+    pathExpressionQuality(
+      path,
+    );
+
+  return metric(
+    average * 0.48 +
+      transition * 0.24 +
+      meaningPeak * 0.12 +
+      future * 0.08 +
+      expression * 0.08,
+  );
+}
+
+/* ================================================================
+ * DEBUG
+ * ================================================================ */
+
+function debugBeamCandidate(
+  candidate: MouthCandidate,
+  priorCandidates: readonly MouthCandidate[],
+  state: ViewerStateCut,
+  nextPromise: string,
+  pool: readonly MouthCandidate[],
+  values: {
+    transition: number;
+    sequence: number;
+    future: number;
+    expression: number;
+    compression: number;
+    diversity: number;
+    authority: number;
+    stateStrength: number;
+    relativeGold: number;
+    dynamicGold: number;
+    finalScore: number;
+  },
+): void {
+  if (
+    !DEBUG_BEAM
+  ) {
+    return;
+  }
+
+  console.log(
+    `[QRE][BEAM] ${JSON.stringify({
+      text:
+        clean(
+          candidate.text,
+        ),
+
+      priorCount:
+        priorCandidates.length,
+
+      poolSize:
+        pool.length,
+
+      attentionMove:
+        state.attentionMove,
+
+      beforeState:
+        clean(
+          state.beforeState,
+        ),
+
+      afterState:
+        clean(
+          state.afterState,
+        ),
+
+      stateShift:
+        Number(
+          state.stateShift.toFixed(
+            3,
+          ),
+        ),
+
+      curiosity:
+        Number(
+          state.curiosityPressure.toFixed(
+            3,
+          ),
+        ),
+
+      predictionError:
+        Number(
+          state.predictionError.toFixed(
+            3,
+          ),
+        ),
+
+      nextPromise:
+        clean(
+          nextPromise,
+        ),
+
+      transition:
+        Number(
+          values.transition.toFixed(
+            3,
+          ),
+        ),
+
+      sequence:
+        Number(
+          values.sequence.toFixed(
+            3,
+          ),
+        ),
+
+      future:
+        Number(
+          values.future.toFixed(
+            3,
+          ),
+        ),
+
+      expression:
+        Number(
+          values.expression.toFixed(
+            3,
+          ),
+        ),
+
+      compression:
+        Number(
+          values.compression.toFixed(
+            3,
+          ),
+        ),
+
+      diversity:
+        Number(
+          values.diversity.toFixed(
+            3,
+          ),
+        ),
+
+      authority:
+        Number(
+          values.authority.toFixed(
+            3,
+          ),
+        ),
+
+      stateStrength:
+        Number(
+          values.stateStrength.toFixed(
+            3,
+          ),
+        ),
+
+      relativeGold:
+        Number(
+          values.relativeGold.toFixed(
+            3,
+          ),
+        ),
+
+      dynamicGold:
+        Number(
+          values.dynamicGold.toFixed(
+            3,
+          ),
+        ),
+
+      finalScore:
+        Number(
+          values.finalScore.toFixed(
+            3,
+          ),
+        ),
+    })}`,
+  );
+}
+
+/* ================================================================
+ * BEAM SEARCH
+ * ================================================================ */
 
 export function selectBestMouthSequence(
   pools: readonly MouthCandidatePool[],
@@ -1498,13 +1918,38 @@ export function selectBestMouthSequence(
 ): MouthSequencePath {
   const ordered =
     [...pools].sort(
-      (a, b) =>
+      (
+        a,
+        b,
+      ) =>
         a.order -
         b.order,
     );
 
   if (
     !ordered.length
+  ) {
+    return {
+      candidates: [],
+      texts: [],
+      score: 0,
+    };
+  }
+
+  /*
+   * Runtime boundary check.
+   *
+   * TypeScript requires viewerState.
+   * This protects the actual application boundary if malformed JavaScript
+   * reaches the Beam.
+   */
+  if (
+    ordered.some(
+      (pool) =>
+        !pool.viewerState ||
+        typeof pool.viewerState !==
+          "object",
+    )
   ) {
     return {
       candidates: [],
@@ -1531,25 +1976,18 @@ export function selectBestMouthSequence(
       ),
     );
 
-  type Path = {
-    candidates:
-      MouthCandidate[];
-    score:
-      number;
-  };
-
-  let paths:
-    Path[] = [
-      {
-        candidates: [],
-        score: 0,
-      },
-    ];
+  let paths: Path[] = [
+    {
+      candidates: [],
+      score: 0,
+      stateQuality: 0,
+    },
+  ];
 
   for (
     let index = 0;
     index <
-    ordered.length;
+      ordered.length;
     index += 1
   ) {
     const pool =
@@ -1584,58 +2022,95 @@ export function selectBestMouthSequence(
     }
 
     /*
-     * Dynamic gold pool ceiling.
+     * THIS IS THE ONE STATE AUTHORITY.
      *
-     * This is intentionally calculated per beat rather than hard-coding
-     * a preferred position.
+     * Nothing below derives or reconstructs another state object.
      */
-    const beatPoolMaxGold =
-      Math.max(
-        ...eligible.map(
-          semanticGoldPotential,
-        ),
+    const state =
+      pool.viewerState;
+
+    const nextPromise =
+      clean(
+        pool.nextPromise ??
+        pool.frontier ??
+        "",
       );
 
-    const hasLiteralAlternative =
-      eligible.some(
-        (candidate) =>
-          !isSemanticGold(
-            candidate,
-          ),
-      );
-
-    const expanded:
-      Array<
-        Path
-      > = [];
+    const expanded: Path[] = [];
 
     for (
       const path of
         paths
     ) {
-      const priorTexts =
-        path.candidates.map(
-          (candidate) =>
-            clean(
-              candidate.text,
-            ),
+      const priorCandidates =
+        priorCandidatesFromPath(
+          path,
         );
 
-      const previousGoldCount =
-        path.candidates.filter(
-          (candidate) =>
-            semanticGoldPotential(
-              candidate,
-            ) >= 0.62,
-        ).length;
+      /*
+       * Count prior strong realizations using the canonical pool
+       * that belongs to each prior candidate.
+       */
+      let previousGoldCount =
+        0;
+
+      for (
+        let priorIndex = 0;
+        priorIndex <
+          priorCandidates.length;
+        priorIndex += 1
+      ) {
+        const priorCandidate =
+          priorCandidates[
+            priorIndex
+          ];
+
+        const priorPool =
+          poolForCandidate(
+            priorCandidate,
+            ordered,
+          );
+
+        if (!priorPool) {
+          continue;
+        }
+
+        const priorPromise =
+          clean(
+            priorPool.nextPromise ??
+            priorPool.frontier ??
+            "",
+          );
+
+        const priorGold =
+          stateGoldPotential(
+            priorCandidate,
+            priorCandidates.slice(
+              0,
+              priorIndex,
+            ),
+            priorPool.viewerState,
+            priorPromise,
+          );
+
+        if (
+          priorGold >=
+          0.62
+        ) {
+          previousGoldCount +=
+            1;
+        }
+      }
 
       for (
         const candidate of
           eligible
       ) {
         const exactRepeat =
-          path.candidates.some(
-            (prior) =>
+          priorCandidates.some(
+            (
+              prior,
+            ) =>
               clean(
                 prior.text,
               ).toLowerCase() ===
@@ -1653,34 +2128,185 @@ export function selectBestMouthSequence(
         const candidateScore =
           pathCandidateScore(
             candidate,
-            priorTexts,
-            hasLiteralAlternative,
+            priorCandidates,
+            eligible,
+            state,
+            nextPromise,
             previousGoldCount,
-            beatPoolMaxGold,
+          );
+
+        const candidateStateQuality =
+          viewerStateFit(
+            candidate,
+            state,
           );
 
         expanded.push({
           candidates: [
-            ...path.candidates,
+            ...priorCandidates,
             candidate,
           ],
+
           score:
             path.score +
             candidateScore,
+
+          stateQuality:
+            path.stateQuality +
+            candidateStateQuality,
         });
+
+        if (
+          DEBUG_BEAM
+        ) {
+          debugBeamCandidate(
+            candidate,
+            priorCandidates,
+            state,
+            nextPromise,
+            eligible,
+            {
+              transition:
+                viewerStateFit(
+                  candidate,
+                  state,
+                ),
+
+              sequence:
+                sequenceTransition(
+                  candidate,
+                  priorCandidates,
+                  state,
+                ),
+
+              future:
+                nextStatePressure(
+                  candidate,
+                  state,
+                  nextPromise,
+                ),
+
+              expression:
+                expressionQuality(
+                  candidate,
+                ),
+
+              compression:
+                compressionQuality(
+                  candidate,
+                ),
+
+              diversity:
+                formDiversity(
+                  candidate,
+                  priorCandidates,
+                ),
+
+              authority:
+                localAuthority(
+                  candidate,
+                ),
+
+              stateStrength:
+                canonicalStateSignal(
+                  state,
+                ),
+
+              relativeGold:
+                relativeGoldPotential(
+                  candidate,
+                  eligible,
+                  priorCandidates,
+                  state,
+                  nextPromise,
+                ),
+
+              dynamicGold:
+                Math.max(
+                  0,
+                  candidateScore -
+                  (
+                    viewerStateFit(
+                      candidate,
+                      state,
+                    ) * 0.34 +
+                    sequenceTransition(
+                      candidate,
+                      priorCandidates,
+                      state,
+                    ) * 0.20 +
+                    nextStatePressure(
+                      candidate,
+                      state,
+                      nextPromise,
+                    ) * 0.16 +
+                    expressionQuality(
+                      candidate,
+                    ) * 0.10 +
+                    canonicalStateSignal(
+                      state,
+                    ) * 0.05 +
+                    localAuthority(
+                      candidate,
+                    ) * 0.05 +
+                    compressionQuality(
+                      candidate,
+                    ) * 0.02 +
+                    formDiversity(
+                      candidate,
+                      priorCandidates,
+                    ) * 0.02
+                  ),
+                ),
+
+              finalScore:
+                candidateScore,
+            },
+          );
+        }
       }
     }
 
+    /*
+     * State quality is the first pruning criterion.
+     *
+     * The Beam protects strong canonical state paths before using
+     * cumulative score as the secondary ordering.
+     */
     expanded.sort(
-      (a, b) =>
-        b.score -
-        a.score,
+      (
+        a,
+        b,
+      ) => {
+        const stateA =
+          a.candidates.length
+            ? a.stateQuality /
+              a.candidates.length
+            : 0;
+
+        const stateB =
+          b.candidates.length
+            ? b.stateQuality /
+              b.candidates.length
+            : 0;
+
+        if (
+          stateA !==
+          stateB
+        ) {
+          return (
+            stateB -
+            stateA
+          );
+        }
+
+        return (
+          b.score -
+          a.score
+        );
+      },
     );
 
-    /*
-     * The beam remains wide so a sequence with an earlier quiet line can
-     * survive long enough for a later exceptional line to win.
-     */
     paths =
       expanded.slice(
         0,
@@ -1699,89 +2325,23 @@ export function selectBestMouthSequence(
   }
 
   /*
-   * Final-path comparison gets a tiny global coherence preference.
-   *
-   * This can break ties between paths with nearly identical cumulative
-   * scores without introducing a fixed "fire" position.
+   * Final comparison uses the complete state path.
    */
   paths.sort(
-    (a, b) => {
-      const aTexts =
-        a.candidates.map(
-          (candidate) =>
-            clean(
-              candidate.text,
-            ),
-        );
-
-      const bTexts =
-        b.candidates.map(
-          (candidate) =>
-            clean(
-              candidate.text,
-            ),
-        );
-
-      const aGold =
-        a.candidates.reduce(
-          (
-            total,
-            candidate,
-          ) =>
-            total +
-            semanticGoldPotential(
-              candidate,
-            ),
-          0,
-        );
-
-      const bGold =
-        b.candidates.reduce(
-          (
-            total,
-            candidate,
-          ) =>
-            total +
-            semanticGoldPotential(
-              candidate,
-            ),
-          0,
-        );
-
-      const aAverage =
-        a.candidates.length
-          ? a.score /
-            a.candidates.length
-          : 0;
-
-      const bAverage =
-        b.candidates.length
-          ? b.score /
-            b.candidates.length
-          : 0;
-
+    (
+      a,
+      b,
+    ) => {
       const aFinal =
-        aAverage +
-        Math.min(
-          0.04,
-          aGold /
-            Math.max(
-              1,
-              a.candidates.length,
-            ) *
-            0.04,
+        pathFinalQuality(
+          a,
+          ordered,
         );
 
       const bFinal =
-        bAverage +
-        Math.min(
-          0.04,
-          bGold /
-            Math.max(
-              1,
-              b.candidates.length,
-            ) *
-            0.04,
+        pathFinalQuality(
+          b,
+          ordered,
         );
 
       if (
@@ -1794,9 +2354,41 @@ export function selectBestMouthSequence(
         );
       }
 
+      const aStateAverage =
+        a.candidates.length
+          ? a.stateQuality /
+            a.candidates.length
+          : 0;
+
+      const bStateAverage =
+        b.candidates.length
+          ? b.stateQuality /
+            b.candidates.length
+          : 0;
+
+      if (
+        aStateAverage !==
+        bStateAverage
+      ) {
+        return (
+          bStateAverage -
+          aStateAverage
+        );
+      }
+
+      if (
+        a.score !==
+        b.score
+      ) {
+        return (
+          b.score -
+          a.score
+        );
+      }
+
       return (
-        bTexts.length -
-        aTexts.length
+        b.candidates.length -
+        a.candidates.length
       );
     },
   );
@@ -1810,13 +2402,23 @@ export function selectBestMouthSequence(
         best.candidates.length
       : 0;
 
+  const finalQuality =
+    pathFinalQuality(
+      best,
+      ordered,
+    );
+
+  const candidates =
+    best.candidates;
+
   return {
-    candidates:
-      best.candidates,
+    candidates,
 
     texts:
-      best.candidates.map(
-        (candidate) =>
+      candidates.map(
+        (
+          candidate,
+        ) =>
           clean(
             candidate.text,
           ),
@@ -1825,7 +2427,10 @@ export function selectBestMouthSequence(
     score:
       Number(
         clamp01(
-          average,
+          average *
+            0.65 +
+          finalQuality *
+            0.35,
         ).toFixed(
           3,
         ),

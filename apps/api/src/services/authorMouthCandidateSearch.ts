@@ -571,7 +571,6 @@ function introducesUnsupportedConcreteDetail(
     )
   );
 }
-
 export function deriveViewerStateCut(
   beat: MouthCandidateBeat,
   index: number,
@@ -583,33 +582,43 @@ export function deriveViewerStateCut(
       beat.eventIds ?? [],
     );
 
+  const priorBeats =
+    beats.slice(
+      0,
+      index,
+    );
+
   const priorIds =
     new Set(
-      beats
-        .slice(
-          0,
-          index,
-        )
-        .flatMap(
-          (item) =>
-            item.eventIds ?? [],
-        )
-        .filter(Boolean),
+      priorBeats.flatMap(
+        (item) =>
+          item.eventIds ?? [],
+      ),
     );
+
+  const newEventCount =
+    currentIds.filter(
+      (id) =>
+        !priorIds.has(id),
+    ).length;
 
   const newEventRatio =
-    metric(
-      currentIds.length
-        ? currentIds.filter(
-            (id) =>
-              !priorIds.has(
-                id,
-              ),
-          ).length /
-            currentIds.length
-        : 0,
-    );
+    currentIds.length
+      ? metric(
+          newEventCount /
+            currentIds.length,
+        )
+      : 0;
 
+  /*
+   * ONLY SOURCE MATERIAL enters the cognitive state.
+   *
+   * attentionFunction is deliberately excluded because it may contain
+   * authoring instructions for Mouth.
+   *
+   * We also do not treat `next` as the current state. It is future
+   * expectation pressure.
+   */
   const currentSource =
     sourceForBeat(
       beat,
@@ -617,11 +626,7 @@ export function deriveViewerStateCut(
     ).join(" ");
 
   const priorSource =
-    beats
-      .slice(
-        0,
-        index,
-      )
+    priorBeats
       .flatMap(
         (item) =>
           sourceForBeat(
@@ -631,8 +636,64 @@ export function deriveViewerStateCut(
       )
       .join(" ");
 
+  const cleanSemanticText = (
+    value: string,
+  ): string =>
+    clean(value)
+      .replace(
+        /\b(?:establish|another|the supplied sequence|make this supplied material|this supplied sequence)\b[^:]{0,80}:\s*/gi,
+        "",
+      )
+      .replace(
+        /\b(?:canonical semantic thesis|canonical semantic turn|canonical relation|canonical before|canonical after|canonical payoff dependency)\b[^.]*\.?\s*/gi,
+        "",
+      )
+      .trim();
+
+  const currentChange =
+    cleanSemanticText(
+      clean(
+        beat.change,
+      ),
+    );
+
+  const usableCurrentMeaning =
+    currentChange ||
+    currentSource ||
+    "new material";
+
+  const priorMeanings =
+    priorBeats
+      .map(
+        (item) =>
+          cleanSemanticText(
+            clean(
+              item.change,
+            ),
+          ) ||
+          sourceForBeat(
+            item,
+            envelope,
+          ).join(" "),
+      )
+      .filter(Boolean);
+
+  const priorMeaning =
+    priorMeanings.length
+      ? priorMeanings[
+          priorMeanings.length - 1
+        ]
+      : "";
+
+  /*
+   * Lexical continuity is used only as evidence of whether this cut
+   * continues an existing thread or introduces a different one.
+   *
+   * It is NOT treated as attention itself.
+   */
   const continuity =
-    priorSource
+    priorSource &&
+    currentSource
       ? metric(
           overlap(
             tokenSet(
@@ -643,55 +704,127 @@ export function deriveViewerStateCut(
             ),
           ),
         )
-      : 0.55;
+      : 0;
 
-  const contrast =
-    metric(
-      (1 - continuity) *
-        0.7 +
-        newEventRatio *
-        0.3,
+  const relationPresence =
+    Boolean(
+      beat.relationKinds?.length,
     );
 
-  const interruption =
+  const semanticDifference =
+    priorMeaning &&
+    usableCurrentMeaning
+      ? metric(
+          1 -
+            overlap(
+              tokenSet(
+                usableCurrentMeaning,
+              ),
+              tokenSet(
+                priorMeaning,
+              ),
+            ),
+        )
+      : index === 0
+        ? 0.55
+        : 0.35;
+
+  /*
+   * New evidence plus semantic difference produces an information
+   * transition. Neither signal alone is sufficient.
+   */
+  const informationTurn =
     metric(
-      newEventRatio *
-        0.62 +
-        contrast *
-        0.28 +
+      newEventRatio * 0.42 +
+        semanticDifference * 0.33 +
         (
-          index === 0
-            ? 0.1
+          relationPresence
+            ? 0.15
+            : 0
+        ) +
+        (
+          continuity < 0.35
+            ? 0.10
             : 0
         ),
     );
 
-  const curiosityPressure =
+  /*
+   * Contrast is the amount of meaningful change between the current
+   * material and the accumulated material.
+   */
+  const contrast =
     metric(
-      beat.paysOff?.length
-        ? 0.12
-        : beat.relationKinds?.length
-          ? 0.9
-          : index <
-              beats.length - 1
-            ? 0.72
-            : 0.42,
+      informationTurn * 0.58 +
+        (
+          continuity < 0.45
+            ? 0.22
+            : 0
+        ) +
+        (
+          relationPresence
+            ? 0.20
+            : 0
+        ),
     );
 
-  const tempo =
+  /*
+   * Interruption means the current cut changes the trajectory the
+   * observer was following.
+   *
+   * We deliberately do not derive this from rhetorical words like
+   * "but" or "suddenly".
+   */
+  const interruption =
     metric(
-      index === 0
-        ? 0.45
-        : Math.abs(
-            interruption -
-              (
-                index > 1
-                  ? 0.55
-                  : 0.35
-              ),
-          ) *
-            0.9 +
-            0.35,
+      informationTurn * 0.46 +
+        contrast * 0.31 +
+        (
+          index === 0
+            ? 0.08
+            : 0
+        ) +
+        (
+          continuity < 0.3
+            ? 0.15
+            : 0
+        ),
+    );
+
+  /*
+   * Curiosity is unresolved semantic pressure.
+   *
+   * A future question contributes to curiosity, but does not define
+   * the present viewer state.
+   */
+  const futurePressure =
+    clean(
+      beat.next ||
+      beat.frontier ||
+      "",
+    );
+
+  const curiosityPressure =
+    metric(
+      (
+        beat.paysOff?.length
+          ? 0.10
+          : index >=
+              beats.length - 1
+            ? 0.18
+            : 0.42
+      ) +
+        (
+          futurePressure
+            ? 0.28
+            : 0
+        ) +
+        informationTurn * 0.20 +
+        (
+          relationPresence
+            ? 0.12
+            : 0
+        ),
     );
 
   const payoffPressure =
@@ -700,33 +833,55 @@ export function deriveViewerStateCut(
         ? 1
         : index ===
             beats.length - 2
-          ? 0.78
+          ? 0.82
           : Math.min(
-              0.7,
-              0.25 +
-                index *
-                  0.08,
+              0.68,
+              0.22 +
+                index * 0.09,
             ),
     );
 
+  /*
+   * State shift is the central signal.
+   *
+   * This represents how much the observer's interpretation has moved,
+   * not how different the words look.
+   */
   const stateShift =
     metric(
-      contrast *
-        0.45 +
-        interruption *
-        0.35 +
-        curiosityPressure *
-        0.2,
+      informationTurn * 0.32 +
+        contrast * 0.20 +
+        interruption * 0.16 +
+        curiosityPressure * 0.12 +
+        semanticDifference * 0.10 +
+        (
+          relationPresence
+            ? 0.10
+            : 0
+        ),
     );
 
   const predictionError =
     metric(
-      contrast *
-        0.55 +
-        newEventRatio *
-        0.45,
+      informationTurn * 0.34 +
+        interruption * 0.28 +
+        contrast * 0.20 +
+        (
+          futurePressure
+            ? 0.10
+            : 0
+        ) +
+        (
+          relationPresence
+            ? 0.08
+            : 0
+        ),
     );
 
+  /*
+   * Attention move is a cognitive classification only.
+   * It does not tell Mouth what words to use.
+   */
   let attentionMove:
     ViewerStateCut["attentionMove"];
 
@@ -736,31 +891,28 @@ export function deriveViewerStateCut(
     attentionMove =
       "land";
   } else if (
-    index === 0
-  ) {
-    attentionMove =
-      "orient";
-  } else if (
-    interruption >=
-    0.78
-  ) {
-    attentionMove =
-      "interrupt";
-  } else if (
-    contrast >=
-    0.72
+    stateShift >= 0.76 &&
+    relationPresence
   ) {
     attentionMove =
       "recontextualize";
   } else if (
-    curiosityPressure >=
-    0.78
+    interruption >= 0.76
+  ) {
+    attentionMove =
+      "interrupt";
+  } else if (
+    contrast >= 0.70
+  ) {
+    attentionMove =
+      "recontextualize";
+  } else if (
+    curiosityPressure >= 0.78
   ) {
     attentionMove =
       "tighten";
   } else if (
-    stateShift >=
-    0.7
+    stateShift >= 0.60
   ) {
     attentionMove =
       "escalate";
@@ -769,101 +921,74 @@ export function deriveViewerStateCut(
       "release";
   }
 
-  const stateNames: Record<
-    ViewerStateCut["attentionMove"],
-    {
-      before: string;
-      after: string;
-    }
-  > = {
-    orient: {
-      before:
-        "uncommitted",
-      after:
-        "oriented",
-    },
+  /*
+   * These strings describe cognitive state, not authoring instructions.
+   *
+   * They deliberately avoid:
+   * - viewer
+   * - audience
+   * - sequence
+   * - planner
+   * - supplied evidence
+   * - "what should happen next?"
+   *
+   * The state is allowed to remain compact and somewhat abstract because
+   * it is an internal semantic representation, not viewer-facing prose.
+   */
+  const beforeState =
+    index === 0
+      ? "The encounter is newly present."
+      : priorMeaning
+        ? `What was already established: ${priorMeaning}.`
+        : "The established meaning continues.";
 
-    interrupt: {
-      before:
-        "settled",
-      after:
-        "disrupted",
-    },
-
-    tighten: {
-      before:
-        "curious",
-      after:
-        "pressurized",
-    },
-
-    recontextualize: {
-      before:
-        "certain",
-      after:
-        "reframed",
-    },
-
-    escalate: {
-      before:
-        "engaged",
-      after:
-        "pressurized",
-    },
-
-    release: {
-      before:
-        "pressurized",
-      after:
-        "breathing",
-    },
-
-    land: {
-      before:
-        "expectant",
-      after:
-        "resolved",
-    },
-  };
-
-  const names =
-    stateNames[
-      attentionMove
-    ];
+  const afterState =
+    relationPresence
+      ? `The meaning now includes ${usableCurrentMeaning}. A meaningful relation is active.`
+      : `The meaning now includes ${usableCurrentMeaning}.`;
 
   return {
-    beforeState:
-      names.before,
-
-    afterState:
-      names.after,
-
+    beforeState,
+    afterState,
     attentionMove,
 
     curiosityPressure,
+
     contrast,
+
     interruption,
 
     accumulation:
       metric(
-        continuity *
-          0.7 +
+        continuity * 0.52 +
+          (1 - newEventRatio) *
+            0.22 +
           (
-            1 -
-            newEventRatio
-          ) *
-            0.3,
+            relationPresence
+              ? 0.16
+              : 0
+          ) +
+          informationTurn *
+            0.10,
       ),
 
-    tempo,
+    tempo:
+      metric(
+        0.34 +
+          interruption * 0.34 +
+          stateShift * 0.32,
+      ),
+
     payoffPressure,
+
     stateShift,
+
     predictionError,
+
     evidenceEventIds:
       currentIds,
   };
 }
-
 function rhetoricalForm(
   value: string,
 ): string {
@@ -2386,10 +2511,19 @@ export function buildMouthCandidateMessages(
         0,
         50,
       );
+    const viewerBeats =
+  input.beats.map(
+    (beat) => {
+      const state =
+        beat.viewerState ??
+        deriveViewerStateCut(
+          beat,
+          0,
+          [beat],
+          input.envelope,
+        );
 
-  const viewerBeats =
-    input.beats.map(
-      (beat) => ({
+      return {
         order:
           beat.order,
 
@@ -2407,10 +2541,43 @@ export function buildMouthCandidateMessages(
             beat.change,
           ),
 
-        attentionFunction:
-          clean(
-            beat.attentionFunction,
-          ),
+        /*
+         * Viewer-state data is now explicit input to Mouth.
+         *
+         * Mouth can realize the transition rather than guessing what
+         * transition the beat is supposed to produce.
+         */
+        viewerState: {
+          beforeState:
+            state.beforeState,
+
+          afterState:
+            state.afterState,
+
+          attentionMove:
+            state.attentionMove,
+
+          curiosityPressure:
+            state.curiosityPressure,
+
+          contrast:
+            state.contrast,
+
+          interruption:
+            state.interruption,
+
+          accumulation:
+            state.accumulation,
+
+          payoffPressure:
+            state.payoffPressure,
+
+          stateShift:
+            state.stateShift,
+
+          predictionError:
+            state.predictionError,
+        },
 
         role:
           clean(
@@ -2424,8 +2591,9 @@ export function buildMouthCandidateMessages(
           Boolean(
             beat.paysOff?.length,
           ),
-      }),
-    );
+      };
+    },
+  );
 
   const recent =
     input.priorTexts ??
@@ -2435,6 +2603,12 @@ export function buildMouthCandidateMessages(
     "QRE CANONICAL MOUTH · VIEWER-FACING CUT REALIZATION.",
     "The upstream Author already chose the reality, movie, beats, and semantic trajectory. Your job is language realization only.",
     "Write for the viewer's felt experience, not for the planner.",
+    "Each beat includes a cognitive before-state and after-state.",
+    "Use that state transition to find the expression; do not repeat the state description literally.",
+    "The before-state and after-state are internal semantic guidance, not text to expose to the viewer.",
+    "Do not write 'the viewer', 'the audience', or any internal state label.",
+    "Ask implicitly: what changed in meaning, feeling, expectation, recognition, tension, closeness, distance, or possibility?",
+    "Prefer language that lets the observer experience the change rather than explaining the change.",
     buildGoldRealizationDoctrine(),
     "Every candidate must preserve supplied reality.",
     "Never invent identity, behavior, environment, chronology, dialogue, objects, sounds, wardrobe, body position, or outcome.",

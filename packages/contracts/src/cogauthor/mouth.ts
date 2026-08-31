@@ -81,6 +81,9 @@ export type MouthCandidateBatch = {
 
 export type MouthCandidatePool = {
   order: number;
+  viewerState: ViewerStateCut;
+  nextPromise?: string;
+  frontier?: string;
   candidates: MouthCandidate[];
 };
 

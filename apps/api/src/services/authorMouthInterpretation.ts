@@ -228,29 +228,56 @@ function introducesUnsupportedPhysicalRelation(
     tokens(text);
 
   /*
-   * Physical relation language is structural rather than
-   * domain-specific. These markers describe an asserted relation
-   * between entities, locations, surfaces, bodies, environments,
-   * or physical effects.
+   * Relational language between already-established participants is not
+   * automatically a physical-world claim.
    *
-   * This is intentionally NOT a list of physical nouns such as
-   * "sun", "skin", "rain", etc.
+   * Example:
+   *
+   *   met someone
+   *   kept talking
+   *
+   * may legitimately become:
+   *
+   *   "A current ran between us."
+   *
+   * "between us" expresses an emergent interpersonal relation, not a new
+   * physical location or physical event.
    */
-  const physicalRelationMarker =
-    /\b(?:on|onto|under|beneath|above|over|behind|beside|inside|within|through|across|against|around|between|near|next\s+to|inside|outside|into|out\s+of|from|with|without)\b/i.test(
+  const interpersonalRelationMarker =
+    /\b(?:between\s+(?:us|them|you)|with\s+(?:me|us|them|you)|among\s+us|between\s+the\s+two\s+of\s+us)\b/i.test(
       text,
     );
 
+  const interactionAlreadyEstablished =
+    /\b(?:met|meet|meeting|talk|talked|talking|spoke|speaking|conversation|connected|shared|together|joined|visited|called|texted|messaged|worked|played|danced)\b/i.test(
+      sourceCorpus,
+    );
+
   if (
-    !physicalRelationMarker
+    interpersonalRelationMarker &&
+    interactionAlreadyEstablished
   ) {
     return false;
   }
 
   /*
-   * A relation marker by itself is insufficient. We need at least
-   * two meaningful lexical units around which a physical relation
-   * could be asserted.
+   * Physical relation language is structural rather than domain-specific.
+   * These markers describe an asserted relation between entities, locations,
+   * surfaces, bodies, environments, or physical effects.
+   */
+  const physicalRelationMarker =
+    /\b(?:on|onto|under|beneath|above|over|behind|beside|inside|within|through|across|against|around|between|near|next\s+to|outside|into|out\s+of|from|with|without)\b/i.test(
+      text,
+    );
+
+  if (!physicalRelationMarker) {
+    return false;
+  }
+
+  /*
+   * A relation marker by itself is insufficient. We need at least two
+   * meaningful lexical units around which a physical relation could be
+   * asserted.
    */
   const significant =
     [...candidateTokens].filter(
@@ -267,11 +294,11 @@ function introducesUnsupportedPhysicalRelation(
   }
 
   /*
-   * Count how much of the asserted material is actually represented
-   * in the supplied reality.
+   * Count how much of the asserted material is represented in the supplied
+   * reality.
    *
-   * A transformed expression may use new language freely, but a
-   * physical relation cannot introduce unsupported concrete entities.
+   * A transformed expression may use new language freely, but a physical
+   * relation cannot introduce unsupported concrete entities.
    */
   const grounded =
     significant.filter(

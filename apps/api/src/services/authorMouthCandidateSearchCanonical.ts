@@ -71,9 +71,6 @@ function clean(value: unknown): string {
     .trim();
 }
 
-function unique(values: readonly string[]): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))];
-}
 
 const FUNCTION_WORDS = new Set([
   "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at",
@@ -137,7 +134,51 @@ function sourceLabelsForBeat(
     ),
   ];
 }
+function relationalCompressionAuthorized(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): boolean {
+  const participants = new Set(
+    [
+      ...(envelope.suppliedEntities ?? []),
+      ...(envelope.suppliedPhrases ?? []),
+    ]
+      .map(clean)
+      .filter(Boolean)
+      .filter(
+        (value) =>
+          !/^(?:someone|something|it|this|that)$/i.test(
+            value,
+          ),
+      ),
+  );
 
+  if (participants.size < 2) {
+    return false;
+  }
+
+  const eventIds = new Set(
+    beat.eventIds ?? [],
+  );
+
+  const beatEvents = envelope.events.filter(
+    (event) =>
+      eventIds.has(event.id),
+  );
+
+  if (!beatEvents.length) {
+    return false;
+  }
+
+  const sharedInteraction =
+    beatEvents.some((event) =>
+      /\b(?:met|talked|talking|spoke|speaking|shared|together|between|with|connected|joined|visited|called|texted|messaged|worked|played|danced)\b/i.test(
+        clean(event.label),
+      ),
+    );
+
+  return sharedInteraction;
+}
 /**
  * Universal supplied-reality shape.
  *
@@ -210,69 +251,188 @@ function expressiveVocabulary(text: string): boolean {
  * itself invention. The hard question is whether the candidate asserts a new
  * occurrence, environment, physical action, sensorium, or chronology.
  */
-function stableRealityEscalationRisk(
+function unsupportedConcreteClaimRisk(
   text: string,
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): number {
-  const realityShape = realityShapeForBeat(beat, envelope);
-  if (realityShape !== "stable" && realityShape !== "state") return 0;
+  const value = clean(text).toLowerCase();
 
-  const sourceLabels = sourceLabelsForBeat(beat, envelope);
-  const wholeReality = [
+  if (!value) {
+    return 1;
+  }
+
+  const sourceLabels =
+    sourceLabelsForBeat(
+      beat,
+      envelope,
+    );
+
+  const sourceWorld = [
+    ...sourceLabels,
     envelope.subject,
-    ...envelope.events.map((event) => event.label),
     ...envelope.suppliedPhrases,
     ...envelope.suppliedEntities,
     ...envelope.suppliedActions,
     ...envelope.suppliedStates,
     ...envelope.recurringSignals,
     ...envelope.sensorySignals,
-  ].join(" ");
+  ]
+    .map(clean)
+    .filter(Boolean)
+    .join(" ");
 
-  const candidateTokens = meaningfulTokenSet(text);
-  const sourceTokens = meaningfulTokenSet(
-    [...sourceLabels, wholeReality].join(" "),
-  );
+  const candidateTokens =
+    meaningfulTokenSet(
+      value,
+    );
 
-  const meaningfulOverlap = overlap(candidateTokens, sourceTokens);
-  const transformation = directTransformationSignal(text);
+  const sourceTokens =
+    meaningfulTokenSet(
+      sourceWorld,
+    );
 
+  const sourceOverlap =
+    overlap(
+      candidateTokens,
+      sourceTokens,
+    );
+
+  /*
+   * Direct experiential transformation is allowed when the supplied
+   * material actually supports that kind of transformation.
+   *
+   * Example:
+   *
+   *   wanted to talk again
+   *   -> the wanting settled
+   *
+   * The transformation changes the expression of an already-supported
+   * meaning; it does not introduce another concrete occurrence.
+   */
+  const transformation =
+    directTransformationSignal(
+      value,
+    );
+
+  const consequence =
+    experientialConsequenceSignal(
+      value,
+      sourceLabels,
+      beat,
+    );
+
+  /*
+   * Concrete occurrence vocabulary.
+   *
+   * These are dangerous because they commonly introduce something that
+   * physically happened, appeared, moved, was sensed, or occurred in time.
+   */
+  const concreteOccurrence =
+    /\b(?:glance|glanced|looked|looks|smiled|smile|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|walked|walk|ran|run|opened|open|closed|close|entered|enter|left|leave|arrived|arrive|returned|return|called|call|texted|text|messaged|message|laughed|laugh|cried|cry|kissed|kiss|hugged|hug|turned|turn|moved|move|appeared|appear|disappeared|disappear|followed|follow|watched|watch|heard|hear|saw|see|smelled|smell|sounded|sound|tasted|taste|breathed|breathe|whispered|whisper|spoke|speak|talked|talk|danced|dance|drove|drive|ate|eat|drank|drink)\b/i.test(
+      value,
+    );
+
+  /*
+   * New physical/environmental objects are also dangerous when they are
+   * being asserted as part of the scene.
+   */
+  const concreteSceneNoun =
+    /\b(?:room|street|road|house|home|door|window|floor|wall|table|chair|car|garden|yard|sky|cloud|rain|sunlight|moonlight|shadow|light|air|smoke|water|path|frame|hallway|kitchen|bathroom|bed|phone|screen|hand|hands|face|eyes|shoulder|shoulders|body|voice|sound|scent|smell)\b/i.test(
+      value,
+    );
+
+  /*
+   * New chronology is a factual claim unless chronology was already
+   * supplied by the source material.
+   */
+  const newChronology =
+    /\b(?:suddenly|then|afterward|after|before|later|earlier|eventually|finally|already|again|next|that night|the next day|the following day|minutes? later|hours? later|days? later)\b/i.test(
+      value,
+    );
+
+  /*
+   * Article-led conceptual expressions can be excellent experiential
+   * realization. Do not reject them merely because they are abstract.
+   */
+  const conceptualRealization =
+    /\b(?:ease|lightness|warmth|tension|silence|distance|connection|recognition|release|calm|nerves|nervousness|awkwardness|closeness|uncertainty|comfort|relief|energy|rhythm|stillness|solace|familiar|strange|guard|grip|belonging|absence|presence|wanting|need|curiosity|pressure|momentum|possibility|permission|agreement|confirmation)\b/i.test(
+      value,
+    );
+
+  /*
+   * A candidate with strong concrete grounding is safe.
+   */
   if (
-    transformation >= 0.58 &&
-    (meaningfulOverlap >= 0.08 || expressiveVocabulary(text) || figurativeExpression(text))
+    sourceOverlap >= 0.35 &&
+    !concreteOccurrence &&
+    !concreteSceneNoun &&
+    !newChronology
   ) {
     return 0;
   }
 
-  const words = clean(text).split(/\s+/).filter(Boolean);
-  const lower = clean(text).toLowerCase();
-
+  /*
+   * Direct transformations are allowed only when the wording remains
+   * experiential/conceptual rather than introducing a new physical scene.
+   */
   if (
-    words.length <= 2 &&
+    transformation >= 0.58 &&
+    consequence >= 0.45 &&
+    conceptualRealization &&
+    !concreteOccurrence &&
+    !newChronology
+  ) {
+    return 0;
+  }
+
+  /*
+   * Relational compression is allowed only when the supplied material
+   * actually establishes a shared interaction.
+   *
+   * This does NOT authorize a new interaction such as a glance, touch,
+   * kiss, smile, etc.
+   */
+  if (
+    relationalCompressionAuthorized(
+      beat,
+      envelope,
+    ) &&
+    conceptualRealization &&
+    !concreteOccurrence &&
+    !newChronology &&
+    sourceOverlap >= 0.08
+  ) {
+    return 0;
+  }
+
+  /*
+   * Unsupported concrete content is a hard failure.
+   */
+  if (
+    concreteOccurrence ||
+    concreteSceneNoun ||
+    newChronology
+  ) {
+    return 1;
+  }
+
+  /*
+   * Conceptual language with a weak but nonzero source anchor can still
+   * be a legitimate experiential realization.
+   */
+  if (
+    conceptualRealization &&
     (
-      meaningfulOverlap >= 0.08 ||
-      expressiveVocabulary(text) ||
-      /\b(?:almost|still|finally|again|then|before|after|nothing|everything|only|yet|never|no|already|somehow)\b/i.test(lower)
+      transformation >= 0.58 ||
+      consequence >= 0.58
     )
   ) {
     return 0;
   }
 
-  if (figurativeExpression(text)) return 0;
-  if (meaningfulOverlap >= 0.18) return 0;
-
-  const assertedClause =
-    /\b(?:someone|something|someone's|the|a|an)\b.+\b(?:is|are|was|were|shifted|moved|ran|walked|went|came|left|looked|felt|smelled|sounded|tasted|appeared|disappeared|arrived|returned|stood|sat|held|carried|opened|closed|turned|drifted|bled|bloomed|danced|laughed|cried|talked|spoke|called|entered|exited)\b/i.test(text);
-
-  const externalClaim =
-    /\b(?:scent|smell|sound|taste|air|sky|cloud|rain|sunlight|moonlight|shadow|light|room|street|door|window|floor|wall|table|chair|car|road|house|building|garden|yard)\b/i.test(text);
-
-  if (assertedClause || externalClaim) return 1;
-
   return 0;
 }
-
 function lensFitForCandidate(
   text: string,
   lensInput: string | undefined,
@@ -558,10 +718,33 @@ export function buildMouthCandidateMessages(
     `EMOTIONAL POSTURE: ${character.emotionalPosture}.`,
     "Use the lens to discover an unexpectedly exact framing of supplied meaning.",
     "Do not stop at literal restatement of what happened.",
+    "By default, realize the experience without forcing a narrator or point of view.",
+"Do not force you, I, we, us, them, or their unless the supplied material or explicit user instruction naturally calls for it.",
+"Prefer language that can be inhabited directly by the person who lived the memory and can still be felt by someone encountering it later.",
+"Render the experience itself rather than explaining who feels it or what the experience means.",
     "Ask internally: what the fuck did that do to me?",
     "Then ask what it made newly felt, newly meaningful, newly familiar, newly strange, newly possible, newly difficult, newly connected, newly wanted, or newly important.",
     "Search for the deeper experiential consequence before choosing the final wording.",
+    "RELATIONAL COMPRESSION: when the supplied reality establishes multiple participants sharing an interaction or experience, you may realize the felt consequence between them without naming the relationship.",
+    "Do not explain the relationship. Let the shared state emerge through compressed experiential language.",
+    "Relational language may imply an already-established shared field, rhythm, current, distance, ease, tension, pull, or other experiential consequence.",
+    "Do not invent a participant, identity, relationship status, motive, or concrete event.",
+    "Prefer implication over explanation when the shared consequence is earned by the supplied reality.",
     "The experiential consequence is interpretation of supplied reality, not a new factual event.",
+    "UNIVERSAL GOLD: search for what the supplied reality became, not merely what happened.",
+"Discover the smallest unexpected truth that the supplied sequence has already earned.",
+"Let accumulated facts create the realization; do not intensify them.",
+"Do not invent motive, conflict, physical sensation, environmental change, danger, romance, status, or emotional intensity merely to make the line feel powerful.",
+"A surprising realization is valuable only when the supplied material makes it feel inevitable in retrospect.",
+    "Do not explain the meaning of the experience. Make the meaning perceptible through the realization.",
+    "An ordinary supplied event may become a distinctive identity, relationship, rhythm, attitude, recognition, transformation, or final residue.",
+   "Prefer implication over explanation when both are grounded.",
+   "A realization may compress several supplied facts into one line when their relationship is already earned.",
+   "Do not name a relationship, emotion, lesson, or significance merely to summarize it; let the accumulated reality reveal it.",
+   "Gold may be quiet, funny, strange, tender, fierce, absurd, stylish, social, observational, or unexpected. The supplied reality determines the direction.",
+   "Never force emotionality, poetry, drama, humor, romance, menace, or profundity. Discover what is actually alive in the material.",
+   "Treat the subject as capable of acquiring a recognizable identity through accumulated supplied events without inventing unsupported facts.",
+   "Treat established participants as capable of acquiring a shared experiential state without inventing a relationship status.",
     "Do not merely paraphrase an unexpected event as a sentence about its unexpectedness; discover what the unexpectedness actually changed or revealed.",
     "Look for meaningful collisions between things already established in the sequence.",
     "A collision may join meanings that seem opposite, distant, repetitive, unexpectedly compatible, newly familiar, newly strange, or newly important.",
@@ -627,7 +810,8 @@ export function scoreMouthCandidate(input: {
     beat: input.beat,
   });
 
-  const realityEscalationRisk = stableRealityEscalationRisk(
+  const concreteRisk =
+  unsupportedConcreteClaimRisk(
     input.text,
     input.beat,
     input.envelope,
@@ -641,26 +825,35 @@ export function scoreMouthCandidate(input: {
     activeLensByBeat.get(input.beat as object) ||
     undefined;
 
-  if (realityEscalationRisk >= 0.9) {
-    return {
-      ...legacy,
-      inventionRisk: Math.max(1, legacy.inventionRisk),
-      forbiddenMoveRisk: 1,
-      supportedEventIds: [],
-      groundingScore: Math.min(legacy.groundingScore, 0),
-      obligationCoverage: Math.min(legacy.obligationCoverage, 0),
-      meaningScore: Math.min(legacy.meaningScore, 0.2),
-      transitionScore: Math.min(legacy.transitionScore, 0.2),
-      score: Math.min(legacy.score, 0.15),
-      reasons: [
-        ...new Set([
-          ...legacy.reasons,
-          "stable-reality-escalation",
-          "invention-risk",
-        ]),
-      ],
-    };
-  }
+   if (concreteRisk >= 0.9) {
+  return {
+    ...legacy,
+
+    inventionRisk: 1,
+
+    forbiddenMoveRisk: 1,
+
+    supportedEventIds: [],
+
+    groundingScore: 0,
+
+    obligationCoverage: 0,
+
+    meaningScore: 0,
+
+    transitionScore: 0,
+
+    score: 0.05,
+
+    reasons: [
+      ...new Set([
+        ...legacy.reasons,
+        "unsupported-concrete-realization",
+        "invention-risk",
+      ]),
+    ],
+  };
+}
 
   if (!interpretation.reasons.includes("semantic-compression")) {
     return legacy;
@@ -738,14 +931,14 @@ export function scoreMouthCandidate(input: {
 
   return {
     ...legacy,
-    inventionRisk: Math.min(
-      legacy.inventionRisk,
-      interpretation.unsupportedConcreteRisk,
-      realityEscalationRisk,
-    ),
+    inventionRisk: Math.max(
+  legacy.inventionRisk,
+  interpretation.unsupportedConcreteRisk,
+  concreteRisk,
+),
     forbiddenMoveRisk: Math.max(
       legacy.forbiddenMoveRisk,
-      realityEscalationRisk,
+      concreteRisk,
     ),
     supportedEventIds:
       authorizedEventIds.length > 0
