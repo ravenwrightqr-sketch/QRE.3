@@ -1,15 +1,14 @@
 diff --git a/apps/api/src/services/authorCognition.ts b/apps/api/src/services/authorCognition.ts
 --- a/apps/api/src/services/authorCognition.ts
 +++ b/apps/api/src/services/authorCognition.ts
-@@ -3,6 +3,7 @@ import type {
- } from "@qre/contracts";
+@@ -7,5 +7,6 @@ import type {
  import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
  import { rerankByViewerState } from "./authorViewerState.js";
 +import { selectDistinctMovieCandidates } from "./authorMovieDifferentiation.js";
  import {
    buildAuthorExperienceState,
    summarizeAuthorExperienceState,
-@@ -622,10 +623,12 @@ function movieFor(
+@@ -622,17 +623,23 @@ function movieFor(
    searched.map((candidate) =>
      enrichMovieCandidate(
        candidate,
