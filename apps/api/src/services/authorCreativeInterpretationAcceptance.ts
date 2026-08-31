@@ -1,6 +1,11 @@
 import type { LatentMovieCandidate } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
-import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
+import {
+  deriveLatentStoryThesis,
+} from "./authorLatentStoryThesis.js";
+import {
+  deriveSequenceBackedCreativeInterpretations,
+} from "./authorCreativeInterpretation.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -62,11 +67,37 @@ const candidate: LatentMovieCandidate = {
   score: 0.5,
 };
 
+const interpretations = deriveSequenceBackedCreativeInterpretations(
+  graph,
+  candidate,
+);
+
+assert(
+  interpretations.length >= 4,
+  `expected at least four cognitive interpretation candidates, got ${interpretations.length}`,
+);
+
+const mechanisms = new Set(interpretations.map((item) => item.mechanism));
+assert(
+  mechanisms.size >= 4,
+  `expected materially different interpretation mechanisms, got ${[...mechanisms].join(",")}`,
+);
+
+assert(
+  interpretations.every((item) => item.evidenceEventIds.length > 0),
+  "every interpretation must retain concrete source provenance",
+);
+
+assert(
+  interpretations.every((item) => item.statement.length > 0),
+  "every interpretation must have a semantic statement",
+);
+
 const thesis = deriveLatentStoryThesis(graph, candidate);
 
 assert(thesis.semanticTurn.length > 0, "sparse meaningful sequence must produce a semantic interpretation");
 assert(
-  /unexpectedly|continue|encounter|became|important part|became/i.test(
+  /unexpectedly|continue|encounter|became|important part|accumulate/i.test(
     thesis.semanticTurn,
   ),
   `expected a meaningful interpretation, got: ${thesis.semanticTurn}`,
@@ -81,6 +112,13 @@ assert(
 );
 
 console.log("CREATIVE INTERPRETATION ACCEPTANCE PASS");
-console.log(`semanticTurn=${thesis.semanticTurn}`);
+console.log(`interpretations=${interpretations.length}`);
+for (const [index, interpretation] of interpretations.entries()) {
+  console.log(
+    `[${index + 1}] ${interpretation.mechanism} · confidence=${interpretation.confidence} · evidence=${interpretation.evidenceEventIds.join(",")}`,
+  );
+  console.log(`    ${interpretation.statement}`);
+}
+console.log(`champion=${thesis.semanticTurn}`);
 console.log(`beforeEventIds=${thesis.beforeEventIds.join(",")}`);
 console.log(`afterEventIds=${thesis.afterEventIds.join(",")}`);
