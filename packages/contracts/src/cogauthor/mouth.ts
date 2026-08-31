@@ -29,6 +29,15 @@ export type ViewerStateCut = {
   evidenceEventIds: string[];
 };
 
+export type MouthObserverExperienceObjective = {
+  objective: string;
+  surprise: string;
+  curiosity: string;
+  attention: string[];
+  landing: string;
+  explanationForbidden: boolean;
+};
+
 export type MouthCandidateBeat = {
   order: number;
   role?: string;
@@ -46,6 +55,7 @@ export type MouthCandidateBeat = {
   relationKinds?: readonly string[];
   relationStrength?: number;
   viewerState?: ViewerStateCut;
+  observerExperience?: MouthObserverExperienceObjective;
 };
 
 export type MouthCandidate = {
