@@ -21,7 +21,8 @@ const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
 const realityGraph = "apps/api/src/services/authorRealityGraph.ts";
 const movieSearch = "apps/api/src/services/authorUniversalMovieSearch.ts";
-const mouth = "apps/api/src/services/authorMouthCandidateSearch.ts";
+const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
+const mouthImplementation = "apps/api/src/services/authorMouthCandidateSearch.ts";
 const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
 const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
 const acceptance = "apps/api/author-acceptance.ts";
@@ -59,7 +60,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-for (const path of [canonical, cognition, realityGraph, movieSearch, mouth, interpretation, beam, acceptance, packageJson]) {
+for (const path of [canonical, cognition, realityGraph, movieSearch, mouth, mouthImplementation, interpretation, beam, acceptance, packageJson]) {
   check(`exists:${path}`, existsSync(join(root, path)), "canonical file present");
 }
 
@@ -139,6 +140,7 @@ console.log("=== QRE AUTHOR WIRING GUARD ===");
 console.log(`CANONICAL AUTHOR: ${canonical}`);
 console.log(`CANONICAL COGNITION: ${cognition}`);
 console.log(`CANONICAL MOUTH: ${mouth}`);
+console.log(`MOUTH IMPLEMENTATION: ${mouthImplementation}`);
 console.log(`CANONICAL BEAM: ${beam}`);
 for (const message of warnings) console.log(`GREEN: ${message}`);
 for (const message of failures) console.error(`FAIL: ${message}`);
