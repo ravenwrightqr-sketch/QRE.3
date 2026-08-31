@@ -96,8 +96,8 @@ const EXPECTATION = [
 ];
 
 const CONTINUATION = [
-  /\b(?:kept|continued|continue|continues|still|again|returned|return|back|again)\b/i,
-  /\b(?:wanted|want|wanted\s+to|needed|need)\b.+\b(?:again|more|continue|talk)\b/i,
+  /\b(?:kept|continued|continue|continues|still|again|returned|return|back)\b/i,
+  /\b(?:wanted|want|needed|need)\b.+\b(?:again|more|continue|talk)\b/i,
 ];
 
 const STATE = [
@@ -131,6 +131,28 @@ function buildCandidate(
   };
 }
 
+function sequenceIds(
+  orderedEventIds: readonly string[],
+  predicate: (label: string) => boolean,
+): string[] {
+  return orderedEventIds.filter((id) => predicate(labelFor as never));
+}
+
+function span(
+  orderedEventIds: readonly string[],
+  selectedIds: readonly string[],
+): number {
+  if (selectedIds.length < 2 || orderedEventIds.length < 2) return 0;
+  const positions = selectedIds
+    .map((id) => orderedEventIds.indexOf(id))
+    .filter((index) => index >= 0);
+  if (positions.length < 2) return 0;
+  return metric(
+    (Math.max(...positions) - Math.min(...positions)) /
+      Math.max(1, orderedEventIds.length - 1),
+  );
+}
+
 /**
  * Discover every bounded semantic interpretation supported by the selected
  * sequence. Candidate generation deliberately preserves discovery order.
@@ -151,35 +173,29 @@ export function deriveSequenceBackedCreativeInterpretations(
   const meaningful = labels.filter(Boolean);
   if (meaningful.length < 2) return [];
 
-  const expectations = meaningful.filter((label) =>
-    containsAny(label, EXPECTATION),
+  const expectations = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), EXPECTATION),
   );
-  const continuation = meaningful.filter((label) =>
-    containsAny(label, CONTINUATION),
+  const continuation = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), CONTINUATION),
   );
-  const states = meaningful.filter((label) =>
-    containsAny(label, STATE),
+  const states = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), STATE),
   );
-  const recurrence = meaningful.filter((label) =>
-    containsAny(label, RECURRENCE),
+  const recurrence = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), RECURRENCE),
   );
-  const contrasts = meaningful.filter((label) =>
-    containsAny(label, CONTRAST),
+  const contrasts = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), CONTRAST),
   );
-  const encounters = meaningful.filter((label) =>
-    containsAny(label, ACTION_OR_ENCOUNTER),
+  const encounters = orderedEventIds.filter((id) =>
+    containsAny(labelFor(graph, id), ACTION_OR_ENCOUNTER),
   );
 
   const candidates: CreativeInterpretation[] = [];
 
   if (expectations.length && states.length && continuation.length) {
-    const ids = orderedEventIds.filter((id) => {
-      const label = labelFor(graph, id);
-      return expectations.includes(label) ||
-        states.includes(label) ||
-        continuation.includes(label);
-    });
-
+    const ids = unique([...expectations, ...states, ...continuation]);
     candidates.push(
       buildCandidate(
         "What began unexpectedly acquired a reason to continue.",
@@ -191,11 +207,7 @@ export function deriveSequenceBackedCreativeInterpretations(
   }
 
   if (encounters.length && continuation.length) {
-    const ids = orderedEventIds.filter((id) => {
-      const label = labelFor(graph, id);
-      return encounters.includes(label) || continuation.includes(label);
-    });
-
+    const ids = unique([...encounters, ...continuation]);
     candidates.push(
       buildCandidate(
         "The experience moved from an encounter into something wanted again.",
@@ -209,23 +221,20 @@ export function deriveSequenceBackedCreativeInterpretations(
   if (encounters.length && states.length) {
     let bestPair = { left: "", right: "", score: -1 };
 
-    for (const left of encounters) {
-      for (const right of states) {
-        const proximity = Math.max(
-          ...orderedEventIds.map((id, index) => {
-            const label = labelFor(graph, id);
-            if (label !== left) return 0;
-            const rightIndex = labels.findIndex((item) => item === right);
-            if (rightIndex < 0) return 0;
-            const distance = Math.abs(index - rightIndex);
-            return distance <= 1 ? 1 : distance === 2 ? 0.78 : 0.5;
-          }),
-        );
+    for (const leftId of encounters) {
+      for (const rightId of states) {
+        const left = labelFor(graph, leftId);
+        const right = labelFor(graph, rightId);
+        const leftIndex = orderedEventIds.indexOf(leftId);
+        const rightIndex = orderedEventIds.indexOf(rightId);
+        if (leftIndex < 0 || rightIndex < 0) continue;
 
+        const distance = Math.abs(leftIndex - rightIndex);
+        const proximity = distance <= 1 ? 1 : distance === 2 ? 0.78 : 0.5;
         const semanticCarry = overlap(left, right);
         const score = proximity * 0.7 + semanticCarry * 0.3;
         if (score > bestPair.score) {
-          bestPair = { left, right, score };
+          bestPair = { left: leftId, right: rightId, score };
         }
       }
     }
@@ -235,21 +244,41 @@ export function deriveSequenceBackedCreativeInterpretations(
         buildCandidate(
           "The important part of what happened is what it became.",
           "state_change",
-          orderedEventIds.filter((id) =>
-            labelFor(graph, id) === bestPair.left ||
-            labelFor(graph, id) === bestPair.right,
-          ),
+          [bestPair.left, bestPair.right],
           0.82,
         ),
       );
     }
   }
 
-  if (recurrence.length && meaningful.length >= 3) {
-    const ids = orderedEventIds.filter((id) =>
-      recurrence.includes(labelFor(graph, id)),
+  if (continuation.length && expectations.length) {
+    const ids = unique([...expectations, ...continuation]);
+    const sequenceSpan = span(orderedEventIds, ids);
+    candidates.push(
+      buildCandidate(
+        "The expectation matters because the experience continued past it.",
+        "consequence",
+        ids,
+        0.78 + sequenceSpan * 0.08,
+      ),
     );
+  }
 
+  if (states.length >= 2 && continuation.length) {
+    const ids = unique([...states, ...continuation]);
+    const sequenceSpan = span(orderedEventIds, ids);
+    candidates.push(
+      buildCandidate(
+        "Several supplied moments accumulate toward the same change in feeling.",
+        "convergence",
+        ids,
+        0.75 + sequenceSpan * 0.1,
+      ),
+    );
+  }
+
+  if (recurrence.length && meaningful.length >= 3) {
+    const ids = recurrence.slice();
     candidates.push(
       buildCandidate(
         "A return turns an isolated detail into a thread.",
@@ -261,10 +290,7 @@ export function deriveSequenceBackedCreativeInterpretations(
   }
 
   if (contrasts.length && meaningful.length >= 3) {
-    const ids = orderedEventIds.filter((id) =>
-      contrasts.includes(labelFor(graph, id)),
-    );
-
+    const ids = contrasts.slice();
     candidates.push(
       buildCandidate(
         "The supplied material holds two readings at once.",
