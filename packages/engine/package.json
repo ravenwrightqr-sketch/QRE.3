@@ -18,13 +18,6 @@
     "nanoid": "^5.1.16"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test:universal-mind": "tsx src/compiler/tests/universalCognitiveMindAcceptance.ts",
-    "test:creative-superstar": "tsx src/compiler/tests/creativeSuperstarAcceptance.ts",
-    "test:writer-ceiling": "tsx src/compiler/tests/writerCeilingAcceptance.ts",
-    "test:writer-readout": "tsx src/compiler/tests/writerReadout.ts",
-    "test:narrative-writer": "tsx src/compiler/tests/narrativeWriterAcceptance.ts",
-    "test:runtime-cognition": "tsx src/compiler/tests/runtimeCognitionAcceptance.ts",
-    "test:all-cognition": "pnpm run test:universal-mind && pnpm run test:creative-superstar && pnpm run test:writer-ceiling && pnpm run test:narrative-writer && pnpm run test:runtime-cognition"
+    "build": "tsc -p tsconfig.json"
   }
 }
