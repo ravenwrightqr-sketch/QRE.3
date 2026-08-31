@@ -306,16 +306,37 @@ if (!/candidate\.inventionRisk/.test(beamSource)) {
   fail("Sequence beam must account for invention risk");
 }
 
-if (!/semanticQuality/.test(beamSource)) {
-  fail("Sequence beam must rank semantic quality");
+/*
+ * The canonical Beam already exposes these concepts under their actual
+ * implementation names. Keep the guard aligned to the implementation
+ * instead of introducing duplicate wrapper scorers solely for textual tests:
+ *
+ *   semantic quality  -> expressionQuality / candidate.meaningScore
+ *   sequence fit      -> sequenceTransition
+ *   sequence effect   -> viewerStateFit + path transition profile
+ */
+if (!/function\s+expressionQuality\s*\(/.test(beamSource)) {
+  fail("Sequence beam must expose its semantic/expression quality scorer");
 }
 
-if (!/sequenceFit/.test(beamSource)) {
-  fail("Sequence beam must rank sequence fit");
+if (!/candidate\.meaningScore/.test(beamSource)) {
+  fail("Sequence beam semantic quality must consume candidate meaningScore");
 }
 
-if (!/sequenceEffect/.test(beamSource)) {
-  fail("Sequence beam must rank sequence effect");
+if (!/function\s+sequenceTransition\s*\(/.test(beamSource)) {
+  fail("Sequence beam must rank sequence fit via sequenceTransition");
+}
+
+if (!/function\s+viewerStateFit\s*\(/.test(beamSource)) {
+  fail("Sequence beam must rank sequence effect via viewerStateFit");
+}
+
+if (!/function\s+pathTransitionProfile\s*\(/.test(beamSource)) {
+  fail("Sequence beam must aggregate sequence effect across the path");
+}
+
+if (!/function\s+relativeGoldPotential\s*\(/.test(beamSource)) {
+  fail("Sequence beam must preserve emergent relative gold ranking");
 }
 
 if (!/semanticCollision\s*\(/.test(beamSource)) {
