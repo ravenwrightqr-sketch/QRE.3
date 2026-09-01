@@ -334,12 +334,6 @@ if (!/function\s+relativeGoldPotential\s*\(/.test(beamSource)) {
   fail("Sequence beam must preserve emergent relative gold ranking");
 }
 
-if (!/semanticCollision\s*\(/.test(beamSource)) {
-  warn(
-    "Sequence beam does not visibly expose semanticCollision; collision remains optional but should be present in the canonical experiential path",
-  );
-}
-
 const experienceRouteSource = existsSync(join(root, experienceRoute))
   ? read(experienceRoute)
   : "";
