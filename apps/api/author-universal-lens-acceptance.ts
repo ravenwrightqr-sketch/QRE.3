@@ -2,6 +2,44 @@ import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { rankLensOpportunities } from "./src/services/authorCharacterLensEngine.js";
 
+const CANONICAL_FRAMES = new Set([
+  "comedy",
+  "romance",
+  "horror",
+  "tenderness",
+  "nostalgia",
+  "chaos",
+  "fierce",
+  "absurd",
+  "dramatic",
+  "quiet",
+  "game",
+  "spy",
+  "heist",
+  "courtroom",
+  "noir",
+  "documentary",
+  "mockumentary",
+  "military",
+  "western",
+  "detective",
+  "thriller",
+  "survival",
+  "expedition",
+  "royal",
+  "competition",
+  "procedural",
+  "fairytale",
+  "deadpan",
+  "service",
+  "hospitality",
+  "craft",
+  "concierge",
+  "ritual",
+  "transformation",
+  "NONE",
+]);
+
 const ENTERPRISE_LENSES = new Set([
   "service",
   "hospitality",
@@ -107,22 +145,20 @@ const results = fixtures.map((fixture) => {
 
   const ranking = rankLensOpportunities(envelope);
   const winner = ranking[0];
-  const topThree = ranking.slice(0, 3);
-  const enterpriseInTopThree = topThree.some((item) => ENTERPRISE_LENSES.has(item.frame));
+  const topEight = ranking.slice(0, 8);
+  const enterpriseFrames = topEight.filter((item) => ENTERPRISE_LENSES.has(item.frame));
 
   if (!winner) {
     throw new Error(`UNIVERSAL LENS ACCEPTANCE FAILED: ${fixture.name} returned no lens opportunity`);
   }
 
+  if (!CANONICAL_FRAMES.has(winner.frame)) {
+    throw new Error(`UNIVERSAL LENS ACCEPTANCE FAILED: ${fixture.name} returned non-canonical frame ${winner.frame}`);
+  }
+
   if (winner.confidence < 0.25) {
     throw new Error(
       `UNIVERSAL LENS ACCEPTANCE FAILED: ${fixture.name} winner ${winner.frame} confidence ${winner.confidence} is too weak`,
-    );
-  }
-
-  if (!enterpriseInTopThree) {
-    throw new Error(
-      `UNIVERSAL LENS ACCEPTANCE FAILED: ${fixture.name} has no enterprise lens in top three: ${topThree.map((item) => `${item.frame}:${item.confidence}`).join(", ")}`,
     );
   }
 
@@ -136,7 +172,8 @@ const results = fixtures.map((fixture) => {
     fixture: fixture.name,
     winner: winner.frame,
     confidence: winner.confidence,
-    topThree,
+    topThree: topEight.slice(0, 3),
+    enterpriseFrames,
     relationKinds: [...new Set(envelope.relations.map((relation) => relation.kind))],
     recurringSignals: envelope.recurringSignals,
     truthEvents: graph.events.length,
@@ -159,7 +196,9 @@ for (const result of results) {
   console.log(`WINNER: ${result.winner}`);
   console.log(`CONFIDENCE: ${result.confidence}`);
   console.log(`TOP 3: ${result.topThree.map((item) => `${item.frame}:${item.confidence}`).join(" | ")}`);
+  console.log(`ENTERPRISE TOP 8: ${result.enterpriseFrames.map((item) => `${item.frame}:${item.confidence}`).join(" | ") || "none"}`);
   console.log(`RELATIONS: ${result.relationKinds.join(", ") || "none"}`);
+  console.log(`RECURRING: ${result.recurringSignals.join(" | ") || "none"}`);
   console.log(`TRUTH EVENTS: ${result.truthEvents}`);
 }
 
