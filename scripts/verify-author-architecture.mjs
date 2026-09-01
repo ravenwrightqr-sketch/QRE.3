@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * QRE CANONICAL AUTHOR LAW
  * ROLE: Repository architecture guard for the production Author path.
@@ -202,51 +204,53 @@ const mouthSource = existsSync(join(root, mouth))
   ? read(mouth)
   : "";
 
-if (!/sourceLabelsForBeat\s*\(/.test(mouthSource)) {
-  fail("Canonical Mouth must resolve source labels through sourceLabelsForBeat");
-}
-
-if (!/eventIds\s*\?\?\s*\[\]/.test(mouthSource)) {
-  fail("Canonical Mouth source provenance must read only beat.eventIds");
-}
-
 const sourceLabelsMatch = mouthSource.match(
-  /function\s+sourceLabelsForBeat\s*\([\s\S]*?\n\}/,
+  /function\s+sourceLabels\s*\([\s\S]*?\n\}/,
 );
 
 if (!sourceLabelsMatch) {
-  fail("Canonical Mouth must define sourceLabelsForBeat");
+  fail("Canonical Mouth must define sourceLabels");
 } else {
   const sourceLabelsSource = sourceLabelsMatch[0];
 
+  if (!/beat\.eventIds/.test(sourceLabelsSource)) {
+    fail("Canonical Mouth source provenance must read only beat.eventIds");
+  }
+
   if (!/envelope\.events\.find\s*\(/.test(sourceLabelsSource)) {
     fail(
-      "sourceLabelsForBeat must resolve against envelope.events",
+      "sourceLabels must resolve against envelope.events",
     );
   }
 
   if (!/event\.id\s*===\s*id/.test(sourceLabelsSource)) {
     fail(
-      "sourceLabelsForBeat must match events by event ID",
+      "sourceLabels must match events by event ID",
     );
   }
 
   if (!/\.label/.test(sourceLabelsSource)) {
     fail(
-      "sourceLabelsForBeat must return the matched event label",
+      "sourceLabels must return the matched event label",
     );
   }
 }
 
-if (!/experientialConsequenceSignal\s*\(/.test(mouthSource)) {
+if (!/Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff\./i.test(mouthSource)) {
   fail(
-    "Canonical Mouth must include deeper experiential-consequence evaluation",
+    "Canonical Mouth must preserve consequence-aware experiential realization guidance",
   );
 }
 
-if (!/what the fuck did that do to me/i.test(mouthSource)) {
-  warn(
-    "Canonical Mouth does not visibly document the deeper 'what did that do to me?' realization question",
+if (!/function\s+payoffScore\s*\(/.test(mouthSource) || !/payoffScore\s*\(/.test(mouthSource)) {
+  fail(
+    "Canonical Mouth must evaluate consequence/payoff quality before candidate acceptance",
+  );
+}
+
+if (!/viewerState\.stateShift/.test(mouthSource)) {
+  fail(
+    "Canonical Mouth must evaluate the supplied viewer-state transition",
   );
 }
 
@@ -254,7 +258,7 @@ if (
   /setsUp\s*\??\.?\s*.*map\(|paysOff\s*\??\.?\s*.*map\(/s.test(
     mouthSource,
   ) &&
-  /sourceLabelsForBeat\s*\(/.test(mouthSource)
+  /function\s+sourceLabels\s*\(/.test(mouthSource)
 ) {
   warn(
     "Canonical Mouth contains setsUp/paysOff mapping logic; inspect manually if those values ever become source labels",
@@ -306,15 +310,6 @@ if (!/candidate\.inventionRisk/.test(beamSource)) {
   fail("Sequence beam must account for invention risk");
 }
 
-/*
- * The canonical Beam already exposes these concepts under their actual
- * implementation names. Keep the guard aligned to the implementation
- * instead of introducing duplicate wrapper scorers solely for textual tests:
- *
- *   semantic quality  -> expressionQuality / candidate.meaningScore
- *   sequence fit      -> sequenceTransition
- *   sequence effect   -> viewerStateFit + path transition profile
- */
 if (!/function\s+expressionQuality\s*\(/.test(beamSource)) {
   fail("Sequence beam must expose its semantic/expression quality scorer");
 }
