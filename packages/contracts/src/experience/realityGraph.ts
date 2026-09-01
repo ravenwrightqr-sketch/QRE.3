@@ -21,6 +21,28 @@ export type RealityEntity = {
   confidence: number;
 };
 
+export type RealityEntityContinuity = {
+  entityId: string;
+  entity: string;
+  eventIds: string[];
+  firstEventId?: string;
+  lastEventId?: string;
+  recurrenceCount: number;
+  confidence: number;
+};
+
+export type RealityEventStructure = {
+  eventId: string;
+  actionTerms: string[];
+  stateTerms: string[];
+  objectTerms: string[];
+  semanticTags: string[];
+  recurrenceScore: number;
+  transitionScore: number;
+  anomalyScore: number;
+  salience: number;
+};
+
 export type RealityEvent = {
   id: string;
   label: string;
@@ -37,6 +59,7 @@ export type RealityEvent = {
   kind?: "event" | "state" | "observation";
   salience?: number;
   tags?: string[];
+  structure?: RealityEventStructure;
   salient: boolean;
   provenance: "explicit" | "memory" | "prompt";
 };
@@ -101,7 +124,11 @@ export type RealitySalience = {
 export type RealityGraph = {
   evidence: RealityEvidence[];
   entities?: RealityEntity[];
+  entityContinuity?: RealityEntityContinuity[];
+  entityContinuities?: RealityEntityContinuity[];
   events: RealityEvent[];
+  eventStructure?: RealityEventStructure[];
+  eventStructures?: RealityEventStructure[];
   relations: RealityRelation[];
   transitions?: RealityTransition[];
   patterns?: RealityPattern[];
