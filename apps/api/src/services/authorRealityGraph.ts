@@ -27,31 +27,21 @@ const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
 
 const STOP = new Set(["the","a","an","and","or","but","to","of","in","on","at","for","with","from","by","through","after","before","then","now","very","just","still","again","this","that","it","is","are","was","were","be","been","being","as","into","my","your","our","their","his","her","its","he","she","they","them","you","we","me"]);
 const GENERIC = new Set(["likes","like","loves","love","is","are","was","were","be","been","has","have","had","does","do","did","gets","get","got","makes","make","made","goes","go","went","walks","walk","walked"]);
-const ACTION_RE = /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean(?:ed|s|ing)?|finished|finish|started|start|opened|close(?:d|s|ing)?|walk(?:ed|s|ing)?|ran|run|drove|drive|ate|eat|drank|drink|kiss(?:ed|es|ing)?|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|paint(?:ed|s|ing)?|wore|wear|used|use|shook|shake|chewed|chew|connected|connect|stayed|stay|wait(?:ed|s|ing)?|called|call|laughed|laugh(?:ed|s|ing)?|cried|cry(?:ing|ied)?|look(?:ed|s|ing)?|felt|feel|seemed|seem|became|become|changed|change|repaired|repair|tested|test|selected|select|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/gi;
+const ACTION_RE = /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean(?:ed|s|ing)?|finished|finish|started|start|opened|close(?:d|s|ing)?|walk(?:ed|s|ing)?|ran|run|drove|drive|ate|eat|drank|drink|kiss(?:ed|es|ing)?|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|paint(?:ed|s|ing)?|wore|wear|used|use|shook|shake|chewed|chew|connected|connect|stayed|stay|wait(?:ed|s|ing)?|called|call|laughed|laugh(?:ed|s)?|cried|cry(?:ing|ied)?|look(?:ed|s|ing)?|felt|feel|seemed|seem|became|become|changed|change|repaired|repair|tested|test|selected|select|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/gi;
 const ACTIONS = new RegExp(ACTION_RE.source, "i");
 const STATE_WORDS = /\b(?:happy|sad|angry|calm|excited|nervous|scared|proud|confident|fun|funny|wild|goofy|sweet|gentle|fierce|stubborn|tired|quiet|loud|beautiful|strange|weird|odd|dark|bright|new|old|young|male|female|single|married|late|early|ready|clean|dirty|broken|fixed|alive|gone|back|again|first|second|third|different|dapper|fabulous|cool|sharp|open|closed|working|prepared|available|restored|renewed)\b/i;
 const STATE_RE = new RegExp(STATE_WORDS.source, "i");
 const TIME_WORDS = /\b(?:today|yesterday|tomorrow|morning|afternoon|evening|night|later|earlier|first|again|second|third|last|next|at \d|\d{1,2}:\d{2})\b/i;
-const RECURRENCE_WORDS = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once more|weekly|daily|every)\b/i;
+const RECURRENCE_WORDS = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once more|weekly|daily|every|remember(?:ed|s|ing)?|same)\b/i;
 const OPPOSITES: readonly [string, string][] = [
-  ["nervous", "confident"],
-  ["nervous", "calm"],
-  ["broken", "working"],
-  ["broken", "fixed"],
-  ["dirty", "clean"],
-  ["old", "new"],
-  ["late", "early"],
-  ["alone", "together"],
-  ["lost", "found"],
-  ["quiet", "loud"],
-  ["sad", "happy"],
-  ["scared", "safe"],
-  ["closed", "open"],
+  ["nervous", "confident"], ["nervous", "calm"], ["broken", "working"], ["broken", "fixed"],
+  ["dirty", "clean"], ["old", "new"], ["late", "early"], ["alone", "together"],
+  ["lost", "found"], ["quiet", "loud"], ["sad", "happy"], ["scared", "safe"], ["closed", "open"],
 ];
 const SEMANTIC_TAGS: readonly [RegExp, string][] = [
   [/\b(?:arrive|arrived|came|come|entered|check-?in)\b/i, "arrival"],
   [/\b(?:left|leave|depart|departure|checked out|check-?out)\b/i, "departure"],
-  [/\b(?:return|returned|again|back|weekly|daily|every)\b/i, "recurrence"],
+  [/\b(?:return|returned|again|back|weekly|daily|every|remember(?:ed|s|ing)?|same)\b/i, "recurrence"],
   [/\b(?:start|started|began|begin|process|worked|working)\b/i, "process"],
   [/\b(?:finish|finished|complete|completed|done)\b/i, "completion"],
   [/\b(?:repair|repaired|fixed|restored|renewed)\b/i, "repair"],
@@ -201,9 +191,11 @@ function buildStructuralRelations(events: RealityEvent[], subject: string | unde
       );
       if (contrast) addRelation(relations, current.id, other.id, "contrasts", 0.9);
 
-      if (RECURRENCE_WORDS.test(other.label) && currentSet.size && otherTokens.some((token) => currentSet.has(token))) {
-        addRelation(relations, current.id, other.id, "repeats", 0.88);
-        addRelation(relations, current.id, other.id, "recontextualizes", 0.72);
+      const recurrenceLanguage = RECURRENCE_WORDS.test(other.label);
+      const explicitIdentity = looksLikeIdentityAssertion(other.label) || /\b(?:same|remember(?:ed|s|ing)?)\b/i.test(other.label);
+      if (recurrenceLanguage && currentSet.size && otherTokens.some((token) => currentSet.has(token))) {
+        addRelation(relations, current.id, other.id, "repeats", explicitIdentity ? 0.97 : 0.88);
+        addRelation(relations, current.id, other.id, "recontextualizes", explicitIdentity ? 0.9 : 0.72);
       }
 
       const explicitCausal = /\b(?:because|caused|causes|resulted in|led to|due to)\b/i.test(`${current.label} ${other.label}`);
@@ -288,32 +280,26 @@ function buildPatterns(events: RealityEvent[], evidenceList: RealityEvidence[], 
   for (const structure of structures.filter((item) => item.transitionScore >= 0.45).sort((a, b) => b.transitionScore - a.transitionScore).slice(0, 6)) {
     patterns.push({ kind: "transition", label: `${structure.semanticTags.join(" + ") || "state"} transition`, eventIds: [structure.eventId], evidenceIds: evidenceIdsFor([structure.eventId]), strength: structure.transitionScore });
   }
-
   for (const relation of relations.filter((item) => item.kind === "repeats").slice(0, 6)) {
     const sourceEvents = [relation.from, relation.to];
     patterns.push({ kind: "recurrence", label: "supplied pattern returns", eventIds: sourceEvents, evidenceIds: evidenceIdsFor(sourceEvents), strength: relation.strength });
   }
-
   for (const signal of recurringSignals.slice(0, 8)) {
     const normalized = lower(signal);
     const eventIds = events.filter((event) => lower(event.label).includes(normalized) || contentTokens(event.label).includes(normalized)).map((event) => event.id);
     if (eventIds.length >= 1) patterns.push({ kind: "motif", label: signal, eventIds, evidenceIds: evidenceIdsFor(eventIds), strength: Math.min(1, 0.45 + eventIds.length * 0.12) });
   }
-
   for (const relation of relations.filter((item) => item.kind === "contrasts").slice(0, 6)) {
     const ids = [relation.from, relation.to];
     patterns.push({ kind: "tension", label: "contrasting supplied states", eventIds: ids, evidenceIds: evidenceIdsFor(ids), strength: relation.strength });
   }
-
   for (const tension of unresolvedTensions.slice(0, 8)) {
     patterns.push({ kind: "thread", label: tension, eventIds: events.filter((event) => semanticTags(event.label).length > 0).slice(0, 4).map((event) => event.id), evidenceIds: evidenceList.slice(0, 4).map((item) => item.id), strength: 0.58 });
   }
-
   for (const structure of structures.filter((item) => item.anomalyScore >= 0.5).sort((a, b) => b.anomalyScore - a.anomalyScore).slice(0, 6)) {
     const label = events.find((event) => event.id === structure.eventId)?.label ?? structure.eventId;
     patterns.push({ kind: "anomaly", label: `high-information supplied detail: ${label}`, eventIds: [structure.eventId], evidenceIds: evidenceIdsFor([structure.eventId]), strength: structure.anomalyScore });
   }
-
   return patterns.slice(0, 48);
 }
 
