@@ -16,6 +16,7 @@ import masterDashboardRoutes from "./routes/masterDashboard.js";
 import presenceRoutes from "./routes/presence.js";
 import debugRouter from "./routes/debug.js";
 import experienceRouter from "./routes/experience.js";
+import serviceReceiptRouter from "./routes/serviceReceipt.js";
 import assetGenerateRouter from "./routes/assets.generate.js";
 import geoProofRouter from "./routes/geoProof.js";
 import ticketRouter from "./routes/tickets.js";
@@ -29,12 +30,28 @@ import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
+
 const app = express();
+
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
-const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173").split(",").map((origin) => origin.trim()).filter(Boolean);
-app.use(cors({ origin(origin, callback) { if (!origin) return callback(null, true); if (corsOrigins.includes(origin)) return callback(null, true); return callback(new Error("CORS origin denied")); }, credentials: true }));
+
+const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("CORS origin denied"));
+  },
+  credentials: true,
+}));
+
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "4mb" }));
+
 authRoutes(app);
 app.use("/api/assets", requireAuth, assetGenerateRouter);
 app.use("/api/user", userRouter);
@@ -48,6 +65,7 @@ app.use("/api/flow", flowRouter);
 app.use("/api/presence", presenceRoutes);
 app.use("/api/debug", debugRouter);
 app.use("/experience", experienceRouter);
+app.use("/api/service-receipt", serviceReceiptRouter);
 app.use("/api/tickets", ticketRouter);
 app.use("/api/quick-experience", quickExperienceRouter);
 app.use("/api/rewards", rewardsRouter);
@@ -59,11 +77,19 @@ app.use("/api/dashboard-geoproof", geoProofRouter);
 app.use("/api/master-dashboard", masterDashboardRoutes);
 app.use("/api/stripe", stripeWebhookRouter);
 app.use("/api/stripe", stripeTestRouter);
-app.get("/", (_req: Request, res: Response) => res.json({ status: "ok", service: "qre-api", ai: aiConfigured(), provider: aiConfigured() ? aiProviderName() : null }));
+
+app.get("/", (_req: Request, res: Response) =>
+  res.json({
+    status: "ok",
+    service: "qre-api",
+    ai: aiConfigured(),
+    provider: aiConfigured() ? aiProviderName() : null,
+  }),
+);
+
 const PORT = Number(process.env.PORT || 3000);
 startAnalyticsSpineSubscriber();
 
-app.listen(PORT, () =>
-  console.log(`⚡ QRE API running on port ${PORT}`),
-);
-app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`⚡ QRE API running on port ${PORT}`);
+});
