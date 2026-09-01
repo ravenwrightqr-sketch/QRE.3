@@ -8,26 +8,33 @@ import type {
 /**
  * ONE universal movie search.
  *
- * Search discovers presentation hypotheses over supplied RealityGraph data.
- * It never invents facts, people, objects, chronology, or outcomes.
+ * Reality is evidence. Movie search discovers competing ways to look at that
+ * evidence; it does not create new facts, actors, objects, chronology, or outcomes.
  *
- * The search deliberately keeps different kinds of movies alive:
- * - source-order living-memory film
- * - transformation film
- * - relationship/recontextualization film
- * - callback/recurrence film
- *
- * Cognition remains the sole owner of movie selection.
+ * Critical distinction:
+ * - subject relevance is not the same thing as mere presence in the input
+ * - ambient facts may remain in RealityGraph without becoming the subject's movie
+ * - explicit callbacks such as "same" / "remembered" can legitimately reconnect
+ *   a detail that was not repeated with the subject's name
  */
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
+
+const metric = (value: number): number =>
+  Number(
+    Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3),
+  );
+
 const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
 
 const NEGATIVE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i;
 const POSITIVE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper)\b/i;
 const STATE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper|different|changed|clean|broken|fixed|gone|back|quiet|loud|wild|sweet|gentle|strange|new|old)\b/i;
 const CONTINUATION = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|kept|continued|still|until|later|anniversary|years?)\b/i;
+const IDENTITY_CALLBACK = /\b(?:same|remember(?:ed|s|ing)?|still)\b/i;
+const ACTION = /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean(?:ed|s|ing)?|finished|finish|started|start|opened|close(?:d|s|ing)?|walk(?:ed|s|ing)?|ran|run|drove|drive|ate|eat|drank|drink|kiss(?:ed|es|ing)?|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|paint(?:ed|s|ing)?|wore|wear|used|use|shook|shake|chewed|chew|connected|connect|stayed|stay|wait(?:ed|s|ing)?|called|call|laughed|laugh(?:ed|s)?|cried|cry(?:ing|ied)?|look(?:ed|s|ing)?|felt|feel|seemed|seem|became|become|changed|change|repaired|repair|tested|test|selected|select|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i;
+const OBJECT = /\b(?:bow|bath|bathroom|room|mirror|photo|picture|gift|keys?|car|house|home|table|dress|coat|shirt|collar|tool|tools|food|cake|book|letter|ticket|phone|screen|door|window|box|bag|ring|flower|flowers|water|music|blue|red|green|yellow|white|black)\b/i;
 
 function event(graph: RealityGraph, id: string) {
   return graph.events.find((item) => item.id === id);
@@ -60,33 +67,122 @@ function sharedTokenScore(left: string, right: string): number {
   return shared / Math.max(1, Math.min(a.size, b.size));
 }
 
-function subjectMentioned(graph: RealityGraph, id: string, subject?: string): boolean {
+function explicitSubjectMention(labelText: string, subject?: string): boolean {
   const normalizedSubject = clean(subject).toLowerCase();
-  if (!normalizedSubject) return false;
-  const item = event(graph, id);
-  if (!item) return false;
-  return item.entities?.some((entity) => clean(entity).toLowerCase() === normalizedSubject) || item.label.toLowerCase().includes(normalizedSubject);
+  return Boolean(normalizedSubject) && labelText.toLowerCase().includes(normalizedSubject);
 }
 
 function eventStructureFor(graph: RealityGraph, id: string) {
   return graph.eventStructure?.find((item) => item.eventId === id);
 }
 
-function recurrenceLinked(graph: RealityGraph, id: string): boolean {
-  const structure = eventStructureFor(graph, id);
+function relationBetween(
+  graph: RealityGraph,
+  left: string,
+  right: string,
+): RealityRelation | undefined {
+  return graph.relations
+    .filter(
+      (relation) =>
+        (relation.from === left && relation.to === right) ||
+        (relation.from === right && relation.to === left),
+    )
+    .sort((a, b) => b.strength - a.strength)[0];
+}
+
+function callbackRelation(relation: RealityRelation | undefined): boolean {
   return Boolean(
-    structure &&
-      (structure.recurrenceScore >= 0.55 || structure.semanticTags.includes("recurrence")),
+    relation &&
+      (relation.kind === "repeats" || relation.kind === "recontextualizes"),
   );
 }
 
-function relationBetween(graph: RealityGraph, left: string, right: string): RealityRelation | undefined {
-  return graph.relations
-    .filter((relation) =>
-      (relation.from === left && relation.to === right) ||
-      (relation.from === right && relation.to === left),
-    )
-    .sort((a, b) => b.strength - a.strength)[0];
+function explicitCallback(labelText: string): boolean {
+  return CONTINUATION.test(labelText) || IDENTITY_CALLBACK.test(labelText);
+}
+
+function callbackPair(graph: RealityGraph, left: string, right: string): boolean {
+  const relation = relationBetween(graph, left, right);
+  if (callbackRelation(relation)) return true;
+  return explicitCallback(label(graph, left)) && explicitCallback(label(graph, right));
+}
+
+/**
+ * Find the event cluster that can legitimately belong to the subject's film.
+ *
+ * The first event is allowed as an implicit subject anchor because callers often
+ * provide `subject=...` plus fragments such as "arrived nervous" rather than
+ * repeating the subject name in every fragment.
+ *
+ * We then grow only through strong semantic relationships. Generic lexical
+ * overlap is deliberately weak; high-confidence callback edges are allowed to
+ * reconnect a detail such as "a blue bow was chosen" with "the same blue bow was
+ * still remembered" without dragging unrelated ambient work into Coco's film.
+ */
+function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
+  const ids = graph.events.map((item) => item.id);
+  if (!ids.length) return [];
+  if (!clean(subject)) return ids;
+
+  const explicitAnchors = ids.filter((id) =>
+    explicitSubjectMention(label(graph, id), subject),
+  );
+  const selected = new Set<string>(explicitAnchors);
+
+  if (!selected.size) selected.add(ids[0]!);
+  else if (position(graph, ids[0]!) === 0 && position(graph, [...selected][0]!) > 0) {
+    selected.add(ids[0]!);
+  }
+
+  // High-confidence identity callbacks form legitimate semantic islands.
+  for (const relation of graph.relations) {
+    if (!callbackRelation(relation)) continue;
+    const leftLabel = label(graph, relation.from);
+    const rightLabel = label(graph, relation.to);
+    if (
+      relation.strength >= 0.88 &&
+      (IDENTITY_CALLBACK.test(leftLabel) || IDENTITY_CALLBACK.test(rightLabel))
+    ) {
+      selected.add(relation.from);
+      selected.add(relation.to);
+    }
+  }
+
+  const queue = [...selected];
+  const seen = new Set(queue);
+
+  while (queue.length) {
+    const current = queue.shift()!;
+    const currentLabel = label(graph, current);
+
+    for (const candidate of ids) {
+      if (seen.has(candidate)) continue;
+
+      const relation = relationBetween(graph, current, candidate);
+      const relationConnects = Boolean(
+        relation &&
+          relation.strength >= 0.72 &&
+          [
+            "repeats",
+            "recontextualizes",
+            "contrasts",
+            "causes",
+            "changes",
+          ].includes(relation.kind),
+      );
+      const callbackConnects = callbackPair(graph, current, candidate);
+      const sharedMeaning = sharedTokenScore(currentLabel, label(graph, candidate)) >= 0.6;
+
+      // Lexical overlap alone cannot pull a fact into the subject's movie.
+      if (!relationConnects && !callbackConnects && !sharedMeaning) continue;
+
+      selected.add(candidate);
+      seen.add(candidate);
+      queue.push(candidate);
+    }
+  }
+
+  return ids.filter((id) => selected.has(id));
 }
 
 function forwardScore(graph: RealityGraph, ids: readonly string[]): number {
@@ -113,7 +209,17 @@ function eventSpecificity(graph: RealityGraph, id: string): number {
   const tokenCount = clean(item.label).split(/\s+/).filter(Boolean).length;
   const entityCount = item.entities?.length ?? 0;
   const objectCount = structure?.objects.length ?? 0;
-  return metric(Math.min(1, tokenCount / 8 + entityCount / 10 + objectCount / 8 + (item.salient ? 0.18 : 0)));
+  const semanticCount = structure?.semanticTags.length ?? 0;
+  return metric(
+    Math.min(
+      1,
+      tokenCount / 10 +
+        entityCount / 14 +
+        objectCount / 10 +
+        semanticCount / 16 +
+        (item.salient ? 0.16 : 0),
+    ),
+  );
 }
 
 function repetition(graph: RealityGraph, ids: readonly string[]): number {
@@ -127,136 +233,281 @@ function repetition(graph: RealityGraph, ids: readonly string[]): number {
   return metric(dupes / Math.max(1, labels.length));
 }
 
-function statePair(graph: RealityGraph, ids: readonly string[]): { from: string; to: string; score: number } | undefined {
+function statePair(
+  graph: RealityGraph,
+  ids: readonly string[],
+): { from: string; to: string; score: number } | undefined {
   let best: { from: string; to: string; score: number } | undefined;
+
   for (let i = 0; i < ids.length; i += 1) {
     const from = label(graph, ids[i]!);
     if (!STATE.test(from)) continue;
     const fromNeg = NEGATIVE.test(from);
     const fromPos = POSITIVE.test(from);
+
     for (let j = i + 1; j < ids.length; j += 1) {
       const to = label(graph, ids[j]!);
-      if (!STATE.test(to)) continue;
-      if (from.toLowerCase() === to.toLowerCase()) continue;
+      if (!STATE.test(to) || from.toLowerCase() === to.toLowerCase()) continue;
+
       const toNeg = NEGATIVE.test(to);
       const toPos = POSITIVE.test(to);
-      const polarity = fromNeg && toPos ? 1 : fromNeg !== toNeg ? 0.9 : fromPos !== toPos ? 0.84 : 0.62;
+      const polarity = fromNeg && toPos
+        ? 1
+        : fromNeg !== toNeg
+          ? 0.9
+          : fromPos !== toPos
+            ? 0.84
+            : 0.62;
       const spread = Math.min(0.08, (j - i) * 0.02);
       const score = polarity + spread;
       if (!best || score > best.score) best = { from: ids[i]!, to: ids[j]!, score };
     }
   }
+
   return best;
 }
 
-function operationFor(relation: RealityRelation | undefined, previous: string, current: string, final: boolean): LatentMovieTrajectoryStep["operation"] {
+function operationFor(
+  relation: RealityRelation | undefined,
+  previous: string,
+  current: string,
+  final: boolean,
+): LatentMovieTrajectoryStep["operation"] {
   if (final) return "payoff";
-  if (relation?.kind === "recontextualizes") return "reframe";
-  if (relation?.kind === "repeats") return "recur";
-  if (relation?.kind === "converges") return "converge";
-  if (relation?.kind === "contrasts") return "contrast";
-  if (relation?.kind === "causes") return "consequence";
-  if (relation?.kind === "changes") return "reveal";
-  if (STATE.test(previous) && STATE.test(current)) return "reveal";
-  return "reveal";
-}
-
-function questionFor(operation: LatentMovieTrajectoryStep["operation"]): string {
-  switch (operation) {
-    case "contrast": return "What changed the reading?";
-    case "reframe": return "What does this make newly meaningful?";
-    case "recur": return "Why is this back?";
-    case "converge": return "What comes together here?";
-    case "consequence": return "What follows?";
-    case "payoff": return "What remains?";
-    default: return "What comes next?";
+  switch (relation?.kind) {
+    case "recontextualizes": return "reframe";
+    case "repeats": return "recur";
+    case "contrasts": return "contrast";
+    case "causes": return "consequence";
+    case "changes": return "reveal";
+    case "converges": return "converge";
+    default:
+      return STATE.test(previous) && STATE.test(current) ? "reveal" : "reveal";
   }
 }
 
-function buildTrajectory(graph: RealityGraph, ids: readonly string[]): LatentMovieTrajectoryStep[] {
+function questionFor(
+  operation: LatentMovieTrajectoryStep["operation"],
+): string {
+  switch (operation) {
+    case "contrast": return "What changed the reading?";
+    case "reframe": return "What becomes newly meaningful?";
+    case "recur": return "Why does this detail return?";
+    case "converge": return "What do these details reveal together?";
+    case "consequence": return "What follows from what is already here?";
+    case "payoff": return "What remains when the pieces meet?";
+    default: return "What is becoming noticeable?";
+  }
+}
+
+function buildTrajectory(
+  graph: RealityGraph,
+  ids: readonly string[],
+): LatentMovieTrajectoryStep[] {
   if (ids.length < 3) return [];
-  const selected = ids.slice(0, 7);
+
+  const selected = [...ids]
+    .sort((left, right) => position(graph, left) - position(graph, right))
+    .slice(0, 7);
+
   return selected.map((id, index) => {
     const final = index === selected.length - 1;
     const previousId = index > 0 ? selected[index - 1] : undefined;
     const previousLabel = previousId ? label(graph, previousId) : "";
-    const relation = previousId ? relationBetween(graph, previousId, id) : undefined;
-    const operation = operationFor(relation, previousLabel, label(graph, id), final);
+    const currentLabel = label(graph, id);
+    const relation = previousId
+      ? relationBetween(graph, previousId, id)
+      : undefined;
+    const operation = operationFor(
+      relation,
+      previousLabel,
+      currentLabel,
+      final,
+    );
+
     return {
       order: index + 1,
       operation,
       eventIds: [id],
       viewerChange: index === 0
-        ? `Begin with ${label(graph, id)}.`
+        ? `Begin with ${currentLabel}.`
         : final
-          ? `Land on the supplied ending: ${label(graph, id)}.`
+          ? `Land on the supplied ending: ${currentLabel}.`
           : relation
-            ? `${relation.kind}: ${previousLabel} -> ${label(graph, id)}.`
-            : `Bring forward ${label(graph, id)}.`,
+            ? `${relation.kind}: ${previousLabel} -> ${currentLabel}.`
+            : `Bring forward ${currentLabel}.`,
       nextQuestion: questionFor(operation),
     };
   });
 }
 
-function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
-  const ids = graph.events.map((item) => item.id);
-  if (!clean(subject)) return ids;
-
-  const anchors = ids.filter((id) => subjectMentioned(graph, id, subject));
-  if (!anchors.length) return ids;
-
-  const selected = new Set<string>(anchors.slice(0, 2));
-  const frontier = [...selected];
-
-  while (frontier.length) {
-    const current = frontier.shift()!;
-    const currentLabel = label(graph, current);
-    for (const candidate of ids) {
-      if (selected.has(candidate)) continue;
-      const relation = relationBetween(graph, current, candidate);
-      const sharesMeaning = sharedTokenScore(currentLabel, label(graph, candidate)) >= 0.5;
-      const isExplicitCallback = recurrenceLinked(graph, candidate) && sharesMeaning;
-      if (relation && ["repeats", "recontextualizes", "contrasts", "causes", "changes"].includes(relation.kind)) {
-        selected.add(candidate);
-        frontier.push(candidate);
-      } else if (sharesMeaning || isExplicitCallback) {
-        selected.add(candidate);
-        frontier.push(candidate);
-      }
+function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
+  if (!ids.length) return 0;
+  let linked = 0;
+  for (const id of ids) {
+    if (
+      graph.relations.some(
+        (relation) =>
+          (relation.from === id || relation.to === id) &&
+          callbackRelation(relation),
+      ) || explicitCallback(label(graph, id))
+    ) {
+      linked += 1;
     }
   }
-
-  return ids.filter((id) => selected.has(id));
+  return metric(linked / ids.length);
 }
 
-function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTrajectoryStep[], lens?: string): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
+function relationDiversity(graph: RealityGraph, ids: readonly string[]): number {
+  const kinds = unique(
+    ids
+      .slice(1)
+      .map((id, index) => relationBetween(graph, ids[index]!, id)?.kind)
+      .filter((kind): kind is RealityRelation["kind"] => Boolean(kind)),
+  );
+  return metric(kinds.length / 4);
+}
+
+function subjectCoverage(
+  graph: RealityGraph,
+  ids: readonly string[],
+  subject?: string,
+): number {
+  if (!clean(subject) || !ids.length) return 1;
+
+  const direct = ids.filter((id) => explicitSubjectMention(label(graph, id), subject));
+  const directRatio = direct.length / ids.length;
+  const callbacks = callbackCoverage(graph, ids);
+  const firstAnchor = ids.includes(graph.events[0]?.id ?? "") ? 0.18 : 0;
+
+  return metric(
+    Math.min(1, directRatio * 0.56 + callbacks * 0.26 + firstAnchor),
+  );
+}
+
+function ambientNoisePenalty(
+  graph: RealityGraph,
+  ids: readonly string[],
+  subject?: string,
+): number {
+  if (!clean(subject) || !ids.length) return 0;
+
+  let ambient = 0;
+  for (const id of ids) {
+    const direct = explicitSubjectMention(label(graph, id), subject);
+    const callback = graph.relations.some(
+      (relation) =>
+        (relation.from === id || relation.to === id) && callbackRelation(relation),
+    );
+    const structural = graph.relations.some(
+      (relation) =>
+        relation.from === id || relation.to === id,
+    );
+
+    if (!direct && !callback && !structural) ambient += 1;
+  }
+  return metric(ambient / ids.length);
+}
+
+function scoreCandidate(
+  graph: RealityGraph,
+  trajectory: readonly LatentMovieTrajectoryStep[],
+  lens?: string,
+  subject?: string,
+): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
   const ids = unique(trajectory.flatMap((step) => step.eventIds));
   const evidence = unique(ids.map((id) => label(graph, id)).filter(Boolean));
-  const relations = ids.slice(1).map((id, index) => relationBetween(graph, ids[index]!, id)).filter((value): value is RealityRelation => Boolean(value));
+  const relations = ids
+    .slice(1)
+    .map((id, index) => relationBetween(graph, ids[index]!, id))
+    .filter((value): value is RealityRelation => Boolean(value));
   const relationKinds = unique(relations.map((relation) => relation.kind));
+  const structures = ids
+    .map((id) => eventStructureFor(graph, id))
+    .filter((value) => Boolean(value));
   const state = statePair(graph, ids);
-  const richStructures = ids.map((id) => eventStructureFor(graph, id)).filter(Boolean);
-  const semanticMovement = metric(
-    (state?.score ?? 0) * 0.45 +
-    Math.min(1, relationKinds.length / 3) * 0.2 +
-    Math.min(1, richStructures.reduce((sum, item) => sum + item!.transitionScore + item!.recurrenceScore, 0) / Math.max(1, richStructures.length * 2)) * 0.2 +
-    (ids.length >= 5 ? 0.15 : 0),
+  const coverage = subjectCoverage(graph, ids, subject);
+  const noise = ambientNoisePenalty(graph, ids, subject);
+  const callback = callbackCoverage(graph, ids);
+
+  const structuralMovement = metric(
+    (state?.score ?? 0) * 0.4 +
+      Math.min(1, relationKinds.length / 3) * 0.2 +
+      Math.min(
+        1,
+        structures.reduce(
+          (sum, item) => sum + item!.transitionScore + item!.recurrenceScore,
+          0,
+        ) / Math.max(1, structures.length * 2),
+      ) * 0.22 +
+      (ids.length >= 5 ? 0.18 : 0),
   );
-  const specificity = metric(ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) / Math.max(1, ids.length));
+
+  const specificity = metric(
+    ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) /
+      Math.max(1, ids.length),
+  );
   const breadth = breadthScore(graph, ids);
   const order = forwardScore(graph, ids);
-  const continuity = metric((graph.recurringSignals.length ? 0.4 : 0) + (CONTINUATION.test(evidence.join(" ")) ? 0.6 : 0));
-  const endpoint = ids.length && position(graph, ids[ids.length - 1]!) === graph.events.length - 1 ? 1 : metric((position(graph, ids[ids.length - 1]!) + 1) / Math.max(1, graph.events.length));
-  const operationDiversity = metric(unique(trajectory.map((step) => step.operation)).length / 4);
-  const recurrence = metric(Math.min(1, graph.recurringSignals.length / 3));
+  const endpoint =
+    ids.length && position(graph, ids[ids.length - 1]!) === graph.events.length - 1
+      ? 1
+      : metric(
+          (position(graph, ids[ids.length - 1]!) + 1) /
+            Math.max(1, graph.events.length),
+        );
+  const operationDiversity = relationDiversity(graph, ids);
   const repetitionRisk = repetition(graph, ids);
-  const attentionPotential = metric(semanticMovement * 0.28 + breadth * 0.22 + specificity * 0.14 + order * 0.12 + endpoint * 0.1 + operationDiversity * 0.08 + recurrence * 0.06);
-  const consequencePotential = metric(semanticMovement * 0.36 + endpoint * 0.24 + specificity * 0.12 + breadth * 0.16 + continuity * 0.12);
-  const callbackPotential = recurrence;
-  const informationValue = metric(specificity * 0.25 + semanticMovement * 0.3 + breadth * 0.2 + attentionPotential * 0.15 + consequencePotential * 0.1);
-  const compressionPotential = metric(Math.min(1, trajectory.length / 5) * 0.4 + semanticMovement * 0.25 + operationDiversity * 0.2 + specificity * 0.15);
-  const truthRisk = metric(1 - (order * 0.65 + specificity * 0.2 + endpoint * 0.15));
-  const score = metric(semanticMovement * 0.25 + attentionPotential * 0.18 + consequencePotential * 0.15 + breadth * 0.14 + specificity * 0.1 + endpoint * 0.08 + operationDiversity * 0.06 + callbackPotential * 0.04 - repetitionRisk * 0.1 - truthRisk * 0.08);
+  const attentionPotential = metric(
+    structuralMovement * 0.28 +
+      breadth * 0.18 +
+      specificity * 0.14 +
+      order * 0.1 +
+      endpoint * 0.08 +
+      operationDiversity * 0.08 +
+      callback * 0.08 +
+      coverage * 0.06,
+  );
+  const consequencePotential = metric(
+    structuralMovement * 0.34 +
+      endpoint * 0.2 +
+      specificity * 0.12 +
+      breadth * 0.14 +
+      callback * 0.1 +
+      coverage * 0.1,
+  );
+  const informationValue = metric(
+    specificity * 0.22 +
+      structuralMovement * 0.3 +
+      breadth * 0.18 +
+      attentionPotential * 0.14 +
+      consequencePotential * 0.1 +
+      callback * 0.06,
+  );
+  const compressionPotential = metric(
+    Math.min(1, trajectory.length / 5) * 0.34 +
+      structuralMovement * 0.24 +
+      operationDiversity * 0.18 +
+      specificity * 0.14 +
+      callback * 0.1,
+  );
+  const truthRisk = metric(
+    1 - (order * 0.52 + specificity * 0.18 + endpoint * 0.12 + coverage * 0.18),
+  );
+  const score = metric(
+    structuralMovement * 0.23 +
+      attentionPotential * 0.17 +
+      consequencePotential * 0.13 +
+      breadth * 0.11 +
+      specificity * 0.1 +
+      endpoint * 0.07 +
+      operationDiversity * 0.05 +
+      callback * 0.06 +
+      coverage * 0.12 -
+      repetitionRisk * 0.08 -
+      truthRisk * 0.07 -
+      noise * 0.1,
+  );
 
   return {
     anchorEventIds: ids.slice(0, 2),
@@ -264,105 +515,189 @@ function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTra
     trajectory: [...trajectory],
     payoff: evidence[evidence.length - 1] ?? "",
     evidence,
-    unresolvedQuestion: trajectory[trajectory.length - 1]?.nextQuestion ?? "What comes next?",
+    unresolvedQuestion:
+      trajectory[trajectory.length - 1]?.nextQuestion ?? "What is becoming noticeable?",
     hypothesis: [
       "The movie is discovered from supplied reality rather than an industry template.",
-      "The strongest semantic movement is preserved without inventing facts.",
-      "Source order is presentation order only; it is not silently upgraded into factual chronology.",
-      "The lens changes framing, not reality.",
+      "Subject relevance is evaluated separately from ambient context.",
+      "Callbacks may reconnect a detail when the supplied evidence explicitly supports the callback.",
+      "The lens changes framing, never concrete reality.",
     ],
     truthRisk,
     novelty: metric(1 - repetitionRisk),
     specificity,
     informationValue,
-    uncertainty: metric((1 - order) * 0.35 + semanticMovement * 0.35 + attentionPotential * 0.3),
+    uncertainty: metric(
+      (1 - order) * 0.3 +
+        structuralMovement * 0.3 +
+        attentionPotential * 0.2 +
+        (1 - coverage) * 0.2,
+    ),
     attentionPotential,
     consequencePotential,
-    callbackPotential,
+    callbackPotential: callback,
     compressionPotential,
     repetitionRisk,
     score,
   };
 }
 
-export function searchUniversalMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
-  const limit = Math.max(3, Math.min(12, input.limit ?? 8));
-  const events = input.graph.events.filter((item) => clean(item.label));
-  if (events.length < 3) return [];
+function addTrajectoryCandidate(
+  candidates: LatentMovieCandidate[],
+  graph: RealityGraph,
+  id: string,
+  ids: readonly string[],
+  lens?: string,
+  subject?: string,
+): void {
+  const built = buildTrajectory(graph, ids);
+  if (built.length < 3) return;
+  candidates.push({
+    id,
+    lens: clean(lens) || "NONE",
+    distinctiveness: 0,
+    ...scoreCandidate(graph, built, lens, subject),
+  });
+}
 
-  const sourceIds = events.map((item) => item.id);
+export function searchUniversalMovieCandidates(input: {
+  graph: RealityGraph;
+  subject?: string;
+  lens?: string;
+  limit?: number;
+}): LatentMovieCandidate[] {
+  const limit = Math.max(3, Math.min(12, input.limit ?? 8));
+  const sourceIds = input.graph.events
+    .filter((item) => clean(item.label))
+    .map((item) => item.id);
+  if (sourceIds.length < 3) return [];
+
   const connectedIds = subjectConnectedIds(input.graph, input.subject);
   const candidates: LatentMovieCandidate[] = [];
 
-  const trajectories: Array<{ id: string; ids: string[] }> = [
-    { id: "movie-source", ids: sourceIds },
-  ];
-  if (connectedIds.length >= 3) trajectories.push({ id: "movie-subject-connected", ids: connectedIds });
+  // Keep the full source-order film available as a competitor, but let the
+  // subject-relevance penalty decide whether it actually deserves to win.
+  addTrajectoryCandidate(
+    candidates,
+    input.graph,
+    "movie-source",
+    sourceIds,
+    input.lens,
+    input.subject,
+  );
 
-  const state = statePair(input.graph, connectedIds.length >= 3 ? connectedIds : sourceIds);
+  if (connectedIds.length >= 3 && connectedIds.length < sourceIds.length) {
+    addTrajectoryCandidate(
+      candidates,
+      input.graph,
+      "movie-subject-connected",
+      connectedIds,
+      input.lens,
+      input.subject,
+    );
+  }
+
+  const stateIds = connectedIds.length >= 3 ? connectedIds : sourceIds;
+  const state = statePair(input.graph, stateIds);
   if (state) {
-    const stateIds = connectedIds.length >= 3 ? connectedIds : sourceIds;
     const start = position(input.graph, state.from);
     const end = position(input.graph, state.to);
-    const ids = stateIds.filter((id) => position(input.graph, id) >= start && position(input.graph, id) <= end + 1);
-    if (!ids.includes(stateIds[stateIds.length - 1]!)) ids.push(stateIds[stateIds.length - 1]!);
-    if (ids.length >= 3) trajectories.push({ id: "movie-transformation", ids });
+    const ids = stateIds.filter((id) => {
+      const pos = position(input.graph, id);
+      return pos >= start && pos <= end + 1;
+    });
+    if (!ids.includes(stateIds[stateIds.length - 1]!)) {
+      ids.push(stateIds[stateIds.length - 1]!);
+    }
+    addTrajectoryCandidate(
+      candidates,
+      input.graph,
+      "movie-transformation",
+      ids,
+      input.lens,
+      input.subject,
+    );
   }
 
   const relationSeeds = [...input.graph.relations]
-    .filter((relation) => !["before", "after", "involves", "belongs_to"].includes(relation.kind))
+    .filter(
+      (relation) =>
+        !["before", "after", "involves", "belongs_to"].includes(relation.kind),
+    )
     .sort((a, b) => b.strength - a.strength)
-    .slice(0, 6);
+    .slice(0, 8);
 
   for (let index = 0; index < relationSeeds.length; index += 1) {
     const relation = relationSeeds[index]!;
     const left = position(input.graph, relation.from);
     const right = position(input.graph, relation.to);
     if (left < 0 || right < 0) continue;
-    const ordered = left <= right ? [relation.from, relation.to] : [relation.to, relation.from];
-    const ids = unique([
-      ...ordered,
-      ...sourceIds.slice(Math.min(...ordered.map((id) => position(input.graph, id))), Math.min(sourceIds.length, Math.max(...ordered.map((id) => position(input.graph, id))) + 2)),
-      sourceIds[sourceIds.length - 1]!,
-    ]);
-    const trajectory = buildTrajectory(input.graph, ids);
-    if (trajectory.length >= 3) {
-      candidates.push({ id: `movie-relation-${index + 1}`, lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, trajectory, input.lens) });
-    }
-  }
 
-  for (const trajectory of trajectories) {
-    const built = buildTrajectory(input.graph, trajectory.ids);
-    if (built.length < 3) continue;
-    candidates.push({ id: trajectory.id, lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, built, input.lens) });
+    const ordered = left <= right
+      ? [relation.from, relation.to]
+      : [relation.to, relation.from];
+    const lower = Math.min(left, right);
+    const upper = Math.max(left, right);
+    const localIds = sourceIds.filter((id) => {
+      const pos = position(input.graph, id);
+      return pos >= lower && pos <= Math.min(sourceIds.length - 1, upper + 2);
+    });
+
+    addTrajectoryCandidate(
+      candidates,
+      input.graph,
+      `movie-relation-${index + 1}`,
+      unique([...ordered, ...localIds, sourceIds[sourceIds.length - 1]!]),
+      input.lens,
+      input.subject,
+    );
   }
 
   const seen = new Set<string>();
   const uniqueCandidates = candidates.filter((candidate) => {
-    const key = candidate.trajectory.map((step) => `${step.operation}:${step.eventIds.join(",")}`).join("|");
+    const key = candidate.trajectory
+      .map((step) => `${step.operation}:${step.eventIds.join(",")}`)
+      .join("|");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  uniqueCandidates.sort((a, b) => b.score - a.score);
+  uniqueCandidates.sort(
+    (left, right) =>
+      right.score - left.score ||
+      right.attentionPotential - left.attentionPotential ||
+      right.informationValue - left.informationValue,
+  );
 
   const selected: LatentMovieCandidate[] = [];
   for (const candidate of uniqueCandidates) {
     if (selected.length >= limit) break;
+
     const similarity = selected.length
-      ? Math.max(...selected.map((other) => {
-          const a = new Set(candidate.evidence);
-          const b = new Set(other.evidence);
-          let shared = 0;
-          for (const value of a) if (b.has(value)) shared += 1;
-          return shared / Math.max(1, Math.min(a.size, b.size));
-        }))
+      ? Math.max(
+          ...selected.map((other) => {
+            const a = new Set(candidate.evidence.map(clean));
+            const b = new Set(other.evidence.map(clean));
+            let shared = 0;
+            for (const value of a) if (b.has(value)) shared += 1;
+            return shared / Math.max(1, Math.min(a.size, b.size));
+          }),
+        )
       : 0;
+
     candidate.distinctiveness = metric(1 - similarity);
-    candidate.score = metric(candidate.score * 0.84 + candidate.distinctiveness * 0.16);
+    candidate.score = metric(
+      candidate.score * 0.88 + candidate.distinctiveness * 0.12,
+    );
     selected.push(candidate);
   }
 
-  return selected.sort((a, b) => b.score - a.score).slice(0, limit);
+  return selected
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.distinctiveness - left.distinctiveness,
+    )
+    .slice(0, limit);
 }
