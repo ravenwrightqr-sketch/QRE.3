@@ -79,13 +79,10 @@ function transitionCoverage(
   ).toLowerCase();
 
   const isMultiSignal =
-    /\b(?:contrast|contrasts|changes|reframe|recontextualize|turn|callback|reversal|consequence|escalat(?:e|ion))\b/i.test(
+    /\b(?:contrast|contrasts|changes|reframe|recontextualize|turn|callback|reversal|consequence|escalat(?:e|ion)|payoff|release)\b/i.test(
       semanticMode,
     );
 
-  // A semantic cut does not need to literally repeat every internal
-  // evidence ID carried by the planner. Two supported signals are enough
-  // to execute a multi-signal relationship.
   const requiredSignals = isMultiSignal
     ? Math.min(2, required.length)
     : required.length;
@@ -137,6 +134,40 @@ function relationCoverage(
   return Math.max(0, Math.min(1, hits / kinds.size));
 }
 
+function endpointSemanticSupport(
+  candidate: MouthCandidate,
+  beat: MouthCandidateBeat,
+): number {
+  if (!isPayoff(beat)) return 0;
+  const endpoint = clean(beat.paysOff?.[0] ?? "");
+  if (!endpoint) return 0;
+
+  const candidateTokens = new Set(clean(candidate.text).toLowerCase().split(/[^a-z0-9'-]+/i).filter((token) => token.length >= 3));
+  const endpointTokens = new Set(endpoint.toLowerCase().split(/[^a-z0-9'-]+/i).filter((token) => token.length >= 3));
+  if (!candidateTokens.size || !endpointTokens.size) return 0;
+
+  let overlap = 0;
+  for (const token of candidateTokens) if (endpointTokens.has(token)) overlap += 1;
+  const lexical = overlap / endpointTokens.size;
+
+  const semanticOwnership = candidate.supportedEventIds.length > 0 ||
+    candidate.reasons.includes("semantic-anchor-confirmed") ||
+    candidate.reasons.includes("approved-beat-authority") ||
+    candidate.reasons.includes("approved-semantic-realization");
+
+  return Math.max(semanticOwnership ? 0.72 : 0, lexical * 0.28);
+}
+
+function creativePayoffSignal(candidate: MouthCandidate, beat: MouthCandidateBeat): number {
+  if (!isPayoff(beat)) return 0;
+  const text = clean(candidate.text);
+  const count = text.split(/\s+/).filter(Boolean).length;
+  const compressed = count <= 3 ? 1 : count <= 6 ? 0.88 : count <= 10 ? 0.58 : 0.28;
+  const fragment = !/^(?:the|a|an|he|she|they|it|we|i|you)\b/i.test(text);
+  const statusLike = /\b(?:fab(?:ulous)?|fabulous|done|ready|complete|cleared|approved|official|upgrade|mission|level|round|victory|made\s+it|showtime|finished|proud|happy|good|great)\b/i.test(text);
+  return Math.min(1, compressed * 0.5 + (fragment ? 0.24 : 0) + (statusLike ? 0.26 : 0));
+}
+
 function hardInvalid(
   candidate: MouthCandidate,
   beat: MouthCandidateBeat,
@@ -145,7 +176,10 @@ function hardInvalid(
   const language = evaluateMouthLanguage(candidate.text, envelope);
 
   if (!language.accepted) return true;
-  if (isPayoff(beat) && !exactEndpoint(beat, candidate.text)) return true;
+  if (isPayoff(beat)) {
+    const endpointSupport = endpointSemanticSupport(candidate, beat);
+    if (endpointSupport < 0.35) return true;
+  }
   if (candidate.inventionRisk > 0.45 && !isHook(beat)) return true;
   if (candidate.forbiddenMoveRisk > 0.45) return true;
   if (candidate.collageRisk > 0.7) return true;
@@ -162,54 +196,56 @@ export function adaptMouthCandidateQuality(input: {
   const hook = isHook(beat);
   const payoff = isPayoff(beat);
   const endpoint = exactEndpoint(beat, candidate.text);
-  const transition = payoff ? 1 : hook ? 1 : transitionCoverage(candidate, beat);
-  const relation = payoff ? 1 : relationCoverage(candidate, beat, envelope);
-
+  const transition = transitionCoverage(candidate, beat);
+  const relation = relationCoverage(candidate, beat, envelope);
   const attention = evaluateAttentionCut({
     text: candidate.text,
     beat,
     envelope,
   });
 
-  const meaning = payoff
-    ? 1
-    : hook
-      ? Math.max(candidate.meaningScore, candidate.groundingScore)
-      : Math.max(
-          candidate.meaningScore,
-          transition * 0.45 + relation * 0.3 + candidate.groundingScore * 0.25,
-        );
+  const meaning = Math.max(0, Math.min(1,
+    candidate.meaningScore * 0.46 +
+    transition * 0.2 +
+    relation * 0.12 +
+    attention.score * 0.12 +
+    language.naturalness * 0.1,
+  ));
 
-  // Quality adaptation may raise measured risk from downstream gate evidence,
-  // but it may never lower a measured invention risk merely because language
-  // happened to pass a separate gate. Truth risk is a hard floor.
+  const endpointSupport = endpointSemanticSupport(candidate, beat);
+  const payoffCreativity = creativePayoffSignal(candidate, beat);
+
+  const semanticQuality = Math.max(0, Math.min(1,
+    meaning * 0.3 +
+    transition * 0.18 +
+    relation * 0.1 +
+    language.naturalness * 0.12 +
+    attention.score * 0.12 +
+    candidate.compressionScore * 0.06 +
+    endpointSupport * (payoff ? 0.08 : 0) +
+    payoffCreativity * (payoff ? 0.04 : 0),
+  ));
+
   const invention = Math.max(
     candidate.inventionRisk,
     language.supportedActionRisk,
     language.supportedEntityRisk,
   );
 
-  const endpointBonus = endpoint ? 0.35 : 0;
-  const semanticQuality =
-    meaning * 0.32 +
-    transition * 0.24 +
-    relation * 0.13 +
-    language.naturalness * 0.11 +
-    attention.score * 0.12 +
-    candidate.compressionScore * 0.08;
-
-  const score = payoff
-    ? Math.max(0.9, Math.min(1, 0.92 + language.naturalness * 0.08))
-    : Math.max(
-        0,
-        Math.min(
-          1,
-          candidate.score * 0.4 +
-            semanticQuality * 0.5 +
-            endpointBonus * 0.1 -
-            invention * 0.08,
-        ),
-      );
+  /*
+   * The endpoint is an obligation, not a sentence template.
+   * Exact wording gets a useful bonus; semantically owned creative wording
+   * is allowed to beat it when it produces the stronger human-facing cut.
+   */
+  const exactBonus = endpoint ? 0.12 : 0;
+  const score = Math.max(0, Math.min(1,
+    candidate.score * 0.28 +
+    semanticQuality * 0.5 +
+    endpointSupport * (payoff ? 0.1 : 0) +
+    exactBonus +
+    payoffCreativity * (payoff ? 0.08 : 0) -
+    invention * 0.08,
+  ));
 
   const reasons = new Set([
     ...candidate.reasons,
@@ -225,24 +261,25 @@ export function adaptMouthCandidateQuality(input: {
   }
 
   if (payoff) {
-    reasons.add("payoff-endpoint-priority");
-    if (endpoint) reasons.add("non-negotiable-endpoint-exact");
+    reasons.add("payoff-endpoint-preserved");
     reasons.delete("weak-meaning-execution");
     reasons.delete("weak-meaning-transition");
     reasons.delete("weak-obligation-coverage");
     reasons.delete("weak-relation-contract");
+    if (endpoint) reasons.add("payoff-endpoint-exact");
+    else reasons.add("payoff-rephrased-endpoint");
   }
 
   return {
     ...candidate,
-    groundingScore: Math.max(candidate.groundingScore, language.accepted ? 0.42 : 0),
+    groundingScore: Number(candidate.groundingScore.toFixed(3)),
     meaningScore: Number(meaning.toFixed(3)),
     transitionScore: Number(transition.toFixed(3)),
-    obligationCoverage: Number((payoff || hook ? 1 : Math.max(candidate.obligationCoverage, 0.5)).toFixed(3)),
-    relationContractScore: Number((payoff || hook ? 1 : Math.max(candidate.relationContractScore, relation)).toFixed(3)),
+    obligationCoverage: Number(transition.toFixed(3)),
+    relationContractScore: Number(relation.toFixed(3)),
     inventionRisk: Number(Math.max(0, Math.min(1, invention)).toFixed(3)),
     compressionScore: Number(Math.max(candidate.compressionScore, attention.density).toFixed(3)),
-    score: Number(Math.max(0, Math.min(1, score)).toFixed(3)),
+    score: Number(score.toFixed(3)),
     reasons: [...reasons],
   };
 }
@@ -285,9 +322,6 @@ export function adaptMouthCandidatePool(input: {
   if (valid.length) return valid;
 
   return deduped
-    .filter((candidate) => {
-      const language = evaluateMouthLanguage(candidate.text, input.envelope);
-      return language.accepted && (!isPayoff(input.beat) || exactEndpoint(input.beat, candidate.text));
-    })
+    .filter((candidate) => evaluateMouthLanguage(candidate.text, input.envelope).accepted)
     .sort((a, b) => b.score - a.score);
 }
