@@ -101,18 +101,15 @@ const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(pack
 check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-const sourceForBeatStart = mouthSource.indexOf("function sourceLabelsForBeat(");
-const nextFunctionPattern = /\nfunction\s+[A-Za-z0-9_]+\s*\(/g;
-nextFunctionPattern.lastIndex = sourceForBeatStart >= 0 ? sourceForBeatStart + 1 : 0;
-const nextFunctionMatch = sourceForBeatStart >= 0 ? nextFunctionPattern.exec(mouthSource) : null;
-const sourceForBeatEnd = nextFunctionMatch?.index ?? mouthSource.length;
-const sourceForBeatBody = sourceForBeatStart >= 0
-  ? mouthSource.slice(sourceForBeatStart, sourceForBeatEnd)
-  : "";
-check("mouth:provenance", /function sourceLabelsForBeat\s*\(/.test(mouthSource) && /beat\.eventIds/.test(sourceForBeatBody), "Canonical Mouth boundary resolves provenance from approved beat eventIds");
+check(
+  "mouth:provenance",
+  /function sourceLabelsForBeat\s*\([\s\S]*?beat\.eventIds/.test(mouthSource),
+  "Canonical Mouth boundary resolves provenance from approved beat eventIds",
+);
 check(
   "mouth:no-planner-label-promotion",
-  /beat\.eventIds/.test(sourceForBeatBody) && !/setsUp|paysOff/.test(sourceForBeatBody),
+  /function sourceLabelsForBeat\s*\([\s\S]*?beat\.eventIds/.test(mouthSource) &&
+    !/function sourceLabelsForBeat\s*\([\s\S]*?(?:setsUp|paysOff)/.test(mouthSource),
   "Only approved beat eventIds may resolve source labels",
 );
 
