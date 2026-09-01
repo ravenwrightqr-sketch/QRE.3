@@ -102,8 +102,11 @@ const CONTINUATION = [
 
 const STATE = [
   /\b(?:felt|feel|feels|seemed|seem|became|become|was|were|is|are)\b/i,
-  /\b(?:easy|hard|calm|nervous|happy|sad|strange|familiar|awkward|comfortable|quiet|close|closer|distant|different|new|important|meaningful)\b/i,
+  /\b(?:easy|hard|calm|nervous|happy|sad|proud|excited|confident|comfortable|relieved|fierce|cool|sharp|dapper|awkward|quiet|close|closer|distant|different|new|important|meaningful)\b/i,
 ];
+
+const NEGATIVE_STATE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i;
+const POSITIVE_STATE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|sharp|dapper)\b/i;
 
 const RECURRENCE = [
   /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once\s+more)\b/i,
@@ -146,16 +149,6 @@ function span(
   );
 }
 
-/**
- * Discover every bounded semantic interpretation supported by the selected
- * sequence. Candidate generation deliberately preserves discovery order.
- * Ranking/selection belongs downstream so the full cognitive competition can
- * be inspected and differentiated rather than collapsed here.
- *
- * These statements are semantic targets, not viewer copy. They intentionally
- * describe the experience without explaining it to the viewer. Mouth remains
- * responsible for the actual expression.
- */
 export function deriveSequenceBackedCreativeInterpretations(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -190,6 +183,42 @@ export function deriveSequenceBackedCreativeInterpretations(
   );
 
   const candidates: CreativeInterpretation[] = [];
+
+  /*
+   * Universal state transformation:
+   * explicit supplied states can form a meaningful turn even when the
+   * RealityGraph has no relation edge and each state lives in its own beat.
+   * This is the missing case for living memories such as:
+   *   nervous -> proud -> happy
+   * and generalizes to relationships, weddings, trips, homes, services,
+   * businesses, and any other sequence with an earned before/after state.
+   */
+  const statePositions = states.map((id) => ({
+    id,
+    index: orderedEventIds.indexOf(id),
+    label: labelFor(graph, id),
+  }));
+  const negativeStates = statePositions.filter((item) => NEGATIVE_STATE.test(item.label));
+  const positiveStates = statePositions.filter(
+    (item) => POSITIVE_STATE.test(item.label) && negativeStates.some((start) => item.index > start.index),
+  );
+
+  if (negativeStates.length && positiveStates.length) {
+    const start = negativeStates[0]!;
+    const end = positiveStates[positiveStates.length - 1]!;
+    const spread = span(orderedEventIds, [start.id, end.id]);
+    const intermediate = statePositions.filter(
+      (item) => item.index > start.index && item.index < end.index,
+    );
+    candidates.push(
+      buildCandidate(
+        `The supplied state moves from ${start.label} toward ${end.label}.`,
+        "state_change",
+        [start.id, ...intermediate.map((item) => item.id), end.id],
+        0.94 + spread * 0.04,
+      ),
+    );
+  }
 
   if (expectations.length && states.length && continuation.length) {
     const ids = unique([...expectations, ...states, ...continuation]);
@@ -301,10 +330,6 @@ export function deriveSequenceBackedCreativeInterpretations(
   return candidates;
 }
 
-/**
- * Backward-compatible single-winner API. New code should consume the plural
- * API above so Cognition can inspect and differentiate the candidate set.
- */
 export function deriveSequenceBackedCreativeInterpretation(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
