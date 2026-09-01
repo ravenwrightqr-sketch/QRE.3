@@ -1,5 +1,8 @@
 import type {
+  RealityEntityContinuity,
+  RealityEventStructure,
   RealityGraph,
+  RealityPattern,
   RealityRelation,
 } from "@qre/contracts";
 
@@ -32,6 +35,9 @@ export type RealityEnvelope = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
+  eventStructure: RealityEventStructure[];
+  entityContinuity: RealityEntityContinuity[];
+  patterns: RealityPattern[];
 };
 
 const clean = (value: unknown): string =>
@@ -43,13 +49,13 @@ const unique = (values: readonly string[]): string[] =>
 const TOKEN_RE = /[a-z0-9]+(?:['-][a-z0-9]+)*/gi;
 
 const ACTION_RE =
-  /\b(?:arrive|arrived|come|came|leave|left|finish|finished|complete|completed|steal|stole|take|took|give|gave|make|made|open|opened|close|closed|eat|ate|drink|drank|write|wrote|sign|signed|kiss|kissed|marry|married|cut|clean|cleaned|wash|washed|cook|cooked|build|built|move|moved|return|returned|run|ran|walk|walked|sit|sat|stand|stood)\b/i;
+  /\b(?:arrive|arrived|come|came|leave|left|finish|finished|complete|completed|steal|stole|take|took|give|gave|make|made|open|opened|close|closed|eat|ate|drink|drank|write|wrote|sign|signed|kiss|kissed|marry|married|cut|clean|cleaned|wash|washed|cook|cooked|build|built|move|moved|return|returned|run|ran|walk|walked|sit|sat|stand|stood|repair|repaired|fix|fixed|restore|restored|renew|renewed|groom|groomed|test|tested|select|selected|shape|shaped|polish|polished|deliver|delivered|welcome|welcomed|check|checked|book|booked|arrange|arranged|recommend|recommended|guide|guided|update|updated|reserve|reserved|approve|approved|work|worked|stay|stayed|pick|picked|install|installed)\b/i;
 
 const STATE_RE =
-  /\b(?:nervous|fierce|cool|happy|sad|proud|angry|afraid|scared|quiet|calm|excited|tired|ready|beautiful|fabulous|safe|finished|done|married|connected|alone|missing|lost|new|different|changed)\b/i;
+  /\b(?:nervous|fierce|cool|happy|sad|proud|angry|afraid|scared|quiet|calm|excited|tired|ready|beautiful|fabulous|safe|finished|done|married|connected|alone|missing|lost|new|different|changed|broken|fixed|working|prepared|available|restored|renewed|clean|dirty|approved)\b/i;
 
 const AUTHORING_DIRECTIVE =
-  /^(?:(?:please\s+)?(?:make|write|tell|show|create|generate|return|preserve|keep|use|turn|make\s+it|make\s+this|make\s+that|do\s+not|don't|avoid|ensure|give)\b.*(?:experience|story|line|sentence|movie|film|copy|text|response|sharp|memorable|funny|comedy|horror|romance|cinematic|attention|viewer|audience)|(?:make|write|show|create|generate|turn)\s+(?:the|it|this|that)\b)/i;
+  /^(?:(?:please\s+)?(?:make|write|tell|show|create|generate|return|preserve|keep|use|turn|do\s+not|don't|avoid|ensure|give)\b.*(?:experience|story|line|sentence|movie|film|copy|text|response|sharp|memorable|funny|comedy|horror|romance|cinematic|attention|viewer|audience)|(?:make|write|show|create|generate|turn)\s+(?:the|it|this|that)\b)/i;
 
 function stripAuthoringDirective(value: string): string {
   const text = clean(value);
@@ -64,11 +70,7 @@ function stripAuthoringDirective(value: string): string {
     (part) => !AUTHORING_DIRECTIVE.test(part),
   );
 
-  return clean(
-    factual.length
-      ? factual.join(" ")
-      : "",
-  );
+  return clean(factual.length ? factual.join(" ") : "");
 }
 
 function canonicalEventLabel(value: string): string {
@@ -108,7 +110,7 @@ function stateTerms(values: readonly string[]): string[] {
 
 function endpointEventId(graph: RealityGraph): string {
   const explicit = graph.events.find((event) =>
-    /\b(?:left|finished|completed|returned|ended|done|fabulous|happy|resolved)\b/i.test(
+    /\b(?:left|finished|completed|returned|ended|done|fabulous|happy|resolved|delivered|checked out)\b/i.test(
       event.label,
     ),
   );
@@ -119,7 +121,7 @@ function endpointEventId(graph: RealityGraph): string {
 function openingEventIds(graph: RealityGraph): string[] {
   return graph.events
     .filter((event) =>
-      /\b(?:came|arrived|entered|started|began|first|at first)\b/i.test(
+      /\b(?:came|arrived|entered|started|began|first|at first|checked in)\b/i.test(
         event.label,
       ),
     )
@@ -190,14 +192,7 @@ export function buildAuthorRealityEnvelope(input: {
     ),
   );
 
-  /*
-   * suppliedTerms is the canonical concrete vocabulary used by the Mouth.
-   * It must include the explicit subject and supplied entity vocabulary, not
-   * merely lexical tokens extracted from event labels.
-   *
-   * Authoring instructions are intentionally absent from event labels before
-   * this vocabulary is built, so they cannot become concrete Mouth material.
-   */
+  /* suppliedTerms is the canonical concrete vocabulary used by the Mouth. */
   const suppliedTerms = tokens([
     subject,
     ...eventLabels,
@@ -237,5 +232,8 @@ export function buildAuthorRealityEnvelope(input: {
     unresolvedTensions: unique(graph.unresolvedTensions),
     recurringSignals: unique(graph.recurringSignals),
     sensorySignals: unique(graph.sensorySignals),
+    eventStructure: graph.eventStructure ?? [],
+    entityContinuity: graph.entityContinuity ?? [],
+    patterns: graph.patterns ?? [],
   };
 }
