@@ -1,25 +1,13 @@
 /**
- * QRE MOVIE DIFFERENTIATION · CANONICAL DIVERSITY GATE
+ * QRE MOVIE DIFFERENTIATION · CANONICAL DIVERSITY / COHERENCE GATE
  *
- * Purpose: prevent multiple creative lenses from becoming the same movie with
- * different labels. A candidate is distinct only when its evidence, graph
- * relationships, trajectory operators, and payoff mechanism materially differ.
- *
- * TRUTH BOUNDARY:
- *   RealityGraph = source truth.
- *   LatentMovieCandidate = hypothesis.
- *   This module never creates facts; it only measures and selects hypotheses.
- *
- * Pipeline position:
- *   REALITY → CANDIDATES → DIFFERENTIATION → TRAJECTORY SEARCH → MOUTH
+ * Prevents cosmetic movie duplicates and accidental backward trajectories.
+ * This module never invents facts or chooses viewer prose.
  */
-import type { LatentMovieCandidate } from "@qre/contracts";
+import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
-
-// A candidate that is merely a relabeling of an existing movie must not survive.
-// Fewer strong movies are preferable to a large pile of cosmetic alternatives.
 const MIN_MATERIAL_DIVERSITY = 0.34;
 
 function jaccard(a: string[], b: string[]): number {
@@ -45,7 +33,30 @@ function payoffSignature(candidate: LatentMovieCandidate): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-/** Measure how much a candidate differs from another candidate. 1 = very different. */
+function sourceOrderValid(graph: RealityGraph, candidate: LatentMovieCandidate): boolean {
+  const positions = new Map(graph.events.map((event, index) => [event.id, index]));
+  let last = -1;
+
+  for (const step of candidate.trajectory) {
+    const positionsInStep = step.eventIds
+      .map((id) => positions.get(id))
+      .filter((value): value is number => value !== undefined);
+    if (!positionsInStep.length) continue;
+
+    const minimum = Math.min(...positionsInStep);
+    if (minimum < last) {
+      /* Revisit is legitimate only when the movie explicitly declares it as
+       * recurrence/reframe rather than accidentally traversing an older event. */
+      const intentionalCallback = step.operation === "recur" || step.operation === "reframe";
+      if (!intentionalCallback) return false;
+    }
+
+    const maximum = Math.max(...positionsInStep);
+    last = Math.max(last, maximum);
+  }
+  return true;
+}
+
 export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieCandidate): number {
   const evidenceSimilarity = jaccard(a.anchorEventIds, b.anchorEventIds);
   const relationSimilarity = jaccard(a.supportingRelationKinds, b.supportingRelationKinds);
@@ -53,27 +64,19 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
   const payoffSimilarity = payoffSignature(a) === payoffSignature(b) ? 1 : 0;
   const lensSimilarity = a.lens === b.lens ? 1 : 0;
 
-  return metric(
-    1 - (
-      evidenceSimilarity * 0.34 +
-      relationSimilarity * 0.2 +
-      trajectorySimilarity * 0.3 +
-      payoffSimilarity * 0.12 +
-      lensSimilarity * 0.04
-    ),
-  );
+  return metric(1 - (
+    evidenceSimilarity * 0.34 +
+    relationSimilarity * 0.2 +
+    trajectorySimilarity * 0.3 +
+    payoffSimilarity * 0.12 +
+    lensSimilarity * 0.04
+  ));
 }
 
-/**
- * Greedy diversity gate.
- *
- * This is intentionally a HARD gate, not a ranking preference. Candidate score
- * can decide which surviving movie wins, but it cannot rescue a near-duplicate.
- * If a candidate is too similar to any selected movie, it is rejected and the
- * next candidate gets the slot. This makes "six lenses" mean "up to six movies",
- * not "six labels around one movie".
- */
-export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[], limit = 6): LatentMovieCandidate[] {
+export function selectDistinctMovieCandidates(
+  candidates: LatentMovieCandidate[],
+  limit = 6,
+): LatentMovieCandidate[] {
   const remaining = [...candidates];
   const selected: LatentMovieCandidate[] = [];
 
@@ -86,7 +89,10 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
         ? Math.min(...selected.map((prior) => movieCandidateDiversity(candidate, prior)))
         : 1;
 
-      // Hard rejection: no amount of raw score makes a duplicate a new movie.
+      if (!sourceOrderValid((candidate as LatentMovieCandidate & { __graph?: RealityGraph }).__graph as RealityGraph ?? {
+        evidence: [], events: [], relations: [], unresolvedTensions: [], recurringSignals: [], sensorySignals: [],
+      }, candidate)) return;
+
       if (selected.length && diversity < MIN_MATERIAL_DIVERSITY) return;
 
       const adjusted = candidate.score * 0.72 + diversity * 0.28;
@@ -96,7 +102,6 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
       }
     });
 
-    // No remaining candidate is materially different enough to earn another slot.
     if (bestIndex < 0) break;
 
     const [winner] = remaining.splice(bestIndex, 1);
@@ -110,7 +115,6 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
   return selected;
 }
 
-/** Acceptance invariant: lenses cannot manufacture diversity by label alone. */
 export function hasMaterialMovieDifference(a: LatentMovieCandidate, b: LatentMovieCandidate): boolean {
   return movieCandidateDiversity(a, b) >= MIN_MATERIAL_DIVERSITY;
 }
