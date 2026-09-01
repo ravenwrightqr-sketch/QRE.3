@@ -59,6 +59,103 @@ const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|f
 const DETERMINED_ROLE = /^(?:the|a|an)\s+(?:groomer|barber|mechanic|housekeeper|cleaner|waiter|waitress|server|chef|driver|photographer|planner|officiant|vendor|host|manager|employee|staff|worker|therapist|doctor|nurse|teacher|agent|lawyer|judge|witness|detective|captain|boss)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
+const SAFE_FRAMING = new Set([
+  "apparently",
+  "anyway",
+  "already",
+  "finally",
+  "for",
+  "now",
+  "again",
+  "still",
+  "just",
+  "only",
+  "very",
+  "really",
+  "quite",
+  "somehow",
+  "unexpectedly",
+  "suddenly",
+  "maybe",
+  "perhaps",
+  "yet",
+  "almost",
+  "exactly",
+  "fabulous",
+  "fierce",
+  "cool",
+  "sharp",
+  "ready",
+  "done",
+  "approved",
+  "cleared",
+  "complete",
+  "finished",
+  "temporary",
+  "temporarily",
+  "peace",
+  "exit",
+  "winner",
+  "victory",
+  "legend",
+  "mission",
+  "case",
+  "verdict",
+  "boss",
+  "level",
+  "upgrade",
+  "final",
+  "reset",
+]);
+
+const CONCRETE_WORD = /\b(?:bow|trophy|medal|prize|toy|gift|phone|bag|purse|car|boat|yacht|surfboard|key|keys|bottle|bottles|chair|table|door|window|room|house|hotel|restaurant|kitchen|bathroom|leash|collar|tag|ticket|receipt|dress|shirt|shoe|shoes|cake|ring|flower|flowers|balloon|camera|screen|wallet|passport|boarding|plane|flight|beach|board|bed|blanket|blankets|towel|towels|knife|knives|food|drink|coffee|wine|soap|shampoo|conditioner)\b/i;
+
+function candidateConcreteSubstitutionRisk(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): number {
+  const value = clean(text);
+
+  if (!value || SOFT_FIRST_PERSON.test(value)) {
+    return 0;
+  }
+
+  const labels = sourceLabels(beat, envelope);
+  const evidence = worldEvidence(envelope);
+
+  /*
+   * A concrete word is safe when the supplied world already contains it.
+   * Creative framing remains free; the gate only cares about concrete
+   * object/action language that could silently replace reality.
+   */
+  if (!CONCRETE_WORD.test(value)) {
+    return 0;
+  }
+
+  const candidateTokens = meaningfulTokens(value);
+  const suppliedTokens = meaningfulTokens(
+    [...labels, ...evidence].join(" "),
+  );
+
+  const unknownConcreteTokens = [...candidateTokens].filter(
+    (token) =>
+      CONCRETE_WORD.test(token) &&
+      !suppliedTokens.has(token) &&
+      !SAFE_FRAMING.has(token),
+  );
+
+  if (unknownConcreteTokens.length >= 2) {
+    return 1;
+  }
+
+  if (unknownConcreteTokens.length === 1) {
+    return 0.72;
+  }
+
+  return 0;
+}
+
 function meaningfulTokens(value: string): Set<string> {
   return new Set([...tokenSet(value)].filter((token) => !STOP.has(token)));
 }
@@ -118,6 +215,17 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
   if (DETERMINED_ROLE.test(value) && !roleIsActuallySupplied(value.replace(/^(?:the|a|an)\s+/i, ""), envelope)) return 1;
   if (isFrameOnly(value)) return 0;
+
+  
+  const substitutionRisk = candidateConcreteSubstitutionRisk(
+    value,
+    beat,
+    envelope,
+  );
+
+  if (substitutionRisk >= 0.9) {
+    return 1;
+  }
 
   const labels = sourceLabels(beat, envelope);
   const world = meaningfulTokens(worldEvidence(envelope).join(" "));
@@ -315,6 +423,9 @@ function buildSystemPrompt(): string {
     "A role inside source evidence is not automatically a character. 'groomer cleaned him up' does not authorize 'the groomer...' or a new action by that person.",
     "Do not invent a smile, shrug, eyebrow, walk, touch, breath, voice, room detail, object, weather, lighting, dialogue, motive, chronology, or physical event unless supplied.",
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
+    "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
+    "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
+    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
