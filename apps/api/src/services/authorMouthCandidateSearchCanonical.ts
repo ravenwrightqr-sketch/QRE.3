@@ -60,97 +60,49 @@ const DETERMINED_ROLE = /^(?:the|a|an)\s+(?:groomer|barber|mechanic|housekeeper|
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
 const SAFE_FRAMING = new Set([
-  "apparently",
-  "anyway",
-  "already",
-  "finally",
-  "for",
-  "now",
-  "again",
-  "still",
-  "just",
-  "only",
-  "very",
-  "really",
-  "quite",
-  "somehow",
-  "unexpectedly",
-  "suddenly",
-  "maybe",
-  "perhaps",
-  "yet",
-  "almost",
-  "exactly",
-  "fabulous",
-  "fierce",
-  "cool",
-  "sharp",
-  "ready",
-  "done",
-  "approved",
-  "cleared",
-  "complete",
-  "finished",
-  "temporary",
-  "temporarily",
-  "peace",
-  "exit",
-  "winner",
-  "victory",
-  "legend",
-  "mission",
-  "case",
-  "verdict",
-  "boss",
-  "level",
-  "upgrade",
-  "final",
-  "reset",
+  "apparently", "anyway", "already", "finally", "for", "now", "again", "still", "just", "only", "very", "really", "quite", "somehow", "unexpectedly", "suddenly", "maybe", "perhaps", "yet", "almost", "exactly", "fabulous", "fierce", "cool", "sharp", "ready", "done", "approved", "cleared", "complete", "finished", "temporary", "temporarily", "peace", "exit", "winner", "victory", "legend", "mission", "case", "verdict", "boss", "level", "upgrade", "final", "reset",
 ]);
 
 const CONCRETE_WORD = /\b(?:bow|trophy|medal|prize|toy|gift|phone|bag|purse|car|boat|yacht|surfboard|key|keys|bottle|bottles|chair|table|door|window|room|house|hotel|restaurant|kitchen|bathroom|leash|collar|tag|ticket|receipt|dress|shirt|shoe|shoes|cake|ring|flower|flowers|balloon|camera|screen|wallet|passport|boarding|plane|flight|beach|board|bed|blanket|blankets|towel|towels|knife|knives|food|drink|coffee|wine|soap|shampoo|conditioner)\b/i;
+const GENERIC_CONCRETE_HEAD = /\b(?:thing|things|stuff|object|objects|item|items|something|anything|one|piece|pieces|shape|shapes|whatever|whatsoever)\b/i;
 
-function candidateConcreteSubstitutionRisk(
-  text: string,
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): number {
+function candidateConcreteSubstitutionRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
+  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
+  const labels = sourceLabels(beat, envelope);
+  const evidence = worldEvidence(envelope);
+  if (!CONCRETE_WORD.test(value)) return 0;
+  const candidateTokens = meaningfulTokens(value);
+  const suppliedTokens = meaningfulTokens([...labels, ...evidence].join(" "));
+  const unknownConcreteTokens = [...candidateTokens].filter((token) => CONCRETE_WORD.test(token) && !suppliedTokens.has(token) && !SAFE_FRAMING.has(token));
+  if (unknownConcreteTokens.length >= 2) return 1;
+  if (unknownConcreteTokens.length === 1) return 0.72;
+  return 0;
+}
 
-  if (!value || SOFT_FIRST_PERSON.test(value)) {
-    return 0;
-  }
+function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+  const value = clean(text);
+  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
+  if (!GENERIC_CONCRETE_HEAD.test(value)) return 0;
 
   const labels = sourceLabels(beat, envelope);
   const evidence = worldEvidence(envelope);
+  const candidate = meaningfulTokens(value);
 
-  /*
-   * A concrete word is safe when the supplied world already contains it.
-   * Creative framing remains free; the gate only cares about concrete
-   * object/action language that could silently replace reality.
-   */
-  if (!CONCRETE_WORD.test(value)) {
-    return 0;
-  }
+  for (const source of [...labels, ...evidence]) {
+    const sourceValue = clean(source);
+    if (!sourceValue || GENERIC_CONCRETE_HEAD.test(sourceValue)) continue;
+    if (!CONCRETE_WORD.test(sourceValue)) continue;
 
-  const candidateTokens = meaningfulTokens(value);
-  const suppliedTokens = meaningfulTokens(
-    [...labels, ...evidence].join(" "),
-  );
+    const sourceTokens = meaningfulTokens(sourceValue);
+    const shared = overlap(candidate, sourceTokens);
 
-  const unknownConcreteTokens = [...candidateTokens].filter(
-    (token) =>
-      CONCRETE_WORD.test(token) &&
-      !suppliedTokens.has(token) &&
-      !SAFE_FRAMING.has(token),
-  );
-
-  if (unknownConcreteTokens.length >= 2) {
-    return 1;
-  }
-
-  if (unknownConcreteTokens.length === 1) {
-    return 0.72;
+    /*
+     * A generic head attached to a supplied concrete descriptor is a
+     * specificity downgrade: "blue bow" -> "blue thing". That destroys
+     * recoverable identity instead of creating a useful creative frame.
+     */
+    if (shared >= 0.35 && sourceTokens.size >= 2) return 1;
   }
 
   return 0;
@@ -168,10 +120,7 @@ function overlap(a: Set<string>, b: Set<string>): number {
 }
 
 function sourceLabels(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  return [...new Set((beat.eventIds ?? [])
-    .map((id) => envelope.events.find((event) => event.id === id)?.label ?? "")
-    .map(clean)
-    .filter(Boolean))];
+  return [...new Set((beat.eventIds ?? []).map((id) => envelope.events.find((event) => event.id === id)?.label ?? "").map(clean).filter(Boolean))];
 }
 
 function worldEvidence(envelope: RealityEnvelope): string[] {
@@ -190,9 +139,7 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
 
 function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
   const value = clean(text).toLowerCase();
-  if (/\b(?:he|him|his|she|her|hers|they|them|their|the man|the woman|the boy|the girl|the guy|the lady|my friend|my partner|my wife|my husband|my girlfriend|my boyfriend)\b/i.test(value)) {
-    return true;
-  }
+  if (/\b(?:he|him|his|she|her|hers|they|them|their|the man|the woman|the boy|the girl|the guy|the lady|my friend|my partner|my wife|my husband|my girlfriend|my boyfriend)\b/i.test(value)) return true;
   return envelope.suppliedEntities.some((entity) => normalize(entity) === normalize(text));
 }
 
@@ -216,35 +163,26 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   if (DETERMINED_ROLE.test(value) && !roleIsActuallySupplied(value.replace(/^(?:the|a|an)\s+/i, ""), envelope)) return 1;
   if (isFrameOnly(value)) return 0;
 
-  
-  const substitutionRisk = candidateConcreteSubstitutionRisk(
-    value,
-    beat,
-    envelope,
-  );
+  const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
+  if (substitutionRisk >= 0.9) return 1;
 
-  if (substitutionRisk >= 0.9) {
-    return 1;
-  }
+  const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
+  if (specificityRisk >= 0.9) return 1;
 
   const labels = sourceLabels(beat, envelope);
   const world = meaningfulTokens(worldEvidence(envelope).join(" "));
   const candidate = meaningfulTokens(value);
   const local = overlap(candidate, meaningfulTokens(labels.join(" ")));
   const global = overlap(candidate, world);
-
   if (GENERIC_SUMMARY.test(value)) return 0.85;
-
   if (PHYSICAL_VERB.test(value)) {
     const supportedPhysical = labels.some((label) => PHYSICAL_VERB.test(label));
     if (!supportedPhysical && !SOFT_FIRST_PERSON.test(value)) return 1;
   }
-
   if (BODY.test(value)) {
     const suppliedBody = worldEvidence(envelope).some((item) => BODY.test(item) && overlap(meaningfulTokens(value), meaningfulTokens(item)) >= 0.5);
     if (!suppliedBody && !SOFT_FIRST_PERSON.test(value)) return 1;
   }
-
   if (global >= 0.55 || local >= 0.72) return 0;
   return 0;
 }
@@ -289,12 +227,7 @@ function payoffScore(text: string, beat: MouthCandidateBeat): number {
 
 function semanticScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const labels = sourceLabels(beat, envelope);
-  const interpretation = evaluateMouthInterpretation({
-    text: clean(text),
-    sourceLabels: labels,
-    envelope,
-    beat,
-  });
+  const interpretation = evaluateMouthInterpretation({ text: clean(text), sourceLabels: labels, envelope, beat });
   const local = overlap(meaningfulTokens(text), meaningfulTokens(labels.join(" ")));
   const whole = overlap(meaningfulTokens(text), meaningfulTokens(worldEvidence(envelope).join(" ")));
   return metric(
@@ -317,35 +250,9 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningfulTokens(value), meaningfulTokens(prior))), 0))
     : 1;
-
   if (forbidden >= 0.9 || explain >= 0.95) {
-    return {
-      text: value,
-      beatOrder: beat.order,
-      supportedEventIds: [],
-      supportedRelationPairs: [],
-      groundingScore: 0,
-      meaningScore: 0,
-      observerDiscoveryScore: 0,
-      transitionScore: 0,
-      obligationCoverage: 0,
-      relationContractScore: 0,
-      forbiddenMoveRisk: 1,
-      cohesionScore: 0,
-      noveltyScore: novelty,
-      compressionScore: form,
-      inventionRisk: 1,
-      repetitionRisk: 1 - novelty,
-      collageRisk: 0,
-      endpointExactness: 0,
-      score: 0,
-      reasons: [
-        "unsafe-realization",
-        ...(explain ? ["meaning-explained-instead-of-felt"] : []),
-      ],
-    };
+    return { text: value, beatOrder: beat.order, supportedEventIds: [], supportedRelationPairs: [], groundingScore: 0, meaningScore: 0, observerDiscoveryScore: 0, transitionScore: 0, obligationCoverage: 0, relationContractScore: 0, forbiddenMoveRisk: 1, cohesionScore: 0, noveltyScore: novelty, compressionScore: form, inventionRisk: 1, repetitionRisk: 1 - novelty, collageRisk: 0, endpointExactness: 0, score: 0, reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : [])] };
   }
-
   const labels = sourceLabels(beat, envelope);
   const exact = labels.some((label) => normalize(label) === normalize(value));
   const sourceOverlap = overlap(meaningfulTokens(value), meaningfulTokens(labels.join(" ")));
@@ -358,19 +265,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
   const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
   const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
-  const score = metric(
-    grounding * 0.1 +
-    obligation * 0.1 +
-    meaning * 0.22 +
-    transition * 0.12 +
-    novelty * 0.1 +
-    form * 0.1 +
-    discovery * 0.12 +
-    distinctive * 0.08 +
-    payoff * 0.12 -
-    abstract * 0.16,
-  );
-
+  const score = metric(grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16);
   const reasons: string[] = [];
   if (supportedEventIds.length) reasons.push("event-grounded");
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
@@ -382,29 +277,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (payoff >= 0.62) reasons.push("viewer-reward");
   if (abstract > 0.35) reasons.push("abstract-nominalization");
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
-
-  return {
-    text: value,
-    beatOrder: beat.order,
-    supportedEventIds,
-    supportedRelationPairs,
-    groundingScore: grounding,
-    meaningScore: meaning,
-    observerDiscoveryScore: discovery,
-    transitionScore: transition,
-    obligationCoverage: obligation,
-    relationContractScore: metric(supportedRelationPairs.length ? 0.75 : 0.35),
-    forbiddenMoveRisk: forbidden,
-    cohesionScore: metric(0.55 + novelty * 0.25 + meaning * 0.2),
-    noveltyScore: novelty,
-    compressionScore: form,
-    inventionRisk: forbidden,
-    repetitionRisk: 1 - novelty,
-    collageRisk: 0,
-    endpointExactness: exact ? 1 : 0,
-    score,
-    reasons,
-  };
+  return { text: value, beatOrder: beat.order, supportedEventIds, supportedRelationPairs, groundingScore: grounding, meaningScore: meaning, observerDiscoveryScore: discovery, transitionScore: transition, obligationCoverage: obligation, relationContractScore: metric(supportedRelationPairs.length ? 0.75 : 0.35), forbiddenMoveRisk: forbidden, cohesionScore: metric(0.55 + novelty * 0.25 + meaning * 0.2), noveltyScore: novelty, compressionScore: form, inventionRisk: forbidden, repetitionRisk: 1 - novelty, collageRisk: 0, endpointExactness: exact ? 1 : 0, score, reasons };
 }
 
 function buildSystemPrompt(): string {
@@ -425,7 +298,8 @@ function buildSystemPrompt(): string {
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
     "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
-    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution.",
+    "Never weaken a supplied concrete phrase into a generic noun such as thing, stuff, object, item, something, one, piece, or shape when doing so destroys its recoverable identity.",
+    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or concrete specificity degradation.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
@@ -438,39 +312,10 @@ function buildSystemPrompt(): string {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = worldEvidence(input.envelope);
-  const beats = input.beats.map((beat) => ({
-    order: beat.order,
-    supplied: sourceLabels(beat, input.envelope),
-    purpose: clean(beat.attentionFunction || beat.role),
-    meaning: clean(beat.change),
-    viewerState: beat.viewerState
-      ? {
-          before: clean(beat.viewerState.beforeState),
-          after: clean(beat.viewerState.afterState),
-          move: clean(beat.viewerState.attentionMove),
-        }
-      : undefined,
-    next: clean(beat.next),
-    relationKinds: beat.relationKinds ?? [],
-    terminal: Boolean(beat.paysOff?.length),
-  }));
-
+  const beats = input.beats.map((beat) => ({ order: beat.order, supplied: sourceLabels(beat, input.envelope), purpose: clean(beat.attentionFunction || beat.role), meaning: clean(beat.change), viewerState: beat.viewerState ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) } : undefined, next: clean(beat.next), relationKinds: beat.relationKinds ?? [], terminal: Boolean(beat.paysOff?.length) }));
   return [
     { role: "system", content: buildSystemPrompt() },
-    {
-      role: "user",
-      content: JSON.stringify({
-        subject: input.envelope.subject,
-        lens: clean(input.lens) || "NONE",
-        lensFrame: lens.label,
-        suppliedReality: evidence,
-        priorCuts: input.priorTexts ?? [],
-        beats,
-        output: {
-          variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order",
-        },
-      }),
-    },
+    { role: "user", content: JSON.stringify({ subject: input.envelope.subject, lens: clean(input.lens) || "NONE", lensFrame: lens.label, suppliedReality: evidence, priorCuts: input.priorTexts ?? [], beats, output: { variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order" } }) },
   ];
 }
 
@@ -478,12 +323,7 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
   try {
     const parsed = JSON.parse(clean(raw)) as { variantsByBeat?: unknown };
     if (!Array.isArray(parsed?.variantsByBeat) || parsed.variantsByBeat.length === 0) return undefined;
-    const variantsByBeat = parsed.variantsByBeat
-      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-      .map((item) => ({
-        order: Number(item.order),
-        variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [],
-      }));
+    const variantsByBeat = parsed.variantsByBeat.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").map((item) => ({ order: Number(item.order), variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [] }));
     if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
     const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
     if (orders.some((order, index) => order !== index + 1)) return undefined;
