@@ -28,7 +28,6 @@ const NEGATIVE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awk
 const POSITIVE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper)\b/i;
 const STATE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper|different|changed|clean|broken|fixed|gone|back|quiet|loud|wild|sweet|gentle|strange|new|old)\b/i;
 const CONTINUATION = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|kept|continued|still|until|later|anniversary|years?)\b/i;
-const ACTION = /\b(?:arrived|dropped|cleaned|groomed|finished|started|picked|left|visited|met|called|talked|worked|played|danced|went|came|returned|bought|sold|built|fixed|washed|served|stayed|made|found|lost|got|wore|used|married|celebrated|opened|closed|moved|traveled|traveled|scanned|contributed|attended)\b/i;
 
 function event(graph: RealityGraph, id: string) {
   return graph.events.find((item) => item.id === id);
@@ -42,20 +41,52 @@ function position(graph: RealityGraph, id: string): number {
   return graph.events.findIndex((item) => item.id === id);
 }
 
+function tokens(text: string): Set<string> {
+  return new Set(
+    clean(text)
+      .toLowerCase()
+      .replace(/[^a-z0-9'’-]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 4),
+  );
+}
+
+function sharedTokenScore(left: string, right: string): number {
+  const a = tokens(left);
+  const b = tokens(right);
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const token of a) if (b.has(token)) shared += 1;
+  return shared / Math.max(1, Math.min(a.size, b.size));
+}
+
+function subjectMentioned(graph: RealityGraph, id: string, subject?: string): boolean {
+  const normalizedSubject = clean(subject).toLowerCase();
+  if (!normalizedSubject) return false;
+  const item = event(graph, id);
+  if (!item) return false;
+  return item.entities?.some((entity) => clean(entity).toLowerCase() === normalizedSubject) || item.label.toLowerCase().includes(normalizedSubject);
+}
+
+function eventStructureFor(graph: RealityGraph, id: string) {
+  return graph.eventStructure?.find((item) => item.eventId === id);
+}
+
+function recurrenceLinked(graph: RealityGraph, id: string): boolean {
+  const structure = eventStructureFor(graph, id);
+  return Boolean(
+    structure &&
+      (structure.recurrenceScore >= 0.55 || structure.semanticTags.includes("recurrence")),
+  );
+}
+
 function relationBetween(graph: RealityGraph, left: string, right: string): RealityRelation | undefined {
-  const leftPos = position(graph, left);
-  const rightPos = position(graph, right);
-  if (leftPos < 0 || rightPos < 0) return undefined;
   return graph.relations
     .filter((relation) =>
       (relation.from === left && relation.to === right) ||
       (relation.from === right && relation.to === left),
     )
     .sort((a, b) => b.strength - a.strength)[0];
-}
-
-function sourceOrder(ids: readonly string[]): number[] {
-  return ids.map((id) => id.length);
 }
 
 function forwardScore(graph: RealityGraph, ids: readonly string[]): number {
@@ -78,9 +109,11 @@ function breadthScore(graph: RealityGraph, ids: readonly string[]): number {
 function eventSpecificity(graph: RealityGraph, id: string): number {
   const item = event(graph, id);
   if (!item) return 0;
+  const structure = eventStructureFor(graph, id);
   const tokenCount = clean(item.label).split(/\s+/).filter(Boolean).length;
   const entityCount = item.entities?.length ?? 0;
-  return metric(Math.min(1, tokenCount / 8 + entityCount / 8 + (item.salient ? 0.18 : 0)));
+  const objectCount = structure?.objects.length ?? 0;
+  return metric(Math.min(1, tokenCount / 8 + entityCount / 10 + objectCount / 8 + (item.salient ? 0.18 : 0)));
 }
 
 function repetition(graph: RealityGraph, ids: readonly string[]): number {
@@ -165,20 +198,49 @@ function buildTrajectory(graph: RealityGraph, ids: readonly string[]): LatentMov
   });
 }
 
+function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
+  const ids = graph.events.map((item) => item.id);
+  if (!clean(subject)) return ids;
+
+  const anchors = ids.filter((id) => subjectMentioned(graph, id, subject));
+  if (!anchors.length) return ids;
+
+  const selected = new Set<string>(anchors.slice(0, 2));
+  const frontier = [...selected];
+
+  while (frontier.length) {
+    const current = frontier.shift()!;
+    const currentLabel = label(graph, current);
+    for (const candidate of ids) {
+      if (selected.has(candidate)) continue;
+      const relation = relationBetween(graph, current, candidate);
+      const sharesMeaning = sharedTokenScore(currentLabel, label(graph, candidate)) >= 0.5;
+      const isExplicitCallback = recurrenceLinked(graph, candidate) && sharesMeaning;
+      if (relation && ["repeats", "recontextualizes", "contrasts", "causes", "changes"].includes(relation.kind)) {
+        selected.add(candidate);
+        frontier.push(candidate);
+      } else if (sharesMeaning || isExplicitCallback) {
+        selected.add(candidate);
+        frontier.push(candidate);
+      }
+    }
+  }
+
+  return ids.filter((id) => selected.has(id));
+}
+
 function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTrajectoryStep[], lens?: string): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
   const ids = unique(trajectory.flatMap((step) => step.eventIds));
   const evidence = unique(ids.map((id) => label(graph, id)).filter(Boolean));
-  const relations = trajectory.flatMap((step) => {
-    if (step.eventIds.length < 2) return [];
-    const relation = relationBetween(graph, step.eventIds[0]!, step.eventIds[step.eventIds.length - 1]!);
-    return relation ? [relation] : [];
-  });
+  const relations = ids.slice(1).map((id, index) => relationBetween(graph, ids[index]!, id)).filter((value): value is RealityRelation => Boolean(value));
   const relationKinds = unique(relations.map((relation) => relation.kind));
   const state = statePair(graph, ids);
+  const richStructures = ids.map((id) => eventStructureFor(graph, id)).filter(Boolean);
   const semanticMovement = metric(
-    (state?.score ?? 0) * 0.55 +
-    Math.min(1, relationKinds.length / 3) * 0.25 +
-    (ids.length >= 5 ? 0.2 : 0),
+    (state?.score ?? 0) * 0.45 +
+    Math.min(1, relationKinds.length / 3) * 0.2 +
+    Math.min(1, richStructures.reduce((sum, item) => sum + item!.transitionScore + item!.recurrenceScore, 0) / Math.max(1, richStructures.length * 2)) * 0.2 +
+    (ids.length >= 5 ? 0.15 : 0),
   );
   const specificity = metric(ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) / Math.max(1, ids.length));
   const breadth = breadthScore(graph, ids);
@@ -188,38 +250,13 @@ function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTra
   const operationDiversity = metric(unique(trajectory.map((step) => step.operation)).length / 4);
   const recurrence = metric(Math.min(1, graph.recurringSignals.length / 3));
   const repetitionRisk = repetition(graph, ids);
-  const attentionPotential = metric(
-    semanticMovement * 0.28 +
-    breadth * 0.22 +
-    specificity * 0.14 +
-    order * 0.12 +
-    endpoint * 0.1 +
-    operationDiversity * 0.08 +
-    recurrence * 0.06,
-  );
-  const consequencePotential = metric(
-    semanticMovement * 0.36 + endpoint * 0.24 + specificity * 0.12 + breadth * 0.16 + continuity * 0.12,
-  );
+  const attentionPotential = metric(semanticMovement * 0.28 + breadth * 0.22 + specificity * 0.14 + order * 0.12 + endpoint * 0.1 + operationDiversity * 0.08 + recurrence * 0.06);
+  const consequencePotential = metric(semanticMovement * 0.36 + endpoint * 0.24 + specificity * 0.12 + breadth * 0.16 + continuity * 0.12);
   const callbackPotential = recurrence;
-  const informationValue = metric(
-    specificity * 0.25 + semanticMovement * 0.3 + breadth * 0.2 + attentionPotential * 0.15 + consequencePotential * 0.1,
-  );
-  const compressionPotential = metric(
-    Math.min(1, trajectory.length / 5) * 0.4 + semanticMovement * 0.25 + operationDiversity * 0.2 + specificity * 0.15,
-  );
+  const informationValue = metric(specificity * 0.25 + semanticMovement * 0.3 + breadth * 0.2 + attentionPotential * 0.15 + consequencePotential * 0.1);
+  const compressionPotential = metric(Math.min(1, trajectory.length / 5) * 0.4 + semanticMovement * 0.25 + operationDiversity * 0.2 + specificity * 0.15);
   const truthRisk = metric(1 - (order * 0.65 + specificity * 0.2 + endpoint * 0.15));
-  const score = metric(
-    semanticMovement * 0.25 +
-    attentionPotential * 0.18 +
-    consequencePotential * 0.15 +
-    breadth * 0.14 +
-    specificity * 0.1 +
-    endpoint * 0.08 +
-    operationDiversity * 0.06 +
-    callbackPotential * 0.04 -
-    repetitionRisk * 0.1 -
-    truthRisk * 0.08,
-  );
+  const score = metric(semanticMovement * 0.25 + attentionPotential * 0.18 + consequencePotential * 0.15 + breadth * 0.14 + specificity * 0.1 + endpoint * 0.08 + operationDiversity * 0.06 + callbackPotential * 0.04 - repetitionRisk * 0.1 - truthRisk * 0.08);
 
   return {
     anchorEventIds: ids.slice(0, 2),
@@ -227,8 +264,7 @@ function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTra
     trajectory: [...trajectory],
     payoff: evidence[evidence.length - 1] ?? "",
     evidence,
-    unresolvedQuestion:
-  trajectory[trajectory.length - 1]?.nextQuestion ?? "What comes next?",
+    unresolvedQuestion: trajectory[trajectory.length - 1]?.nextQuestion ?? "What comes next?",
     hypothesis: [
       "The movie is discovered from supplied reality rather than an industry template.",
       "The strongest semantic movement is preserved without inventing facts.",
@@ -255,29 +291,28 @@ export function searchUniversalMovieCandidates(input: { graph: RealityGraph; sub
   if (events.length < 3) return [];
 
   const sourceIds = events.map((item) => item.id);
+  const connectedIds = subjectConnectedIds(input.graph, input.subject);
   const candidates: LatentMovieCandidate[] = [];
 
-  const sourceTrajectory = buildTrajectory(input.graph, sourceIds);
-  if (sourceTrajectory.length >= 3) {
-    candidates.push({ id: "movie-source", lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, sourceTrajectory, input.lens) });
-  }
+  const trajectories: Array<{ id: string; ids: string[] }> = [
+    { id: "movie-source", ids: sourceIds },
+  ];
+  if (connectedIds.length >= 3) trajectories.push({ id: "movie-subject-connected", ids: connectedIds });
 
-  const state = statePair(input.graph, sourceIds);
+  const state = statePair(input.graph, connectedIds.length >= 3 ? connectedIds : sourceIds);
   if (state) {
+    const stateIds = connectedIds.length >= 3 ? connectedIds : sourceIds;
     const start = position(input.graph, state.from);
     const end = position(input.graph, state.to);
-    const ids = sourceIds.slice(Math.max(0, start), Math.min(sourceIds.length, end + 2));
-    if (!ids.includes(sourceIds[sourceIds.length - 1]!)) ids.push(sourceIds[sourceIds.length - 1]!);
-    const trajectory = buildTrajectory(input.graph, ids);
-    if (trajectory.length >= 3) {
-      candidates.push({ id: "movie-transformation", lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, trajectory, input.lens) });
-    }
+    const ids = stateIds.filter((id) => position(input.graph, id) >= start && position(input.graph, id) <= end + 1);
+    if (!ids.includes(stateIds[stateIds.length - 1]!)) ids.push(stateIds[stateIds.length - 1]!);
+    if (ids.length >= 3) trajectories.push({ id: "movie-transformation", ids });
   }
 
   const relationSeeds = [...input.graph.relations]
     .filter((relation) => !["before", "after", "involves", "belongs_to"].includes(relation.kind))
     .sort((a, b) => b.strength - a.strength)
-    .slice(0, 5);
+    .slice(0, 6);
 
   for (let index = 0; index < relationSeeds.length; index += 1) {
     const relation = relationSeeds[index]!;
@@ -292,9 +327,14 @@ export function searchUniversalMovieCandidates(input: { graph: RealityGraph; sub
     ]);
     const trajectory = buildTrajectory(input.graph, ids);
     if (trajectory.length >= 3) {
-      const scored = scoreCandidate(input.graph, trajectory, input.lens);
-      candidates.push({ id: `movie-relation-${index + 1}`, lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scored });
+      candidates.push({ id: `movie-relation-${index + 1}`, lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, trajectory, input.lens) });
     }
+  }
+
+  for (const trajectory of trajectories) {
+    const built = buildTrajectory(input.graph, trajectory.ids);
+    if (built.length < 3) continue;
+    candidates.push({ id: trajectory.id, lens: clean(input.lens) || "NONE", distinctiveness: 0, ...scoreCandidate(input.graph, built, input.lens) });
   }
 
   const seen = new Set<string>();
