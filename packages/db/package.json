@@ -19,7 +19,6 @@
     "prisma:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma"
   },
-  "prisma": {},
   "dependencies": {
     "@prisma/client": "6.19.3",
     "stripe": "^22.2.1"
