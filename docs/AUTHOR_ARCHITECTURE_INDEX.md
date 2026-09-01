@@ -1,8 +1,8 @@
 # QRE AUTHOR / COGNITION ARCHITECTURE INDEX
 
 **Status:** CANONICAL / CURRENT PRODUCTION ARCHITECTURE  
-**Branch:** `supplied-media-sequence-convergence`  
-**Updated:** 2026-08-28  
+**Branch:** `observer-experience-objective`  
+**Updated:** 2026-09-01  
 **Rule:** This file overrides stale Author architecture descriptions elsewhere.
 
 ## 1. MASTER LAW
@@ -15,7 +15,7 @@ ONE MOVIE AUTHORITY
 ONE EXPERIENCE STATE
 ONE MOUTH
 ONE BEAM
-ONE ATTENTION / ARC GATE
+ONE ATTENTION / ARC BOUNDARY
 ONE RUNTIME BOUNDARY
 ONE LEARNING LOOP
 ```
@@ -41,6 +41,7 @@ SELECTED MOVIE
 CANONICAL AUTHOR
     ├── beat projection
     ├── Mouth candidate generation
+    ├── Mouth interpretation / quality checks
     ├── Mouth sequence selection
     ├── attention editing
     └── sequence arc diagnostics
@@ -172,25 +173,23 @@ Source-order continuity is deliberately small. Its role is to make a naturally s
 
 ## 7. MOUTH
 
-Primary realization surface:
+Canonical Mouth boundary:
+
+`apps/api/src/services/authorMouthCandidateSearchCanonical.ts`
+
+Compatibility implementation shim:
 
 `apps/api/src/services/authorMouthCandidateSearch.ts`
 
-Interpretation boundary:
+Interpretation and realization safety:
 
 `apps/api/src/services/authorMouthInterpretation.ts`
-
-Quality adaptation:
-
-`apps/api/src/services/authorMouthQualityAdapter.ts`
 
 Sequence selection:
 
 `apps/api/src/services/authorMouthSequenceBeamSearch.ts`
 
-Attention gate:
-
-`apps/api/src/services/authorMouthAttentionGate.ts`
+The compatibility shim must remain a thin forwarding boundary; it is not a second Mouth authority.
 
 Mouth receives an already-approved beat job.
 
@@ -256,7 +255,7 @@ Likewise, comedy does not require every cut to be a joke, romance does not requi
 
 ## 9. GATES
 
-Attention / arc gates are evaluators.
+Attention and sequence-arc layers are evaluators.
 
 They may measure:
 
