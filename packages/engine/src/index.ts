@@ -33,6 +33,6 @@ export { getPresenceTimeline } from "./presence/getPresenceTimeline.js";
 export { getPresenceReplay } from "./presence/getPresenceReplay.js";
 export { getPresenceMap } from "./presence/getPresenceMap.js";
 export { buildPresenceContext } from "./presence/buildPresenceContext.js";
-export type { AssetRepository, AssetRecord, AssetExperienceRecord, AssetExperienceChapterRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
+export type { AssetRepository, AssetRecord, AssetExperienceRecord, SessionRepository, AccessRepository, AnalyticsRepository, PresenceRepository, GeoMemoryRepository, GeoProofRecord, StoryDeliveryRepository, UserRepository } from "./repositories/index.js";
 export { checkIn } from "./presence/checkIn.js";
 export { checkOut } from "./presence/checkOut.js";
