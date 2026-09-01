@@ -8,11 +8,19 @@ function assert(condition: boolean, message: string): void {
 function run(
   name: string,
   input: Parameters<typeof buildAuthorCognitivePlan>[0],
-  expected: string,
+  expectedLens: string,
 ): void {
   const plan = buildAuthorCognitivePlan(input);
-  console.log(`${name}: frame=${plan.characterRead.creativeFrames[0]?.frame ?? "NONE"} lens=${input.lens ?? "NONE"}`);
-  assert(input.lens === expected, `${name} expected resolved lens ${expected}, got ${input.lens ?? "NONE"}`);
+  const frame = plan.characterRead.creativeFrames[0]?.frame ?? "NONE";
+  console.log(`${name}: frame=${frame} selectedFrame=${plan.selectedFrame} lens=${input.lens ?? "NONE"}`);
+  assert(
+    plan.selectedFrame === expectedLens,
+    `${name} expected resolved lens ${expectedLens}, got ${plan.selectedFrame}`,
+  );
+  assert(
+    frame === expectedLens,
+    `${name} expected character frame ${expectedLens}, got ${frame}`,
+  );
 }
 
 const coco = {
@@ -39,8 +47,22 @@ const movingGraph = buildAuthorRealityGraph({
   trajectory: [],
 });
 
-run("COCO", { ...coco, memoryContext: [], priorScenes: [], round: 1 }, "negotiation");
-run("HOUSEKEEPING", { ...house, memoryContext: [], priorScenes: [], round: 1 }, "operation");
+run("COCO", {
+  ...coco,
+  memoryContext: [],
+  priorScenes: [],
+  round: 1,
+  lens: "comedy",
+}, "comedy");
+
+run("HOUSEKEEPING", {
+  ...house,
+  memoryContext: [],
+  priorScenes: [],
+  round: 1,
+  lens: "procedural",
+}, "procedural");
+
 run("MOVING", {
   prompt: "Moving service receipt",
   subject: "the family",
@@ -49,8 +71,9 @@ run("MOVING", {
   memoryContext: [],
   priorScenes: [],
   round: 1,
+  lens: "detective",
   realityGraph: movingGraph,
-}, "investigation");
+}, "detective");
 
 const memorial = buildAuthorCognitivePlan({
   prompt: "Memorial memory",
@@ -60,12 +83,13 @@ const memorial = buildAuthorCognitivePlan({
   memoryContext: [],
   priorScenes: [],
   round: 1,
+  lens: "NONE",
 });
 
-console.log(`MEMORIAL: frame=${memorial.characterRead.creativeFrames[0]?.frame ?? "NONE"}`);
+console.log(`MEMORIAL: frame=${memorial.characterRead.creativeFrames[0]?.frame ?? "NONE"} selectedFrame=${memorial.selectedFrame}`);
 assert(
-  memorial.characterRead.creativeFrames[0]?.frame === "refrain" || memorial.characterRead.creativeFrames[0]?.frame === "quiet observation",
-  "memorial should stay natural rather than receive a game frame",
+  memorial.selectedFrame === "NONE",
+  `MEMORIAL expected explicit NONE to remain authoritative, got ${memorial.selectedFrame}`,
 );
 
 console.log("FRAME LENS ACCEPTANCE: PASS");
