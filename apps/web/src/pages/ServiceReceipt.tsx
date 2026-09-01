@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createServiceReceipt } from "../lib/api";
-import { getUserAssets } from "../lib/api";
-import { useEffect } from "react";
+import { createServiceReceipt, getUserAssets } from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 
 type Asset = {
@@ -33,11 +31,13 @@ export default function ServiceReceipt() {
   const [photoPreview, setPhotoPreview] = useState("");
 
   useEffect(() => {
-    void getUserAssets().then((response) => {
-      const next = Array.isArray(response) ? response : response.assets ?? [];
-      setAssets(next);
-      setAssetId((current) => current || next[0]?.id || "");
-    }).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    void getUserAssets()
+      .then((response) => {
+        const next = Array.isArray(response) ? response : response.assets ?? [];
+        setAssets(next);
+        setAssetId((current) => current || next[0]?.id || "");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   const selectedAsset = useMemo(
@@ -52,20 +52,39 @@ export default function ServiceReceipt() {
     reader.readAsDataURL(file);
   }
 
+  async function captureGeo(): Promise<{
+    latitude: number;
+    longitude: number;
+    label?: string;
+  } | undefined> {
+    if (!navigator.geolocation) return undefined;
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+        () => resolve(undefined),
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 },
+      );
+    });
+  }
+
   async function create() {
     if (!assetId || !recipient.trim() || creating) return;
     setCreating(true);
     setError("");
     try {
+      const geo = await captureGeo();
+      const timestamp = new Date().toLocaleString();
+      const baseFacts = facts.split(/\n|,/).map(clean).filter(Boolean);
       const response = await createServiceReceipt({
         assetId,
         recipient: recipient.trim(),
         service: service.trim(),
-        facts: facts.split(/\n|,/).map(clean).filter(Boolean),
+        facts: [`Service time: ${timestamp}`, ...baseFacts],
         funny: funny.trim(),
         odd: odd.trim(),
         different: different.trim(),
         mediaUrls: mediaUrl.trim() ? [mediaUrl.trim()] : [],
+        geo,
       });
       setResult(response);
     } catch (err) {
@@ -79,16 +98,22 @@ export default function ServiceReceipt() {
     const shareUrl = result?.shareUrl;
     if (!shareUrl) return;
     const absolute = `${window.location.origin}${shareUrl}`;
-    if (navigator.share) {
-      await navigator.share({
-        title: result?.experience?.title ?? "QRE Service Receipt",
-        text: "Your QRE service experience is ready.",
-        url: absolute,
-      });
-      return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: result?.experience?.title ?? "QRE Service Receipt",
+          text: "Your QRE service experience is ready.",
+          url: absolute,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(absolute);
+      window.alert("Receipt link copied.");
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     }
-    await navigator.clipboard.writeText(absolute);
-    window.alert("Receipt link copied.");
   }
 
   if (result) {
@@ -98,7 +123,7 @@ export default function ServiceReceipt() {
           <section style={card}>
             <div style={eyebrow}>SERVICE RECEIPT READY</div>
             <h1 style={title}>{result.experience?.title ?? "Your experience is ready."}</h1>
-            <p style={sub}>{result.delivered ? "Delivery target captured." : "Ready to share."}</p>
+            <p style={sub}>The customer-facing experience is compiled from the facts you supplied.</p>
             <div style={film}>
               {(result.experience?.moments ?? []).map((moment: any, index: number) => (
                 <div key={`${index}-${clean(moment?.payload?.text)}`} style={line}>
@@ -106,7 +131,7 @@ export default function ServiceReceipt() {
                 </div>
               ))}
             </div>
-            {photoPreview && <img src={photoPreview} alt="Service attachment" style={photo} />}
+            {photoPreview && <img src={photoPreview} alt="Service attachment preview" style={photo} />}
             <div style={actions}>
               <button type="button" onClick={() => void share()} style={primary}>SEND RECEIPT</button>
               <button type="button" onClick={() => navigate("/dashboard")} style={secondary}>DONE</button>
@@ -123,12 +148,12 @@ export default function ServiceReceipt() {
         <section style={card}>
           <div style={eyebrow}>60-SECOND SERVICE CAPTURE</div>
           <h1 style={title}>Send a service receipt.</h1>
-          <p style={sub}>Tell QRE only what mattered. It does the rest.</p>
+          <p style={sub}>Tell QRE only what mattered. Time and location are captured automatically.</p>
 
-          <label style={label}>CLIENT / RECIPIENT<input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="11Q Fuck You / email / phone" style={input} /></label>
+          <label style={label}>CLIENT / RECIPIENT<input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Client name, email, or phone" style={input} /></label>
           <label style={label}>QRE OBJECT<select value={assetId} onChange={(e) => setAssetId(e.target.value)} style={input}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName || asset.slug}</option>)}</select></label>
           <label style={label}>SERVICE<input value={service} onChange={(e) => setService(e.target.value)} placeholder="Cleaning" style={input} /></label>
-          <label style={label}>WHAT HAPPENED<textarea value={facts} onChange={(e) => setFacts(e.target.value)} placeholder={selectedAsset ? "Kitchen clean\nTwo bathrooms clean\n11:01–12:12" : "What actually happened?"} style={textarea} /></label>
+          <label style={label}>WHAT HAPPENED<textarea value={facts} onChange={(e) => setFacts(e.target.value)} placeholder={selectedAsset ? "Kitchen clean\nTwo bathrooms clean" : "What actually happened?"} style={textarea} /></label>
 
           <div style={promptGrid}>
             <label style={label}>ANYTHING FUNNY?<input value={funny} onChange={(e) => setFunny(e.target.value)} placeholder="55 shampoos" style={input} /></label>
@@ -157,7 +182,7 @@ const page = { minHeight: "100vh", display: "grid", placeItems: "center", paddin
 const card = { width: "min(900px, 100%)", padding: "clamp(24px, 5vw, 54px)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 28, background: "rgba(255,255,255,.035)", boxSizing: "border-box" as const };
 const eyebrow = { fontSize: 10, letterSpacing: 5, opacity: .45, marginBottom: 14 };
 const title = { fontSize: "clamp(38px, 7vw, 70px)", fontWeight: 500, letterSpacing: "-3px", lineHeight: .95, margin: 0 };
-const sub = { color: "rgba(255,255,255,.55)", margin: "16px 0 34px", fontSize: 15 };
+const sub = { color: "rgba(255,255,255,.55)", margin: "16px 0 34px", fontSize: 15, lineHeight: 1.5 };
 const label = { display: "grid", gap: 8, marginBottom: 18, fontSize: 10, letterSpacing: 2, opacity: .65 };
 const input = { width: "100%", boxSizing: "border-box" as const, padding: "14px 15px", borderRadius: 14, border: "1px solid rgba(255,255,255,.12)", background: "rgba(0,0,0,.22)", color: "#fff", font: "inherit", fontSize: 15, letterSpacing: 0, opacity: 1 };
 const textarea = { ...input, minHeight: 110, resize: "vertical" as const, lineHeight: 1.5 };
