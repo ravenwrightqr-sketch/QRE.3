@@ -3,20 +3,9 @@
 /**
  * QRE AUTHOR PRODUCTION GATE
  *
- * This is a hard repository boundary, not a style check.
- *
- * Production Author has exactly one owner path:
- *
- *   authorBrainCanonical
- *     -> authorCognition
- *     -> authorUniversalMovieSearch
- *     -> semantic interpretation
- *     -> canonical Mouth
- *     -> sequence selection
- *
- * The gate prevents the historical failure mode where a second brain, movie
- * search, Mouth, or retired adapter quietly becomes reachable from runtime.
- * Tests may retain compatibility diagnostics; production source may not.
+ * Hard repository boundary for production Author.
+ * One brain, one movie owner, one generative Mouth. Compatibility shims may
+ * exist for tests, but production source may not import alternate generators.
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -62,24 +51,28 @@ const forbiddenFiles = [
   "apps/api/src/services/authorMemoryIntelligence.ts",
 ];
 
-const forbiddenProductionImports = [
-  "authorBrainUniversal",
-  "cinematicAuthor",
-  "authorBrainMomentum",
-  "authorFastCore",
-  "creativeRelationOps",
-  "authorMouthCandidateSearch",
-  "authorLatentMovieSearch",
-  "authorLatentMovieBeatAdapter",
-  "authorMouthAttentionGate",
-  "authorMouthGroundedFallback",
-  "authorMouthLanguageGate",
-  "authorMouthQualityAdapter",
-  "authorMouthRepairPlanner",
-  "authorMouthMonster",
-  "authorMemoryIntelligence",
-  "authorCumulativeMeaning",
-];
+const forbiddenLegacyImportBasenames = new Set([
+  "authorBrainUniversal.js",
+  "cinematicAuthor.js",
+  "authorBrain.js",
+  "authorBrainMomentum.js",
+  "authorBrainMomentumV2.js",
+  "authorBrainMomentumV3.js",
+  "authorFastCore.js",
+  "creativeRelationOps.js",
+  "microBeatMouth.js",
+  "authorMouthCandidateSearch.js",
+  "authorLatentMovieSearch.js",
+  "authorLatentMovieBeatAdapter.js",
+  "authorMouthAttentionGate.js",
+  "authorMouthGroundedFallback.js",
+  "authorMouthLanguageGate.js",
+  "authorMouthQualityAdapter.js",
+  "authorMouthRepairPlanner.js",
+  "authorMouthMonster.js",
+  "authorMemoryIntelligence.js",
+  "authorCumulativeMeaning.js",
+]);
 
 const allowedDirectModelCallers = new Set([
   "apps/api/src/services/aiProvider.ts",
@@ -137,11 +130,13 @@ for (const file of productionFiles) {
   const body = readFileSync(file, "utf8");
   const rel = relative(root, file).replaceAll("\\", "/");
 
-  for (const forbidden of forbiddenProductionImports) {
-    const escaped = forbidden.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const importPattern = new RegExp(`(?:from\\s+["'][^"']*|import\\s*\\()["'][^"']*${escaped}[^"']*["']`);
-    if (importPattern.test(body)) {
-      fail(`Forbidden legacy Author import in ${rel}: ${forbidden}`);
+  const importRegex = /(?:from\s+|import\s*\()(["'])([^"']+)\1/g;
+  let match;
+  while ((match = importRegex.exec(body)) !== null) {
+    const specifier = match[2];
+    const basename = specifier.split("/").pop() ?? specifier;
+    if (forbiddenLegacyImportBasenames.has(basename)) {
+      fail(`Forbidden legacy Author import in ${rel}: ${specifier}`);
     }
   }
 
@@ -154,7 +149,6 @@ const brain = existsSync(join(root, canonicalFiles.brain)) ? read(canonicalFiles
 const cognition = existsSync(join(root, canonicalFiles.cognition)) ? read(canonicalFiles.cognition) : "";
 const mouth = existsSync(join(root, canonicalFiles.mouth)) ? read(canonicalFiles.mouth) : "";
 const movieSearch = existsSync(join(root, canonicalFiles.movieSearch)) ? read(canonicalFiles.movieSearch) : "";
-const thesis = existsSync(join(root, canonicalFiles.thesis)) ? read(canonicalFiles.thesis) : "";
 const experienceService = existsSync(join(root, canonicalFiles.experienceService)) ? read(canonicalFiles.experienceService) : "";
 const acceptance = existsSync(join(root, canonicalFiles.acceptance)) ? read(canonicalFiles.acceptance) : "";
 
@@ -162,12 +156,12 @@ if (!/authorCognition\.js/.test(brain)) fail("Canonical Author must consume auth
 if (!/buildAuthorCognitivePlan\s*\(/.test(brain)) fail("Canonical Author must execute Cognition");
 if (!/buildAuthorRealityGraph\s*\(/.test(brain)) fail("Canonical Author must own the source-truth graph boundary");
 if (!/buildAuthorRealityEnvelope\s*\(/.test(brain)) fail("Canonical Author must build the RealityEnvelope");
-if (!/buildMouthCandidateMessages\s*\(/.test(brain)) fail("Canonical Author must invoke the canonical Mouth candidate boundary");
+if (!/buildMouthCandidateMessages\s*\(/.test(brain)) fail("Canonical Author must invoke canonical Mouth generation");
 if (!/selectBestMouthSequence\s*\(/.test(brain)) fail("Canonical Author must select the final Mouth sequence");
 if (/compileCognitiveExperience/.test(brain)) fail("Legacy cognitive compiler is forbidden from Canonical Author");
 
 if (!/authorUniversalMovieSearch\.js/.test(cognition)) fail("Cognition must own Universal Movie Search");
-if (/authorLatentMovieSearch\.js/.test(cognition)) fail("Cognition still references retired latent movie search");
+if (/authorLatentMovieSearch\.js/.test(cognition)) fail("Cognition still references legacy latent movie search");
 if (!/searchUniversalMovieCandidates\s*\(/.test(cognition)) fail("Cognition must call searchUniversalMovieCandidates");
 if (!/selectDistinctMovieCandidates\s*\(/.test(cognition)) fail("Cognition must retain movie differentiation");
 if (!/rerankByViewerState\s*\(/.test(cognition)) fail("Cognition must retain viewer-state reranking");
@@ -178,9 +172,7 @@ if (!/exactly three materially different variants per beat/i.test(mouth)) fail("
 if (!/bounded-creative-bet/.test(mouth)) fail("Canonical Mouth must retain bounded creative framing");
 if (!/unsafe-realization/.test(mouth)) fail("Canonical Mouth must retain a hard unsafe realization outcome");
 if (!/observerDiscoveryScore/.test(mouth)) fail("Canonical Mouth must produce observer-discovery quality");
-if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback/.test(mouth)) {
-  fail("Canonical Mouth still depends on retired Mouth services");
-}
+if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback/.test(mouth)) fail("Canonical Mouth still depends on retired Mouth services");
 
 if (!/forwardScore\s*\(/.test(movieSearch)) fail("Universal Movie Search must score forward movement");
 if (!/statePair\s*\(/.test(movieSearch)) fail("Universal Movie Search must discover state transformations");
@@ -188,25 +180,13 @@ if (!/buildTrajectory\s*\(/.test(movieSearch)) fail("Universal Movie Search must
 if (!/payoff/.test(movieSearch)) fail("Universal Movie Search must preserve a payoff endpoint");
 if (/trajectory\.at\(\-1\)/.test(movieSearch)) fail("Universal Movie Search must remain compatible with the repository TypeScript target");
 
-if (thesis && /beforeEventIds/.test(thesis) && !/candidate\.trajectory/.test(thesis)) {
-  warn("Latent Story Thesis exposes before/after fields; verify they remain trajectory-authoritative.");
-}
-
-if (!/authorExperienceStateToMemoryBatch\s*\(/.test(experienceService)) {
-  fail("Experience service must persist Author experience state into memory");
-}
-if (!/buildExperienceMemoryBatch\s*\(/.test(experienceService)) {
-  fail("Experience service must persist the RealityGraph memory batch");
-}
-if (!/input\.assetId/.test(experienceService) || !/input\.sessionId/.test(experienceService)) {
-  fail("Experience service must retain asset/session identity around Author persistence");
-}
+if (!/authorExperienceStateToMemoryBatch\s*\(/.test(experienceService)) fail("Experience service must persist Author experience state into memory");
+if (!/buildExperienceMemoryBatch\s*\(/.test(experienceService)) fail("Experience service must persist the RealityGraph memory batch");
+if (!/input\.assetId/.test(experienceService) || !/input\.sessionId/.test(experienceService)) fail("Experience service must retain asset/session identity around Author persistence");
 
 if (!/authorBrainCanonical\.js/.test(acceptance)) fail("Canonical acceptance must invoke authorBrainCanonical directly");
 if (/authorBrainUniversal|author-acceptance-suite/.test(acceptance)) fail("Canonical acceptance contains a legacy Author path");
-if (!/result\.sequence\.cuts\.length > 0 \? 1 : 0/.test(acceptance)) {
-  fail("Fast Author acceptance must allow exactly one canonical Mouth model realization request when a sequence exists");
-}
+if (!/result\.sequence\.cuts\.length > 0 \? 1 : 0/.test(acceptance)) fail("Fast Author acceptance must allow exactly one canonical Mouth model realization request when a sequence exists");
 
 for (const reviewOnly of reviewOnlyFiles) {
   if (!existsSync(join(root, reviewOnly))) continue;
@@ -216,7 +196,7 @@ for (const reviewOnly of reviewOnlyFiles) {
 console.log("=== QRE AUTHOR PRODUCTION GATE ===");
 console.log("CANONICAL: authorBrainCanonical -> authorCognition -> universal movie search -> canonical Mouth -> sequence");
 console.log("PERSISTENCE: Author state + RealityGraph remain part of the production path");
-console.log("TRUTH: retired/duplicate Author paths are forbidden from production");
+console.log("TRUTH: retired/duplicate Author generators are forbidden from production");
 
 for (const warning of warnings) console.warn(`WARN: ${warning}`);
 for (const failure of failures) console.error(`FAIL: ${failure}`);
