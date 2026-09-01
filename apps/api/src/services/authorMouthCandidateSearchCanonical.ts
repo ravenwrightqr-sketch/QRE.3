@@ -71,7 +71,7 @@ export type MouthCandidateGenerationInput = {
 const activeLensByBeat = new WeakMap<object, string>();
 
 const INTERNAL_RENDER_RESIDUE =
-  /\b(?:occurred\s*:\s*(?:occurred\s*:\s*)+|future\s*:\s*[a-z0-9_-]+|retired\s+future|author\s+chapter|tempo\s*:\s*[a-z0-9_-]+|changed\s*:\s*(?:event[-_:])?[a-z0-9_-]+|reality\s+anchors?\s*:|show\s+me\s+another\s+moment\s+from\s+(?:this|the)\s+asset(?:'s)?\s+world|let\s+the\s+significance\s+emerge|canonical\s+(?:semantic|relation|before|after|payoff|cognitive)|observer\s+(?:experience|objective|surprise|curiosity|attention|landing)\s*:|memory\s+projection|state\s+persistence|remind\s+me\s+about\b)\b/i;
+  /(?:^|\b)(?:occurred\s*:\s*|future\s*:\s*[a-z0-9_-]+|retired\s+future|author\s+chapter|tempo\s*:\s*[a-z0-9_-]+|changed\s*:\s*(?:event[-_:])?[a-z0-9_-]+|reality\s+anchors?\s*:|show\s+me\s+another\s+moment\s+from\s+(?:this|the)\s+asset(?:'s)?\s+world|let\s+the\s+significance\s+emerge|canonical\s+(?:semantic|relation|before|after|payoff|cognitive)|observer\s+(?:experience|objective|surprise|curiosity|attention|landing)\s*:|memory\s+projection|state\s+persistence|remind\s+me\s+about\b)/i;
 
 function clean(value: unknown): string {
   return String(value ?? "")
@@ -80,248 +80,68 @@ function clean(value: unknown): string {
 }
 
 const FUNCTION_WORDS = new Set([
-  "the",
-  "a",
-  "an",
-  "and",
-  "or",
-  "but",
-  "to",
-  "of",
-  "in",
-  "on",
-  "at",
-  "for",
-  "with",
-  "from",
-  "by",
-  "through",
-  "after",
-  "before",
-  "then",
-  "now",
-  "very",
-  "just",
-  "still",
-  "again",
-  "this",
-  "that",
-  "it",
-  "is",
-  "are",
-  "was",
-  "were",
-  "be",
-  "been",
-  "being",
-  "as",
-  "into",
-  "my",
-  "your",
-  "our",
-  "their",
-  "his",
-  "her",
-  "its",
-  "he",
-  "she",
-  "they",
-  "them",
-  "you",
-  "we",
-  "me",
+  "the","a","an","and","or","but","to","of","in","on","at","for","with","from","by","through","after","before","then","now","very","just","still","again","this","that","it","is","are","was","were","be","been","being","as","into","my","your","our","their","his","her","its","he","she","they","them","you","we","me",
 ]);
 
 function normalizeToken(token: string): string {
   const lower = token.toLowerCase();
-
-  if (lower.length > 6 && lower.endsWith("ing")) {
-    return lower.slice(0, -3);
-  }
-
-  if (lower.length > 5 && lower.endsWith("ed")) {
-    return lower.slice(0, -2);
-  }
-
-  if (lower.length > 4 && lower.endsWith("es")) {
-    return lower.slice(0, -2);
-  }
-
-  if (lower.length > 4 && lower.endsWith("s")) {
-    return lower.slice(0, -1);
-  }
-
+  if (lower.length > 6 && lower.endsWith("ing")) return lower.slice(0, -3);
+  if (lower.length > 5 && lower.endsWith("ed")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("es")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("s")) return lower.slice(0, -1);
   return lower;
 }
 
 function tokenSet(value: string): Set<string> {
-  return new Set(
-    clean(value)
-      .toLowerCase()
-      .split(/[^a-z0-9'-]+/i)
-      .filter((token) => token.length >= 3)
-      .map(normalizeToken),
-  );
+  return new Set(clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter((token) => token.length >= 3).map(normalizeToken));
 }
 
 function meaningfulTokenSet(value: string): Set<string> {
-  return new Set(
-    [...tokenSet(value)].filter(
-      (token) => !FUNCTION_WORDS.has(token),
-    ),
-  );
+  return new Set([...tokenSet(value)].filter((token) => !FUNCTION_WORDS.has(token)));
 }
 
-function overlap(
-  a: Set<string>,
-  b: Set<string>,
-): number {
+function overlap(a: Set<string>, b: Set<string>): number {
   if (!a.size || !b.size) return 0;
-
   let hits = 0;
-
-  for (const token of a) {
-    if (b.has(token)) {
-      hits += 1;
-    }
-  }
-
+  for (const token of a) if (b.has(token)) hits += 1;
   return hits / Math.max(1, a.size);
 }
 
 function metric(value: number): number {
-  return Number(
-    Math.max(0, Math.min(1, value)).toFixed(3),
-  );
+  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
 
-function sourceLabelsForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
-  return [
-    ...new Set(
-      (beat.eventIds ?? [])
-        .map(
-          (id) =>
-            envelope.events.find(
-              (event) => event.id === id,
-            )?.label ?? "",
-        )
-        .map(clean)
-        .filter(Boolean),
-    ),
-  ];
+function sourceLabelsForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+  return [...new Set((beat.eventIds ?? []).map((id) => envelope.events.find((event) => event.id === id)?.label ?? "").map(clean).filter(Boolean))];
 }
 
-function relationalCompressionAuthorized(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): boolean {
-  const participants = new Set(
-    [
-      ...(envelope.suppliedEntities ?? []),
-      ...(envelope.suppliedPhrases ?? []),
-    ]
-      .map(clean)
-      .filter(Boolean)
-      .filter(
-        (value) =>
-          !/^(?:someone|something|it|this|that)$/i.test(
-            value,
-          ),
-      ),
-  );
-
-  if (participants.size < 2) {
-    return false;
-  }
-
-  const eventIds = new Set(
-    beat.eventIds ?? [],
-  );
-
-  const beatEvents = envelope.events.filter(
-    (event) => eventIds.has(event.id),
-  );
-
-  if (!beatEvents.length) {
-    return false;
-  }
-
-  const sharedInteraction =
-    beatEvents.some((event) =>
-      /\b(?:met|talked|talking|spoke|speaking|shared|together|between|with|connected|joined|visited|called|texted|messaged|worked|played|danced)\b/i.test(
-        clean(event.label),
-      ),
-    );
-
-  return sharedInteraction;
+function relationalCompressionAuthorized(beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
+  const participants = new Set([...(envelope.suppliedEntities ?? []), ...(envelope.suppliedPhrases ?? [])].map(clean).filter(Boolean).filter((value) => !/^(?:someone|something|it|this|that)$/i.test(value)));
+  if (participants.size < 2) return false;
+  const eventIds = new Set(beat.eventIds ?? []);
+  const beatEvents = envelope.events.filter((event) => eventIds.has(event.id));
+  if (!beatEvents.length) return false;
+  return beatEvents.some((event) => /\b(?:met|talked|talking|spoke|speaking|shared|together|between|with|connected|joined|visited|called|texted|messaged|worked|played|danced)\b/i.test(clean(event.label)));
 }
 
-type MouthRealityShape =
-  | "stable"
-  | "event"
-  | "state"
-  | "observation";
+type MouthRealityShape = "stable" | "event" | "state" | "observation";
 
-function realityShapeForLabel(
-  label: string,
-): MouthRealityShape {
+function realityShapeForLabel(label: string): MouthRealityShape {
   const value = clean(label).toLowerCase();
-
-  if (!value) {
-    return "observation";
-  }
-
-  if (
-    /\b(?:went|came|arrived|left|returned|saw|met|found|lost|got|stole|took|gave|made|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|visited|bought|sold|built|fixed|painted|wrote|called|laughed|cried|looked|felt|became|changed|did)\b/i.test(
-      value,
-    ) ||
-    /\b(?:\d+\s*(?:minute|minutes|hour|hours|day|days|times?)|at\s+\d|today|yesterday|tomorrow|this\s+(?:morning|afternoon|evening|night)|last\s+(?:night|week|month|year)|next\s+(?:day|week|month|year))\b/i.test(
-      value,
-    )
-  ) {
-    return "event";
-  }
-
-  if (
-    /\b(?:likes?|loves?|prefers?|enjoys?|wants?|needs?|hates?|walks?|eats?|drinks?|plays?|knows?|keeps?|collects?|visits?|uses?|wears?|has|have|owns?)\b/i.test(
-      value,
-    )
-  ) {
-    return "stable";
-  }
-
-  if (
-    /\b(?:nervous|happy|sad|angry|calm|excited|tired|proud|afraid|scared|confident|quiet|loud|fierce|sweet|gentle|wild|goofy|stubborn|ready|different|changed)\b/i.test(
-      value,
-    )
-  ) {
-    return "state";
-  }
-
+  if (!value) return "observation";
+  if (/\b(?:went|came|arrived|left|returned|saw|met|found|lost|got|stole|took|gave|made|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|visited|bought|sold|built|fixed|painted|wrote|called|laughed|cried|looked|felt|became|changed|did)\b/i.test(value) || /\b(?:\d+\s*(?:minute|minutes|hour|hours|day|days|times?)|at\s+\d|today|yesterday|tomorrow|this\s+(?:morning|afternoon|evening|night)|last\s+(?:night|week|month|year)|next\s+(?:day|week|month|year))\b/i.test(value)) return "event";
+  if (/\b(?:likes?|loves?|prefers?|enjoys?|wants?|needs?|hates?|walks?|eats?|drinks?|plays?|knows?|keeps?|collects?|visits?|uses?|wears?|has|have|owns?)\b/i.test(value)) return "stable";
+  if (/\b(?:nervous|happy|sad|angry|calm|excited|tired|proud|afraid|scared|confident|quiet|loud|fierce|sweet|gentle|wild|goofy|stubborn|ready|different|changed)\b/i.test(value)) return "state";
   return "observation";
 }
 
-function realityShapeForBeat(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): MouthRealityShape {
-  const labels = sourceLabelsForBeat(
-    beat,
-    envelope,
-  );
-
-  if (!labels.length) {
-    return "observation";
-  }
-
+function realityShapeForBeat(beat: MouthCandidateBeat, envelope: RealityEnvelope): MouthRealityShape {
+  const labels = sourceLabelsForBeat(beat, envelope);
+  if (!labels.length) return "observation";
   const shapes = labels.map(realityShapeForLabel);
   const eventCount = shapes.filter((shape) => shape === "event").length;
   const stableCount = shapes.filter((shape) => shape === "stable").length;
   const stateCount = shapes.filter((shape) => shape === "state").length;
-
   if (eventCount >= Math.max(stableCount, stateCount)) return "event";
   if (stableCount > eventCount && stableCount >= stateCount) return "stable";
   if (stateCount > eventCount && stateCount > stableCount) return "state";
@@ -560,12 +380,7 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
   return parseLegacyBatch(raw);
 }
 
-export function scoreMouthCandidate(input: {
-  text: string;
-  beat: MouthCandidateBeat;
-  envelope: RealityEnvelope;
-  priorTexts?: readonly string[];
-}): MouthCandidate {
+export function scoreMouthCandidate(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate {
   const legacy = scoreLegacyCandidate(input);
   const sourceLabels = sourceLabelsForBeat(input.beat, input.envelope);
   const interpretation = evaluateMouthInterpretation({ text: input.text, sourceLabels, envelope: input.envelope, beat: input.beat });
@@ -605,9 +420,7 @@ export function scoreMouthCandidate(input: {
     };
   }
 
-  if (!interpretation.reasons.includes("semantic-compression")) {
-    return legacy;
-  }
+  if (!interpretation.reasons.includes("semantic-compression")) return legacy;
 
   const lensFit = lensFitForCandidate(input.text, lensInput);
   const directTransformation = directTransformationSignal(input.text);
@@ -617,34 +430,9 @@ export function scoreMouthCandidate(input: {
   const strongExpressiveRealization = expressiveRealization >= 0.66 && groundedSurprise >= 0.6;
   const strongExperientialConsequence = experientialConsequence >= 0.58 && groundedSurprise >= 0.58;
   const approvedSemanticRealization = interpretation.accepted && interpretation.unsupportedConcreteRisk === 0 && (interpretation.creativeFraming >= 0.38 || interpretation.reasons.includes("semantic-compression") || interpretation.reasons.includes("grounded-creative-interpretation"));
-
-  const meaningLift = metric(
-    interpretation.creativeFraming * 0.42 +
-      expressiveRealization * 0.22 +
-      experientialConsequence * 0.18 +
-      lensFit * 0.08 +
-      observerDiscovery * 0.18 +
-      groundedSurprise * 0.1,
-  );
-
-  const transitionLift = metric(
-    legacy.transitionScore * 0.42 +
-      directTransformation * 0.16 +
-      experientialConsequence * 0.18 +
-      expressiveRealization * 0.1 +
-      groundedSurprise * 0.1 +
-      lensFit * 0.04,
-  );
-
-  const scoreLift = metric(
-    legacy.score * 0.38 +
-      groundedSurprise * 0.18 +
-      observerDiscovery * 0.18 +
-      expressiveRealization * 0.12 +
-      experientialConsequence * 0.1 +
-      lensFit * 0.04,
-  );
-
+  const meaningLift = metric(interpretation.creativeFraming * 0.42 + expressiveRealization * 0.22 + experientialConsequence * 0.18 + lensFit * 0.08 + observerDiscovery * 0.18 + groundedSurprise * 0.1);
+  const transitionLift = metric(legacy.transitionScore * 0.42 + directTransformation * 0.16 + experientialConsequence * 0.18 + expressiveRealization * 0.1 + groundedSurprise * 0.1 + lensFit * 0.04);
+  const scoreLift = metric(legacy.score * 0.38 + groundedSurprise * 0.18 + observerDiscovery * 0.18 + expressiveRealization * 0.12 + experientialConsequence * 0.1 + lensFit * 0.04);
   const reasons = [
     ...legacy.reasons,
     ...(approvedSemanticRealization ? ["semantic-compression"] : []),
@@ -655,7 +443,6 @@ export function scoreMouthCandidate(input: {
     ...(strongExperientialConsequence ? ["experiential-consequence"] : []),
     ...(observerDiscovery >= 0.62 ? ["observer-discovery"] : []),
   ];
-
   return {
     ...legacy,
     inventionRisk: Math.max(legacy.inventionRisk, interpretation.unsupportedConcreteRisk, concreteRisk),
