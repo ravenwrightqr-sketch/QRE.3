@@ -84,9 +84,7 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/creativeSeedEngine.ts",
 ]);
 
-const reviewOnlyFiles = new Set([
-  "apps/api/src/services/authorRealizationStrategyLattice.ts",
-]);
+const reviewOnlyFiles = new Set();
 
 function read(path) {
   return readFileSync(join(root, path), "utf8");
