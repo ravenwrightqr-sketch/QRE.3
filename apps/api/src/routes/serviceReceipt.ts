@@ -9,6 +9,8 @@ import { db } from "@qre/db";
 
 const router = Router();
 
+type JsonCompatible = string | number | boolean | null | JsonCompatible[] | { [key: string]: JsonCompatible };
+
 function clean(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
@@ -20,6 +22,23 @@ function stringList(value: unknown, max = 8): string[] {
     .map(clean)
     .filter(Boolean)
     .slice(0, max);
+}
+
+function toJson(value: unknown): JsonCompatible {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(toJson);
+  }
+  if (typeof value === "object") {
+    const output: Record<string, JsonCompatible> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      output[key] = toJson(item);
+    }
+    return output;
+  }
+  return String(value);
 }
 
 function recipientFrom(value: string) {
@@ -40,7 +59,7 @@ router.post("/create", requireAuth, async (req, res) => {
     const different = clean(req.body?.different);
     const notes = clean(req.body?.notes);
     const mediaUrls = stringList(req.body?.mediaUrls, 8);
-    const geo = req.body?.geo && typeof req.body.geo === "object"
+    const geo = req.body?.geo && typeof req.body?.geo === "object"
       ? req.body.geo as Record<string, unknown>
       : undefined;
     const userId = req.user?.userId;
@@ -66,9 +85,8 @@ router.post("/create", requireAuth, async (req, res) => {
       select: { id: true, slug: true, category: true },
     });
 
-    if (!asset) return res.status(404).json({ success: false, error: "Active QRE asset not found or not owned by this account." });
-    if (asset.category !== "service" && asset.category !== "business") {
-      return res.status(400).json({ success: false, error: "Service receipts require a service or business asset." });
+    if (!asset) {
+      return res.status(404).json({ success: false, error: "Active QRE asset not found or not owned by this account." });
     }
 
     const sessionId = randomUUID();
@@ -126,11 +144,11 @@ router.post("/create", requireAuth, async (req, res) => {
       data: {
         status: "completed",
         endedAt: new Date(),
-        moments: experience.moments,
-        geoStory: experience.geoStory,
-        cinematicScenes: experience.cinematicScenes,
-        memorySnapshot: experience.memorySnapshot,
-        receipt,
+        moments: toJson(experience.moments) as any,
+        geoStory: toJson(experience.geoStory) as any,
+        cinematicScenes: toJson(experience.cinematicScenes) as any,
+        memorySnapshot: toJson(experience.memorySnapshot) as any,
+        receipt: toJson(receipt) as any,
       },
     });
 
