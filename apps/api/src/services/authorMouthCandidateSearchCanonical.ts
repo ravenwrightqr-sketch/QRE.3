@@ -53,7 +53,7 @@ const GENERIC_SUMMARY = /^(?:something happened|something changed|something shif
 const ABSTRACT_NOUN = /\b(?:lightness|stillness|softness|warmth|tension|pressure|presence|absence|recognition|connection|possibility|momentum|energy|rhythm|silence|distance|closeness|uncertainty|comfort|relief|contentment|satisfaction|release|ease|bloom|weight|space|pull|gravity|dissonance|acknowledgement|acknowledgment|resonance)\b/i;
 const FRAME_NOUN = /\b(?:lawyer|judge|witness|detective|agent|captain|boss|mission|operation|case|verdict|negotiation|negotiations|level|quest|upgrade|extraction|inspection|war|victory|champion|legend|showtime|final|reset|boss fight|character)\b/i;
 const FRAME_VERB = /\b(?:called|resumed|approved|cleared|secured|completed|started|began|ended|won|lost|continued|returned|reopened|settled|entered|left|passed|failed|made|earned|survived|finished)\b/i;
-const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|approved|complete|finished|upgrade|victory|win|winner|exit|peace|temporary|temporarily|resumed|made it|level|mission|operation|case|verdict|negotiations?|final|reset|legend|perfect)\b/i;
+const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|approved|complete|finished|upgrade|victory|win|winner|exit|peace|temporary|temporarily|resumed|made it|level|mission|operation|case|verdict|negotiations?|final|reset|legend|perfect|apparently|anyway|for now)\b/i;
 const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const PERSON_ROLE = /\b(?:groomer|barber|mechanic|housekeeper|cleaner|waiter|waitress|server|chef|driver|photographer|planner|officiant|vendor|host|manager|employee|staff|worker|therapist|doctor|nurse|teacher|agent|lawyer|judge|witness|detective|captain|boss)\b/i;
@@ -108,7 +108,10 @@ function roleIsActuallySupplied(role: string, envelope: RealityEnvelope): boolea
 function isFrameOnly(text: string): boolean {
   const value = clean(text);
   if (!value || value.length > 64) return false;
-  return FRAME_NOUN.test(value) && (FRAME_VERB.test(value) || STATUS.test(value)) && !DETERMINED_ROLE.test(value);
+  if (DETERMINED_ROLE.test(value)) return false;
+  if (FRAME_NOUN.test(value) && (FRAME_VERB.test(value) || STATUS.test(value))) return true;
+  // Expressive status/attitude is framing, not a new concrete event.
+  return words(value).length <= 5 && STATUS.test(value) && !PHYSICAL_VERB.test(value) && !BODY.test(value);
 }
 
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
@@ -175,7 +178,6 @@ function payoffScore(text: string, beat: MouthCandidateBeat): number {
   let score = count <= 2 ? 1 : count <= 5 ? 0.92 : count <= 8 ? 0.72 : 0.42;
   if (STATUS.test(value)) score += 0.25;
   if (/\b(?:peace|for now|temporary|temporarily|exit|fab|fabulous|dapper|done|made it|win|winner|finished|approved|cleared)\b/i.test(value)) score += 0.25;
-  if (!normalize(value).includes(normalize(sourceLabels(beat, { ...({} as RealityEnvelope), events: [] } as never)[0] ?? ""))) score += 0.05;
   return metric(score);
 }
 
@@ -245,23 +247,22 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const supportedRelationPairs = beat.relationKinds?.map((kind) => String(kind)).filter(Boolean) ?? [];
   const grounding = metric(sourceOverlap * 0.46 + worldOverlap * 0.18 + (exact ? 0.36 : 0));
   const obligation = metric((beat.eventIds?.length ? 0.45 : 0.25) * 0.42 + baseSemantic * 0.38 + (supportedEventIds.length ? 0.2 : 0));
-  const transition = metric(
-    clean(beat.viewerState?.stateShift) ? Number(beat.viewerState?.stateShift) : 0.45,
-  );
+  const transition = metric(Number(beat.viewerState?.stateShift) || 0.45);
   const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
-  const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
-  const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
+  const expressiveFrame = isFrameOnly(value);
+  const distinctive = metric(form * 0.24 + meaning * 0.26 + novelty * 0.14 + (expressiveFrame ? 0.2 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.04 : 0));
+  const discovery = metric(meaning * 0.32 + transition * 0.22 + distinctive * 0.22 + novelty * 0.1 + (expressiveFrame ? 0.14 : 0));
   const score = metric(
-    grounding * 0.1 +
-    obligation * 0.1 +
-    meaning * 0.22 +
+    grounding * 0.07 +
+    obligation * 0.08 +
+    meaning * 0.2 +
     transition * 0.12 +
-    novelty * 0.1 +
+    novelty * 0.09 +
     form * 0.1 +
-    discovery * 0.12 +
+    discovery * 0.16 +
     distinctive * 0.08 +
-    payoff * 0.12 -
-    abstract * 0.16,
+    payoff * 0.18 -
+    abstract * 0.18,
   );
 
   const reasons: string[] = [];
@@ -269,7 +270,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
   if (grounding >= 0.45) reasons.push("beat-grounded");
   if (baseSemantic >= 0.5) reasons.push("approved-semantic-realization");
-  if (isFrameOnly(value)) reasons.push("bounded-creative-bet");
+  if (expressiveFrame) reasons.push("bounded-creative-bet");
   if (distinctive >= 0.64) reasons.push("distinctive-realization");
   if (discovery >= 0.62) reasons.push("observer-discovery");
   if (payoff >= 0.62) reasons.push("viewer-reward");
@@ -307,15 +308,17 @@ function buildSystemPrompt(): string {
     "Your only job is to find the strongest CUT for the viewer.",
     "FEEL IT. DO NOT EXPLAIN IT.",
     "The viewer should think: WHAT? WHY? WAIT. OH. WHAT HAPPENS NEXT?",
-    "Use short, specific, surprising, grounded language.",
+    "READ THE WHOLE SEQUENCE before realizing any individual beat. A later supplied state can give an earlier cut attitude or suspense, and an earlier detail can make a later cut land harder.",
+    "Do not merely paraphrase the current source line. Search for the meaning the entire supplied sequence earns at this point.",
     "Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff.",
+    "A short status line such as a verdict, send-off, identity statement, or attitude can be excellent even when its exact words do not occur in the source.",
     "Do not turn every emotion into an abstract noun.",
     "Avoid a/an/the + abstract noun unless it is genuinely specific and earned.",
     "Do not produce poetry soup: lightness, stillness, softness, resonance, contentment, a quiet bloom, the weight lifted, etc. unless the supplied material specifically earns that exact image.",
     "Do not narrate the machine. Never mention cognition, beats, candidates, viewer states, semantics, trajectories, planning, or meaning.",
     "A role inside source evidence is not automatically a character. 'groomer cleaned him up' does not authorize 'the groomer...' or a new action by that person.",
     "Do not invent a smile, shrug, eyebrow, walk, touch, breath, voice, room detail, object, weather, lighting, dialogue, motive, chronology, or physical event unless supplied.",
-    "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
+    "Framing freedom is high: status, title, verdict, mission, operation, negotiation, inspection, game state, celebrity/status language, and other obviously interpretive frames are allowed when they do not assert a new concrete occurrence.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
@@ -330,7 +333,9 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
   const beats = input.beats.map((beat) => ({
     order: beat.order,
     supplied: sourceLabels(beat, input.envelope),
+    approvedMeaning: clean(beat.change),
     purpose: clean(beat.attentionFunction || beat.role),
+    next: clean(beat.next || beat.frontier),
     relationKinds: beat.relationKinds ?? [],
     terminal: Boolean(beat.paysOff?.length),
   }));
@@ -346,6 +351,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         suppliedReality: evidence,
         priorCuts: input.priorTexts ?? [],
         beats,
+        globalInstruction: "Treat the complete beat list as one miniature film. Discover the strongest change in state, status, relationship, expectation, or implication that the supplied reality earns, then realize each beat without explaining it.",
         output: {
           variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order",
         },
