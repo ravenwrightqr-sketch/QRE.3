@@ -254,17 +254,6 @@ if (!/viewerState\?\.stateShift/.test(mouthSource)) {
   );
 }
 
-if (
-  /setsUp\s*\??\.?\s*.*map\(|paysOff\s*\??\.?\s*.*map\(/s.test(
-    mouthSource,
-  ) &&
-  /function\s+sourceLabels\s*\(/.test(mouthSource)
-) {
-  warn(
-    "Canonical Mouth contains setsUp/paysOff mapping logic; inspect manually if those values ever become source labels",
-  );
-}
-
 const legacyMouthSource = existsSync(join(root, legacyMouth))
   ? read(legacyMouth)
   : "";
