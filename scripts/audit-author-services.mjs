@@ -23,6 +23,7 @@ const RETIRED = new Set([
   "authorMouthRepairPlanner.ts",
   "authorCumulativeMeaning.ts",
   "authorLatentMovieBeatAdapter.ts",
+  "authorLatentMovieSearch.ts",
 ]);
 
 function filesUnder(dir) {
@@ -113,7 +114,6 @@ const likelyOrphans = serviceFiles.filter((path) => {
   if (name === "authorRealityGraph.ts") return false;
   if (name === "authorRealityEnvelope.ts") return false;
   if (name === "authorCognition.ts") return false;
-  if (name === "authorLatentMovieSearch.ts") return false;
   if (name === "authorMovieDifferentiation.ts") return false;
   if (name === "authorBeatTruthGate.ts") return false;
   if (name === "authorCutPolicy.ts") return false;
