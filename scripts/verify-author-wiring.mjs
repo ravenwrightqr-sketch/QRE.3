@@ -101,13 +101,13 @@ const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(pack
 check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
 
 const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-const provenanceStart = mouthSource.indexOf("function sourceLabelsForBeat(");
+const provenanceStart = mouthSource.indexOf("function sourceLabels(");
 const provenanceEnd = provenanceStart >= 0 ? mouthSource.indexOf("function worldEvidence(", provenanceStart) : -1;
 const provenanceSource = provenanceStart >= 0 && provenanceEnd > provenanceStart
   ? mouthSource.slice(provenanceStart, provenanceEnd)
   : "";
 const provenanceValid =
-  provenanceSource.includes("function sourceLabelsForBeat") &&
+  provenanceSource.includes("function sourceLabels") &&
   provenanceSource.includes("beat.eventIds") &&
   provenanceSource.includes("envelope.events.find((event) => event.id === id)");
 check(
