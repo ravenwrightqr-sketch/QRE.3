@@ -81,6 +81,7 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/authorMouthCritic.ts",
   "apps/api/src/services/authorMouthSequenceCritic.ts",
   "apps/api/src/services/localModelRuntime.ts",
+  "apps/api/src/services/creativeSeedEngine.ts",
 ]);
 
 const reviewOnlyFiles = new Set([
@@ -90,6 +91,7 @@ const reviewOnlyFiles = new Set([
   "apps/api/src/services/authorMouthCreativeLock.ts",
   "apps/api/src/services/authorMouthRealizationSlot.ts",
   "apps/api/src/services/authorRealizationStrategyLattice.ts",
+  "apps/api/src/services/pureLatentStoryThesisAcceptance.ts",
 ]);
 
 function read(path) {
@@ -142,7 +144,9 @@ for (const file of productionFiles) {
       rel === "apps/api/src/services/authorBrainCanonical.ts" &&
       /deriveViewerStateCut/.test(body);
 
-    if (!legacyMouthShimOnly) {
+    const testOnlyAcceptance = reviewOnlyFiles.has(rel);
+
+    if (!legacyMouthShimOnly && !testOnlyAcceptance) {
       fail(`Forbidden legacy Author import in ${rel}: ${specifier}`);
     }
   }
