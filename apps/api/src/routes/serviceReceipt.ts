@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { compileExperience } from "../services/experienceService.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { createStoryDeliveryRepository } from "../repositories/storyDeliveryRepository.js";
-import { createStoryDelivery } from "@qre/engine";
+import { buildServiceReceipt, createStoryDelivery } from "@qre/engine";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { db } from "@qre/db";
 
@@ -20,6 +20,13 @@ function stringList(value: unknown, max = 8): string[] {
     .map(clean)
     .filter(Boolean)
     .slice(0, max);
+}
+
+function recipientFrom(value: string) {
+  const recipient = clean(value);
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return { email: recipient };
+  if (/^[+\d][\d\s().-]{6,}$/.test(recipient)) return { phone: recipient };
+  return undefined;
 }
 
 router.post("/create", requireAuth, async (req, res) => {
@@ -45,7 +52,6 @@ router.post("/create", requireAuth, async (req, res) => {
       where: { id: assetId, status: "active" },
       select: { id: true, slug: true, category: true },
     });
-
     if (!asset) return res.status(404).json({ success: false, error: "Active QRE asset not found." });
 
     const sessionId = randomUUID();
@@ -56,8 +62,8 @@ router.post("/create", requireAuth, async (req, res) => {
       odd ? `Anything odd: ${odd}.` : "",
       different ? `Anything different: ${different}.` : "",
       notes ? `Additional notes: ${notes}.` : "",
-      mediaUrls.length ? `Attached media references: ${mediaUrls.join(" | ")}.` : "",
-      "Create a short customer-facing cinematic service receipt film. Stay anchored to the supplied reality. Find the strongest memorable meaning without inventing concrete events.",
+      mediaUrls.length ? `Media attached by the service provider: ${mediaUrls.join(" | ")}.` : "",
+      "Create a short customer-facing cinematic service receipt film. Stay anchored to supplied reality. Discover the strongest memorable meaning without inventing concrete events.",
     ].filter(Boolean).join("\n");
 
     const experience = await compileExperience({
@@ -82,11 +88,17 @@ router.post("/create", requireAuth, async (req, res) => {
         : undefined,
     });
 
+    const receipt = buildServiceReceipt({
+      asset: { ...asset, experience: { title: experience.title, sourcePrompt: prompt } },
+      sessionId,
+      moments: experience.moments,
+    });
+
     const delivery = await createStoryDelivery({
       assetId: asset.id,
       sessionId,
       userId: req.user?.userId ?? null,
-      recipient: recipient.includes("@") ? { email: recipient } : { phone: recipient },
+      recipient: recipientFrom(recipient),
       moments: experience.moments as any,
       geoStory: experience.geoStory as any,
       cinematicScenes: experience.cinematicScenes as any,
@@ -101,7 +113,7 @@ router.post("/create", requireAuth, async (req, res) => {
         geoStory: experience.geoStory,
         cinematicScenes: experience.cinematicScenes,
         memorySnapshot: experience.memorySnapshot,
-        receipt: experience.receipt,
+        receipt,
       },
     });
 
@@ -112,6 +124,7 @@ router.post("/create", requireAuth, async (req, res) => {
       shareUrl: delivery.shareUrl,
       delivered: delivery.delivered,
       deliveryReason: delivery.reason,
+      receipt,
       experience,
     });
   } catch (error) {
@@ -143,7 +156,6 @@ router.get("/share/:id", async (req, res) => {
     });
 
     if (!snapshot) return res.status(404).json({ success: false, error: "Experience not found." });
-
     return res.json({ success: true, share: snapshot });
   } catch (error) {
     console.error("Service receipt share lookup failed:", error);
