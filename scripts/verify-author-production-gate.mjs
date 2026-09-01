@@ -86,7 +86,6 @@ const allowedDirectModelCallers = new Set([
 
 const reviewOnlyFiles = new Set([
   "apps/api/src/services/authorRealizationStrategyLattice.ts",
-  "apps/api/src/services/pureLatentStoryThesisAcceptance.ts",
 ]);
 
 function read(path) {
