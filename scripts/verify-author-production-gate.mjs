@@ -87,8 +87,6 @@ const allowedDirectModelCallers = new Set([
 const reviewOnlyFiles = new Set([
   "apps/api/src/services/authorBeatPlanRecovery.ts",
   "apps/api/src/services/authorCreativeInterpretationAcceptance.ts",
-  "apps/api/src/services/authorCreativeSearch.ts",
-  "apps/api/src/services/authorMouthCreativeLock.ts",
   "apps/api/src/services/authorMouthRealizationSlot.ts",
   "apps/api/src/services/authorRealizationStrategyLattice.ts",
   "apps/api/src/services/pureLatentStoryThesisAcceptance.ts",
