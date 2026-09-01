@@ -12,6 +12,12 @@ import {
   summarizeAuthorExperienceState,
 } from "./authorExperienceState.js";
 import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
+import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import {
+  classifyLens,
+  rankLensOpportunities,
+} from "./authorCharacterLensEngine.js";
+
 export type AuthorCognitionInput = {
   prompt: string;
   lens?: string;
@@ -91,7 +97,6 @@ const metric = (value: number): number =>
 const PRIOR_STATE_PREFIX =
   "QRE_AUTHOR_EXPERIENCE_STATE::";
 
-
 function domainContextText(context?: AuthorDomainContext): string[] {
   if (!context) return [];
   return [
@@ -106,6 +111,7 @@ function domainContextText(context?: AuthorDomainContext): string[] {
     ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
   ].filter(Boolean);
 }
+
 function eventById(
   graph: RealityGraph | undefined,
   id: string,
@@ -215,364 +221,39 @@ function enrichMovieCandidate(
     ),
   };
 }
-const AUTO_LENS_RULES: ReadonlyArray<{
-  lens: string;
-  terms: readonly string[];
-  relationKinds: readonly RealityGraph["relations"][number]["kind"][];
-  base: number;
-}> = [
-  {
-    lens: "game",
-    terms: [
-      "round",
-      "level",
-      "score",
-      "boost",
-      "power",
-      "stage",
-      "booted",
-      "cleared",
-      "complete",
-      "completed",
-      "next",
-    ],
-    relationKinds: [
-      "changes",
-      "causes",
-      "converges",
-    ],
-    base: 0.46,
-  },
-  {
-    lens: "spy",
-    terms: [
-      "logged",
-      "location",
-      "geo",
-      "watched",
-      "corner",
-      "evidence",
-      "tracked",
-      "target",
-      "mission",
-    ],
-    relationKinds: [
-      "involves",
-      "causes",
-      "before",
-      "after",
-    ],
-    base: 0.43,
-  },
-  {
-    lens: "heist",
-    terms: [
-      "evidence",
-      "stole",
-      "stolen",
-      "secured",
-      "operation",
-      "exit",
-      "clean",
-      "cleaned",
-      "disappeared",
-    ],
-    relationKinds: [
-      "causes",
-      "changes",
-      "converges",
-    ],
-    base: 0.4,
-  },
-  {
-    lens: "courtroom",
-    terms: [
-      "case",
-      "defense",
-      "court",
-      "judge",
-      "evidence",
-      "verdict",
-      "approved",
-      "denied",
-      "guilty",
-      "innocent",
-    ],
-    relationKinds: [
-      "changes",
-      "contrasts",
-      "causes",
-    ],
-    base: 0.4,
-  },
-  {
-    lens: "horror",
-    terms: [
-      "ghost",
-      "shadow",
-      "blood",
-      "dead",
-      "dark",
-      "watching",
-      "corner",
-      "haunted",
-      "disappeared",
-      "quiet",
-    ],
-    relationKinds: [
-      "before",
-      "after",
-      "repeats",
-      "contrasts",
-      "changes",
-    ],
-    base: 0.39,
-  },
-  {
-    lens: "noir",
-    terms: [
-      "case",
-      "evidence",
-      "quiet",
-      "late",
-      "dark",
-      "watched",
-      "secret",
-      "missing",
-      "returned",
-    ],
-    relationKinds: [
-      "before",
-      "after",
-      "changes",
-      "recontextualizes",
-    ],
-    base: 0.37,
-  },
-  {
-    lens: "romantic",
-    terms: [
-      "met",
-      "rave",
-      "eyes",
-      "familiar",
-      "connection",
-      "talked",
-      "every",
-      "day",
-      "vows",
-      "married",
-    ],
-    relationKinds: [
-      "converges",
-      "repeats",
-      "recontextualizes",
-      "changes",
-    ],
-    base: 0.42,
-  },
-  {
-    lens: "documentary",
-    terms: [
-      "time",
-      "miles",
-      "location",
-      "started",
-      "finished",
-      "recorded",
-      "measured",
-      "logged",
-    ],
-    relationKinds: [
-      "before",
-      "after",
-      "involves",
-      "belongs_to",
-    ],
-    base: 0.34,
-  },
-];
 
-function evidenceText(
-  input: AuthorCognitionInput,
-): string {
-  return [
-    ...domainContextText(input.domainContext),
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-    ...(
-      input.realityGraph?.events ?? []
-    ).map(
-      (event) => event.label,
-    ),
-  ]
-    .map(clean)
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function nativeRealityStrength(
-  input: AuthorCognitionInput,
-): number {
-  const events =
-    input.realityGraph?.events ?? [];
-
-  if (!events.length) {
-    return 0.5;
-  }
-
-  const averageSpecificity =
-    events.reduce(
-      (sum, event) => {
-        const tokenCount =
-          clean(event.label)
-            .split(/\s+/)
-            .filter(Boolean)
-            .length;
-
-        const entityCount =
-          event.entities?.length ?? 0;
-
-        return (
-          sum +
-          Math.min(
-            1,
-            tokenCount / 9 +
-              entityCount / 12,
-          )
-        );
-      },
-      0,
-    ) / events.length;
-
-  const strongAction =
-    events.filter((event) =>
-      /\b(?:dodg(?:e|ed)|watch(?:ing|ed)?|met|talked|locked|opened|closed|returned|walked|ran|cleaned|finished|started|danced|married|kissed|built|bought|sold)\b/i.test(
-        event.label,
-      ),
-    ).length;
-
-  return metric(
-    averageSpecificity * 0.72 +
-      Math.min(
-        1,
-        strongAction /
-          Math.max(
-            1,
-            events.length,
-          ),
-      ) *
-        0.28,
-  );
-}
-
+/**
+ * Auto lens selection is owned by the canonical character-lens engine.
+ * Cognition supplies the canonical RealityEnvelope so there is one lens
+ * registry and one opportunity-ranking implementation.
+ */
 function autoLensCandidates(
   input: AuthorCognitionInput,
 ): CharacterFrameCandidate[] {
-  const text =
-    evidenceText(input);
-
-  const relationKinds =
-    new Set(
-      input.realityGraph?.relations.map(
-        (relation) =>
-          relation.kind,
-      ) ?? [],
-    );
-
-  const native =
-    nativeRealityStrength(input);
-
-  const scored =
-    AUTO_LENS_RULES.map(
-      (rule) => {
-        const termHits =
-          rule.terms.filter(
-            (term) =>
-              text.includes(term),
-          ).length;
-
-        const relationHits =
-          rule.relationKinds.filter(
-            (kind) =>
-              relationKinds.has(
-                kind,
-              ),
-          ).length;
-
-        const keywordScore =
-          Math.min(
-            1,
-            termHits / 4,
-          );
-
-        const relationScore =
-          Math.min(
-            1,
-            relationHits / 3,
-          );
-
-        const confidence =
-          metric(
-            rule.base +
-              keywordScore *
-                0.34 +
-              relationScore *
-                0.16,
-          );
-
-        return {
-          frame: rule.lens,
-          reason: `${rule.lens} fits supplied vocabulary/relations without changing reality.`,
-          confidence,
-        };
-      },
-    ).sort(
-      (left, right) =>
-        right.confidence -
-        left.confidence,
-    );
-
-  const best =
-    scored[0];
-
-  if (
-    !best ||
-    best.confidence < 0.68 ||
-    native >=
-      best.confidence + 0.12
-  ) {
+  if (!input.realityGraph) {
     return [
       {
         frame: "NONE",
         reason:
-          "No creative lens materially improves the supplied reality; preserve the native material.",
-        confidence: metric(
-          Math.max(
-            0.7,
-            native,
-          ),
-        ),
+          "RealityGraph unavailable; preserve supplied reality until a canonical world representation exists.",
+        confidence: 0,
       },
     ];
   }
 
-  return [
-    best,
-    {
-      frame: "NONE",
-      reason:
-        "Natural reality remains the safe fallback when no lens is materially stronger.",
-      confidence: metric(
-        Math.max(
-          0.55,
-          native,
-        ),
-      ),
-    },
-  ];
+  const envelope =
+    buildAuthorRealityEnvelope({
+      graph: input.realityGraph,
+      subject: input.subject,
+    });
+
+  return rankLensOpportunities(
+    envelope,
+  ).map((candidate) => ({
+    frame: candidate.frame,
+    reason: candidate.reason,
+    confidence: candidate.confidence,
+  }));
 }
 
 function resolveLens(
@@ -624,38 +305,39 @@ function movieFor(
       latentMovieCandidates: [],
     };
   }
-const searched =
-  searchUniversalMovieCandidates({
-    graph: input.realityGraph,
-    subject: input.subject,
-    lens,
-    limit: 10,
-  });
 
-const enriched =
-  searched.map((candidate) =>
-    enrichMovieCandidate(
-      candidate,
+  const searched =
+    searchUniversalMovieCandidates({
+      graph: input.realityGraph,
+      subject: input.subject,
+      lens,
+      limit: 10,
+    });
+
+  const enriched =
+    searched.map((candidate) =>
+      enrichMovieCandidate(
+        candidate,
+        input.realityGraph,
+      ),
+    );
+
+  const differentiated =
+    selectDistinctMovieCandidates(
+      enriched,
+      6,
+    );
+
+  const candidates =
+    rerankByViewerState(
       input.realityGraph,
-    ),
-  );
+      differentiated,
+    );
 
-const differentiated =
-  selectDistinctMovieCandidates(
-    enriched,
-    6,
-  );
-
-const candidates =
-  rerankByViewerState(
-    input.realityGraph,
-    differentiated,
-  );
-
-return {
-  latentMovieCandidates: candidates,
-  selectedMovie: candidates[0],
-};
+  return {
+    latentMovieCandidates: candidates,
+    selectedMovie: candidates[0],
+  };
 }
 
 function traits(
@@ -741,11 +423,11 @@ function frames(
     explicit.toLowerCase() !==
       "let qre decide"
   ) {
+    const profile = classifyLens(explicit);
     return [
       {
         frame: explicit,
-        reason:
-          "explicit user perspective",
+        reason: `explicit user perspective; ${profile.label} may amplify ${profile.framingBias.slice(0, 4).join(", ")} without changing reality`,
         confidence: 0.95,
       },
     ];
@@ -923,7 +605,7 @@ function buildAntiRepetitionRules():
     "Prefer the strongest connected evidence over complete source coverage.",
     "Identity metadata is world state, not an automatic experience sequence item.",
     "Do not promote a lens phrase into a fact.",
-    "A semantic turn must cite a real graph relationship.",
+    "A semantic turn must cite a real graph relationship or sequence-backed supplied interpretation.",
     "Leave an authorized future thread alive when continuation value is high.",
   ];
 }
@@ -932,11 +614,17 @@ function buildSceneRules(
   experienceState:
     | AuthorExperienceState
     | undefined,
+  selectedLens: string,
 ): string[] {
+  const lens = classifyLens(selectedLens);
   return [
     "One cut is one viewer-facing sequence moment; there is no fixed word-count target.",
     "Use the minimum language required for the cut to land.",
     "Creative language may change framing and attitude but never source truth.",
+    "The selected lens is an amplification grammar: intensify only the dimensions already supported by supplied reality.",
+    `Lens amplification: ${lens.framingBias.slice(0, 8).join(", ")}.`,
+    `Preferred realization moves: ${lens.realizationPreferences.join(", ")}.`,
+    `Forbidden lens moves remain hard constraints: ${lens.forbiddenRealityMoves.join(", ")}.`,
     "A cut should change the viewer state through attention, curiosity, contrast, interruption, accumulation, or payoff.",
     "Finish when the selected payoff lands; do not manufacture a final event.",
     "Treat NONE as a valid authorial lens decision when the supplied material itself has stronger character than a genre frame.",
@@ -1004,7 +692,8 @@ export function buildAuthorCognitivePlan(
         ...input.sourceMoments,
         ...(
           input.realityGraph
-            ?.events ?? []
+            ?.events ??
+          []
         ).map(
           (event) =>
             event.label,
@@ -1057,6 +746,7 @@ export function buildAuthorCognitivePlan(
       "recontextualization",
       "revisit",
       "future tease",
+      "lens amplification",
     ],
 
     avoidedMoves: [
@@ -1065,6 +755,7 @@ export function buildAuthorCognitivePlan(
       "invented locations",
       "invented reactions",
       "invented chronology",
+      "literalized lens props",
       "planner language",
       "analytic explanation",
     ],
@@ -1099,6 +790,7 @@ export function buildAuthorCognitivePlan(
   const sceneRules =
     buildSceneRules(
       experienceState,
+      selectedLens,
     );
 
   const graphSummary =
@@ -1131,8 +823,11 @@ export function buildAuthorCognitivePlan(
         ].join(" ")
       : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
 
+  const lensProfile =
+    classifyLens(selectedFrame);
+
   const frameSummary =
-    `FRAME: ${selectedFrame}. A frame changes perspective, never reality.`;
+    `FRAME: ${selectedFrame}. AMPLIFY: ${lensProfile.framingBias.join(", ")}. PREFER: ${lensProfile.realizationPreferences.join(", ")}. A frame changes perspective, never reality.`;
 
   const authorBrief =
     [
@@ -1146,6 +841,7 @@ export function buildAuthorCognitivePlan(
           )
         : []),
       "Reality is immutable. Creativity never becomes evidence.",
+      "Lens is an amplification grammar, not permission to add world facts.",
     ];
 
   return {
