@@ -64,8 +64,10 @@ export function authorExperienceStateToMemoryBatch(input: {
   state: AuthorExperienceState;
   occurredAt?: string;
   sourceRef?: string;
+  operationId?: string;
 }): MemoryWriteBatch {
   const occurredAt = input.occurredAt ?? new Date().toISOString();
+  void input.operationId;
   const summary = [
     `Author chapter: ${input.state.chapter.operations.join(" → ") || "empty"}.`,
     `Tempo: ${input.state.tempo.mode}.`,
