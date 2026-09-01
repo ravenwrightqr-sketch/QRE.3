@@ -7,6 +7,8 @@ import LearningDashboard from "./pages/LearningDashboard";
 import CollaborationDashboard from "./pages/CollaborationDashboard";
 import QreInfo from "./pages/QreInfo";
 import ExperiencePreview from "./pages/ExperiencePreview";
+import ServiceReceipt from "./pages/ServiceReceipt";
+import SharedExperience from "./pages/SharedExperience";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateAsset from "./pages/admin/CreateAsset";
 import Checkout from "./pages/Checkout";
@@ -23,15 +25,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#030509",
-          color: "#00ffcc",
-        }}
-      >
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#030509", color: "#00ffcc" }}>
         LOADING QRE NODE...
       </div>
     );
@@ -46,12 +40,14 @@ export default function App() {
         <Route path="/login" element={isAuthed ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
         <Route path="/dashboard" element={gate(<Dashboard />)} />
+        <Route path="/dashboard/service-receipt" element={gate(<ServiceReceipt />)} />
         <Route path="/dashboard/info" element={gate(<QreInfo />)} />
         <Route path="/dashboard/assets/:slug" element={gate(<AssetDashboard />)} />
         <Route path="/dashboard/assets/:slug/knowledge" element={gate(<KnowledgeDashboard />)} />
         <Route path="/dashboard/assets/:slug/learning" element={gate(<LearningDashboard />)} />
         <Route path="/dashboard/assets/:slug/collaboration" element={gate(<CollaborationDashboard />)} />
         <Route path="/experience/preview" element={gate(<ExperiencePreview />)} />
+        <Route path="/share/:id" element={<SharedExperience />} />
         <Route path="/admin" element={gate(<AdminDashboard />)} />
         <Route path="/admin/create" element={gate(<CreateAsset />)} />
         <Route path="/checkout/:slug" element={<Checkout />} />
