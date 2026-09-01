@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CSSProperties } from "react";
 
 type Props = {
@@ -5,7 +6,7 @@ type Props = {
   category?: string | null;
   hasLocation: boolean;
   hasTime: boolean;
-  onAdd: (question: string) => void;
+  onAdd: (question: string, answer: string) => void;
 };
 
 function buildQuestions({ prompt, category, hasLocation, hasTime }: Omit<Props, "onAdd">): string[] {
@@ -35,6 +36,9 @@ function buildQuestions({ prompt, category, hasLocation, hasTime }: Omit<Props, 
 
 export default function AdaptiveNoticePrompts({ prompt, category, hasLocation, hasTime, onAdd }: Props) {
   const questions = buildQuestions({ prompt, category, hasLocation, hasTime });
+  const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
+
   if (!questions.length) return null;
 
   const shell: CSSProperties = {
@@ -59,6 +63,22 @@ export default function AdaptiveNoticePrompts({ prompt, category, hasLocation, h
     fontSize: 10,
     letterSpacing: 1,
   };
+  const answerShell: CSSProperties = { display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" };
+  const answerInput: CSSProperties = { flex: "1 1 260px", minWidth: 180, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.18)", color: "#fff", borderRadius: 999, padding: "8px 11px", outline: "none" };
+  const answerButton: CSSProperties = { ...chip, borderColor: "rgba(185,255,241,.22)", color: "#d9fff7" };
+
+  function choose(question: string) {
+    setActiveQuestion(question);
+    setAnswer("");
+  }
+
+  function submit() {
+    const value = answer.replace(/\s+/g, " ").trim();
+    if (!activeQuestion || !value) return;
+    onAdd(activeQuestion, value);
+    setActiveQuestion(null);
+    setAnswer("");
+  }
 
   return (
     <section style={shell} aria-label="Optional details QRE noticed">
@@ -66,11 +86,27 @@ export default function AdaptiveNoticePrompts({ prompt, category, hasLocation, h
       <div style={text}>Add only what matters. Skip everything else.</div>
       <div style={row}>
         {questions.map((question) => (
-          <button key={question} type="button" onClick={() => onAdd(question)} style={chip}>
+          <button key={question} type="button" onClick={() => choose(question)} style={chip}>
             {question}
           </button>
         ))}
       </div>
+      {activeQuestion && (
+        <div style={answerShell}>
+          <input
+            autoFocus
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") submit(); if (event.key === "Escape") setActiveQuestion(null); }}
+            placeholder={`${activeQuestion.replace(/\?$/, "")}...`}
+            style={answerInput}
+            aria-label={activeQuestion}
+          />
+          <button type="button" onClick={submit} disabled={!answer.trim()} style={{ ...answerButton, opacity: answer.trim() ? 1 : .38 }}>
+            ADD
+          </button>
+        </div>
+      )}
     </section>
   );
 }
