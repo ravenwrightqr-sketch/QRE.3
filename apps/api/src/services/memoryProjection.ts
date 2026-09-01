@@ -42,12 +42,6 @@ function entityId(assetId: string, kind: MemoryEntityKind, value: string): strin
   return stableId(assetId, kind, value);
 }
 
-/**
- * Canonical durable ID for a RealityGraph event entity.
- *
- * Every projection surface uses this exact identity rule. The event entity,
- * its fact, relations, and memory-event references therefore cannot drift.
- */
 function eventEntityId(assetId: string, event: RealityEvent): string {
   return entityId(assetId, "event", event.label);
 }
@@ -76,7 +70,6 @@ function addEntity(
 
 function buildEntities(assetId: string, graph: RealityGraph) {
   const entities = new Map<string, MemoryWriteBatch["entities"][number]>();
-
   for (const event of graph.events) {
     const id = eventEntityId(assetId, event);
     entities.set(id, {
@@ -86,39 +79,20 @@ function buildEntities(assetId: string, graph: RealityGraph) {
       canonicalKey: lower(event.label),
       confidence: 0.95,
       visibility: VISIBILITY,
-      metadata: {
-        realityRole: "event",
-        realityEventId: event.id,
-      },
+      metadata: { realityRole: "event", realityEventId: event.id },
     });
-
     for (const value of event.entities) {
-      addEntity(entities, assetId, "object", value, 0.85, {
-        realityRole: "event_entity",
-        realityEventId: event.id,
-      });
+      addEntity(entities, assetId, "object", value, 0.85, { realityRole: "event_entity", realityEventId: event.id });
     }
-
     if (event.place) {
-      addEntity(entities, assetId, "place", event.place, 1, {
-        realityRole: "place",
-        realityEventId: event.id,
-      });
+      addEntity(entities, assetId, "place", event.place, 1, { realityRole: "place", realityEventId: event.id });
     }
   }
-
   return [...entities.values()];
 }
 
-function buildFacts(
-  assetId: string,
-  graph: RealityGraph,
-  source: MemorySource,
-  observedAt: string,
-  sessionId?: string,
-): MemoryFactWrite[] {
+function buildFacts(assetId: string, graph: RealityGraph, source: MemorySource, observedAt: string, sessionId?: string): MemoryFactWrite[] {
   const facts: MemoryFactWrite[] = [];
-
   for (const event of graph.events) {
     facts.push({
       entityId: eventEntityId(assetId, event),
@@ -131,16 +105,8 @@ function buildFacts(
       status: "active",
       observedAt,
       visibility: VISIBILITY,
-      metadata: {
-        realityEventId: event.id,
-        sourceIds: event.sourceIds,
-        entities: event.entities,
-        place: event.place,
-        time: event.time,
-        provenance: event.provenance,
-      },
+      metadata: { realityEventId: event.id, sourceIds: event.sourceIds, entities: event.entities, place: event.place, time: event.time, provenance: event.provenance },
     });
-
     if (event.place) {
       facts.push({
         entityId: entityId(assetId, "place", event.place),
@@ -157,7 +123,6 @@ function buildFacts(
       });
     }
   }
-
   return facts;
 }
 
@@ -167,33 +132,19 @@ function relationKindForEndpoint(graph: RealityGraph, endpoint: string): MemoryE
   return "object";
 }
 
-function eventForEndpoint(
-  graph: RealityGraph,
-  endpoint: string,
-): RealityEvent | undefined {
+function eventForEndpoint(graph: RealityGraph, endpoint: string): RealityEvent | undefined {
   return graph.events.find((event) => event.id === endpoint);
 }
 
-function buildRelations(
-  assetId: string,
-  graph: RealityGraph,
-  source: MemorySource,
-  observedAt: string,
-  sessionId?: string,
-): MemoryRelationWrite[] {
+function buildRelations(assetId: string, graph: RealityGraph, source: MemorySource, observedAt: string, sessionId?: string): MemoryRelationWrite[] {
   return graph.relations.map((relation) => {
     const fromEvent = eventForEndpoint(graph, relation.from);
     const toEvent = eventForEndpoint(graph, relation.to);
     const fromKind = relationKindForEndpoint(graph, relation.from);
     const toKind = relationKindForEndpoint(graph, relation.to);
-
     return {
-      fromEntityId: fromEvent
-        ? eventEntityId(assetId, fromEvent)
-        : entityId(assetId, fromKind, relation.from),
-      toEntityId: toEvent
-        ? eventEntityId(assetId, toEvent)
-        : entityId(assetId, toKind, relation.to),
+      fromEntityId: fromEvent ? eventEntityId(assetId, fromEvent) : entityId(assetId, fromKind, relation.from),
+      toEntityId: toEvent ? eventEntityId(assetId, toEvent) : entityId(assetId, toKind, relation.to),
       relation: clean(relation.kind) || "connected_to",
       confidence: Math.min(1, Math.max(0, relation.strength)),
       source,
@@ -205,13 +156,7 @@ function buildRelations(
   });
 }
 
-function buildEvents(
-  assetId: string,
-  graph: RealityGraph,
-  source: MemorySource,
-  observedAt: string,
-  sessionId?: string,
-): MemoryEventWrite[] {
+function buildEvents(assetId: string, graph: RealityGraph, source: MemorySource, observedAt: string, sessionId?: string): MemoryEventWrite[] {
   return graph.events.map((event) => ({
     id: randomUUID(),
     type: "world_event",
@@ -225,13 +170,7 @@ function buildEvents(
       ...(event.place ? [entityId(assetId, "place", event.place)] : []),
     ],
     sessionId,
-    metadata: {
-      realityEventId: event.id,
-      sourceIds: event.sourceIds,
-      place: event.place,
-      time: event.time,
-      provenance: event.provenance,
-    },
+    metadata: { realityEventId: event.id, sourceIds: event.sourceIds, place: event.place, time: event.time, provenance: event.provenance },
   }));
 }
 
@@ -242,10 +181,11 @@ export function buildExperienceMemoryBatch(input: {
   sessionId?: string;
   source?: MemorySource;
   observedAt?: string;
+  operationId?: string;
 }): MemoryWriteBatch {
   const observedAt = input.observedAt ?? new Date().toISOString();
   const source = input.source ?? "prompt";
-
+  void input.operationId;
   return {
     assetId: input.assetId,
     userId: input.userId,
@@ -265,7 +205,6 @@ export function buildScanMemoryBatch(input: {
   const firstMoment = input.experience.moments[0];
   const momentText = firstMoment && "text" in firstMoment ? firstMoment.text : undefined;
   const summary = momentText ?? input.experience.memorySnapshot?.summary ?? "QRE experience scanned";
-
   return {
     assetId: input.assetId,
     userId: input.userId,
@@ -280,12 +219,7 @@ export function buildScanMemoryBatch(input: {
       confidence: 1,
       entityIds: [],
       sessionId: input.experience.sessionId ?? undefined,
-      metadata: {
-        preview: input.experience.preview,
-        momentCount: input.experience.moments.length,
-        sceneCount: input.experience.cinematicScenes.length,
-        access: input.experience.access,
-      },
+      metadata: { preview: input.experience.preview, momentCount: input.experience.moments.length, sceneCount: input.experience.cinematicScenes.length, access: input.experience.access },
     }],
   };
 }
