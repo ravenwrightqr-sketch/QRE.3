@@ -15,7 +15,8 @@ export type AuthorRealizationStrategy =
   | "personification"
   | "recontextualization"
   | "compression"
-  | "reversal";
+  | "reversal"
+  | "consequence";
 
 export type AuthorLensKind =
   | "comedy"
