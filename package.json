@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
-    "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs",
+    "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs && node ./scripts/verify-author-production-gate.mjs",
+    "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "build:contracts": "pnpm --filter @qre/contracts build",
@@ -41,7 +42,7 @@
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "stripe": "^22.2.1",
+    "stripe": "^22.2.3",
     "zod": "^4.4.3",
     "zustand": "5.0.14"
   }
