@@ -262,6 +262,9 @@ if (
   legacyMouthSource &&
   !/export\s+(?:async\s+)?function\s+buildMouthCandidateMessages/.test(
     legacyMouthSource,
+  ) &&
+  !/export\s*\{[\s\S]*\bbuildMouthCandidateMessages\b[\s\S]*\}\s+from\s+["'][^"']*authorMouthCandidateSearchCanonical\.js["']/.test(
+    legacyMouthSource,
   )
 ) {
   warn(
