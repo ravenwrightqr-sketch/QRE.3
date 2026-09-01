@@ -298,16 +298,111 @@ export function buildScanMemoryBatch(input: {
   };
 }
 
+/**
+ * Full-memory cognition projection.
+ *
+ * Do not collapse durable world context to a handful of recent events.
+ * Author is allowed to reason over the complete authorized memory surface:
+ * entities, active facts, relations, durable events, temporal metadata,
+ * and geographic/event context carried in metadata. This function remains
+ * a projection adapter: it does not infer new truth.
+ */
 export function memoryContextToCognitiveSummary(context: MemoryContext): string[] {
-  const byEntity = new Map(context.entities.map((entity) => [entity.id, entity.name]));
+  const byEntity = new Map(
+    context.entities.map((entity) => [entity.id, entity.name]),
+  );
+
+  const entityLines = context.entities
+    .filter((entity) => entity.confidence >= 0.5)
+    .map((entity) =>
+      `MEMORY ENTITY: ${entity.kind} | ${entity.name}`,
+    );
+
+  const eventLines = context.events.map((event) => {
+    const entities = event.entityIds
+      .map((id) => byEntity.get(id))
+      .filter(Boolean)
+      .join(", ");
+
+    const metadata =
+      event.metadata &&
+      typeof event.metadata === "object"
+        ? event.metadata
+        : undefined;
+
+    const place =
+      metadata && typeof metadata.place === "string"
+        ? clean(metadata.place)
+        : "";
+
+    const time =
+      metadata && typeof metadata.time === "string"
+        ? clean(metadata.time)
+        : "";
+
+    return [
+      `MEMORY EVENT: ${event.summary}`,
+      entities ? `ENTITIES: ${entities}` : "",
+      place ? `PLACE: ${place}` : "",
+      time ? `TIME: ${time}` : "",
+      `OCCURRED: ${event.occurredAt}`,
+      `CONFIDENCE: ${event.confidence}`,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+  });
+
+  const factLines = context.facts
+    .filter(
+      (fact) =>
+        fact.status === "active" &&
+        fact.confidence >= 0.5,
+    )
+    .map((fact) => {
+      const entity = fact.entityId
+        ? byEntity.get(fact.entityId)
+        : undefined;
+
+      return [
+        `MEMORY FACT: ${fact.predicate}: ${fact.value}`,
+        entity ? `ENTITY: ${entity}` : "",
+        `KIND: ${fact.kind}`,
+        `SOURCE: ${fact.source}`,
+        `OBSERVED: ${fact.observedAt}`,
+        fact.validFrom
+          ? `VALID FROM: ${fact.validFrom}`
+          : "",
+        fact.validTo
+          ? `VALID TO: ${fact.validTo}`
+          : "",
+        `CONFIDENCE: ${fact.confidence}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+    });
+
+  const relationLines = context.relations
+    .filter((relation) => relation.confidence >= 0.5)
+    .map((relation) => {
+      const from =
+        byEntity.get(relation.fromEntityId) ??
+        relation.fromEntityId;
+      const to =
+        byEntity.get(relation.toEntityId) ??
+        relation.toEntityId;
+
+      return [
+        `MEMORY RELATION: ${from} --${relation.relation}--> ${to}`,
+        `SOURCE: ${relation.source}`,
+        `OBSERVED: ${relation.observedAt}`,
+        `CONFIDENCE: ${relation.confidence}`,
+      ].join(" | ");
+    });
+
   return [
-    ...context.events.slice(0, 12).map((event) => {
-      const entities = event.entityIds.map((id) => byEntity.get(id)).filter(Boolean).join(", ");
-      return entities ? `${event.summary} (${entities})` : event.summary;
-    }),
-    ...context.facts
-      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
-      .slice(0, 32)
-      .map((fact) => `${fact.predicate}: ${fact.value}`),
+    ...entityLines,
+    ...eventLines,
+    ...factLines,
+    ...relationLines,
   ].filter(Boolean);
 }
