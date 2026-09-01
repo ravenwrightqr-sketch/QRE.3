@@ -16,6 +16,14 @@
  * A sequence can contain a meaningful turn even when RealityGraph has no
  * explicit relation edge between adjacent events. In that case this module
  * derives sequence-backed interpretations from the supplied language itself.
+ *
+ * Creative compression law:
+ *   DO NOT SUMMARIZE THE EVENTS.
+ *   COMPRESS THE RELATIONSHIP THAT MAKES THE EVENTS FEEL DIFFERENT TOGETHER.
+ *
+ * The compression must remain grounded in supplied entities, states, concrete
+ * objects, recurrence, status, contrast, and endpoint continuity. It should
+ * become more specific as the supplied reality becomes more specific.
  */
 
 import type {
@@ -101,15 +109,15 @@ const CONTINUATION = [
 ];
 
 const STATE = [
-  /\b(?:felt|feel|feels|seemed|seem|became|become|was|were|is|are)\b/i,
-  /\b(?:easy|hard|calm|nervous|happy|sad|proud|excited|confident|comfortable|relieved|fierce|cool|sharp|dapper|awkward|quiet|close|closer|distant|different|new|important|meaningful)\b/i,
+  /\b(?:felt|feel|feels|seemed|seem|became|become|was|were|is|are|looked|looks|look)\b/i,
+  /\b(?:easy|hard|calm|nervous|happy|sad|proud|excited|confident|comfortable|relieved|fierce|cool|sharp|dapper|awkward|quiet|close|closer|distant|different|new|fabulous|ready|good|glad|pleased|delighted)\b/i,
 ];
 
 const NEGATIVE_STATE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i;
-const POSITIVE_STATE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|sharp|dapper)\b/i;
+const POSITIVE_STATE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|sharp|dapper|ready)\b/i;
 
 const RECURRENCE = [
-  /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once\s+more)\b/i,
+  /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once\s+more|still|remember(?:ed|ing)?)\b/i,
 ];
 
 const CONTRAST = [
@@ -117,8 +125,12 @@ const CONTRAST = [
 ];
 
 const ACTION_OR_ENCOUNTER = [
-  /\b(?:met|meet|meeting|arrived|visited|started|called|texted|messaged|talked|talking|spoke|worked|played|danced|went|came|left|returned)\b/i,
+  /\b(?:met|meet|meeting|arrived|visited|started|called|texted|messaged|talked|talking|spoke|worked|played|danced|went|came|left|returned|watched|looked|chose|chosen|selected|picked|remembered)\b/i,
 ];
+
+const OBJECT = /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|bathroom|house|home|table|door|window|box|bag|cake|towel|towels|leash)\b/i;
+
+const CALLBACK_WORD = /\b(?:same|still|again|returned|return|back|remember(?:ed|ing)?|kept)\b/i;
 
 function buildCandidate(
   statement: string,
@@ -147,6 +159,200 @@ function span(
     (Math.max(...positions) - Math.min(...positions)) /
       Math.max(1, orderedEventIds.length - 1),
   );
+}
+
+function subjectName(graph: RealityGraph): string {
+  const continuity = [...(graph.entityContinuity ?? [])]
+    .sort((a, b) => b.salienceScore - a.salienceScore)[0];
+  return clean(continuity?.name);
+}
+
+function stateKind(label: string): "negative" | "positive" | "other" {
+  if (NEGATIVE_STATE.test(label)) return "negative";
+  if (POSITIVE_STATE.test(label)) return "positive";
+  return "other";
+}
+
+function concreteTokens(value: string): string[] {
+  return [...tokens(value)].filter((token) => OBJECT.test(token));
+}
+
+function bestConcreteCallback(
+  graph: RealityGraph,
+  orderedEventIds: readonly string[],
+): {
+  earlierId: string;
+  laterId: string;
+  object: string;
+  score: number;
+} | undefined {
+  let best:
+    | {
+        earlierId: string;
+        laterId: string;
+        object: string;
+        score: number;
+      }
+    | undefined;
+
+  for (let i = 0; i < orderedEventIds.length; i += 1) {
+    const earlierId = orderedEventIds[i]!;
+    const earlier = labelFor(graph, earlierId);
+    const earlierObjects = concreteTokens(earlier);
+    if (!earlierObjects.length) continue;
+
+    for (let j = i + 1; j < orderedEventIds.length; j += 1) {
+      const laterId = orderedEventIds[j]!;
+      const later = labelFor(graph, laterId);
+      const laterObjects = concreteTokens(later);
+      const shared = earlierObjects.filter((object) => laterObjects.includes(object));
+      if (!shared.length) continue;
+
+      const callback = CALLBACK_WORD.test(later);
+      const distance = j - i;
+      const spread = Math.min(0.2, distance * 0.03);
+      const score =
+        (callback ? 0.7 : 0.42) +
+        Math.min(0.2, shared.length * 0.08) +
+        spread;
+
+      if (!best || score > best.score) {
+        best = {
+          earlierId,
+          laterId,
+          object: shared[0]!,
+          score,
+        };
+      }
+    }
+  }
+
+  return best;
+}
+
+function bestStateTransition(
+  graph: RealityGraph,
+  orderedEventIds: readonly string[],
+): {
+  startId: string;
+  endId: string;
+  startLabel: string;
+  endLabel: string;
+  score: number;
+} | undefined {
+  const states = orderedEventIds
+    .map((id, index) => ({
+      id,
+      index,
+      label: labelFor(graph, id),
+    }))
+    .filter((item) => STATE.some((pattern) => pattern.test(item.label)));
+
+  let best:
+    | {
+        startId: string;
+        endId: string;
+        startLabel: string;
+        endLabel: string;
+        score: number;
+      }
+    | undefined;
+
+  for (const start of states) {
+    for (const end of states) {
+      if (end.index <= start.index) continue;
+
+      const startKind = stateKind(start.label);
+      const endKind = stateKind(end.label);
+      const polarity =
+        startKind === "negative" && endKind === "positive"
+          ? 1
+          : startKind !== endKind && startKind !== "other" && endKind !== "other"
+            ? 0.88
+            : startKind === "negative" || endKind === "positive"
+              ? 0.74
+              : 0.58;
+      const spread = Math.min(0.2, (end.index - start.index) * 0.035);
+      const subjectTouch =
+        subjectName(graph) &&
+        (start.label.toLowerCase().includes(subjectName(graph).toLowerCase()) ||
+          end.label.toLowerCase().includes(subjectName(graph).toLowerCase()))
+          ? 0.08
+          : 0;
+      const score = polarity * 0.72 + spread + subjectTouch;
+
+      if (!best || score > best.score) {
+        best = {
+          startId: start.id,
+          endId: end.id,
+          startLabel: start.label,
+          endLabel: end.label,
+          score,
+        };
+      }
+    }
+  }
+
+  return best;
+}
+
+function bestSubjectStatusTurn(
+  graph: RealityGraph,
+  orderedEventIds: readonly string[],
+): {
+  startId: string;
+  endId: string;
+  startLabel: string;
+  endLabel: string;
+  score: number;
+} | undefined {
+  const subject = subjectName(graph).toLowerCase();
+  if (!subject) return undefined;
+
+  const direct = orderedEventIds
+    .map((id, index) => ({ id, index, label: labelFor(graph, id) }))
+    .filter((item) => item.label.toLowerCase().includes(subject));
+
+  if (direct.length < 2) return undefined;
+
+  let best:
+    | {
+        startId: string;
+        endId: string;
+        startLabel: string;
+        endLabel: string;
+        score: number;
+      }
+    | undefined;
+
+  for (let i = 0; i < direct.length; i += 1) {
+    for (let j = i + 1; j < direct.length; j += 1) {
+      const start = direct[i]!;
+      const end = direct[j]!;
+      const startState = stateKind(start.label);
+      const endState = stateKind(end.label);
+      const statusShift =
+        startState !== endState
+          ? 1
+          : POSITIVE_STATE.test(end.label)
+            ? 0.84
+            : 0.56;
+      const callback = RECURRENCE.some((pattern) => pattern.test(end.label)) ? 0.14 : 0;
+      const score = statusShift * 0.78 + callback + Math.min(0.14, (end.index - start.index) * 0.02);
+
+      if (!best || score > best.score) {
+        best = {
+          startId: start.id,
+          endId: end.id,
+          startLabel: start.label,
+          endLabel: end.label,
+          score,
+        };
+      }
+    }
+  }
+
+  return best;
 }
 
 export function deriveSequenceBackedCreativeInterpretations(
@@ -183,39 +389,81 @@ export function deriveSequenceBackedCreativeInterpretations(
   );
 
   const candidates: CreativeInterpretation[] = [];
+  const subject = subjectName(graph);
 
   /*
-   * Universal state transformation:
-   * explicit supplied states can form a meaningful turn even when the
-   * RealityGraph has no relation edge and each state lives in its own beat.
-   * This is the missing case for living memories such as:
-   *   nervous -> proud -> happy
-   * and generalizes to relationships, weddings, trips, homes, services,
-   * businesses, and any other sequence with an earned before/after state.
+   * 1. Concrete callback compression.
+   *
+   * A recurring supplied object is often a stronger cinematic carrier than an
+   * abstract theme. Preserve its identity and compress only the fact that it
+   * returned carrying continuity/recognition.
    */
-  const statePositions = states.map((id) => ({
-    id,
-    index: orderedEventIds.indexOf(id),
-    label: labelFor(graph, id),
-  }));
-  const negativeStates = statePositions.filter((item) => NEGATIVE_STATE.test(item.label));
-  const positiveStates = statePositions.filter(
-    (item) => POSITIVE_STATE.test(item.label) && negativeStates.some((start) => item.index > start.index),
-  );
-
-  if (negativeStates.length && positiveStates.length) {
-    const start = negativeStates[0]!;
-    const end = positiveStates[positiveStates.length - 1]!;
-    const spread = span(orderedEventIds, [start.id, end.id]);
-    const intermediate = statePositions.filter(
-      (item) => item.index > start.index && item.index < end.index,
-    );
+  const concreteCallback = bestConcreteCallback(graph, orderedEventIds);
+  if (concreteCallback) {
+    const earlier = labelFor(graph, concreteCallback.earlierId);
+    const later = labelFor(graph, concreteCallback.laterId);
     candidates.push(
       buildCandidate(
-        `The supplied state moves from ${start.label} toward ${end.label}.`,
+        `The ${concreteCallback.object} returns later as part of the same supplied experience.`,
+        "recurrence",
+        [concreteCallback.earlierId, concreteCallback.laterId],
+        0.95 + Math.min(0.04, concreteCallback.score * 0.02),
+      ),
+    );
+    // The concrete source labels remain available as evidence for the realizing layer.
+    void earlier;
+    void later;
+  }
+
+  /*
+   * 2. Precise state transformation.
+   *
+   * Prefer the actual supplied endpoints over a generic "feeling changed"
+   * sentence. This is where living memories such as nervous -> fabulous become
+   * a compressible movie movement instead of a bland summary.
+   */
+  const stateTransition = bestStateTransition(graph, orderedEventIds);
+  if (stateTransition) {
+    const transitionIds = unique([
+      stateTransition.startId,
+      ...orderedEventIds.filter((id) => {
+        const position = orderedEventIds.indexOf(id);
+        return (
+          position > orderedEventIds.indexOf(stateTransition.startId) &&
+          position < orderedEventIds.indexOf(stateTransition.endId) &&
+          (STATE.some((pattern) => pattern.test(labelFor(graph, id))) ||
+            OBJECT.test(labelFor(graph, id)))
+        );
+      }),
+      stateTransition.endId,
+    ]);
+
+    const subjectPrefix = subject ? `${subject} ` : "The supplied experience ";
+    candidates.push(
+      buildCandidate(
+        `${subjectPrefix}moves from ${stateTransition.startLabel} to ${stateTransition.endLabel}.`,
         "state_change",
-        [start.id, ...intermediate.map((item) => item.id), end.id],
-        0.94 + spread * 0.04,
+        transitionIds,
+        0.96,
+      ),
+    );
+  }
+
+  /*
+   * 3. Subject-specific status compression.
+   *
+   * When the same supplied subject is present at multiple meaningful moments,
+   * preserve the status shift around that subject rather than treating each
+   * event as an isolated caption.
+   */
+  const subjectStatus = bestSubjectStatusTurn(graph, orderedEventIds);
+  if (subjectStatus) {
+    candidates.push(
+      buildCandidate(
+        `${subject || "The subject"} is not in the same state at the later supplied moment.`,
+        "state_change",
+        [subjectStatus.startId, subjectStatus.endId],
+        0.92 + Math.min(0.04, subjectStatus.score * 0.02),
       ),
     );
   }
@@ -224,10 +472,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = unique([...expectations, ...states, ...continuation]);
     candidates.push(
       buildCandidate(
-        "The encounter outlasted the expectation.",
+        "The supplied sequence does not end where its earlier expectation points.",
         "expectation_shift",
         ids,
-        0.86,
+        0.9,
       ),
     );
   }
@@ -236,10 +484,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = unique([...encounters, ...continuation]);
     candidates.push(
       buildCandidate(
-        "A brief encounter became something worth continuing.",
+        "A supplied encounter continues beyond its first moment.",
         "continuation",
         ids,
-        0.87,
+        0.9,
       ),
     );
   }
@@ -268,10 +516,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     if (bestPair.score >= 0.7) {
       candidates.push(
         buildCandidate(
-          "The surprising change is how little had to happen for the encounter to feel easy.",
+          `The supplied encounter is followed by a concrete change in ${subject || "the subject"}.`,
           "state_change",
           [bestPair.left, bestPair.right],
-          0.86,
+          0.88,
         ),
       );
     }
@@ -282,10 +530,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const sequenceSpan = span(orderedEventIds, ids);
     candidates.push(
       buildCandidate(
-        "The unexpected part is that the moment did not end where it should have.",
+        "The supplied moment keeps going past the point where it could have ended.",
         "consequence",
         ids,
-        0.84 + sequenceSpan * 0.06,
+        0.87 + sequenceSpan * 0.06,
       ),
     );
   }
@@ -295,10 +543,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const sequenceSpan = span(orderedEventIds, ids);
     candidates.push(
       buildCandidate(
-        "Small changes in feeling begin pointing in the same direction.",
+        "Separate supplied changes converge on the same continuing thread.",
         "convergence",
         ids,
-        0.82 + sequenceSpan * 0.08,
+        0.84 + sequenceSpan * 0.08,
       ),
     );
   }
@@ -307,10 +555,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = recurrence.slice();
     candidates.push(
       buildCandidate(
-        "A return turns one moment into an ongoing thread.",
+        "A supplied return turns an earlier detail into an ongoing thread.",
         "recurrence",
         ids,
-        0.79,
+        0.84,
       ),
     );
   }
@@ -319,10 +567,10 @@ export function deriveSequenceBackedCreativeInterpretations(
     const ids = contrasts.slice();
     candidates.push(
       buildCandidate(
-        "The same material begins to carry a different reading after the contrast.",
+        "The supplied material acquires a different reading after the contrast.",
         "contrast",
         ids,
-        0.78,
+        0.82,
       ),
     );
   }
