@@ -127,9 +127,53 @@ function semanticTags(label: string): string[] {
   return unique(SEMANTIC_TAGS.filter(([pattern]) => pattern.test(label)).map(([, tag]) => tag));
 }
 
+/**
+ * A global subject is the default referent only when the source event does
+ * not explicitly introduce another grammatical actor/entity. This prevents
+ * ambient session facts from becoming false subject facts.
+ */
+function subjectParticipates(label: string, subject?: string): boolean {
+  const normalizedLabel = clean(label);
+  const normalizedSubject = clean(subject);
+  if (!normalizedSubject || !normalizedLabel) return false;
+  if (normalizedLabel.toLowerCase().includes(normalizedSubject.toLowerCase())) return true;
+
+  if (/^(?:the|a|an)\s+[A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2}\s+(?:arriv|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) {
+    return false;
+  }
+
+  if (/^(?:the|a|an)\s+.+\s+(?:is|are|was|were|being|been)\s+\w/i.test(normalizedLabel)) return false;
+
+  if (/^(?:arriv|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) return true;
+
+  if (/^(?:is|are|was|were|feels?|felt|seems?|seemed|became|became|looks?|looked)\b/i.test(normalizedLabel)) return true;
+
+  return false;
+}
+
+function objectPhrases(label: string, subject?: string): string[] {
+  const candidates: string[] = [];
+  const pattern = /\b(?:a|an|the|same)\s+([a-z][a-z0-9'’-]*(?:\s+[a-z][a-z0-9'’-]*){0,2})/gi;
+  for (const match of label.matchAll(pattern)) {
+    const words = clean(match[1]).split(/\s+/).filter((word) => {
+      const token = word.toLowerCase();
+      return token && !STOP.has(token) && !GENERIC.has(token) && !STATE_RE.test(token) && !ACTIONS.test(token);
+    });
+    const phrase = clean(words.join(" "));
+    if (phrase && phrase.length > 2) candidates.push(phrase);
+  }
+  return unique(candidates.filter((value) => !subject || lower(value) !== lower(subject))).slice(0, 8);
+}
+
 function event(label: string, sourceIds: string[], subject: string | undefined, place: string | undefined, index: number): RealityEvent {
   const concepts = contentTokens(label);
-  const entities = unique([...(subject ? [clean(subject)] : []), ...capitalizedEntities(label), ...concepts.slice(0, 5)].filter(Boolean)).slice(0, 12);
+  const subjectInEvent = subjectParticipates(label, subject);
+  const entities = unique([
+    ...(subjectInEvent && subject ? [clean(subject)] : []),
+    ...capitalizedEntities(label),
+    ...objectPhrases(label, subject),
+    ...concepts.slice(0, 5),
+  ].filter(Boolean)).slice(0, 12);
   const kind = eventKind(label);
   return {
     id: `event-${index + 1}`,
@@ -170,6 +214,7 @@ function buildStructuralRelations(events: RealityEvent[], subject: string | unde
     const currentTokens = meaningfulContentTokens(current.label, subject);
     const currentSet = new Set(currentTokens);
     const currentStates = extractStates(current.label);
+    const currentSubject = subjectParticipates(current.label, subject);
     for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j]!;
       const otherTokens = meaningfulContentTokens(other.label, subject);
@@ -180,8 +225,8 @@ function buildStructuralRelations(events: RealityEvent[], subject: string | unde
         addRelation(relations, current.id, other.id, "converges", Math.min(0.82, 0.42 + longShared.length * 0.12));
       }
 
-      if (subject && current.label.toLowerCase().includes(subject.toLowerCase()) && other.label.toLowerCase().includes(subject.toLowerCase())) {
-        addRelation(relations, current.id, other.id, "involves", 0.7);
+      if (currentSubject && subjectParticipates(other.label, subject)) {
+        addRelation(relations, current.id, other.id, "involves", 0.8);
       }
 
       const otherStates = extractStates(other.label);
@@ -215,7 +260,7 @@ function buildEventStructure(events: RealityEvent[], subject: string | undefined
     const tokens = meaningfulContentTokens(event.label, subject);
     const actions = extractActions(event.label);
     const states = extractStates(event.label);
-    const objects = extractObjects(event.label, subject);
+    const objects = unique([...extractObjects(event.label, subject), ...objectPhrases(event.label, subject)]).slice(0, 8);
     const semantic = semanticTags(event.label);
     const recurrenceScore = Math.min(1, 0.18 * actions.filter((action) => recurringTokens.has(action)).length + 0.15 * tokens.filter((token) => (tokenCounts.get(token) ?? 0) > 1).length + (RECURRENCE_WORDS.test(event.label) ? 0.6 : 0));
     const transitionScore = Math.min(1, 0.18 * states.length + 0.2 * actions.filter((action) => /repair|fix|clean|groom|change|finish|complete|restore|renew/i.test(action)).length + (semantic.includes("transformation") ? 0.45 : 0));
@@ -225,7 +270,7 @@ function buildEventStructure(events: RealityEvent[], subject: string | undefined
     const sensoryMarkers = unique(tokens.filter((token) => sensoryTokens.has(token)));
     return {
       eventId: event.id,
-      subjects: subject ? [clean(subject)] : capitalizedEntities(event.label),
+      subjects: subjectParticipates(event.label, subject) && subject ? [clean(subject)] : capitalizedEntities(event.label),
       actions,
       objects,
       states,
@@ -243,7 +288,13 @@ function buildEventStructure(events: RealityEvent[], subject: string | undefined
 function buildEntityContinuity(events: RealityEvent[], subject: string | undefined, structures: readonly RealityEventStructure[]): RealityEntityContinuity[] {
   const map = new Map<string, { eventIds: string[]; kind: RealityEntityContinuity["kind"] }>();
   for (const event of events) {
-    const names = unique([...(subject ? [subject] : []), ...capitalizedEntities(event.label)]);
+    const structure = structures.find((item) => item.eventId === event.id);
+    const subjectInEvent = Boolean(subject && structure?.subjects.some((value) => lower(value) === lower(subject)));
+    const names = unique([
+      ...(subjectInEvent && subject ? [subject] : []),
+      ...capitalizedEntities(event.label),
+      ...(structure?.objects ?? []).filter((value) => value.length > 2),
+    ]);
     for (const name of names) {
       const key = lower(name);
       const item = map.get(key) ?? { eventIds: [], kind: "unknown" as const };
