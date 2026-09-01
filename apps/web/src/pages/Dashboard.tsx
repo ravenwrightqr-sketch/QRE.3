@@ -5,6 +5,7 @@ import { compileExperience, type GeoAnchor } from "../lib/experienceApi";
 import { getCreativeSeedPlan, type CreativeSeedPlan } from "../lib/creativeSeedApi";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import IdeaParticles from "../components/effects/IdeaParticles";
+import AdaptiveNoticePrompts from "../components/author/AdaptiveNoticePrompts";
 
 type Experience = { id: string; slug: string; status: string; tier: string; flowId: string | null; displayName?: string | null; category?: string | null };
 const orbit = [
@@ -102,8 +103,15 @@ export default function Dashboard() {
     } finally { setPlanning(false); }
   }
 
-  function setSeedValue(id: string, value: string) {
-    setSeedValues((current) => ({ ...current, [id]: value }));
+  function setSeedValue(id: string, value: string) { setSeedValues((current) => ({ ...current, [id]: value })); }
+
+  function addNotice(question: string, answer: string) {
+    const cleanAnswer = answer.replace(/\s+/g, " ").trim();
+    if (!cleanAnswer) return;
+    const label = question.replace(/\?$/, "");
+    setPrompt((current) => `${current.trim()}\n${label}: ${cleanAnswer}`.trim());
+    requestAnimationFrame(resizePrompt);
+    promptRef.current?.focus();
   }
 
   function buildEnrichedPrompt(base: string) {
@@ -190,6 +198,13 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          <AdaptiveNoticePrompts
+            prompt={prompt}
+            category={activeObject?.category}
+            hasLocation={Boolean(geo)}
+            hasTime={Boolean(timeAnchor)}
+            onAdd={addNotice}
+          />
           <div style={toolRow}>
             <button type="button" onClick={dropLocation} disabled={geoBusy} style={toolButton}>{geoBusy ? "PINNING…" : geo ? "📍 LOCATION ADDED" : "+ DROP LOCATION"}</button>
             <button type="button" onClick={dropTime} style={toolButton}>{timeAnchor ? `◷ ${timeAnchor}` : "+ DROP TIME"}</button>
