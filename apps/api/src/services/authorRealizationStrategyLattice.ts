@@ -14,6 +14,7 @@ const STRATEGY_ORDER: readonly AuthorRealizationStrategy[] = [
   "callback",
   "implication",
   "reversal",
+  "consequence",
   "compression",
   "personification",
 ];
@@ -69,6 +70,8 @@ function reasonFor(
       return "Let the relationship be inferred instead of explained.";
     case "reversal":
       return "Reverse the expected reading while staying inside supplied evidence.";
+    case "consequence":
+      return "Make the supplied cause visibly matter without inventing a new outcome.";
     case "compression":
       return "Collapse multiple supplied signals into one short, natural thought.";
     case "personification":
@@ -107,6 +110,10 @@ export function deriveRealizationStrategies(
     required.add("recontextualization");
     required.add("implication");
     required.add("reversal");
+  }
+
+  if (relationKinds.includes("causes") || mode.includes("consequence")) {
+    required.add("consequence");
   }
 
   if (mode.includes("callback") || relationKinds.includes("repeats")) {
