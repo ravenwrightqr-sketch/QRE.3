@@ -2,8 +2,8 @@
  * Canonical internal representation of source reality for QRE Author cognition.
  *
  * Facts remain immutable evidence. Events are the units the Author can relate,
- * contrast, sequence, and revisit. Edges preserve temporal, causal,
- * relational, and recontextualization links without changing source truth.
+ * contrast, sequence, and revisit. Derived structure is explicitly marked as
+ * interpretive so it can enrich creativity without becoming source truth.
  */
 import type { LatentMovieCandidate } from "./latentMovie.js";
 
@@ -11,6 +11,14 @@ export type RealityEvidence = {
   id: string;
   text: string;
   kind: "fact" | "moment" | "memory" | "trajectory" | "prompt" | "identity";
+};
+
+export type RealityEntity = {
+  id: string;
+  name: string;
+  kind: "person" | "animal" | "object" | "place" | "organization" | "event" | "unknown";
+  sourceIds: string[];
+  confidence: number;
 };
 
 export type RealityEvent = {
@@ -22,6 +30,13 @@ export type RealityEvent = {
   time?: string;
   goal?: string;
   emotionalState?: string;
+  action?: string;
+  object?: string;
+  stateBefore?: string;
+  stateAfter?: string;
+  kind?: "event" | "state" | "observation";
+  salience?: number;
+  tags?: string[];
   salient: boolean;
   provenance: "explicit" | "memory" | "prompt";
 };
@@ -41,12 +56,58 @@ export type RealityRelation = {
     | "recontextualizes"
     | "converges";
   strength: number;
+  evidenceIds?: string[];
+};
+
+export type RealityTransition = {
+  fromEventId: string;
+  toEventId: string;
+  before?: string;
+  after?: string;
+  mechanism: "explicit" | "state_shift" | "process" | "temporal" | "recurrence";
+  confidence: number;
+};
+
+export type RealityPattern = {
+  id: string;
+  label: string;
+  eventIds: string[];
+  signal: "recurrence" | "contrast" | "transformation" | "convergence" | "sequence" | "status" | "sensory";
+  confidence: number;
+};
+
+export type RealityThread = {
+  id: string;
+  label: string;
+  eventIds: string[];
+  basis: "recurrence" | "tension" | "unfinished_process" | "recontextualization";
+  confidence: number;
+};
+
+export type RealityAnomaly = {
+  id: string;
+  label: string;
+  eventIds: string[];
+  basis: "state_mismatch" | "repeat" | "unusual_convergence" | "unexpected_change" | "density";
+  confidence: number;
+};
+
+export type RealitySalience = {
+  eventId: string;
+  score: number;
+  reasons: string[];
 };
 
 export type RealityGraph = {
   evidence: RealityEvidence[];
+  entities?: RealityEntity[];
   events: RealityEvent[];
   relations: RealityRelation[];
+  transitions?: RealityTransition[];
+  patterns?: RealityPattern[];
+  openThreads?: RealityThread[];
+  anomalies?: RealityAnomaly[];
+  salience?: RealitySalience[];
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
