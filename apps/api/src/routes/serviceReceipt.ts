@@ -43,16 +43,33 @@ router.post("/create", requireAuth, async (req, res) => {
     const geo = req.body?.geo && typeof req.body.geo === "object"
       ? req.body.geo as Record<string, unknown>
       : undefined;
+    const userId = req.user?.userId;
 
-    if (!assetId || !recipient) {
-      return res.status(400).json({ success: false, error: "Asset and recipient are required." });
+    if (!assetId || !recipient || !userId) {
+      return res.status(400).json({ success: false, error: "Asset, recipient, and authenticated user are required." });
     }
 
+    const accountIds = (await db.accountUser.findMany({
+      where: { userId },
+      select: { accountId: true },
+    })).map((row) => row.accountId);
+
     const asset = await db.asset.findFirst({
-      where: { id: assetId, status: "active" },
+      where: {
+        id: assetId,
+        status: "active",
+        OR: [
+          { ownerId: userId },
+          ...(accountIds.length ? [{ accountId: { in: accountIds } }] : []),
+        ],
+      },
       select: { id: true, slug: true, category: true },
     });
-    if (!asset) return res.status(404).json({ success: false, error: "Active QRE asset not found." });
+
+    if (!asset) return res.status(404).json({ success: false, error: "Active QRE asset not found or not owned by this account." });
+    if (asset.category !== "service" && asset.category !== "business") {
+      return res.status(400).json({ success: false, error: "Service receipts require a service or business asset." });
+    }
 
     const sessionId = randomUUID();
     const prompt = [
@@ -68,7 +85,7 @@ router.post("/create", requireAuth, async (req, res) => {
 
     const experience = await compileExperience({
       assetId: asset.id,
-      userId: req.user?.userId,
+      userId,
       prompt,
       sessionId,
       operationId: `service-receipt:${sessionId}`,
@@ -97,7 +114,7 @@ router.post("/create", requireAuth, async (req, res) => {
     const delivery = await createStoryDelivery({
       assetId: asset.id,
       sessionId,
-      userId: req.user?.userId ?? null,
+      userId,
       recipient: recipientFrom(recipient),
       moments: experience.moments as any,
       geoStory: experience.geoStory as any,
