@@ -166,11 +166,11 @@ function nativeDirectness(envelope: RealityEnvelope): number {
   const specificity = metric(envelope.events.reduce((sum, event) => {
     const wordCount = clean(event.label).split(/\s+/).filter(Boolean).length;
     const entityCount = event.entities?.length ?? 0;
-    return sum + Math.min(1, wordCount / 8 + entityCount / 8 + (event.salient ? 0.14 : 0));
+    return sum + Math.min(1, wordCount / 8 + entityCount / 8);
   }, 0) / envelope.events.length);
-  const salient = metric(envelope.events.filter((event) => event.salient).length / Math.max(1, envelope.events.length));
+  const signalDensity = metric(stateSignals(envelope).length / Math.max(1, envelope.events.length * 2));
   const relationships = metric(envelope.relations.length / Math.max(1, envelope.events.length));
-  return metric(specificity * 0.5 + salient * 0.25 + relationships * 0.25);
+  return metric(specificity * 0.5 + signalDensity * 0.25 + relationships * 0.25);
 }
 
 /**
