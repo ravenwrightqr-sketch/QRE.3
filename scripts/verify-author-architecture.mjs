@@ -248,7 +248,7 @@ if (!/function\s+payoffScore\s*\(/.test(mouthSource) || !/payoffScore\s*\(/.test
   );
 }
 
-if (!/viewerState\.stateShift/.test(mouthSource)) {
+if (!/viewerState\?\.stateShift/.test(mouthSource)) {
   fail(
     "Canonical Mouth must evaluate the supplied viewer-state transition",
   );
