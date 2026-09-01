@@ -49,6 +49,7 @@ const forbiddenFiles = [
   "apps/api/src/services/authorMouthRepairPlanner.ts",
   "apps/api/src/services/authorMouthMonster.ts",
   "apps/api/src/services/authorMemoryIntelligence.ts",
+  "apps/api/src/services/microBeatMouth.ts",
 ];
 
 const forbiddenLegacyImportBasenames = new Set([
@@ -61,7 +62,6 @@ const forbiddenLegacyImportBasenames = new Set([
   "authorFastCore.js",
   "creativeRelationOps.js",
   "microBeatMouth.js",
-  "authorMouthCandidateSearch.js",
   "authorLatentMovieSearch.js",
   "authorLatentMovieBeatAdapter.js",
   "authorMouthAttentionGate.js",
@@ -135,7 +135,14 @@ for (const file of productionFiles) {
   while ((match = importRegex.exec(body)) !== null) {
     const specifier = match[2];
     const basename = specifier.split("/").pop() ?? specifier;
-    if (forbiddenLegacyImportBasenames.has(basename)) {
+    if (!forbiddenLegacyImportBasenames.has(basename)) continue;
+
+    const legacyMouthShimOnly =
+      basename === "authorMouthCandidateSearch.js" &&
+      rel === "apps/api/src/services/authorBrainCanonical.ts" &&
+      /deriveViewerStateCut/.test(body);
+
+    if (!legacyMouthShimOnly) {
       fail(`Forbidden legacy Author import in ${rel}: ${specifier}`);
     }
   }
@@ -151,6 +158,8 @@ const mouth = existsSync(join(root, canonicalFiles.mouth)) ? read(canonicalFiles
 const movieSearch = existsSync(join(root, canonicalFiles.movieSearch)) ? read(canonicalFiles.movieSearch) : "";
 const experienceService = existsSync(join(root, canonicalFiles.experienceService)) ? read(canonicalFiles.experienceService) : "";
 const acceptance = existsSync(join(root, canonicalFiles.acceptance)) ? read(canonicalFiles.acceptance) : "";
+const mouthShimPath = "apps/api/src/services/authorMouthCandidateSearch.ts";
+const mouthShim = existsSync(join(root, mouthShimPath)) ? read(mouthShimPath) : "";
 
 if (!/authorCognition\.js/.test(brain)) fail("Canonical Author must consume authorCognition");
 if (!/buildAuthorCognitivePlan\s*\(/.test(brain)) fail("Canonical Author must execute Cognition");
@@ -158,6 +167,7 @@ if (!/buildAuthorRealityGraph\s*\(/.test(brain)) fail("Canonical Author must own
 if (!/buildAuthorRealityEnvelope\s*\(/.test(brain)) fail("Canonical Author must build the RealityEnvelope");
 if (!/buildMouthCandidateMessages\s*\(/.test(brain)) fail("Canonical Author must invoke canonical Mouth generation");
 if (!/selectBestMouthSequence\s*\(/.test(brain)) fail("Canonical Author must select the final Mouth sequence");
+if (!/deriveViewerStateCut/.test(brain)) fail("Canonical Author must retain the canonical viewer-state cut boundary");
 if (/compileCognitiveExperience/.test(brain)) fail("Legacy cognitive compiler is forbidden from Canonical Author");
 
 if (!/authorUniversalMovieSearch\.js/.test(cognition)) fail("Cognition must own Universal Movie Search");
@@ -173,6 +183,15 @@ if (!/bounded-creative-bet/.test(mouth)) fail("Canonical Mouth must retain bound
 if (!/unsafe-realization/.test(mouth)) fail("Canonical Mouth must retain a hard unsafe realization outcome");
 if (!/observerDiscoveryScore/.test(mouth)) fail("Canonical Mouth must produce observer-discovery quality");
 if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback/.test(mouth)) fail("Canonical Mouth still depends on retired Mouth services");
+
+if (mouthShim) {
+  if (/localModelGenerate|evaluateCandidate|buildGoldRealizationDoctrine/.test(mouthShim)) {
+    fail("Compatibility Mouth shim still contains generative/scoring implementation");
+  }
+  if (!/authorMouthCandidateSearchCanonical\.js/.test(mouthShim) || !/authorViewerStateCut\.js/.test(mouthShim)) {
+    fail("Compatibility Mouth shim must only point at canonical Mouth/viewer-state owners");
+  }
+}
 
 if (!/forwardScore\s*\(/.test(movieSearch)) fail("Universal Movie Search must score forward movement");
 if (!/statePair\s*\(/.test(movieSearch)) fail("Universal Movie Search must discover state transformations");
