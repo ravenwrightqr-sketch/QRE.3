@@ -1,8 +1,8 @@
 # QRE AUTHOR · CURRENT STATE
 
 **Status:** CANONICAL CURRENT-STATE REFERENCE  
-**Branch:** `supplied-media-sequence-convergence`  
-**Updated:** 2026-08-28  
+**Branch:** `observer-experience-objective`  
+**Updated:** 2026-09-01  
 **Purpose:** Single fast reference for the live Universal Author path.
 
 ## 1. LIVE PIPELINE
@@ -22,7 +22,7 @@ SELECTED MOVIE
 CANONICAL AUTHOR
    ├── beat projection
    ├── Mouth candidate generation
-   ├── Mouth quality adaptation
+   ├── Mouth interpretation / quality checks
    ├── sequence beam selection
    ├── attention editing
    └── arc diagnostics
@@ -46,16 +46,17 @@ GOVERNED LEARNING
 | Movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` |
 | Viewer-state rerank | `apps/api/src/services/authorViewerState.ts` |
 | Master orchestration | `apps/api/src/services/authorBrainCanonical.ts` |
-| Mouth generation / realization | `apps/api/src/services/authorMouthCandidateSearch.ts` |
-| Mouth interpretation | `apps/api/src/services/authorMouthInterpretation.ts` |
-| Mouth quality | `apps/api/src/services/authorMouthQualityAdapter.ts` |
+| Canonical Mouth boundary | `apps/api/src/services/authorMouthCandidateSearchCanonical.ts` |
+| Mouth compatibility shim | `apps/api/src/services/authorMouthCandidateSearch.ts` |
+| Mouth interpretation / safety | `apps/api/src/services/authorMouthInterpretation.ts` |
 | Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` |
-| Attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` |
 | Sequence arc diagnostics | `apps/api/src/services/authorSequenceArcGate.ts` |
 | Experience state | `apps/api/src/services/authorExperienceState.ts` |
 | Behavior profile | `apps/api/src/services/authorBehaviorProfile.ts` |
 
 There is **one movie authority**: Cognition searches and selects. Canonical Author consumes that result and must not launch a second movie search.
+
+There is **one Mouth authority**: the canonical Mouth boundary owns candidate realization; the compatibility shim only forwards the canonical surface.
 
 ## 3. MOVIE LAW
 
