@@ -43,6 +43,47 @@ export type RealityRelation = {
   strength: number;
 };
 
+/** Derived structural anatomy. Never replaces or mutates the explicit event label. */
+export type RealityEventStructure = {
+  eventId: string;
+  subjects: string[];
+  actions: string[];
+  objects: string[];
+  states: string[];
+  temporalMarkers: string[];
+  sensoryMarkers: string[];
+  semanticTags: string[];
+  recurrenceScore: number;
+  transitionScore: number;
+  anomalyScore: number;
+  salienceScore: number;
+};
+
+/** Stable entity continuity discovered across supplied reality. */
+export type RealityEntityContinuity = {
+  name: string;
+  mentionCount: number;
+  eventIds: string[];
+  firstEventId: string;
+  lastEventId: string;
+  kind: "person" | "animal" | "object" | "place" | "organization" | "unknown";
+  salienceScore: number;
+};
+
+export type RealityPattern = {
+  kind:
+    | "transition"
+    | "motif"
+    | "recurrence"
+    | "tension"
+    | "anomaly"
+    | "thread";
+  label: string;
+  eventIds: string[];
+  evidenceIds: string[];
+  strength: number;
+};
+
 export type RealityGraph = {
   evidence: RealityEvidence[];
   events: RealityEvent[];
@@ -50,6 +91,10 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
+  /** Rich derived structure used by cognition/movie search. */
+  eventStructure?: RealityEventStructure[];
+  entityContinuity?: RealityEntityContinuity[];
+  patterns?: RealityPattern[];
   /** Derived hypotheses only. Never promote these to source truth. */
   latentMovieCandidates?: LatentMovieCandidate[];
 };
