@@ -181,6 +181,33 @@ function realizationAuthorityForBeat(
   return lines.join(" ");
 }
 
+function synthesizeGroupChange(
+  movie: LatentMovieCandidate,
+  group: readonly LatentMovieTrajectoryStep[],
+  final: boolean,
+): string {
+  const changes = unique(group.map((step) => step.viewerChange));
+  if (!changes.length) return "advances approved reality";
+  if (changes.length === 1) return changes[0];
+
+  const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
+  const thesisEventIds = unique([
+    ...(movie.storyThesis?.beforeEventIds ?? []),
+    ...(movie.storyThesis?.afterEventIds ?? []),
+  ]);
+
+  if (movie.storyThesis?.semanticTurn && eventIds.some((id) => thesisEventIds.includes(id))) {
+    return movie.storyThesis.semanticTurn;
+  }
+
+  const first = changes[0];
+  const last = changes[changes.length - 1];
+  if (final) {
+    return `The approved changes converge on the supplied ending: ${last}`;
+  }
+  return `The approved evidence changes significance from ${first} to ${last}.`;
+}
+
 function composeTrajectoryBeats(
   movie: LatentMovieCandidate,
 ): MouthCandidateBeat[] {
@@ -203,7 +230,9 @@ function composeTrajectoryBeats(
   }
 
   const steps = [...movie.trajectory];
-  if (steps.length <= 1) return steps.map((step) => stepToBeat(movie, step, 0, 1));
+  if (steps.length <= 1) {
+    return steps.map((step) => stepToBeat(movie, step, 0, 1));
+  }
 
   const groups: LatentMovieTrajectoryStep[][] = [];
   const total = steps.length;
@@ -226,9 +255,10 @@ function composeTrajectoryBeats(
         words(clean(next?.viewerChange)),
       );
       const contextual =
-        next.operation === "support" ||
-        next.operation === "context" ||
-        next.operation === "evidence";
+        next.operation === "reveal" ||
+        next.operation === "establish" ||
+        next.operation === "contrast" ||
+        next.operation === "recur";
       const complementary =
         Boolean(current?.eventIds?.length) &&
         Boolean(next?.eventIds?.length) &&
@@ -264,18 +294,7 @@ function composeTrajectoryBeats(
     const last = group[group.length - 1];
     const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
     const canonicalAuthority = realizationAuthorityForBeat(movie, last);
-    const touchesThesis =
-      Boolean(movie.storyThesis?.semanticTurn) &&
-      eventIds.some(
-        (id) =>
-          movie.storyThesis?.beforeEventIds?.includes(id) ||
-          movie.storyThesis?.afterEventIds?.includes(id),
-      );
-
-    const change =
-      touchesThesis && movie.storyThesis?.semanticTurn
-        ? movie.storyThesis.semanticTurn
-        : clean(last?.viewerChange || first?.viewerChange);
+    const change = synthesizeGroupChange(movie, group, final);
 
     return {
       order: groupIndex + 1,
@@ -284,15 +303,17 @@ function composeTrajectoryBeats(
         clean(first?.viewerChange),
         canonicalAuthority,
         group.length > 1
-          ? "This cut compresses adjacent approved evidence into one dramatic function."
+          ? "This cut is a semantic synthesis of adjacent approved evidence. Realize their joint significance, not a list of source facts."
           : "",
       ]
         .filter(Boolean)
         .join(" "),
       creativeMove:
-        group.length > 1 ? "compression" : clean(last?.operation) || undefined,
+        group.length > 1
+          ? "synthesis"
+          : clean(last?.operation) || undefined,
       eventIds,
-      change: change || "advances approved reality",
+      change,
       next: clean(last?.nextQuestion),
       frontier: clean(last?.nextQuestion),
       paysOff: final ? [movie.payoff] : [],
@@ -305,11 +326,17 @@ function composeTrajectoryBeats(
         "All source event IDs in this cut remain approved evidence.",
         "Do not turn every source event into a separate sentence.",
         "Preserve source order while allowing adjacent evidence to share one dramatic function.",
+        ...(group.length > 1
+          ? [
+              "The realization must express what the grouped evidence means together; do not merely concatenate or enumerate the source details.",
+            ]
+          : []),
         ...(final
           ? [
               "The final cut must preserve the source-derived endpoint and must not append earlier evidence to the endpoint line.",
             ]
           : []),
+      ],
     };
   });
 }
