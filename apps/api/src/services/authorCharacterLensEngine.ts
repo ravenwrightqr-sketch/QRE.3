@@ -41,6 +41,12 @@ const LENSES: Record<string, AuthorLensProfile> = {
   procedural: { kind: "custom", label: "procedural", framingBias: ["process", "inspection", "sequence", "verification", "clearance", "completion", "status"], realizationPreferences: ["compression", "understatement", "consequence", "recontextualization", "callback"], forbiddenRealityMoves: ["invented procedure", "invented inspection", "invented checklist event"], intensity: 0.64 },
   fairytale: { kind: "custom", label: "fairytale", framingBias: ["transformation", "symbolic recurrence", "threshold", "wonder", "status", "curse", "release"], realizationPreferences: ["personification", "recontextualization", "callback", "understatement", "reversal"], forbiddenRealityMoves: ["invented magic", "invented creature", "invented spell", "invented supernatural outcome"], intensity: 0.76 },
   deadpan: { kind: "custom", label: "deadpan", framingBias: ["flat delivery", "specificity", "understatement", "mismatch", "official seriousness"], realizationPreferences: ["understatement", "compression", "contrast", "double_meaning", "status_inversion"], forbiddenRealityMoves: ["invented event", "invented reaction", "invented explanation"], intensity: 0.7 },
+  service: { kind: "custom", label: "service", framingBias: ["service ritual", "careful execution", "before and after", "status change", "customer handoff"], realizationPreferences: ["compression", "consequence", "callback", "understatement", "recontextualization"], forbiddenRealityMoves: ["invented service action", "invented customer reaction", "invented outcome"], intensity: 0.6 },
+  hospitality: { kind: "custom", label: "hospitality", framingBias: ["welcome", "arrival", "care", "comfort", "place", "departure"], realizationPreferences: ["callback", "understatement", "implication", "recontextualization", "compression"], forbiddenRealityMoves: ["invented welcome", "invented amenity", "invented guest reaction"], intensity: 0.58 },
+  craft: { kind: "custom", label: "craft", framingBias: ["precision", "material detail", "process", "finish", "transformation"], realizationPreferences: ["compression", "recontextualization", "consequence", "understatement", "callback"], forbiddenRealityMoves: ["invented material", "invented process step", "invented finished result"], intensity: 0.7 },
+  concierge: { kind: "custom", label: "concierge", framingBias: ["guidance", "choice", "access", "timing", "preparation", "handoff"], realizationPreferences: ["implication", "compression", "consequence", "callback", "recontextualization"], forbiddenRealityMoves: ["invented recommendation", "invented reservation", "invented access"], intensity: 0.64 },
+  ritual: { kind: "custom", label: "ritual", framingBias: ["repetition", "routine", "sequence", "familiarity", "return", "signature"], realizationPreferences: ["callback", "understatement", "compression", "recontextualization", "implication"], forbiddenRealityMoves: ["invented tradition", "invented routine", "invented recurrence"], intensity: 0.62 },
+  transformation: { kind: "custom", label: "transformation", framingBias: ["before", "after", "change", "reveal", "finish", "renewal"], realizationPreferences: ["recontextualization", "reversal", "consequence", "compression", "callback"], forbiddenRealityMoves: ["invented before-state", "invented transformation", "invented finished state"], intensity: 0.78 },
 };
 
 const LENS_ALIASES: Record<string, string> = {
@@ -48,19 +54,22 @@ const LENS_ALIASES: Record<string, string> = {
   scary: "horror", spooky: "horror", mystery: "detective", investigation: "detective",
   army: "military", caper: "heist", surveillance: "spy", espionage: "spy",
   sports: "competition", sportsmovie: "competition", fairy: "fairytale", fairy_tale: "fairytale",
+  hospitality: "hospitality", hotel: "hospitality", guest: "hospitality", concierge: "concierge",
+  service: "service", servicing: "service", craft: "craft", handmade: "craft",
+  routine: "ritual", tradition: "ritual", transform: "transformation", transformed: "transformation",
 };
 
 const RELATION_AFFINITY: Record<string, readonly string[]> = {
-  contrasts: ["comedy", "absurd", "courtroom", "competition", "western", "deadpan", "fierce", "horror"],
-  recontextualizes: ["detective", "noir", "horror", "spy", "romance", "fairytale", "documentary"],
-  changes: ["game", "dramatic", "military", "competition", "survival", "romance", "fierce"],
-  repeats: ["romance", "nostalgia", "horror", "detective", "noir", "fairytale", "game"],
-  converges: ["detective", "courtroom", "competition", "romance", "game", "expedition"],
-  causes: ["heist", "thriller", "dramatic", "game", "military", "survival", "competition"],
-  before: ["documentary", "spy", "detective", "noir", "procedural", "thriller"],
-  after: ["documentary", "spy", "detective", "noir", "procedural", "thriller"],
-  involves: ["procedural", "documentary", "spy", "courtroom", "detective"],
-  belongs_to: ["royal", "procedural", "documentary", "romance"],
+  contrasts: ["comedy", "absurd", "courtroom", "competition", "western", "deadpan", "fierce", "horror", "service", "craft", "hospitality"],
+  recontextualizes: ["detective", "noir", "horror", "spy", "romance", "fairytale", "documentary", "service", "craft", "concierge", "transformation"],
+  changes: ["game", "dramatic", "military", "competition", "survival", "romance", "fierce", "service", "craft", "transformation"],
+  repeats: ["romance", "nostalgia", "horror", "detective", "noir", "fairytale", "game", "service", "hospitality", "ritual"],
+  converges: ["detective", "courtroom", "competition", "romance", "game", "expedition", "concierge", "craft", "transformation"],
+  causes: ["heist", "thriller", "dramatic", "game", "military", "survival", "competition", "service", "craft", "concierge", "transformation"],
+  before: ["documentary", "spy", "detective", "noir", "procedural", "thriller", "service", "craft", "hospitality", "transformation"],
+  after: ["documentary", "spy", "detective", "noir", "procedural", "thriller", "service", "craft", "hospitality", "transformation"],
+  involves: ["procedural", "documentary", "spy", "courtroom", "detective", "service", "hospitality", "craft", "concierge"],
+  belongs_to: ["royal", "procedural", "documentary", "romance", "service", "hospitality", "craft", "concierge", "ritual"],
 };
 
 const LEXICAL_CUES: Record<string, readonly RegExp[]> = {
@@ -82,6 +91,12 @@ const LEXICAL_CUES: Record<string, readonly RegExp[]> = {
   procedural: [/\b(?:cleaned|finished|checked|verified|inspected|completed|started|next)\b/i],
   fairytale: [/\b(?:once|wonder|transformed|changed|beautiful|curse|magic|enchanted)\b/i],
   deadpan: [/\b(?:apparently|anyway|technically|officially|normal|fine|perfectly)\b/i],
+  service: [/\b(?:service|appointment|booked|receipt|customer|client|cleaned|groomed|repaired|delivered|installed|picked up|finished)\b/i],
+  hospitality: [/\b(?:hotel|guest|stay|check-in|check out|room|welcome|reservation|lobby|breakfast|host)\b/i],
+  craft: [/\b(?:made|built|repaired|polished|shaped|cut|dyed|groomed|tailored|finished|handmade|crafted)\b/i],
+  concierge: [/\b(?:reserved|recommended|arranged|booked|guided|selected|itinerary|reservation|available|access)\b/i],
+  ritual: [/\b(?:every|always|weekly|daily|routine|tradition|again|return|same|regular)\b/i],
+  transformation: [/\b(?:before|after|changed|new|restored|repaired|cleaned|transformed|finished|upgrade|renewed)\b/i],
 };
 
 function clean(value: unknown): string {
