@@ -29,6 +29,7 @@ export type RealityEntityContinuity = {
   lastEventId?: string;
   recurrenceCount: number;
   confidence: number;
+  [key: string]: unknown;
 };
 
 export type RealityEventStructure = {
@@ -41,6 +42,7 @@ export type RealityEventStructure = {
   transitionScore: number;
   anomalyScore: number;
   salience: number;
+  [key: string]: unknown;
 };
 
 export type RealityEvent = {
@@ -140,4 +142,5 @@ export type RealityGraph = {
   sensorySignals: string[];
   /** Derived hypotheses only. Never promote these to source truth. */
   latentMovieCandidates?: LatentMovieCandidate[];
+  [key: string]: unknown;
 };
