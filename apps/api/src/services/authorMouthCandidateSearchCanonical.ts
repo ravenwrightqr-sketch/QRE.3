@@ -336,7 +336,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       ? {
           before: clean(beat.viewerState.beforeState),
           after: clean(beat.viewerState.afterState),
-          move: clean(beat.viewerState.viewerMove),
+          move: clean(beat.viewerState.attentionMove),
         }
       : undefined,
     next: clean(beat.next),

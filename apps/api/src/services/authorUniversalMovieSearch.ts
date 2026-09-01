@@ -226,8 +226,9 @@ function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTra
     supportingRelationKinds: relationKinds,
     trajectory: [...trajectory],
     payoff: evidence[evidence.length - 1] ?? "",
-    unresolvedQuestion: trajectory.at(-1)?.nextQuestion ?? "What comes next?",
     evidence,
+    unresolvedQuestion:
+  trajectory[trajectory.length - 1]?.nextQuestion ?? "What comes next?",
     hypothesis: [
       "The movie is discovered from supplied reality rather than an industry template.",
       "The strongest semantic movement is preserved without inventing facts.",

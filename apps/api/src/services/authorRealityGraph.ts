@@ -167,7 +167,8 @@ function deriveSensorySignals(fragments: string[]): string[] {
   return [...new Set(fragments.filter((item) => sensory.test(item)).map(clean))].slice(0, 16);
 }
 
-export function buildAuthorRealityGraph(input: {
+ export function buildAuthorRealityGraph(input: {
+  prompt: string;
   subject?: string;
   place?: string;
   facts: readonly string[];
