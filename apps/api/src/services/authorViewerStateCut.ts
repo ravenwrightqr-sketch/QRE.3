@@ -54,7 +54,8 @@ export function deriveViewerStateCut(
   const currentSource = sourceForBeat(beat, envelope).join(" ");
   const priorSources = priorBeats.flatMap((item) => sourceForBeat(item, envelope)).join(" ");
   const currentMeaning = semanticText(beat, envelope);
-  const priorMeaning = priorBeats.map((item) => semanticText(item, envelope)).filter(Boolean).at(-1) ?? "";
+  const priorMeanings = priorBeats.map((item) => semanticText(item, envelope)).filter(Boolean);
+  const priorMeaning = priorMeanings.length > 0 ? priorMeanings[priorMeanings.length - 1]! : "";
 
   const continuity = currentSource && priorSources ? overlap(currentSource, priorSources) : 0;
   const semanticDifference = currentMeaning && priorMeaning ? metric(1 - overlap(currentMeaning, priorMeaning)) : index === 0 ? 0.55 : 0.35;
