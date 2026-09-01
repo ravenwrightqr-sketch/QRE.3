@@ -110,8 +110,6 @@ const likelyOrphans = serviceFiles.filter((path) => {
   if (name === "authorBrainUniversal.ts") return false;
   if (name === "authorMouthCandidateSearch.ts") return false;
   if (name === "authorMouthSequenceBeamSearch.ts") return false;
-  if (name === "authorMeaningSpine.ts") return false;
-  if (name === "authorMouthRealizationSlot.ts") return false;
   if (name === "authorRealityGraph.ts") return false;
   if (name === "authorRealityEnvelope.ts") return false;
   if (name === "authorCognition.ts") return false;
@@ -121,8 +119,6 @@ const likelyOrphans = serviceFiles.filter((path) => {
   if (name === "authorCutPolicy.ts") return false;
   if (name === "authorAttentionEditor.ts") return false;
   if (name === "authorSequenceArcGate.ts") return false;
-  if (name === "authorRealizationStrategyLattice.ts") return false;
-  if (name === "authorBeatPlanRecovery.ts") return false;
   if (name === "localModelRuntime.ts") return false;
   if (name === "aiProvider.ts") return false;
   return (consumerCount.get(path) ?? 0) === 0;
