@@ -1,27 +1,10 @@
 /**
  * QRE CREATIVE INTERPRETATION DISCOVERY
  *
- * Canonical Cognition-side discovery of the smallest unexpected meaning that
- * supplied reality already supports.
- *
- * This module does NOT write viewer prose and does NOT create facts.
- * It produces semantic interpretations that downstream cognition may rank and
- * later realize through Mouth.
- *
- * The important distinction is:
- *
- *   REALITY -> relationship among supplied meanings -> INTERPRETATION
- *   INTERPRETATION -> viewer-facing language -> MOUTH
- *
- * A sequence can contain a meaningful turn even when RealityGraph has no
- * explicit relation edge between adjacent events. In that case this module
- * derives sequence-backed interpretations from the supplied language itself.
+ * Discovers the smallest unexpected meaning that supplied reality supports.
+ * It is cognition, not viewer prose. Mouth performs the final realization.
  */
-
-import type {
-  LatentMovieCandidate,
-  RealityGraph,
-} from "@qre/contracts";
+import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
 export type CreativeInterpretationMechanism =
   | "expectation_shift"
@@ -39,278 +22,164 @@ export type CreativeInterpretation = {
   confidence: number;
 };
 
-const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
-const metric = (value: number): number =>
-  Number(Math.max(0, Math.min(1, value)).toFixed(3));
+const NEGATIVE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i;
+const POSITIVE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content)\b/i;
+const STATE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|different|changed|ready|quiet|loud|wild|sweet|gentle|fierce|strange|weird|new|old)\b/i;
+const ACTION = /\b(?:arrived|dropped|cleaned|groomed|finished|started|picked|left|visited|met|called|talked|worked|played|danced|went|came|returned|bought|sold|built|fixed|washed|served|stayed|made)\b/i;
+const CONTINUATION = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|kept|continued|still|wanted|want|needed|need)\b/i;
+const EXPECTATION = /\b(?:unexpected|surpris(?:e|ed|ing)|unplanned|didn'?t expect|did not expect|never thought|never planned)\b/i;
+const CONTRAST_WORD = /\b(?:but|yet|although|instead|rather|except|while|however)\b/i;
 
-const unique = (values: readonly string[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
-
-function labelFor(
-  graph: RealityGraph,
-  eventId: string,
-): string {
-  return clean(
-    graph.events.find((event) => event.id === eventId)?.label,
-  );
+function labelFor(graph: RealityGraph, id: string): string {
+  return clean(graph.events.find((event) => event.id === id)?.label);
 }
 
 function tokens(value: string): Set<string> {
-  return new Set(
-    clean(value)
-      .toLowerCase()
-      .replace(/[^a-z0-9'’-]+/g, " ")
-      .split(/\s+/)
-      .filter((token) => token.length >= 3),
-  );
+  return new Set(clean(value).toLowerCase().replace(/[^a-z0-9'’-]+/g, " ").split(/\s+/).filter((token) => token.length >= 3));
 }
 
-function overlap(
-  left: string,
-  right: string,
-): number {
+function overlap(left: string, right: string): number {
   const a = tokens(left);
   const b = tokens(right);
   if (!a.size || !b.size) return 0;
-
   let hits = 0;
-  for (const token of a) {
-    if (b.has(token)) hits += 1;
-  }
-
+  for (const token of a) if (b.has(token)) hits += 1;
   return hits / Math.max(1, Math.min(a.size, b.size));
 }
 
-function containsAny(
-  value: string,
-  patterns: readonly RegExp[],
-): boolean {
-  return patterns.some((pattern) => pattern.test(value));
+function ids(candidate: LatentMovieCandidate): string[] {
+  return unique(candidate.trajectory.flatMap((step) => step.eventIds));
 }
 
-const EXPECTATION = [
-  /\b(?:didn'?t|did not|never)\s+(?:expect|plan|think|assume)\b/i,
-  /\b(?:unexpected|surpris(?:e|ed|ing)|unplanned|unlike\s+expected)\b/i,
-];
-
-const CONTINUATION = [
-  /\b(?:kept|continued|continue|continues|still|again|returned|return|back)\b/i,
-  /\b(?:wanted|want|needed|need)\b.+\b(?:again|more|continue|talk)\b/i,
-];
-
-const STATE = [
-  /\b(?:felt|feel|feels|seemed|seem|became|become|was|were|is|are)\b/i,
-  /\b(?:easy|hard|calm|nervous|happy|sad|strange|familiar|awkward|comfortable|quiet|close|closer|distant|different|new|important|meaningful)\b/i,
-];
-
-const RECURRENCE = [
-  /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once\s+more)\b/i,
-];
-
-const CONTRAST = [
-  /\b(?:but|yet|although|instead|rather|except|while|however|still)\b/i,
-];
-
-const ACTION_OR_ENCOUNTER = [
-  /\b(?:met|meet|meeting|arrived|visited|started|called|texted|messaged|talked|talking|spoke|worked|played|danced|went|came|left|returned)\b/i,
-];
-
-function buildCandidate(
-  statement: string,
-  mechanism: CreativeInterpretationMechanism,
-  evidenceEventIds: readonly string[],
-  confidence: number,
-): CreativeInterpretation {
-  return {
-    statement: clean(statement),
-    mechanism,
-    evidenceEventIds: unique(evidenceEventIds),
-    confidence: metric(confidence),
-  };
-}
-
-function span(
-  orderedEventIds: readonly string[],
-  selectedIds: readonly string[],
-): number {
-  if (selectedIds.length < 2 || orderedEventIds.length < 2) return 0;
-  const positions = selectedIds
-    .map((id) => orderedEventIds.indexOf(id))
-    .filter((index) => index >= 0);
-  if (positions.length < 2) return 0;
-  return metric(
-    (Math.max(...positions) - Math.min(...positions)) /
-      Math.max(1, orderedEventIds.length - 1),
-  );
-}
-
-/**
- * Discover every bounded semantic interpretation supported by the selected
- * sequence. Candidate generation deliberately preserves discovery order.
- * Ranking/selection belongs downstream so the full cognitive competition can
- * be inspected and differentiated rather than collapsed here.
- *
- * These statements are semantic targets, not viewer copy. They intentionally
- * describe the experience without explaining it to the viewer. Mouth remains
- * responsible for the actual expression.
- */
-export function deriveSequenceBackedCreativeInterpretations(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): CreativeInterpretation[] {
-  const orderedEventIds = unique(
-    candidate.trajectory.flatMap((step) => step.eventIds),
-  );
-
-  if (orderedEventIds.length < 2) return [];
-
-  const labels = orderedEventIds.map((id) => labelFor(graph, id));
-  const meaningful = labels.filter(Boolean);
-  if (meaningful.length < 2) return [];
-
-  const expectations = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), EXPECTATION),
-  );
-  const continuation = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), CONTINUATION),
-  );
-  const states = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), STATE),
-  );
-  const recurrence = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), RECURRENCE),
-  );
-  const contrasts = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), CONTRAST),
-  );
-  const encounters = orderedEventIds.filter((id) =>
-    containsAny(labelFor(graph, id), ACTION_OR_ENCOUNTER),
-  );
-
-  const candidates: CreativeInterpretation[] = [];
-
-  if (expectations.length && states.length && continuation.length) {
-    const ids = unique([...expectations, ...states, ...continuation]);
-    candidates.push(
-      buildCandidate(
-        "The encounter outlasted the expectation.",
-        "expectation_shift",
-        ids,
-        0.86,
-      ),
-    );
-  }
-
-  if (encounters.length && continuation.length) {
-    const ids = unique([...encounters, ...continuation]);
-    candidates.push(
-      buildCandidate(
-        "A brief encounter became something worth continuing.",
-        "continuation",
-        ids,
-        0.87,
-      ),
-    );
-  }
-
-  if (encounters.length && states.length) {
-    let bestPair = { left: "", right: "", score: -1 };
-
-    for (const leftId of encounters) {
-      for (const rightId of states) {
-        const left = labelFor(graph, leftId);
-        const right = labelFor(graph, rightId);
-        const leftIndex = orderedEventIds.indexOf(leftId);
-        const rightIndex = orderedEventIds.indexOf(rightId);
-        if (leftIndex < 0 || rightIndex < 0) continue;
-
-        const distance = Math.abs(leftIndex - rightIndex);
-        const proximity = distance <= 1 ? 1 : distance === 2 ? 0.78 : 0.5;
-        const semanticCarry = overlap(left, right);
-        const score = proximity * 0.7 + semanticCarry * 0.3;
-        if (score > bestPair.score) {
-          bestPair = { left: leftId, right: rightId, score };
-        }
-      }
-    }
-
-    if (bestPair.score >= 0.7) {
-      candidates.push(
-        buildCandidate(
-          "The surprising change is how little had to happen for the encounter to feel easy.",
-          "state_change",
-          [bestPair.left, bestPair.right],
-          0.86,
-        ),
-      );
+function hasDirectionalStateChange(graph: RealityGraph, orderedIds: readonly string[]): { from: string; to: string; score: number } | undefined {
+  let best: { from: string; to: string; score: number } | undefined;
+  for (let i = 0; i < orderedIds.length; i += 1) {
+    const left = labelFor(graph, orderedIds[i]!);
+    if (!STATE.test(left)) continue;
+    for (let j = i + 1; j < orderedIds.length; j += 1) {
+      const right = labelFor(graph, orderedIds[j]!);
+      if (!STATE.test(right)) continue;
+      const leftNegative = NEGATIVE.test(left);
+      const rightNegative = NEGATIVE.test(right);
+      const leftPositive = POSITIVE.test(left);
+      const rightPositive = POSITIVE.test(right);
+      const polarityFlip = leftNegative !== rightNegative && (leftNegative || rightNegative);
+      const positiveOutcome = leftNegative && rightPositive;
+      const score = positiveOutcome ? 0.99 : polarityFlip ? 0.88 : leftPositive !== rightPositive ? 0.82 : 0.58;
+      const distanceBonus = Math.min(0.08, (j - i) * 0.02);
+      const candidateScore = score + distanceBonus;
+      if (!best || candidateScore > best.score) best = { from: orderedIds[i]!, to: orderedIds[j]!, score: candidateScore };
     }
   }
-
-  if (continuation.length && expectations.length) {
-    const ids = unique([...expectations, ...continuation]);
-    const sequenceSpan = span(orderedEventIds, ids);
-    candidates.push(
-      buildCandidate(
-        "The unexpected part is that the moment did not end where it should have.",
-        "consequence",
-        ids,
-        0.84 + sequenceSpan * 0.06,
-      ),
-    );
-  }
-
-  if (states.length >= 2 && continuation.length) {
-    const ids = unique([...states, ...continuation]);
-    const sequenceSpan = span(orderedEventIds, ids);
-    candidates.push(
-      buildCandidate(
-        "Small changes in feeling begin pointing in the same direction.",
-        "convergence",
-        ids,
-        0.82 + sequenceSpan * 0.08,
-      ),
-    );
-  }
-
-  if (recurrence.length && meaningful.length >= 3) {
-    const ids = recurrence.slice();
-    candidates.push(
-      buildCandidate(
-        "A return turns one moment into an ongoing thread.",
-        "recurrence",
-        ids,
-        0.79,
-      ),
-    );
-  }
-
-  if (contrasts.length && meaningful.length >= 3) {
-    const ids = contrasts.slice();
-    candidates.push(
-      buildCandidate(
-        "The same material begins to carry a different reading after the contrast.",
-        "contrast",
-        ids,
-        0.78,
-      ),
-    );
-  }
-
-  return candidates;
+  return best;
 }
 
-/**
- * Backward-compatible single-winner API. New code should consume the plural
- * API above so Cognition can inspect and differentiate the candidate set.
- */
-export function deriveSequenceBackedCreativeInterpretation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): CreativeInterpretation | undefined {
-  return deriveSequenceBackedCreativeInterpretations(
-    graph,
-    candidate,
-  )[0];
+function explicitRelationshipTurns(graph: RealityGraph, orderedIds: readonly string[]): CreativeInterpretation[] {
+  const positions = new Map(orderedIds.map((id, index) => [id, index]));
+  const output: CreativeInterpretation[] = [];
+  for (const relation of graph.relations) {
+    const fromIndex = positions.get(relation.from);
+    const toIndex = positions.get(relation.to);
+    if (fromIndex === undefined || toIndex === undefined || fromIndex >= toIndex) continue;
+    if (["before", "after", "involves", "belongs_to"].includes(relation.kind)) continue;
+    const from = labelFor(graph, relation.from);
+    const to = labelFor(graph, relation.to);
+    if (!from || !to) continue;
+    const mechanism: CreativeInterpretationMechanism =
+      relation.kind === "contrasts" ? "contrast" :
+      relation.kind === "recontextualizes" ? "expectation_shift" :
+      relation.kind === "repeats" ? "recurrence" :
+      relation.kind === "converges" ? "convergence" :
+      relation.kind === "changes" ? "state_change" : "consequence";
+    output.push({
+      statement: `${from} -> ${to}`,
+      mechanism,
+      evidenceEventIds: [relation.from, relation.to],
+      confidence: metric(0.68 + relation.strength * 0.27),
+    });
+  }
+  return output;
+}
+
+export function deriveSequenceBackedCreativeInterpretations(graph: RealityGraph, candidate: LatentMovieCandidate): CreativeInterpretation[] {
+  const orderedIds = ids(candidate);
+  if (orderedIds.length < 2) return [];
+  const labels = orderedIds.map((id) => labelFor(graph, id)).filter(Boolean);
+  if (labels.length < 2) return [];
+
+  const out: CreativeInterpretation[] = [];
+  out.push(...explicitRelationshipTurns(graph, orderedIds));
+
+  const stateChange = hasDirectionalStateChange(graph, orderedIds);
+  if (stateChange) {
+    out.push({
+      statement: `${labelFor(graph, stateChange.from)} gives way to ${labelFor(graph, stateChange.to)}`,
+      mechanism: "state_change",
+      evidenceEventIds: [stateChange.from, stateChange.to],
+      confidence: metric(stateChange.score),
+    });
+  }
+
+  const actionThenState: Array<{ action: string; state: string; score: number }> = [];
+  for (let i = 0; i < orderedIds.length; i += 1) {
+    const action = labelFor(graph, orderedIds[i]!);
+    if (!ACTION.test(action)) continue;
+    for (let j = i + 1; j < orderedIds.length; j += 1) {
+      const state = labelFor(graph, orderedIds[j]!);
+      if (!STATE.test(state)) continue;
+      const score = 0.66 + (j - i <= 2 ? 0.16 : 0.05) + (POSITIVE.test(state) ? 0.09 : 0);
+      actionThenState.push({ action: orderedIds[i]!, state: orderedIds[j]!, score });
+    }
+  }
+  const consequence = actionThenState.sort((a, b) => b.score - a.score)[0];
+  if (consequence) {
+    out.push({
+      statement: `${labelFor(graph, consequence.action)} -> ${labelFor(graph, consequence.state)}`,
+      mechanism: "consequence",
+      evidenceEventIds: [consequence.action, consequence.state],
+      confidence: metric(consequence.score),
+    });
+  }
+
+  if (orderedIds.some((id) => CONTINUATION.test(labelFor(graph, id)))) {
+    const id = orderedIds.find((item) => CONTINUATION.test(labelFor(graph, item)))!;
+    out.push({
+      statement: `${labelFor(graph, id)} remains an open thread`,
+      mechanism: "continuation",
+      evidenceEventIds: [id],
+      confidence: 0.78,
+    });
+  }
+
+  if (orderedIds.some((id) => EXPECTATION.test(labelFor(graph, id)))) {
+    const id = orderedIds.find((item) => EXPECTATION.test(labelFor(graph, item)))!;
+    out.push({
+      statement: `${labelFor(graph, id)} changes the expected reading`,
+      mechanism: "expectation_shift",
+      evidenceEventIds: [id],
+      confidence: 0.76,
+    });
+  }
+
+  const contrastCarrier = orderedIds.find((id) => CONTRAST_WORD.test(labelFor(graph, id)));
+  if (contrastCarrier) {
+    out.push({
+      statement: `${labelFor(graph, contrastCarrier)} contains an explicit contrast`,
+      mechanism: "contrast",
+      evidenceEventIds: [contrastCarrier],
+      confidence: 0.74,
+    });
+  }
+
+  return out
+    .filter((item, index, all) => all.findIndex((other) => other.statement === item.statement && other.mechanism === item.mechanism) === index)
+    .sort((a, b) => b.confidence - a.confidence);
+}
+
+export function deriveSequenceBackedCreativeInterpretation(graph: RealityGraph, candidate: LatentMovieCandidate): CreativeInterpretation | undefined {
+  return deriveSequenceBackedCreativeInterpretations(graph, candidate)[0];
 }
