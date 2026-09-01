@@ -6,6 +6,7 @@ export { createSessionManager } from "./sessionManager.js";
 export { renderTeaser } from "./teaserRenderer.js";
 export { createPaymentLink } from "./payments.js";
 export { buildServiceReceipt } from "./receiptBuilder.js";
+export { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 export type { ExperienceMoment } from "@qre/contracts";
 
 export * from "./analytics/index.js";
