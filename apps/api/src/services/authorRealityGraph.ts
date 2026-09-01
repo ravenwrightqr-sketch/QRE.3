@@ -27,7 +27,6 @@ const STOP = new Set([
   "his","her","its","he","she","they","them","you","we","me",
 ]);
 
-/* Generic predicates are weak authoring features, never convergence anchors. */
 const GENERIC = new Set([
   "likes","like","loves","love","is","are","was","were","be","been",
   "has","have","had","does","do","did","gets","get","got","makes",
@@ -120,20 +119,16 @@ function event(label: string, sourceIds: string[], subject: string | undefined, 
   };
 }
 
-function addRelation(
-  relations: RealityRelation[],
-  from: string,
-  to: string,
-  kind: RealityRelation["kind"],
-  strength: number,
-): void {
+function addRelation(relations: RealityRelation[], from: string, to: string, kind: RealityRelation["kind"], strength: number): void {
   if (from === to) return;
   if (relations.some((relation) => relation.from === from && relation.to === to && relation.kind === kind)) return;
   relations.push({ from, to, kind, strength: Math.max(0, Math.min(1, strength)) });
 }
 
-function specificityScore(item: RealityEvent): number {
-  return Math.min(1, contentTokens(item.label).length * 0.08 + item.entities.length * 0.04);
+function statePolarity(text: string): -1 | 0 | 1 {
+  if (/\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i.test(text)) return -1;
+  if (/\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content)\b/i.test(text)) return 1;
+  return 0;
 }
 
 function buildRelationships(events: RealityEvent[], subject?: string): RealityRelation[] {
@@ -143,7 +138,6 @@ function buildRelationships(events: RealityEvent[], subject?: string): RealityRe
   for (let i = 0; i < events.length; i += 1) {
     const currentTime = explicitTime(events[i].label);
     if (currentTime === undefined) continue;
-
     for (let j = i + 1; j < events.length; j += 1) {
       const otherTime = explicitTime(events[j].label);
       if (otherTime === undefined || currentTime >= otherTime) continue;
@@ -154,7 +148,6 @@ function buildRelationships(events: RealityEvent[], subject?: string): RealityRe
 
   for (let i = 0; i < events.length; i += 1) {
     const current = events[i];
-
     for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j];
       const currentMeaningful = meaningfulContentTokens(current.label, subject);
@@ -162,69 +155,55 @@ function buildRelationships(events: RealityEvent[], subject?: string): RealityRe
       const otherSet = new Set(otherMeaningful);
       const shared = [...new Set(currentMeaningful)].filter((token) => otherSet.has(token));
 
-      /*
-       * Convergence is semantic only when there is at least one
-       * distinctive supplied concept shared by both observations.
-       * Subject names and generic predicates cannot create it.
-       */
+      /* Distinctive lexical overlap is only a weak convergence signal. */
       if (shared.length >= 1) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "converges",
-          Math.min(0.9, 0.46 + shared.length * 0.11),
-        );
+        addRelation(relations, current.id, other.id, "converges", Math.min(0.9, 0.46 + shared.length * 0.11));
       }
 
+      /* Explicit relational language is evidence of recontextualization. */
       if (RELATION_WORDS.test(current.label) || RELATION_WORDS.test(other.label)) {
         addRelation(relations, current.id, other.id, "recontextualizes", 0.82);
       }
 
       const currentIsState = STATE_WORDS.test(current.label);
       const otherIsState = STATE_WORDS.test(other.label);
-      const currentIsAction = ACTIONS.test(current.label);
-      const otherIsAction = ACTIONS.test(other.label);
+      const currentPolarity = statePolarity(current.label);
+      const otherPolarity = statePolarity(other.label);
 
-      if ((currentIsState && otherIsAction) || (currentIsAction && otherIsState)) {
-        const timeSupported = explicitTime(current.label) !== undefined && explicitTime(other.label) !== undefined;
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "changes",
-          shared.length > 0 || timeSupported ? 0.5 : 0.24,
-        );
+      /*
+       * IMPORTANT: an action beside a state is not itself a contrast.
+       * A true semantic contrast requires actual state opposition.
+       */
+      if (currentIsState && otherIsState && currentPolarity !== 0 && otherPolarity !== 0 && currentPolarity !== otherPolarity) {
+        addRelation(relations, current.id, other.id, "contrasts", 0.76);
+        addRelation(relations, current.id, other.id, "changes", 0.74);
       }
 
-      const stateSpecificPair =
-        (currentIsState && !otherIsState && specificityScore(other) >= 0.32) ||
-        (otherIsState && !currentIsState && specificityScore(current) >= 0.32);
-
-      if (stateSpecificPair) {
-        const specificity = Math.max(specificityScore(current), specificityScore(other));
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "contrasts",
-          0.3 + Math.min(0.2, specificity * 0.2),
-        );
-      }
-
-      const a = explicitTime(current.label);
-      const b = explicitTime(other.label);
-      if (a !== undefined && b !== undefined && a < b) {
-        addRelation(relations, current.id, other.id, "before", 0.94);
+      /*
+       * A state can be related to an action, but without explicit timing or
+       * stronger evidence the graph must not assert causation or change.
+       */
+      const currentTime = explicitTime(current.label);
+      const otherTime = explicitTime(other.label);
+      if (currentTime !== undefined && otherTime !== undefined && currentTime < otherTime) {
+        const currentIsAction = ACTIONS.test(current.label);
+        const otherIsAction = ACTIONS.test(other.label);
+        if ((currentIsState && otherIsAction) || (currentIsAction && otherIsState)) {
+          addRelation(relations, current.id, other.id, "changes", 0.58);
+        }
       }
     }
   }
 
-  /* Recurrence is a semantic signal, but still grounded in explicit wording. */
+  /* Recurrence is grounded in explicit recurrence wording and nearby material. */
   for (const item of events.filter((candidate) => RECURRENCE_WORDS.test(candidate.label))) {
     for (const other of events) {
       if (item.id === other.id) continue;
-      addRelation(relations, item.id, other.id, "recontextualizes", 0.76);
+      const left = new Set(meaningfulContentTokens(item.label, subject));
+      const right = meaningfulContentTokens(other.label, subject);
+      if (right.some((token) => left.has(token))) {
+        addRelation(relations, item.id, other.id, "recontextualizes", 0.76);
+      }
     }
   }
 
@@ -273,27 +252,13 @@ export function buildAuthorRealityGraph(input: {
   trajectory?: string[];
 }): RealityGraph {
   const evidenceItems: RealityEvidence[] = [];
-
-  const pushEvidence = (
-    kind: RealityEvidence["kind"],
-    values: readonly string[] | undefined,
-  ) => {
+  const pushEvidence = (kind: RealityEvidence["kind"], values: readonly string[] | undefined) => {
     for (const value of values ?? []) {
       const text = clean(value);
-      if (text) {
-        evidenceItems.push(
-          evidence(kind, text, evidenceItems.length),
-        );
-      }
+      if (text) evidenceItems.push(evidence(kind, text, evidenceItems.length));
     }
   };
 
-  /*
-   * Preserve provenance at the evidence boundary.
-   * Prompt/facts are source reality.
-   * Identity is subject context.
-   * Moments, memory, and trajectory are contextual inputs.
-   */
   pushEvidence("prompt", [input.prompt]);
   pushEvidence("identity", input.subject ? [input.subject] : []);
   pushEvidence("fact", input.facts);
@@ -301,82 +266,33 @@ export function buildAuthorRealityGraph(input: {
   pushEvidence("memory", input.memoryContext);
   pushEvidence("trajectory", input.trajectory);
 
-  /*
-   * ONLY user-supplied factual material is eligible to become
-   * explicit RealityEvents. Prompt text is intent; memory/trajectory
-   * remain contextual. An uploaded file is not an inferred event.
-   */
-  const explicitReality = [
-    ...input.facts,
-    ...input.sourceMoments,
-  ];
-
+  const explicitReality = [...input.facts, ...input.sourceMoments];
   const fragments = splitReality(explicitReality);
+  const identityFragments = fragments.filter((text) => looksLikeIdentityAssertion(text, input.subject));
+  const experienceFragments = fragments.filter((text) => !looksLikeIdentityAssertion(text, input.subject));
 
-  const identityFragments = fragments.filter((text) =>
-    looksLikeIdentityAssertion(text, input.subject),
-  );
+  const atomicIdentityEvidence: RealityEvidence[] = identityFragments.map((text, index) => ({
+    id: `evidence-identity-atomic-${index + 1}`,
+    text,
+    kind: "identity",
+  }));
+  const atomicEvidence: RealityEvidence[] = experienceFragments.map((text, index) => ({
+    id: `evidence-atomic-${index + 1}`,
+    text,
+    kind: "fact",
+  }));
 
-  const experienceFragments = fragments.filter((text) =>
-    !looksLikeIdentityAssertion(text, input.subject),
-  );
-
-  const atomicIdentityEvidence: RealityEvidence[] = identityFragments.map(
-    (text, index) => ({
-      id: `evidence-identity-atomic-${index + 1}`,
-      text,
-      kind: "identity",
-    }),
-  );
-
-  const atomicEvidence: RealityEvidence[] = experienceFragments.map(
-    (text, index) => ({
-      id: `evidence-atomic-${index + 1}`,
-      text,
-      kind: "fact",
-    }),
-  );
-
-  const events = atomicEvidence.map(
-    (source, index) =>
-      event(
-        source.text,
-        [source.id],
-        input.subject,
-        input.place,
-        index,
-      ),
-  );
-
+  const events = atomicEvidence.map((source, index) => event(source.text, [source.id], input.subject, input.place, index));
   const relations = buildRelationships(events, input.subject);
-
-  const sourceText = [
-    input.prompt,
-    ...input.facts,
-    ...input.sourceMoments,
-  ].join(" ");
-
-  const recurringSignals = deriveRecurringSignals(
-    fragments,
-    undefined,
-    undefined,
-  );
-
+  const sourceText = [input.prompt, ...input.facts, ...input.sourceMoments].join(" ");
+  const recurringSignals = deriveRecurringSignals(fragments, input.memoryContext, input.trajectory);
   const sensorySignals = deriveSensorySignals(fragments);
 
   return {
-    evidence: [
-      ...evidenceItems,
-      ...atomicIdentityEvidence,
-      ...atomicEvidence,
-    ],
+    evidence: [...evidenceItems, ...atomicIdentityEvidence, ...atomicEvidence],
     events,
     relations,
-    unresolvedTensions: deriveTensions(
-      events,
-      relations,
-      sourceText,
-    ),
+    unresolvedTensions: deriveTensions(events, relations, sourceText),
     recurringSignals,
     sensorySignals,
   };
