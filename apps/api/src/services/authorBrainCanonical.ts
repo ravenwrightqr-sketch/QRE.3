@@ -232,12 +232,6 @@ function makeSequence(
       viewerBefore,
       viewerAfter,
       momentum: transition,
-      necessity: transition.after.magnet
-        ? transition.after.magnet.magnetStrength >= 0.36 || index === selected.candidates.length - 1
-          ? transition.after.magnet.magnetStrength >= 0.36 || index === selected.candidates.length - 1
-          ? transition.after.magnet.magnetStrength >= 0.36 || index === selected.candidates.length - 1
-          ? transition.after.magnet.magnetStrength >= 0.36 || index === selected.candidates.length - 1
-          : false : false : false : false : false,
       nextPromise: transition.nextPressure,
       noveltyScore: transition.after.magnet?.novelty,
       payoffConnection: index === selected.candidates.length - 1 ? clean(movie.payoff) : undefined,
