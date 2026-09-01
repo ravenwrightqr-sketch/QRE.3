@@ -98,11 +98,12 @@ function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat
     const shared = overlap(candidate, sourceTokens);
 
     /*
-     * A generic head attached to a supplied concrete descriptor is a
-     * specificity downgrade: "blue bow" -> "blue thing". That destroys
-     * recoverable identity instead of creating a useful creative frame.
+     * A generic head attached to any supplied concrete descriptor is a
+     * specificity downgrade: "blue bow" -> "blue thing". Even one shared
+     * supplied descriptor token is enough to establish that the candidate is
+     * talking about the same concrete reality while throwing away its identity.
      */
-    if (shared >= 0.35 && sourceTokens.size >= 2) return 1;
+    if (shared > 0 && sourceTokens.size >= 2) return 1;
   }
 
   return 0;
@@ -164,7 +165,7 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
-  if (substitutionRisk >= 0.9) return 1;
+  if (substitutionRisk >= 0.72) return 1;
 
   const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
   if (specificityRisk >= 0.9) return 1;
@@ -250,9 +251,32 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningfulTokens(value), meaningfulTokens(prior))), 0))
     : 1;
+
   if (forbidden >= 0.9 || explain >= 0.95) {
-    return { text: value, beatOrder: beat.order, supportedEventIds: [], supportedRelationPairs: [], groundingScore: 0, meaningScore: 0, observerDiscoveryScore: 0, transitionScore: 0, obligationCoverage: 0, relationContractScore: 0, forbiddenMoveRisk: 1, cohesionScore: 0, noveltyScore: novelty, compressionScore: form, inventionRisk: 1, repetitionRisk: 1 - novelty, collageRisk: 0, endpointExactness: 0, score: 0, reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : [])] };
+    return {
+      text: value,
+      beatOrder: beat.order,
+      supportedEventIds: [],
+      supportedRelationPairs: [],
+      groundingScore: 0,
+      meaningScore: 0,
+      observerDiscoveryScore: 0,
+      transitionScore: 0,
+      obligationCoverage: 0,
+      relationContractScore: 0,
+      forbiddenMoveRisk: 1,
+      cohesionScore: 0,
+      noveltyScore: novelty,
+      compressionScore: form,
+      inventionRisk: 1,
+      repetitionRisk: 1 - novelty,
+      collageRisk: 0,
+      endpointExactness: 0,
+      score: 0,
+      reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : [])],
+    };
   }
+
   const labels = sourceLabels(beat, envelope);
   const exact = labels.some((label) => normalize(label) === normalize(value));
   const sourceOverlap = overlap(meaningfulTokens(value), meaningfulTokens(labels.join(" ")));
@@ -265,7 +289,10 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
   const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
   const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
-  const score = metric(grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16);
+  const score = metric(
+    grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
+  );
+
   const reasons: string[] = [];
   if (supportedEventIds.length) reasons.push("event-grounded");
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
@@ -277,7 +304,29 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (payoff >= 0.62) reasons.push("viewer-reward");
   if (abstract > 0.35) reasons.push("abstract-nominalization");
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
-  return { text: value, beatOrder: beat.order, supportedEventIds, supportedRelationPairs, groundingScore: grounding, meaningScore: meaning, observerDiscoveryScore: discovery, transitionScore: transition, obligationCoverage: obligation, relationContractScore: metric(supportedRelationPairs.length ? 0.75 : 0.35), forbiddenMoveRisk: forbidden, cohesionScore: metric(0.55 + novelty * 0.25 + meaning * 0.2), noveltyScore: novelty, compressionScore: form, inventionRisk: forbidden, repetitionRisk: 1 - novelty, collageRisk: 0, endpointExactness: exact ? 1 : 0, score, reasons };
+
+  return {
+    text: value,
+    beatOrder: beat.order,
+    supportedEventIds,
+    supportedRelationPairs,
+    groundingScore: grounding,
+    meaningScore: meaning,
+    observerDiscoveryScore: discovery,
+    transitionScore: transition,
+    obligationCoverage: obligation,
+    relationContractScore: metric(supportedRelationPairs.length ? 0.75 : 0.35),
+    forbiddenMoveRisk: forbidden,
+    cohesionScore: metric(0.55 + novelty * 0.25 + meaning * 0.2),
+    noveltyScore: novelty,
+    compressionScore: form,
+    inventionRisk: forbidden,
+    repetitionRisk: 1 - novelty,
+    collageRisk: 0,
+    endpointExactness: exact ? 1 : 0,
+    score,
+    reasons,
+  };
 }
 
 function buildSystemPrompt(): string {
@@ -298,8 +347,7 @@ function buildSystemPrompt(): string {
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
     "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
-    "Never weaken a supplied concrete phrase into a generic noun such as thing, stuff, object, item, something, one, piece, or shape when doing so destroys its recoverable identity.",
-    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or concrete specificity degradation.",
+    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
@@ -312,10 +360,33 @@ function buildSystemPrompt(): string {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = worldEvidence(input.envelope);
-  const beats = input.beats.map((beat) => ({ order: beat.order, supplied: sourceLabels(beat, input.envelope), purpose: clean(beat.attentionFunction || beat.role), meaning: clean(beat.change), viewerState: beat.viewerState ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) } : undefined, next: clean(beat.next), relationKinds: beat.relationKinds ?? [], terminal: Boolean(beat.paysOff?.length) }));
+  const beats = input.beats.map((beat) => ({
+    order: beat.order,
+    supplied: sourceLabels(beat, input.envelope),
+    purpose: clean(beat.attentionFunction || beat.role),
+    meaning: clean(beat.change),
+    viewerState: beat.viewerState
+      ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) }
+      : undefined,
+    next: clean(beat.next),
+    relationKinds: beat.relationKinds ?? [],
+    terminal: Boolean(beat.paysOff?.length),
+  }));
+
   return [
     { role: "system", content: buildSystemPrompt() },
-    { role: "user", content: JSON.stringify({ subject: input.envelope.subject, lens: clean(input.lens) || "NONE", lensFrame: lens.label, suppliedReality: evidence, priorCuts: input.priorTexts ?? [], beats, output: { variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order" } }) },
+    {
+      role: "user",
+      content: JSON.stringify({
+        subject: input.envelope.subject,
+        lens: clean(input.lens) || "NONE",
+        lensFrame: lens.label,
+        suppliedReality: evidence,
+        priorCuts: input.priorTexts ?? [],
+        beats,
+        output: { variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order" },
+      }),
+    },
   ];
 }
 
@@ -323,7 +394,12 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
   try {
     const parsed = JSON.parse(clean(raw)) as { variantsByBeat?: unknown };
     if (!Array.isArray(parsed?.variantsByBeat) || parsed.variantsByBeat.length === 0) return undefined;
-    const variantsByBeat = parsed.variantsByBeat.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").map((item) => ({ order: Number(item.order), variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [] }));
+    const variantsByBeat = parsed.variantsByBeat
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+      .map((item) => ({
+        order: Number(item.order),
+        variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [],
+      }));
     if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
     const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
     if (orders.some((order, index) => order !== index + 1)) return undefined;
