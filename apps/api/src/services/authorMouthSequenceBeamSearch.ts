@@ -105,6 +105,7 @@
  *
  * The authority remains singular.
  */
+
 import type {
   MouthCandidate,
   MouthCandidatePool,
@@ -112,7 +113,6 @@ import type {
   MouthBeamOptions,
   ViewerStateCut,
 } from "@qre/contracts";
-
 
 const clean = (
   value: unknown,
@@ -586,10 +586,10 @@ function viewerStateFit(
         );
 
   const semanticMovement =
-    candidate.transitionScore *
-      0.52 +
-    candidate.meaningScore *
-      0.28;
+    literalRestatement
+      ? candidate.meaningScore * 0.28
+      : candidate.transitionScore * 0.52 +
+        candidate.meaningScore * 0.28;
 
   const approvedSemantic =
     candidate.reasons.includes(
@@ -726,13 +726,20 @@ function sequenceTransition(
   if (
     !priorCandidates.length
   ) {
-    return metric(
-      stateFit * 0.62 +
-        candidate.transitionScore *
-          0.24 +
-        candidate.meaningScore *
-          0.14,
-    );
+   const candidateMovement =
+  candidate.reasons.includes(
+    "literal-source-restatement",
+  ) ||
+  candidate.endpointExactness >=
+    0.999
+    ? 0
+    : candidate.transitionScore;
+
+return metric(
+  stateFit * 0.62 +
+    candidateMovement * 0.24 +
+    candidate.meaningScore * 0.14,
+);
   }
 
   const current =
@@ -920,6 +927,11 @@ function expressionQuality(
       ? 1
       : 0;
 
+  const earnedCompression =
+    earnedCompressionQuality(
+      candidate,
+    );
+
   return metric(
     safety * 0.14 +
       grounding * 0.14 +
@@ -927,7 +939,8 @@ function expressionQuality(
       experiential * 0.16 +
       consequence * 0.12 +
       distinctive * 0.10 +
-      compression * 0.06 +
+      compression * 0.03 +
+      earnedCompression * 0.07 +
       novelty * 0.05 +
       contrast * 0.05,
   );
@@ -970,6 +983,90 @@ function compressionQuality(
   }
 
   return 0.25;
+}
+
+/**
+ * Earned compression is the difference between being short and being
+ * meaningfully short.
+ *
+ * A compact line is valuable only when the compression preserves enough
+ * approved meaning and viewer movement to carry the sequence.
+ *
+ * This is a quality signal, not a hard gate and not a reward for brevity
+ * by itself.
+ */
+function earnedCompressionQuality(
+  candidate: MouthCandidate,
+): number {
+  const compression =
+    compressionQuality(
+      candidate,
+    );
+
+  const meaning =
+    metric(
+      candidate.meaningScore,
+    );
+
+  const transition =
+    metric(
+      candidate.transitionScore,
+    );
+
+  const discovery =
+    metric(
+      candidate.observerDiscoveryScore,
+    );
+
+  const semanticContrast =
+    isSemanticContrast(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  const experiential =
+    isExperientialRealization(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  const consequence =
+    isExperientialConsequence(
+      candidate,
+    )
+      ? 1
+      : 0;
+
+  /*
+   * Shortness earns value from what it successfully carries.
+   * Meaning is primary; state movement and discovery support it.
+   */
+  const carriedMeaning =
+    meaning * 0.52 +
+    transition * 0.22 +
+    discovery * 0.12 +
+    semanticContrast * 0.07 +
+    experiential * 0.04 +
+    consequence * 0.03;
+
+  /*
+   * Very short lines receive no automatic privilege when semantically thin.
+   */
+  const compressionBenefit =
+    compression *
+    carriedMeaning;
+
+  const semanticLoss =
+    compression *
+    (1 - meaning) *
+    0.34;
+
+  return metric(
+    compressionBenefit -
+      semanticLoss,
+  );
 }
 
 function formDiversity(
@@ -1069,6 +1166,7 @@ function localAuthority(
         0.08,
   );
 }
+
 function observerCompletionScore(
   candidate: MouthCandidate,
 ): number {
@@ -1087,8 +1185,8 @@ function observerCompletionScore(
    * The candidate must already be authorized. This signal may reward an
    * open realization, but it can never authorize one.
    */
-
   const words = wordCount(value);
+
   const discovery = metric(
     candidate.observerDiscoveryScore,
   );
@@ -1098,22 +1196,14 @@ function observerCompletionScore(
    *
    * a short fragment can carry a large amount of earned meaning because
    * the sequence has already supplied the context.
-   *
-   * Examples:
-   *   Unexpected.
-   *   Still.
-   *   Again.
-   *   Not yet.
-   *   Enough.
-   *   There was more.
-   *
-   * Do NOT hard-code those words as required forms. Detect the structure.
    */
   const fragmentForm =
     !/[,:;()[\]{}]/.test(value) &&
     words <= 4 &&
     !/[?]$/.test(value) &&
-    !/^(?:i|you|we|they|he|she|it|this|that)\b/i.test(value);
+    !/^(?:i|you|we|they|he|she|it|this|that)\b/i.test(
+      value,
+    );
 
   /*
    * A single word is especially capable of leaving completion to the
@@ -1220,6 +1310,7 @@ function observerCompletionScore(
 
   return metric(score);
 }
+
 /* ================================================================
  * STATE-BASED GOLD
  * ================================================================ */
@@ -1230,7 +1321,6 @@ function observerCompletionScore(
  * Gold emerges from the actual transition, not from a fixed stylistic
  * label and not from a designated "fire beat".
  */
-
 function stateGoldPotential(
   candidate: MouthCandidate,
   priorCandidates: readonly MouthCandidate[],
@@ -1358,21 +1448,27 @@ function pathCandidateScore(
     );
 
   const expression =
-  expressionQuality(
-    candidate,
-  );
+    expressionQuality(
+      candidate,
+    );
 
-const observerDiscovery =
-  metric(
-    candidate.observerDiscoveryScore,
-  );
+  const observerDiscovery =
+    metric(
+      candidate.observerDiscoveryScore,
+    );
 
-const observerCompletion =
-  observerCompletionScore(
-    candidate,
-  );
+  const observerCompletion =
+    observerCompletionScore(
+      candidate,
+    );
+
   const compression =
     compressionQuality(
+      candidate,
+    );
+
+  const earnedCompression =
+    earnedCompressionQuality(
       candidate,
     );
 
@@ -1435,20 +1531,24 @@ const observerCompletion =
     goldDiminishing;
 
   /*
-   * State transition is the center of gravity.
+   * State transition remains the center of gravity.
+   *
+   * Earned compression gets a modest explicit weight. Raw compression is
+   * intentionally tiny so brevity cannot dominate meaning.
    */
   const score =
-  transition * 0.30 +
-  sequence * 0.18 +
-  future * 0.15 +
-  expression * 0.09 +
-  observerDiscovery * 0.06 +
-  observerCompletion * 0.12 +
-  canonicalStrength * 0.05 +
-  authority * 0.05 +
-  compression * 0.02 +
-  diversity * 0.02 +
-  dynamicGold * 0.06;
+    transition * 0.30 +
+    sequence * 0.18 +
+    future * 0.15 +
+    expression * 0.09 +
+    observerDiscovery * 0.06 +
+    observerCompletion * 0.12 +
+    canonicalStrength * 0.05 +
+    authority * 0.05 +
+    compression * 0.01 +
+    earnedCompression * 0.03 +
+    diversity * 0.02 +
+    dynamicGold * 0.06;
 
   /*
    * Very weak state movement cannot win merely through pretty wording.
@@ -1464,29 +1564,31 @@ const observerCompletion =
       score *
         stateFloor,
     );
-   debugBeamCandidate(
-  candidate,
-  priorCandidates,
-  state,
-  nextPromise,
-  pool,
-  {
-    transition,
-    sequence,
-    future,
-    expression,
-    observerDiscovery,
-    observerCompletion,
-    compression,
-    diversity,
-    authority,
-    stateStrength:
-      canonicalStrength,
-    relativeGold,
-    dynamicGold,
-    finalScore,
-  },
-);
+
+  debugBeamCandidate(
+    candidate,
+    priorCandidates,
+    state,
+    nextPromise,
+    pool,
+    {
+      transition,
+      sequence,
+      future,
+      expression,
+      observerDiscovery,
+      observerCompletion,
+      compression,
+      earnedCompression,
+      diversity,
+      authority,
+      stateStrength:
+        canonicalStrength,
+      relativeGold,
+      dynamicGold,
+      finalScore,
+    },
+  );
 
   return finalScore;
 }
@@ -1653,6 +1755,7 @@ function dedupeCandidates(
 
   return result;
 }
+
 /* ================================================================
  * PATH STATE
  * ================================================================ */
@@ -1783,8 +1886,8 @@ function pathMeaningPeak(
     const nextPromise =
       clean(
         pool.nextPromise ??
-        pool.frontier ??
-        "",
+          pool.frontier ??
+          "",
       );
 
     const value =
@@ -1842,8 +1945,8 @@ function pathFuturePressure(
         pool.viewerState,
         clean(
           pool.nextPromise ??
-          pool.frontier ??
-          "",
+            pool.frontier ??
+            "",
         ),
       );
   }
@@ -1953,6 +2056,7 @@ function debugBeamCandidate(
     observerDiscovery: number;
     observerCompletion: number;
     compression: number;
+    earnedCompression: number;
     diversity: number;
     authority: number;
     stateStrength: number;
@@ -2046,21 +2150,31 @@ function debugBeamCandidate(
             3,
           ),
         ),
+
       observerDiscovery:
         Number(
           values.observerDiscovery.toFixed(
             3,
           ),
         ),
+
       observerCompletion:
         Number(
-         values.observerCompletion.toFixed(
-           3,
-         ),
+          values.observerCompletion.toFixed(
+            3,
+          ),
         ),
+
       compression:
         Number(
           values.compression.toFixed(
+            3,
+          ),
+        ),
+
+      earnedCompression:
+        Number(
+          values.earnedCompression.toFixed(
             3,
           ),
         ),
@@ -2165,7 +2279,7 @@ export function selectBestMouthSequence(
       1,
       Math.floor(
         options.width ??
-        12,
+          12,
       ),
     );
 
@@ -2174,7 +2288,7 @@ export function selectBestMouthSequence(
       1,
       Math.floor(
         options.candidatesPerBeat ??
-        8,
+          8,
       ),
     );
 
@@ -2234,8 +2348,8 @@ export function selectBestMouthSequence(
     const nextPromise =
       clean(
         pool.nextPromise ??
-        pool.frontier ??
-        "",
+          pool.frontier ??
+          "",
       );
 
     const expanded: Path[] = [];
@@ -2280,8 +2394,8 @@ export function selectBestMouthSequence(
         const priorPromise =
           clean(
             priorPool.nextPromise ??
-            priorPool.frontier ??
-            "",
+              priorPool.frontier ??
+              "",
           );
 
         const priorGold =
@@ -2392,16 +2506,24 @@ export function selectBestMouthSequence(
                 expressionQuality(
                   candidate,
                 ),
+
               observerDiscovery:
-              metric(
-              candidate.observerDiscoveryScore,
-              ),
+                metric(
+                  candidate.observerDiscoveryScore,
+                ),
+
               observerCompletion:
-               observerCompletionScore(
-                 candidate,
-              ),
+                observerCompletionScore(
+                  candidate,
+                ),
+
               compression:
                 compressionQuality(
+                  candidate,
+                ),
+
+              earnedCompression:
+                earnedCompressionQuality(
                   candidate,
                 ),
 
@@ -2430,49 +2552,52 @@ export function selectBestMouthSequence(
                   nextPromise,
                 ),
 
-            dynamicGold:
-             Math.max(
-             0,
-            candidateScore -
-           (
-     viewerStateFit(
-  candidate,
-  state,
-) * 0.30 +
-sequenceTransition(
-  candidate,
-  priorCandidates,
-  state,
-) * 0.18 +
-nextStatePressure(
-  candidate,
-  state,
-  nextPromise,
-) * 0.15 +
-expressionQuality(
-  candidate,
-) * 0.09 +
-metric(
-  candidate.observerDiscoveryScore,
-) * 0.06 +
-observerCompletionScore(
-  candidate,
-) * 0.12 +
-canonicalStateSignal(
-  state,
-) * 0.05 +
-localAuthority(
-  candidate,
-) * 0.05 +
-compressionQuality(
-  candidate,
-) * 0.02 +
-formDiversity(
-  candidate,
-  priorCandidates,
-) * 0.02
-    ),
-  ),
+              dynamicGold:
+                Math.max(
+                  0,
+                  candidateScore -
+                    (
+                      viewerStateFit(
+                        candidate,
+                        state,
+                      ) * 0.30 +
+                      sequenceTransition(
+                        candidate,
+                        priorCandidates,
+                        state,
+                      ) * 0.18 +
+                      nextStatePressure(
+                        candidate,
+                        state,
+                        nextPromise,
+                      ) * 0.15 +
+                      expressionQuality(
+                        candidate,
+                      ) * 0.09 +
+                      metric(
+                        candidate.observerDiscoveryScore,
+                      ) * 0.06 +
+                      observerCompletionScore(
+                        candidate,
+                      ) * 0.12 +
+                      canonicalStateSignal(
+                        state,
+                      ) * 0.05 +
+                      localAuthority(
+                        candidate,
+                      ) * 0.05 +
+                      compressionQuality(
+                        candidate,
+                      ) * 0.01 +
+                      earnedCompressionQuality(
+                        candidate,
+                      ) * 0.03 +
+                      formDiversity(
+                        candidate,
+                        priorCandidates,
+                      ) * 0.02
+                    ),
+                ),
 
               finalScore:
                 candidateScore,

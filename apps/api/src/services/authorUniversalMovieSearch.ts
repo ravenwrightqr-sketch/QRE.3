@@ -3,6 +3,7 @@ import type {
   LatentMovieTrajectoryStep,
   RealityGraph,
   RealityRelation,
+  RealityPattern,
 } from "@qre/contracts";
 
 /**
@@ -299,7 +300,220 @@ function questionFor(
     default: return "What is becoming noticeable?";
   }
 }
+function structuralEventPhrase(
+  graph: RealityGraph,
+  id: string,
+): string {
+  const current = event(graph, id);
+  const structure = eventStructureFor(graph, id);
 
+  const action =
+    structure?.actions[0] ??
+    "";
+
+  const object =
+    structure?.objects[0] ??
+    "";
+
+  const state =
+    structure?.states[0] ??
+    current?.emotionalState ??
+    "";
+
+  if (action && object) {
+    return `${action} involving ${object}`;
+  }
+
+  if (action) {
+    return action;
+  }
+
+  if (object) {
+    return `the ${object}`;
+  }
+
+  if (state) {
+    return `the ${state} state`;
+  }
+
+  return label(graph, id);
+}
+function structuralViewerChange(
+  graph: RealityGraph,
+  previousId: string | undefined,
+  currentId: string,
+  relation: RealityRelation | undefined,
+  final: boolean,
+): string {
+  const current = event(
+    graph,
+    currentId,
+  );
+
+  const previous = previousId
+    ? event(
+        graph,
+        previousId,
+      )
+    : undefined;
+
+  const currentStructure =
+    eventStructureFor(
+      graph,
+      currentId,
+    );
+
+  const previousStructure =
+    previousId
+      ? eventStructureFor(
+          graph,
+          previousId,
+        )
+      : undefined;
+
+  const currentLabel =
+    label(
+      graph,
+      currentId,
+    );
+
+  const previousLabel =
+    previousId
+      ? label(
+          graph,
+          previousId,
+        )
+      : "";
+
+  const currentStates =
+    unique([
+      ...(currentStructure?.states ?? []),
+      current?.emotionalState ?? "",
+    ].filter(Boolean));
+
+  const previousStates =
+    unique([
+      ...(previousStructure?.states ?? []),
+      previous?.emotionalState ?? "",
+    ].filter(Boolean));
+
+  const currentTags =
+    currentStructure?.semanticTags ??
+    [];
+
+  const currentObjects =
+    currentStructure?.objects ??
+    [];
+
+  const currentActions =
+    currentStructure?.actions ??
+    [];
+
+  if (!previousId) {
+    if (currentStates.length) {
+      return `Establish the supplied state: ${currentStates[0]}.`;
+    }
+
+    if (currentActions.length) {
+      return `Establish the supplied action: ${currentActions[0]}.`;
+    }
+
+    if (currentObjects.length) {
+      return `Establish the supplied detail: ${currentObjects[0]}.`;
+    }
+
+    return `Establish the supplied opening: ${currentLabel}.`;
+  }
+
+  if (
+    relation?.kind ===
+    "recontextualizes"
+  ) {
+    return `The supplied detail is recontextualized by ${currentLabel}.`;
+  }
+
+  if (
+    relation?.kind ===
+    "repeats"
+  ) {
+    return `The earlier detail returns through ${currentLabel}.`;
+  }
+
+  if (
+    relation?.kind ===
+    "contrasts"
+  ) {
+    return `The reading changes through the contrast between ${previousLabel} and ${currentLabel}.`;
+  }
+
+  if (
+    relation?.kind ===
+    "causes"
+  ) {
+    return `The supplied consequence follows ${previousLabel}.`;
+  }
+
+  if (
+    relation?.kind ===
+    "converges"
+  ) {
+    return `Separate supplied details converge in ${currentLabel}.`;
+  }
+
+  if (
+    previousStates.length &&
+    currentStates.length
+  ) {
+    const before =
+      previousStates[0]!;
+
+    const after =
+      currentStates[0]!;
+
+    if (
+      before.toLowerCase() !==
+      after.toLowerCase()
+    ) {
+      return `The supplied state shifts from ${before} to ${after}.`;
+    }
+  }
+
+  if (
+    currentStructure &&
+    currentStructure.transitionScore >=
+      0.65
+  ) {
+    const action =
+      currentActions[0];
+
+    const object =
+      currentObjects[0];
+
+    if (action && object) {
+      return `The supplied transition moves through ${action} involving ${object}.`;
+    }
+
+    if (action) {
+      return `The supplied transition moves through ${action}.`;
+    }
+
+    if (object) {
+      return `The supplied transition centers on ${object}.`;
+    }
+  }
+
+  if (
+    currentTags.includes(
+      "recurrence",
+    )
+  ) {
+    return `A supplied recurring signal returns in ${currentLabel}.`;
+  }
+
+  return final
+    ? `Land on the supplied endpoint: ${currentLabel}.`
+    : `Advance through the supplied evidence: ${currentLabel}.`;
+}
 function buildTrajectory(
   graph: RealityGraph,
   ids: readonly string[],
@@ -307,40 +521,310 @@ function buildTrajectory(
   if (ids.length < 3) return [];
 
   const selected = [...ids]
-    .sort((left, right) => position(graph, left) - position(graph, right))
+    .sort(
+      (left, right) =>
+        position(graph, left) -
+        position(graph, right),
+    )
     .slice(0, 7);
 
-  return selected.map((id, index) => {
-    const final = index === selected.length - 1;
-    const previousId = index > 0 ? selected[index - 1] : undefined;
-    const previousLabel = previousId ? label(graph, previousId) : "";
-    const currentLabel = label(graph, id);
-    const relation = previousId
-      ? relationBetween(graph, previousId, id)
-      : undefined;
-    const operation = operationFor(
-      relation,
-      previousLabel,
-      currentLabel,
-      final,
-    );
+  const patterns =
+    graph.patterns ?? [];
 
-    return {
-      order: index + 1,
-      operation,
-      eventIds: [id],
-      viewerChange: index === 0
-        ? `Begin with ${currentLabel}.`
-        : final
-          ? `Land on the supplied ending: ${currentLabel}.`
-          : relation
-            ? `${relation.kind}: ${previousLabel} -> ${currentLabel}.`
-            : `Bring forward ${currentLabel}.`,
-      nextQuestion: questionFor(operation),
-    };
-  });
+  const patternForEvent = (
+    eventId: string,
+  ): RealityPattern | undefined =>
+    patterns
+      .filter(
+        (pattern) =>
+          pattern.eventIds.includes(
+            eventId,
+          ),
+      )
+      .sort(
+        (a, b) =>
+          b.strength -
+          a.strength,
+      )[0];
+
+  const strongRelation =
+    (
+      left: string,
+      right: string,
+    ): RealityRelation | undefined =>
+      relationBetween(
+        graph,
+        left,
+        right,
+      );
+
+  const operationForSequence = (
+    currentId: string,
+    previousId: string | undefined,
+    index: number,
+    final: boolean,
+  ): LatentMovieTrajectoryStep["operation"] => {
+    if (final) {
+      return "payoff";
+    }
+
+    const relation =
+      previousId
+        ? strongRelation(
+            previousId,
+            currentId,
+          )
+        : undefined;
+
+    if (relation) {
+      const explicit =
+        operationFor(
+          relation,
+          previousId
+            ? label(
+                graph,
+                previousId,
+              )
+            : "",
+          label(
+            graph,
+            currentId,
+          ),
+          false,
+        );
+
+      if (
+        explicit !==
+        "reveal"
+      ) {
+        return explicit;
+      }
+    }
+
+    const currentStructure =
+      eventStructureFor(
+        graph,
+        currentId,
+      );
+
+    const previousStructure =
+      previousId
+        ? eventStructureFor(
+            graph,
+            previousId,
+          )
+        : undefined;
+
+    const currentPattern =
+      patternForEvent(
+        currentId,
+      );
+
+    const hasRecurrence =
+      Boolean(
+        currentStructure &&
+          currentStructure.recurrenceScore >=
+            0.65,
+      );
+
+    const hasTransition =
+      Boolean(
+        currentStructure &&
+          currentStructure.transitionScore >=
+            0.65,
+      );
+
+    const hasAnomaly =
+      Boolean(
+        currentStructure &&
+          currentStructure.anomalyScore >=
+            0.65,
+      );
+
+    const patternKind =
+      currentPattern?.kind;
+
+    if (
+      patternKind ===
+        "recurrence" ||
+      hasRecurrence
+    ) {
+      return "recur";
+    }
+
+    if (
+      patternKind ===
+        "anomaly" ||
+      hasAnomaly
+    ) {
+      return "contrast";
+    }
+
+    if (
+      patternKind ===
+      "transition"
+    ) {
+      return hasTransition
+        ? "reframe"
+        : "reveal";
+    }
+
+    if (
+      patternKind ===
+      "tension"
+    ) {
+      return "contrast";
+    }
+
+    /*
+     * Detect state movement even when the graph has not emitted an explicit
+     * relation between adjacent events.
+     */
+    const previousStates =
+      unique([
+        ...(previousStructure?.states ??
+          []),
+        event(
+          graph,
+          previousId ?? "",
+        )?.emotionalState ??
+          "",
+      ].filter(Boolean));
+
+    const currentStates =
+      unique([
+        ...(currentStructure?.states ??
+          []),
+        event(
+          graph,
+          currentId,
+        )?.emotionalState ??
+          "",
+      ].filter(Boolean));
+
+    if (
+      previousStates.length &&
+      currentStates.length &&
+      previousStates[0]!.toLowerCase() !==
+        currentStates[0]!.toLowerCase()
+    ) {
+      return "reframe";
+    }
+
+    /*
+     * A supplied object/detail becomes more cinematic when it arrives after
+     * an action or state. Treat that as an attention shift, not a second
+     * generic reveal.
+     */
+    if (
+      currentStructure?.objects.length &&
+      (
+        previousStructure?.actions.length ||
+        previousStructure?.states.length
+      )
+    ) {
+      return "reframe";
+    }
+
+    /*
+     * A later event that semantically accumulates several earlier signals is
+     * a convergence point.
+     */
+    const currentTokens =
+      tokens(
+        label(
+          graph,
+          currentId,
+        ),
+      );
+
+    const priorMatches =
+      selected
+        .slice(
+          0,
+          index,
+        )
+        .filter(
+          (priorId) =>
+            sharedTokenScore(
+              label(
+                graph,
+                priorId,
+              ),
+              label(
+                graph,
+                currentId,
+              ),
+            ) >=
+            0.6,
+        );
+
+    if (
+      priorMatches.length >=
+      2
+    ) {
+      return "converge";
+    }
+
+    void currentTokens;
+
+    return hasTransition
+      ? "reframe"
+      : "reveal";
+  };
+
+  return selected.map(
+    (id, index) => {
+      const final =
+        index ===
+        selected.length - 1;
+
+      const previousId =
+        index > 0
+          ? selected[
+              index - 1
+            ]
+          : undefined;
+
+      const relation =
+        previousId
+          ? strongRelation(
+              previousId,
+              id,
+            )
+          : undefined;
+
+      const operation =
+        operationForSequence(
+          id,
+          previousId,
+          index,
+          final,
+        );
+
+      return {
+        order:
+          index + 1,
+        operation,
+        eventIds: [
+          id,
+        ],
+        viewerChange:
+          structuralViewerChange(
+            graph,
+            previousId,
+            id,
+            relation,
+            final,
+          ),
+        nextQuestion:
+          questionFor(
+            operation,
+          ),
+      };
+    },
+  );
 }
-
 function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
   if (!ids.length) return 0;
   let linked = 0;
