@@ -90,12 +90,6 @@ function relationshipScore(graph: RealityGraph, ids: readonly string[]): number 
   return metric(total / Math.max(1, count));
 }
 
-/**
- * Contextual persistence is stronger when a persistent entity is framed by a
- * supplied change immediately before its first appearance or between its first
- * and later appearances. This lets "everything changed, the table remained,
- * dinner returned to the table" become one grounded constellation.
- */
 function persistenceContextCandidates(
   graph: RealityGraph,
   firstPos: number,
@@ -127,10 +121,6 @@ function persistenceContextCandidates(
   return [];
 }
 
-/**
- * The strongest persistence primitive is not repeated wording; it is an entity
- * that occupies multiple supplied events while the surrounding reality changes.
- */
 function persistenceProposals(
   graph: RealityGraph,
 ): Array<{ ids: string[]; score: number }> {
@@ -156,7 +146,7 @@ function persistenceProposals(
     if (ids.length < 3) continue;
 
     const contextIsChange = changeLike(graph, contextIds[0]!);
-    const continuityBonus = entity.mentionCount >= 2 ? 0.16 : 0;
+    const continuityBonus = entity.eventIds.length >= 2 ? 0.16 : 0;
     const score = metric(
       0.68 +
         entity.salience * 0.14 +
