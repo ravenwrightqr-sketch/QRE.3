@@ -151,6 +151,12 @@ export type LatentMovieCandidate = {
   compressionPotential: number;
   repetitionRisk: number;
 
+  /**
+   * Satanico diagnostic: how much grounded meaning can be left for the
+   * observer to discover rather than being explicitly stated by the Author.
+   */
+  observerInferencePotential?: number;
+
   /** Pre-language viewer-state trajectory diagnostics. */
   viewerStateDynamics?: {
     attention: number;
