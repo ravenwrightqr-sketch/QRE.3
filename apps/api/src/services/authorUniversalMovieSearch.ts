@@ -253,7 +253,21 @@ function opportunityAffinity(
   const lensWeight = lensOpportunityAffinity(opportunity, lens);
   return metric(coverage * 0.38 + anchorCoverage * 0.18 + opportunity.score * 0.22 + relationScore * 0.1 + lensWeight * 0.12);
 }
+function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
+  if (!ids.length) return 0;
 
+  const linked = ids.filter(
+    (id) =>
+      graph.relations.some(
+        (relation) =>
+          (relation.from === id || relation.to === id) &&
+          callbackRelation(relation),
+      ) ||
+      explicitCallback(label(graph, id)),
+  ).length;
+
+  return metric(linked / ids.length);
+}
 function candidateScore(
   graph: RealityGraph,
   trajectory: readonly LatentMovieTrajectoryStep[],
