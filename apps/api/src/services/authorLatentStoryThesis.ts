@@ -11,6 +11,7 @@
 import type {
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
+  LatentSemanticRealization,
   LatentStoryThesis,
   ObserverExperienceObjective,
   RealityGraph,
@@ -194,6 +195,88 @@ function buildObserverExperienceObjective(
   };
 }
 
+function buildSemanticRealization(
+  interpretation: CreativeInterpretation | undefined,
+  fallbackRelation: { relation: RealityRelation; from: string; to: string } | undefined,
+): LatentSemanticRealization | undefined {
+  if (interpretation) {
+    return {
+      mechanism: interpretation.mechanism,
+      evidenceEventIds: unique(interpretation.evidenceEventIds),
+      beforeEventIds: unique(interpretation.beforeEventIds),
+      afterEventIds: unique(interpretation.afterEventIds),
+      before: clean(interpretation.before),
+      after: clean(interpretation.after),
+      subject: clean(interpretation.subject),
+      callback: interpretation.callback
+        ? {
+            detail: clean(interpretation.callback.detail),
+            eventIds: unique(interpretation.callback.eventIds),
+            role: interpretation.callback.role,
+          }
+        : undefined,
+      relation: interpretation.relation ?? (
+        fallbackRelation &&
+        interpretation.evidenceEventIds.includes(fallbackRelation.from) &&
+        interpretation.evidenceEventIds.includes(fallbackRelation.to)
+          ? {
+              kind: fallbackRelation.relation.kind,
+              fromEventId: fallbackRelation.from,
+              toEventId: fallbackRelation.to,
+            }
+          : undefined
+      ),
+      realizationMove: interpretation.realizationMove,
+      creativeOpportunity: interpretation.creativeOpportunity,
+      confidence: interpretation.confidence,
+    };
+  }
+
+  if (!fallbackRelation) return undefined;
+
+  return {
+    mechanism:
+      fallbackRelation.relation.kind === "repeats"
+        ? "recurrence"
+        : fallbackRelation.relation.kind === "contrasts"
+          ? "contrast"
+          : fallbackRelation.relation.kind === "changes"
+            ? "state_change"
+            : fallbackRelation.relation.kind === "causes"
+              ? "consequence"
+              : fallbackRelation.relation.kind === "converges"
+                ? "convergence"
+                : "continuation",
+    evidenceEventIds: unique([fallbackRelation.from, fallbackRelation.to]),
+    beforeEventIds: [fallbackRelation.from],
+    afterEventIds: [fallbackRelation.to],
+    before: eventLabel(undefined as unknown as RealityGraph, ""),
+    after: "",
+    relation: {
+      kind: fallbackRelation.relation.kind,
+      fromEventId: fallbackRelation.from,
+      toEventId: fallbackRelation.to,
+    },
+    realizationMove:
+      fallbackRelation.relation.kind === "recontextualizes"
+        ? "recontextualize_callback"
+        : fallbackRelation.relation.kind === "contrasts"
+          ? "hold_contrast"
+          : fallbackRelation.relation.kind === "changes"
+            ? "feel_state_transition"
+            : "recognize",
+    creativeOpportunity:
+      fallbackRelation.relation.kind === "recontextualizes"
+        ? "callback_recontextualization"
+        : fallbackRelation.relation.kind === "contrasts"
+          ? "contrast_reframe"
+          : fallbackRelation.relation.kind === "changes"
+            ? "status_turn"
+            : "recognition",
+    confidence: Math.min(1, fallbackRelation.relation.strength),
+  };
+}
+
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -203,8 +286,8 @@ export function deriveLatentStoryThesis(
   const fallbackRelation = strongestRelation(graph, candidate);
   const endpoint = endpointId(candidate);
 
-  const beforeId = interpretation?.evidenceEventIds[0] ?? fallbackRelation?.from ?? "";
-  const afterId = interpretation?.evidenceEventIds[interpretation.evidenceEventIds.length - 1] ?? fallbackRelation?.to ?? endpoint;
+  const beforeId = interpretation?.beforeEventIds[0] ?? fallbackRelation?.from ?? "";
+  const afterId = interpretation?.afterEventIds[0] ?? fallbackRelation?.to ?? endpoint;
   const semanticTurn = interpretation?.statement ||
     (fallbackRelation
       ? `${eventLabel(graph, fallbackRelation.from)} changes the reading of ${eventLabel(graph, fallbackRelation.to)} through ${fallbackRelation.relation.kind}.`
@@ -229,6 +312,7 @@ export function deriveLatentStoryThesis(
   return {
     initialReading: buildInitialReading(candidate),
     semanticTurn,
+    semanticRealization: buildSemanticRealization(interpretation, fallbackRelation),
     beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [],
     afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [],
     beforeEventIds: beforeId ? [beforeId] : [],
