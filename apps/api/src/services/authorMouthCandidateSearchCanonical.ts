@@ -20,6 +20,10 @@ import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
  *
  * Reality freedom = low.
  * Framing freedom = high.
+ *
+ * Realization granularity = human-sized.
+ * Mouth should realize an approved beat as a meaningful viewer-facing cut,
+ * not collapse every source event into a two-word caption.
  */
 
 export type {
@@ -97,12 +101,6 @@ function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat
     const sourceTokens = meaningfulTokens(sourceValue);
     const shared = overlap(candidate, sourceTokens);
 
-    /*
-     * A generic head attached to any supplied concrete descriptor is a
-     * specificity downgrade: "blue bow" -> "blue thing". Even one shared
-     * supplied descriptor token is enough to establish that the candidate is
-     * talking about the same concrete reality while throwing away its identity.
-     */
     if (shared > 0 && sourceTokens.size >= 2) return 1;
   }
 
@@ -164,27 +162,40 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   if (DETERMINED_ROLE.test(value) && !roleIsActuallySupplied(value.replace(/^(?:the|a|an)\s+/i, ""), envelope)) return 1;
   if (isFrameOnly(value)) return 0;
 
+  const labels = sourceLabels(beat, envelope);
+  const local = overlap(meaningfulTokens(value), meaningfulTokens(labels.join(" ")));
+  const whole = overlap(meaningfulTokens(value), meaningfulTokens(worldEvidence(envelope).join(" ")));
+
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
   if (substitutionRisk >= 0.72) return 1;
 
   const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
   if (specificityRisk >= 0.9) return 1;
 
-  const labels = sourceLabels(beat, envelope);
-  const world = meaningfulTokens(worldEvidence(envelope).join(" "));
-  const candidate = meaningfulTokens(value);
-  const local = overlap(candidate, meaningfulTokens(labels.join(" ")));
-  const global = overlap(candidate, world);
   if (GENERIC_SUMMARY.test(value)) return 0.85;
+
   if (PHYSICAL_VERB.test(value)) {
     const supportedPhysical = labels.some((label) => PHYSICAL_VERB.test(label));
     if (!supportedPhysical && !SOFT_FIRST_PERSON.test(value)) return 1;
   }
+
   if (BODY.test(value)) {
     const suppliedBody = worldEvidence(envelope).some((item) => BODY.test(item) && overlap(meaningfulTokens(value), meaningfulTokens(item)) >= 0.5);
     if (!suppliedBody && !SOFT_FIRST_PERSON.test(value)) return 1;
   }
-  if (global >= 0.55 || local >= 0.72) return 0;
+
+  /*
+   * A multi-word realization that neither participates in explicit framing
+   * nor shares any supplied vocabulary is usually a disguised invented noun
+   * or an invented physical manifestation. Do not let rhetorical novelty
+   * become a back door around source authority.
+   */
+  const contentWords = meaningfulTokens(value);
+  const framingWordCount = [...contentWords].filter((token) => SAFE_FRAMING.has(token)).length;
+  if (contentWords.size >= 2 && local < 0.12 && whole < 0.2 && framingWordCount === 0 && !ABSTRACT_NOUN.test(value)) {
+    return 0.82;
+  }
+
   return 0;
 }
 
@@ -205,12 +216,25 @@ function explanationPenalty(text: string): number {
 function formScore(text: string): number {
   const value = clean(text);
   const count = words(value).length;
-  let score = count <= 2 ? 1 : count <= 5 ? 0.95 : count <= 8 ? 0.8 : count <= 12 ? 0.6 : 0.35;
-  if (STATUS.test(value)) score += 0.18;
-  if (FRAME_NOUN.test(value) && !DETERMINED_ROLE.test(value)) score += 0.14;
-  if (/\?$/.test(value)) score += 0.15;
-  if (/\b(?:but|yet|still|until|finally|again|already|apparently|anyway|for now|temporary|temporarily)\b/i.test(value)) score += 0.12;
-  if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) score -= 0.4;
+
+  /*
+   * Prefer a human-sized cut. One-to-two-word captions are still possible
+   * when the beat genuinely earns a sharp fragment, but they are no longer
+   * the default optimum.
+   */
+  let score =
+    count >= 4 && count <= 9 ? 1 :
+    count === 3 || count === 10 ? 0.9 :
+    count === 2 || count === 11 || count === 12 ? 0.72 :
+    count === 1 ? 0.46 :
+    count <= 16 ? 0.58 :
+    0.32;
+
+  if (STATUS.test(value)) score += 0.1;
+  if (FRAME_NOUN.test(value) && !DETERMINED_ROLE.test(value)) score += 0.1;
+  if (/\?$/.test(value)) score += 0.12;
+  if (/\b(?:but|yet|still|until|finally|again|already|apparently|anyway|for now|temporary|temporarily)\b/i.test(value)) score += 0.1;
+  if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) score -= 0.35;
   return metric(score);
 }
 
@@ -220,9 +244,14 @@ function payoffScore(text: string, beat: MouthCandidateBeat): number {
   if (attention !== "payoff" && role !== "payoff" && attention !== "release" && role !== "release") return 0;
   const value = clean(text);
   const count = words(value).length;
-  let score = count <= 2 ? 1 : count <= 5 ? 0.92 : count <= 8 ? 0.72 : 0.42;
-  if (STATUS.test(value)) score += 0.25;
-  if (/\b(?:peace|for now|temporary|temporarily|exit|fab|fabulous|dapper|done|made it|win|winner|finished|approved|cleared)\b/i.test(value)) score += 0.25;
+  let score =
+    count >= 3 && count <= 8 ? 1 :
+    count === 2 || count === 9 ? 0.82 :
+    count === 1 ? 0.58 :
+    count <= 12 ? 0.65 :
+    0.42;
+  if (STATUS.test(value)) score += 0.18;
+  if (/\b(?:peace|for now|temporary|temporarily|exit|fab|fabulous|dapper|done|made it|win|winner|finished|approved|cleared)\b/i.test(value)) score += 0.18;
   return metric(score);
 }
 
@@ -283,14 +312,23 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const worldOverlap = overlap(meaningfulTokens(value), meaningfulTokens(worldEvidence(envelope).join(" ")));
   const supportedEventIds = beat.eventIds?.length && sourceOverlap >= 0.25 ? [...beat.eventIds] : [];
   const supportedRelationPairs = beat.relationKinds?.map((kind) => String(kind)).filter(Boolean) ?? [];
-  const grounding = metric(sourceOverlap * 0.46 + worldOverlap * 0.18 + (exact ? 0.36 : 0));
+  const grounding = metric(sourceOverlap * 0.5 + worldOverlap * 0.2 + (exact ? 0.3 : 0));
   const obligation = metric((beat.eventIds?.length ? 0.45 : 0.25) * 0.42 + baseSemantic * 0.38 + (supportedEventIds.length ? 0.2 : 0));
   const transition = metric(Number(beat.viewerState?.stateShift) || 0.45);
-  const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
-  const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
-  const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
+  const meaning = metric(baseSemantic * 0.52 + grounding * 0.18 + form * 0.08 + (STATUS.test(value) ? 0.06 : 0) + payoff * 0.16 - abstract * 0.2);
+  const distinctive = metric(grounding * 0.16 + form * 0.18 + meaning * 0.3 + novelty * 0.14 + (isFrameOnly(value) ? 0.1 : 0) + payoff * 0.08 + (sourceOverlap < 0.65 ? 0.04 : 0));
+  const discovery = metric(meaning * 0.42 + transition * 0.22 + distinctive * 0.2 + novelty * 0.08 + grounding * 0.08);
   const score = metric(
-    grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
+    grounding * 0.14 +
+    obligation * 0.1 +
+    meaning * 0.24 +
+    transition * 0.1 +
+    novelty * 0.08 +
+    form * 0.06 +
+    discovery * 0.14 +
+    distinctive * 0.08 +
+    payoff * 0.12 -
+    abstract * 0.16,
   );
 
   const reasons: string[] = [];
@@ -304,6 +342,8 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (payoff >= 0.62) reasons.push("viewer-reward");
   if (abstract > 0.35) reasons.push("abstract-nominalization");
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
+  if (words(value).length >= 4 && words(value).length <= 9) reasons.push("human-sized-realization");
+  if (words(value).length <= 2) reasons.push("micro-fragment");
 
   return {
     text: value,
@@ -317,7 +357,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     obligationCoverage: obligation,
     relationContractScore: metric(supportedRelationPairs.length ? 0.75 : 0.35),
     forbiddenMoveRisk: forbidden,
-    cohesionScore: metric(0.55 + novelty * 0.25 + meaning * 0.2),
+    cohesionScore: metric(0.55 + novelty * 0.2 + meaning * 0.25),
     noveltyScore: novelty,
     compressionScore: form,
     inventionRisk: forbidden,
@@ -333,10 +373,13 @@ function buildSystemPrompt(): string {
   return [
     "QRE ONE MOUTH — final viewer-facing language realization.",
     "The world is already established. The movie is already chosen. The beat already has a purpose.",
-    "Your only job is to find the strongest CUT for the viewer.",
+    "Your only job is to find the strongest human-sized CUT for the viewer.",
     "FEEL IT. DO NOT EXPLAIN IT.",
     "The viewer should think: WHAT? WHY? WAIT. OH. WHAT HAPPENS NEXT?",
-    "Use short, specific, surprising, grounded language.",
+    "Write concise, human-sized viewer language. Prefer roughly 4–12 words when the beat carries multiple details. Do not default to captions or labels.",
+    "A one- or two-word fragment is allowed only when that brevity is itself the strongest earned rhetorical move.",
+    "When a beat contains multiple supplied details, realize the relationship among them in one coherent cut instead of naming the event in miniature.",
+    "Preserve supplied concrete nouns and useful concrete specificity. Use the actual supplied details when they carry the gold.",
     "Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff.",
     "Do not turn every emotion into an abstract noun.",
     "Avoid a/an/the + abstract noun unless it is genuinely specific and earned.",
@@ -351,11 +394,12 @@ function buildSystemPrompt(): string {
     "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
     "Semantic realization fields are control data. Never quote, paraphrase, explain, or label the control data in the viewer-facing text. Make the viewer discover the relationship from supplied details.",
     "Observer experience fields are control data. Use them to shape attention and withholding; never output their wording as narration or explanation.",
-    "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
+    "Do not independently summarize each source event. When two or more details belong to one beat, make them feel like one human moment with a discovered implication.",
+    "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
     "Do not make three synonyms. Vary the semantic move or rhetorical shape.",
-    "The overall sequence is a miniature film. Earlier cuts may establish an unresolved expectation so a later cut can pay it off. Do not independently summarize each beat.",
+    "The overall sequence is a miniature film. Earlier cuts may establish an unresolved expectation so a later cut can pay it off.",
     "Return JSON only.",
   ].join("\n");
 }
