@@ -23,7 +23,7 @@ import {
 } from "./authorCreativeInterpretation.js";
 import { deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
 import { discoverSatanicoInferenceOpportunities } from "./authorSatanicoEvidenceSearch.js";
-import { strongestSatanicoHypothesis } from "./authorSatanicoHypothesis.js";
+import { strongestSatanicoHypothesis, rankSatanicoHypotheses } from "./authorSatanicoHypothesis.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
@@ -92,10 +92,7 @@ function strongestRelation(graph: RealityGraph, candidate: LatentMovieCandidate)
     return b.relation.strength * 0.72 + priority(b.relation.kind) * 0.28 - (a.relation.strength * 0.72 + priority(a.relation.kind) * 0.28);
   })[0];
 }
-function buildInitialReading(candidate: LatentMovieCandidate): string {
-  const first = candidate.trajectory.find((step) => step.operation === "establish");
-  return clean(first?.viewerChange || candidate.evidence[0]);
-}
+function buildInitialReading(candidate: LatentMovieCandidate): string { return clean(candidate.trajectory.find((step) => step.operation === "establish")?.viewerChange || candidate.evidence[0]); }
 function buildObserverExperienceObjective(interpretation: CreativeInterpretation | undefined, satanicoObjective?: ObserverExperienceObjective): ObserverExperienceObjective | undefined {
   if (satanicoObjective) return satanicoObjective;
   if (!interpretation) return undefined;
@@ -107,26 +104,14 @@ function buildObserverExperienceObjective(interpretation: CreativeInterpretation
   return byMechanism[interpretation.mechanism] ?? { objective: interpretation.statement, surprise: "Let the observer discover the supplied relationship without being told what it means.", curiosity: "Delay explanation while the supplied evidence accumulates.", attention: ["establish", "accumulate", "withhold", "recognize"], landing: "Let the supplied endpoint complete the realization.", explanationForbidden: true };
 }
 function buildSemanticRealization(graph: RealityGraph, interpretation: CreativeInterpretation | undefined, fallbackRelation: { relation: RealityRelation; from: string; to: string } | undefined): LatentSemanticRealization | undefined {
-  if (interpretation) return {
-    mechanism: interpretation.mechanism,
-    evidenceEventIds: unique(interpretation.evidenceEventIds), beforeEventIds: unique(interpretation.beforeEventIds), afterEventIds: unique(interpretation.afterEventIds), before: clean(interpretation.before), after: clean(interpretation.after), subject: clean(interpretation.subject),
-    callback: interpretation.callback ? { detail: clean(interpretation.callback.detail), eventIds: unique(interpretation.callback.eventIds), role: interpretation.callback.role } : undefined,
-    relation: interpretation.relation ?? (fallbackRelation && interpretation.evidenceEventIds.includes(fallbackRelation.from) && interpretation.evidenceEventIds.includes(fallbackRelation.to) ? { kind: fallbackRelation.relation.kind, fromEventId: fallbackRelation.from, toEventId: fallbackRelation.to } : undefined),
-    realizationMove: interpretation.realizationMove, creativeOpportunity: interpretation.creativeOpportunity, confidence: interpretation.confidence,
-  };
+  if (interpretation) return { mechanism: interpretation.mechanism, evidenceEventIds: unique(interpretation.evidenceEventIds), beforeEventIds: unique(interpretation.beforeEventIds), afterEventIds: unique(interpretation.afterEventIds), before: clean(interpretation.before), after: clean(interpretation.after), subject: clean(interpretation.subject), callback: interpretation.callback ? { detail: clean(interpretation.callback.detail), eventIds: unique(interpretation.callback.eventIds), role: interpretation.callback.role } : undefined, relation: interpretation.relation ?? (fallbackRelation && interpretation.evidenceEventIds.includes(fallbackRelation.from) && interpretation.evidenceEventIds.includes(fallbackRelation.to) ? { kind: fallbackRelation.relation.kind, fromEventId: fallbackRelation.from, toEventId: fallbackRelation.to } : undefined), realizationMove: interpretation.realizationMove, creativeOpportunity: interpretation.creativeOpportunity, confidence: interpretation.confidence };
   if (!fallbackRelation) return undefined;
-  return {
-    mechanism: fallbackRelation.relation.kind === "repeats" ? "recurrence" : fallbackRelation.relation.kind === "contrasts" ? "contrast" : fallbackRelation.relation.kind === "changes" ? "state_change" : fallbackRelation.relation.kind === "causes" ? "consequence" : fallbackRelation.relation.kind === "converges" ? "convergence" : "continuation",
-    evidenceEventIds: unique([fallbackRelation.from, fallbackRelation.to]), beforeEventIds: [fallbackRelation.from], afterEventIds: [fallbackRelation.to], before: eventLabel(graph, fallbackRelation.from), after: eventLabel(graph, fallbackRelation.to),
-    relation: { kind: fallbackRelation.relation.kind, fromEventId: fallbackRelation.from, toEventId: fallbackRelation.to },
-    realizationMove: fallbackRelation.relation.kind === "recontextualizes" ? "recontextualize_callback" : fallbackRelation.relation.kind === "contrasts" ? "hold_contrast" : fallbackRelation.relation.kind === "changes" ? "feel_state_transition" : "recognize",
-    creativeOpportunity: fallbackRelation.relation.kind === "recontextualizes" ? "callback_recontextualization" : fallbackRelation.relation.kind === "contrasts" ? "contrast_reframe" : fallbackRelation.relation.kind === "changes" ? "status_turn" : "recognition",
-    confidence: Math.min(1, fallbackRelation.relation.strength),
-  };
+  return { mechanism: fallbackRelation.relation.kind === "repeats" ? "recurrence" : fallbackRelation.relation.kind === "contrasts" ? "contrast" : fallbackRelation.relation.kind === "changes" ? "state_change" : fallbackRelation.relation.kind === "causes" ? "consequence" : fallbackRelation.relation.kind === "converges" ? "convergence" : "continuation", evidenceEventIds: unique([fallbackRelation.from, fallbackRelation.to]), beforeEventIds: [fallbackRelation.from], afterEventIds: [fallbackRelation.to], before: eventLabel(graph, fallbackRelation.from), after: eventLabel(graph, fallbackRelation.to), relation: { kind: fallbackRelation.relation.kind, fromEventId: fallbackRelation.from, toEventId: fallbackRelation.to }, realizationMove: fallbackRelation.relation.kind === "recontextualizes" ? "recontextualize_callback" : fallbackRelation.relation.kind === "contrasts" ? "hold_contrast" : fallbackRelation.relation.kind === "changes" ? "feel_state_transition" : "recognize", creativeOpportunity: fallbackRelation.relation.kind === "recontextualizes" ? "callback_recontextualization" : fallbackRelation.relation.kind === "contrasts" ? "contrast_reframe" : fallbackRelation.relation.kind === "changes" ? "status_turn" : "recognition", confidence: Math.min(1, fallbackRelation.relation.strength) };
 }
 export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMovieCandidate): LatentStoryThesis {
   const opportunities = discoverSatanicoInferenceOpportunities(graph, 64);
-  const hypothesis = strongestSatanicoHypothesis(graph, candidate, opportunities);
+  const hypotheses = rankSatanicoHypotheses(graph, candidate, opportunities);
+  const hypothesis = hypotheses[0] ?? strongestSatanicoHypothesis(graph, candidate, opportunities);
   const hypothesisEvidence = new Set<string>(hypothesis?.evidenceEventIds ?? []);
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
   const interpretation = strongestInterpretation(candidate, interpretations, hypothesisEvidence);
@@ -142,18 +127,31 @@ export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMo
     anchorEventIds: unique(hypothesis.anchorEventIds),
     supportEventIds: unique(hypothesis.supportEventIds),
     evidenceCoverage: hypothesis.evidenceCoverage,
-    mechanismEvidenceFit: hypothesis.mechanismEvidenceFit,
+    anchorCoverage: hypothesis.anchorCoverage,
+    temporalCoherence: hypothesis.temporalCoherence,
+    relationalCoherence: hypothesis.relationalCoherence,
     explanatoryCompression: hypothesis.explanatoryCompression,
     counterEvidence: hypothesis.counterEvidence,
     unsupportedAssumptionRisk: hypothesis.unsupportedAssumptionRisk,
     observerGap: hypothesis.observerGap,
+    mechanismEvidenceFit: hypothesis.mechanismEvidenceFit,
     score: hypothesis.score,
+    alternatives: hypotheses.slice(1, 4).map((alternative) => ({
+      kind: alternative.kind,
+      evidenceEventIds: unique(alternative.evidenceEventIds),
+      score: alternative.score,
+      mechanismEvidenceFit: alternative.mechanismEvidenceFit,
+      counterEvidence: alternative.counterEvidence,
+      unsupportedAssumptionRisk: alternative.unsupportedAssumptionRisk,
+      observerGap: alternative.observerGap,
+    })),
+    winnerMargin: hypotheses[1] ? Math.max(0, hypothesis.score - hypotheses[1].score) : hypothesis.score,
   } : undefined;
+  const hypothesisAlignmentScore = hypothesis ? metric(hypothesisEvidence.size / Math.max(1, orderedIds(candidate).length)) : 0;
   const carrierEventIds = unique([...(interpretation?.evidenceEventIds ?? []), ...(hypothesis?.anchorEventIds ?? [])]).filter((id) => id !== endpoint).slice(0, 3);
   const sealingEventIds = endpoint && endpoint !== beforeId && endpoint !== afterId ? [endpoint] : afterId && afterId !== beforeId ? [afterId] : [];
   const payoffDependency = endpoint ? afterId ? `The supplied ending depends on the earlier supplied relationship culminating in ${eventLabel(graph, endpoint)}.` : `The supplied ending is ${eventLabel(graph, endpoint)}.` : "";
   return {
-    initialReading: buildInitialReading(candidate), semanticTurn, semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation), hypothesisAlignment,
-    beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [], afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [], beforeEventIds: beforeId ? [beforeId] : [], afterEventIds: afterId ? [afterId] : [], relationKind: interpretation?.mechanism, carrierEventIds, sealingEventIds, payoffDependency, counterfactualDependency: interpretation ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length)) : 0, observerExperience: buildObserverExperienceObjective(interpretation, satanicoObjective),
+    initialReading: buildInitialReading(candidate), semanticTurn, semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation), hypothesisAlignment, hypothesisAlignmentScore, beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [], afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [], beforeEventIds: beforeId ? [beforeId] : [], afterEventIds: afterId ? [afterId] : [], relationKind: interpretation?.mechanism, carrierEventIds, sealingEventIds, payoffDependency, counterfactualDependency: interpretation ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length)) : 0, observerExperience: buildObserverExperienceObjective(interpretation, satanicoObjective),
   };
 }
