@@ -242,7 +242,15 @@ function composeTrajectoryBeats(
   while (index < total) {
     const group: LatentMovieTrajectoryStep[] = [steps[index]];
     const remaining = total - index;
-    const maxGroupSize = remaining >= 8 ? 3 : remaining >= 4 ? 2 : 1;
+
+    /*
+     * A cut is a human-sized unit, not a one-event caption. Short and
+     * medium-length movies may synthesize adjacent approved facts so a
+     * successful line can carry a real relationship or turn. Longer movies
+     * may still use up to three source steps per cut. Never absorb the final
+     * endpoint into a preceding cut.
+     */
+    const maxGroupSize = remaining >= 8 ? 3 : remaining >= 3 ? 2 : 1;
 
     while (group.length < maxGroupSize && index + group.length < total - 1) {
       const current = group[group.length - 1];
@@ -263,7 +271,7 @@ function composeTrajectoryBeats(
       const complementary =
         Boolean(current?.eventIds?.length) &&
         Boolean(next?.eventIds?.length) &&
-        remaining >= 5;
+        (remaining >= 4 || sameOperation || contextual);
       const nextIsEndpoint = index + group.length === total - 1;
 
       if (nextIsEndpoint) break;
