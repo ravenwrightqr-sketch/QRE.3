@@ -97,7 +97,7 @@ export type LatentSemanticRealization = {
 };
 
 /**
- * Winning Satanico explanation aligned to the latent thesis.
+ * Winning Satanico hypothesis carried into downstream realization.
  * This is diagnostic semantic structure, never source truth or viewer prose.
  */
 export type LatentHypothesisAlignment = {
@@ -106,12 +106,27 @@ export type LatentHypothesisAlignment = {
   anchorEventIds: string[];
   supportEventIds: string[];
   evidenceCoverage: number;
-  mechanismEvidenceFit: number;
+  anchorCoverage: number;
+  temporalCoherence: number;
+  relationalCoherence: number;
   explanatoryCompression: number;
   counterEvidence: number;
   unsupportedAssumptionRisk: number;
   observerGap: number;
+  mechanismEvidenceFit: number;
   score: number;
+  /** Top alternatives retained so realization knows what the winning read beat. */
+  alternatives: Array<{
+    kind: string;
+    evidenceEventIds: string[];
+    score: number;
+    mechanismEvidenceFit: number;
+    counterEvidence: number;
+    unsupportedAssumptionRisk: number;
+    observerGap: number;
+  }>;
+  /** Distance between winner and runner-up; low margins preserve ambiguity. */
+  winnerMargin: number;
 };
 
 /**
@@ -132,8 +147,10 @@ export type LatentStoryThesis = {
   semanticTurn: string;
   /** Canonical structured semantic truth consumed by realization layers. */
   semanticRealization?: LatentSemanticRealization;
-  /** Winning Satanico hypothesis carried forward for downstream realization. */
+  /** Winning Satanico hypothesis plus retained alternatives. */
   hypothesisAlignment?: LatentHypothesisAlignment;
+  /** Alignment of the selected semantic interpretation with the winning hypothesis. */
+  hypothesisAlignmentScore?: number;
   beforeMeaning: string[];
   afterMeaning: string[];
   beforeEventIds: string[];
