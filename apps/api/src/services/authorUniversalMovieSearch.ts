@@ -18,6 +18,7 @@ import type {
   RealityPattern,
 } from "@qre/contracts";
 import { scoreSatanicoObserverInference } from "./authorSatanicoInference.js";
+import { searchSatanicoEvidenceSubsets } from "./authorSatanicoEvidenceSearch.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -560,6 +561,26 @@ function addTrajectoryCandidate(candidates: LatentMovieCandidate[], graph: Reali
   candidates.push({ id, lens: clean(lens) || "NONE", distinctiveness: 0, ...scoreCandidate(graph, built, lens, subject) });
 }
 
+function addSatanicoEvidenceCandidates(
+  candidates: LatentMovieCandidate[],
+  graph: RealityGraph,
+  lens?: string,
+  subject?: string,
+  limit = 8,
+): void {
+  const subsets = searchSatanicoEvidenceSubsets(graph, limit);
+  for (let index = 0; index < subsets.length; index += 1) {
+    addTrajectoryCandidate(
+      candidates,
+      graph,
+      `movie-satanico-${index + 1}`,
+      subsets[index]!,
+      lens,
+      subject,
+    );
+  }
+}
+
 export function searchUniversalMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
   const limit = Math.max(3, Math.min(12, input.limit ?? 8));
   const sourceIds = input.graph.events.filter((item) => clean(item.label)).map((item) => item.id);
@@ -585,6 +606,14 @@ export function searchUniversalMovieCandidates(input: { graph: RealityGraph; sub
     if (!ids.includes(stateIds[stateIds.length - 1]!)) ids.push(stateIds[stateIds.length - 1]!);
     addTrajectoryCandidate(candidates, input.graph, "movie-transformation", ids, input.lens, input.subject);
   }
+
+  addSatanicoEvidenceCandidates(
+    candidates,
+    input.graph,
+    input.lens,
+    input.subject,
+    Math.max(4, limit),
+  );
 
   const relationSeeds = [...input.graph.relations]
     .filter((relation) => !["before", "after", "involves", "belongs_to"].includes(relation.kind))
