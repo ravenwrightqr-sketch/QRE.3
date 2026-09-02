@@ -91,6 +91,8 @@ export type LatentSemanticRealization = {
     fromEventId: string;
     toEventId: string;
   };
+  /** Winning Satanico hypothesis carried into language realization. */
+  hypothesis?: LatentHypothesisAlignment;
   realizationMove: LatentSemanticRealizationMove;
   creativeOpportunity?: LatentSemanticCreativeOpportunity;
   confidence: number;
@@ -149,7 +151,7 @@ export type LatentStoryThesis = {
   semanticRealization?: LatentSemanticRealization;
   /** Winning Satanico hypothesis plus retained alternatives. */
   hypothesisAlignment?: LatentHypothesisAlignment;
-  /** Alignment of the selected semantic interpretation with the winning hypothesis. */
+  /** Alignment score between the chosen sequence interpretation and hypothesis. */
   hypothesisAlignmentScore?: number;
   beforeMeaning: string[];
   afterMeaning: string[];
