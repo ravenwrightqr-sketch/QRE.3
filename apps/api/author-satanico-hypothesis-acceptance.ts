@@ -39,6 +39,8 @@ const cases = [
   },
 ];
 
+const winnerKinds = new Set<string>();
+
 for (const test of cases) {
   const graph = buildAuthorRealityGraph({
     prompt: "Find the strongest latent relationship without inventing facts.",
@@ -67,18 +69,40 @@ for (const test of cases) {
   if (!hypotheses[0]!.evidenceEventIds.length) throw new Error(`Satanico hypothesis acceptance failed: ${test.name} winner has no evidence`);
   if (hypotheses[0]!.unsupportedAssumptionRisk > 0.55) throw new Error(`Satanico hypothesis acceptance failed: ${test.name} winner is assumption-heavy`);
 
+  const distinctKinds = new Set(hypotheses.slice(0, 4).map((hypothesis) => hypothesis.kind));
+  if (distinctKinds.size < 2) throw new Error(`Satanico hypothesis acceptance failed: ${test.name} top hypotheses collapse to one mechanism`);
+
+  const winnerIds = new Set(hypotheses[0]!.evidenceEventIds);
+  const runnerOverlap = hypotheses.slice(1, 4).map((hypothesis) => {
+    const overlap = hypothesis.evidenceEventIds.filter((id) => winnerIds.has(id)).length;
+    return overlap / Math.max(1, Math.min(winnerIds.size, hypothesis.evidenceEventIds.length));
+  });
+  const maxRunnerOverlap = Math.max(0, ...runnerOverlap);
+  if (maxRunnerOverlap > 0.94 && distinctKinds.size < 3) {
+    throw new Error(`Satanico hypothesis acceptance failed: ${test.name} top hypotheses are evidence-clones`);
+  }
+
+  winnerKinds.add(hypotheses[0]!.kind);
+
   console.log(`CASE=${test.name}`);
   console.log(`CANDIDATES=${candidates.length}`);
   console.log(`HYPOTHESES=${hypotheses.length}`);
+  console.log(`TOP_KINDS=${[...distinctKinds].join(",")}`);
   console.log(`WINNER=${hypotheses[0]!.kind}`);
   console.log(`WINNER_SCORE=${hypotheses[0]!.score}`);
   console.log(`OBSERVER_GAP=${hypotheses[0]!.observerGap}`);
   console.log(`ASSUMPTION_RISK=${hypotheses[0]!.unsupportedAssumptionRisk}`);
   console.log(`COUNTER_EVIDENCE=${hypotheses[0]!.counterEvidence}`);
+  console.log(`RUNNER_OVERLAP=${maxRunnerOverlap.toFixed(3)}`);
+}
+
+if (winnerKinds.size < 2) {
+  throw new Error(`Satanico hypothesis acceptance failed: universal suite has one dominant hypothesis kind (${[...winnerKinds].join(",")})`);
 }
 
 console.log("QRE SATANICO HYPOTHESIS ACCEPTANCE · PASS");
 console.log("UNIVERSAL=person/place/object");
 console.log("COMPETITION=multiple latent hypotheses");
 console.log("GROUNDING=evidence-backed");
+console.log("DISTINCTION=top hypotheses are not evidence-clones");
 console.log("OBSERVER_GAP=ranked");
