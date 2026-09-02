@@ -81,12 +81,14 @@ function checkCreative(
   source: string,
   text: string,
 ): void {
-  const { envelope } = makeWorld(facts);
+  const world = makeWorld(facts);
+  const beat = beatFor(world, 1, source);
 
   const evaluation = evaluateMouthInterpretation({
     text,
     sourceLabels: [source],
-    envelope,
+    envelope: world.envelope,
+    beat,
   });
 
   if (!evaluation.accepted) {
@@ -351,7 +353,8 @@ checkCreative(
         events: step.eventIds.map(
           (id) =>
             graph.events.find(
-              (event) => event.id === id,
+              (event) =>
+                event.id === id,
             )?.label ?? id,
         ),
         change: step.viewerChange,
