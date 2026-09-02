@@ -34,6 +34,69 @@ export type LatentMovie = {
 };
 
 /**
+ * Canonical graph-derived semantic mechanism shared by Cognition and Mouth.
+ * This is structure, not viewer-facing prose.
+ */
+export type LatentSemanticMechanism =
+  | "expectation_shift"
+  | "continuation"
+  | "state_change"
+  | "recurrence"
+  | "convergence"
+  | "contrast"
+  | "consequence";
+
+export type LatentSemanticRealizationMove =
+  | "feel_state_transition"
+  | "recognize_callback"
+  | "recontextualize_callback"
+  | "hold_contrast"
+  | "return_with_new_status"
+  | "land_consequence"
+  | "recognize";
+
+export type LatentSemanticCreativeOpportunity =
+  | "state_to_callback"
+  | "callback_recontextualization"
+  | "status_turn"
+  | "contrast_reframe"
+  | "return_with_new_status"
+  | "consequence"
+  | "recognition";
+
+export type LatentSemanticCallback = {
+  detail: string;
+  eventIds: string[];
+  role: "continuity" | "recontextualization";
+};
+
+/**
+ * The compact semantic object that crosses from Cognition into realization.
+ *
+ * It records which supplied evidence carries a relationship and what kind of
+ * realization move may expose that relationship. It never authorizes new
+ * facts, actors, objects, chronology, actions, reactions, or outcomes.
+ */
+export type LatentSemanticRealization = {
+  mechanism: LatentSemanticMechanism;
+  evidenceEventIds: string[];
+  beforeEventIds: string[];
+  afterEventIds: string[];
+  before?: string;
+  after?: string;
+  subject?: string;
+  callback?: LatentSemanticCallback;
+  relation?: {
+    kind: string;
+    fromEventId: string;
+    toEventId: string;
+  };
+  realizationMove: LatentSemanticRealizationMove;
+  creativeOpportunity?: LatentSemanticCreativeOpportunity;
+  confidence: number;
+};
+
+/**
  * One internal observer-facing objective derived from the winning semantic
  * interpretation. It is direction for realization, never viewer prose.
  */
@@ -49,6 +112,8 @@ export type ObserverExperienceObjective = {
 export type LatentStoryThesis = {
   initialReading: string;
   semanticTurn: string;
+  /** Canonical structured semantic truth consumed by realization layers. */
+  semanticRealization?: LatentSemanticRealization;
   beforeMeaning: string[];
   afterMeaning: string[];
   beforeEventIds: string[];
