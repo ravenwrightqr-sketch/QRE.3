@@ -14,6 +14,7 @@
  *   REALITY → CANDIDATES → DIFFERENTIATION → TRAJECTORY SEARCH → MOUTH
  */
 import type { LatentMovieCandidate } from "@qre/contracts";
+import { classifyLens } from "./authorCharacterLensEngine.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
@@ -45,6 +46,74 @@ function payoffSignature(candidate: LatentMovieCandidate): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Lens influence is deliberately late.
+ *
+ * This score may only observe semantic structure that the universal movie
+ * search has already discovered. It never reads raw facts to invent a new
+ * candidate, and it never changes evidence or trajectory.
+ *
+ * A lens therefore behaves as perceptual bias, not discovery authority.
+ */
+function postDiscoveryLensBias(candidate: LatentMovieCandidate): number {
+  const lensName = String(candidate.lens ?? "NONE").trim();
+  if (!lensName || lensName.toLowerCase() === "none") return 0.5;
+
+  const profile = classifyLens(lensName);
+  const operations = candidate.trajectory.map((step) => step.operation);
+  const relations = new Set(candidate.supportingRelationKinds);
+  let signal = 0.5;
+  let weight = 1;
+
+  for (const preference of profile.realizationPreferences) {
+    const normalized = preference.toLowerCase();
+    if (normalized.includes("callback")) {
+      signal += candidate.callbackPotential * 0.2;
+      weight += 0.2;
+    } else if (normalized.includes("compression")) {
+      signal += candidate.compressionPotential * 0.2;
+      weight += 0.2;
+    } else if (normalized.includes("consequence")) {
+      signal += candidate.consequencePotential * 0.2;
+      weight += 0.2;
+    } else if (normalized.includes("contrast")) {
+      signal += (operations.includes("contrast") || relations.has("contrasts") ? 1 : 0) * 0.2;
+      weight += 0.2;
+    } else if (normalized.includes("recontextualization")) {
+      signal += (operations.includes("reframe") || relations.has("recontextualizes") ? 1 : 0) * 0.2;
+      weight += 0.2;
+    } else if (normalized.includes("reversal")) {
+      signal += (operations.includes("contrast") || operations.includes("reframe") ? 1 : 0) * 0.15;
+      weight += 0.15;
+    } else if (normalized.includes("double_meaning")) {
+      signal += (candidate.storyThesis?.semanticTurn ? 1 : 0) * 0.15;
+      weight += 0.15;
+    } else if (normalized.includes("implication")) {
+      signal += candidate.uncertainty * 0.15 + candidate.attentionPotential * 0.05;
+      weight += 0.2;
+    } else if (normalized.includes("understatement")) {
+      signal += (1 - candidate.repetitionRisk) * 0.1;
+      weight += 0.1;
+    } else if (normalized.includes("status_inversion")) {
+      signal += (relations.has("contrasts") || relations.has("changes") || relations.has("recontextualizes") ? 1 : 0) * 0.15;
+      weight += 0.15;
+    }
+  }
+
+  const thesisRelation = String(candidate.storyThesis?.relationKind ?? "").toLowerCase();
+  if (
+    thesisRelation &&
+    profile.realizationPreferences.some((preference) =>
+      preference.toLowerCase().includes(thesisRelation),
+    )
+  ) {
+    signal += 0.1;
+    weight += 0.1;
+  }
+
+  return metric(signal / Math.max(1, weight));
+}
+
 /** Measure how much a candidate differs from another candidate. 1 = very different. */
 export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieCandidate): number {
   const evidenceSimilarity = jaccard(a.anchorEventIds, b.anchorEventIds);
@@ -70,6 +139,11 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
  * If a candidate is too similar to any selected movie, it is rejected and the
  * next candidate gets the slot. This makes "six lenses" mean "up to six movies",
  * not "six labels around one movie".
+ *
+ * Lens bias is applied only after the full candidate set has been discovered.
+ * It may reorder candidates according to the selected perceptual policy, but
+ * it cannot manufacture diversity because lens identity is excluded from the
+ * diversity metric above.
  */
 export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[], limit = 6): LatentMovieCandidate[] {
   const remaining = [...candidates];
@@ -87,7 +161,8 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
       // Hard rejection: no amount of raw score makes a duplicate a new movie.
       if (selected.length && diversity < MIN_MATERIAL_DIVERSITY) return;
 
-      const adjusted = candidate.score * 0.72 + diversity * 0.28;
+      const lensBias = postDiscoveryLensBias(candidate);
+      const adjusted = candidate.score * 0.66 + diversity * 0.22 + lensBias * 0.12;
       if (adjusted > bestValue) {
         bestValue = adjusted;
         bestIndex = index;
