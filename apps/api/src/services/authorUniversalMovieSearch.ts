@@ -12,6 +12,11 @@ import type {
  * Reality is evidence. Movie search discovers competing ways to look at that
  * evidence; it does not create new facts, actors, objects, chronology, or outcomes.
  *
+ * LENS BOUNDARY:
+ * Universal discovery is completely lens-blind. A lens is not accepted by this
+ * function because perceptual preference must not alter which latent opportunities
+ * exist in the supplied RealityGraph. Lens bias belongs after discovery.
+ *
  * Critical distinction:
  * - subject relevance is not the same thing as mere presence in the input
  * - ambient facts may remain in RealityGraph without becoming the subject's movie
@@ -108,18 +113,6 @@ function callbackPair(graph: RealityGraph, left: string, right: string): boolean
   return explicitCallback(label(graph, left)) && explicitCallback(label(graph, right));
 }
 
-/**
- * Find the event cluster that can legitimately belong to the subject's film.
- *
- * The first event is allowed as an implicit subject anchor because callers often
- * provide `subject=...` plus fragments such as "arrived nervous" rather than
- * repeating the subject name in every fragment.
- *
- * We then grow only through strong semantic relationships. Generic lexical
- * overlap is deliberately weak; high-confidence callback edges are allowed to
- * reconnect a detail such as "a blue bow was chosen" with "the same blue bow was
- * still remembered" without dragging unrelated ambient work into Coco's film.
- */
 function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
   const ids = graph.events.map((item) => item.id);
   if (!ids.length) return [];
@@ -135,7 +128,6 @@ function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
     selected.add(ids[0]!);
   }
 
-  // High-confidence identity callbacks form legitimate semantic islands.
   for (const relation of graph.relations) {
     if (!callbackRelation(relation)) continue;
     const leftLabel = label(graph, relation.from);
@@ -174,7 +166,6 @@ function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
       const callbackConnects = callbackPair(graph, current, candidate);
       const sharedMeaning = sharedTokenScore(currentLabel, label(graph, candidate)) >= 0.6;
 
-      // Lexical overlap alone cannot pull a fact into the subject's movie.
       if (!relationConnects && !callbackConnects && !sharedMeaning) continue;
 
       selected.add(candidate);
@@ -300,44 +291,21 @@ function questionFor(
     default: return "What is becoming noticeable?";
   }
 }
-function structuralEventPhrase(
-  graph: RealityGraph,
-  id: string,
-): string {
+
+function structuralEventPhrase(graph: RealityGraph, id: string): string {
   const current = event(graph, id);
   const structure = eventStructureFor(graph, id);
+  const action = structure?.actions[0] ?? "";
+  const object = structure?.objects[0] ?? "";
+  const state = structure?.states[0] ?? current?.emotionalState ?? "";
 
-  const action =
-    structure?.actions[0] ??
-    "";
-
-  const object =
-    structure?.objects[0] ??
-    "";
-
-  const state =
-    structure?.states[0] ??
-    current?.emotionalState ??
-    "";
-
-  if (action && object) {
-    return `${action} involving ${object}`;
-  }
-
-  if (action) {
-    return action;
-  }
-
-  if (object) {
-    return `the ${object}`;
-  }
-
-  if (state) {
-    return `the ${state} state`;
-  }
-
+  if (action && object) return `${action} involving ${object}`;
+  if (action) return action;
+  if (object) return `the ${object}`;
+  if (state) return `the ${state} state`;
   return label(graph, id);
 }
+
 function structuralViewerChange(
   graph: RealityGraph,
   previousId: string | undefined,
@@ -345,218 +313,76 @@ function structuralViewerChange(
   relation: RealityRelation | undefined,
   final: boolean,
 ): string {
-  const current = event(
-    graph,
-    currentId,
-  );
+  const current = event(graph, currentId);
+  const previous = previousId ? event(graph, previousId) : undefined;
+  const currentStructure = eventStructureFor(graph, currentId);
+  const previousStructure = previousId ? eventStructureFor(graph, previousId) : undefined;
+  const currentLabel = label(graph, currentId);
+  const previousLabel = previousId ? label(graph, previousId) : "";
 
-  const previous = previousId
-    ? event(
-        graph,
-        previousId,
-      )
-    : undefined;
+  const currentStates = unique([
+    ...(currentStructure?.states ?? []),
+    current?.emotionalState ?? "",
+  ].filter(Boolean));
 
-  const currentStructure =
-    eventStructureFor(
-      graph,
-      currentId,
-    );
+  const previousStates = unique([
+    ...(previousStructure?.states ?? []),
+    previous?.emotionalState ?? "",
+  ].filter(Boolean));
 
-  const previousStructure =
-    previousId
-      ? eventStructureFor(
-          graph,
-          previousId,
-        )
-      : undefined;
-
-  const currentLabel =
-    label(
-      graph,
-      currentId,
-    );
-
-  const previousLabel =
-    previousId
-      ? label(
-          graph,
-          previousId,
-        )
-      : "";
-
-  const currentStates =
-    unique([
-      ...(currentStructure?.states ?? []),
-      current?.emotionalState ?? "",
-    ].filter(Boolean));
-
-  const previousStates =
-    unique([
-      ...(previousStructure?.states ?? []),
-      previous?.emotionalState ?? "",
-    ].filter(Boolean));
-
-  const currentTags =
-    currentStructure?.semanticTags ??
-    [];
-
-  const currentObjects =
-    currentStructure?.objects ??
-    [];
-
-  const currentActions =
-    currentStructure?.actions ??
-    [];
+  const currentTags = currentStructure?.semanticTags ?? [];
+  const currentObjects = currentStructure?.objects ?? [];
+  const currentActions = currentStructure?.actions ?? [];
 
   if (!previousId) {
-    if (currentStates.length) {
-      return `Establish the supplied state: ${currentStates[0]}.`;
-    }
-
-    if (currentActions.length) {
-      return `Establish the supplied action: ${currentActions[0]}.`;
-    }
-
-    if (currentObjects.length) {
-      return `Establish the supplied detail: ${currentObjects[0]}.`;
-    }
-
+    if (currentStates.length) return `Establish the supplied state: ${currentStates[0]}.`;
+    if (currentActions.length) return `Establish the supplied action: ${currentActions[0]}.`;
+    if (currentObjects.length) return `Establish the supplied detail: ${currentObjects[0]}.`;
     return `Establish the supplied opening: ${currentLabel}.`;
   }
 
-  if (
-    relation?.kind ===
-    "recontextualizes"
-  ) {
-    return `The supplied detail is recontextualized by ${currentLabel}.`;
+  if (relation?.kind === "recontextualizes") return `The supplied detail is recontextualized by ${currentLabel}.`;
+  if (relation?.kind === "repeats") return `The earlier detail returns through ${currentLabel}.`;
+  if (relation?.kind === "contrasts") return `The reading changes through the contrast between ${previousLabel} and ${currentLabel}.`;
+  if (relation?.kind === "causes") return `The supplied consequence follows ${previousLabel}.`;
+  if (relation?.kind === "converges") return `Separate supplied details converge in ${currentLabel}.`;
+
+  if (previousStates.length && currentStates.length) {
+    const before = previousStates[0]!;
+    const after = currentStates[0]!;
+    if (before.toLowerCase() !== after.toLowerCase()) return `The supplied state shifts from ${before} to ${after}.`;
   }
 
-  if (
-    relation?.kind ===
-    "repeats"
-  ) {
-    return `The earlier detail returns through ${currentLabel}.`;
+  if (currentStructure && currentStructure.transitionScore >= 0.65) {
+    const action = currentActions[0];
+    const object = currentObjects[0];
+    if (action && object) return `The supplied transition moves through ${action} involving ${object}.`;
+    if (action) return `The supplied transition moves through ${action}.`;
+    if (object) return `The supplied transition centers on ${object}.`;
   }
 
-  if (
-    relation?.kind ===
-    "contrasts"
-  ) {
-    return `The reading changes through the contrast between ${previousLabel} and ${currentLabel}.`;
-  }
-
-  if (
-    relation?.kind ===
-    "causes"
-  ) {
-    return `The supplied consequence follows ${previousLabel}.`;
-  }
-
-  if (
-    relation?.kind ===
-    "converges"
-  ) {
-    return `Separate supplied details converge in ${currentLabel}.`;
-  }
-
-  if (
-    previousStates.length &&
-    currentStates.length
-  ) {
-    const before =
-      previousStates[0]!;
-
-    const after =
-      currentStates[0]!;
-
-    if (
-      before.toLowerCase() !==
-      after.toLowerCase()
-    ) {
-      return `The supplied state shifts from ${before} to ${after}.`;
-    }
-  }
-
-  if (
-    currentStructure &&
-    currentStructure.transitionScore >=
-      0.65
-  ) {
-    const action =
-      currentActions[0];
-
-    const object =
-      currentObjects[0];
-
-    if (action && object) {
-      return `The supplied transition moves through ${action} involving ${object}.`;
-    }
-
-    if (action) {
-      return `The supplied transition moves through ${action}.`;
-    }
-
-    if (object) {
-      return `The supplied transition centers on ${object}.`;
-    }
-  }
-
-  if (
-    currentTags.includes(
-      "recurrence",
-    )
-  ) {
-    return `A supplied recurring signal returns in ${currentLabel}.`;
-  }
+  if (currentTags.includes("recurrence")) return `A supplied recurring signal returns in ${currentLabel}.`;
 
   return final
     ? `Land on the supplied endpoint: ${currentLabel}.`
     : `Advance through the supplied evidence: ${currentLabel}.`;
 }
-function buildTrajectory(
-  graph: RealityGraph,
-  ids: readonly string[],
-): LatentMovieTrajectoryStep[] {
+
+function buildTrajectory(graph: RealityGraph, ids: readonly string[]): LatentMovieTrajectoryStep[] {
   if (ids.length < 3) return [];
 
   const selected = [...ids]
-    .sort(
-      (left, right) =>
-        position(graph, left) -
-        position(graph, right),
-    )
+    .sort((left, right) => position(graph, left) - position(graph, right))
     .slice(0, 7);
 
-  const patterns =
-    graph.patterns ?? [];
-
-  const patternForEvent = (
-    eventId: string,
-  ): RealityPattern | undefined =>
+  const patterns = graph.patterns ?? [];
+  const patternForEvent = (eventId: string): RealityPattern | undefined =>
     patterns
-      .filter(
-        (pattern) =>
-          pattern.eventIds.includes(
-            eventId,
-          ),
-      )
-      .sort(
-        (a, b) =>
-          b.strength -
-          a.strength,
-      )[0];
+      .filter((pattern) => pattern.eventIds.includes(eventId))
+      .sort((a, b) => b.strength - a.strength)[0];
 
-  const strongRelation =
-    (
-      left: string,
-      right: string,
-    ): RealityRelation | undefined =>
-      relationBetween(
-        graph,
-        left,
-        right,
-      );
+  const strongRelation = (left: string, right: string): RealityRelation | undefined =>
+    relationBetween(graph, left, right);
 
   const operationForSequence = (
     currentId: string,
@@ -564,267 +390,82 @@ function buildTrajectory(
     index: number,
     final: boolean,
   ): LatentMovieTrajectoryStep["operation"] => {
-    if (final) {
-      return "payoff";
-    }
+    if (final) return "payoff";
 
-    const relation =
-      previousId
-        ? strongRelation(
-            previousId,
-            currentId,
-          )
-        : undefined;
-
+    const relation = previousId ? strongRelation(previousId, currentId) : undefined;
     if (relation) {
-      const explicit =
-        operationFor(
-          relation,
-          previousId
-            ? label(
-                graph,
-                previousId,
-              )
-            : "",
-          label(
-            graph,
-            currentId,
-          ),
-          false,
-        );
-
-      if (
-        explicit !==
-        "reveal"
-      ) {
-        return explicit;
-      }
+      const explicit = operationFor(
+        relation,
+        previousId ? label(graph, previousId) : "",
+        label(graph, currentId),
+        false,
+      );
+      if (explicit !== "reveal") return explicit;
     }
 
-    const currentStructure =
-      eventStructureFor(
-        graph,
-        currentId,
-      );
+    const currentStructure = eventStructureFor(graph, currentId);
+    const previousStructure = previousId ? eventStructureFor(graph, previousId) : undefined;
+    const currentPattern = patternForEvent(currentId);
+    const hasRecurrence = Boolean(currentStructure && currentStructure.recurrenceScore >= 0.65);
+    const hasTransition = Boolean(currentStructure && currentStructure.transitionScore >= 0.65);
+    const hasAnomaly = Boolean(currentStructure && currentStructure.anomalyScore >= 0.65);
+    const patternKind = currentPattern?.kind;
 
-    const previousStructure =
-      previousId
-        ? eventStructureFor(
-            graph,
-            previousId,
-          )
-        : undefined;
+    if (patternKind === "recurrence" || hasRecurrence) return "recur";
+    if (patternKind === "anomaly" || hasAnomaly) return "contrast";
+    if (patternKind === "transition") return hasTransition ? "reframe" : "reveal";
+    if (patternKind === "tension") return "contrast";
 
-    const currentPattern =
-      patternForEvent(
-        currentId,
-      );
-
-    const hasRecurrence =
-      Boolean(
-        currentStructure &&
-          currentStructure.recurrenceScore >=
-            0.65,
-      );
-
-    const hasTransition =
-      Boolean(
-        currentStructure &&
-          currentStructure.transitionScore >=
-            0.65,
-      );
-
-    const hasAnomaly =
-      Boolean(
-        currentStructure &&
-          currentStructure.anomalyScore >=
-            0.65,
-      );
-
-    const patternKind =
-      currentPattern?.kind;
-
-    if (
-      patternKind ===
-        "recurrence" ||
-      hasRecurrence
-    ) {
-      return "recur";
-    }
-
-    if (
-      patternKind ===
-        "anomaly" ||
-      hasAnomaly
-    ) {
-      return "contrast";
-    }
-
-    if (
-      patternKind ===
-      "transition"
-    ) {
-      return hasTransition
-        ? "reframe"
-        : "reveal";
-    }
-
-    if (
-      patternKind ===
-      "tension"
-    ) {
-      return "contrast";
-    }
-
-    /*
-     * Detect state movement even when the graph has not emitted an explicit
-     * relation between adjacent events.
-     */
-    const previousStates =
-      unique([
-        ...(previousStructure?.states ??
-          []),
-        event(
-          graph,
-          previousId ?? "",
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
-
-    const currentStates =
-      unique([
-        ...(currentStructure?.states ??
-          []),
-        event(
-          graph,
-          currentId,
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
+    const previousStates = unique([
+      ...(previousStructure?.states ?? []),
+      event(graph, previousId ?? "")?.emotionalState ?? "",
+    ].filter(Boolean));
+    const currentStates = unique([
+      ...(currentStructure?.states ?? []),
+      event(graph, currentId)?.emotionalState ?? "",
+    ].filter(Boolean));
 
     if (
       previousStates.length &&
       currentStates.length &&
-      previousStates[0]!.toLowerCase() !==
-        currentStates[0]!.toLowerCase()
-    ) {
-      return "reframe";
-    }
+      previousStates[0]!.toLowerCase() !== currentStates[0]!.toLowerCase()
+    ) return "reframe";
 
-    /*
-     * A supplied object/detail becomes more cinematic when it arrives after
-     * an action or state. Treat that as an attention shift, not a second
-     * generic reveal.
-     */
     if (
       currentStructure?.objects.length &&
-      (
-        previousStructure?.actions.length ||
-        previousStructure?.states.length
-      )
-    ) {
-      return "reframe";
-    }
+      (previousStructure?.actions.length || previousStructure?.states.length)
+    ) return "reframe";
 
-    /*
-     * A later event that semantically accumulates several earlier signals is
-     * a convergence point.
-     */
-    const currentTokens =
-      tokens(
-        label(
-          graph,
-          currentId,
-        ),
+    const currentTokens = tokens(label(graph, currentId));
+    const priorMatches = selected
+      .slice(0, index)
+      .filter(
+        (priorId) =>
+          sharedTokenScore(label(graph, priorId), label(graph, currentId)) >= 0.6,
       );
 
-    const priorMatches =
-      selected
-        .slice(
-          0,
-          index,
-        )
-        .filter(
-          (priorId) =>
-            sharedTokenScore(
-              label(
-                graph,
-                priorId,
-              ),
-              label(
-                graph,
-                currentId,
-              ),
-            ) >=
-            0.6,
-        );
-
-    if (
-      priorMatches.length >=
-      2
-    ) {
-      return "converge";
-    }
-
+    if (priorMatches.length >= 2) return "converge";
     void currentTokens;
 
-    return hasTransition
-      ? "reframe"
-      : "reveal";
+    return hasTransition ? "reframe" : "reveal";
   };
 
-  return selected.map(
-    (id, index) => {
-      const final =
-        index ===
-        selected.length - 1;
+  return selected.map((id, index) => {
+    const final = index === selected.length - 1;
+    const previousId = index > 0 ? selected[index - 1] : undefined;
+    const relation = previousId ? strongRelation(previousId, id) : undefined;
+    const operation = operationForSequence(id, previousId, index, final);
 
-      const previousId =
-        index > 0
-          ? selected[
-              index - 1
-            ]
-          : undefined;
-
-      const relation =
-        previousId
-          ? strongRelation(
-              previousId,
-              id,
-            )
-          : undefined;
-
-      const operation =
-        operationForSequence(
-          id,
-          previousId,
-          index,
-          final,
-        );
-
-      return {
-        order:
-          index + 1,
-        operation,
-        eventIds: [
-          id,
-        ],
-        viewerChange:
-          structuralViewerChange(
-            graph,
-            previousId,
-            id,
-            relation,
-            final,
-          ),
-        nextQuestion:
-          questionFor(
-            operation,
-          ),
-      };
-    },
-  );
+    return {
+      order: index + 1,
+      operation,
+      eventIds: [id],
+      viewerChange: structuralViewerChange(graph, previousId, id, relation, final),
+      nextQuestion: questionFor(operation),
+    };
+  });
 }
+
 function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
   if (!ids.length) return 0;
   let linked = 0;
@@ -832,12 +473,9 @@ function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
     if (
       graph.relations.some(
         (relation) =>
-          (relation.from === id || relation.to === id) &&
-          callbackRelation(relation),
+          (relation.from === id || relation.to === id) && callbackRelation(relation),
       ) || explicitCallback(label(graph, id))
-    ) {
-      linked += 1;
-    }
+    ) linked += 1;
   }
   return metric(linked / ids.length);
 }
@@ -852,42 +490,26 @@ function relationDiversity(graph: RealityGraph, ids: readonly string[]): number 
   return metric(kinds.length / 4);
 }
 
-function subjectCoverage(
-  graph: RealityGraph,
-  ids: readonly string[],
-  subject?: string,
-): number {
+function subjectCoverage(graph: RealityGraph, ids: readonly string[], subject?: string): number {
   if (!clean(subject) || !ids.length) return 1;
-
   const direct = ids.filter((id) => explicitSubjectMention(label(graph, id), subject));
   const directRatio = direct.length / ids.length;
   const callbacks = callbackCoverage(graph, ids);
   const firstAnchor = ids.includes(graph.events[0]?.id ?? "") ? 0.18 : 0;
-
-  return metric(
-    Math.min(1, directRatio * 0.56 + callbacks * 0.26 + firstAnchor),
-  );
+  return metric(Math.min(1, directRatio * 0.56 + callbacks * 0.26 + firstAnchor));
 }
 
-function ambientNoisePenalty(
-  graph: RealityGraph,
-  ids: readonly string[],
-  subject?: string,
-): number {
+function ambientNoisePenalty(graph: RealityGraph, ids: readonly string[], subject?: string): number {
   if (!clean(subject) || !ids.length) return 0;
-
   let ambient = 0;
   for (const id of ids) {
     const direct = explicitSubjectMention(label(graph, id), subject);
     const callback = graph.relations.some(
-      (relation) =>
-        (relation.from === id || relation.to === id) && callbackRelation(relation),
+      (relation) => (relation.from === id || relation.to === id) && callbackRelation(relation),
     );
     const structural = graph.relations.some(
-      (relation) =>
-        relation.from === id || relation.to === id,
+      (relation) => relation.from === id || relation.to === id,
     );
-
     if (!direct && !callback && !structural) ambient += 1;
   }
   return metric(ambient / ids.length);
@@ -896,7 +518,6 @@ function ambientNoisePenalty(
 function scoreCandidate(
   graph: RealityGraph,
   trajectory: readonly LatentMovieTrajectoryStep[],
-  lens?: string,
   subject?: string,
 ): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
   const ids = unique(trajectory.flatMap((step) => step.eventIds));
@@ -906,9 +527,7 @@ function scoreCandidate(
     .map((id, index) => relationBetween(graph, ids[index]!, id))
     .filter((value): value is RealityRelation => Boolean(value));
   const relationKinds = unique(relations.map((relation) => relation.kind));
-  const structures = ids
-    .map((id) => eventStructureFor(graph, id))
-    .filter((value) => Boolean(value));
+  const structures = ids.map((id) => eventStructureFor(graph, id)).filter((value) => Boolean(value));
   const state = statePair(graph, ids);
   const coverage = subjectCoverage(graph, ids, subject);
   const noise = ambientNoisePenalty(graph, ids, subject);
@@ -1005,7 +624,7 @@ function scoreCandidate(
       "The movie is discovered from supplied reality rather than an industry template.",
       "Subject relevance is evaluated separately from ambient context.",
       "Callbacks may reconnect a detail when the supplied evidence explicitly supports the callback.",
-      "The lens changes framing, never concrete reality.",
+      "Lens is not part of universal discovery; perceptual bias is applied only after candidates exist.",
     ],
     truthRisk,
     novelty: metric(1 - repetitionRisk),
@@ -1031,23 +650,21 @@ function addTrajectoryCandidate(
   graph: RealityGraph,
   id: string,
   ids: readonly string[],
-  lens?: string,
   subject?: string,
 ): void {
   const built = buildTrajectory(graph, ids);
   if (built.length < 3) return;
   candidates.push({
     id,
-    lens: clean(lens) || "NONE",
+    lens: "NONE",
     distinctiveness: 0,
-    ...scoreCandidate(graph, built, lens, subject),
+    ...scoreCandidate(graph, built, subject),
   });
 }
 
 export function searchUniversalMovieCandidates(input: {
   graph: RealityGraph;
   subject?: string;
-  lens?: string;
   limit?: number;
 }): LatentMovieCandidate[] {
   const limit = Math.max(3, Math.min(12, input.limit ?? 8));
@@ -1059,16 +676,7 @@ export function searchUniversalMovieCandidates(input: {
   const connectedIds = subjectConnectedIds(input.graph, input.subject);
   const candidates: LatentMovieCandidate[] = [];
 
-  // Keep the full source-order film available as a competitor, but let the
-  // subject-relevance penalty decide whether it actually deserves to win.
-  addTrajectoryCandidate(
-    candidates,
-    input.graph,
-    "movie-source",
-    sourceIds,
-    input.lens,
-    input.subject,
-  );
+  addTrajectoryCandidate(candidates, input.graph, "movie-source", sourceIds, input.subject);
 
   if (connectedIds.length >= 3 && connectedIds.length < sourceIds.length) {
     addTrajectoryCandidate(
@@ -1076,7 +684,6 @@ export function searchUniversalMovieCandidates(input: {
       input.graph,
       "movie-subject-connected",
       connectedIds,
-      input.lens,
       input.subject,
     );
   }
@@ -1090,17 +697,8 @@ export function searchUniversalMovieCandidates(input: {
       const pos = position(input.graph, id);
       return pos >= start && pos <= end + 1;
     });
-    if (!ids.includes(stateIds[stateIds.length - 1]!)) {
-      ids.push(stateIds[stateIds.length - 1]!);
-    }
-    addTrajectoryCandidate(
-      candidates,
-      input.graph,
-      "movie-transformation",
-      ids,
-      input.lens,
-      input.subject,
-    );
+    if (!ids.includes(stateIds[stateIds.length - 1]!)) ids.push(stateIds[stateIds.length - 1]!);
+    addTrajectoryCandidate(candidates, input.graph, "movie-transformation", ids, input.subject);
   }
 
   const relationSeeds = [...input.graph.relations]
@@ -1132,7 +730,6 @@ export function searchUniversalMovieCandidates(input: {
       input.graph,
       `movie-relation-${index + 1}`,
       unique([...ordered, ...localIds, sourceIds[sourceIds.length - 1]!]),
-      input.lens,
       input.subject,
     );
   }
@@ -1171,9 +768,7 @@ export function searchUniversalMovieCandidates(input: {
       : 0;
 
     candidate.distinctiveness = metric(1 - similarity);
-    candidate.score = metric(
-      candidate.score * 0.88 + candidate.distinctiveness * 0.12,
-    );
+    candidate.score = metric(candidate.score * 0.88 + candidate.distinctiveness * 0.12);
     selected.push(candidate);
   }
 
