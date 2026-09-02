@@ -225,6 +225,7 @@ function composeTrajectoryBeats(
       frontier: "",
       paysOff: index === ids.length - 1 ? [movie.payoff] : [],
       relationKinds: unique(movie.supportingRelationKinds),
+      semanticRealization: movie.storyThesis?.semanticRealization,
       observerExperience: movie.storyThesis?.observerExperience,
     }));
   }
@@ -321,6 +322,7 @@ function composeTrajectoryBeats(
         ...movie.supportingRelationKinds,
         ...group.flatMap((step) => (step.operation ? [step.operation] : [])),
       ]),
+      semanticRealization: movie.storyThesis?.semanticRealization,
       observerExperience: movie.storyThesis?.observerExperience,
       obligations: [
         "All source event IDs in this cut remain approved evidence.",
@@ -367,6 +369,7 @@ function stepToBeat(
     frontier: clean(step.nextQuestion),
     paysOff: final ? [movie.payoff] : [],
     relationKinds: unique(movie.supportingRelationKinds),
+    semanticRealization: movie.storyThesis?.semanticRealization,
     observerExperience: movie.storyThesis?.observerExperience,
   };
 }
