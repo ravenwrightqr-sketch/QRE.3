@@ -124,14 +124,8 @@ function eventById(graph: RealityGraph | undefined, id: string): RealityGraph["e
   return graph?.events.find((event) => event.id === id);
 }
 
-function structureById(graph: RealityGraph | undefined, id: string): RealityGraph["eventStructure"] extends infer T
-  ? T extends Array<infer U>
-    ? U extends { eventId: string }
-      ? U | undefined
-      : never
-    : never
-  : never {
-  return graph?.eventStructure?.find((item) => item.eventId === id) as never;
+function structureById(graph: RealityGraph | undefined, id: string) {
+  return graph?.eventStructure?.find((item) => item.eventId === id);
 }
 
 function relationKindsBetween(graph: RealityGraph | undefined, from: string, to: string): string[] {
@@ -209,20 +203,19 @@ function explicitSourceSpineScore(graph: RealityGraph | undefined, candidate: La
   const ids = uniq(candidate.trajectory.flatMap((step) => step.eventIds), 40);
   if (ids.length < 3) return 0;
 
-  const ordered = ids;
   let temporalLinks = 0;
   let structuralLinks = 0;
   let denseEvents = 0;
   let salient = 0;
 
-  for (let index = 0; index < ordered.length; index += 1) {
-    const structure = structureById(graph, ordered[index]);
+  for (let index = 0; index < ids.length; index += 1) {
+    const structure = structureById(graph, ids[index]);
     if (structure && (structure.actions.length || structure.temporalMarkers.length)) denseEvents += 1;
-    const event = eventById(graph, ordered[index]);
+    const event = eventById(graph, ids[index]);
     if (event?.salient) salient += 1;
     if (index === 0) continue;
-    const from = ordered[index - 1];
-    const to = ordered[index];
+    const from = ids[index - 1];
+    const to = ids[index];
     if (hasStrongTemporalRelation(graph, from, to) || hasStrongTemporalRelation(graph, to, from)) temporalLinks += 1;
     if (relationKindsBetween(graph, from, to).length || relationKindsBetween(graph, to, from).length) structuralLinks += 1;
   }
@@ -234,14 +227,10 @@ function explicitSourceSpineScore(graph: RealityGraph | undefined, candidate: La
   return metric(density * 0.32 + temporal * 0.34 + structural * 0.18 + salience * 0.16);
 }
 
-function sourceLedCandidate(
-  candidates: LatentMovieCandidate[],
-  graph: RealityGraph | undefined,
-): LatentMovieCandidate | undefined {
+function sourceLedCandidate(candidates: LatentMovieCandidate[], graph: RealityGraph | undefined): LatentMovieCandidate | undefined {
   const source = candidates.find((candidate) => candidate.id === "movie-source");
   if (!source) return undefined;
-  const spine = explicitSourceSpineScore(graph, source);
-  return spine >= 0.48 ? source : undefined;
+  return explicitSourceSpineScore(graph, source) >= 0.48 ? source : undefined;
 }
 
 function movieFor(input: AuthorCognitionInput, lens: string): {
@@ -256,17 +245,11 @@ function movieFor(input: AuthorCognitionInput, lens: string): {
     lens,
     limit: 10,
   });
-
   const enriched = searched.map((candidate) => enrichMovieCandidate(candidate, input.realityGraph));
   const differentiated = selectDistinctMovieCandidates(enriched, 6);
   const ranked = rerankByViewerState(input.realityGraph, differentiated);
-  const source = sourceLedCandidate(ranked, input.realityGraph);
-  const selectedMovie = source ?? ranked[0];
-
-  return {
-    latentMovieCandidates: ranked,
-    selectedMovie,
-  };
+  const selectedMovie = sourceLedCandidate(ranked, input.realityGraph) ?? ranked[0];
+  return { latentMovieCandidates: ranked, selectedMovie };
 }
 
 function traits(input: AuthorCognitionInput): string[] {
@@ -280,23 +263,18 @@ function traits(input: AuthorCognitionInput): string[] {
 
 function contradictions(input: AuthorCognitionInput): string[] {
   const graph = input.realityGraph;
-  return uniq(
-    [
-      ...(graph?.unresolvedTensions ?? []),
-      ...(graph?.relations
-        .filter((relation) => relation.kind === "contrasts" || relation.kind === "changes" || relation.kind === "recontextualizes")
-        .slice(0, 8)
-        .map((relation) => `supplied relationship: ${relation.kind}`) ?? []),
-    ],
-    12,
-  );
+  return uniq([
+    ...(graph?.unresolvedTensions ?? []),
+    ...(graph?.relations
+      .filter((relation) => relation.kind === "contrasts" || relation.kind === "changes" || relation.kind === "recontextualizes")
+      .slice(0, 8)
+      .map((relation) => `supplied relationship: ${relation.kind}`) ?? []),
+  ], 12);
 }
 
 function objectRelationships(input: AuthorCognitionInput): string[] {
   return uniq(
-    input.realityGraph?.events
-      .filter((event) => event.entities.length > 1)
-      .map((event) => event.label) ?? [],
+    input.realityGraph?.events.filter((event) => event.entities.length > 1).map((event) => event.label) ?? [],
     12,
   );
 }
@@ -311,10 +289,8 @@ function frames(input: AuthorCognitionInput, movie: LatentMovieCandidate | undef
       confidence: 0.95,
     }];
   }
-
   const automatic = autoLensCandidates(input);
   if (automatic[0]?.frame === selectedLens && automatic[0]?.frame !== "NONE") return automatic;
-
   const relationKinds = new Set(input.realityGraph?.relations.map((relation) => relation.kind) ?? []);
   const out: CharacterFrameCandidate[] = [];
   if (relationKinds.has("contrasts")) out.push({ frame: "contrast", reason: "the supplied world contains a material contrast", confidence: 0.9 });
@@ -412,11 +388,10 @@ function nextFutureEvidence(graph: RealityGraph | undefined, steps: readonly Lat
 
 function attentionTargetFor(graph: RealityGraph | undefined, step: LatentMovieTrajectoryStep): string {
   const evidence = collectEvidence(graph, step.eventIds);
-  if (evidence.length) return evidence[0];
-  return clean(step.viewerChange) || "current supplied change";
+  return evidence[0] || clean(step.viewerChange) || "current supplied change";
 }
 
-function readoutStateBefore(step: LatentMovieTrajectoryStep, previous?: CognitiveReadoutDecision): string {
+function readoutStateBefore(previous?: CognitiveReadoutDecision): string {
   return previous?.viewerStateAfter || "baseline attention";
 }
 
@@ -424,11 +399,7 @@ function readoutStateAfter(step: LatentMovieTrajectoryStep): string {
   return clean(step.viewerChange) || "attention advances";
 }
 
-function shouldMergeReadouts(
-  graph: RealityGraph | undefined,
-  left: LatentMovieTrajectoryStep,
-  right: LatentMovieTrajectoryStep,
-): boolean {
+function shouldMergeReadouts(graph: RealityGraph | undefined, left: LatentMovieTrajectoryStep, right: LatentMovieTrajectoryStep): boolean {
   const leftIds = uniq(left.eventIds, 20);
   const rightIds = uniq(right.eventIds, 20);
   if (!leftIds.length || !rightIds.length) return true;
@@ -451,21 +422,14 @@ function materializeReadoutTrajectory(
   for (const step of sourceSteps) {
     const ids = uniq(step.eventIds, 20);
     if (sourceLed && ids.length > 1) {
-      for (const eventId of ids) {
-        expanded.push({
-          ...step,
-          eventIds: [eventId],
-          nextQuestion: clean(step.nextQuestion),
-        });
-      }
+      for (const eventId of ids) expanded.push({ ...step, eventIds: [eventId] });
       continue;
     }
-
     const temporalIds = ids.length > 1 && ids.some((id, index) => index > 0 && hasStrongTemporalRelation(graph, ids[index - 1], id));
     if (temporalIds) {
       for (const eventId of ids) expanded.push({ ...step, eventIds: [eventId] });
     } else {
-      expanded.push(step);
+      expanded.push({ ...step, eventIds: ids });
     }
   }
 
@@ -496,9 +460,6 @@ function materializeReadoutTrajectory(
     const futureEvidence = nextFutureEvidence(graph, steps, index);
     const semanticTurn = candidate.storyThesis?.semanticTurn;
     const purpose = purposeForStep(step, index, steps.length);
-    const withheldInformation = futureEvidence.length
-      ? [futureEvidence[0], ...futureEvidence.slice(1, 3)]
-      : [];
 
     decisions.push({
       order: index + 1,
@@ -506,33 +467,20 @@ function materializeReadoutTrajectory(
       purpose,
       currentEvidence,
       futureEvidence,
-      viewerStateBefore: readoutStateBefore(step, previous),
+      viewerStateBefore: readoutStateBefore(previous),
       viewerStateAfter: readoutStateAfter(step),
       attentionTarget: attentionTargetFor(graph, step),
       semanticTurn,
-      withheldInformation,
+      withheldInformation: futureEvidence.slice(0, 3),
       nextPressure: clean(step.nextQuestion),
       terminal,
     });
   }
 
-  const trajectory = steps.map((step, index) => {
-    const decision = decisions[index];
-    const future = decision.futureEvidence.length
-      ? ` Future evidence remains reserved: ${decision.futureEvidence.join(" | ")}.`
-      : "";
-    return {
-      ...step,
-      order: index + 1,
-      viewerChange: `${clean(step.viewerChange) || "advance attention"} Readout purpose: ${decision.purpose}. Current evidence: ${decision.currentEvidence.join(" | ") || "supplied current event"}.${future}`,
-      nextQuestion: decision.nextPressure,
-    };
-  });
-
   return {
     movie: {
       ...candidate,
-      trajectory,
+      trajectory: steps,
     },
     decisions,
   };
@@ -549,9 +497,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
 
   const selectedMovie = materialized.movie;
   const latentMovieCandidates = movie.latentMovieCandidates.map((candidate) =>
-    candidate.id === selectedMovie?.id && selectedMovie
-      ? selectedMovie
-      : candidate,
+    candidate.id === selectedMovie?.id && selectedMovie ? selectedMovie : candidate,
   );
 
   const priorExperienceStates = parsePriorExperienceStates(input.priorStrategies);
@@ -578,9 +524,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     coreTraits: traits(input),
     contradictions: contradictionList,
     statusPosture: contradictionList[0] ?? "defined by supplied reality",
-    emotionalPosture: contradictionList[0]
-      ? `emotion sits inside ${contradictionList[0]}`
-      : "emotion should be inferred from supplied evidence",
+    emotionalPosture: contradictionList[0] ? `emotion sits inside ${contradictionList[0]}` : "emotion should be inferred from supplied evidence",
     objectRelationships: objectRelationships(input),
     creativeFrames: frames(input, selectedMovie, selectedLens),
     allowedMoves: [
