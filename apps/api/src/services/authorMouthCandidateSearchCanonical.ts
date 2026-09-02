@@ -398,13 +398,7 @@ export function buildMouthCandidateMessages({
               rule: "Make the approved relationship perceptible. Do not collapse it into one endpoint label.",
             }
           : undefined,
-      viewerState: beat.viewerState
-        ? {
-            before: beat.viewerState.before,
-            after: beat.viewerState.after,
-            move: beat.viewerState.move,
-          }
-        : undefined,
+      viewerState: beat.viewerState,
       next: clean(beat.next),
       relationKinds: [...(beat.relationKinds ?? [])],
       terminal: beat.role === "payoff",
