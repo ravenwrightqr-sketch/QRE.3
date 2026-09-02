@@ -5,51 +5,21 @@ import type {
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { resolveLensPolicy } from "./authorLensPolicy.js";
+export { rankLensOpportunities } from "./authorLensRanking.js";
 
 /**
  * COMPATIBILITY ADAPTER ONLY.
  *
- * authorLensPolicy.ts is the sole lens authority. This module exists only
- * because older Author consumers still use the narrower AuthorLensProfile API.
- * Lens behavior, aliases, and policy values are never defined here.
+ * Lens authority lives in authorLensPolicy.ts.
+ * Lens ranking lives in authorLensRanking.ts.
+ * This module contains no lens registry, aliases, ranking, or lens behavior.
+ * It exists only for older callers that still consume AuthorLensProfile.
  */
 
-const COMPATIBLE_CANONICAL_LENS_NAMES = [
-  "game",
-  "spy",
-  "heist",
-  "courtroom",
-  "military",
-  "horror",
-  "noir",
-  "rom-com",
-  "royal",
-  "documentary",
-  "western",
-  "cyberpunk",
-  "absurd",
-  "comedy",
-  "romance",
-  "sentimental",
-  "mystery",
-  "adventure",
-] as const;
-
-function metric(value: number): number {
-  return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
-}
-
-function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function tokens(value: string): Set<string> {
-  return new Set(clean(value).toLowerCase().split(/[^a-z0-9'’-]+/g).filter((token) => token.length >= 3));
-}
-
-function unique(values: readonly string[]): string[] {
-  return [...new Set(values.map(clean).filter(Boolean))];
-}
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const tokens = (value: string): Set<string> => new Set(clean(value).toLowerCase().split(/[^a-z0-9'’-]+/g).filter((token) => token.length >= 3));
 
 function profileFromPolicy(lens?: string): AuthorLensProfile {
   const policy = resolveLensPolicy(lens);
@@ -80,74 +50,8 @@ export function classifyLens(value?: string): AuthorLensProfile {
   return profileFromPolicy(value);
 }
 
-export function rankLensOpportunities(
-  envelope: RealityEnvelope,
-): Array<{ frame: string; reason: string; confidence: number }> {
-  const world = tokens([
-    envelope.subject,
-    ...envelope.events.map((event) => event.label),
-    ...(envelope.suppliedPhrases ?? []),
-    ...(envelope.recurringSignals ?? []),
-    ...(envelope.sensorySignals ?? []),
-    ...(envelope.unresolvedTensions ?? []),
-  ].join(" "));
-
-  const candidates = COMPATIBLE_CANONICAL_LENS_NAMES.map((name) => {
-    const policy = resolveLensPolicy(name);
-    const frame = tokens([
-      ...policy.worldOrbit,
-      ...policy.observerTarget,
-      ...policy.terms,
-      ...policy.realizationMoves,
-    ].join(" "));
-    let hits = 0;
-    for (const token of frame) if (world.has(token)) hits += 1;
-    const lexicalFit = frame.size ? hits / frame.size : 0;
-    const structuralFit = Math.min(
-      1,
-      (envelope.relations.length / Math.max(1, envelope.events.length)) * 1.2,
-    );
-    const confidence = metric(
-      lexicalFit * 0.35 +
-      structuralFit * 0.2 +
-      policy.intensity * 0.1 +
-      (policy.observerMode === "discovery" ? 0.1 : 0.15) +
-      Math.min(0.2, envelope.unresolvedTensions.length * 0.04) +
-      Math.min(0.1, envelope.recurringSignals.length * 0.02),
-    );
-
-    return {
-      frame: policy.name,
-      reason: `${policy.name} amplifies ${policy.worldOrbit.slice(0, 4).join(", ")} already available in the supplied world. The policy changes perception and sequencing, never source reality.`,
-      confidence,
-    };
-  });
-
-  const nativeTokens = tokens([
-    envelope.subject,
-    ...envelope.events.map((event) => event.label),
-    ...(envelope.suppliedPhrases ?? []),
-  ].join(" "));
-  const nativeConfidence = metric(
-    Math.min(1, envelope.events.length / 5) * 0.35 +
-    Math.min(1, envelope.relations.length / Math.max(1, envelope.events.length)) * 0.35 +
-    Math.min(1, nativeTokens.size / 20) * 0.3,
-  );
-
-  candidates.push({
-    frame: "NONE",
-    reason: "Preserve the native supplied reality when it is already stronger than a treatment frame.",
-    confidence: nativeConfidence,
-  });
-
-  return candidates
-    .sort((left, right) => right.confidence - left.confidence || left.frame.localeCompare(right.frame))
-    .slice(0, 8);
-}
-
-export function buildCharacterProfile(
-  envelope: RealityEnvelope,
-): AuthorCharacterProfile {
+/** Legacy character read; lens definitions still come exclusively from LensPolicy. */
+export function buildCharacterProfile(envelope: RealityEnvelope): AuthorCharacterProfile {
   const subject = envelope.subject;
   const labels = envelope.events.map((event) => event.label);
   const states = envelope.suppliedStates ?? [];
@@ -171,13 +75,12 @@ export function buildCharacterProfile(
     ...envelope.relations.map((relation) => `relationship:${relation.kind}`),
     ...(envelope.recurringSignals ?? []).map((signal) => `signal:${signal}`),
   ]).slice(0, 18);
-  const confidence = metric(Math.min(
-    1,
+  const confidence = metric(
     0.35 +
       Math.min(0.25, coreTraits.length * 0.04) +
       Math.min(0.2, tensions.length * 0.05) +
       Math.min(0.2, actions.length * 0.04),
-  ));
+  );
 
   return {
     subject,
@@ -191,6 +94,7 @@ export function buildCharacterProfile(
   };
 }
 
+/** Legacy fit metric retained only for compatibility; it cannot select or define a lens. */
 export function scoreLensFit(
   lens: AuthorLensProfile,
   character: AuthorCharacterProfile,
