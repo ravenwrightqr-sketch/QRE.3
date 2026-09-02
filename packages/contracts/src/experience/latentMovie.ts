@@ -97,6 +97,24 @@ export type LatentSemanticRealization = {
 };
 
 /**
+ * Winning Satanico explanation aligned to the latent thesis.
+ * This is diagnostic semantic structure, never source truth or viewer prose.
+ */
+export type LatentHypothesisAlignment = {
+  kind: string;
+  evidenceEventIds: string[];
+  anchorEventIds: string[];
+  supportEventIds: string[];
+  evidenceCoverage: number;
+  mechanismEvidenceFit: number;
+  explanatoryCompression: number;
+  counterEvidence: number;
+  unsupportedAssumptionRisk: number;
+  observerGap: number;
+  score: number;
+};
+
+/**
  * One internal observer-facing objective derived from the winning semantic
  * interpretation. It is direction for realization, never viewer prose.
  */
@@ -114,6 +132,8 @@ export type LatentStoryThesis = {
   semanticTurn: string;
   /** Canonical structured semantic truth consumed by realization layers. */
   semanticRealization?: LatentSemanticRealization;
+  /** Winning Satanico hypothesis carried forward for downstream realization. */
+  hypothesisAlignment?: LatentHypothesisAlignment;
   beforeMeaning: string[];
   afterMeaning: string[];
   beforeEventIds: string[];
