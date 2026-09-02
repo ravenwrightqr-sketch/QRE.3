@@ -16,6 +16,7 @@ import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import { rankLensOpportunities } from "./authorLensRanking.js";
 import { resolveLensPolicy } from "./authorLensPolicy.js";
+import { buildCognitiveExperienceObjective } from "./authorCognitiveExperienceObjective.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -64,6 +65,8 @@ export type CognitiveReadoutDecision = {
   futureEvidence: string[];
   viewerStateBefore: string;
   viewerStateAfter: string;
+  experienceViewerBefore?: ReturnType<typeof buildCognitiveExperienceObjective>["trajectory"][number]["viewerBefore"];
+  experienceViewerAfter?: ReturnType<typeof buildCognitiveExperienceObjective>["trajectory"][number]["viewerAfter"];
   attentionTarget: string;
   semanticTurn?: string;
   withheldInformation: string[];
@@ -80,6 +83,7 @@ export type AuthorCognitivePlan = {
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
   readoutPlan: CognitiveReadoutDecision[];
+  experienceObjective?: ReturnType<typeof buildCognitiveExperienceObjective>;
   experienceState?: AuthorExperienceState;
   operatorMix: string[];
   callbackTargets: string[];
@@ -495,7 +499,45 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     ? materializeReadoutTrajectory(selectedMovieSeed, input.realityGraph)
     : { movie: selectedMovieSeed, decisions: [] as CognitiveReadoutDecision[] };
 
-  const selectedMovie = materialized.movie;
+  const experienceObjective = selectedMovieSeed && input.realityGraph
+    ? buildCognitiveExperienceObjective(input.realityGraph, selectedMovieSeed)
+    : undefined;
+
+  const objectiveMovie = selectedMovieSeed && experienceObjective?.trajectory.length
+    ? {
+        ...selectedMovieSeed,
+        trajectory: experienceObjective.trajectory.map((decision, index) => {
+          const source = selectedMovieSeed.trajectory.find((step) =>
+            step.eventIds.some((id) => decision.eventIds.includes(id)),
+          ) ?? selectedMovieSeed.trajectory[index];
+          return {
+            ...(source ?? { order: index + 1, operation: "reveal", eventIds: decision.eventIds, viewerChange: "attention advances" }),
+            order: index + 1,
+            eventIds: decision.eventIds,
+            viewerChange: decision.desiredViewerChange || source?.viewerChange || decision.attentionTarget || "attention advances",
+            nextQuestion: decision.nextPressure,
+          };
+        }),
+      }
+    : undefined;
+
+  const selectedMovie = objectiveMovie ?? materialized.movie;
+  const experienceDecisions: CognitiveReadoutDecision[] = experienceObjective?.trajectory.map((decision) => ({
+    order: decision.order,
+    eventIds: decision.eventIds,
+    purpose: decision.purpose,
+    currentEvidence: decision.currentEvidence,
+    futureEvidence: decision.futureEvidence,
+    viewerStateBefore: JSON.stringify(decision.viewerBefore),
+    viewerStateAfter: JSON.stringify(decision.viewerAfter),
+    experienceViewerBefore: decision.viewerBefore,
+    experienceViewerAfter: decision.viewerAfter,
+    attentionTarget: decision.attentionTarget,
+    withheldInformation: decision.withheldInformation,
+    nextPressure: decision.nextPressure,
+    terminal: decision.terminal,
+  })) ?? materialized.decisions;
+
   const latentMovieCandidates = movie.latentMovieCandidates.map((candidate) =>
     candidate.id === selectedMovie?.id && selectedMovie ? selectedMovie : candidate,
   );
@@ -573,8 +615,9 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
         `THESIS RELATION: ${selectedMovie.storyThesis?.relationKind ?? "none"}`,
         `CANDIDATE COUNT: ${movie.latentMovieCandidates.length}`,
         `VIEWER-STATE SCORE: ${dynamics?.score ?? "n/a"}`,
-        `COGNITIVE READOUTS: ${materialized.decisions.length}`,
-        `READOUT PURPOSES: ${materialized.decisions.map((decision) => decision.purpose).join(" -> ") || "none"}`,
+        `COGNITIVE READOUTS: ${experienceDecisions.length}`,
+        `READOUT PURPOSES: ${experienceDecisions.map((decision) => decision.purpose).join(" -> ") || "none"}`,
+        `EXPERIENCE OBJECTIVE: addition/attention/curiosity are first-class trajectory dimensions.`,
       ].join(" ")
     : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
 
@@ -587,11 +630,11 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     graphSummary,
     movieSummary,
     `DOMAIN: ${domainContextText(input.domainContext).join(" | ") || "universal"}`,
-    `COGNITIVE READOUT AUTHORITY: ${materialized.decisions.length} viewer-facing transitions selected from supplied reality and approved semantic structure.`,
+    `COGNITIVE READOUT AUTHORITY: ${experienceDecisions.length} viewer-facing transitions selected by the experience objective.`,
     ...(experienceState ? summarizeAuthorExperienceState(experienceState) : []),
     "Reality is immutable. Creativity never becomes evidence.",
     "Lens is an amplification policy, not permission to add world facts.",
-    "Cognition owns readout count, order, current evidence, future reservation, and sequence termination.",
+    "Cognition owns readout count, order, current evidence, future reservation, viewer addition, attention movement, curiosity and sequence termination.",
   ];
 
   return {
@@ -602,7 +645,8 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     characterRead,
     latentMovieCandidates,
     selectedMovie,
-    readoutPlan: materialized.decisions,
+    readoutPlan: experienceDecisions,
+    experienceObjective,
     experienceState,
     operatorMix,
     callbackTargets,
