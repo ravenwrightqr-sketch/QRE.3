@@ -9,6 +9,7 @@
  *   COMPRESS THE RELATIONSHIP THAT MAKES THE EVENTS FEEL DIFFERENT TOGETHER.
  */
 import type {
+  LatentHypothesisAlignment,
   LatentMovieCandidate,
   LatentSemanticRealization,
   LatentStoryThesis,
@@ -26,7 +27,6 @@ import { strongestSatanicoHypothesis } from "./authorSatanicoHypothesis.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
-
 function eventLabel(graph: RealityGraph, id: string): string { return clean(graph.events.find((event) => event.id === id)?.label); }
 function endpointId(candidate: LatentMovieCandidate): string {
   const step = candidate.trajectory[candidate.trajectory.length - 1];
@@ -136,11 +136,24 @@ export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMo
   const beforeId = interpretation?.beforeEventIds[0] ?? fallbackRelation?.from ?? "";
   const afterId = interpretation?.afterEventIds[0] ?? fallbackRelation?.to ?? endpoint;
   const semanticTurn = interpretation?.statement || (fallbackRelation ? `${eventLabel(graph, fallbackRelation.from)} changes the reading of ${eventLabel(graph, fallbackRelation.to)} through ${fallbackRelation.relation.kind}.` : "");
-  const hypothesisAlignment = hypothesis ? hypothesis.evidenceEventIds.filter((id) => orderedIds(candidate).includes(id)).length / Math.max(1, hypothesis.evidenceEventIds.length) : 0;
+  const hypothesisAlignment: LatentHypothesisAlignment | undefined = hypothesis ? {
+    kind: hypothesis.kind,
+    evidenceEventIds: unique(hypothesis.evidenceEventIds),
+    anchorEventIds: unique(hypothesis.anchorEventIds),
+    supportEventIds: unique(hypothesis.supportEventIds),
+    evidenceCoverage: hypothesis.evidenceCoverage,
+    mechanismEvidenceFit: hypothesis.mechanismEvidenceFit,
+    explanatoryCompression: hypothesis.explanatoryCompression,
+    counterEvidence: hypothesis.counterEvidence,
+    unsupportedAssumptionRisk: hypothesis.unsupportedAssumptionRisk,
+    observerGap: hypothesis.observerGap,
+    score: hypothesis.score,
+  } : undefined;
   const carrierEventIds = unique([...(interpretation?.evidenceEventIds ?? []), ...(hypothesis?.anchorEventIds ?? [])]).filter((id) => id !== endpoint).slice(0, 3);
   const sealingEventIds = endpoint && endpoint !== beforeId && endpoint !== afterId ? [endpoint] : afterId && afterId !== beforeId ? [afterId] : [];
   const payoffDependency = endpoint ? afterId ? `The supplied ending depends on the earlier supplied relationship culminating in ${eventLabel(graph, endpoint)}.` : `The supplied ending is ${eventLabel(graph, endpoint)}.` : "";
   return {
-    initialReading: buildInitialReading(candidate), semanticTurn, semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation), beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [], afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [], beforeEventIds: beforeId ? [beforeId] : [], afterEventIds: afterId ? [afterId] : [], relationKind: interpretation?.mechanism, carrierEventIds, sealingEventIds, payoffDependency, counterfactualDependency: interpretation ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length)) : 0, observerExperience: buildObserverExperienceObjective(interpretation, satanicoObjective), hypothesisAlignment,
+    initialReading: buildInitialReading(candidate), semanticTurn, semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation), hypothesisAlignment,
+    beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [], afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [], beforeEventIds: beforeId ? [beforeId] : [], afterEventIds: afterId ? [afterId] : [], relationKind: interpretation?.mechanism, carrierEventIds, sealingEventIds, payoffDependency, counterfactualDependency: interpretation ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length)) : 0, observerExperience: buildObserverExperienceObjective(interpretation, satanicoObjective),
   };
 }
