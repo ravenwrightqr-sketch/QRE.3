@@ -642,6 +642,7 @@ export async function authorBrainCanonical(
   const composedBeats = composeTrajectoryBeats(movie);
   const beats = composedBeats.map((beat, index, allBeats) => {
     const decision = cognition.readoutPlan[index];
+    const experience = cognition.experienceObjective?.trajectory[index];
     const fallback = deriveViewerStateCut(beat, index, allBeats, envelope);
     if (!decision) return { ...beat, viewerState: fallback };
 
@@ -653,29 +654,34 @@ export async function authorBrainCanonical(
         ? "land"
         : decision.purpose === "recontextualize"
           ? "recontextualize"
-          : decision.curiosity
+          : experience?.curiosity
             ? "tighten"
             : "escalate";
 
     return {
       ...beat,
-      change: decision.desiredViewerChange || beat.change,
+      change: experience?.desiredViewerChange || beat.change,
       next: decision.nextPressure || beat.next,
       frontier: decision.nextPressure || beat.frontier,
-      attentionFunction: [beat.attentionFunction, `ADDITION=${decision.experienceViewerAfter ? decision.experienceViewerAfter.knows.length : 0}`, `COGNITIVE CURIOSITY=${decision.experienceViewerAfter ? decision.experienceViewerAfter.openQuestions.length : 0}`].filter(Boolean).join(" "),
+      attentionFunction: [
+        beat.attentionFunction,
+        experience ? `ADDITION=${experience.addition}` : "",
+        experience ? `ATTENTION=${experience.attentionMovement}` : "",
+        experience ? `CURIOSITY=${experience.curiosity}` : "",
+      ].filter(Boolean).join(" "),
       viewerState: before && after
         ? {
             beforeState: decision.viewerStateBefore,
             afterState: decision.viewerStateAfter,
             attentionMove,
-            curiosityPressure: decision.experienceViewerAfter?.openQuestions.length ? decision.experienceViewerAfter.openQuestions.length / 4 : 0,
-            contrast: decision.attentionMovement,
-            interruption: decision.attentionMovement,
-            accumulation: decision.addition,
-            tempo: decision.attentionMovement,
-            payoffPressure: decision.terminal ? 1 : decision.curiosity,
-            stateShift: Math.max(decision.addition, decision.attentionMovement, decision.curiosity),
-            predictionError: decision.curiosity,
+            curiosityPressure: experience?.curiosity ?? 0,
+            contrast: experience?.attentionMovement ?? 0,
+            interruption: experience?.attentionMovement ?? 0,
+            accumulation: experience?.addition ?? 0,
+            tempo: experience?.attentionMovement ?? 0,
+            payoffPressure: decision.terminal ? 1 : experience?.curiosity ?? 0,
+            stateShift: Math.max(experience?.addition ?? 0, experience?.attentionMovement ?? 0, experience?.curiosity ?? 0),
+            predictionError: experience?.curiosity ?? 0,
             evidenceEventIds: [...decision.eventIds],
           }
         : fallback,
@@ -842,7 +848,8 @@ export async function authorBrainCanonical(
   // sequence-film minimum such as three cuts. A two-cut experience can be
   // complete; a ten-cut experience can be incomplete if it has no viewer job.
   const sequenceSourcesComplete = sequence.cuts.every((cut) => cut.sourceIds.length > 0);
-  const experienceJobsComplete = cognition.readoutPlan.length === beats.length && cognition.readoutPlan.every((decision) =>
+  const experienceTrajectory = cognition.experienceObjective?.trajectory ?? [];
+  const experienceJobsComplete = experienceTrajectory.length === beats.length && experienceTrajectory.every((decision) =>
     decision.terminal || decision.addition >= 0.28 || decision.attentionMovement >= 0.28 || decision.curiosity >= 0.28,
   );
   const complete =
