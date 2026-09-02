@@ -13,10 +13,8 @@ import {
 } from "./authorExperienceState.js";
 import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import {
-  classifyLens,
-  rankLensOpportunities,
-} from "./authorCharacterLensEngine.js";
+import { rankLensOpportunities } from "./authorLensRanking.js";
+import { resolveLensPolicy } from "./authorLensPolicy.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -223,9 +221,8 @@ function enrichMovieCandidate(
 }
 
 /**
- * Auto lens selection is owned by the canonical character-lens engine.
- * Cognition supplies the canonical RealityEnvelope so there is one lens
- * registry and one opportunity-ranking implementation.
+ * Auto lens selection is owned by the canonical LensPolicy + LensRanking
+ * modules. Cognition consumes those authorities directly.
  */
 function autoLensCandidates(
   input: AuthorCognitionInput,
@@ -423,11 +420,11 @@ function frames(
     explicit.toLowerCase() !==
       "let qre decide"
   ) {
-    const profile = classifyLens(explicit);
+    const policy = resolveLensPolicy(explicit);
     return [
       {
         frame: explicit,
-        reason: `explicit user perspective; ${profile.label} may amplify ${profile.framingBias.slice(0, 4).join(", ")} without changing reality`,
+        reason: `explicit user perspective; ${policy.worldOrbit.slice(0, 4).join(", ")} is the permitted world orbit, with ${policy.observerTarget.slice(0, 4).join(", ")} as the observer target`,
         confidence: 0.95,
       },
     ];
@@ -546,7 +543,8 @@ function callbackTargetsFor(
         []),
       ...permanentTruths,
       ...(experienceState
-        ?.memoryHooks ?? []),
+        ?.memoryHooks ??
+        []),
     ],
     20,
   );
@@ -616,15 +614,19 @@ function buildSceneRules(
     | undefined,
   selectedLens: string,
 ): string[] {
-  const lens = classifyLens(selectedLens);
+  const lens = resolveLensPolicy(selectedLens);
   return [
     "One cut is one viewer-facing sequence moment; there is no fixed word-count target.",
     "Use the minimum language required for the cut to land.",
     "Creative language may change framing and attitude but never source truth.",
-    "The selected lens is an amplification grammar: intensify only the dimensions already supported by supplied reality.",
-    `Lens amplification: ${lens.framingBias.slice(0, 8).join(", ")}.`,
-    `Preferred realization moves: ${lens.realizationPreferences.join(", ")}.`,
+    "The selected lens is a perceptual policy: privilege only its authorized world orbit and observer target over supplied reality.",
+    `Human spine: ${lens.humanSpine}.`,
+    `World orbit: ${lens.worldOrbit.join(", ")}.`,
+    `Environmental operators: ${lens.environmentalOperators.join(", ")}.`,
+    `Observer target: ${lens.observerTarget.join(", ")}.`,
+    `Preferred realization moves: ${lens.realizationMoves.join(", ")}.`,
     `Forbidden lens moves remain hard constraints: ${lens.forbiddenRealityMoves.join(", ")}.`,
+    `Lens intensity: ${lens.intensity}.`,
     "A cut should change the viewer state through attention, curiosity, contrast, interruption, accumulation, or payoff.",
     "Finish when the selected payoff lands; do not manufacture a final event.",
     "Treat NONE as a valid authorial lens decision when the supplied material itself has stronger character than a genre frame.",
@@ -823,11 +825,11 @@ export function buildAuthorCognitivePlan(
         ].join(" ")
       : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
 
-  const lensProfile =
-    classifyLens(selectedFrame);
+  const lensPolicy =
+    resolveLensPolicy(selectedFrame);
 
   const frameSummary =
-    `FRAME: ${selectedFrame}. AMPLIFY: ${lensProfile.framingBias.join(", ")}. PREFER: ${lensProfile.realizationPreferences.join(", ")}. A frame changes perspective, never reality.`;
+    `FRAME: ${selectedFrame}. HUMAN SPINE: ${lensPolicy.humanSpine}. WORLD ORBIT: ${lensPolicy.worldOrbit.join(", ")}. OBSERVER TARGET: ${lensPolicy.observerTarget.join(", ")}. REALIZATION: ${lensPolicy.realizationMoves.join(", ")}. FORBIDDEN: ${lensPolicy.forbiddenRealityMoves.join(", ")}. A frame changes perspective, never reality.`;
 
   const authorBrief =
     [
@@ -841,7 +843,7 @@ export function buildAuthorCognitivePlan(
           )
         : []),
       "Reality is immutable. Creativity never becomes evidence.",
-      "Lens is an amplification grammar, not permission to add world facts.",
+      "Lens is an amplification policy, not permission to add world facts.",
     ];
 
   return {
