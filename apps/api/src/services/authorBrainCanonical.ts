@@ -22,7 +22,7 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import { deriveViewerStateCut } from "./authorMouthCandidateSearch.js";
+import { deriveViewerStateCut } from "./authorViewerStateCut.js";
 import {
   classifyAuthorRealizationMode,
   type AuthorRealizationMode,
@@ -264,10 +264,9 @@ function composeTrajectoryBeats(
   const steps = [...movie.trajectory];
 
   /*
-   * When Cognition selected the complete supplied spine, that spine is
-   * already the story. Do not compress adjacent source events merely to
-   * manufacture a three-cut arc. One event remains one narrative unit so
-   * the viewer receives the same temporal progression the author was given.
+   * Cognition has already selected the experience trajectory. Do not compress
+   * it here. A supplied event can be latent or viewer-facing by Cognition's
+   * decision; this layer only converts the approved trajectory into beats.
    */
   if (movie.id === "movie-source") {
     return steps.map((step, index) => sourceStepToBeat(movie, step, index, steps.length));
@@ -641,10 +640,47 @@ export async function authorBrainCanonical(
 
   const envelope = buildAuthorRealityEnvelope({ graph, subject });
   const composedBeats = composeTrajectoryBeats(movie);
-  const beats = composedBeats.map((beat, index, allBeats) => ({
-    ...beat,
-    viewerState: deriveViewerStateCut(beat, index, allBeats, envelope),
-  }));
+  const beats = composedBeats.map((beat, index, allBeats) => {
+    const decision = cognition.readoutPlan[index];
+    const fallback = deriveViewerStateCut(beat, index, allBeats, envelope);
+    if (!decision) return { ...beat, viewerState: fallback };
+
+    const before = decision.experienceViewerBefore;
+    const after = decision.experienceViewerAfter;
+    const attentionMove = decision.purpose === "establish"
+      ? "orient"
+      : decision.purpose === "payoff"
+        ? "land"
+        : decision.purpose === "recontextualize"
+          ? "recontextualize"
+          : decision.curiosity
+            ? "tighten"
+            : "escalate";
+
+    return {
+      ...beat,
+      change: decision.desiredViewerChange || beat.change,
+      next: decision.nextPressure || beat.next,
+      frontier: decision.nextPressure || beat.frontier,
+      attentionFunction: [beat.attentionFunction, `ADDITION=${decision.experienceViewerAfter ? decision.experienceViewerAfter.knows.length : 0}`, `COGNITIVE CURIOSITY=${decision.experienceViewerAfter ? decision.experienceViewerAfter.openQuestions.length : 0}`].filter(Boolean).join(" "),
+      viewerState: before && after
+        ? {
+            beforeState: decision.viewerStateBefore,
+            afterState: decision.viewerStateAfter,
+            attentionMove,
+            curiosityPressure: decision.experienceViewerAfter?.openQuestions.length ? decision.experienceViewerAfter.openQuestions.length / 4 : 0,
+            contrast: decision.attentionMovement,
+            interruption: decision.attentionMovement,
+            accumulation: decision.addition,
+            tempo: decision.attentionMovement,
+            payoffPressure: decision.terminal ? 1 : decision.curiosity,
+            stateShift: Math.max(decision.addition, decision.attentionMovement, decision.curiosity),
+            predictionError: decision.curiosity,
+            evidenceEventIds: [...decision.eventIds],
+          }
+        : fallback,
+    };
+  });
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPOSITION ---");
@@ -802,21 +838,28 @@ export async function authorBrainCanonical(
     ) as AuthorScene["kind"],
   }));
 
-  const minimumCuts = realizationMode === "sequence-film" ? 3 : 1;
+  // Completeness is experience-objective driven. There is no arbitrary
+  // sequence-film minimum such as three cuts. A two-cut experience can be
+  // complete; a ten-cut experience can be incomplete if it has no viewer job.
   const sequenceSourcesComplete = sequence.cuts.every((cut) => cut.sourceIds.length > 0);
+  const experienceJobsComplete = cognition.readoutPlan.length === beats.length && cognition.readoutPlan.every((decision) =>
+    decision.terminal || decision.addition >= 0.28 || decision.attentionMovement >= 0.28 || decision.curiosity >= 0.28,
+  );
   const complete =
-    scenes.length >= minimumCuts &&
+    scenes.length >= 2 &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
+    experienceJobsComplete &&
     attention.accepted === true &&
     arc.accepted === true;
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPLETENESS ---");
-    console.log(`minimumCuts=${minimumCuts}`);
+    console.log("minimumCuts=experience-objective (no arbitrary floor)");
     console.log(`sceneCount=${scenes.length}`);
     console.log(`sequenceCutCount=${sequence.cuts.length}`);
     console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
+    console.log(`experienceJobsComplete=${experienceJobsComplete}`);
     console.log(`attentionAccepted=${attention.accepted}`);
     console.log(`arcAccepted=${arc.accepted}`);
     console.log(`complete=${complete}`);
