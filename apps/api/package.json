@@ -7,7 +7,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
-    "author:fast": "tsx ./author-acceptance.ts"
+    "author:fast": "tsx ./author-acceptance.ts",
+    "author:satanico": "tsx ./author-satanico-inference-space-acceptance.ts",
+    "author:satanico:universal": "tsx ./author-satanico-universal-inference-acceptance.ts"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
