@@ -2,6 +2,7 @@ import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
 import { evaluateMouthInterpretation } from "./src/services/authorMouthInterpretation.js";
+import { deriveViewerStateCut } from "./src/services/authorMouthCandidateSearch.js";
 import {
   scoreMouthCandidate,
 } from "./src/services/authorMouthCandidateSearchCanonical.js";
@@ -189,6 +190,12 @@ checkCreative(
 {
   const world = makeWorld(["talked until close"]);
   const beat = beatFor(world, 1, "talked until close");
+  const viewerState = deriveViewerStateCut(
+    beat,
+    0,
+    [beat],
+    world.envelope,
+  );
 
   const semantic = scoreMouthCandidate({
     text: "We stayed.",
@@ -205,6 +212,7 @@ checkCreative(
   const selected = selectBestMouthSequence([
     {
       order: 1,
+      viewerState,
       candidates: [literal, semantic],
     },
   ]);
@@ -297,7 +305,9 @@ checkCreative(
   const labels = uniqueIds
     .map(
       (id) =>
-        graph.events.find((event) => event.id === id)?.label ?? "",
+        graph.events.find((event) =>
+          event.id === id,
+        )?.label ?? id,
     )
     .filter(Boolean);
 
@@ -352,9 +362,8 @@ checkCreative(
         operation: step.operation,
         events: step.eventIds.map(
           (id) =>
-            graph.events.find(
-              (event) =>
-                event.id === id,
+            graph.events.find((event) =>
+              event.id === id,
             )?.label ?? id,
         ),
         change: step.viewerChange,
