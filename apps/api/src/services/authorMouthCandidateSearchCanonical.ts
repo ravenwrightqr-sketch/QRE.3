@@ -12,14 +12,14 @@ import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
 /**
  * ONE PRODUCTION MOUTH.
  *
- * Cognition decides the reality, movie, semantic movement and beat purpose.
- * Mouth only solves the human-facing language problem.
+ * Cognition decides reality, movie, semantic movement and beat purpose.
+ * Mouth solves viewer-facing language only.
  *
- * Core law:
- *   FEEL IT. DO NOT EXPLAIN IT.
- *
- * Reality freedom = low.
- * Framing freedom = high.
+ * The important distinction is between:
+ *   - story discovery: Cognition may discover latent relationships;
+ *   - story realization: when the supplied input already contains an explicit
+ *     narrative spine, Mouth must preserve that spine and improve its landing,
+ *     not replace it with a new summary.
  */
 
 export type {
@@ -58,6 +58,7 @@ const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|lo
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const DETERMINED_ROLE = /^(?:the|a|an)\s+(?:groomer|barber|mechanic|housekeeper|cleaner|waiter|waitress|server|chef|driver|photographer|planner|officiant|vendor|host|manager|employee|staff|worker|therapist|doctor|nurse|teacher|agent|lawyer|judge|witness|detective|captain|boss)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
+const TEMPORAL_RESOLUTION = /\b(?:gone|departed|departing|exited|left|away|finished|done|over|ended|complete|completed|cleared|wrapped|wrapped-up|wrapped up|vanished|disappeared)\b/i;
 
 const SAFE_FRAMING = new Set([
   "apparently", "anyway", "already", "finally", "for", "now", "again", "still", "just", "only", "very", "really", "quite", "somehow", "unexpectedly", "suddenly", "maybe", "perhaps", "yet", "almost", "exactly", "fabulous", "fierce", "cool", "sharp", "ready", "done", "approved", "cleared", "complete", "finished", "temporary", "temporarily", "peace", "exit", "winner", "victory", "legend", "mission", "case", "verdict", "boss", "level", "upgrade", "final", "reset",
@@ -65,49 +66,6 @@ const SAFE_FRAMING = new Set([
 
 const CONCRETE_WORD = /\b(?:bow|trophy|medal|prize|toy|gift|phone|bag|purse|car|boat|yacht|surfboard|key|keys|bottle|bottles|chair|table|door|window|room|house|hotel|restaurant|kitchen|bathroom|leash|collar|tag|ticket|receipt|dress|shirt|shoe|shoes|cake|ring|flower|flowers|balloon|camera|screen|wallet|passport|boarding|plane|flight|beach|board|bed|blanket|blankets|towel|towels|knife|knives|food|drink|coffee|wine|soap|shampoo|conditioner)\b/i;
 const GENERIC_CONCRETE_HEAD = /\b(?:thing|things|stuff|object|objects|item|items|something|anything|one|piece|pieces|shape|shapes|whatever|whatsoever)\b/i;
-
-function candidateConcreteSubstitutionRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
-  const value = clean(text);
-  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
-  const labels = sourceLabels(beat, envelope);
-  const evidence = worldEvidence(envelope);
-  if (!CONCRETE_WORD.test(value)) return 0;
-  const candidateTokens = meaningfulTokens(value);
-  const suppliedTokens = meaningfulTokens([...labels, ...evidence].join(" "));
-  const unknownConcreteTokens = [...candidateTokens].filter((token) => CONCRETE_WORD.test(token) && !suppliedTokens.has(token) && !SAFE_FRAMING.has(token));
-  if (unknownConcreteTokens.length >= 2) return 1;
-  if (unknownConcreteTokens.length === 1) return 0.72;
-  return 0;
-}
-
-function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
-  const value = clean(text);
-  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
-  if (!GENERIC_CONCRETE_HEAD.test(value)) return 0;
-
-  const labels = sourceLabels(beat, envelope);
-  const evidence = worldEvidence(envelope);
-  const candidate = meaningfulTokens(value);
-
-  for (const source of [...labels, ...evidence]) {
-    const sourceValue = clean(source);
-    if (!sourceValue || GENERIC_CONCRETE_HEAD.test(sourceValue)) continue;
-    if (!CONCRETE_WORD.test(sourceValue)) continue;
-
-    const sourceTokens = meaningfulTokens(sourceValue);
-    const shared = overlap(candidate, sourceTokens);
-
-    /*
-     * A generic head attached to any supplied concrete descriptor is a
-     * specificity downgrade: "blue bow" -> "blue thing". Even one shared
-     * supplied descriptor token is enough to establish that the candidate is
-     * talking about the same concrete reality while throwing away its identity.
-     */
-    if (shared > 0 && sourceTokens.size >= 2) return 1;
-  }
-
-  return 0;
-}
 
 function meaningfulTokens(value: string): Set<string> {
   return new Set([...tokenSet(value)].filter((token) => !STOP.has(token)));
@@ -138,10 +96,29 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
   ].map(clean).filter(Boolean);
 }
 
-function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
-  const value = clean(text).toLowerCase();
-  if (/\b(?:he|him|his|she|her|hers|they|them|their|the man|the woman|the boy|the girl|the guy|the lady|my friend|my partner|my wife|my husband|my girlfriend|my boyfriend)\b/i.test(value)) return true;
-  return envelope.suppliedEntities.some((entity) => normalize(entity) === normalize(text));
+function candidateConcreteSubstitutionRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+  const value = clean(text);
+  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
+  if (!CONCRETE_WORD.test(value)) return 0;
+  const candidateTokens = meaningfulTokens(value);
+  const suppliedTokens = meaningfulTokens([...sourceLabels(beat, envelope), ...worldEvidence(envelope)].join(" "));
+  const unknownConcreteTokens = [...candidateTokens].filter((token) => CONCRETE_WORD.test(token) && !suppliedTokens.has(token) && !SAFE_FRAMING.has(token));
+  if (unknownConcreteTokens.length >= 2) return 1;
+  if (unknownConcreteTokens.length === 1) return 0.72;
+  return 0;
+}
+
+function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+  const value = clean(text);
+  if (!value || SOFT_FIRST_PERSON.test(value) || !GENERIC_CONCRETE_HEAD.test(value)) return 0;
+  const candidate = meaningfulTokens(value);
+  for (const source of [...sourceLabels(beat, envelope), ...worldEvidence(envelope)]) {
+    const sourceValue = clean(source);
+    if (!sourceValue || GENERIC_CONCRETE_HEAD.test(sourceValue) || !CONCRETE_WORD.test(sourceValue)) continue;
+    const sourceTokens = meaningfulTokens(sourceValue);
+    if (overlap(candidate, sourceTokens) > 0 && sourceTokens.size >= 2) return 1;
+  }
+  return 0;
 }
 
 function roleIsActuallySupplied(role: string, envelope: RealityEnvelope): boolean {
@@ -166,7 +143,6 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
   if (substitutionRisk >= 0.72) return 1;
-
   const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
   if (specificityRisk >= 0.9) return 1;
 
@@ -242,8 +218,9 @@ function semanticScore(text: string, beat: MouthCandidateBeat, envelope: Reality
 
 function candidateScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[]): MouthCandidate {
   const value = clean(text);
+  const interpretation = evaluateMouthInterpretation({ text: value, sourceLabels: sourceLabels(beat, envelope), envelope, beat });
   const baseSemantic = semanticScore(value, beat, envelope);
-  const forbidden = unsupportedConcrete(value, beat, envelope);
+  const forbidden = Math.max(unsupportedConcrete(value, beat, envelope), interpretation.unsupportedConcreteRisk);
   const explain = explanationPenalty(value);
   const abstract = abstractPenalty(value);
   const form = formScore(value);
@@ -273,7 +250,11 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       collageRisk: 0,
       endpointExactness: 0,
       score: 0,
-      reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : [])],
+      reasons: [
+        "unsafe-realization",
+        ...(explain ? ["meaning-explained-instead-of-felt"] : []),
+        ...(interpretation.reasons.includes("premature-temporal-resolution") ? ["premature-temporal-resolution"] : []),
+      ],
     };
   }
 
@@ -304,6 +285,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (payoff >= 0.62) reasons.push("viewer-reward");
   if (abstract > 0.35) reasons.push("abstract-nominalization");
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
+  reasons.push(...interpretation.reasons.filter((reason) => !reasons.includes(reason)));
 
   return {
     text: value,
@@ -329,31 +311,51 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   };
 }
 
+function isExplicitSuppliedStory(beats: readonly MouthCandidateBeat[]): boolean {
+  if (beats.length < 3) return false;
+  const sourced = beats.filter((beat) => (beat.eventIds?.length ?? 0) > 0).length;
+  const uniqueEventIds = new Set(beats.flatMap((beat) => beat.eventIds ?? []));
+  return sourced >= beats.length - 1 && uniqueEventIds.size >= 3;
+}
+
+function buildSequenceAllocation(beats: readonly MouthCandidateBeat[], envelope: RealityEnvelope): Array<Record<string, unknown>> {
+  return beats.map((beat, index) => ({
+    order: beat.order,
+    role: clean(beat.role),
+    currentEvidence: sourceLabels(beat, envelope),
+    previousEvidence: index > 0 ? sourceLabels(beats[index - 1]!, envelope) : [],
+    futureEvidence: beats.slice(index + 1).flatMap((futureBeat) => sourceLabels(futureBeat, envelope)),
+    terminal: Boolean(beat.paysOff?.length),
+    purpose: clean(beat.attentionFunction || beat.role),
+    meaning: clean(beat.change),
+    next: clean(beat.next || beat.frontier),
+  }));
+}
+
 function buildSystemPrompt(): string {
   return [
     "QRE ONE MOUTH — final viewer-facing language realization.",
-    "The world is already established. The movie is already chosen. The beat already has a purpose.",
-    "Your only job is to find the strongest CUT for the viewer.",
+    "Reality is already established. Cognition has already selected the movie. The beat has already been authored.",
+    "Your job is realization, not story invention.",
     "FEEL IT. DO NOT EXPLAIN IT.",
-    "The viewer should think: WHAT? WHY? WAIT. OH. WHAT HAPPENS NEXT?",
+    "The overall sequence is one film, not a stack of independent captions.",
+    "When the supplied input already forms a coherent story, preserve its story spine exactly and improve the human landing of each cut.",
+    "Never summarize a later event in an earlier cut just because you know the ending.",
+    "Never borrow future outcome, departure, completion, disappearance, verdict, transformation, or payoff language into an earlier cut unless the current beat itself authorizes it.",
+    "One cut should primarily realize the current beat's supplied evidence. Future beats exist to shape tension and anticipation, not to be spent early.",
+    "Do not turn an explicit action sequence into generic status captions.",
+    "Prefer the sharpest natural realization of the supplied event over labels such as 'transformation complete', 'fabulous exit', 'finished', or 'gone' when those states belong later.",
+    "Do not compress multiple supplied events into a mini-summary merely because they are adjacent. Compress only when the relationship between them is the actual approved meaning.",
+    "Do not make three variants by changing only adjectives. Vary the realization move while preserving the current beat's narrative job.",
     "Use short, specific, surprising, grounded language.",
-    "Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff.",
+    "Prefer attitude, implication, contrast, recognition, interruption, consequence, callback, and earned payoff.",
     "Do not turn every emotion into an abstract noun.",
-    "Avoid a/an/the + abstract noun unless it is genuinely specific and earned.",
-    "Do not produce poetry soup: lightness, stillness, softness, resonance, contentment, a quiet bloom, the weight lifted, etc. unless the supplied material specifically earns that exact image.",
+    "Do not produce poetry soup.",
     "Do not narrate the machine. Never mention cognition, beats, candidates, viewer states, semantics, trajectories, planning, or meaning.",
-    "A role inside source evidence is not automatically a character. 'groomer cleaned him up' does not authorize 'the groomer...' or a new action by that person.",
-    "Do not invent a smile, shrug, eyebrow, walk, touch, breath, voice, room detail, object, weather, lighting, dialogue, motive, chronology, or physical event unless supplied.",
-    "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
-    "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
-    "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
-    "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
-    "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
-    "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
-    "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
-    "Generate exactly three materially different variants per beat.",
-    "Do not make three synonyms. Vary the semantic move or rhetorical shape.",
-    "The overall sequence is a miniature film. Earlier cuts may establish an unresolved expectation so a later cut can pay it off. Do not independently summarize each beat.",
+    "Do not invent a physical action, reaction, object, person, location, motive, chronology, dialogue, sensory event, or concrete consequence.",
+    "Concrete nouns are immutable unless directly supplied.",
+    "Framing freedom is high, but framing must remain interpretation rather than a new occurrence.",
+    "A final supplied state is truth, not permission to move that state earlier.",
     "Return JSON only.",
   ].join("\n");
 }
@@ -361,12 +363,16 @@ function buildSystemPrompt(): string {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = resolveLensPolicy(input.lens);
   const evidence = worldEvidence(input.envelope);
+  const explicitStory = isExplicitSuppliedStory(input.beats);
+  const sequenceAllocation = buildSequenceAllocation(input.beats, input.envelope);
   const beats = input.beats.map((beat) => ({
     order: beat.order,
     supplied: sourceLabels(beat, input.envelope),
     purpose: clean(beat.attentionFunction || beat.role),
     meaning: clean(beat.change),
     semanticRealization: beat.semanticRealization,
+    hypothesisAlignment: beat.hypothesisAlignment,
+    observerExperience: beat.observerExperience,
     viewerState: beat.viewerState
       ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) }
       : undefined,
@@ -381,6 +387,10 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       role: "user",
       content: JSON.stringify({
         subject: input.envelope.subject,
+        mode: explicitStory ? "SUPPLIED_STORY_REALIZATION" : "LATENT_EXPERIENCE_REALIZATION",
+        sequenceRule: explicitStory
+          ? "The supplied moments already contain the narrative spine. Preserve order and allocate information across cuts. Current evidence belongs to current cut; future evidence is protected for future cuts."
+          : "Discover the strongest approved realization while preserving source truth.",
         lens: clean(input.lens) || "NONE",
         lensFrame: lens.name,
         lensPolicy: {
@@ -395,6 +405,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           intensity: lens.intensity,
         },
         suppliedReality: evidence,
+        sequenceAllocation,
         priorCuts: input.priorTexts ?? [],
         beats,
         output: { variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order" },
