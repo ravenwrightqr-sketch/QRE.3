@@ -208,6 +208,37 @@ function synthesizeGroupChange(
   return `The approved evidence changes significance from ${first} to ${last}.`;
 }
 
+function sourceStepToBeat(
+  movie: LatentMovieCandidate,
+  step: LatentMovieTrajectoryStep,
+  index: number,
+  total: number,
+): MouthCandidateBeat {
+  const final = index === total - 1;
+  const canonicalAuthority = realizationAuthorityForBeat(movie, step);
+  return {
+    order: index + 1,
+    role: final ? "payoff" : index === 0 ? "establishing" : "reveal",
+    attentionFunction: [
+      clean(step.viewerChange),
+      "SOURCE-LED CUT: this supplied event is the current narrative unit.",
+      "Preserve later supplied events as future sequence material; do not spend their outcome early.",
+      canonicalAuthority,
+    ].filter(Boolean).join(" "),
+    eventIds: unique(step.eventIds),
+    change: clean(step.viewerChange),
+    next: clean(step.nextQuestion),
+    frontier: clean(step.nextQuestion),
+    paysOff: final ? [movie.payoff] : [],
+    relationKinds: unique([
+      ...movie.supportingRelationKinds,
+      ...(step.operation ? [step.operation] : []),
+    ]),
+    semanticRealization: movie.storyThesis?.semanticRealization,
+    observerExperience: movie.storyThesis?.observerExperience,
+  };
+}
+
 function composeTrajectoryBeats(
   movie: LatentMovieCandidate,
 ): MouthCandidateBeat[] {
@@ -231,6 +262,17 @@ function composeTrajectoryBeats(
   }
 
   const steps = [...movie.trajectory];
+
+  /*
+   * When Cognition selected the complete supplied spine, that spine is
+   * already the story. Do not compress adjacent source events merely to
+   * manufacture a three-cut arc. One event remains one narrative unit so
+   * the viewer receives the same temporal progression the author was given.
+   */
+  if (movie.id === "movie-source") {
+    return steps.map((step, index) => sourceStepToBeat(movie, step, index, steps.length));
+  }
+
   if (steps.length <= 1) {
     return steps.map((step) => stepToBeat(movie, step, 0, 1));
   }
@@ -275,10 +317,6 @@ function composeTrajectoryBeats(
     index += group.length;
   }
 
-  /*
-   * Never compress a sequence into a single cut once there is enough
-   * evidence for a filmic arc. Preserve at least hook / turn / landing.
-   */
   if (groups.length < 3 && total >= 4) {
     const first = steps.slice(0, 1);
     const last = steps.slice(-1);
