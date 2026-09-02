@@ -84,60 +84,41 @@ export function evaluateAuthorExperienceCut(input: ExperienceCriticInput): Exper
   const targetWords = words(input.attentionTarget);
   const previousTargetWords = words(input.previousAttentionTarget ?? "");
   const targetNovelty = newRatio(targetWords, beforeKnown);
-  const targetShift = previousTargetWords.size
-    ? 1 - overlap(targetWords, previousTargetWords)
-    : targetNovelty;
+  const targetShift = previousTargetWords.size ? 1 - overlap(targetWords, previousTargetWords) : targetNovelty;
   const pressureWords = words(input.nextPressure);
   const pressureOverlap = overlap(textWords, pressureWords);
 
-  const abstractMarkers = (text.match(/\b(?:ritual|transformation|renewal|journey|moment|experience|beautiful|magical|subtle|quiet|sense|feeling|poised|cycle|resolution|confidence)\b/gi) ?? []).length;
-  const concreteMarkers = (text.match(/\b(?:came|walked|called|looked|raised|lifted|took|stole|held|opened|closed|water|bow|mirror|door|phone|hand|face|dog|person|place)\b/gi) ?? []).length;
-  const abstractionInflation = metric(abstractMarkers / Math.max(abstractMarkers + concreteMarkers, 1));
-  const genericity = metric(text.length > 0 && evidenceOverlap < 0.12 && concreteMarkers === 0 ? 0.9 : (1 - evidenceOverlap) * 0.55);
+  // Domain-neutral abstraction detection. Concrete grounding comes from the
+  // supplied evidence itself, never from a hard-coded vocabulary of domains.
+  const abstractMarkers = (text.match(/\b(?:ritual|transformation|renewal|journey|moment|experience|beautiful|magical|subtle|quiet|sense|feeling|poised|cycle|resolution|confidence|meaning|connection|possibility|energy|tension|presence|absence)\b/gi) ?? []).length;
+  const abstractionInflation = metric(abstractMarkers / Math.max(abstractMarkers + Math.min(textWords.size, evidenceWords.size), 1));
+  const genericity = metric(text.length > 0 && evidenceOverlap < 0.12 ? 0.9 : (1 - evidenceOverlap) * 0.55);
   const redundancy = metric(Math.max(0, overlap(textWords, beforeKnown) - evidenceOverlap * 0.35));
   const futureLeakage = metric(input.terminal ? 0 : futureOverlap);
 
   const addition = metric(
-    knowledgeAddition * 0.46 +
-    evidenceOverlap * 0.24 +
-    expectationChange * 0.12 +
-    targetNovelty * 0.1 +
-    (futureLeakage < 0.2 ? 0.08 : 0),
+    knowledgeAddition * 0.46 + evidenceOverlap * 0.24 + expectationChange * 0.12 + targetNovelty * 0.1 + (futureLeakage < 0.2 ? 0.08 : 0),
   );
   const predictionShift = metric(
-    expectationChange * 0.42 +
-    targetShift * 0.2 +
-    questionCreation * 0.18 +
-    pressureOverlap * 0.12 +
-    (input.nextPressure ? 0.08 : 0),
+    expectationChange * 0.42 + targetShift * 0.2 + questionCreation * 0.18 + pressureOverlap * 0.12 + (input.nextPressure ? 0.08 : 0),
   );
   const curiosity = metric(
-    questionCreation * 0.32 +
-    openQuestionCreation * 0.2 +
-    predictionShift * 0.2 +
-    (input.withheldInformation.length ? 0.16 : 0) +
-    (input.futureEvidence.length && !input.terminal ? 0.12 : 0),
+    questionCreation * 0.32 + openQuestionCreation * 0.2 + predictionShift * 0.2 + (input.withheldInformation.length ? 0.16 : 0) + (input.futureEvidence.length && !input.terminal ? 0.12 : 0),
   );
   const attentionMovement = metric(
-    targetShift * 0.48 +
-    targetNovelty * 0.2 +
-    predictionShift * 0.18 +
-    (input.nextPressure ? 0.14 : 0),
+    targetShift * 0.48 + targetNovelty * 0.2 + predictionShift * 0.18 + (input.nextPressure ? 0.14 : 0),
   );
   const stateChange = metric(addition * 0.5 + predictionShift * 0.25 + curiosity * 0.25);
-  const concreteGrounding = metric(evidenceOverlap * 0.72 + Math.min(concreteMarkers, 3) / 10);
+  const concreteGrounding = metric(evidenceOverlap * 0.9 + (knowledgeAddition > 0 ? 0.1 : 0));
   const meaningAccumulation = metric(stateChange * 0.48 + evidenceOverlap * 0.28 + (knowledgeAddition > 0 ? 0.24 : 0));
   const promiseCreation = metric(input.nextPressure ? 0.42 + pressureOverlap * 0.38 + curiosity * 0.2 : curiosity * 0.35);
   const promisePreservation = metric(input.withheldInformation.length && !input.terminal ? 0.65 + Math.min(futureOverlap, 0.35) : input.terminal ? 1 : 0.2);
   const payoffDependency = metric(input.terminal ? evidenceOverlap * 0.55 + predictionShift * 0.2 + curiosity * 0.25 : 0);
-  const deletionValue = metric(
-    addition * 0.3 + attentionMovement * 0.27 + curiosity * 0.28 + concreteGrounding * 0.15,
-  );
+  const deletionValue = metric(addition * 0.3 + attentionMovement * 0.27 + curiosity * 0.28 + concreteGrounding * 0.15);
   const score = metric(
-    addition * 0.2 + curiosity * 0.18 + attentionMovement * 0.16 + predictionShift * 0.1 +
-    concreteGrounding * 0.13 + meaningAccumulation * 0.08 + promiseCreation * 0.05 +
-    promisePreservation * 0.04 + payoffDependency * 0.05 + (1 - futureLeakage) * 0.04 +
-    (1 - genericity) * 0.04 + (1 - abstractionInflation) * 0.01 + (1 - redundancy) * 0.02,
+    addition * 0.2 + curiosity * 0.18 + attentionMovement * 0.16 + predictionShift * 0.1 + concreteGrounding * 0.13 +
+    meaningAccumulation * 0.08 + promiseCreation * 0.05 + promisePreservation * 0.04 + payoffDependency * 0.05 +
+    (1 - futureLeakage) * 0.04 + (1 - genericity) * 0.04 + (1 - abstractionInflation) * 0.01 + (1 - redundancy) * 0.02,
   );
 
   const reasons: string[] = [];
