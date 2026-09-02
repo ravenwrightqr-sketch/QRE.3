@@ -6,7 +6,7 @@ import type {
   MouthCandidateSelection,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import { classifyLens } from "./authorCharacterLensEngine.js";
+import { resolveLensPolicy } from "./authorLensPolicy.js";
 import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
 
 /**
@@ -359,7 +359,7 @@ function buildSystemPrompt(): string {
 }
 
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
-  const lens = classifyLens(input.lens);
+  const lens = resolveLensPolicy(input.lens);
   const evidence = worldEvidence(input.envelope);
   const beats = input.beats.map((beat) => ({
     order: beat.order,
@@ -382,7 +382,18 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify({
         subject: input.envelope.subject,
         lens: clean(input.lens) || "NONE",
-        lensFrame: lens.label,
+        lensFrame: lens.name,
+        lensPolicy: {
+          humanSpine: lens.humanSpine,
+          worldOrbit: lens.worldOrbit,
+          environmentalOperators: lens.environmentalOperators,
+          observerTarget: lens.observerTarget,
+          realizationMoves: lens.realizationMoves,
+          forbiddenRealityMoves: lens.forbiddenRealityMoves,
+          personification: lens.personification,
+          explanationPressure: lens.explanationPressure,
+          intensity: lens.intensity,
+        },
         suppliedReality: evidence,
         priorCuts: input.priorTexts ?? [],
         beats,
