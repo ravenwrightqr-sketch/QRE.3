@@ -25,6 +25,7 @@ export type SatanicoHypothesis = {
   counterEvidence: number;
   unsupportedAssumptionRisk: number;
   observerGap: number;
+  mechanismEvidenceFit: number;
   score: number;
 };
 
@@ -33,8 +34,12 @@ const metric = (value: number): number =>
 
 const unique = (values: readonly string[]): string[] => [...new Set(values.filter(Boolean))];
 
-const candidateIds = (candidate: LatentMovieCandidate): string[] =>
-  unique(candidate.trajectory.flatMap((step) => step.eventIds));
+const labelsFor = (graph: RealityGraph, ids: readonly string[]): string[] =>
+  ids.map((id) => graph.events.find((event) => event.id === id)?.label?.toLowerCase() ?? "");
+
+function candidateIds(candidate: LatentMovieCandidate): string[] {
+  return unique(candidate.trajectory.flatMap((step) => step.eventIds));
+}
 
 function position(graph: RealityGraph, id: string): number {
   return graph.events.findIndex((event) => event.id === id);
@@ -81,9 +86,7 @@ function mechanismCounterEvidence(
   const ids = opportunity.ids;
   if (ids.length < 3) return 1;
 
-  const labels = ids.map((id) =>
-    graph.events.find((event) => event.id === id)?.label?.toLowerCase() ?? "",
-  );
+  const labels = labelsFor(graph, ids);
   const hasStateLanguage = labels.some((value) =>
     /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|happy|proud|calm|excited|confident|changed|different|new|old|quiet|wild)\b/i.test(value),
   );
@@ -110,6 +113,44 @@ function mechanismCounterEvidence(
       return labels.filter((value) => /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|into)\b/i.test(value)).length >= 2 ? 0 : 0.25;
     case "heterogeneous_convergence":
       return new Set(labels).size >= 3 ? 0 : 0.2;
+  }
+}
+
+function mechanismEvidenceFit(
+  graph: RealityGraph,
+  opportunity: SatanicoInferenceOpportunity,
+): number {
+  const ids = opportunity.ids;
+  const labels = labelsFor(graph, ids);
+  const relations = graph.relations.filter(
+    (relation) => ids.includes(relation.from) && ids.includes(relation.to),
+  );
+  const relationKinds = new Set(relations.map((relation) => relation.kind));
+  const continuation = labels.filter((value) =>
+    /\b(?:again|returned|return|back|still|later|repeated|repeat|continued|kept|same)\b/i.test(value),
+  ).length;
+  const states = labels.filter((value) =>
+    /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|happy|proud|calm|excited|confident|changed|different|new|old|quiet|wild)\b/i.test(value),
+  ).length;
+  const preference = labels.filter((value) =>
+    /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|into)\b/i.test(value),
+  ).length;
+  const firstSignal = labels.filter((value) => /\b(?:first|initial|began|started|opening|origin|once|early)\b/i.test(value)).length;
+  const outcomeSignal = labels.filter((value) => /\b(?:success|popular|sold out|hit|grew|growth|biggest|most)\b/i.test(value)).length;
+
+  switch (opportunity.kind) {
+    case "callback": return metric(Math.min(1, continuation / 2) * 0.6 + (relationKinds.has("recontextualizes") || relationKinds.has("repeats") ? 0.4 : 0));
+    case "invariant": return metric(Math.min(1, continuation / 2) * 0.45 + (relationKinds.has("repeats") || relationKinds.has("recontextualizes") ? 0.35 : 0) + Math.min(0.2, ids.length / 10));
+    case "state_transformation": return metric(Math.min(1, states / 2) * 0.5 + (relationKinds.has("changes") ? 0.5 : 0));
+    case "contrast": return metric((relationKinds.has("contrasts") ? 0.55 : 0) + (relationKinds.has("recontextualizes") ? 0.3 : 0) + Math.min(0.15, states / 10));
+    case "origin_outcome": return metric(Math.min(1, firstSignal / 1) * 0.45 + Math.min(1, outcomeSignal / 1) * 0.35 + (relationKinds.has("causes") || relationKinds.has("changes") ? 0.2 : 0));
+    case "preference_constellation": return metric(Math.min(1, preference / 3) * 0.7 + Math.min(0.3, ids.length / 12));
+    case "heterogeneous_convergence": return metric(Math.min(1, relationKinds.size / 3) * 0.55 + (new Set(labels).size >= 3 ? 0.25 : 0) + (1 - Math.min(1, continuation / 3)) * 0.2);
+    case "relational_role": {
+      const contexts = new Set(labels.flatMap((label) => label.split(/\W+/).filter((token) => token.length >= 4)));
+      const specificSignals = Math.min(1, (continuation + states + preference + firstSignal + outcomeSignal + relationKinds.size) / 8);
+      return metric(Math.min(1, contexts.size / 16) * 0.45 + Math.min(1, relationKinds.size / 3) * 0.25 + (1 - specificSignals) * 0.3);
+    }
   }
 }
 
@@ -169,16 +210,18 @@ export function rankSatanicoHypotheses(
       const relational = relationalCoherence(graph, evidenceEventIds);
       const compression = metric(1.5 / Math.max(2, opportunity.ids.length));
       const counterEvidence = mechanismCounterEvidence(graph, opportunity);
+      const fit = mechanismEvidenceFit(graph, opportunity);
       const unsupported = unsupportedAssumptionRisk(evidenceCoverage, anchorCoverage, opportunity);
       const gap = observerGap(opportunity, temporal, ambiguity(graph, opportunity));
       const score = metric(
-        opportunity.score * 0.2 +
+        opportunity.score * 0.16 +
+          fit * 0.16 +
           evidenceCoverage * 0.2 +
-          anchorCoverage * 0.12 +
-          temporal * 0.1 +
-          relational * 0.1 +
-          compression * 0.08 +
-          gap * 0.2 -
+          anchorCoverage * 0.1 +
+          temporal * 0.08 +
+          relational * 0.08 +
+          compression * 0.06 +
+          gap * 0.18 -
           counterEvidence * 0.08 -
           unsupported * 0.18,
       );
@@ -196,6 +239,7 @@ export function rankSatanicoHypotheses(
         counterEvidence,
         unsupportedAssumptionRisk: unsupported,
         observerGap: gap,
+        mechanismEvidenceFit: fit,
         score,
       };
     })
