@@ -20,7 +20,7 @@ import {
   deriveSequenceBackedCreativeInterpretations,
   type CreativeInterpretation,
 } from "./authorCreativeInterpretation.js";
-import { deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
+import { discoverSatanicoInferenceOpportunities, deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
 import { strongestSatanicoHypothesis } from "./authorSatanicoHypothesis.js";
 
 const clean = (value: unknown): string =>
@@ -93,6 +93,9 @@ function interpretationScore(
     : 0;
   const endpoint = endpointId(candidate);
   const endpointSupport = endpoint && evidence.includes(endpoint) ? 1 : 0;
+  const hypothesisAlignment = hypothesisEvidence.size
+    ? evidence.filter((id) => hypothesisEvidence.has(id)).length / Math.max(1, evidence.length)
+    : 0;
 
   return interpretation.confidence * 0.3 +
     mechanismPriority(interpretation.mechanism) * 0.28 +
@@ -100,9 +103,7 @@ function interpretationScore(
     coverage * 0.12 +
     spread * 0.06 +
     endpointSupport * 0.04 +
-    (hypothesisEvidence.size
-      ? evidence.filter((id) => hypothesisEvidence.has(id)).length / Math.max(1, evidence.length) * 0.18
-      : 0);
+    hypothesisAlignment * 0.18;
 }
 
 function strongestInterpretation(
