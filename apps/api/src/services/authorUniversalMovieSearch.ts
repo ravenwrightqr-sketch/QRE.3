@@ -291,6 +291,21 @@ function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
 
   return metric(linked / ids.length);
 }
+
+function explicitSourceNarrativeStrength(graph: RealityGraph, ids: readonly string[]): number {
+  if (ids.length < 3) return 0;
+  const structures = ids.map((id) => structure(graph, id));
+  const eventDensity = structures.filter((item) => Boolean(item?.actions.length || item?.temporalMarkers.length)).length / ids.length;
+  const adjacentRelations = ids.slice(1).filter((id, index) => {
+    const relation = relationBetween(graph, ids[index]!, id);
+    return Boolean(relation && relation.strength >= 0.72 && relation.kind !== "involves" && relation.kind !== "belongs_to");
+  }).length / Math.max(1, ids.length - 1);
+  const endpoint = structures.at(-1);
+  const endpointSignal = endpoint && /\b(?:departure|completion|transformation|repair|finish|finished|done|left|leave|arrive|arrived|changed|different|fabulous)\b/i.test((endpoint.semanticTags ?? []).join(" ") + " " + (graph.events.at(-1)?.label ?? "")) ? 1 : 0;
+  const salience = structures.reduce((sum, item) => sum + (item?.salienceScore ?? 0), 0) / ids.length;
+  return metric(eventDensity * 0.42 + adjacentRelations * 0.3 + endpointSignal * 0.14 + salience * 0.14);
+}
+
 function candidateScore(
   graph: RealityGraph,
   trajectory: readonly LatentMovieTrajectoryStep[],
@@ -394,7 +409,17 @@ export function searchUniversalMovieCandidates(input: {
   const add = (id: string, ids: readonly string[]) => {
     const trajectory = buildTrajectory(input.graph, ids, policy);
     const candidate = candidateScore(input.graph, trajectory, input.lens, input.subject, policy, opportunities);
-    if (candidate) candidates.push({ ...candidate, id });
+    if (candidate) {
+      if (id === "movie-source") {
+        const sourceSpine = explicitSourceNarrativeStrength(input.graph, ids);
+        candidate.score = metric(candidate.score + sourceSpine * 0.2);
+        candidate.hypothesis = [
+          ...candidate.hypothesis,
+          "The supplied moments already form a coherent narrative spine; preserve their event progression and use latent interpretation only to improve realization.",
+        ];
+      }
+      candidates.push({ ...candidate, id });
+    }
   };
 
   add("movie-source", sourceIds);
