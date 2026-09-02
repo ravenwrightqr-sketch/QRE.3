@@ -10,7 +10,6 @@
  */
 import type {
   LatentMovieCandidate,
-  LatentMovieTrajectoryStep,
   LatentSemanticRealization,
   LatentStoryThesis,
   ObserverExperienceObjective,
@@ -196,6 +195,7 @@ function buildObserverExperienceObjective(
 }
 
 function buildSemanticRealization(
+  graph: RealityGraph,
   interpretation: CreativeInterpretation | undefined,
   fallbackRelation: { relation: RealityRelation; from: string; to: string } | undefined,
 ): LatentSemanticRealization | undefined {
@@ -250,8 +250,8 @@ function buildSemanticRealization(
     evidenceEventIds: unique([fallbackRelation.from, fallbackRelation.to]),
     beforeEventIds: [fallbackRelation.from],
     afterEventIds: [fallbackRelation.to],
-    before: eventLabel(undefined as unknown as RealityGraph, ""),
-    after: "",
+    before: eventLabel(graph, fallbackRelation.from),
+    after: eventLabel(graph, fallbackRelation.to),
     relation: {
       kind: fallbackRelation.relation.kind,
       fromEventId: fallbackRelation.from,
@@ -312,7 +312,7 @@ export function deriveLatentStoryThesis(
   return {
     initialReading: buildInitialReading(candidate),
     semanticTurn,
-    semanticRealization: buildSemanticRealization(interpretation, fallbackRelation),
+    semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation),
     beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [],
     afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [],
     beforeEventIds: beforeId ? [beforeId] : [],
