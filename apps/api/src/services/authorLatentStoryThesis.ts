@@ -20,10 +20,7 @@ import {
   deriveSequenceBackedCreativeInterpretations,
   type CreativeInterpretation,
 } from "./authorCreativeInterpretation.js";
-import {
-  deriveSatanicoObserverObjective,
-} from "./authorSatanicoInference.js";
-import { discoverSatanicoInferenceOpportunities } from "./authorSatanicoEvidenceSearch.js";
+import { deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
 import { strongestSatanicoHypothesis } from "./authorSatanicoHypothesis.js";
 
 const clean = (value: unknown): string =>
@@ -83,6 +80,7 @@ function statementSpecificity(statement: string): number {
 function interpretationScore(
   candidate: LatentMovieCandidate,
   interpretation: CreativeInterpretation,
+  hypothesisEvidence: ReadonlySet<string> = new Set<string>(),
 ): number {
   const ids = orderedIds(candidate);
   const evidence = interpretation.evidenceEventIds.filter((id) => ids.includes(id));
@@ -101,26 +99,23 @@ function interpretationScore(
     statementSpecificity(interpretation.statement) * 0.2 +
     coverage * 0.12 +
     spread * 0.06 +
-    endpointSupport * 0.04;
+    endpointSupport * 0.04 +
+    (hypothesisEvidence.size
+      ? evidence.filter((id) => hypothesisEvidence.has(id)).length / Math.max(1, evidence.length) * 0.18
+      : 0);
 }
 
 function strongestInterpretation(
   candidate: LatentMovieCandidate,
   interpretations: readonly CreativeInterpretation[],
-  hypothesisEvidence: ReadonlySet<string> = new Set(),
+  hypothesisEvidence: ReadonlySet<string> = new Set<string>(),
 ): CreativeInterpretation | undefined {
   return [...interpretations]
-    .map((interpretation, index) => {
-      const hypothesisAlignment = hypothesisEvidence.size
-        ? interpretation.evidenceEventIds.filter((id) => hypothesisEvidence.has(id)).length /
-          Math.max(1, interpretation.evidenceEventIds.length)
-        : 0;
-      return {
-        interpretation,
-        score: interpretationScore(candidate, interpretation) + hypothesisAlignment * 0.18,
-        index,
-      };
-    })
+    .map((interpretation, index) => ({
+      interpretation,
+      score: interpretationScore(candidate, interpretation, hypothesisEvidence),
+      index,
+    }))
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -297,7 +292,7 @@ export function deriveLatentStoryThesis(
 ): LatentStoryThesis {
   const opportunities = discoverSatanicoInferenceOpportunities(graph, 64);
   const hypothesis = strongestSatanicoHypothesis(graph, candidate, opportunities);
-  const hypothesisEvidence = new Set(hypothesis?.evidenceEventIds ?? []);
+  const hypothesisEvidence = new Set<string>(hypothesis?.evidenceEventIds ?? []);
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
   const interpretation = strongestInterpretation(candidate, interpretations, hypothesisEvidence);
   const fallbackRelation = strongestRelation(graph, candidate);
