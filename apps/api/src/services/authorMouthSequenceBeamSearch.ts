@@ -508,6 +508,10 @@ function canonicalStateSignal(
  *
  * The state is authoritative.
  * The candidate is only the expression being tested against it.
+ *
+ * AFTER-state lexical overlap is only a supporting grounding signal.
+ * It cannot turn a literal restatement into a stronger transition merely
+ * because the candidate repeats the state's exact vocabulary.
  */
 function viewerStateFit(
   candidate: MouthCandidate,
@@ -548,23 +552,60 @@ function viewerStateFit(
         )
       : 0;
 
-  /*
-   * A useful realization should participate in the resulting state
-   * without simply restating the prior state.
-   */
-  const directionalShift =
-    clamp01(
-      0.5 +
-        (
-          afterSimilarity -
-          beforeSimilarity
-        ) * 0.75,
+  const literalRestatement =
+    Boolean(
+      candidate.endpointExactness >=
+        0.999 ||
+      candidate.reasons.includes(
+        "literal-source-restatement",
+      ),
     );
 
-  const stateStrength =
-    canonicalStateSignal(
-      state,
+  /*
+   * Vocabulary overlap is evidence that the candidate belongs to the same
+   * state, not proof that it advances the viewer through that state.
+   *
+   * A literal candidate that exactly repeats AFTER is therefore prevented
+   * from receiving a maximum transition solely from lexical identity.
+   */
+  const lexicalParticipation =
+    literalRestatement
+      ? Math.min(
+          0.18,
+          afterSimilarity * 0.18,
+        )
+      : Math.max(
+          0,
+          Math.min(
+            0.38,
+            0.18 +
+              (afterSimilarity -
+                beforeSimilarity) *
+                0.5,
+          ),
+        );
+
+  const semanticMovement =
+    candidate.transitionScore *
+      0.52 +
+    candidate.meaningScore *
+      0.28;
+
+  const approvedSemantic =
+    candidate.reasons.includes(
+      "approved-semantic-realization",
+    ) ||
+    candidate.reasons.includes(
+      "semantic-turn-grounded",
+    ) ||
+    candidate.reasons.includes(
+      "bounded-creative-bet",
     );
+
+  const semanticAuthorization =
+    approvedSemantic
+      ? 0.14
+      : 0;
 
   const experiential =
     isExperientialRealization(
@@ -580,15 +621,18 @@ function viewerStateFit(
       ? 0.08
       : 0;
 
+  const stateStrength =
+    canonicalStateSignal(
+      state,
+    );
+
   return metric(
-    directionalShift * 0.38 +
-      stateStrength * 0.44 +
+    semanticMovement * 0.48 +
+      lexicalParticipation * 0.16 +
+      stateStrength * 0.22 +
+      semanticAuthorization +
       experiential +
-      consequence +
-      candidate.transitionScore *
-        0.06 +
-      candidate.meaningScore *
-        0.04,
+      consequence,
   );
 }
 
@@ -818,7 +862,7 @@ function sequenceTransition(
 
 /* ================================================================
  * EXPRESSION QUALITY
- * ================================================================ */
+ * ================================================================
 
 /**
  * Expression quality is downstream of state.
@@ -1178,7 +1222,7 @@ function observerCompletionScore(
 }
 /* ================================================================
  * STATE-BASED GOLD
- * ================================================================ */
+ * ================================================================
 
 /**
  * State-based gold.
@@ -1283,7 +1327,7 @@ function relativeGoldPotential(
 
 /* ================================================================
  * PATH SCORING
- * ================================================================ */
+ * ================================================================
 
 function pathCandidateScore(
   candidate: MouthCandidate,
@@ -1611,7 +1655,7 @@ function dedupeCandidates(
 }
 /* ================================================================
  * PATH STATE
- * ================================================================ */
+ * ================================================================
 
 /**
  * A Beam path contains ONLY the candidate choices.
@@ -1893,7 +1937,7 @@ function pathFinalQuality(
 
 /* ================================================================
  * DEBUG
- * ================================================================ */
+ * ================================================================
 
 function debugBeamCandidate(
   candidate: MouthCandidate,
@@ -2068,7 +2112,7 @@ function debugBeamCandidate(
 
 /* ================================================================
  * BEAM SEARCH
- * ================================================================ */
+ * ================================================================
 
 export function selectBestMouthSequence(
   pools: readonly MouthCandidatePool[],
