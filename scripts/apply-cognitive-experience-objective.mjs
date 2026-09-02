@@ -19,7 +19,10 @@ let movie = read(moviePath);
 let objective = read(objectivePath);
 let mouth = read(mouthPath);
 
-if (!cognition.includes('authorCognitiveExperienceObjective.js')) {
+// The migration itself must be idempotent. The previous version checked for a
+// filename-shaped marker that was never present in source, so a perfectly valid
+// current Cognition file failed before any wiring could occur.
+if (!cognition.includes('from "./authorCognitiveExperienceObjective.js"')) {
   cognition = once(cognition, 'import { resolveLensPolicy } from "./authorLensPolicy.js";\n', 'import { resolveLensPolicy } from "./authorLensPolicy.js";\nimport { buildCognitiveExperienceObjective } from "./authorCognitiveExperienceObjective.js";\n', "cognition objective import");
 }
 
@@ -44,9 +47,6 @@ if (!objective.includes("function selectExperienceSteps")) {
   objective = once(objective, 'function buildTrajectory(graph: RealityGraph, movie: LatentMovieCandidate, opportunities: CognitiveExperienceOpportunity[]): CognitiveReadoutObjective[] {\n  const steps = movie.trajectory.filter((step) => step.eventIds.length || clean(step.viewerChange));', `function selectExperienceSteps(\n  graph: RealityGraph,\n  movie: LatentMovieCandidate,\n  opportunities: CognitiveExperienceOpportunity[],\n): LatentMovieCandidate["trajectory"] {\n  const source = movie.trajectory.filter((step) => step.eventIds.length || clean(step.viewerChange));\n  if (source.length <= 2) return source;\n  const byId = new Map(opportunities.flatMap((item) => item.eventIds.map((id) => [id, item] as const)));\n  const selected = new Set<string>();\n  const selectedSteps: LatentMovieCandidate["trajectory"] = [];\n\n  // Opening and terminal payoff anchor the experience. Intermediate events must\n  // earn a viewer-facing place through experiential value or structural function.\n  source[0].eventIds.forEach((id) => selected.add(id));\n  source[source.length - 1].eventIds.forEach((id) => selected.add(id));\n\n  for (const step of source) {\n    const ids = step.eventIds ?? [];\n    const score = ids.reduce((max, id) => Math.max(max, byId.get(id)?.experientialValue ?? 0), 0);\n    const dispositions = ids.map((id) => byId.get(id)?.disposition).filter(Boolean);\n    const structural = /reframe|contrast|consequence|converge|escalate|recur/i.test(clean(step.operation));\n    if (score >= 0.48 || dispositions.some((item) => item === "primary" || item === "setup" || item === "payoff") || structural) {\n      ids.forEach((id) => selected.add(id));\n    }\n  }\n\n  for (const step of source) {\n    if (step.eventIds.some((id) => selected.has(id))) selectedSteps.push({ ...step, eventIds: [...step.eventIds] });\n  }\n  return selectedSteps.length >= 2 ? selectedSteps : [source[0], source[source.length - 1]];\n}\n\nfunction buildTrajectory(graph: RealityGraph, movie: LatentMovieCandidate, opportunities: CognitiveExperienceOpportunity[]): CognitiveReadoutObjective[] {\n  const steps = selectExperienceSteps(graph, movie, opportunities);`, "experience trajectory selection");
 }
 
-// Wire the critic into the real Mouth candidate scoring path. It is deliberately
-// a hard experience-quality gate: structural completeness cannot pass a cut that
-// fails the delete/information/grounding test.
 if (!mouth.includes('authorExperienceCritic.js')) {
   mouth = once(mouth, 'import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";\n', 'import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";\nimport { evaluateAuthorExperienceCut } from "./authorExperienceCritic.js";\n', "mouth experience critic import");
 }
