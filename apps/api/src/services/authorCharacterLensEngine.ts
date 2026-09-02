@@ -4,39 +4,15 @@ import type {
   AuthorLensProfile,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import {
-  resolveLensPolicy,
-} from "./authorLensPolicy.js";
+import { rankLensOpportunities as rankCanonicalLensOpportunities, resolveLensPolicy } from "./authorLensPolicy.js";
 
 /**
  * COMPATIBILITY ADAPTER ONLY.
  *
- * The canonical lens authority is authorLensPolicy.ts.
- * This module preserves the legacy API shape used by Cognition/Mouth while
- * delegating every lens decision to the canonical policy. It contains no lens
- * registry and no independent lens behavior.
+ * authorLensPolicy.ts is the sole lens authority. This module exists only
+ * because older Author consumers still use the narrower AuthorLensProfile API.
+ * There is no lens registry, alias table, ranking policy, or lens behavior here.
  */
-
-const CANONICAL_LENS_NAMES = [
-  "game",
-  "spy",
-  "heist",
-  "courtroom",
-  "military",
-  "horror",
-  "noir",
-  "rom-com",
-  "royal",
-  "documentary",
-  "western",
-  "cyberpunk",
-  "absurd",
-  "comedy",
-  "romance",
-  "sentimental",
-  "mystery",
-  "adventure",
-];
 
 function metric(value: number): number {
   return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
@@ -56,9 +32,12 @@ function unique(values: readonly string[]): string[] {
 
 function profileFromPolicy(lens?: string): AuthorLensProfile {
   const policy = resolveLensPolicy(lens);
-  const kind = policy.name === "NONE"
-    ? ("custom" as AuthorLensKind)
-    : policy.name === "comedy" || policy.name === "romance" || policy.name === "horror" || policy.name === "tenderness" || policy.name === "nostalgia"
+  const kind =
+    policy.name === "comedy" ||
+    policy.name === "romance" ||
+    policy.name === "horror" ||
+    policy.name === "tenderness" ||
+    policy.name === "nostalgia"
       ? (policy.name as AuthorLensKind)
       : ("custom" as AuthorLensKind);
 
@@ -70,7 +49,7 @@ function profileFromPolicy(lens?: string): AuthorLensProfile {
       ...policy.observerTarget,
       ...policy.terms.slice(0, 8),
     ]),
-    realizationPreferences: unique(policy.realizationMoves),
+    realizationPreferences: unique(policy.realizationMoves) as AuthorLensProfile["realizationPreferences"],
     forbiddenRealityMoves: unique(policy.forbiddenRealityMoves),
     intensity: policy.intensity,
   };
@@ -83,66 +62,7 @@ export function classifyLens(value?: string): AuthorLensProfile {
 export function rankLensOpportunities(
   envelope: RealityEnvelope,
 ): Array<{ frame: string; reason: string; confidence: number }> {
-  const world = tokens([
-    envelope.subject,
-    ...envelope.events.map((event) => event.label),
-    ...(envelope.suppliedPhrases ?? []),
-    ...(envelope.recurringSignals ?? []),
-    ...(envelope.sensorySignals ?? []),
-    ...(envelope.unresolvedTensions ?? []),
-  ].join(" "));
-
-  const candidates = CANONICAL_LENS_NAMES.map((name) => {
-    const policy = resolveLensPolicy(name);
-    const frame = tokens([
-      ...policy.worldOrbit,
-      ...policy.observerTarget,
-      ...policy.terms,
-      ...policy.realizationMoves,
-    ].join(" "));
-    let hits = 0;
-    for (const token of frame) if (world.has(token)) hits += 1;
-    const lexicalFit = frame.size ? hits / frame.size : 0;
-    const structuralFit = Math.min(
-      1,
-      (envelope.relations.length / Math.max(1, envelope.events.length)) * 1.2,
-    );
-    const confidence = metric(
-      lexicalFit * 0.35 +
-      structuralFit * 0.2 +
-      policy.intensity * 0.1 +
-      (policy.observerMode === "discovery" ? 0.1 : 0.15) +
-      Math.min(0.2, envelope.unresolvedTensions.length * 0.04) +
-      Math.min(0.1, envelope.recurringSignals.length * 0.02),
-    );
-
-    return {
-      frame: policy.name,
-      reason: `${policy.name} amplifies ${policy.worldOrbit.slice(0, 4).join(", ")} already available in the supplied world. The policy changes perception and sequencing, never source reality.`,
-      confidence,
-    };
-  });
-
-  const nativeTokens = tokens([
-    envelope.subject,
-    ...envelope.events.map((event) => event.label),
-    ...(envelope.suppliedPhrases ?? []),
-  ].join(" "));
-  const nativeConfidence = metric(
-    Math.min(1, envelope.events.length / 5) * 0.35 +
-    Math.min(1, envelope.relations.length / Math.max(1, envelope.events.length)) * 0.35 +
-    Math.min(1, nativeTokens.size / 20) * 0.3,
-  );
-
-  candidates.push({
-    frame: "NONE",
-    reason: "Preserve the native supplied reality when it is already stronger than a treatment frame.",
-    confidence: nativeConfidence,
-  });
-
-  return candidates
-    .sort((left, right) => right.confidence - left.confidence || left.frame.localeCompare(right.frame))
-    .slice(0, 8);
+  return rankCanonicalLensOpportunities(envelope);
 }
 
 export function buildCharacterProfile(
@@ -157,20 +77,28 @@ export function buildCharacterProfile(
     ...(envelope.sensorySignals ?? []),
     ...labels.filter((label) => /\b(?:object|bow|ring|gift|dress|photo|receipt|meal|place|car|home|room)\b/i.test(label)),
   ]);
-  const coreTraits = unique([...states, ...labels.filter((label) => !actions.includes(label))]).slice(0, 8);
-  const statusPosture = coreTraits.length >= 2 ? `${coreTraits[0]} versus ${coreTraits[1]}` : coreTraits[0] || "neutral";
-  const emotionalPosture = tensions[0] || (states.length >= 2 ? `${states[0]} alongside ${states[1]}` : states[0] || "unspecified");
+  const coreTraits = unique([
+    ...states,
+    ...labels.filter((label) => !actions.includes(label)),
+  ]).slice(0, 8);
+  const statusPosture = coreTraits.length >= 2
+    ? `${coreTraits[0]} versus ${coreTraits[1]}`
+    : coreTraits[0] || "neutral";
+  const emotionalPosture = tensions[0] ||
+    (states.length >= 2 ? `${states[0]} alongside ${states[1]}` : states[0] || "unspecified");
   const privateInterpretations = unique([
     ...tensions,
     ...envelope.relations.map((relation) => `relationship:${relation.kind}`),
     ...(envelope.recurringSignals ?? []).map((signal) => `signal:${signal}`),
   ]).slice(0, 18);
-  const confidence = metric(Math.min(1,
+  const confidence = metric(Math.min(
+    1,
     0.35 +
-    Math.min(0.25, coreTraits.length * 0.04) +
-    Math.min(0.2, tensions.length * 0.05) +
-    Math.min(0.2, actions.length * 0.04),
+      Math.min(0.25, coreTraits.length * 0.04) +
+      Math.min(0.2, tensions.length * 0.05) +
+      Math.min(0.2, actions.length * 0.04),
   ));
+
   return {
     subject,
     coreTraits,
