@@ -91,10 +91,45 @@ function relationshipScore(graph: RealityGraph, ids: readonly string[]): number 
 }
 
 /**
+ * Contextual persistence is stronger when a persistent entity is framed by a
+ * supplied change immediately before its first appearance or between its first
+ * and later appearances. This lets "everything changed, the table remained,
+ * dinner returned to the table" become one grounded constellation.
+ */
+function persistenceContextCandidates(
+  graph: RealityGraph,
+  firstPos: number,
+  lastPos: number,
+  entityIds: readonly string[],
+): string[] {
+  const candidates = graph.events
+    .map((item) => item.id)
+    .filter((id) => !entityIds.includes(id))
+    .map((id) => ({
+      id,
+      pos: position(graph, id),
+      score: (changeLike(graph, id) ? 0.78 : 0.28) +
+        (graph.eventStructure?.find((item) => item.eventId === id)?.salienceScore ?? 0) * 0.22,
+    }))
+    .filter((item) => item.pos >= Math.max(0, firstPos - 2) && item.pos <= lastPos + 2)
+    .sort((a, b) =>
+      b.score - a.score ||
+      Math.abs(a.pos - firstPos) - Math.abs(b.pos - firstPos),
+    );
+
+  const beforeFirst = candidates.find((item) => item.pos < firstPos);
+  const between = candidates.find((item) => item.pos > firstPos && item.pos < lastPos);
+  const afterLast = candidates.find((item) => item.pos > lastPos);
+
+  if (beforeFirst && changeLike(graph, beforeFirst.id)) return [beforeFirst.id];
+  if (between) return [between.id];
+  if (afterLast) return [afterLast.id];
+  return [];
+}
+
+/**
  * The strongest persistence primitive is not repeated wording; it is an entity
  * that occupies multiple supplied events while the surrounding reality changes.
- * This is how Satanico can discover the "everything changed, but the table stayed"
- * movie without inventing a meaning for the table.
  */
 function persistenceProposals(
   graph: RealityGraph,
@@ -112,32 +147,22 @@ function persistenceProposals(
     const lastPos = position(graph, last);
     if (firstPos < 0 || lastPos <= firstPos) continue;
 
-    const middle = graph.events
-      .map((item) => item.id)
-      .filter((id) => {
-        const pos = position(graph, id);
-        return pos > firstPos && pos < lastPos && !orderedEntityIds.includes(id);
-      })
-      .map((id) => ({
-        id,
-        score:
-          (changeLike(graph, id) ? 0.72 : 0.32) +
-          (graph.eventStructure?.find((item) => item.eventId === id)?.salienceScore ?? 0) * 0.28,
-      }))
-      .sort((a, b) => b.score - a.score || position(graph, a.id) - position(graph, b.id));
+    const contextIds = persistenceContextCandidates(graph, firstPos, lastPos, orderedEntityIds);
+    if (!contextIds.length) continue;
 
-    const bridge = middle[0]?.id;
-    if (!bridge) continue;
-
-    const ids = [first, bridge, last].sort(
+    const ids = unique([contextIds[0]!, first, last]).sort(
       (a, b) => position(graph, a) - position(graph, b),
     );
-    const bridgeIsChange = changeLike(graph, bridge);
+    if (ids.length < 3) continue;
+
+    const contextIsChange = changeLike(graph, contextIds[0]!);
+    const continuityBonus = entity.mentionCount >= 2 ? 0.16 : 0;
     const score = metric(
-      0.64 +
-        entity.salience * 0.16 +
-        span(graph, ids) * 0.1 +
-        (bridgeIsChange ? 0.1 : 0),
+      0.68 +
+        entity.salience * 0.14 +
+        span(graph, ids) * 0.08 +
+        (contextIsChange ? 0.1 : 0) +
+        continuityBonus,
     );
     proposals.push({ ids, score });
   }
