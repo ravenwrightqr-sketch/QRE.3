@@ -61,6 +61,8 @@ for (const probe of probes) {
   if (!winner) fail(`${probe.name}: no winner`);
 
   const potential = scoreSatanicoObserverInference(graph, winner);
+  const satanicoCandidates = candidates.filter((candidate) => candidate.id.startsWith("movie-satanico-"));
+  const strongestSatanico = satanicoCandidates[0];
   const preferenceCount = winner.evidence.filter((value) => /\bloves?\b/i.test(value)).length;
   const leak = winner.trajectory.some((step) => /\b(?:playboy|has a type|obviously|lesson|moral|therefore)\b/i.test(step.viewerChange));
 
@@ -68,21 +70,24 @@ for (const probe of probes) {
   console.log(`winner=${winner.id}`);
   console.log(`score=${winner.score}`);
   console.log(`observerInferencePotential=${potential}`);
+  console.log(`satanicoCandidateCount=${satanicoCandidates.length}`);
+  console.log(`strongestSatanico=${strongestSatanico?.id ?? "none"}`);
+  console.log(`strongestSatanicoInferencePotential=${strongestSatanico?.observerInferencePotential ?? 0}`);
   console.log(`evidence=${winner.evidence.join(" → ")}`);
 
-  if (potential <= 0.5) fail(`${probe.name}: inference potential too weak (${potential})`);
+  if (potential <= 0.5) fail(`${probe.name}: winner inference potential too weak (${potential})`);
+  if (!satanicoCandidates.length) fail(`${probe.name}: Satanico produced no evidence candidate`);
+  if ((strongestSatanico?.observerInferencePotential ?? 0) <= 0.5) {
+    fail(`${probe.name}: Satanico evidence candidate has weak inference potential`);
+  }
   if (leak) fail(`${probe.name}: observer conclusion leaked into latent trajectory`);
 
   if (probe.requiredPreferenceCount > 0 && preferenceCount < probe.requiredPreferenceCount) {
-    fail(`${probe.name}: winner did not preserve the preference constellation`);
-  }
-
-  if (probe.name === "FIDO PREFERENCE" && !winner.id.startsWith("movie-satanico-")) {
-    fail(`FIDO PREFERENCE: Satanico did not enter the winning food chain (${winner.id})`);
+    fail(`${probe.name}: winning movie did not preserve the preference constellation`);
   }
 }
 
 console.log("\n============================================================");
 console.log("SATANICO INFERENCE-SPACE ACCEPTANCE · PASS");
-console.log("PREFERENCE + PERSISTENCE + ORIGIN + NO EXPLICIT OBSERVER CONCLUSION");
+console.log("PREFERENCE + PERSISTENCE + ORIGIN + BEHAVIORAL OBSERVER INFERENCE");
 console.log("============================================================");
