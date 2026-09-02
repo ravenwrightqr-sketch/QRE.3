@@ -15,23 +15,16 @@
 
 import type {
   LatentMovieCandidate,
+  LatentSemanticMechanism,
+  LatentSemanticRealization,
   RealityGraph,
 } from "@qre/contracts";
 
-export type CreativeInterpretationMechanism =
-  | "expectation_shift"
-  | "continuation"
-  | "state_change"
-  | "recurrence"
-  | "convergence"
-  | "contrast"
-  | "consequence";
+export type CreativeInterpretationMechanism = LatentSemanticMechanism;
 
-export type CreativeInterpretation = {
+export type CreativeInterpretation = LatentSemanticRealization & {
+  /** Diagnostic text only. Downstream realization must use semanticRealization fields. */
   statement: string;
-  mechanism: CreativeInterpretationMechanism;
-  evidenceEventIds: string[];
-  confidence: number;
 };
 
 const clean = (value: unknown): string =>
@@ -101,11 +94,22 @@ function buildCandidate(
   mechanism: CreativeInterpretationMechanism,
   evidenceEventIds: readonly string[],
   confidence: number,
+  semantic: Partial<LatentSemanticRealization> = {},
 ): CreativeInterpretation {
+  const ids = unique(evidenceEventIds);
   return {
     statement: clean(statement),
     mechanism,
-    evidenceEventIds: unique(evidenceEventIds),
+    evidenceEventIds: ids,
+    beforeEventIds: semantic.beforeEventIds ?? [],
+    afterEventIds: semantic.afterEventIds ?? [],
+    before: semantic.before,
+    after: semantic.after,
+    subject: semantic.subject,
+    callback: semantic.callback,
+    relation: semantic.relation,
+    realizationMove: semantic.realizationMove ?? "recognize",
+    creativeOpportunity: semantic.creativeOpportunity,
     confidence: metric(confidence),
   };
 }
@@ -281,11 +285,6 @@ export function deriveSequenceBackedCreativeInterpretations(
   const stateTransition = bestStateTransition(graph, orderedEventIds);
   const subjectReturn = bestSubjectReturn(graph, orderedEventIds);
 
-  /*
-   * 1. Highest-value compression: concrete callback + subject/status movement.
-   * The statement intentionally names supplied reality. This is semantic
-   * compression, not a generated plot summary.
-   */
   if (stateTransition && concreteCallback) {
     const subjectPrefix = subject ? `${subject} ` : "The subject ";
     const callbackPhrase = `${concreteCallback.object} remains in the later supplied moment`;
@@ -300,13 +299,24 @@ export function deriveSequenceBackedCreativeInterpretations(
           concreteCallback.laterId,
         ]),
         0.995,
+        {
+          subject,
+          beforeEventIds: [stateTransition.startId],
+          afterEventIds: [stateTransition.endId],
+          before: stateTransition.startLabel,
+          after: stateTransition.endLabel,
+          callback: {
+            detail: concreteCallback.object,
+            eventIds: [concreteCallback.earlierId, concreteCallback.laterId],
+            role: "recontextualization",
+          },
+          realizationMove: "recontextualize_callback",
+          creativeOpportunity: "state_to_callback",
+        },
       ),
     );
   }
 
-  /*
-   * 2. Concrete callback by itself is stronger than generic recurrence language.
-   */
   if (concreteCallback) {
     result.push(
       buildCandidate(
@@ -314,14 +324,23 @@ export function deriveSequenceBackedCreativeInterpretations(
         "recurrence",
         [concreteCallback.earlierId, concreteCallback.laterId],
         0.91 + Math.min(0.07, concreteCallback.score * 0.05),
+        {
+          beforeEventIds: [concreteCallback.earlierId],
+          afterEventIds: [concreteCallback.laterId],
+          before: labelFor(graph, concreteCallback.earlierId),
+          after: labelFor(graph, concreteCallback.laterId),
+          callback: {
+            detail: concreteCallback.object,
+            eventIds: [concreteCallback.earlierId, concreteCallback.laterId],
+            role: "continuity",
+          },
+          realizationMove: "recognize_callback",
+          creativeOpportunity: "callback_recontextualization",
+        },
       ),
     );
   }
 
-  /*
-   * 3. Explicit subject state movement. Preserve actual endpoints instead of
-   * collapsing them into "something changed."
-   */
   if (stateTransition) {
     const middle = orderedEventIds.filter((id) => {
       const index = orderedEventIds.indexOf(id);
@@ -336,14 +355,19 @@ export function deriveSequenceBackedCreativeInterpretations(
         "state_change",
         [stateTransition.startId, ...middle, stateTransition.endId],
         0.97,
+        {
+          subject,
+          beforeEventIds: [stateTransition.startId],
+          afterEventIds: [stateTransition.endId],
+          before: stateTransition.startLabel,
+          after: stateTransition.endLabel,
+          realizationMove: "feel_state_transition",
+          creativeOpportunity: "status_turn",
+        },
       ),
     );
   }
 
-  /*
-   * 4. Return + status: a return is more interesting when it occurs after the
-   * subject has visibly changed supplied state.
-   */
   if (subjectReturn && stateTransition) {
     result.push(
       buildCandidate(
@@ -351,6 +375,15 @@ export function deriveSequenceBackedCreativeInterpretations(
         "continuation",
         unique([stateTransition.startId, stateTransition.endId, subjectReturn.returnId]),
         0.9,
+        {
+          subject,
+          beforeEventIds: [stateTransition.startId],
+          afterEventIds: [subjectReturn.returnId],
+          before: stateTransition.startLabel,
+          after: labelFor(graph, subjectReturn.returnId),
+          realizationMove: "return_with_new_status",
+          creativeOpportunity: "return_with_new_status",
+        },
       ),
     );
   }
@@ -362,6 +395,12 @@ export function deriveSequenceBackedCreativeInterpretations(
         "expectation_shift",
         unique([...expectations, ...continuations]),
         0.83,
+        {
+          beforeEventIds: expectations.slice(0, 1),
+          afterEventIds: continuations.slice(-1),
+          realizationMove: "recognize",
+          creativeOpportunity: "recognition",
+        },
       ),
     );
   }
@@ -385,17 +424,20 @@ export function deriveSequenceBackedCreativeInterpretations(
           "state_change",
           [bestPair.left, bestPair.right],
           0.76,
+          {
+            subject,
+            beforeEventIds: [bestPair.left],
+            afterEventIds: [bestPair.right],
+            before: labelFor(graph, bestPair.left),
+            after: labelFor(graph, bestPair.right),
+            realizationMove: "feel_state_transition",
+            creativeOpportunity: "status_turn",
+          },
         ),
       );
     }
   }
 
-  /*
-   * Generic convergence is deliberately demoted. It is a fallback description,
-   * never the preferred semantic compression when a concrete interpretation is
-   * available. This prevents "separate supplied changes converge..." from
-   * beating actual supplied meaning.
-   */
   if (states.length >= 2 && continuations.length) {
     const ids = unique([...states, ...continuations]);
     result.push(
@@ -404,6 +446,12 @@ export function deriveSequenceBackedCreativeInterpretations(
         "convergence",
         ids,
         0.58,
+        {
+          beforeEventIds: states.slice(0, 1),
+          afterEventIds: continuations.slice(-1),
+          realizationMove: "recognize",
+          creativeOpportunity: "recognition",
+        },
       ),
     );
   }
@@ -415,6 +463,13 @@ export function deriveSequenceBackedCreativeInterpretations(
         "contrast",
         contrasts,
         0.66,
+        {
+          evidenceEventIds: contrasts,
+          beforeEventIds: contrasts.slice(0, 1),
+          afterEventIds: contrasts.slice(-1),
+          realizationMove: "hold_contrast",
+          creativeOpportunity: "contrast_reframe",
+        },
       ),
     );
   }
@@ -426,6 +481,12 @@ export function deriveSequenceBackedCreativeInterpretations(
         "recurrence",
         unique([...callbackEventIds(graph, orderedEventIds), ...continuations]),
         0.68,
+        {
+          beforeEventIds: continuations.slice(0, 1),
+          afterEventIds: continuations.slice(-1),
+          realizationMove: "recognize_callback",
+          creativeOpportunity: "callback_recontextualization",
+        },
       ),
     );
   }
