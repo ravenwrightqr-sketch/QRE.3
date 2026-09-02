@@ -136,6 +136,29 @@ function breadth(graph: RealityGraph, ids: readonly string[]): number {
   return metric((Math.max(...positions) - Math.min(...positions)) / Math.max(1, graph.events.length - 1));
 }
 
+function forwardScore(graph: RealityGraph, trajectory: readonly LatentMovieTrajectoryStep[]): number {
+  if (trajectory.length < 2) return 0;
+  let forward = 0;
+  let comparable = 0;
+  for (let index = 1; index < trajectory.length; index += 1) {
+    const previous = trajectory[index - 1]?.eventIds[0];
+    const current = trajectory[index]?.eventIds[0];
+    if (!previous || !current) continue;
+    const previousPosition = position(graph, previous);
+    const currentPosition = position(graph, current);
+    if (previousPosition < 0 || currentPosition < 0) continue;
+    comparable += 1;
+    if (currentPosition > previousPosition) forward += 1;
+  }
+  if (!comparable) return 0;
+  const endpoint = position(graph, trajectory[trajectory.length - 1]?.eventIds[0] ?? "");
+  const start = position(graph, trajectory[0]?.eventIds[0] ?? "");
+  const endpointProgress = start >= 0 && endpoint >= start && graph.events.length > 1
+    ? metric((endpoint - start) / Math.max(1, graph.events.length - 1))
+    : 0;
+  return metric((forward / comparable) * 0.72 + endpointProgress * 0.28);
+}
+
 function operationFor(
   graph: RealityGraph,
   previousId: string | undefined,
@@ -284,7 +307,7 @@ function candidateScore(
   const state = statePair(graph, ids);
   const specificity = metric(ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) / ids.length);
   const spread = breadth(graph, ids);
-  const order = metric(trajectory.length <= 1 ? 1 : trajectory.slice(1).filter((step, index) => position(graph, step.eventIds[0]!) > position(graph, trajectory[index]!.eventIds[0]!)).length / (trajectory.length - 1));
+  const order = forwardScore(graph, trajectory);
   const callbacks = callbackCoverage(graph, ids);
   const subjectCoverage = !clean(subject) ? 1 : metric(ids.filter((id) => label(graph, id).toLowerCase().includes(clean(subject).toLowerCase())).length / ids.length);
   const operationAffinity = metric(trajectory.reduce((sum, step) => sum + lensOperationAffinity(step.operation, policy), 0) / trajectory.length);
