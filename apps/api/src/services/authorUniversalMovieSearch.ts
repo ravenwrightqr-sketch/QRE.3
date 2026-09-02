@@ -1,11 +1,3 @@
-import type {
-  LatentMovieCandidate,
-  LatentMovieTrajectoryStep,
-  RealityGraph,
-  RealityRelation,
-  RealityPattern,
-} from "@qre/contracts";
-
 /**
  * ONE universal movie search.
  *
@@ -18,6 +10,14 @@ import type {
  * - explicit callbacks such as "same" / "remembered" can legitimately reconnect
  *   a detail that was not repeated with the subject's name
  */
+import type {
+  LatentMovieCandidate,
+  LatentMovieTrajectoryStep,
+  RealityGraph,
+  RealityRelation,
+  RealityPattern,
+} from "@qre/contracts";
+import { scoreSatanicoObserverInference } from "./authorSatanicoInference.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -135,7 +135,6 @@ function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
     selected.add(ids[0]!);
   }
 
-  // High-confidence identity callbacks form legitimate semantic islands.
   for (const relation of graph.relations) {
     if (!callbackRelation(relation)) continue;
     const leftLabel = label(graph, relation.from);
@@ -174,7 +173,6 @@ function subjectConnectedIds(graph: RealityGraph, subject?: string): string[] {
       const callbackConnects = callbackPair(graph, current, candidate);
       const sharedMeaning = sharedTokenScore(currentLabel, label(graph, candidate)) >= 0.6;
 
-      // Lexical overlap alone cannot pull a fact into the subject's movie.
       if (!relationConnects && !callbackConnects && !sharedMeaning) continue;
 
       selected.add(candidate);
@@ -287,9 +285,7 @@ function operationFor(
   }
 }
 
-function questionFor(
-  operation: LatentMovieTrajectoryStep["operation"],
-): string {
+function questionFor(operation: LatentMovieTrajectoryStep["operation"]): string {
   switch (operation) {
     case "contrast": return "What changed the reading?";
     case "reframe": return "What becomes newly meaningful?";
@@ -300,44 +296,21 @@ function questionFor(
     default: return "What is becoming noticeable?";
   }
 }
-function structuralEventPhrase(
-  graph: RealityGraph,
-  id: string,
-): string {
+
+function structuralEventPhrase(graph: RealityGraph, id: string): string {
   const current = event(graph, id);
   const structure = eventStructureFor(graph, id);
+  const action = structure?.actions[0] ?? "";
+  const object = structure?.objects[0] ?? "";
+  const state = structure?.states[0] ?? current?.emotionalState ?? "";
 
-  const action =
-    structure?.actions[0] ??
-    "";
-
-  const object =
-    structure?.objects[0] ??
-    "";
-
-  const state =
-    structure?.states[0] ??
-    current?.emotionalState ??
-    "";
-
-  if (action && object) {
-    return `${action} involving ${object}`;
-  }
-
-  if (action) {
-    return action;
-  }
-
-  if (object) {
-    return `the ${object}`;
-  }
-
-  if (state) {
-    return `the ${state} state`;
-  }
-
+  if (action && object) return `${action} involving ${object}`;
+  if (action) return action;
+  if (object) return `the ${object}`;
+  if (state) return `the ${state} state`;
   return label(graph, id);
 }
+
 function structuralViewerChange(
   graph: RealityGraph,
   previousId: string | undefined,
@@ -345,218 +318,48 @@ function structuralViewerChange(
   relation: RealityRelation | undefined,
   final: boolean,
 ): string {
-  const current = event(
-    graph,
-    currentId,
-  );
-
-  const previous = previousId
-    ? event(
-        graph,
-        previousId,
-      )
-    : undefined;
-
-  const currentStructure =
-    eventStructureFor(
-      graph,
-      currentId,
-    );
-
-  const previousStructure =
-    previousId
-      ? eventStructureFor(
-          graph,
-          previousId,
-        )
-      : undefined;
-
-  const currentLabel =
-    label(
-      graph,
-      currentId,
-    );
-
-  const previousLabel =
-    previousId
-      ? label(
-          graph,
-          previousId,
-        )
-      : "";
-
-  const currentStates =
-    unique([
-      ...(currentStructure?.states ?? []),
-      current?.emotionalState ?? "",
-    ].filter(Boolean));
-
-  const previousStates =
-    unique([
-      ...(previousStructure?.states ?? []),
-      previous?.emotionalState ?? "",
-    ].filter(Boolean));
-
-  const currentTags =
-    currentStructure?.semanticTags ??
-    [];
-
-  const currentObjects =
-    currentStructure?.objects ??
-    [];
-
-  const currentActions =
-    currentStructure?.actions ??
-    [];
+  const current = event(graph, currentId);
+  const previous = previousId ? event(graph, previousId) : undefined;
+  const currentStructure = eventStructureFor(graph, currentId);
+  const previousStructure = previousId ? eventStructureFor(graph, previousId) : undefined;
+  const currentLabel = label(graph, currentId);
+  const previousLabel = previousId ? label(graph, previousId) : "";
+  const currentStates = unique([...(currentStructure?.states ?? []), current?.emotionalState ?? ""].filter(Boolean));
+  const previousStates = unique([...(previousStructure?.states ?? []), previous?.emotionalState ?? ""].filter(Boolean));
+  const currentTags = currentStructure?.semanticTags ?? [];
+  const currentObjects = currentStructure?.objects ?? [];
+  const currentActions = currentStructure?.actions ?? [];
 
   if (!previousId) {
-    if (currentStates.length) {
-      return `Establish the supplied state: ${currentStates[0]}.`;
-    }
-
-    if (currentActions.length) {
-      return `Establish the supplied action: ${currentActions[0]}.`;
-    }
-
-    if (currentObjects.length) {
-      return `Establish the supplied detail: ${currentObjects[0]}.`;
-    }
-
+    if (currentStates.length) return `Establish the supplied state: ${currentStates[0]}.`;
+    if (currentActions.length) return `Establish the supplied action: ${currentActions[0]}.`;
+    if (currentObjects.length) return `Establish the supplied detail: ${currentObjects[0]}.`;
     return `Establish the supplied opening: ${currentLabel}.`;
   }
-
-  if (
-    relation?.kind ===
-    "recontextualizes"
-  ) {
-    return `The supplied detail is recontextualized by ${currentLabel}.`;
+  if (relation?.kind === "recontextualizes") return `The supplied detail is recontextualized by ${currentLabel}.`;
+  if (relation?.kind === "repeats") return `The earlier detail returns through ${currentLabel}.`;
+  if (relation?.kind === "contrasts") return `The reading changes through the contrast between ${previousLabel} and ${currentLabel}.`;
+  if (relation?.kind === "causes") return `The supplied consequence follows ${previousLabel}.`;
+  if (relation?.kind === "converges") return `Separate supplied details converge in ${currentLabel}.`;
+  if (previousStates.length && currentStates.length && previousStates[0]!.toLowerCase() !== currentStates[0]!.toLowerCase()) {
+    return `The supplied state shifts from ${previousStates[0]} to ${currentStates[0]}.`;
   }
-
-  if (
-    relation?.kind ===
-    "repeats"
-  ) {
-    return `The earlier detail returns through ${currentLabel}.`;
+  if (currentStructure && currentStructure.transitionScore >= 0.65) {
+    const action = currentActions[0];
+    const object = currentObjects[0];
+    if (action && object) return `The supplied transition moves through ${action} involving ${object}.`;
+    if (action) return `The supplied transition moves through ${action}.`;
+    if (object) return `The supplied transition centers on ${object}.`;
   }
-
-  if (
-    relation?.kind ===
-    "contrasts"
-  ) {
-    return `The reading changes through the contrast between ${previousLabel} and ${currentLabel}.`;
-  }
-
-  if (
-    relation?.kind ===
-    "causes"
-  ) {
-    return `The supplied consequence follows ${previousLabel}.`;
-  }
-
-  if (
-    relation?.kind ===
-    "converges"
-  ) {
-    return `Separate supplied details converge in ${currentLabel}.`;
-  }
-
-  if (
-    previousStates.length &&
-    currentStates.length
-  ) {
-    const before =
-      previousStates[0]!;
-
-    const after =
-      currentStates[0]!;
-
-    if (
-      before.toLowerCase() !==
-      after.toLowerCase()
-    ) {
-      return `The supplied state shifts from ${before} to ${after}.`;
-    }
-  }
-
-  if (
-    currentStructure &&
-    currentStructure.transitionScore >=
-      0.65
-  ) {
-    const action =
-      currentActions[0];
-
-    const object =
-      currentObjects[0];
-
-    if (action && object) {
-      return `The supplied transition moves through ${action} involving ${object}.`;
-    }
-
-    if (action) {
-      return `The supplied transition moves through ${action}.`;
-    }
-
-    if (object) {
-      return `The supplied transition centers on ${object}.`;
-    }
-  }
-
-  if (
-    currentTags.includes(
-      "recurrence",
-    )
-  ) {
-    return `A supplied recurring signal returns in ${currentLabel}.`;
-  }
-
-  return final
-    ? `Land on the supplied endpoint: ${currentLabel}.`
-    : `Advance through the supplied evidence: ${currentLabel}.`;
+  if (currentTags.includes("recurrence")) return `A supplied recurring signal returns in ${currentLabel}.`;
+  return final ? `Land on the supplied endpoint: ${currentLabel}.` : `Advance through the supplied evidence: ${currentLabel}.`;
 }
-function buildTrajectory(
-  graph: RealityGraph,
-  ids: readonly string[],
-): LatentMovieTrajectoryStep[] {
+function buildTrajectory(graph: RealityGraph, ids: readonly string[]): LatentMovieTrajectoryStep[] {
   if (ids.length < 3) return [];
-
-  const selected = [...ids]
-    .sort(
-      (left, right) =>
-        position(graph, left) -
-        position(graph, right),
-    )
-    .slice(0, 7);
-
-  const patterns =
-    graph.patterns ?? [];
-
-  const patternForEvent = (
-    eventId: string,
-  ): RealityPattern | undefined =>
-    patterns
-      .filter(
-        (pattern) =>
-          pattern.eventIds.includes(
-            eventId,
-          ),
-      )
-      .sort(
-        (a, b) =>
-          b.strength -
-          a.strength,
-      )[0];
-
-  const strongRelation =
-    (
-      left: string,
-      right: string,
-    ): RealityRelation | undefined =>
-      relationBetween(
-        graph,
-        left,
-        right,
-      );
+  const selected = [...ids].sort((left, right) => position(graph, left) - position(graph, right)).slice(0, 7);
+  const patterns = graph.patterns ?? [];
+  const patternForEvent = (eventId: string): RealityPattern | undefined => patterns.filter((pattern) => pattern.eventIds.includes(eventId)).sort((a, b) => b.strength - a.strength)[0];
+  const strongRelation = (left: string, right: string): RealityRelation | undefined => relationBetween(graph, left, right);
 
   const operationForSequence = (
     currentId: string,
@@ -564,351 +367,93 @@ function buildTrajectory(
     index: number,
     final: boolean,
   ): LatentMovieTrajectoryStep["operation"] => {
-    if (final) {
-      return "payoff";
-    }
-
-    const relation =
-      previousId
-        ? strongRelation(
-            previousId,
-            currentId,
-          )
-        : undefined;
-
+    if (final) return "payoff";
+    const relation = previousId ? strongRelation(previousId, currentId) : undefined;
     if (relation) {
-      const explicit =
-        operationFor(
-          relation,
-          previousId
-            ? label(
-                graph,
-                previousId,
-              )
-            : "",
-          label(
-            graph,
-            currentId,
-          ),
-          false,
-        );
-
-      if (
-        explicit !==
-        "reveal"
-      ) {
-        return explicit;
-      }
+      const explicit = operationFor(relation, previousId ? label(graph, previousId) : "", label(graph, currentId), false);
+      if (explicit !== "reveal") return explicit;
     }
 
-    const currentStructure =
-      eventStructureFor(
-        graph,
-        currentId,
-      );
+    const currentStructure = eventStructureFor(graph, currentId);
+    const previousStructure = previousId ? eventStructureFor(graph, previousId) : undefined;
+    const currentPattern = patternForEvent(currentId);
+    const hasRecurrence = Boolean(currentStructure && currentStructure.recurrenceScore >= 0.65);
+    const hasTransition = Boolean(currentStructure && currentStructure.transitionScore >= 0.65);
+    const hasAnomaly = Boolean(currentStructure && currentStructure.anomalyScore >= 0.65);
+    const patternKind = currentPattern?.kind;
 
-    const previousStructure =
-      previousId
-        ? eventStructureFor(
-            graph,
-            previousId,
-          )
-        : undefined;
+    if (patternKind === "recurrence" || hasRecurrence) return "recur";
+    if (patternKind === "anomaly" || hasAnomaly) return "contrast";
+    if (patternKind === "transition") return hasTransition ? "reframe" : "reveal";
+    if (patternKind === "tension") return "contrast";
 
-    const currentPattern =
-      patternForEvent(
-        currentId,
-      );
+    const previousStates = unique([...(previousStructure?.states ?? []), event(graph, previousId ?? "")?.emotionalState ?? ""].filter(Boolean));
+    const currentStates = unique([...(currentStructure?.states ?? []), event(graph, currentId)?.emotionalState ?? ""].filter(Boolean));
+    if (previousStates.length && currentStates.length && previousStates[0]!.toLowerCase() !== currentStates[0]!.toLowerCase()) return "reframe";
 
-    const hasRecurrence =
-      Boolean(
-        currentStructure &&
-          currentStructure.recurrenceScore >=
-            0.65,
-      );
+    if (currentStructure?.objects.length && (previousStructure?.actions.length || previousStructure?.states.length)) return "reframe";
 
-    const hasTransition =
-      Boolean(
-        currentStructure &&
-          currentStructure.transitionScore >=
-            0.65,
-      );
-
-    const hasAnomaly =
-      Boolean(
-        currentStructure &&
-          currentStructure.anomalyScore >=
-            0.65,
-      );
-
-    const patternKind =
-      currentPattern?.kind;
-
-    if (
-      patternKind ===
-        "recurrence" ||
-      hasRecurrence
-    ) {
-      return "recur";
-    }
-
-    if (
-      patternKind ===
-        "anomaly" ||
-      hasAnomaly
-    ) {
-      return "contrast";
-    }
-
-    if (
-      patternKind ===
-      "transition"
-    ) {
-      return hasTransition
-        ? "reframe"
-        : "reveal";
-    }
-
-    if (
-      patternKind ===
-      "tension"
-    ) {
-      return "contrast";
-    }
-
-    /*
-     * Detect state movement even when the graph has not emitted an explicit
-     * relation between adjacent events.
-     */
-    const previousStates =
-      unique([
-        ...(previousStructure?.states ??
-          []),
-        event(
-          graph,
-          previousId ?? "",
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
-
-    const currentStates =
-      unique([
-        ...(currentStructure?.states ??
-          []),
-        event(
-          graph,
-          currentId,
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
-
-    if (
-      previousStates.length &&
-      currentStates.length &&
-      previousStates[0]!.toLowerCase() !==
-        currentStates[0]!.toLowerCase()
-    ) {
-      return "reframe";
-    }
-
-    /*
-     * A supplied object/detail becomes more cinematic when it arrives after
-     * an action or state. Treat that as an attention shift, not a second
-     * generic reveal.
-     */
-    if (
-      currentStructure?.objects.length &&
-      (
-        previousStructure?.actions.length ||
-        previousStructure?.states.length
-      )
-    ) {
-      return "reframe";
-    }
-
-    /*
-     * A later event that semantically accumulates several earlier signals is
-     * a convergence point.
-     */
-    const currentTokens =
-      tokens(
-        label(
-          graph,
-          currentId,
-        ),
-      );
-
-    const priorMatches =
-      selected
-        .slice(
-          0,
-          index,
-        )
-        .filter(
-          (priorId) =>
-            sharedTokenScore(
-              label(
-                graph,
-                priorId,
-              ),
-              label(
-                graph,
-                currentId,
-              ),
-            ) >=
-            0.6,
-        );
-
-    if (
-      priorMatches.length >=
-      2
-    ) {
-      return "converge";
-    }
-
-    void currentTokens;
-
-    return hasTransition
-      ? "reframe"
-      : "reveal";
+    const priorMatches = selected.slice(0, index).filter((priorId) => sharedTokenScore(label(graph, priorId), label(graph, currentId)) >= 0.6);
+    if (priorMatches.length >= 2) return "converge";
+    return hasTransition ? "reframe" : "reveal";
   };
 
-  return selected.map(
-    (id, index) => {
-      const final =
-        index ===
-        selected.length - 1;
-
-      const previousId =
-        index > 0
-          ? selected[
-              index - 1
-            ]
-          : undefined;
-
-      const relation =
-        previousId
-          ? strongRelation(
-              previousId,
-              id,
-            )
-          : undefined;
-
-      const operation =
-        operationForSequence(
-          id,
-          previousId,
-          index,
-          final,
-        );
-
-      return {
-        order:
-          index + 1,
-        operation,
-        eventIds: [
-          id,
-        ],
-        viewerChange:
-          structuralViewerChange(
-            graph,
-            previousId,
-            id,
-            relation,
-            final,
-          ),
-        nextQuestion:
-          questionFor(
-            operation,
-          ),
-      };
-    },
-  );
+  return selected.map((id, index) => {
+    const final = index === selected.length - 1;
+    const previousId = index > 0 ? selected[index - 1] : undefined;
+    const relation = previousId ? strongRelation(previousId, id) : undefined;
+    const operation = operationForSequence(id, previousId, index, final);
+    return {
+      order: index + 1,
+      operation,
+      eventIds: [id],
+      viewerChange: structuralViewerChange(graph, previousId, id, relation, final),
+      nextQuestion: questionFor(operation),
+    };
+  });
 }
+
 function callbackCoverage(graph: RealityGraph, ids: readonly string[]): number {
   if (!ids.length) return 0;
   let linked = 0;
   for (const id of ids) {
-    if (
-      graph.relations.some(
-        (relation) =>
-          (relation.from === id || relation.to === id) &&
-          callbackRelation(relation),
-      ) || explicitCallback(label(graph, id))
-    ) {
-      linked += 1;
-    }
+    if (graph.relations.some((relation) => (relation.from === id || relation.to === id) && callbackRelation(relation)) || explicitCallback(label(graph, id))) linked += 1;
   }
   return metric(linked / ids.length);
 }
 
 function relationDiversity(graph: RealityGraph, ids: readonly string[]): number {
-  const kinds = unique(
-    ids
-      .slice(1)
-      .map((id, index) => relationBetween(graph, ids[index]!, id)?.kind)
-      .filter((kind): kind is RealityRelation["kind"] => Boolean(kind)),
-  );
+  const kinds = unique(ids.slice(1).map((id, index) => relationBetween(graph, ids[index]!, id)?.kind).filter((kind): kind is RealityRelation["kind"] => Boolean(kind)));
   return metric(kinds.length / 4);
 }
 
-function subjectCoverage(
-  graph: RealityGraph,
-  ids: readonly string[],
-  subject?: string,
-): number {
+function subjectCoverage(graph: RealityGraph, ids: readonly string[], subject?: string): number {
   if (!clean(subject) || !ids.length) return 1;
-
   const direct = ids.filter((id) => explicitSubjectMention(label(graph, id), subject));
   const directRatio = direct.length / ids.length;
   const callbacks = callbackCoverage(graph, ids);
   const firstAnchor = ids.includes(graph.events[0]?.id ?? "") ? 0.18 : 0;
-
-  return metric(
-    Math.min(1, directRatio * 0.56 + callbacks * 0.26 + firstAnchor),
-  );
+  return metric(Math.min(1, directRatio * 0.56 + callbacks * 0.26 + firstAnchor));
 }
 
-function ambientNoisePenalty(
-  graph: RealityGraph,
-  ids: readonly string[],
-  subject?: string,
-): number {
+function ambientNoisePenalty(graph: RealityGraph, ids: readonly string[], subject?: string): number {
   if (!clean(subject) || !ids.length) return 0;
-
   let ambient = 0;
   for (const id of ids) {
     const direct = explicitSubjectMention(label(graph, id), subject);
-    const callback = graph.relations.some(
-      (relation) =>
-        (relation.from === id || relation.to === id) && callbackRelation(relation),
-    );
-    const structural = graph.relations.some(
-      (relation) =>
-        relation.from === id || relation.to === id,
-    );
-
+    const callback = graph.relations.some((relation) => (relation.from === id || relation.to === id) && callbackRelation(relation));
+    const structural = graph.relations.some((relation) => relation.from === id || relation.to === id);
     if (!direct && !callback && !structural) ambient += 1;
   }
   return metric(ambient / ids.length);
 }
 
-function scoreCandidate(
-  graph: RealityGraph,
-  trajectory: readonly LatentMovieTrajectoryStep[],
-  lens?: string,
-  subject?: string,
-): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
+function scoreCandidate(graph: RealityGraph, trajectory: readonly LatentMovieTrajectoryStep[], lens?: string, subject?: string): Omit<LatentMovieCandidate, "id" | "lens" | "distinctiveness"> {
   const ids = unique(trajectory.flatMap((step) => step.eventIds));
   const evidence = unique(ids.map((id) => label(graph, id)).filter(Boolean));
-  const relations = ids
-    .slice(1)
-    .map((id, index) => relationBetween(graph, ids[index]!, id))
-    .filter((value): value is RealityRelation => Boolean(value));
+  const relations = ids.slice(1).map((id, index) => relationBetween(graph, ids[index]!, id)).filter((value): value is RealityRelation => Boolean(value));
   const relationKinds = unique(relations.map((relation) => relation.kind));
-  const structures = ids
-    .map((id) => eventStructureFor(graph, id))
-    .filter((value) => Boolean(value));
+  const structures = ids.map((id) => eventStructureFor(graph, id)).filter((value) => Boolean(value));
   const state = statePair(graph, ids);
   const coverage = subjectCoverage(graph, ids, subject);
   const noise = ambientNoisePenalty(graph, ids, subject);
@@ -917,68 +462,24 @@ function scoreCandidate(
   const structuralMovement = metric(
     (state?.score ?? 0) * 0.4 +
       Math.min(1, relationKinds.length / 3) * 0.2 +
-      Math.min(
-        1,
-        structures.reduce(
-          (sum, item) => sum + item!.transitionScore + item!.recurrenceScore,
-          0,
-        ) / Math.max(1, structures.length * 2),
-      ) * 0.22 +
+      Math.min(1, structures.reduce((sum, item) => sum + item!.transitionScore + item!.recurrenceScore, 0) / Math.max(1, structures.length * 2)) * 0.22 +
       (ids.length >= 5 ? 0.18 : 0),
   );
-
-  const specificity = metric(
-    ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) /
-      Math.max(1, ids.length),
-  );
+  const specificity = metric(ids.reduce((sum, id) => sum + eventSpecificity(graph, id), 0) / Math.max(1, ids.length));
   const breadth = breadthScore(graph, ids);
   const order = forwardScore(graph, ids);
-  const endpoint =
-    ids.length && position(graph, ids[ids.length - 1]!) === graph.events.length - 1
-      ? 1
-      : metric(
-          (position(graph, ids[ids.length - 1]!) + 1) /
-            Math.max(1, graph.events.length),
-        );
+  const endpoint = ids.length && position(graph, ids[ids.length - 1]!) === graph.events.length - 1
+    ? 1
+    : metric((position(graph, ids[ids.length - 1]!) + 1) / Math.max(1, graph.events.length));
   const operationDiversity = relationDiversity(graph, ids);
   const repetitionRisk = repetition(graph, ids);
-  const attentionPotential = metric(
-    structuralMovement * 0.28 +
-      breadth * 0.18 +
-      specificity * 0.14 +
-      order * 0.1 +
-      endpoint * 0.08 +
-      operationDiversity * 0.08 +
-      callback * 0.08 +
-      coverage * 0.06,
-  );
-  const consequencePotential = metric(
-    structuralMovement * 0.34 +
-      endpoint * 0.2 +
-      specificity * 0.12 +
-      breadth * 0.14 +
-      callback * 0.1 +
-      coverage * 0.1,
-  );
-  const informationValue = metric(
-    specificity * 0.22 +
-      structuralMovement * 0.3 +
-      breadth * 0.18 +
-      attentionPotential * 0.14 +
-      consequencePotential * 0.1 +
-      callback * 0.06,
-  );
-  const compressionPotential = metric(
-    Math.min(1, trajectory.length / 5) * 0.34 +
-      structuralMovement * 0.24 +
-      operationDiversity * 0.18 +
-      specificity * 0.14 +
-      callback * 0.1,
-  );
-  const truthRisk = metric(
-    1 - (order * 0.52 + specificity * 0.18 + endpoint * 0.12 + coverage * 0.18),
-  );
-  const score = metric(
+  const attentionPotential = metric(structuralMovement * 0.28 + breadth * 0.18 + specificity * 0.14 + order * 0.1 + endpoint * 0.08 + operationDiversity * 0.08 + callback * 0.08 + coverage * 0.06);
+  const consequencePotential = metric(structuralMovement * 0.34 + endpoint * 0.2 + specificity * 0.12 + breadth * 0.14 + callback * 0.1 + coverage * 0.1);
+  const informationValue = metric(specificity * 0.22 + structuralMovement * 0.3 + breadth * 0.18 + attentionPotential * 0.14 + consequencePotential * 0.1 + callback * 0.06);
+  const compressionPotential = metric(Math.min(1, trajectory.length / 5) * 0.34 + structuralMovement * 0.24 + operationDiversity * 0.18 + specificity * 0.14 + callback * 0.1);
+  const truthRisk = metric(1 - (order * 0.52 + specificity * 0.18 + endpoint * 0.12 + coverage * 0.18));
+
+  const baseScore = metric(
     structuralMovement * 0.23 +
       attentionPotential * 0.17 +
       consequencePotential * 0.13 +
@@ -993,92 +494,83 @@ function scoreCandidate(
       noise * 0.1,
   );
 
+  const provisional: LatentMovieCandidate = {
+    id: "provisional",
+    lens: clean(lens) || "NONE",
+    distinctiveness: 0,
+    anchorEventIds: ids.slice(0, 2),
+    supportingRelationKinds: relationKinds,
+    trajectory: [...trajectory],
+    payoff: evidence[evidence.length - 1] ?? "",
+    unresolvedQuestion: trajectory[trajectory.length - 1]?.nextQuestion ?? "What is becoming noticeable?",
+    evidence,
+    hypothesis: [],
+    truthRisk,
+    novelty: metric(1 - repetitionRisk),
+    specificity,
+    informationValue,
+    uncertainty: metric((1 - order) * 0.3 + structuralMovement * 0.3 + attentionPotential * 0.2 + (1 - coverage) * 0.2),
+    attentionPotential,
+    consequencePotential,
+    callbackPotential: callback,
+    compressionPotential,
+    repetitionRisk,
+    observerInferencePotential: 0,
+    score: baseScore,
+  };
+
+  const observerInferencePotential = scoreSatanicoObserverInference(graph, provisional);
+  const score = metric(
+    baseScore * 0.78 +
+      observerInferencePotential * 0.22,
+  );
+
   return {
     anchorEventIds: ids.slice(0, 2),
     supportingRelationKinds: relationKinds,
     trajectory: [...trajectory],
     payoff: evidence[evidence.length - 1] ?? "",
     evidence,
-    unresolvedQuestion:
-      trajectory[trajectory.length - 1]?.nextQuestion ?? "What is becoming noticeable?",
+    unresolvedQuestion: trajectory[trajectory.length - 1]?.nextQuestion ?? "What is becoming noticeable?",
     hypothesis: [
       "The movie is discovered from supplied reality rather than an industry template.",
       "Subject relevance is evaluated separately from ambient context.",
       "Callbacks may reconnect a detail when the supplied evidence explicitly supports the callback.",
       "The lens changes framing, never concrete reality.",
+      "Satanico prefers grounded relationships that leave the strongest inference unsaid.",
     ],
     truthRisk,
     novelty: metric(1 - repetitionRisk),
     specificity,
     informationValue,
-    uncertainty: metric(
-      (1 - order) * 0.3 +
-        structuralMovement * 0.3 +
-        attentionPotential * 0.2 +
-        (1 - coverage) * 0.2,
-    ),
+    uncertainty: metric((1 - order) * 0.3 + structuralMovement * 0.3 + attentionPotential * 0.2 + (1 - coverage) * 0.2),
     attentionPotential,
     consequencePotential,
     callbackPotential: callback,
     compressionPotential,
     repetitionRisk,
+    observerInferencePotential,
     score,
   };
 }
 
-function addTrajectoryCandidate(
-  candidates: LatentMovieCandidate[],
-  graph: RealityGraph,
-  id: string,
-  ids: readonly string[],
-  lens?: string,
-  subject?: string,
-): void {
+function addTrajectoryCandidate(candidates: LatentMovieCandidate[], graph: RealityGraph, id: string, ids: readonly string[], lens?: string, subject?: string): void {
   const built = buildTrajectory(graph, ids);
   if (built.length < 3) return;
-  candidates.push({
-    id,
-    lens: clean(lens) || "NONE",
-    distinctiveness: 0,
-    ...scoreCandidate(graph, built, lens, subject),
-  });
+  candidates.push({ id, lens: clean(lens) || "NONE", distinctiveness: 0, ...scoreCandidate(graph, built, lens, subject) });
 }
 
-export function searchUniversalMovieCandidates(input: {
-  graph: RealityGraph;
-  subject?: string;
-  lens?: string;
-  limit?: number;
-}): LatentMovieCandidate[] {
+export function searchUniversalMovieCandidates(input: { graph: RealityGraph; subject?: string; lens?: string; limit?: number }): LatentMovieCandidate[] {
   const limit = Math.max(3, Math.min(12, input.limit ?? 8));
-  const sourceIds = input.graph.events
-    .filter((item) => clean(item.label))
-    .map((item) => item.id);
+  const sourceIds = input.graph.events.filter((item) => clean(item.label)).map((item) => item.id);
   if (sourceIds.length < 3) return [];
-
   const connectedIds = subjectConnectedIds(input.graph, input.subject);
   const candidates: LatentMovieCandidate[] = [];
 
-  // Keep the full source-order film available as a competitor, but let the
-  // subject-relevance penalty decide whether it actually deserves to win.
-  addTrajectoryCandidate(
-    candidates,
-    input.graph,
-    "movie-source",
-    sourceIds,
-    input.lens,
-    input.subject,
-  );
+  addTrajectoryCandidate(candidates, input.graph, "movie-source", sourceIds, input.lens, input.subject);
 
   if (connectedIds.length >= 3 && connectedIds.length < sourceIds.length) {
-    addTrajectoryCandidate(
-      candidates,
-      input.graph,
-      "movie-subject-connected",
-      connectedIds,
-      input.lens,
-      input.subject,
-    );
+    addTrajectoryCandidate(candidates, input.graph, "movie-subject-connected", connectedIds, input.lens, input.subject);
   }
 
   const stateIds = connectedIds.length >= 3 ? connectedIds : sourceIds;
@@ -1090,24 +582,12 @@ export function searchUniversalMovieCandidates(input: {
       const pos = position(input.graph, id);
       return pos >= start && pos <= end + 1;
     });
-    if (!ids.includes(stateIds[stateIds.length - 1]!)) {
-      ids.push(stateIds[stateIds.length - 1]!);
-    }
-    addTrajectoryCandidate(
-      candidates,
-      input.graph,
-      "movie-transformation",
-      ids,
-      input.lens,
-      input.subject,
-    );
+    if (!ids.includes(stateIds[stateIds.length - 1]!)) ids.push(stateIds[stateIds.length - 1]!);
+    addTrajectoryCandidate(candidates, input.graph, "movie-transformation", ids, input.lens, input.subject);
   }
 
   const relationSeeds = [...input.graph.relations]
-    .filter(
-      (relation) =>
-        !["before", "after", "involves", "belongs_to"].includes(relation.kind),
-    )
+    .filter((relation) => !["before", "after", "involves", "belongs_to"].includes(relation.kind))
     .sort((a, b) => b.strength - a.strength)
     .slice(0, 8);
 
@@ -1116,72 +596,53 @@ export function searchUniversalMovieCandidates(input: {
     const left = position(input.graph, relation.from);
     const right = position(input.graph, relation.to);
     if (left < 0 || right < 0) continue;
-
-    const ordered = left <= right
-      ? [relation.from, relation.to]
-      : [relation.to, relation.from];
+    const ordered = left <= right ? [relation.from, relation.to] : [relation.to, relation.from];
     const lower = Math.min(left, right);
     const upper = Math.max(left, right);
     const localIds = sourceIds.filter((id) => {
       const pos = position(input.graph, id);
       return pos >= lower && pos <= Math.min(sourceIds.length - 1, upper + 2);
     });
-
-    addTrajectoryCandidate(
-      candidates,
-      input.graph,
-      `movie-relation-${index + 1}`,
-      unique([...ordered, ...localIds, sourceIds[sourceIds.length - 1]!]),
-      input.lens,
-      input.subject,
-    );
+    addTrajectoryCandidate(candidates, input.graph, `movie-relation-${index + 1}`, unique([...ordered, ...localIds, sourceIds[sourceIds.length - 1]!]), input.lens, input.subject);
   }
 
   const seen = new Set<string>();
   const uniqueCandidates = candidates.filter((candidate) => {
-    const key = candidate.trajectory
-      .map((step) => `${step.operation}:${step.eventIds.join(",")}`)
-      .join("|");
+    const key = candidate.trajectory.map((step) => `${step.operation}:${step.eventIds.join(",")}`).join("|");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  uniqueCandidates.sort(
-    (left, right) =>
-      right.score - left.score ||
-      right.attentionPotential - left.attentionPotential ||
-      right.informationValue - left.informationValue,
+  uniqueCandidates.sort((left, right) =>
+    right.score - left.score ||
+    (right.observerInferencePotential ?? 0) - (left.observerInferencePotential ?? 0) ||
+    right.attentionPotential - left.attentionPotential ||
+    right.informationValue - left.informationValue,
   );
 
   const selected: LatentMovieCandidate[] = [];
   for (const candidate of uniqueCandidates) {
     if (selected.length >= limit) break;
-
     const similarity = selected.length
-      ? Math.max(
-          ...selected.map((other) => {
-            const a = new Set(candidate.evidence.map(clean));
-            const b = new Set(other.evidence.map(clean));
-            let shared = 0;
-            for (const value of a) if (b.has(value)) shared += 1;
-            return shared / Math.max(1, Math.min(a.size, b.size));
-          }),
-        )
+      ? Math.max(...selected.map((other) => {
+          const a = new Set(candidate.evidence.map(clean));
+          const b = new Set(other.evidence.map(clean));
+          let shared = 0;
+          for (const value of a) if (b.has(value)) shared += 1;
+          return shared / Math.max(1, Math.min(a.size, b.size));
+        }))
       : 0;
-
     candidate.distinctiveness = metric(1 - similarity);
-    candidate.score = metric(
-      candidate.score * 0.88 + candidate.distinctiveness * 0.12,
-    );
+    candidate.score = metric(candidate.score * 0.8 + candidate.distinctiveness * 0.08 + (candidate.observerInferencePotential ?? 0) * 0.12);
     selected.push(candidate);
   }
 
   return selected
-    .sort(
-      (left, right) =>
-        right.score - left.score ||
-        right.distinctiveness - left.distinctiveness,
+    .sort((left, right) =>
+      right.score - left.score ||
+      (right.observerInferencePotential ?? 0) - (left.observerInferencePotential ?? 0) ||
+      right.distinctiveness - left.distinctiveness,
     )
     .slice(0, limit);
 }
