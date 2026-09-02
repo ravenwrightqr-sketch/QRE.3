@@ -20,7 +20,11 @@ import {
   deriveSequenceBackedCreativeInterpretations,
   type CreativeInterpretation,
 } from "./authorCreativeInterpretation.js";
-import { deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
+import {
+  deriveSatanicoObserverObjective,
+} from "./authorSatanicoInference.js";
+import { discoverSatanicoInferenceOpportunities } from "./authorSatanicoEvidenceSearch.js";
+import { strongestSatanicoHypothesis } from "./authorSatanicoHypothesis.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -103,13 +107,20 @@ function interpretationScore(
 function strongestInterpretation(
   candidate: LatentMovieCandidate,
   interpretations: readonly CreativeInterpretation[],
+  hypothesisEvidence: ReadonlySet<string> = new Set(),
 ): CreativeInterpretation | undefined {
   return [...interpretations]
-    .map((interpretation, index) => ({
-      interpretation,
-      score: interpretationScore(candidate, interpretation),
-      index,
-    }))
+    .map((interpretation, index) => {
+      const hypothesisAlignment = hypothesisEvidence.size
+        ? interpretation.evidenceEventIds.filter((id) => hypothesisEvidence.has(id)).length /
+          Math.max(1, interpretation.evidenceEventIds.length)
+        : 0;
+      return {
+        interpretation,
+        score: interpretationScore(candidate, interpretation) + hypothesisAlignment * 0.18,
+        index,
+      };
+    })
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -284,8 +295,11 @@ export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): LatentStoryThesis {
+  const opportunities = discoverSatanicoInferenceOpportunities(graph, 64);
+  const hypothesis = strongestSatanicoHypothesis(graph, candidate, opportunities);
+  const hypothesisEvidence = new Set(hypothesis?.evidenceEventIds ?? []);
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
-  const interpretation = strongestInterpretation(candidate, interpretations);
+  const interpretation = strongestInterpretation(candidate, interpretations, hypothesisEvidence);
   const fallbackRelation = strongestRelation(graph, candidate);
   const endpoint = endpointId(candidate);
   const satanicoObjective = deriveSatanicoObserverObjective(graph, candidate);
