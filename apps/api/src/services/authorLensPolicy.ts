@@ -2,8 +2,8 @@
  * UNIVERSAL LENS POLICY
  *
  * A lens is a perceptual policy over supplied reality. It never creates facts.
- * It changes which grounded relationships, operations, and observer effects are
- * worth privileging when constructing a movie.
+ * It changes which grounded relationships, operations, observer effects, and
+ * environmental treatments are worth privileging when constructing a movie.
  *
  * Satanico remains the inference authority: the lens selects a search space;
  * Satanico decides which grounded opportunity has the strongest observer-read.
@@ -20,9 +20,21 @@ export type LensPolicy = {
   observerMode: "discovery" | "tension" | "wonder" | "intimacy" | "comedy" | "stakes";
   personification: "none" | "light" | "strong";
   explanationPressure: number;
+
+  /** Rich realization controls. These are policy, not source truth. */
+  humanSpine: "preserve" | "prioritize" | "shared";
+  worldOrbit: string[];
+  environmentalOperators: string[];
+  observerTarget: string[];
+  realizationMoves: string[];
+  forbiddenRealityMoves: string[];
+  intensity: number;
 };
 
-type LensSeed = Omit<LensPolicy, "name"> & { name: string; aliases?: string[] };
+type LensSeed = Omit<LensPolicy, "name" | "humanSpine" | "worldOrbit" | "environmentalOperators" | "observerTarget" | "realizationMoves" | "forbiddenRealityMoves" | "intensity"> & {
+  name: string;
+  aliases?: string[];
+};
 
 const SEEDS: LensSeed[] = [
   { name: "game", aliases: ["gaming", "competition", "challenge"], terms: ["level", "boss", "clear", "score", "win", "play", "challenge", "mission", "unlock"], relationWeights: { contrasts: 1, changes: .95, converges: .9, repeats: .78 }, operationWeights: { contrast: 1, reveal: .95, converge: .9, recur: .75 }, opportunityWeights: { contrast: 1, state_transformation: .95, heterogeneous_convergence: .9, relational_role: .88, preference_constellation: .82 }, observerMode: "stakes", personification: "light", explanationPressure: .05 },
@@ -47,9 +59,65 @@ const SEEDS: LensSeed[] = [
 
 const normalize = (value: string): string[] => [...new Set(value.toLowerCase().replace(/[^a-z0-9'’-]+/g, " ").split(/\s+/).filter((token) => token.length >= 3))];
 
+const BEHAVIOR_DEFAULTS = {
+  NONE: {
+    humanSpine: "preserve" as const,
+    worldOrbit: ["supplied world only"],
+    environmentalOperators: ["recurrence", "contrast", "recontextualization"],
+    observerTarget: ["recognition", "curiosity", "natural attention"],
+    realizationMoves: ["understatement", "implication", "recognition"],
+    forbiddenRealityMoves: ["invented concrete event", "invented reaction", "invented object"],
+    intensity: .18,
+  },
+};
+
+const BEHAVIORS: Record<string, Omit<LensPolicy, "name" | "terms" | "relationWeights" | "operationWeights" | "opportunityWeights" | "observerMode" | "personification" | "explanationPressure">> = {
+  game: { humanSpine: "preserve", worldOrbit: ["progression", "thresholds", "room state", "status states", "environmental rewards", "unexpected state changes"], environmentalOperators: ["unlock", "clear", "escalate", "reorder", "recur", "environmental-state-change"], observerTarget: ["momentum", "anticipation", "win-condition recognition", "surprise"], realizationMoves: ["compression", "status_inversion", "consequence", "reversal", "callback"], forbiddenRealityMoves: ["invented score", "invented opponent", "invented level object", "invented concrete event"], intensity: .86 },
+  spy: { humanSpine: "preserve", worldOrbit: ["surveillance", "signals", "evidence", "concealment", "spatial inconsistency", "object repositioning", "environmental verification"], environmentalOperators: ["watch", "signal", "misalign", "reposition", "repeat", "withhold", "cross-check"], observerTarget: ["suspicion", "curiosity", "double-awareness", "pattern detection"], realizationMoves: ["implication", "understatement", "recontextualization", "double_meaning", "callback"], forbiddenRealityMoves: ["invented handler", "invented weapon", "invented surveillance device", "invented mission", "invented character reaction"], intensity: .84 },
+  heist: { humanSpine: "preserve", worldOrbit: ["acquisition", "absence", "securing", "timing", "evidence", "exit state", "object status"], environmentalOperators: ["acquire", "remove", "secure", "reposition", "hide", "reveal", "escape-pressure"], observerTarget: ["anticipation", "tracking", "consequence", "payoff"], realizationMoves: ["compression", "consequence", "reversal", "status_inversion", "callback"], forbiddenRealityMoves: ["invented theft", "invented accomplice", "invented security system", "invented escape"], intensity: .86 },
+  courtroom: { humanSpine: "preserve", worldOrbit: ["evidence", "record", "contradiction", "approval", "denial", "judgment", "status"], environmentalOperators: ["enter-evidence", "contrast", "reclassify", "surface", "seal", "return"], observerTarget: ["comparison", "judgment", "recognition", "verdict anticipation"], realizationMoves: ["contrast", "recontextualization", "status_inversion", "implication", "reversal"], forbiddenRealityMoves: ["invented judge", "invented lawyer", "invented testimony", "invented hearing"], intensity: .83 },
+  military: { humanSpine: "preserve", worldOrbit: ["sector state", "clearance", "readiness", "progress", "command status", "site condition"], environmentalOperators: ["clear", "secure", "advance", "hold", "recheck", "report-state"], observerTarget: ["stakes", "progress", "completion", "status"], realizationMoves: ["compression", "consequence", "reversal", "understatement", "status_inversion"], forbiddenRealityMoves: ["invented combat", "invented weapon", "invented casualty", "invented command"], intensity: .84 },
+  horror: { humanSpine: "preserve", worldOrbit: ["ordinary wrongness", "watching", "absence", "spatial disturbance", "sound disturbance", "object displacement", "recurrence"], environmentalOperators: ["displace", "invert", "repeat", "silence", "interrupt", "echo", "withhold", "escalate"], observerTarget: ["dread", "uncertainty", "prediction", "double-awareness", "unease without character reaction"], realizationMoves: ["implication", "recontextualization", "understatement", "reversal", "callback"], forbiddenRealityMoves: ["invented violence", "invented supernatural event", "invented character fear", "invented reaction"], intensity: .92 },
+  noir: { humanSpine: "preserve", worldOrbit: ["evidence", "absence", "suspicion", "objects carrying implication", "quiet pressure", "returning detail"], environmentalOperators: ["withhold", "reframe", "reposition", "echo", "contrast", "surface"], observerTarget: ["suspicion", "inference", "recognition", "moral ambiguity"], realizationMoves: ["implication", "understatement", "recontextualization", "callback", "double_meaning"], forbiddenRealityMoves: ["invented crime", "invented detective", "invented weapon", "invented reaction"], intensity: .8 },
+  "rom-com": { humanSpine: "prioritize", worldOrbit: ["timing", "awkward coincidence", "social collision", "repetition", "misread signals"], environmentalOperators: ["interrupt", "coincide", "recur", "contrast", "echo"], observerTarget: ["affection", "anticipation", "delight", "recognition"], realizationMoves: ["understatement", "callback", "recontextualization", "double_meaning", "reversal"], forbiddenRealityMoves: ["invented confession", "invented physical intimacy", "invented reaction"], intensity: .72 },
+  romance: { humanSpine: "prioritize", worldOrbit: ["recurrence", "place memory", "quiet coincidence", "specific objects", "shared space"], environmentalOperators: ["echo", "recur", "hold", "reframe", "return"], observerTarget: ["intimacy", "recognition", "tender anticipation"], realizationMoves: ["understatement", "implication", "callback", "recontextualization", "compression"], forbiddenRealityMoves: ["invented confession", "invented physical intimacy", "invented affection"], intensity: .62 },
+  sentimental: { humanSpine: "prioritize", worldOrbit: ["memory carriers", "persistence", "before-after distance", "returning places", "specific sensory traces"], environmentalOperators: ["return", "echo", "hold", "contrast", "recontextualize"], observerTarget: ["recognition", "nostalgia", "emotional afterimage"], realizationMoves: ["understatement", "callback", "recontextualization", "compression", "implication"], forbiddenRealityMoves: ["invented past detail", "invented chronology", "generic sentiment"], intensity: .56 },
+  absurd: { humanSpine: "preserve", worldOrbit: ["incongruity", "impossible arrangement", "deadpan escalation", "normality under strain", "unexpected recurrence"], environmentalOperators: ["juxtapose", "invert", "reposition", "repeat", "escalate", "underplay"], observerTarget: ["surprise", "delight", "double-take", "incongruity recognition"], realizationMoves: ["double_meaning", "understatement", "contrast", "personification", "reversal"], forbiddenRealityMoves: ["invented event", "invented prop", "literalized joke premise", "invented reaction"], intensity: .88 },
+  cyberpunk: { humanSpine: "preserve", worldOrbit: ["system state", "signals", "protocols", "glitches", "status overlays", "network behavior", "spatial interface"], environmentalOperators: ["glitch", "signal", "reclassify", "flicker", "route", "recur", "status-shift"], observerTarget: ["system awareness", "discovery", "anticipation", "status change"], realizationMoves: ["compression", "reframe", "consequence", "contrast", "callback"], forbiddenRealityMoves: ["invented device", "invented network fact", "invented dialogue", "invented concrete event"], intensity: .88 },
+  documentary: { humanSpine: "preserve", worldOrbit: ["process", "detail", "trace", "measure", "before-after", "ordinary specificity"], environmentalOperators: ["observe", "sequence", "return", "compare", "surface"], observerTarget: ["notice", "understand", "recognize pattern"], realizationMoves: ["specificity", "understatement", "compression", "callback", "implication"], forbiddenRealityMoves: ["invented statistic", "invented chronology", "invented quote"], intensity: .5 },
+  service: { humanSpine: "preserve", worldOrbit: ["service ritual", "process", "before-after", "handoff", "status completion"], environmentalOperators: ["progress", "clear", "transform-state", "recur", "handoff"], observerTarget: ["satisfaction", "recognition", "completion"], realizationMoves: ["compression", "consequence", "understatement", "callback", "recontextualization"], forbiddenRealityMoves: ["invented service action", "invented customer reaction", "invented outcome"], intensity: .62 },
+  hospitality: { humanSpine: "prioritize", worldOrbit: ["welcome", "comfort", "place", "ritual", "departure", "specific amenity"], environmentalOperators: ["open", "settle", "echo", "prepare", "restore"], observerTarget: ["comfort", "belonging", "recognition"], realizationMoves: ["understatement", "callback", "implication", "recontextualization"], forbiddenRealityMoves: ["invented amenity", "invented guest reaction", "invented welcome"], intensity: .58 },
+  transformation: { humanSpine: "preserve", worldOrbit: ["before-state", "change", "after-state", "material result", "status shift"], environmentalOperators: ["reveal", "contrast", "reframe", "complete", "return"], observerTarget: ["recognition", "surprise", "satisfaction"], realizationMoves: ["recontextualization", "consequence", "compression", "callback", "understatement"], forbiddenRealityMoves: ["invented before-state", "invented transformation", "invented finished state"], intensity: .78 },
+};
+
+function behaviorFor(name: string) {
+  return BEHAVIORS[name] ?? {
+    ...BEHAVIOR_DEFAULTS.NONE,
+    humanSpine: "preserve" as const,
+    worldOrbit: ["grounded supplied environment", "relationship structure", "sequence state"],
+    environmentalOperators: ["contrast", "reframe", "recur", "consequence"],
+    observerTarget: ["discovery", "curiosity", "recognition"],
+    realizationMoves: ["implication", "understatement", "recontextualization"],
+    forbiddenRealityMoves: ["invented concrete event", "invented reaction", "invented object"],
+    intensity: .62,
+  };
+}
+
 export function resolveLensPolicy(lens?: string): LensPolicy {
   const raw = String(lens ?? "").trim();
-  if (!raw) return { name: "NONE", terms: [], relationWeights: {}, operationWeights: {}, opportunityWeights: {}, observerMode: "discovery", personification: "none", explanationPressure: .2 };
+  if (!raw) {
+    return {
+      name: "NONE",
+      terms: [],
+      relationWeights: {},
+      operationWeights: {},
+      opportunityWeights: {},
+      observerMode: "discovery",
+      personification: "none",
+      explanationPressure: .2,
+      ...BEHAVIOR_DEFAULTS.NONE,
+    };
+  }
 
   const inputTokens = normalize(raw);
   let best: LensSeed | undefined;
@@ -61,17 +129,22 @@ export function resolveLensPolicy(lens?: string): LensPolicy {
     if (score > bestScore) { best = seed; bestScore = score; }
   }
 
-  if (!best) return {
-    name: raw,
-    terms: inputTokens,
-    relationWeights: {},
-    operationWeights: { reveal: .45, reframe: .4, converge: .35, recur: .3 },
-    opportunityWeights: { heterogeneous_convergence: .55, relational_role: .5, contrast: .45, callback: .42 },
-    observerMode: "discovery",
-    personification: "light",
-    explanationPressure: .03,
-  };
+  if (!best) {
+    const behavior = behaviorFor(raw.toLowerCase());
+    return {
+      name: raw,
+      terms: inputTokens,
+      relationWeights: {},
+      operationWeights: { reveal: .45, reframe: .4, converge: .35, recur: .3 },
+      opportunityWeights: { heterogeneous_convergence: .55, relational_role: .5, contrast: .45, callback: .42 },
+      observerMode: "discovery",
+      personification: "light",
+      explanationPressure: .03,
+      ...behavior,
+    };
+  }
 
+  const behavior = behaviorFor(best.name);
   return {
     name: best.name,
     terms: [...new Set([...best.terms, ...inputTokens])],
@@ -81,6 +154,7 @@ export function resolveLensPolicy(lens?: string): LensPolicy {
     observerMode: best.observerMode,
     personification: best.personification,
     explanationPressure: best.explanationPressure,
+    ...behavior,
   };
 }
 
