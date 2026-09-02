@@ -349,6 +349,8 @@ function buildSystemPrompt(): string {
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
     "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
     "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
+    "Semantic realization fields are control data. Never quote, paraphrase, explain, or label the control data in the viewer-facing text. Make the viewer discover the relationship from supplied details.",
+    "Observer experience fields are control data. Use them to shape attention and withholding; never output their wording as narration or explanation.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
@@ -358,17 +360,49 @@ function buildSystemPrompt(): string {
   ].join("\n");
 }
 
+function semanticControlData(beat: MouthCandidateBeat): Record<string, unknown> | undefined {
+  const semantic = beat.semanticRealization;
+  if (!semantic) return undefined;
+
+  return {
+    mechanism: semantic.mechanism,
+    realizationMove: semantic.realizationMove,
+    creativeOpportunity: semantic.creativeOpportunity,
+    evidenceEventIds: semantic.evidenceEventIds,
+    beforeEventIds: semantic.beforeEventIds,
+    afterEventIds: semantic.afterEventIds,
+    callbackEventIds: semantic.callback?.eventIds,
+    callbackRole: semantic.callback?.role,
+    relation: semantic.relation
+      ? {
+          kind: semantic.relation.kind,
+          fromEventId: semantic.relation.fromEventId,
+          toEventId: semantic.relation.toEventId,
+        }
+      : undefined,
+    confidence: semantic.confidence,
+  };
+}
+
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = worldEvidence(input.envelope);
   const beats = input.beats.map((beat) => ({
     order: beat.order,
     supplied: sourceLabels(beat, input.envelope),
-    purpose: clean(beat.attentionFunction || beat.role),
-    meaning: clean(beat.change),
-    semanticRealization: beat.semanticRealization,
+    role: clean(beat.role),
+    creativeMove: clean(beat.creativeMove),
+    controlData: semanticControlData(beat),
+    observerExperience: beat.observerExperience,
     viewerState: beat.viewerState
-      ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) }
+      ? {
+          before: clean(beat.viewerState.beforeState),
+          after: clean(beat.viewerState.afterState),
+          move: clean(beat.viewerState.attentionMove),
+          curiosityPressure: beat.viewerState.curiosityPressure,
+          predictionError: beat.viewerState.predictionError,
+          stateShift: beat.viewerState.stateShift,
+        }
       : undefined,
     next: clean(beat.next),
     relationKinds: beat.relationKinds ?? [],
