@@ -5,6 +5,8 @@
  * quality, and sequence-selection services. These are not viewer prose.
  */
 
+import type { LatentSemanticRealization } from "../experience/latentMovie.js";
+
 export type ViewerStateAttentionMove =
   | "orient"
   | "interrupt"
@@ -55,6 +57,8 @@ export type MouthCandidateBeat = {
   relationKinds?: readonly string[];
   relationStrength?: number;
   viewerState?: ViewerStateCut;
+  /** Canonical graph-derived semantic structure; never viewer prose. */
+  semanticRealization?: LatentSemanticRealization;
   observerExperience?: MouthObserverExperienceObjective;
 };
 
