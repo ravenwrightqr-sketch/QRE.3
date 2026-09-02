@@ -8,6 +8,7 @@ import type {
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { resolveLensPolicy } from "./authorLensPolicy.js";
 import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
+import { evaluateAuthorExperienceCut } from "./authorExperienceCritic.js";
 
 /**
  * ONE PRODUCTION MOUTH.
@@ -216,6 +217,22 @@ function semanticScore(text: string, beat: MouthCandidateBeat, envelope: Reality
   );
 }
 
+function parseExperienceState(value: unknown): { knows: string[]; expects: string[]; wonders: string[]; openQuestions: string[] } {
+  const raw = clean(value);
+  if (!raw) return { knows: [], expects: [], wonders: [], openQuestions: [] };
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      knows: Array.isArray(parsed.knows) ? parsed.knows.map(clean).filter(Boolean) : [],
+      expects: Array.isArray(parsed.expects) ? parsed.expects.map(clean).filter(Boolean) : [],
+      wonders: Array.isArray(parsed.wonders) ? parsed.wonders.map(clean).filter(Boolean) : [],
+      openQuestions: Array.isArray(parsed.openQuestions) ? parsed.openQuestions.map(clean).filter(Boolean) : [],
+    };
+  } catch {
+    return { knows: raw ? [raw] : [], expects: [], wonders: [], openQuestions: [] };
+  }
+}
+
 function candidateScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[]): MouthCandidate {
   const value = clean(text);
   const interpretation = evaluateMouthInterpretation({ text: value, sourceLabels: sourceLabels(beat, envelope), envelope, beat });
@@ -231,30 +248,11 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
   if (forbidden >= 0.9 || explain >= 0.95) {
     return {
-      text: value,
-      beatOrder: beat.order,
-      supportedEventIds: [],
-      supportedRelationPairs: [],
-      groundingScore: 0,
-      meaningScore: 0,
-      observerDiscoveryScore: 0,
-      transitionScore: 0,
-      obligationCoverage: 0,
-      relationContractScore: 0,
-      forbiddenMoveRisk: 1,
-      cohesionScore: 0,
-      noveltyScore: novelty,
-      compressionScore: form,
-      inventionRisk: 1,
-      repetitionRisk: 1 - novelty,
-      collageRisk: 0,
-      endpointExactness: 0,
-      score: 0,
-      reasons: [
-        "unsafe-realization",
-        ...(explain ? ["meaning-explained-instead-of-felt"] : []),
-        ...(interpretation.reasons.includes("premature-temporal-resolution") ? ["premature-temporal-resolution"] : []),
-      ],
+      text: value, beatOrder: beat.order, supportedEventIds: [], supportedRelationPairs: [], groundingScore: 0,
+      meaningScore: 0, observerDiscoveryScore: 0, transitionScore: 0, obligationCoverage: 0, relationContractScore: 0,
+      forbiddenMoveRisk: 1, cohesionScore: 0, noveltyScore: novelty, compressionScore: form, inventionRisk: 1,
+      repetitionRisk: 1 - novelty, collageRisk: 0, endpointExactness: 0, score: 0,
+      reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : []), ...(interpretation.reasons.includes("premature-temporal-resolution") ? ["premature-temporal-resolution"] : [])],
     };
   }
 
@@ -270,8 +268,27 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
   const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
   const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
+
+  const before = parseExperienceState(beat.viewerState?.beforeState);
+  const after = parseExperienceState(beat.viewerState?.afterState);
+  const futureEvidence = after.expects.length || after.openQuestions.length ? [...after.expects, ...after.openQuestions] : [];
+  const experienceCritic = evaluateAuthorExperienceCut({
+    text: value,
+    currentEvidence: labels,
+    futureEvidence,
+    viewerBefore: before,
+    viewerAfter: after,
+    attentionTarget: clean(beat.change || beat.attentionFunction),
+    previousAttentionTarget: clean(beat.viewerState?.beforeState),
+    withheldInformation: futureEvidence,
+    nextPressure: clean(beat.next || beat.frontier),
+    terminal: Boolean(beat.paysOff?.length),
+  });
+
   const score = metric(
-    grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
+    grounding * 0.09 + obligation * 0.08 + meaning * 0.18 + transition * 0.1 + novelty * 0.08 + form * 0.08 +
+    discovery * 0.08 + distinctive * 0.07 + payoff * 0.08 + experienceCritic.addition * 0.06 +
+    experienceCritic.attentionMovement * 0.05 + experienceCritic.curiosity * 0.1 + experienceCritic.score * 0.08 - abstract * 0.12,
   );
 
   const reasons: string[] = [];
@@ -279,6 +296,9 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
   if (grounding >= 0.45) reasons.push("beat-grounded");
   if (baseSemantic >= 0.5) reasons.push("approved-semantic-realization");
+  if (experienceCritic.addition >= 0.45) reasons.push("experience-addition");
+  if (experienceCritic.attentionMovement >= 0.45) reasons.push("experience-attention");
+  if (experienceCritic.curiosity >= 0.45) reasons.push("experience-curiosity");
   if (isFrameOnly(value)) reasons.push("bounded-creative-bet");
   if (distinctive >= 0.64) reasons.push("distinctive-realization");
   if (discovery >= 0.62) reasons.push("observer-discovery");
