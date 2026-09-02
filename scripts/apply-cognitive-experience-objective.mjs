@@ -18,13 +18,18 @@ function importAfter(text, marker, importLine, label) {
   if (text.includes(importLine)) return text;
   return once(text, marker, `${marker}${importLine}\n`, label);
 }
+function replaceBetween(text, start, end, replacement, label) {
+  const a = text.indexOf(start);
+  const b = text.indexOf(end, a + start.length);
+  if (a < 0 || b < 0) throw new Error(`Migration marker missing: ${label}`);
+  return text.slice(0, a) + replacement + text.slice(b);
+}
 
 let cognition = read(cognitionPath);
 let movie = read(moviePath);
 let objective = read(objectivePath);
 let mouth = read(mouthPath);
 
-// Idempotent: do not key migration state off filenames or fragile line endings.
 if (!cognition.includes('from "./authorCognitiveExperienceObjective.js"')) {
   const importMarker = 'import { resolveLensPolicy } from "./authorLensPolicy.js";';
   cognition = importAfter(cognition, `${importMarker}\n`, 'import { buildCognitiveExperienceObjective } from "./authorCognitiveExperienceObjective.js";', "cognition objective import");
@@ -89,8 +94,15 @@ if (!cognition.includes("experienceObjective: experienceObjective")) {
 movie = movie.replaceAll('structures.at(-1)', 'structures[structures.length - 1]');
 movie = movie.replaceAll('graph.events.at(-1)', 'graph.events[graph.events.length - 1]');
 
-if (!objective.includes("function selectExperienceSteps")) {
-  objective = once(objective, 'function buildTrajectory(graph: RealityGraph, movie: LatentMovieCandidate, opportunities: CognitiveExperienceOpportunity[]): CognitiveReadoutObjective[] {\n  const steps = movie.trajectory.filter((step) => step.eventIds.length || clean(step.viewerChange));', `function selectExperienceSteps(
+// Replace the selection policy on every migration run. The old policy asked
+// only whether an event had enough "experiential value". That is not the
+// product objective: every viewer-facing beat must either ADD something,
+// MOVE ATTENTION, or CREATE/PRESERVE CURIOSITY. A fact can stay latent without
+// becoming a cut, but a concrete addition such as "got a bath" must not be
+// discarded merely because it is not anomalous.
+const selectionStart = "function selectExperienceSteps(";
+const selectionEnd = "\nfunction buildTrajectory(";
+const selectionReplacement = `function selectExperienceSteps(
   graph: RealityGraph,
   movie: LatentMovieCandidate,
   opportunities: CognitiveExperienceOpportunity[],
@@ -101,16 +113,37 @@ if (!objective.includes("function selectExperienceSteps")) {
   const selected = new Set<string>();
   const selectedSteps: LatentMovieCandidate["trajectory"] = [];
 
+  const scoreStep = (step: LatentMovieCandidate["trajectory"][number], index: number) => {
+    const opps = step.eventIds.map((id) => byId.get(id)).filter(Boolean) as CognitiveExperienceOpportunity[];
+    if (!opps.length) return { addition: 0, curiosity: 0, attention: 0, value: 0 };
+    const addition = Math.max(...opps.map((opp) =>
+      clamp((opp.specificity * 0.24) + (opp.novelty * 0.18) + (opp.sensoryPotential * 0.14) +
+        (opp.visualPotential * 0.12) + (opp.causalImportance * 0.14) + (opp.surprise * 0.1) + (opp.salience * 0.08)),
+    ));
+    const curiosity = Math.max(...opps.map((opp) =>
+      clamp((opp.surprise * 0.28) + (opp.futurePotential * 0.24) + (opp.recontextualizationPotential * 0.18) +
+        (opp.payoffPotential * 0.16) + (opp.relationshipImportance * 0.08) + (index > 0 && index < source.length - 1 ? 0.06 : 0)),
+    ));
+    const attention = Math.max(...opps.map((opp) =>
+      clamp((opp.salience * 0.22) + (opp.specificity * 0.2) + (opp.surprise * 0.18) +
+        (opp.sensoryPotential * 0.14) + (opp.visualPotential * 0.12) + (opp.causalImportance * 0.14)),
+    ));
+    const value = Math.max(...opps.map((opp) => opp.experientialValue));
+    return { addition, curiosity, attention, value };
+  };
+
   source[0].eventIds.forEach((id) => selected.add(id));
   source[source.length - 1].eventIds.forEach((id) => selected.add(id));
 
-  for (const step of source) {
-    const ids = step.eventIds ?? [];
-    const score = ids.reduce((max, id) => Math.max(max, byId.get(id)?.experientialValue ?? 0), 0);
-    const dispositions = ids.map((id) => byId.get(id)?.disposition).filter(Boolean);
+  for (let index = 1; index < source.length - 1; index += 1) {
+    const step = source[index];
+    const scored = scoreStep(step, index);
     const structural = /reframe|contrast|consequence|converge|escalate|recur/i.test(clean(step.operation));
-    if (score >= 0.48 || dispositions.some((item) => item === "primary" || item === "setup" || item === "payoff") || structural) {
-      ids.forEach((id) => selected.add(id));
+    // ADDITION is the first-class gate. Curiosity and attention are independent
+    // reasons to keep a moment even when it is not a dramatic anomaly.
+    if (scored.addition >= 0.34 || scored.curiosity >= 0.34 || scored.attention >= 0.34 ||
+        scored.value >= 0.48 || structural) {
+      step.eventIds.forEach((id) => selected.add(id));
     }
   }
 
@@ -118,11 +151,8 @@ if (!objective.includes("function selectExperienceSteps")) {
     if (step.eventIds.some((id) => selected.has(id))) selectedSteps.push({ ...step, eventIds: [...step.eventIds] });
   }
   return selectedSteps.length >= 2 ? selectedSteps : [source[0], source[source.length - 1]];
-}
-
-function buildTrajectory(graph: RealityGraph, movie: LatentMovieCandidate, opportunities: CognitiveExperienceOpportunity[]): CognitiveReadoutObjective[] {
-  const steps = selectExperienceSteps(graph, movie, opportunities);`, "experience trajectory selection");
-}
+}`;
+objective = replaceBetween(objective, selectionStart, selectionEnd, selectionReplacement, "experience trajectory selection");
 
 if (!mouth.includes('authorExperienceCritic.js')) {
   mouth = importAfter(
@@ -157,7 +187,7 @@ if (!mouth.includes('experience-quality-failed')) {
   }
 
   if (forbidden >= 0.9 || explain >= 0.95) {
-`, "mouth experience hard gate");
+`, "experience quality gate");
 }
 
 write(cognitionPath, cognition);
@@ -167,9 +197,8 @@ write(mouthPath, mouth);
 
 console.log("COGNITIVE EXPERIENCE OBJECTIVE + CRITIC WIRED");
 console.log("- Cognition owns experience opportunities, viewer trajectory, reveal and withholding");
-console.log("- viewer-facing readout count is selected, not source-event-count driven");
+console.log("- viewer-facing moments are selected by ADDITION + ATTENTION + CURIOSITY, not event count");
 console.log("- RealityGraph remains immutable source truth");
-console.log("- canonical Mouth now has a hard experience-quality gate");
-console.log("- low-grounding / low-information / abstraction-heavy cuts can no longer pass structural green checks");
+console.log("- canonical Mouth has an experience-quality gate");
 console.log("- future evidence remains reserved for later cuts");
 console.log("- Array.at compatibility fixed");
