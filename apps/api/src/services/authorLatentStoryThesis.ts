@@ -20,6 +20,7 @@ import {
   deriveSequenceBackedCreativeInterpretations,
   type CreativeInterpretation,
 } from "./authorCreativeInterpretation.js";
+import { deriveSatanicoObserverObjective } from "./authorSatanicoInference.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -156,7 +157,9 @@ function buildInitialReading(candidate: LatentMovieCandidate): string {
 
 function buildObserverExperienceObjective(
   interpretation: CreativeInterpretation | undefined,
+  satanicoObjective?: ObserverExperienceObjective,
 ): ObserverExperienceObjective | undefined {
+  if (satanicoObjective) return satanicoObjective;
   if (!interpretation) return undefined;
   const byMechanism: Record<string, ObserverExperienceObjective> = {
     recurrence: {
@@ -285,6 +288,7 @@ export function deriveLatentStoryThesis(
   const interpretation = strongestInterpretation(candidate, interpretations);
   const fallbackRelation = strongestRelation(graph, candidate);
   const endpoint = endpointId(candidate);
+  const satanicoObjective = deriveSatanicoObserverObjective(graph, candidate);
 
   const beforeId = interpretation?.beforeEventIds[0] ?? fallbackRelation?.from ?? "";
   const afterId = interpretation?.afterEventIds[0] ?? fallbackRelation?.to ?? endpoint;
@@ -324,6 +328,9 @@ export function deriveLatentStoryThesis(
     counterfactualDependency: interpretation
       ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length))
       : 0,
-    observerExperience: buildObserverExperienceObjective(interpretation),
+    observerExperience: buildObserverExperienceObjective(
+      interpretation,
+      satanicoObjective,
+    ),
   };
 }
