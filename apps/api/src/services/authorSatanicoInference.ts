@@ -15,6 +15,66 @@ function candidateCoverage(ids: readonly string[], opportunity: SatanicoInferenc
   return metric(opportunity.ids.filter((id) => source.has(id)).length / opportunity.ids.length);
 }
 
+function eventLabel(graph: RealityGraph, id: string): string {
+  return clean(graph.events.find((event) => event.id === id)?.label);
+}
+
+function eventStructure(graph: RealityGraph, id: string) {
+  return graph.eventStructure?.find((item) => item.eventId === id);
+}
+
+function environmentalOrbitPotential(graph: RealityGraph, ids: readonly string[]): number {
+  if (!ids.length) return 0;
+
+  const objects = new Set<string>();
+  const actions = new Set<string>();
+  const tags = new Set<string>();
+  let multiEntityEvents = 0;
+
+  for (const id of ids) {
+    const event = graph.events.find((item) => item.id === id);
+    const structure = eventStructure(graph, id);
+    for (const value of structure?.objects ?? []) objects.add(clean(value).toLowerCase());
+    for (const value of structure?.actions ?? []) actions.add(clean(value).toLowerCase());
+    for (const value of structure?.semanticTags ?? []) tags.add(clean(value).toLowerCase());
+    if ((event?.entities?.length ?? 0) > 1) multiEntityEvents += 1;
+  }
+
+  const objectDiversity = metric(objects.size / Math.max(1, ids.length * 1.5));
+  const actionDiversity = metric(actions.size / Math.max(1, ids.length * 1.5));
+  const tagDiversity = metric(tags.size / Math.max(1, ids.length * 2));
+  const multiEntity = metric(multiEntityEvents / ids.length);
+  return metric(objectDiversity * 0.38 + actionDiversity * 0.24 + tagDiversity * 0.16 + multiEntity * 0.22);
+}
+
+function humanSpinePotential(graph: RealityGraph, candidate: LatentMovieCandidate): number {
+  const ids = candidateIds(candidate);
+  if (!ids.length) return 0;
+
+  const labels = ids.map((id) => eventLabel(graph, id));
+  const sourceBacked = labels.filter(Boolean).length / ids.length;
+  const explicitActors = ids.filter((id) => (graph.events.find((event) => event.id === id)?.entities?.length ?? 0) > 0).length / ids.length;
+  const relational = graph.relations.filter((relation) => ids.includes(relation.from) && ids.includes(relation.to)).length;
+  return metric(sourceBacked * 0.45 + explicitActors * 0.25 + Math.min(1, relational / Math.max(1, ids.length - 1)) * 0.3);
+}
+
+function relationshipDiversity(graph: RealityGraph, opportunity: SatanicoInferenceOpportunity): number {
+  if (opportunity.ids.length < 2) return 0;
+  const kinds = new Set<string>();
+  for (let i = 0; i < opportunity.ids.length; i += 1) {
+    for (let j = i + 1; j < opportunity.ids.length; j += 1) {
+      const relation = graph.relations.find(
+        (item) =>
+          ((item.from === opportunity.ids[i] && item.to === opportunity.ids[j]) ||
+            (item.from === opportunity.ids[j] && item.to === opportunity.ids[i])) &&
+          item.strength > 0.35,
+      );
+      if (relation) kinds.add(relation.kind);
+    }
+  }
+  return metric(kinds.size / 4);
+}
+
 function relevance(candidate: LatentMovieCandidate, opportunity: SatanicoInferenceOpportunity): number {
   const ids = candidateIds(candidate);
   const coverage = candidateCoverage(ids, opportunity);
@@ -36,23 +96,30 @@ function temporalSpread(graph: RealityGraph, opportunity: SatanicoInferenceOppor
 function relationshipAmbiguity(graph: RealityGraph, opportunity: SatanicoInferenceOpportunity): number {
   const relations = graph.relations.filter((relation) => opportunity.ids.includes(relation.from) && opportunity.ids.includes(relation.to));
   const kinds = new Set(relations.map((relation) => relation.kind));
-  const labelCount = new Set(opportunity.ids.map((id) => clean(graph.events.find((event) => event.id === id)?.label).toLowerCase())).size;
-  const labelDiversity = labelCount / Math.max(1, opportunity.ids.length);
-  return metric(Math.min(1, kinds.size / 4) * 0.58 + labelDiversity * 0.2 + (opportunity.kind === "heterogeneous_convergence" ? 0.22 : 0));
+  const labels = opportunity.ids.map((id) => eventLabel(graph, id).toLowerCase()).filter(Boolean);
+  const labelDiversity = new Set(labels).size / Math.max(1, labels.length);
+  return metric(
+    Math.min(1, kinds.size / 4) * 0.5 +
+      labelDiversity * 0.18 +
+      relationshipDiversity(graph, opportunity) * 0.12 +
+      (opportunity.kind === "heterogeneous_convergence" ? 0.2 : 0),
+  );
 }
 
 function delayedValue(graph: RealityGraph, opportunity: SatanicoInferenceOpportunity): number {
   const spread = temporalSpread(graph, opportunity);
   const relations = graph.relations.filter((relation) => opportunity.ids.includes(relation.from) && opportunity.ids.includes(relation.to));
   const diversity = Math.min(1, new Set(relations.map((relation) => relation.kind)).size / 3);
-  const naturallyDelayed = ["callback", "invariant", "origin_outcome"].includes(opportunity.kind) ? 0.18 : 0.08;
-  return metric(spread * 0.52 + diversity * 0.3 + naturallyDelayed);
+  const naturallyDelayed = ["callback", "invariant", "origin_outcome"].includes(opportunity.kind) ? 0.22 : 0.08;
+  return metric(spread * 0.5 + diversity * 0.28 + naturallyDelayed);
 }
 
 function explanationRisk(candidate: LatentMovieCandidate): number {
   const text = candidate.trajectory.map((step) => `${step.viewerChange} ${step.nextQuestion}`).join(" ");
-  const explicitConclusion = /\b(?:obviously|therefore|the point is|this proves|means that|is really|lesson|moral|has a type|playboy)\b/i.test(`${text} ${candidate.hypothesis.join(" ")}`);
-  return metric((explicitConclusion ? 0.5 : 0) + (candidate.truthRisk ?? 0) * 0.28 + (candidate.repetitionRisk ?? 0) * 0.12);
+  const explicitConclusion = /\b(?:obviously|therefore|the point is|this proves|means that|is really|lesson|moral|has a type|playboy|because of this|in other words)\b/i.test(
+    `${text} ${candidate.hypothesis.join(" ")}`,
+  );
+  return metric((explicitConclusion ? 0.62 : 0) + (candidate.truthRisk ?? 0) * 0.22 + (candidate.repetitionRisk ?? 0) * 0.1);
 }
 
 function scoreOpportunity(graph: RealityGraph, candidate: LatentMovieCandidate, opportunity: SatanicoInferenceOpportunity): number {
@@ -62,23 +129,25 @@ function scoreOpportunity(graph: RealityGraph, candidate: LatentMovieCandidate, 
   const efficiency = metric(1.8 / Math.max(2, opportunity.ids.length));
   const support = metric(opportunity.anchorIds.length / Math.max(1, opportunity.ids.length));
   return metric(
-    opportunity.score * 0.4 +
-    groundedRelevance * 0.25 +
-    delayed * 0.14 +
-    ambiguity * 0.1 +
-    efficiency * 0.06 +
-    support * 0.05,
+    opportunity.score * 0.34 +
+      groundedRelevance * 0.24 +
+      delayed * 0.14 +
+      ambiguity * 0.12 +
+      efficiency * 0.07 +
+      support * 0.05 +
+      relationshipDiversity(graph, opportunity) * 0.04,
   );
 }
 
 /**
- * Satanico's core objective:
- * find grounded meaning that a human can infer without QRE explicitly stating
- * the conclusion.
+ * Satanico is the universal latent-inference authority.
  *
- * Relationship families are search mechanisms. They are not the definition of
- * intelligence. The winning score comes from the latent inference opportunity
- * they expose inside the immutable RealityGraph.
+ * It searches immutable RealityGraph evidence for structures that allow a
+ * viewer to discover a relationship, implication, transformation, callback,
+ * role, or convergence without Author stating the answer.
+ *
+ * Crucially, Satanico is allowed to prefer the native structure of reality over
+ * a genre lens. A lens is a way of seeing; it is never the source of the read.
  */
 export function scoreSatanicoObserverInference(graph: RealityGraph, candidate: LatentMovieCandidate): number {
   const ids = candidateIds(candidate);
@@ -92,26 +161,42 @@ export function scoreSatanicoObserverInference(graph: RealityGraph, candidate: L
   const strongest = ranked[0] ?? 0;
   const second = ranked[1] ?? 0;
   const third = ranked[2] ?? 0;
-  const competition = metric(strongest * 0.6 + second * 0.25 + third * 0.15);
+  const competition = metric(strongest * 0.56 + second * 0.28 + third * 0.16);
+  const orbit = environmentalOrbitPotential(graph, ids);
+  const spine = humanSpinePotential(graph, candidate);
+  const candidateSpan = temporalSpread(graph, {
+    kind: "heterogeneous_convergence",
+    ids,
+    anchorIds: ids.slice(0, 2),
+    supportIds: ids.slice(2),
+    score: 0,
+  });
   const unresolvedSpace = metric(
-    (candidate.uncertainty ?? 0) * 0.34 +
-    (candidate.callbackPotential ?? 0) * 0.18 +
-    Math.min(1, opportunities.length / 10) * 0.12 +
-    competition * 0.2 +
-    (candidate.distinctiveness ?? 0) * 0.16,
+    (candidate.uncertainty ?? 0) * 0.28 +
+      (candidate.callbackPotential ?? 0) * 0.16 +
+      Math.min(1, opportunities.length / 10) * 0.1 +
+      competition * 0.18 +
+      (candidate.distinctiveness ?? 0) * 0.12 +
+      candidateSpan * 0.08 +
+      orbit * 0.08,
+  );
+  const directnessBonus = metric(
+    Math.max(0, 1 - (candidate.lens && candidate.lens.toUpperCase() !== "NONE" ? 0.08 : 0)),
   );
   const risk = explanationRisk(candidate);
 
   return metric(
-    strongest * 0.48 +
-    competition * 0.15 +
-    unresolvedSpace * 0.15 +
-    (candidate.novelty ?? 0) * 0.05 +
-    (candidate.informationValue ?? 0) * 0.05 +
-    (candidate.consequencePotential ?? 0) * 0.04 +
-    (candidate.specificity ?? 0) * 0.05 +
-    (candidate.truthRisk <= 0.18 ? 0.03 : 0) -
-    risk * 0.18,
+    strongest * 0.38 +
+      competition * 0.13 +
+      unresolvedSpace * 0.14 +
+      spine * 0.08 +
+      orbit * 0.05 +
+      (candidate.novelty ?? 0) * 0.04 +
+      (candidate.informationValue ?? 0) * 0.04 +
+      (candidate.consequencePotential ?? 0) * 0.04 +
+      (candidate.specificity ?? 0) * 0.04 +
+      directnessBonus * 0.02 -
+      risk * 0.2,
   );
 }
 
@@ -198,5 +283,18 @@ export function deriveSatanicoObserverObjective(graph: RealityGraph, candidate: 
     .sort((a, b) => b.score - a.score)[0];
   if (!strongest || strongest.score < 0.5) return undefined;
   const subject = clean(graph.entityContinuity?.slice().sort((a, b) => b.salienceScore - a.salienceScore)[0]?.name) || "the subject";
-  return objectiveFor(strongest.item.kind, subject);
+  const objective = objectiveFor(strongest.item.kind, subject);
+  const hasEnvironment = environmentalOrbitPotential(graph, candidateIds(candidate)) >= 0.58;
+  if (!hasEnvironment) return objective;
+
+  return {
+    ...objective,
+    objective: `${objective.objective} The surrounding world may carry secondary environmental attention without changing the human spine or asserting new supplied facts.`,
+    curiosity: `${objective.curiosity} Environmental details may become strange, recurring, spatially displaced, or tonally charged only as an explicit perceptual treatment.`,
+    attention: [
+      ...objective.attention,
+      "preserve the human spine while permitting the surrounding environment to carry secondary attention",
+      "never require the human subject to react to a perceptual/environmental disturbance",
+    ],
+  };
 }
