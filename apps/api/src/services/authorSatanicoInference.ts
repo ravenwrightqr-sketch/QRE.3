@@ -4,572 +4,349 @@ import type {
   RealityGraph,
 } from "@qre/contracts";
 
-const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
-
-const metric = (value: number): number =>
-  Number(
-    Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3),
-  );
-
-const unique = (values: readonly string[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
 const PREFERENCE = /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|into)\b/i;
-const CONTRAST = /\b(?:but|yet|although|instead|rather|except|while|however|still)\b/i;
+const CONTRAST = /\b(?:but|yet|although|instead|rather|except|while|however|still|despite)\b/i;
 const CONTINUATION = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|kept|continued|still|until|later|anniversary|years?)\b/i;
 const EXPECTATION = /\b(?:didn'?t|did not|never)\s+(?:expect|plan|think|assume)|\b(?:unexpected|surpris(?:e|ed|ing)|unplanned|unlike\s+expected)\b/i;
-const NEGATIVE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable)\b/i;
-const POSITIVE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper|beautiful|handsome)\b/i;
-const FIRST = /\b(?:first|initial|began|started|opening|origin|once|one)\b/i;
-const SUCCESS = /\b(?:best[- ]seller|best seller|popular|success|took off|sold out|hit|favorite|favourite|biggest|most)\b/i;
+const NEGATIVE = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|hesitant|uncertain)\b/i;
+const POSITIVE = /\b(?:happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|content|fierce|cool|ready|sharp|dapper|beautiful|handsome|joyful)\b/i;
+const FIRST = /\b(?:first|initial|began|started|opening|origin|once|one|early)\b/i;
+const SUCCESS = /\b(?:best[- ]seller|best seller|popular|success|took off|sold out|hit|favorite|favourite|biggest|most|grew|growth)\b/i;
 
-function event(graph: RealityGraph, id: string) {
-  return graph.events.find((item) => item.id === id);
-}
-
-function labelFor(graph: RealityGraph, id: string): string {
-  return clean(event(graph, id)?.label);
-}
-
-function structureFor(graph: RealityGraph, id: string) {
-  return graph.eventStructure?.find((item) => item.eventId === id);
-}
+function event(graph: RealityGraph, id: string) { return graph.events.find((item) => item.id === id); }
+function labelFor(graph: RealityGraph, id: string): string { return clean(event(graph, id)?.label); }
+function structureFor(graph: RealityGraph, id: string) { return graph.eventStructure?.find((item) => item.eventId === id); }
 
 function subjectName(graph: RealityGraph): string {
-  return clean(
-    [...(graph.entityContinuity ?? [])]
-      .sort((a, b) => b.salienceScore - a.salienceScore)[0]?.name,
-  );
+  return clean([...(graph.entityContinuity ?? [])].sort((a, b) => b.salienceScore - a.salienceScore)[0]?.name);
 }
 
-function orderedIds(candidate: LatentMovieCandidate): string[] {
-  return unique(candidate.trajectory.flatMap((step) => step.eventIds));
-}
-
-function subjectMention(label: string, subject: string): boolean {
-  return Boolean(subject) && label.toLowerCase().includes(subject.toLowerCase());
-}
+function orderedIds(candidate: LatentMovieCandidate): string[] { return unique(candidate.trajectory.flatMap((step) => step.eventIds)); }
+function subjectMention(label: string, subject: string): boolean { return Boolean(subject) && label.toLowerCase().includes(subject.toLowerCase()); }
 
 function tokenSet(value: string): Set<string> {
-  return new Set(
-    clean(value)
-      .toLowerCase()
-      .replace(/[^a-z0-9'’-]+/g, " ")
-      .split(/\s+/)
-      .filter((token) => token.length >= 3),
-  );
+  return new Set(clean(value).toLowerCase().replace(/[^a-z0-9'’-]+/g, " ").split(/\s+/).filter((token) => token.length >= 3));
 }
 
 function sharedTokens(left: string, right: string): number {
-  const a = tokenSet(left);
-  const b = tokenSet(right);
+  const a = tokenSet(left); const b = tokenSet(right);
   if (!a.size || !b.size) return 0;
-  let shared = 0;
-  for (const token of a) if (b.has(token)) shared += 1;
+  let shared = 0; for (const token of a) if (b.has(token)) shared += 1;
   return shared / Math.max(1, Math.min(a.size, b.size));
 }
 
-/** Prefer graph-extracted objects so the detector stays domain-neutral. */
 function objectMentions(graph: RealityGraph, id: string): string[] {
-  return unique(
-    structureFor(graph, id)?.objects ?? [],
-  ).map((value) => clean(value).toLowerCase());
+  return unique(structureFor(graph, id)?.objects ?? []).map((value) => clean(value).toLowerCase());
+}
+function actionMentions(graph: RealityGraph, id: string): string[] {
+  return unique(structureFor(graph, id)?.actions ?? []).map((value) => clean(value).toLowerCase());
+}
+function stateMentions(graph: RealityGraph, id: string): string[] {
+  const structure = structureFor(graph, id);
+  return unique([...(structure?.states ?? []), clean(event(graph, id)?.emotionalState)]).map((value) => value.toLowerCase());
+}
+function semanticTags(graph: RealityGraph, id: string): string[] {
+  return unique(structureFor(graph, id)?.semanticTags ?? []).map((value) => value.toLowerCase());
+}
+
+function relationBetween(graph: RealityGraph, left: string, right: string) {
+  return graph.relations
+    .filter((relation) => (relation.from === left && relation.to === right) || (relation.from === right && relation.to === left))
+    .sort((a, b) => b.strength - a.strength)[0];
+}
+
+function structuralRelation(relation: ReturnType<typeof relationBetween>): boolean {
+  return Boolean(relation && ["repeats", "recontextualizes", "contrasts", "changes", "causes", "converges"].includes(relation.kind));
 }
 
 function pairSpan(ids: readonly string[], selected: readonly string[]): number {
-  const positions = selected
-    .map((id) => ids.indexOf(id))
-    .filter((index) => index >= 0);
+  const positions = selected.map((id) => ids.indexOf(id)).filter((index) => index >= 0);
   if (positions.length < 2 || ids.length < 2) return 0;
-  return metric(
-    (Math.max(...positions) - Math.min(...positions)) /
-      Math.max(1, ids.length - 1),
-  );
+  return metric((Math.max(...positions) - Math.min(...positions)) / Math.max(1, ids.length - 1));
 }
 
-function preferenceConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { labels: string[]; score: number } | undefined {
-  const ids = orderedIds(candidate);
-  const subject = subjectName(graph);
-  const preferenceLabels = ids
-    .map((id) => labelFor(graph, id))
-    .filter((label) => PREFERENCE.test(label));
-  if (preferenceLabels.length < 2) return undefined;
-
-  const subjectHits = subject
-    ? preferenceLabels.filter((label) => subjectMention(label, subject)).length
-    : 0;
-  const variety = new Set(
-    preferenceLabels
-      .map((label) =>
-        label
-          .toLowerCase()
-          .replace(/\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|into)\b/gi, "")
-          .trim(),
-      )
-      .filter(Boolean),
-  ).size;
-
-  return {
-    labels: preferenceLabels,
-    score: metric(
-      Math.min(1, preferenceLabels.length / 4) * 0.52 +
-        Math.min(1, variety / 3) * 0.3 +
-        (subjectHits ? 0.18 : 0),
-    ),
-  };
-}
-
-function callbackConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { detail: string; score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: { detail: string; score: number } | undefined;
-
+function graphConnectivity(graph: RealityGraph, ids: readonly string[]): number {
+  if (ids.length < 2) return 0;
+  let weighted = 0; let opportunities = 0;
   for (let i = 0; i < ids.length; i += 1) {
-    const earlierObjects = objectMentions(graph, ids[i]!);
-    if (!earlierObjects.length) continue;
-
     for (let j = i + 1; j < ids.length; j += 1) {
-      const laterObjects = objectMentions(graph, ids[j]!);
-      const shared = earlierObjects.filter((object) => laterObjects.includes(object));
-      if (!shared.length) continue;
+      opportunities += 1;
+      const relation = relationBetween(graph, ids[i]!, ids[j]!);
+      weighted += relation ? relation.strength : sharedTokens(labelFor(graph, ids[i]!), labelFor(graph, ids[j]!)) * 0.22;
+    }
+  }
+  return metric(weighted / Math.max(1, opportunities));
+}
 
-      const relation = graph.relations.find(
-        (item) =>
-          ((item.from === ids[i] && item.to === ids[j]) ||
-            (item.from === ids[j] && item.to === ids[i])) &&
-          ["repeats", "recontextualizes"].includes(item.kind),
-      );
-      const explicit =
-        CONTINUATION.test(labelFor(graph, ids[j]!)) ||
-        /\b(?:same|remembered)\b/i.test(labelFor(graph, ids[j]!));
-      const spread = pairSpan(ids, [ids[i]!, ids[j]!]);
-      const score =
-        (relation ? 0.72 + Math.min(0.16, relation.strength * 0.16) : 0.5) +
-        (explicit ? 0.12 : 0) +
-        spread * 0.08;
+function preferenceConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { labels: string[]; score: number } | undefined {
+  const ids = orderedIds(candidate); const subject = subjectName(graph);
+  const labels = ids.map((id) => labelFor(graph, id)).filter((label) => PREFERENCE.test(label));
+  if (labels.length < 2) return undefined;
+  const targets = new Set<string>(); for (const id of ids) for (const object of objectMentions(graph, id)) targets.add(object);
+  const variety = new Set(labels.map((label) => label.toLowerCase().replace(PREFERENCE, "").trim()).filter(Boolean)).size;
+  const subjectHits = subject ? labels.filter((label) => subjectMention(label, subject)).length : 0;
+  return { labels, score: metric(Math.min(1, labels.length / 4) * 0.4 + Math.min(1, variety / 3) * 0.22 + Math.min(1, targets.size / 4) * 0.2 + (subjectHits ? 0.18 : 0)) };
+}
 
+function callbackConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { detail: string; score: number } | undefined {
+  const ids = orderedIds(candidate); let best: { detail: string; score: number } | undefined;
+  for (let i = 0; i < ids.length; i += 1) {
+    const earlier = [...objectMentions(graph, ids[i]!), ...actionMentions(graph, ids[i]!)]; if (!earlier.length) continue;
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const later = [...objectMentions(graph, ids[j]!), ...actionMentions(graph, ids[j]!)];
+      const shared = earlier.filter((value) => later.includes(value)); if (!shared.length) continue;
+      const relation = relationBetween(graph, ids[i]!, ids[j]!);
+      const explicit = CONTINUATION.test(labelFor(graph, ids[j]!)) || /\b(?:same|remembered)\b/i.test(labelFor(graph, ids[j]!));
+      const score = metric((relation ? 0.68 + relation.strength * 0.18 : 0.46) + (explicit ? 0.14 : 0) + pairSpan(ids, [ids[i]!, ids[j]!] ) * 0.08);
       if (!best || score > best.score) best = { detail: shared[0]!, score };
     }
   }
-
   return best;
 }
 
-function invariantConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { detail: string; score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: { detail: string; score: number } | undefined;
-
+function invariantConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { detail: string; score: number } | undefined {
+  const ids = orderedIds(candidate); let best: { detail: string; score: number } | undefined;
   for (let i = 0; i < ids.length; i += 1) {
-    const earlierObjects = objectMentions(graph, ids[i]!);
-    if (!earlierObjects.length) continue;
-
-    for (let j = i + 1; j < ids.length; j += 1) {
-      const laterObjects = objectMentions(graph, ids[j]!);
-      const shared = earlierObjects.filter((object) => laterObjects.includes(object));
-      if (!shared.length) continue;
-
-      const middle = ids.slice(i + 1, j);
-      const changedMiddle = middle.filter((id) => {
-        const structure = structureFor(graph, id);
-        return Boolean(
-          structure?.actions.length ||
-          structure?.states.length ||
-          (structure?.transitionScore ?? 0) >= 0.55,
-        );
-      }).length;
+    const earlier = new Set([...objectMentions(graph, ids[i]!), ...actionMentions(graph, ids[i]!), ...semanticTags(graph, ids[i]!)]); if (!earlier.size) continue;
+    for (let j = i + 2; j < ids.length; j += 1) {
+      const later = new Set([...objectMentions(graph, ids[j]!), ...actionMentions(graph, ids[j]!), ...semanticTags(graph, ids[j]!)]);
+      const shared = [...earlier].filter((value) => later.has(value)); if (!shared.length) continue;
+      const changedMiddle = ids.slice(i + 1, j).filter((id) => stateMentions(graph, id).length || actionMentions(graph, id).length || (structureFor(graph, id)?.transitionScore ?? 0) >= 0.45).length;
       if (!changedMiddle) continue;
-
-      const relation = graph.relations.find(
-        (item) =>
-          ((item.from === ids[i] && item.to === ids[j]) ||
-            (item.from === ids[j] && item.to === ids[i])) &&
-          ["repeats", "recontextualizes", "changes"].includes(item.kind),
-      );
-
-      const score =
-        0.54 +
-        Math.min(0.2, changedMiddle * 0.05) +
-        pairSpan(ids, [ids[i]!, ids[j]!]) * 0.12 +
-        (relation ? 0.12 + relation.strength * 0.08 : 0);
-
+      const relation = relationBetween(graph, ids[i]!, ids[j]!);
+      const score = metric(0.48 + Math.min(0.2, changedMiddle * 0.055) + pairSpan(ids, [ids[i]!, ids[j]!] ) * 0.14 + (relation && structuralRelation(relation) ? 0.14 + relation.strength * 0.08 : 0));
       if (!best || score > best.score) best = { detail: shared[0]!, score };
     }
   }
-
   return best;
 }
 
-function originSuccessConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { detail: string; score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: { detail: string; score: number } | undefined;
-
+function originSuccessConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { detail: string; score: number } | undefined {
+  const ids = orderedIds(candidate); let best: { detail: string; score: number } | undefined;
   for (let i = 0; i < ids.length; i += 1) {
-    const first = labelFor(graph, ids[i]!);
-    if (!FIRST.test(first)) continue;
-
+    const first = labelFor(graph, ids[i]!); if (!FIRST.test(first)) continue;
     const firstObjects = objectMentions(graph, ids[i]!);
     for (let j = i + 1; j < ids.length; j += 1) {
-      const later = labelFor(graph, ids[j]!);
-      if (!SUCCESS.test(later)) continue;
-
-      const laterObjects = objectMentions(graph, ids[j]!);
-      const shared = firstObjects.filter((object) => laterObjects.includes(object));
-      const semanticLink = shared.length ? 1 : sharedTokens(first, later);
-      if (semanticLink < 0.18) continue;
-
-      const score =
-        0.68 +
-        Math.min(0.18, pairSpan(ids, [ids[i]!, ids[j]!] ) * 0.18) +
-        (shared.length ? 0.1 : semanticLink * 0.08);
-
-      if (!best || score > best.score) {
-        best = { detail: shared[0] ?? "the same supplied thread", score };
-      }
+      const later = labelFor(graph, ids[j]!); if (!SUCCESS.test(later)) continue;
+      const shared = firstObjects.filter((object) => objectMentions(graph, ids[j]!).includes(object));
+      const semanticLink = shared.length ? 1 : sharedTokens(first, later); if (semanticLink < 0.15) continue;
+      const score = metric(0.62 + pairSpan(ids, [ids[i]!, ids[j]!] ) * 0.2 + (shared.length ? 0.12 : semanticLink * 0.08));
+      if (!best || score > best.score) best = { detail: shared[0] ?? "the early supplied thread", score };
     }
   }
-
   return best;
 }
 
-function stateChangeConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { from: string; to: string; score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: { from: string; to: string; score: number } | undefined;
-
+function stateChangeConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { from: string; to: string; score: number } | undefined {
+  const ids = orderedIds(candidate); let best: { from: string; to: string; score: number } | undefined;
   for (let i = 0; i < ids.length; i += 1) {
-    const from = labelFor(graph, ids[i]!);
-    const fromNeg = NEGATIVE.test(from);
-    const fromPos = POSITIVE.test(from);
-    if (!fromNeg && !fromPos) continue;
-
+    const from = stateMentions(graph, ids[i]!); if (!from.length) continue;
     for (let j = i + 1; j < ids.length; j += 1) {
-      const to = labelFor(graph, ids[j]!);
-      const toNeg = NEGATIVE.test(to);
-      const toPos = POSITIVE.test(to);
-      if ((!toNeg && !toPos) || from.toLowerCase() === to.toLowerCase()) continue;
-
-      const polarity = fromNeg && toPos ? 1 : fromPos && toNeg ? 0.94 : 0.72;
-      const explicitShift = /\b(?:became|changed|now|felt|looks|looked)\b/i.test(to) ? 0.1 : 0;
-      const score = polarity * 0.78 + explicitShift + pairSpan(ids, [ids[i]!, ids[j]!]) * 0.12;
-      if (!best || score > best.score) best = { from, to, score };
+      const to = stateMentions(graph, ids[j]!); if (!to.length) continue;
+      const fromLabel = labelFor(graph, ids[i]!); const toLabel = labelFor(graph, ids[j]!);
+      const fromNeg = NEGATIVE.test(fromLabel); const fromPos = POSITIVE.test(fromLabel); const toNeg = NEGATIVE.test(toLabel); const toPos = POSITIVE.test(toLabel);
+      if ((!fromNeg && !fromPos) || (!toNeg && !toPos)) continue;
+      const polarity = fromNeg && toPos ? 1 : fromPos && toNeg ? 0.94 : fromNeg !== toNeg ? 0.84 : 0.62;
+      const relation = relationBetween(graph, ids[i]!, ids[j]!);
+      const score = metric(polarity * 0.72 + pairSpan(ids, [ids[i]!, ids[j]!] ) * 0.14 + (relation?.kind === "changes" || relation?.kind === "recontextualizes" ? relation.strength * 0.14 : 0));
+      if (!best || score > best.score) best = { from: from[0]!, to: to[0]!, score };
     }
   }
-
   return best;
 }
 
-function contrastConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: number | undefined;
-
+function contrastConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { score: number } | undefined {
+  const ids = orderedIds(candidate); let best: number | undefined;
   for (let i = 0; i < ids.length - 1; i += 1) {
-    const left = labelFor(graph, ids[i]!);
-    const right = labelFor(graph, ids[i + 1]!);
-    const relation = graph.relations.find(
-      (item) =>
-        ((item.from === ids[i] && item.to === ids[i + 1]) ||
-          (item.from === ids[i + 1] && item.to === ids[i])) &&
-        item.kind === "contrasts",
-    );
-    const explicit = CONTRAST.test(right) || CONTRAST.test(left) || EXPECTATION.test(right);
-    const semantic = sharedTokens(left, right);
-    const score =
-      (relation ? 0.8 + relation.strength * 0.2 : 0.42) +
-      (explicit ? 0.12 : 0) +
-      semantic * 0.08;
+    const left = labelFor(graph, ids[i]!); const right = labelFor(graph, ids[i + 1]!); const relation = relationBetween(graph, ids[i]!, ids[i + 1]!);
+    const explicit = CONTRAST.test(left) || CONTRAST.test(right) || EXPECTATION.test(right);
+    const score = metric((relation?.kind === "contrasts" ? 0.82 + relation.strength * 0.18 : 0.4) + (explicit ? 0.14 : 0) + sharedTokens(left, right) * 0.06);
     if (best === undefined || score > best) best = score;
   }
-
-  return best === undefined ? undefined : { score: metric(best) };
+  return best === undefined ? undefined : { score: best };
 }
 
-function convergenceConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { score: number } | undefined {
-  const ids = orderedIds(candidate);
-  let best: number | undefined;
-
-  for (let i = 0; i < ids.length; i += 1) {
+function convergenceConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { score: number } | undefined {
+  const ids = orderedIds(candidate); let best: number | undefined;
+  for (const anchor of ids) {
     let connections = 0;
-    for (let j = 0; j < ids.length; j += 1) {
-      if (i === j) continue;
-      const relation = graph.relations.find(
-        (item) =>
-          ((item.from === ids[i] && item.to === ids[j]) ||
-            (item.from === ids[j] && item.to === ids[i])) &&
-          ["converges", "causes", "changes", "recontextualizes"].includes(item.kind),
-      );
-      if (relation) connections += relation.strength;
-      else connections += sharedTokens(labelFor(graph, ids[i]!), labelFor(graph, ids[j]!)) * 0.35;
+    for (const other of ids) {
+      if (anchor === other) continue;
+      const relation = relationBetween(graph, anchor, other);
+      connections += relation ? relation.strength : sharedTokens(labelFor(graph, anchor), labelFor(graph, other)) * 0.32;
     }
-
-    const score = connections / Math.max(1, ids.length - 1);
-    if (best === undefined || score > best) best = score;
+    const score = connections / Math.max(1, ids.length - 1); if (best === undefined || score > best) best = score;
   }
-
   return best === undefined ? undefined : { score: metric(Math.min(1, best)) };
 }
 
-function accumulationConstellation(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): { score: number; detail: string } | undefined {
-  const ids = orderedIds(candidate);
-  const subject = subjectName(graph);
-  let best: { score: number; detail: string } | undefined;
-
+function accumulationConstellation(graph: RealityGraph, candidate: LatentMovieCandidate): { score: number; detail: string } | undefined {
+  const ids = orderedIds(candidate); const subject = subjectName(graph); let best: { score: number; detail: string } | undefined;
   for (const anchor of ids) {
-    const anchorLabel = labelFor(graph, anchor);
-    const anchorObjects = objectMentions(graph, anchor);
-    const related = ids.filter((id) => {
-      if (id === anchor) return false;
-      const current = labelFor(graph, id);
-      const subjectLink = subject ? Number(subjectMention(current, subject)) : 0;
-      const objectLink = anchorObjects.length
-        ? Math.max(...anchorObjects.map((object) => sharedTokens(object, current)))
-        : 0;
-      return subjectLink > 0 || objectLink >= 0.35;
-    });
-
+    const anchorLabel = labelFor(graph, anchor); const anchorObjects = objectMentions(graph, anchor); const anchorTags = semanticTags(graph, anchor);
+    const related = ids.filter((id) => id !== anchor && ((subject ? subjectMention(labelFor(graph, id), subject) : false) || anchorObjects.some((object) => sharedTokens(object, labelFor(graph, id)) >= 0.35) || anchorTags.some((tag) => semanticTags(graph, id).includes(tag))));
     if (related.length < 2) continue;
-
-    const spread = pairSpan(ids, [anchor, related[0]!, related[related.length - 1]!]);
-    const variedActions = new Set(
-      [anchor, ...related]
-        .map((id) => structureFor(graph, id)?.actions?.[0])
-        .filter(Boolean),
-    ).size;
-    const score = metric(
-      Math.min(1, related.length / 4) * 0.44 +
-        spread * 0.24 +
-        Math.min(1, variedActions / 3) * 0.22 +
-        (anchorLabel ? 0.1 : 0),
-    );
-
+    const variedActions = new Set([anchor, ...related].flatMap((id) => actionMentions(graph, id))).size;
+    const score = metric(Math.min(1, related.length / 4) * 0.42 + pairSpan(ids, [anchor, related[0]!, related[related.length - 1]!]) * 0.24 + Math.min(1, variedActions / 3) * 0.2 + 0.14);
     if (!best || score > best.score) best = { score, detail: anchorLabel };
   }
-
   return best;
 }
 
-export function scoreSatanicoObserverInference(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): number {
-  const ids = orderedIds(candidate);
-  if (ids.length < 3) return 0;
+function tensionPotential(graph: RealityGraph, candidate: LatentMovieCandidate): number {
+  const tensions = (graph.unresolvedTensions ?? []) as unknown[]; const ids = orderedIds(candidate);
+  const idText = ids.map((id) => `${labelFor(graph, id)} ${semanticTags(graph, id).join(" ")}`).join(" ").toLowerCase();
+  const hits = tensions.filter((tension) => { const text = typeof tension === "string" ? tension : clean((tension as { text?: unknown; label?: unknown }).text ?? (tension as { label?: unknown }).label); return text && sharedTokens(idText, text) >= 0.18; }).length;
+  return metric(hits / Math.max(1, tensions.length) + (tensions.length ? 0.08 : 0));
+}
 
-  const preference = preferenceConstellation(graph, candidate);
-  const callback = callbackConstellation(graph, candidate);
-  const invariant = invariantConstellation(graph, candidate);
-  const originSuccess = originSuccessConstellation(graph, candidate);
-  const stateChange = stateChangeConstellation(graph, candidate);
-  const contrast = contrastConstellation(graph, candidate);
-  const convergence = convergenceConstellation(graph, candidate);
-  const accumulation = accumulationConstellation(graph, candidate);
+function recurrenceGapPotential(graph: RealityGraph, candidate: LatentMovieCandidate): number {
+  const ids = orderedIds(candidate); let best = 0;
+  for (let i = 0; i < ids.length; i += 1) for (let j = i + 1; j < ids.length; j += 1) {
+    const left = new Set([...objectMentions(graph, ids[i]!), ...actionMentions(graph, ids[i]!), ...semanticTags(graph, ids[i]!) ]);
+    const right = new Set([...objectMentions(graph, ids[j]!), ...actionMentions(graph, ids[j]!), ...semanticTags(graph, ids[j]!) ]);
+    if (![...left].some((value) => right.has(value))) continue;
+    const gap = j - i - 1; if (gap > 0) best = Math.max(best, Math.min(1, gap / 4));
+  }
+  return metric(best);
+}
 
-  const relationDensity = metric(
-    graph.relations.filter(
-      (relation) =>
-        ids.includes(relation.from) &&
-        ids.includes(relation.to) &&
-        !["before", "after", "involves", "belongs_to"].includes(relation.kind),
-    ).length / Math.max(1, ids.length),
+function multiRelationAmbiguity(graph: RealityGraph, candidate: LatentMovieCandidate): number {
+  const ids = orderedIds(candidate); if (ids.length < 3) return 0; let opportunities = 0;
+  for (const id of ids) {
+    const kinds = new Set<string>();
+    for (const other of ids) { if (id === other) continue; const relation = relationBetween(graph, id, other); if (relation && structuralRelation(relation)) kinds.add(relation.kind); }
+    if (kinds.size >= 2) opportunities += 1;
+  }
+  return metric(opportunities / ids.length);
+}
+
+function explanationRisk(candidate: LatentMovieCandidate, strongest: number): number {
+  const conclusionLeak = candidate.hypothesis.some((line) => /\b(?:obviously|the meaning is|lesson|moral|therefore|the point is)\b/i.test(clean(line))) ? 0.18 : 0;
+  return metric((1 - (candidate.uncertainty ?? 0)) * 0.2 + (candidate.repetitionRisk ?? 0) * 0.18 + (candidate.truthRisk ?? 0) * 0.2 + (1 - strongest) * 0.1 + conclusionLeak);
+}
+
+export function scoreSatanicoObserverInference(graph: RealityGraph, candidate: LatentMovieCandidate): number {
+  const ids = orderedIds(candidate); if (ids.length < 3) return 0;
+  const detectors = [
+    preferenceConstellation(graph, candidate)?.score ?? 0,
+    callbackConstellation(graph, candidate)?.score ?? 0,
+    invariantConstellation(graph, candidate)?.score ?? 0,
+    originSuccessConstellation(graph, candidate)?.score ?? 0,
+    stateChangeConstellation(graph, candidate)?.score ?? 0,
+    contrastConstellation(graph, candidate)?.score ?? 0,
+    convergenceConstellation(graph, candidate)?.score ?? 0,
+    accumulationConstellation(graph, candidate)?.score ?? 0,
+  ].sort((a, b) => b - a);
+
+  const strongest = detectors[0] ?? 0; const second = detectors[1] ?? 0;
+  const competition = metric(strongest * 0.72 + second * 0.28);
+  const density = graphConnectivity(graph, ids);
+  const delayed = metric(
+    (candidate.callbackPotential ?? 0) * 0.2 +
+    recurrenceGapPotential(graph, candidate) * 0.2 +
+    multiRelationAmbiguity(graph, candidate) * 0.16 +
+    density * 0.14 +
+    (candidate.uncertainty ?? 0) * 0.14 +
+    tensionPotential(graph, candidate) * 0.16,
   );
-
-  const delayedMeaning = metric(
-    (candidate.callbackPotential ?? 0) * 0.22 +
-      (candidate.uncertainty ?? 0) * 0.2 +
-      (candidate.novelty ?? 0) * 0.12 +
-      (candidate.attentionPotential ?? 0) * 0.1 +
-      relationDensity * 0.16 +
-      (invariant ? metric(invariant.score) : 0) * 0.08 +
-      (originSuccess ? metric(originSuccess.score) : 0) * 0.06 +
-      (accumulation?.score ?? 0) * 0.06,
-  );
-
-  const explanationRisk = metric(
-    (1 - (candidate.uncertainty ?? 0)) * 0.25 +
-      (candidate.repetitionRisk ?? 0) * 0.2 +
-      (candidate.truthRisk ?? 0) * 0.25 +
-      (candidate.specificity ?? 0) * 0.12 +
-      0.1,
-  );
-
-  const patternScores = [
-    preference?.score ?? 0,
-    callback ? metric(Math.min(1, callback.score)) : 0,
-    invariant ? metric(Math.min(1, invariant.score)) : 0,
-    originSuccess ? metric(Math.min(1, originSuccess.score)) : 0,
-    stateChange ? metric(Math.min(1, stateChange.score)) : 0,
-    contrast?.score ?? 0,
-    convergence?.score ?? 0,
-    accumulation?.score ?? 0,
-  ];
-  const strongest = Math.max(...patternScores);
-  const sorted = [...patternScores].sort((a, b) => b - a);
-  const second = sorted[1] ?? 0;
-  const competition = metric(Math.min(1, strongest * 0.7 + second * 0.3));
+  const risk = explanationRisk(candidate, strongest);
 
   return metric(
-    strongest * 0.38 +
-      competition * 0.1 +
-      delayedMeaning * 0.2 +
-      (candidate.informationValue ?? 0) * 0.08 +
-      (candidate.specificity ?? 0) * 0.06 +
-      (candidate.consequencePotential ?? 0) * 0.05 +
-      (candidate.callbackPotential ?? 0) * 0.05 +
-      (candidate.truthRisk <= 0.18 ? 0.08 : 0) -
-      explanationRisk * 0.12,
+    strongest * 0.34 +
+    competition * 0.08 +
+    delayed * 0.24 +
+    (candidate.novelty ?? 0) * 0.08 +
+    (candidate.specificity ?? 0) * 0.06 +
+    (candidate.informationValue ?? 0) * 0.05 +
+    (candidate.consequencePotential ?? 0) * 0.04 +
+    (candidate.callbackPotential ?? 0) * 0.04 +
+    (density >= 0.35 ? 0.04 : 0) +
+    (candidate.truthRisk <= 0.18 ? 0.03 : 0) -
+    risk * 0.12,
   );
 }
 
-export function deriveSatanicoObserverObjective(
-  graph: RealityGraph,
-  candidate: LatentMovieCandidate,
-): ObserverExperienceObjective | undefined {
+export function deriveSatanicoObserverObjective(graph: RealityGraph, candidate: LatentMovieCandidate): ObserverExperienceObjective | undefined {
   const subject = subjectName(graph) || "the subject";
-
   const preference = preferenceConstellation(graph, candidate);
-  if (preference && preference.score >= 0.58) {
-    const labels = preference.labels;
-    const finalDetail = labels[labels.length - 1] ?? "the final supplied preference";
+  if (preference && preference.score >= 0.55) {
+    const finalDetail = preference.labels.at(-1) ?? "the final supplied preference";
     return {
-      objective: `Let the observer infer that ${subject} has a very specific pattern of preference from ${labels.slice(0, 3).join("; ")}.`,
+      objective: `Let the observer infer that ${subject} has a very specific pattern of preference from ${preference.labels.slice(0, 3).join("; ")}.`,
       surprise: "The pattern should become visible before the Author names it.",
-      curiosity: `Do not explain why ${subject} has the pattern. Leave the observer room to complete the character read themselves.`,
-      attention: [
-        "establish one concrete preference",
-        "add a second preference that changes the pattern",
-        "withhold the abstraction",
-        `use ${finalDetail} as the last piece of evidence`,
-      ],
+      curiosity: `Do not explain the pattern in ${subject}; make the observer construct the character read themselves.`,
+      attention: ["establish one concrete preference", "add a second preference that shifts the pattern", "withhold the abstraction", `use ${finalDetail} as the last piece of evidence`],
       landing: "Let the observer name the pattern internally; the final cut supplies evidence rather than the conclusion.",
       explanationForbidden: true,
     };
   }
-
   const callback = callbackConstellation(graph, candidate);
-  if (callback && callback.score >= 0.72) {
-    return {
-      objective: `Let the observer notice that ${callback.detail} has returned with a different significance.`,
-      surprise: "The later supplied appearance should make the earlier detail feel intentional in hindsight.",
-      curiosity: `Do not explain what ${callback.detail} means. Make the observer remember the earlier occurrence and connect it themselves.`,
-      attention: [
-        `establish ${callback.detail}`,
-        "move attention elsewhere",
-        `return to ${callback.detail}`,
-        "let the observer recontextualize it",
-      ],
-      landing: "The callback is the evidence; the observer supplies the meaning.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (callback && callback.score >= 0.7) return {
+    objective: `Let the observer notice that ${callback.detail} has returned with a different significance.`,
+    surprise: "The later supplied appearance should make the earlier detail feel newly intentional in hindsight.",
+    curiosity: `Do not explain what ${callback.detail} means.`,
+    attention: [`establish ${callback.detail}`, "move attention elsewhere", `return to ${callback.detail}`, "let the observer recontextualize it"],
+    landing: "The callback is evidence; the observer supplies the meaning.",
+    explanationForbidden: true,
+  };
   const invariant = invariantConstellation(graph, candidate);
-  if (invariant && invariant.score >= 0.72) {
-    return {
-      objective: `Let the observer notice that ${invariant.detail} remains while other supplied conditions change.`,
-      surprise: "The persistent detail should acquire importance because the surrounding reality moved.",
-      curiosity: `Do not explain why ${invariant.detail} matters. Let persistence itself become evidence.`,
-      attention: [
-        `establish ${invariant.detail}`,
-        "show supplied changes around it",
-        "return attention to the persistent detail",
-        "let the observer assign significance",
-      ],
-      landing: "The invariant is evidence, not an announced symbol.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (invariant && invariant.score >= 0.68) return {
+    objective: `Let the observer notice that ${invariant.detail} remains while surrounding supplied conditions change.`,
+    surprise: "Persistence should become significant because the surrounding reality moved.",
+    curiosity: "Do not explain why the persistent detail matters.",
+    attention: [`establish ${invariant.detail}`, "show supplied change around it", `return attention to ${invariant.detail}`, "leave significance open"],
+    landing: "The invariant is evidence, not an announced symbol.",
+    explanationForbidden: true,
+  };
   const originSuccess = originSuccessConstellation(graph, candidate);
-  if (originSuccess && originSuccess.score >= 0.72) {
-    return {
-      objective: `Let the observer connect ${originSuccess.detail} to later supplied success without being told that it is the origin.`,
-      surprise: "A small early detail should become larger in hindsight because the supplied later outcome exists.",
-      curiosity: "Keep the origin ordinary until the later evidence gives it weight.",
-      attention: [
-        "establish the small beginning",
-        "move through the supplied growth",
-        "show the later success",
-        "let the observer connect origin to outcome",
-      ],
-      landing: "Let hindsight create the significance.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (originSuccess && originSuccess.score >= 0.7) return {
+    objective: `Let the observer connect ${originSuccess.detail} to later supplied success without being told that it is the origin.`,
+    surprise: "An ordinary beginning acquires weight in hindsight.",
+    curiosity: "Let the later evidence do the reinterpretation.",
+    attention: ["establish the small beginning", "move through supplied growth", "show the later success", "let the observer connect origin to outcome"],
+    landing: "Let hindsight create the significance.",
+    explanationForbidden: true,
+  };
   const stateChange = stateChangeConstellation(graph, candidate);
-  if (stateChange && stateChange.score >= 0.82) {
-    return {
-      objective: `Let the observer feel ${subject} move from the supplied earlier state to the supplied later state without naming the transformation for them.`,
-      surprise: "The change should be recognized from the before-and-after evidence.",
-      curiosity: "Hold the starting state in memory while the supplied sequence accumulates a different one.",
-      attention: [
-        `establish ${stateChange.from}`,
-        "accumulate supplied evidence",
-        "delay the label",
-        `land on ${stateChange.to}`,
-      ],
-      landing: "Let the later supplied state answer the earlier one.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (stateChange && stateChange.score >= 0.78) return {
+    objective: `Let the observer feel ${subject} move from the supplied earlier state to the supplied later state without naming the transformation.`,
+    surprise: "The change should be recognized from before-and-after evidence.",
+    curiosity: "Hold the earlier state in memory while the sequence earns the later one.",
+    attention: [`establish ${stateChange.from}`, "accumulate supplied evidence", "delay the label", `land on ${stateChange.to}`],
+    landing: "Let the later supplied state answer the earlier one.",
+    explanationForbidden: true,
+  };
   const contrast = contrastConstellation(graph, candidate);
-  if (contrast && contrast.score >= 0.72) {
-    return {
-      objective: "Let the observer hold two supplied readings in tension until the contrast becomes self-evident.",
-      surprise: "The contrast should change what an earlier supplied detail feels like.",
-      curiosity: "Do not resolve the contradiction before the supplied evidence earns the new reading.",
-      attention: ["establish one reading", "introduce the contrast", "hold both", "let recognition happen"],
-      landing: "Let the observer resolve the tension internally.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (contrast && contrast.score >= 0.68) return {
+    objective: "Let the observer hold two supplied readings in tension until the contrast becomes self-evident.",
+    surprise: "The contrast should alter the reading of an earlier detail.",
+    curiosity: "Do not resolve the tension before the evidence earns the new reading.",
+    attention: ["establish one reading", "introduce the supplied contrast", "hold both readings", "let recognition happen"],
+    landing: "Let the observer resolve the tension internally.",
+    explanationForbidden: true,
+  };
   const convergence = convergenceConstellation(graph, candidate);
-  if (convergence && convergence.score >= 0.58) {
-    return {
-      objective: "Let several supplied details become more meaningful together than they were separately.",
-      surprise: "The observer should discover the common pattern rather than receive a summary of it.",
-      curiosity: "Keep the abstraction unstated while the concrete details accumulate.",
-      attention: ["establish detail A", "add detail B", "add a non-obvious detail C", "let the pattern emerge"],
-      landing: "Let the observer complete the relationship themselves.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (convergence && convergence.score >= 0.56) return {
+    objective: "Let several supplied details become more meaningful together than they were separately.",
+    surprise: "The common pattern should emerge without summary.",
+    curiosity: "Keep the abstraction unstated while concrete details accumulate.",
+    attention: ["establish detail A", "add detail B", "add a less obvious detail C", "let the observer complete the relation"],
+    landing: "Let the observer complete the relationship themselves.",
+    explanationForbidden: true,
+  };
   const accumulation = accumulationConstellation(graph, candidate);
-  if (accumulation && accumulation.score >= 0.62) {
-    return {
-      objective: `Let repeated supplied contact with ${accumulation.detail} accumulate into a character, object, or situation read without naming the abstraction.`,
-      surprise: "The observer should feel the pattern before hearing what the pattern is.",
-      curiosity: "Delay synthesis until enough concrete evidence has accumulated.",
-      attention: ["establish the anchor", "add a different contact", "add another supplied consequence", "let the observer synthesize"],
-      landing: "Accumulation earns the inference.",
-      explanationForbidden: true,
-    };
-  }
-
+  if (accumulation && accumulation.score >= 0.6) return {
+    objective: `Let repeated supplied contact with ${accumulation.detail} accumulate into a character, object, or situation read without naming the abstraction.`,
+    surprise: "The observer should feel the pattern before hearing what it is.",
+    curiosity: "Delay synthesis until enough concrete evidence has accumulated.",
+    attention: ["establish the anchor", "add a different contact", "add another supplied consequence", "let the observer synthesize"],
+    landing: "Accumulation earns the inference.",
+    explanationForbidden: true,
+  };
   return undefined;
 }
