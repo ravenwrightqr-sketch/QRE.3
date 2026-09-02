@@ -18,9 +18,6 @@ import { classifyLens } from "./authorCharacterLensEngine.js";
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 const metric = (value: number): number => Number(clamp01(value).toFixed(3));
-
-// A candidate that is merely a relabeling of an existing movie must not survive.
-// Fewer strong movies are preferable to a large pile of cosmetic alternatives.
 const MIN_MATERIAL_DIVERSITY = 0.34;
 
 function jaccard(a: string[], b: string[]): number {
@@ -49,14 +46,15 @@ function payoffSignature(candidate: LatentMovieCandidate): string {
 /**
  * Lens influence is deliberately late.
  *
- * This score may only observe semantic structure that the universal movie
- * search has already discovered. It never reads raw facts to invent a new
- * candidate, and it never changes evidence or trajectory.
- *
- * A lens therefore behaves as perceptual bias, not discovery authority.
+ * This score can only observe semantic structure that universal discovery has
+ * already produced. It never reads raw facts to invent a candidate and never
+ * changes candidate evidence or trajectory.
  */
-function postDiscoveryLensBias(candidate: LatentMovieCandidate): number {
-  const lensName = String(candidate.lens ?? "NONE").trim();
+function postDiscoveryLensBias(
+  candidate: LatentMovieCandidate,
+  lens?: string,
+): number {
+  const lensName = String(lens ?? "NONE").trim();
   if (!lensName || lensName.toLowerCase() === "none") return 0.5;
 
   const profile = classifyLens(lensName);
@@ -114,7 +112,6 @@ function postDiscoveryLensBias(candidate: LatentMovieCandidate): number {
   return metric(signal / Math.max(1, weight));
 }
 
-/** Measure how much a candidate differs from another candidate. 1 = very different. */
 export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieCandidate): number {
   const evidenceSimilarity = jaccard(a.anchorEventIds, b.anchorEventIds);
   const relationSimilarity = jaccard(a.supportingRelationKinds, b.supportingRelationKinds);
@@ -132,20 +129,15 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
 }
 
 /**
- * Greedy diversity gate.
- *
- * This is intentionally a HARD gate, not a ranking preference. Candidate score
- * can decide which surviving movie wins, but it cannot rescue a near-duplicate.
- * If a candidate is too similar to any selected movie, it is rejected and the
- * next candidate gets the slot. This makes "six lenses" mean "up to six movies",
- * not "six labels around one movie".
- *
- * Lens bias is applied only after the full candidate set has been discovered.
- * It may reorder candidates according to the selected perceptual policy, but
- * it cannot manufacture diversity because lens identity is excluded from the
- * diversity metric above.
+ * Lens is admitted only after candidate discovery. The hard diversity gate is
+ * still lens-blind; lens bias only breaks ties/preferences among candidates that
+ * have already survived material-diversity checks.
  */
-export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[], limit = 6): LatentMovieCandidate[] {
+export function selectDistinctMovieCandidates(
+  candidates: LatentMovieCandidate[],
+  limit = 6,
+  lens?: string,
+): LatentMovieCandidate[] {
   const remaining = [...candidates];
   const selected: LatentMovieCandidate[] = [];
 
@@ -158,10 +150,9 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
         ? Math.min(...selected.map((prior) => movieCandidateDiversity(candidate, prior)))
         : 1;
 
-      // Hard rejection: no amount of raw score makes a duplicate a new movie.
       if (selected.length && diversity < MIN_MATERIAL_DIVERSITY) return;
 
-      const lensBias = postDiscoveryLensBias(candidate);
+      const lensBias = postDiscoveryLensBias(candidate, lens);
       const adjusted = candidate.score * 0.66 + diversity * 0.22 + lensBias * 0.12;
       if (adjusted > bestValue) {
         bestValue = adjusted;
@@ -169,7 +160,6 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
       }
     });
 
-    // No remaining candidate is materially different enough to earn another slot.
     if (bestIndex < 0) break;
 
     const [winner] = remaining.splice(bestIndex, 1);
@@ -177,7 +167,11 @@ export function selectDistinctMovieCandidates(candidates: LatentMovieCandidate[]
     const distinctiveness = selected.length
       ? Math.min(...selected.map((prior) => movieCandidateDiversity(winner, prior)))
       : 1;
-    selected.push({ ...winner, distinctiveness: metric(distinctiveness) });
+    selected.push({
+      ...winner,
+      lens: lens?.trim() || "NONE",
+      distinctiveness: metric(distinctiveness),
+    });
   }
 
   return selected;
