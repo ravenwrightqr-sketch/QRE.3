@@ -51,15 +51,13 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
   const relationSimilarity = jaccard(a.supportingRelationKinds, b.supportingRelationKinds);
   const trajectorySimilarity = jaccard(trajectorySignature(a), trajectorySignature(b));
   const payoffSimilarity = payoffSignature(a) === payoffSignature(b) ? 1 : 0;
-  const lensSimilarity = a.lens === b.lens ? 1 : 0;
 
   return metric(
     1 - (
-      evidenceSimilarity * 0.34 +
-      relationSimilarity * 0.2 +
-      trajectorySimilarity * 0.3 +
-      payoffSimilarity * 0.12 +
-      lensSimilarity * 0.04
+      evidenceSimilarity * 0.36 +
+      relationSimilarity * 0.22 +
+      trajectorySimilarity * 0.32 +
+      payoffSimilarity * 0.1
     ),
   );
 }
