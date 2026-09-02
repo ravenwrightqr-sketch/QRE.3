@@ -1,5 +1,5 @@
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
-import { resolveLensPolicy, type LensPolicy } from "./authorLensPolicy.js";
+import { CANONICAL_LENS_NAMES, resolveLensPolicy, type LensPolicy } from "./authorLensPolicy.js";
 
 export type LensOpportunity = {
   frame: string;
@@ -27,12 +27,6 @@ const overlap = (world: Set<string>, values: readonly string[]): number => {
   for (const token of candidate) if (world.has(token)) hits += 1;
   return hits / candidate.size;
 };
-
-const policyNames = [
-  "game", "spy", "heist", "courtroom", "military", "horror", "noir",
-  "rom-com", "royal", "documentary", "western", "cyberpunk", "absurd",
-  "comedy", "romance", "sentimental", "mystery", "adventure",
-] as const;
 
 function worldTokens(envelope: RealityEnvelope): Set<string> {
   return tokens([
@@ -72,7 +66,7 @@ export function rankLensOpportunities(
   const tensionSignal = Math.min(1, envelope.unresolvedTensions.length * 0.12);
   const recurrenceSignal = Math.min(1, envelope.recurringSignals.length * 0.12);
 
-  const candidates = policyNames.map((name) => {
+  const candidates = CANONICAL_LENS_NAMES.map((name) => {
     const policy = resolveLensPolicy(name);
     const worldOrbitFit = overlap(world, policy.worldOrbit);
     const observerFit = overlap(world, policy.observerTarget);
