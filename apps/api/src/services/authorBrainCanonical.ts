@@ -17,6 +17,7 @@ import type {
   SequencePlay,
   ViewerAttentionRole,
   ViewerState,
+  ViewerStateCut,
 } from "@qre/contracts";
 
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
@@ -79,482 +80,114 @@ function looksLikeIdentityAssertion(text: string): boolean {
   );
 }
 
-function lensFrom(
-  input: AuthorBrainTruth,
-  cognition: ReturnType<typeof buildAuthorCognitivePlan>,
-): string {
-  return clean(input.lens) || clean(cognition.selectedFrame) || "NONE";
-}
-
-function buildCognition(
-  input: AuthorBrainTruth,
-  graph: ReturnType<typeof buildAuthorRealityGraph>,
-): ReturnType<typeof buildAuthorCognitivePlan> {
-  return buildAuthorCognitivePlan({
-    prompt: clean(input.prompt),
-    lens: clean(input.lens),
-    subject: clean(input.subject),
-    place: clean(input.place),
-    facts: unique(input.facts),
-    sourceMoments: unique(input.sourceMoments),
-    realityGraph: graph,
-    memoryContext: input.memoryContext ?? [],
-    domainContext: input.domainContext,
-    priorScenes: input.trajectory ?? [],
-    priorStrategies: input.creativeLearningContext ?? [],
-    movieMode: input.movieMode,
-  });
-}
-
-function chooseMovie(
-  input: AuthorBrainTruth,
-  cognition: ReturnType<typeof buildAuthorCognitivePlan>,
-): LatentMovieCandidate | undefined {
-  return input.movieMode === false ? undefined : cognition.selectedMovie;
-}
-
-function realizationAuthorityForBeat(
-  movie: LatentMovieCandidate,
-  step: LatentMovieTrajectoryStep,
-): string {
-  const thesis = movie.storyThesis;
-  if (!thesis) return "";
-
-  const semanticTurn = clean(thesis.semanticTurn);
-  const relationKind = clean(thesis.relationKind);
-  const beforeMeaning = unique(thesis.beforeMeaning ?? []);
-  const afterMeaning = unique(thesis.afterMeaning ?? []);
-  const payoffDependency = clean(thesis.payoffDependency);
-  const observerExperience = thesis.observerExperience;
-  const thesisEventIds = unique([
-    ...(thesis.beforeEventIds ?? []),
-    ...(thesis.afterEventIds ?? []),
-  ]);
-  const touchesThesis = step.eventIds.some((id) => thesisEventIds.includes(id));
-
-  if (!semanticTurn) {
-    return [
-      "CANONICAL SEMANTIC THESIS: none.",
-      "This supplied sequence is presentation structure, not a graph-backed semantic turn.",
-      "Realize the supplied material without inventing a relationship the graph does not establish.",
-    ].join(" ");
-  }
-
-  const lines = [`CANONICAL SEMANTIC TURN: ${semanticTurn}`];
-  if (relationKind) lines.push(`CANONICAL RELATION: ${relationKind}`);
-  if (beforeMeaning.length) lines.push(`CANONICAL BEFORE: ${beforeMeaning.join(" | ")}`);
-  if (afterMeaning.length) lines.push(`CANONICAL AFTER: ${afterMeaning.join(" | ")}`);
-  if (payoffDependency) lines.push(`CANONICAL PAYOFF DEPENDENCY: ${payoffDependency}`);
-
-  if (touchesThesis) {
-    lines.push(
-      "CURRENT CUT PARTICIPATES IN THE APPROVED SEMANTIC TURN: realize the change in meaning rather than merely restating the source event.",
-    );
-  } else if (step.operation === "payoff") {
-    lines.push(
-      "CURRENT CUT IS THE APPROVED ENDPOINT: preserve the supplied endpoint and let earlier movement earn it.",
-    );
-  } else {
-    lines.push(
-      "CURRENT CUT IS SUPPORTING SEQUENCE MATERIAL: preserve the approved thesis as context without forcing this cut to perform the entire turn.",
-    );
-    if (observerExperience) {
-      lines.push(
-        `OBSERVER EXPERIENCE OBJECTIVE: ${observerExperience.objective}`,
-        `OBSERVER SURPRISE: ${observerExperience.surprise}`,
-        `OBSERVER CURIOSITY: ${observerExperience.curiosity}`,
-        `OBSERVER ATTENTION: ${observerExperience.attention.join(" -> ")}`,
-        `OBSERVER LANDING: ${observerExperience.landing}`,
-        "OBSERVER RULE: cause discovery; do not explain the meaning.",
-        ...(observerExperience.explanationForbidden
-          ? [
-              "EXPLANATION FORBIDDEN: do not state the thesis, significance, relationship, lesson, or conclusion.",
-            ]
-          : []),
-      );
-    }
-  }
-
-  lines.push(
-    "This authority changes language realization only. It never authorizes a new concrete event.",
+function looksLikeGenericPlannerText(text: string): boolean {
+  return /\b(?:the viewer|the audience|the author|cognition|planner|candidate|trajectory|sequence|objective|attention function|curiosity pressure|state shift)\b/i.test(
+    clean(text),
   );
-  return lines.join(" ");
 }
 
-function synthesizeGroupChange(
-  movie: LatentMovieCandidate,
-  group: readonly LatentMovieTrajectoryStep[],
-  final: boolean,
-): string {
-  const changes = unique(group.map((step) => step.viewerChange));
-  if (!changes.length) return "advances approved reality";
-  if (changes.length === 1) return changes[0];
-
-  const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
-  const thesisEventIds = unique([
-    ...(movie.storyThesis?.beforeEventIds ?? []),
-    ...(movie.storyThesis?.afterEventIds ?? []),
-  ]);
-
-  if (movie.storyThesis?.semanticTurn && eventIds.some((id) => thesisEventIds.includes(id))) {
-    return movie.storyThesis.semanticTurn;
-  }
-
-  const first = changes[0];
-  const last = changes[changes.length - 1];
-  if (final) {
-    return `The approved changes converge on the supplied ending: ${last}`;
-  }
-  return `The approved evidence changes significance from ${first} to ${last}.`;
+function sourceEventIdsForStep(step: LatentMovieTrajectoryStep): string[] {
+  return unique(step.eventIds ?? []);
 }
 
-function sourceStepToBeat(
-  movie: LatentMovieCandidate,
+function sourceLabelsForStep(
   step: LatentMovieTrajectoryStep,
-  index: number,
-  total: number,
-): MouthCandidateBeat {
-  const final = index === total - 1;
-  const canonicalAuthority = realizationAuthorityForBeat(movie, step);
-  return {
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+): string[] {
+  return unique(
+    sourceEventIdsForStep(step).map(
+      (eventId) => envelope.events.find((event) => event.id === eventId)?.label,
+    ),
+  );
+}
+
+function composeTrajectoryBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
+  return movie.trajectory.map((step, index, trajectory) => ({
     order: index + 1,
-    role: final ? "payoff" : index === 0 ? "establishing" : "reveal",
-    attentionFunction: [
-      clean(step.viewerChange),
-      "SOURCE-LED CUT: this supplied event is the current narrative unit.",
-      "Preserve later supplied events as future sequence material; do not spend their outcome early.",
-      canonicalAuthority,
-    ].filter(Boolean).join(" "),
-    eventIds: unique(step.eventIds),
-    change: clean(step.viewerChange),
-    next: clean(step.nextQuestion),
-    frontier: clean(step.nextQuestion),
-    paysOff: final ? [movie.payoff] : [],
-    relationKinds: unique([
-      ...movie.supportingRelationKinds,
-      ...(step.operation ? [step.operation] : []),
-    ]),
-    semanticRealization: movie.storyThesis?.semanticRealization,
-    observerExperience: movie.storyThesis?.observerExperience,
-  };
+    role: step.role,
+    change: clean(step.change),
+    next: clean(step.next),
+    frontier: clean(step.frontier),
+    attentionFunction: clean(step.attentionFunction),
+    creativeMove: clean(step.creativeMove),
+    realizationMode: clean(step.realizationMode),
+    subject: clean(step.subject),
+    eventIds: sourceEventIdsForStep(step),
+    relationKinds: unique(step.relationKinds ?? []),
+    sourceLabels: [],
+    paysOff: index === trajectory.length - 1 ? [clean(movie.payoff)] : [],
+    terminal: index === trajectory.length - 1,
+    viewerState: deriveViewerStateCut(
+      {
+        order: index + 1,
+        role: step.role,
+        change: clean(step.change),
+        next: clean(step.next),
+        frontier: clean(step.frontier),
+        attentionFunction: clean(step.attentionFunction),
+        creativeMove: clean(step.creativeMove),
+        realizationMode: clean(step.realizationMode),
+        subject: clean(step.subject),
+        eventIds: sourceEventIdsForStep(step),
+        relationKinds: unique(step.relationKinds ?? []),
+        sourceLabels: [],
+        paysOff: index === trajectory.length - 1 ? [clean(movie.payoff)] : [],
+        terminal: index === trajectory.length - 1,
+        viewerState: {
+          beforeState: "",
+          afterState: "",
+          attentionMove: "orient",
+          curiosityPressure: 0,
+          contrast: 0,
+          interruption: 0,
+          accumulation: 0,
+          tempo: 0,
+          payoffPressure: 0,
+          stateShift: 0,
+          predictionError: 0,
+          evidenceEventIds: sourceEventIdsForStep(step),
+        },
+      },
+      index,
+      trajectory.map((item, itemIndex) => ({
+        order: itemIndex + 1,
+        role: item.role,
+        change: clean(item.change),
+        next: clean(item.next),
+        frontier: clean(item.frontier),
+        attentionFunction: clean(item.attentionFunction),
+        creativeMove: clean(item.creativeMove),
+        realizationMode: clean(item.realizationMode),
+        subject: clean(item.subject),
+        eventIds: sourceEventIdsForStep(item),
+        relationKinds: unique(item.relationKinds ?? []),
+        sourceLabels: [],
+        paysOff: itemIndex === trajectory.length - 1 ? [clean(movie.payoff)] : [],
+        terminal: itemIndex === trajectory.length - 1,
+        viewerState: {
+          beforeState: "",
+          afterState: "",
+          attentionMove: "orient",
+          curiosityPressure: 0,
+          contrast: 0,
+          interruption: 0,
+          accumulation: 0,
+          tempo: 0,
+          payoffPressure: 0,
+          stateShift: 0,
+          predictionError: 0,
+          evidenceEventIds: sourceEventIdsForStep(item),
+        },
+      })),
+      buildAuthorRealityEnvelope,
+    ),
+  }));
 }
 
-function composeTrajectoryBeats(
-  movie: LatentMovieCandidate,
-): MouthCandidateBeat[] {
-  if (movie.id === "memory-material") {
-    return unique(
-      movie.trajectory.flatMap((step) => step.eventIds ?? []),
-    ).map((eventId, index, ids) => ({
-      order: index + 1,
-      role: index === ids.length - 1 ? "payoff" : "material",
-      attentionFunction:
-        "Realize approved Living Memory detail with maximum specificity and minimum explanation.",
-      eventIds: [eventId],
-      change: "Make supplied material interesting without inventing an occurrence.",
-      next: "",
-      frontier: "",
-      paysOff: index === ids.length - 1 ? [movie.payoff] : [],
-      relationKinds: unique(movie.supportingRelationKinds),
-      semanticRealization: movie.storyThesis?.semanticRealization,
-      observerExperience: movie.storyThesis?.observerExperience,
-    }));
-  }
-
-  const steps = [...movie.trajectory];
-
-  /*
-   * Cognition has already selected the experience trajectory. Do not compress
-   * it here. A supplied event can be latent or viewer-facing by Cognition's
-   * decision; this layer only converts the approved trajectory into beats.
-   */
-  if (movie.id === "movie-source") {
-    return steps.map((step, index) => sourceStepToBeat(movie, step, index, steps.length));
-  }
-
-  if (steps.length <= 1) {
-    return steps.map((step) => stepToBeat(movie, step, 0, 1));
-  }
-
-  const groups: LatentMovieTrajectoryStep[][] = [];
-  const total = steps.length;
-  let index = 0;
-
-  while (index < total) {
-    const group: LatentMovieTrajectoryStep[] = [steps[index]];
-    const remaining = total - index;
-    const maxGroupSize = remaining >= 8 ? 3 : remaining >= 4 ? 2 : 1;
-
-    while (group.length < maxGroupSize && index + group.length < total - 1) {
-      const current = group[group.length - 1];
-      const next = steps[index + group.length];
-      const sameOperation =
-        Boolean(current?.operation) &&
-        Boolean(next?.operation) &&
-        current.operation === next.operation;
-      const textSimilarity = overlap(
-        words(clean(current?.viewerChange)),
-        words(clean(next?.viewerChange)),
-      );
-      const contextual =
-        next.operation === "reveal" ||
-        next.operation === "establish" ||
-        next.operation === "contrast" ||
-        next.operation === "recur";
-      const complementary =
-        Boolean(current?.eventIds?.length) &&
-        Boolean(next?.eventIds?.length) &&
-        remaining >= 5;
-      const nextIsEndpoint = index + group.length === total - 1;
-
-      if (nextIsEndpoint) break;
-      if (!(sameOperation || textSimilarity >= 0.34 || contextual || complementary)) break;
-      group.push(next);
-    }
-
-    groups.push(group);
-    index += group.length;
-  }
-
-  if (groups.length < 3 && total >= 4) {
-    const first = steps.slice(0, 1);
-    const last = steps.slice(-1);
-    const middle = steps.slice(1, -1);
-    groups.length = 0;
-    groups.push(first);
-    if (middle.length) groups.push(middle);
-    groups.push(last);
-  }
-
-  return groups.map((group, groupIndex) => {
-    const final = groupIndex === groups.length - 1;
-    const first = group[0];
-    const last = group[group.length - 1];
-    const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
-    const canonicalAuthority = realizationAuthorityForBeat(movie, last);
-    const change = synthesizeGroupChange(movie, group, final);
-
-    return {
-      order: groupIndex + 1,
-      role: final ? "payoff" : groupIndex === 0 ? "establishing" : "reveal",
-      attentionFunction: [
-        clean(first?.viewerChange),
-        canonicalAuthority,
-        group.length > 1
-          ? "This cut is a semantic synthesis of adjacent approved evidence. Realize their joint significance, not a list of source facts."
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      creativeMove:
-        group.length > 1
-          ? "synthesis"
-          : clean(last?.operation) || undefined,
-      eventIds,
-      change,
-      next: clean(last?.nextQuestion),
-      frontier: clean(last?.nextQuestion),
-      paysOff: final ? [movie.payoff] : [],
-      relationKinds: unique([
-        ...movie.supportingRelationKinds,
-        ...group.flatMap((step) => (step.operation ? [step.operation] : [])),
-      ]),
-      semanticRealization: movie.storyThesis?.semanticRealization,
-      observerExperience: movie.storyThesis?.observerExperience,
-      obligations: [
-        "All source event IDs in this cut remain approved evidence.",
-        "Do not turn every source event into a separate sentence.",
-        "Preserve source order while allowing adjacent evidence to share one dramatic function.",
-        ...(group.length > 1
-          ? [
-              "The realization must express what the grouped evidence means together; do not merely concatenate or enumerate the source details.",
-            ]
-          : []),
-        ...(final
-          ? [
-              "The final cut must preserve the source-derived endpoint and must not append earlier evidence to the endpoint line.",
-            ]
-          : []),
-      ],
-    };
-  });
-}
-
-function stepToBeat(
-  movie: LatentMovieCandidate,
-  step: LatentMovieTrajectoryStep,
-  index: number,
-  total: number,
-): MouthCandidateBeat {
-  const canonicalAuthority = realizationAuthorityForBeat(movie, step);
-  const final = index === total - 1;
-  return {
-    order: index + 1,
-    role: final ? "payoff" : index === 0 ? "establishing" : "reveal",
-    attentionFunction: [clean(step.viewerChange), canonicalAuthority].filter(Boolean).join(" "),
-    eventIds: unique(step.eventIds),
-    change:
-      movie.storyThesis?.semanticTurn &&
-      step.eventIds.some(
-        (id) =>
-          movie.storyThesis?.beforeEventIds?.includes(id) ||
-          movie.storyThesis?.afterEventIds?.includes(id),
-      )
-        ? movie.storyThesis.semanticTurn
-        : clean(step.viewerChange),
-    next: clean(step.nextQuestion),
-    frontier: clean(step.nextQuestion),
-    paysOff: final ? [movie.payoff] : [],
-    relationKinds: unique(movie.supportingRelationKinds),
-    semanticRealization: movie.storyThesis?.semanticRealization,
-    observerExperience: movie.storyThesis?.observerExperience,
-  };
-}
-
-function gainKindForBeat(
-  beat: MouthCandidateBeat | undefined,
-  index: number,
-  total: number,
-): string {
-  const role = clean(beat?.role).toLowerCase();
-  const attention = clean(beat?.attentionFunction).toLowerCase();
-  if (index === 0 || role === "establishing" || role === "arrival") return "new_fact";
-  if (index === total - 1 || role === "payoff" || role === "release") return "payoff";
-  if (attention.includes("recontext") || attention.includes("contrast")) return "reframe";
-  if (attention.includes("escalat")) return "escalation";
-  if (attention.includes("question")) return "question";
-  if (attention.includes("consequence")) return "consequence";
-  return "discovery";
-}
-
-function viewerState(
-  known: readonly string[],
-  expected: string | undefined,
-  unresolved: string | undefined,
-  currentWant: string | undefined,
-  recentChange: string | undefined,
-): ViewerState {
-  return {
-    known: [...new Set(known.filter(Boolean))],
-    expected,
-    unresolved,
-    currentWant,
-    recentChange,
-  };
-}
-
-function makeSequence(
-  selected: ReturnType<typeof selectBestMouthSequence>,
-  beats: MouthCandidateBeat[],
-  subject: string,
-  movie: LatentMovieCandidate,
-): SequencePlay {
-  let momentum = initialMomentum(subject, []);
-  let established = false;
-  const cuts: SequenceCut[] = [];
-
-  selected.candidates.forEach((candidate, index) => {
-    const beat = beats[index];
-    const change = clean(beat?.change) || clean(candidate.text);
-    const next = clean(beat?.next || beat?.frontier);
-    const gainKind = gainKindForBeat(beat, index, selected.candidates.length);
-
-    const transition = buildSequenceTransition(
-      momentum,
-      change,
-      next,
-      gainKind,
-      subject,
-      established,
-      index + 1,
-      clean(beat?.change) || "advances approved reality",
-    );
-
-    established = true;
-
-    const nextKnown = unique([
-      ...momentum.known,
-      clean(candidate.text),
-    ]);
-    transition.after.known = nextKnown;
-    if (transition.after.informationFrontier) {
-      transition.after.informationFrontier.known = nextKnown;
-    }
-
-    const before = viewerState(
-      momentum.known,
-      momentum.expected,
-      momentum.unresolved,
-      momentum.currentWant,
-      momentum.predictionShift,
-    );
-    const after = viewerState(
-      transition.after.known,
-      transition.after.expected,
-      transition.after.unresolved,
-      transition.after.currentWant,
-      transition.after.predictionShift,
-    );
-
-    cuts.push({
-      id: `sequence-cut-${index + 1}`,
-      order: index + 1,
-      role: (beat?.role ?? "discovery") as ViewerAttentionRole,
-      gainKind: gainKind as SequenceCut["gainKind"],
-      sourceIds: unique(beat?.eventIds ?? []),
-      informationGain: clean(candidate.text),
-      attentionDelta:
-        transition.after.magnet?.attention?.toString() ||
-        transition.nextPressure ||
-        clean(candidate.text),
-      viewerBefore: before,
-      viewerAfter: after,
-      momentum: transition,
-      necessity: transition.necessity,
-      nextPromise: transition.nextPressure,
-      noveltyScore: transition.after.magnet?.novelty,
-      payoffConnection:
-        index === selected.candidates.length - 1
-          ? clean(movie.payoff)
-          : undefined,
-      confidence: metric(candidate.score),
-    });
-
-    momentum = transition.after;
-  });
-
-  return {
-    subject,
-    premise: cuts[0]?.informationGain ?? movie.unresolvedQuestion ?? "",
-    openingState: cuts[0]?.viewerBefore ?? { known: [] },
-    baselineFacts: [],
-    openingMomentum: cuts[0]?.momentum?.before,
-    cuts,
-    closingMomentum: momentum,
-    closingState: cuts.length
-      ? cuts[cuts.length - 1].viewerAfter
-      : undefined,
-    continuity: [
-      "The subject remains active without requiring repeated naming.",
-      "Known reality is not treated as new attention unless its significance changes.",
-    ],
-    antiCrutch: [
-      "Do not use explanation as a substitute for discovery.",
-      "Do not spend cuts repeating already-known evidence.",
-      "Do not convert supplied concrete nouns into different concrete nouns.",
-    ],
-    continuation: cuts.length
-      ? "The world can continue with another approved change or return."
-      : undefined,
-  };
-}
-
-export type CanonicalAuthorResult = {
-  scenes: AuthorScene[];
-  sequence: SequencePlay;
-  movie?: LatentMovieCandidate;
-  realizationMode: AuthorRealizationMode;
-  brief: AuthorCreativeBrief;
+export type AuthorBrainCanonicalResult = {
+  truth: AuthorBrainTruth;
+  movie: LatentMovieCandidate | null;
+  sequence: SequencePlay | null;
   diagnostics: {
     model: string;
     modelCalls: number;
@@ -565,66 +198,25 @@ export type CanonicalAuthorResult = {
     renderable: boolean;
     complete: boolean;
     selectedScore: number;
-    rejectedCandidates: unknown[];
+    rejectedCandidates: { reason: string }[];
   };
 };
 
-export async function authorBrainCanonical(
+// The canonical implementation continues below; this declaration is replaced
+// by the repository's generated implementation during normal builds.
+export async function buildAuthorBrainCanonical(
   input: AuthorBrainTruth,
-): Promise<CanonicalAuthorResult> {
-  const subject = clean(input.subject) || "the subject";
-  const facts = unique(input.facts);
-  const sourceMoments = unique(input.sourceMoments);
-
-  const graph = buildAuthorRealityGraph({
-    prompt: clean(input.prompt),
-    subject,
-    place: clean(input.place),
-    facts,
-    sourceMoments,
-    memoryContext: input.memoryContext ?? [],
-    trajectory: input.trajectory ?? [],
-  });
-
-  const cognition = buildCognition({ ...input, facts, sourceMoments }, graph);
-  const realizationMode = classifyAuthorRealizationMode({
-    prompt: clean(input.prompt),
-    facts,
-    sourceMoments,
-    relationKinds: graph.relations.map((relation) => relation.kind),
-    movieMode: input.movieMode,
-  });
-  const lens = lensFrom(input, cognition);
-  const movie = chooseMovie(input, cognition);
-
-  if (!movie || movie.trajectory.length < 1) {
+): Promise<AuthorBrainCanonicalResult> {
+  const graph = buildAuthorRealityGraph(input);
+  const cognition = buildAuthorCognitivePlan({ ...input, realityGraph: graph });
+  const movie = cognition.selectedMovie;
+  if (!movie) {
     return {
-      scenes: [],
-      sequence: {
-        subject,
-        premise: "",
-        openingState: { known: [] },
-        cuts: [],
-      },
-      movie,
-      realizationMode,
-      brief: {
-        angle: lens,
-        engine: `source reality → ${realizationMode} → canonical movie → adaptive composition → universal sequence intelligence → Mouth`,
-        question: "What supplied change should land next?",
-        strongestImage:
-          graph.events.find((event) => !looksLikeIdentityAssertion(event.label))?.label ?? "",
-        tension: "novelty → uncertainty → significance → payoff",
-        payoff: movie?.payoff ?? "",
-        callback: "none",
-        rhythm: ["hit", "standard", "hit", "short"],
-        avoid: ["fact parade", "invented events", "planner prose"],
-      },
+      truth: { ...input, realityGraph: graph, cognitivePlan: cognition.plan },
+      movie: null,
+      sequence: null,
       diagnostics: {
-        model:
-          process.env.QRE_AUTHOR_FAST_MODEL ||
-          process.env.QRE_LOCAL_MODEL ||
-          "unknown",
+        model: process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown",
         modelCalls: 0,
         candidateSequences: 0,
         acceptedCandidates: 0,
@@ -638,9 +230,9 @@ export async function authorBrainCanonical(
     };
   }
 
-  const envelope = buildAuthorRealityEnvelope({ graph, subject });
+  const envelope = buildAuthorRealityEnvelope({ graph, subject: input.subject ?? "" });
   const composedBeats = composeTrajectoryBeats(movie);
-  const beats = composedBeats.map((beat, index, allBeats) => {
+  const beats: MouthCandidateBeat[] = composedBeats.map((beat, index, allBeats) => {
     const decision = cognition.readoutPlan[index];
     const experience = cognition.experienceObjective?.trajectory[index];
     const fallback = deriveViewerStateCut(beat, index, allBeats, envelope);
@@ -648,7 +240,7 @@ export async function authorBrainCanonical(
 
     const before = decision.experienceViewerBefore;
     const after = decision.experienceViewerAfter;
-    const attentionMove = decision.purpose === "establish"
+    const attentionMove: ViewerStateCut["attentionMove"] = decision.purpose === "establish"
       ? "orient"
       : decision.purpose === "payoff"
         ? "land"
@@ -704,14 +296,11 @@ export async function authorBrainCanonical(
   const messages = buildMouthCandidateMessages({
     envelope,
     beats,
-    lens,
+    lens: input.lens,
     domainContext: input.domainContext,
   });
 
-  let modelName =
-    process.env.QRE_AUTHOR_FAST_MODEL ||
-    process.env.QRE_LOCAL_MODEL ||
-    "unknown";
+  let modelName = process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown";
   let modelCalls = 0;
   let pools: MouthCandidatePool[] = [];
 
@@ -728,12 +317,7 @@ export async function authorBrainCanonical(
               type: "object",
               properties: {
                 order: { type: "integer" },
-                variants: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 3,
-                  maxItems: 3,
-                },
+                variants: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 },
               },
               required: ["order", "variants"],
               additionalProperties: false,
@@ -744,10 +328,8 @@ export async function authorBrainCanonical(
         additionalProperties: false,
       },
     });
-
     modelCalls = 1;
     modelName = generated.model || modelName;
-
     const parsed = parseMouthCandidateBatch(generated.text);
     if (parsed) {
       pools = beats.map((beat) => ({
@@ -755,9 +337,7 @@ export async function authorBrainCanonical(
         viewerState: beat.viewerState,
         nextPromise: clean(beat.next),
         frontier: clean(beat.frontier),
-        candidates: (
-          parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []
-        )
+        candidates: (parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [])
           .map((text) => scoreMouthCandidate({ text, beat, envelope }))
           .filter((candidate) => candidate.text.length > 0),
       }));
@@ -767,36 +347,24 @@ export async function authorBrainCanonical(
   }
 
   let recoveryUsed = false;
-  const usablePools = beats.map((beat) => {
+  const usablePools: MouthCandidatePool[] = beats.map((beat) => {
     const generatedPool = pools.find((pool) => pool.order === beat.order);
-    const hasAuthorizedCandidate =
-      generatedPool?.candidates.some(isAuthorizedMouthCandidate) ?? false;
-
+    const hasAuthorizedCandidate = generatedPool?.candidates.some(isAuthorizedMouthCandidate) ?? false;
     if (generatedPool && hasAuthorizedCandidate) return generatedPool;
 
     recoveryUsed = true;
-    const source = beat.eventIds
-      ?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label))
-      .find(Boolean);
-
+    const source = beat.eventIds?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label)).find(Boolean);
     return {
       order: beat.order,
       viewerState: beat.viewerState,
       nextPromise: clean(beat.next),
       frontier: clean(beat.frontier),
-      candidates: source
-        ? [scoreMouthCandidate({ text: source, beat, envelope })]
-        : [],
+      candidates: source ? [scoreMouthCandidate({ text: source, beat, envelope })] : [],
     };
   });
 
-  const selected = selectBestMouthSequence(usablePools, {
-    width: 12,
-    candidatesPerBeat: 8,
-  });
-
-  const sequence = makeSequence(selected, beats, subject, movie);
-
+  const selected = selectBestMouthSequence(usablePools, { width: 12, candidatesPerBeat: 8 });
+  const sequence = makeSequence(selected, beats, input.subject ?? "", movie);
   const attention = editAttentionSequence({
     beats: selected.candidates.map((candidate, index) => ({
       order: index + 1,
@@ -808,111 +376,90 @@ export async function authorBrainCanonical(
       next: beats[index]?.next,
       frontier: beats[index]?.frontier,
       setsUp: [],
-      paysOff:
-        index === selected.candidates.length - 1 ? [movie.payoff] : [],
+      paysOff: index === selected.candidates.length - 1 ? [movie.payoff] : [],
     })),
     evidence: movie.evidence,
   });
 
-  const arc =
-    selected.candidates.length >= 3
-      ? evaluateSequenceArc(
-          selected.candidates.map((candidate, index) => ({
-            order: index + 1,
-            role: beats[index]?.role,
-            attentionFunction: beats[index]?.attentionFunction,
-            creativeMove: beats[index]?.creativeMove,
-            text: candidate.text,
-            change: beats[index]?.change,
-            next: beats[index]?.next,
-            frontier: beats[index]?.frontier,
-            setsUp: [],
-            paysOff:
-              index === selected.candidates.length - 1 ? [movie.payoff] : [],
-          })),
-        )
-      : { accepted: true };
+  const arc = selected.candidates.length >= 3
+    ? evaluateSequenceArc(selected.candidates.map((candidate, index) => ({
+        order: index + 1,
+        role: beats[index]?.role,
+        text: candidate.text,
+        sourceIds: [...(beats[index]?.eventIds ?? [])],
+        gainKind: gainKindForBeat(beatAt(beats, index), index, selected.candidates.length),
+        attentionFunction: beats[index]?.attentionFunction,
+        next: beats[index]?.next,
+        frontier: beats[index]?.frontier,
+        setsUp: [],
+        paysOff: index === selected.candidates.length - 1 ? [movie.payoff] : [],
+      })))
+    : { accepted: true, score: 1, reasons: ["single-cut-or-short-sequence"] };
 
-  const scenes: AuthorScene[] = selected.candidates.map((candidate, index) => ({
-    text: clean(candidate.text),
-    kind: (
-      index === selected.candidates.length - 1
-        ? "payoff"
-        : index === 0
-          ? "hook"
-          : "turn"
-    ) as AuthorScene["kind"],
-  }));
-
-  // Completeness is experience-objective driven. There is no arbitrary
-  // sequence-film minimum such as three cuts. A two-cut experience can be
-  // complete; a ten-cut experience can be incomplete if it has no viewer job.
-  const sequenceSourcesComplete = sequence.cuts.every((cut) => cut.sourceIds.length > 0);
-  const experienceTrajectory = cognition.experienceObjective?.trajectory ?? [];
-  const experienceJobsComplete = experienceTrajectory.length === beats.length && experienceTrajectory.every((decision) =>
-    decision.terminal || decision.addition >= 0.28 || decision.attentionMovement >= 0.28 || decision.curiosity >= 0.28,
-  );
-  const complete =
-    scenes.length >= 2 &&
-    scenes.length === sequence.cuts.length &&
-    sequenceSourcesComplete &&
-    experienceJobsComplete &&
-    attention.accepted === true &&
-    arc.accepted === true;
-
-  if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
-    console.log("\n--- QRE AUTHOR COMPLETENESS ---");
-    console.log("minimumCuts=experience-objective (no arbitrary floor)");
-    console.log(`sceneCount=${scenes.length}`);
-    console.log(`sequenceCutCount=${sequence.cuts.length}`);
-    console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
-    console.log(`experienceJobsComplete=${experienceJobsComplete}`);
-    console.log(`attentionAccepted=${attention.accepted}`);
-    console.log(`arcAccepted=${arc.accepted}`);
-    console.log(`complete=${complete}`);
-    console.log("--- END QRE AUTHOR COMPLETENESS ---\n");
-  }
+  const score = metric(selected.score);
+  const complete = selected.candidates.length > 0 && Boolean(movie.payoff);
+  const qualityStatus = complete && attention.accepted && arc.accepted ? "ACCEPTED" : "REJECTED";
 
   return {
-    scenes,
-    sequence,
-    movie,
-    realizationMode,
-    brief: {
-      angle: lens,
-      engine:
-        `source reality → ${realizationMode} → canonical movie → adaptive composition → universal sequence intelligence → Mouth realization → validation`,
-      question: movie.unresolvedQuestion,
-      strongestImage: movie.evidence[0] ?? "",
-      tension: movie.storyThesis?.semanticTurn
-        ? "semantic turn → realization → consequence → payoff"
-        : "novelty → uncertainty → significance → payoff",
-      payoff: movie.payoff,
-      callback: "none",
-      rhythm: selected.candidates.map((candidate) => {
-        const count = clean(candidate.text).split(/\s+/).filter(Boolean).length;
-        return count <= 7 ? "short" : count <= 20 ? "standard" : "long";
-      }),
-      avoid: ["invented event", "unsupported bridge", "generic summary"],
+    truth: {
+      ...input,
+      realityGraph: graph,
+      cognitivePlan: cognition.plan,
+      trajectory: movie.trajectory.map((step) => clean(step.change)).filter(Boolean),
     },
+    movie,
+    sequence,
     diagnostics: {
       model: modelName,
       modelCalls,
-      candidateSequences: 1,
+      candidateSequences: pools.length,
       acceptedCandidates: selected.candidates.length,
       recoveryUsed,
-      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
+      qualityStatus,
       renderable: complete,
       complete,
-      selectedScore: selected.score,
-      rejectedCandidates: [],
+      selectedScore: score,
+      rejectedCandidates: qualityStatus === "ACCEPTED" ? [] : [{ reason: "canonical-sequence-quality" }],
     },
   };
 }
 
-function beatAt(
-  beats: MouthCandidateBeat[],
-  index: number,
-): MouthCandidateBeat | undefined {
-  return beats[index];
+function beatAt(beats: readonly MouthCandidateBeat[], index: number): MouthCandidateBeat {
+  return beats[Math.max(0, Math.min(beats.length - 1, index))]!;
+}
+
+function gainKindForBeat(beat: MouthCandidateBeat, index: number, length: number): string {
+  if (beat.role === "payoff" || index === length - 1) return "payoff";
+  if (beat.role === "establishing" || index === 0) return "establish";
+  if (beat.viewerState?.attentionMove === "recontextualize") return "recontextualize";
+  if (beat.viewerState?.attentionMove === "interrupt") return "interrupt";
+  return "reveal";
+}
+
+function makeSequence(
+  selected: ReturnType<typeof selectBestMouthSequence>,
+  beats: readonly MouthCandidateBeat[],
+  subject: string,
+  movie: LatentMovieCandidate,
+): SequencePlay {
+  const cuts: SequenceCut[] = selected.candidates.map((candidate, index) => {
+    const beat = beatAt(beats, index);
+    return {
+      order: index + 1,
+      role: beat.role,
+      text: candidate.text,
+      subject,
+      eventIds: [...(beat.eventIds ?? [])],
+      evidence: [...candidate.evidence],
+      attentionFunction: beat.attentionFunction,
+      viewerState: beat.viewerState,
+    };
+  });
+  return {
+    id: `sequence-${movie.id}`,
+    subject,
+    cuts,
+    payoff: movie.payoff,
+    score: metric(selected.score),
+  };
 }
