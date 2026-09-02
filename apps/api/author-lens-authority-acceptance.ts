@@ -1,6 +1,5 @@
 import { resolveLensPolicy } from "./src/services/authorLensPolicy.js";
-import { rankLensOpportunities as rankCanonicalLensOpportunities } from "./src/services/authorLensRanking.js";
-import { rankLensOpportunities as rankCompatibilityLensOpportunities, classifyLens } from "./src/services/authorCharacterLensEngine.js";
+import { rankLensOpportunities } from "./src/services/authorLensRanking.js";
 import type { RealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -52,22 +51,17 @@ assert(game.environmentalOperators.join("|") !== horror.environmentalOperators.j
 assert(game.forbiddenRealityMoves.some((move) => /invented concrete event/i.test(move)), "GAME must forbid invented concrete events");
 assert(horror.forbiddenRealityMoves.some((move) => /invented/i.test(move)), "HORROR must retain reality guards");
 
-const canonical = rankCanonicalLensOpportunities(envelope);
-const compatibility = rankCompatibilityLensOpportunities(envelope);
-assert(JSON.stringify(canonical) === JSON.stringify(compatibility), "Compatibility ranking must delegate exactly to canonical ranking");
+const canonical = rankLensOpportunities(envelope);
 assert(canonical.length > 0, "Canonical ranker returned no opportunities");
 assert(canonical.some((candidate) => candidate.frame === "NONE"), "Canonical ranker must retain native NONE as a valid option");
+assert(canonical.every((candidate) => resolveLensPolicy(candidate.frame).name === candidate.frame || candidate.frame === "NONE"), "Every ranked frame must resolve through the canonical LensPolicy");
 
-const projected = classifyLens("game");
-assert(projected.label === game.name, "Compatibility projection must resolve from canonical policy");
-assert(projected.intensity === game.intensity, "Compatibility projection must preserve canonical intensity");
-assert(projected.realizationPreferences.length === game.realizationMoves.length, "Compatibility projection must preserve canonical realization moves");
 assert(JSON.stringify(envelope) === before, "Lens ranking must not mutate supplied RealityEnvelope");
 
 console.log("QRE LENS AUTHORITY ACCEPTANCE · PASS");
 console.log("POLICY=canonical");
 console.log("RANKING=canonical");
-console.log("COMPATIBILITY=delegating");
+console.log("COMPATIBILITY_ADAPTER=removed");
 console.log("REALITY=unchanged");
 console.log(`CANDIDATES=${canonical.length}`);
 console.log(`GAME=${game.worldOrbit.join(", ")}`);
