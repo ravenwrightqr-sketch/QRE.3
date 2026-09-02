@@ -10,6 +10,7 @@
  */
 import type { LatentMovieTrajectoryStep, RealityRelation } from "@qre/contracts";
 import type { SatanicoInferenceOpportunity } from "./authorSatanicoEvidenceSearch.js";
+import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
 export type LensPolicy = {
   name: string;
@@ -56,6 +57,8 @@ const SEEDS: LensSeed[] = [
   { name: "mystery", aliases: ["enigmatic", "puzzle", "secret"], terms: ["unknown", "clue", "evidence", "trace", "secret", "missing", "return", "why", "watching", "case"], relationWeights: { recontextualizes: 1, contrasts: .98, converges: .94, causes: .82 }, operationWeights: { reframe: 1, contrast: .98, converge: .94, consequence: .82 }, opportunityWeights: { callback: 1, heterogeneous_convergence: 1, relational_role: .94, invariant: .88 }, observerMode: "tension", personification: "light", explanationPressure: .01 },
   { name: "adventure", aliases: ["action", "journey", "quest", "epic"], terms: ["road", "journey", "mission", "arrive", "leave", "return", "challenge", "cross", "discover", "finish"], relationWeights: { causes: 1, changes: .96, converges: .82, contrasts: .72 }, operationWeights: { consequence: 1, reveal: .96, converge: .82, contrast: .72 }, opportunityWeights: { state_transformation: 1, origin_outcome: .96, contrast: .8, heterogeneous_convergence: .78 }, observerMode: "stakes", personification: "light", explanationPressure: .04 },
 ];
+
+export const CANONICAL_LENS_NAMES = SEEDS.map((seed) => seed.name) as readonly string[];
 
 const normalize = (value: string): string[] => [...new Set(value.toLowerCase().replace(/[^a-z0-9'’-]+/g, " ").split(/\s+/).filter((token) => token.length >= 3))];
 
