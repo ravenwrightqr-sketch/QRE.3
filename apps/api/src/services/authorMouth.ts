@@ -155,6 +155,25 @@ function creativeFormSignal(text: string): number {
   return metric(forms.reduce((sum, pattern) => sum + (pattern.test(value) ? 1 : 0), 0) / 2);
 }
 
+function declarativeRestatementRisk(
+  text: string,
+  labels: readonly string[],
+  beat: MouthCandidateBeat,
+): number {
+  if (!text || !labels.length || beat.role === "establishing") return 0;
+  const candidate = meaningful(text);
+  const source = meaningful(labels.join(" "));
+  if (!candidate.size || !source.size) return 0;
+
+  const lexicalSimilarity = overlap(candidate, source);
+  const closeInSize = wordCount(text) <= Math.max(8, Math.max(...labels.map(wordCount)) + 4);
+  const declarativePredicate = /^(?:(?:[a-z][a-z'-]+)\s+){0,3}(?:is|are|was|were|has|have|loves?|likes?|needs?|owns?|wears?|uses?|visits?|visited|met|knows?|prefers?|wants?)\b/i.test(clean(text));
+
+  if (declarativePredicate && lexicalSimilarity >= 0.55) return metric(0.72 + (lexicalSimilarity - 0.55) * 0.5);
+  if (closeInSize && lexicalSimilarity >= 0.82) return 0.62;
+  return 0;
+}
+
 function semanticAuthorization(
   text: string,
   beat: MouthCandidateBeat,
@@ -262,10 +281,12 @@ function evaluateCandidate(
   const observerForbidden = beat.observerExperience?.explanationForbidden === true;
   const explanation = explanationRisk(value);
   const creativeForm = creativeFormSignal(value);
+  const restatementRisk = declarativeRestatementRisk(value, labels, beat);
   const semanticEligible = semantic.authorized &&
     (labels.length <= 1 || groupedCoverage >= 0.5);
   const semanticCreative = semanticEligible && !literal && creativeForm >= 0.35;
   const explanationPenalty = observerForbidden ? explanation : explanation * 0.35;
+  const experiencePenalty = restatementRisk * 0.22;
 
   const creativeScore = metric(
     (semantic.strength * 0.34) +
@@ -275,7 +296,8 @@ function evaluateCandidate(
       (humanSized ? 0.07 : 0) +
       (groupedCoverage * 0.05) +
       (semanticCreative ? 0.12 : 0) -
-      explanationPenalty * 0.38,
+      explanationPenalty * 0.38 -
+      experiencePenalty,
   );
 
   const literalScore = metric(
@@ -284,7 +306,8 @@ function evaluateCandidate(
       groupedCoverage * (labels.length > 1 ? 0.12 : 0.05) +
       novelty * 0.05 +
       (observerForbidden && explanation === 0 ? 0.03 : 0) -
-      explanationPenalty * 0.35,
+      explanationPenalty * 0.35 -
+      experiencePenalty * 0.75,
   );
 
   const score = literal
@@ -306,6 +329,7 @@ function evaluateCandidate(
   if (explanation > 0) reasons.push("explicit-explanation-risk");
   if (humanSized) reasons.push("human-sized-cut");
   if (creativeForm >= 0.5) reasons.push("framing-operator");
+  if (restatementRisk >= 0.55) reasons.push("list-like-restatement");
   if (invention >= 0.9) reasons.push("unsupported-concrete-risk");
   if (novelty >= 0.6) reasons.push("novel-language");
 
@@ -337,14 +361,15 @@ function evaluateCandidate(
           : 0,
     ),
     relationContractScore: metric((beat.relationKinds ?? []).length ? 0.85 : 0.35),
-    forbiddenMoveRisk: metric(Math.max(invention, explanationPenalty)),
+    forbiddenMoveRisk: metric(Math.max(invention, explanationPenalty, restatementRisk * 0.55)),
     cohesionScore: metric(
       0.44 +
         (semanticEligible ? semantic.strength * 0.28 : 0) +
         creativeForm * 0.12 +
         grounding * 0.08 +
         groupedCoverage * 0.1 -
-        explanationPenalty * 0.12,
+        explanationPenalty * 0.12 -
+        restatementRisk * 0.08,
     ),
     noveltyScore: novelty,
     compressionScore: humanSized ? 0.95 : 0.65,
@@ -366,12 +391,16 @@ function buildSystemPrompt(): string {
     "Never invent a person, object, place, physical action, physical relation, reaction, dialogue, event, or chronology.",
     "Use the lens to alter framing, rhythm, irony, tenderness, suspense, status, absurdity, or genre coloration only.",
     "A grounded implication is preferred over a literal paraphrase when an approved semantic realization exists.",
+    "THE DOTS ARE NOT THE SCRIPT: supplied facts, traits, preferences, relationships, places, and events are backend world material. Do not emit them as a profile list just because they were supplied as separate dots.",
+    "SEQUENCE FIRST: each cut is a viewer-facing moment. Recompose approved relationships into what the viewer experiences next: arrival, action, anticipation, pressure, recognition, consequence, callback, or payoff.",
+    "For preference, affinity, ownership, attachment, recurrence, or similar relationships, avoid declarative trait-list prose such as 'Milo loves bacon' when the cut can play the relationship instead. Prefer a lived line such as a reaction, question, anticipation, status move, juxtaposition, or consequence grounded in the supplied relation.",
+    "A question or interior-style realization such as 'Do I smell bacon?' can express an approved supplied relationship without asserting that bacon is physically present. Keep the distinction clear: experiential language is not a new source event.",
     "ACCUMULATE: carry forward significance established by earlier approved beats. A later line may rely on what the observer already learned instead of restating it.",
     "IMPLY: communicate an approved relationship through juxtaposition, syntax, contrast, consequence, status, selection, or callback. Do not explain the relationship.",
     "RECONTEXTUALIZE: let a later approved fact change how an earlier fact is perceived. Preserve the fact; change its significance through the supplied relation.",
     "Use realization forms such as 'had other plans', 'had different ideas', 'apparently', 'not quite done', 'instead', 'after all', or similar framing operators when they are grounded by the supplied evidence. These are language forms, not permission to invent facts.",
-    "For every beat return exactly 3 materially different candidates: (1) grounded anchor, (2) compressed framing, (3) bold implication. The second and third should not merely swap adjectives; they should change the sentence's framing or information compression.",
-    "A candidate can be creative without repeating every source noun. Keep at least one grounded anchor so the approved reality remains recoverable.",
+    "For every beat return exactly 3 materially different candidates: (1) grounded experience, (2) compressed framing, (3) bold implication. The second and third should change the cut's framing, voice, anticipation, or information compression rather than merely swapping adjectives.",
+    "A candidate needs a grounded anchor, not a complete copied source sentence. One supplied noun, relationship token, event consequence, or clearly approved referent is enough when the semantic contract carries the rest.",
     "Never write generic atmospheric filler, trailer narration, or a prettier noun for an event.",
     "Do not close every information gap immediately. Build a specific, answerable micro-question when the approved beat supplies one; resolve it at the approved payoff.",
     "At payoff, satisfy the current approved question or tension. Only open another loop when the cognition-supplied next/frontier material supports it; never manufacture a hook for engagement alone.",
@@ -392,7 +421,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify(
         {
           instruction:
-            "Return exactly 3 materially different language realizations for EVERY beat. Do not omit a beat. For each beat produce: A) grounded anchor, B) compressed framing, C) bold implication. Prefer language that makes the approved semantic relationship felt rather than explained. Preserve at least one source-grounded anchor in every candidate. Never state the thesis directly when explanationForbidden is true.",
+            "Return exactly 3 materially different language realizations for EVERY beat. Do not omit a beat. Do not turn the beat set into a trait/profile list. Realize each approved relationship as a sequence moment. For each beat produce: A) grounded experience, B) compressed framing, C) bold implication. Prefer reaction, anticipation, question, status, juxtaposition, consequence, or callback when those forms are supported. Preserve at least one grounded referent in every candidate, but do not copy the complete source sentence. Never state the thesis directly when explanationForbidden is true.",
           lens: input.lens || "AUTO",
           lensProfile: lens,
           domainContext: input.domainContext ?? null,
@@ -414,7 +443,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           outputSchema: {
             variantsByBeat: input.beats.map((beat) => ({
               order: beat.order,
-              variants: ["grounded anchor", "compressed framing", "bold implication"],
+              variants: ["grounded experience", "compressed framing", "bold implication"],
             })),
           },
         },
@@ -512,6 +541,7 @@ function pathIncrement(
   const discoveryBonus = candidate.reasons.includes("discovery-preserving") ? 0.06 : 0;
   const explanationPenalty = candidate.reasons.includes("explicit-explanation-risk") ? 0.14 : 0;
   const literalPenalty = candidate.endpointExactness >= 0.999 ? 0.09 : 0;
+  const listPenalty = candidate.reasons.includes("list-like-restatement") ? 0.16 : 0;
 
   return metric(
     candidate.score * 0.32 +
@@ -530,7 +560,8 @@ function pathIncrement(
       coverageBonus +
       discoveryBonus -
       explanationPenalty -
-      literalPenalty,
+      literalPenalty -
+      listPenalty,
   );
 }
 
