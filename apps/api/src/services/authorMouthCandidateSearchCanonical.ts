@@ -125,9 +125,9 @@ function implicationSignal(text: string): number {
   const count = wordCount(value);
   if (!value) return 0;
   const consequence = /\b(?:then|again|still|already|finally|apparently|anyway|until|for now|temporary|temporarily|remained|stayed|kept)\b/i.test(value);
-  const contrast = /\b(?:but|yet|still|instead|only|just|however)\b/i.test(value);
+  const contrast = /\b(?:but|yet|still|instead|only|just|however|except|until)\b/i.test(value);
   const question = /\?$/.test(value);
-  const status = /\b(?:won|lost|ready|done|cleared|approved|complete|finished|peace|fabulous|fierce|sharp|official|final|temporary)\b/i.test(value);
+  const status = /\b(?:won|lost|ready|done|cleared|approved|complete|finished|peace|fabulous|fierce|sharp|official|final|temporary|transformed|changed|escaped|returned)\b/i.test(value);
   return metric(
     (consequence ? 0.28 : 0) +
       (contrast ? 0.24 : 0) +
@@ -137,19 +137,49 @@ function implicationSignal(text: string): number {
   );
 }
 
-function antiLabelSignal(text: string, sourceSpecificityScore: number): number {
+function relationalMoveSignal(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+  const value = clean(text);
+  if (!value) return 0;
+
+  const candidate = meaningful(value);
+  const localLabels = sourceLabels(beat, envelope);
+  const worldLabels = wholeReality(envelope);
+  const localHits = localLabels.filter((label) => overlap(candidate, meaningful(label)) >= 0.5).length;
+  const worldHits = worldLabels.filter((label) => overlap(candidate, meaningful(label)) >= 0.5).length;
+  const frame = frameSignal(value);
+  const implication = implicationSignal(value);
+  const relationVerb = /\b(?:became|becomes|made|makes|turned|turns|left|leaves|kept|keeps|changed|changes|met|meets|won|lost|found|finds|took|takes|gave|gives|followed|follows|started|starts|ended|ends|returned|returns|remained|remains|belonged|belongs|looked|looks)\b/i.test(value);
+  const relationPreposition = /\b(?:against|between|beside|under|over|inside|outside|without|with|until|after|before)\b/i.test(value);
+  const multiSource = localHits >= 2 || worldHits >= 2;
+  const groundedFrame = frame > 0 && (localHits > 0 || worldHits > 0);
+  const groundedImplication = implication >= 0.24 && (localHits > 0 || worldHits > 0);
+  const sentencePredicate = relationVerb || relationPreposition || /\b(?:is|are|was|were|has|have|had|did|does)\b/i.test(value);
+
+  return metric(
+    (multiSource ? 0.5 : 0) +
+      (groundedFrame ? 0.25 : 0) +
+      (groundedImplication ? 0.18 : 0) +
+      (relationVerb ? 0.12 : 0) +
+      (relationPreposition ? 0.08 : 0) +
+      (sentencePredicate ? 0.05 : 0),
+  );
+}
+
+function antiLabelSignal(text: string, sourceSpecificityScore: number, moveSignal: number): number {
   const value = clean(text);
   if (!value) return 1;
 
-  const atmospheric = /^(?:(?:a|an|the)\s+)?(?:weight|tremor|anticipation|beginning|cleansing|transformation|radiance|portrait|defiance|acquisition|joy|energy|silence|connection|tension|intensity|feeling|moment|presence|possibility|momentum|afterglow|resonance|lightness|stillness|softness)\b/i;
+  const atmospheric = /^(?:(?:a|an|the)\s+)?(?:weight|tremor|anticipation|beginning|cleansing|transformation|radiance|portrait|defiance|acquisition|joy|energy|silence|connection|tension|intensity|feeling|moment|presence|possibility|momentum|afterglow|resonance|lightness|stillness|softness|flourish|shadow|flash)\b/i;
   const sentenceParts = value.split(/[.!?]+/).map(clean).filter(Boolean);
   const fragmentPair = sentenceParts.length >= 2 && sentenceParts.every((part) => {
     const words = part.split(/\s+/).filter(Boolean);
-    return words.length <= 5 && !/\b(?:is|are|was|were|did|does|has|have|had|then|but|and)\b/i.test(part);
+    return words.length <= 5 && !/\b(?:is|are|was|were|did|does|has|have|had|then|but|and|became|becomes|made|makes|turned|turns)\b/i.test(part);
   });
+  const unsupportedAbstract = !sourceSpecificityScore && wordCount(value) <= 6 && moveSignal < 0.35;
 
-  if (atmospheric.test(value)) return sourceSpecificityScore < 0.2 ? 1 : 0.55;
-  if (fragmentPair && sourceSpecificityScore < 0.2) return 0.8;
+  if (atmospheric.test(value)) return sourceSpecificityScore < 0.35 && moveSignal < 0.35 ? 1 : 0.55;
+  if (fragmentPair && sourceSpecificityScore < 0.2 && moveSignal < 0.35) return 0.8;
+  if (unsupportedAbstract) return 0.75;
   return 0;
 }
 
@@ -168,6 +198,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const localSpecificity = sourceSpecificity(value, beat, envelope);
   const framing = frameSignal(value);
   const implication = implicationSignal(value);
+  const moveSignal = relationalMoveSignal(value, beat, envelope);
   const novelty = priorTexts.length
     ? metric(1 - Math.max(
         ...priorTexts.map((prior) => overlap(meaningful(value), meaningful(prior))),
@@ -181,12 +212,13 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     : metric(beat.eventIds?.length ? 0.64 : 0.45);
 
   const discovery = metric(
-    (evaluation.creativeFraming ?? 0) * 0.24 +
-      localSpecificity * 0.25 +
-      implication * 0.2 +
-      framing * 0.1 +
-      approvedMeaning * 0.13 +
-      novelty * 0.08,
+    (evaluation.creativeFraming ?? 0) * 0.2 +
+      localSpecificity * 0.2 +
+      implication * 0.15 +
+      framing * 0.06 +
+      moveSignal * 0.22 +
+      approvedMeaning * 0.1 +
+      novelty * 0.07,
   );
 
   const humanShape =
@@ -196,19 +228,19 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
         ? 0.75
         : 0.45;
 
-  const labelRisk = antiLabelSignal(value, localSpecificity);
+  const labelRisk = antiLabelSignal(value, localSpecificity, moveSignal);
 
   const score = metric(
     (1 - forbidden) * 0.2 +
-      discovery * 0.31 +
-      localSpecificity * 0.14 +
-      evaluation.interpretive * 0.09 +
-      novelty * 0.07 +
-      humanShape * 0.06 +
-      implication * 0.08 +
-      framing * 0.05 -
-      labelRisk * 0.22 -
-      (literal ? 0.13 : 0),
+      discovery * 0.32 +
+      localSpecificity * 0.11 +
+      evaluation.interpretive * 0.08 +
+      novelty * 0.06 +
+      humanShape * 0.05 +
+      implication * 0.06 +
+      moveSignal * 0.12 -
+      labelRisk * 0.28 -
+      (literal ? 0.14 : 0),
   );
 
   const supportedEventIds = labels.length && localSpecificity >= 0.24 && forbidden < 0.9
@@ -219,6 +251,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (supportedEventIds.length) reasons.push("event-grounded");
   if (evaluation.accepted) reasons.push("meaning-authorized");
   if (framing >= 0.7) reasons.push("interpretive-frame");
+  if (moveSignal >= 0.45) reasons.push("interpretive-move");
   if (implication >= 0.45) reasons.push("viewer-discovery");
   if (discovery >= 0.6) reasons.push("creative-discovery");
   if (literal) reasons.push("literal-source-restatement");
@@ -260,10 +293,14 @@ function buildSystemPrompt(): string {
     "Never invent a new concrete person, object, location, physical action, physical relation, dialogue, reaction, event, or chronology.",
     "A frame may be theatrical: 'the cat was the judge' can frame supplied watching. Do not continue it into an invented event such as 'the cat approved the bathroom' unless that event is supplied.",
     "Do not confuse cinematic vocabulary with creativity. Do not write poetry, trailer narration, atmospheric filler, or emotional labels.",
-    "BAD: 'A tremor. The before.' BAD: 'The weight of anticipation.' BAD: 'Radiance. The final portrait.' These name an atmosphere instead of discovering the relationship.",
+    "BAD: 'A tremor. The before.' BAD: 'The weight of anticipation.' BAD: 'Radiance. The final portrait.' BAD: 'A flash of blue.' BAD: 'A final flourish.' These name an atmosphere instead of discovering a relationship.",
     "Do not merely rename the source event: bath -> cleansing, steal -> acquisition, fabulous -> radiance.",
+    "Every candidate must perform at least one interpretive move: connect two supplied pieces, turn a supplied detail into status, create a grounded contrast or reversal, create a consequence/callback, or make one supplied fact change the meaning of another.",
+    "A useful test: if the cut could be pasted onto an unrelated video and still sound equally appropriate, reject it.",
+    "Prefer sentences that make something happen in the viewer's interpretation. 'The blue bow was evidence.' performs a frame. 'A flash of blue.' only describes.",
     "Mine the supplied pieces. Ask what changed, what now means something different, what creates a question, what creates status, what becomes funny, ominous, intimate, absurd, or consequential.",
     "Let one cut alter how the viewer reads the previous cut. Let the next cut become desirable because of what just happened.",
+    "Do not use a noun fragment merely because it sounds cinematic. Fragments are allowed only when the fragment itself carries a real turn, contrast, callback, or status implication.",
     "Shortness is subordinate to impact. A sharp 2-word cut is allowed. A 8-word cut is allowed. Use the length the moment earns.",
     "Generate exactly three materially different candidates for every beat. They should differ in the creative move, not merely use synonyms.",
     "Search especially for: concrete collision, status turn, contrast, reversal, sly understatement, callback, consequence, unresolved micro-question, and payoff.",
@@ -322,7 +359,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         suppliedReality: reality,
         priorCuts: input.priorTexts ?? [],
         beats,
-        requiredOutput: "For every beat, return exactly 3 materially different viewer-facing candidate cuts in order. Do not return analysis.",
+        requiredOutput: "For every beat, return exactly 3 materially different viewer-facing candidate cuts in order. Every candidate must perform a distinct interpretive move grounded in the supplied reality. Do not return analysis.",
       }),
     },
   ];
