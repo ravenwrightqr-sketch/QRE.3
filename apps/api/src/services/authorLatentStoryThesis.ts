@@ -208,7 +208,12 @@ function buildObserverExperienceObjective(
   interpretation: CreativeInterpretation | undefined,
 ): ObserverExperienceObjective | undefined {
   if (!interpretation) return undefined;
+
   const objective = clean(interpretation.statement);
+  const before = clean(interpretation.before);
+  const after = clean(interpretation.after);
+  const pair = before && after ? `from “${before}” toward “${after}”` : "from what was first established toward what it becomes";
+
   switch (interpretation.mechanism) {
     case "recurrence":
       return {
@@ -218,6 +223,9 @@ function buildObserverExperienceObjective(
         attention: ["notice", "hold", "return", "recognize"],
         landing: "Let the recurrence create the realization.",
         explanationForbidden: true,
+        feltEffect: "Recognition with a small shift in emotional meaning.",
+        viewerShift: `The viewer rereads the earlier detail ${pair}.`,
+        realizationDirection: "Make the return feel newly charged; do not narrate the connection.",
       };
     case "contrast":
       return {
@@ -227,6 +235,33 @@ function buildObserverExperienceObjective(
         attention: ["establish", "contrast", "hold", "resolve"],
         landing: "Let the supplied contrast determine the new reading.",
         explanationForbidden: true,
+        feltEffect: "A clean jolt from one reading into its opposite or unexpected partner.",
+        viewerShift: `The viewer feels the collision ${pair}.`,
+        realizationDirection: "Expose the contrast with as few words as possible; let juxtaposition do the work.",
+      };
+    case "state_change":
+      return {
+        objective,
+        surprise: "Make the change in supplied state perceptible without narrating every transition step.",
+        curiosity: "Let the old state remain mentally present as the new state arrives.",
+        attention: ["settle", "notice", "turn", "feel"],
+        landing: "Let the state change register as a felt turn.",
+        explanationForbidden: true,
+        feltEffect: "A felt turn: the mood, status, or possibility is no longer what it was.",
+        viewerShift: `The viewer experiences the movement ${pair}.`,
+        realizationDirection: "Compress the transition until the new state feels inevitable or surprising.",
+      };
+    case "consequence":
+      return {
+        objective,
+        surprise: "Let the supplied consequence feel earned by what came before.",
+        curiosity: "Keep the result suspended until the preceding evidence makes it land.",
+        attention: ["establish", "accumulate", "anticipate", "land"],
+        landing: "Let the consequence speak more loudly than the explanation.",
+        explanationForbidden: true,
+        feltEffect: "A satisfying click of consequence: the ending suddenly feels exactly right.",
+        viewerShift: `The viewer feels why the endpoint matters ${pair}.`,
+        realizationDirection: "State less; make the consequence feel inevitable, ironic, or earned.",
       };
     default:
       return {
@@ -236,6 +271,9 @@ function buildObserverExperienceObjective(
         attention: ["establish", "accumulate", "recontextualize", "recognize"],
         landing: "Let the supplied endpoint close the open meaning.",
         explanationForbidden: true,
+        feltEffect: "A moment of recognition in which the pieces suddenly belong together.",
+        viewerShift: `The viewer's interpretation moves ${pair}.`,
+        realizationDirection: "Create the click through implication, compression, collision, or a restrained reframe.",
       };
   }
 }
@@ -248,6 +286,7 @@ function buildSemanticRealization(
   if (!interpretation && !fallback) return undefined;
 
   if (interpretation) {
+    const observer = buildObserverExperienceObjective(interpretation);
     return {
       mechanism: interpretation.mechanism,
       evidenceEventIds: unique(interpretation.evidenceEventIds),
@@ -266,6 +305,9 @@ function buildSemanticRealization(
       relation: interpretation.relation,
       realizationMove: interpretation.realizationMove,
       creativeOpportunity: interpretation.creativeOpportunity,
+      feltEffect: observer?.feltEffect,
+      viewerShift: observer?.viewerShift,
+      languageAim: observer?.realizationDirection,
       confidence: interpretation.confidence,
     };
   }
@@ -281,6 +323,9 @@ function buildSemanticRealization(
     relation: { kind, fromEventId: fallback!.from, toEventId: fallback!.to },
     realizationMove: moveForRelation(kind),
     creativeOpportunity: opportunityForRelation(kind),
+    feltEffect: "A change in how the supplied pieces are perceived together.",
+    viewerShift: `The viewer's reading moves from “${eventLabel(graph, fallback!.from)}” toward “${eventLabel(graph, fallback!.to)}”.`,
+    languageAim: "Express the relationship through implication, compression, contrast, or consequence rather than explanation.",
     confidence: fallback!.relation.strength,
   };
 }
