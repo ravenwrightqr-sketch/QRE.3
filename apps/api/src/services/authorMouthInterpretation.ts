@@ -1,156 +1,16 @@
-/**
- * QRE MOUTH INTERPRETATION
- *
- * QRE CANONICAL AUTHOR LAW:
- * Reality is immutable. Expression is not.
- * QRE may surprise us.
- *
- * UNIVERSALITY LAW:
- * Examples are evidence of desired behavior, never domain rules.
- * Do not hard-code subjects, industries, props, colors, locations, or example
- * phrases merely because an edge case exposed them. Every rule must generalize.
- * Prefer a small number of strong principles over exception lists.
- *
- * The evaluator protects one thing directly: unsupported concrete world claims.
- * Everything else may be compressed, strange, funny, sharp, emotional,
- * rhetorical, fragmentary, hyperbolic, metaphorical, or otherwise creative
- * when grounded in the approved beat and supplied corpus.
- */
-
 import type { MouthCandidateBeat } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 
-const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
-
-const normalizeToken = (token: string): string => {
-  const lower = token.toLowerCase();
-
-  if (
-    lower.length > 6 &&
-    lower.endsWith("ing")
-  ) {
-    return lower.slice(0, -3);
-  }
-
-  if (
-    lower.length > 5 &&
-    lower.endsWith("ed")
-  ) {
-    return lower.slice(0, -2);
-  }
-
-  if (
-    lower.length > 4 &&
-    lower.endsWith("es")
-  ) {
-    return lower.slice(0, -2);
-  }
-
-  if (
-    lower.length > 4 &&
-    lower.endsWith("s")
-  ) {
-    return lower.slice(0, -1);
-  }
-
-  return lower;
-};
-
-const tokens = (value: string): Set<string> =>
-  new Set(
-    clean(value)
-      .toLowerCase()
-      .split(/[^a-z0-9'-]+/i)
-      .filter((token) => token.length >= 3)
-      .map(normalizeToken),
-  );
-
-const overlap = (
-  a: Set<string>,
-  b: Set<string>,
-): number => {
-  if (!a.size || !b.size) return 0;
-
-  let hits = 0;
-
-  for (const token of a) {
-    if (b.has(token)) {
-      hits += 1;
-    }
-  }
-
-  return hits / Math.max(1, a.size);
-};
-
-const CONCRETE_CLAIM =
-  /\b(?:escaped?|fled|chased?|attacked?|kissed?|hugged?|danced?|drove|jumped?|ran|walked|snatched?|grabbed?|swiped?|stared?|smiled?|laughed?|cried?|whispered?|screamed?|wore|wearing|held|carried|opened?|closed?|entered?|left|returned|turned|kicked?|pushed?|pulled?|threw|caught|sat|sitting|stood|standing|wags?|wagged|sniffs?|sniffed|glares?|glared|paused?|pauses?|twitch(?:es|ed)?|flurry|vanished?|disappeared?|abandoned?|moved?|move|scurried?|bolted?)\b/i;
-
-const EXTERNAL_STATE_CLAIM =
-  /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|taste(?:s|d|ing)?|new\s+(?:scent|sound|look))\b/i;
-  
-const CLAUSE_SUBJECT_MARKER =
-  /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
-
-const ABSTRACT_FRAMING =
-  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|audacity|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|serious|ridiculous|absurd|suspicious|famous|celebrity|legendary|mine|belongs|belongs? to|in\s+charge|game|quest|operation|objective|target|verdict|guilty|innocent|rescue|heist|noir|romance|rebel|showtime|pit\s*stop|speedrun|knockout|stun|finish|championship|final\s+round|joyous|dream|season|devotion|seriousness|naturally|favorite|obsession|obsessed|fixation|thought|problem|wish|wonder|feeling|pull|current|pressure|warmth|silence|familiar|close|closer|distance|spark|gravity|drift|rush|calm|heat|cold|lightness|weight|connection|tension)\b/i;
-
-const SEMANTIC_COMPRESSION_VERBS = new Set([
-  "stay",
-  "stayed",
-  "stays",
-  "remain",
-  "remained",
-  "remains",
-  "keep",
-  "kept",
-  "keeps",
-  "continued",
-  "continue",
-  "continues",
-  "knew",
-  "know",
-  "knows",
-  "felt",
-  "feel",
-  "feels",
-  "waited",
-  "wait",
-  "waits",
-]);
-
-const FUNCTION_WORDS = new Set([
-  "the",
-  "a",
-  "an",
-  "we",
-  "us",
-  "i",
-  "you",
-  "he",
-  "she",
-  "they",
-  "it",
-  "our",
-  "my",
-  "your",
-  "their",
-  "still",
-  "just",
-  "finally",
-  "again",
-  "already",
-  "apparently",
-]);
-
-/*
- * These are not "bad words" in the ordinary sense.
+/**
+ * CANONICAL MOUTH INTERPRETATION
  *
- * They are machine-facing concepts that must never leak into the
- * viewer-facing realization.
+ * Cognition decides what the movie means. This layer only protects the
+ * reality boundary and tests whether language performs an interpretation
+ * rather than merely labeling an event.
+ *
+ * Reality freedom = low.
+ * Framing freedom = high.
  */
-const INTERNAL_MACHINE_LANGUAGE =
-  /\b(?:qre|compiler|cognition|meaning\s+spine|beat\s+graph|information\s+frontier|planner|planning|operator\s+mix|viewer\s+state|viewer\s+sees|audience\s+sees|writing\s+process|semantic\s+turn|semantic\s+trajectory|trajectory|realization\s+mode|information\s+gain|candidate\s+pool|candidate\s+sequence|sequence\s+arc|creative\s+lane|canonical\s+authority|approved\s+beat|beat\s+obligation|semantic\s+compression|grounding\s+score|novelty\s+score)\b/i;
 
 export type MouthInterpretationEvaluation = {
   interpretive: number;
@@ -164,350 +24,105 @@ export type MouthInterpretationEvaluation = {
   reasons: string[];
 };
 
-function wholeSourceCorpus(
-  envelope: RealityEnvelope,
-): string {
-  return clean(
-    [
-      envelope.subject,
-      ...envelope.events.map(
-        (event) => event.label,
-      ),
-      ...envelope.suppliedPhrases,
-      ...envelope.suppliedEntities,
-      ...envelope.suppliedActions,
-      ...envelope.suppliedStates,
-      ...envelope.recurringSignals,
-      ...envelope.sensorySignals,
-      ...envelope.unresolvedTensions,
-    ].join(" "),
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
+
+const normalize = (value: string): string =>
+  clean(value).replace(/[.!?]+$/g, "").toLowerCase();
+
+const tokens = (value: string): Set<string> =>
+  new Set(
+    clean(value)
+      .toLowerCase()
+      .split(/[^a-z0-9'’-]+/g)
+      .filter((token) => token.length >= 3),
+  );
+
+const FUNCTION_WORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by",
+  "through", "after", "before", "then", "now", "still", "again", "this", "that", "it", "is", "are",
+  "was", "were", "be", "been", "being", "as", "into", "my", "your", "our", "their", "his", "her",
+  "its", "he", "she", "they", "them", "you", "we", "me", "very", "really", "just", "already",
+  "apparently", "anyway", "perhaps", "maybe",
+]);
+
+const INTERNAL = /\b(?:qre|cognition|planner|planning|beat|candidate|semantic|trajectory|viewer|audience|observer|objective|curiosity|prediction\s+error|state\s+shift|sequence|author|mouth|canonical|supplied\s+evidence|semantic\s+turn|relation\s+kind|payoff\s+dependency|memory\s+projection|future\s+thread|realization\s+mode|information\s+gain)\b/i;
+const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the relationship|the significance|this proves)\b/i;
+
+/* These assert an occurrence rather than simply changing the frame. */
+const ASSERTED_ACTION = /\b(?:walk(?:ed|s)?|run(?:s|ning)?|jump(?:ed|s|ing)?|grab(?:bed|s|bing)?|snatch(?:ed|es|ing)?|steal(?:s|ing)?|swip(?:ed|es|ing)?|kiss(?:ed|es|ing)?|hug(?:ged|s|ging)?|smil(?:ed|es|ing)?|laugh(?:ed|s|ing)?|cr(?:ied|ies|ying)|talk(?:ed|s|ing)?|sp(?:oke|eaks|eaking)|call(?:ed|s|ing)?|text(?:ed|s|ing)?|messag(?:ed|es|ing)?|touch(?:ed|es|ing)?|hold(?:s|ing)?|held|open(?:ed|s|ing)?|clos(?:ed|es|ing)?|enter(?:ed|s|ing)?|return(?:ed|s|ing)?|turn(?:ed|s|ing)?|watch(?:ed|es|ing)?|stare(?:d|s|ing)?|look(?:ed|s|ing)?|nod(?:ded|s|ding)?|shrug(?:ged|s|ging)?|bark(?:ed|s|ing)?|wag(?:ged|s|ging)?|sniff(?:ed|s|ing)?|sit(?:s|ting)?|sat|stand(?:s|ing)?|stood|move(?:d|s|ing)?|moved|throw|threw|catch|caught|dance(?:d|s|ing)?|drive|drove|push(?:ed|es|ing)?|pull(?:ed|s|ing)?|vanish(?:ed|es|ing)?|disappear(?:ed|s|ing)?)\b/i;
+
+const PHYSICAL_RELATION = /\b(?:on|onto|under|beneath|above|over|behind|beside|inside|within|through|across|against|around|between|near|next\s+to|outside|into|out\s+of)\b/i;
+
+/* Reject atmospheric noun-labels as "creative". */
+const ATMOSPHERIC_NOMINAL = /^(?:a|an|the)\s+(?:weight|tremor|anticipation|beginning|cleansing|transformation|radiance|portrait|defiance|acquisition|joy|energy|silence|connection|tension|intensity|feeling|moment|presence|possibility|momentum|afterglow|resonance|lightness|stillness|softness)\b/i;
+
+/* Interpretive universe terms are allowed when they function as frames. */
+const FRAME_TERM = /\b(?:judge|judgment|inspection|review|case|verdict|evidence|mission|operation|negotiation|negotiations|level|boss|round|upgrade|status|clearance|peace|heist|extraction|trial|champion|championship|kingdom|official|final|reset|victory|winner|audit|showtime|knockout|secured|cleared|approved|reopened)\b/i;
+
+const overlap = (a: Set<string>, b: Set<string>): number => {
+  if (!a.size || !b.size) return 0;
+  let hits = 0;
+  for (const token of a) if (b.has(token)) hits += 1;
+  return hits / Math.max(1, a.size);
+};
+
+function corpus(envelope: RealityEnvelope): string {
+  return [
+    envelope.subject,
+    ...envelope.events.map((event) => event.label),
+    ...envelope.suppliedPhrases,
+    ...envelope.suppliedEntities,
+    ...envelope.suppliedActions,
+    ...envelope.suppliedStates,
+    ...envelope.recurringSignals,
+    ...envelope.sensorySignals,
+    ...envelope.unresolvedTensions,
+  ].map(clean).filter(Boolean).join(" ");
+}
+
+function beatAuthorized(beat?: MouthCandidateBeat): boolean {
+  return Boolean(
+    beat && (
+      beat.eventIds?.length ||
+      beat.semanticRealization ||
+      beat.relationKinds?.length ||
+      beat.change ||
+      beat.attentionFunction
+    ),
   );
 }
 
-function compactRhetoricalShape(
-  text: string,
-): boolean {
-  const wordCount = text
-    .split(/\s+/)
-    .filter(Boolean).length;
-
-  if (
-    !wordCount ||
-    wordCount > 12
-  ) {
-    return false;
-  }
-
-  const terminal = /[.!?]$/.test(text);
-
-  const fragment =
-    !CLAUSE_SUBJECT_MARKER.test(text) &&
-    wordCount <= 6;
-
-  const framing =
-    ABSTRACT_FRAMING.test(text);
-
-  return (
-    terminal &&
-    (fragment || framing)
-  );
+function isLegibleFrame(text: string, beat?: MouthCandidateBeat): boolean {
+  const value = clean(text);
+  if (!value || ATMOSPHERIC_NOMINAL.test(value)) return false;
+  if (FRAME_TERM.test(value)) return true;
+  const status = /\b(?:done|ready|fabulous|fierce|sharp|cool|temporary|apparently|finally|again|already|for now|peace)\b/i.test(value);
+  return status && beatAuthorized(beat);
 }
-function introducesUnsupportedPhysicalRelation(
-  text: string,
-  envelope: RealityEnvelope,
-): boolean {
-  const sourceCorpus =
-    wholeSourceCorpus(
-      envelope,
-    );
 
-  const sourceTokens =
-    tokens(sourceCorpus);
+function concreteRisk(text: string, sourceText: string, beat?: MouthCandidateBeat): number {
+  const value = clean(text);
+  if (!value) return 1;
+  if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
 
-  const candidateTokens =
-    tokens(text);
+  const source = tokens(sourceText);
+  const candidate = tokens(value);
+  const sourceOverlap = overlap(candidate, source);
+  const firstPerson = /^(?:I|we|my|our|us)\b/i.test(value);
+  const frame = isLegibleFrame(value, beat);
 
-  /*
-   * Relational language between already-established participants is not
-   * automatically a physical-world claim.
-   *
-   * Example:
-   *
-   *   met someone
-   *   kept talking
-   *
-   * may legitimately become:
-   *
-   *   "A current ran between us."
-   *
-   * "between us" expresses an emergent interpersonal relation, not a new
-   * physical location or physical event.
-   */
-  const interpersonalRelationMarker =
-    /\b(?:between\s+(?:us|them|you)|with\s+(?:me|us|them|you)|among\s+us|between\s+the\s+two\s+of\s+us)\b/i.test(
-      text,
-    );
+  /* A non-source action is factual unless it is clearly being used as a frame. */
+  if (ASSERTED_ACTION.test(value) && sourceOverlap < 0.55 && !firstPerson && !frame) return 1;
 
-  const interactionAlreadyEstablished =
-    /\b(?:met|meet|meeting|talk|talked|talking|spoke|speaking|conversation|connected|shared|together|joined|visited|called|texted|messaged|worked|played|danced)\b/i.test(
-      sourceCorpus,
-    );
-
-  if (
-    interpersonalRelationMarker &&
-    interactionAlreadyEstablished
-  ) {
-    return false;
+  /* New physical relations are forbidden unless the relation is supported. */
+  if (PHYSICAL_RELATION.test(value)) {
+    const significant = [...candidate].filter((token) => !FUNCTION_WORDS.has(token));
+    const grounded = significant.filter((token) => source.has(token)).length;
+    if (significant.length >= 2 && grounded / significant.length < 0.5) return 1;
   }
 
-  /*
-   * Physical relation language is structural rather than domain-specific.
-   * These markers describe an asserted relation between entities, locations,
-   * surfaces, bodies, environments, or physical effects.
-   */
-  const physicalRelationMarker =
-    /\b(?:on|onto|under|beneath|above|over|behind|beside|inside|within|through|across|against|around|between|near|next\s+to|outside|into|out\s+of|from|with|without)\b/i.test(
-      text,
-    );
-
-  if (!physicalRelationMarker) {
-    return false;
-  }
-
-  /*
-   * A relation marker by itself is insufficient. We need at least two
-   * meaningful lexical units around which a physical relation could be
-   * asserted.
-   */
-  const significant =
-    [...candidateTokens].filter(
-      (token) =>
-        !FUNCTION_WORDS.has(
-          token,
-        ),
-    );
-
-  if (
-    significant.length < 2
-  ) {
-    return false;
-  }
-
-  /*
-   * Count how much of the asserted material is represented in the supplied
-   * reality.
-   *
-   * A transformed expression may use new language freely, but a physical
-   * relation cannot introduce unsupported concrete entities.
-   */
-  const grounded =
-    significant.filter(
-      (token) =>
-        sourceTokens.has(token),
-    ).length;
-
-  return (
-    grounded /
-      Math.max(
-        1,
-        significant.length,
-      ) <
-    0.5
-  );
-}
-/**
- * Semantic realization is not lexical substitution.
- *
- * Historically this function required overlap with source vocabulary.
- * That was too strict for approved semantic realizations such as:
- *
- *   "started nervous" -> "Nerves. Then..."
- *   "talked until close" -> "A dangerous current."
- *
- * The approved beat now owns the semantic territory.
- *
- * This function still protects against pure atmosphere and detached
- * cinematic labels when no beat-local evidence exists.
- */
-function semanticCompressionShape(
-  text: string,
-  sourceLabels: readonly string[],
-  beat?: MouthCandidateBeat,
-): boolean {
-  const wordCount = text
-    .split(/\s+/)
-    .filter(Boolean)
-    .length;
-
-  if (
-    wordCount === 0 ||
-    wordCount > 14
-  ) {
-    return false;
-  }
-
-  if (
-    CONCRETE_CLAIM.test(text) ||
-    EXTERNAL_STATE_CLAIM.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    INTERNAL_MACHINE_LANGUAGE.test(text)
-  ) {
-    return false;
-  }
-
-  const current = tokens(text);
-
-  const source = tokens(
-    sourceLabels.join(" "),
-  );
-
-  const significant = [
-    ...current,
-  ].filter(
-    (token) =>
-      !FUNCTION_WORDS.has(token),
-  );
-
-  const compressionVerb =
-    significant.some(
-      (token) =>
-        SEMANTIC_COMPRESSION_VERBS.has(
-          token,
-        ),
-    );
-
-  const framing =
-    ABSTRACT_FRAMING.test(text) ||
-    compactRhetoricalShape(text);
-
-  if (
-    !compressionVerb &&
-    !framing
-  ) {
-    return false;
-  }
-
-  const beatOverlap =
-    overlap(
-      current,
-      source,
-    );
-  
-
-
-/*
- * Existing lexical path.
- *
- * When the realization clearly belongs to the source wording,
- * keep the stricter existing behavior.
- */
-if (
-  beatOverlap >= 0.12
-) {
-
-  
-    const unknown =
-      significant.filter(
-        (token) =>
-          !source.has(token) &&
-          !SEMANTIC_COMPRESSION_VERBS.has(
-            token,
-          ) &&
-          !ABSTRACT_FRAMING.test(
-            token,
-          ),
-      );
-
-    return (
-      unknown.length <=
-      Math.max(
-        1,
-        Math.floor(
-          significant.length / 3,
-        ),
-      )
-    );
-  }
-
-  /*
-   * Canonical semantic ownership path.
-   *
-   * The beat has already been approved upstream by Cognition/Brain.
-   * Therefore lexical overlap is NOT required for a transformed
-   * realization.
-   *
-   * A short fragment may be a completely valid realization even when
-   * it shares no literal vocabulary with the beat.
-   */
-  const hasApprovedBeat =
-    Boolean(
-      beat &&
-      (
-        beat.eventIds?.length ||
-        beat.attentionFunction ||
-        beat.change ||
-        beat.role ||
-        beat.relationKinds?.length
-      ),
-    );
-
-  if (
-    !hasApprovedBeat
-  ) {
-    return false;
-  }
-
-  /*
-   * Machine-like abstract labels remain disallowed.
-   *
-   * Human-facing fragments remain allowed.
-   *
-   * Examples of valid expression:
-   *   "The pull."
-   *   "A familiar tremor."
-   *   "Almost."
-   *   "Love."
-   *
-   * Examples of machine residue:
-   *   "The tightening."
-   *   "The deepening."
-   *   "The afterglow."
-   *   "Oriented."
-   */
-  const bareNominalLabel =
-    /^(?:the|a|an)\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\.?$/i.test(
-      text,
-    );
-
-  const machineLikeNominalLabel =
-    /^(?:the|a|an)\s+(?:tightening|deepening|afterglow|orientation|oriented|reframed|pressurized|resolved|disrupted|release)\.?$/i.test(
-      text,
-    );
-
-  if (
-    bareNominalLabel &&
-    machineLikeNominalLabel
-  ) {
-    return false;
-  }
-
-  /*
-   * Approved beats may authorize:
-   *
-   *   "Nerves. Then..."
-   *   "A dangerous current."
-   *   "Felt the pull towards us."
-   *   "Almost."
-   *   "Love."
-   *   "Nothing happened. Everything changed."
-   *
-   * without requiring those lines to reuse source vocabulary.
-   */
-  return true;
+  return 0;
 }
 
 export function evaluateMouthInterpretation(input: {
@@ -517,446 +132,63 @@ export function evaluateMouthInterpretation(input: {
   beat?: MouthCandidateBeat;
 }): MouthInterpretationEvaluation {
   const text = clean(input.text);
+  const localSourceText = clean(input.sourceLabels.join(" "));
+  const wholeSourceText = corpus(input.envelope);
+  const candidate = tokens(text);
+  const localSource = tokens(localSourceText);
+  const wholeSource = tokens(wholeSourceText);
 
-  const beatSourceText =
-    clean(
-      input.sourceLabels.join(" "),
-    );
-
-  const wholeSourceText =
-    wholeSourceCorpus(
-      input.envelope,
-    );
-
-  const current = tokens(text);
-
-  const beatSource =
-    tokens(
-      beatSourceText,
-    );
-
-  const wholeSource =
-    tokens(
-      wholeSourceText,
-    );
-
-  const sourceAnchor =
-    overlap(
-      current,
-      beatSource,
-    );
-
-  const wholeSourceAnchor =
-    overlap(
-      current,
-      wholeSource,
-    );
-
-  const literalRestatement =
-    input.sourceLabels.some(
-      (label) => {
-        const a =
-          text
-            .replace(
-              /[.!?]+$/g,
-              "",
-            )
-            .toLowerCase();
-
-        const b =
-          clean(label)
-            .replace(
-              /[.!?]+$/g,
-              "",
-            )
-            .toLowerCase();
-
-        return Boolean(
-          a &&
-          b &&
-          a === b,
-        );
-      },
-    )
-      ? 1
-      : 0;
-
-  const wordCount =
-    text
-      .split(/\s+/)
-      .filter(Boolean)
-      .length;
-
-  const concreteClaim =
-    CONCRETE_CLAIM.test(
-      text,
-    );
-
-  const externalStateClaim =
-    EXTERNAL_STATE_CLAIM.test(
-      text,
-    );
-   const unsupportedPhysicalRelation =
-  introducesUnsupportedPhysicalRelation(
-    text,
-    input.envelope,
+  const sourceAnchor = overlap(candidate, localSource);
+  const wholeSourceAnchor = overlap(candidate, wholeSource);
+  const literalRestatement = input.sourceLabels.some((label) => normalize(label) === normalize(text)) ? 1 : 0;
+  const frame = isLegibleFrame(text, input.beat);
+  const risk = concreteRisk(text, wholeSourceText, input.beat);
+  const authorized = beatAuthorized(input.beat);
+  const nonLabelRelationship = !ATMOSPHERIC_NOMINAL.test(text) && (
+    sourceAnchor >= 0.14 ||
+    (frame && authorized) ||
+    /\b(?:but|yet|still|then|again|already|until|for now|temporary|only|just|why|what)\b/i.test(text)
   );
-  const groundedConcreteFragment =
-    wordCount <= 5 &&
-    concreteClaim &&
-    !CLAUSE_SUBJECT_MARKER.test(
-      text,
-    ) &&
-    wholeSourceAnchor >= 0.45;
 
-  /*
-   * A candidate that is concrete or externally sensory must have actual
-   * support somewhere in the supplied corpus. We deliberately do not
-   * maintain a domain-specific forbidden-word list.
-   */
-  const concreteOrExternalClaim =
-    concreteClaim ||
-    externalStateClaim;
+  const creativeFraming = Math.max(0, Math.min(1,
+    (frame ? 0.42 : 0) +
+      (nonLabelRelationship ? 0.34 : 0) +
+      Math.min(0.16, wholeSourceAnchor * 0.16) +
+      (authorized ? 0.08 : 0),
+  ));
 
-  const concreteSourceSupport =
-    concreteOrExternalClaim &&
-    wholeSourceAnchor >= 0.45;
-
-  let unsupportedConcreteRisk =
-  concreteOrExternalClaim &&
-  !concreteSourceSupport
-    ? 1
-    : 0;
-
-if (
-  unsupportedPhysicalRelation
-) {
-  unsupportedConcreteRisk =
-    Math.max(
-      unsupportedConcreteRisk,
-      1,
-    );
-}
-
-  /*
-   * Machine-facing language is never viewer-facing language.
-   */
-  if (
-    INTERNAL_MACHINE_LANGUAGE.test(
-      text,
-    )
-  ) {
-    unsupportedConcreteRisk =
-      Math.max(
-        unsupportedConcreteRisk,
-        1,
-      );
-  }
-
-  const frameSignal =
-    ABSTRACT_FRAMING.test(text) ||
-    compactRhetoricalShape(text);
-
-  const sourceExists =
-    input.envelope.events.length > 0 ||
-    Boolean(
-      wholeSourceText,
-    );
-
-  const shortCreativeForm =
-    wordCount <= 12;
-
-  const hasBeatSource =
-    input.sourceLabels.length > 0;
-
-  const beatTouchesLanguage =
-    sourceAnchor >= 0.08;
-
-  const semanticCompression =
-    semanticCompressionShape(
-      text,
-      input.sourceLabels,
-      input.beat,
-    );
-
-  /*
-   * The approved beat is the semantic authority.
-   * It may authorize transformed expression without requiring lexical
-   * overlap with the supplied wording.
-   */
-  const approvedSemanticBeat =
-    Boolean(
-      input.beat &&
-      (
-        input.beat.eventIds?.length ||
-        input.beat.attentionFunction ||
-        input.beat.change ||
-        input.beat.role ||
-        input.beat.relationKinds?.length
-      ),
-    );
-
-  const semanticBeatSupport =
-    hasBeatSource
-      ? (
-          beatTouchesLanguage ||
-          literalRestatement === 1 ||
-          semanticCompression ||
-          (
-            approvedSemanticBeat &&
-            frameSignal &&
-            unsupportedConcreteRisk === 0
-          )
-        )
-      : (
-          wholeSourceAnchor >= 0.08 ||
-          frameSignal
-        );
-
-  const associativeWorldSupport =
-    Math.max(
-      0,
-      Math.min(
-        1,
-        wholeSourceAnchor * 0.55 +
-          sourceAnchor * 0.45,
-      ),
-    );
-
-  const safeCreativeBet =
-    Boolean(text) &&
-    unsupportedConcreteRisk === 0 &&
-    literalRestatement === 0 &&
-    shortCreativeForm &&
-    sourceExists &&
-    semanticBeatSupport &&
-    (
-      hasBeatSource
-        ? true
-        : associativeWorldSupport >= 0.08 ||
-          frameSignal
-    );
-
-  const groundingContribution =
-    hasBeatSource
-      ? Math.min(
-          0.45,
-          sourceAnchor * 0.5,
-        )
-      : Math.min(
-          0.45,
-          wholeSourceAnchor * 0.5,
-        );
-
-  /*
-   * Approved semantic beats receive a bounded grounding floor even when
-   * lexical overlap is zero. This is authorization from Cognition/Brain,
-   * not invented source evidence.
-   */
-  const approvedBeatGrounding =
-    approvedSemanticBeat &&
-    semanticCompression
-      ? 0.36
-      : approvedSemanticBeat &&
-          semanticBeatSupport &&
-          frameSignal
-        ? 0.28
-        : 0;
-
-  const framingContribution =
-    frameSignal
-      ? 0.36
-      : 0;
-
-  const compressionContribution =
-    shortCreativeForm
-      ? 0.14
-      : 0;
-
-  const beatOwnershipContribution =
-    hasBeatSource
-      ? Math.min(
-          0.3,
-          sourceAnchor * 0.6,
-        )
-      : 0;
-
-  const creativeFraming =
-    Number(
-      Math.max(
-        0,
-        Math.min(
-          1,
-          groundingContribution +
-            approvedBeatGrounding +
-            framingContribution +
-            compressionContribution +
-            beatOwnershipContribution +
-            (
-              safeCreativeBet
-                ? 0.2
-                : 0
-            ),
-        ),
-      ).toFixed(3),
-    );
-
-  const interpretive =
-    Number(
-      Math.max(
-        0,
-        Math.min(
-          1,
-          creativeFraming +
-            (
-              hasBeatSource
-                ? sourceAnchor
-                : wholeSourceAnchor
-            ) * 0.22 +
-            (
-              frameSignal
-                ? 0.1
-                : 0
-            ),
-        ),
-      ).toFixed(3),
-    );
+  const interpretive = Math.max(0, Math.min(1,
+    creativeFraming +
+      Math.min(0.2, sourceAnchor * 0.2) +
+      (literalRestatement ? 0 : 0.05),
+  ));
 
   const reasons: string[] = [];
+  if (sourceAnchor >= 0.14) reasons.push("source-anchored");
+  if (wholeSourceAnchor >= 0.14) reasons.push("whole-reality-anchored");
+  if (frame) reasons.push("creative-frame");
+  if (nonLabelRelationship) reasons.push("relationship-realization");
+  if (literalRestatement) reasons.push("literal-restatement");
+  if (ATMOSPHERIC_NOMINAL.test(text)) reasons.push("atmospheric-label");
+  if (risk >= 0.9) reasons.push("unsupported-concrete");
 
-  if (
-    literalRestatement
-  ) {
-    reasons.push(
-      "literal-source-restatement",
-    );
-  }
-
-  if (
-    sourceAnchor >= 0.18
-  ) {
-    reasons.push(
-      "beat-source-anchored",
-    );
-  }
-
-  if (
-    wholeSourceAnchor >= 0.18
-  ) {
-    reasons.push(
-      "whole-reality-anchored",
-    );
-  }
-
-  if (
-    groundedConcreteFragment
-  ) {
-    reasons.push(
-      "grounded-concrete-fragment",
-    );
-  }
-
-  if (
-    frameSignal
-  ) {
-    reasons.push(
-      "viewer-facing-framing",
-    );
-  }
-
-  if (
-    approvedSemanticBeat
-  ) {
-    reasons.push(
-      "approved-beat-authority",
-    );
-  }
-
-  if (
-    hasBeatSource &&
-    semanticBeatSupport
-  ) {
-    reasons.push(
-      "beat-obligation-satisfied",
-    );
-  }
-
-  if (
-    semanticCompression
-  ) {
-    reasons.push(
-      "semantic-compression",
-    );
-  }
-
-  if (
-    safeCreativeBet
-  ) {
-    reasons.push(
-      "bounded-creative-bet",
-    );
-  }
-
-  if (
-    unsupportedConcreteRisk > 0
-  ) {
-    reasons.push(
-      "unsupported-concrete-invention",
-    );
-  }
-
-  if (
-    interpretive >= 0.45 &&
-    !literalRestatement
-  ) {
-    reasons.push(
-      "grounded-creative-interpretation",
-    );
-  }
+  const accepted = Boolean(
+    text &&
+    risk < 0.9 &&
+    !INTERNAL.test(text) &&
+    !EXPLANATION.test(text) &&
+    (literalRestatement || nonLabelRelationship || sourceAnchor >= 0.14),
+  );
 
   return {
-    interpretive,
-
-    sourceAnchor:
-      Number(
-        sourceAnchor.toFixed(3),
-      ),
-
-    wholeSourceAnchor:
-      Number(
-        wholeSourceAnchor.toFixed(3),
-      ),
-
-    frameSupport:
-      Number(
-        (
-          frameSignal
-            ? 0.8
-            : 0
-        ).toFixed(3),
-      ),
-
+    interpretive: Number(interpretive.toFixed(3)),
+    sourceAnchor: Number(sourceAnchor.toFixed(3)),
+    wholeSourceAnchor: Number(wholeSourceAnchor.toFixed(3)),
+    frameSupport: frame ? 1 : 0,
     literalRestatement,
-
-    creativeFraming,
-
-    unsupportedConcreteRisk,
-
-    accepted:
-      Boolean(text) &&
-      unsupportedConcreteRisk < 0.9 &&
-      (
-        literalRestatement === 1 ||
-        safeCreativeBet ||
-        (
-          !hasBeatSource &&
-          (
-            frameSignal ||
-            wholeSourceAnchor >= 0.08
-          )
-        )
-      ),
-
+    creativeFraming: Number(creativeFraming.toFixed(3)),
+    unsupportedConcreteRisk: risk,
+    accepted,
     reasons,
   };
 }
