@@ -15,6 +15,7 @@
     "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
     "author:universal-final": "pnpm --filter @qre/api exec tsx ./author-universal-final-acceptance.ts",
     "author:universal-learning-loop": "pnpm --filter @qre/api exec tsx ./author-universal-learning-loop-acceptance.ts",
+    "author:living-sequence": "pnpm --filter @qre/api exec tsx ./author-living-sequence-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",

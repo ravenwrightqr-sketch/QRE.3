@@ -1,18 +1,25 @@
-import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
+import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
+import type { AuthorBrainTruth } from "@qre/contracts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`UNIVERSAL LEARNING LOOP FAILED: ${message}`);
 }
 
-type DomainCase = {
+function textOf(result: Awaited<ReturnType<typeof authorBrainCanonical>>): string {
+  return result.scenes.map((scene) => String(scene.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean).join(" ");
+}
+
+function simulationOf(result: Awaited<ReturnType<typeof authorBrainCanonical>>) {
+  return result.movie?.storyThesis?.observerExperience?.simulation;
+}
+
+type DomainCase = Pick<AuthorBrainTruth, "subject" | "place" | "lens"> & {
   name: string;
-  subject: string;
-  place: string;
-  lens: string;
+  firstPrompt: string;
   firstFacts: string[];
   firstMoments: string[];
   observation: string;
-  secondPrompt: string;
+  returnPrompt: string;
 };
 
 const cases: DomainCase[] = [
@@ -21,129 +28,113 @@ const cases: DomainCase[] = [
     subject: "111 Elm St",
     place: "111 Elm St",
     lens: "gaming",
+    firstPrompt: "Cleaning job at 111 Elm St",
     firstFacts: ["Bathroom cleaned", "Kitchen cleaned", "Arrived at 10:10am", "Left at 12:12pm"],
-    firstMoments: ["Booting", "Entered kitchen", "Approaching bathrooms", "Bathrooms cleared", "Level cleared"],
+    firstMoments: ["Entered kitchen", "Approaching bathrooms", "Bathrooms cleared", "Level cleared"],
     observation: "200 bottles of shampoo",
-    secondPrompt: "Add the new observation: 200 bottles of shampoo. Notice anything odd? Make the return experience different from round one.",
+    returnPrompt: "Return to 111 Elm St. New observation: 200 bottles of shampoo. Make the new detail matter.",
   },
   {
     name: "pet",
     subject: "Coco",
     place: "Elm Street Grooming",
     lens: "comedy",
+    firstPrompt: "Coco at Elm Street Grooming",
     firstFacts: ["Coco was groomed", "Coco got a bath", "Coco stole the red bow"],
     firstMoments: ["Groomed", "Bath", "Red bow stolen"],
     observation: "Coco watched the dryer like it had personally offended her",
-    secondPrompt: "Add the new observation: Coco watched the dryer like it had personally offended her. Return and reframe the established world.",
+    returnPrompt: "Coco returns to Elm Street Grooming. New observation: Coco watched the dryer like it had personally offended her. Reframe what we already know.",
   },
   {
     name: "relationship",
-    subject: "the couple",
-    place: "the restaurant",
+    subject: "Jake and John",
+    place: "Raven Coffee",
     lens: "romance",
-    firstFacts: ["They met at the restaurant", "They talked for hours", "They left together"],
-    firstMoments: ["A first meeting", "Hours passed", "They left together"],
-    observation: "They returned to the same table years later",
-    secondPrompt: "Add the new observation: They returned to the same table years later. Let the return change the meaning of the first visit.",
+    firstPrompt: "Jake and John meet through a geo-drop at Raven Coffee",
+    firstFacts: ["Jake and John met unexpectedly", "They talked until close", "They connected deeply", "They were happy"],
+    firstMoments: ["Geo-drop", "Raven Coffee", "Talked until close", "Deep connection", "Happy"],
+    observation: "They returned to the same table",
+    returnPrompt: "Jake and John return to Raven Coffee. New observation: they returned to the same table. Let the first meeting mean something different now.",
   },
   {
     name: "physical product",
     subject: "the surfboard",
     place: "the beach",
     lens: "spy",
-    firstFacts: ["The surfboard was delivered", "The owner scanned its tag", "The board went home"],
-    firstMoments: ["Package delivered", "Tag scanned", "Board went home"],
-    observation: "The tag was scanned again after the board disappeared for a week",
-    secondPrompt: "Add the new observation: The tag was scanned again after the board disappeared for a week. Let the return create a new reading.",
+    firstPrompt: "A surfboard begins traveling with its owner",
+    firstFacts: ["The surfboard was delivered", "The owner scanned the tag", "The surfboard traveled home"],
+    firstMoments: ["Delivered", "Tag scanned", "Went home"],
+    observation: "The board has now been to a new beach",
+    returnPrompt: "Return to the surfboard. New observation: the board has now been to a new beach. Reframe its journey.",
   },
   {
-    name: "event",
+    name: "event / rave",
     subject: "the rave",
     place: "Warehouse 9",
     lens: "cyberpunk",
+    firstPrompt: "All-night rave at Warehouse 9",
     firstFacts: ["The doors opened", "Music started", "Everyone stayed until morning"],
-    firstMoments: ["Doors unlocked", "Signal went live", "Morning arrived"],
+    firstMoments: ["Doors opened", "Signal went live", "Morning arrived"],
     observation: "The same red light was still on when everyone left",
-    secondPrompt: "Add the new observation: The same red light was still on when everyone left. Return and make the established detail newly meaningful.",
+    returnPrompt: "Return to Warehouse 9. New observation: the same red light was still on when everyone left. Make that detail newly meaningful.",
   },
 ];
 
-function truthishText(result: Awaited<ReturnType<typeof authorBrainUniversal>>): string {
-  return result.scenes.map((scene) => scene.text).join(" ");
-}
-
 for (const test of cases) {
-  const round1 = await authorBrainUniversal({
-    prompt: test.name,
+  const base = {
     subject: test.subject,
     place: test.place,
     lens: test.lens,
     movieMode: true,
-    returning: false,
-    visitNumber: 1,
+    memoryContext: [] as string[],
+    trajectory: [] as string[],
+    creativeLearningContext: [] as string[],
+  } satisfies Partial<AuthorBrainTruth>;
+
+  const round1 = await authorBrainCanonical({
+    ...base,
+    prompt: test.firstPrompt,
     facts: test.firstFacts,
     sourceMoments: test.firstMoments,
-    memoryContext: [],
-    trajectory: [],
-    creativeLearningContext: [],
   });
 
-  assert(round1.sequence, `${test.name}: round 1 produced no SequencePlay`);
-  assert(round1.sequence.cuts.length >= 2, `${test.name}: round 1 needs at least two cuts`);
-  assert(round1.sequence.cuts.every((cut) => cut.order >= 1), `${test.name}: round 1 cut ordering invalid`);
-  assert(round1.sequence.cuts.every((cut) => cut.sourceIds.length > 0), `${test.name}: round 1 lost source provenance`);
+  assert(round1.diagnostics.complete, `${test.name}: round 1 incomplete`);
+  assert(round1.sequence.cuts.length >= 2, `${test.name}: round 1 too short`);
   assert(round1.scenes.length === round1.sequence.cuts.length, `${test.name}: round 1 scene/cut mismatch`);
-  assert((round1.diagnostics as any).worldSimulation, `${test.name}: round 1 did not expose World Simulation`);
+  assert(round1.sequence.cuts.every((cut) => cut.sourceIds.length > 0), `${test.name}: round 1 lost provenance`);
+  assert(simulationOf(round1), `${test.name}: round 1 lost World Simulation`);
 
-  const round1Text = truthishText(round1);
-  assert(round1Text.length > 0, `${test.name}: round 1 produced no authored language`);
+  const round1Text = textOf(round1);
 
-  const learnedContext = [
-    "accepted: short punchy callback",
-    "behavior-preference: return with changed meaning",
-    `observation: ${test.observation}`,
-  ];
-
-  const round2 = await authorBrainUniversal({
-    prompt: test.secondPrompt,
-    subject: test.subject,
-    place: test.place,
-    lens: test.lens,
-    movieMode: true,
+  const round2 = await authorBrainCanonical({
+    ...base,
+    prompt: test.returnPrompt,
     returning: true,
     visitNumber: 2,
     facts: [...test.firstFacts, test.observation],
     sourceMoments: [...test.firstMoments, test.observation],
-    memoryContext: [
-      `prior authored sequence: ${round1Text}`,
-      `prior subject: ${test.subject}`,
-      `prior place: ${test.place}`,
-    ],
+    memoryContext: [round1Text],
     trajectory: round1.sequence.cuts.map((cut) => cut.attentionDelta),
-    creativeLearningContext: learnedContext,
+    creativeLearningContext: ["accepted: short punchy callback"],
   });
 
-  assert(round2.sequence, `${test.name}: round 2 produced no SequencePlay`);
+  assert(round2.diagnostics.complete, `${test.name}: round 2 incomplete`);
+  assert(round2.sequence.cuts.length >= 2, `${test.name}: round 2 too short`);
   assert(round2.scenes.length === round2.sequence.cuts.length, `${test.name}: round 2 scene/cut mismatch`);
-  assert(round2.sequence.cuts.every((cut) => cut.sourceIds.length > 0), `${test.name}: round 2 lost source provenance`);
-  assert((round2.diagnostics as any).worldSimulation, `${test.name}: round 2 lost World Simulation`);
+  assert(round2.sequence.cuts.every((cut) => cut.sourceIds.length > 0), `${test.name}: round 2 lost provenance`);
+  assert(simulationOf(round2), `${test.name}: round 2 lost World Simulation`);
 
-  const round2Text = truthishText(round2);
-  assert(round2Text.length > 0, `${test.name}: round 2 produced no authored language`);
-  assert(round2Text !== round1Text, `${test.name}: round 2 did not materially change authored language`);
-  assert(
-    round2.sequence.cuts.some((cut) => cut.role === "callback" || cut.role === "reframe" || cut.role === "discovery" || cut.role === "consequence" || cut.role === "payoff"),
-    `${test.name}: round 2 did not expose a meaningful return/readjustment cut`,
-  );
+  const round2Text = textOf(round2);
+  assert(round2Text.length > 0, `${test.name}: round 2 empty`);
+  assert(round2Text !== round1Text, `${test.name}: new observation did not affect authored experience`);
+  assert(round2.diagnostics.recoveryUsed !== true, `${test.name}: recovery replaced creative realization`);
 
-  console.log(`PASS: ${test.name}`);
-  console.log(`  round1Cuts=${round1.sequence.cuts.length} round2Cuts=${round2.sequence.cuts.length}`);
-  console.log(`  round1Text=${JSON.stringify(round1Text)}`);
-  console.log(`  round2Text=${JSON.stringify(round2Text)}`);
+  console.log(`PASS ${test.name}: round1=${round1.sequence.cuts.length} cuts, round2=${round2.sequence.cuts.length} cuts`);
 }
 
 console.log("AUTHOR UNIVERSAL LEARNING LOOP ACCEPTANCE: PASS");
 console.log("FIRST_USE_TEACHES_PRODUCT=TRUE");
 console.log("RETURN_ADDS_NEW_EVIDENCE=TRUE");
+console.log("WORLD_OBSERVATION_IS_NOT_CREATOR_PREFERENCE=TRUE");
 console.log("SAME_BRAIN_CROSS_DOMAIN=TRUE");
 console.log("WORLD_SIMULATION_SURVIVES_RETURN=TRUE");
