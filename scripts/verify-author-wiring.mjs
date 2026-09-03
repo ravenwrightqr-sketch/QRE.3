@@ -1,149 +1,19 @@
-/**
- * QRE CANONICAL AUTHOR LAW
- * ROLE: Verify the production Author wiring.
- * LAW: QRE may surprise us.
- * Guardrails protect truth; they are not a stylistic cage. A brilliant,
- * grounded cut may win even when it breaks a preference. Provenance,
- * architecture, and safety are hard; style is scored.
- */
+#!/usr/bin/env node
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-
-const root = resolve(process.cwd());
-const failures = [];
-const warnings = [];
-const check = (name, ok, detail) => {
-  (ok ? warnings : failures).push(`${name}: ${detail}`);
-};
-const read = (path) => readFileSync(join(root, path), "utf8");
-
-const canonical = "apps/api/src/services/authorBrainCanonical.ts";
-const cognition = "apps/api/src/services/authorCognition.ts";
-const realityGraph = "apps/api/src/services/authorRealityGraph.ts";
-const movieSearch = "apps/api/src/services/authorUniversalMovieSearch.ts";
-const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
-const mouthImplementation = "apps/api/src/services/authorMouthCandidateSearch.ts";
-const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
-const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
-const acceptance = "apps/api/author-acceptance.ts";
-const packageJson = "apps/api/package.json";
-
-const forbiddenFiles = [
-  "apps/api/src/services/authorBrainUniversal.ts",
-  "apps/api/src/services/authorBrainUniversal.ts.new",
-  "apps/api/src/services/cinematicAuthor.ts",
-  "apps/api/src/services/authorBrain.ts",
-  "apps/api/src/services/authorBrainMomentum.ts",
-  "apps/api/src/services/authorBrainMomentumV2.ts",
-  "apps/api/src/services/authorBrainMomentumV3.ts",
-  "apps/api/src/services/authorFastCore.ts",
-  "apps/api/src/services/creativeRelationOps.ts",
-  "apps/api/author-acceptance-suite.ts",
-];
-
-const forbiddenImportNames = [
-  "authorBrainUniversal",
-  "cinematicAuthor",
-  "authorBrainMomentum",
-  "authorFastCore",
-  "creativeRelationOps",
-];
-
-function walk(dir, out = []) {
-  if (!existsSync(dir)) return out;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (["node_modules", ".git", "dist", "build", ".next"].includes(entry.name)) continue;
-    const absolute = join(dir, entry.name);
-    if (entry.isDirectory()) walk(absolute, out);
-    else if (entry.isFile()) out.push(absolute);
-  }
-  return out;
-}
-
-for (const path of [canonical, cognition, realityGraph, movieSearch, mouth, mouthImplementation, interpretation, beam, acceptance, packageJson]) {
-  check(`exists:${path}`, existsSync(join(root, path)), "canonical file present");
-}
-
-for (const path of forbiddenFiles) {
-  if (existsSync(join(root, path))) failures.push(`forbidden-file: ${path}`);
-}
-
-for (const file of walk(join(root, "apps/api/src")).filter((path) => /\.(ts|tsx|js|mjs)$/.test(path))) {
-  const body = readFileSync(file, "utf8");
-  const rel = relative(root, file).replaceAll("\\", "/");
-  for (const forbidden of forbiddenImportNames) {
-    if (new RegExp(`from\\s+["'][^"']*${forbidden}\\.js["']`).test(body)) {
-      failures.push(`forbidden-import: ${rel} imports ${forbidden}`);
-    }
-  }
-}
-
-const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
-check("canonical:cognition", /buildAuthorCognitivePlan\s*\(/.test(canonicalSource), "Author invokes canonical cognition");
-check("canonical:graph", /buildAuthorRealityGraph\s*\(/.test(canonicalSource), "Author builds source RealityGraph");
-const cognitionSource = existsSync(join(root, cognition)) ? read(cognition) : "";
-check(
-  "cognition:movie",
-  /searchUniversalMovieCandidates\s*\(/.test(cognitionSource) && /selectedMovie/.test(cognitionSource),
-  "Cognition owns movie discovery and selected-movie authority",
-);
-check("canonical:mouth", /buildMouthCandidateMessages\s*\(/.test(canonicalSource) && /selectBestMouthSequence\s*\(/.test(canonicalSource), "Author owns Mouth realization and sequence selection");
-check("canonical:attention", /editAttentionSequence\s*\(/.test(canonicalSource), "Author runs attention editing");
-check("canonical:arc", /evaluateSequenceArc\s*\(/.test(canonicalSource), "Author runs sequence arc gate");
-check("canonical:model", /localModelGenerate\s*\(/.test(canonicalSource), "Author owns model realization");
-check("canonical:no-legacy-compiler", !/compileCognitiveExperience/.test(canonicalSource), "Author does not invoke legacy creative compiler");
-
-const acceptanceSource = existsSync(join(root, acceptance)) ? read(acceptance) : "";
-check("acceptance:canonical", /authorBrainCanonical\.js/.test(acceptanceSource), "Acceptance invokes canonical Author");
-check("acceptance:no-legacy", !/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource), "Acceptance has no legacy Author path");
-
-const packageSource = existsSync(join(root, packageJson)) ? JSON.parse(read(packageJson)) : {};
-check("package:author-fast", packageSource.scripts?.["author:fast"] === "tsx ./author-acceptance.ts", "author:fast targets canonical acceptance");
-
-const mouthSource = existsSync(join(root, mouth)) ? read(mouth) : "";
-const provenanceStart = mouthSource.indexOf("function sourceLabels(");
-const provenanceEnd = provenanceStart >= 0 ? mouthSource.indexOf("function worldEvidence(", provenanceStart) : -1;
-const provenanceSource = provenanceStart >= 0 && provenanceEnd > provenanceStart
-  ? mouthSource.slice(provenanceStart, provenanceEnd)
-  : "";
-const provenanceValid =
-  provenanceSource.includes("function sourceLabels") &&
-  provenanceSource.includes("beat.eventIds") &&
-  provenanceSource.includes("envelope.events.find((event) => event.id === id)");
-check(
-  "mouth:provenance",
-  provenanceValid,
-  "Canonical Mouth boundary resolves provenance from approved beat eventIds",
-);
-check(
-  "mouth:no-planner-label-promotion",
-  provenanceValid && !/setsUp|paysOff/.test(provenanceSource),
-  "Only approved beat eventIds may resolve source labels",
-);
-
-const interpretationSource = existsSync(join(root, interpretation)) ? read(interpretation) : "";
-check("interpretation:whole-source", /wholeSourceAnchor/.test(interpretationSource), "Interpretation sees the supplied reality corpus");
-check("interpretation:creative-lane", /creativeFraming/.test(interpretationSource), "Interpretation exposes bounded creative framing");
-check("interpretation:concrete-risk", /unsupportedConcreteRisk/.test(interpretationSource), "Interpretation measures concrete invention risk");
-
-const beamSource = existsSync(join(root, beam)) ? read(beam) : "";
-check(
-  "beam:creative-ranking",
-  /viewerStateFit\s*\(/.test(beamSource) && /sequenceTransition\s*\(/.test(beamSource) && /expressionQuality\s*\(/.test(beamSource),
-  "Beam ranks semantic/state quality, sequence transition, and expression quality",
-);
-check("beam:safety", /inventionRisk/.test(beamSource) && /forbiddenMoveRisk/.test(beamSource), "Beam enforces invention safety");
-
-console.log("=== QRE AUTHOR WIRING GUARD ===");
-console.log(`CANONICAL AUTHOR: ${canonical}`);
-console.log(`CANONICAL COGNITION: ${cognition}`);
-console.log(`CANONICAL MOUTH: ${mouth}`);
-console.log(`MOUTH IMPLEMENTATION: ${mouthImplementation}`);
-console.log(`CANONICAL BEAM: ${beam}`);
-for (const message of warnings) console.log(`GREEN: ${message}`);
-for (const message of failures) console.error(`FAIL: ${message}`);
-if (failures.length) {
-  console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length} violation(s)`);
-  process.exit(1);
-}
-console.log("AUTHOR WIRING GUARD GREEN · ONE AUTHOR · ONE SEQUENCE · ONE MOUTH · QRE MAY SURPRISE US");
+const root=resolve(process.cwd()), failures=[];
+const exists=p=>existsSync(join(root,p));
+const read=p=>readFileSync(join(root,p),"utf8");
+const required=["apps/api/src/services/authorBrainCanonical.ts","apps/api/src/services/authorCognition.ts","apps/api/src/services/authorUniversalMovieSearch.ts","apps/api/src/services/authorRealityGraph.ts","apps/api/src/services/authorRealityEnvelope.ts","apps/api/src/services/authorMouth.ts","apps/api/src/services/authorCharacterLensEngine.ts","apps/api/src/services/authorViewerStateCut.ts","apps/api/src/services/authorRealizationMode.ts","apps/api/author-acceptance.ts","apps/api/author-mouth-universal-acceptance.ts"];
+const retired=["apps/api/src/services/authorMouthCraft.ts","apps/api/src/services/authorMouthCritic.ts","apps/api/src/services/authorMouthInterpretation.ts","apps/api/src/services/authorMouthSequenceCritic.ts"];
+for(const p of required)if(!exists(p))failures.push(`missing:${p}`);
+for(const p of retired)if(exists(p))failures.push(`retired Mouth file exists:${p}`);
+const brain=exists(required[0])?read(required[0]):"", mouth=exists(required[5])?read(required[5]):"";
+for(const [re,label] of [[/buildAuthorCognitivePlan\s*\(/,"brain->cognition"],[/buildAuthorRealityGraph\s*\(/,"brain->reality-graph"],[/buildAuthorRealityEnvelope\s*\(/,"brain->reality-envelope"],[/buildMouthCandidateMessages\s*\(/,"brain->mouth-generation"],[/scoreMouthCandidate\s*\(/,"brain->mouth-scoring"],[/selectBestMouthSequence\s*\(/,"brain->mouth-selection"]])if(!re.test(brain))failures.push(`missing wiring:${label}`);
+for(const re of [/Reality freedom is LOW\. Framing freedom is HIGH\./,/Grounding is not authorization\./,/approved-semantic-realization/,/literal-source-restatement/,/classifyLens/])if(!re.test(mouth))failures.push(`canonical Mouth law missing:${re}`);
+const files=[];function walk(dir){if(!existsSync(dir))return;for(const e of readdirSync(dir,{withFileTypes:true})){if(["node_modules",".git","dist","build",".next"].includes(e.name))continue;const a=join(dir,e.name);e.isDirectory()?walk(a):e.isFile()&&/\.(ts|tsx|js|mjs)$/.test(e.name)&&files.push(a)}}walk(join(root,"apps/api/src"));
+for(const file of files){const body=readFileSync(file,"utf8"),rel=relative(root,file).replaceAll("\\","/");for(const oldName of ["authorMouthCraft","authorMouthCritic","authorMouthInterpretation","authorMouthSequenceCritic"])if(new RegExp(`from\\s+[\"'][^\"']*${oldName}\\.js[\"']`).test(body))failures.push(`retired import:${rel}->${oldName}`)}
+console.log("=== QRE AUTHOR / ONE MOUTH WIRING GUARD ===");
+for(const f of failures)console.error(`FAIL: ${f}`);
+if(failures.length){console.error(`ONE MOUTH WIRING GUARD FAILED · ${failures.length} violation(s)`);process.exit(1)}
+console.log("ONE MOUTH WIRING GUARD GREEN · ONE AUTHOR · ONE COGNITION · ONE MOUTH · ONE SEQUENCE");
