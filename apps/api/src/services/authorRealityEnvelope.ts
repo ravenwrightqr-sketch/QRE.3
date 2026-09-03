@@ -55,10 +55,6 @@ function canonicalEventLabel(value: string): string { return stripAuthoringDirec
 function tokens(values: readonly string[]): string[] {
   return unique(values.flatMap((value) => clean(value).toLowerCase().match(TOKEN_RE) ?? []));
 }
-
-function structureFor(graph: RealityGraph, eventId: string): RealityEventStructure | undefined {
-  return (graph.eventStructure ?? []).find((item) => item.eventId === eventId);
-}
 function termsForStructure(graph: RealityGraph, selector: "actions" | "states"): string[] {
   return unique((graph.eventStructure ?? []).flatMap((item) => item[selector] ?? []));
 }
