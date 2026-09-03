@@ -9,6 +9,7 @@ import {
   detectAuthorMemoryContinuity,
   summarizeAuthorMemoryContinuity,
 } from "./authorMemoryContinuity.js";
+import { buildAuthorWorldSimulation } from "./authorWorldSimulation.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
@@ -65,7 +66,6 @@ function deriveTempo(input: {
   const tail = operations[operations.length - 1];
   const urgency = metric(activeTensions * 0.32 + lookaheadValue * 0.28 + continuationValue * 0.18 + Math.min(1, semanticSteps.length / 4) * 0.12 + (round > 1 ? 0.1 : 0));
 
-  /* Cross-round continuity is recognized before movie selection. */
   if (revisits > 0) return { mode: "revisit", urgency, compression: 0.68, revealSpacing: 0.58, holdPressure: 0.52, nextBeatPull: metric(0.58 + lookaheadValue * 0.32), reason: "New evidence exists that can change the meaning of established material.", arc: ["revisit", "reframe", lookaheadValue > 0.45 ? "tighten" : "hold"] };
   if (!semanticSteps.length) return { mode: "hook", urgency: 0.35, compression: 0.45, revealSpacing: 0.75, holdPressure: 0.25, nextBeatPull: 0.75, reason: "Establish the world before spending its meaning.", arc: ["hook", "reveal", "open"] };
   if (endpointPressure >= 0.82 || tail === "payoff") return { mode: "release", urgency, compression: 0.82, revealSpacing: 0.9, holdPressure: 0.12, nextBeatPull: metric(0.3 + continuationValue * 0.55), reason: "The selected payoff is close enough to release; do not invent another event.", arc: ["tighten", "release", continuationValue > 0.55 ? "open" : "hold"] };
@@ -154,20 +154,31 @@ export function buildAuthorExperienceState(input: {
   const endpointPressure = metric(payoffEventIds.length ? 0.45 + Math.min(0.4, changedEventIds.length * 0.05) : 0.1 + Math.min(0.45, changedEventIds.length * 0.08));
   const tempo = deriveTempo({ semanticSteps, activeTensions: activeTensionKeys.length, resolvedTensions: resolvedTensionKeys.length, revisits: revisitedEventIds.length, continuationValue, lookaheadValue, endpointPressure, round: input.round ?? 1 });
   const attentionPotential = metric(Math.min(1, semanticSteps.length / 4) * 0.25 + continuationValue * 0.22 + lookaheadValue * 0.2 + tempo.nextBeatPull * 0.18 + Math.min(1, revisitedEventIds.length / 2) * 0.15);
+
+  const worldSimulation = buildAuthorWorldSimulation({
+    reality: graph,
+    subject: input.movie?.storyThesis?.semanticRealization?.subject,
+    lens: input.lens,
+    priorExperienceIds: previous.length ? previous.map((state) => state.selectedMovieId).filter((id): id is string => Boolean(id)) : [],
+  });
+
   const memoryHooks = uniq([
     ...prior("memoryHooks").filter((hook) => !retiredFutureThreadKeys.includes(hook)),
     ...graph.recurringSignals.map((value) => `recurring:${value}`),
     ...graph.unresolvedTensions.map((value) => `tension:${value}`),
     ...continuityHooks,
     ...revisitedEventIds.map((id) => `revisit:${id}`),
+    ...worldSimulation.durableThreads.map((thread) => `world-thread:${thread.id}`),
+    ...worldSimulation.reentry.eligibleCallbacks.map((callback) => `world-callback:${callback}`),
     ...futureThreadKeys,
     ...retiredFutureThreadKeys.slice(-8),
     `tempo:${tempo.mode}`,
-  ], 48);
+  ], 64);
 
   return {
     version: 1,
     realityAnchors,
+    worldSimulation,
     establishedEventIds,
     changedEventIds,
     carrierEventIds,
@@ -204,6 +215,7 @@ export function buildAuthorExperienceState(input: {
 }
 
 export function summarizeAuthorExperienceState(state: AuthorExperienceState): string[] {
+  const simulation = state.worldSimulation;
   return [
     `EXPERIENCE STATE: ${state.chapter.operations.join(" → ") || "empty"}`,
     `REALITY ANCHORS: ${state.realityAnchors?.length ?? 0}`,
@@ -218,5 +230,15 @@ export function summarizeAuthorExperienceState(state: AuthorExperienceState): st
     `TEMPO: ${state.tempo.mode} urgency=${state.tempo.urgency} pull=${state.tempo.nextBeatPull}`,
     `TEMPO ARC: ${state.tempo.arc.join(" → ")}`,
     `CONTINUATION=${state.continuationValue} LOOKAHEAD=${state.lookaheadValue} ATTENTION=${state.attentionPotential}`,
+    ...(simulation
+      ? [
+          `WORLD SIMULATION: refs=${simulation.refs.length} relations=${simulation.relations.length} snapshots=${simulation.snapshots.length}`,
+          `WORLD QUESTIONS: ${simulation.questions.slice(0, 4).map((question) => question.text).join(" | ") || "none"}`,
+          `WORLD HYPOTHESES: ${simulation.viewer.hypotheses.slice(0, 3).map((hypothesis) => `${hypothesis.status}:${hypothesis.interpretation}`).join(" | ") || "none"}`,
+          `WORLD PREDICTION ERRORS: ${simulation.viewer.predictionErrors.length}`,
+          `WORLD THREADS: ${simulation.durableThreads.slice(0, 5).map((thread) => thread.id).join(", ") || "none"}`,
+          `WORLD REENTRY: meaningCanChange=${simulation.reentry.meaningCanChange} callbacks=${simulation.reentry.eligibleCallbacks.length}`,
+        ]
+      : []),
   ];
 }
