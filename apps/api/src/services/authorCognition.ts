@@ -88,6 +88,14 @@ const clean = (value: unknown): string =>
 const uniq = <T>(values: readonly T[], limit = 24): T[] => [...new Set(values)].slice(0, limit);
 const PRIOR_STATE_PREFIX = "QRE_AUTHOR_EXPERIENCE_STATE::";
 
+type AuthorWorldSimulation = ReturnType<typeof buildAuthorWorldSimulation>;
+
+type MovieSearchResult = {
+  latentMovieCandidates: LatentMovieCandidate[];
+  selectedMovie?: LatentMovieCandidate;
+  worldSimulation?: AuthorWorldSimulation;
+};
+
 function parsePriorExperienceStates(values?: readonly string[]): AuthorExperienceState[] {
   const states: AuthorExperienceState[] = [];
   for (const value of values ?? []) {
@@ -132,17 +140,28 @@ function resolveLens(input: AuthorCognitionInput): string {
   return autoLensCandidates(input)[0]?.frame ?? "NONE";
 }
 
+/**
+ * Movie discovery remains the single semantic movie authority.
+ * The world simulation is computed once here and carried forward into the
+ * durable experience state and observer realization context.
+ */
 function movieFor(
   input: AuthorCognitionInput,
   selectedLens: string,
-): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate; worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation> } {
+  priorExperienceStates: readonly AuthorExperienceState[],
+): MovieSearchResult {
   if (input.movieMode === false || !input.realityGraph) return { latentMovieCandidates: [] };
 
   const worldSimulation = buildAuthorWorldSimulation({
     reality: input.realityGraph,
     subject: input.subject,
     lens: selectedLens,
-    priorExperienceIds: [],
+    priorExperienceIds: priorExperienceStates
+      .map((state) => state.selectedMovieId)
+      .filter((id): id is string => Boolean(id)),
+    rememberedRefIds: priorExperienceStates.flatMap((state) =>
+      state.worldSimulation?.reentry.rememberedRefIds ?? [],
+    ),
   });
 
   const discovered = searchUniversalMovieCandidates({
@@ -238,6 +257,7 @@ function callbackTargetsFor(input: AuthorCognitionInput, permanentTruths: readon
     ...(input.realityGraph?.recurringSignals ?? []),
     ...permanentTruths,
     ...(experienceState?.memoryHooks ?? []),
+    ...(experienceState?.worldSimulation?.reentry.eligibleCallbacks ?? []),
   ], 20);
 }
 
@@ -284,11 +304,20 @@ function buildSceneRules(experienceState: AuthorExperienceState | undefined, sel
 }
 
 export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCognitivePlan {
-  const selectedLens = resolveLens(input);
-  const movie = movieFor(input, selectedLens);
   const priorExperienceStates = parsePriorExperienceStates(input.priorStrategies);
+  const selectedLens = resolveLens(input);
+  const movie = movieFor(input, selectedLens, priorExperienceStates);
   const experienceState = input.realityGraph && movie.selectedMovie
-    ? buildAuthorExperienceState({ graph: input.realityGraph, movie: movie.selectedMovie, lens: selectedLens, priorScenes: input.priorScenes, memoryContext: input.memoryContext, priorExperienceStates, round: input.round })
+    ? buildAuthorExperienceState({
+        graph: input.realityGraph,
+        movie: movie.selectedMovie,
+        lens: selectedLens,
+        priorScenes: input.priorScenes,
+        memoryContext: input.memoryContext,
+        priorExperienceStates,
+        round: input.round,
+        worldSimulation: movie.worldSimulation,
+      })
     : undefined;
 
   const permanentTruths = uniq([...input.facts, ...(input.memoryContext ?? [])], 30);
