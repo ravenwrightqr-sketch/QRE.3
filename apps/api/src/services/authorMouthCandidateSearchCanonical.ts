@@ -45,19 +45,16 @@ const tokens = (value: string): Set<string> =>
       .filter((token) => token.length >= 3),
   );
 
+const STOP = new Set([
+  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by",
+  "through", "after", "before", "then", "now", "still", "again", "this", "that", "it", "is", "are",
+  "was", "were", "be", "been", "being", "as", "into", "my", "your", "our", "their", "his", "her",
+  "its", "he", "she", "they", "them", "you", "we", "me", "very", "really", "just", "already",
+  "apparently", "anyway", "perhaps", "maybe",
+]);
+
 const meaningful = (value: string): Set<string> =>
-  new Set(
-    [...tokens(value)].filter(
-      (token) =>
-        !new Set([
-          "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for",
-          "with", "from", "by", "through", "after", "before", "then", "now", "still",
-          "again", "this", "that", "it", "is", "are", "was", "were", "be", "been", "being",
-          "as", "into", "my", "your", "our", "their", "his", "her", "its", "he", "she",
-          "they", "them", "you", "we", "me",
-        ]).has(token),
-    ),
-  );
+  new Set([...tokens(value)].filter((token) => !STOP.has(token)));
 
 const overlap = (a: Set<string>, b: Set<string>): number => {
   if (!a.size || !b.size) return 0;
@@ -69,10 +66,7 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
 
-function sourceLabels(
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): string[] {
+function sourceLabels(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   return [...new Set(
     (beat.eventIds ?? [])
       .map((id) => envelope.events.find((event) => event.id === id)?.label ?? "")
@@ -104,11 +98,7 @@ function wordCount(text: string): number {
   return clean(text).split(/\s+/).filter(Boolean).length;
 }
 
-function sourceSpecificity(
-  text: string,
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-): number {
+function sourceSpecificity(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const candidate = meaningful(text);
   const local = meaningful(sourceLabels(beat, envelope).join(" "));
   const world = meaningful(wholeReality(envelope).join(" "));
@@ -116,7 +106,7 @@ function sourceSpecificity(
 }
 
 function frameSignal(text: string): number {
-  const value = clean(text).toLowerCase();
+  const value = clean(text);
   const frameWords = [
     "judge", "judgment", "inspection", "review", "case", "verdict", "evidence", "mission",
     "operation", "negotiation", "negotiations", "level", "boss", "round", "upgrade", "status",
@@ -132,53 +122,38 @@ function frameSignal(text: string): number {
 
 function implicationSignal(text: string): number {
   const value = clean(text);
-  const words = wordCount(value);
+  const count = wordCount(value);
   if (!value) return 0;
-  const hasConsequence = /\b(?:then|again|still|already|finally|apparently|anyway|until|for now|temporary|temporarily|remained|stayed|kept)\b/i.test(value);
-  const hasContrast = /\b(?:but|yet|still|instead|only|just|however)\b/i.test(value);
-  const hasQuestion = /\?$/.test(value);
-  const hasStatus = /\b(?:won|lost|ready|done|cleared|approved|complete|finished|peace|fabulous|fierce|sharp|official|final|temporary)\b/i.test(value);
+  const consequence = /\b(?:then|again|still|already|finally|apparently|anyway|until|for now|temporary|temporarily|remained|stayed|kept)\b/i.test(value);
+  const contrast = /\b(?:but|yet|still|instead|only|just|however)\b/i.test(value);
+  const question = /\?$/.test(value);
+  const status = /\b(?:won|lost|ready|done|cleared|approved|complete|finished|peace|fabulous|fierce|sharp|official|final|temporary)\b/i.test(value);
   return metric(
-    (hasConsequence ? 0.28 : 0) +
-      (hasContrast ? 0.24 : 0) +
-      (hasQuestion ? 0.2 : 0) +
-      (hasStatus ? 0.18 : 0) +
-      (words <= 10 ? 0.1 : 0),
+    (consequence ? 0.28 : 0) +
+      (contrast ? 0.24 : 0) +
+      (question ? 0.2 : 0) +
+      (status ? 0.18 : 0) +
+      (count <= 10 ? 0.1 : 0),
   );
 }
 
-function antiLabelSignal(
-  text: string,
-  beat: MouthCandidateBeat,
-): number {
+function antiLabelSignal(text: string, sourceSpecificityScore: number): number {
   const value = clean(text);
   if (!value) return 1;
-  const source = sourceLabels(beat, {
-    subject: "",
-    events: [],
-    suppliedPhrases: [],
-    suppliedEntities: [],
-    suppliedActions: [],
-    suppliedStates: [],
-    recurringSignals: [],
-    sensorySignals: [],
-    unresolvedTensions: [],
-  } as RealityEnvelope);
-  void source;
 
-  const abstractLead = /^(?:a|an|the)\s+(?:weight|tremor|anticipation|beginning|cleansing|transformation|radiance|portrait|defiance|acquisition|joy|energy|silence|connection|tension|intensity|feeling|moment)\b/i;
-  const poeticPair = /^\w+\.\s+(?:the|a|an)\s+\w+\.?$/i.test(value);
-  if (abstractLead.test(value)) return 1;
-  if (poeticPair && sourceLabels(beat, { subject: "", events: [], suppliedPhrases: [], suppliedEntities: [], suppliedActions: [], suppliedStates: [], recurringSignals: [], sensorySignals: [], unresolvedTensions: [] } as RealityEnvelope).length === 0) return 0.8;
+  const atmospheric = /^(?:(?:a|an|the)\s+)?(?:weight|tremor|anticipation|beginning|cleansing|transformation|radiance|portrait|defiance|acquisition|joy|energy|silence|connection|tension|intensity|feeling|moment|presence|possibility|momentum|afterglow|resonance|lightness|stillness|softness)\b/i;
+  const sentenceParts = value.split(/[.!?]+/).map(clean).filter(Boolean);
+  const fragmentPair = sentenceParts.length >= 2 && sentenceParts.every((part) => {
+    const words = part.split(/\s+/).filter(Boolean);
+    return words.length <= 5 && !/\b(?:is|are|was|were|did|does|has|have|had|then|but|and)\b/i.test(part);
+  });
+
+  if (atmospheric.test(value)) return sourceSpecificityScore < 0.2 ? 1 : 0.55;
+  if (fragmentPair && sourceSpecificityScore < 0.2) return 0.8;
   return 0;
 }
 
-function candidateScore(
-  text: string,
-  beat: MouthCandidateBeat,
-  envelope: RealityEnvelope,
-  priorTexts: readonly string[],
-): MouthCandidate {
+function candidateScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[]): MouthCandidate {
   const value = clean(text);
   const labels = sourceLabels(beat, envelope);
   const evaluation = evaluateMouthInterpretation({
@@ -206,12 +181,12 @@ function candidateScore(
     : metric(beat.eventIds?.length ? 0.64 : 0.45);
 
   const discovery = metric(
-    (evaluation.creativeFraming ?? 0) * 0.28 +
-      localSpecificity * 0.22 +
+    (evaluation.creativeFraming ?? 0) * 0.24 +
+      localSpecificity * 0.25 +
       implication * 0.2 +
-      framing * 0.12 +
-      approvedMeaning * 0.12 +
-      novelty * 0.06,
+      framing * 0.1 +
+      approvedMeaning * 0.13 +
+      novelty * 0.08,
   );
 
   const humanShape =
@@ -221,17 +196,19 @@ function candidateScore(
         ? 0.75
         : 0.45;
 
+  const labelRisk = antiLabelSignal(value, localSpecificity);
+
   const score = metric(
-    (1 - forbidden) * 0.19 +
-      discovery * 0.29 +
-      localSpecificity * 0.15 +
-      evaluation.interpretive * 0.1 +
-      novelty * 0.08 +
+    (1 - forbidden) * 0.2 +
+      discovery * 0.31 +
+      localSpecificity * 0.14 +
+      evaluation.interpretive * 0.09 +
+      novelty * 0.07 +
       humanShape * 0.06 +
       implication * 0.08 +
       framing * 0.05 -
-      antiLabelSignal(value, beat) * 0.2 -
-      (literal ? 0.12 : 0),
+      labelRisk * 0.22 -
+      (literal ? 0.13 : 0),
   );
 
   const supportedEventIds = labels.length && localSpecificity >= 0.24 && forbidden < 0.9
@@ -245,7 +222,7 @@ function candidateScore(
   if (implication >= 0.45) reasons.push("viewer-discovery");
   if (discovery >= 0.6) reasons.push("creative-discovery");
   if (literal) reasons.push("literal-source-restatement");
-  if (antiLabelSignal(value, beat) > 0.45) reasons.push("poetic-label");
+  if (labelRisk > 0.45) reasons.push("poetic-label");
   if (wordCount(value) >= 3 && wordCount(value) <= 11) reasons.push("human-sized-cut");
 
   return {
@@ -258,14 +235,14 @@ function candidateScore(
     observerDiscoveryScore: metric(discovery),
     transitionScore: metric(Number(beat.viewerState?.stateShift) || 0.45),
     obligationCoverage: metric(approvedMeaning * 0.65 + localSpecificity * 0.35),
-    relationContractScore: metric((beat.relationKinds?.length ? 0.8 : 0.45)),
+    relationContractScore: metric(beat.relationKinds?.length ? 0.8 : 0.45),
     forbiddenMoveRisk: forbidden,
     cohesionScore: metric(0.55 + discovery * 0.3 + novelty * 0.15),
     noveltyScore: novelty,
     compressionScore: humanShape,
     inventionRisk: forbidden,
     repetitionRisk: 1 - novelty,
-    collageRisk: antiLabelSignal(value, beat),
+    collageRisk: labelRisk,
     endpointExactness: literal ? 1 : 0,
     score,
     reasons,
@@ -294,7 +271,7 @@ function buildSystemPrompt(): string {
     "Use the entire supplied sequence when choosing a realization. Earlier cuts establish expectations; later cuts may cash them in.",
     "Never explain the discovery. Make the viewer discover it.",
     "Return JSON only.",
-  ].join("\\n");
+  ].join("\n");
 }
 
 function controlData(beat: MouthCandidateBeat): Record<string, unknown> | undefined {
@@ -314,9 +291,7 @@ function controlData(beat: MouthCandidateBeat): Record<string, unknown> | undefi
   };
 }
 
-export function buildMouthCandidateMessages(
-  input: MouthCandidateGenerationInput,
-): Array<{ role: "system" | "user"; content: string }> {
+export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const reality = wholeReality(input.envelope);
   const beats = input.beats.map((beat) => ({
