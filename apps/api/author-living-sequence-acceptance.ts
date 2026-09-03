@@ -1,6 +1,6 @@
+import type { MouthCandidateBeat } from "@qre/contracts";
 import { scoreMouthCandidate } from "./src/services/authorMouth.js";
-
-type Any = Record<string, unknown>;
+import type { RealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`AUTHOR LIVING SEQUENCE ACCEPTANCE FAILED: ${message}`);
@@ -28,7 +28,7 @@ const envelope = {
   eventStructure: [],
   entityContinuity: [],
   patterns: [],
-} as Any;
+} as RealityEnvelope;
 
 const relationshipBeat = {
   order: 3,
@@ -60,7 +60,7 @@ const relationshipBeat = {
     landing: "Land the preference through voice, anticipation, status, or consequence.",
     explanationForbidden: true,
   },
-} as Any;
+} as MouthCandidateBeat;
 
 const literal = scoreMouthCandidate({
   text: "Milo loves bacon.",
@@ -87,7 +87,7 @@ const walkBeat = {
     after: "Milo loves walks",
     relation: { kind: "preference", fromEventId: "event-1", toEventId: "event-2" },
   },
-} as Any;
+} as MouthCandidateBeat;
 
 const walkLine = scoreMouthCandidate({
   text: "Fucking fab walk now.",
