@@ -206,6 +206,117 @@ function synthesizeGroupChange(
   return `The approved evidence changes significance from ${first} to ${last}.`;
 }
 
+function semanticSpineGroups(
+  movie: LatentMovieCandidate,
+  steps: readonly LatentMovieTrajectoryStep[],
+): LatentMovieTrajectoryStep[][] | undefined {
+  const thesis = movie.storyThesis;
+  const semantic = thesis?.semanticRealization;
+  if (!thesis?.semanticTurn || steps.length < 3) return undefined;
+
+  const beforeIds = unique([
+    ...(thesis.beforeEventIds ?? []),
+  ]);
+  const carrierIds = unique([
+    ...(semantic?.evidenceEventIds ?? []),
+    ...(semantic?.callback?.eventIds ?? []),
+  ]);
+  const afterIds = unique([
+    ...(thesis.afterEventIds ?? []),
+    ...(thesis.sealingEventIds ?? []),
+  ]);
+
+  const positionOf = (id: string): number =>
+    steps.findIndex((step) => (step.eventIds ?? []).includes(id));
+
+  const beforePositions = beforeIds
+    .map(positionOf)
+    .filter((position) => position >= 0);
+  const carrierPositions = carrierIds
+    .map(positionOf)
+    .filter((position) => position >= 0);
+  const afterPositions = afterIds
+    .map(positionOf)
+    .filter((position) => position >= 0);
+
+  if (!beforePositions.length || !afterPositions.length) return undefined;
+
+  const firstBefore = Math.min(...beforePositions);
+  const lastBefore = Math.max(...beforePositions);
+  const firstAfter = Math.min(...afterPositions);
+  const lastAfter = Math.max(...afterPositions);
+
+  if (firstBefore >= firstAfter) return undefined;
+
+  const carrierResolved =
+    carrierPositions.length > 0 &&
+    Math.max(...carrierPositions) >= lastBefore &&
+    Math.min(...carrierPositions) <= firstAfter;
+
+  if (!carrierResolved) return undefined;
+
+  const firstGroupEnd = Math.max(0, firstBefore);
+  const carrierStart = Math.min(
+    Math.max(firstGroupEnd + 1, Math.min(...carrierPositions)),
+    steps.length - 1,
+  );
+  const carrierEnd = Math.max(
+    carrierStart,
+    Math.min(Math.max(lastBefore + 1, Math.max(...carrierPositions)), firstAfter),
+  );
+
+  const firstGroup = steps.slice(0, firstGroupEnd + 1);
+  const carrierGroup = steps.slice(
+    Math.min(firstGroupEnd + 1, carrierStart),
+    Math.min(steps.length, carrierEnd + 1),
+  );
+  const payoffGroup = steps.slice(Math.min(steps.length - 1, Math.max(firstAfter, carrierEnd + 1)));
+
+  if (!firstGroup.length || !carrierGroup.length || !payoffGroup.length) return undefined;
+
+  const groups = [firstGroup, carrierGroup, payoffGroup];
+
+  if (
+    groups.some((group) => group.length === 0) ||
+    groups.some((group) => group.some((step) => (step.eventIds ?? []).length === 0))
+  ) {
+    return undefined;
+  }
+
+  return groups;
+}
+
+function hasSemanticSpine(
+  movie: LatentMovieCandidate,
+  beats: readonly MouthCandidateBeat[],
+): boolean {
+  const thesis = movie.storyThesis;
+  const semantic = thesis?.semanticRealization;
+  if (!thesis?.semanticTurn) return true;
+
+  const beforeIds = new Set(thesis.beforeEventIds ?? []);
+  const carrierIds = new Set([
+    ...(semantic?.evidenceEventIds ?? []),
+    ...(semantic?.callback?.eventIds ?? []),
+  ]);
+  const afterIds = new Set([
+    ...(thesis.afterEventIds ?? []),
+    ...(thesis.sealingEventIds ?? []),
+  ]);
+
+  const hasBefore = beats.some((beat) =>
+    (beat.eventIds ?? []).some((id) => beforeIds.has(id)),
+  );
+  const hasCarrier = beats.some((beat) =>
+    (beat.eventIds ?? []).some((id) => carrierIds.has(id)),
+  );
+  const hasAfter = beats.some((beat) =>
+    (beat.eventIds ?? []).some((id) => afterIds.has(id)),
+  );
+
+  return beats.length >= 3 && hasBefore && hasCarrier && hasAfter;
+}
+
 function composeTrajectoryBeats(
   movie: LatentMovieCandidate,
 ): MouthCandidateBeat[] {
@@ -231,6 +342,74 @@ function composeTrajectoryBeats(
   const steps = [...movie.trajectory];
   if (steps.length <= 1) {
     return steps.map((step) => stepToBeat(movie, step, 0, 1));
+  }
+
+  const semanticGroups = semanticSpineGroups(movie, steps);
+  if (semanticGroups) {
+    return semanticGroups.map((group, groupIndex, allGroups) => {
+      const final = groupIndex === allGroups.length - 1;
+      const first = group[0];
+      const last = group[group.length - 1];
+      const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
+      const canonicalAuthority = realizationAuthorityForBeat(movie, last);
+
+      let role: MouthCandidateBeat["role"] = "reveal";
+      let creativeMove: string | undefined = "synthesis";
+      let change = movie.storyThesis?.semanticTurn ?? clean(last?.viewerChange);
+
+      if (groupIndex === 0) {
+        role = "establishing";
+        creativeMove = clean(last?.operation) || "establish";
+        change = clean(last?.viewerChange);
+      } else if (final) {
+        role = "payoff";
+        creativeMove = "payoff";
+        change = clean(last?.viewerChange) || movie.payoff;
+      }
+
+      return {
+        order: groupIndex + 1,
+        role,
+        attentionFunction: [
+          clean(first?.viewerChange),
+          canonicalAuthority,
+          groupIndex === 1
+            ? "This cut carries the approved evidence that makes the later recontextualization possible. Preserve the carrier rather than summarizing it away."
+            : final
+              ? "This cut is the supplied endpoint. Let the observer connect it to the earlier carrier without explaining the relationship."
+              : "Establish the approved before-state and leave the later significance unresolved.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        creativeMove,
+        eventIds,
+        change,
+        next: clean(last?.nextQuestion),
+        frontier: clean(last?.nextQuestion),
+        paysOff: final ? [movie.payoff] : [],
+        relationKinds: unique([
+          ...movie.supportingRelationKinds,
+          ...group.flatMap((step) => (step.operation ? [step.operation] : [])),
+        ]),
+        semanticRealization: movie.storyThesis?.semanticRealization,
+        observerExperience: movie.storyThesis?.observerExperience,
+        obligations: [
+          "All source event IDs in this cut remain approved evidence.",
+          "Preserve source order within the cut.",
+          "Do not state the semantic thesis when explanation is forbidden.",
+          ...(groupIndex === 1
+            ? [
+                "The carrier evidence must remain perceptible; do not compress it into a generic before→after summary.",
+              ]
+            : []),
+          ...(final
+            ? [
+                "The final cut preserves the supplied endpoint and does not append earlier evidence to it.",
+              ]
+            : []),
+        ],
+      };
+    });
   }
 
   const groups: LatentMovieTrajectoryStep[][] = [];
@@ -619,6 +798,9 @@ export async function authorBrainCanonical(
     console.log(`movieId=${movie.id}`);
     console.log(`trajectorySteps=${movie.trajectory.length}`);
     console.log(`composedCuts=${beats.length}`);
+    console.log(
+      `semanticSpine=${movie.storyThesis?.semanticTurn ? hasSemanticSpine(movie, beats) : "not-applicable"}`,
+    );
     beats.forEach((beat) => {
       console.log(
         `[${beat.order}] ${beat.role} | events=${(beat.eventIds ?? []).join(",")} | change=${clean(beat.change)} | next=${clean(beat.next)}`,
@@ -771,11 +953,13 @@ export async function authorBrainCanonical(
   }));
 
   const minimumCuts = realizationMode === "sequence-film" ? 3 : 1;
+  const semanticSpineComplete = hasSemanticSpine(movie, beats);
   const sequenceSourcesComplete = sequence.cuts.every((cut) => cut.sourceIds.length > 0);
   const complete =
     scenes.length >= minimumCuts &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
+    semanticSpineComplete &&
     attention.accepted === true &&
     arc.accepted === true;
 
@@ -785,6 +969,7 @@ export async function authorBrainCanonical(
     console.log(`sceneCount=${scenes.length}`);
     console.log(`sequenceCutCount=${sequence.cuts.length}`);
     console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
+    console.log(`semanticSpineComplete=${semanticSpineComplete}`);
     console.log(`attentionAccepted=${attention.accepted}`);
     console.log(`arcAccepted=${arc.accepted}`);
     console.log(`complete=${complete}`);
