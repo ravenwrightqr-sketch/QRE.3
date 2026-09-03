@@ -220,7 +220,7 @@ function compatibility(opportunityRelations: WorldRelation[], lens?: LensPressur
 
 function opportunities(graph: RealityGraph, relations: WorldRelation[], questions: WorldQuestion[], lens?: LensPressure): InterpretationOpportunity[] {
   const grouped = new Map<string, WorldRelation[]>();
-  for (const relation of strongestRelations(relations)) {
+  for (const relation of strongestRelations(relations, 0.5)) {
     const key = [...relation.evidenceEventIds].sort().join(":");
     const bucket = grouped.get(key) ?? [];
     bucket.push(relation);
@@ -361,7 +361,15 @@ export function buildAuthorWorldSimulation(input: WorldSimulationBuildInput): Wo
       nextQuestion: relevantQuestions[0]?.text,
     });
   }
-  const durableThreads = questions.filter((question) => question.type === "return" || question.type === "meaning" || question.pressure >= 0.7).slice(0, 8);
+    const hasSuppliedRecurrence = reality.recurringSignals.length > 0;
+  const durableThreads = questions
+    .filter((question) =>
+      question.type === "return" ||
+      question.type === "meaning" ||
+      question.pressure >= 0.7 ||
+      (hasSuppliedRecurrence && question.type === "relational")
+    )
+    .slice(0, 8);
   const remembered = input.rememberedRefIds ?? [];
   return {
     version: 1,
