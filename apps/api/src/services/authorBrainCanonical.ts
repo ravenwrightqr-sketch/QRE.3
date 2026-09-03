@@ -22,7 +22,7 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import { deriveViewerStateCut } from "./authorMouthCandidateSearch.js";
+import { deriveViewerStateCut } from "./authorViewerStateCut.js";
 import {
   classifyAuthorRealizationMode,
   type AuthorRealizationMode,
@@ -31,15 +31,13 @@ import {
   buildMouthCandidateMessages,
   parseMouthCandidateBatch,
   scoreMouthCandidate,
+  isAuthorizedMouthCandidate,
+  selectBestMouthSequence,
   type MouthCandidateBeat,
-} from "./authorMouthCandidateSearchCanonical.js";
+} from "./authorMouth.js";
 import { editAttentionSequence } from "./authorAttentionEditor.js";
 import { evaluateSequenceArc } from "./authorSequenceArcGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
-import {
-  isAuthorizedMouthCandidate,
-  selectBestMouthSequence,
-} from "./authorMouthSequenceBeamSearch.js";
 import {
   buildSequenceTransition,
   initialMomentum,
