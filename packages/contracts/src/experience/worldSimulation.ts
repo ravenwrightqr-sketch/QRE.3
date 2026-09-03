@@ -23,7 +23,7 @@ export type WorldRef = {
 };
 
 export type WorldRelationKind =
-  | "agent_of" | "patient_of" | "possesses" | "owned_by" | "observes" | "observed_by"
+  | "agent_of" | "patient_of" | "possesses" | "owned_by" | "belongs_to" | "observes" | "observed_by"
   | "interacts_with" | "located_at" | "moves_to" | "returns_to" | "changes"
   | "contrasts_with" | "repeats" | "recontextualizes" | "causes" | "enables" | "blocks"
   | "precedes" | "follows" | "co_occurs_with" | "converges_with" | "persists_through"
@@ -68,7 +68,7 @@ export type WorldSnapshot = {
   eventIds: string[];
   activeRefs: WorldRef[];
   activeRelations: WorldRelation[];
-  changedDimensions: WorldStateDimension[];
+  changedDimensions: Array<WorldStateDimension | string>;
   stableDimensions: WorldStateDimension[];
   unresolved: WorldQuestion[];
   timestampLabel?: string;
