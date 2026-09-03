@@ -5,11 +5,18 @@
  *
  * Reality answers: "what concrete world claims are licensed?"
  * Meaning answers: "what changed in meaning and what should be felt?"
+ * Earned interpretation answers: "what may the viewer reasonably infer?"
  * Moves answer: "what kinds of language transformations are invited?"
  *
  * These authorities are intentionally separate. Meaning and creative moves
  * can transform language, but they can never create new concrete reality.
  */
+
+export type MouthInferenceBudget =
+  | "direct"
+  | "compressed"
+  | "interpretive"
+  | "strongly-interpretive";
 
 export type MouthRealizationAuthority = {
   reality: {
@@ -31,6 +38,9 @@ export type MouthRealizationAuthority = {
     realizationDirection?: string;
     languageAim?: string;
   };
+  earnedInterpretations: string[];
+  permittedRealizationModes: string[];
+  inferenceBudget: MouthInferenceBudget;
   creativeMoves: string[];
   forbiddenMoves: string[];
   evidenceEventIds: string[];
