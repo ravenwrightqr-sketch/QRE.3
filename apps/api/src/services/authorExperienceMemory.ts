@@ -67,6 +67,7 @@ export function authorExperienceStateToMemoryBatch(input: {
   sourceRef?: string;
 }): MemoryWriteBatch {
   const occurredAt = input.occurredAt ?? new Date().toISOString();
+  const simulation = input.state.worldSimulation;
   const summary = [
     `Author chapter: ${input.state.chapter.operations.join(" → ") || "empty"}.`,
     `Tempo: ${input.state.tempo.mode}.`,
@@ -74,6 +75,12 @@ export function authorExperienceStateToMemoryBatch(input: {
     `Future: ${input.state.futureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
     `Retired future: ${input.state.retiredFutureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
     `Reality anchors: ${input.state.realityAnchors?.slice(0, 4).join(" | ") || "none"}.`,
+    ...(simulation ? [
+      `World simulation: ${simulation.refs.length} refs, ${simulation.relations.length} relations, ${simulation.questions.length} questions.`,
+      `Viewer hypotheses: ${simulation.viewer.hypotheses.length}.`,
+      `Prediction errors: ${simulation.viewer.predictionErrors.length}.`,
+      `World callbacks: ${simulation.reentry.eligibleCallbacks.slice(0, 4).join(", ") || "none"}.`,
+    ] : []),
   ].join(" ");
 
   return {
@@ -116,14 +123,24 @@ export function extractAuthorExperienceStates(
 export function authorExperienceMemoryContext(
   context: MemoryContext,
 ): string[] {
-  const stateSummaries = extractAuthorExperienceStates(context).flatMap((state) => [
-    `prior tempo: ${state.tempo.mode}`,
-    ...state.realityAnchors?.slice(0, 12).map((value) => `anchor: ${value}`) ?? [],
-    ...state.carryThreads.slice(0, 8).map((value) => `carry: ${value}`),
-    ...state.futureThreadKeys.slice(0, 8).map((value) => `future: ${value}`),
-    ...state.retiredFutureThreadKeys.slice(0, 8).map((value) => `retired future: ${value}`),
-    ...state.revisitedEventIds.slice(0, 8).map((value) => `revisit: ${value}`),
-  ]);
+  const stateSummaries = extractAuthorExperienceStates(context).flatMap((state) => {
+    const simulation = state.worldSimulation;
+    return [
+      `prior tempo: ${state.tempo.mode}`,
+      ...state.realityAnchors?.slice(0, 12).map((value) => `anchor: ${value}`) ?? [],
+      ...state.carryThreads.slice(0, 8).map((value) => `carry: ${value}`),
+      ...state.futureThreadKeys.slice(0, 8).map((value) => `future: ${value}`),
+      ...state.retiredFutureThreadKeys.slice(0, 8).map((value) => `retired future: ${value}`),
+      ...state.revisitedEventIds.slice(0, 8).map((value) => `revisit: ${value}`),
+      ...(simulation ? [
+        ...simulation.relations.slice(0, 12).map((relation) => `world relation: ${relation.from.label} ${relation.kind} ${relation.to.label}`),
+        ...simulation.questions.slice(0, 8).map((question) => `world question: ${question.text}`),
+        ...simulation.viewer.hypotheses.slice(0, 6).map((hypothesis) => `world hypothesis: ${hypothesis.status} :: ${hypothesis.interpretation}`),
+        ...simulation.viewer.predictionErrors.slice(0, 6).map((error) => `prediction error: ${error.expected} → ${error.observed}`),
+        ...simulation.reentry.eligibleCallbacks.slice(0, 8).map((callback) => `world callback: ${callback}`),
+      ] : []),
+    ];
+  });
 
   const factSummaries = context.facts.slice(0, 40).map(
     (fact) => clean(`${fact.predicate}: ${fact.value}`),
@@ -138,7 +155,7 @@ export function authorExperienceMemoryContext(
     .slice(0, 24)
     .map((event) => clean(event.summary));
 
-  return uniq([...stateSummaries, ...factSummaries, ...relationSummaries, ...eventSummaries], 96);
+  return uniq([...stateSummaries, ...factSummaries, ...relationSummaries, ...eventSummaries], 128);
 }
 
 export function isAuthorExperienceMemoryEvent(event: MemoryEvent): boolean {
