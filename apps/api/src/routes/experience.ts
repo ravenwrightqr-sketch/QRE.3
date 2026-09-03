@@ -4,7 +4,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { recommendMemories, resolveGeoLabel } from "@qre/engine";
-import { ENTITLEMENT_RULES, type AccountPlan } from "@qre/contracts";
+import { ENTITLEMENT_RULES, type AccountPlan, type Experience } from "@qre/contracts";
 import { db } from "@qre/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience, type GeoAnchorInput } from "../services/experienceService.js";
@@ -126,6 +126,57 @@ async function ownedAsset(assetId: string, userId?: string) {
   });
 }
 
+/**
+ * ELITE: public API allowlist.
+ *
+ * Internal Author/compiler state must never cross the API boundary.
+ * Keep only viewer/render-facing fields here.
+ */
+function publicExperienceView(
+  experience: any,
+  sessionId: string,
+  geo: GeoAnchorInput | undefined,
+  warnings: string[],
+): Record<string, unknown> {
+  const view: Record<string, unknown> = {
+    sessionId,
+    access: "UNLOCKED",
+    preview: true,
+    asset: null,
+    moments: Array.isArray(experience?.moments) ? experience.moments : [],
+    geoStory: null,
+    cinematicScenes: Array.isArray(experience?.cinematicScenes)
+      ? experience.cinematicScenes
+      : [],
+    memorySnapshot: null,
+    receipt: null,
+    insights: Array.isArray(experience?.discoveries) ? experience.discoveries : [],
+    timestamp: new Date().toISOString(),
+    title: typeof experience?.title === "string" ? experience.title : undefined,
+    momentCount: typeof experience?.momentCount === "number" ? experience.momentCount : undefined,
+    estimatedDuration:
+      typeof experience?.estimatedDuration === "number"
+        ? experience.estimatedDuration
+        : undefined,
+    movieMode: experience?.movieMode === true,
+    warnings,
+  };
+
+  if (geo) {
+    view.geo = {
+      label: geo.label ?? null,
+      city: geo.city ?? null,
+      region: geo.region ?? null,
+      country: geo.country ?? null,
+      role: geo.role ?? "experience_place",
+    };
+  }
+
+  return Object.fromEntries(
+    Object.entries(view).filter(([, value]) => value !== undefined),
+  );
+}
+
 router.post("/compile", requireAuth, async (req, res) => {
   try {
     const prompt = req.body?.prompt;
@@ -144,20 +195,20 @@ router.post("/compile", requireAuth, async (req, res) => {
       });
     }
     const geo = rawGeo ? await enrichGeo(rawGeo) : undefined;
-const sessionId = randomUUID();
+    const sessionId = randomUUID();
 
-const experience = await compileExperience({
-  prompt,
-  assetId,
-  userId: req.user?.userId,
-  sessionId,
-  memoryRepository: assetId
-    ? createMemoryRepository()
-    : undefined,
-  geoAnchor: geo,
-  movieMode,
-  lens,
-});
+    const experience = await compileExperience({
+      prompt,
+      assetId,
+      userId: req.user?.userId,
+      sessionId,
+      memoryRepository: assetId
+        ? createMemoryRepository()
+        : undefined,
+      geoAnchor: geo,
+      movieMode,
+      lens,
+    });
     const warnings = [...(experience.warnings ?? [])];
 
     if (
@@ -187,13 +238,25 @@ const experience = await compileExperience({
       }
     }
 
+    const publicExperience = publicExperienceView(
+      experience,
+      sessionId,
+      geo,
+      warnings,
+    );
+
     return res.json({
       success: true,
-      experience: {
-        ...experience,
-        warnings,
-      },
-      geo: geo ?? null,
+      experience: publicExperience,
+      geo: geo
+        ? {
+            label: geo.label ?? null,
+            city: geo.city ?? null,
+            region: geo.region ?? null,
+            country: geo.country ?? null,
+            role: geo.role ?? "experience_place",
+          }
+        : null,
     });
   } catch (error) {
     console.error("Experience compile failed:", error);
@@ -201,12 +264,6 @@ const experience = await compileExperience({
     return res.status(500).json({
       success: false,
       error: "Failed to compile experience.",
-      details:
-        process.env.NODE_ENV === "production"
-          ? undefined
-          : error instanceof Error
-            ? error.message
-            : String(error),
     });
   }
 });
