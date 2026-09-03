@@ -163,11 +163,9 @@ function unsupportedConcreteRisk(text: string, envelope: RealityEnvelope): numbe
     ...envelope.suppliedStates,
     ...envelope.suppliedPhrases,
   ].join(" "));
-  const candidate = meaningful(value);
-  const grounding = overlap(candidate, source);
+  const grounding = overlap(meaningful(value), source);
   const unsupportedActions = /\b(?:walk(?:ed|s)?|run(?:ning|s)?|jump(?:ed|s|ing)?|grab(?:bed|s|bing)?|kiss(?:ed|es|ing)?|hug(?:ged|s|ging)?|smil(?:ed|es|ing)?|laugh(?:ed|s|ing)?|talk(?:ed|s|ing)?|open(?:ed|s|ing)?|clos(?:ed|es|ing)?|enter(?:ed|s|ing)?|look(?:ed|s|ing)?|move(?:d|s|ing)?|touch(?:ed|es|ing)?|throw|threw|catch|caught|dance(?:d|s|ing)?|drive|drove|push(?:ed|es|ing)?|pull(?:ed|s|ing)?|vanish(?:ed|es|ing)?|disappear(?:ed|es|ing)?|blink(?:ed|s|ing)?|wave(?:d|s|ing)?)\b/i;
-  if (unsupportedActions.test(value) && grounding < 0.45) return 1;
-  return 0;
+  return unsupportedActions.test(value) && grounding < 0.45 ? 1 : 0;
 }
 
 function authorialForce(text: string, beat: MouthCandidateBeat): number {
@@ -293,7 +291,7 @@ function buildSystemPrompt(): string {
     "Prefer 3-8 words. A slightly longer source-specific punch is allowed when necessary.",
     "A grounded line can be creative without repeating every source noun. Preserve enough anchor that the approved reality remains recoverable.",
     "When agency, choice, deviation, or surprise is approved, a status phrase such as 'had other plans' may express it without adding an event.",
-    "When two supplied details form the semantic center, collide them. Do not add a third concrete fact.",
+    "When two supplied details form the semantic center, collide them. Do not add a third concrete detail.",
     "At payoff, land the supplied endpoint and the accumulated meaning. Do not append another event.",
     "When explanationForbidden is true, do not explain the thesis, relationship, lesson, or conclusion.",
     "Internally draft many possibilities and silently reject weak ones. Return only the strongest three materially different realizations for every beat.",
@@ -363,10 +361,10 @@ export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope
     else if (current) candidates.push(`Apparently, ${current} had competition.`);
   }
   if (ownership && target) candidates.push(`${target} became the point.`);
-  if (contrast && current && target) candidates.push(`${current}; ${target changed the reading}.` .replace("; ", "; ").trim());
+  if (contrast && current && target) candidates.push(`${current}, then ${target}.`);
   if (callback && current) candidates.push(`So much for ${current}.`);
   if (consequence && current) candidates.push(`${current} had consequences.`);
-  if (!candidates.length && subject && target) candidates.push(`${subject}, apparently, had other plans for ${target}.`);
+  if (!candidates.length && subject && target) candidates.push(`${subject} had other plans for ${target}.`);
 
   return uniqueStrings(candidates);
 }
@@ -385,8 +383,7 @@ function maybeRecoverExactSource(input: { text: string; beat: MouthCandidateBeat
 }
 
 export function scoreMouthCandidate(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate {
-  const realized = maybeRecoverExactSource(input);
-  return evaluateCandidate(realized, input.beat, input.envelope, input.priorTexts ?? []);
+  return evaluateCandidate(maybeRecoverExactSource(input), input.beat, input.envelope, input.priorTexts ?? []);
 }
 
 export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
@@ -432,14 +429,11 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
 
   for (let poolIndex = 0; poolIndex < ordered.length; poolIndex += 1) {
     const pool = ordered[poolIndex];
-    const creative = dedupe(pool.candidates)
-      .filter(isAuthorizedMouthCandidate)
-      .filter((candidate) => !candidate.reasons.includes("literal-source-restatement"));
+    const creative = dedupe(pool.candidates).filter(isAuthorizedMouthCandidate).filter((candidate) => !candidate.reasons.includes("literal-source-restatement"));
     const openingLiteral = poolIndex === 0
       ? dedupe(pool.candidates).filter((candidate) => candidate.endpointExactness >= 0.999 && candidate.inventionRisk < 0.9 && !candidate.reasons.includes("generic-summary-risk"))
       : [];
     const eligible = dedupe([...creative, ...openingLiteral]);
-
     if (!eligible.length) return { candidates: [], texts: [], score: 0 };
     eligible.sort((a, b) => b.score - a.score);
     const bounded = eligible.slice(0, Math.max(width, perBeat));
