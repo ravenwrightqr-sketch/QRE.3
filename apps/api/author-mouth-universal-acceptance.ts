@@ -109,7 +109,7 @@ assert("implied cross-event realization can be authorized", isAuthorizedMouthCan
 assert("implied realization carries an explicit implication reason", implied.reasons.includes("implied-semantic-realization"));
 
 const bridge = scoreMouthCandidate({
-  text: "Then came the blue-bow coup.",
+  text: "Then came the blue bow coup.",
   beat: bridgeBeat,
   envelope,
 });
