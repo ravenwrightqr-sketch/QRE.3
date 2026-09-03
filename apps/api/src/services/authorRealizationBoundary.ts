@@ -2,18 +2,11 @@
  * QRE ELITE REALIZATION BOUNDARY
  *
  * RealityGraph / EventStructure is the authority for concrete world claims.
- * Semantic realization is the authority for language transformation.
- * Those authorities are never interchangeable.
+ * Semantic realization and earned interpretation authority may transform
+ * language, but they never become new world facts.
  *
- * Boundary rule:
- * - concrete language must be present in the authorized reality scope;
- * - novel language is allowed only when explicitly represented by semantic
- *   authority;
- * - anything else is treated as a novel concrete-world claim and rejected.
- *
- * This deliberately does not maintain an English verb/noun vocabulary. QRE
- * should remain universal across domains and languages rather than learning
- * reality from a hardcoded lexical list.
+ * Explicit identity/state assertions remain concrete claims unless cognition
+ * explicitly authorizes that realization mode.
  */
 
 export type RealizationBoundaryInput = {
@@ -22,8 +15,14 @@ export type RealizationBoundaryInput = {
   place?: string;
   localReality?: readonly string[];
   globalReality?: readonly string[];
-  /** Semantic realization only. This can authorize language, never facts. */
   semantic?: readonly string[];
+  earnedInterpretations?: readonly string[];
+  permittedRealizationModes?: readonly string[];
+  inferenceBudget?:
+    | "direct"
+    | "compressed"
+    | "interpretive"
+    | "strongly-interpretive";
 };
 
 export type RealizationBoundaryResult = {
@@ -38,6 +37,7 @@ const STOP = new Set([
   "after", "before", "then", "now", "still", "again", "this", "that", "it", "is", "are", "was", "were", "be",
   "been", "being", "as", "into", "my", "your", "our", "their", "his", "her", "its", "he", "she", "they", "them",
   "you", "we", "me", "very", "really", "just", "already", "apparently", "somehow", "perhaps", "maybe",
+  "has", "have", "had", "got", "gets", "get",
 ]);
 
 const tokens = (value: string): string[] =>
@@ -48,6 +48,31 @@ const tokens = (value: string): string[] =>
 
 const tokenSet = (values: readonly string[]): Set<string> =>
   new Set(values.flatMap(tokens));
+
+function explicitIdentityAssertion(text: string, subject?: string): boolean {
+  const value = String(text ?? "").trim();
+  const subjectText = String(subject ?? "").trim();
+  if (!value || !subjectText) return false;
+
+  const escaped = subjectText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `^${escaped}\\s+(?:is|are|was|were|become|becomes|became)\\b`,
+    "i",
+  ).test(value);
+}
+
+function identityNoveltyTokens(
+  subject: string | undefined,
+  candidate: Set<string>,
+  localReality: Set<string>,
+): string[] {
+  const subjectTokens = tokenSet([subject ?? ""]);
+  return [...candidate].filter(
+    (token) =>
+      !subjectTokens.has(token) &&
+      !localReality.has(token),
+  );
+}
 
 export function evaluateRealizationBoundary(
   input: RealizationBoundaryInput,
@@ -62,7 +87,11 @@ export function evaluateRealizationBoundary(
     input.globalReality ?? input.localReality ?? [],
   );
 
-  const semantic = tokenSet(input.semantic ?? []);
+  const semantic = tokenSet([
+    ...(input.semantic ?? []),
+    ...(input.earnedInterpretations ?? []),
+  ]);
+
   const candidate = tokenSet([input.text]);
 
   const foreignTokens = [...candidate].filter(
@@ -73,27 +102,46 @@ export function evaluateRealizationBoundary(
     (token) => !localReality.has(token) && semantic.has(token),
   );
 
-  /*
-   * Critical boundary:
-   *
-   *   RealityGraph / EventStructure → localReality
-   *   semantic realization          → semantic
-   *
-   * A token outside both authorities is not something Mouth may invent merely
-   * because it resembles a stylistic word, verb, noun, adjective, or other
-   * English category. Ambiguous novelty fails closed.
-   */
   const novelConcreteTokens = [...candidate].filter(
-    (token) => !localReality.has(token) && !semantic.has(token),
+    (token) =>
+      !localReality.has(token) &&
+      !semantic.has(token) &&
+      !foreignTokens.includes(token),
   );
+
+  const explicitIdentity = explicitIdentityAssertion(
+    input.text,
+    input.subject,
+  );
+
+  const explicitInterpretationAllowed =
+    (input.permittedRealizationModes ?? []).some(
+      (mode) =>
+        /explicit[- ]?(?:identity|interpretation|characterization)/i.test(
+          String(mode),
+        ),
+    ) && input.inferenceBudget !== "direct";
+
+  const identityNovelty =
+    explicitIdentity &&
+    !explicitInterpretationAllowed &&
+    approvedNovelLanguageTokens.length > 0;
 
   return {
     inventionRisk:
-      foreignTokens.length > 0 || novelConcreteTokens.length > 0
+      foreignTokens.length > 0 ||
+      novelConcreteTokens.length > 0 ||
+      identityNovelty
         ? 0.95
         : 0,
     foreignTokens,
-    novelConcreteTokens,
+    novelConcreteTokens: identityNovelty
+      ? identityNoveltyTokens(
+          input.subject,
+          candidate,
+          localReality,
+        )
+      : novelConcreteTokens,
     approvedNovelLanguageTokens,
   };
 }
