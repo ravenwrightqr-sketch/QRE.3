@@ -68,6 +68,10 @@ export type LatentSemanticCallback = {
   role: "continuity" | "recontextualization";
 };
 
+/**
+ * The semantic layer owns the transformation that language must make felt.
+ * It is deliberately separate from surface wording.
+ */
 export type LatentSemanticRealization = {
   mechanism: LatentSemanticMechanism;
   evidenceEventIds: string[];
@@ -84,6 +88,12 @@ export type LatentSemanticRealization = {
   };
   realizationMove: LatentSemanticRealizationMove;
   creativeOpportunity?: LatentSemanticCreativeOpportunity;
+  /** What the viewer should experience rather than what the line should explain. */
+  feltEffect?: string;
+  /** The perceptual/interpretive shift caused by the approved relationship. */
+  viewerShift?: string;
+  /** The desired language behavior: imply, compress, contrast, reframe, land, etc. */
+  languageAim?: string;
   confidence: number;
 };
 
@@ -98,6 +108,12 @@ export type ObserverExperienceObjective = {
   attention: string[];
   landing: string;
   explanationForbidden: boolean;
+  /** Emotional/perceptual effect the sequence is designed to create. */
+  feltEffect?: string;
+  /** What changes in the viewer's interpretation between the two sides of the turn. */
+  viewerShift?: string;
+  /** Compact direction for realization layers to express the effect without explaining it. */
+  realizationDirection?: string;
   simulation?: WorldSimulation;
 };
 
