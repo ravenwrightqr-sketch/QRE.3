@@ -1,10 +1,7 @@
 {
   "name": "qre.3",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
@@ -17,6 +14,7 @@
     "author:world-wiring": "pnpm --filter @qre/api exec tsx ./author-world-simulation-wiring-acceptance.ts",
     "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
     "author:universal-final": "pnpm --filter @qre/api exec tsx ./author-universal-final-acceptance.ts",
+    "author:universal-learning-loop": "pnpm --filter @qre/api exec tsx ./author-universal-learning-loop-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
