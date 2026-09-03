@@ -19,7 +19,6 @@ function replaceRegex(source, regex, replacement, label) {
 
 let mouth = read(mouthPath);
 
-// Carry the first-class felt semantic contract into Mouth without copying the whole thesis.
 if (!mouth.includes("feltEffect: clean(")) {
   mouth = replaceOnce(
     mouth,
@@ -43,23 +42,15 @@ mouth = mouth.replace(
   '      "Make the approved relationship FELT in one short line. The line should cause a perceptual or emotional click, not explain the relationship. Do not paraphrase the source sentence.",',
 );
 
-// Replace the non-universal verb dictionary with semantic authorization.
-mouth = replaceRegex(
-  mouth,
-  /\n  \/\*\*\n   \* This is only a guard against concrete actions that have[\s\S]*?\n  \/\*\*[\s\S]*?\n  \*\/$/,
-  "",
-  "unsupported-action block",
-);
-
-// The exact block above varies between aligned Mouth revisions; use the stable dictionary anchor as a fallback.
-const dictionaryAnchor = /\n  const unsupportedActions =\n    \/\\b\(\?:walk[\\s\\S]*?\n  if \(\n    unsupportedActions\.test\([\s\S]*?\n    return 1;\n  \}\n/;
-if (dictionaryAnchor.test(mouth)) {
-  mouth = mouth.replace(dictionaryAnchor, '\n');
-}
-
-const oldRisk = /function unsupportedConcreteRisk\(\n  text: string,\n  envelope: RealityEnvelope,\n\): number \{[\s\S]*?\n\}\n\nfunction creativeEvidenceOverlap/;
-if (oldRisk.test(mouth)) {
-  mouth = mouth.replace(oldRisk, `function unsupportedConcreteRisk(\n  text: string,\n  envelope: RealityEnvelope,\n  beat?: MouthCandidateBeat,\n): number {\n  const value = clean(text);\n  if (!value) return 1;\n  if (processRisk(value)) return 1;\n\n  // Semantic realization is authorized to use new language. Concrete reality\n  // remains protected by the upstream evidence/semantic contract, not an\n  // English action vocabulary.\n  if (beat?.semanticRealization) return 0;\n\n  const source = meaningful([\n    envelope.subject,\n    ...envelope.events.map((event) => event.label),\n    ...envelope.suppliedEntities,\n    ...envelope.suppliedActions,\n    ...envelope.suppliedStates,\n    ...envelope.suppliedPhrases,\n  ].join(" "));\n\n  const grounding = overlap(meaningful(value), source);\n  return grounding >= 0.28 ? 0 : 0.9;\n}\n\nfunction creativeEvidenceOverlap`);
+// Remove only the finite English action vocabulary. Keep process-language protection and
+// semantic authorization. This preserves universality without weakening the reality boundary.
+const riskPattern = /function unsupportedConcreteRisk\(\n  text: string,\n  envelope: RealityEnvelope,\n\): number \{[\s\S]*?\n\}\n\nfunction creativeEvidenceOverlap/;
+if (riskPattern.test(mouth)) {
+  mouth = mouth.replace(riskPattern, `function unsupportedConcreteRisk(\n  text: string,\n  envelope: RealityEnvelope,\n  beat?: MouthCandidateBeat,\n): number {\n  const value = clean(text);\n  if (!value) return 1;\n  if (processRisk(value)) return 1;\n\n  // Once cognition has supplied an approved semantic realization, new wording is\n  // authorized as language. Concrete truth remains bounded by the approved beat\n  // evidence and downstream sequence invariants; no English action dictionary is\n  // permitted to act as a universal ontology.\n  if (beat?.semanticRealization) return 0;\n\n  const source = meaningful([\n    envelope.subject,\n    ...envelope.events.map((event) => event.label),\n    ...envelope.suppliedEntities,\n    ...envelope.suppliedActions,\n    ...envelope.suppliedStates,\n    ...envelope.suppliedPhrases,\n  ].join(" "));\n\n  const grounding = overlap(meaningful(value), source);\n  return grounding >= 0.28 ? 0 : 0.9;\n}\n\nfunction creativeEvidenceOverlap`);
+} else {
+  // Already-aligned variants may already have the optional beat parameter and no dictionary.
+  const oldCall = `      unsupportedConcreteRisk(\n        value,\n        envelope,\n      ),`;
+  mouth = mouth.replace(oldCall, `      unsupportedConcreteRisk(\n        value,\n        envelope,\n        beat,\n      ),`);
 }
 
 mouth = mouth.replace(
@@ -67,9 +58,11 @@ mouth = mouth.replace(
   '      unsupportedConcreteRisk(\n        value,\n        envelope,\n        beat,\n      ),',
 );
 
-// Push the model toward feeling/interpretation rather than scene narration.
-const feelingPrompt = `\n    "The hardest and most valuable output is a FELT REALIZATION: compress the supplied semantic change into language that lets the reader experience the shift. Examples of form, not content: \\"Beauty. Then chaos.\\" or \\"Innocence, briefly. Then mischief.\\" or \\"Mischief's reward.\\" Do not copy those subjects into unrelated cases.",\n\n    "For each beat, silently attempt at least one fragment-level realization, one implication/reframe, and one bolder contrast or consequence. Prefer the line that changes how the supplied facts feel rather than the line that merely describes what happened.",\n\n`;
-if (!mouth.includes('The hardest and most valuable output is a FELT REALIZATION')) {
+const feelingPrompt =
+  '    "The hardest and most valuable output is a FELT REALIZATION: compress the supplied semantic change into language that lets the reader experience the shift. Examples of form, not content: \\"Beauty. Then chaos.\\" or \\"Innocence, briefly. Then mischief.\\" or \\"Mischief’s reward.\\" Do not copy those subjects into unrelated cases.",\n\n' +
+  '    "For each beat, silently attempt at least one fragment-level realization, one implication/reframe, and one bolder contrast or consequence. Prefer the line that changes how the supplied facts feel rather than the line that merely describes what happened.",\n\n';
+
+if (!mouth.includes("The hardest and most valuable output is a FELT REALIZATION")) {
   mouth = replaceOnce(
     mouth,
     '    "SOURCE FACTS ARE RAW MATERIAL, NOT PROSE TO COPY.",\n\n',
@@ -80,7 +73,6 @@ if (!mouth.includes('The hardest and most valuable output is a FELT REALIZATION'
 
 write(mouthPath, mouth);
 
-// Carry the first-class felt contract into the canonical orchestration authority too.
 let brain = read(brainPath);
 if (!brain.includes("CANONICAL FELT EFFECT:")) {
   brain = replaceOnce(
