@@ -16,6 +16,7 @@
     "author:world-simulation": "pnpm --filter @qre/api exec tsx ./author-world-simulation-acceptance.ts",
     "author:world-wiring": "pnpm --filter @qre/api exec tsx ./author-world-simulation-wiring-acceptance.ts",
     "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
+    "author:universal-final": "pnpm --filter @qre/api exec tsx ./author-universal-final-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
