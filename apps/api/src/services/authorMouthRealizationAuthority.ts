@@ -14,7 +14,6 @@ const uniqueStrings = (values: readonly string[]): string[] =>
 function inferenceBudgetFor(beat: MouthCandidateBeat): MouthInferenceBudget {
   const role = clean(beat.role).toLowerCase();
   const hasMeaning = Boolean(
-    beat.semanticRealization?.semanticTurn ??
     beat.semanticRealization?.realizationMove ??
     beat.semanticRealization?.creativeOpportunity ??
     beat.semanticRealization?.viewerShift ??
@@ -124,7 +123,6 @@ export function buildMouthRealizationAuthority(input: {
     inferenceBudget: inferenceBudgetFor(beat),
     creativeMoves: uniqueStrings([
       ...permittedRealizationModes,
-      ...(beat.forbiddenMoves ?? []).map(clean).filter(Boolean),
     ]),
     forbiddenMoves: uniqueStrings([
       ...(beat.forbiddenMoves ?? []),
