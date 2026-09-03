@@ -77,20 +77,17 @@ function creativeStrategies(beat: MouthCandidateBeat): string[] {
   const role = clean(beat.role).toLowerCase();
   const out: string[] = [];
   const add = (name: string, job: string) => out.push(`${name}: ${job}`);
-
   if (/contrast|opposition|difference|tension/i.test(relation)) add("CONTRAST", "put two supplied meanings against each other");
   if (/agency|choice|decision|deviation|interruption|rebellion|unexpected|intent/i.test(relation)) add("STATUS_REVERSAL", "let the supplied outcome defeat the earlier expectation");
   if (/ownership|possession|belong|property/i.test(relation)) add("POSSESSION_TURN", "use the supplied ownership relation as the punch");
   if (/return|recurrence|again|callback|memory/i.test(relation)) add("CALLBACK", "make a repeated supplied detail heavier because of what changed");
   if (/cause|consequence|result|effect/i.test(relation)) add("CONSEQUENCE", "let the supplied result speak for itself");
   if (/surprise|absurd|comic|humou?r/i.test(relation)) add("COMIC_INVERSION", "make the supplied fact undercut the expected reading");
-
   add("RECONTEXTUALIZATION", "make one supplied detail read differently beside another supplied detail");
   add("IMPLICATION", "leave the approved connection for the reader to complete");
   add("UNDERSTATEMENT", "say less than the full obvious explanation");
   add("COMPRESSION", "remove connective prose and keep the sharpest anchors");
   add("COLLISION", "put two supplied details into one memorable relationship");
-
   if (/payoff|release/i.test(role)) add("PAYOFF_LANDING", "land the supplied endpoint without adding another event");
   if (/establish|arrival/i.test(role)) add("HOOK_ANCHOR", "make the first supplied detail carry the unresolved pressure");
   return uniqueStrings(out).slice(0, 8);
@@ -224,21 +221,10 @@ function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: Rea
   const forbidden = beat.observerExperience?.explanationForbidden === true;
   const explanationPenalty = forbidden ? explanation : explanation * 0.35;
   const creative = metric(
-    grounding * 0.24 +
-    force * 0.27 +
-    (hasRelationalMove ? 0.22 : 0) +
-    priorNovelty * 0.08 +
-    (compressed ? 0.08 : 0) +
-    (forbidden && explanation === 0 ? 0.05 : 0) -
-    explanationPenalty * 0.4 -
-    generic * 0.55 -
-    process * 0.55,
+    grounding * 0.24 + force * 0.27 + (hasRelationalMove ? 0.22 : 0) + priorNovelty * 0.08 + (compressed ? 0.08 : 0) +
+    (forbidden && explanation === 0 ? 0.05 : 0) - explanationPenalty * 0.4 - generic * 0.55 - process * 0.55,
   );
-  const score = literal
-    ? metric(0.25 + grounding * 0.25 - generic * 0.5 - process * 0.5)
-    : hasRelationalMove
-      ? creative
-      : 0;
+  const score = literal ? metric(0.25 + grounding * 0.25 - generic * 0.5 - process * 0.5) : hasRelationalMove ? creative : 0;
   const reasons: string[] = [];
   if (literal) reasons.push("literal-source-restatement");
   if (grounding >= 0.18) reasons.push("event-grounded");
@@ -348,7 +334,7 @@ export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope
 
   const relation = clean(s.relation?.kind).toLowerCase();
   const current = extractObject(labels[labels.length - 1], subject);
-  const target = clean(s.after) || extractObject(labels[labels.length - 1], subject);
+  const target = extractObject(clean(s.after) || labels[labels.length - 1], subject);
   const candidates: string[] = [];
   const agency = /agency|choice|decision|deviation|interruption|rebellion|unexpected|intent|surprise/i.test(relation);
   const ownership = /ownership|possession|belong|property/i.test(relation);
