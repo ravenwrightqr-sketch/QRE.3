@@ -1,9 +1,15 @@
 /**
  * STATUS: CANONICAL
  * ROLE: Final viewer-facing text gate.
- * MUST NOT: require novelty at the expense of truth, reject rhetorical wording,
- * or force internal compiler concepts into the Mouth contract.
+ *
+ * ELITE RULES:
+ * - Truth is evidence-bound.
+ * - Semantic novelty is allowed.
+ * - Novel concrete reality is not.
+ * - Internal Author language never belongs in viewer prose.
  */
+
+import { evaluateRealizationBoundary } from "./authorRealizationBoundary.js";
 
 export type CutWorld = {
   prompt?: string;
@@ -29,6 +35,7 @@ export type CutIntent = {
   characterContradictions?: readonly string[];
   characterStatusPosture?: string;
   characterFrames?: readonly string[];
+  semanticAuthority?: readonly string[];
 };
 
 export type CutPolicyResult = {
@@ -55,14 +62,11 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 const words = (value: string): string[] => clean(value).toLowerCase().split(/[^a-z0-9'-]+/i).filter((w) => w.length >= 3);
 const set = (value: string): Set<string> => new Set(words(value));
 
-const INTERNAL = /\b(?:qre|compiler|cognition|metadata|beat graph|meaning spine|information frontier|attention editor|operator mix|planner|planning|writing process|candidate pool|sequence beam|cut policy|author brief|viewer momentum)\b/i;
+const INTERNAL = /\b(?:qre|compiler|cognition|metadata|beat graph|meaning spine|information frontier|attention editor|operator mix|planner|planning|writing process|candidate pool|sequence beam|cut policy|author brief|viewer momentum|semantic contract|realization authority)\b/i;
 const CAMERA = /\b(?:camera|zoom|close-up|cut to|final shot|fade to|scene opens|we see)\b/i;
 const GENERIC = /\b(?:beautiful transformation|magical moment|unforgettable experience|incredible journey|perfect day|special moment|living world|emotional journey|positive transformation)\b/i;
 const EXPLANATION = /\b(?:because|therefore|which means|this means|in other words|the reason|symbolizes?|represents?|shows that|explains?)\b/i;
 const FUTURE = /\b(?:will always|will never|forever|from now on|in the future|ever again)\b/i;
-const INVENTED_PHYSICAL = /\b(?:glares?|sniffs?|stares?|smiles?|wags?|trembles?|blinks?|hides?|walks?|runs?|jumps?|grabs?|bites?|laughs?|cries?|enters?|approaches?|leaves?|returns?|turns?|steps?|opens?|closes?|throws?|pulls?|pushes?|swipes?|flicks?|snatches?|seizes?|plucks?|scoops?|yanks?|tugs?)\b/i;
-const UNSUPPORTED_PLACEMENT = /\b(?:in hand|on (?:the|a|an) \w+|under (?:the|a|an) \w+|inside (?:the|a|an) \w+|behind (?:the|a|an) \w+|beside (?:the|a|an) \w+)\b/i;
-const GENDERED_IDENTITY = /\b(?:she|her|hers|he|him|his|female|male|woman|man|girl|boy)\b/i;
 const META_ADDRESS = /\b(?:the viewer|the audience|viewer sees|audience sees)\b/i;
 
 function sourceText(world: CutWorld): string[] {
@@ -84,7 +88,9 @@ function groundedRatio(text: string, world: CutWorld): number {
   if (!current.length) return 0;
   const source = new Set(sourceText(world).flatMap(words));
   let hits = 0;
-  for (const word of current) if (source.has(word) || ["no", "yes", "still", "then", "just", "apparently", "only", "again", "absolutely", "temporary", "ready", "round"].includes(word)) hits += 1;
+  for (const word of current) {
+    if (source.has(word) || ["no", "yes", "still", "then", "just", "apparently", "only", "again", "absolutely", "temporary", "ready", "round"].includes(word)) hits += 1;
+  }
   return hits / current.length;
 }
 
@@ -116,7 +122,7 @@ function compression(text: string): number {
 function implication(text: string): number {
   let value = compression(text) * 0.45;
   if (/\b(?:still|again|then|yet|only|apparently|already|after|before|now|round)\b/i.test(text)) value += 0.25;
-  if (/\?|!/.test(text)) value += 0.15;
+  if (/[?!]/.test(text)) value += 0.15;
   if (!EXPLANATION.test(text)) value += 0.15;
   return Math.min(1, value);
 }
@@ -127,19 +133,6 @@ function explanation(text: string): number {
   if (META_ADDRESS.test(text)) value += 0.3;
   if (words(text).length > 20) value += 0.15;
   return Math.min(1, value);
-}
-
-function inventionRisk(text: string, world: CutWorld): number {
-  if (!text) return 1;
-  const source = sourceText(world).join(" ");
-  let risk = 0;
-
-  if (INVENTED_PHYSICAL.test(text) && !INVENTED_PHYSICAL.test(source)) risk += 0.6;
-  if (UNSUPPORTED_PLACEMENT.test(text) && !UNSUPPORTED_PLACEMENT.test(source)) risk += 0.45;
-  if (FUTURE.test(text)) risk += 0.25;
-  if (GENDERED_IDENTITY.test(text) && !GENDERED_IDENTITY.test(source)) risk += 0.9;
-
-  return Math.min(1, risk);
 }
 
 function subjectReferenceCost(text: string, world: CutWorld, prior: readonly string[], established: boolean): number {
@@ -171,23 +164,42 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
   const compressed = compression(text);
   const implied = implication(text);
   const explained = explanation(text);
-  const invented = inventionRisk(text, world);
   const frontier = frontierValue(text, intent, priorCuts);
   const referenceCost = subjectReferenceCost(text, world, priorCuts, Boolean(intent.subjectEstablished));
   const factRestatement = sourceText(world).some((source) => clean(source).toLowerCase() === text.toLowerCase()) ? 1 : 0;
   const semanticDensity = Math.min(1, compressed * 0.6 + implied * 0.4);
+
+  const boundary = evaluateRealizationBoundary({
+    text,
+    subject: world.subject,
+    place: world.place,
+    localReality: sourceText(world),
+    globalReality: sourceText(world),
+    semantic: [
+      intent.change,
+      intent.next,
+      intent.informationFrontier,
+      ...(intent.characterTraits ?? []),
+      ...(intent.characterContradictions ?? []),
+      intent.characterStatusPosture,
+      ...(intent.characterFrames ?? []),
+      ...(intent.semanticAuthority ?? []),
+    ],
+  });
+
   const questionLeak = 0;
-  const sourceExactPayoffRepetition = intent.role === "payoff" && factRestatement === 1;
 
   if (!text) reasons.push("empty");
   if (INTERNAL.test(text)) reasons.push("meta-language");
   if (CAMERA.test(text)) reasons.push("camera-language");
   if (GENERIC.test(text)) reasons.push("generic-prose");
   if (META_ADDRESS.test(text)) reasons.push("meta-audience-language");
-  if (invented >= 0.6) reasons.push("invention-risk");
+  if (FUTURE.test(text)) reasons.push("unsupported-future-claim");
+  if (boundary.foreignTokens.length) reasons.push("foreign-reality-token");
+  if (boundary.novelConcreteTokens.length) reasons.push("novel-concrete-reality");
   if (explained >= 0.8) reasons.push("explanation-heavy");
-  if (grounded < 0.2 && wordCount > 2) reasons.push("weak-grounding");
-  if (repeated >= 0.98 && priorCuts.length && !sourceExactPayoffRepetition) reasons.push("repetition");
+  if (grounded < 0.2 && wordCount > 2 && boundary.approvedNovelLanguageTokens.length === 0) reasons.push("weak-grounding");
+  if (repeated >= 0.98 && priorCuts.length && factRestatement === 0) reasons.push("repetition");
   if (referenceCost >= 0.55 && explained >= 0.5 && novel < 0.25) reasons.push("wasted-subject-reference");
 
   return {
@@ -200,7 +212,7 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
       implication: Number(implied.toFixed(3)),
       explanation: Number(explained.toFixed(3)),
       questionLeak,
-      inventionRisk: Number(invented.toFixed(3)),
+      inventionRisk: Number(boundary.inventionRisk.toFixed(3)),
       repetition: Number(repeated.toFixed(3)),
       compression: Number(compressed.toFixed(3)),
       subjectReferenceCost: Number(referenceCost.toFixed(3)),
