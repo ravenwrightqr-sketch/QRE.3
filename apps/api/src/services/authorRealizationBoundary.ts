@@ -1,12 +1,19 @@
 /**
  * QRE ELITE REALIZATION BOUNDARY
  *
- * Semantic authority authorizes language transformation.
- * Reality authority authorizes concrete world claims.
+ * RealityGraph / EventStructure is the authority for concrete world claims.
+ * Semantic realization is the authority for language transformation.
  * Those authorities are never interchangeable.
  *
- * This is a deterministic v1 boundary. It is intentionally conservative:
- * ambiguous concrete claims fail closed rather than becoming new reality.
+ * Boundary rule:
+ * - concrete language must be present in the authorized reality scope;
+ * - novel language is allowed only when explicitly represented by semantic
+ *   authority;
+ * - anything else is treated as a novel concrete-world claim and rejected.
+ *
+ * This deliberately does not maintain an English verb/noun vocabulary. QRE
+ * should remain universal across domains and languages rather than learning
+ * reality from a hardcoded lexical list.
  */
 
 export type RealizationBoundaryInput = {
@@ -15,6 +22,7 @@ export type RealizationBoundaryInput = {
   place?: string;
   localReality?: readonly string[];
   globalReality?: readonly string[];
+  /** Semantic realization only. This can authorize language, never facts. */
   semantic?: readonly string[];
 };
 
@@ -41,42 +49,6 @@ const tokens = (value: string): string[] =>
 const tokenSet = (values: readonly string[]): Set<string> =>
   new Set(values.flatMap(tokens));
 
-const ABSTRACT_SUFFIX = /(?:ness|ity|ism|tion|sion|ment|ance|ence|ship|hood|dom|tude|cy|ous|ful|less|ive|able|ible|ward|wise|ly)$/i;
-
-function isStylistic(token: string): boolean {
-  return ABSTRACT_SUFFIX.test(token);
-}
-
-function likelyConcreteToken(text: string, token: string): boolean {
-  const normalized = String(text ?? "").toLowerCase();
-  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  const determiner = new RegExp(
-    `(?:^|\\b(?:a|an|the|this|that|his|her|their|its|my|your|our|some|any|each)\\s+)${escaped}\\b`,
-    "i",
-  );
-
-  const placement = new RegExp(
-    `\\b(?:in|inside|under|behind|beside|near|around|at|from|through|onto|into|with)\\s+${escaped}\\b`,
-    "i",
-  );
-
-  const verbForm = /(?:ed|ing)$/i.test(token);
-  const pluralNoun = /s$/i.test(token) && !/(?:ss|us|is)$/i.test(token);
-
-  if (isStylistic(token)) return false;
-  if (determiner.test(normalized)) return true;
-  if (placement.test(normalized)) return true;
-  if (verbForm) return true;
-  if (pluralNoun) return true;
-
-  const firstWord = normalized
-    .split(/\s+/)[0]
-    ?.replace(/^[^a-z]+|[^a-z]+$/gi, "");
-
-  return firstWord === token && !isStylistic(token);
-}
-
 export function evaluateRealizationBoundary(
   input: RealizationBoundaryInput,
 ): RealizationBoundaryResult {
@@ -94,29 +66,30 @@ export function evaluateRealizationBoundary(
   const candidate = tokenSet([input.text]);
 
   const foreignTokens = [...candidate].filter(
-    (token) =>
-      globalReality.has(token) &&
-      !localReality.has(token),
+    (token) => globalReality.has(token) && !localReality.has(token),
   );
 
-  /* Semantic vocabulary is observability only; it never authorizes concrete facts. */
   const approvedNovelLanguageTokens = [...candidate].filter(
-    (token) =>
-      !localReality.has(token) &&
-      semantic.has(token),
+    (token) => !localReality.has(token) && semantic.has(token),
   );
 
+  /*
+   * Critical boundary:
+   *
+   *   RealityGraph / EventStructure → localReality
+   *   semantic realization          → semantic
+   *
+   * A token outside both authorities is not something Mouth may invent merely
+   * because it resembles a stylistic word, verb, noun, adjective, or other
+   * English category. Ambiguous novelty fails closed.
+   */
   const novelConcreteTokens = [...candidate].filter(
-    (token) =>
-      !localReality.has(token) &&
-      !foreignTokens.includes(token) &&
-      likelyConcreteToken(input.text, token),
+    (token) => !localReality.has(token) && !semantic.has(token),
   );
 
   return {
     inventionRisk:
-      foreignTokens.length > 0 ||
-      novelConcreteTokens.length > 0
+      foreignTokens.length > 0 || novelConcreteTokens.length > 0
         ? 0.95
         : 0,
     foreignTokens,
