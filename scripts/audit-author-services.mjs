@@ -21,6 +21,13 @@ const RETIRED = new Set([
   "authorMouthLanguageGate.ts",
   "authorMouthAttentionGate.ts",
   "authorMouthRepairPlanner.ts",
+  "authorMouthCandidateSearch.ts",
+  "authorMouthCandidateSearchCanonical.ts",
+  "authorMouthSequenceBeamSearch.ts",
+  "authorMouthCraft.ts",
+  "authorMouthCritic.ts",
+  "authorMouthInterpretation.ts",
+  "authorMouthSequenceCritic.ts",
   "authorCumulativeMeaning.ts",
   "authorLatentMovieBeatAdapter.ts",
   "authorLatentMovieSearch.ts",
@@ -109,8 +116,6 @@ const likelyOrphans = serviceFiles.filter((path) => {
   const name = path.split(sep).pop() ?? "";
   if (RETIRED.has(name)) return false;
   if (name === "authorBrainUniversal.ts") return false;
-  if (name === "authorMouthCandidateSearch.ts") return false;
-  if (name === "authorMouthSequenceBeamSearch.ts") return false;
   if (name === "authorRealityGraph.ts") return false;
   if (name === "authorRealityEnvelope.ts") return false;
   if (name === "authorCognition.ts") return false;
@@ -119,6 +124,8 @@ const likelyOrphans = serviceFiles.filter((path) => {
   if (name === "authorCutPolicy.ts") return false;
   if (name === "authorAttentionEditor.ts") return false;
   if (name === "authorSequenceArcGate.ts") return false;
+  if (name === "authorViewerStateCut.ts") return false;
+  if (name === "authorMouth.ts") return false;
   if (name === "localModelRuntime.ts") return false;
   if (name === "aiProvider.ts") return false;
   return (consumerCount.get(path) ?? 0) === 0;
@@ -151,6 +158,7 @@ console.log("\n--- INTERPRETATION ---");
 console.log("This command is intentionally read-only.");
 console.log("A zero-consumer service is a review signal, not automatic proof of dead code.");
 console.log("Direct model generation is expected only in the canonical Author/Mouth owners and controlled provider/media utilities.");
+console.log("The production Mouth is authorMouth.ts; old Mouth seams and specialized Mouth brains are retired.");
 console.log("Use this before architecture changes and again after each production change cluster.");
 
 if (retiredPresent.length) process.exitCode = 1;
