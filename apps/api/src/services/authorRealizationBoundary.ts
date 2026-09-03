@@ -4,6 +4,9 @@
  * Semantic authority authorizes language transformation.
  * Reality authority authorizes concrete world claims.
  * Those authorities are never interchangeable.
+ *
+ * This is a deterministic v1 boundary. It is intentionally conservative:
+ * ambiguous concrete claims fail closed rather than becoming new reality.
  */
 
 export type RealizationBoundaryInput = {
@@ -96,6 +99,7 @@ export function evaluateRealizationBoundary(
       !localReality.has(token),
   );
 
+  /* Semantic vocabulary is observability only; it never authorizes concrete facts. */
   const approvedNovelLanguageTokens = [...candidate].filter(
     (token) =>
       !localReality.has(token) &&
@@ -105,14 +109,14 @@ export function evaluateRealizationBoundary(
   const novelConcreteTokens = [...candidate].filter(
     (token) =>
       !localReality.has(token) &&
-      !semantic.has(token) &&
       !foreignTokens.includes(token) &&
       likelyConcreteToken(input.text, token),
   );
 
   return {
     inventionRisk:
-      foreignTokens.length || novelConcreteTokens.length
+      foreignTokens.length > 0 ||
+      novelConcreteTokens.length > 0
         ? 0.95
         : 0,
     foreignTokens,
