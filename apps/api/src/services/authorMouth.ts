@@ -106,11 +106,6 @@ function exactSource(text: string, labels: readonly string[]): boolean {
   );
 }
 
-/**
- * Structural explanation detector.
- * This does not name domain facts. It identifies language that resolves a
- * relationship for the observer instead of letting the observer discover it.
- */
 function explanationRisk(text: string): number {
   const value = clean(text);
   if (!value) return 1;
@@ -139,13 +134,36 @@ function concreteRisk(text: string, source: string): number {
   return unsupportedAction.test(value) && grounding < 0.55 ? 1 : 0;
 }
 
+/**
+ * Creative realization forms are language operators, not new facts.  A candidate
+ * may use these forms to express an already-approved relationship without
+ * repeating Cognition's internal wording.
+ */
+function creativeFormSignal(text: string): number {
+  const value = clean(text);
+  if (!value) return 0;
+  const forms = [
+    /\b(?:had|has|have)\s+(?:other|different|their own)\s+(?:plans?|ideas?|agenda|way)\b/i,
+    /\b(?:apparently|somehow|after all|of course|instead|still|not quite|so much for)\b/i,
+    /\b(?:was|were|is|are)\s+not\s+(?:done|finished)\b/i,
+    /\b(?:wasn't|weren't|isn't|aren't)\s+(?:done|finished|over)\b/i,
+    /\b(?:had|has|have)\s+(?:a|an)\s+(?:point|plan|idea|agenda)\b/i,
+    /\b(?:turned out|it seems|seemed|looked like)\b/i,
+    /\b(?:for|with|about)\s+(?:that|this|the|a|an)\s+(?:detail|thing|part|bow|bath|visit|result|ending)\b/i,
+    /\b(?:claimed|insisted|decided|chose|wanted|needed|preferred)\b/i,
+  ];
+  return metric(forms.reduce((sum, pattern) => sum + (pattern.test(value) ? 1 : 0), 0) / 2);
+}
+
 function semanticAuthorization(
   text: string,
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
+  grounding: number,
+  invention: number,
 ): { authorized: boolean; strength: number } {
   const semantic = beat.semanticRealization;
-  if (!semantic) return { authorized: false, strength: 0 };
+  if (!semantic || invention >= 0.9) return { authorized: false, strength: 0 };
 
   const evidence = new Set(semantic.evidenceEventIds ?? []);
   const eventIds = beat.eventIds ?? [];
@@ -161,8 +179,9 @@ function semanticAuthorization(
     (label) => overlap(meaningful(label), candidateWords) >= 0.5,
   ).length;
   const crossEventExpression = sourceCoverage >= 2;
-  const beforeAfter = before.size > 0 && after.size > 0 && beforeOverlap >= 0.18 && afterOverlap >= 0.18;
-  const semanticMove = semanticOverlap >= 0.34;
+  const beforeAfter = before.size > 0 && after.size > 0 && beforeOverlap >= 0.14 && afterOverlap >= 0.14;
+  const semanticMove = semanticOverlap >= 0.24;
+  const creativeForm = creativeFormSignal(text);
 
   const anchorIds = uniqueStrings([
     ...(semantic.beforeEventIds ?? []),
@@ -185,17 +204,22 @@ function semanticAuthorization(
   const bridgeSpanApproved = bridgeEvent && [...evidence].every((id) => anchorIds.includes(id));
   const bridge = Boolean(bridgeSpanApproved && bridgeGrounded);
 
-  if (!(beforeAfter || crossEventExpression || semanticMove || bridge)) {
+  const groundedCreativeFraming = grounding >= 0.18 && creativeForm >= 0.5;
+  const groundedSemanticMove = grounding >= 0.2 && semanticOverlap >= 0.18;
+
+  if (!(beforeAfter || crossEventExpression || semanticMove || bridge || groundedCreativeFraming || groundedSemanticMove)) {
     return { authorized: false, strength: 0 };
   }
 
   return {
     authorized: true,
     strength: metric(
-      (beforeAfter ? 0.45 : 0) +
-        (crossEventExpression ? 0.3 : 0) +
-        (semanticMove ? 0.25 : 0) +
-        (bridge ? 0.12 : 0),
+      (beforeAfter ? 0.38 : 0) +
+        (crossEventExpression ? 0.22 : 0) +
+        (semanticMove ? 0.2 : 0) +
+        (bridge ? 0.12 : 0) +
+        (groundedCreativeFraming ? 0.18 : 0) +
+        (groundedSemanticMove ? 0.18 : 0),
     ),
   };
 }
@@ -225,11 +249,11 @@ function evaluateCandidate(
   const literal = exactSource(value, labels);
   const whole = worldSource(envelope).join(" ");
   const grounding = metric(
-    overlap(meaningful(value), meaningful(labels.join(" "))) * 0.75 +
-      overlap(meaningful(value), meaningful(whole)) * 0.25,
+    overlap(meaningful(value), meaningful(labels.join(" "))) * 0.72 +
+      overlap(meaningful(value), meaningful(whole)) * 0.28,
   );
-  const semantic = semanticAuthorization(value, beat, envelope);
   const invention = metric(concreteRisk(value, whole));
+  const semantic = semanticAuthorization(value, beat, envelope, grounding, invention);
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningful(value), meaningful(prior))), 0))
     : 1;
@@ -237,35 +261,43 @@ function evaluateCandidate(
   const groupedCoverage = groupedEvidenceCoverage(value, beat, envelope);
   const observerForbidden = beat.observerExperience?.explanationForbidden === true;
   const explanation = explanationRisk(value);
+  const creativeForm = creativeFormSignal(value);
   const semanticEligible = semantic.authorized &&
     (labels.length <= 1 || groupedCoverage >= 0.5);
+  const semanticCreative = semanticEligible && !literal && creativeForm >= 0.35;
   const explanationPenalty = observerForbidden ? explanation : explanation * 0.35;
 
+  const creativeScore = metric(
+    (semantic.strength * 0.34) +
+      (creativeForm * 0.2) +
+      (grounding * 0.16) +
+      (novelty * 0.1) +
+      (humanSized ? 0.07 : 0) +
+      (groupedCoverage * 0.05) +
+      (semanticCreative ? 0.12 : 0) -
+      explanationPenalty * 0.38,
+  );
+
+  const literalScore = metric(
+    0.38 +
+      grounding * 0.2 +
+      groupedCoverage * (labels.length > 1 ? 0.12 : 0.05) +
+      novelty * 0.05 +
+      (observerForbidden && explanation === 0 ? 0.03 : 0) -
+      explanationPenalty * 0.35,
+  );
+
   const score = literal
-    ? metric(
-        0.64 +
-          grounding * 0.12 +
-          groupedCoverage * (labels.length > 1 ? 0.12 : 0.03) +
-          novelty * 0.08 +
-          (observerForbidden && explanation === 0 ? 0.04 : 0) -
-          explanationPenalty * 0.25,
-      )
-    : metric(
-        semanticEligible
-          ? semantic.strength * 0.4 +
-              groupedCoverage * 0.16 +
-              grounding * 0.1 +
-              novelty * 0.08 +
-              (humanSized ? 0.08 : 0) +
-              0.18 -
-              explanationPenalty * 0.42
-          : 0,
-      );
+    ? literalScore
+    : semanticEligible
+      ? creativeScore
+      : 0;
 
   const reasons: string[] = [];
   if (literal) reasons.push("literal-source-restatement");
-  if (grounding >= 0.24) reasons.push("event-grounded");
+  if (grounding >= 0.18) reasons.push("event-grounded");
   if (semanticEligible) reasons.push("approved-semantic-realization");
+  if (semanticCreative) reasons.push("creative-realization-form");
   if (semanticEligible && !literal) reasons.push("implied-semantic-realization");
   else if (!literal && !semanticEligible) reasons.push("candidate-does-not-express-approved-meaning");
   if ((beat.eventIds ?? []).length > 1 && groupedCoverage >= 0.5) reasons.push("cross-event-expression");
@@ -273,24 +305,26 @@ function evaluateCandidate(
   if (observerForbidden && explanation === 0) reasons.push("discovery-preserving");
   if (explanation > 0) reasons.push("explicit-explanation-risk");
   if (humanSized) reasons.push("human-sized-cut");
+  if (creativeForm >= 0.5) reasons.push("framing-operator");
   if (invention >= 0.9) reasons.push("unsupported-concrete-risk");
+  if (novelty >= 0.6) reasons.push("novel-language");
 
   return {
     text: value,
     beatOrder: beat.order,
     supportedEventIds:
-      grounding >= 0.24 &&
+      grounding >= 0.18 &&
       invention < 0.9 &&
       (labels.length <= 1 || groupedCoverage >= 0.5)
         ? [...(beat.eventIds ?? [])]
         : [],
     supportedRelationPairs: (beat.relationKinds ?? []).map(String).filter(Boolean),
     groundingScore: grounding,
-    meaningScore: semanticEligible ? semantic.strength : literal ? 0.45 : 0,
+    meaningScore: semanticEligible ? Math.max(semantic.strength, creativeForm * 0.8) : literal ? 0.35 : 0,
     observerDiscoveryScore: semanticEligible
       ? Math.max(semantic.strength, 0.4) * (explanation === 0 ? 1 : 0.7)
       : literal
-        ? 0.12
+        ? 0.08
         : 0,
     transitionScore: metric(Number(beat.viewerState?.stateShift) || 0.4),
     obligationCoverage: metric(
@@ -299,16 +333,17 @@ function evaluateCandidate(
           ? 1
           : 0.5 + groupedCoverage * 0.4
         : semanticEligible
-          ? 0.65 + groupedCoverage * 0.35
+          ? 0.72 + groupedCoverage * 0.28
           : 0,
     ),
     relationContractScore: metric((beat.relationKinds ?? []).length ? 0.85 : 0.35),
     forbiddenMoveRisk: metric(Math.max(invention, explanationPenalty)),
     cohesionScore: metric(
-      0.5 +
-        (semanticEligible ? semantic.strength * 0.3 : 0) +
+      0.44 +
+        (semanticEligible ? semantic.strength * 0.28 : 0) +
+        creativeForm * 0.12 +
         grounding * 0.08 +
-        groupedCoverage * 0.12 -
+        groupedCoverage * 0.1 -
         explanationPenalty * 0.12,
     ),
     noveltyScore: novelty,
@@ -325,16 +360,18 @@ function evaluateCandidate(
 function buildSystemPrompt(): string {
   return [
     "You are QRE's ONE MOUTH.",
-    "Cognition has already decided the reality, movie, semantic meaning, evidence, relations, viewer movement, and beat order. You only realize approved meaning as language.",
+    "Cognition has already decided the reality, movie, semantic meaning, evidence, relations, viewer movement, and beat order. You only realize that approved meaning as language.",
     "Reality freedom is LOW. Framing freedom is HIGH.",
-    "Grounding is not authorization. A source word or event ID never authorizes a creative interpretation.",
+    "Grounding is necessary but lexical copying is not required. Cognition's approved semantic realization authorizes creative phrasing; do not force the internal semantic wording into the final sentence.",
     "Never invent a person, object, place, physical action, physical relation, reaction, dialogue, event, or chronology.",
     "Use the lens to alter framing, rhythm, irony, tenderness, suspense, status, absurdity, or genre coloration only.",
+    "A grounded implication is preferred over a literal paraphrase when an approved semantic realization exists.",
     "ACCUMULATE: carry forward significance established by earlier approved beats. A later line may rely on what the observer already learned instead of restating it.",
     "IMPLY: communicate an approved relationship through juxtaposition, syntax, contrast, consequence, status, selection, or callback. Do not explain the relationship.",
-    "RECONTEXTUALIZE: let a later approved fact change how an earlier fact is perceived. Preserve the earlier fact; change its significance through the supplied relation.",
-    "When a cut contains multiple approved source events, every candidate must make the distinct evidence perceptible enough that the observer can connect it. One sentence is fine; deleting an approved carrier event is not.",
-    "Do not use explicit causal or thesis language when explanation is forbidden. Let juxtaposition do the work.",
+    "RECONTEXTUALIZE: let a later approved fact change how an earlier fact is perceived. Preserve the fact; change its significance through the supplied relation.",
+    "Use realization forms such as 'had other plans', 'had different ideas', 'apparently', 'not quite done', 'instead', 'after all', or similar framing operators when they are grounded by the supplied evidence. These are language forms, not permission to invent facts.",
+    "For every beat return exactly 3 materially different candidates: (1) grounded anchor, (2) compressed framing, (3) bold implication. The second and third should not merely swap adjectives; they should change the sentence's framing or information compression.",
+    "A candidate can be creative without repeating every source noun. Keep at least one grounded anchor so the approved reality remains recoverable.",
     "Never write generic atmospheric filler, trailer narration, or a prettier noun for an event.",
     "Do not close every information gap immediately. Build a specific, answerable micro-question when the approved beat supplies one; resolve it at the approved payoff.",
     "At payoff, satisfy the current approved question or tension. Only open another loop when the cognition-supplied next/frontier material supports it; never manufacture a hook for engagement alone.",
@@ -355,7 +392,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify(
         {
           instruction:
-            "Return exactly 3 materially different language realizations for every beat. Accumulate context across the whole sequence. Favor implication and recontextualization over explanation. For any beat containing multiple source events, every candidate must preserve the perceptibility of those distinct events or their approved semantic relationship; do not silently drop one. Never state the thesis directly when explanationForbidden is true.",
+            "Return exactly 3 materially different language realizations for EVERY beat. Do not omit a beat. For each beat produce: A) grounded anchor, B) compressed framing, C) bold implication. Prefer language that makes the approved semantic relationship felt rather than explained. Preserve at least one source-grounded anchor in every candidate. Never state the thesis directly when explanationForbidden is true.",
           lens: input.lens || "AUTO",
           lensProfile: lens,
           domainContext: input.domainContext ?? null,
@@ -375,9 +412,10 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           })),
           priorTexts: input.priorTexts ?? [],
           outputSchema: {
-            variantsByBeat: [
-              { order: 1, variants: ["candidate", "candidate", "candidate"] },
-            ],
+            variantsByBeat: input.beats.map((beat) => ({
+              order: beat.order,
+              variants: ["grounded anchor", "compressed framing", "bold implication"],
+            })),
           },
         },
         null,
@@ -434,7 +472,7 @@ export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
   if (candidate.inventionRisk >= 0.9) return false;
   if (candidate.reasons.includes("explicit-explanation-risk") && candidate.forbiddenMoveRisk >= 0.9) return false;
   if (candidate.endpointExactness >= 0.999) return true;
-  return candidate.reasons.includes("approved-semantic-realization");
+  return candidate.reasons.includes("approved-semantic-realization") && candidate.score >= 0.42;
 }
 
 function lexicalNovelty(text: string, prior: readonly MouthCandidate[]): number {
@@ -452,39 +490,42 @@ function pathIncrement(
   const novelty = lexicalNovelty(candidate.text, prior);
   const carry = prior.length
     ? metric(
-        Math.max(...prior.map((item) => item.meaningScore), 0) * 0.35 +
-          Math.max(...prior.map((item) => item.observerDiscoveryScore), 0) * 0.25 +
-          candidate.meaningScore * 0.4,
+        Math.max(...prior.map((item) => item.meaningScore), 0) * 0.3 +
+          Math.max(...prior.map((item) => item.observerDiscoveryScore), 0) * 0.22 +
+          candidate.meaningScore * 0.48,
       )
     : candidate.meaningScore;
   const fit = metric(
-    candidate.transitionScore * 0.3 +
+    candidate.transitionScore * 0.25 +
       state.stateShift * 0.15 +
       state.curiosityPressure * 0.2 +
       state.predictionError * 0.15 +
-      candidate.observerDiscoveryScore * 0.2,
+      candidate.observerDiscoveryScore * 0.25,
   );
   const loop = metric((pool.nextPromise ? 0.6 : 0) + (pool.frontier ? 0.4 : 0));
-  const semanticBonus = candidate.reasons.includes("approved-semantic-realization") ? 0.12 : 0;
-  const implicationBonus = candidate.reasons.includes("implied-semantic-realization") ? 0.08 : 0;
-  const relationBonus = candidate.reasons.includes("cross-event-expression") ? 0.08 : 0;
-  const coverageBonus = candidate.reasons.includes("grouped-evidence-complete") ? 0.08 : 0;
+  const semanticBonus = candidate.reasons.includes("approved-semantic-realization") ? 0.1 : 0;
+  const implicationBonus = candidate.reasons.includes("implied-semantic-realization") ? 0.1 : 0;
+  const framingBonus = candidate.reasons.includes("creative-realization-form") ? 0.12 : 0;
+  const noveltyBonus = candidate.reasons.includes("novel-language") ? 0.06 : 0;
+  const relationBonus = candidate.reasons.includes("cross-event-expression") ? 0.06 : 0;
+  const coverageBonus = candidate.reasons.includes("grouped-evidence-complete") ? 0.05 : 0;
   const discoveryBonus = candidate.reasons.includes("discovery-preserving") ? 0.06 : 0;
-  const explanationPenalty = candidate.reasons.includes("explicit-explanation-risk") ? 0.12 : 0;
-  const literalPenalty =
-    candidate.endpointExactness >= 0.999 && !pool.nextPromise && !pool.frontier ? 0.08 : 0;
+  const explanationPenalty = candidate.reasons.includes("explicit-explanation-risk") ? 0.14 : 0;
+  const literalPenalty = candidate.endpointExactness >= 0.999 ? 0.09 : 0;
 
   return metric(
-    candidate.score * 0.3 +
-      fit * 0.21 +
+    candidate.score * 0.32 +
+      fit * 0.18 +
       carry * 0.14 +
-      candidate.meaningScore * 0.09 +
-      candidate.obligationCoverage * 0.05 +
+      candidate.meaningScore * 0.08 +
+      candidate.obligationCoverage * 0.04 +
       novelty * 0.04 +
       candidate.cohesionScore * 0.04 +
       loop * 0.03 +
       semanticBonus +
       implicationBonus +
+      framingBonus +
+      noveltyBonus +
       relationBonus +
       coverageBonus +
       discoveryBonus -
@@ -524,7 +565,8 @@ export function selectBestMouthSequence(
   for (const pool of ordered) {
     let eligible = dedupe(pool.candidates).filter(isAuthorizedMouthCandidate);
     const creative = eligible.filter((candidate) =>
-      candidate.reasons.includes("approved-semantic-realization"),
+      candidate.reasons.includes("approved-semantic-realization") &&
+      !candidate.reasons.includes("literal-source-restatement"),
     );
     if (creative.length) {
       eligible = creative;
