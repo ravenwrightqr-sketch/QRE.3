@@ -30,6 +30,7 @@ const authority: MouthRealizationAuthority = {
     "social magnetism",
     "familiar romantic archetype",
     "type",
+    "chaos",
   ],
   permittedRealizationModes: [
     "characterization",
@@ -58,10 +59,7 @@ function boundary(text: string, overrides: Partial<Parameters<typeof evaluateRea
 
 /* Metamorphic 1: surface/lens changes cannot alter concrete authority. */
 const realityA = JSON.stringify(authority.reality);
-const realityB = JSON.stringify({
-  ...authority.reality,
-  /* different language realization, same evidence */
-});
+const realityB = JSON.stringify({ ...authority.reality });
 assert(realityA === realityB, "surface realization changed reality authority");
 
 /* Metamorphic 2: earned implication is allowed without declaring the label. */
@@ -77,18 +75,22 @@ const paraphrase = boundary("Milo, impossible to miss.", {
 });
 assert(paraphrase.inventionRisk < 0.9, "semantic paraphrase was rejected");
 
-/* Metamorphic 4: a world fact from another beat remains forbidden. */
+/* Metamorphic 4: semantic compression may use novel realization language. */
+const semanticChaos = boundary("Spa. Check. Off to play chaos.");
+assert(semanticChaos.inventionRisk < 0.9, "creative semantic realization was rejected");
+
+/* Metamorphic 5: a world fact from another beat remains forbidden. */
 const foreign = boundary("Milo loves bacon.");
 assert(foreign.inventionRisk >= 0.9, "foreign world fact escaped the boundary");
 assert(foreign.foreignTokens.includes("bacon"), "foreign fact token was not detected");
 
-/* Metamorphic 5: implication cannot silently become a new identity fact. */
+/* Metamorphic 6: implication cannot silently become a new identity fact. */
 const explicitLabel = boundary("Milo became a playboy.", {
   earnedInterpretations: [...authority.earnedInterpretations, "playboy"],
 });
 assert(explicitLabel.inventionRisk >= 0.9, "explicit identity claim bypassed earned-meaning protection");
 
-/* Metamorphic 6: cognition can explicitly opt into an identity assertion. */
+/* Metamorphic 7: cognition can explicitly opt into an identity assertion. */
 const explicitAuthorized = boundary("Milo is a playboy.", {
   earnedInterpretations: [...authority.earnedInterpretations, "playboy"],
   permittedRealizationModes: [...authority.permittedRealizationModes, "explicit-characterization"],
@@ -96,7 +98,21 @@ const explicitAuthorized = boundary("Milo is a playboy.", {
 });
 assert(explicitAuthorized.inventionRisk < 0.9, "explicit authorized characterization was rejected");
 
-/* Metamorphic 7: unrelated global mutation does not change foreign-fact rejection. */
+/* Metamorphic 8: unsupported environment imagery is not inferred from style. */
+const sunlight = boundary("Milo blinked in the sunlight.", {
+  earnedInterpretations: authority.earnedInterpretations,
+});
+assert(sunlight.inventionRisk >= 0.9, "unsupported sunlight escaped the boundary");
+assert(sunlight.novelConcreteTokens.includes("sunlight"), "sunlight was not classified as novel concrete reality");
+
+/* Metamorphic 9: time is a source fact, not a generator for environmental memory. */
+const lateNight = boundary("Milo stood in the sunlight.", {
+  localReality: ["Milo flirts", "Milo dates", "Milo is charming", "9pm", "California"],
+  globalReality: ["Milo flirts", "Milo dates", "Milo is charming", "9pm", "California"],
+});
+assert(lateNight.inventionRisk >= 0.9, "time/location context authorized unsupported sunlight");
+
+/* Metamorphic 10: unrelated global mutation does not change foreign-fact rejection. */
 const foreignAfterMutation = boundary("Milo loves bacon.", {
   globalReality: [
     "Milo flirts",
@@ -111,7 +127,10 @@ assert(foreignAfterMutation.inventionRisk >= 0.9, "foreign fact became allowed a
 console.log("AUTHOR MOUTH METAMORPHIC V2: PASS");
 console.log("EARNED_IMPLICATION_ALLOWED=TRUE");
 console.log("SEMANTIC_PARAPHRASE_ALLOWED=TRUE");
+console.log("SEMANTIC_CHAOS_ALLOWED=TRUE");
 console.log("FOREIGN_FACT_STAYS_REJECTED=TRUE");
 console.log("EXPLICIT_IDENTITY_STAYS_BLOCKED=TRUE");
 console.log("EXPLICIT_AUTHORIZATION_WORKS=TRUE");
+console.log("UNSUPPORTED_SUNLIGHT_STAYS_REJECTED=TRUE");
+console.log("TIME_IS_NOT_ENVIRONMENT_MEMORY=TRUE");
 console.log("REALITY_AUTHORITY_INVARIANT=TRUE");
