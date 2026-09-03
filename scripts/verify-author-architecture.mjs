@@ -10,9 +10,6 @@ const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
 const acceptance = "apps/api/author-acceptance.ts";
 const mouth = "apps/api/src/services/authorMouth.ts";
-const mouthSeam = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
-const legacyMouthSeam = "apps/api/src/services/authorMouthCandidateSearch.ts";
-const beamSeam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
 const experienceRoute = "apps/api/src/routes/experience.ts";
 const experienceService = "apps/api/src/services/experienceService.ts";
 const packageJsonPath = "apps/api/package.json";
@@ -32,6 +29,9 @@ const forbiddenFiles = [
   "apps/api/src/services/authorMouthCritic.ts",
   "apps/api/src/services/authorMouthInterpretation.ts",
   "apps/api/src/services/authorMouthSequenceCritic.ts",
+  "apps/api/src/services/authorMouthCandidateSearch.ts",
+  "apps/api/src/services/authorMouthCandidateSearchCanonical.ts",
+  "apps/api/src/services/authorMouthSequenceBeamSearch.ts",
 ];
 
 const forbiddenImports = [
@@ -44,13 +44,16 @@ const forbiddenImports = [
   "authorMouthCritic",
   "authorMouthInterpretation",
   "authorMouthSequenceCritic",
+  "authorMouthCandidateSearch",
+  "authorMouthCandidateSearchCanonical",
+  "authorMouthSequenceBeamSearch",
 ];
 
 const exists = (p) => existsSync(join(root, p));
 const read = (p) => readFileSync(join(root, p), "utf8");
 function fail(message) { failures.push(message); }
 
-for (const p of [canonical, cognition, acceptance, mouth, mouthSeam, legacyMouthSeam, beamSeam, experienceRoute, experienceService, packageJsonPath]) {
+for (const p of [canonical, cognition, acceptance, mouth, experienceRoute, experienceService, packageJsonPath]) {
   if (!exists(p)) fail(`Missing canonical file: ${p}`);
 }
 for (const p of forbiddenFiles) if (exists(p)) fail(`Forbidden legacy Author/Mouth file exists: ${p}`);
@@ -82,9 +85,6 @@ for (const file of walk(join(root, "apps/api/src"))) {
 const brainSource = exists(canonical) ? read(canonical) : "";
 const mouthSource = exists(mouth) ? read(mouth) : "";
 const acceptanceSource = exists(acceptance) ? read(acceptance) : "";
-const seamSource = exists(mouthSeam) ? read(mouthSeam) : "";
-const legacySeamSource = exists(legacyMouthSeam) ? read(legacyMouthSeam) : "";
-const beamSource = exists(beamSeam) ? read(beamSeam) : "";
 
 for (const [re, message] of [
   [/from\s+["'][^"']*authorCognition\.js["']/, "Canonical Author must import authorCognition"],
@@ -119,10 +119,6 @@ for (const [re, message] of [
   [/export function selectBestMouthSequence/, "Canonical Mouth must own sequence selection"],
 ]) if (!re.test(mouthSource)) fail(message);
 
-if (seamSource && !/from\s+["'][^"']*authorMouth\.js["']/.test(seamSource)) fail("Canonical Mouth seam must re-export from authorMouth.ts");
-if (legacySeamSource && !/from\s+["'][^"']*authorMouth\.js["']/.test(legacySeamSource)) fail("Legacy Mouth compatibility seam must re-export from authorMouth.ts");
-if (beamSource && !/from\s+["'][^"']*authorMouth\.js["']/.test(beamSource)) fail("Sequence beam compatibility seam must re-export from authorMouth.ts");
-
 const routeSource = exists(experienceRoute) ? read(experienceRoute) : "";
 if (!/const\s+sessionId\s*=\s*randomUUID\s*\(\)/.test(routeSource)) fail("Experience compile route must create one sessionId");
 if (!/sessionId\s*[:,]/.test(routeSource)) fail("Experience compile route must pass sessionId into compileExperience");
@@ -137,9 +133,6 @@ console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
 console.log(`CANONICAL AUTHOR: ${canonical}`);
 console.log(`COGNITION: ${cognition}`);
 console.log(`MOUTH: ${mouth}`);
-console.log(`MOUTH COMPATIBILITY SEAM: ${mouthSeam}`);
-console.log(`LEGACY SEARCH SEAM: ${legacyMouthSeam}`);
-console.log(`SEQUENCE COMPATIBILITY SEAM: ${beamSeam}`);
 console.log(`EXPERIENCE ROUTE: ${experienceRoute}`);
 console.log(`EXPERIENCE SERVICE: ${experienceService}`);
 
@@ -148,4 +141,4 @@ if (failures.length) {
   console.error(`AUTHOR ARCHITECTURE GUARD FAILED · ${failures.length} violation(s)`);
   process.exit(1);
 }
-console.log("AUTHOR ARCHITECTURE GUARD GREEN · ONE CANONICAL AUTHOR · ONE COGNITION · ONE MOUTH · COMPATIBILITY SEAMS ONLY");
+console.log("AUTHOR ARCHITECTURE GUARD GREEN · ONE CANONICAL AUTHOR · ONE COGNITION · ONE MOUTH · ZERO MOUTH SEAMS");
