@@ -13,6 +13,8 @@
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "author:lens-boundary": "pnpm --filter @qre/api exec tsx ./author-lens-boundary-acceptance.ts",
+    "author:world-simulation": "pnpm --filter @qre/api exec tsx ./author-world-simulation-acceptance.ts",
+    "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
