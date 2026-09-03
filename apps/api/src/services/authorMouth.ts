@@ -99,6 +99,57 @@ function semanticSource(beat: MouthCandidateBeat): string[] {
   ].map(clean).filter(Boolean);
 }
 
+/**
+ * The strategy lattice decides HOW an approved meaning may be said. It never
+ * creates source facts. Several strategies are offered so the model must make
+ * a real authorial choice instead of paraphrasing the source sentence.
+ */
+function realizationStrategyLattice(beat: MouthCandidateBeat): string[] {
+  const semantic = beat.semanticRealization;
+  const relation = clean(semantic?.relation?.kind).toLowerCase();
+  const opportunity = clean(semantic?.creativeOpportunity);
+  const mechanism = clean(semantic?.mechanism);
+  const role = clean(beat.role).toLowerCase();
+  const strategies: string[] = [];
+
+  const add = (name: string, instruction: string) => {
+    strategies.push(`${name}: ${instruction}`);
+  };
+
+  if (/contrast|opposition|difference|tension/i.test(relation)) {
+    add("CONTRAST", "put the two supplied meanings in tension without explaining the thesis");
+  }
+  if (/agency|choice|decision|deviation|interruption|rebellion|unexpected/i.test(relation)) {
+    add("STATUS_REVERSAL", "let the supplied outcome make the earlier expectation look naive or incomplete");
+  }
+  if (/ownership|possession|belong|property/i.test(relation)) {
+    add("POSSESSION_TURN", "use ownership language or a status shift only when the supplied relation supports it");
+  }
+  if (/return|recurrence|again|callback|memory/i.test(relation) || beat.observerExperience?.landing) {
+    add("CALLBACK", "reuse one supplied detail so a later fact changes the weight of an earlier one");
+  }
+  if (/cause|consequence|result|effect/i.test(relation)) {
+    add("CONSEQUENCE", "let the supplied consequence carry the meaning instead of adding an explanation");
+  }
+
+  add("RECONTEXTUALIZATION", "make an earlier supplied detail read differently because of a later supplied detail");
+  add("IMPLICATION", "say less and let the reader perform the approved connection");
+  add("COMPRESSION", "remove setup and connective prose; keep the sharpest supplied anchors");
+  add("COLLISION", "place two supplied details together so their approved relationship becomes noticeable");
+
+  if (/payoff|release/i.test(role)) {
+    add("ENDPOINT_LANDING", "land the supplied endpoint cleanly; do not append a new event or explanation");
+  }
+  if (/establish|arrival|material/i.test(role)) {
+    add("HOOKED_ANCHOR", "make the first concrete detail carry an unanswered but answerable pressure supplied by Cognition");
+  }
+
+  if (opportunity) add("APPROVED_OPPORTUNITY", `use this as a language direction only: ${opportunity}`);
+  if (mechanism) add("APPROVED_MECHANISM", `express this mechanism without repeating it verbatim: ${mechanism}`);
+
+  return uniqueStrings(strategies).slice(0, 8);
+}
+
 function exactSource(text: string, labels: readonly string[]): boolean {
   const value = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
   return labels.some(
@@ -119,6 +170,12 @@ function explanationRisk(text: string): number {
   return metric(hits / 2);
 }
 
+function genericRisk(text: string): number {
+  const value = clean(text);
+  const generic = /\b(?:special moment|what a day|magical|magic happens|memories? (?:come|comes) alive|journey|new chapter|happy ending|everything changed|unforgettable|beautiful moment|meaningful moment|good times|making memories|cherished memories|a day to remember|ready for anything|full of joy|cinematic|like a movie|in that moment|speaks volumes|the truth is revealed|new beginning)\b/i;
+  return generic.test(value) ? 1 : 0;
+}
+
 function concreteRisk(text: string, source: string): number {
   const value = clean(text);
   if (!value) return 1;
@@ -135,7 +192,7 @@ function concreteRisk(text: string, source: string): number {
 }
 
 /**
- * Creative realization forms are language operators, not new facts.  A candidate
+ * Creative realization forms are language operators, not new facts. A candidate
  * may use these forms to express an already-approved relationship without
  * repeating Cognition's internal wording.
  */
@@ -153,6 +210,23 @@ function creativeFormSignal(text: string): number {
     /\b(?:claimed|insisted|decided|chose|wanted|needed|preferred)\b/i,
   ];
   return metric(forms.reduce((sum, pattern) => sum + (pattern.test(value) ? 1 : 0), 0) / 2);
+}
+
+function creativeForceSignal(text: string): number {
+  const value = clean(text);
+  if (!value) return 0;
+  const operators = [
+    /\b(?:other|different|own)\s+(?:plans?|ideas?|agenda|way)\b/i,
+    /\b(?:instead|apparently|after all|not quite|so much for|somehow)\b/i,
+    /\b(?:turned out|it seems|seemed|looked like)\b/i,
+    /\b(?:claimed|insisted|decided|chose|wanted|needed|preferred)\b/i,
+    /\b(?:still|already|yet|again)\b/i,
+  ];
+  const contrast = /\b(?:but|instead|except|only|until|then|while)\b/i.test(value);
+  const possessiveTurn = /\b(?:their|its|his|her)\s+(?:own|way|plan|idea|business|problem|moment)\b/i.test(value);
+  const compactPunch = wordCount(value) >= 3 && wordCount(value) <= 8 && /[—:-]/.test(value);
+  const hits = operators.reduce((sum, pattern) => sum + (pattern.test(value) ? 1 : 0), 0);
+  return metric((hits * 0.18) + (contrast ? 0.22 : 0) + (possessiveTurn ? 0.2 : 0) + (compactPunch ? 0.12 : 0));
 }
 
 function semanticAuthorization(
@@ -257,39 +331,44 @@ function evaluateCandidate(
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningful(value), meaningful(prior))), 0))
     : 1;
-  const humanSized = wordCount(value) >= 2 && wordCount(value) <= 16;
+  const humanSized = wordCount(value) >= 2 && wordCount(value) <= 12;
   const groupedCoverage = groupedEvidenceCoverage(value, beat, envelope);
   const observerForbidden = beat.observerExperience?.explanationForbidden === true;
   const explanation = explanationRisk(value);
+  const generic = genericRisk(value);
   const creativeForm = creativeFormSignal(value);
+  const creativeForce = creativeForceSignal(value);
   const semanticEligible = semantic.authorized &&
     (labels.length <= 1 || groupedCoverage >= 0.5);
-  const semanticCreative = semanticEligible && !literal && creativeForm >= 0.35;
+  const semanticCreative = semanticEligible && !literal && (creativeForm >= 0.35 || creativeForce >= 0.32);
   const explanationPenalty = observerForbidden ? explanation : explanation * 0.35;
 
   const creativeScore = metric(
-    (semantic.strength * 0.34) +
-      (creativeForm * 0.2) +
-      (grounding * 0.16) +
-      (novelty * 0.1) +
-      (humanSized ? 0.07 : 0) +
-      (groupedCoverage * 0.05) +
-      (semanticCreative ? 0.12 : 0) -
-      explanationPenalty * 0.38,
+    (semantic.strength * 0.3) +
+      (creativeForm * 0.13) +
+      (creativeForce * 0.2) +
+      (grounding * 0.14) +
+      (novelty * 0.08) +
+      (humanSized ? 0.06 : 0) +
+      (groupedCoverage * 0.04) +
+      (semanticCreative ? 0.13 : 0) -
+      explanationPenalty * 0.36 -
+      generic * 0.34,
   );
 
   const literalScore = metric(
-    0.38 +
+    0.32 +
       grounding * 0.2 +
       groupedCoverage * (labels.length > 1 ? 0.12 : 0.05) +
       novelty * 0.05 +
       (observerForbidden && explanation === 0 ? 0.03 : 0) -
-      explanationPenalty * 0.35,
+      explanationPenalty * 0.35 -
+      generic * 0.5,
   );
 
   const score = literal
     ? literalScore
-    : semanticEligible
+    : semanticCreative
       ? creativeScore
       : 0;
 
@@ -304,8 +383,10 @@ function evaluateCandidate(
   if (groupedCoverage >= 0.999) reasons.push("grouped-evidence-complete");
   if (observerForbidden && explanation === 0) reasons.push("discovery-preserving");
   if (explanation > 0) reasons.push("explicit-explanation-risk");
+  if (generic > 0) reasons.push("generic-summary-risk");
   if (humanSized) reasons.push("human-sized-cut");
   if (creativeForm >= 0.5) reasons.push("framing-operator");
+  if (creativeForce >= 0.32) reasons.push("authorial-turn");
   if (invention >= 0.9) reasons.push("unsupported-concrete-risk");
   if (novelty >= 0.6) reasons.push("novel-language");
 
@@ -320,7 +401,7 @@ function evaluateCandidate(
         : [],
     supportedRelationPairs: (beat.relationKinds ?? []).map(String).filter(Boolean),
     groundingScore: grounding,
-    meaningScore: semanticEligible ? Math.max(semantic.strength, creativeForm * 0.8) : literal ? 0.35 : 0,
+    meaningScore: semanticEligible ? Math.max(semantic.strength, creativeForce * 0.8, creativeForm * 0.8) : literal ? 0.35 : 0,
     observerDiscoveryScore: semanticEligible
       ? Math.max(semantic.strength, 0.4) * (explanation === 0 ? 1 : 0.7)
       : literal
@@ -332,22 +413,24 @@ function evaluateCandidate(
         ? groupedCoverage >= 0.999 || labels.length <= 1
           ? 1
           : 0.5 + groupedCoverage * 0.4
-        : semanticEligible
-          ? 0.72 + groupedCoverage * 0.28
+        : semanticCreative
+          ? 0.78 + groupedCoverage * 0.22
           : 0,
     ),
     relationContractScore: metric((beat.relationKinds ?? []).length ? 0.85 : 0.35),
-    forbiddenMoveRisk: metric(Math.max(invention, explanationPenalty)),
+    forbiddenMoveRisk: metric(Math.max(invention, explanationPenalty, generic)),
     cohesionScore: metric(
-      0.44 +
-        (semanticEligible ? semantic.strength * 0.28 : 0) +
-        creativeForm * 0.12 +
+      0.42 +
+        (semanticEligible ? semantic.strength * 0.26 : 0) +
+        creativeForm * 0.1 +
+        creativeForce * 0.12 +
         grounding * 0.08 +
-        groupedCoverage * 0.1 -
-        explanationPenalty * 0.12,
+        groupedCoverage * 0.08 -
+        explanationPenalty * 0.12 -
+        generic * 0.12,
     ),
     noveltyScore: novelty,
-    compressionScore: humanSized ? 0.95 : 0.65,
+    compressionScore: humanSized ? 0.98 : 0.62,
     inventionRisk: invention,
     repetitionRisk: 1 - novelty,
     collageRisk: groupedCoverage < 0.5 && labels.length > 1 ? 0.8 : 0,
@@ -366,17 +449,27 @@ function buildSystemPrompt(): string {
     "Never invent a person, object, place, physical action, physical relation, reaction, dialogue, event, or chronology.",
     "Use the lens to alter framing, rhythm, irony, tenderness, suspense, status, absurdity, or genre coloration only.",
     "A grounded implication is preferred over a literal paraphrase when an approved semantic realization exists.",
+    "The source sentence is RAW MATERIAL, not copy. Do not preserve its grammar just because it is safe.",
+    "A successful line must make an authorial move: reframe, contrast, compress, collide, imply, reverse status, callback, or otherwise change how the supplied details read together.",
     "ACCUMULATE: carry forward significance established by earlier approved beats. A later line may rely on what the observer already learned instead of restating it.",
     "IMPLY: communicate an approved relationship through juxtaposition, syntax, contrast, consequence, status, selection, or callback. Do not explain the relationship.",
     "RECONTEXTUALIZE: let a later approved fact change how an earlier fact is perceived. Preserve the fact; change its significance through the supplied relation.",
+    "CONTRAST: when two supplied details pull against each other, let that tension appear in the wording.",
+    "STATUS REVERSAL: when the approved meaning concerns choice, agency, interruption, ownership, or an outcome defeating expectation, a status phrase may carry the joke or tension without inventing a new event.",
+    "COMPRESSION: cut connective tissue. Prefer a line that feels inevitable after reading it over a complete explanatory sentence.",
+    "COLLISION: put supplied nouns or actions into a relationship that Cognition has already approved. Do not add a third concrete fact.",
     "Use realization forms such as 'had other plans', 'had different ideas', 'apparently', 'not quite done', 'instead', 'after all', or similar framing operators when they are grounded by the supplied evidence. These are language forms, not permission to invent facts.",
-    "For every beat return exactly 3 materially different candidates: (1) grounded anchor, (2) compressed framing, (3) bold implication. The second and third should not merely swap adjectives; they should change the sentence's framing or information compression.",
-    "A candidate can be creative without repeating every source noun. Keep at least one grounded anchor so the approved reality remains recoverable.",
+    "Do NOT force these stock operators. They are examples of mechanisms, not templates.",
+    "For every beat return exactly 3 materially different candidates. Candidate A is the safest sharp realization. Candidate B must use a different information/compression strategy. Candidate C must take the boldest approved interpretive turn without adding reality.",
+    "The three candidates must differ in sentence logic, not merely adjectives or synonyms.",
+    "A candidate can be creative without repeating every source noun. Keep enough grounded language that the approved reality remains recoverable.",
     "Never write generic atmospheric filler, trailer narration, or a prettier noun for an event.",
     "Do not close every information gap immediately. Build a specific, answerable micro-question when the approved beat supplies one; resolve it at the approved payoff.",
     "At payoff, satisfy the current approved question or tension. Only open another loop when the cognition-supplied next/frontier material supports it; never manufacture a hook for engagement alone.",
     "If no approved semantic realization exists for a beat, use the supplied event literally. Do not invent a meaning.",
     "The goal is felt discovery: the observer should notice the relationship and arrive at the meaning before the language explains it.",
+    "NEVER output commentary about being an AI, the authoring process, the beat, the viewer, the strategy, or the evidence.",
+    "Prefer 3-8 words. 10 words is a practical ceiling unless the source requires a slightly longer landing.",
   ].join(" ");
 }
 
@@ -392,7 +485,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify(
         {
           instruction:
-            "Return exactly 3 materially different language realizations for EVERY beat. Do not omit a beat. For each beat produce: A) grounded anchor, B) compressed framing, C) bold implication. Prefer language that makes the approved semantic relationship felt rather than explained. Preserve at least one source-grounded anchor in every candidate. Never state the thesis directly when explanationForbidden is true.",
+            "Return exactly 3 materially different language realizations for EVERY beat. Do not omit a beat. A: safest sharp realization. B: compressed/reframed realization. C: boldest approved implication. The candidates must express an approved relationship, not merely paraphrase a source event. Preserve at least one source-grounded anchor in every candidate. Never state the thesis directly when explanationForbidden is true.",
           lens: input.lens || "AUTO",
           lensProfile: lens,
           domainContext: input.domainContext ?? null,
@@ -404,6 +497,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
             evidence: sourceLabels(beat, input.envelope),
             semanticRealization: beat.semanticRealization ?? null,
             observerExperience: beat.observerExperience ?? null,
+            realizationStrategies: realizationStrategyLattice(beat),
             change: beat.change,
             next: beat.next,
             frontier: beat.frontier,
@@ -414,7 +508,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           outputSchema: {
             variantsByBeat: input.beats.map((beat) => ({
               order: beat.order,
-              variants: ["grounded anchor", "compressed framing", "bold implication"],
+              variants: ["sharp anchor", "compressed reframe", "bold implication"],
             })),
           },
         },
@@ -470,9 +564,16 @@ export function scoreMouthCandidate(input: {
 export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
   if (!clean(candidate.text)) return false;
   if (candidate.inventionRisk >= 0.9) return false;
+  if (candidate.reasons.includes("generic-summary-risk")) return false;
   if (candidate.reasons.includes("explicit-explanation-risk") && candidate.forbiddenMoveRisk >= 0.9) return false;
-  if (candidate.endpointExactness >= 0.999) return true;
-  return candidate.reasons.includes("approved-semantic-realization") && candidate.score >= 0.42;
+  if (candidate.endpointExactness >= 0.999) {
+    return true;
+  }
+  return candidate.reasons.includes("approved-semantic-realization") &&
+    candidate.reasons.includes("creative-realization-form") ||
+    candidate.reasons.includes("authorial-turn") &&
+    candidate.reasons.includes("approved-semantic-realization") &&
+    candidate.score >= 0.45;
 }
 
 function lexicalNovelty(text: string, prior: readonly MouthCandidate[]): number {
@@ -503,20 +604,22 @@ function pathIncrement(
       candidate.observerDiscoveryScore * 0.25,
   );
   const loop = metric((pool.nextPromise ? 0.6 : 0) + (pool.frontier ? 0.4 : 0));
-  const semanticBonus = candidate.reasons.includes("approved-semantic-realization") ? 0.1 : 0;
+  const semanticBonus = candidate.reasons.includes("approved-semantic-realization") ? 0.11 : 0;
   const implicationBonus = candidate.reasons.includes("implied-semantic-realization") ? 0.1 : 0;
   const framingBonus = candidate.reasons.includes("creative-realization-form") ? 0.12 : 0;
+  const authorialBonus = candidate.reasons.includes("authorial-turn") ? 0.14 : 0;
   const noveltyBonus = candidate.reasons.includes("novel-language") ? 0.06 : 0;
   const relationBonus = candidate.reasons.includes("cross-event-expression") ? 0.06 : 0;
   const coverageBonus = candidate.reasons.includes("grouped-evidence-complete") ? 0.05 : 0;
   const discoveryBonus = candidate.reasons.includes("discovery-preserving") ? 0.06 : 0;
   const explanationPenalty = candidate.reasons.includes("explicit-explanation-risk") ? 0.14 : 0;
-  const literalPenalty = candidate.endpointExactness >= 0.999 ? 0.09 : 0;
+  const genericPenalty = candidate.reasons.includes("generic-summary-risk") ? 0.2 : 0;
+  const literalPenalty = candidate.endpointExactness >= 0.999 ? 0.1 : 0;
 
   return metric(
-    candidate.score * 0.32 +
-      fit * 0.18 +
-      carry * 0.14 +
+    candidate.score * 0.29 +
+      fit * 0.17 +
+      carry * 0.13 +
       candidate.meaningScore * 0.08 +
       candidate.obligationCoverage * 0.04 +
       novelty * 0.04 +
@@ -525,11 +628,13 @@ function pathIncrement(
       semanticBonus +
       implicationBonus +
       framingBonus +
+      authorialBonus +
       noveltyBonus +
       relationBonus +
       coverageBonus +
       discoveryBonus -
       explanationPenalty -
+      genericPenalty -
       literalPenalty,
   );
 }
@@ -563,25 +668,22 @@ export function selectBestMouthSequence(
   ];
 
   for (const pool of ordered) {
-    let eligible = dedupe(pool.candidates).filter(isAuthorizedMouthCandidate);
-    const creative = eligible.filter((candidate) =>
-      candidate.reasons.includes("approved-semantic-realization") &&
-      !candidate.reasons.includes("literal-source-restatement"),
-    );
-    if (creative.length) {
-      eligible = creative;
-    } else {
-      eligible = eligible.filter((candidate) => candidate.endpointExactness >= 0.999);
-    }
+    const eligible = dedupe(pool.candidates)
+      .filter(isAuthorizedMouthCandidate)
+      .filter((candidate) =>
+        !candidate.reasons.includes("literal-source-restatement") &&
+        candidate.reasons.includes("approved-semantic-realization") &&
+        (candidate.reasons.includes("creative-realization-form") || candidate.reasons.includes("authorial-turn")),
+      );
 
     if (!eligible.length) return { candidates: [], texts: [], score: 0 };
 
     eligible.sort((a, b) => b.score - a.score);
-    eligible = eligible.slice(0, Math.max(width, perBeat));
+    const bounded = eligible.slice(0, Math.max(width, perBeat));
 
     const expanded: Array<{ candidates: MouthCandidate[]; score: number }> = [];
     for (const path of paths) {
-      for (const candidate of eligible) {
+      for (const candidate of bounded) {
         if (
           path.candidates.some(
             (prior) => clean(prior.text).toLowerCase() === clean(candidate.text).toLowerCase(),
