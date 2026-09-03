@@ -3,7 +3,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const file = path.join(root, "apps/api/src/services/authorMouth.ts");
-const source = fs.readFileSync(file, "utf8");
+const source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 
 const mustHave = [
   "function sourceLabels(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {",
@@ -185,11 +185,11 @@ const fragmentFn = `function fragmentContinuationRisk(text: string): number {
   return 0;
 }
 `;
-if (next.includes(fragmentFn)) throw new Error("fragmentContinuationRisk already present");
-next = next.replace(
+replaceOnce(
 `function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[], recovery = false): MouthCandidate {`,
-`${fragmentFn}\nfunction evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[], recovery = false): MouthCandidate {`,
-);
+`${fragmentFn}
+function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[], recovery = false): MouthCandidate {`,
+"fragment function insertion");
 
 replaceOnce(
 `  const invention = metric(unsupportedConcreteRisk(value, envelope, beat));
@@ -242,9 +242,15 @@ replaceOnce(
 if (next === source) throw new Error("No changes applied");
 fs.writeFileSync(file, next, "utf8");
 
-if (next.includes("realityVocabulary:")) throw new Error("Global reality vocabulary still present in Mouth payload");
-for (const marker of ["function fragmentContinuationRisk", "Global reality exists for truth safety", "foreignRealityTokens"]) {
-  if (!next.includes(marker)) throw new Error(`Post-write verification failed: ${marker}`);
+const remaining = [
+  "realityVocabulary:",
+  "function fragmentContinuationRisk",
+  "Global reality exists for truth safety",
+  "foreignRealityTokens",
+];
+for (const marker of remaining) {
+  if (marker === "realityVocabulary:" && next.includes(marker)) throw new Error("Global reality vocabulary still present in Mouth payload");
+  if (marker !== "realityVocabulary:" && !next.includes(marker)) throw new Error(`Post-write verification failed: ${marker}`);
 }
 
 fs.unlinkSync(new URL(import.meta.url));
