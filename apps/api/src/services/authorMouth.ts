@@ -575,95 +575,124 @@ function compactCreativeJob(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ) {
-  const s =
-    semantic(beat);
+  const s = semantic(beat);
+  const eventIds = uniqueStrings(beat.eventIds ?? []);
+  const eventDetails = eventIds.map((id) => {
+    const event = envelope.events.find((item) => item.id === id);
+    const structure = envelope.eventStructure.find((item) => item.eventId === id);
+    return {
+      id,
+      label: clean(event?.label),
+      entities: uniqueStrings(event?.entities ?? []),
+      sourceIds: uniqueStrings(event?.sourceIds ?? []),
+      structure: structure
+        ? {
+            subjects: uniqueStrings(structure.subjects),
+            actions: uniqueStrings(structure.actions),
+            objects: uniqueStrings(structure.objects),
+            states: uniqueStrings(structure.states),
+            temporalMarkers: uniqueStrings(structure.temporalMarkers),
+            sensoryMarkers: uniqueStrings(structure.sensoryMarkers),
+            semanticTags: uniqueStrings(structure.semanticTags),
+            recurrenceScore: structure.recurrenceScore,
+            transitionScore: structure.transitionScore,
+            anomalyScore: structure.anomalyScore,
+            salienceScore: structure.salienceScore,
+          }
+        : null,
+    };
+  });
+
+  const eventSet = new Set(eventIds);
+  const relations = envelope.relations.filter(
+    (relation) => eventSet.has(relation.from) || eventSet.has(relation.to),
+  );
+  const continuity = envelope.entityContinuity.filter((entity) =>
+    entity.eventIds.some((id) => eventSet.has(id)),
+  );
+  const patterns = envelope.patterns.filter((pattern) =>
+    pattern.eventIds.some((id) => eventSet.has(id)),
+  );
 
   return {
     order: beat.order,
     role: clean(beat.role),
-    subject: clean(
-      envelope.subject,
-    ),
-    evidence:
-      sourceLabels(
-        beat,
-        envelope,
-      ),
-    meaning: {
-      relation: clean(
-        s?.relation?.kind,
-      ),
-      before: clean(s?.before),
-      after: clean(s?.after),
-      move: clean(
-        s?.realizationMove,
-      ),
-      opportunity: clean(
-        s?.creativeOpportunity,
-      ),
-      mechanism: clean(
-        s?.mechanism,
-      ),
-      evidenceEventIds:
-        s?.evidenceEventIds ??
-        [],
-      beforeEventIds:
-        s?.beforeEventIds ??
-        [],
-      afterEventIds:
-        s?.afterEventIds ??
-        [],
+    subject: clean(envelope.subject),
+    eventIds,
+    events: eventDetails,
+    continuity,
+    relations,
+    patterns,
+    realityVocabulary: {
+      entities: envelope.suppliedEntities.slice(0, 24),
+      actions: envelope.suppliedActions.slice(0, 24),
+      states: envelope.suppliedStates.slice(0, 24),
+      phrases: envelope.suppliedPhrases.slice(0, 24),
     },
-    observer:
-      beat.observerExperience
-        ? {
-            surprise: clean(
-              beat
-                .observerExperience
-                .surprise,
-            ),
-            curiosity: clean(
-              beat
-                .observerExperience
-                .curiosity,
-            ),
-            landing: clean(
-              beat
-                .observerExperience
-                .landing,
-            ),
-            forbidden:
-              beat
-                .observerExperience
-                .explanationForbidden ===
-              true,
-          }
-        : null,
-    change: clean(
-      beat.change,
-    ),
-    next: clean(
-      beat.next,
-    ),
-    strategies:
-      creativeStrategies(
-        beat,
-      ),
-    obligations:
-      uniqueStrings(
-        beat.obligations ??
-          [],
-      ),
-    forbidden:
-      uniqueStrings(
-        beat.forbiddenMoves ??
-          [],
-      ),
+    semanticRealization: s
+      ? {
+          mechanism: clean(s.mechanism),
+          relation: s.relation
+            ? {
+                kind: clean(s.relation.kind),
+                fromEventId: clean(s.relation.fromEventId),
+                toEventId: clean(s.relation.toEventId),
+              }
+            : null,
+          before: clean(s.before),
+          after: clean(s.after),
+          subject: clean(s.subject || envelope.subject),
+          realizationMove: clean(s.realizationMove),
+          creativeOpportunity: clean(s.creativeOpportunity),
+          evidenceEventIds: uniqueStrings(s.evidenceEventIds ?? []),
+          beforeEventIds: uniqueStrings(s.beforeEventIds ?? []),
+          afterEventIds: uniqueStrings(s.afterEventIds ?? []),
+          callback: s.callback
+            ? {
+                detail: clean(s.callback.detail),
+                eventIds: uniqueStrings(s.callback.eventIds ?? []),
+                role: clean(s.callback.role),
+              }
+            : null,
+          confidence: s.confidence,
+        }
+      : null,
+    observerExperience: beat.observerExperience
+      ? {
+          objective: clean(beat.observerExperience.objective),
+          surprise: clean(beat.observerExperience.surprise),
+          curiosity: clean(beat.observerExperience.curiosity),
+          attention: uniqueStrings(beat.observerExperience.attention),
+          landing: clean(beat.observerExperience.landing),
+          explanationForbidden: beat.observerExperience.explanationForbidden === true,
+        }
+      : null,
+    viewerState: beat.viewerState
+      ? {
+          beforeState: clean(beat.viewerState.beforeState),
+          afterState: clean(beat.viewerState.afterState),
+          attentionMove: clean(beat.viewerState.attentionMove),
+          curiosityPressure: beat.viewerState.curiosityPressure,
+          contrast: beat.viewerState.contrast,
+          interruption: beat.viewerState.interruption,
+          accumulation: beat.viewerState.accumulation,
+          tempo: beat.viewerState.tempo,
+          payoffPressure: beat.viewerState.payoffPressure,
+          stateShift: beat.viewerState.stateShift,
+          predictionError: beat.viewerState.predictionError,
+          evidenceEventIds: uniqueStrings(beat.viewerState.evidenceEventIds ?? []),
+        }
+      : null,
+    change: clean(beat.change),
+    next: clean(beat.next),
+    frontier: clean(beat.frontier),
+    strategies: creativeStrategies(beat),
+    obligations: uniqueStrings(beat.obligations ?? []),
+    forbidden: uniqueStrings(beat.forbiddenMoves ?? []),
     creativeJob:
-      "Make the approved relationship FELT in one short line. Do not paraphrase the source sentence.",
+      "REALIZE THE EXPERIENCE, not the source sentence. Find the sharpest, most memorable language that lets the approved semantic change be felt. Prefer implication, image, attitude, status, tension, irony, juxtaposition, compression, or comic pressure when supported. Do not flatten a rich semantic opportunity into a literal summary.",
   };
 }
-
 function genericRisk(
   text: string,
 ): number {
@@ -716,59 +745,43 @@ function unsupportedConcreteRisk(
   text: string,
   envelope: RealityEnvelope,
 ): number {
-  const value =
-    clean(text);
+  const value = clean(text);
+  if (!value) return 1;
+  if (processRisk(value)) return 1;
 
-  if (!value) {
-    return 1;
-  }
+  const candidate = meaningful(value);
+  const source = meaningful(
+    [
+      envelope.subject,
+      ...envelope.events.map((event) => event.label),
+      ...envelope.suppliedEntities,
+      ...envelope.suppliedActions,
+      ...envelope.suppliedStates,
+      ...envelope.suppliedPhrases,
+    ].join(" "),
+  );
 
-  if (
-    processRisk(value)
-  ) {
-    return 1;
-  }
-
-  const source =
-    meaningful(
-      [
-        envelope.subject,
-        ...envelope.events.map(
-          (event) =>
-            event.label,
-        ),
-        ...envelope.suppliedEntities,
-        ...envelope.suppliedActions,
-        ...envelope.suppliedStates,
-        ...envelope.suppliedPhrases,
-      ].join(" "),
-    );
-
-  const grounding =
-    overlap(
-      meaningful(value),
-      source,
-    );
+  const sourceOverlap = overlap(candidate, source);
+  const eventOverlap = creativeEvidenceOverlap(
+    value,
+    {
+      order: 1,
+      role: "reveal",
+      change: "",
+      next: "",
+      attentionFunction: "",
+      eventIds: envelope.events.map((event) => event.id),
+    },
+    envelope,
+  );
 
   /*
-   * This is only a guard against concrete actions that have
-   * no grounding in the supplied material.
-   *
-   * It does not attempt to enumerate creative language.
+   * Concrete-invention safety uses provenance, not an English verb dictionary.
+   * A novel line is welcome when it remains anchored to supplied reality.
+   * A line with no source grounding is rejected rather than guessed safe.
    */
-  const unsupportedActions =
-    /\b(?:walk(?:ed|s)?|run(?:ning|s)?|jump(?:ed|s|ing)?|grab(?:bed|s|bing)?|kiss(?:ed|es|ing)?|hug(?:ged|s|ging)?|smil(?:ed|es|ing)?|laugh(?:ed|s|ing)?|talk(?:ed|s|ing)?|open(?:ed|s|ing)?|clos(?:ed|es|ing)?|enter(?:ed|s|ing)?|look(?:ed|s|ing)?|move(?:d|s|ing)?|touch(?:ed|es|ing)?|throw|threw|catch|caught|dance(?:d|s|ing)?|drive|drove|push(?:ed|es|ing)?|pull(?:ed|s|ing)?|vanish(?:ed|s|ing)?|disappear(?:ed|s|ing)?|blink(?:ed|s|ing)?|wave(?:d|s|ing)?)\b/i;
-
-  if (
-    unsupportedActions.test(
-      value,
-    ) &&
-    grounding < 0.45
-  ) {
-    return 1;
-  }
-
-  return 0;
+  if (sourceOverlap >= 0.12 || eventOverlap >= 0.12) return 0;
+  return 0.95;
 }
 
 function creativeEvidenceOverlap(
@@ -1349,13 +1362,23 @@ function buildSystemPrompt(): string {
 
     "SOURCE FACTS ARE RAW MATERIAL, NOT PROSE TO COPY.",
 
+    "Optimize for killer human language: memorable, specific, surprising, emotionally legible, image-rich, rhythmically sharp, and alive. Safety is the boundary, not the aesthetic target.",
+
+    "Use the full semantic contract you receive. The mechanism, relationship, before/after meaning, realization move, creative opportunity, observer surprise, curiosity, landing, event structure, continuity, patterns, and viewer-state dynamics are deliberate authorial signals. Do not collapse them back into a factual caption.",
+
+    "When the contract supports a strong implication, status turn, irony, collision, callback, or recontextualization, prefer that over merely describing what happened.",
+
+    "Candidate A should be the strongest overall realization. Candidate B should take a materially different angle. Candidate C should take the boldest approved angle. Do not make all three variants cautious paraphrases of the same source sentence.",
+
     "Every non-opening beat must make the approved relationship FELT: reframe, contrast, collision, implication, callback, status reversal, understatement, or another supplied semantic turn.",
 
     "The opening/establishing beat may be a clean grounded anchor. The middle and payoff must not be mere source restatements when approved semantic meaning exists.",
 
     "Use only supplied reality. You may invent phrasing, syntax, attitude, metaphor, personification, wordplay, understatement, status language, comic timing, juxtaposition, and implication.",
 
-    "Never invent a physical action, object, person, setting, sound, reaction, dialogue, chronology, or outcome.",
+    "Treat every creator-supplied assertion as authoritative world reality, even when it is absurd, impossible, contradictory, or unexpected. Never normalize it into a more plausible version.",
+
+    "Never invent a new concrete event, object, person, setting, sound, reaction, dialogue, chronology, or outcome. Creative wording may be surprising; the underlying event must remain supplied.",
 
     "Never mention viewers, audiences, beats, strategies, evidence, cognition, movies, planning, or storytelling.",
 
@@ -1718,10 +1741,7 @@ export function isAuthorizedMouthCandidate(
 
   if (
     missingSubjectAnchor &&
-    candidate.beatOrder === 1 &&
-    !candidate.reasons.includes(
-      "approved-semantic-realization",
-    )
+    candidate.beatOrder === 1
   ) {
     return false;
   }
