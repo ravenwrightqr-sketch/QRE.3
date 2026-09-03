@@ -1,5 +1,6 @@
 import type {
   MouthCandidateBeat,
+  MouthInferenceBudget,
   MouthRealizationAuthority,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
@@ -9,6 +10,22 @@ const clean = (value: unknown): string =>
 
 const uniqueStrings = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
+
+function inferenceBudgetFor(beat: MouthCandidateBeat): MouthInferenceBudget {
+  const role = clean(beat.role).toLowerCase();
+  const hasMeaning = Boolean(
+    beat.semanticRealization?.semanticTurn ??
+    beat.semanticRealization?.realizationMove ??
+    beat.semanticRealization?.creativeOpportunity ??
+    beat.semanticRealization?.viewerShift ??
+    beat.observerExperience?.realizationDirection,
+  );
+
+  if (!hasMeaning) return "direct";
+  if (/establish|arrival|opening/.test(role)) return "compressed";
+  if (/payoff|release/.test(role)) return "interpretive";
+  return "strongly-interpretive";
+}
 
 /**
  * Build the single authority package that connects canonical cognition to
@@ -59,6 +76,23 @@ export function buildMouthRealizationAuthority(input: {
   const semantic = beat.semanticRealization;
   const observer = beat.observerExperience;
 
+  const earnedInterpretations = uniqueStrings([
+    semantic?.after ?? "",
+    semantic?.viewerShift ?? "",
+    semantic?.feltEffect ?? observer?.feltEffect ?? "",
+    semantic?.creativeOpportunity ?? "",
+    semantic?.realizationMove ?? "",
+    observer?.realizationDirection ?? "",
+  ]);
+
+  const permittedRealizationModes = uniqueStrings([
+    beat.creativeMove ?? "",
+    beat.realizationMode ?? "",
+    ...(beat.relationKinds ?? []),
+    semantic?.realizationMove ?? "",
+    semantic?.creativeOpportunity ?? "",
+  ]);
+
   return {
     reality: {
       eventIds,
@@ -85,12 +119,12 @@ export function buildMouthRealizationAuthority(input: {
       ),
       languageAim: clean(semantic?.languageAim),
     },
+    earnedInterpretations,
+    permittedRealizationModes,
+    inferenceBudget: inferenceBudgetFor(beat),
     creativeMoves: uniqueStrings([
-      beat.creativeMove ?? "",
-      beat.realizationMode ?? "",
-      ...(beat.relationKinds ?? []),
-      semantic?.realizationMove ?? "",
-      semantic?.creativeOpportunity ?? "",
+      ...permittedRealizationModes,
+      ...(beat.forbiddenMoves ?? []).map(clean).filter(Boolean),
     ]),
     forbiddenMoves: uniqueStrings([
       ...(beat.forbiddenMoves ?? []),
