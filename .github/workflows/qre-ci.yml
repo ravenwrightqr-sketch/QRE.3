@@ -56,6 +56,9 @@ jobs:
       - name: Build web
         run: pnpm build:web
 
+      - name: World simulation acceptance
+        run: pnpm author:world-simulation
+
       - name: Universal reality acceptance
         run: pnpm --filter @qre/engine test:universal-mind
 
@@ -70,3 +73,6 @@ jobs:
 
       - name: Runtime cognition acceptance
         run: pnpm --filter @qre/engine test:runtime-cognition
+
+      - name: Author persistence acceptance
+        run: pnpm author:persistence
