@@ -80,4 +80,12 @@ const semantic = scoreMouthCandidate({
 assert("approved semantic realization can be authorized", isAuthorizedMouthCandidate(semantic));
 assert("semantic candidate carries approved-realization reason", semantic.reasons.includes("approved-semantic-realization"));
 
-console.log("UNIVERSAL MOUTH ACCEPTANCE GREEN · STRUCTURED AUTHORITY · TRUTH BOUNDARY · NO ATMOSPHERIC BYPASS");
+const implied = scoreMouthCandidate({
+  text: "The nervous arrival had lost the room to the blue bow.",
+  beat: semanticBeat,
+  envelope,
+});
+assert("implied cross-event realization can be authorized", isAuthorizedMouthCandidate(implied));
+assert("implied realization carries an explicit implication reason", implied.reasons.includes("implied-semantic-realization"));
+
+console.log("UNIVERSAL MOUTH ACCEPTANCE GREEN · ACCUMULATE · IMPLY · RECONTEXTUALIZE · PAYOFF · NO ATMOSPHERIC BYPASS");
