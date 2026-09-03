@@ -1,5 +1,5 @@
 /**
- * QRE COGAUTHOR MOUTH CONTRACTS · CANONICAL SHARED AUTHOR REALIZATION TYPES
+ * QRE COAUTHOR MOUTH CONTRACTS · CANONICAL SHARED AUTHOR REALIZATION TYPES
  *
  * Semantic structures shared by the canonical Mouth candidate, repair,
  * quality, and sequence-selection services. These are not viewer prose.
@@ -38,6 +38,12 @@ export type MouthObserverExperienceObjective = {
   attention: string[];
   landing: string;
   explanationForbidden: boolean;
+  /** Emotional/perceptual effect the viewer should experience. */
+  feltEffect?: string;
+  /** The interpretation shift created by the approved semantic turn. */
+  viewerShift?: string;
+  /** Compact language direction for expressing the effect without explaining it. */
+  realizationDirection?: string;
 };
 
 export type MouthCandidateBeat = {
@@ -59,6 +65,7 @@ export type MouthCandidateBeat = {
   viewerState?: ViewerStateCut;
   /** Canonical graph-derived semantic structure; never viewer prose. */
   semanticRealization?: LatentSemanticRealization;
+  /** Canonical observer-facing objective for felt realization. */
   observerExperience?: MouthObserverExperienceObjective;
 };
 
