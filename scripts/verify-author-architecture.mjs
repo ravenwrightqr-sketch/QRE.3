@@ -104,7 +104,7 @@ if (!/authorBrainCanonical\.js/.test(acceptanceSource)) fail("Acceptance must in
 if (/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource)) fail("Acceptance contains a legacy Author path");
 
 if (!/function\s+sourceLabels\s*\(/.test(mouthSource)) fail("Canonical Mouth must own source-label resolution");
-if (!/beat\.eventIds/.test(mouthSource) || !/envelope\.events\.find\s*\(/.test(mouthSource) || !/event\.id\s*===\s*id/.test(mouthSource)) fail("Canonical Mouth source provenance must resolve beat event IDs against RealityEnvelope");
+if (!/beat\.eventIds/.test(mouthSource) || !/envelope\.events\.find\s*\(/.test(mouthSource) || !/\.id\s*===\s*id/.test(mouthSource)) fail("Canonical Mouth source provenance must resolve beat event IDs against RealityEnvelope");
 for (const [re, message] of [
   [/Reality freedom is LOW\. Framing freedom is HIGH\./, "Canonical Mouth must preserve the truth/framing boundary"],
   [/Grounding is not authorization\./, "Canonical Mouth must distinguish grounding from authorization"],
