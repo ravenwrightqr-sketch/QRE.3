@@ -41,6 +41,17 @@ function validateCase(test: Case, result: BrainResult): void {
   assert(texts.some((value) => value.toLowerCase().includes(test.subject.toLowerCase())), `${test.name}: subject identity disappeared`);
   assert(result.diagnostics.recoveryUsed !== true, `${test.name}: deterministic recovery replaced creative realization`);
 
+  const thesis = result.movie?.storyThesis;
+  if (thesis?.semanticTurn) {
+    assert(thesis.semanticRealization, `${test.name}: semantic turn has no canonical realization contract`);
+    assert(Boolean(thesis.semanticRealization.feltEffect), `${test.name}: semantic realization has no feltEffect`);
+    assert(Boolean(thesis.semanticRealization.viewerShift), `${test.name}: semantic realization has no viewerShift`);
+    assert(Boolean(thesis.semanticRealization.languageAim), `${test.name}: semantic realization has no languageAim`);
+    assert(thesis.observerExperience, `${test.name}: semantic turn has no observer experience contract`);
+    assert(Boolean(thesis.observerExperience.feltEffect), `${test.name}: observer experience has no feltEffect`);
+    assert(Boolean(thesis.observerExperience.realizationDirection), `${test.name}: observer experience has no realizationDirection`);
+  }
+
   const worldSimulation = worldSimulationOf(result);
   assert(worldSimulation, `${test.name}: World Simulation missing from canonical Author result`);
   assert(Array.isArray(worldSimulation.relations), `${test.name}: World Simulation relations missing`);
@@ -162,3 +173,4 @@ console.log("ONE_MOUTH=TRUE");
 console.log("FACTS_ARE_MEMORY_MATERIAL=TRUE");
 console.log("RELATIONSHIPS_BECOME_SEQUENCE=TRUE");
 console.log("RETURN_CAN_RECONTEXTUALIZE=TRUE");
+console.log("FELT_REALIZATION=TRUE");
