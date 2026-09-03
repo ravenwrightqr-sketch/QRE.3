@@ -14,14 +14,14 @@ function replaceOnce(file, pattern, replacement, label) {
 
 replaceOnce(
   "apps/api/src/services/authorMouth.ts",
-  /function unsupportedConcreteRisk\(\n  text: string,\n  envelope: RealityEnvelope,\n\): number \{[\s\S]*?\n\}\n\nfunction creativeEvidenceOverlap/m,
+  /function unsupportedConcreteRisk\([\s\S]*?\n\}\r?\n\r?\nfunction creativeEvidenceOverlap/m,
   `function unsupportedConcreteRisk(\n  text: string,\n  envelope: RealityEnvelope,\n): number {\n  const value = clean(text);\n  if (!value) return 1;\n  if (processRisk(value)) return 1;\n\n  const candidate = meaningful(value);\n  const source = meaningful(\n    [\n      envelope.subject,\n      ...envelope.events.map((event) => event.label),\n      ...envelope.suppliedEntities,\n      ...envelope.suppliedActions,\n      ...envelope.suppliedStates,\n      ...envelope.suppliedPhrases,\n    ].join(" "),\n  );\n\n  const sourceOverlap = overlap(candidate, source);\n  const eventOverlap = creativeEvidenceOverlap(\n    value,\n    {\n      order: 1,\n      role: "reveal",\n      change: "",\n      next: "",\n      attentionFunction: "",\n      eventIds: envelope.events.map((event) => event.id),\n    },\n    envelope,\n  );\n\n  /*\n   * Concrete-invention safety uses provenance, not an English verb dictionary.\n   * A novel line is welcome when it remains anchored to supplied reality.\n   * A line with no source grounding is rejected rather than guessed safe.\n   */\n  if (sourceOverlap >= 0.12 || eventOverlap >= 0.12) return 0;\n  return 0.95;\n}\n\nfunction creativeEvidenceOverlap`,
   "replace brittle unsupported-action vocabulary guard with provenance guard",
 );
 
 replaceOnce(
   "apps/api/src/services/authorMouth.ts",
-  /  if \(\n    missingSubjectAnchor &&\n    candidate\.beatOrder === 1 &&\n    !candidate\.reasons\.includes\(\n      "approved-semantic-realization",\n    \)\n  \) \{\n    return false;\n  \}/m,
+  /  if \(\r?\n    missingSubjectAnchor &&\r?\n    candidate\.beatOrder === 1 &&\r?\n    !candidate\.reasons\.includes\(\r?\n      "approved-semantic-realization",\r?\n    \)\r?\n  \) \{\r?\n    return false;\r?\n  \}/m,
   `  if (\n    missingSubjectAnchor &&\n    candidate.beatOrder === 1\n  ) {\n    return false;\n  }`,
   "make opening subject identity a hard sequence invariant",
 );
