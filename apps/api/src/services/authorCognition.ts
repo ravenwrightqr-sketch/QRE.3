@@ -13,6 +13,7 @@ import {
 } from "./authorExperienceState.js";
 import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import { buildAuthorWorldSimulation } from "./authorWorldSimulation.js";
 import {
   classifyLens,
   rankLensOpportunities,
@@ -85,27 +86,7 @@ const clean = (value: unknown): string =>
     .trim();
 
 const uniq = <T>(values: readonly T[], limit = 24): T[] => [...new Set(values)].slice(0, limit);
-const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const PRIOR_STATE_PREFIX = "QRE_AUTHOR_EXPERIENCE_STATE::";
-
-function domainContextText(context?: AuthorDomainContext): string[] {
-  if (!context) return [];
-  return [
-    context.category ? `domain category: ${context.category}` : "",
-    context.businessType ? `business type: ${context.businessType}` : "",
-    context.businessName ? `business name: ${context.businessName}` : "",
-    context.businessDescription ? `business description: ${context.businessDescription}` : "",
-    context.serviceType ? `service type: ${context.serviceType}` : "",
-    context.serviceName ? `service: ${context.serviceName}` : "",
-    context.subjectKind ? `subject kind: ${context.subjectKind}` : "",
-    ...(context.knownCapabilities ?? []).map((item) => `known capability: ${item}`),
-    ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
-  ].filter(Boolean);
-}
-
-function eventById(graph: RealityGraph | undefined, id: string): RealityGraph["events"][number] | undefined {
-  return graph?.events.find((event) => event.id === id);
-}
 
 function parsePriorExperienceStates(values?: readonly string[]): AuthorExperienceState[] {
   const states: AuthorExperienceState[] = [];
@@ -151,15 +132,18 @@ function resolveLens(input: AuthorCognitionInput): string {
   return autoLensCandidates(input)[0]?.frame ?? "NONE";
 }
 
-/**
- * Movie discovery is lens-blind.
- * The selected perceptual lens enters only after the full candidate set exists.
- */
 function movieFor(
   input: AuthorCognitionInput,
   selectedLens: string,
-): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate } {
+): { latentMovieCandidates: LatentMovieCandidate[]; selectedMovie?: LatentMovieCandidate; worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation> } {
   if (input.movieMode === false || !input.realityGraph) return { latentMovieCandidates: [] };
+
+  const worldSimulation = buildAuthorWorldSimulation({
+    reality: input.realityGraph,
+    subject: input.subject,
+    lens: selectedLens,
+    priorExperienceIds: [],
+  });
 
   const discovered = searchUniversalMovieCandidates({
     graph: input.realityGraph,
@@ -167,11 +151,45 @@ function movieFor(
     limit: 10,
   });
 
-  const enriched = discovered.map((candidate) => enrichMovieCandidate(candidate, input.realityGraph));
+  const simulationObserver = {
+    objective: "Construct a viewer-facing situation model from supplied world relationships; preserve uncertainty until evidence earns an update.",
+    surprise: worldSimulation.viewer.predictionErrors.map((item) => item.observed).slice(0, 3).join(" | ") || "Meaning should emerge from changing relationships.",
+    curiosity: worldSimulation.questions.slice(0, 3).map((item) => item.text).join(" | ") || "What becomes newly meaningful?",
+    attention: worldSimulation.viewer.attentionField.slice(0, 6).map((item) => item.reason),
+    landing: worldSimulation.durableThreads[0]?.text || "Allow the supplied endpoint to resolve the strongest open relation.",
+    explanationForbidden: true,
+    simulation: worldSimulation,
+  };
+
+  const enriched = discovered.map((candidate) => {
+    const candidateWithThesis = enrichMovieCandidate(candidate, input.realityGraph);
+    const observer = candidateWithThesis.storyThesis?.observerExperience;
+    if (!candidateWithThesis.storyThesis) return candidateWithThesis;
+    return {
+      ...candidateWithThesis,
+      storyThesis: {
+        ...candidateWithThesis.storyThesis,
+        observerExperience: {
+          ...(observer ?? simulationObserver),
+          simulation: worldSimulation,
+          attention: observer?.attention?.length ? observer.attention : simulationObserver.attention,
+          curiosity: observer?.curiosity || simulationObserver.curiosity,
+          surprise: observer?.surprise || simulationObserver.surprise,
+          landing: observer?.landing || simulationObserver.landing,
+          explanationForbidden: true,
+        },
+      },
+    };
+  });
+
   const differentiated = selectDistinctMovieCandidates(enriched, 6, selectedLens);
   const candidates = rerankByViewerState(input.realityGraph, differentiated);
 
-  return { latentMovieCandidates: candidates, selectedMovie: candidates[0] };
+  return {
+    latentMovieCandidates: candidates,
+    selectedMovie: candidates[0],
+    worldSimulation,
+  };
 }
 
 function traits(input: AuthorCognitionInput): string[] {
@@ -292,7 +310,6 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
     avoidedMoves: ["invented concrete events", "invented people", "invented locations", "invented reactions", "invented chronology", "literalized lens props", "planner language", "analytic explanation"],
   };
 
-  const selectedFrame = selectedLens;
   const attentionCandidates = buildAttentionCandidates();
   const chosen = selectedMovie ? "latent_movie" : "direct_grounded";
   const operatorMix = operationsForMovie(selectedMovie);
@@ -302,11 +319,12 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
   const graphSummary = input.realityGraph ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations.` : "REALITY GRAPH: unavailable.";
   const dynamics = selectedMovie?.viewerStateDynamics;
   const semanticTurn = selectedMovie?.storyThesis?.semanticTurn;
+  const simulation = experienceState?.worldSimulation ?? movie.worldSimulation;
   const movieSummary = selectedMovie
-    ? [`SELECTED MOVIE: ${selectedMovie.hypothesis.join(" ")}`, `SEMANTIC TURN: ${semanticTurn || "none"}`, `THESIS RELATION: ${selectedMovie.storyThesis?.relationKind ?? "none"}`, `CANDIDATE COUNT: ${movie.latentMovieCandidates.length}`, `VIEWER-STATE SCORE: ${dynamics?.score ?? "n/a"}`].join(" ")
+    ? [`SELECTED MOVIE: ${selectedMovie.hypothesis.join(" ")}`, `SEMANTIC TURN: ${semanticTurn || "none"}`, `THESIS RELATION: ${selectedMovie.storyThesis?.relationKind ?? "none"}`, `CANDIDATE COUNT: ${movie.latentMovieCandidates.length}`, `VIEWER-STATE SCORE: ${dynamics?.score ?? "n/a"}`, `WORLD SIMULATION: ${simulation ? `${simulation.refs.length} refs / ${simulation.relations.length} relations / ${simulation.questions.length} questions` : "none"}`].join(" ")
     : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
-  const lensProfile = classifyLens(selectedFrame);
-  const frameSummary = `FRAME: ${selectedFrame}. AMPLIFY: ${lensProfile.framingBias.join(", ")}. PREFER: ${lensProfile.realizationPreferences.join(", ")}. A frame changes perspective, never reality.`;
+  const lensProfile = classifyLens(selectedLens);
+  const frameSummary = `FRAME: ${selectedLens}. AMPLIFY: ${lensProfile.framingBias.join(", ")}. PREFER: ${lensProfile.realizationPreferences.join(", ")}. A frame changes perspective, never reality.`;
   const authorBrief = [
     `MODE: ${chosen}`,
     frameSummary,
@@ -319,7 +337,7 @@ export function buildAuthorCognitivePlan(input: AuthorCognitionInput): AuthorCog
 
   return {
     mode: chosen,
-    selectedFrame,
+    selectedFrame: selectedLens,
     chosenAttentionStrategy: chosen,
     attentionCandidates,
     characterRead,
