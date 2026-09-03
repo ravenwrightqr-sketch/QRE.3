@@ -160,8 +160,9 @@ function unsupportedConcreteRisk(text: string, envelope: RealityEnvelope): numbe
     ...envelope.suppliedPhrases,
   ].join(" "));
   const grounding = overlap(meaningful(value), source);
-  const unsupportedActions = /\b(?:walk(?:ed|s)?|run(?:ning|s)?|jump(?:ed|s|ing)?|grab(?:bed|s|bing)?|kiss(?:ed|es|ing)?|hug(?:ged|s|ging)?|smil(?:ed|es|ing)?|laugh(?:ed|s|ing)?|talk(?:ed|s|ing)?|open(?:ed|s|ing)?|clos(?:ed|es|ing)?|enter(?:ed|s|ing)?|look(?:ed|s|ing)?|move(?:d|s|ing)?|touch(?:ed|es|ing)?|throw|threw|catch|caught|dance(?:d|s|ing)?|drive|drove|push(?:ed|es|ing)?|pull(?:ed|s|ing)?|vanish(?:ed|es|ing)?|disappear(?:ed|es|ing)?|blink(?:ed|s|ing)?|wave(?:d|s|ing)?)\b/i;
-  return unsupportedActions.test(value) && grounding < 0.45 ? 1 : 0;
+  const unsupportedActions = /\b(?:walk(?:ed|s)?|run(?:ning|s)?|jump(?:ed|s|ing)?|grab(?:bed|s|bing)?|kiss(?:ed|es|ing)?|hug(?:ged|s|ging)?|smil(?:ed|es|ing)?|laugh(?:ed|s|ing)?|talk(?:ed|s|ing)?|open(?:ed|s|ing)?|clos(?:ed|es|ing)?|enter(?:ed|s|ing)?|look(?:ed|s|ing)?|move(?:d|s|ing)?|touch(?:ed|es|ing)?|throw|threw|catch|caught|dance(?:d|s|ing)?|drive|drove|push(?:ed|es|ing)?|pull(?:ed|s|ing)?|vanish(?:ed|s|ing)?|disappear(?:ed|s|ing)?|blink(?:ed|s|ing)?|wave(?:d|s|ing)?)\b/i;
+  if (unsupportedActions.test(value) && grounding < 0.45) return 1;
+  return 0;
 }
 
 function authorialForce(text: string, beat: MouthCandidateBeat): number {
@@ -188,9 +189,7 @@ function creativeEvidenceOverlap(text: string, beat: MouthCandidateBeat, envelop
 function semanticOverlap(text: string, beat: MouthCandidateBeat): number {
   const s = semantic(beat);
   if (!s) return 0;
-  return overlap(meaningful([
-    clean(s.before), clean(s.after), clean(s.relation?.kind), clean(s.creativeOpportunity), clean(s.realizationMove), clean(s.mechanism),
-  ].join(" ")), meaningful(text));
+  return overlap(meaningful([clean(s.before), clean(s.after), clean(s.relation?.kind), clean(s.creativeOpportunity), clean(s.realizationMove), clean(s.mechanism)].join(" ")), meaningful(text));
 }
 
 function exactSource(text: string, labels: readonly string[]): boolean {
@@ -336,7 +335,6 @@ export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope
   const contrast = /contrast|opposition|difference|tension/i.test(relation);
   const callback = /return|recurrence|again|callback|memory/i.test(relation);
   const consequence = /cause|consequence|result|effect/i.test(relation);
-
   if (agency && subject && target) {
     if (/payoff|release/i.test(clean(beat.role))) candidates.push(`${subject} had other plans for ${target}.`);
     else if (current) candidates.push(`Apparently, ${current} had competition.`);
@@ -370,7 +368,8 @@ export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
   if (!clean(candidate.text) || candidate.inventionRisk >= 0.9) return false;
   if (candidate.reasons.includes("generic-summary-risk") || candidate.reasons.includes("process-language-risk")) return false;
   if (candidate.reasons.includes("explicit-explanation-risk") && candidate.forbiddenMoveRisk >= 0.9) return false;
-  if (candidate.endpointExactness >= 0.999) return false;
+  if (candidate.endpointExactness >= 0.999 && candidate.beatOrder > 1) return false;
+  if (candidate.beatOrder === 1 && candidate.endpointExactness >= 0.999) return true;
   return candidate.reasons.includes("approved-semantic-realization") &&
     candidate.reasons.includes("meaning-executed") &&
     (candidate.reasons.includes("authorial-turn") || candidate.meaningScore >= 0.34) &&
@@ -381,11 +380,9 @@ function pathIncrement(candidate: MouthCandidate, prior: readonly MouthCandidate
   const novelty = lexicalNovelty(candidate.text, prior);
   const state = pool.viewerState;
   const fit = metric(candidate.transitionScore * 0.2 + state.stateShift * 0.16 + state.curiosityPressure * 0.2 + state.predictionError * 0.14 + candidate.observerDiscoveryScore * 0.3);
-  return metric(
-    candidate.score * 0.35 + candidate.meaningScore * 0.14 + candidate.cohesionScore * 0.1 + candidate.obligationCoverage * 0.06 + fit * 0.12 + novelty * 0.06 +
+  return metric(candidate.score * 0.35 + candidate.meaningScore * 0.14 + candidate.cohesionScore * 0.1 + candidate.obligationCoverage * 0.06 + fit * 0.12 + novelty * 0.06 +
     (candidate.reasons.includes("authorial-turn") ? 0.09 : 0) + (candidate.reasons.includes("source-specific") ? 0.05 : 0) +
-    (candidate.reasons.includes("compressed") ? 0.04 : 0) - (candidate.reasons.includes("explicit-explanation-risk") ? 0.12 : 0) - candidate.forbiddenMoveRisk * 0.12,
-  );
+    (candidate.reasons.includes("compressed") ? 0.04 : 0) - (candidate.reasons.includes("explicit-explanation-risk") ? 0.12 : 0) - candidate.forbiddenMoveRisk * 0.12);
 }
 
 function dedupe(candidates: readonly MouthCandidate[]): MouthCandidate[] {
@@ -406,7 +403,6 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
   const width = Math.max(1, Math.floor(options.width ?? 12));
   const perBeat = Math.max(1, Math.floor(options.candidatesPerBeat ?? 8));
   let paths: Array<{ candidates: MouthCandidate[]; score: number }> = [{ candidates: [], score: 0 }];
-
   for (let poolIndex = 0; poolIndex < ordered.length; poolIndex += 1) {
     const pool = ordered[poolIndex];
     const creative = dedupe(pool.candidates).filter(isAuthorizedMouthCandidate).filter((candidate) => !candidate.reasons.includes("literal-source-restatement"));
@@ -427,7 +423,6 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
     expanded.sort((a, b) => b.score - a.score);
     paths = expanded.slice(0, width);
   }
-
   const best = paths[0];
   if (!best) return { candidates: [], texts: [], score: 0 };
   return { candidates: best.candidates, texts: best.candidates.map((candidate) => candidate.text), score: metric(best.score / Math.max(1, best.candidates.length)) };
@@ -435,6 +430,7 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
 
 export function completeMouthPools(input: { envelope: RealityEnvelope; beats: readonly MouthCandidateBeat[]; generated?: MouthCandidateBatch }): MouthCandidatePool[] {
   return input.beats.map((beat) => {
+    if (!beat.viewerState) throw new Error(`Mouth beat ${beat.order} is missing viewerState`);
     const generated = input.generated?.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [];
     const generatedCandidates = generated.map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }));
     const fallbackCandidates = deterministicCreativeFallback(beat, input.envelope).map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }));
