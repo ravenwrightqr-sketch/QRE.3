@@ -48,10 +48,6 @@ function sourceLabels(beat: MouthCandidateBeat, envelope: RealityEnvelope): stri
   return uniqueStrings((beat.eventIds ?? []).map((id) => envelope.events.find((event) => event.id === id)?.label ?? ""));
 }
 
-function subjectLabel(envelope: RealityEnvelope): string {
-  return clean(envelope.subject);
-}
-
 function semantic(beat: MouthCandidateBeat) {
   return beat.semanticRealization;
 }
@@ -63,7 +59,7 @@ function relationKind(beat: MouthCandidateBeat): string {
 function extractObject(label: string, subject: string): string {
   const value = clean(label).replace(/[.!?]+$/g, "");
   const withoutSubject = subject
-    ? value.replace(new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[,:]?\\s*`, "i"), "")
+    ? value.replace(new RegExp(`^${subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b[,:]?\\s*`, "i"), "")
     : value;
   const patterns = [
     /\b(?:stole|took|grabbed|got|found|lost|bought|sold|ordered|chose|kept|returned|wore|used|held|picked)\s+(?:the|a|an)?\s*(.+)$/i,
@@ -102,13 +98,11 @@ function creativeStrategies(beat: MouthCandidateBeat): string[] {
 
 function compactCreativeJob(beat: MouthCandidateBeat, envelope: RealityEnvelope) {
   const s = semantic(beat);
-  const labels = sourceLabels(beat, envelope);
-  const subject = subjectLabel(envelope);
   return {
     order: beat.order,
     role: clean(beat.role),
-    subject,
-    evidence: labels,
+    subject: clean(envelope.subject),
+    evidence: sourceLabels(beat, envelope),
     meaning: {
       relation: clean(s?.relation?.kind),
       before: clean(s?.before),
@@ -278,7 +272,7 @@ function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: Rea
     compressionScore: compressed ? 0.98 : 0.55,
     inventionRisk: invention,
     repetitionRisk: 1 - priorNovelty,
-    collageRisk: sourceLabels(beat, envelope).length > 1 && creativeEvidenceOverlap(value, beat, envelope) < 0.25 ? 0.75 : 0,
+    collageRisk: labels.length > 1 && creativeEvidenceOverlap(value, beat, envelope) < 0.25 ? 0.75 : 0,
     endpointExactness: literal ? 1 : 0,
     score,
     reasons,
@@ -288,22 +282,22 @@ function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: Rea
 function buildSystemPrompt(): string {
   return [
     "You are QRE's ONE MOUTH: an expert human copywriter operating under an absolute reality boundary.",
-    "The movie and semantic meaning are already chosen. Your job is LANGUAGE REALIZATION, not planning.",
-    "The source facts are raw material, never prose to copy.",
-    "For each beat, make the approved relationship felt. The reader should notice a connection, reversal, implication, callback, collision, or recontextualization rather than being told the thesis.",
+    "The movie, sequence, semantic meaning, and beat roles are already chosen. Your job is LANGUAGE REALIZATION, not planning.",
+    "SOURCE FACTS ARE RAW MATERIAL, NOT PROSE TO COPY.",
+    "Every non-opening beat must make the approved relationship FELT: reframe, contrast, collision, implication, callback, status reversal, understatement, or another supplied semantic turn.",
+    "The opening/establishing beat may be a clean grounded anchor. The middle and payoff must not be mere source restatements when approved semantic meaning exists.",
     "Use only supplied reality. You may invent phrasing, syntax, attitude, metaphor, personification, wordplay, understatement, status language, comic timing, juxtaposition, and implication.",
     "Never invent a physical action, object, person, setting, sound, reaction, dialogue, chronology, or outcome.",
-    "Never write about viewers, audiences, beats, strategies, evidence, cognition, movies, planning, or storytelling.",
+    "Never mention viewers, audiences, beats, strategies, evidence, cognition, movies, planning, or storytelling.",
     "Never write generic emotional summaries or trailer language.",
-    "Prefer 3-8 words. A line may be longer only when the source-specific joke genuinely needs it.",
-    "After a subject is established, avoid repeating its name unless doing so makes the line hit harder.",
-    "When a supplied event and a later supplied event have an approved agency/choice/deviation relation, a status turn such as 'had other plans' is allowed. It must refer only to supplied material.",
-    "When two supplied details form the approved semantic center, collide them. Do not add a third concrete detail.",
-    "When the beat is payoff, land the supplied endpoint. Do not append another event.",
-    "When explanationForbidden is true, do not explain the relationship or state its lesson.",
-    "Internally compare many possibilities. Return only the strongest three materially different realizations for every beat.",
-    "Candidate A: sharpest grounded realization. Candidate B: compressed reframe. Candidate C: boldest approved implication.",
-    "The three candidates must differ in sentence logic, not adjective swaps.",
+    "Prefer 3-8 words. A slightly longer source-specific punch is allowed when necessary.",
+    "A grounded line can be creative without repeating every source noun. Preserve enough anchor that the approved reality remains recoverable.",
+    "When agency, choice, deviation, or surprise is approved, a status phrase such as 'had other plans' may express it without adding an event.",
+    "When two supplied details form the semantic center, collide them. Do not add a third concrete fact.",
+    "At payoff, land the supplied endpoint and the accumulated meaning. Do not append another event.",
+    "When explanationForbidden is true, do not explain the thesis, relationship, lesson, or conclusion.",
+    "Internally draft many possibilities and silently reject weak ones. Return only the strongest three materially different realizations for every beat.",
+    "A is safest sharp realization. B is compressed reframe. C is boldest approved implication.",
   ].join(" ");
 }
 
@@ -315,20 +309,16 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     {
       role: "user" as const,
       content: JSON.stringify({
-        task: "REALIZE_THESE_APPROVED_CREATIVE_JOBS",
+        task: "REALIZE_APPROVED_CREATIVE_JOBS",
         lens: input.lens || "AUTO",
-        lensProfile: {
-          name: lens.name,
-          description: lens.description,
-          pressure: lens.pressure,
-        },
-        globalReality: {
+        lensProfile: { name: lens.name, description: lens.description, pressure: lens.pressure },
+        reality: {
           subject: input.envelope.subject,
-          suppliedEntities: input.envelope.suppliedEntities.slice(0, 16),
-          suppliedActions: input.envelope.suppliedActions.slice(0, 16),
-          suppliedStates: input.envelope.suppliedStates.slice(0, 16),
-          suppliedPhrases: input.envelope.suppliedPhrases.slice(0, 20),
-          events: input.envelope.events.slice(0, 20).map((event) => ({ id: event.id, label: event.label })),
+          entities: input.envelope.suppliedEntities.slice(0, 16),
+          actions: input.envelope.suppliedActions.slice(0, 16),
+          states: input.envelope.suppliedStates.slice(0, 16),
+          phrases: input.envelope.suppliedPhrases.slice(0, 20),
+          events: input.envelope.events.slice(0, 24).map((event) => ({ id: event.id, label: event.label })),
         },
         jobs,
         priorTexts: input.priorTexts ?? [],
@@ -352,51 +342,32 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
   }
 }
 
-export function scoreMouthCandidate(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate {
-  return evaluateCandidate(input.text, input.beat, input.envelope, input.priorTexts ?? []);
-}
-
-export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
-  if (!clean(candidate.text) || candidate.inventionRisk >= 0.9) return false;
-  if (candidate.reasons.includes("generic-summary-risk") || candidate.reasons.includes("process-language-risk")) return false;
-  if (candidate.endpointExactness >= 0.999) return false;
-  return candidate.reasons.includes("approved-semantic-realization") &&
-    candidate.reasons.includes("meaning-executed") &&
-    (candidate.reasons.includes("authorial-turn") || candidate.meaningScore >= 0.34) &&
-    candidate.score >= 0.3;
-}
-
-function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
+export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
   const subject = clean(envelope.subject);
   const labels = sourceLabels(beat, envelope);
   const s = semantic(beat);
-  if (!s || labels.length === 0) return [];
-  const relation = clean(s.relation?.kind).toLowerCase();
-  const before = clean(s.before);
-  const after = clean(s.after);
-  const target = extractObject(after || labels[labels.length - 1], subject);
-  const primary = labels[labels.length - 1];
-  const candidates: string[] = [];
+  if (!s || !labels.length) return [];
 
-  if (/agency|choice|decision|deviation|interruption|rebellion|unexpected|intent/i.test(relation) && subject && target) {
-    candidates.push(`${subject} had other plans for ${target}.`);
-    candidates.push(`Apparently, ${target} had competition.`);
+  const relation = clean(s.relation?.kind).toLowerCase();
+  const current = extractObject(labels[labels.length - 1], subject);
+  const target = clean(s.after) || extractObject(labels[labels.length - 1], subject);
+  const candidates: string[] = [];
+  const agency = /agency|choice|decision|deviation|interruption|rebellion|unexpected|intent|surprise/i.test(relation);
+  const ownership = /ownership|possession|belong|property/i.test(relation);
+  const contrast = /contrast|opposition|difference|tension/i.test(relation);
+  const callback = /return|recurrence|again|callback|memory/i.test(relation);
+  const consequence = /cause|consequence|result|effect/i.test(relation);
+
+  if (agency && subject && target) {
+    if (/payoff|release/i.test(clean(beat.role))) candidates.push(`${subject} had other plans for ${target}.`);
+    else if (current) candidates.push(`Apparently, ${current} had competition.`);
   }
-  if (/ownership|possession|belong|property/i.test(relation) && target) {
-    candidates.push(`${target} became the point.`);
-  }
-  if (/contrast|opposition|difference|tension/i.test(relation) && before && after) {
-    candidates.push(`${clean(before.replace(/^[A-Z][a-z]+\s+/i, ""))}; then ${target}.`);
-  }
-  if (/callback|return|recurrence|memory/i.test(relation) && primary) {
-    candidates.push(`${primary} again, with consequences.`);
-  }
-  if (/cause|consequence|result|effect/i.test(relation) && primary) {
-    candidates.push(`${primary}. Apparently, that was enough.`);
-  }
-  if (/payoff|release/i.test(clean(beat.role).toLowerCase()) && subject && target) {
-    candidates.push(`${subject} chose ${target}.`);
-  }
+  if (ownership && target) candidates.push(`${target} became the point.`);
+  if (contrast && current && target) candidates.push(`${current}; ${target changed the reading}.` .replace("; ", "; ").trim());
+  if (callback && current) candidates.push(`So much for ${current}.`);
+  if (consequence && current) candidates.push(`${current} had consequences.`);
+  if (!candidates.length && subject && target) candidates.push(`${subject}, apparently, had other plans for ${target}.`);
+
   return uniqueStrings(candidates);
 }
 
@@ -406,22 +377,37 @@ function lexicalNovelty(text: string, prior: readonly MouthCandidate[]): number 
   return metric(1 - Math.max(...prior.map((candidate) => overlap(current, meaningful(candidate.text))), 0));
 }
 
+function maybeRecoverExactSource(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope }): string {
+  const labels = sourceLabels(input.beat, input.envelope);
+  if (!exactSource(input.text, labels)) return clean(input.text);
+  if (clean(input.beat.role).toLowerCase() === "establishing" || !semantic(input.beat)) return clean(input.text);
+  return deterministicCreativeFallback(input.beat, input.envelope)[0] ?? clean(input.text);
+}
+
+export function scoreMouthCandidate(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate {
+  const realized = maybeRecoverExactSource(input);
+  return evaluateCandidate(realized, input.beat, input.envelope, input.priorTexts ?? []);
+}
+
+export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
+  if (!clean(candidate.text) || candidate.inventionRisk >= 0.9) return false;
+  if (candidate.reasons.includes("generic-summary-risk") || candidate.reasons.includes("process-language-risk")) return false;
+  if (candidate.reasons.includes("explicit-explanation-risk") && candidate.forbiddenMoveRisk >= 0.9) return false;
+  if (candidate.endpointExactness >= 0.999) return false;
+  return candidate.reasons.includes("approved-semantic-realization") &&
+    candidate.reasons.includes("meaning-executed") &&
+    (candidate.reasons.includes("authorial-turn") || candidate.meaningScore >= 0.34) &&
+    candidate.score >= 0.3;
+}
+
 function pathIncrement(candidate: MouthCandidate, prior: readonly MouthCandidate[], pool: MouthCandidatePool): number {
   const novelty = lexicalNovelty(candidate.text, prior);
   const state = pool.viewerState;
   const fit = metric(candidate.transitionScore * 0.2 + state.stateShift * 0.16 + state.curiosityPressure * 0.2 + state.predictionError * 0.14 + candidate.observerDiscoveryScore * 0.3);
   return metric(
-    candidate.score * 0.35 +
-    candidate.meaningScore * 0.14 +
-    candidate.cohesionScore * 0.1 +
-    candidate.obligationCoverage * 0.06 +
-    fit * 0.12 +
-    novelty * 0.06 +
-    (candidate.reasons.includes("authorial-turn") ? 0.09 : 0) +
-    (candidate.reasons.includes("source-specific") ? 0.05 : 0) +
-    (candidate.reasons.includes("compressed") ? 0.04 : 0) -
-    (candidate.reasons.includes("explicit-explanation-risk") ? 0.12 : 0) -
-    candidate.forbiddenMoveRisk * 0.12,
+    candidate.score * 0.35 + candidate.meaningScore * 0.14 + candidate.cohesionScore * 0.1 + candidate.obligationCoverage * 0.06 + fit * 0.12 + novelty * 0.06 +
+    (candidate.reasons.includes("authorial-turn") ? 0.09 : 0) + (candidate.reasons.includes("source-specific") ? 0.05 : 0) +
+    (candidate.reasons.includes("compressed") ? 0.04 : 0) - (candidate.reasons.includes("explicit-explanation-risk") ? 0.12 : 0) - candidate.forbiddenMoveRisk * 0.12,
   );
 }
 
@@ -444,10 +430,15 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
   const perBeat = Math.max(1, Math.floor(options.candidatesPerBeat ?? 8));
   let paths: Array<{ candidates: MouthCandidate[]; score: number }> = [{ candidates: [], score: 0 }];
 
-  for (const pool of ordered) {
-    const eligible = dedupe(pool.candidates)
+  for (let poolIndex = 0; poolIndex < ordered.length; poolIndex += 1) {
+    const pool = ordered[poolIndex];
+    const creative = dedupe(pool.candidates)
       .filter(isAuthorizedMouthCandidate)
       .filter((candidate) => !candidate.reasons.includes("literal-source-restatement"));
+    const openingLiteral = poolIndex === 0
+      ? dedupe(pool.candidates).filter((candidate) => candidate.endpointExactness >= 0.999 && candidate.inventionRisk < 0.9 && !candidate.reasons.includes("generic-summary-risk"))
+      : [];
+    const eligible = dedupe([...creative, ...openingLiteral]);
 
     if (!eligible.length) return { candidates: [], texts: [], score: 0 };
     eligible.sort((a, b) => b.score - a.score);
@@ -460,6 +451,7 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
         expanded.push({ candidates: [...path.candidates, candidate], score: path.score + pathIncrement(candidate, path.candidates, pool) });
       }
     }
+
     expanded.sort((a, b) => b.score - a.score);
     paths = expanded.slice(0, width);
   }
@@ -469,24 +461,17 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
   return { candidates: best.candidates, texts: best.candidates.map((candidate) => candidate.text), score: metric(best.score / Math.max(1, best.candidates.length)) };
 }
 
-/** Build a complete pool without surrendering to a raw source caption. */
-export function completeMouthPools(input: {
-  envelope: RealityEnvelope;
-  beats: readonly MouthCandidateBeat[];
-  generated?: MouthCandidateBatch;
-}): MouthCandidatePool[] {
+export function completeMouthPools(input: { envelope: RealityEnvelope; beats: readonly MouthCandidateBeat[]; generated?: MouthCandidateBatch }): MouthCandidatePool[] {
   return input.beats.map((beat) => {
     const generated = input.generated?.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [];
     const generatedCandidates = generated.map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }));
-    const fallbackCandidates = deterministicCreativeFallback(beat, input.envelope)
-      .map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }));
-    const candidates = dedupe([...generatedCandidates, ...fallbackCandidates]);
+    const fallbackCandidates = deterministicCreativeFallback(beat, input.envelope).map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }));
     return {
       order: beat.order,
       viewerState: beat.viewerState,
       nextPromise: clean(beat.next),
       frontier: clean(beat.frontier),
-      candidates,
+      candidates: dedupe([...generatedCandidates, ...fallbackCandidates]),
     };
   });
 }
