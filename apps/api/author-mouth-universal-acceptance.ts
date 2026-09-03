@@ -9,6 +9,7 @@ const envelope = {
   events: [
     { id: "e1", label: "came in nervous" },
     { id: "e2", label: "stole a blue bow" },
+    { id: "e3", label: "left looking fabulous" },
   ],
   suppliedPhrases: ["left looking fabulous"],
   suppliedEntities: ["Coco", "blue bow"],
@@ -43,6 +44,25 @@ const semanticBeat: MouthCandidateBeat = {
     realizationMove: "recontextualize_callback",
     creativeOpportunity: "status_turn",
     confidence: 0.9,
+  } as any,
+};
+
+const bridgeBeat: MouthCandidateBeat = {
+  order: 3,
+  role: "reveal",
+  attentionFunction: "Carry an approved semantic turn through an intervening supplied event without explaining it.",
+  eventIds: ["e2"],
+  semanticRealization: {
+    mechanism: "state_change",
+    evidenceEventIds: ["e1", "e3"],
+    beforeEventIds: ["e1"],
+    afterEventIds: ["e3"],
+    before: "nervous arrival",
+    after: "left looking fabulous",
+    subject: "Coco",
+    realizationMove: "feel_state_transition",
+    creativeOpportunity: "status_turn",
+    confidence: 0.95,
   } as any,
 };
 
@@ -87,5 +107,13 @@ const implied = scoreMouthCandidate({
 });
 assert("implied cross-event realization can be authorized", isAuthorizedMouthCandidate(implied));
 assert("implied realization carries an explicit implication reason", implied.reasons.includes("implied-semantic-realization"));
+
+const bridge = scoreMouthCandidate({
+  text: "Then came the blue-bow coup.",
+  beat: bridgeBeat,
+  envelope,
+});
+assert("approved intermediate evidence can bridge a supplied before/after turn", isAuthorizedMouthCandidate(bridge));
+assert("bridge realization carries an explicit implication reason", bridge.reasons.includes("implied-semantic-realization"));
 
 console.log("UNIVERSAL MOUTH ACCEPTANCE GREEN · ACCUMULATE · IMPLY · RECONTEXTUALIZE · PAYOFF · NO ATMOSPHERIC BYPASS");
