@@ -90,13 +90,15 @@ function interpretationScore(
     : 0;
   const endpoint = endpointId(candidate);
   const endpointSupport = endpoint && evidence.includes(endpoint) ? 1 : 0;
+  const callbackSupport = interpretation.callback?.eventIds?.length ? 1 : 0;
 
   return interpretation.confidence * 0.3 +
     mechanismPriority(interpretation.mechanism) * 0.28 +
     statementSpecificity(interpretation.statement) * 0.2 +
     coverage * 0.12 +
-    spread * 0.06 +
-    endpointSupport * 0.04;
+    spread * 0.04 +
+    endpointSupport * 0.02 +
+    callbackSupport * 0.04;
 }
 
 function strongestInterpretation(
@@ -169,10 +171,18 @@ function buildObserverExperienceObjective(
     },
     state_change: {
       objective: interpretation.statement,
-      surprise: "Let the observer feel the supplied before-and-after difference rather than hear a summary of it.",
-      curiosity: "Make the observer notice that the subject is no longer where the story began.",
-      attention: ["establish the starting state", "watch the supplied change accumulate", "delay the label", "recognize the new state"],
-      landing: "Let the supplied later state answer the earlier state.",
+      surprise: interpretation.callback?.detail
+        ? "Let the observer notice the concrete detail that carries the supplied before-and-after shift."
+        : "Let the observer feel the supplied before-and-after difference rather than hear a summary of it.",
+      curiosity: interpretation.callback?.detail
+        ? "Make the observer wonder what the concrete middle detail will mean by the time the supplied ending arrives."
+        : "Make the observer notice that the subject is no longer where the story began.",
+      attention: interpretation.callback?.detail
+        ? ["establish the starting state", "notice the concrete middle detail", "let later evidence change its significance", "recognize the new state"]
+        : ["establish the starting state", "watch the supplied change accumulate", "delay the label", "recognize the new state"],
+      landing: interpretation.callback?.detail
+        ? "Let the supplied ending reveal why the concrete middle detail mattered."
+        : "Let the supplied later state answer the earlier state.",
       explanationForbidden: true,
     },
     contrast: {
@@ -277,12 +287,51 @@ function buildSemanticRealization(
   };
 }
 
+function attachIntermediateHinge(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  interpretation: CreativeInterpretation | undefined,
+): CreativeInterpretation | undefined {
+  if (!interpretation) return undefined;
+  if (interpretation.callback?.eventIds?.length) return interpretation;
+  if (interpretation.mechanism !== "state_change") return interpretation;
+
+  const start = interpretation.beforeEventIds[0];
+  const end = interpretation.afterEventIds[0];
+  if (!start || !end) return interpretation;
+
+  const ids = orderedIds(candidate);
+  const startIndex = ids.indexOf(start);
+  const endIndex = ids.indexOf(end);
+  if (startIndex < 0 || endIndex < 0 || startIndex >= endIndex) return interpretation;
+
+  const middle = ids
+    .slice(startIndex + 1, endIndex)
+    .map((id) => ({ id, label: eventLabel(graph, id) }))
+    .find((item) => Boolean(item.label));
+  if (!middle) return interpretation;
+
+  return {
+    ...interpretation,
+    evidenceEventIds: unique([...interpretation.evidenceEventIds, ...ids.slice(startIndex, endIndex + 1)]),
+    callback: {
+      detail: middle.label,
+      eventIds: [middle.id],
+      role: "recontextualization",
+    },
+    realizationMove: "recontextualize_callback",
+    creativeOpportunity: "state_to_callback",
+    confidence: Math.min(1, interpretation.confidence + 0.005),
+  };
+}
+
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): LatentStoryThesis {
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
-  const interpretation = strongestInterpretation(candidate, interpretations);
+  const selectedInterpretation = strongestInterpretation(candidate, interpretations);
+  const interpretation = attachIntermediateHinge(graph, candidate, selectedInterpretation);
   const fallbackRelation = strongestRelation(graph, candidate);
   const endpoint = endpointId(candidate);
 
