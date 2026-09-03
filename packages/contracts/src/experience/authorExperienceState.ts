@@ -4,6 +4,8 @@
  * Durable semantic state for an authored chapter.
  * This is interpretation state, never source truth.
  */
+import type { WorldSimulation } from "./worldSimulation.js";
+
 export type AuthorTempoMode =
   | "hook"
   | "accelerate"
@@ -29,6 +31,9 @@ export type AuthorExperienceState = {
 
   /** Explicit factual labels retained only as provenance anchors for later comparison. */
   realityAnchors?: string[];
+
+  /** Rich observer/world simulation persisted with the cognitive experience state. */
+  worldSimulation?: WorldSimulation;
 
   establishedEventIds: string[];
   changedEventIds: string[];

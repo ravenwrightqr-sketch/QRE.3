@@ -56,17 +56,26 @@ jobs:
       - name: Build web
         run: pnpm build:web
 
-      - name: Universal reality acceptance
-        run: pnpm --filter @qre/engine test:universal-mind
+      - name: World simulation acceptance
+        run: pnpm author:world-simulation
 
-      - name: Durable memory compiler acceptance
-        run: pnpm tsx packages/engine/src/experience/tests/latentMovieLearningV6Acceptance.ts
+      - name: World simulation wiring acceptance
+        run: pnpm author:world-wiring
 
-      - name: Universal cognitive mind acceptance
-        run: pnpm --filter @qre/engine test:universal-mind
+      - name: Universal discovery acceptance
+        run: pnpm exec tsx apps/api/author-universal-discovery-acceptance.ts
 
-      - name: Creative superstar acceptance
-        run: pnpm --filter @qre/engine test:creative-superstar
+      - name: Universal lens acceptance
+        run: pnpm exec tsx apps/api/author-universal-lens-acceptance.ts
 
-      - name: Runtime cognition acceptance
-        run: pnpm --filter @qre/engine test:runtime-cognition
+      - name: Universal movie search acceptance
+        run: pnpm exec tsx apps/api/author-universal-movie-search-acceptance.ts
+
+      - name: Return golden acceptance
+        run: pnpm exec tsx apps/api/author-return-golden-acceptance.ts
+
+      - name: Author brain end-to-end acceptance
+        run: pnpm exec tsx apps/api/author-brain-end-to-end-acceptance.ts
+
+      - name: Author persistence acceptance
+        run: pnpm author:persistence

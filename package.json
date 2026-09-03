@@ -13,6 +13,9 @@
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "author:lens-boundary": "pnpm --filter @qre/api exec tsx ./author-lens-boundary-acceptance.ts",
+    "author:world-simulation": "pnpm --filter @qre/api exec tsx ./author-world-simulation-acceptance.ts",
+    "author:world-wiring": "pnpm --filter @qre/api exec tsx ./author-world-simulation-wiring-acceptance.ts",
+    "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
@@ -42,6 +45,7 @@
     "@prisma/client": "6.19.3",
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "stripe": "^22.2.1",
     "zod": "^4.4.3",
     "zustand": "5.0.14"

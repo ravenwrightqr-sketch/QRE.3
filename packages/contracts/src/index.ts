@@ -24,6 +24,7 @@ export * from "./experience/memorySpatialV16.js";
 export type { TheState } from "./theState.js";
 export * from "./authoringIntelligence.js";
 export * from "./realityAuthority.js";
+export * from "./experience/worldSimulation.js";
 export type { MediaAsset, MediaType } from "./media.js";
 export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";

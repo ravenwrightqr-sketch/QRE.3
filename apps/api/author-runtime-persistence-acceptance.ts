@@ -82,7 +82,13 @@ try {
   const statesRound1 = extractAuthorExperienceStates(contextAfterRound1);
 
   assert(round1.authorExperienceState, "round 1 did not produce Author experience state");
+  assert((round1.authorExperienceState as any).worldSimulation, "round 1 Author state has no persisted World Simulation");
+  assert((round1.authorExperienceState as any).worldSimulation.viewer, "round 1 World Simulation has no viewer state");
+  assert((round1.authorExperienceState as any).worldSimulation.questions.length > 0, "round 1 World Simulation has no unresolved question model");
+  assert((round1.authorExperienceState as any).worldSimulation.relations.length > 0, "round 1 World Simulation has no relation model");
   assert(statesRound1.length >= 1, "round 1 state was not persisted to memory");
+  assert((statesRound1[0] as any).worldSimulation, "round 1 persisted memory state dropped World Simulation");
+  assert((statesRound1[0] as any).worldSimulation.interpretationOpportunities.length > 0, "round 1 persisted World Simulation dropped interpretation opportunities");
   assert(contextAfterRound1.entities.length > 0, "round 1 did not persist world entities");
   assert(contextAfterRound1.facts.length > 0, "round 1 did not persist world facts");
   assert(round1.memory?.events && round1.memory.events > 0, "round 1 did not report memory event writes");
@@ -118,7 +124,11 @@ try {
   const statesRound2 = extractAuthorExperienceStates(contextAfterRound2);
 
   assert(round2.authorExperienceState, "round 2 did not recover Author experience state");
+  assert((round2.authorExperienceState as any).worldSimulation, "round 2 did not recover World Simulation");
+  assert((round2.authorExperienceState as any).worldSimulation.reentry.meaningCanChange === true, "round 2 did not recover reentry semantics");
+  assert((round2.authorExperienceState as any).worldSimulation.reentry.eligibleCallbacks.length > 0, "round 2 did not recover world callbacks");
   assert(statesRound2.length >= 2, "round 2 did not append a persisted Author state");
+  assert((statesRound2[statesRound2.length - 1] as any).worldSimulation, "round 2 persisted state dropped World Simulation");
   assert(truthRound2 === truthRound1, "world truth changed between round 1 and round 2");
   assert(
     (round2.authorExperienceState as any).revisitedEventIds.length >=
@@ -156,10 +166,12 @@ try {
   );
 
   assert(round3.authorExperienceState, "round 3 did not recover Author experience state");
-  assert(statesRound3.length >= 3, "round 3 state did not persist through the real memory path");
+  assert((round3.authorExperienceState as any).worldSimulation, "round 3 did not recover World Simulation");
+  assert((statesRound3[statesRound3.length - 1] as any).worldSimulation, "round 3 persisted state dropped World Simulation");
   assert(truthRound3 === truthRound1, "world truth changed across persisted rounds");
+  assert(statesRound3.length >= 3, "round 3 state did not persist through the real memory path");
   assert(persistedRound3Events.length >= persistedRound2Events.length, "analytics history did not persist across rounds");
-  assert(round3Profile.confidence >= round2Profile.confidence, "learned confidence regressed across persisted rounds");
+  assert(round3Profile.confidence >= round2Profile.confidence, "learned confidence regressed across rounds");
 
   const round1State: any = round1.authorExperienceState;
   const round2State: any = round2.authorExperienceState;
@@ -190,6 +202,11 @@ try {
   console.log(`Round1StateCount=${statesRound1.length}`);
   console.log(`Round2StateCount=${statesRound2.length}`);
   console.log(`Round3StateCount=${statesRound3.length}`);
+  console.log(`Round1WorldRelations=${round1State.worldSimulation.relations.length}`);
+  console.log(`Round2WorldQuestions=${round2State.worldSimulation.questions.length}`);
+  console.log(`Round3WorldHypotheses=${round3State.worldSimulation.viewer.hypotheses.length}`);
+  console.log(`Round3PredictionErrors=${round3State.worldSimulation.viewer.predictionErrors.length}`);
+  console.log(`Round3WorldCallbacks=${round3State.worldSimulation.reentry.eligibleCallbacks.length}`);
   console.log(`Round1Tempo=${round1State.tempo.mode}`);
   console.log(`Round2Tempo=${round2State.tempo.mode}`);
   console.log(`Round3Tempo=${round3State.tempo.mode}`);
@@ -200,6 +217,8 @@ try {
   console.log(`Round3ProfileConfidence=${round3Profile.confidence}`);
   console.log(`AnalyticsRound2=${persistedRound2Events.length}`);
   console.log(`AnalyticsRound3=${persistedRound3Events.length}`);
+  console.log("WORLD_SIMULATION_PERSISTED=TRUE");
+  console.log("WORLD_SIMULATION_RECOVERED=TRUE");
   console.log("TRUTH_INVARIANT=UNCHANGED");
 } finally {
   if (assetId) {

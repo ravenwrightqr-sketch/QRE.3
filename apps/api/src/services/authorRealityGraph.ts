@@ -144,8 +144,8 @@ function subjectParticipates(label: string, subject?: string): boolean {
 
   if (/^(?:the|a|an)\s+.+\s+(?:is|are|was|were|being|been)\s+\w/i.test(normalizedLabel)) return false;
 
-  if (/^(?:arriv|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) return true;
-
+  if (/^(?:arrive|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) return true;
+    if (/^(?:they|he|she|we|you)\b/i.test(normalizedLabel)) return true;
   if (/^(?:is|are|was|were|feels?|felt|seems?|seemed|became|became|looks?|looked)\b/i.test(normalizedLabel)) return true;
 
   return false;
