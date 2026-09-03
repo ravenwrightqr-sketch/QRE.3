@@ -6,6 +6,7 @@
  */
 
 import type { LatentSemanticRealization } from "../experience/latentMovie.js";
+import type { MouthRealizationAuthority } from "./realizationAuthority.js";
 
 export type ViewerStateAttentionMove =
   | "orient"
@@ -67,6 +68,8 @@ export type MouthCandidateBeat = {
   semanticRealization?: LatentSemanticRealization;
   /** Canonical observer-facing objective for felt realization. */
   observerExperience?: MouthObserverExperienceObjective;
+  /** Canonical separation of concrete reality, meaning, and creative moves. */
+  realizationAuthority?: MouthRealizationAuthority;
 };
 
 export type MouthCandidate = {
