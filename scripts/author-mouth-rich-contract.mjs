@@ -106,12 +106,18 @@ const replacement = String.raw`function compactCreativeJob(
       : null,
     viewerState: beat.viewerState
       ? {
-          before: beat.viewerState.before,
-          after: beat.viewerState.after,
+          beforeState: clean(beat.viewerState.beforeState),
+          afterState: clean(beat.viewerState.afterState),
+          attentionMove: clean(beat.viewerState.attentionMove),
+          curiosityPressure: beat.viewerState.curiosityPressure,
+          contrast: beat.viewerState.contrast,
+          interruption: beat.viewerState.interruption,
+          accumulation: beat.viewerState.accumulation,
+          tempo: beat.viewerState.tempo,
+          payoffPressure: beat.viewerState.payoffPressure,
           stateShift: beat.viewerState.stateShift,
           predictionError: beat.viewerState.predictionError,
-          curiosityPressure: beat.viewerState.curiosityPressure,
-          attentionDelta: beat.viewerState.attentionDelta,
+          evidenceEventIds: uniqueStrings(beat.viewerState.evidenceEventIds ?? []),
         }
       : null,
     change: clean(beat.change),
