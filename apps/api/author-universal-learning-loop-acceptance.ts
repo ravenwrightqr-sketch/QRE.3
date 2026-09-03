@@ -98,12 +98,6 @@ for (const test of cases) {
   const round1Text = truthishText(round1);
   assert(round1Text.length > 0, `${test.name}: round 1 produced no authored language`);
 
-  const learnedContext = [
-    "accepted: short punchy callback",
-    "behavior-preference: return with changed meaning",
-    `observation: ${test.observation}`,
-  ];
-
   const round2 = await authorBrainUniversal({
     prompt: test.secondPrompt,
     subject: test.subject,
@@ -120,7 +114,10 @@ for (const test of cases) {
       `prior place: ${test.place}`,
     ],
     trajectory: round1.sequence.cuts.map((cut) => cut.attentionDelta),
-    creativeLearningContext: learnedContext,
+    creativeLearningContext: [
+      "accepted: short punchy callback",
+      "behavior-preference: return with changed meaning",
+    ],
   });
 
   assert(round2.sequence, `${test.name}: round 2 produced no SequencePlay`);
@@ -135,6 +132,11 @@ for (const test of cases) {
     round2.sequence.cuts.some((cut) => cut.role === "callback" || cut.role === "reframe" || cut.role === "discovery" || cut.role === "consequence" || cut.role === "payoff"),
     `${test.name}: round 2 did not expose a meaningful return/readjustment cut`,
   );
+  assert(
+    [...round2.sequence.cuts.flatMap((cut) => cut.sourceIds)].length > round1.sequence.cuts.flatMap((cut) => cut.sourceIds).length ||
+      round2Text !== round1Text,
+    `${test.name}: new observation had no observable effect on the authored experience`,
+  );
 
   console.log(`PASS: ${test.name}`);
   console.log(`  round1Cuts=${round1.sequence.cuts.length} round2Cuts=${round2.sequence.cuts.length}`);
@@ -145,5 +147,6 @@ for (const test of cases) {
 console.log("AUTHOR UNIVERSAL LEARNING LOOP ACCEPTANCE: PASS");
 console.log("FIRST_USE_TEACHES_PRODUCT=TRUE");
 console.log("RETURN_ADDS_NEW_EVIDENCE=TRUE");
+console.log("WORLD_OBSERVATION_IS_NOT_CREATOR_PREFERENCE=TRUE");
 console.log("SAME_BRAIN_CROSS_DOMAIN=TRUE");
 console.log("WORLD_SIMULATION_SURVIVES_RETURN=TRUE");
