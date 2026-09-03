@@ -7,6 +7,8 @@
  *
  * IMPORTANT: Latent Movie data is interpretation, not source truth.
  */
+import type { WorldSimulation } from "./worldSimulation.js";
+
 export type LatentMovieEvent = {
   id: string;
   order: number;
@@ -33,10 +35,6 @@ export type LatentMovie = {
   continuation?: string;
 };
 
-/**
- * Canonical graph-derived semantic mechanism shared by Cognition and Mouth.
- * This is structure, not viewer-facing prose.
- */
 export type LatentSemanticMechanism =
   | "expectation_shift"
   | "continuation"
@@ -70,13 +68,6 @@ export type LatentSemanticCallback = {
   role: "continuity" | "recontextualization";
 };
 
-/**
- * The compact semantic object that crosses from Cognition into realization.
- *
- * It records which supplied evidence carries a relationship and what kind of
- * realization move may expose that relationship. It never authorizes new
- * facts, actors, objects, chronology, actions, reactions, or outcomes.
- */
 export type LatentSemanticRealization = {
   mechanism: LatentSemanticMechanism;
   evidenceEventIds: string[];
@@ -97,8 +88,8 @@ export type LatentSemanticRealization = {
 };
 
 /**
- * One internal observer-facing objective derived from the winning semantic
- * interpretation. It is direction for realization, never viewer prose.
+ * Internal observer-facing objective and its live simulation context.
+ * Simulation is hypothesis/state, never viewer prose or source truth.
  */
 export type ObserverExperienceObjective = {
   objective: string;
@@ -107,6 +98,7 @@ export type ObserverExperienceObjective = {
   attention: string[];
   landing: string;
   explanationForbidden: boolean;
+  simulation?: WorldSimulation;
 };
 
 export type LatentStoryThesis = {
@@ -126,7 +118,6 @@ export type LatentStoryThesis = {
   observerExperience?: ObserverExperienceObjective;
 };
 
-/** A semantic hypothesis discovered from RealityGraph. It is never source truth. */
 export type LatentMovieCandidate = {
   id: string;
   lens: string;
@@ -139,7 +130,6 @@ export type LatentMovieCandidate = {
   hypothesis: string[];
   storyThesis?: LatentStoryThesis;
 
-  /** Epistemic / creative diagnostics. */
   truthRisk: number;
   novelty: number;
   specificity: number;
@@ -151,7 +141,6 @@ export type LatentMovieCandidate = {
   compressionPotential: number;
   repetitionRisk: number;
 
-  /** Pre-language viewer-state trajectory diagnostics. */
   viewerStateDynamics?: {
     attention: number;
     curiosity: number;
@@ -166,7 +155,6 @@ export type LatentMovieCandidate = {
     score: number;
   };
 
-  /** How materially this movie differs from the other candidates in the same search. */
   distinctiveness: number;
   score: number;
 };
