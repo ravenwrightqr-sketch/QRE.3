@@ -40,8 +40,7 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
   for (const token of a) if (b.has(token)) hits += 1;
   return hits / Math.max(1, a.size);
 };
-const words = (value: string): string[] => clean(value).split(/\s+/).filter(Boolean);
-const wordCount = (value: string): number => words(value).length;
+const wordCount = (value: string): number => clean(value).split(/\s+/).filter(Boolean).length;
 const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
 function sourceLabels(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
@@ -151,7 +150,7 @@ function explanationRisk(text: string): number {
 function unsupportedConcreteRisk(text: string, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
-  if (processRisk(value) || /\b(?:the viewer|the audience)\b/i.test(value)) return 1;
+  if (processRisk(value)) return 1;
   const source = meaningful([
     envelope.subject,
     ...envelope.events.map((event) => event.label),
@@ -220,10 +219,7 @@ function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: Rea
   const compressed = wordCount(value) >= 2 && wordCount(value) <= 10;
   const forbidden = beat.observerExperience?.explanationForbidden === true;
   const explanationPenalty = forbidden ? explanation : explanation * 0.35;
-  const creative = metric(
-    grounding * 0.24 + force * 0.27 + (hasRelationalMove ? 0.22 : 0) + priorNovelty * 0.08 + (compressed ? 0.08 : 0) +
-    (forbidden && explanation === 0 ? 0.05 : 0) - explanationPenalty * 0.4 - generic * 0.55 - process * 0.55,
-  );
+  const creative = metric(grounding * 0.24 + force * 0.27 + (hasRelationalMove ? 0.22 : 0) + priorNovelty * 0.08 + (compressed ? 0.08 : 0) + (forbidden && explanation === 0 ? 0.05 : 0) - explanationPenalty * 0.4 - generic * 0.55 - process * 0.55);
   const score = literal ? metric(0.25 + grounding * 0.25 - generic * 0.5 - process * 0.5) : hasRelationalMove ? creative : 0;
   const reasons: string[] = [];
   if (literal) reasons.push("literal-source-restatement");
@@ -295,7 +291,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify({
         task: "REALIZE_APPROVED_CREATIVE_JOBS",
         lens: input.lens || "AUTO",
-        lensProfile: { name: lens.name, description: lens.description, pressure: lens.pressure },
+        lensProfile: lens,
         reality: {
           subject: input.envelope.subject,
           entities: input.envelope.suppliedEntities.slice(0, 16),
@@ -331,7 +327,6 @@ export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope
   const labels = sourceLabels(beat, envelope);
   const s = semantic(beat);
   if (!s || !labels.length) return [];
-
   const relation = clean(s.relation?.kind).toLowerCase();
   const current = extractObject(labels[labels.length - 1], subject);
   const target = extractObject(clean(s.after) || labels[labels.length - 1], subject);
@@ -351,7 +346,6 @@ export function deterministicCreativeFallback(beat: MouthCandidateBeat, envelope
   if (callback && current) candidates.push(`So much for ${current}.`);
   if (consequence && current) candidates.push(`${current} had consequences.`);
   if (!candidates.length && subject && target) candidates.push(`${subject} had other plans for ${target}.`);
-
   return uniqueStrings(candidates);
 }
 
@@ -424,14 +418,12 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
     eligible.sort((a, b) => b.score - a.score);
     const bounded = eligible.slice(0, Math.max(width, perBeat));
     const expanded: Array<{ candidates: MouthCandidate[]; score: number }> = [];
-
     for (const path of paths) {
       for (const candidate of bounded) {
         if (path.candidates.some((prior) => clean(prior.text).toLowerCase() === clean(candidate.text).toLowerCase())) continue;
         expanded.push({ candidates: [...path.candidates, candidate], score: path.score + pathIncrement(candidate, path.candidates, pool) });
       }
     }
-
     expanded.sort((a, b) => b.score - a.score);
     paths = expanded.slice(0, width);
   }
