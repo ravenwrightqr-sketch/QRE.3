@@ -223,10 +223,19 @@ function semanticAuthorization(
   const bridgeSpanApproved = bridgeEvent && [...evidence].every((id) => anchorIds.includes(id));
   const bridge = Boolean(bridgeSpanApproved && bridgeGrounded);
 
+  const subjectWords = meaningful(clean(semantic.subject));
+  const relationshipAnchor = afterOverlap >= 0.18 || beforeOverlap >= 0.18;
+  const nonDeclarativeRelationship =
+    Boolean(semantic.relation) &&
+    relationshipAnchor &&
+    !exactSource(text, labels) &&
+    candidateWords.size <= Math.max(4, meaningful(clean(semantic.after)).size + 4) &&
+    (/[!?]$/.test(clean(text)) || ![...subjectWords].some((token) => candidateWords.has(token)));
+
   const groundedCreativeFraming = grounding >= 0.18 && creativeForm >= 0.5;
   const groundedSemanticMove = grounding >= 0.2 && semanticOverlap >= 0.18;
 
-  if (!(beforeAfter || crossEventExpression || semanticMove || bridge || groundedCreativeFraming || groundedSemanticMove)) {
+  if (!(beforeAfter || crossEventExpression || semanticMove || bridge || groundedCreativeFraming || groundedSemanticMove || nonDeclarativeRelationship)) {
     return { authorized: false, strength: 0 };
   }
 
@@ -238,7 +247,8 @@ function semanticAuthorization(
         (semanticMove ? 0.2 : 0) +
         (bridge ? 0.12 : 0) +
         (groundedCreativeFraming ? 0.18 : 0) +
-        (groundedSemanticMove ? 0.18 : 0),
+        (groundedSemanticMove ? 0.18 : 0) +
+        (nonDeclarativeRelationship ? 0.24 : 0),
     ),
   };
 }
@@ -330,6 +340,7 @@ function evaluateCandidate(
   if (humanSized) reasons.push("human-sized-cut");
   if (creativeForm >= 0.5) reasons.push("framing-operator");
   if (restatementRisk >= 0.55) reasons.push("list-like-restatement");
+  if (semantic.relation && semantic.authorized) reasons.push("relationship-expression");
   if (invention >= 0.9) reasons.push("unsupported-concrete-risk");
   if (novelty >= 0.6) reasons.push("novel-language");
 
@@ -539,6 +550,7 @@ function pathIncrement(
   const relationBonus = candidate.reasons.includes("cross-event-expression") ? 0.06 : 0;
   const coverageBonus = candidate.reasons.includes("grouped-evidence-complete") ? 0.05 : 0;
   const discoveryBonus = candidate.reasons.includes("discovery-preserving") ? 0.06 : 0;
+  const relationshipBonus = candidate.reasons.includes("relationship-expression") ? 0.08 : 0;
   const explanationPenalty = candidate.reasons.includes("explicit-explanation-risk") ? 0.14 : 0;
   const literalPenalty = candidate.endpointExactness >= 0.999 ? 0.09 : 0;
   const listPenalty = candidate.reasons.includes("list-like-restatement") ? 0.16 : 0;
@@ -558,7 +570,8 @@ function pathIncrement(
       noveltyBonus +
       relationBonus +
       coverageBonus +
-      discoveryBonus -
+      discoveryBonus +
+      relationshipBonus -
       explanationPenalty -
       literalPenalty -
       listPenalty,
