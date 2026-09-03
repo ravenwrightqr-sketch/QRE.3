@@ -340,23 +340,32 @@ function preservesSubjectAnchor(
   beat: MouthCandidateBeat,
   envelope: RealityEnvelope,
 ): boolean {
-  if (beat.order !== 1) return true;
-
   const subject = clean(envelope.subject);
   const value = clean(text);
 
+  /*
+   * Subject identity is a sequence-level invariant, not a requirement
+   * that every authored cut repeat the subject.
+   *
+   * Beat 1 still prefers explicit subject naming, but creative realization
+   * is allowed to establish the subject through already-approved context.
+   * Later beats do not require subject repetition.
+   */
+  if (beat.order !== 1) return true;
+
   if (!subject || !value) return false;
 
-  /*
-   * The opening is the identity anchor of the authored sequence.
-   * It may be creative and compressed, but it must still name the
-   * supplied subject. This is an authority requirement, not a style
-   * preference.
-   */
   const subjectTokens = meaningful(subject);
   const candidateTokens = meaningful(value);
 
-  if (!subjectTokens.size || !candidateTokens.size) return false;
+  if (!subjectTokens.size || !candidateTokens.size) {
+    /*
+     * An empty meaningful-token set cannot prove identity.
+     * Keep the opening conservative unless the candidate has another
+     * explicit identity-bearing signal handled elsewhere.
+     */
+    return false;
+  }
 
   const subjectOverlap = overlap(
     subjectTokens,
@@ -368,7 +377,10 @@ function preservesSubjectAnchor(
       value,
     );
 
-  return !conflictingActor && subjectOverlap >= 0.5;
+  return (
+    !conflictingActor &&
+    subjectOverlap >= 0.5
+  );
 }
 function preservesRequiredAnchor(
   text: string,
@@ -1351,7 +1363,7 @@ function buildSystemPrompt(): string {
 
     "Prefer 3-8 words. A slightly longer source-specific punch is allowed when necessary.",
 
-    "The first authored cut must name the supplied subject. Later cuts may use pronouns, fragments, implication, and compression.",
+    "The opening/establishing cut introduces the supplied subject into the experience. It MUST preserve the subject's identity explicitly. A category, attribute, location, or event is not a substitute for the subject name. For example, if the subject is 'Milo', 'Small dog. Tagged.' is insufficient; 'Milo. Small dog. Tagged.' is valid.",
 
     "A grounded line can be creative without repeating every source noun. Preserve enough anchor that the approved reality remains recoverable.",
 
@@ -1636,14 +1648,14 @@ export function scoreMouthCandidate(
     input.recovery === true,
   );
 }
-
 export function isAuthorizedMouthCandidate(
   candidate: MouthCandidate,
 ): boolean {
+  const text = clean(candidate.text);
+
   if (
-    !clean(candidate.text) ||
-    candidate.inventionRisk >=
-      0.9
+    !text ||
+    candidate.inventionRisk >= 0.9
   ) {
     return false;
   }
@@ -1663,12 +1675,18 @@ export function isAuthorizedMouthCandidate(
     candidate.reasons.includes(
       "explicit-explanation-risk",
     ) &&
-    candidate.forbiddenMoveRisk >=
-      0.9
+    candidate.forbiddenMoveRisk >= 0.9
   ) {
     return false;
   }
 
+  /*
+   * Required concrete anchors remain hard safety constraints.
+   *
+   * These are source-derived referents such as a supplied endpoint
+   * object. Creative language may compress them, but cannot silently
+   * replace them with an unrelated concrete referent.
+   */
   if (
     candidate.reasons.includes(
       "required-anchor-missing",
@@ -1677,9 +1695,32 @@ export function isAuthorizedMouthCandidate(
     return false;
   }
 
-  if (
+  /*
+   * Subject anchoring is NOT a per-cut hard constraint.
+   *
+   * Once the sequence has an established subject, later cuts may use:
+   *   - fragments
+   *   - implication
+   *   - reactions
+   *   - status language
+   *   - compressed relationship realization
+   *
+   * The important condition is that the candidate remains grounded in
+   * approved semantic authority and does not invent concrete reality.
+   *
+   * Beat 1 is intentionally a little stricter: a non-semantic opening
+   * still needs to preserve the subject anchor.
+   */
+  const missingSubjectAnchor =
     candidate.reasons.includes(
       "subject-anchor-missing",
+    );
+
+  if (
+    missingSubjectAnchor &&
+    candidate.beatOrder === 1 &&
+    !candidate.reasons.includes(
+      "approved-semantic-realization",
     )
   ) {
     return false;
@@ -1693,8 +1734,7 @@ export function isAuthorizedMouthCandidate(
    * Generated exact restatements on later beats do not pass.
    */
   if (
-    candidate.endpointExactness >=
-      0.999 &&
+    candidate.endpointExactness >= 0.999 &&
     candidate.beatOrder > 1 &&
     !candidate.reasons.includes(
       "recovery-source",
@@ -1703,6 +1743,12 @@ export function isAuthorizedMouthCandidate(
     return false;
   }
 
+  /*
+   * Recovery is explicitly marked and is always considered safe because
+   * it is limited to supplied source material.
+   *
+   * It is still ranked below authored realizations by path selection.
+   */
   if (
     candidate.reasons.includes(
       "recovery-source",
@@ -1712,9 +1758,15 @@ export function isAuthorizedMouthCandidate(
   }
 
   /*
-   * A non-literal candidate must actually execute
-   * an approved semantic relationship and show enough
-   * realization lift to distinguish authorship from paraphrase.
+   * A generated candidate must prove that it is doing more than
+   * paraphrasing:
+   *
+   *   1. the semantic realization is approved,
+   *   2. the language demonstrates realization lift,
+   *   3. the candidate clears the minimum quality floor.
+   *
+   * Subject repetition is intentionally NOT part of this universal
+   * authorization rule.
    */
   return (
     candidate.reasons.includes(
@@ -1723,8 +1775,7 @@ export function isAuthorizedMouthCandidate(
     candidate.reasons.includes(
       "realization-lift",
     ) &&
-    candidate.score >=
-      0.3
+    candidate.score >= 0.3
   );
 }
 

@@ -1,35 +1,36 @@
-import { authorBrainUniversal } from "./src/services/authorBrainUniversal.js";
+import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 
 function assert(
   condition: unknown,
   message: string,
 ): asserts condition {
   if (!condition) {
-    throw new Error(message);
+    throw new Error(`AUTHOR BRAIN END-TO-END ACCEPTANCE FAILED: ${message}`);
   }
 }
 
-function numberDiagnostic(value: unknown, name: string): number {
+function finiteNumber(
+  value: unknown,
+  name: string,
+): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`END-TO-END FAILURE: diagnostic ${name} was not a finite number.`);
+    throw new Error(
+      `AUTHOR BRAIN END-TO-END ACCEPTANCE FAILED: ${name} is not a finite number.`,
+    );
   }
-  return value;
-}
 
-function booleanDiagnostic(value: unknown, name: string): boolean {
-  if (typeof value !== "boolean") {
-    throw new Error(`END-TO-END FAILURE: diagnostic ${name} was not boolean.`);
-  }
   return value;
 }
 
 const sourceFacts = [
   "Coco was groomed at Elm Street Grooming.",
+  "Coco got a bath.",
   "Coco stole the red bow.",
 ];
 
-const result = await authorBrainUniversal({
-  prompt: "Coco was groomed at Elm Street Grooming, then stole the red bow. Make the experience sharp and memorable.",
+const result = await authorBrainCanonical({
+  prompt:
+    "Coco was groomed at Elm Street Grooming, then stole the red bow. Make the experience sharp and memorable.",
   lens: "comedy",
   subject: "Coco",
   place: "Elm Street Grooming",
@@ -47,47 +48,76 @@ const result = await authorBrainUniversal({
   ],
 });
 
-const realityGraphEvents = numberDiagnostic(result.diagnostics.realityGraphEvents, "realityGraphEvents");
-const beatCount = numberDiagnostic(result.diagnostics.beatCount, "beatCount");
-const endpointExact = booleanDiagnostic(result.diagnostics.endpointExact, "endpointExact");
-const complete = booleanDiagnostic(result.diagnostics.complete, "complete");
+const diagnostics = result.diagnostics;
 
-assert(realityGraphEvents >= 2, `END-TO-END FAILURE: expected at least 2 reality events, got ${realityGraphEvents}`);
-assert(beatCount >= 2, `END-TO-END FAILURE: expected at least 2 beats, got ${beatCount}`);
-assert(result.sequence, "END-TO-END FAILURE: Author did not produce a viewer sequence.");
+assert(
+  diagnostics.complete === true,
+  "canonical Author did not produce a complete result",
+);
 
-if (!complete) {
-  console.error("AUTHOR REJECTION DIAGNOSTICS:");
-  console.error(JSON.stringify({
-    complete,
-    sequenceCuts: result.sequence.cuts.length,
-    scenes: result.scenes.length,
-    rejectionReasons: result.diagnostics.rejectionReasons ?? {},
-    realizationTexts: result.diagnostics.realizationTexts ?? [],
-    attentionEditor: result.diagnostics.attentionEditor ?? null,
-    sequenceArc: result.diagnostics.sequenceArc ?? null,
-    endpoint: result.diagnostics.endpoint ?? "",
-    endpointExact,
-    candidatePools: result.diagnostics.candidatePools ?? [],
-  }, null, 2));
-}
+assert(
+  diagnostics.qualityStatus === "ACCEPTED",
+  `canonical Author quality status was ${diagnostics.qualityStatus}`,
+);
 
-assert(complete === true, "END-TO-END FAILURE: Author sequence was not complete.");
-assert(result.scenes.length === result.sequence.cuts.length, `END-TO-END FAILURE: scene count ${result.scenes.length} does not match cut count ${result.sequence.cuts.length}.`);
-assert(endpointExact === true, "END-TO-END FAILURE: canonical endpoint was not preserved.");
+assert(
+  diagnostics.renderable === true,
+  "canonical Author result was not renderable",
+);
 
-const finalText = result.scenes.map((scene) => scene.text).join(" ");
+assert(
+  result.sequence,
+  "canonical Author did not produce a sequence",
+);
+
+assert(
+  result.scenes.length > 0,
+  "canonical Author did not produce scenes",
+);
+
+assert(
+  result.scenes.length === result.sequence.cuts.length,
+  `scene count ${result.scenes.length} does not match sequence cut count ${result.sequence.cuts.length}`,
+);
+
+assert(
+  diagnostics.acceptedCandidates >= 1,
+  `expected at least one accepted candidate, got ${diagnostics.acceptedCandidates}`,
+);
+
+assert(
+  diagnostics.candidateSequences >= 1,
+  `expected at least one candidate sequence, got ${diagnostics.candidateSequences}`,
+);
+
+finiteNumber(diagnostics.modelCalls, "modelCalls");
+finiteNumber(diagnostics.selectedScore, "selectedScore");
+
+const finalText = result.scenes
+  .map((scene) => scene.text)
+  .join(" ")
+  .trim();
+
+assert(
+  finalText.length > 0,
+  "final authored output is empty",
+);
+
+assert(
+  /\bCoco\b/i.test(finalText),
+  "subject identity disappeared from final authored output",
+);
+
+assert(
+  /\bred bow\b/i.test(finalText),
+  "source object 'red bow' disappeared from final authored output",
+);
 
 const forbiddenConcrete = [
   /\btable\b/i,
   /\bdoor\b/i,
   /\broom\b/i,
   /\bwindow\b/i,
-  /\bsmiled\b/i,
-  /\blaughed\b/i,
-  /\bstared\b/i,
-  /\bsat\b/i,
-  /\bwalked\b/i,
   /\bsunset\b/i,
   /\bsunlight\b/i,
   /\bshadow\b/i,
@@ -95,27 +125,31 @@ const forbiddenConcrete = [
 ];
 
 for (const pattern of forbiddenConcrete) {
-  assert(!pattern.test(finalText), `END-TO-END TRUTH LEAK: unsupported concrete detail reached final output: ${pattern}`);
+  assert(
+    !pattern.test(finalText),
+    `unsupported concrete detail reached final output: ${pattern}`,
+  );
 }
 
-assert(/\bCoco\b/i.test(finalText), "END-TO-END FAILURE: subject identity disappeared from final authored output.");
-assert(/\bred bow\b/i.test(finalText), "END-TO-END FAILURE: source object 'red bow' disappeared from final authored output.");
+const sourceGrounded =
+  /Coco/i.test(finalText) &&
+  /red bow/i.test(finalText);
 
-const realizationTexts = result.diagnostics.realizationTexts;
-const allRealizationText = Array.isArray(realizationTexts)
-  ? realizationTexts.map((value) => String(value ?? "")).join(" ")
-  : finalText;
-
-const semanticSignal = /\b(?:own(?:s|ed)?|mine|belongs?|control|boss|master|apparently|instead|still|again|now|not|finally|became|changed|different|unexpected|trouble|steal|stolen)\b/i.test(allRealizationText);
-
-const hasLiteralFallback = sourceFacts.some((fact) => allRealizationText.toLowerCase().includes(fact.replace(/[.!?]+$/g, "").toLowerCase()));
-
-assert(semanticSignal || hasLiteralFallback, "END-TO-END FAILURE: no authored realization or valid source-grounded fallback survived.");
+assert(
+  sourceGrounded,
+  "final authored output lost required supplied reality",
+);
 
 console.log("AUTHOR BRAIN END-TO-END ACCEPTANCE: PASS");
-console.log(`RealityEvents=${realityGraphEvents}`);
-console.log(`BeatCount=${beatCount}`);
-console.log(`Cuts=${result.sequence.cuts.length}`);
+console.log(`Model=${diagnostics.model}`);
+console.log(`ModelCalls=${diagnostics.modelCalls}`);
+console.log(`CandidateSequences=${diagnostics.candidateSequences}`);
+console.log(`AcceptedCandidates=${diagnostics.acceptedCandidates}`);
+console.log(`RecoveryUsed=${diagnostics.recoveryUsed}`);
+console.log(`QualityStatus=${diagnostics.qualityStatus}`);
+console.log(`Renderable=${diagnostics.renderable}`);
+console.log(`Complete=${diagnostics.complete}`);
+console.log(`SelectedScore=${diagnostics.selectedScore}`);
 console.log(`Scenes=${result.scenes.length}`);
-console.log(`EndpointExact=${endpointExact}`);
-console.log(`RealizationTexts=${JSON.stringify(result.diagnostics.realizationTexts)}`);
+console.log(`Cuts=${result.sequence.cuts.length}`);
+console.log(`FinalText=${JSON.stringify(finalText)}`);

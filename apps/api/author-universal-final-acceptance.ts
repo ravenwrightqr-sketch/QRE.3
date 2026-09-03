@@ -1,8 +1,15 @@
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 import type { AuthorBrainTruth } from "@qre/contracts";
 
-type Case = Pick<AuthorBrainTruth, "prompt" | "subject" | "place" | "facts" | "sourceMoments" | "lens"> & {
+type Case = Omit<
+  Pick<
+    AuthorBrainTruth,
+    "prompt" | "subject" | "place" | "facts" | "sourceMoments" | "lens"
+  >,
+  "subject"
+> & {
   name: string;
+  subject: string;
   minimumCuts: number;
 };
 
