@@ -11,59 +11,52 @@ function replaceOnce(needle, replacement, label) {
   source = source.slice(0, index) + replacement + source.slice(index + needle.length);
 }
 
-function replaceIfPresent(needle, replacement) {
-  const index = source.indexOf(needle);
-  if (index >= 0) {
-    source = source.slice(0, index) + replacement + source.slice(index + needle.length);
-    return true;
-  }
-  return false;
+// One-time opening identity invariant: creative realization never bypasses subject identity.
+const oldOpeningGate = `  if (\n    missingSubjectAnchor &&\n    candidate.beatOrder === 1 &&\n    !candidate.reasons.includes(\n      "approved-semantic-realization",\n    )\n  ) {\n    return false;\n  }`;
+if (source.includes(oldOpeningGate)) {
+  replaceOnce(
+    oldOpeningGate,
+    `  if (missingSubjectAnchor && candidate.beatOrder === 1) {\n    return false;\n  }`,
+    "opening identity invariant",
+  );
 }
 
-// 1. Opening identity is a sequence invariant.
-const openingGate = `  if (\n    missingSubjectAnchor &&\n    candidate.beatOrder === 1 &&\n    !candidate.reasons.includes(\n      "approved-semantic-realization",\n    )\n  ) {\n    return false;\n  }`;
-if (source.includes(openingGate)) {
-  replaceOnce(openingGate, `  if (missingSubjectAnchor && candidate.beatOrder === 1) {\n    return false;\n  }`, "opening identity boundary");
+// Recovery is an explicit render floor. Creative candidates always outrank it; it prevents zero-cut failure.
+const oldEligible = `    const eligible =\n      dedupe([\n        ...creative,\n        ...openingLiteral,\n      ]);`;
+if (source.includes(oldEligible)) {
+  replaceOnce(
+    oldEligible,
+    `    const recovery =\n      dedupe(pool.candidates).filter((candidate) =>\n        candidate.reasons.includes("recovery-source"),\n      );\n\n    const eligible =\n      dedupe([\n        ...creative,\n        ...openingLiteral,\n        ...recovery,\n      ]);`,
+    "selector recovery floor",
+  );
 }
 
-// 2. Recovery must guarantee a renderable sequence rather than an empty selector result.
-const eligible = `    const eligible =\n      dedupe([\n        ...creative,\n        ...openingLiteral,\n      ]);`;
-if (source.includes(eligible)) {
-  replaceOnce(eligible, `    const recovery =\n      dedupe(pool.candidates).filter((candidate) =>\n        candidate.reasons.includes("recovery-source"),\n      );\n\n    const eligible =\n      dedupe([\n        ...creative,\n        ...openingLiteral,\n        ...recovery,\n      ]);`, "recovery render floor");
+// Rich-contract source already has this job; upgrade legacy wording only when encountered.
+const legacyJob = `    creativeJob:\n      "Make the approved relationship FELT in one short line. Do not paraphrase the source sentence.",`;
+const richJob = `    creativeJob:\n      "REALIZE THE APPROVED EXPERIENCE, not the source sentence. Use the full semantic contract: mechanism, relation, before/after meaning, realization move, creative opportunity, observer experience, and viewer-state change. Seek the sharpest memorable expression supported by those signals. Prefer implication, status, irony, compression, juxtaposition, personification, callback, reversal, or consequence when supported. Do not flatten a semantic turn into an event caption.",`;
+if (!source.includes(richJob) && source.includes(legacyJob)) {
+  replaceOnce(legacyJob, richJob, "rich semantic creative job");
 }
 
-// 3. Enterprise semantic realization job. Accept the already-rich job as idempotent.
-const enterpriseJob = `    creativeJob:\n      "REALIZE THE APPROVED EXPERIENCE, not the source sentence. Use the full semantic contract: mechanism, relation, before/after meaning, realization move, creative opportunity, observer experience, and viewer-state change. Seek the sharpest memorable expression supported by those signals. Prefer implication, status, irony, compression, juxtaposition, personification, callback, reversal, or consequence when supported. Do not flatten a semantic turn into an event caption.",`;
-if (!source.includes(enterpriseJob)) {
-  const previousRichJob = `    creativeJob:\n      "REALIZE THE EXPERIENCE, not the source sentence. Find the sharpest, most memorable language that lets the approved semantic change be felt. Prefer implication, image, attitude, status, tension, irony, juxtaposition, compression, or comic pressure when supported. Do not flatten a rich semantic opportunity into a literal summary.",`;
-  const originalJob = `    creativeJob:\n      "Make the approved relationship FELT in one short line. Do not paraphrase the source sentence.",`;
-  if (!replaceIfPresent(previousRichJob, enterpriseJob)) {
-    replaceOnce(originalJob, enterpriseJob, "enterprise creative job");
-  }
-}
-
-// 4. Add the full authoring contract to the system prompt once.
+const promptAnchor = `    "SOURCE FACTS ARE RAW MATERIAL, NOT PROSE TO COPY.",`;
+const promptExpansion = `${promptAnchor}\n\n    "The structured job is the AUTHORING CONTRACT. Use event structure, relations, continuity, patterns, semantic mechanism, before/after meaning, realization move, creative opportunity, observer objective, surprise, curiosity, landing, and viewer-state dynamics as active inputs to wording.",\n\n    "Grounding is a reality boundary, not an aesthetic ceiling. Be highly creative in syntax, rhythm, implication, metaphor, irony, status, juxtaposition, compression, callbacks, personification, and double meaning when the approved contract supports the form.",\n\n    "Do not turn a rich semantic turn into event-report language such as 'Then, X happened' unless literal reporting is genuinely the strongest truthful realization available.",\n\n    "Return materially different realization angles: direct-sharp, compressed/recontextualized, and boldest approved implication. Do not spend all three variants paraphrasing the source."`;
 if (!source.includes("The structured job is the AUTHORING CONTRACT")) {
-  const promptAnchor = `    "SOURCE FACTS ARE RAW MATERIAL, NOT PROSE TO COPY.",`;
-  replaceOnce(promptAnchor, `${promptAnchor}\n\n    "The structured job is the AUTHORING CONTRACT. Use event structure, relations, continuity, patterns, semantic mechanism, before/after meaning, realization move, creative opportunity, observer objective, surprise, curiosity, landing, and viewer-state dynamics as active inputs to wording.",\n\n    "Grounding is a reality boundary, not an aesthetic ceiling. Be highly creative in syntax, rhythm, implication, metaphor, irony, status, juxtaposition, compression, callbacks, personification, and double meaning when the approved contract supports the form.",\n\n    "Do not turn a rich semantic turn into event-report language such as 'Then, X happened' unless literal reporting is genuinely the strongest truthful realization available.",\n\n    "Return materially different realization angles: direct-sharp, compressed/recontextualized, and boldest approved implication. Do not spend all three variants paraphrasing the source.",`, "enterprise realization prompt");
+  replaceOnce(promptAnchor, promptExpansion, "enterprise realization prompt");
 }
 
-// 5. Replace the finite English action dictionary with provenance/semantic grounding.
-const start = source.indexOf("  const unsupportedActions =");
-if (start >= 0) {
-  const conditionStart = source.indexOf("\n\n  if (\n    unsupportedActions.test", start);
-  if (conditionStart < 0) throw new Error("PATCH FAILED: unsupported action guard boundary");
-  const conditionEnd = source.indexOf("\n  }", conditionStart + 1);
-  if (conditionEnd < 0) throw new Error("PATCH FAILED: unsupported action guard end");
-  source = source.slice(0, start) + `  /* Universal Author grounding is ontology/provenance based, never a finite English verb list. */\n  if (grounding < 0.08 && !semantic(beat)) {\n    return 0.95;\n  }\n\n  if (grounding < 0.12 && semantic(beat)) {\n    return 0.35;\n  }` + source.slice(conditionEnd + "\n  }".length);
-}
-
-// 6. Preserve creator-authored absurdity explicitly.
-const realityLine = `    "Use only supplied reality. You may invent phrasing, syntax, attitude, metaphor, personification, wordplay, understatement, status language, comic timing, juxtaposition, and implication.",`;
-if (source.includes(realityLine) && !source.includes("creator's supplied reality as authoritative")) {
-  replaceOnce(realityLine, `${realityLine}\n\n    "Treat the creator's supplied reality as authoritative even when it is strange, impossible, contradictory, comedic, or implausible. Never normalize it into a more plausible version.",`, "creator reality authority");
+// Do not let universal Author's ontology depend on a finite English action dictionary.
+// Preserve the existing semantic/provenance calculation; only remove the legacy word-list branch.
+const actionStart = source.indexOf("  const unsupportedActions =");
+if (actionStart >= 0) {
+  const guardStart = source.indexOf("\n\n  if (\n    unsupportedActions.test", actionStart);
+  if (guardStart < 0) throw new Error("PATCH FAILED: legacy action guard");
+  const guardEnd = source.indexOf("\n  }", guardStart + 1);
+  if (guardEnd < 0) throw new Error("PATCH FAILED: legacy action guard end");
+  source = source.slice(0, actionStart) +
+    `  /* Universal grounding is semantic/provenance based, never a finite English verb vocabulary. */\n  if (grounding < 0.08 && !semantic(beat)) {\n    return 0.95;\n  }\n\n  if (grounding < 0.12 && semantic(beat)) {\n    return 0.35;\n  }` +
+    source.slice(guardEnd + "\n  }".length);
 }
 
 fs.writeFileSync(mouth, source, "utf8");
 console.log("AUTHOR ENTERPRISE ALIGNMENT FINAL: APPLIED");
-console.log("Rich contract -> Mouth | hard identity | recovery floor | provenance grounding | high creative ceiling | creator reality authoritative");
+console.log("Rich contract -> Mouth | hard opening identity | recovery floor | provenance grounding | creative ceiling");
