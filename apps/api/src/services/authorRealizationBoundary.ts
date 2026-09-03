@@ -44,6 +44,7 @@ const tokens = (value: string): string[] =>
   String(value ?? "")
     .toLowerCase()
     .split(/[^a-z0-9'’-]+/g)
+    .map((token) => token.replace(/[’']s$/i, ""))
     .filter((token) => token.length >= 3 && !STOP.has(token));
 
 const tokenSet = (values: readonly string[]): Set<string> =>
