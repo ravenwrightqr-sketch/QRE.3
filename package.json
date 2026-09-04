@@ -4,7 +4,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "pnpm -r dev",
-    "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm author:metamorphic-foundation && pnpm build:web",
+    "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm author:metamorphic-foundation && pnpm author:metamorphic-selection && pnpm build:web",
     "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs && node ./scripts/verify-author-production-gate.mjs",
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
@@ -17,6 +17,7 @@
     "author:universal-learning-loop": "pnpm --filter @qre/api exec tsx ./author-universal-learning-loop-acceptance.ts",
     "author:living-sequence": "pnpm --filter @qre/api exec tsx ./author-living-sequence-acceptance.ts",
     "author:metamorphic-foundation": "pnpm --filter @qre/api exec tsx ./author-metamorphic-foundation-acceptance.ts",
+    "author:metamorphic-selection": "pnpm --filter @qre/api exec tsx ./author-metamorphic-selection-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
