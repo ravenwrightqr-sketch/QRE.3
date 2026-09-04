@@ -41,9 +41,8 @@ const mouth = exists(required[5]) ? read(required[5]) : "";
 const mouthAuthority = exists(required[6]) ? read(required[6]) : "";
 const boundary = exists(required[7]) ? read(required[7]) : "";
 
-// Verify the canonical path, not an obsolete implementation detail such as
-// requiring Brain itself to call the private candidate scorer. Mouth owns
-// generation, completion/scoring, and selection behind one public boundary.
+// Verify the canonical orchestration path. Candidate scoring is deliberately
+// a Mouth-owned implementation detail; Brain reaches it through pool completion.
 for (const [re, label] of [
   [/buildAuthorCognitivePlan\s*\(/, "brain->cognition"],
   [/buildAuthorRealityGraph\s*\(/, "brain->reality-graph"],
@@ -55,14 +54,14 @@ for (const [re, label] of [
   [/authorMouth\.js/i, "brain->canonical-mouth"],
 ]) if (!re.test(brain)) failures.push(`missing wiring:${label}`);
 
-// Mouth must expose the scoring authority transitively through pool completion.
 for (const [re, label] of [
   [/scoreMouthCandidate\s*\(/, "mouth->candidate-scoring"],
   [/evaluateRealizationBoundary\s*\(/, "mouth->realization-boundary"],
   [/selectBestMouthSequence\s*\(/, "mouth->sequence-selection"],
 ]) if (!re.test(mouth)) failures.push(`missing Mouth authority:${label}`);
 
-// Reality and semantic meaning are separate authority channels.
+// Metamorphic authority is received, asserted, and carried into realization;
+// Mouth never gets permission to originate a replacement relation set.
 for (const [re, label] of [
   [/assertAuthorMetamorphicRelationSet\s*\(/, "Mouth->sealed-relation-set"],
   [/metamorphicRelationSet(?:\s*[,;:]|\s*=)/, "Mouth->set-carriage"],
@@ -70,22 +69,23 @@ for (const [re, label] of [
   [/evidenceEventIds\s*[:=]/, "Mouth->semantic-evidence"],
 ]) if (!re.test(mouthAuthority)) failures.push(`missing Mouth metamorphic wiring:${label}`);
 
-// Canonical Mouth laws are structural contracts in the implementation, not
-// required prose strings. These checks intentionally validate the behavior
-// language rather than forcing exact documentation wording.
+// The truth/framing law is expressed as data separation and a hard boundary:
+// concrete reality and semantic meaning are separate inputs, and only concrete
+// claims raise invention risk.
 for (const [re, label] of [
-  [/Concrete reality is beat-scoped\./i, "truth/framing law"],
-  [/The lens changes HOW the supplied reality lands, never WHAT happened\./i, "truth/framing law"],
-  [/new concrete facts are not allowed/i, "authorization separation"],
-  [/new concrete facts are not/i, "authorization separation"],
-]) if (!re.test(mouth)) failures.push(`canonical Mouth law missing:${label}`);
-
-for (const [re, label] of [
-  [/Reality freedom is LOW\. Framing freedom is HIGH\./i, "truth/framing law"],
-  [/Grounding is not authorization\./i, "authorization separation"],
-  [/Mouth may invent language freely inside the approved semantic meaning\./i, "realization freedom"],
-  [/new concrete\s*(?:event|occurrence|claim)/i, "concrete-world-guard"],
+  [/localReality\s*=\s*tokenSet\s*\(/, "truth-channel"],
+  [/semantic\s*=\s*tokenSet\s*\(/, "meaning-channel"],
+  [/concreteClaim\s*=\s*/, "concrete-world-guard"],
+  [/inventionRisk:\s*concreteClaim\s*\?\s*0\.95\s*:\s*0/, "hard-invention-boundary"],
 ]) if (!re.test(boundary)) failures.push(`realization boundary law missing:${label}`);
+
+// Ensure grounding/evidence cannot itself become an authorization bypass.
+for (const [re, label] of [
+  [/assertAuthorMetamorphicRelationSet\s*\(/, "authorization-assertion"],
+  [/approvedNovelLanguageTokens/, "approved-semantic-language"],
+  [/foreignTokens/, "foreign-reality-rejection"],
+  [/novelConcreteTokens/, "novel-concrete-rejection"],
+]) if (!re.test(boundary + "\n" + mouthAuthority)) failures.push(`authorization boundary missing:${label}`);
 
 const files = [];
 function walk(dir) {
