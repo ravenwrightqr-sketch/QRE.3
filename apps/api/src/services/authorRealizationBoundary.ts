@@ -1,17 +1,12 @@
 /**
- * QRE ELITE REALIZATION BOUNDARY
+ * QRE REALIZATION BOUNDARY
  *
- * RealityGraph / EventStructure is the authority for concrete world claims.
- * Semantic realization and earned interpretation authority may transform
- * language, but they never become new world facts.
+ * RealityGraph / EventStructure owns concrete world truth.
+ * Mouth may invent language freely inside the approved semantic meaning.
+ * This boundary rejects only claims that actually introduce a new concrete
+ * occurrence, spatial fact, or action by a known entity.
  *
- * Important distinction:
- *   - novel language is allowed
- *   - novel concrete claims are not
- *
- * The boundary therefore looks for claim shapes, not a blacklist of pretty
- * words. Time/location context remains source evidence; it is never promoted
- * into inferred environmental memory.
+ * Novel language is not evidence of invention.
  */
 
 export type RealizationBoundaryInput = {
@@ -55,31 +50,6 @@ const tokens = (value: string): string[] =>
 const tokenSet = (values: readonly string[]): Set<string> =>
   new Set(values.flatMap(tokens));
 
-function explicitIdentityAssertion(text: string, subject?: string): boolean {
-  const value = String(text ?? "").trim();
-  const subjectText = String(subject ?? "").trim();
-  if (!value || !subjectText) return false;
-
-  const escaped = subjectText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `^${escaped}\\s+(?:is|are|was|were|become|becomes|became)\\b`,
-    "i",
-  ).test(value);
-}
-
-function identityNoveltyTokens(
-  subject: string | undefined,
-  candidate: Set<string>,
-  localReality: Set<string>,
-): string[] {
-  const subjectTokens = tokenSet([subject ?? ""]);
-  return [...candidate].filter(
-    (token) =>
-      !subjectTokens.has(token) &&
-      !localReality.has(token),
-  );
-}
-
 function unsupportedSpatialTokens(
   text: string,
   localReality: Set<string>,
@@ -93,39 +63,6 @@ function unsupportedSpatialTokens(
     const token = String(match[1] ?? "").toLowerCase();
     if (!token || STOP.has(token) || localReality.has(token) || semantic.has(token)) continue;
     out.push(token);
-  }
-
-  return [...new Set(out)];
-}
-
-function unsupportedIntroducedEntityTokens(
-  text: string,
-  localReality: Set<string>,
-  semantic: Set<string>,
-): string[] {
-  const out: string[] = [];
-  const articlePattern = /\b(?:a|an|the)\s+([a-z][a-z0-9'’-]{2,})\b/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = articlePattern.exec(String(text ?? "")))) {
-    const token = String(match[1] ?? "").toLowerCase();
-    if (!token || STOP.has(token) || localReality.has(token) || semantic.has(token)) continue;
-    out.push(token);
-  }
-
-  const possessivePattern = /\b([a-z][a-z0-9'’-]{2,})['’]s\s+([a-z][a-z0-9'’-]{2,})\b/gi;
-  while ((match = possessivePattern.exec(String(text ?? "")))) {
-    const owner = String(match[1] ?? "").toLowerCase();
-    const introduced = String(match[2] ?? "").toLowerCase();
-    if (
-      introduced &&
-      !STOP.has(introduced) &&
-      !localReality.has(introduced) &&
-      !semantic.has(introduced) &&
-      (localReality.has(owner) || semantic.has(owner))
-    ) {
-      out.push(introduced);
-    }
   }
 
   return [...new Set(out)];
@@ -183,16 +120,13 @@ export function evaluateRealizationBoundary(
   );
 
   const unknownTokens = [...candidate].filter(
-    (token) => !localReality.has(token) && !semantic.has(token) && !foreignTokens.includes(token),
+    (token) =>
+      !localReality.has(token) &&
+      !semantic.has(token) &&
+      !foreignTokens.includes(token),
   );
 
   const spatialTokens = unsupportedSpatialTokens(
-    input.text,
-    localReality,
-    semantic,
-  );
-
-  const introducedEntityTokens = unsupportedIntroducedEntityTokens(
     input.text,
     localReality,
     semantic,
@@ -205,47 +139,22 @@ export function evaluateRealizationBoundary(
     semantic,
   );
 
-  const concreteSignals = [
-    ...spatialTokens,
-    ...introducedEntityTokens,
-    ...subjectActionTokens,
+  const novelConcreteTokens = [
+    ...new Set(
+      [...spatialTokens, ...subjectActionTokens].filter((token) =>
+        unknownTokens.includes(token),
+      ),
+    ),
   ];
-
-  const novelConcreteTokens = [...new Set(concreteSignals.filter((token) => unknownTokens.includes(token)))];
-
-  const explicitIdentity = explicitIdentityAssertion(
-    input.text,
-    input.subject,
-  );
-
-  const explicitInterpretationAllowed =
-    (input.permittedRealizationModes ?? []).some(
-      (mode) =>
-        /explicit[- ]?(?:identity|interpretation|characterization)/i.test(
-          String(mode),
-        ),
-    ) && input.inferenceBudget !== "direct";
-
-  const identityNovelty =
-    explicitIdentity &&
-    !explicitInterpretationAllowed &&
-    approvedNovelLanguageTokens.length > 0;
 
   const concreteClaim =
     foreignTokens.length > 0 ||
-    novelConcreteTokens.length > 0 ||
-    identityNovelty;
+    novelConcreteTokens.length > 0;
 
   return {
     inventionRisk: concreteClaim ? 0.95 : 0,
     foreignTokens,
-    novelConcreteTokens: identityNovelty
-      ? identityNoveltyTokens(
-          input.subject,
-          candidate,
-          localReality,
-        )
-      : novelConcreteTokens,
+    novelConcreteTokens,
     approvedNovelLanguageTokens,
   };
 }
