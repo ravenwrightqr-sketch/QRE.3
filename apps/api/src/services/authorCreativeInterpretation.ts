@@ -6,8 +6,10 @@
  */
 import type {
   LatentMovieCandidate,
+  LatentSemanticCreativeOpportunity,
   LatentSemanticMechanism,
   LatentSemanticRealization,
+  LatentSemanticRealizationMove,
   RealityGraph,
 } from "@qre/contracts";
 import { searchMetamorphicRelations } from "./authorMetamorphicRelationSearch.js";
@@ -23,6 +25,34 @@ export type CreativeInterpretation = LatentSemanticRealization & {
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+
+function realizationMoveFor(value: string): LatentSemanticRealizationMove {
+  switch (clean(value).toLowerCase()) {
+    case "feel_state_transition": return "feel_state_transition";
+    case "recognize_callback": return "recognize_callback";
+    case "recontextualize_callback": return "recontextualize_callback";
+    case "hold_contrast": return "hold_contrast";
+    case "return_with_new_status": return "return_with_new_status";
+    case "land_consequence": return "land_consequence";
+    case "recognize": return "recognize";
+    case "status_reversal": return "hold_contrast";
+    case "service_to_status": return "land_consequence";
+    case "converge_details": return "recognize";
+    case "defeat_expectation": return "hold_contrast";
+    default: return "recognize";
+  }
+}
+
+function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunity | undefined {
+  const text = clean(value).toLowerCase();
+  if (!text) return undefined;
+  if (text.includes("callback") || text.includes("return with a changed meaning")) return "callback_recontextualization";
+  if (text.includes("status") || text.includes("presentation becomes the setup") || text.includes("polished presentation")) return "status_turn";
+  if (text.includes("consequence") || text.includes("service into the setup")) return "consequence";
+  if (text.includes("expectation") || text.includes("contrast")) return "contrast_reframe";
+  if (text.includes("collapse supplied details") || text.includes("one memorable relationship")) return "recognition";
+  return "recognition";
+}
 
 function mapRelation(relation: ReturnType<typeof searchMetamorphicRelations>[number]): CreativeInterpretation {
   return {
@@ -40,8 +70,8 @@ function mapRelation(relation: ReturnType<typeof searchMetamorphicRelations>[num
           toEventId: clean(relation.relation.toEventId),
         }
       : undefined,
-    realizationMove: clean(relation.realizationMove) || "recontextualize",
-    creativeOpportunity: clean(relation.creativeOpportunity),
+    realizationMove: realizationMoveFor(relation.realizationMove),
+    creativeOpportunity: creativeOpportunityFor(relation.creativeOpportunity),
     feltEffect: clean(relation.feltEffect),
     viewerShift: clean(relation.viewerShift),
     languageAim: clean(relation.languageAim),
