@@ -194,18 +194,19 @@ function relationCandidate(graph: RealityGraph, relation: RealityRelation): Meta
   };
 }
 
-function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: string): MetamorphicRelation | undefined {
+function collisionCandidates(graph: RealityGraph, earlierId: string, laterId: string): MetamorphicRelation[] {
   const earlier = eventFeatures(graph, earlierId);
   const later = eventFeatures(graph, laterId);
-  if (!earlier.label || !later.label) return undefined;
+  if (!earlier.label || !later.label) return [];
 
   const objectOverlap = earlier.objects.filter((object) => later.objects.includes(object));
   const distance = Math.max(1, Math.abs(position(graph, laterId) - position(graph, earlierId)));
   const spanBoost = Math.min(0.12, distance * 0.025);
   const subjectContinuity = sameSubject(earlier, later);
+  const results: MetamorphicRelation[] = [];
 
   if (earlier.presentation && later.mischief && subjectContinuity) {
-    return {
+    results.push({
       type: "presentation_behavior_collision",
       mechanism: "contrast",
       evidenceEventIds: [earlierId, laterId],
@@ -220,13 +221,11 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       languageAim: "Compress the presentation and behavior into one status inversion; never add a new act.",
       confidence: metric(0.92 + spanBoost),
       score: metric(0.9 + spanBoost),
-    };
+    });
   }
 
-  if (earlier.service && later.outcome && !later.service) {
-    const continuityBoost = subjectContinuity ? 0.05 : 0;
-    const evidenceBoost = (later.mischief || later.ownership || later.action || later.objects.length > 0) ? 0.04 : 0;
-    return {
+  if (earlier.service && later.outcome && !later.service && subjectContinuity) {
+    results.push({
       type: "service_outcome_inversion",
       mechanism: "consequence",
       evidenceEventIds: [earlierId, laterId],
@@ -239,13 +238,13 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       feltEffect: "The service stops feeling like the endpoint and becomes the setup for what the subject actually carries forward.",
       viewerShift: "The viewer reinterprets the service through the supplied outcome.",
       languageAim: "Make service and outcome collide; do not invent a bridge event or explain the thesis.",
-      confidence: metric(0.94 + spanBoost + continuityBoost),
-      score: metric(0.92 + spanBoost + continuityBoost + evidenceBoost),
-    };
+      confidence: metric(0.94 + spanBoost + 0.05),
+      score: metric(0.92 + spanBoost + 0.04),
+    });
   }
 
   if (earlier.negative && later.positive && subjectContinuity) {
-    return {
+    results.push({
       type: "state_polarity_turn",
       mechanism: "state_change",
       evidenceEventIds: [earlierId, laterId],
@@ -260,12 +259,12 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       languageAim: "Use contrast or compression; do not explain the emotional thesis.",
       confidence: metric(0.91 + spanBoost),
       score: metric(0.89 + spanBoost),
-    };
+    });
   }
 
   if (objectOverlap.length && (earlier.action || later.action) && (earlier.returnSignal || later.returnSignal) && subjectContinuity) {
     const object = objectOverlap[0]!;
-    return {
+    results.push({
       type: "object_recontextualization",
       mechanism: "recurrence",
       evidenceEventIds: [earlierId, laterId],
@@ -280,11 +279,11 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       languageAim: "Let the callback carry the change; do not explain the callback.",
       confidence: metric(0.86 + spanBoost),
       score: metric(0.83 + spanBoost),
-    };
+    });
   }
 
   if (earlier.expected && later.action && subjectContinuity) {
-    return {
+    results.push({
       type: "expectation_break",
       mechanism: "contrast",
       evidenceEventIds: [earlierId, laterId],
@@ -299,10 +298,10 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       languageAim: "Understate the setup and let the supplied outcome supply the punch.",
       confidence: metric(0.84 + spanBoost),
       score: metric(0.81 + spanBoost),
-    };
+    });
   }
 
-  return undefined;
+  return results;
 }
 
 export function searchMetamorphicRelations(
@@ -329,14 +328,12 @@ export function searchMetamorphicRelations(
 
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {
-      const earlierId = ids[i]!;
-      const laterId = ids[j]!;
-      const result = collisionCandidate(graph, earlierId, laterId);
-      if (!result) continue;
-      const key = `${result.type}|${result.evidenceEventIds.join(",")}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      results.push(result);
+      for (const result of collisionCandidates(graph, ids[i]!, ids[j]!)) {
+        const key = `${result.type}|${result.evidenceEventIds.join(",")}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        results.push(result);
+      }
     }
   }
 
