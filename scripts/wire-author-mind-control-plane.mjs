@@ -47,13 +47,13 @@ function findExactly(nodes, predicate, description) {
   return matches[0];
 }
 
-function collect(sourceFile, predicate) {
+function collect(sourceFile, predicate, root = sourceFile) {
   const found = [];
   const visit = (node) => {
     if (predicate(node)) found.push(node);
     ts.forEachChild(node, visit);
   };
-  ts.forEachChild(sourceFile, visit);
+  ts.forEachChild(root, visit);
   return found;
 }
 
@@ -66,69 +66,124 @@ function insertBefore(source, position, text) {
   return source.slice(0, position) + text + source.slice(position);
 }
 
-function objectLiteralInsertion(source, objectLiteral, propertyText) {
-  const closeBrace = objectLiteral.getEnd() - 1;
-  const properties = objectLiteral.properties;
-  if (properties.length === 0) {
-    return insertBefore(source, closeBrace, `\n${propertyText}\n`);
-  }
-  const last = properties[properties.length - 1];
-  const lastEnd = last.getEnd();
-  const comma = source.slice(lastEnd, closeBrace).includes(",") ? "" : ",";
-  const indent = lineIndent(source, last.getStart(sourceFileFor(source)));
-  return insertBefore(
-    source,
-    closeBrace,
-    `${comma}\n${indent}${propertyText}\n`,
-  );
-}
-
-let sourceFileForObject = null;
-function sourceFileFor() {
-  return sourceFileForObject;
-}
-
-function addImportAfterLastImport(sourceFile, source, importText) {
+function addImportAfterLastImport(sourceFile, source, importText, importPath) {
   const imports = sourceFile.statements.filter(ts.isImportDeclaration);
-  if (imports.some((node) => source.slice(node.getStart(sourceFile), node.getEnd()).includes('"./authorMindControlPlane.js"'))) {
+  if (
+    imports.some(
+      (node) =>
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === importPath,
+    )
+  ) {
     return source;
   }
+
   const insertionPoint = imports.length
     ? imports[imports.length - 1].getEnd()
     : 0;
   return insertBefore(source, insertionPoint, `\n${importText}`);
 }
 
-function propertyExists(typeLiteral, name) {
-  return typeLiteral.members.some(
-    (member) => ts.isPropertySignature(member) && member.name && member.name.getText(sourceFileFor()) === name,
-  );
-}
-
 function addTypeProperty(sourceFile, source, typeName, propertyText, propertyName) {
   const declaration = findExactly(
-    collect(sourceFile, (node) => ts.isTypeAliasDeclaration(node) && node.name.text === typeName),
+    collect(
+      sourceFile,
+      (node) =>
+        ts.isTypeAliasDeclaration(node) && node.name.text === typeName,
+    ),
     () => true,
     `${typeName} declaration`,
   );
-  if (!ts.isTypeLiteralNode(declaration.type)) fail(`${typeName} must be a type literal`);
-  sourceFileForObject = sourceFile;
-  if (propertyExists(declaration.type, propertyName)) return source;
+
+  if (!ts.isTypeLiteralNode(declaration.type)) {
+    fail(`${typeName} must be a type literal`);
+  }
+
+  const exists = declaration.type.members.some(
+    (member) =>
+      ts.isPropertySignature(member) &&
+      member.name &&
+      member.name.getText(sourceFile) === propertyName,
+  );
+  if (exists) return source;
+
   const closeBrace = declaration.type.getEnd() - 1;
-  const indent = lineIndent(source, declaration.type.getStart(sourceFile)) + "  ";
-  return insertBefore(source, closeBrace, `\n${indent}${propertyText}\n${lineIndent(source, declaration.type.getStart(sourceFile))}`);
+  const baseIndent = lineIndent(source, declaration.type.getStart(sourceFile));
+  return insertBefore(
+    source,
+    closeBrace,
+    `\n${baseIndent}  ${propertyText}\n${baseIndent}`,
+  );
 }
 
-function addObjectProperty(sourceFile, source, functionName, propertyText, propertyName) {
+function addVariableBefore(sourceFile, source, functionName, variableName, statementText) {
   const fn = findExactly(
-    collect(sourceFile, (node) => ts.isFunctionDeclaration(node) && node.name?.text === functionName),
+    collect(
+      sourceFile,
+      (node) =>
+        ts.isFunctionDeclaration(node) && node.name?.text === functionName,
+    ),
     () => true,
     `${functionName} declaration`,
   );
-  const returns = collect(fn, (node) => ts.isReturnStatement(node) && node.expression && ts.isObjectLiteralExpression(node.expression));
-  const returnStatement = findExactly(returns, () => true, `${functionName} return object`);
+
+  const variableStatements = collect(
+    sourceFile,
+    (node) =>
+      ts.isVariableStatement(node) &&
+      node.declarationList.declarations.some(
+        (declaration) =>
+          ts.isIdentifier(declaration.name) &&
+          declaration.name.text === variableName,
+      ),
+    fn,
+  );
+
+  const variable = findExactly(
+    variableStatements,
+    () => true,
+    `${functionName}.${variableName}`,
+  );
+
+  if (source.includes("const mindState = buildAuthorMindState({")) {
+    return source;
+  }
+
+  return insertBefore(
+    source,
+    variable.getStart(sourceFile),
+    `${statementText}\n\n`,
+  );
+}
+
+function addReturnProperty(sourceFile, source, functionName, propertyText, propertyName) {
+  const fn = findExactly(
+    collect(
+      sourceFile,
+      (node) =>
+        ts.isFunctionDeclaration(node) && node.name?.text === functionName,
+    ),
+    () => true,
+    `${functionName} declaration`,
+  );
+
+  const returns = collect(
+    sourceFile,
+    (node) =>
+      ts.isReturnStatement(node) &&
+      node.expression &&
+      ts.isObjectLiteralExpression(node.expression),
+    fn,
+  );
+
+  const returnStatement = findExactly(
+    returns,
+    () => true,
+    `${functionName} return object`,
+  );
   const object = returnStatement.expression;
-  sourceFileForObject = sourceFile;
+
   const exists = object.properties.some(
     (property) =>
       ts.isPropertyAssignment(property) &&
@@ -141,6 +196,7 @@ function addObjectProperty(sourceFile, source, functionName, propertyText, prope
   const baseIndent = lineIndent(source, object.getStart(sourceFile));
   const propertyIndent = `${baseIndent}  `;
   const prefix = object.properties.length ? "," : "";
+
   return insertBefore(
     source,
     closeBrace,
@@ -148,58 +204,108 @@ function addObjectProperty(sourceFile, source, functionName, propertyText, prope
   );
 }
 
-function addVariableBefore(sourceFile, source, functionName, variableName, statementText) {
-  const fn = findExactly(
-    collect(sourceFile, (node) => ts.isFunctionDeclaration(node) && node.name?.text === functionName),
-    () => true,
-    `${functionName} declaration`,
-  );
-  const variableStatements = collect(
-    fn,
-    (node) =>
-      ts.isVariableStatement(node) &&
-      node.declarationList.declarations.some(
-        (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === variableName,
-      ),
-  );
-  const variable = findExactly(variableStatements, () => true, `${functionName}.${variableName}`);
-  if (source.includes("const mindState = buildAuthorMindState({")) return source;
-  return insertBefore(source, variable.getStart(sourceFile), `${statementText}\n\n`);
-}
+function addBrainProperty(source) {
+  if (source.includes("mindState: cognition.mindState")) return source;
 
-function addAuthorBriefLines(sourceFile, source) {
-  if (source.includes("MIND CONTROL: primary=${mindState.decision.primaryCapability}")) return source;
-  const fn = findExactly(
-    collect(sourceFile, (node) => ts.isFunctionDeclaration(node) && node.name?.text === "buildAuthorCognitivePlan"),
-    () => true,
-    "buildAuthorCognitivePlan declaration",
+  const sf = parse(TARGETS.brain, source);
+  const calls = collect(
+    sf,
+    (node) =>
+      ts.isCallExpression(node) &&
+      node.expression.getText(sf) === "buildMouthCandidateMessages",
   );
-  const arrays = collect(
-    fn,
-    (node) => ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "authorBrief" && ts.isArrayLiteralExpression(node.initializer),
-  );
-  const authorBrief = findExactly(arrays, () => true, "authorBrief array").initializer;
-  const closeBrace = authorBrief.getEnd() - 1;
-  const indent = lineIndent(source, authorBrief.getStart(sourceFile)) + "  ";
+
+  const call = findExactly(calls, () => true, "buildMouthCandidateMessages call");
+  const object = call.arguments[0];
+  if (!object || !ts.isObjectLiteralExpression(object)) {
+    fail("buildMouthCandidateMessages first argument must be an object literal");
+  }
+
+  const closeBrace = object.getEnd() - 1;
+  const baseIndent = lineIndent(source, object.getStart(sf));
   return insertBefore(
     source,
     closeBrace,
-    `\n${indent}\`MIND CONTROL: primary=\${mindState.decision.primaryCapability}; mechanism=\${mindState.decision.primaryMechanism}; active=\${mindState.selectedCapabilityIds.join(",")} .\`,\n${indent}\`FRONTIER: \${mindState.frontier.nextCutObjective}\`,`
-      .replace('join(",")} .', 'join(",")}.'),
+    `\n${baseIndent}  mindState: cognition.mindState,\n${baseIndent}`,
+  );
+}
+
+function addMouthProperty(source) {
+  let next = source;
+  let sf = parse(TARGETS.mouth, next);
+
+  next = addImportAfterLastImport(
+    sf,
+    next,
+    'import type { AuthorMindState } from "./authorMindControlPlane.js";\n',
+    "./authorMindControlPlane.js",
+  );
+
+  sf = parse(TARGETS.mouth, next);
+  next = addImportAfterLastImport(
+    sf,
+    next,
+    'import { buildSelectiveAuthorContext } from "./authorMindControlPlane.js";\n',
+    "./authorMindControlPlane.js",
+  );
+
+  sf = parse(TARGETS.mouth, next);
+  next = addTypeProperty(
+    sf,
+    next,
+    "MouthCandidateGenerationInput",
+    "mindState?: AuthorMindState;",
+    "mindState",
+  );
+
+  if (next.includes("authorMind: input.mindState ? buildSelectiveAuthorContext(input.mindState) : undefined")) {
+    return next;
+  }
+
+  sf = parse(TARGETS.mouth, next);
+  const taskProperties = collect(
+    sf,
+    (node) =>
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "task" &&
+      ts.isStringLiteral(node.initializer) &&
+      node.initializer.text === "REALIZE_AUTHORIZED_MATERIAL",
+  );
+  const task = findExactly(
+    taskProperties,
+    () => true,
+    "Mouth REALIZE_AUTHORIZED_MATERIAL task",
+  );
+
+  const insertionPoint = task.getEnd();
+  const indent = lineIndent(next, task.getStart(sf));
+  return insertBefore(
+    next,
+    insertionPoint,
+    `,\n${indent}  authorMind: input.mindState ? buildSelectiveAuthorContext(input.mindState) : undefined`,
   );
 }
 
 function wireCognition(source) {
   let next = source;
   let sf = parse(TARGETS.cognition, next);
+
   next = addImportAfterLastImport(
     sf,
     next,
     'import type { AuthorMindState } from "./authorMindControlPlane.js";\nimport {\n  assertAuthorMindState,\n  buildAuthorMindState,\n} from "./authorMindControlPlane.js";\n',
+    "./authorMindControlPlane.js",
   );
 
   sf = parse(TARGETS.cognition, next);
-  next = addTypeProperty(sf, next, "AuthorCognitivePlan", "mindState: AuthorMindState;", "mindState");
+  next = addTypeProperty(
+    sf,
+    next,
+    "AuthorCognitivePlan",
+    "mindState: AuthorMindState;",
+    "mindState",
+  );
 
   sf = parse(TARGETS.cognition, next);
   next = addVariableBefore(
@@ -211,68 +317,40 @@ function wireCognition(source) {
   );
 
   sf = parse(TARGETS.cognition, next);
-  next = addObjectProperty(sf, next, "buildAuthorCognitivePlan", "mindState", "mindState");
-
-  sf = parse(TARGETS.cognition, next);
-  next = addAuthorBriefLines(sf, next);
-  return next;
-}
-
-function addBrainProperty(source) {
-  if (source.includes("mindState: cognition.mindState")) return source;
-  const sf = parse(TARGETS.brain, source);
-  const calls = collect(sf, (node) => ts.isCallExpression(node) && node.expression.getText(sf) === "buildMouthCandidateMessages");
-  const call = findExactly(calls, () => true, "buildMouthCandidateMessages call");
-  const object = call.arguments[0];
-  if (!object || !ts.isObjectLiteralExpression(object)) fail("buildMouthCandidateMessages first argument must be an object literal");
-  sourceFileForObject = sf;
-  const closeBrace = object.getEnd() - 1;
-  const indent = lineIndent(source, object.getStart(sf)) + "  ";
-  return insertBefore(source, closeBrace, `\n${indent}mindState: cognition.mindState,`);
-}
-
-function wireMouth(source) {
-  let next = source;
-  let sf = parse(TARGETS.mouth, next);
-  next = addImportAfterLastImport(
+  next = addReturnProperty(
     sf,
     next,
-    'import type { AuthorMindState } from "./authorMindControlPlane.js";\nimport { buildSelectiveAuthorContext } from "./authorMindControlPlane.js";\n',
+    "buildAuthorCognitivePlan",
+    "mindState",
+    "mindState",
   );
 
-  sf = parse(TARGETS.mouth, next);
-  next = addTypeProperty(sf, next, "MouthCandidateGenerationInput", "mindState?: AuthorMindState;", "mindState");
-
-  if (!next.includes("authorMind: input.mindState ? buildSelectiveAuthorContext(input.mindState) : undefined")) {
-    sf = parse(TARGETS.mouth, next);
-    const props = collect(sf, (node) => ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "task");
-    const task = findExactly(props, () => true, "Mouth REALIZE_AUTHORIZED_MATERIAL task");
-    const value = source.slice(task.getStart(sf), task.getEnd());
-    if (!value.includes('"REALIZE_AUTHORIZED_MATERIAL"')) fail("Mouth task property not found");
-    const insertionPoint = task.getEnd();
-    next = insertBefore(next, insertionPoint, `,\n${lineIndent(next, task.getStart(sf))}  authorMind: input.mindState ? buildSelectiveAuthorContext(input.mindState) : undefined`);
-  }
   return next;
 }
 
 function wireWorkflow(source) {
   if (source.includes("author-mind-control-plane-acceptance.ts")) return source;
+
   const matches = [...source.matchAll(/^\s*- name: Production gate\s*$/gm)];
-  if (matches.length !== 1) fail(`CI Production gate step; expected=1; found=${matches.length}`);
+  if (matches.length !== 1) {
+    fail(`CI Production gate step; expected=1; found=${matches.length}`);
+  }
+
   const match = matches[0];
   const indent = match[0].match(/^\s*/)?.[0] ?? "      ";
-  const position = match.index;
   const step = `${indent}- name: Author mind control plane acceptance\n${indent}  run: pnpm exec tsx apps/api/author-mind-control-plane-acceptance.ts\n`;
-  return insertBefore(source, position, step);
+  return insertBefore(source, match.index, step);
 }
 
 const files = Object.values(TARGETS);
-const backups = new Map(files.map((relativePath) => [relativePath, read(relativePath)]));
+const backups = new Map(
+  files.map((relativePath) => [relativePath, read(relativePath)]),
+);
 
 try {
   const cognition = wireCognition(backups.get(TARGETS.cognition));
   const brain = addBrainProperty(backups.get(TARGETS.brain));
-  const mouth = wireMouth(backups.get(TARGETS.mouth));
+  const mouth = addMouthProperty(backups.get(TARGETS.mouth));
   const workflow = wireWorkflow(backups.get(TARGETS.workflow));
 
   write(TARGETS.cognition, cognition);
