@@ -56,6 +56,7 @@ export type MouthCandidateBeat = {
   semanticRealization?: LatentSemanticRealization;
   observerExperience?: MouthObserverExperienceObjective;
   realizationAuthority?: MouthRealizationAuthority;
+  forbiddenMoves?: readonly string[];
 };
 
 export type MouthCandidate = {
