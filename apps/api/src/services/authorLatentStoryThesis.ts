@@ -1,11 +1,5 @@
-/**
- * QRE LATENT STORY THESIS · CANONICAL
- *
- * Converts a selected movie into a graph-backed semantic arc. The strongest
- * earned metamorphic relation wins; generic relation narration is only used
- * when no stronger semantic opportunity exists.
- */
 import type {
+  AuthorMetamorphicRelationSet,
   LatentMovieCandidate,
   LatentSemanticCreativeOpportunity,
   LatentSemanticMechanism,
@@ -16,12 +10,24 @@ import type {
   RealityGraph,
 } from "@qre/contracts";
 import {
+  buildAuthorMetamorphicRelationSet,
+} from "./authorMetamorphicRelationSet.js";
+import {
   deriveSequenceBackedCreativeInterpretations,
   type CreativeInterpretation,
 } from "./authorCreativeInterpretation.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+
+type MetamorphicSemanticRealization = LatentSemanticRealization & {
+  metamorphicRelationSet: AuthorMetamorphicRelationSet;
+};
+
+type MetamorphicStoryThesis = LatentStoryThesis & {
+  metamorphicRelationSet: AuthorMetamorphicRelationSet;
+  semanticRealization?: MetamorphicSemanticRealization;
+};
 
 function label(graph: RealityGraph, id: string): string {
   return clean(graph.events.find((event) => event.id === id)?.label);
@@ -42,7 +48,8 @@ function fallbackRelation(graph: RealityGraph, ids: readonly string[]) {
       const relation = graph.relations
         .filter((item) =>
           ["contrasts", "causes", "changes", "recontextualizes", "repeats", "converges"].includes(item.kind) &&
-          ((item.from === ids[i] && item.to === ids[j]) || (item.from === ids[j] && item.to === ids[i])))
+          ((item.from === ids[i] && item.to === ids[j]) || (item.from === ids[j] && item.to === ids[i])),
+        )
         .sort((a, b) => b.strength - a.strength)[0];
       if (relation && (!best || relation.strength > best.strength)) {
         best = { from: relation.from, to: relation.to, kind: relation.kind, strength: relation.strength };
@@ -72,21 +79,17 @@ function realizationMoveFor(value: string): LatentSemanticRealizationMove {
     case "hold_contrast": return "hold_contrast";
     case "return_with_new_status": return "return_with_new_status";
     case "land_consequence": return "land_consequence";
-    case "recognize": return "recognize";
-    case "recontextualize": return "recontextualize_callback";
     case "status_reversal": return "hold_contrast";
     case "service_to_status": return "land_consequence";
-    case "converge_details": return "recognize";
     case "defeat_expectation": return "hold_contrast";
     default: return "recognize";
   }
 }
 
-function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunity | undefined {
+function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunity {
   const text = clean(value).toLowerCase();
-  if (!text) return undefined;
   if (text.includes("callback") || text.includes("return with a changed meaning")) return "callback_recontextualization";
-  if (text.includes("status") || text.includes("presentation becomes the setup") || text.includes("polished presentation")) return "status_turn";
+  if (text.includes("status") || text.includes("polished presentation") || text.includes("presentation becomes the setup")) return "status_turn";
   if (text.includes("consequence") || text.includes("service into the setup")) return "consequence";
   if (text.includes("expectation") || text.includes("contrast")) return "contrast_reframe";
   if (text.includes("collapse supplied details") || text.includes("one memorable relationship")) return "recognition";
@@ -95,9 +98,8 @@ function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunit
 
 function observerFor(interpretation: CreativeInterpretation | undefined): ObserverExperienceObjective | undefined {
   if (!interpretation) return undefined;
-  const kind = interpretation.mechanism;
-  if (kind === "contrast") {
-    return {
+  const byMechanism: Record<string, ObserverExperienceObjective> = {
+    contrast: {
       objective: interpretation.statement,
       surprise: "Hold the supplied contradiction until the reading flips.",
       curiosity: "What does the second detail make the first detail mean?",
@@ -107,10 +109,8 @@ function observerFor(interpretation: CreativeInterpretation | undefined): Observ
       feltEffect: interpretation.feltEffect,
       viewerShift: interpretation.viewerShift,
       realizationDirection: interpretation.languageAim,
-    };
-  }
-  if (kind === "state_change") {
-    return {
+    },
+    state_change: {
       objective: interpretation.statement,
       surprise: "Make the supplied state transition feel consequential.",
       curiosity: "Let the old state remain mentally present as the new state arrives.",
@@ -120,10 +120,8 @@ function observerFor(interpretation: CreativeInterpretation | undefined): Observ
       feltEffect: interpretation.feltEffect,
       viewerShift: interpretation.viewerShift,
       realizationDirection: interpretation.languageAim,
-    };
-  }
-  if (kind === "consequence") {
-    return {
+    },
+    consequence: {
       objective: interpretation.statement,
       surprise: "Let the supplied outcome redefine what came before.",
       curiosity: "Why does the endpoint feel more meaningful now?",
@@ -133,9 +131,9 @@ function observerFor(interpretation: CreativeInterpretation | undefined): Observ
       feltEffect: interpretation.feltEffect,
       viewerShift: interpretation.viewerShift,
       realizationDirection: interpretation.languageAim,
-    };
-  }
-  return {
+    },
+  };
+  return byMechanism[interpretation.mechanism] ?? {
     objective: interpretation.statement,
     surprise: "Let a familiar supplied detail acquire a second reading.",
     curiosity: "What changed about the meaning without changing the fact?",
@@ -148,7 +146,10 @@ function observerFor(interpretation: CreativeInterpretation | undefined): Observ
   };
 }
 
-function semanticFrom(interpretation: CreativeInterpretation | undefined): LatentSemanticRealization | undefined {
+function semanticFrom(
+  interpretation: CreativeInterpretation | undefined,
+  relationSet: AuthorMetamorphicRelationSet,
+): MetamorphicSemanticRealization | undefined {
   if (!interpretation) return undefined;
   return {
     mechanism: interpretation.mechanism,
@@ -165,25 +166,62 @@ function semanticFrom(interpretation: CreativeInterpretation | undefined): Laten
     viewerShift: clean(interpretation.viewerShift),
     languageAim: clean(interpretation.languageAim),
     confidence: interpretation.confidence,
+    metamorphicRelationSet: relationSet,
   };
 }
 
-export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMovieCandidate): LatentStoryThesis {
+function fallbackSemantic(
+  graph: RealityGraph,
+  fallback: { from: string; to: string; kind: string; strength: number },
+  relationSet: AuthorMetamorphicRelationSet,
+): MetamorphicSemanticRealization {
+  const creativeOpportunity =
+    fallback.kind === "contrasts" ? "contrast_reframe" :
+    fallback.kind === "causes" ? "consequence" :
+    fallback.kind === "changes" ? "status_turn" :
+    fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "callback_recontextualization" :
+    "recognition";
+  return {
+    mechanism: mechanismFor(fallback.kind),
+    evidenceEventIds: [fallback.from, fallback.to],
+    beforeEventIds: [fallback.from],
+    afterEventIds: [fallback.to],
+    before: label(graph, fallback.from),
+    after: label(graph, fallback.to),
+    relation: { kind: fallback.kind, fromEventId: fallback.from, toEventId: fallback.to },
+    realizationMove: fallback.kind === "contrasts" ? "hold_contrast" : fallback.kind === "causes" ? "land_consequence" : fallback.kind === "changes" ? "feel_state_transition" : fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "recontextualize_callback" : "recognize",
+    creativeOpportunity,
+    feltEffect: "A change in how the supplied pieces are perceived together.",
+    viewerShift: `The viewer's reading moves from ${label(graph, fallback.from)} toward ${label(graph, fallback.to)}.`,
+    languageAim: "Use implication, contrast, compression, or consequence rather than explanation.",
+    confidence: fallback.strength,
+    metamorphicRelationSet: relationSet,
+  };
+}
+
+export function deriveLatentStoryThesis(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): MetamorphicStoryThesis {
   const ordered = orderedIds(candidate);
+  const relationSet = buildAuthorMetamorphicRelationSet(graph, ordered);
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
-  const interpretation = [...interpretations].sort((a, b) => (b.metamorphicScore ?? b.confidence) - (a.metamorphicScore ?? a.confidence))[0];
+  const interpretation = [...interpretations]
+    .sort((a, b) => (b.metamorphicScore ?? b.confidence) - (a.metamorphicScore ?? a.confidence))[0];
   const fallback = fallbackRelation(graph, ordered);
   const endpoint = endpointId(candidate);
-
   const beforeId = interpretation?.beforeEventIds[0] ?? fallback?.from ?? ordered[0] ?? "";
   const afterId = interpretation?.afterEventIds[0] ?? fallback?.to ?? endpoint;
-  const evidenceIds = unique(interpretation?.evidenceEventIds ?? (fallback ? [fallback.from, fallback.to] : ordered));
-  const semantic = semanticFrom(interpretation);
+  const evidenceIds = unique(
+    interpretation?.evidenceEventIds ?? (fallback ? [fallback.from, fallback.to] : ordered),
+  );
+  const semantic = semanticFrom(interpretation, relationSet) ?? (fallback ? fallbackSemantic(graph, fallback, relationSet) : undefined);
   const observer = observerFor(interpretation);
-  const semanticTurn = clean(interpretation?.statement) || (fallback
-    ? `${label(graph, fallback.from)} changes the reading of ${label(graph, fallback.to)} through ${fallback.kind}.`
-    : "");
-
+  const semanticTurn = clean(interpretation?.statement) || (
+    fallback
+      ? `${label(graph, fallback.from)} changes the reading of ${label(graph, fallback.to)} through ${fallback.kind}.`
+      : ""
+  );
   const beforeMeaning = beforeId ? [label(graph, beforeId)].filter(Boolean) : [];
   const afterMeaning = afterId ? [label(graph, afterId)].filter(Boolean) : [];
   const carrierEventIds = evidenceIds.filter((id) => id !== beforeId && id !== afterId && id !== endpoint);
@@ -193,31 +231,17 @@ export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMo
   return {
     initialReading: clean(candidate.trajectory[0]?.viewerChange || candidate.evidence[0]),
     semanticTurn,
-    semanticRealization: semantic ?? (fallback
-      ? {
-          mechanism: mechanismFor(fallback.kind),
-          evidenceEventIds: [fallback.from, fallback.to],
-          beforeEventIds: [fallback.from],
-          afterEventIds: [fallback.to],
-          before: label(graph, fallback.from),
-          after: label(graph, fallback.to),
-          relation: { kind: fallback.kind, fromEventId: fallback.from, toEventId: fallback.to },
-          realizationMove: fallback.kind === "contrasts" ? "hold_contrast" : fallback.kind === "causes" ? "land_consequence" : fallback.kind === "changes" ? "feel_state_transition" : fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "recontextualize_callback" : "recognize",
-          creativeOpportunity: fallback.kind === "contrasts" ? "contrast_reframe" : fallback.kind === "causes" ? "consequence" : fallback.kind === "changes" ? "status_turn" : fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "callback_recontextualization" : "recognition",
-          feltEffect: "A change in how the supplied pieces are perceived together.",
-          viewerShift: `The viewer's reading moves from ${label(graph, fallback.from)} toward ${label(graph, fallback.to)}.`,
-          languageAim: "Use implication, contrast, compression, or consequence rather than explanation.",
-          confidence: fallback.strength,
-        }
-      : undefined),
+    semanticRealization: semantic,
     beforeMeaning,
     afterMeaning,
     beforeEventIds: beforeId ? [beforeId] : [],
     afterEventIds: afterId ? [afterId] : [],
+    relationKind: clean(interpretation?.relation?.kind ?? fallback?.kind),
     carrierEventIds,
     sealingEventIds,
     payoffDependency: payoff,
     counterfactualDependency: interpretation ? Math.min(1, Math.max(0, interpretation.confidence)) : 0.5,
     observerExperience: observer,
+    metamorphicRelationSet: relationSet,
   };
 }
