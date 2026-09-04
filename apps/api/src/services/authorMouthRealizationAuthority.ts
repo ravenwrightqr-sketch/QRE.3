@@ -1,12 +1,18 @@
 import type {
+  AuthorMetamorphicRelationSet,
   MouthCandidateBeat,
   MouthInferenceBudget,
   MouthRealizationAuthority,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
+import { assertAuthorMetamorphicRelationSet } from "./authorMetamorphicRelationSet.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+
+type MetamorphicSemantic = NonNullable<NonNullable<MouthCandidateBeat["semanticRealization"]>> & {
+  metamorphicRelationSet?: AuthorMetamorphicRelationSet;
+};
 
 function inferenceBudgetFor(beat: MouthCandidateBeat): MouthInferenceBudget {
   const role = clean(beat.role).toLowerCase();
@@ -22,15 +28,28 @@ function inferenceBudgetFor(beat: MouthCandidateBeat): MouthInferenceBudget {
   return "strongly-interpretive";
 }
 
+function relationSetFor(beat: MouthCandidateBeat): AuthorMetamorphicRelationSet {
+  const semantic = beat.semanticRealization as MetamorphicSemantic | undefined;
+  const set = semantic?.metamorphicRelationSet;
+  assertAuthorMetamorphicRelationSet(set);
+  const beatEvents = new Set(beat.eventIds ?? []);
+  if (set.sourceEventIds.some((id) => !beatEvents.has(id))) {
+    throw new Error("AUTHOR METAMORPHIC PIPELINE SEALED: Mouth received a relation set outside beat scope");
+  }
+  return set;
+}
+
 /**
  * Single authority package connecting canonical cognition to Mouth.
- * It derives permission from the existing beat and reality contracts only.
+ * The relation set is mandatory and immutable by policy: Mouth may realize it,
+ * but it cannot select a different semantic interpretation.
  */
 export function buildMouthRealizationAuthority(input: {
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
 }): MouthRealizationAuthority {
   const { beat, envelope } = input;
+  const metamorphicRelationSet = relationSetFor(beat);
   const eventIds = uniqueStrings(beat.eventIds ?? []);
   const localEvents = envelope.events.filter((event) => eventIds.includes(event.id));
   const localStructures = envelope.eventStructure.filter((structure) => eventIds.includes(structure.eventId));
@@ -53,6 +72,12 @@ export function buildMouthRealizationAuthority(input: {
     semantic?.creativeOpportunity ?? "",
     semantic?.realizationMove ?? "",
     observer?.realizationDirection ?? "",
+    ...metamorphicRelationSet.relations.slice(0, 4).flatMap((relation) => [
+      relation.after,
+      relation.viewerShift,
+      relation.feltEffect,
+      relation.creativeOpportunity,
+    ]),
   ]);
   const permittedRealizationModes = uniqueStrings([
     beat.creativeMove ?? "",
@@ -60,6 +85,7 @@ export function buildMouthRealizationAuthority(input: {
     ...(beat.relationKinds ?? []),
     semantic?.realizationMove ?? "",
     semantic?.creativeOpportunity ?? "",
+    ...metamorphicRelationSet.relations.slice(0, 6).map((relation) => relation.realizationMove),
   ]);
 
   return {
@@ -82,6 +108,7 @@ export function buildMouthRealizationAuthority(input: {
       realizationDirection: clean(observer?.realizationDirection),
       languageAim: clean(semantic?.languageAim),
     },
+    metamorphicRelationSet,
     earnedInterpretations,
     permittedRealizationModes,
     inferenceBudget: inferenceBudgetFor(beat),
@@ -89,6 +116,7 @@ export function buildMouthRealizationAuthority(input: {
     forbiddenMoves: uniqueStrings(beat.forbiddenMoves ?? []),
     evidenceEventIds: uniqueStrings([
       ...eventIds,
+      ...metamorphicRelationSet.relations.flatMap((relation) => relation.evidenceEventIds),
       ...(semantic?.evidenceEventIds ?? []),
       ...relations.flatMap((relation) => [relation.from, relation.to]),
       ...(beat.viewerState?.evidenceEventIds ?? []),
