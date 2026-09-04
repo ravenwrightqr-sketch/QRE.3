@@ -1,4 +1,4 @@
-import type { LatentMovieCandidate, MouthCandidateBeat, RealityGraph } from "@qre/contracts";
+import type { AuthorMetamorphicRelationSet, LatentMovieCandidate, MouthCandidateBeat, RealityGraph } from "@qre/contracts";
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
 import { deriveLatentStoryThesis } from "./src/services/authorLatentStoryThesis.js";
@@ -9,20 +9,26 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 const graph: RealityGraph = {
+  evidence: [
+    { id: "evidence-groom", text: "Coco was groomed at Elm Street Grooming", kind: "fact" },
+    { id: "evidence-bow", text: "Coco stole the red bow", kind: "fact" },
+  ],
   events: [
     {
       id: "groom",
       label: "Coco was groomed at Elm Street Grooming",
       entities: ["Coco"],
-      sourceIds: [],
+      sourceIds: ["evidence-groom"],
       salient: true,
+      provenance: "explicit",
     },
     {
       id: "bow",
       label: "Coco stole the red bow",
       entities: ["Coco"],
-      sourceIds: [],
+      sourceIds: ["evidence-bow"],
       salient: true,
+      provenance: "explicit",
     },
   ],
   relations: [],
@@ -57,12 +63,21 @@ const graph: RealityGraph = {
     },
   ],
   entityContinuity: [
-    { name: "Coco", eventIds: ["groom", "bow"], salienceScore: 0.98 },
+    {
+      name: "Coco",
+      mentionCount: 2,
+      eventIds: ["groom", "bow"],
+      firstEventId: "groom",
+      lastEventId: "bow",
+      kind: "animal",
+      salienceScore: 0.98,
+    },
   ],
   unresolvedTensions: [],
   recurringSignals: [],
+  sensorySignals: [],
   patterns: [],
-} as RealityGraph;
+};
 
 const candidate = {
   id: "pipeline-candidate",
@@ -101,9 +116,7 @@ const enriched = { ...candidate, storyThesis: thesis } as LatentMovieCandidate;
 const selected = selectDistinctMovieCandidates([enriched], 1, "NONE");
 assert(selected.length === 1, "movie candidate was not selected");
 
-const selectedSet = (selected[0] as LatentMovieCandidate & {
-  metamorphicRelationSet?: typeof thesis.metamorphicRelationSet;
-}).metamorphicRelationSet;
+const selectedSet = (selected[0] as LatentMovieCandidate & { metamorphicRelationSet?: AuthorMetamorphicRelationSet }).metamorphicRelationSet;
 assert(selectedSet === thesis.metamorphicRelationSet, "movie selection replaced or recomputed the sealed relation set");
 
 const semantic = thesis.semanticRealization;
