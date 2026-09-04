@@ -18,6 +18,7 @@ export * from "./flow.js";
 export * from "./experience/index.js";
 export * from "./cogauthor/mouth.js";
 export * from "./cogauthor/realizationAuthority.js";
+export * from "./cogauthor/metamorphic.js";
 export * from "./experience/indexV13.js";
 export * from "./experience/memoryIntelligenceV14.js";
 export * from "./experience/memoryForesightV15.js";
