@@ -124,7 +124,8 @@ assert(semantic, "thesis did not carry semantic realization");
 assert(semantic.metamorphicRelationSet === thesis.metamorphicRelationSet, "semantic realization lost the sealed relation set");
 
 const envelope = buildAuthorRealityEnvelope({ graph, subject: "Coco" });
-const beat: MouthCandidateBeat = {
+
+const sequenceScopedBeat: MouthCandidateBeat = {
   order: 1,
   role: "establishing",
   eventIds: thesis.metamorphicRelationSet.sourceEventIds,
@@ -132,17 +133,64 @@ const beat: MouthCandidateBeat = {
   semanticRealization: semantic,
 };
 
-const authority = buildMouthRealizationAuthority({ beat, envelope });
-assert(authority.metamorphicRelationSet === thesis.metamorphicRelationSet, "Mouth did not receive the sealed relation set");
-assert(authority.metamorphicRelationSet.strongestRelationId === thesis.metamorphicRelationSet.strongestRelationId, "strongest relation identity changed before Mouth");
+const sequenceScopedAuthority = buildMouthRealizationAuthority({
+  beat: sequenceScopedBeat,
+  envelope,
+});
+assert(
+  sequenceScopedAuthority.metamorphicRelationSet === thesis.metamorphicRelationSet,
+  "Mouth did not receive the sealed relation set",
+);
+assert(
+  sequenceScopedAuthority.metamorphicRelationSet.strongestRelationId === thesis.metamorphicRelationSet.strongestRelationId,
+  "strongest relation identity changed before Mouth",
+);
 
-let bypassRejected = false;
+// A real Mouth beat is narrower than the candidate-scoped sealed relation set.
+// It must be accepted while retaining the exact same sealed set identity.
+const beatScopedAuthority = buildMouthRealizationAuthority({
+  beat: {
+    order: 1,
+    role: "establishing",
+    eventIds: ["groom"],
+    change: "presentation established",
+    semanticRealization: semantic,
+  },
+  envelope,
+});
+assert(
+  beatScopedAuthority.metamorphicRelationSet === thesis.metamorphicRelationSet,
+  "beat-scoped Mouth replaced the sealed relation set",
+);
+assert(
+  beatScopedAuthority.reality.eventIds.length === 1 && beatScopedAuthority.reality.eventIds[0] === "groom",
+  "beat-scoped Mouth widened concrete reality beyond the current beat",
+);
+
+let beatScopeBypassRejected = false;
+try {
+  buildMouthRealizationAuthority({
+    beat: {
+      order: 1,
+      role: "establishing",
+      eventIds: ["unknown-event"],
+      change: "direct",
+      semanticRealization: semantic,
+    },
+    envelope,
+  });
+} catch (error) {
+  beatScopeBypassRejected = error instanceof Error && /METAMORPHIC PIPELINE SEALED/i.test(error.message);
+}
+assert(beatScopeBypassRejected, "Mouth accepted a beat outside the sealed candidate scope");
+
+let selectionBypassRejected = false;
 try {
   selectDistinctMovieCandidates([candidate], 1, "NONE");
 } catch (error) {
-  bypassRejected = error instanceof Error && /METAMORPHIC PIPELINE SEALED/i.test(error.message);
+  selectionBypassRejected = error instanceof Error && /METAMORPHIC PIPELINE SEALED/i.test(error.message);
 }
-assert(bypassRejected, "movie selection allowed a candidate to bypass metamorphic cognition");
+assert(selectionBypassRejected, "movie selection allowed a candidate to bypass metamorphic cognition");
 
 let mouthBypassRejected = false;
 try {
@@ -159,5 +207,7 @@ console.log("AUTHOR METAMORPHIC PIPELINE ACCEPTANCE: PASS");
 console.log("REALITY_GRAPH_TO_THESIS_SET=TRUE");
 console.log("THESIS_TO_MOVIE_SELECTION_SET_IDENTITY=TRUE");
 console.log("MOVIE_TO_MOUTH_SET_IDENTITY=TRUE");
+console.log("BEAT_SCOPE_IS_SUBSET_OF_SEALED_SET=TRUE");
+console.log("BEAT_REALITY_SCOPE_PRESERVED=TRUE");
 console.log("BYPASS_SELECTION_REJECTED=TRUE");
 console.log("BYPASS_MOUTH_REJECTED=TRUE");
