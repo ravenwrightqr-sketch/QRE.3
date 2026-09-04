@@ -7,8 +7,10 @@
  */
 import type {
   LatentMovieCandidate,
+  LatentSemanticCreativeOpportunity,
   LatentSemanticMechanism,
   LatentSemanticRealization,
+  LatentSemanticRealizationMove,
   LatentStoryThesis,
   ObserverExperienceObjective,
   RealityGraph,
@@ -60,6 +62,35 @@ function mechanismFor(kind: string): LatentSemanticMechanism {
     case "converges": return "convergence";
     default: return "continuation";
   }
+}
+
+function realizationMoveFor(value: string): LatentSemanticRealizationMove {
+  switch (clean(value).toLowerCase()) {
+    case "feel_state_transition": return "feel_state_transition";
+    case "recognize_callback": return "recognize_callback";
+    case "recontextualize_callback": return "recontextualize_callback";
+    case "hold_contrast": return "hold_contrast";
+    case "return_with_new_status": return "return_with_new_status";
+    case "land_consequence": return "land_consequence";
+    case "recognize": return "recognize";
+    case "recontextualize": return "recontextualize_callback";
+    case "status_reversal": return "hold_contrast";
+    case "service_to_status": return "land_consequence";
+    case "converge_details": return "recognize";
+    case "defeat_expectation": return "hold_contrast";
+    default: return "recognize";
+  }
+}
+
+function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunity | undefined {
+  const text = clean(value).toLowerCase();
+  if (!text) return undefined;
+  if (text.includes("callback") || text.includes("return with a changed meaning")) return "callback_recontextualization";
+  if (text.includes("status") || text.includes("presentation becomes the setup") || text.includes("polished presentation")) return "status_turn";
+  if (text.includes("consequence") || text.includes("service into the setup")) return "consequence";
+  if (text.includes("expectation") || text.includes("contrast")) return "contrast_reframe";
+  if (text.includes("collapse supplied details") || text.includes("one memorable relationship")) return "recognition";
+  return "recognition";
 }
 
 function observerFor(interpretation: CreativeInterpretation | undefined): ObserverExperienceObjective | undefined {
@@ -128,8 +159,8 @@ function semanticFrom(interpretation: CreativeInterpretation | undefined): Laten
     after: clean(interpretation.after),
     subject: clean(interpretation.subject),
     relation: interpretation.relation,
-    realizationMove: clean(interpretation.realizationMove),
-    creativeOpportunity: clean(interpretation.creativeOpportunity),
+    realizationMove: realizationMoveFor(interpretation.realizationMove),
+    creativeOpportunity: creativeOpportunityFor(interpretation.creativeOpportunity ?? ""),
     feltEffect: clean(interpretation.feltEffect),
     viewerShift: clean(interpretation.viewerShift),
     languageAim: clean(interpretation.languageAim),
@@ -171,8 +202,8 @@ export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMo
           before: label(graph, fallback.from),
           after: label(graph, fallback.to),
           relation: { kind: fallback.kind, fromEventId: fallback.from, toEventId: fallback.to },
-          realizationMove: fallback.kind === "contrasts" ? "hold_contrast" : "recontextualize",
-          creativeOpportunity: "find the strongest earned change in reading between the supplied details",
+          realizationMove: fallback.kind === "contrasts" ? "hold_contrast" : fallback.kind === "causes" ? "land_consequence" : fallback.kind === "changes" ? "feel_state_transition" : fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "recontextualize_callback" : "recognize",
+          creativeOpportunity: fallback.kind === "contrasts" ? "contrast_reframe" : fallback.kind === "causes" ? "consequence" : fallback.kind === "changes" ? "status_turn" : fallback.kind === "repeats" || fallback.kind === "recontextualizes" ? "callback_recontextualization" : "recognition",
           feltEffect: "A change in how the supplied pieces are perceived together.",
           viewerShift: `The viewer's reading moves from ${label(graph, fallback.from)} toward ${label(graph, fallback.to)}.`,
           languageAim: "Use implication, contrast, compression, or consequence rather than explanation.",
@@ -183,11 +214,10 @@ export function deriveLatentStoryThesis(graph: RealityGraph, candidate: LatentMo
     afterMeaning,
     beforeEventIds: beforeId ? [beforeId] : [],
     afterEventIds: afterId ? [afterId] : [],
-    relationKind: semantic?.mechanism ?? (fallback ? mechanismFor(fallback.kind) : "continuation"),
     carrierEventIds,
     sealingEventIds,
-    payoffDependency: payoff ? `The supplied ending lands after the earned meaning accumulates: ${payoff}.` : "",
-    counterfactualDependency: semantic ? Math.min(1, evidenceIds.length / Math.max(2, ordered.length)) : 0,
+    payoffDependency: payoff,
+    counterfactualDependency: interpretation ? Math.min(1, Math.max(0, interpretation.confidence)) : 0.5,
     observerExperience: observer,
   };
 }
