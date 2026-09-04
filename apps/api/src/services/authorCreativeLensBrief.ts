@@ -33,12 +33,11 @@ const unique = (values: readonly string[]): string[] => [
 const metric = (value: number): number =>
   Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
 
-const relationshipKinds = (
-  envelope: RealityEnvelope,
-): string[] => unique(envelope.relations.map((relation) => relation.kind));
+const relationshipKinds = (envelope: RealityEnvelope): string[] =>
+  unique(envelope.relations.map((relation) => relation.kind));
 
 const directionFor = (
-  lens: AuthorLensProfile,
+  label: string,
   character: AuthorCharacterProfile,
   envelope: RealityEnvelope,
 ): string => {
@@ -47,30 +46,37 @@ const directionFor = (
     ?? character.emotionalPosture
     ?? character.statusPosture
     ?? "the supplied reality";
+  const labels = new Set(label.split("+").map((value) => clean(value).toLowerCase()));
 
-  if (lens.label === "horror") {
+  if (labels.has("horror") && labels.has("romance")) {
+    return relations.includes("contrasts") || relations.includes("recontextualizes")
+      ? `Make existing danger and existing attachment illuminate each other: the intimacy becomes striking because the surrounding reality is dangerous. The viewer should feel the connection, not be told to call it love. Preserve every supplied event exactly.`
+      : `Use intimacy and unease together: make an already-real detail feel privately significant and slightly wrong without inventing danger, intimacy, or an event.`;
+  }
+
+  if (labels.has("horror")) {
     return relations.includes("recontextualizes") || relations.includes("contrasts")
       ? `Make the familiar feel wrong by changing the viewer's reading of ${anchor}; preserve the underlying events exactly.`
       : `Make ordinary reality feel quietly wrong around ${anchor}; suggest uncertainty without inventing an event.`;
   }
 
-  if (lens.label === "romance") {
+  if (labels.has("romance")) {
     return `Make an existing detail carry private significance; let repetition, restraint, or consequence imply connection without inventing intimacy.`;
   }
 
-  if (lens.label === "heist") {
+  if (labels.has("heist")) {
     return `Frame an existing acquisition, disappearance, securing, or payoff as an operation; never invent accomplices, security, escape, or theft.`;
   }
 
-  if (lens.label === "game") {
+  if (labels.has("game")) {
     return `Frame real progression as rounds, thresholds, upgrades, or win conditions only as figurative treatment; never invent a score, level, opponent, or game event.`;
   }
 
-  if (lens.label === "fierce") {
+  if (labels.has("fierce")) {
     return `Amplify status, attitude, and self-possession already supported by the subject; do not add threats, aggression, or physical action.`;
   }
 
-  return `${lens.label} should amplify ${lens.framingBias.slice(0, 3).join(", ")} already available in the supplied reality, changing perception rather than reality.`;
+  return `${label} should amplify the creative framing already available in the supplied reality, changing perception rather than reality.`;
 };
 
 export function buildCreativeLensBrief(
@@ -78,6 +84,22 @@ export function buildCreativeLensBrief(
   character: AuthorCharacterProfile,
   envelope: RealityEnvelope,
 ): CreativeLensBrief {
+  return composeCreativeLensBrief([lens], character, envelope);
+}
+
+/**
+ * Compose multiple treatments into one brief. Composition is deliberately
+ * union-based: a secondary lens adds framing possibilities but never adds
+ * permission to create new concrete reality.
+ */
+export function composeCreativeLensBrief(
+  lenses: readonly AuthorLensProfile[],
+  character: AuthorCharacterProfile,
+  envelope: RealityEnvelope,
+): CreativeLensBrief {
+  const usable = lenses.filter((lens) => clean(lens.label) && clean(lens.label).toLowerCase() !== "none");
+  const selected = usable.length ? usable : lenses.length ? [lenses[0]] : [];
+  const labels = unique(selected.map((lens) => lens.label));
   const relationships = relationshipKinds(envelope);
   const signals = unique([
     ...(envelope.recurringSignals ?? []),
@@ -95,28 +117,34 @@ export function buildCreativeLensBrief(
     "figurative framing may alter interpretation without creating a new occurrence",
   ];
 
+  const framingBias = unique(selected.flatMap((lens) => lens.framingBias)).slice(0, 18);
+  const realizationPreferences = unique(selected.flatMap((lens) => lens.realizationPreferences)).slice(0, 18);
+  const forbiddenRealityMoves = unique(selected.flatMap((lens) => lens.forbiddenRealityMoves)).slice(0, 24);
   const treatmentMoves = unique([
-    ...lens.realizationPreferences,
-    ...lens.framingBias,
-  ]).slice(0, 14);
-
+    ...realizationPreferences,
+    ...framingBias,
+  ]).slice(0, 20);
+  const intensity = metric(
+    selected.reduce((sum, lens) => sum + lens.intensity, 0) / Math.max(1, selected.length),
+  );
   const support = metric(
     relationships.length * 0.07
       + signals.length * 0.035
       + Math.min(0.2, character.contradictions.length * 0.05)
       + Math.min(0.2, character.coreTraits.length * 0.03),
   );
+  const label = labels.length ? labels.join(" + ") : "NONE";
 
   return {
-    label: clean(lens.label) || "NONE",
-    intensity: metric(lens.intensity),
-    framingBias: unique(lens.framingBias),
-    realizationPreferences: unique(lens.realizationPreferences),
-    forbiddenRealityMoves: unique(lens.forbiddenRealityMoves),
+    label,
+    intensity,
+    framingBias,
+    realizationPreferences,
+    forbiddenRealityMoves,
     supportedRelationshipKinds: relationships,
     supportedSignals: signals,
     treatmentMoves,
     realityInvariants,
-    direction: `${directionFor(lens, character, envelope)} Support=${support}.`,
+    direction: `${directionFor(label, character, envelope)} Support=${support}.`,
   };
 }
