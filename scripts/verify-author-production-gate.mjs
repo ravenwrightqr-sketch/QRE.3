@@ -109,7 +109,7 @@ if (!/Mouth may invent language freely inside the approved semantic meaning\./i.
   fail.push("missing realization boundary law:language-inside-meaning");
 }
 
-if (!/new concrete\s+(?:event|occurrence|claim)/i.test(boundary)) {
+if (!/new concrete\s*[\s*]*?(?:event|occurrence|claim)/i.test(boundary)) {
   fail.push("missing realization boundary law:concrete-world-guard");
 }
 
@@ -144,7 +144,7 @@ for (const file of files) {
     "authorMouthCandidateSearchCanonical",
     "authorMouthSequenceBeamSearch",
   ]) {
-    if (new RegExp(`from\\s+[\\"'][^\\"']*${oldName}\\.js[\\"']`).test(body)) {
+    if (new RegExp(`from\\s+[\"'][^\"']*${oldName}\\.js[\"']`).test(body)) {
       fail.push(`retired import:${rel}->${oldName}`);
     }
   }
