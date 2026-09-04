@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.10",
-    "@types/jsonwebtoken": "^9.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "20",
     "prisma": "6.19.3",
     "tsx": "^4.22.4",
