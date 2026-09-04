@@ -13,6 +13,10 @@ concurrency:
   group: qre-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 10
+
 jobs:
   build-and-cognitive-acceptance:
     runs-on: ubuntu-latest
@@ -24,13 +28,13 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install
@@ -39,8 +43,17 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
 
+      - name: Author architecture and ownership guards
+        run: pnpm author:guard
+
+      - name: Author wiring guard
+        run: pnpm author:wiring
+
       - name: Full repository build
         run: pnpm build
+
+      - name: Lens boundary acceptance
+        run: pnpm author:lens-boundary
 
       - name: World simulation acceptance
         run: pnpm author:world-simulation
@@ -57,35 +70,83 @@ jobs:
       - name: Universal movie search acceptance
         run: pnpm exec tsx apps/api/author-universal-movie-search-acceptance.ts
 
+      - name: Universal final acceptance
+        run: pnpm author:universal-final
+
+      - name: Universal learning loop acceptance
+        run: pnpm author:universal-learning-loop
+
+      - name: Living sequence acceptance
+        run: pnpm author:living-sequence
+
       - name: Return golden acceptance
         run: pnpm exec tsx apps/api/author-return-golden-acceptance.ts
 
-      - name: Author brain end-to-end acceptance
+      - name: Round adaptation acceptance
+        run: pnpm exec tsx apps/api/author-round-adaptation-acceptance.ts
+
+      - name: Brain end-to-end acceptance
         run: pnpm exec tsx apps/api/author-brain-end-to-end-acceptance.ts
 
-      - name: Author persistence acceptance
+      - name: Full system acceptance
+        run: pnpm exec tsx apps/api/author-full-system-acceptance.ts
+
+      - name: Persistence acceptance
         run: pnpm author:persistence
 
-      - name: Metamorphic foundation
-        run: pnpm author:metamorphic-foundation
+      - name: HTTP runtime persistence acceptance
+        run: pnpm exec tsx apps/api/author-http-runtime-persistence-acceptance.ts
 
-      - name: Metamorphic relation acceptance
-        run: pnpm author:metamorphic-relation
+      - name: Experience state acceptance
+        run: pnpm exec tsx apps/api/author-experience-state-acceptance.ts
 
-      - name: Metamorphic selection acceptance
-        run: pnpm author:metamorphic-selection
+      - name: Reality graph distinctness acceptance
+        run: pnpm exec tsx apps/api/author-reality-graph-distinctness-acceptance.ts
 
-      - name: Metamorphic pipeline acceptance
-        run: pnpm author:metamorphic-pipeline
+      - name: Readout acceptance
+        run: pnpm exec tsx apps/api/author-readout-acceptance.ts
 
-      - name: Metamorphic invariance acceptance
-        run: pnpm author:metamorphic-invariance
+      - name: Visible output acceptance
+        run: pnpm exec tsx apps/api/author-visible-output-acceptance.ts
 
-      - name: Metamorphic universal acceptance
-        run: pnpm author:metamorphic-universal
+      - name: Viewer state acceptance
+        run: pnpm exec tsx apps/api/author-viewer-state-acceptance.ts
+
+      - name: Viewer state cut acceptance
+        run: pnpm exec tsx apps/api/author-viewer-state-cut-acceptance.ts
+
+      - name: Meaning execution acceptance
+        run: pnpm exec tsx apps/api/author-meaning-execution-acceptance.ts
+
+      - name: Cognition authority acceptance
+        run: pnpm exec tsx apps/api/author-cognition-authority-acceptance.ts
+
+      - name: Sequence planner acceptance
+        run: pnpm exec tsx apps/api/author-sequence-planner-acceptance.ts
+
+      - name: Observer completion universal acceptance
+        run: pnpm exec tsx apps/api/author-observer-completion-universal-acceptance.ts
+
+      - name: Observer discovery sequence acceptance
+        run: pnpm exec tsx apps/api/author-observer-discovery-sequence-acceptance.ts
+
+      - name: Mouth universal acceptance
+        run: pnpm exec tsx apps/api/author-mouth-universal-acceptance.ts
+
+      - name: Mouth metamorphic simulation acceptance
+        run: pnpm exec tsx apps/api/author-mouth-metamorphic-simulation-acceptance.ts
+
+      - name: Mouth metamorphic v2 acceptance
+        run: pnpm exec tsx apps/api/author-mouth-metamorphic-v2-acceptance.ts
 
       - name: Metamorphic aggregate acceptance
         run: pnpm author:metamorphic
+
+      - name: Realization boundary acceptance
+        run: pnpm exec tsx apps/api/author-realization-boundary-acceptance.ts
+
+      - name: Realization mode acceptance
+        run: pnpm exec tsx apps/api/author-realization-mode-acceptance.ts
 
       - name: Realization zero-leakage acceptance
         run: pnpm exec tsx apps/api/author-realization-zero-leakage-acceptance.ts
