@@ -1,8 +1,47 @@
-import type { LatentMovieCandidate } from "@qre/contracts";
+import type { AuthorMetamorphicRelationSet, LatentMovieCandidate } from "@qre/contracts";
 import { selectDistinctMovieCandidates } from "./src/services/authorMovieDifferentiation.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`AUTHOR METAMORPHIC SELECTION FAILED: ${message}`);
+}
+
+function relationSet(
+  sourceEventIds: readonly string[],
+  relationCount = 0,
+): AuthorMetamorphicRelationSet {
+  const relations = relationCount
+    ? [{
+        id: "metamorphic:test:a+b",
+        type: "contrast_reversal" as const,
+        mechanism: "contrast" as const,
+        evidenceEventIds: [...sourceEventIds],
+        beforeEventIds: [sourceEventIds[0] ?? ""],
+        afterEventIds: [sourceEventIds[1] ?? sourceEventIds[0] ?? ""],
+        before: "The subject is polished.",
+        after: "The subject steals the red bow.",
+        relation: {
+          kind: "contrasts",
+          fromEventId: sourceEventIds[0] ?? "",
+          toEventId: sourceEventIds[1] ?? sourceEventIds[0] ?? "",
+        },
+        realizationMove: "hold_contrast" as const,
+        creativeOpportunity: "status_turn" as const,
+        feltEffect: "The polished reading flips into an attitude reading.",
+        viewerShift: "Presentation becomes setup for behavior.",
+        languageAim: "Compress the contradiction rather than explain it.",
+        confidence: 0.97,
+        score: 0.97,
+      }]
+    : [];
+
+  return {
+    version: 1,
+    sourceEventIds: [...sourceEventIds],
+    relations,
+    strongestRelationId: relations[0]?.id,
+    relationCount: relations.length,
+    evidenceClosed: true,
+  };
 }
 
 function candidate(overrides: Partial<LatentMovieCandidate>): LatentMovieCandidate {
@@ -36,7 +75,25 @@ function candidate(overrides: Partial<LatentMovieCandidate>): LatentMovieCandida
   };
 }
 
-const generic = candidate({ id: "generic", score: 0.99 });
+const generic = candidate({
+  id: "generic",
+  score: 0.99,
+  storyThesis: {
+    initialReading: "generic",
+    semanticTurn: "",
+    beforeMeaning: [],
+    afterMeaning: [],
+    beforeEventIds: [],
+    afterEventIds: [],
+    carrierEventIds: [],
+    sealingEventIds: [],
+    payoffDependency: "",
+    counterfactualDependency: 0,
+    metamorphicRelationSet: relationSet(["a", "b"]),
+  },
+});
+
+const metamorphicSet = relationSet(["a", "b"], 1);
 const metamorphic = candidate({
   id: "metamorphic",
   score: 0.72,
@@ -57,6 +114,7 @@ const metamorphic = candidate({
       viewerShift: "Presentation becomes setup for behavior.",
       languageAim: "Compress the contradiction rather than explain it.",
       confidence: 0.97,
+      metamorphicRelationSet: metamorphicSet,
     },
     beforeMeaning: ["The subject is polished."],
     afterMeaning: ["The subject steals the red bow."],
@@ -74,14 +132,29 @@ const metamorphic = candidate({
       landing: "The supplied contradiction lands.",
       explanationForbidden: true,
     },
+    metamorphicRelationSet: metamorphicSet,
   },
 });
+
+assert(
+  (generic.storyThesis?.metamorphicRelationSet?.relationCount ?? -1) === 0,
+  "generic fixture is not explicitly sealed with an empty relation set",
+);
+assert(
+  metamorphic.storyThesis?.metamorphicRelationSet === metamorphicSet,
+  "metamorphic fixture lost its sealed relation set before selection",
+);
 
 const selected = selectDistinctMovieCandidates([generic, metamorphic], 1, "NONE");
 assert(selected.length === 1, "selector did not choose exactly one candidate");
 assert(selected[0]?.id === "metamorphic", "generic movie beat an earned metamorphic movie");
+assert(
+  (selected[0] as LatentMovieCandidate & { metamorphicRelationSet?: AuthorMetamorphicRelationSet }).metamorphicRelationSet === metamorphicSet,
+  "selector did not preserve the exact sealed relation set",
+);
 
 console.log("AUTHOR METAMORPHIC SELECTION ACCEPTANCE: PASS");
 console.log("METAMORPHIC_DOMINATES_GENERIC_SCORE=TRUE");
-console.log("SELECTION_HAPPENS_AFTER_SEMANTIC_THESIS=TRUE");
-console.log("LENS_CANNOT_OVERRULE_EARNED_RELATION=TRUE");
+console.log("SELECTION_REQUIRES_SEALED_RELATION_SET=TRUE");
+console.log("SEALED_SET_IDENTITY_PRESERVED=TRUE");
+console.log("BYPASS_SELECTION_REJECTED=TRUE");
