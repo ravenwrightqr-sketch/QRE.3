@@ -4,7 +4,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "pnpm -r dev",
-    "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm author:metamorphic-foundation && pnpm author:metamorphic-selection && pnpm author:metamorphic-pipeline && pnpm build:web",
+    "dev": "pnpm -r dev",
+    "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm author:metamorphic && pnpm build:web",
     "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs && node ./scripts/verify-author-production-gate.mjs",
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
@@ -16,10 +17,13 @@
     "author:universal-final": "pnpm --filter @qre/api exec tsx ./author-universal-final-acceptance.ts",
     "author:universal-learning-loop": "pnpm --filter @qre/api exec tsx ./author-universal-learning-loop-acceptance.ts",
     "author:living-sequence": "pnpm --filter @qre/api exec tsx ./author-living-sequence-acceptance.ts",
+    "author:metamorphic": "pnpm author:metamorphic-foundation && pnpm author:metamorphic-relation && pnpm author:metamorphic-selection && pnpm author:metamorphic-pipeline && pnpm author:metamorphic-invariance && pnpm author:metamorphic-universal",
     "author:metamorphic-foundation": "pnpm --filter @qre/api exec tsx ./author-metamorphic-foundation-acceptance.ts",
+    "author:metamorphic-relation": "pnpm --filter @qre/api exec tsx ./author-metamorphic-relation-acceptance.ts",
     "author:metamorphic-selection": "pnpm --filter @qre/api exec tsx ./author-metamorphic-selection-acceptance.ts",
     "author:metamorphic-pipeline": "pnpm --filter @qre/api exec tsx ./author-metamorphic-pipeline-acceptance.ts",
     "author:metamorphic-invariance": "pnpm --filter @qre/api exec tsx ./author-metamorphic-invariance-acceptance.ts",
+    "author:metamorphic-universal": "pnpm --filter @qre/api exec tsx ./author-metamorphic-universal-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
@@ -51,7 +55,6 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "stripe": "^22.2.1",
-    "zod": "^4.4.3",
     "zustand": "5.0.14"
   }
 }
