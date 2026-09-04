@@ -237,15 +237,7 @@ function addMouthProperty(source) {
   next = addImportAfterLastImport(
     sf,
     next,
-    'import type { AuthorMindState } from "./authorMindControlPlane.js";\n',
-    "./authorMindControlPlane.js",
-  );
-
-  sf = parse(TARGETS.mouth, next);
-  next = addImportAfterLastImport(
-    sf,
-    next,
-    'import { buildSelectiveAuthorContext } from "./authorMindControlPlane.js";\n',
+    'import {\n  buildSelectiveAuthorContext,\n  type AuthorMindState,\n} from "./authorMindControlPlane.js";\n',
     "./authorMindControlPlane.js",
   );
 
