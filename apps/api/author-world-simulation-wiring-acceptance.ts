@@ -87,6 +87,8 @@ const envelope = buildAuthorRealityEnvelope({
 const messages = buildMouthCandidateMessages({
   envelope,
   lens: "game",
+  worldSimulation:
+    cognition.experienceState.worldSimulation,
   beats: [
     {
       order: 1,
@@ -106,26 +108,20 @@ assert(
   messages.length === 2,
   "Mouth did not receive canonical system + user request",
 );
-
 const request = JSON.parse(String(messages[1]?.content ?? "{}")) as {
-  beats?: Array<{
-    observerExperience?: {
-      simulation?: unknown;
-    };
-  }>;
+  worldSimulation?: unknown;
 };
 
 assert(
-  request.beats?.[0]?.observerExperience?.simulation,
+  request.worldSimulation,
   "World Simulation did not reach Mouth request",
 );
 
 assert(
-  JSON.stringify(request.beats[0].observerExperience.simulation) ===
+  JSON.stringify(request.worldSimulation) ===
     JSON.stringify(cognition.experienceState.worldSimulation),
   "Mouth received World Simulation with different contents than Cognition/Experience State",
 );
-
 console.log("WORLD SIMULATION WIRING: PASS");
 console.log(
   `worldRefs=${cognition.experienceState.worldSimulation.refs.length}`,

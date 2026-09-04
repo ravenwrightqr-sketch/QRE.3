@@ -1,5 +1,7 @@
 import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { searchUniversalMovieCandidates } from "./src/services/authorUniversalMovieSearch.js";
+import { buildAuthorMetamorphicRelationSet } from "./src/services/authorMetamorphicRelationSet.js";
+import { deriveLatentStoryThesis } from "./src/services/authorLatentStoryThesis.js";
 import {
   hasMaterialMovieDifference,
   selectDistinctMovieCandidates,
@@ -65,10 +67,30 @@ assert(
   discovered.every((candidate) => candidate.lens === "NONE"),
   "universal discovery must emit lens-neutral candidates",
 );
+const sealed = discovered.map((candidate) => {
+  const sourceEventIds = [
+    ...new Set(candidate.trajectory.flatMap((step) => step.eventIds)),
+  ];
 
-const horror = selectDistinctMovieCandidates(discovered, 6, "horror");
-const comedy = selectDistinctMovieCandidates(discovered, 6, "comedy");
+  const metamorphicRelationSet = buildAuthorMetamorphicRelationSet(
+    graph,
+    sourceEventIds,
+  );
 
+  const storyThesis = deriveLatentStoryThesis(
+    graph,
+    candidate,
+    metamorphicRelationSet,
+  );
+
+  return {
+    ...candidate,
+    storyThesis,
+  };
+});
+
+const horror = selectDistinctMovieCandidates(sealed, 6, "horror");
+const comedy = selectDistinctMovieCandidates(sealed, 6, "comedy");
 assert(horror.length > 0 && comedy.length > 0, "late lens selection removed all candidates");
 
 const discoveredByMaterial = new Set(discovered.map(materialSignature));

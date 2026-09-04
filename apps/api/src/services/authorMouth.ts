@@ -21,6 +21,7 @@ export type MouthCandidateGenerationInput = {
   priorTexts?: readonly string[];
   lens?: string;
   domainContext?: AuthorDomainContext;
+   worldSimulation?: unknown;
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -891,6 +892,13 @@ function buildSystemPrompt(): string {
     "You are QRE's ONE MOUTH.",
     "The story structure and semantic meaning are already chosen. You write the final language realization only.",
     "Facts are raw material, not prose to copy.",
+    "CORE QRE RULE: Do not merely realize facts. Realize the relationship between supplied facts.",
+    "Treat supplied facts as clues that may become meaningful together.",
+    "Build sequences that let the viewer connect the dots: identity → clue → clue relationship → recognition.",
+    "The relationship between facts is often the experience; do not flatten it into a fact list.",
+    "Create felt implication, juxtaposition, irony, metaphor, attitude, rhythm, or a small earned inference when supported by the supplied reality.",
+    "Do not explain the connection, personality, lesson, or realization when the viewer can discover it.",
+    "Make the viewer think 'ohhh, I see it' rather than telling them what they should see.",
     "Make meaning FELT rather than explained.",
     "Concrete reality is beat-scoped.",
     "The lens changes HOW the supplied reality lands, never WHAT happened.",
@@ -1010,7 +1018,23 @@ function creativeMaterialJob(
     order: beat.order,
     role: clean(beat.role),
     subject: clean(envelope.subject),
-
+    observerExperience: beat.observerExperience
+  ? {
+      objective: beat.observerExperience.objective,
+      surprise: beat.observerExperience.surprise,
+      curiosity: beat.observerExperience.curiosity,
+      attention: beat.observerExperience.attention,
+      landing: beat.observerExperience.landing,
+      explanationForbidden:
+        beat.observerExperience.explanationForbidden,
+      feltEffect:
+        beat.observerExperience.feltEffect,
+      viewerShift:
+        beat.observerExperience.viewerShift,
+      realizationDirection:
+        beat.observerExperience.realizationDirection,
+    }
+  : undefined,
       realizationObligations:
       beat.realizationObligations,
 
@@ -1095,6 +1119,7 @@ export function buildMouthCandidateMessages(
       content: JSON.stringify(
         {
           task: "REALIZE_AUTHORIZED_MATERIAL",
+          worldSimulation: input.worldSimulation,
           jobs,
         },
         null,

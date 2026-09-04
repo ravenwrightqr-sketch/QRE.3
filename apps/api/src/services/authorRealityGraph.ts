@@ -126,7 +126,12 @@ function extractObjects(label: string, subject?: string): string[] {
 function semanticTags(label: string): string[] {
   return unique(SEMANTIC_TAGS.filter(([pattern]) => pattern.test(label)).map(([, tag]) => tag));
 }
+const IMPLICIT_SUBJECT_PREDICATE =
+  /^(?:likes?|loves?|hates?|prefers?|wants?|enjoys?|adores?)\b/i;
 
+function hasImplicitSubjectPredicate(label: string): boolean {
+  return IMPLICIT_SUBJECT_PREDICATE.test(clean(label));
+}
 /**
  * A global subject is the default referent only when the source event does
  * not explicitly introduce another grammatical actor/entity. This prevents
@@ -137,7 +142,9 @@ function subjectParticipates(label: string, subject?: string): boolean {
   const normalizedSubject = clean(subject);
   if (!normalizedSubject || !normalizedLabel) return false;
   if (normalizedLabel.toLowerCase().includes(normalizedSubject.toLowerCase())) return true;
-
+  if (hasImplicitSubjectPredicate(normalizedLabel)) {
+  return true;
+  }
   if (/^(?:the|a|an)\s+[A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2}\s+(?:arriv|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) {
     return false;
   }
@@ -215,16 +222,32 @@ function buildStructuralRelations(events: RealityEvent[], subject: string | unde
     const currentSet = new Set(currentTokens);
     const currentStates = extractStates(current.label);
     const currentSubject = subjectParticipates(current.label, subject);
+    const currentPreference = hasImplicitSubjectPredicate(current.label);
     for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j]!;
       const otherTokens = meaningfulContentTokens(other.label, subject);
+      const otherPreference = hasImplicitSubjectPredicate(other.label);
       const otherSet = new Set(otherTokens);
       const shared = currentTokens.filter((token) => otherSet.has(token));
       const longShared = shared.filter((token) => token.length >= 5);
       if (longShared.length >= 1) {
         addRelation(relations, current.id, other.id, "converges", Math.min(0.82, 0.42 + longShared.length * 0.12));
       }
-
+     if (
+  currentSubject &&
+  subjectParticipates(other.label, subject) &&
+  (currentPreference || otherPreference) &&
+  currentTokens.length > 0 &&
+  otherTokens.length > 0
+  ) {
+  addRelation(
+    relations,
+    current.id,
+    other.id,
+    "converges",
+    0.68,
+  );
+  }
       if (currentSubject && subjectParticipates(other.label, subject)) {
         addRelation(relations, current.id, other.id, "involves", 0.8);
       }

@@ -1239,16 +1239,30 @@ function selectedSequenceUsedRecovery(
         );
 
       if (!generated?.size) {
-        return true;
+        return candidate.reasons.includes(
+          "literal-source-restatement",
+        );
       }
 
-      return !generated.has(
-        clean(candidate.text),
+      if (
+        generated.has(
+          clean(candidate.text),
+        )
+      ) {
+        return false;
+      }
+
+      return (
+        candidate.reasons.includes(
+          "literal-source-restatement",
+        ) &&
+        candidate.reasons.includes(
+          "recovery-source",
+        )
       );
     },
   );
 }
-
 export type CanonicalAuthorResult = {
   scenes: AuthorScene[];
   sequence: SequencePlay;
@@ -1550,6 +1564,8 @@ export async function authorBrainCanonical(
       lens,
       domainContext:
         input.domainContext,
+        worldSimulation:
+     cognition.experienceState?.worldSimulation,
     });
 
   /*
@@ -1740,7 +1756,29 @@ export async function authorBrainCanonical(
         candidatesPerBeat: 8,
       },
     );
+    if (
+  process.env.QRE_AUTHOR_DEBUG_MOVIE === "true"
+) {
+  console.log(
+    "\n--- QRE SELECTED MOUTH SEQUENCE ---",
+  );
 
+  for (const candidate of selected.candidates) {
+    console.log(
+      JSON.stringify({
+        beatOrder: candidate.beatOrder,
+        text: candidate.text,
+        score: candidate.score,
+        meaningScore: candidate.meaningScore,
+        reasons: candidate.reasons,
+      }),
+    );
+  }
+
+  console.log(
+    "--- END QRE SELECTED MOUTH SEQUENCE ---\n",
+  );
+}
   /*
    * Recovery telemetry is based on what was actually selected,
    * not whether fallback candidates were merely available.
