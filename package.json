@@ -14,6 +14,7 @@
     "author:world-wiring": "pnpm --filter @qre/api exec tsx ./author-world-simulation-wiring-acceptance.ts",
     "author:persistence": "pnpm --filter @qre/api exec tsx ./author-runtime-persistence-acceptance.ts",
     "author:universal-final": "pnpm --filter @qre/api exec tsx ./author-universal-final-acceptance.ts",
+    "author:universal-stress": "pnpm --filter @qre/api exec tsx ./author-universal-stress-acceptance.ts",
     "author:universal-learning-loop": "pnpm --filter @qre/api exec tsx ./author-universal-learning-loop-acceptance.ts",
     "author:living-sequence": "pnpm --filter @qre/api exec tsx ./author-living-sequence-acceptance.ts",
     "author:metamorphic": "pnpm author:metamorphic-foundation && pnpm author:metamorphic-relation && pnpm author:metamorphic-selection && pnpm author:metamorphic-pipeline && pnpm author:metamorphic-invariance && pnpm author:metamorphic-universal",
@@ -42,7 +43,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.10",
-    "@types/jsonwebtoken": "^9.0.10",
+    "@types/jsonwebtoken": "^9.0.3",
     "@types/node": "20",
     "prisma": "6.19.3",
     "tsx": "^4.22.4",
