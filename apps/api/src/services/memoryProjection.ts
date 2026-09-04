@@ -212,6 +212,7 @@ function buildEvents(
 }
 
 export function buildExperienceMemoryBatch(input: {
+  operationId?: string;
   assetId: string;
   userId?: string;
   world: WorldModel;
@@ -223,6 +224,7 @@ export function buildExperienceMemoryBatch(input: {
   const source = input.source ?? "prompt";
 
   return {
+    operationId: input.operationId,
     assetId: input.assetId,
     userId: input.userId,
     entities: buildEntities(input.assetId, input.world),
