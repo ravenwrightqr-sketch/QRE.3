@@ -157,14 +157,17 @@ function unsupportedSubjectActionTokens(
 
   const escaped = subjectText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const subjectPattern = new RegExp(
-    `\\b${escaped}\\b(?:['’]s)?(?:\\s+[^.!?;:,]{0,32})?\\s+([a-z][a-z0-9'’-]{2,})\\b`,
-    "ig",
+    `\\b${escaped}\\b(?:['’]s)?`,
+    "i",
   );
+  const match = subjectPattern.exec(String(text ?? ""));
+  if (!match) return [];
 
-  let match: RegExpExecArray | null;
-  while ((match = subjectPattern.exec(String(text ?? "")))) {
-    const token = String(match[1] ?? "").toLowerCase();
-    if (!token || STOP.has(token) || localReality.has(token) || semantic.has(token)) continue;
+  const tail = String(text ?? "").slice(match.index + match[0].length);
+  const candidateTokens = tokens(tail);
+
+  for (const token of candidateTokens) {
+    if (STOP.has(token) || localReality.has(token) || semantic.has(token)) continue;
     if (CONCRETE_ACTIONS.has(token)) return [token];
   }
 
