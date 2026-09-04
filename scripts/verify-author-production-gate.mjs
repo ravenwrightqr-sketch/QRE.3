@@ -20,9 +20,12 @@ const required = [
   "apps/api/src/services/authorViewerStateCut.ts",
   "apps/api/src/services/authorRealizationMode.ts",
   "apps/api/src/services/authorMetamorphicRelationSearch.ts",
+  "apps/api/src/services/authorMetamorphicRelationSet.ts",
   "packages/contracts/src/cogauthor/metamorphic.ts",
+  "packages/contracts/src/cogauthor/realizationAuthority.ts",
   "apps/api/author-acceptance.ts",
   "apps/api/author-mouth-universal-acceptance.ts",
+  "apps/api/author-metamorphic-pipeline-acceptance.ts",
 ];
 
 const retired = [
@@ -35,17 +38,16 @@ const retired = [
   "apps/api/src/services/authorMouthSequenceBeamSearch.ts",
 ];
 
-for (const p of required) {
-  if (!exists(p)) fail.push(`missing:${p}`);
-}
-for (const p of retired) {
-  if (exists(p)) fail.push(`retired Mouth file exists:${p}`);
-}
+for (const p of required) if (!exists(p)) fail.push(`missing:${p}`);
+for (const p of retired) if (exists(p)) fail.push(`retired Mouth file exists:${p}`);
 
 const brain = exists(required[0]) ? read(required[0]) : "";
+const cognition = exists(required[1]) ? read(required[1]) : "";
 const mouth = exists(required[5]) ? read(required[5]) : "";
 const mouthAuthority = exists(required[6]) ? read(required[6]) : "";
 const boundary = exists(required[7]) ? read(required[7]) : "";
+const thesis = exists("apps/api/src/services/authorLatentStoryThesis.ts") ? read("apps/api/src/services/authorLatentStoryThesis.ts") : "";
+const differentiation = exists("apps/api/src/services/authorMovieDifferentiation.ts") ? read("apps/api/src/services/authorMovieDifferentiation.ts") : "";
 
 const wiringChecks = [
   [/buildAuthorCognitivePlan\s*\(/, "brain->cognition"],
@@ -57,10 +59,28 @@ const wiringChecks = [
   [/from\s+["'][^"']*authorViewerStateCut\.js["']/, "brain->viewer-state-cut"],
   [/from\s+["'][^"']*authorMouth\.js["']/, "brain->canonical-mouth"],
 ];
+for (const [re, label] of wiringChecks) if (!re.test(brain)) fail.push(`missing wiring:${label}`);
 
-for (const [re, label] of wiringChecks) {
-  if (!re.test(brain)) fail.push(`missing wiring:${label}`);
-}
+for (const [re, label] of [
+  [/deriveLatentStoryThesis\s*\(/, "cognition->latent-thesis"],
+  [/selectDistinctMovieCandidates\s*\(/, "cognition->movie-selection"],
+]) if (!re.test(cognition)) fail.push(`missing cognition wiring:${label}`);
+
+for (const [re, label] of [
+  [/buildAuthorMetamorphicRelationSet\s*\(/, "thesis->relation-set"],
+  [/metamorphicRelationSet\s*:/, "thesis->sealed-set-carriage"],
+]) if (!re.test(thesis)) fail.push(`missing metamorphic thesis wiring:${label}`);
+
+for (const [re, label] of [
+  [/assertAuthorMetamorphicRelationSet\s*\(/, "selection->set-assertion"],
+  [/sealedSet\s*\(/, "selection->sealed-set-read"],
+  [/metamorphicPotential\s*\(/, "selection->metamorphic-priority"],
+]) if (!re.test(differentiation)) fail.push(`missing metamorphic selection wiring:${label}`);
+
+for (const [re, label] of [
+  [/assertAuthorMetamorphicRelationSet\s*\(/, "mouth->set-assertion"],
+  [/metamorphicRelationSet\s*:/, "mouth->set-carriage"],
+]) if (!re.test(mouthAuthority)) fail.push(`missing Mouth metamorphic wiring:${label}`);
 
 const mouthLaws = [
   [/Concrete reality is beat-scoped\./, "truth/framing law"],
@@ -71,20 +91,11 @@ const mouthLaws = [
   [/literal-source-restatement/, "literal fallback"],
   [/changes HOW .*reality lands, never WHAT happened/, "lens boundary"],
 ];
+for (const [re, label] of mouthLaws) if (!re.test(mouth)) fail.push(`missing Mouth law:${label}`);
 
-for (const [re, label] of mouthLaws) {
-  if (!re.test(mouth)) fail.push(`missing Mouth law:${label}`);
-}
-
-if (!/Mouth may invent language freely inside the approved semantic meaning\./.test(boundary)) {
-  fail.push("missing realization boundary law:language-inside-meaning");
-}
-if (!/new concrete occurrence, spatial fact, or action by a known entity/.test(boundary)) {
-  fail.push("missing realization boundary law:concrete-world-guard");
-}
-if (!/evidenceEventIds/.test(mouthAuthority) || !/earnedInterpretations/.test(mouthAuthority)) {
-  fail.push("missing Mouth authority:semantic-evidence-separation");
-}
+if (!/Mouth may invent language freely inside the approved semantic meaning\./.test(boundary)) fail.push("missing realization boundary law:language-inside-meaning");
+if (!/new concrete occurrence, spatial fact, or action by a known entity/.test(boundary)) fail.push("missing realization boundary law:concrete-world-guard");
+if (!/evidenceEventIds/.test(mouthAuthority) || !/earnedInterpretations/.test(mouthAuthority)) fail.push("missing Mouth authority:semantic-evidence-separation");
 
 const files = [];
 function walk(dir) {
@@ -97,7 +108,6 @@ function walk(dir) {
   }
 }
 walk(join(root, "apps/api/src"));
-
 for (const file of files) {
   const body = readFileSync(file, "utf8");
   const rel = relative(root, file).replaceAll("\\", "/");
@@ -109,11 +119,7 @@ for (const file of files) {
     "authorMouthCandidateSearch",
     "authorMouthCandidateSearchCanonical",
     "authorMouthSequenceBeamSearch",
-  ]) {
-    if (new RegExp(`from\\s+[\\"'][^\\"']*${oldName}\\.js[\\"']`).test(body)) {
-      fail.push(`retired import:${rel}->${oldName}`);
-    }
-  }
+  ]) if (new RegExp(`from\\s+[\\"'][^\\"']*${oldName}\\.js[\\"']`).test(body)) fail.push(`retired import:${rel}->${oldName}`);
 }
 
 console.log("=== QRE AUTHOR PRODUCTION GATE ===");
@@ -122,4 +128,4 @@ if (fail.length) {
   console.error(`AUTHOR PRODUCTION GATE FAILED · ${fail.length} violation(s)`);
   process.exit(1);
 }
-console.log("AUTHOR PRODUCTION GATE GREEN · ONE AUTHOR · ONE COGNITION · ONE MOUTH · ONE SEQUENCE · METAMORPHIC FOUNDATION PRESENT · ZERO MOUTH SEAMS");
+console.log("AUTHOR PRODUCTION GATE GREEN · ONE AUTHOR · ONE COGNITION · ONE MOUTH · ONE SEQUENCE · METAMORPHIC SET SEALED · METAMORPHIC BYPASS CLOSED · ZERO MOUTH SEAMS");
