@@ -2,13 +2,9 @@
  * =====================================================
  * LEGACY SCAN RESPONSE CONTRACT
  *
- * Runtime moved to Experience.
- *
- * Scan engine output is now the
- * canonical Experience runtime.
+ * Runtime moved to the Runtime domain.
  *
  * Kept as compatibility layer.
- *
  * =====================================================
  */
 
@@ -18,4 +14,4 @@ export type {
   AssetSummary as ScanAsset,
   ExperiencePlayerConfig as ScanPlayerConfig,
   ExperienceMediaManifest as ScanMedia,
-} from "./experience/runtime.js";
+} from "../runtime/runtime.js";
