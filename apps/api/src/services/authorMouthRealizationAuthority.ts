@@ -134,6 +134,7 @@ export function buildMouthRealizationAuthority(input: {
     permittedRealizationModes,
     inferenceBudget: inferenceBudgetFor(beat),
     creativeMoves: uniqueStrings(permittedRealizationModes),
+    forbiddenMoves: [],
     evidenceEventIds: uniqueStrings([
       ...eventIds,
       ...beatRelations.flatMap((relation) => relation.evidenceEventIds),
