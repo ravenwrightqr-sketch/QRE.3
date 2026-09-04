@@ -24,14 +24,20 @@ type RelationSpec = {
 
 function makeGraph(events: readonly EventSpec[], relations: readonly RelationSpec[] = []): RealityGraph {
   return {
+    evidence: events.map((event) => ({
+      id: `evidence-${event.id}`,
+      text: event.label,
+      kind: "fact",
+    })),
     events: events.map((event) => ({
       id: event.id,
       label: event.label,
       entities: event.entities ?? [],
-      sourceIds: [],
+      sourceIds: [`evidence-${event.id}`],
       salient: true,
+      provenance: "explicit",
     })),
-    relations: [...relations],
+    relations: relations as RealityGraph["relations"],
     eventStructure: events.map((event) => ({
       eventId: event.id,
       subjects: event.entities ?? [],
@@ -47,12 +53,21 @@ function makeGraph(events: readonly EventSpec[], relations: readonly RelationSpe
       salienceScore: 0.9,
     })),
     entityContinuity: events.flatMap((event) =>
-      (event.entities ?? []).map((name) => ({ name, eventIds: [event.id], salienceScore: 0.9 })),
+      (event.entities ?? []).map((name) => ({
+        name,
+        mentionCount: 1,
+        eventIds: [event.id],
+        firstEventId: event.id,
+        lastEventId: event.id,
+        kind: "unknown" as const,
+        salienceScore: 0.9,
+      })),
     ),
     unresolvedTensions: [],
     recurringSignals: [],
+    sensorySignals: [],
     patterns: [],
-  } as unknown as RealityGraph;
+  };
 }
 
 function results(graph: RealityGraph) {
@@ -80,12 +95,7 @@ const petEvents: EventSpec[] = [
     actions: ["groomed"],
     states: ["clean", "polished"],
   },
-  {
-    id: "bath",
-    label: "Coco got a bath",
-    entities: ["Coco"],
-    actions: ["bathed"],
-  },
+  { id: "bath", label: "Coco got a bath", entities: ["Coco"], actions: ["bathed"] },
   {
     id: "bow",
     label: "Coco stole the red bow",
@@ -100,90 +110,33 @@ assert(hasType(pet, "service_outcome_inversion"), "pet service/outcome relation 
 assert(evidenceIsClosed(pet), "pet evidence escaped the source graph");
 
 const petRelations = results(pet);
-assert(
-  petRelations.some(
-    (item) =>
-      item.type === "presentation_behavior_collision" &&
-      item.evidenceEventIds.length === 2,
-  ),
-  "presentation/behavior relation lost pair evidence",
-);
-assert(
-  petRelations.some(
-    (item) =>
-      item.type === "service_outcome_inversion" &&
-      item.evidenceEventIds.length === 2,
-  ),
-  "service/outcome relation lost pair evidence",
-);
+assert(petRelations.some((item) => item.type === "presentation_behavior_collision" && item.evidenceEventIds.length === 2), "presentation/behavior relation lost pair evidence");
+assert(petRelations.some((item) => item.type === "service_outcome_inversion" && item.evidenceEventIds.length === 2), "service/outcome relation lost pair evidence");
 
 const relationship = makeGraph([
-  {
-    id: "expectation",
-    label: "Alex and Jordan did not expect to meet",
-    entities: ["Alex", "Jordan"],
-    states: ["nervous", "unexpected"],
-  },
-  {
-    id: "meeting",
-    label: "Alex met Jordan at Raven Coffee",
-    entities: ["Alex", "Jordan"],
-    actions: ["met"],
-    objects: ["coffee"],
-  },
-  {
-    id: "comfort",
-    label: "They felt comfortable talking again",
-    entities: ["Alex", "Jordan"],
-    actions: ["talked"],
-    states: ["comfortable"],
-  },
+  { id: "expectation", label: "Alex and Jordan did not expect to meet", entities: ["Alex", "Jordan"], states: ["nervous", "unexpected"] },
+  { id: "meeting", label: "Alex met Jordan at Raven Coffee", entities: ["Alex", "Jordan"], actions: ["met"], objects: ["coffee"] },
+  { id: "comfort", label: "They felt comfortable talking again", entities: ["Alex", "Jordan"], actions: ["talked"], states: ["comfortable"] },
 ]);
 assert(hasType(relationship, "expectation_break"), "relationship expectation break missing");
 assert(hasType(relationship, "state_polarity_turn"), "relationship state turn missing");
 assert(evidenceIsClosed(relationship), "relationship evidence escaped the source graph");
 
 const product = makeGraph([
-  {
-    id: "purchase",
-    label: "Mara bought the silver camera",
-    entities: ["Mara"],
-    actions: ["bought"],
-    objects: ["silver camera"],
-  },
-  {
-    id: "use",
-    label: "Mara used the silver camera at the wedding",
-    entities: ["Mara"],
-    actions: ["used"],
-    objects: ["silver camera"],
-  },
-  {
-    id: "return",
-    label: "Mara returned to the silver camera years later",
-    entities: ["Mara"],
-    actions: ["returned"],
-    objects: ["silver camera"],
-    semanticTags: ["return", "later"],
-  },
+  { id: "purchase", label: "Mara bought the silver camera", entities: ["Mara"], actions: ["bought"], objects: ["silver camera"] },
+  { id: "use", label: "Mara used the silver camera at the wedding", entities: ["Mara"], actions: ["used"], objects: ["silver camera"] },
+  { id: "return", label: "Mara returned to the silver camera years later", entities: ["Mara"], actions: ["returned"], objects: ["silver camera"], semanticTags: ["return", "later"] },
 ]);
 const productRelations = results(product);
-assert(
-  productRelations.some(
-    (item) =>
-      item.type === "object_recontextualization" ||
-      item.type === "callback_recontextualization",
-  ),
-  "product callback/recontextualization relation missing",
-);
+assert(productRelations.some((item) => item.type === "object_recontextualization" || item.type === "callback_recontextualization"), "product callback/recontextualization relation missing");
 assert(evidenceIsClosed(product), "product evidence escaped the source graph");
 
 const place = makeGraph([
   {
     id: "quiet",
-    label: "The old theater was quiet",
+    label: "The old theater felt deserted and uneasy",
     entities: ["old theater"],
-    states: ["quiet"],
+    states: ["deserted", "uneasy"],
   },
   {
     id: "festival",
@@ -193,35 +146,15 @@ const place = makeGraph([
     states: ["excited"],
   },
 ]);
-assert(
-  hasType(place, "state_polarity_turn") ||
-    hasType(place, "relation_changes"),
-  "place state/meaning change missing",
-);
+assert(hasType(place, "state_polarity_turn") || hasType(place, "relation_changes"), "place state/meaning change missing");
 assert(evidenceIsClosed(place), "place evidence escaped the source graph");
 
 const irrelevant = makeGraph([
-  {
-    id: "subject",
-    label: "Mara bought the silver camera",
-    entities: ["Mara"],
-    actions: ["bought"],
-    objects: ["silver camera"],
-  },
-  {
-    id: "noise",
-    label: "Rain fell outside",
-    actions: ["fell"],
-    objects: ["rain"],
-  },
+  { id: "subject", label: "Mara bought the silver camera", entities: ["Mara"], actions: ["bought"], objects: ["silver camera"] },
+  { id: "noise", label: "Rain fell outside", actions: ["fell"], objects: ["rain"] },
 ]);
 const irrelevantResults = results(irrelevant);
-assert(
-  irrelevantResults.every((item) =>
-    item.evidenceEventIds.every((id) => irrelevant.events.some((event) => event.id === id)),
-  ),
-  "irrelevant fact introduced foreign evidence",
-);
+assert(irrelevantResults.every((item) => item.evidenceEventIds.every((id) => irrelevant.events.some((event) => event.id === id))), "irrelevant fact introduced foreign evidence");
 
 const orderedA = makeGraph([
   { id: "a", label: "Coco was groomed and polished", entities: ["Coco"], actions: ["groomed"], states: ["polished"] },
