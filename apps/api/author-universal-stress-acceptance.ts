@@ -19,13 +19,22 @@ type Case = {
 
 type Result = Awaited<ReturnType<typeof authorBrainCanonical>>;
 
+type MovieResult = Result & {
+  movie: NonNullable<Result["movie"]>;
+};
+
 function textOf(result: Result): string[] {
   return result.scenes
     .map((scene) => String(scene.text ?? "").replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
 
-function validate(caseDef: Case, result: Result): void {
+function requireMovie(caseName: string, result: Result): MovieResult {
+  assert(result.movie, `${caseName}: missing latent movie`);
+  return result as MovieResult;
+}
+
+function validate(caseDef: Case, result: Result): MovieResult {
   assert(result.sequence, `${caseDef.name}: missing SequencePlay`);
   assert(result.movie, `${caseDef.name}: missing latent movie`);
   assert(result.diagnostics.complete === true, `${caseDef.name}: incomplete result`);
@@ -71,6 +80,8 @@ function validate(caseDef: Case, result: Result): void {
   assert(simulation, `${caseDef.name}: simulation missing`);
   assert(Array.isArray(simulation.relations), `${caseDef.name}: simulation relations missing`);
   assert(Array.isArray(simulation.questions), `${caseDef.name}: simulation questions missing`);
+
+  return result as MovieResult;
 }
 
 const cases: Case[] = [
@@ -311,7 +322,7 @@ for (const caseDef of cases) {
 }
 
 const base = cases.find((item) => item.name === "recontextualization")!;
-const baseResult = results.get(base.name)!;
+const baseResult = requireMovie(base.name, results.get(base.name)!);
 const perturbed = await authorBrainCanonical({
   prompt: base.prompt,
   subject: base.subject,
@@ -332,22 +343,22 @@ const perturbed = await authorBrainCanonical({
   trajectory: [],
   creativeLearningContext: [],
 });
-validate(base, perturbed);
+const perturbedResult = validate(base, perturbed);
 
 const baseRelations = baseResult.movie.storyThesis?.relationKind ?? "";
-const perturbedRelations = perturbed.movie.storyThesis?.relationKind ?? "";
+const perturbedRelations = perturbedResult.movie.storyThesis?.relationKind ?? "";
 assert(baseRelations === perturbedRelations, "irrelevant facts changed canonical relation kind");
 
 const baseSourceIds = new Set(baseResult.sequence.cuts.flatMap((cut) => cut.sourceIds));
-const perturbedSourceIds = new Set(perturbed.sequence.cuts.flatMap((cut) => cut.sourceIds));
+const perturbedSourceIds = new Set(perturbedResult.sequence.cuts.flatMap((cut) => cut.sourceIds));
 assert(
   [...baseSourceIds].some((id) => perturbedSourceIds.has(id)),
   "irrelevant facts erased all shared provenance",
 );
 
 const returnBase = cases.find((item) => item.name === "recurrence")!;
-const round1 = results.get(returnBase.name)!;
-const round2 = await authorBrainCanonical({
+const round1 = requireMovie(returnBase.name, results.get(returnBase.name)!);
+const round2Raw = await authorBrainCanonical({
   prompt: returnBase.prompt,
   subject: returnBase.subject,
   place: returnBase.place ?? "",
@@ -367,7 +378,7 @@ const round2 = await authorBrainCanonical({
   trajectory: round1.sequence.cuts.map((cut) => cut.attentionDelta),
   creativeLearningContext: [],
 });
-validate(returnBase, round2);
+const round2 = validate(returnBase, round2Raw);
 assert(
   textOf(round1).join(" ") !== textOf(round2).join(" "),
   "return visit failed to recontextualize authored output",
