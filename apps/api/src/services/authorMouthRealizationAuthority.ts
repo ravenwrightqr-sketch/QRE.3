@@ -1,4 +1,5 @@
 import type {
+  AuthorMetamorphicRelation,
   AuthorMetamorphicRelationSet,
   MouthCandidateBeat,
   MouthInferenceBudget,
@@ -32,11 +33,30 @@ function relationSetFor(beat: MouthCandidateBeat): AuthorMetamorphicRelationSet 
   const semantic = beat.semanticRealization as MetamorphicSemantic | undefined;
   const set = semantic?.metamorphicRelationSet;
   assertAuthorMetamorphicRelationSet(set);
+
   const beatEvents = new Set(beat.eventIds ?? []);
-  if (set.sourceEventIds.some((id) => !beatEvents.has(id))) {
-    throw new Error("AUTHOR METAMORPHIC PIPELINE SEALED: Mouth received a relation set outside beat scope");
+  const sealedEvents = new Set(set.sourceEventIds);
+
+  // The sealed relation set is candidate/sequence scoped. A Mouth beat is
+  // intentionally narrower. The valid containment invariant is therefore:
+  //   beat event scope ⊆ sealed relation-set event scope
+  // Never require the whole relation set to be repeated on every beat.
+  if ([...beatEvents].some((id) => !sealedEvents.has(id))) {
+    throw new Error("AUTHOR METAMORPHIC PIPELINE SEALED: Mouth beat escaped sealed relation-set scope");
   }
+
   return set;
+}
+
+function beatScopedRelations(
+  relationSet: AuthorMetamorphicRelationSet,
+  beat: MouthCandidateBeat,
+): AuthorMetamorphicRelation[] {
+  const beatEvents = new Set(beat.eventIds ?? []);
+  return relationSet.relations.filter((relation) =>
+    relation.evidenceEventIds.length > 0 &&
+    relation.evidenceEventIds.every((id) => beatEvents.has(id)),
+  );
 }
 
 /**
@@ -50,6 +70,7 @@ export function buildMouthRealizationAuthority(input: {
 }): MouthRealizationAuthority {
   const { beat, envelope } = input;
   const metamorphicRelationSet = relationSetFor(beat);
+  const beatRelations = beatScopedRelations(metamorphicRelationSet, beat);
   const eventIds = uniqueStrings(beat.eventIds ?? []);
   const localEvents = envelope.events.filter((event) => eventIds.includes(event.id));
   const localStructures = envelope.eventStructure.filter((structure) => eventIds.includes(structure.eventId));
@@ -72,7 +93,7 @@ export function buildMouthRealizationAuthority(input: {
     semantic?.creativeOpportunity ?? "",
     semantic?.realizationMove ?? "",
     observer?.realizationDirection ?? "",
-    ...metamorphicRelationSet.relations.slice(0, 4).flatMap((relation) => [
+    ...beatRelations.slice(0, 4).flatMap((relation) => [
       relation.after,
       relation.viewerShift,
       relation.feltEffect,
@@ -85,7 +106,7 @@ export function buildMouthRealizationAuthority(input: {
     ...(beat.relationKinds ?? []),
     semantic?.realizationMove ?? "",
     semantic?.creativeOpportunity ?? "",
-    ...metamorphicRelationSet.relations.slice(0, 6).map((relation) => relation.realizationMove),
+    ...beatRelations.slice(0, 6).map((relation) => relation.realizationMove),
   ]);
 
   return {
@@ -116,7 +137,7 @@ export function buildMouthRealizationAuthority(input: {
     forbiddenMoves: uniqueStrings(beat.forbiddenMoves ?? []),
     evidenceEventIds: uniqueStrings([
       ...eventIds,
-      ...metamorphicRelationSet.relations.flatMap((relation) => relation.evidenceEventIds),
+      ...beatRelations.flatMap((relation) => relation.evidenceEventIds),
       ...(semantic?.evidenceEventIds ?? []),
       ...relations.flatMap((relation) => [relation.from, relation.to]),
       ...(beat.viewerState?.evidenceEventIds ?? []),
