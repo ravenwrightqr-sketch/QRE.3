@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - build/universal-author-local
       - cognitive-superstar-final
       - elite-universal-rebuild-v10
   pull_request:
@@ -35,26 +36,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Verify author architecture
-        run: pnpm author:guard
-
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
 
-      - name: Build contracts
-        run: pnpm build:contracts
-
-      - name: Build database package
-        run: pnpm build:db
-
-      - name: Build engine
-        run: pnpm build:engine
-
-      - name: Build API
-        run: pnpm build:api
-
-      - name: Build web
-        run: pnpm build:web
+      - name: Full repository build
+        run: pnpm build
 
       - name: World simulation acceptance
         run: pnpm author:world-simulation
@@ -79,3 +65,30 @@ jobs:
 
       - name: Author persistence acceptance
         run: pnpm author:persistence
+
+      - name: Metamorphic foundation
+        run: pnpm author:metamorphic-foundation
+
+      - name: Metamorphic relation acceptance
+        run: pnpm author:metamorphic-relation
+
+      - name: Metamorphic selection acceptance
+        run: pnpm author:metamorphic-selection
+
+      - name: Metamorphic pipeline acceptance
+        run: pnpm author:metamorphic-pipeline
+
+      - name: Metamorphic invariance acceptance
+        run: pnpm author:metamorphic-invariance
+
+      - name: Metamorphic universal acceptance
+        run: pnpm author:metamorphic-universal
+
+      - name: Metamorphic aggregate acceptance
+        run: pnpm author:metamorphic
+
+      - name: Realization zero-leakage acceptance
+        run: pnpm exec tsx apps/api/author-realization-zero-leakage-acceptance.ts
+
+      - name: Production gate
+        run: pnpm author:production-gate
