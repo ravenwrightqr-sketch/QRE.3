@@ -1,6 +1,6 @@
 import type { ExperienceBlueprint } from "../experience/blueprint.js";
 import type { FlowStep } from "../runtime/flow.js";
-import type { ExperienceBeat } from "../experience/beat.js";
+import type { ExperienceBeat } from "../story/beat.js";
 
 export type ExperienceStatus = "draft" | "published" | "archived";
 
