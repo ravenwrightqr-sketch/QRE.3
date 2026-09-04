@@ -44,6 +44,5 @@ export type MouthRealizationAuthority = {
   permittedRealizationModes: string[];
   inferenceBudget: MouthInferenceBudget;
   creativeMoves: string[];
-  forbiddenMoves: string[];
   evidenceEventIds: string[];
 };

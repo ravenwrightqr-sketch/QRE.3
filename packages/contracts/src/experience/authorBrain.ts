@@ -1,7 +1,7 @@
 import type { CognitiveExperiencePlan } from "./cognition.js";
 import type { RealityGraph } from "./realityGraph.js";
 import type { SubjectTruth } from "./subjectTruth.js";
-
+import type { AuthorExperienceState } from "./authorExperienceState.js";
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
 export type AuthorDomainContext = {
@@ -46,6 +46,7 @@ export type AuthorBrainTruth = {
   sourceMoments: string[];
   memoryContext?: string[];
   trajectory?: string[];
+  priorExperienceStates?: AuthorExperienceState[];
   creativeLearningContext?: string[];
 };
 

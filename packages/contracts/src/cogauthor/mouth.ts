@@ -7,6 +7,7 @@
 
 import type { LatentSemanticRealization } from "../experience/latentMovie.js";
 import type { MouthRealizationAuthority } from "./realizationAuthority.js";
+import type { RealizationObligations } from "./realizationObligations.js";
 
 export type ViewerStateAttentionMove =
   | "orient"
@@ -59,8 +60,10 @@ export type MouthCandidateBeat = {
   frontier?: string;
   setsUp?: readonly string[];
   paysOff?: readonly string[];
+   /** Canonical typed realization obligations. */
+  realizationObligations?: RealizationObligations;
+  /** Legacy/free-form obligations retained during contract migration. */
   obligations?: readonly string[];
-  forbiddenMoves?: readonly string[];
   relationKinds?: readonly string[];
   relationStrength?: number;
   viewerState?: ViewerStateCut;

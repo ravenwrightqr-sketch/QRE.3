@@ -5,7 +5,6 @@
  * contrast, sequence, and revisit. Derived structure is explicitly marked as
  * interpretive so it can enrich creativity without becoming source truth.
  */
-import type { LatentMovieCandidate } from "./latentMovie.js";
 
 export type RealityEvidence = {
   id: string;
@@ -86,6 +85,5 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
-  /** Derived hypotheses only. Never promote these to source truth. */
-  latentMovieCandidates?: LatentMovieCandidate[];
+  
 };
