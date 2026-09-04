@@ -73,6 +73,9 @@ jobs:
       - name: Universal final acceptance
         run: pnpm author:universal-final
 
+      - name: Universal stress acceptance
+        run: pnpm author:universal-stress
+
       - name: Universal learning loop acceptance
         run: pnpm author:universal-learning-loop
 
