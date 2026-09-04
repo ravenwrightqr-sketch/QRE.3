@@ -145,10 +145,20 @@ function subjectParticipates(label: string, subject?: string): boolean {
   if (/^(?:the|a|an)\s+.+\s+(?:is|are|was|were|being|been)\s+\w/i.test(normalizedLabel)) return false;
 
   if (/^(?:arrive|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) return true;
-    if (/^(?:they|he|she|we|you)\b/i.test(normalizedLabel)) return true;
-  if (/^(?:is|are|was|were|feels?|felt|seems?|seemed|became|became|looks?|looked)\b/i.test(normalizedLabel)) return true;
+  if (/^(?:they|he|she|we|you)\b/i.test(normalizedLabel)) return true;
+  if (/^(?:is|are|was|were|feels?|felt|seems?|seemed|became|looks?|looked)\b/i.test(normalizedLabel)) return true;
 
   return false;
+}
+
+function implicitSubjectClue(label: string, subject?: string): boolean {
+  const normalizedLabel = clean(label);
+  if (!clean(subject) || !normalizedLabel) return false;
+  if (subjectParticipates(normalizedLabel, subject)) return true;
+  if (/^(?:he|she|they|we|you|someone|somebody|the|a|an)\b/i.test(normalizedLabel)) return false;
+  if (/^[A-Z][A-Za-z0-9'’-]+\b/.test(normalizedLabel)) return false;
+  const tokens = contentTokens(normalizedLabel);
+  return tokens.length > 0 && tokens.length <= 6;
 }
 
 function objectPhrases(label: string, subject?: string): string[] {
@@ -167,7 +177,7 @@ function objectPhrases(label: string, subject?: string): string[] {
 
 function event(label: string, sourceIds: string[], subject: string | undefined, place: string | undefined, index: number): RealityEvent {
   const concepts = contentTokens(label);
-  const subjectInEvent = subjectParticipates(label, subject);
+  const subjectInEvent = implicitSubjectClue(label, subject);
   const entities = unique([
     ...(subjectInEvent && subject ? [clean(subject)] : []),
     ...capitalizedEntities(label),
@@ -214,19 +224,31 @@ function buildStructuralRelations(events: RealityEvent[], subject: string | unde
     const currentTokens = meaningfulContentTokens(current.label, subject);
     const currentSet = new Set(currentTokens);
     const currentStates = extractStates(current.label);
-    const currentSubject = subjectParticipates(current.label, subject);
+    const currentSubject = implicitSubjectClue(current.label, subject);
     for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j]!;
       const otherTokens = meaningfulContentTokens(other.label, subject);
       const otherSet = new Set(otherTokens);
       const shared = currentTokens.filter((token) => otherSet.has(token));
       const longShared = shared.filter((token) => token.length >= 5);
+      const otherSubject = implicitSubjectClue(other.label, subject);
       if (longShared.length >= 1) {
         addRelation(relations, current.id, other.id, "converges", Math.min(0.82, 0.42 + longShared.length * 0.12));
       }
 
-      if (currentSubject && subjectParticipates(other.label, subject)) {
+      if (currentSubject && otherSubject) {
         addRelation(relations, current.id, other.id, "involves", 0.8);
+
+        const currentActions = extractActions(current.label);
+        const otherActions = extractActions(other.label);
+        const currentObjects = unique([...extractObjects(current.label, subject), ...objectPhrases(current.label, subject)]);
+        const otherObjects = unique([...extractObjects(other.label, subject), ...objectPhrases(other.label, subject)]);
+        const distinctObjects = currentObjects.some((value) => !otherObjects.includes(value)) || otherObjects.some((value) => !currentObjects.includes(value));
+        const cluePair = currentTokens.length > 0 && otherTokens.length > 0 && (currentActions.length !== otherActions.length || currentStates.length !== extractStates(other.label).length || distinctObjects);
+        if (cluePair && (currentTokens.length <= 8 || otherTokens.length <= 8)) {
+          const novelty = 1 - Math.min(1, shared.length / Math.max(1, Math.min(currentTokens.length, otherTokens.length)));
+          addRelation(relations, current.id, other.id, "converges", 0.56 + Math.min(0.18, novelty * 0.18));
+        }
       }
 
       const otherStates = extractStates(other.label);
@@ -270,7 +292,7 @@ function buildEventStructure(events: RealityEvent[], subject: string | undefined
     const sensoryMarkers = unique(tokens.filter((token) => sensoryTokens.has(token)));
     return {
       eventId: event.id,
-      subjects: subjectParticipates(event.label, subject) && subject ? [clean(subject)] : capitalizedEntities(event.label),
+      subjects: implicitSubjectClue(event.label, subject) && subject ? [clean(subject)] : capitalizedEntities(event.label),
       actions,
       objects,
       states,
@@ -398,10 +420,10 @@ export function buildAuthorRealityGraph(input: {
   const events = fragments.map((fragment, index) => event(fragment, [sourceEvidence[index]!.id], input.subject, input.place, index));
   const recurringSignals = deriveRecurringSignals(fragments, input.memoryContext, input.trajectory);
   const sensorySignals = deriveSensorySignals(fragments);
+  const eventStructure = buildEventStructure(events, input.subject, recurringSignals, sensorySignals);
   const relations = buildStructuralRelations(events, input.subject);
   buildTemporalRelations(events, relations);
   const unresolvedTensions = deriveTensions(events, relations, fragments.join(" | "));
-  const eventStructure = buildEventStructure(events, input.subject, recurringSignals, sensorySignals);
   const entityContinuity = buildEntityContinuity(events, input.subject, eventStructure);
   const patterns = buildPatterns(events, sourceEvidence, eventStructure, relations, recurringSignals, unresolvedTensions);
 
