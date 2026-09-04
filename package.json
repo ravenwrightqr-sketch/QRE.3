@@ -19,6 +19,7 @@
     "author:metamorphic-foundation": "pnpm --filter @qre/api exec tsx ./author-metamorphic-foundation-acceptance.ts",
     "author:metamorphic-selection": "pnpm --filter @qre/api exec tsx ./author-metamorphic-selection-acceptance.ts",
     "author:metamorphic-pipeline": "pnpm --filter @qre/api exec tsx ./author-metamorphic-pipeline-acceptance.ts",
+    "author:metamorphic-invariance": "pnpm --filter @qre/api exec tsx ./author-metamorphic-invariance-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
