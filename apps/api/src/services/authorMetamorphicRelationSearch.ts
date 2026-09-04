@@ -4,9 +4,6 @@
  * Finds earned changes in meaning between supplied events. This is cognition,
  * not prose generation. It never adds a concrete event, object, actor,
  * chronology, location, action, reaction, or outcome.
- *
- * The unit searched here is not "what happened next?" but:
- *   "what can one supplied detail become because another supplied detail exists?"
  */
 import type { LatentSemanticMechanism, RealityGraph, RealityRelation } from "@qre/contracts";
 
@@ -40,21 +37,8 @@ function structure(graph: RealityGraph, id: string) {
   return graph.eventStructure?.find((item) => item.eventId === id);
 }
 
-function words(value: string): Set<string> {
-  return new Set(clean(value).toLowerCase().split(/[^a-z0-9'’-]+/g).filter((token) => token.length >= 3));
-}
-
 function position(graph: RealityGraph, id: string): number {
   return graph.events.findIndex((event) => event.id === id);
-}
-
-function relationBetween(graph: RealityGraph, left: string, right: string): RealityRelation | undefined {
-  return graph.relations
-    .filter((relation) =>
-      (relation.from === left && relation.to === right) ||
-      (relation.from === right && relation.to === left),
-    )
-    .sort((a, b) => b.strength - a.strength)[0];
 }
 
 function hasAny(text: string, pattern: RegExp): boolean {
@@ -68,8 +52,9 @@ const NEGATIVE = /\b(nervous|scared|afraid|anxious|worried|sad|angry|tired|awkwa
 const EXPECTED = /\b(unexpected|surprise|surprised|unplanned|did not expect|didn't expect|instead|rather than|but|yet)\b/i;
 const RETURN = /\b(again|returned|return|back|still|same|remembered|repeated|later|years?)\b/i;
 const OWNERSHIP = /\b(own|owns|owned|stole|stolen|took|taken|kept|had|has|belongs|belonged|gave|received)\b/i;
-const SERVICE = /\b(groomed|bath|bathed|serviced|service|cleaned|clean|tailored|fixed|repaired|washed|polished)\b/i;
-const ACTION = /\b(arrived|left|went|came|met|talked|walked|ran|played|danced|called|texted|worked|bought|sold|used|gave|found|lost|stole|took|picked|returned|groomed|bathed|cleaned|finished|started|stopped|changed)\b/i;
+const SERVICE = /\b(groomed|grooming|bath|bathed|serviced|service|cleaned|clean|tailored|fixed|repaired|washed|polished)\b/i;
+const ACTION = /\b(arrived|left|went|came|met|talked|walked|ran|played|danced|called|texted|worked|bought|sold|used|gave|found|lost|stole|took|picked|returned|groomed|grooming|bath|bathed|cleaned|finished|started|stopped|changed|wear|wore|wearing)\b/i;
+const OUTCOME = /\b(stole|stolen|took|taken|snatched|grabbed|kept|owned|owns|had|has|belongs|belonged|received|won|finished|left|returned|found|lost|escaped|broke|rebelled|refused|chaos|trouble|mischief|happy|proud|calm|excited|confident|comfortable|relieved|good|glad|pleased|delighted|fierce|cool|sharp|ready|same|still|again|later|wear|wore|wearing|result|outcome|payoff)\b/i;
 const OBJECT = /\b(bow|tag|collar|photo|picture|gift|key|keys|ring|flower|flowers|dress|coat|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|house|home|table|door|window|box|bag|cake|towel|towels|leash|tool|tools|food|drink|coffee|music)\b/i;
 
 function eventFeatures(graph: RealityGraph, id: string) {
@@ -93,6 +78,7 @@ function eventFeatures(graph: RealityGraph, id: string) {
     returnSignal: hasAny(text, RETURN),
     ownership: hasAny(text, OWNERSHIP),
     service: hasAny(text, SERVICE),
+    outcome: hasAny(text, OUTCOME),
     objects,
     salient: item?.salient === true,
   };
@@ -180,7 +166,7 @@ function relationCandidate(graph: RealityGraph, relation: RealityRelation): Meta
   const subjectBoost = sameSubject(a, b) ? 0.06 : 0;
   const featureBoost =
     (a.presentation && b.mischief) ||
-    (a.service && (b.ownership || b.mischief || b.action || b.positive)) ||
+    (a.service && b.outcome) ||
     (a.negative && b.positive)
       ? 0.12
       : subjectBoost;
@@ -233,11 +219,9 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
     };
   }
 
-  // Service -> outcome is intentionally broad: the later beat does not need
-  // to be tagged "ownership". Any supplied action, possession, deviation, or
-  // positive result can be the consequence that changes how the service reads.
-  if (earlier.service && (later.action || later.ownership || later.mischief || later.positive || later.objects.length > 0)) {
-    const continuityBoost = subjectContinuity ? 0.04 : 0;
+  if (earlier.service && later.outcome && !later.service) {
+    const continuityBoost = subjectContinuity ? 0.05 : 0;
+    const evidenceBoost = (later.mischief || later.ownership || later.action || later.objects.length > 0) ? 0.04 : 0;
     return {
       type: "service_outcome_inversion",
       mechanism: "consequence",
@@ -247,12 +231,12 @@ function collisionCandidate(graph: RealityGraph, earlierId: string, laterId: str
       before: earlier.label,
       after: later.label,
       realizationMove: "service_to_status",
-      creativeOpportunity: "turn the supplied service into the setup for the subject's supplied outcome or deviation",
-      feltEffect: "The result feels satisfyingly backwards or cheeky without needing a new event.",
-      viewerShift: "The viewer stops reading the service as the endpoint and starts reading it as setup.",
-      languageAim: "Make the service and outcome collide rather than narrating both.",
-      confidence: metric(0.91 + spanBoost + continuityBoost),
-      score: metric(0.89 + spanBoost + continuityBoost),
+      creativeOpportunity: "turn the supplied service into the setup for the supplied result, possession, deviation, state, or return",
+      feltEffect: "The service stops feeling like the endpoint and becomes the setup for what the subject actually carries forward.",
+      viewerShift: "The viewer reinterprets the service through the supplied outcome.",
+      languageAim: "Make service and outcome collide; do not invent a bridge event or explain the thesis.",
+      confidence: metric(0.94 + spanBoost + continuityBoost),
+      score: metric(0.92 + spanBoost + continuityBoost + evidenceBoost),
     };
   }
 
@@ -321,8 +305,7 @@ export function searchMetamorphicRelations(
   graph: RealityGraph,
   candidateEventIds?: readonly string[],
 ): MetamorphicRelation[] {
-  const ids = unique(candidateEventIds ?? graph.events.map((event) => event.id))
-    .filter((id) => Boolean(eventLabel(graph, id)));
+  const ids = unique(candidateEventIds ?? graph.events.map((event) => event.id)).filter((id) => Boolean(eventLabel(graph, id)));
   if (ids.length < 2) return [];
 
   const results: MetamorphicRelation[] = [];
@@ -342,11 +325,7 @@ export function searchMetamorphicRelations(
 
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {
-      const earlierId = ids[i]!;
-      const laterId = ids[j]!;
-      const explicit = relationBetween(graph, earlierId, laterId);
-      if (explicit && !["before", "after", "involves", "belongs_to"].includes(explicit.kind)) continue;
-      const result = collisionCandidate(graph, earlierId, laterId);
+      const result = collisionCandidate(graph, ids[i]!, ids[j]!);
       if (!result) continue;
       const key = `${result.type}|${result.evidenceEventIds.join(",")}`;
       if (seen.has(key)) continue;
