@@ -22,10 +22,7 @@ type RelationSpec = {
   strength: number;
 };
 
-function makeGraph(
-  events: readonly EventSpec[],
-  relations: readonly RelationSpec[] = [],
-): RealityGraph {
+function makeGraph(events: readonly EventSpec[], relations: readonly RelationSpec[] = []): RealityGraph {
   return {
     events: events.map((event) => ({
       id: event.id,
@@ -50,11 +47,7 @@ function makeGraph(
       salienceScore: 0.9,
     })),
     entityContinuity: events.flatMap((event) =>
-      (event.entities ?? []).map((name) => ({
-        name,
-        eventIds: [event.id],
-        salienceScore: 0.9,
-      })),
+      (event.entities ?? []).map((name) => ({ name, eventIds: [event.id], salienceScore: 0.9 })),
     ),
     unresolvedTensions: [],
     recurringSignals: [],
@@ -62,18 +55,24 @@ function makeGraph(
   } as unknown as RealityGraph;
 }
 
-function relationTypes(graph: RealityGraph): string[] {
-  return searchMetamorphicRelations(graph).map((item) => item.type);
+function results(graph: RealityGraph) {
+  return searchMetamorphicRelations(graph);
+}
+
+function hasType(graph: RealityGraph, type: string): boolean {
+  return results(graph).some((item) => item.type === type);
 }
 
 function evidenceIsClosed(graph: RealityGraph): boolean {
   const ids = new Set(graph.events.map((event) => event.id));
-  return searchMetamorphicRelations(graph).every((item) =>
-    item.evidenceEventIds.every((id) => ids.has(id)),
-  );
+  return results(graph).every((item) => item.evidenceEventIds.every((id) => ids.has(id)));
 }
 
-const pet = makeGraph([
+function relationKey(item: ReturnType<typeof searchMetamorphicRelations>[number]): string {
+  return `${item.type}|${item.evidenceEventIds.join(",")}`;
+}
+
+const petEvents: EventSpec[] = [
   {
     id: "groom",
     label: "Coco was groomed at Elm Street Grooming",
@@ -94,11 +93,29 @@ const pet = makeGraph([
     actions: ["stole"],
     objects: ["red bow"],
   },
-]);
-const petTypes = relationTypes(pet);
-assert(petTypes.includes("presentation_behavior_collision"), "pet presentation/behavior relation missing");
-assert(petTypes.includes("service_outcome_inversion"), "pet service/outcome relation missing");
+];
+const pet = makeGraph(petEvents);
+assert(hasType(pet, "presentation_behavior_collision"), "pet presentation/behavior relation missing");
+assert(hasType(pet, "service_outcome_inversion"), "pet service/outcome relation missing");
 assert(evidenceIsClosed(pet), "pet evidence escaped the source graph");
+
+const petRelations = results(pet);
+assert(
+  petRelations.some(
+    (item) =>
+      item.type === "presentation_behavior_collision" &&
+      item.evidenceEventIds.length === 2,
+  ),
+  "presentation/behavior relation lost pair evidence",
+);
+assert(
+  petRelations.some(
+    (item) =>
+      item.type === "service_outcome_inversion" &&
+      item.evidenceEventIds.length === 2,
+  ),
+  "service/outcome relation lost pair evidence",
+);
 
 const relationship = makeGraph([
   {
@@ -122,60 +139,68 @@ const relationship = makeGraph([
     states: ["comfortable"],
   },
 ]);
-const relationshipTypes = relationTypes(relationship);
-assert(relationshipTypes.includes("expectation_break"), "relationship expectation break missing");
-assert(relationshipTypes.includes("state_polarity_turn"), "relationship state turn missing");
+assert(hasType(relationship, "expectation_break"), "relationship expectation break missing");
+assert(hasType(relationship, "state_polarity_turn"), "relationship state turn missing");
 assert(evidenceIsClosed(relationship), "relationship evidence escaped the source graph");
 
-const product = makeGraph([
-  {
-    id: "purchase",
-    label: "Mara bought the silver camera",
-    entities: ["Mara"],
-    actions: ["bought"],
-    objects: ["silver camera"],
-  },
-  {
-    id: "use",
-    label: "Mara used the camera for the first time",
-    entities: ["Mara"],
-    actions: ["used"],
-    objects: ["camera"],
-    states: ["new"],
-  },
-  {
-    id: "return",
-    label: "Mara returned to the camera years later",
-    entities: ["Mara"],
-    actions: ["returned"],
-    objects: ["camera"],
-    states: ["same"],
-  },
-], [{ from: "use", to: "return", kind: "repeats", strength: 0.94 }]);
-const productResults = searchMetamorphicRelations(product);
-assert(productResults.some((item) => item.type === "callback_recontextualization" || item.type === "object_recontextualization"), "product callback relation missing");
+const product = makeGraph(
+  [
+    {
+      id: "purchase",
+      label: "Mara bought the silver camera",
+      entities: ["Mara"],
+      actions: ["bought"],
+      objects: ["silver camera"],
+    },
+    {
+      id: "use",
+      label: "Mara used the camera for the first time",
+      entities: ["Mara"],
+      actions: ["used"],
+      objects: ["camera"],
+      states: ["new"],
+    },
+    {
+      id: "return",
+      label: "Mara returned to the camera years later",
+      entities: ["Mara"],
+      actions: ["returned"],
+      objects: ["camera"],
+      states: ["same"],
+    },
+  ],
+  [{ from: "use", to: "return", kind: "repeats", strength: 0.94 }],
+);
+assert(
+  results(product).some(
+    (item) => item.type === "callback_recontextualization" || item.type === "object_recontextualization",
+  ),
+  "product callback relation missing",
+);
 assert(evidenceIsClosed(product), "product evidence escaped the source graph");
 
-const place = makeGraph([
-  {
-    id: "quiet",
-    label: "The old theater was quiet",
-    entities: ["theater"],
-    states: ["quiet", "old"],
-  },
-  {
-    id: "crowd",
-    label: "The theater filled for the festival",
-    entities: ["theater"],
-    actions: ["filled"],
-    states: ["busy"],
-  },
-]);
-const placeResults = searchMetamorphicRelations(place);
-assert(placeResults.some((item) => item.type === "state_polarity_turn" || item.type === "relation_changes"), "place state metamorphosis missing");
+const place = makeGraph(
+  [
+    {
+      id: "quiet",
+      label: "The old theater was quiet",
+      entities: ["theater"],
+      states: ["quiet"],
+    },
+    {
+      id: "crowd",
+      label: "The theater filled for the festival",
+      entities: ["theater"],
+      actions: ["filled"],
+      states: ["busy"],
+    },
+  ],
+  [{ from: "quiet", to: "crowd", kind: "changes", strength: 0.91 }],
+);
+assert(hasType(place, "state_to_status"), "place state metamorphosis missing");
 assert(evidenceIsClosed(place), "place evidence escaped the source graph");
 
-const additionBase = makeGraph([
+const additionBaseEvents: EventSpec[] = [
   {
     id: "clean",
     label: "Nico left the workshop polished",
@@ -191,13 +216,10 @@ const additionBase = makeGraph([
     actions: ["carried"],
     objects: ["mess"],
   },
-]);
+];
+const additionBase = makeGraph(additionBaseEvents);
 const additionWithIrrelevantFact = makeGraph([
-  ...additionBase.events.map((event) => ({
-    id: event.id,
-    label: event.label,
-    entities: event.entities,
-  })),
+  ...additionBaseEvents,
   {
     id: "irrelevant",
     label: "The sky was ordinary",
@@ -205,27 +227,19 @@ const additionWithIrrelevantFact = makeGraph([
     states: ["ordinary"],
   },
 ]);
-const baseResults = searchMetamorphicRelations(additionBase);
-const expandedResults = searchMetamorphicRelations(additionWithIrrelevantFact);
-for (const result of baseResults) {
+const baseResults = results(additionBase);
+const expandedResults = results(additionWithIrrelevantFact);
+for (const baseResult of baseResults) {
   assert(
-    expandedResults.some(
-      (candidate) =>
-        candidate.type === result.type &&
-        candidate.evidenceEventIds.join(",") === result.evidenceEventIds.join(","),
-    ),
-    `irrelevant fact erased an existing metamorphic relation: ${result.type}`,
+    expandedResults.some((candidate) => relationKey(candidate) === relationKey(baseResult)),
+    `irrelevant fact erased an existing metamorphic relation: ${baseResult.type}`,
   );
 }
 
-const reordered = makeGraph([
-  pet.events[2]!,
-  pet.events[0]!,
-  pet.events[1]!,
-]);
-const reorderedTypes = relationTypes(reordered);
-assert(reorderedTypes.includes("presentation_behavior_collision"), "reordering source events erased presentation/behavior relation");
-assert(reorderedTypes.includes("service_outcome_inversion"), "reordering source events erased service/outcome relation");
+const reordered = makeGraph([petEvents[2]!, petEvents[0]!, petEvents[1]!]);
+assert(hasType(reordered, "presentation_behavior_collision"), "input order erased presentation/behavior relation");
+assert(hasType(reordered, "service_outcome_inversion"), "input order erased service/outcome relation");
+assert(evidenceIsClosed(reordered), "reordered evidence escaped the source graph");
 
 const isolated = makeGraph([
   {
@@ -241,8 +255,18 @@ const isolated = makeGraph([
     states: ["ordinary"],
   },
 ]);
-assert(searchMetamorphicRelations(isolated).every((item) => item.score >= 0 && item.score <= 1), "scores escaped normalized range");
+assert(results(isolated).every((item) => item.score >= 0 && item.score <= 1), "scores escaped normalized range");
 assert(evidenceIsClosed(isolated), "isolated evidence escaped the source graph");
+
+for (const graph of [pet, relationship, product, place, additionBase, isolated]) {
+  const sourceIds = new Set(graph.events.map((event) => event.id));
+  for (const item of results(graph)) {
+    assert(item.evidenceEventIds.every((id) => sourceIds.has(id)), `foreign evidence in ${item.type}`);
+    assert(Number.isFinite(item.score) && Number.isFinite(item.confidence), `non-finite score in ${item.type}`);
+    assert(item.score >= 0 && item.score <= 1, `score out of range in ${item.type}`);
+    assert(item.confidence >= 0 && item.confidence <= 1, `confidence out of range in ${item.type}`);
+  }
+}
 
 console.log("AUTHOR METAMORPHIC FOUNDATION ACCEPTANCE: PASS");
 console.log("CROSS_DOMAIN=TRUE");
