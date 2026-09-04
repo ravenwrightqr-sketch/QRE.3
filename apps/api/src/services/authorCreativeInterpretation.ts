@@ -54,15 +54,86 @@ function creativeOpportunityFor(value: string): LatentSemanticCreativeOpportunit
   return "recognition";
 }
 
-function mapRelation(relation: ReturnType<typeof searchMetamorphicRelations>[number]): CreativeInterpretation {
+function convergenceCluster(
+  graph: RealityGraph,
+  candidateIds: readonly string[],
+  fromId: string,
+  toId: string,
+): string[] {
+  const allowed = new Set(candidateIds);
+  const adjacency = new Map<string, string[]>();
+
+  for (const relation of graph.relations) {
+    if (relation.kind !== "converges") continue;
+    if (!allowed.has(relation.from) || !allowed.has(relation.to)) continue;
+    const from = adjacency.get(relation.from) ?? [];
+    const to = adjacency.get(relation.to) ?? [];
+    from.push(relation.to);
+    to.push(relation.from);
+    adjacency.set(relation.from, from);
+    adjacency.set(relation.to, to);
+  }
+
+  const seed = [fromId, toId].filter((id) => allowed.has(id));
+  const visited = new Set<string>();
+  const queue = [...seed];
+
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const next of adjacency.get(current) ?? []) {
+      if (!visited.has(next)) queue.push(next);
+    }
+  }
+
+  if (visited.size < 2) return seed;
+
+  return candidateIds.filter((id) => visited.has(id));
+}
+
+function mapRelation(
+  graph: RealityGraph,
+  candidateIds: readonly string[],
+  relation: ReturnType<typeof searchMetamorphicRelations>[number],
+): CreativeInterpretation {
+  let evidenceEventIds = unique(relation.evidenceEventIds);
+  let beforeEventIds = unique(relation.beforeEventIds);
+  let afterEventIds = unique(relation.afterEventIds);
+  let before = clean(relation.before);
+  let after = clean(relation.after);
+
+  if (
+    relation.relation?.kind === "converges" &&
+    relation.relation.fromEventId &&
+    relation.relation.toEventId
+  ) {
+    const cluster = convergenceCluster(
+      graph,
+      candidateIds,
+      relation.relation.fromEventId,
+      relation.relation.toEventId,
+    );
+
+    if (cluster.length >= 3) {
+      const first = cluster[0]!;
+      const last = cluster[cluster.length - 1]!;
+      evidenceEventIds = cluster;
+      beforeEventIds = [first];
+      afterEventIds = [last];
+      before = clean(graph.events.find((event) => event.id === first)?.label);
+      after = clean(graph.events.find((event) => event.id === last)?.label);
+    }
+  }
+
   return {
     statement: relation.type + ": " + clean(relation.creativeOpportunity),
     mechanism: relation.mechanism,
-    evidenceEventIds: unique(relation.evidenceEventIds),
-    beforeEventIds: unique(relation.beforeEventIds),
-    afterEventIds: unique(relation.afterEventIds),
-    before: clean(relation.before),
-    after: clean(relation.after),
+    evidenceEventIds,
+    beforeEventIds,
+    afterEventIds,
+    before,
+    after,
     relation: relation.relation
       ? {
           kind: clean(relation.relation.kind),
@@ -97,5 +168,5 @@ export function deriveSequenceBackedCreativeInterpretations(
   if (ids.length < 2) return [];
 
   const relations = searchMetamorphicRelations(graph, ids);
-  return relations.map(mapRelation);
+  return relations.map((relation) => mapRelation(graph, ids, relation));
 }
