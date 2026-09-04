@@ -10,8 +10,11 @@
  *   LatentMovieCandidate = hypothesis.
  *   This module never creates facts; it only measures and selects hypotheses.
  *
- * Pipeline position:
- *   REALITY → CANDIDATES → DIFFERENTIATION → TRAJECTORY SEARCH → MOUTH
+ * PIPELINE POSITION:
+ *   REALITY → CANDIDATES → METAMORPHIC PRIORITY → DIFFERENTIATION → VIEWER RERANK → MOUTH
+ *
+ * The metamorphic semantic turn is now a first-class movie-selection signal.
+ * It is not a post-hoc explanation attached after a movie has already won.
  */
 import type { LatentMovieCandidate } from "@qre/contracts";
 import { classifyLens } from "./authorCharacterLensEngine.js";
@@ -41,6 +44,44 @@ function payoffSignature(candidate: LatentMovieCandidate): string {
   if (/relationship|connection|meaningful/.test(text)) return "relationship-meaning";
   if (/unsettling|ordinary.*strange|dread/.test(text)) return "ordinary-turned-strange";
   return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Metamorphic potential is derived only from semantic structure already
+ * discovered by canonical cognition. This score does not inspect raw facts
+ * to create a new interpretation and cannot authorize new reality.
+ *
+ * Priority law:
+ *   earned semantic transformation > generic narrative quality
+ *
+ * A candidate with an actual graph-backed semantic realization should therefore
+ * outrank a merely interesting candidate when diversity is otherwise comparable.
+ */
+function metamorphicPotential(candidate: LatentMovieCandidate): number {
+  const realization = candidate.storyThesis?.semanticRealization;
+  if (!realization) return 0;
+
+  const evidence = new Set(realization.evidenceEventIds ?? []);
+  const before = new Set(realization.beforeEventIds ?? []);
+  const after = new Set(realization.afterEventIds ?? []);
+  const hasTurn = Boolean(
+    realization.before && realization.after &&
+    (before.size > 0 || after.size > 0) &&
+    evidence.size >= 2,
+  );
+  const confidence = clamp01(realization.confidence ?? 0);
+  const observerStrength = candidate.storyThesis?.observerExperience
+    ? 0.08
+    : 0;
+  const mechanismStrength = realization.mechanism === "continuation"
+    ? 0.55
+    : 1;
+
+  return metric(
+    (hasTurn ? 0.55 : 0.18) * mechanismStrength +
+    confidence * 0.37 +
+    observerStrength,
+  );
 }
 
 /**
@@ -132,6 +173,10 @@ export function movieCandidateDiversity(a: LatentMovieCandidate, b: LatentMovieC
  * Lens is admitted only after candidate discovery. The hard diversity gate is
  * still lens-blind; lens bias only breaks ties/preferences among candidates that
  * have already survived material-diversity checks.
+ *
+ * Metamorphic priority is intentionally stronger than lens preference. A lens
+ * may determine treatment, but it must not beat an earned semantic transformation
+ * merely because its label happens to score well against that lens.
  */
 export function selectDistinctMovieCandidates(
   candidates: LatentMovieCandidate[],
@@ -152,8 +197,18 @@ export function selectDistinctMovieCandidates(
 
       if (selected.length && diversity < MIN_MATERIAL_DIVERSITY) return;
 
+      const metamorphic = metamorphicPotential(candidate);
       const lensBias = postDiscoveryLensBias(candidate, lens);
-      const adjusted = candidate.score * 0.66 + diversity * 0.22 + lensBias * 0.12;
+
+      // Metamorphic reasoning is the dominant semantic signal. Generic movie
+      // score remains important for quality; diversity keeps the candidate set
+      // genuinely different; lens remains downstream preference only.
+      const adjusted =
+        candidate.score * 0.32 +
+        metamorphic * 0.44 +
+        diversity * 0.16 +
+        lensBias * 0.08;
+
       if (adjusted > bestValue) {
         bestValue = adjusted;
         bestIndex = index;
