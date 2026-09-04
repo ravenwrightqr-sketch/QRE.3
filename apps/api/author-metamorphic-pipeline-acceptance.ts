@@ -1,9 +1,15 @@
-import type { AuthorMetamorphicRelationSet, LatentMovieCandidate, MouthCandidateBeat, RealityGraph } from "@qre/contracts";
+import type {
+  AuthorMetamorphicRelationSet,
+  LatentMovieCandidate,
+  MouthCandidateBeat,
+  RealityGraph,
+} from "@qre/contracts";
+
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
 import { deriveLatentStoryThesis } from "./src/services/authorLatentStoryThesis.js";
+import { buildAuthorMetamorphicRelationSet } from "./src/services/authorMetamorphicRelationSet.js";
 import { selectDistinctMovieCandidates } from "./src/services/authorMovieDifferentiation.js";
-
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`AUTHOR METAMORPHIC PIPELINE FAILED: ${message}`);
 }
@@ -106,8 +112,19 @@ const candidate = {
   distinctiveness: 1,
   score: 0.72,
 } as LatentMovieCandidate;
+const relationSet = buildAuthorMetamorphicRelationSet(
+  graph,
+  candidate.anchorEventIds,
+);
 
-const thesis = deriveLatentStoryThesis(graph, candidate);
+assert(relationSet.version === 1, "relation set version invalid");
+assert(relationSet.evidenceClosed, "relation set is not evidence-closed");
+assert(relationSet.relationCount > 0, "relation set is empty");
+const thesis = deriveLatentStoryThesis(
+  graph,
+  candidate,
+  relationSet,
+);
 assert(thesis.metamorphicRelationSet.version === 1, "thesis has no sealed relation set");
 assert(thesis.metamorphicRelationSet.relationCount > 0, "thesis relation set is empty");
 assert(thesis.metamorphicRelationSet.evidenceClosed, "thesis relation set is not evidence-closed");

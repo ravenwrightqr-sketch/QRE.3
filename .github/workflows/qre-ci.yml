@@ -43,6 +43,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
 
+      - name: Analytics spine acceptance
+        run: pnpm exec tsx apps/api/analytics-spine-acceptance.ts
+
       - name: Author architecture and ownership guards
         run: pnpm author:guard
 

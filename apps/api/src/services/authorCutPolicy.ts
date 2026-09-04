@@ -176,15 +176,16 @@ export function evaluateCut(textInput: string, world: CutWorld, intent: CutInten
     localReality: sourceText(world),
     globalReality: sourceText(world),
     semantic: [
-      intent.change,
-      intent.next,
-      intent.informationFrontier,
-      ...(intent.characterTraits ?? []),
-      ...(intent.characterContradictions ?? []),
-      intent.characterStatusPosture,
-      ...(intent.characterFrames ?? []),
-      ...(intent.semanticAuthority ?? []),
-    ],
+  intent.change,
+  intent.next,
+  intent.informationFrontier,
+  ...(intent.characterTraits ?? []),
+  ...(intent.characterContradictions ?? []),
+  intent.characterStatusPosture,
+  ...(intent.characterFrames ?? []),
+  ...(intent.semanticAuthority ?? []),
+].filter((value): value is string => Boolean(value)),
+
   });
 
   const questionLeak = 0;

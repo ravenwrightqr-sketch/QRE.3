@@ -5,7 +5,7 @@ async function main() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "qwen2.5vl:7b",
+      model: "gemma3:12b",
       stream: false,
       format: "json",
       messages: [

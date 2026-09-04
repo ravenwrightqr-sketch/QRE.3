@@ -323,6 +323,7 @@ const authorInput: AuthorBrainTruth = {
   memoryContext: memorySummary.slice(0, 80),
   trajectory,
   creativeLearningContext: learningLines.slice(0, 100),
+  priorExperienceStates: priorAuthorStates,
 };
 
   const canonical = await authorBrainCanonical(authorInput);

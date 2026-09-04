@@ -46,6 +46,7 @@ import type {
   SequencePlay,
   ViewerAttentionRole,
   ViewerState,
+  AuthorExperienceState,
 } from "@qre/contracts";
 
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
@@ -60,9 +61,13 @@ import {
   buildMouthCandidateMessages,
   completeMouthPools,
   parseMouthCandidateBatch,
+  preservesSubjectIdentity,
   selectBestMouthSequence,
   type MouthCandidateBeat,
 } from "./authorMouth.js";
+import {
+  buildRealizationObligations,
+} from "./authorRealizationObligations.js";
 import { editAttentionSequence } from "./authorAttentionEditor.js";
 import { evaluateSequenceArc } from "./authorSequenceArcGate.js";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -131,6 +136,7 @@ function buildCognition(
     domainContext: input.domainContext,
     priorScenes: input.trajectory ?? [],
     priorStrategies: input.creativeLearningContext ?? [],
+    priorExperienceStates: input.priorExperienceStates ?? [],
     movieMode: input.movieMode,
   });
 }
@@ -1249,6 +1255,7 @@ export type CanonicalAuthorResult = {
   movie?: LatentMovieCandidate;
   realizationMode: AuthorRealizationMode;
   brief: AuthorCreativeBrief;
+  experienceState?: AuthorExperienceState;
   diagnostics: {
     model: string;
     modelCalls: number;
@@ -1449,24 +1456,37 @@ export async function authorBrainCanonical(
    * beat structure. Mouth receives it as contract
    * context; Mouth does not derive sequence strategy.
    */
-  const beats =
-    composedBeats.map(
-      (
-        beat,
-        index,
-        allBeats,
-      ) => ({
-        ...beat,
-        viewerState:
-          deriveViewerStateCut(
-            beat,
-            index,
-            allBeats,
-            envelope,
-          ),
-      }),
-    );
+   const beats =
+  composedBeats.map(
+    (
+      beat,
+      index,
+      allBeats,
+    ) => {
+      const viewerState =
+        deriveViewerStateCut(
+          beat,
+          index,
+          allBeats,
+          envelope,
+        );
 
+      const realizationObligations =
+        buildRealizationObligations(
+          {
+            ...beat,
+            viewerState,
+          },
+          envelope,
+        );
+
+      return {
+        ...beat,
+        viewerState,
+        realizationObligations,
+      };
+    },
+  );
   if (
     process.env
       .QRE_AUTHOR_DEBUG_MOVIE ===
@@ -1561,7 +1581,9 @@ export async function authorBrainCanonical(
         messages,
         "json",
         {
-          numPredict: 2048,
+          numPredict: Number(
+  process.env.QRE_AUTHOR_NUM_PREDICT || 512,
+),
           temperature: 0.7,
           jsonSchema: {
             type: "object",
@@ -1746,22 +1768,15 @@ export async function authorBrainCanonical(
    * This is verified here rather than manufactured after Mouth.
    */
   const openingText =
-    clean(
-      sequence.cuts[0]?.informationGain,
-    );
+  clean(
+    sequence.cuts[0]?.informationGain,
+  );
 
-  const subjectTokens =
-    words(subject);
-
-  const openingTokens =
-    words(openingText);
-
-  const openingIdentityPreserved =
-    subjectTokens.size > 0 &&
-    overlap(
-      subjectTokens,
-      openingTokens,
-    ) >= 0.5;
+const openingIdentityPreserved =
+  preservesSubjectIdentity(
+    openingText,
+    subject,
+  );
 
   /*
    * ------------------------------------------------------------
@@ -2048,12 +2063,13 @@ export async function authorBrainCanonical(
                 : "long";
           },
         ),
-      avoid: [
+           avoid: [
         "invented event",
         "unsupported bridge",
         "generic summary",
       ],
     },
+    experienceState: cognition.experienceState,
     diagnostics: {
       model: modelName,
       modelCalls,

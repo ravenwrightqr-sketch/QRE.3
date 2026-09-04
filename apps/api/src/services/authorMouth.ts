@@ -11,7 +11,7 @@ import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { classifyLens } from "./authorCharacterLensEngine.js";
 import { evaluateRealizationBoundary } from "./authorRealizationBoundary.js";
 import { buildMouthRealizationAuthority } from "./authorMouthRealizationAuthority.js";
-
+import { buildCreativeLensBrief } from "./authorCreativeLensBrief.js";
 /** ONE PRODUCTION MOUTH. Model writes language; QRE governs reality. */
 export type { MouthCandidateBeat } from "@qre/contracts";
 
@@ -40,10 +40,10 @@ const overlap = (a: Set<string>, b: Set<string>): number => {
   return hits / Math.max(1, a.size);
 };
 const wordCount = (value: string): number => clean(value).split(/\s+/).filter(Boolean).length;
-const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const uniqueStrings = (values: readonly unknown[]): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))];
 
 function semantic(beat: MouthCandidateBeat) { return beat.semanticRealization; }
-
 function scopedEventIds(beat: MouthCandidateBeat): string[] {
   const s = semantic(beat);
   const beatIds = uniqueStrings(beat.eventIds ?? []);
@@ -100,26 +100,78 @@ function realizationLift(text: string, beat: MouthCandidateBeat, envelope: Reali
   );
   return metric(novelty * 0.32 + structuralTurn * 0.28 + authorityOverlap * 0.4);
 }
+function requiredConcreteAnchors(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string[] {
+  const obligations =
+    beat.realizationObligations;
 
-function requiredConcreteAnchors(beat: MouthCandidateBeat, envelope: RealityEnvelope): string[] {
-  if (!/payoff|release/i.test(clean(beat.role))) return [];
-  const labels = sourceLabels(beat, envelope);
-  const explicitEntities = envelope.suppliedEntities ?? [];
-  const anchors = explicitEntities.filter((entity) => labels.some((label) => overlap(meaningful(entity), meaningful(label)) >= 0.5));
-  return anchors.length
-    ? uniqueStrings(anchors).slice(0, 8)
-    : uniqueStrings(labels.flatMap((label) => [...meaningful(label)])).slice(0, 8);
+  if (
+    obligations?.endpointPolicy.mode !==
+    "preserve"
+  ) {
+    return [];
+  }
+
+  return uniqueStrings(
+    obligations.requiredAnchors,
+  ).slice(0, 8);
+}
+export function preservesSubjectIdentity(
+  text: string,
+  subject: string,
+): boolean {
+  const value = clean(text);
+  const suppliedSubject = clean(subject);
+
+  if (!value || !suppliedSubject) return false;
+
+  const subjectTokens = meaningful(suppliedSubject);
+  const candidateTokens = meaningful(value);
+
+  if (!subjectTokens.size || !candidateTokens.size) {
+    return false;
+  }
+
+  const conflictingActor =
+    /^(?:he|she|they|we|you|someone|somebody|a man|a woman|another person)\b/i.test(
+      value,
+    );
+
+  return (
+    !conflictingActor &&
+    overlap(subjectTokens, candidateTokens) >= 0.5
+  );
 }
 
-function preservesSubjectAnchor(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
+function preservesSubjectAnchor(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): boolean {
   if (beat.order !== 1) return true;
-  const subject = meaningful(clean(envelope.subject));
-  const candidate = meaningful(clean(text));
-  if (!subject.size || !candidate.size) return false;
-  const conflictingActor = /^(?:he|she|they|we|you|someone|somebody|a man|a woman|another person)\b/i.test(clean(text));
-  return !conflictingActor && overlap(subject, candidate) >= 0.5;
-}
 
+  return preservesSubjectIdentity(
+    text,
+    envelope.subject,
+  );
+}
+function identityRecoveryText(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): string | undefined {
+  if (beat.order !== 1) return undefined;
+
+  const value = clean(text);
+  const subject = clean(envelope.subject);
+
+  if (!value || !subject) return undefined;
+  if (preservesSubjectAnchor(value, beat, envelope)) return undefined;
+
+  return `${subject} — ${value}`;
+}
 function preservesRequiredAnchor(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): boolean {
   const anchors = requiredConcreteAnchors(beat, envelope);
   if (!anchors.length) return true;
@@ -130,111 +182,6 @@ function preservesRequiredAnchor(text: string, beat: MouthCandidateBeat, envelop
   });
 }
 
-function creativeStrategies(beat: MouthCandidateBeat): string[] {
-  const relation = relationKind(beat);
-  const role = clean(beat.role).toLowerCase();
-  const out: string[] = [];
-  const add = (name: string, job: string) => out.push(`${name}: ${job}`);
-  if (/contrast|opposition|difference|tension/i.test(relation)) add("CONTRAST", "put supplied meanings against each other");
-  if (/agency|choice|decision|deviation|interruption|rebellion|unexpected|intent/i.test(relation)) add("STATUS_REVERSAL", "let the supplied outcome defeat the earlier expectation");
-  if (/ownership|possession|belong|property/i.test(relation)) add("POSSESSION_TURN", "use the supplied ownership relation as the punch");
-  if (/return|recurrence|again|callback|memory/i.test(relation)) add("CALLBACK", "make a repeated supplied detail heavier because of what changed");
-  if (/cause|consequence|result|effect/i.test(relation)) add("CONSEQUENCE", "let the supplied result speak for itself");
-  if (/surprise|absurd|comic|humou?r/i.test(relation)) add("COMIC_INVERSION", "make the supplied fact undercut the expected reading");
-  add("RECONTEXTUALIZATION", "make one supplied detail read differently beside another");
-  add("IMPLICATION", "leave the approved connection for the reader to complete");
-  add("UNDERSTATEMENT", "say less than the obvious explanation");
-  add("COMPRESSION", "remove connective prose and keep the sharpest anchors");
-  add("COLLISION", "put supplied details into one memorable relationship");
-  if (/payoff|release/i.test(role)) add("PAYOFF_LANDING", "land the supplied endpoint without adding an event");
-  if (/establish|arrival|opening/i.test(role)) add("HOOK_ANCHOR", "make the first supplied detail carry unresolved pressure");
-  return uniqueStrings(out).slice(0, 8);
-}
-
-function compactCreativeJob(beat: MouthCandidateBeat, envelope: RealityEnvelope, lensName?: string) {
-  const s = semantic(beat);
-  const eventIds = scopedEventIds(beat);
-  const eventDetails = eventIds.map((id) => {
-    const event = envelope.events.find((item) => item.id === id);
-    const structure = envelope.eventStructure.find((item) => item.eventId === id);
-    return {
-      id,
-      label: clean(event?.label),
-      entities: uniqueStrings(event?.entities ?? []),
-      sourceIds: uniqueStrings(event?.sourceIds ?? []),
-      structure: structure ? {
-        subjects: uniqueStrings(structure.subjects),
-        actions: uniqueStrings(structure.actions),
-        objects: uniqueStrings(structure.objects),
-        states: uniqueStrings(structure.states),
-        temporalMarkers: uniqueStrings(structure.temporalMarkers),
-        sensoryMarkers: uniqueStrings(structure.sensoryMarkers),
-        semanticTags: uniqueStrings(structure.semanticTags),
-        recurrenceScore: structure.recurrenceScore,
-        transitionScore: structure.transitionScore,
-        anomalyScore: structure.anomalyScore,
-        salienceScore: structure.salienceScore,
-      } : null,
-    };
-  });
-  const eventSet = new Set(eventIds);
-  const lens = classifyLens(lensName || "NONE");
-  return {
-    order: beat.order,
-    role: clean(beat.role),
-    subject: clean(envelope.subject),
-    eventIds,
-    events: eventDetails,
-    continuity: envelope.entityContinuity.filter((entity) => entity.eventIds.some((id) => eventSet.has(id))),
-    relations: envelope.relations.filter((relation) => eventSet.has(relation.from) || eventSet.has(relation.to)),
-    patterns: envelope.patterns.filter((pattern) => pattern.eventIds.some((id) => eventSet.has(id))),
-    scope: {
-      rule: "Concrete reality is beat-scoped. The lens changes HOW the supplied reality lands, never WHAT happened.",
-      entities: uniqueStrings(eventDetails.flatMap((event) => event.entities)),
-      eventIds,
-      subject: clean(envelope.subject),
-    },
-    lens: {
-      label: clean(lens.label),
-      framingBias: uniqueStrings(lens.framingBias ?? []),
-      realizationPreferences: uniqueStrings(lens.realizationPreferences ?? []),
-      forbiddenRealityMoves: uniqueStrings(lens.forbiddenRealityMoves ?? []),
-      intensity: lens.intensity,
-    },
-    semanticRealization: s ? {
-      mechanism: clean(s.mechanism),
-      relation: s.relation ? { kind: clean(s.relation.kind), fromEventId: clean(s.relation.fromEventId), toEventId: clean(s.relation.toEventId) } : null,
-      before: clean(s.before), after: clean(s.after), subject: clean(s.subject || envelope.subject),
-      realizationMove: clean(s.realizationMove), creativeOpportunity: clean(s.creativeOpportunity),
-      feltEffect: clean(s.feltEffect), viewerShift: clean(s.viewerShift), languageAim: clean(s.languageAim),
-      evidenceEventIds: uniqueStrings(s.evidenceEventIds ?? []), beforeEventIds: uniqueStrings(s.beforeEventIds ?? []), afterEventIds: uniqueStrings(s.afterEventIds ?? []),
-      callback: s.callback ? { detail: clean(s.callback.detail), eventIds: uniqueStrings(s.callback.eventIds ?? []), role: clean(s.callback.role) } : null,
-      confidence: s.confidence,
-    } : null,
-    observerExperience: beat.observerExperience ? {
-      objective: clean(beat.observerExperience.objective), surprise: clean(beat.observerExperience.surprise), curiosity: clean(beat.observerExperience.curiosity),
-      attention: uniqueStrings(beat.observerExperience.attention), landing: clean(beat.observerExperience.landing),
-      explanationForbidden: beat.observerExperience.explanationForbidden === true,
-      feltEffect: clean(beat.observerExperience.feltEffect), viewerShift: clean(beat.observerExperience.viewerShift), realizationDirection: clean(beat.observerExperience.realizationDirection),
-    } : null,
-    viewerState: beat.viewerState ? {
-      beforeState: clean(beat.viewerState.beforeState), afterState: clean(beat.viewerState.afterState), attentionMove: clean(beat.viewerState.attentionMove),
-      curiosityPressure: beat.viewerState.curiosityPressure, contrast: beat.viewerState.contrast, interruption: beat.viewerState.interruption,
-      accumulation: beat.viewerState.accumulation, tempo: beat.viewerState.tempo, payoffPressure: beat.viewerState.payoffPressure,
-      stateShift: beat.viewerState.stateShift, predictionError: beat.viewerState.predictionError,
-      evidenceEventIds: uniqueStrings(beat.viewerState.evidenceEventIds ?? []),
-    } : null,
-    change: clean(beat.change), next: clean(beat.next), frontier: clean(beat.frontier),
-    strategies: creativeStrategies(beat),
-    obligations: uniqueStrings(beat.obligations ?? []),
-    forbidden: uniqueStrings(beat.forbiddenMoves ?? []),
-    identityRule: beat.order === 1
-      ? "Opening must naturally name the supplied subject."
-      : "Identity is already established; omission is allowed.",
-    creativeJob: "Write language realization, not source prose. Make the approved semantic change FELT. Use the lens aggressively as framing. Use implication, contrast, status, irony, metaphor, personification, juxtaposition, compression, callback, or understatement when earned. Novel language is welcome; new concrete facts are not. Return three materially different attempts at the same authorized meaning.",
-  };
-}
-
 function genericRisk(text: string): number {
   return /\b(?:special moment|what a day|magical|magic happens|journey|new chapter|happy ending|everything changed|unforgettable|beautiful moment|meaningful moment|good times|making memories|cherished memories|a day to remember|ready for anything|full of joy|cinematic|like a movie|in that moment|speaks volumes|the truth is revealed|new beginning|such a special|wonderful experience)\b/i.test(clean(text)) ? 1 : 0;
 }
@@ -242,128 +189,698 @@ function genericRisk(text: string): number {
 function processRisk(text: string): number {
   return /\b(?:viewer|audience|beat|strategy|cognition|frontier|narrative|storytelling|theme|realization|payoff|information|evidence|semantic|trajectory|candidate|mouth|author|planner)\b/i.test(clean(text)) ? 1 : 0;
 }
-
 function explanationRisk(text: string): number {
   let hits = 0;
+
   for (const pattern of [
     /\b(?:because|therefore|thus|hence|due to|as a result|thanks to)\b/i,
     /\b(?:the reason|the cause|the point|the meaning|the secret|the ingredient)\b/i,
     /\b(?:which made|which caused|which meant|that's how|that is how)\b/i,
     /\b(?:this means|which means|in other words)\b/i,
-  ]) if (pattern.test(clean(text))) hits += 1;
+  ]) {
+    if (pattern.test(clean(text))) {
+      hits += 1;
+    }
+  }
+
   return metric(hits / 2);
 }
 
-function creativeEvidenceOverlap(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
-  const labels = sourceLabels(beat, envelope);
+function creativeEvidenceOverlap(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): number {
+  const labels = sourceLabels(
+    beat,
+    envelope,
+  );
+
   if (!labels.length) return 0;
+
   const candidate = meaningful(text);
-  return metric(labels.reduce((sum, label) => sum + overlap(meaningful(label), candidate), 0) / labels.length);
+
+  return metric(
+    labels.reduce(
+      (sum, label) =>
+        sum +
+        overlap(
+          meaningful(label),
+          candidate,
+        ),
+      0,
+    ) / labels.length,
+  );
 }
 
-function semanticOverlap(text: string, beat: MouthCandidateBeat): number {
-  const authority = semanticAuthorityText(beat);
-  return authority ? overlap(meaningful(authority), meaningful(text)) : 0;
+function semanticOverlap(
+  text: string,
+  beat: MouthCandidateBeat,
+): number {
+  const authority =
+    semanticAuthorityText(beat);
+
+  return authority
+    ? overlap(
+        meaningful(authority),
+        meaningful(text),
+      )
+    : 0;
 }
 
-function exactSource(text: string, labels: readonly string[]): boolean {
-  const value = clean(text).replace(/[.!?]+$/g, "").toLowerCase();
-  return labels.some((label) => clean(label).replace(/[.!?]+$/g, "").toLowerCase() === value);
+function exactSource(
+  text: string,
+  labels: readonly string[],
+): boolean {
+  const value = clean(text)
+    .replace(/[.!?]+$/g, "")
+    .toLowerCase();
+
+  return labels.some(
+    (label) =>
+      clean(label)
+        .replace(/[.!?]+$/g, "")
+        .toLowerCase() === value,
+  );
 }
 
-function paraphraseRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+function paraphraseRisk(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): number {
   const candidate = meaningful(text);
   const localIds = scopedEventIds(beat);
+
   const evidenceUnits = [
-    ...envelope.events.filter((event) => localIds.includes(event.id)).map((event) => event.label),
-    ...envelope.events.filter((event) => localIds.includes(event.id)).flatMap((event) => event.entities ?? []),
-    ...envelope.eventStructure.filter((structure) => localIds.includes(structure.eventId)).flatMap((structure) => [
-      ...structure.subjects, ...structure.actions, ...structure.objects, ...structure.states,
-    ]),
-  ].map(clean).filter(Boolean);
-  if (!evidenceUnits.length) return 0;
-  if (exactSource(text, sourceLabels(beat, envelope))) return 0;
-  const bestUnitCoverage = Math.max(...evidenceUnits.map((unit) => overlap(candidate, meaningful(unit))), 0);
-  const sourceCoverage = overlap(candidate, meaningful(evidenceUnits.join(" ")));
-  const lift = realizationLift(text, beat, envelope);
-  const semanticScore = semanticOverlap(text, beat);
-  return metric((bestUnitCoverage * 0.6 + sourceCoverage * 0.25 + (semanticScore < 0.05 ? 0.15 : 0)) * (1 - Math.min(0.75, lift)));
+    ...envelope.events
+      .filter((event) =>
+        localIds.includes(event.id),
+      )
+      .map((event) => event.label),
+
+    ...envelope.events
+      .filter((event) =>
+        localIds.includes(event.id),
+      )
+      .flatMap(
+        (event) => event.entities ?? [],
+      ),
+
+    ...envelope.eventStructure
+      .filter((structure) =>
+        localIds.includes(
+          structure.eventId,
+        ),
+      )
+      .flatMap((structure) => [
+        ...structure.subjects,
+        ...structure.actions,
+        ...structure.objects,
+        ...structure.states,
+      ]),
+  ]
+    .map(clean)
+    .filter(Boolean);
+
+  if (!evidenceUnits.length) {
+    return 0;
+  }
+
+  if (
+    exactSource(
+      text,
+      sourceLabels(
+        beat,
+        envelope,
+      ),
+    )
+  ) {
+    return 0;
+  }
+
+  const bestUnitCoverage =
+    Math.max(
+      ...evidenceUnits.map(
+        (unit) =>
+          overlap(
+            candidate,
+            meaningful(unit),
+          ),
+      ),
+      0,
+    );
+
+  const sourceCoverage =
+    overlap(
+      candidate,
+      meaningful(
+        evidenceUnits.join(" "),
+      ),
+    );
+
+  const lift = realizationLift(
+    text,
+    beat,
+    envelope,
+  );
+
+  const semanticScore =
+    semanticOverlap(
+      text,
+      beat,
+    );
+
+  return metric(
+    (
+      bestUnitCoverage * 0.6 +
+      sourceCoverage * 0.25 +
+      (semanticScore < 0.05
+        ? 0.15
+        : 0)
+    ) *
+      (1 -
+        Math.min(
+          0.75,
+          lift,
+        )),
+  );
 }
 
-function fragmentContinuationRisk(text: string): number {
+function fragmentContinuationRisk(
+  text: string,
+): number {
   const value = clean(text);
+
   if (!value) return 1;
-  if (/^[a-z]/.test(value)) return 1;
-  if (/^(?:which|that|because|although|while|when|since|if)\b/i.test(value)) return 0.95;
-  if (/(?:,|:|;)\s*$/.test(value)) return 0.95;
+
+  if (/^[a-z]/.test(value)) {
+    return 1;
+  }
+
+  if (
+    /^(?:which|that|because|although|while|when|since|if)\b/i.test(
+      value,
+    )
+  ) {
+    return 0.95;
+  }
+
+  if (
+    /(?:,|:|;)\s*$/.test(value)
+  ) {
+    return 0.95;
+  }
+
   return 0;
 }
 
-function evaluateCandidate(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[], recovery = false): MouthCandidate {
+function evaluateCandidate(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+  priorTexts: readonly string[],
+  recovery = false,
+): MouthCandidate {
   const value = clean(text);
-  const labels = sourceLabels(beat, envelope);
-  const literal = exactSource(value, labels);
-  const semanticScore = semanticOverlap(value, beat);
-  const grounding = metric(creativeEvidenceOverlap(value, beat, envelope) * 0.58 + overlap(meaningful(value), meaningful(envelope.subject)) * 0.08 + semanticScore * 0.34);
-  const fragment = metric(fragmentContinuationRisk(value));
-  const generic = genericRisk(value);
-  const process = processRisk(value);
-  const explanation = explanationRisk(value);
-  const lift = realizationLift(value, beat, envelope);
-  const semanticApproved = Boolean(semantic(beat));
-  const paraphrase = paraphraseRisk(value, beat, envelope);
-  const priorNovelty = priorTexts.length === 0 ? 1 : metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningful(value), meaningful(prior))), 0));
-  const compressed = wordCount(value) >= 2 && wordCount(value) <= 10;
-  const forbidden = beat.observerExperience?.explanationForbidden === true;
-  const explanationPenalty = forbidden ? explanation : explanation * 0.35;
-  const hasRelationalMove = semanticApproved && (lift >= 0.3 || semanticScore >= 0.05 || (creativeEvidenceOverlap(value, beat, envelope) >= 0.2 && relationKind(beat).length > 0));
-  const anchorPreserved = preservesRequiredAnchor(value, beat, envelope);
-  const subjectAnchorPreserved = preservesSubjectAnchor(value, beat, envelope);
-  const feltAuthority = Boolean(semantic(beat)?.feltEffect || semantic(beat)?.viewerShift || semantic(beat)?.languageAim || beat.observerExperience?.feltEffect || beat.observerExperience?.viewerShift || beat.observerExperience?.realizationDirection);
-  const creative = metric(
-    grounding * 0.18 + lift * 0.22 + (hasRelationalMove ? 0.24 : 0) + priorNovelty * 0.06 + (compressed ? 0.06 : 0) +
-    (feltAuthority ? 0.12 : 0) + (forbidden && explanation === 0 ? 0.05 : 0) + (anchorPreserved ? 0.04 : -0.18) +
-    (subjectAnchorPreserved ? 0.03 : -0.25) - explanationPenalty * 0.4 - generic * 0.55 - process * 0.55 - fragment * 0.22 - paraphrase * 0.34,
+
+  const labels = sourceLabels(
+    beat,
+    envelope,
   );
-  const recoveryScore = recovery && literal ? metric(0.2 + grounding * 0.25) : 0;
-  const score = recoveryScore || (literal ? (beat.order === 1 ? metric(0.2 + grounding * 0.2 - generic * 0.5 - process * 0.5) : 0) : creative);
-  const reasons: string[] = [];
-  if (literal) reasons.push("literal-source-restatement");
-  if (recovery) reasons.push("recovery-source");
-  if (grounding >= 0.15) reasons.push("event-grounded");
-  if (semanticApproved) reasons.push("approved-semantic-realization");
-  if (hasRelationalMove && !literal) reasons.push("meaning-executed");
-  if (feltAuthority) reasons.push("felt-authority");
-  if (lift >= 0.3) reasons.push("realization-lift");
-  if (creativeEvidenceOverlap(value, beat, envelope) >= 0.3) reasons.push("source-specific");
-  if (priorNovelty >= 0.6) reasons.push("novel-language");
-  if (compressed) reasons.push("compressed");
-  if (explanation > 0) reasons.push("explicit-explanation-risk");
-  if (generic) reasons.push("generic-summary-risk");
-  if (process) reasons.push("process-language-risk");
-  if (fragment >= 0.9) reasons.push("fragment-continuation-risk");
-  if (paraphrase >= 0.65) reasons.push("paraphrase-risk");
-  if (!anchorPreserved) reasons.push("required-anchor-missing");
-  if (!subjectAnchorPreserved) reasons.push("subject-anchor-missing");
+
+  const literal = exactSource(
+    value,
+    labels,
+  );
+
+  const semanticScore =
+    semanticOverlap(
+      value,
+      beat,
+    );
+
+  const grounding = metric(
+    creativeEvidenceOverlap(
+      value,
+      beat,
+      envelope,
+    ) *
+      0.58 +
+      overlap(
+        meaningful(value),
+        meaningful(
+          envelope.subject,
+        ),
+      ) *
+        0.08 +
+      semanticScore * 0.34,
+  );
+
+  const fragment =
+    metric(
+      fragmentContinuationRisk(
+        value,
+      ),
+    );
+
+  const generic =
+    genericRisk(value);
+
+  const process =
+    processRisk(value);
+
+  const explanation =
+    explanationRisk(value);
+
+  const lift =
+    realizationLift(
+      value,
+      beat,
+      envelope,
+    );
+
+  const semanticApproved =
+    Boolean(
+      semantic(beat),
+    );
+
+  const paraphrase =
+    paraphraseRisk(
+      value,
+      beat,
+      envelope,
+    );
+
+  const priorNovelty =
+    priorTexts.length === 0
+      ? 1
+      : metric(
+          1 -
+            Math.max(
+              ...priorTexts.map(
+                (prior) =>
+                  overlap(
+                    meaningful(value),
+                    meaningful(prior),
+                  ),
+              ),
+              0,
+            ),
+        );
+
+  const compressed =
+    wordCount(value) >= 2 &&
+    wordCount(value) <= 10;
+
+  /*
+   * Explanation policy comes from the canonical
+   * RealizationObligations contract.
+   *
+   * The observer field remains a compatibility fallback
+   * for non-canonical callers.
+   */
+  const explanationForbidden =
+    beat.realizationObligations
+      ?.explanationPolicy
+      .forbidden ??
+    beat.observerExperience
+      ?.explanationForbidden ??
+    false;
+
+  const explanationPenalty =
+    explanationForbidden
+      ? explanation
+      : explanation * 0.35;
+
+  const hasRelationalMove =
+    semanticApproved &&
+    (
+      lift >= 0.3 ||
+      semanticScore >= 0.05 ||
+      (
+        creativeEvidenceOverlap(
+          value,
+          beat,
+          envelope,
+        ) >= 0.2 &&
+        relationKind(beat).length > 0
+      )
+    );
+
+  const anchorPreserved =
+    preservesRequiredAnchor(
+      value,
+      beat,
+      envelope,
+    );
+
+  const subjectAnchorPreserved =
+    preservesSubjectAnchor(
+      value,
+      beat,
+      envelope,
+    );
+
+  const feltAuthority =
+    Boolean(
+      semantic(beat)?.feltEffect ||
+      semantic(beat)?.viewerShift ||
+      semantic(beat)?.languageAim ||
+      beat.observerExperience
+        ?.feltEffect ||
+      beat.observerExperience
+        ?.viewerShift ||
+      beat.observerExperience
+        ?.realizationDirection,
+    );
+
+  const creative =
+    metric(
+      grounding * 0.18 +
+        lift * 0.22 +
+        (hasRelationalMove
+          ? 0.24
+          : 0) +
+        priorNovelty * 0.06 +
+        (compressed
+          ? 0.06
+          : 0) +
+        (feltAuthority
+          ? 0.12
+          : 0) +
+        (
+          explanationForbidden &&
+          explanation === 0
+            ? 0.05
+            : 0
+        ) +
+        (
+          anchorPreserved
+            ? 0.04
+            : -0.18
+        ) +
+        (
+          subjectAnchorPreserved
+            ? 0.03
+            : -0.25
+        ) -
+        explanationPenalty *
+          0.4 -
+        generic * 0.55 -
+        process * 0.55 -
+        fragment * 0.22 -
+        paraphrase * 0.34,
+    );
+
+  const recoveryScore =
+    recovery && literal
+      ? metric(
+          0.2 +
+            grounding * 0.25,
+        )
+      : 0;
+
+  const score =
+    recoveryScore ||
+    (
+      literal
+        ? (
+            beat.order === 1
+              ? metric(
+                  0.2 +
+                    grounding *
+                      0.2 -
+                    generic * 0.5 -
+                    process * 0.5,
+                )
+              : 0
+          )
+        : creative
+    );
+
+  const reasons: string[] =
+    [];
+
+  if (literal) {
+    reasons.push(
+      "literal-source-restatement",
+    );
+  }
+
+  if (recovery) {
+    reasons.push(
+      "recovery-source",
+    );
+  }
+
+  if (grounding >= 0.15) {
+    reasons.push(
+      "event-grounded",
+    );
+  }
+
+  if (semanticApproved) {
+    reasons.push(
+      "approved-semantic-realization",
+    );
+  }
+
+  if (
+    hasRelationalMove &&
+    !literal
+  ) {
+    reasons.push(
+      "meaning-executed",
+    );
+  }
+
+  if (feltAuthority) {
+    reasons.push(
+      "felt-authority",
+    );
+  }
+
+  if (lift >= 0.3) {
+    reasons.push(
+      "realization-lift",
+    );
+  }
+
+  if (
+    creativeEvidenceOverlap(
+      value,
+      beat,
+      envelope,
+    ) >= 0.3
+  ) {
+    reasons.push(
+      "source-specific",
+    );
+  }
+
+  if (priorNovelty >= 0.6) {
+    reasons.push(
+      "novel-language",
+    );
+  }
+
+  if (compressed) {
+    reasons.push(
+      "compressed",
+    );
+  }
+
+  if (explanation > 0) {
+    reasons.push(
+      "explicit-explanation-risk",
+    );
+  }
+
+  if (generic) {
+    reasons.push(
+      "generic-summary-risk",
+    );
+  }
+
+  if (process) {
+    reasons.push(
+      "process-language-risk",
+    );
+  }
+
+  if (fragment >= 0.9) {
+    reasons.push(
+      "fragment-continuation-risk",
+    );
+  }
+
+  if (paraphrase >= 0.65) {
+    reasons.push(
+      "paraphrase-risk",
+    );
+  }
+
+  if (!anchorPreserved) {
+    reasons.push(
+      "required-anchor-missing",
+    );
+  }
+
+  if (!subjectAnchorPreserved) {
+    reasons.push(
+      "subject-anchor-missing",
+    );
+  }
+
   return {
     text: value,
     beatOrder: beat.order,
-    supportedEventIds: grounding >= 0.15 ? [...(beat.eventIds ?? [])] : [],
-    supportedRelationPairs: (beat.relationKinds ?? []).map(String).filter(Boolean),
-    groundingScore: grounding,
-    meaningScore: hasRelationalMove ? Math.max(lift, semanticScore, feltAuthority ? 0.35 : 0) : literal ? 0.25 : 0,
-    observerDiscoveryScore: hasRelationalMove ? metric((forbidden && explanation === 0 ? 1 : 0.7) * Math.max(0.4, lift, semanticScore, feltAuthority ? 0.45 : 0)) : literal ? 0.08 : 0,
-    transitionScore: metric(Number(beat.viewerState?.stateShift) || 0.4),
-    obligationCoverage: hasRelationalMove ? metric(0.72 + grounding * 0.28) : literal ? 0.45 : 0,
-    relationContractScore: metric((beat.relationKinds ?? []).length ? 0.86 : 0.4),
-    forbiddenMoveRisk: metric(Math.max(explanationPenalty, generic, process, fragment)),
-    cohesionScore: metric(0.34 + lift * 0.18 + grounding * 0.1 + priorNovelty * 0.07 + (hasRelationalMove ? 0.18 : 0) + (feltAuthority ? 0.08 : 0) + (anchorPreserved ? 0.05 : -0.12) - explanationPenalty * 0.1 - generic * 0.15),
-    noveltyScore: priorNovelty,
-    compressionScore: compressed ? 0.98 : 0.55,
+
+    supportedEventIds:
+      grounding >= 0.15
+        ? [
+            ...(beat.eventIds ??
+              []),
+          ]
+        : [],
+
+    supportedRelationPairs:
+      (
+        beat.relationKinds ??
+        []
+      )
+        .map(String)
+        .filter(Boolean),
+
+    groundingScore:
+      grounding,
+
+    meaningScore:
+      hasRelationalMove
+        ? Math.max(
+            lift,
+            semanticScore,
+            feltAuthority
+              ? 0.35
+              : 0,
+          )
+        : literal
+          ? 0.25
+          : 0,
+
+    observerDiscoveryScore:
+      hasRelationalMove
+        ? metric(
+            (
+              explanationForbidden &&
+              explanation === 0
+                ? 1
+                : 0.7
+            ) *
+              Math.max(
+                0.4,
+                lift,
+                semanticScore,
+                feltAuthority
+                  ? 0.45
+                  : 0,
+              ),
+          )
+        : literal
+          ? 0.08
+          : 0,
+
+    transitionScore:
+      metric(
+        Number(
+          beat.viewerState
+            ?.stateShift,
+        ) || 0.4,
+      ),
+
+    obligationCoverage:
+      hasRelationalMove
+        ? metric(
+            0.72 +
+              grounding * 0.28,
+          )
+        : literal
+          ? 0.45
+          : 0,
+
+    relationContractScore:
+      metric(
+        (
+          beat.relationKinds ??
+          []
+        ).length
+          ? 0.86
+          : 0.4,
+      ),
+
+    forbiddenMoveRisk:
+      metric(
+        Math.max(
+          explanationPenalty,
+          generic,
+          process,
+          fragment,
+        ),
+      ),
+
+    cohesionScore:
+      metric(
+        0.34 +
+          lift * 0.18 +
+          grounding * 0.1 +
+          priorNovelty * 0.07 +
+          (
+            hasRelationalMove
+              ? 0.18
+              : 0
+          ) +
+          (
+            feltAuthority
+              ? 0.08
+              : 0
+          ) +
+          (
+            anchorPreserved
+              ? 0.05
+              : -0.12
+          ) -
+          explanationPenalty *
+            0.1 -
+          generic * 0.15,
+      ),
+
+    noveltyScore:
+      priorNovelty,
+
+    compressionScore:
+      compressed
+        ? 0.98
+        : 0.55,
+
     inventionRisk: 0,
-    repetitionRisk: 1 - priorNovelty,
-    collageRisk: labels.length > 1 && creativeEvidenceOverlap(value, beat, envelope) < 0.2 ? 0.75 : 0,
-    endpointExactness: literal ? 1 : 0,
+
+    repetitionRisk:
+      1 - priorNovelty,
+
+    collageRisk:
+      labels.length > 1 &&
+      creativeEvidenceOverlap(
+        value,
+        beat,
+        envelope,
+      ) < 0.2
+        ? 0.75
+        : 0,
+
+    endpointExactness:
+      literal ? 1 : 0,
+
     score,
     reasons,
   };
@@ -375,6 +892,8 @@ function buildSystemPrompt(): string {
     "The story structure and semantic meaning are already chosen. You write the final language realization only.",
     "Facts are raw material, not prose to copy.",
     "Make meaning FELT rather than explained.",
+    "Concrete reality is beat-scoped.",
+    "The lens changes HOW the supplied reality lands, never WHAT happened.",
     "Use the supplied lens aggressively as framing. The lens changes HOW reality lands, never WHAT happened.",
     "Use implication, contrast, status, irony, understatement, metaphor, personification, juxtaposition, compression, callback, wordplay, and rhythm whenever earned.",
     "Novel language is welcome. New concrete facts are not.",
@@ -388,26 +907,202 @@ function buildSystemPrompt(): string {
     "Return exactly three materially different written lines for every beat. Never output labels, placeholders, A/B/C, or metadata.",
   ].join(" ");
 }
+function creativeMaterialJob(
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+  lensName?: string,
+) {
+  const semantic = beat.semanticRealization;
 
-export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput) {
-  const lens = classifyLens(input.lens);
-  const jobs = input.beats.map((beat) => compactCreativeJob(beat, input.envelope, input.lens));
+  const eventIds = scopedEventIds(beat);
+
+  const localEvents = eventIds
+    .map((id) =>
+      envelope.events.find(
+        (event) => event.id === id,
+      ),
+    )
+    .filter(Boolean);
+
+  const localStructures =
+    envelope.eventStructure.filter(
+      (structure) =>
+        eventIds.includes(
+          structure.eventId,
+        ),
+    );
+
+  const relatedFacts =
+    uniqueStrings([
+      ...envelope.events.map(
+        (event) => event.label,
+      ),
+      ...(envelope.suppliedPhrases ?? []),
+      ...(envelope.suppliedStates ?? []),
+      ...(envelope.suppliedActions ?? []),
+      ...(envelope.suppliedEntities ?? []),
+      ...localEvents.flatMap(
+        (event) =>
+          event?.entities ?? [],
+      ),
+    ]).slice(0, 32);
+
+  const evidence =
+    uniqueStrings([
+      ...localEvents.map(
+        (event) =>
+          event?.label ?? "",
+      ),
+      ...localStructures.flatMap(
+        (structure) => [
+          ...structure.subjects,
+          ...structure.actions,
+          ...structure.objects,
+          ...structure.states,
+          ...structure.temporalMarkers,
+          ...structure.sensoryMarkers,
+        ],
+      ),
+    ]);
+
+  const lens = classifyLens(
+    lensName || "NONE",
+  );
+
+  const characterText = semantic
+    ? uniqueStrings([
+        semantic.before,
+        semantic.after,
+        semantic.realizationMove,
+        semantic.creativeOpportunity,
+        semantic.feltEffect,
+        semantic.viewerShift,
+        semantic.languageAim,
+      ]).join(" ")
+    : "";
+
+  const brief =
+    buildCreativeLensBrief(
+      lens,
+      {
+        subject:
+          envelope.subject,
+        coreTraits:
+          uniqueStrings(
+            envelope.suppliedStates ??
+              [],
+          ),
+        statusPosture: "",
+        emotionalPosture: "",
+        contradictions: [],
+        objectRelationships:
+          uniqueStrings(
+            envelope.sensorySignals ??
+              [],
+          ),
+        privateInterpretations: [],
+        confidence: 1,
+      },
+      envelope,
+    );
+
+  return {
+    order: beat.order,
+    role: clean(beat.role),
+    subject: clean(envelope.subject),
+
+      realizationObligations:
+      beat.realizationObligations,
+
+    beatReality: evidence,
+
+    availableReality:
+      relatedFacts,
+
+    meaning: {
+      relation: clean(
+        semantic?.relation?.kind,
+      ),
+      before: clean(
+        semantic?.before,
+      ),
+      after: clean(
+        semantic?.after,
+      ),
+      realizationMove: clean(
+        semantic?.realizationMove,
+      ),
+      creativeOpportunity: clean(
+        semantic?.creativeOpportunity,
+      ),
+      feltEffect: clean(
+        semantic?.feltEffect ??
+          beat.observerExperience
+            ?.feltEffect,
+      ),
+      viewerShift: clean(
+        semantic?.viewerShift ??
+          beat.observerExperience
+            ?.viewerShift,
+      ),
+      languageAim: clean(
+        semantic?.languageAim ??
+          beat.observerExperience
+            ?.realizationDirection,
+      ),
+      authority: characterText,
+    },
+
+    lens: {
+      label: clean(
+        brief.label,
+      ),
+      intensity:
+        brief.intensity,
+      framing:
+        brief.framingBias,
+      preferences:
+        brief.realizationPreferences,
+      treatmentMoves:
+        brief.treatmentMoves,
+      forbiddenRealityMoves:
+        brief.forbiddenRealityMoves,
+    },
+
+    output:
+      "Write three materially different standalone lines for this beat.",
+  };
+}
+export function buildMouthCandidateMessages(
+  input: MouthCandidateGenerationInput,
+) {
+  const jobs = input.beats.map((beat) =>
+    creativeMaterialJob(
+      beat,
+      input.envelope,
+      input.lens,
+    ),
+  );
+
   return [
-    { role: "system" as const, content: buildSystemPrompt() },
-    { role: "user" as const, content: JSON.stringify({
-      task: "REALIZE_APPROVED_CREATIVE_JOBS",
-      lens: input.lens || "AUTO",
-      lensProfile: lens,
-      reality: { subject: input.envelope.subject, rule: "Use supplied reality. Concrete authority is beat-scoped; do not import facts from another beat." },
-      jobs,
-      domainContext: input.domainContext ?? null,
-      priorTexts: input.priorTexts ?? [],
-      instruction: "Return exactly three actual written creative realizations in variants for every beat. Do not return labels, placeholders, metadata, or the strings A, B, or C. The three lines must be materially different creative attempts at the same authorized meaning.",
-      output: { variantsByBeat: jobs.map((job) => ({ order: job.order, variants: [] })) },
-    }, null, 2) },
+    {
+      role: "system" as const,
+      content: buildSystemPrompt(),
+    },
+
+    {
+      role: "user" as const,
+      content: JSON.stringify(
+        {
+          task: "REALIZE_AUTHORIZED_MATERIAL",
+          jobs,
+        },
+        null,
+        2,
+      ),
+    },
   ];
 }
-
 function cleanVariant(value: unknown): string {
   const text = clean(value).replace(/^(?:A|B|C)\s*:\s*/i, "").trim();
   return /^(?:A|B|C)$/i.test(text) ? "" : text;
@@ -492,7 +1187,28 @@ export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
   if (candidate.reasons.includes("recovery-source")) return true;
   return candidate.reasons.includes("approved-semantic-realization") && candidate.reasons.includes("meaning-executed") && candidate.score >= 0.28;
 }
+function isIdentityRecoveryEligible(candidate: MouthCandidate): boolean {
+  if (!candidate.text) return false;
+  if (candidate.inventionRisk >= 0.9) return false;
 
+  const reasons = new Set(candidate.reasons);
+
+  if (reasons.has("realization-boundary-rejected")) return false;
+  if (reasons.has("generic-summary-risk")) return false;
+  if (reasons.has("process-language-risk")) return false;
+  if (reasons.has("required-anchor-missing")) return false;
+  if (
+    reasons.has("explicit-explanation-risk") &&
+    candidate.forbiddenMoveRisk >= 0.9
+  ) {
+    return false;
+  }
+
+  return (
+    reasons.has("subject-anchor-missing") &&
+    candidate.beatOrder === 1
+  );
+}
 function pathIncrement(candidate: MouthCandidate, prior: readonly MouthCandidate[], pool: MouthCandidatePool): number {
   const novelty = lexicalNovelty(candidate.text, prior);
   const state = pool.viewerState;
@@ -544,23 +1260,116 @@ export function selectBestMouthSequence(pools: readonly MouthCandidatePool[], op
   if (!best) return { candidates: [], texts: [], score: 0 };
   return { candidates: best.candidates, texts: best.candidates.map((candidate) => candidate.text), score: metric(best.score / Math.max(1, best.candidates.length)) };
 }
-
-export function completeMouthPools(input: { envelope: RealityEnvelope; beats: readonly MouthCandidateBeat[]; generated?: MouthCandidateBatch }): MouthCandidatePool[] {
+export function completeMouthPools(
+  input: {
+    envelope: RealityEnvelope;
+    beats: readonly MouthCandidateBeat[];
+    generated?: MouthCandidateBatch;
+  },
+): MouthCandidatePool[] {
   return input.beats.map((beat) => {
-    if (!beat.viewerState) throw new Error(`Mouth beat ${beat.order} is missing viewerState`);
-    const generated = input.generated?.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? [];
+    if (!beat.viewerState) {
+      throw new Error(
+        `Mouth beat ${beat.order} is missing viewerState`,
+      );
+    }
+
+    const generated =
+      input.generated?.variantsByBeat.find(
+        (item) => item.order === beat.order,
+      )?.variants ?? [];
+
     const generatedCandidates = generated
-      .map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope }))
-      .map((candidate) => annotateMouthRealizationBoundary(candidate, beat, input.envelope));
-    const literalRecoveryCandidates = deterministicCreativeFallback(beat, input.envelope)
-      .map((text) => scoreMouthCandidate({ text, beat, envelope: input.envelope, recovery: true }))
-      .map((candidate) => annotateMouthRealizationBoundary(candidate, beat, input.envelope));
+      .map((text) =>
+        scoreMouthCandidate({
+          text,
+          beat,
+          envelope: input.envelope,
+        }),
+      )
+      .map((candidate) =>
+        annotateMouthRealizationBoundary(
+          candidate,
+          beat,
+          input.envelope,
+        ),
+      );
+
+    /*
+     * Opening identity recovery is a Mouth realization repair.
+     *
+     * The model has already supplied the creative realization.
+     * When that realization is otherwise authorized but omitted
+     * the required opening subject, Mouth may attach the supplied
+     * subject as an identity anchor.
+     *
+     * This does NOT create a new fact, event, entity, setting,
+     * action, chronology, or outcome.
+     *
+     * Only candidates whose sole blocking condition is the
+     * sequence-level subject anchor are eligible.
+     */
+    const identityRecoveryCandidates = generatedCandidates
+      .filter(isIdentityRecoveryEligible)
+      .map((candidate) => {
+        const recoveredText = identityRecoveryText(
+          candidate.text,
+          beat,
+          input.envelope,
+        );
+
+        return recoveredText
+          ? scoreMouthCandidate({
+              text: recoveredText,
+              beat,
+              envelope: input.envelope,
+              recovery: true,
+            })
+          : undefined;
+      })
+      .filter(
+        (candidate): candidate is MouthCandidate =>
+          Boolean(candidate),
+      )
+      .map((candidate) =>
+        annotateMouthRealizationBoundary(
+          candidate,
+          beat,
+          input.envelope,
+        ),
+      );
+
+    const literalRecoveryCandidates =
+      deterministicCreativeFallback(
+        beat,
+        input.envelope,
+      )
+        .map((text) =>
+          scoreMouthCandidate({
+            text,
+            beat,
+            envelope: input.envelope,
+            recovery: true,
+          }),
+        )
+        .map((candidate) =>
+          annotateMouthRealizationBoundary(
+            candidate,
+            beat,
+            input.envelope,
+          ),
+        );
+
     return {
       order: beat.order,
       viewerState: beat.viewerState,
       nextPromise: clean(beat.next),
       frontier: clean(beat.frontier),
-      candidates: dedupe([...generatedCandidates, ...literalRecoveryCandidates]),
+      candidates: dedupe([
+        ...generatedCandidates,
+        ...identityRecoveryCandidates,
+        ...literalRecoveryCandidates,
+      ]),
     };
   });
 }

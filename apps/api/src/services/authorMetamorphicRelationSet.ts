@@ -71,18 +71,42 @@ export function buildAuthorMetamorphicRelationSet(
   graph: RealityGraph,
   sourceEventIds?: readonly string[],
 ): AuthorMetamorphicRelationSet {
-  const scoped = new Set(
-    sourceEventIds?.length
-      ? unique(sourceEventIds)
-      : graph.events.map((event) => event.id),
+  const graphEventIds = new Set(
+    graph.events.map((event) => event.id),
   );
 
+  const scopedIds = sourceEventIds?.length
+    ? unique(sourceEventIds).filter((id) => graphEventIds.has(id))
+    : graph.events.map((event) => event.id);
+
+  const scoped = new Set(scopedIds);
+
   const discovered = searchMetamorphicRelations(graph)
-    .filter((relation) => relation.evidenceEventIds.every((id) => scoped.has(id)))
+    .filter((relation) =>
+      relation.evidenceEventIds.every(
+        (id) => scoped.has(clean(id)),
+      ),
+    )
     .map((relation) => {
-      const evidenceEventIds = unique(relation.evidenceEventIds);
-      const beforeEventIds = unique(relation.beforeEventIds).filter((id) => scoped.has(id));
-      const afterEventIds = unique(relation.afterEventIds).filter((id) => scoped.has(id));
+      const evidenceEventIds = unique(
+        relation.evidenceEventIds,
+      ).filter((id) => scoped.has(id));
+
+      const beforeEventIds = unique(
+        relation.beforeEventIds,
+      ).filter((id) => scoped.has(id));
+
+      const afterEventIds = unique(
+        relation.afterEventIds,
+      ).filter((id) => scoped.has(id));
+
+      const relationFrom = clean(
+        relation.relation?.fromEventId,
+      );
+      const relationTo = clean(
+        relation.relation?.toEventId,
+      );
+
       const canonical: AuthorMetamorphicRelation = {
         id: relationId(relation),
         type: typeOf(clean(relation.type)),
@@ -92,37 +116,86 @@ export function buildAuthorMetamorphicRelationSet(
         afterEventIds,
         before: clean(relation.before),
         after: clean(relation.after),
-        relation: relation.relation
-          ? {
-              kind: clean(relation.relation.kind),
-              fromEventId: clean(relation.relation.fromEventId),
-              toEventId: clean(relation.relation.toEventId),
-            }
-          : undefined,
-        realizationMove: moveOf(clean(relation.realizationMove)),
-        creativeOpportunity: opportunityOf(clean(relation.creativeOpportunity)),
+        relation:
+          relation.relation &&
+          scoped.has(relationFrom) &&
+          scoped.has(relationTo)
+            ? {
+                kind: clean(relation.relation.kind),
+                fromEventId: relationFrom,
+                toEventId: relationTo,
+              }
+            : undefined,
+        realizationMove: moveOf(
+          clean(relation.realizationMove),
+        ),
+        creativeOpportunity: opportunityOf(
+          clean(relation.creativeOpportunity),
+        ),
         feltEffect: clean(relation.feltEffect),
         viewerShift: clean(relation.viewerShift),
         languageAim: clean(relation.languageAim),
         confidence: metric(relation.confidence),
         score: metric(relation.score),
       };
+
       return canonical;
     })
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+    .filter((relation) => {
+      const relationIds = [
+        ...relation.evidenceEventIds,
+        ...relation.beforeEventIds,
+        ...relation.afterEventIds,
+        ...(relation.relation
+          ? [
+              relation.relation.fromEventId,
+              relation.relation.toEventId,
+            ]
+          : []),
+      ];
 
-  const ids = new Set(graph.events.map((event) => event.id));
-  const evidenceClosed = discovered.every((relation) =>
-    relation.evidenceEventIds.every((id) => ids.has(id)),
+      return relationIds.every((id) => scoped.has(id));
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        a.id.localeCompare(b.id),
+    );
+
+  const uniqueRelations = [
+    ...new Map(
+      discovered.map((relation) => [
+        relation.id,
+        relation,
+      ]),
+    ).values(),
+  ];
+
+  const evidenceClosed = uniqueRelations.every(
+    (relation) =>
+      relation.evidenceEventIds.length > 0 &&
+      relation.evidenceEventIds.every((id) =>
+        scoped.has(id),
+      ) &&
+      relation.beforeEventIds.every((id) =>
+        scoped.has(id),
+      ) &&
+      relation.afterEventIds.every((id) =>
+        scoped.has(id),
+      ) &&
+      (!relation.relation ||
+        (scoped.has(relation.relation.fromEventId) &&
+          scoped.has(relation.relation.toEventId))),
   );
-  const strongest = discovered[0];
+
+  const strongest = uniqueRelations[0];
 
   return {
     version: 1,
-    sourceEventIds: [...scoped].filter((id) => ids.has(id)),
-    relations: discovered,
+    sourceEventIds: scopedIds,
+    relations: uniqueRelations,
     strongestRelationId: strongest?.id,
-    relationCount: discovered.length,
+    relationCount: uniqueRelations.length,
     evidenceClosed,
   };
 }
@@ -130,16 +203,107 @@ export function buildAuthorMetamorphicRelationSet(
 export function assertAuthorMetamorphicRelationSet(
   value: unknown,
 ): asserts value is AuthorMetamorphicRelationSet {
-  const set = value as Partial<AuthorMetamorphicRelationSet> | undefined;
+  const set =
+    value as Partial<AuthorMetamorphicRelationSet> | undefined;
+
+  const isNonEmptyString = (item: unknown): item is string =>
+    typeof item === "string" && clean(item).length > 0;
+
+  const isValidRelation = (
+    relation: unknown,
+  ): relation is AuthorMetamorphicRelation => {
+    if (!relation || typeof relation !== "object") {
+      return false;
+    }
+
+    const candidate = relation as Partial<AuthorMetamorphicRelation>;
+
+    if (
+      !isNonEmptyString(candidate.id) ||
+      !isNonEmptyString(candidate.type) ||
+      !isNonEmptyString(candidate.mechanism) ||
+      !Array.isArray(candidate.evidenceEventIds) ||
+      candidate.evidenceEventIds.length === 0 ||
+      !candidate.evidenceEventIds.every(isNonEmptyString) ||
+      !Array.isArray(candidate.beforeEventIds) ||
+      !candidate.beforeEventIds.every(isNonEmptyString) ||
+      !Array.isArray(candidate.afterEventIds) ||
+      !candidate.afterEventIds.every(isNonEmptyString) ||
+      !isNonEmptyString(candidate.realizationMove) ||
+      !isNonEmptyString(candidate.creativeOpportunity) ||
+      typeof candidate.confidence !== "number" ||
+      typeof candidate.score !== "number"
+    ) {
+      return false;
+    }
+
+    return (
+      Number.isFinite(candidate.confidence) &&
+      Number.isFinite(candidate.score)
+    );
+  };
+
   if (
     !set ||
     set.version !== 1 ||
     !Array.isArray(set.sourceEventIds) ||
+    !set.sourceEventIds.every(isNonEmptyString) ||
+    new Set(set.sourceEventIds).size !== set.sourceEventIds.length ||
     !Array.isArray(set.relations) ||
+    !set.relations.every(isValidRelation) ||
     typeof set.relationCount !== "number" ||
     set.relationCount !== set.relations.length ||
+    !Number.isInteger(set.relationCount) ||
+    set.relationCount < 0 ||
     set.evidenceClosed !== true
   ) {
-    throw new Error("AUTHOR METAMORPHIC PIPELINE SEALED: missing or invalid relation set");
+    throw new Error(
+      "AUTHOR METAMORPHIC PIPELINE SEALED: missing or invalid relation set",
+    );
+  }
+
+  const sourceIds = new Set(set.sourceEventIds);
+
+  for (const relation of set.relations) {
+    const relationEvidenceIds = [
+      ...relation.evidenceEventIds,
+      ...relation.beforeEventIds,
+      ...relation.afterEventIds,
+      ...(relation.relation
+        ? [
+            relation.relation.fromEventId,
+            relation.relation.toEventId,
+          ]
+        : []),
+    ];
+
+    if (
+      !relationEvidenceIds.every((id) =>
+        sourceIds.has(clean(id)),
+      )
+    ) {
+      throw new Error(
+        "AUTHOR METAMORPHIC PIPELINE SEALED: relation escaped source scope",
+      );
+    }
+  }
+
+  const relationIds = new Set(
+    set.relations.map((relation) => clean(relation.id)),
+  );
+
+  if (
+    set.strongestRelationId !== undefined &&
+    !relationIds.has(clean(set.strongestRelationId))
+  ) {
+    throw new Error(
+      "AUTHOR METAMORPHIC PIPELINE SEALED: strongest relation is not present",
+    );
+  }
+
+  if (set.relations.length > 0 && !set.strongestRelationId) {
+    throw new Error(
+      "AUTHOR METAMORPHIC PIPELINE SEALED: strongest relation is missing",
+    );
   }
 }

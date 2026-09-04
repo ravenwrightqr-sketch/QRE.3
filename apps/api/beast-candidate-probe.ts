@@ -24,7 +24,6 @@ const graph = buildAuthorRealityGraph({
 
 const candidates = searchUniversalMovieCandidates({
   graph,
-  lens: "NONE",
   subject: "our world",
   limit: 12,
 });

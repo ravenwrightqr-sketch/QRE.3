@@ -34,18 +34,3 @@ const cognition = buildAuthorCognitivePlan({
   movieMode: true,
   lens: "NONE",
 });
-
-console.log("\n=== COGNITIVE PLAN MOVIE ===");
-
-console.dir(
-  {
-    selectedMovie: cognition.selectedMovie,
-    candidateCount:
-      cognition.latentMovieCandidates?.length ?? 0,
-    movieMode:
-      cognition.movieMode,
-    plan:
-      cognition,
-  },
-  { depth: null },
-);

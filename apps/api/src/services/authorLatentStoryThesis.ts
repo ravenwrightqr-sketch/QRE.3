@@ -198,49 +198,79 @@ function fallbackSemantic(
     metamorphicRelationSet: relationSet,
   };
 }
-
 export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
+  relationSet: AuthorMetamorphicRelationSet,
 ): MetamorphicStoryThesis {
   const ordered = orderedIds(candidate);
-  const relationSet = buildAuthorMetamorphicRelationSet(graph, ordered);
   const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
   const interpretation = [...interpretations]
-    .sort((a, b) => (b.metamorphicScore ?? b.confidence) - (a.metamorphicScore ?? a.confidence))[0];
+    .sort(
+      (a, b) =>
+        (b.metamorphicScore ?? b.confidence) -
+        (a.metamorphicScore ?? a.confidence),
+    )[0];
+
   const fallback = fallbackRelation(graph, ordered);
   const endpoint = endpointId(candidate);
-  const beforeId = interpretation?.beforeEventIds[0] ?? fallback?.from ?? ordered[0] ?? "";
+  const beforeId =
+    interpretation?.beforeEventIds[0] ?? fallback?.from ?? ordered[0] ?? "";
   const afterId = interpretation?.afterEventIds[0] ?? fallback?.to ?? endpoint;
+
   const evidenceIds = unique(
-    interpretation?.evidenceEventIds ?? (fallback ? [fallback.from, fallback.to] : ordered),
+    interpretation?.evidenceEventIds ??
+      (fallback ? [fallback.from, fallback.to] : ordered),
   );
-  const semantic = semanticFrom(interpretation, relationSet) ?? (fallback ? fallbackSemantic(graph, fallback, relationSet) : undefined);
+
+  const semantic =
+    semanticFrom(interpretation, relationSet) ??
+    (fallback ? fallbackSemantic(graph, fallback, relationSet) : undefined);
+
   const observer = observerFor(interpretation);
-  const semanticTurn = clean(interpretation?.statement) || (
-    fallback
+
+  const semanticTurn =
+    clean(interpretation?.statement) ||
+    (fallback
       ? `${label(graph, fallback.from)} changes the reading of ${label(graph, fallback.to)} through ${fallback.kind}.`
-      : ""
+      : "");
+
+  const beforeMeaning = beforeId
+    ? [label(graph, beforeId)].filter(Boolean)
+    : [];
+
+  const afterMeaning = afterId
+    ? [label(graph, afterId)].filter(Boolean)
+    : [];
+
+  const carrierEventIds = evidenceIds.filter(
+    (id) => id !== beforeId && id !== afterId && id !== endpoint,
   );
-  const beforeMeaning = beforeId ? [label(graph, beforeId)].filter(Boolean) : [];
-  const afterMeaning = afterId ? [label(graph, afterId)].filter(Boolean) : [];
-  const carrierEventIds = evidenceIds.filter((id) => id !== beforeId && id !== afterId && id !== endpoint);
-  const sealingEventIds = endpoint && endpoint !== beforeId ? [endpoint] : [];
+
+  const sealingEventIds =
+    endpoint && endpoint !== beforeId ? [endpoint] : [];
+
   const payoff = label(graph, endpoint) || clean(candidate.payoff);
 
   return {
-    initialReading: clean(candidate.trajectory[0]?.viewerChange || candidate.evidence[0]),
+    initialReading: clean(
+      candidate.trajectory[0]?.viewerChange || candidate.evidence[0],
+    ),
     semanticTurn,
     semanticRealization: semantic,
     beforeMeaning,
     afterMeaning,
     beforeEventIds: beforeId ? [beforeId] : [],
     afterEventIds: afterId ? [afterId] : [],
-    relationKind: clean(interpretation?.relation?.kind ?? fallback?.kind),
+    relationKind: clean(
+      interpretation?.relation?.kind ?? fallback?.kind,
+    ),
     carrierEventIds,
     sealingEventIds,
     payoffDependency: payoff,
-    counterfactualDependency: interpretation ? Math.min(1, Math.max(0, interpretation.confidence)) : 0.5,
+    counterfactualDependency: interpretation
+      ? Math.min(1, Math.max(0, interpretation.confidence))
+      : 0.5,
     observerExperience: observer,
     metamorphicRelationSet: relationSet,
   };

@@ -1,4 +1,5 @@
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
+import { preservesSubjectIdentity } from "./src/services/authorMouth.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -37,7 +38,10 @@ function requireMovie(caseName: string, result: Result): MovieResult {
 function validate(caseDef: Case, result: Result): MovieResult {
   assert(result.sequence, `${caseDef.name}: missing SequencePlay`);
   assert(result.movie, `${caseDef.name}: missing latent movie`);
-  assert(result.diagnostics.complete === true, `${caseDef.name}: incomplete result`);
+  assert(
+    result.diagnostics.complete === true,
+    `${caseDef.name}: incomplete result`,
+  );
   assert(
     result.sequence.cuts.length >= caseDef.minimumCuts,
     `${caseDef.name}: fewer than ${caseDef.minimumCuts} cuts`,
@@ -56,20 +60,39 @@ function validate(caseDef: Case, result: Result): MovieResult {
   );
 
   const texts = textOf(result);
-  assert(texts.length >= caseDef.minimumCuts, `${caseDef.name}: empty scene set`);
+
+  assert(
+    texts.length >= caseDef.minimumCuts,
+    `${caseDef.name}: empty scene set`,
+  );
+
   assert(
     new Set(texts.map((text) => text.toLowerCase())).size === texts.length,
     `${caseDef.name}: duplicate authored cuts`,
   );
+
   assert(
-    texts.some((text) => text.toLowerCase().includes(caseDef.subject.toLowerCase())),
+    texts.length > 0 &&
+      preservesSubjectIdentity(
+        texts[0],
+        caseDef.subject,
+      ),
     `${caseDef.name}: opening identity lost`,
   );
 
   const thesis = result.movie.storyThesis;
+
   if (thesis?.semanticTurn) {
-    assert(thesis.semanticRealization, `${caseDef.name}: semantic realization missing`);
-    assert(thesis.observerExperience, `${caseDef.name}: observer contract missing`);
+    assert(
+      thesis.semanticRealization,
+      `${caseDef.name}: semantic realization missing`,
+    );
+
+    assert(
+      thesis.observerExperience,
+      `${caseDef.name}: observer contract missing`,
+    );
+
     assert(
       thesis.observerExperience.simulation,
       `${caseDef.name}: world simulation missing`,
@@ -77,9 +100,21 @@ function validate(caseDef: Case, result: Result): MovieResult {
   }
 
   const simulation = thesis?.observerExperience?.simulation;
-  assert(simulation, `${caseDef.name}: simulation missing`);
-  assert(Array.isArray(simulation.relations), `${caseDef.name}: simulation relations missing`);
-  assert(Array.isArray(simulation.questions), `${caseDef.name}: simulation questions missing`);
+
+  assert(
+    simulation,
+    `${caseDef.name}: simulation missing`,
+  );
+
+  assert(
+    Array.isArray(simulation.relations),
+    `${caseDef.name}: simulation relations missing`,
+  );
+
+  assert(
+    Array.isArray(simulation.questions),
+    `${caseDef.name}: simulation questions missing`,
+  );
 
   return result as MovieResult;
 }
@@ -96,7 +131,12 @@ const cases: Case[] = [
       "The connector was repaired.",
       "The machine ran again before closing.",
     ],
-    sourceMoments: ["machine stopped", "loose connector", "repair", "running again"],
+    sourceMoments: [
+      "machine stopped",
+      "loose connector",
+      "repair",
+      "running again",
+    ],
     lens: "industrial",
     minimumCuts: 3,
   },
@@ -111,7 +151,12 @@ const cases: Case[] = [
       "Neighbors started using the common space.",
       "People now return there every week.",
     ],
-    sourceMoments: ["nearly empty", "studio moved in", "neighbors gathered", "weekly return"],
+    sourceMoments: [
+      "nearly empty",
+      "studio moved in",
+      "neighbors gathered",
+      "weekly return",
+    ],
     minimumCuts: 3,
   },
   {
@@ -125,7 +170,12 @@ const cases: Case[] = [
       "A note from the artist was found behind the frame.",
       "Visitors began looking at the painting differently.",
     ],
-    sourceMoments: ["quiet gallery", "passed without stopping", "artist note", "looked differently"],
+    sourceMoments: [
+      "quiet gallery",
+      "passed without stopping",
+      "artist note",
+      "looked differently",
+    ],
     lens: "mystery",
     minimumCuts: 3,
   },
@@ -140,7 +190,12 @@ const cases: Case[] = [
       "A power outage interrupted the opening.",
       "The crowd stayed and finished the event by phone light.",
     ],
-    sourceMoments: ["expected quiet", "doors opened", "power outage", "crowd stayed"],
+    sourceMoments: [
+      "expected quiet",
+      "doors opened",
+      "power outage",
+      "crowd stayed",
+    ],
     lens: "cinematic",
     minimumCuts: 3,
   },
@@ -155,7 +210,12 @@ const cases: Case[] = [
       "Jordan returned the next week.",
       "Jordan later volunteered to teach.",
     ],
-    sourceMoments: ["did not want to enter", "one class", "returned", "volunteered to teach"],
+    sourceMoments: [
+      "did not want to enter",
+      "one class",
+      "returned",
+      "volunteered to teach",
+    ],
     lens: "warm",
     minimumCuts: 3,
   },
@@ -170,7 +230,12 @@ const cases: Case[] = [
       "The key opened a storage room during a move.",
       "Inside was a box of family photographs.",
     ],
-    sourceMoments: ["key in drawer", "unused for months", "opened storage room", "family photographs"],
+    sourceMoments: [
+      "key in drawer",
+      "unused for months",
+      "opened storage room",
+      "family photographs",
+    ],
     minimumCuts: 3,
   },
   {
@@ -178,8 +243,14 @@ const cases: Case[] = [
     prompt: "Make a compelling memory from only two supplied facts",
     subject: "Riley",
     place: "the station",
-    facts: ["Riley missed the train.", "Riley waited for another one."],
-    sourceMoments: ["missed the train", "waited for another"],
+    facts: [
+      "Riley missed the train.",
+      "Riley waited for another one.",
+    ],
+    sourceMoments: [
+      "missed the train",
+      "waited for another",
+    ],
     minimumCuts: 2,
   },
   {
@@ -193,7 +264,12 @@ const cases: Case[] = [
       "The second test failed differently.",
       "The team kept the failed prototype for reference.",
     ],
-    sourceMoments: ["first test failed", "component changed", "second failure", "kept for reference"],
+    sourceMoments: [
+      "first test failed",
+      "component changed",
+      "second failure",
+      "kept for reference",
+    ],
     lens: "documentary",
     minimumCuts: 3,
   },
@@ -208,7 +284,12 @@ const cases: Case[] = [
       "They compared the memory years later.",
       "They kept both versions of the story.",
     ],
-    sourceMoments: ["Sam remembers empty", "Taylor remembers crowded", "compared years later", "kept both versions"],
+    sourceMoments: [
+      "Sam remembers empty",
+      "Taylor remembers crowded",
+      "compared years later",
+      "kept both versions",
+    ],
     lens: "intimate",
     minimumCuts: 3,
   },
@@ -223,7 +304,12 @@ const cases: Case[] = [
       "The person returned months later.",
       "The return no longer felt accidental.",
     ],
-    sourceMoments: ["first conversation", "same table", "returned months later", "no longer accidental"],
+    sourceMoments: [
+      "first conversation",
+      "same table",
+      "returned months later",
+      "no longer accidental",
+    ],
     minimumCuts: 3,
   },
   {
@@ -237,7 +323,12 @@ const cases: Case[] = [
       "Neighbors began maintaining it together.",
       "Children now help water the garden.",
     ],
-    sourceMoments: ["empty-lot shortcut", "garden planted", "neighbors maintain it", "children water it"],
+    sourceMoments: [
+      "empty-lot shortcut",
+      "garden planted",
+      "neighbors maintain it",
+      "children water it",
+    ],
     minimumCuts: 3,
   },
   {
@@ -251,7 +342,12 @@ const cases: Case[] = [
       "The customer stayed to learn how it worked.",
       "The customer returned with another repair months later.",
     ],
-    sourceMoments: ["arrived frustrated", "simple repair", "learned how it worked", "returned months later"],
+    sourceMoments: [
+      "arrived frustrated",
+      "simple repair",
+      "learned how it worked",
+      "returned months later",
+    ],
     minimumCuts: 3,
   },
   {
@@ -265,7 +361,12 @@ const cases: Case[] = [
       "The owner found a new page filled in.",
       "The notebook was taken home.",
     ],
-    sourceMoments: ["left on table", "returned to counter", "new page filled in", "taken home"],
+    sourceMoments: [
+      "left on table",
+      "returned to counter",
+      "new page filled in",
+      "taken home",
+    ],
     minimumCuts: 3,
   },
   {
@@ -279,7 +380,12 @@ const cases: Case[] = [
       "Two friends began meeting there.",
       "The bench became their usual meeting point.",
     ],
-    sourceMoments: ["new bench", "sat after work", "friends met", "usual meeting point"],
+    sourceMoments: [
+      "new bench",
+      "sat after work",
+      "friends met",
+      "usual meeting point",
+    ],
     lens: "quiet",
     minimumCuts: 3,
   },
@@ -294,7 +400,12 @@ const cases: Case[] = [
       "New names were added to the card.",
       "The card now belongs to the youngest cook.",
     ],
-    sourceMoments: ["handwritten recipe", "copied each winter", "new names", "youngest cook"],
+    sourceMoments: [
+      "handwritten recipe",
+      "copied each winter",
+      "new names",
+      "youngest cook",
+    ],
     lens: "nostalgic",
     minimumCuts: 3,
   },
@@ -322,7 +433,11 @@ for (const caseDef of cases) {
 }
 
 const base = cases.find((item) => item.name === "recontextualization")!;
-const baseResult = requireMovie(base.name, results.get(base.name)!);
+const baseResult = requireMovie(
+  base.name,
+  results.get(base.name)!,
+);
+
 const perturbed = await authorBrainCanonical({
   prompt: base.prompt,
   subject: base.subject,
@@ -343,61 +458,155 @@ const perturbed = await authorBrainCanonical({
   trajectory: [],
   creativeLearningContext: [],
 });
-const perturbedResult = validate(base, perturbed);
 
-const baseRelations = baseResult.movie.storyThesis?.relationKind ?? "";
-const perturbedRelations = perturbedResult.movie.storyThesis?.relationKind ?? "";
-assert(baseRelations === perturbedRelations, "irrelevant facts changed canonical relation kind");
+const perturbedResult = validate(
+  base,
+  perturbed,
+);
 
-const baseSourceIds = new Set(baseResult.sequence.cuts.flatMap((cut) => cut.sourceIds));
-const perturbedSourceIds = new Set(perturbedResult.sequence.cuts.flatMap((cut) => cut.sourceIds));
+const baseRelations =
+  baseResult.movie.storyThesis?.relationKind ?? "";
+
+const perturbedRelations =
+  perturbedResult.movie.storyThesis?.relationKind ?? "";
+
 assert(
-  [...baseSourceIds].some((id) => perturbedSourceIds.has(id)),
+  baseRelations === perturbedRelations,
+  "irrelevant facts changed canonical relation kind",
+);
+
+const baseSourceIds = new Set(
+  baseResult.sequence.cuts.flatMap(
+    (cut) => cut.sourceIds,
+  ),
+);
+
+const perturbedSourceIds = new Set(
+  perturbedResult.sequence.cuts.flatMap(
+    (cut) => cut.sourceIds,
+  ),
+);
+
+assert(
+  [...baseSourceIds].some(
+    (id) => perturbedSourceIds.has(id),
+  ),
   "irrelevant facts erased all shared provenance",
 );
 
-const returnBase = cases.find((item) => item.name === "recurrence")!;
-const round1 = requireMovie(returnBase.name, results.get(returnBase.name)!);
-const round2Raw = await authorBrainCanonical({
-  prompt: returnBase.prompt,
-  subject: returnBase.subject,
-  place: returnBase.place ?? "",
-  lens: returnBase.lens,
-  movieMode: true,
-  facts: [
-    ...returnBase.facts,
-    "The same person returned again during the first rain of autumn.",
-    "The table had been moved closer to the window.",
-  ],
-  sourceMoments: [
-    ...returnBase.sourceMoments,
-    "returned in autumn rain",
-    "table moved closer to window",
-  ],
-  memoryContext: textOf(round1),
-  trajectory: round1.sequence.cuts.map((cut) => cut.attentionDelta),
-  creativeLearningContext: [],
-});
-const round2 = validate(returnBase, round2Raw);
+const returnBase =
+  cases.find((item) => item.name === "recurrence")!;
+
+const round1Canonical =
+  results.get(returnBase.name)!;
+
+const round1 =
+  requireMovie(
+    returnBase.name,
+    round1Canonical,
+  );
+
 assert(
-  textOf(round1).join(" ") !== textOf(round2).join(" "),
+  round1Canonical.experienceState,
+  "return visit missing canonical round-one experience state",
+);
+
+const round2Raw =
+  await authorBrainCanonical({
+    prompt: returnBase.prompt,
+    subject: returnBase.subject,
+    place: returnBase.place ?? "",
+    lens: returnBase.lens,
+    movieMode: true,
+    facts: [
+      ...returnBase.facts,
+      "The same person returned again during the first rain of autumn.",
+      "The table had been moved closer to the window.",
+    ],
+    sourceMoments: [
+      ...returnBase.sourceMoments,
+      "returned in autumn rain",
+      "table moved closer to window",
+    ],
+    memoryContext: textOf(round1),
+    trajectory: round1.sequence.cuts.map(
+      (cut) => cut.attentionDelta,
+    ),
+    creativeLearningContext: [],
+    priorExperienceStates: [
+      round1Canonical.experienceState,
+    ],
+  });
+
+const round2 =
+  validate(
+    returnBase,
+    round2Raw,
+  );
+
+assert(
+  textOf(round1).join(" ") !==
+    textOf(round2).join(" "),
   "return visit failed to recontextualize authored output",
 );
+
 assert(
-  round2.movie.storyThesis?.observerExperience?.simulation?.reentry?.meaningCanChange === true,
+  round2.movie.storyThesis
+    ?.observerExperience
+    ?.simulation
+    ?.reentry
+    ?.meaningCanChange === true,
   "return visit incorrectly froze meaning",
 );
 
-console.log(`PASS irrelevant-fact invariant: relation=${baseRelations}`);
-console.log("PASS return recontextualization");
-console.log("UNIVERSAL AUTHOR STRESS ACCEPTANCE: PASS");
-console.log(`CASES=${cases.length}`);
-console.log("NON_HUMAN_SUBJECTS=TRUE");
-console.log("SPARSE_REALITY=TRUE");
-console.log("POLARITY_TURNS=TRUE");
-console.log("EXPECTATION_BREAKS=TRUE");
-console.log("RECONTEXTUALIZATION=TRUE");
-console.log("CROSS_ENTITY_REALITY=TRUE");
-console.log("RECURRENCE=TRUE");
-console.log("IRRELEVANT_FACT_INVARIANCE=TRUE");
-console.log("RETURN_MEANING_CAN_CHANGE=TRUE");
+console.log(
+  `PASS irrelevant-fact invariant: relation=${baseRelations}`,
+);
+
+console.log(
+  "PASS return recontextualization",
+);
+
+console.log(
+  "UNIVERSAL AUTHOR STRESS ACCEPTANCE: PASS",
+);
+
+console.log(
+  `CASES=${cases.length}`,
+);
+
+console.log(
+  "NON_HUMAN_SUBJECTS=TRUE",
+);
+
+console.log(
+  "SPARSE_REALITY=TRUE",
+);
+
+console.log(
+  "POLARITY_TURNS=TRUE",
+);
+
+console.log(
+  "EXPECTATION_BREAKS=TRUE",
+);
+
+console.log(
+  "RECONTEXTUALIZATION=TRUE",
+);
+
+console.log(
+  "CROSS_ENTITY_REALITY=TRUE",
+);
+
+console.log(
+  "RECURRENCE=TRUE",
+);
+
+console.log(
+  "IRRELEVANT_FACT_INVARIANCE=TRUE",
+);
+
+console.log(
+  "RETURN_MEANING_CAN_CHANGE=TRUE",
+);

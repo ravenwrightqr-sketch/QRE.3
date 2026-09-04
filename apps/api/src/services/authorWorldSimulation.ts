@@ -388,7 +388,7 @@ export function buildAuthorWorldSimulation(input: WorldSimulationBuildInput): Wo
       rememberedRefIds: remembered,
       changedContextRefIds: unique(snapshotList.slice(-2).flatMap((snapshot) => snapshot.eventIds)),
       eligibleCallbacks: durableThreads.map((question) => question.id),
-      meaningCanChange: Boolean((input.priorExperienceIds?.length ?? 0) || remembered.length),
+      meaningCanChange: Boolean((input.priorExperienceIds?.length || remembered.length)),
     },
   };
 }
