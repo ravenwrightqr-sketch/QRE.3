@@ -40,6 +40,84 @@ const STOP = new Set([
   "has", "have", "had", "got", "gets", "get",
 ]);
 
+const CONCRETE_ACTIONS = new Set([
+  "arrive", "arrived", "arrives", "arriving",
+  "leave", "left", "leaves", "leaving",
+  "go", "went", "gone", "goes", "going",
+  "come", "came", "comes", "coming",
+  "meet", "met", "meets", "meeting",
+  "talk", "talked", "talks", "talking",
+  "walk", "walked", "walks", "walking",
+  "run", "ran", "runs", "running",
+  "play", "played", "plays", "playing",
+  "dance", "danced", "dances", "dancing",
+  "call", "called", "calls", "calling",
+  "text", "texted", "texts", "texting",
+  "work", "worked", "works", "working",
+  "buy", "bought", "buys", "buying",
+  "sell", "sold", "sells", "selling",
+  "use", "used", "uses", "using",
+  "give", "gave", "gives", "giving",
+  "find", "found", "finds", "finding",
+  "lose", "lost", "loses", "losing",
+  "steal", "stole", "stolen", "steals", "stealing",
+  "take", "took", "taken", "takes", "taking",
+  "pick", "picked", "picks", "picking",
+  "return", "returned", "returns", "returning",
+  "groom", "groomed", "grooms", "grooming",
+  "bathe", "bathed", "bathes", "bathing",
+  "clean", "cleaned", "cleans", "cleaning",
+  "finish", "finished", "finishes", "finishing",
+  "start", "started", "starts", "starting",
+  "stop", "stopped", "stops", "stopping",
+  "change", "changed", "changes", "changing",
+  "wear", "wore", "worn", "wears", "wearing",
+  "jump", "jumped", "jumps", "jumping",
+  "sit", "sat", "sits", "sitting",
+  "stand", "stood", "stands", "standing",
+  "eat", "ate", "eats", "eating",
+  "drink", "drank", "drunk", "drinks", "drinking",
+  "sleep", "slept", "sleeps", "sleeping",
+  "chase", "chased", "chases", "chasing",
+  "carry", "carried", "carries", "carrying",
+  "open", "opened", "opens", "opening",
+  "close", "closed", "closes", "closing",
+  "move", "moved", "moves", "moving",
+  "enter", "entered", "enters", "entering",
+  "exit", "exited", "exits", "exiting",
+  "drive", "drove", "driven", "drives", "driving",
+  "fly", "flew", "flown", "flies", "flying",
+  "travel", "traveled", "travelled", "travels", "traveling", "travelling",
+  "visit", "visited", "visits", "visiting",
+  "stay", "stayed", "stays", "staying",
+  "hold", "held", "holds", "holding",
+  "keep", "kept", "keeps", "keeping",
+  "grab", "grabbed", "grabs", "grabbing",
+  "break", "broke", "broken", "breaks", "breaking",
+  "fix", "fixed", "fixes", "fixing",
+  "repair", "repaired", "repairs", "repairing",
+  "wash", "washed", "washes", "washing",
+  "polish", "polished", "polishes", "polishing",
+  "prepare", "prepared", "prepares", "preparing",
+  "earn", "earned", "earns", "earning",
+  "receive", "received", "receives", "receiving",
+  "send", "sent", "sends", "sending",
+  "make", "made", "makes", "making",
+  "build", "built", "builds", "building",
+  "throw", "threw", "thrown", "throws", "throwing",
+  "catch", "caught", "catches", "catching",
+  "escape", "escaped", "escapes", "escaping",
+  "refuse", "refused", "refuses", "refusing",
+  "accept", "accepted", "accepts", "accepting",
+  "smile", "smiled", "smiles", "smiling",
+  "laugh", "laughed", "laughs", "laughing",
+  "cry", "cried", "cries", "crying",
+  "hug", "hugged", "hugs", "hugging",
+  "kiss", "kissed", "kisses", "kissing",
+  "become", "became", "becomes", "becoming",
+  "look", "looked", "looks", "looking",
+]);
+
 const tokens = (value: string): string[] =>
   String(value ?? "")
     .toLowerCase()
@@ -79,16 +157,18 @@ function unsupportedSubjectActionTokens(
 
   const escaped = subjectText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const subjectPattern = new RegExp(
-    `\\b${escaped}\\b(?:['’]s)?(?:\\s+[^.!?;:,]{0,32})?\\s+([a-z][a-z0-9'’-]{2,}(?:ed|ing|s))\\b`,
+    `\\b${escaped}\\b(?:['’]s)?(?:\\s+[^.!?;:,]{0,32})?\\s+([a-z][a-z0-9'’-]{2,})\\b`,
     "i",
   );
 
-  const match = subjectPattern.exec(String(text ?? ""));
-  if (!match) return [];
+  const matches = String(text ?? "").matchAll(subjectPattern);
+  for (const match of matches) {
+    const token = String(match[1] ?? "").toLowerCase();
+    if (!token || STOP.has(token) || localReality.has(token) || semantic.has(token)) continue;
+    if (CONCRETE_ACTIONS.has(token)) return [token];
+  }
 
-  const token = String(match[1] ?? "").toLowerCase();
-  if (!token || STOP.has(token) || localReality.has(token) || semantic.has(token)) return [];
-  return [token];
+  return [];
 }
 
 export function evaluateRealizationBoundary(
