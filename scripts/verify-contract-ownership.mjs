@@ -11,7 +11,7 @@ const coreSymbols = [
   "ServiceReceipt", "MemorySnapshot", "CinematicScene", "ExperienceMoment", "ExperienceBeat",
   "LatentMovie", "SequencePlay", "ViewerMomentum", "MagnetCircle", "CutNecessity",
   "SequenceTransition", "InformationFrontier", "SubjectContinuity", "AuthorBrainTruth",
-  "AuthorCreativeBrief", "AuthorScene",
+  "AuthorCreativeBrief", "AuthorScene", "AuthorMetamorphicRelation", "AuthorMetamorphicRelationSet",
 ];
 
 function fail(message) { failures.push(message); }
@@ -39,7 +39,7 @@ function hasTrueOwner(body, symbol) {
 }
 function reachableBarrels() {
   const rootIndex = join(contractsRoot, "index.ts");
-  const queue = [rootIndex, join(contractsRoot, "experience", "index.ts")].filter(existsSync);
+  const queue = [rootIndex, join(contractsRoot, "experience", "index.ts"), join(contractsRoot, "cogauthor", "index.ts")].filter(existsSync);
   const seen = new Set();
   while (queue.length) {
     const file = queue.pop();
@@ -56,10 +56,7 @@ function reachableBarrels() {
 function barrelSurfacesSymbol(barrel, symbol) {
   const body = readFileSync(barrel, "utf8");
   if (new RegExp(`export\\s+(?:type\\s+)?\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s+from`).test(body)) return true;
-  if (/export\s+\*\s+from/.test(body)) {
-    // Star barrels are handled transitively by reachableBarrels().
-    return true;
-  }
+  if (/export\s+\*\s+from/.test(body)) return true;
   return false;
 }
 
