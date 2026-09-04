@@ -61,15 +61,19 @@ function eventFeatures(graph: RealityGraph, id: string) {
   const label = eventLabel(graph, id);
   const item = graph.events.find((event) => event.id === id);
   const shape = structure(graph, id);
-  const text = `${label} ${shape?.semanticTags?.join(" ") ?? ""}`;
+  const actionText = shape?.actions ?? [];
+  const objectText = shape?.objects ?? [];
+  const stateText = shape?.states ?? [];
+  const semanticText = shape?.semanticTags ?? [];
+  const text = [label, ...actionText, ...objectText, ...stateText, ...semanticText].join(" ");
   const objects = unique([
-    ...(shape?.objects ?? []),
+    ...objectText,
     ...label.match(/\b[a-z]+\b/gi)?.filter((value) => OBJECT.test(value)) ?? [],
   ]);
   return {
     label,
     entities: item?.entities ?? shape?.subjects ?? [],
-    action: hasAny(text, ACTION),
+    action: actionText.length > 0 || hasAny(text, ACTION),
     presentation: hasAny(text, PRESENTATION),
     mischief: hasAny(text, MISCHIEF),
     positive: hasAny(text, POSITIVE),
@@ -325,7 +329,9 @@ export function searchMetamorphicRelations(
 
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {
-      const result = collisionCandidate(graph, ids[i]!, ids[j]!);
+      const earlierId = ids[i]!;
+      const laterId = ids[j]!;
+      const result = collisionCandidate(graph, earlierId, laterId);
       if (!result) continue;
       const key = `${result.type}|${result.evidenceEventIds.join(",")}`;
       if (seen.has(key)) continue;
