@@ -50,6 +50,8 @@ export type GeoAnchorInput = {
   time?: string;
 };
 
+type CanonicalAuthorResult = Awaited<ReturnType<typeof authorBrainCanonical>>;
+
 export type CompiledExperienceResult = {
   title: string;
   blueprint: Record<string, unknown>;
@@ -66,7 +68,7 @@ export type CompiledExperienceResult = {
   learningSignals?: string[];
   cognition?: unknown;
   authorExperienceState?: unknown;
-  authorDiagnostics?: unknown;
+  authorDiagnostics?: CanonicalAuthorResult["diagnostics"];
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
@@ -470,4 +472,3 @@ const authorInput: AuthorBrainTruth = {
     warnings,
   };
 }
-
