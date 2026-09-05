@@ -21,6 +21,7 @@ export type CreativeLensBrief = {
   treatmentMoves: string[];
   realityInvariants: string[];
   direction: string;
+  implicationStrategies: string[];
 };
 
 const clean = (value: unknown): string =>
@@ -35,6 +36,99 @@ const metric = (value: number): number =>
 
 const relationshipKinds = (envelope: RealityEnvelope): string[] =>
   unique(envelope.relations.map((relation) => relation.kind));
+
+const implicationStrategiesFor = (
+  label: string,
+  relations: readonly string[],
+  signals: readonly string[],
+): string[] => {
+  const labels = new Set(label.split("+").map((value) => clean(value).toLowerCase()));
+  const strategies: string[] = [
+    "Prefer a second reading that the supplied facts make discoverable without stating the conclusion.",
+    "Use contrast between supplied details when it makes one relationship suddenly more visible.",
+    "Withhold the obvious conclusion when the viewer can complete it from supplied evidence.",
+  ];
+
+  if (relations.includes("contrasts")) {
+    strategies.push(
+      "Exploit an existing contrast: let what surrounds the subject sharpen what the subject means.",
+    );
+  }
+
+  if (relations.includes("recontextualizes")) {
+    strategies.push(
+      "Recontextualize an existing detail so an ordinary fact acquires an earned second meaning.",
+    );
+  }
+
+  if (relations.includes("converges")) {
+    strategies.push(
+      "Let separate supplied clues converge into a recognition without announcing the pattern.",
+    );
+  }
+
+  if (relations.includes("consequence")) {
+    strategies.push(
+      "Let an existing consequence imply what mattered rather than explaining why it mattered.",
+    );
+  }
+
+  if (relations.includes("callback") || signals.length >= 2) {
+    strategies.push(
+      "Use selective callback: repeat or echo a supplied detail only when the return changes its reading.",
+    );
+  }
+
+  if (labels.has("romance")) {
+    strategies.push(
+      "Make surrounding noise recede so an already-supplied connection feels like the only thing that mattered.",
+      "Let repetition, coincidence, proximity, restraint, or shared attention imply intimacy without naming it.",
+      "Favor quiet inevitability over declarations: let the viewer notice the romance before the line names it—or never name it.",
+    );
+  }
+
+  if (labels.has("horror")) {
+    strategies.push(
+      "Make a familiar supplied detail feel newly wrong by changing its reading, not its facts.",
+      "Use absence, mismatch, silence, or an innocent detail carrying the wrong weight.",
+    );
+  }
+
+  if (labels.has("comedy") || labels.has("funny")) {
+    strategies.push(
+      "Let an innocent supplied fact imply a suspicious or absurd second reading without inventing what happened.",
+      "Use understatement so the viewer discovers the joke rather than being told the joke.",
+    );
+  }
+
+  if (labels.has("mystery")) {
+    strategies.push(
+      "Expose the clue while withholding its supplied implication; make the viewer assemble the relationship.",
+      "Prefer a precise unanswered implication over an explicit explanation.",
+    );
+  }
+
+  if (labels.has("game")) {
+    strategies.push(
+      "Frame supplied progression as anticipation, threshold, status, or momentum without inventing game mechanics.",
+      "Use challenge vocabulary only as figurative treatment when the underlying reality supports the comparison.",
+    );
+  }
+
+  if (labels.has("luxury")) {
+    strategies.push(
+      "Make scarcity, attention, detail, or selectiveness imply status instead of declaring prestige.",
+    );
+  }
+
+  if (labels.has("rebellion") || labels.has("fierce")) {
+    strategies.push(
+      "Let a supplied choice, contradiction, or refusal imply attitude without inventing confrontation.",
+    );
+  }
+
+  return unique(strategies).slice(0, 16);
+};
 
 const directionFor = (
   label: string,
@@ -124,6 +218,7 @@ export function composeCreativeLensBrief(
     ...realizationPreferences,
     ...framingBias,
   ]).slice(0, 20);
+  const implicationStrategies = implicationStrategiesFor(labelFor(selected), relationships, signals);
   const intensity = metric(
     selected.reduce((sum, lens) => sum + lens.intensity, 0) / Math.max(1, selected.length),
   );
@@ -146,5 +241,11 @@ export function composeCreativeLensBrief(
     treatmentMoves,
     realityInvariants,
     direction: `${directionFor(label, character, envelope)} Support=${support}.`,
+    implicationStrategies: implicationStrategiesFor(label, relationships, signals),
   };
+}
+
+function labelFor(lenses: readonly AuthorLensProfile[]): string {
+  const labels = unique(lenses.map((lens) => lens.label));
+  return labels.length ? labels.join(" + ") : "NONE";
 }
