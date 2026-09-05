@@ -56,6 +56,9 @@ jobs:
       - name: Build web
         run: pnpm build:web
 
+      - name: Universal Author acceptance
+        run: pnpm tsx apps/api/author-acceptance.ts
+
       - name: Universal reality acceptance
         run: pnpm --filter @qre/engine test:universal-mind
 
