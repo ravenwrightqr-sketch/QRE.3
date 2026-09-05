@@ -11,7 +11,7 @@ import { createAnalyticsRepository } from "../repositories/analyticsRepository.j
 import type {
   AuthorBrainTruth,
   AuthorDomainContext,
-  AuthorExperienceState,
+  ExperienceState,
   ExperienceBeat,
   ExperiencePresenceContext,
   MemoryContext,
@@ -19,14 +19,14 @@ import type {
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import {
-  authorExperienceMemoryContext,
-  authorExperienceStateToMemoryBatch,
-  extractAuthorExperienceStates,
-  mergeAuthorExperienceStates,
-} from "./authorExperienceMemory.js";
-import { adaptAuthorExperienceState } from "./authorAdaptiveTempo.js";
-import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
-import { buildAuthorExperienceState } from "./authorExperienceState.js";
+  experienceMemoryContext,
+  experienceStateToMemoryBatch,
+  extractExperienceStates,
+  mergeExperienceStates,
+} from "./experienceMemory.js";
+import { adaptExperienceTempo } from "./experienceTempo.js";
+import { buildExperienceBehaviorProfile } from "./experienceBehavior.js";
+import { buildExperienceState } from "./experienceState.js";
 import { authorBrainCanonical } from "./authorBrainCanonical.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { resolveSubjectTruth } from "./authorTruth.js";
@@ -277,10 +277,10 @@ export async function compileExperience(input: {
     }
   }
 
-  const priorAuthorStates = memoryContext ? extractAuthorExperienceStates(memoryContext) : [];
-  const mergedPriorAuthorState = mergeAuthorExperienceStates(priorAuthorStates);
-  const persistedAuthorContext = memoryContext ? authorExperienceMemoryContext(memoryContext) : [];
-  const memorySummary = memoryContext ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedAuthorContext] : [];
+  const priorExperienceStates = memoryContext ? extractExperienceStates(memoryContext) : [];
+  const mergedPriorExperienceState = mergeExperienceStates(priorExperienceStates);
+  const persistedExperienceContext = memoryContext ? experienceMemoryContext(memoryContext) : [];
+  const memorySummary = memoryContext ? [...memoryContextToCognitiveSummary(memoryContext), ...persistedExperienceContext] : [];
 
   let learningContext;
   if (input.assetId) {
@@ -294,11 +294,11 @@ export async function compileExperience(input: {
   }
 
   const learningLines = learningContext ? learningContextLines(learningContext) : [];
-  const learnedProfile = buildAuthorBehaviorProfile(learningLines);
+  const learnedProfile = buildExperienceBehaviorProfile(learningLines);
   const subject = clean(input.subject) || inferSubject(prompt, memoryContext);
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
-  const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
+  const priorScenes = priorExperienceStates.flatMap((state) => state.chapter.semanticTurns);
 
   // Intent stays in `prompt`. Only explicit facts/events and persisted memory
   // become source material. This prevents the instruction itself becoming reality.
@@ -376,7 +376,7 @@ export async function compileExperience(input: {
     trajectory,
   });
 
-  let authorExperienceState: AuthorExperienceState | undefined = mergedPriorAuthorState;
+  let authorExperienceState: ExperienceState | undefined = mergedPriorExperienceState;
   let memory: CompiledExperienceResult["memory"] = null;
 
   if (input.assetId && input.memoryRepository) {
@@ -397,23 +397,22 @@ export async function compileExperience(input: {
     }
 
     try {
-      const nextState = buildAuthorExperienceState({
+      const nextState = buildExperienceState({
         graph,
         movie: canonical.movie,
         lens: canonical.brief.angle,
-        priorScenes: authoredScenes.map((scene) => scene.text),
         memoryContext: [...memorySummary, ...presenceSummary],
-        priorExperienceStates: priorAuthorStates,
-        round: presence?.visitNumber ?? Math.max(1, priorAuthorStates.length + 1),
+        priorExperienceStates: priorExperienceStates,
+        round: presence?.visitNumber ?? Math.max(1, priorExperienceStates.length + 1),
       });
-      authorExperienceState = adaptAuthorExperienceState(nextState, learnedProfile);
+      authorExperienceState = adaptExperienceTempo(nextState, learnedProfile);
 
-      const stateBatch = authorExperienceStateToMemoryBatch({
+      const stateBatch = experienceStateToMemoryBatch({
         operationId,
         assetId: input.assetId,
         userId: input.userId,
         state: authorExperienceState,
-        sourceRef: "qre-author-canonical",
+        sourceRef: "qre-experience-state",
       });
       await input.memoryRepository.writeBatch(stateBatch);
       try {
@@ -422,12 +421,12 @@ export async function compileExperience(input: {
           sessionId: input.sessionId ?? null,
           type: AnalyticsEventTypes.AI_MEMORY_LEARNED,
           meta: {
-            source: "author",
+            source: "experience",
             userId: input.userId ?? null,
             statePersisted: true,
             visitNumber: presence?.visitNumber ?? null,
             learningLines: learningLines.length,
-            priorAuthorStates: priorAuthorStates.length,
+            priorExperienceStates: priorExperienceStates.length,
           },
         });
       } catch (error) {
@@ -435,8 +434,8 @@ export async function compileExperience(input: {
         warnings.push("author_learning_analytics_failed");
       }
     } catch (error) {
-      console.warn("[QRE][AUTHORING] Author state persistence failed.", error);
-      warnings.push("author_experience_state_persistence_failed");
+      console.warn("[QRE][AUTHORING] Experience state persistence failed.", error);
+      warnings.push("experience_state_persistence_failed");
     }
   }
 
