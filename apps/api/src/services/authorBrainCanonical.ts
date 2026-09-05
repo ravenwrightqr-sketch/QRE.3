@@ -28,16 +28,7 @@ const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.
 
 function rankMovie(movie: LatentMovieCandidate): number {
   return metric(
-    movie.score * 0.28 +
-      movie.informationValue * 0.18 +
-      movie.attentionPotential * 0.14 +
-      movie.consequencePotential * 0.1 +
-      movie.callbackPotential * 0.08 +
-      movie.compressionPotential * 0.08 +
-      movie.distinctiveness * 0.08 +
-      (1 - movie.truthRisk) * 0.04 +
-      (1 - movie.repetitionRisk) * 0.02 +
-      (movie.viewerStateDynamics?.score ?? 0) * 0.08,
+    movie.score * 0.28 + movie.informationValue * 0.18 + movie.attentionPotential * 0.14 + movie.consequencePotential * 0.1 + movie.callbackPotential * 0.08 + movie.compressionPotential * 0.08 + movie.distinctiveness * 0.08 + (1 - movie.truthRisk) * 0.04 + (1 - movie.repetitionRisk) * 0.02 + (movie.viewerStateDynamics?.score ?? 0) * 0.08,
   );
 }
 
@@ -47,7 +38,7 @@ function selectMovie(cognition: ReturnType<typeof buildAuthorCognitivePlan>): La
     .sort((a, b) => rankMovie(b) - rankMovie(a))[0] ?? cognition.selectedMovie;
 }
 
-function attentionMove(operation: string): MouthCandidateBeat["viewerState"] ["attentionMove"] {
+function attentionMove(operation: string): NonNullable<MouthCandidateBeat["viewerState"]>["attentionMove"] {
   switch (operation) {
     case "establish": return "orient";
     case "contrast": return "interrupt";
@@ -180,22 +171,14 @@ function makeSequence(selected: Array<{ beat: MouthCandidateBeat; text: string; 
 
 function craftMessages(input: { subject: string; lens: string; envelope: ReturnType<typeof buildAuthorRealityEnvelope>; beats: MouthCandidateBeat[]; priorCuts: string[] }) {
   const world = [input.envelope.subject, ...input.envelope.suppliedPhrases, ...input.envelope.suppliedEntities, ...input.envelope.suppliedActions, ...input.envelope.suppliedStates, ...input.envelope.events.map((event) => event.label)].map(clean).filter(Boolean);
-  const payload = {
-    subject: input.subject,
-    lens: input.lens,
-    suppliedReality: world,
-    priorCuts: input.priorCuts,
-    approvedBeats: input.beats,
-  };
   return [
     { role: "system" as const, content: mouthCraftSystem("bold language, conservative facts") },
-    { role: "user" as const, content: JSON.stringify(payload) },
+    { role: "user" as const, content: JSON.stringify({ subject: input.subject, lens: input.lens, suppliedReality: world, priorCuts: input.priorCuts, approvedBeats: input.beats }) },
   ];
 }
 
-function candidateFor(index: number, beats: MouthCandidateBeat[], parsed: ReturnType<typeof parseMouthCandidateBatch>, envelope: ReturnType<typeof buildAuthorRealityEnvelope>): string[] {
-  const variants = parsed?.variantsByBeat.find((item) => item.order === beats[index]?.order)?.variants ?? [];
-  return variants.map(clean).filter(Boolean);
+function candidateFor(order: number, parsed: ReturnType<typeof parseMouthCandidateBatch>): string[] {
+  return parsed?.variantsByBeat.find((item) => item.order === order)?.variants.map(clean).filter(Boolean) ?? [];
 }
 
 export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<CanonicalAuthorResult> {
@@ -235,10 +218,11 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const selected: Array<{ beat: MouthCandidateBeat; text: string; score: number }> = [];
   for (const beat of gatedBeats) {
-    const variants = candidateFor(beat.order - 1, gatedBeats, parsed, envelope);
+    const variants = candidateFor(beat.order, parsed);
     if (!variants.length) return rejected(input, `Mouth produced no candidates for beat ${beat.order}`, lens, movie, modelCalls);
 
-    const scored = variants.map((text) => ({ text, candidate: scoreMouthCandidate({ text, beat, envelope, priorTexts: selected.map((entry) => entry.text) }) }))
+    const scored = variants
+      .map((text) => ({ text, candidate: scoreMouthCandidate({ text, beat, envelope, priorTexts: selected.map((entry) => entry.text) }) }))
       .filter((item) => mouthQualityPenalty(item.text) < 0.7)
       .sort((a, b) => b.candidate.score - a.candidate.score);
     if (!scored.length) return rejected(input, `all Mouth candidates failed local quality checks for beat ${beat.order}`, lens, movie, modelCalls);
