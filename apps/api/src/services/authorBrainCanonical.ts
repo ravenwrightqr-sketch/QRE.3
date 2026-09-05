@@ -1,17 +1,17 @@
 /**
  * QRE UNIVERSAL AUTHOR · CANONICAL
  *
- * The Author does one job: turn supplied reality + intent + existing memory
- * into the requested QRE experience shape.
+ * The Author is orchestration, not another intelligence layer.
  *
- * Cognition remains the semantic authority.
- * RealityGraph remains the reality authority.
- * Movie Search remains the experience-structure authority.
- * Lens remains selective pressure.
- * Mouth remains language realization.
+ * RealityGraph = reality authority.
+ * Cognition = semantic/relationship authority.
+ * Movie Search = latent experience structure.
+ * Lens = selective pressure.
+ * Mouth = language realization.
+ * Memory = persistence.
  *
- * This file is orchestration only. It must not manufacture a second brain,
- * second memory system, second reality model, or vertical-specific author.
+ * The Author never turns the request itself into reality evidence and never
+ * creates vertical-specific authors.
  */
 
 import type {
@@ -89,7 +89,7 @@ function attentionMoveForOperation(operation: string): "orient" | "interrupt" | 
   }
 }
 
-function roleForBeat(index: number, total: number): MouthCandidateBeat["role"] {
+function roleForBeat(index: number, total: number): string {
   if (index === 0) return "establishing";
   if (index === total - 1) return "payoff";
   return "reveal";
@@ -134,36 +134,29 @@ function buildBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
   }));
 }
 
-function emptyResult(input: AuthorBrainTruth, reason: string, lens: string) {
+function rejected(input: AuthorBrainTruth, reason: string, lens: string): CanonicalAuthorResult {
   const subject = clean(input.subject) || "the subject";
-  const sequence: SequencePlay = {
-    subject,
-    premise: "",
-    openingState: { known: [] },
-    cuts: [],
-  };
   return {
-    scenes: [] as AuthorScene[],
-    sequence,
-    movie: undefined,
-    realizationMode: "collection" as const,
+    scenes: [],
+    sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] },
+    realizationMode: "collection",
     brief: {
       angle: lens,
-      engine: "supplied reality → cognition → requested experience",
+      engine: "supplied reality → Cognition → requested experience",
       question: "What supplied detail deserves attention next?",
       strongestImage: "",
-      tension: "preserve reality; do not invent an experience",
+      tension: "grounded reality only",
       payoff: "",
       callback: "none",
       rhythm: ["hit", "standard", "short", "hit"],
       avoid: ["invented reality", "restatement", "planner prose"],
-    } satisfies AuthorCreativeBrief,
+    },
     diagnostics: {
       model: process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown",
       modelCalls: 0,
       candidateSequences: 0,
       acceptedCandidates: 0,
-      qualityStatus: "REJECTED" as const,
+      qualityStatus: "REJECTED",
       renderable: false,
       complete: false,
       selectedScore: 0,
@@ -250,7 +243,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     trajectory: input.trajectory ?? [],
   });
 
-  const cognition = input.cognitivePlan ?? buildAuthorCognitivePlan({
+  const cognition = buildAuthorCognitivePlan({
     prompt: clean(input.prompt),
     lens: clean(input.lens),
     subject,
@@ -271,7 +264,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const realizationMode = movie?.trajectory.length ? ("sequence-film" as const) : ("collection" as const);
 
   if (!movie?.trajectory.length) {
-    return emptyResult(input, "no experience material selected by cognition", lens);
+    return rejected(input, "no latent experience candidate selected", lens);
   }
 
   const envelope = buildAuthorRealityEnvelope({ graph, subject });
@@ -285,9 +278,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   });
 
   let modelCalls = 0;
-  let acceptedCandidates = 0;
   let raw: string | undefined;
-
   try {
     const result = await localModelGenerate(messages, "json", {
       numPredict: 1024,
@@ -299,7 +290,13 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     raw = undefined;
   }
 
-  const parsed = raw ? parseMouthCandidateBatch(raw) : undefined;
+  let parsed;
+  try {
+    parsed = raw ? parseMouthCandidateBatch(raw) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+
   const selected: Array<{ beat: MouthCandidateBeat; text: string; score: number }> = [];
 
   for (const beat of beats) {
@@ -321,21 +318,22 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     }
 
     if (!bestText) {
-      bestText = clean(
-        graph.events.find((event) => unique(beat.eventIds).includes(event.id))?.label,
-      );
+      const sourceEvent = graph.events.find((event) => unique(beat.eventIds).includes(event.id));
+      bestText = clean(sourceEvent?.label);
       bestScore = bestText ? 0.2 : 0;
     }
 
-    if (bestText) {
-      selected.push({ beat, text: bestText, score: bestScore });
-      if (parsed) acceptedCandidates += 1;
-    }
+    if (bestText) selected.push({ beat, text: bestText, score: bestScore });
   }
 
   if (!selected.length) {
-    const fallback = emptyResult(input, "Mouth produced no realizable candidates", lens);
-    return { ...fallback, movie, realizationMode, diagnostics: { ...fallback.diagnostics, modelCalls } };
+    const fallback = rejected(input, "Mouth produced no realizable candidates", lens);
+    return {
+      ...fallback,
+      movie,
+      realizationMode,
+      diagnostics: { ...fallback.diagnostics, modelCalls },
+    };
   }
 
   const sequence = makeSequence(selected, subject, movie);
@@ -343,8 +341,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     text: entry.text,
     kind: index === 0 ? "hook" : index === selected.length - 1 ? "payoff" : "discovery",
   }));
-
-  const bestScore = metric(
+  const selectedScore = metric(
     selected.reduce((sum, item) => sum + item.score, 0) / Math.max(1, selected.length),
   );
 
@@ -355,24 +352,24 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     realizationMode,
     brief: {
       angle: lens,
-      engine: "reality graph → cognition → latent interpretation → movie search → sequence → Mouth",
+      engine: "reality graph → Cognition → latent interpretation → Movie Search → Sequence → Mouth",
       question: clean(movie.unresolvedQuestion) || "What changes the observer's understanding next?",
       strongestImage: clean(movie.evidence[0]) || clean(selected[0]?.text),
       tension: clean(movie.storyThesis?.semanticTurn) || clean(movie.trajectory[0]?.viewerChange),
       payoff: clean(movie.payoff),
       callback: clean(movie.storyThesis?.payoffDependency) || "none",
-      rhythm: selected.map((item, index) => (index === selected.length - 1 ? "hit" : index === 0 ? "short" : "standard")),
+      rhythm: selected.map((_, index) => (index === selected.length - 1 ? "hit" : index === 0 ? "short" : "standard")),
       avoid: ["invented reality", "explicit conclusion", "fact repetition", "planner prose"],
     },
     diagnostics: {
       model: process.env.QRE_AUTHOR_FAST_MODEL || process.env.QRE_LOCAL_MODEL || "unknown",
       modelCalls,
       candidateSequences: cognition.latentMovieCandidates?.length ?? 0,
-      acceptedCandidates,
+      acceptedCandidates: parsed ? selected.length : 0,
       qualityStatus: "ACCEPTED",
       renderable: true,
       complete: selected.length === beats.length,
-      selectedScore: bestScore,
+      selectedScore,
       rejectedCandidates: parsed ? [] : [{ reason: "Mouth batch unavailable; used grounded source fallback" }],
     },
   };
