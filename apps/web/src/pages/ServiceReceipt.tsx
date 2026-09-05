@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createServiceReceipt, getUserAssets } from "../lib/api";
+import { createServiceReceipt, getUserAssets, type ServiceReceiptInput } from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 
 type Asset = {
@@ -18,6 +18,7 @@ export default function ServiceReceipt() {
   const navigate = useNavigate();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetId, setAssetId] = useState("");
+  const [subject, setSubject] = useState("");
   const [recipient, setRecipient] = useState("");
   const [service, setService] = useState("");
   const [facts, setFacts] = useState("");
@@ -68,15 +69,16 @@ export default function ServiceReceipt() {
   }
 
   async function create() {
-    if (!assetId || !recipient.trim() || creating) return;
+    if (!assetId || !subject.trim() || !recipient.trim() || creating) return;
     setCreating(true);
     setError("");
     try {
       const geo = await captureGeo();
       const timestamp = new Date().toLocaleString();
       const baseFacts = facts.split(/\n|,/).map(clean).filter(Boolean);
-      const response = await createServiceReceipt({
+      const payload: ServiceReceiptInput & { subject: string } = {
         assetId,
+        subject: subject.trim(),
         recipient: recipient.trim(),
         service: service.trim(),
         facts: [`Service time: ${timestamp}`, ...baseFacts],
@@ -85,7 +87,8 @@ export default function ServiceReceipt() {
         different: different.trim(),
         mediaUrls: mediaUrl.trim() ? [mediaUrl.trim()] : [],
         geo,
-      });
+      };
+      const response = await createServiceReceipt(payload);
       setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -123,7 +126,7 @@ export default function ServiceReceipt() {
           <section style={card}>
             <div style={eyebrow}>SERVICE RECEIPT READY</div>
             <h1 style={title}>{result.experience?.title ?? "Your experience is ready."}</h1>
-            <p style={sub}>The customer-facing experience is compiled from the facts you supplied.</p>
+            <p style={sub}>The client's experience is compiled from the supplied reality and stays centered on who or what the service was for.</p>
             <div style={film}>
               {(result.experience?.moments ?? []).map((moment: any, index: number) => (
                 <div key={`${index}-${clean(moment?.payload?.text)}`} style={line}>
@@ -147,10 +150,11 @@ export default function ServiceReceipt() {
       <main style={page}>
         <section style={card}>
           <div style={eyebrow}>60-SECOND SERVICE CAPTURE</div>
-          <h1 style={title}>Send a service receipt.</h1>
-          <p style={sub}>Tell QRE only what mattered. Time and location are captured automatically.</p>
+          <h1 style={title}>Create a service receipt.</h1>
+          <p style={sub}>Give QRE the client, what happened, and anything memorable. QRE turns the real experience into shareable media.</p>
 
-          <label style={label}>CLIENT / RECIPIENT<input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Client name, email, or phone" style={input} /></label>
+          <label style={label}>CLIENT / SUBJECT<input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Coco, Maria, Jordan's car, the house" style={input} /></label>
+          <label style={label}>SEND TO<input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Client email or phone" style={input} /></label>
           <label style={label}>QRE OBJECT<select value={assetId} onChange={(e) => setAssetId(e.target.value)} style={input}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName || asset.slug}</option>)}</select></label>
           <label style={label}>SERVICE<input value={service} onChange={(e) => setService(e.target.value)} placeholder="Cleaning" style={input} /></label>
           <label style={label}>WHAT HAPPENED<textarea value={facts} onChange={(e) => setFacts(e.target.value)} placeholder={selectedAsset ? "Kitchen clean\nTwo bathrooms clean" : "What actually happened?"} style={textarea} /></label>
@@ -169,8 +173,8 @@ export default function ServiceReceipt() {
           {photoPreview && <img src={photoPreview} alt="Preview" style={photo} />}
           {error && <div style={errorBox}>{error}</div>}
 
-          <button type="button" onClick={() => void create()} disabled={!assetId || !recipient.trim() || creating} style={primary}>
-            {creating ? "CREATING FILM…" : "CREATE + SEND"}
+          <button type="button" onClick={() => void create()} disabled={!assetId || !subject.trim() || !recipient.trim() || creating} style={primary}>
+            {creating ? "CREATING EXPERIENCE…" : "CREATE + SEND"}
           </button>
         </section>
       </main>
