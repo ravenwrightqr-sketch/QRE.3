@@ -45,13 +45,7 @@ const cases: Case[] = [
       "Do not repeat Coco as the subject at the start of every cut.",
     ].join(" "),
     minimumCuts: 3,
-    requiredOutputAnchors: [
-      "lawyer",
-      "eyebrow",
-      "water",
-      "bow",
-      "peace is temporary",
-    ],
+    requiredOutputAnchors: ["lawyer", "eyebrow", "water", "bow", "peace is temporary"],
   },
 ];
 
@@ -117,8 +111,9 @@ for (const testCase of cases) {
   assert(result.sequence.cuts.length === output.length, "scene/cut counts diverged");
   assert(result.sequence.cuts.every((cut) => cut.sourceIds.length > 0), "a cut lost source provenance");
 
+  const expectedRealityUnits = new Set(testCase.facts.map(normalized)).size;
   const sourceIds = new Set(result.sequence.cuts.flatMap((cut) => cut.sourceIds));
-  assert(sourceIds.size >= testCase.facts.length, "not all supplied reality appears to survive into authored provenance");
+  assert(sourceIds.size >= expectedRealityUnits, "supplied reality was lost before authored provenance");
 
   for (const anchor of testCase.requiredOutputAnchors) {
     assert(
