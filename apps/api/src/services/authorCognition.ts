@@ -1,21 +1,16 @@
-import type {
-  AuthorDomainContext,
-  AuthorExperienceState,
-  LatentMovieCandidate,
-  RealityGraph,
-} from "@qre/contracts";
-import { searchUniversalMovieCandidates } from "./authorUniversalMovieSearch.js";
-import { rerankByViewerState } from "./authorViewerState.js";
-import { selectDistinctMovieCandidates } from "./authorMovieDifferentiation.js";
-import {
-  buildAuthorExperienceState,
-  summarizeAuthorExperienceState,
-} from "./authorExperienceState.js";
-import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import {
-  classifyLens,
-  rankLensOpportunities,
-} from "./authorCharacterLensEngine.js";
+/*
+STATUS: CANONICAL
+ROLE: Universal cognitive understanding and the sole latent-movie authority.
+INPUT: RealityGraph, prompt intent, persistent memory context, learned creative preferences, optional lens.
+OUTPUT: Competing semantic interpretations, competing latent movies, one selected movie, adaptive reality questions.
+AUTHORITY: RealityGraph is factual authority; Cognition owns interpretation and Movie selection.
+MUST NOT: Write customer prose, persist memory, invent source events, create domain-specific story branches, or select a second movie elsewhere.
+UPSTREAM: Canonical RealityGraph plus persistent world context and creative learning.
+DOWNSTREAM: Canonical Creative Realizer, Sequence projection, memory projection.
+REPLACEMENT: Replaces the previous Author cognition/movie/lens/state/differentiation stack.
+*/
+import type { AuthorDomainContext, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+import { localModelGenerate } from "./localModelRuntime.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -24,794 +19,306 @@ export type AuthorCognitionInput = {
   place?: string;
   facts: string[];
   sourceMoments: string[];
-  realityGraph?: RealityGraph;
+  realityGraph: RealityGraph;
   domainContext?: AuthorDomainContext;
   memoryContext?: string[];
-  priorScenes?: string[];
-  priorStrategies?: string[];
-  round?: number;
+  trajectory?: string[];
+  creativeLearningContext?: string[];
+  returning?: boolean;
+  visitNumber?: number;
   movieMode?: boolean;
 };
 
-export type AttentionCandidate = {
-  strategy: string;
-  reason: string;
-  score: number;
-};
-
-export type CharacterFrameCandidate = {
-  frame: string;
-  reason: string;
+export type AuthorCreativeInterpretation = {
+  id: string;
+  thesis: string;
+  creativeOpportunity: string;
+  rationale: string;
+  evidenceEventIds: string[];
   confidence: number;
 };
 
-export type CharacterRead = {
-  coreTraits: string[];
-  contradictions: string[];
-  statusPosture: string;
-  emotionalPosture: string;
-  objectRelationships: string[];
-  creativeFrames: CharacterFrameCandidate[];
-  allowedMoves: string[];
-  avoidedMoves: string[];
+export type AuthorAdaptiveQuestion = {
+  kind: "who" | "where" | "when" | "event" | "detail";
+  question: string;
+  reason: string;
 };
 
-export type AuthorCognitivePlan = {
-  mode: string;
-  selectedFrame: string;
-  chosenAttentionStrategy: string;
-  attentionCandidates: AttentionCandidate[];
-  characterRead: CharacterRead;
+export type AuthorCognitionPlan = {
+  selectedLens: string;
+  interpretations: AuthorCreativeInterpretation[];
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
-  experienceState?: AuthorExperienceState;
-  operatorMix: string[];
-  callbackTargets: string[];
-  antiRepetitionRules: string[];
-  sceneRules: string[];
-  authorBrief: string[];
-  permanentTruths: string[];
-  currentEvidence: string[];
-  contradictions: string[];
-  graphSummary: string;
-  movieSummary: string;
-  frameSummary: string;
+  adaptiveQuestions: AuthorAdaptiveQuestion[];
+  attentionStrategy: string;
+  reasoningSummary: string[];
+  model: string;
+  modelCalls: number;
 };
 
-const clean = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const metric = (value: unknown): number => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, Number(number.toFixed(3)))) : 0;
+};
+const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
+const VALID_OPERATIONS = new Set<LatentMovieTrajectoryStep["operation"]>(["establish", "contrast", "recur", "reframe", "escalate", "converge", "reveal", "consequence", "payoff"]);
 
-const uniq = <T>(
-  values: readonly T[],
-  limit = 24,
-): T[] => [...new Set(values)].slice(0, limit);
-
-const metric = (value: number): number =>
-  Number(
-    Math.max(0, Math.min(1, value)).toFixed(3),
-  );
-
-const PRIOR_STATE_PREFIX =
-  "QRE_AUTHOR_EXPERIENCE_STATE::";
-
-function domainContextText(context?: AuthorDomainContext): string[] {
-  if (!context) return [];
-  return [
-    context.category ? `domain category: ${context.category}` : "",
-    context.businessType ? `business type: ${context.businessType}` : "",
-    context.businessName ? `business name: ${context.businessName}` : "",
-    context.businessDescription ? `business description: ${context.businessDescription}` : "",
-    context.serviceType ? `service type: ${context.serviceType}` : "",
-    context.serviceName ? `service: ${context.serviceName}` : "",
-    context.subjectKind ? `subject kind: ${context.subjectKind}` : "",
-    ...(context.knownCapabilities ?? []).map((item) => `known capability: ${item}`),
-    ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
-  ].filter(Boolean);
+function stripFence(text: string): string {
+  return clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
 }
 
-function eventById(
-  graph: RealityGraph | undefined,
-  id: string,
-): RealityGraph["events"][number] | undefined {
-  return graph?.events.find(
-    (event) => event.id === id,
-  );
-}
-
-function parsePriorExperienceStates(
-  values?: readonly string[],
-): AuthorExperienceState[] {
-  const states: AuthorExperienceState[] = [];
-
-  for (const value of values ?? []) {
-    if (
-      !value.startsWith(
-        PRIOR_STATE_PREFIX,
-      )
-    ) {
-      continue;
-    }
-
+function parseObject<T>(text: string): T | undefined {
+  try {
+    const parsed = JSON.parse(stripFence(text));
+    return parsed && typeof parsed === "object" ? parsed as T : undefined;
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end <= start) return undefined;
     try {
-      const parsed = JSON.parse(
-        value.slice(
-          PRIOR_STATE_PREFIX.length,
-        ),
-      ) as AuthorExperienceState;
-
-      if (
-        parsed?.version === 1 &&
-        parsed.tempo
-      ) {
-        states.push(parsed);
-      }
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      return parsed && typeof parsed === "object" ? parsed as T : undefined;
     } catch {
-      /*
-       * Learning context is advisory.
-       * Malformed historical state must never
-       * break Author cognition.
-       */
+      return undefined;
+    }
+  }
+}
+
+function eventLookup(graph: RealityGraph): Map<string, string> {
+  return new Map(graph.events.map((event) => [event.id, event.label]));
+}
+
+function validEventIds(value: unknown, graph: RealityGraph): string[] {
+  const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").map(clean) : [];
+  const valid = new Set(graph.events.map((event) => event.id));
+  return unique(ids.filter((id) => valid.has(id))).slice(0, 12);
+}
+
+function normalizeTrajectory(value: unknown, graph: RealityGraph): LatentMovieTrajectoryStep[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).map((step, index) => {
+    const row = step && typeof step === "object" ? step as Record<string, unknown> : {};
+    const ids = validEventIds(row.eventIds, graph);
+    const operation = clean(row.operation) as LatentMovieTrajectoryStep["operation"];
+    return {
+      order: index + 1,
+      operation: VALID_OPERATIONS.has(operation) ? operation : index === 0 ? "establish" : "reveal",
+      eventIds: ids,
+      viewerChange: clean(row.viewerChange) || "new supplied detail becomes noticeable",
+      nextQuestion: clean(row.nextQuestion) || "What deserves attention next?",
+    };
+  }).filter((step) => graph.events.length === 0 || step.eventIds.length > 0);
+}
+
+function candidateScore(candidate: LatentMovieCandidate, returning: boolean): number {
+  const relationBonus = Math.min(1, candidate.supportingRelationKinds.length / 3) * 0.12;
+  const continuityBonus = returning ? candidate.callbackPotential * 0.15 : candidate.novelty * 0.08;
+  return metric(
+    candidate.novelty * 0.15 +
+    candidate.specificity * 0.15 +
+    candidate.attentionPotential * 0.2 +
+    candidate.consequencePotential * 0.12 +
+    candidate.callbackPotential * 0.12 +
+    candidate.compressionPotential * 0.08 +
+    candidate.distinctiveness * 0.1 +
+    (1 - candidate.truthRisk) * 0.08 +
+    relationBonus +
+    continuityBonus,
+  );
+}
+
+function normalizeCandidate(raw: unknown, index: number, graph: RealityGraph, lens: string): LatentMovieCandidate | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const row = raw as Record<string, unknown>;
+  const trajectory = normalizeTrajectory(row.trajectory, graph);
+  const evidence = validEventIds(row.evidenceEventIds, graph);
+  const anchors = validEventIds(row.evidenceEventIds ?? row.anchorEventIds, graph).slice(0, 2);
+  if (graph.events.length > 0 && (!trajectory.length || !evidence.length)) return undefined;
+  const candidate: LatentMovieCandidate = {
+    id: clean(row.id) || `movie-${index + 1}`,
+    lens: clean(row.lens) || lens,
+    anchorEventIds: anchors,
+    supportingRelationKinds: Array.isArray(row.supportingRelationKinds) ? unique(row.supportingRelationKinds.filter((item): item is string => typeof item === "string").map(clean)).slice(0, 8) : [],
+    trajectory,
+    payoff: clean(row.payoff) || clean(row.thesis) || "supplied reality",
+    unresolvedQuestion: clean(row.unresolvedQuestion) || "What is becoming more meaningful?",
+    evidence: Array.isArray(row.evidence) ? row.evidence.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean).slice(0, 12) : evidence.map((id) => eventLookup(graph).get(id) ?? id),
+    hypothesis: Array.isArray(row.hypothesis) ? row.hypothesis.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean).slice(0, 8) : [clean(row.thesis) || "Find the strongest attention-bearing interpretation in supplied reality."],
+    truthRisk: metric(row.truthRisk),
+    novelty: metric(row.novelty),
+    specificity: metric(row.specificity),
+    informationValue: metric(row.informationValue),
+    uncertainty: metric(row.uncertainty),
+    attentionPotential: metric(row.attentionPotential),
+    consequencePotential: metric(row.consequencePotential),
+    callbackPotential: metric(row.callbackPotential),
+    compressionPotential: metric(row.compressionPotential),
+    repetitionRisk: metric(row.repetitionRisk),
+    distinctiveness: metric(row.distinctiveness),
+    score: 0,
+  };
+  candidate.score = candidateScore(candidate, Boolean(false));
+  return candidate;
+}
+
+function fallbackMovie(graph: RealityGraph, lens: string, returning: boolean): LatentMovieCandidate | undefined {
+  if (!graph.events.length) return {
+    id: "movie-conceptual",
+    lens,
+    anchorEventIds: [],
+    supportingRelationKinds: [],
+    trajectory: [],
+    payoff: "Make the supplied idea feel newly visible.",
+    unresolvedQuestion: "What does starting over, or the supplied concept, make possible?",
+    evidence: [],
+    hypothesis: ["Conceptual prompt: perform the requested idea without pretending it is a factual event."],
+    truthRisk: 0,
+    novelty: 0.9,
+    specificity: 0.4,
+    informationValue: 0.5,
+    uncertainty: 0.3,
+    attentionPotential: 0.72,
+    consequencePotential: 0.45,
+    callbackPotential: 0,
+    compressionPotential: 0.8,
+    repetitionRisk: 0,
+    distinctiveness: 0.75,
+    score: 0.75,
+  };
+  const relations = graph.relations.filter((relation) => relation.strength >= 0.62).slice(0, 4);
+  const ids = relations.length ? unique(relations.flatMap((relation) => [relation.from, relation.to])).slice(0, 6) : graph.events.slice(0, Math.min(4, graph.events.length)).map((event) => event.id);
+  const trajectory = ids.map((id, index) => ({ order: index + 1, operation: (index === ids.length - 1 ? "payoff" : index === 0 ? "establish" : relations[Math.min(index - 1, relations.length - 1)]?.kind === "contrasts" ? "contrast" : relations[Math.min(index - 1, relations.length - 1)]?.kind === "recontextualizes" ? "reframe" : returning ? "recur" : "reveal") as LatentMovieTrajectoryStep["operation"], eventIds: [id], viewerChange: graph.events.find((event) => event.id === id)?.label ?? "new supplied detail", nextQuestion: index === ids.length - 1 ? "What lands now?" : "What changes the reading next?" }));
+  const candidate: LatentMovieCandidate = {
+    id: returning ? "movie-return-fallback" : "movie-grounded-fallback",
+    lens,
+    anchorEventIds: ids.slice(0, 2),
+    supportingRelationKinds: unique(relations.map((relation) => relation.kind)),
+    trajectory,
+    payoff: graph.events.find((event) => event.id === ids.at(-1))?.label ?? "supplied reality",
+    unresolvedQuestion: returning ? "What is different this time?" : "What is becoming noticeable?",
+    evidence: ids.map((id) => graph.events.find((event) => event.id === id)?.label ?? id),
+    hypothesis: [returning ? "A new visit should change the reading of remembered material." : "Find the strongest connected pattern without inventing a plot."],
+    truthRisk: 0,
+    novelty: returning ? 0.68 : 0.55,
+    specificity: 0.82,
+    informationValue: Math.min(1, ids.length / 5),
+    uncertainty: 0.35,
+    attentionPotential: relations[0]?.strength ?? 0.55,
+    consequencePotential: relations.some((relation) => relation.kind === "causes" || relation.kind === "changes") ? 0.75 : 0.4,
+    callbackPotential: returning || relations.some((relation) => relation.kind === "repeats" || relation.kind === "recontextualizes") ? 0.82 : 0.18,
+    compressionPotential: 0.74,
+    repetitionRisk: 0.12,
+    distinctiveness: 0.62,
+    score: 0,
+  };
+  candidate.score = candidateScore(candidate, returning);
+  return candidate;
+}
+
+function adaptiveQuestions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[] {
+  const text = clean(input.prompt).toLowerCase();
+  const questions: AuthorAdaptiveQuestion[] = [];
+  if (!input.subject && !input.realityGraph.events.some((event) => event.entities.some((entity) => text.includes(entity.toLowerCase())))) questions.push({ kind: "who", question: "Who or what is this about?", reason: "A subject cannot be resolved from supplied reality or memory." });
+  if (!input.place && !input.realityGraph.events.some((event) => event.place)) questions.push({ kind: "where", question: "Where did it happen?", reason: "Place is missing and could materially enrich continuity." });
+  if (!input.realityGraph.events.some((event) => event.time) && !/\b(?:today|yesterday|tomorrow|morning|afternoon|evening|night|\d{1,2}:\d{2}|\d{4})\b/i.test(text)) questions.push({ kind: "when", question: "When did it happen?", reason: "Time is missing and may resolve continuity or recurrence." });
+  if (!input.facts.length && !input.sourceMoments.length && input.realityGraph.events.length === 0 && !/\b(?:create|make|turn|something|starting over|beautiful)\b/i.test(text)) questions.push({ kind: "event", question: "What happened?", reason: "There is not enough source reality to ground the experience." });
+  return questions.slice(0, 3);
+}
+
+export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
+  const explicitLens = clean(input.lens);
+  const lens = explicitLens && explicitLens.toLowerCase() !== "let qre decide" ? explicitLens : "LET QRE DECIDE";
+  const graphPayload = {
+    evidence: input.realityGraph.evidence,
+    events: input.realityGraph.events,
+    relations: input.realityGraph.relations,
+    eventStructure: input.realityGraph.eventStructure,
+    continuity: input.realityGraph.entityContinuity,
+    patterns: input.realityGraph.patterns,
+    tensions: input.realityGraph.unresolvedTensions,
+    recurringSignals: input.realityGraph.recurringSignals,
+    sensorySignals: input.realityGraph.sensorySignals,
+  };
+  const context = {
+    prompt: clean(input.prompt),
+    subject: clean(input.subject) || "unknown",
+    place: clean(input.place) || "unknown",
+    explicitLens: lens,
+    returning: Boolean(input.returning || (input.visitNumber ?? 1) > 1),
+    visitNumber: input.visitNumber ?? 1,
+    memory: (input.memoryContext ?? []).slice(0, 60),
+    trajectory: (input.trajectory ?? []).slice(0, 40),
+    creativeLearning: (input.creativeLearningContext ?? []).slice(0, 60),
+    domainContext: input.domainContext ?? {},
+    reality: graphPayload,
+  };
+  let model = "fallback";
+  let modelCalls = 0;
+  let parsed: Record<string, unknown> | undefined;
+  if (input.movieMode !== false) {
+    try {
+      const result = await localModelGenerate([
+        {
+          role: "system",
+          content: [
+            "You are QRE's universal cognition engine and the sole Movie authority.",
+            "You do not write customer-facing prose.",
+            "You reason over arbitrary human reality: entities, events, states, relations, places, times, evidence, memory, change, recurrence and uncertainty.",
+            "SOURCE REALITY IS ABSOLUTE. Never invent an event, person, place, time, action, relationship or outcome.",
+            "Derived interpretation may be bold. Hypothesized creative opportunity may be imaginative. Label it as interpretation; do not present it as factual occurrence.",
+            "Search aggressively for the strongest unexpected relationship, contrast, callback, status turn, consequence, emotional movement or memorable detail. Do not force a turn when reality does not support one.",
+            "A Movie is a structured hypothesis, not prose. Produce multiple competing interpretations and multiple competing movies, then select exactly one.",
+            "Sparse reality is valid. It may yield an observation movie, preference constellation, possibility, or conceptual experience rather than a plot.",
+            "Return JSON only with keys: selectedLens, attentionStrategy, interpretations, movies, selectedMovieId, adaptiveQuestions, reasoningSummary.",
+            "Each concrete movie trajectory step must cite one or more existing event IDs. Never invent event IDs. A conceptual movie may have zero event IDs only when the graph is empty.",
+            "Scene count is not fixed; trajectory length must naturally range from 0 to 12.",
+          ].join("\n"),
+        },
+        { role: "user", content: JSON.stringify(context) },
+      ], "json", { numPredict: 5000, temperature: 0.82 });
+      model = result.model;
+      modelCalls += 1;
+      parsed = parseObject<Record<string, unknown>>(result.text);
+    } catch {
+      parsed = undefined;
     }
   }
 
-  return states;
-}
-
-/**
- * Auto lens selection is owned by the canonical character-lens engine.
- * Cognition supplies the canonical RealityEnvelope so there is one lens
- * registry and one opportunity-ranking implementation.
- */
-function autoLensCandidates(
-  input: AuthorCognitionInput,
-): CharacterFrameCandidate[] {
-  if (!input.realityGraph) {
-    return [
-      {
-        frame: "NONE",
-        reason:
-          "RealityGraph unavailable; preserve supplied reality until a canonical world representation exists.",
-        confidence: 0,
-      },
-    ];
-  }
-
-  const envelope =
-    buildAuthorRealityEnvelope({
-      graph: input.realityGraph,
-      subject: input.subject,
-    });
-
-  return rankLensOpportunities(
-    envelope,
-  ).map((candidate) => ({
-    frame: candidate.frame,
-    reason: candidate.reason,
-    confidence: candidate.confidence,
-  }));
-}
-
-function resolveLens(
-  input: AuthorCognitionInput,
-): string {
-  const explicit =
-    clean(input.lens);
-
-  if (
-    explicit &&
-    explicit.toLowerCase() !==
-      "let qre decide"
-  ) {
-    return explicit;
-  }
-
-  return (
-    autoLensCandidates(input)[0]
-      ?.frame ?? "NONE"
-  );
-}
-
-/**
- * Movie discovery is deliberately isolated.
- *
- * Search:
- *   RealityGraph -> candidate movies
- *
- * Rerank:
- *   candidate movies -> viewer-state ordering
- *
- * Enrichment:
- *   selected movie -> canonical story thesis
- *
- * Cognition does not select a second movie.
- */
-function movieFor(
-  input: AuthorCognitionInput,
-  lens: string,
-): {
-  latentMovieCandidates: LatentMovieCandidate[];
-  selectedMovie?: LatentMovieCandidate;
-} {
-  if (
-    input.movieMode === false ||
-    !input.realityGraph
-  ) {
+  const interpretations = (Array.isArray(parsed?.interpretations) ? parsed?.interpretations : []).slice(0, 8).map((item, index) => {
+    const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
     return {
-      latentMovieCandidates: [],
-    };
-  }
+      id: clean(row.id) || `interpretation-${index + 1}`,
+      thesis: clean(row.thesis) || "Find a stronger reading inside supplied reality.",
+      creativeOpportunity: clean(row.creativeOpportunity) || "compression",
+      rationale: clean(row.rationale) || "supported by supplied evidence",
+      evidenceEventIds: validEventIds(row.evidenceEventIds, input.realityGraph),
+      confidence: metric(row.confidence),
+    } satisfies AuthorCreativeInterpretation;
+  });
 
-  const searched =
-    searchUniversalMovieCandidates({
-      graph: input.realityGraph,
-      subject: input.subject,
-      lens,
-      limit: 10,
-    });
-const differentiated =
-    selectDistinctMovieCandidates(
-      searched,
-      6,
-    );
-
-  const candidates =
-    rerankByViewerState(
-      input.realityGraph,
-      differentiated,
-    );
-
+  const rawMovies = Array.isArray(parsed?.movies) ? parsed?.movies : [];
+  const candidates = rawMovies.map((item, index) => normalizeCandidate(item, index, input.realityGraph, clean(parsed?.selectedLens) || lens)).filter((candidate): candidate is LatentMovieCandidate => Boolean(candidate)).slice(0, 10);
+  const fallback = fallbackMovie(input.realityGraph, clean(parsed?.selectedLens) || lens, Boolean(input.returning || (input.visitNumber ?? 1) > 1));
+  const allCandidates = candidates.length ? candidates : fallback ? [fallback] : [];
+  for (const candidate of allCandidates) candidate.score = candidateScore(candidate, Boolean(input.returning || (input.visitNumber ?? 1) > 1));
+  const selectedId = clean(parsed?.selectedMovieId);
+  const selectedMovie = allCandidates.find((candidate) => candidate.id === selectedId) ?? [...allCandidates].sort((a, b) => b.score - a.score)[0];
+  const adaptive = (Array.isArray(parsed?.adaptiveQuestions) ? parsed?.adaptiveQuestions : []).slice(0, 4).map((item) => {
+    const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    return { kind: clean(row.kind) as AuthorAdaptiveQuestion["kind"], question: clean(row.question), reason: clean(row.reason) };
+  }).filter((item) => item.question && ["who", "where", "when", "event", "detail"].includes(item.kind));
+  const dedupQuestions = unique([...adaptive, ...adaptiveQuestions(input).filter((question) => !adaptive.some((existing) => existing.question.toLowerCase() === question.question.toLowerCase()))]).slice(0, 4);
+  const selectedLens = clean(parsed?.selectedLens) || (explicitLens && explicitLens.toLowerCase() !== "let qre decide" ? explicitLens : "LET QRE DECIDE");
   return {
-    latentMovieCandidates: candidates,
-    selectedMovie: candidates[0],
-  };
-}
-
-function traits(
-  input: AuthorCognitionInput,
-): string[] {
-  const all = [
-    ...input.facts,
-    ...input.sourceMoments,
-    ...(input.memoryContext ?? []),
-  ];
-
-  return uniq(
-    all.filter((value) =>
-      /\b(?:nervous|scared|fierce|sweet|gentle|wild|goofy|stubborn|proud|confident|quiet|loud|funny|mischievous|tired|calm|excited|happy|angry|afraid)\b/i.test(
-        value,
-      ),
-    ),
-    8,
-  );
-}
-
-function contradictions(
-  input: AuthorCognitionInput,
-): string[] {
-  const graph =
-    input.realityGraph;
-
-  return uniq(
-    [
-      ...(graph?.unresolvedTensions ??
-        []),
-      ...(graph?.relations
-        .filter(
-          (relation) =>
-            relation.kind ===
-              "contrasts" ||
-            relation.kind ===
-              "changes" ||
-            relation.kind ===
-              "recontextualizes",
-        )
-        .slice(0, 8)
-        .map(
-          (relation) =>
-            `supplied relationship: ${relation.kind}`,
-        ) ??
-        []),
-    ],
-    12,
-  );
-}
-
-function objectRelationships(
-  input: AuthorCognitionInput,
-): string[] {
-  return uniq(
-    input.realityGraph?.events
-      .filter(
-        (event) =>
-          event.entities.length >
-          1,
-      )
-      .map(
-        (event) =>
-          event.label,
-      ) ?? [],
-    12,
-  );
-}
-
-function frames(
-  input: AuthorCognitionInput,
-  movie:
-    | LatentMovieCandidate
-    | undefined,
-  selectedLens: string,
-): CharacterFrameCandidate[] {
-  const explicit =
-    clean(input.lens);
-
-  if (
-    explicit &&
-    explicit.toLowerCase() !==
-      "let qre decide"
-  ) {
-    const profile = classifyLens(explicit);
-    return [
-      {
-        frame: explicit,
-        reason: `explicit user perspective; ${profile.label} may amplify ${profile.framingBias.slice(0, 4).join(", ")} without changing reality`,
-        confidence: 0.95,
-      },
-    ];
-  }
-
-  const automatic =
-    autoLensCandidates(input);
-
-  if (
-    automatic[0]?.frame ===
-      selectedLens &&
-    automatic[0]?.frame !== "NONE"
-  ) {
-    return automatic;
-  }
-
-  const relationKinds =
-    new Set(
-      input.realityGraph?.relations.map(
-        (relation) =>
-          relation.kind,
-      ) ?? [],
-    );
-
-  const out:
-    CharacterFrameCandidate[] =
-    [];
-
-  if (
-    relationKinds.has(
-      "contrasts",
-    )
-  ) {
-    out.push({
-      frame: "contrast",
-      reason:
-        "the supplied world contains a material contrast",
-      confidence: 0.9,
-    });
-  }
-
-  if (
-    relationKinds.has(
-      "recontextualizes",
-    )
-  ) {
-    out.push({
-      frame:
-        "recontextualization",
-      reason:
-        "one supplied detail changes another detail's meaning",
-      confidence: 0.9,
-    });
-  }
-
-  if (
-    relationKinds.has("repeats") ||
-    (input.round ?? 1) > 1
-  ) {
-    out.push({
-      frame: "callback",
-      reason:
-        "the world contains continuity material",
-      confidence: 0.88,
-    });
-  }
-
-  if (
-    movie?.storyThesis
-      ?.semanticTurn
-  ) {
-    out.push({
-      frame:
-        "character consequence",
-      reason:
-        "the selected movie contains a real graph-backed semantic turn",
-      confidence: 0.86,
-    });
-  }
-
-  return out.length
-    ? out
-    : automatic;
-}
-
-function operationsForMovie(
-  movie:
-    | LatentMovieCandidate
-    | undefined,
-): string[] {
-  if (!movie) {
-    return [];
-  }
-
-  return movie.trajectory
-    .map(
-      (step) =>
-        clean(step.operation),
-    )
-    .filter(Boolean);
-}
-
-function callbackTargetsFor(
-  input: AuthorCognitionInput,
-  permanentTruths: readonly string[],
-  experienceState:
-    | AuthorExperienceState
-    | undefined,
-): string[] {
-  return uniq(
-    [
-      ...(input.priorScenes ??
-        []),
-      ...(input.realityGraph
-        ?.recurringSignals ??
-        []),
-      ...permanentTruths,
-      ...(experienceState
-        ?.memoryHooks ?? []),
-    ],
-    20,
-  );
-}
-
-function buildAttentionCandidates():
-  AttentionCandidate[] {
-  return [
-    {
-      strategy:
-        "graph_relationship",
-      reason:
-        "Prefer supplied relationships over isolated facts.",
-      score: 100,
-    },
-    {
-      strategy:
-        "viewer_state_change",
-      reason:
-        "Prefer cuts that materially change attention, curiosity, expectation, or meaning.",
-      score: 99,
-    },
-    {
-      strategy: "change",
-      reason:
-        "Prefer supplied changes that alter meaning.",
-      score: 96,
-    },
-    {
-      strategy: "contrast",
-      reason:
-        "Prefer supplied contrasts when they produce a stronger movie.",
-      score: 94,
-    },
-    {
-      strategy: "recurrence",
-      reason:
-        "Use persistent repetition when memory makes it meaningful.",
-      score: 90,
-    },
-    {
-      strategy: "continuity",
-      reason:
-        "Use prior chapters when they materially change current meaning.",
-      score: 88,
-    },
-  ];
-}
-
-function buildAntiRepetitionRules():
-  string[] {
-  return [
-    "Do not restart the subject's biography on every chapter.",
-    "A callback must change meaning, not merely repeat wording.",
-    "A revisit must return to established evidence only after new evidence exists to change its reading.",
-    "Prefer the strongest connected evidence over complete source coverage.",
-    "Identity metadata is world state, not an automatic experience sequence item.",
-    "Do not promote a lens phrase into a fact.",
-    "A semantic turn must cite a real graph relationship or sequence-backed supplied interpretation.",
-    "Leave an authorized future thread alive when continuation value is high.",
-  ];
-}
-
-function buildSceneRules(
-  experienceState:
-    | AuthorExperienceState
-    | undefined,
-  selectedLens: string,
-): string[] {
-  const lens = classifyLens(selectedLens);
-  return [
-    "One cut is one viewer-facing sequence moment; there is no fixed word-count target.",
-    "Use the minimum language required for the cut to land.",
-    "Creative language may change framing and attitude but never source truth.",
-    "The selected lens is an amplification grammar: intensify only the dimensions already supported by supplied reality.",
-    `Lens amplification: ${lens.framingBias.slice(0, 8).join(", ")}.`,
-    `Preferred realization moves: ${lens.realizationPreferences.join(", ")}.`,
-    `Forbidden lens moves remain hard constraints: ${lens.forbiddenRealityMoves.join(", ")}.`,
-    "A cut should change the viewer state through attention, curiosity, contrast, interruption, accumulation, or payoff.",
-    "Finish when the selected payoff lands; do not manufacture a final event.",
-    "Treat NONE as a valid authorial lens decision when the supplied material itself has stronger character than a genre frame.",
-    "A user-selected lens is authoritative and must be preserved exactly; automatic lens selection is subordinate to it.",
-    ...(experienceState
-      ? summarizeAuthorExperienceState(
-          experienceState,
-        )
-      : []),
-  ];
-}
-
-export function buildAuthorCognitivePlan(
-  input: AuthorCognitionInput,
-): AuthorCognitivePlan {
-  const selectedLens =
-    resolveLens(input);
-
-  const movie =
-    movieFor(
-      input,
-      selectedLens,
-    );
-
-  const priorExperienceStates =
-    parsePriorExperienceStates(
-      input.priorStrategies,
-    );
-
-  const experienceState =
-    input.realityGraph &&
-    movie.selectedMovie
-      ? buildAuthorExperienceState(
-          {
-            graph:
-              input.realityGraph,
-            movie:
-              movie.selectedMovie,
-            lens:
-              selectedLens,
-            priorScenes:
-              input.priorScenes,
-            memoryContext:
-              input.memoryContext,
-            priorExperienceStates,
-            round:
-              input.round,
-          },
-        )
-      : undefined;
-
-  const permanentTruths =
-    uniq(
-      [
-        ...input.facts,
-        ...(input.memoryContext ??
-          []),
-      ],
-      30,
-    );
-
-  const currentEvidence =
-    uniq(
-      [
-        ...input.sourceMoments,
-        ...(
-          input.realityGraph
-            ?.events ??
-          []
-        ).map(
-          (event) =>
-            event.label,
-        ),
-      ],
-      30,
-    );
-
-  const contradictionList =
-    contradictions(input);
-
-  const selectedMovie =
-    movie.selectedMovie;
-
-  const characterRead:
-    CharacterRead = {
-    coreTraits:
-      traits(input),
-
-    contradictions:
-      contradictionList,
-
-    statusPosture:
-      contradictionList[0] ??
-      "defined by supplied reality",
-
-    emotionalPosture:
-      contradictionList[0]
-        ? `emotion sits inside ${contradictionList[0]}`
-        : "emotion should be inferred from supplied evidence",
-
-    objectRelationships:
-      objectRelationships(input),
-
-    creativeFrames:
-      frames(
-        input,
-        selectedMovie,
-        selectedLens,
-      ),
-
-    allowedMoves: [
-      "metaphor",
-      "personification",
-      "status language",
-      "double meaning",
-      "comic framing",
-      "understatement",
-      "callback",
-      "recontextualization",
-      "revisit",
-      "future tease",
-      "lens amplification",
-    ],
-
-    avoidedMoves: [
-      "invented concrete events",
-      "invented people",
-      "invented locations",
-      "invented reactions",
-      "invented chronology",
-      "literalized lens props",
-      "planner language",
-      "analytic explanation",
-    ],
-  };
-
-  const selectedFrame =
-    selectedLens;
-
-  const attentionCandidates =
-    buildAttentionCandidates();
-
-  const chosen =
-    selectedMovie
-      ? "latent_movie"
-      : "direct_grounded";
-
-  const operatorMix =
-    operationsForMovie(
-      selectedMovie,
-    );
-
-  const callbackTargets =
-    callbackTargetsFor(
-      input,
-      permanentTruths,
-      experienceState,
-    );
-
-  const antiRepetitionRules =
-    buildAntiRepetitionRules();
-
-  const sceneRules =
-    buildSceneRules(
-      experienceState,
-      selectedLens,
-    );
-
-  const graphSummary =
-    input.realityGraph
-      ? `REALITY GRAPH: ${input.realityGraph.events.length} events, ${input.realityGraph.relations.length} relations.`
-      : "REALITY GRAPH: unavailable.";
-
-  const dynamics =
-    selectedMovie?.viewerStateDynamics;
-
-  const semanticTurn =
-    selectedMovie?.storyThesis
-      ?.semanticTurn;
-
-  const movieSummary =
-    selectedMovie
-      ? [
-          `SELECTED MOVIE: ${selectedMovie.hypothesis.join(" ")}`,
-          `SEMANTIC TURN: ${semanticTurn || "none"}`,
-          `THESIS RELATION: ${
-            selectedMovie.storyThesis
-              ?.relationKind ??
-            "none"
-          }`,
-          `CANDIDATE COUNT: ${movie.latentMovieCandidates.length}`,
-          `VIEWER-STATE SCORE: ${
-            dynamics?.score ??
-            "n/a"
-          }`,
-        ].join(" ")
-      : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
-
-  const lensProfile =
-    classifyLens(selectedFrame);
-
-  const frameSummary =
-    `FRAME: ${selectedFrame}. AMPLIFY: ${lensProfile.framingBias.join(", ")}. PREFER: ${lensProfile.realizationPreferences.join(", ")}. A frame changes perspective, never reality.`;
-
-  const authorBrief =
-    [
-      `MODE: ${chosen}`,
-      frameSummary,
-      graphSummary,
-      movieSummary,
-      ...(experienceState
-        ? summarizeAuthorExperienceState(
-            experienceState,
-          )
-        : []),
-      "Reality is immutable. Creativity never becomes evidence.",
-      "Lens is an amplification grammar, not permission to add world facts.",
-    ];
-
-  return {
-    mode: chosen,
-
-    selectedFrame,
-
-    chosenAttentionStrategy:
-      chosen,
-
-    attentionCandidates,
-
-    characterRead,
-
-    latentMovieCandidates:
-      movie.latentMovieCandidates,
-
+    selectedLens,
+    interpretations: interpretations.length ? interpretations : [{ id: "interpretation-fallback", thesis: selectedMovie?.hypothesis[0] ?? "Find the strongest attention-bearing interpretation.", creativeOpportunity: "recognition", rationale: "fallback from grounded world structure", evidenceEventIds: selectedMovie?.anchorEventIds ?? [], confidence: selectedMovie ? 0.55 : 0.2 }],
+    latentMovieCandidates: allCandidates,
     selectedMovie,
-
-    experienceState,
-
-    operatorMix,
-
-    callbackTargets,
-
-    antiRepetitionRules,
-
-    sceneRules,
-
-    authorBrief,
-
-    permanentTruths,
-
-    currentEvidence,
-
-    contradictions:
-      contradictionList,
-
-    graphSummary,
-
-    movieSummary,
-
-    frameSummary,
+    adaptiveQuestions: dedupQuestions,
+    attentionStrategy: clean(parsed?.attentionStrategy) || (selectedMovie?.supportingRelationKinds[0] ? `follow ${selectedMovie.supportingRelationKinds[0]}` : "find the strongest noticeable change"),
+    reasoningSummary: Array.isArray(parsed?.reasoningSummary) ? parsed.reasoningSummary.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean).slice(0, 12) : ["Source reality remains separate from creative interpretation.", "Movie selection is owned here and consumed downstream."],
+    model,
+    modelCalls,
   };
 }

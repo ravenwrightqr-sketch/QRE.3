@@ -1,7 +1,7 @@
 import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
 import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
-import type { AuthorExperienceState } from "./authorExperienceState.js";
+
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
 export type AuthorDomainContext = {
@@ -37,7 +37,6 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  /** User-level production switch: true = discover/render a movie, false = skip cinematic authoring. */
   movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
@@ -46,7 +45,6 @@ export type AuthorBrainTruth = {
   sourceMoments: string[];
   memoryContext?: string[];
   trajectory?: string[];
-  priorExperienceStates?: AuthorExperienceState[];
   creativeLearningContext?: string[];
 };
 
