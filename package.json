@@ -12,6 +12,7 @@
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
+    "author:satanico": "pnpm exec tsx apps/api/satanico-universal-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
