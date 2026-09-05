@@ -1,8 +1,8 @@
 /**
- * QRE CANONICAL AUTHOR LAW
- * ROLE: Production authoring adapter: canonical Author → durable experience/flow.
- * LAW: QRE may surprise us.
- * Guardrails protect truth, provenance, architecture, and safety; style is scored.
+ * QRE CANONICAL EXPERIENCE ADAPTER
+ *
+ * Production boundary between persistent reality/memory and the universal
+ * Author. Intent is not source reality. Supplied events/facts are.
  */
 import { buildPresenceContext } from "@qre/engine";
 import { db } from "@qre/db";
@@ -121,7 +121,6 @@ function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
   return Object.values(context).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value)) ? context : undefined;
 }
 
-
 function inferSubject(prompt: string, context?: MemoryContext): string {
   const normalizedPrompt = prompt.toLowerCase();
   const candidate = context?.entities
@@ -186,8 +185,12 @@ function moments(scenes: Array<{ text: string; kind?: string }>, sourceIds: stri
     payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [], author: "qre-author-canonical" },
   }));
 }
+
 export async function compileExperience(input: {
   prompt: string;
+  subject?: string;
+  facts?: string[];
+  sourceMoments?: string[];
   assetId?: string;
   userId?: string;
   sessionId?: string;
@@ -198,28 +201,25 @@ export async function compileExperience(input: {
   movieMode?: boolean;
   lens?: string;
 }): Promise<CompiledExperienceResult> {
-  const operationId =
-  input.operationId ??
-  input.sessionId ??
-  `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
+  const operationId = input.operationId ?? input.sessionId ?? `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
   const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
- if (input.assetId && input.sessionId) {
-  await db.scanSession.upsert({
-    where: {
-      id: input.sessionId,
-    },
-    update: {},
-    create: {
-      id: input.sessionId,
-      assetId: input.assetId,
-      userId: input.userId ?? null,
-      status: "authoring",
-    },
-  });
-}
+
+  if (input.assetId && input.sessionId) {
+    await db.scanSession.upsert({
+      where: { id: input.sessionId },
+      update: {},
+      create: {
+        id: input.sessionId,
+        assetId: input.assetId,
+        userId: input.userId ?? null,
+        status: "authoring",
+      },
+    });
+  }
+
   let domainContext: AuthorDomainContext | undefined;
   if (input.assetId) {
     try {
@@ -244,26 +244,23 @@ export async function compileExperience(input: {
     try {
       memoryContext = await input.memoryRepository.loadContext({ assetId: input.assetId, userId: input.userId });
       try {
-  await createAnalyticsRepository().trackEvent({
-    assetId: input.assetId,
-    sessionId: input.sessionId ?? null,
-    type: AnalyticsEventTypes.AI_MEMORY_USED,
-    meta: {
-      source: "author",
-      userId: input.userId ?? null,
-      entities: memoryContext.entities.length,
-      facts: memoryContext.facts.length,
-      relations: memoryContext.relations.length,
-      events: memoryContext.events.length,
-    },
-  });
-} catch (error) {
-  console.warn(
-    "[QRE][AUTHORING] AI_MEMORY_USED analytics failed.",
-    error,
-  );
-  warnings.push("author_memory_analytics_failed");
-}
+        await createAnalyticsRepository().trackEvent({
+          assetId: input.assetId,
+          sessionId: input.sessionId ?? null,
+          type: AnalyticsEventTypes.AI_MEMORY_USED,
+          meta: {
+            source: "author",
+            userId: input.userId ?? null,
+            entities: memoryContext.entities.length,
+            facts: memoryContext.facts.length,
+            relations: memoryContext.relations.length,
+            events: memoryContext.events.length,
+          },
+        });
+      } catch (error) {
+        console.warn("[QRE][AUTHORING] AI_MEMORY_USED analytics failed.", error);
+        warnings.push("author_memory_analytics_failed");
+      }
     } catch (error) {
       console.warn("[QRE][AUTHORING] Memory context unavailable.", error);
       warnings.push("memory_context_unavailable");
@@ -298,61 +295,71 @@ export async function compileExperience(input: {
 
   const learningLines = learningContext ? learningContextLines(learningContext) : [];
   const learnedProfile = buildAuthorBehaviorProfile(learningLines);
-  const subject = inferSubject(prompt, memoryContext);
+  const subject = clean(input.subject) || inferSubject(prompt, memoryContext);
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
-  const sourceMoments = unique([prompt, ...(memoryContext?.events ?? []).map((event) => clean(event.summary))]).slice(0, 40);
-  const facts = unique([...(memoryContext?.facts ?? []).filter((fact) => fact.status === "active" && fact.confidence >= 0.7).map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`)]).slice(0, 80);
+
+  // Intent stays in `prompt`. Only explicit facts/events and persisted memory
+  // become source material. This prevents the instruction itself becoming reality.
+  const sourceMoments = unique([
+    ...(input.sourceMoments ?? []),
+    ...(memoryContext?.events ?? []).map((event) => clean(event.summary)),
+  ]).slice(0, 80);
+  const facts = unique([
+    ...(input.facts ?? []),
+    ...(memoryContext?.facts ?? [])
+      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
+      .map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`),
+  ]).slice(0, 100);
   const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
 
-const authorInput: AuthorBrainTruth = {
-  prompt,
-  subject,
-  place,
-  subjectTruth,
-  movieMode: requestedMovieMode,
-  lens: clean(input.lens),
-  domainContext,
-  returning: presence?.isReturning ?? false,
-  visitNumber: presence?.visitNumber,
-  presenceSummary,
-  facts,
-  sourceMoments,
-  memoryContext: memorySummary.slice(0, 80),
-  trajectory,
-  creativeLearningContext: learningLines.slice(0, 100),
-};
+  const authorInput: AuthorBrainTruth = {
+    prompt,
+    subject,
+    place,
+    subjectTruth,
+    movieMode: requestedMovieMode,
+    lens: clean(input.lens),
+    domainContext,
+    returning: presence?.isReturning ?? false,
+    visitNumber: presence?.visitNumber,
+    presenceSummary,
+    facts,
+    sourceMoments,
+    memoryContext: memorySummary.slice(0, 80),
+    trajectory,
+    creativeLearningContext: learningLines.slice(0, 100),
+  };
 
   const canonical = await authorBrainCanonical(authorInput);
+
   if (input.assetId) {
-  try {
-    await createAnalyticsRepository().trackEvent({
-      assetId: input.assetId,
-      sessionId: input.sessionId ?? null,
-      type: AnalyticsEventTypes.AI_CINEMATIC_DECISION,
-      meta: {
-        source: "author",
-        userId: input.userId ?? null,
-        lens: clean(input.lens),
-        resolvedLens: clean(canonical.brief.angle),
-        movieId: canonical.movie?.id ?? null,
-        realizationMode: canonical.realizationMode,
-        beatCount: canonical.sequence.cuts.length,
-        selectedScore: canonical.diagnostics.selectedScore,
-        qualityStatus: canonical.diagnostics.qualityStatus,
-        renderable: canonical.diagnostics.renderable,
-      },
-    });
-  } catch (error) {
-    console.warn(
-      "[QRE][AUTHORING] AI_CINEMATIC_DECISION analytics failed.",
-      error,
-    );
-    warnings.push("author_decision_analytics_failed");
+    try {
+      await createAnalyticsRepository().trackEvent({
+        assetId: input.assetId,
+        sessionId: input.sessionId ?? null,
+        type: AnalyticsEventTypes.AI_CINEMATIC_DECISION,
+        meta: {
+          source: "author",
+          userId: input.userId ?? null,
+          lens: clean(input.lens),
+          resolvedLens: clean(canonical.brief.angle),
+          movieId: canonical.movie?.id ?? null,
+          realizationMode: canonical.realizationMode,
+          beatCount: canonical.sequence.cuts.length,
+          selectedScore: canonical.diagnostics.selectedScore,
+          qualityStatus: canonical.diagnostics.qualityStatus,
+          renderable: canonical.diagnostics.renderable,
+        },
+      });
+    } catch (error) {
+      console.warn("[QRE][AUTHORING] AI_CINEMATIC_DECISION analytics failed.", error);
+      warnings.push("author_decision_analytics_failed");
+    }
   }
-}
+
   const sourceIds = canonical.sequence.cuts.map((cut) => [...cut.sourceIds]);
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
@@ -364,7 +371,7 @@ const authorInput: AuthorBrainTruth = {
     subject,
     place,
     facts,
-    sourceMoments: [prompt, ...sourceMoments],
+    sourceMoments,
     memoryContext: memorySummary.slice(0, 80),
     trajectory,
   });
@@ -374,7 +381,14 @@ const authorInput: AuthorBrainTruth = {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({ operationId, assetId: input.assetId, userId: input.userId, graph, sessionId: input.sessionId, source: "prompt" });
+      const batch = buildExperienceMemoryBatch({
+        operationId,
+        assetId: input.assetId,
+        userId: input.userId,
+        graph,
+        sessionId: input.sessionId,
+        source: "prompt",
+      });
       await input.memoryRepository.writeBatch(batch);
       memory = { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length };
     } catch (error) {
@@ -394,29 +408,32 @@ const authorInput: AuthorBrainTruth = {
       });
       authorExperienceState = adaptAuthorExperienceState(nextState, learnedProfile);
 
-      const stateBatch = authorExperienceStateToMemoryBatch({ operationId, assetId: input.assetId, userId: input.userId, state: authorExperienceState, sourceRef: "qre-author-canonical" });
+      const stateBatch = authorExperienceStateToMemoryBatch({
+        operationId,
+        assetId: input.assetId,
+        userId: input.userId,
+        state: authorExperienceState,
+        sourceRef: "qre-author-canonical",
+      });
       await input.memoryRepository.writeBatch(stateBatch);
       try {
-  await createAnalyticsRepository().trackEvent({
-    assetId: input.assetId,
-    sessionId: input.sessionId ?? null,
-    type: AnalyticsEventTypes.AI_MEMORY_LEARNED,
-    meta: {
-      source: "author",
-      userId: input.userId ?? null,
-      statePersisted: true,
-      visitNumber: presence?.visitNumber ?? null,
-      learningLines: learningLines.length,
-      priorAuthorStates: priorAuthorStates.length,
-    },
-  });
-} catch (error) {
-  console.warn(
-    "[QRE][AUTHORING] AI_MEMORY_LEARNED analytics failed.",
-    error,
-  );
-  warnings.push("author_learning_analytics_failed");
-}
+        await createAnalyticsRepository().trackEvent({
+          assetId: input.assetId,
+          sessionId: input.sessionId ?? null,
+          type: AnalyticsEventTypes.AI_MEMORY_LEARNED,
+          meta: {
+            source: "author",
+            userId: input.userId ?? null,
+            statePersisted: true,
+            visitNumber: presence?.visitNumber ?? null,
+            learningLines: learningLines.length,
+            priorAuthorStates: priorAuthorStates.length,
+          },
+        });
+      } catch (error) {
+        console.warn("[QRE][AUTHORING] AI_MEMORY_LEARNED analytics failed.", error);
+        warnings.push("author_learning_analytics_failed");
+      }
     } catch (error) {
       console.warn("[QRE][AUTHORING] Author state persistence failed.", error);
       warnings.push("author_experience_state_persistence_failed");
@@ -442,7 +459,14 @@ const authorInput: AuthorBrainTruth = {
           learnedPreferenceLines: learningLines,
         },
         geoAnchor: input.geoAnchor
-          ? { role: input.geoAnchor.role ?? "experience_place", label: input.geoAnchor.label ?? null, latitude: input.geoAnchor.latitude ?? null, longitude: input.geoAnchor.longitude ?? null, source: input.geoAnchor.source ?? "dashboard", time: input.geoAnchor.time ?? null }
+          ? {
+              role: input.geoAnchor.role ?? "experience_place",
+              label: input.geoAnchor.label ?? null,
+              latitude: input.geoAnchor.latitude ?? null,
+              longitude: input.geoAnchor.longitude ?? null,
+              source: input.geoAnchor.source ?? "dashboard",
+              time: input.geoAnchor.time ?? null,
+            }
           : null,
         presence: presence ?? null,
         authorExperienceState,
@@ -469,4 +493,3 @@ const authorInput: AuthorBrainTruth = {
     warnings,
   };
 }
-
