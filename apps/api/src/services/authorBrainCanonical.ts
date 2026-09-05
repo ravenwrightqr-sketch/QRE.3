@@ -70,6 +70,25 @@ function selectMovie(cognition: ReturnType<typeof buildAuthorCognitivePlan>): La
     .sort((a, b) => b.rank - a.rank)[0]?.candidate;
 }
 
+function attentionMoveForOperation(operation: string): "orient" | "interrupt" | "tighten" | "recontextualize" | "escalate" | "release" | "land" {
+  switch (operation) {
+    case "establish":
+      return "orient";
+    case "contrast":
+      return "interrupt";
+    case "reframe":
+      return "recontextualize";
+    case "escalate":
+      return "escalate";
+    case "consequence":
+      return "tighten";
+    case "payoff":
+      return "land";
+    default:
+      return "tighten";
+  }
+}
+
 function roleForBeat(index: number, total: number): MouthCandidateBeat["role"] {
   if (index === 0) return "establishing";
   if (index === total - 1) return "payoff";
@@ -98,13 +117,20 @@ function buildBeats(movie: LatentMovieCandidate): MouthCandidateBeat[] {
     relationKinds: unique(movie.supportingRelationKinds),
     semanticRealization: movie.storyThesis?.semanticRealization,
     observerExperience: movie.storyThesis?.observerExperience,
-    viewerState: movie.viewerStateDynamics
-      ? {
-          beforeState: index === 0 ? "" : "previous cut is known",
-          afterState: clean(step.viewerChange),
-          attentionMove: clean(step.nextQuestion),
-        }
-      : undefined,
+    viewerState: {
+      beforeState: index === 0 ? "" : "previous cut is known",
+      afterState: clean(step.viewerChange),
+      attentionMove: attentionMoveForOperation(step.operation),
+      curiosityPressure: metric(movie.attentionPotential),
+      contrast: metric(movie.viewerStateDynamics?.contrast ?? 0),
+      interruption: metric(movie.viewerStateDynamics?.interruption ?? 0),
+      accumulation: metric(movie.viewerStateDynamics?.accumulation ?? 0),
+      tempo: metric(movie.viewerStateDynamics?.tempo ?? 0.5),
+      payoffPressure: metric(movie.viewerStateDynamics?.payoff ?? 0),
+      stateShift: metric(movie.viewerStateDynamics?.stateShift ?? 0),
+      predictionError: metric(movie.viewerStateDynamics?.predictionError ?? 0),
+      evidenceEventIds: unique(step.eventIds),
+    },
   }));
 }
 
@@ -242,10 +268,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const lens = clean(input.lens) || clean(cognition.selectedFrame) || "NONE";
   const movie = selectMovie(cognition);
-  const realizationMode =
-    movie?.trajectory.length
-      ? "sequence-film" as const
-      : "collection" as const;
+  const realizationMode = movie?.trajectory.length ? ("sequence-film" as const) : ("collection" as const);
 
   if (!movie?.trajectory.length) {
     return emptyResult(input, "no experience material selected by cognition", lens);
@@ -318,12 +341,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const sequence = makeSequence(selected, subject, movie);
   const scenes: AuthorScene[] = selected.map((entry, index) => ({
     text: entry.text,
-    kind:
-      index === 0
-        ? "hook"
-        : index === selected.length - 1
-          ? "payoff"
-          : "discovery",
+    kind: index === 0 ? "hook" : index === selected.length - 1 ? "payoff" : "discovery",
   }));
 
   const bestScore = metric(
