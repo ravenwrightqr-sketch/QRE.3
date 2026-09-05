@@ -1,31 +1,42 @@
 # QRE Author Universal Reality Boundary — Quickie
 
-**PROMPT ≠ REALITY.**
+**THE USER'S PROMPT IS PRIMARY REALITY.**
 
-`prompt` = what the user wants QRE to make, do, or transform.
+Treat the user's supplied prompt as exact source truth unless the user has explicitly asked QRE to transform, reinterpret, summarize, or otherwise change its wording.
 
-`facts` + `sourceMoments` + authorized `memoryContext` = what actually happened / what is known.
+`facts` + `sourceMoments` are additional supplied reality.
 
-`domainContext` (`category`, `serviceType`, `serviceName`, business metadata, output type, template metadata, etc.) = context about the requested experience. It is **not factual reality** unless independently supplied as reality.
+`memoryContext` is accumulated prior-world truth. It may establish identity, pronouns, continuity, recurrence, known relationships, and prior referents. It may not rewrite or contradict the user's current supplied reality.
 
-Never put UI labels, dashboard labels, output-format labels, template names, service labels, instructions, or authoring directives into `facts` or `sourceMoments` just because they sound descriptive.
+`domainContext` (`category`, `serviceType`, `serviceName`, business metadata, output type, template metadata, etc.) describes the requested experience/context. It is not permission to invent facts.
 
-Do **not** keyword-filter RealityGraph for words like `video`, `receipt`, `travel`, `dog`, `restaurant`, or `event`. Those words can be real facts. The fix is **provenance at intake**, not semantic word censorship.
+**The Author must distinguish current truth from interpretation.**
 
-RealityGraph may derive relationships, patterns, recurrence, continuity, tension, and meaning from grounded evidence. It may interpret supplied meaning; it may never manufacture a concrete event, person, place, object, action, relationship, identity, or outcome.
+- Current prompt: exact supplied reality.
+- Accumulated memory: prior established truth that can resolve what the current prompt refers to.
+- New user / no identity memory: do not invent identity, pronouns, relationships, or backstory.
+- Returning user / established identity: use the established identity when the current prompt refers to that known subject.
 
-When realizing language, preserve the supplied actors, references, relationships, and implication. Do not introduce a new subject, pronoun, identity, backstory, or relationship unless authorized by the supplied reality or established identity truth.
+Example:
 
-Movie chooses and compresses grounded evidence. It may group evidence into a dramatic function, but it may not replace factual evidence with a category label or silently sever the evidence needed for its selected meaning.
+`Coco entered.` → preserve `Coco entered.`
 
-Mouth realizes the approved movie. Mouth does not repair truth, invent reality, reinterpret the request as evidence, or promote metadata into the world.
+If accumulated memory explicitly establishes Coco as `she`, QRE may realize the same supplied meaning naturally as `She entered.` when the referent is unambiguous. The memory supplies the authorized referent; it does **not** create a new event.
 
-### Universal test
+If no established identity exists, do not turn `Coco entered.` into `She entered.` merely because it sounds better.
 
-Change the domain and the boundary must remain unchanged.
+Never replace supplied meaning with a generic category, summary, trope, or invented explanation.
 
-- `Create a dog-groomer video for Coco` → request/format.
-- `Coco walked in like the lawyer was called` → supplied reality.
-- `video receipt`, `dog tag`, `rave film`, `restaurant story`, `travel memory` → these are output/request contexts unless independently supplied as facts.
+Never put UI labels, dashboard labels, template names, service labels, or formatting instructions into reality merely because they appear beside the prompt. Their provenance determines their role.
 
-**Never drift this contract to make a test pass. Fix the field provenance or the canonical authority instead.**
+Do **not** keyword-filter words like `video`, `receipt`, `travel`, `dog`, `restaurant`, or `event`. Those words can be real. Fix provenance and authorization, not vocabulary.
+
+RealityGraph may derive relationships, patterns, recurrence, continuity, tension, and meaning from grounded evidence. Derived cognition may explain what the supplied reality implies, but may never manufacture a concrete event, person, place, object, action, relationship, identity, motive, or outcome.
+
+Movie may select, order, group, compress, and dramatize supplied reality, but it must retain the evidence required for its chosen meaning.
+
+Mouth realizes the approved movie. Mouth may improve wording, rhythm, and natural reference using authorized accumulated identity, but it may not change the underlying reality.
+
+**Universal law:** change the domain, user, format, subject, or visit state; these rules do not change.
+
+**Never weaken this contract to make a test pass. Fix the boundary, provenance, authorization, or canonical authority instead.**
