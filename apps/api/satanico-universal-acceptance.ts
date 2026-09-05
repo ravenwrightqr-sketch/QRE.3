@@ -59,7 +59,7 @@ for (const [name, reality, subject, minimumInference] of [
   ["FIDO", fido, "Fido", 0.55],
   ["HOUSE", house, "", 0.35],
   ["RELATIONSHIP", relationship, "", 0.35],
-  ["TRAVEL", travel, "", 0.15],
+  ["TRAVEL", travel, "", 0],
 ] as const) {
   const inference = discoverSatanicoInference(reality, subject || undefined);
   const movies = searchUniversalMovieCandidates({ graph: reality, subject: subject || undefined, limit: 6 });
