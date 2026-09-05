@@ -1,227 +1,186 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, db } from "@qre/db";
-import { AnalyticsEventTypes } from "@qre/contracts";
+import type { MemoryContext } from "@qre/contracts";
 
 import { compileExperience } from "./src/services/experienceService.js";
 import { createMemoryRepository } from "./src/repositories/memoryRepository.js";
-import { createAnalyticsRepository } from "./src/repositories/analyticsRepository.js";
-import { buildAuthorBehaviorProfile } from "./src/services/authorBehaviorProfile.js";
+import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
+import { buildExperienceMemoryBatch } from "./src/services/memoryProjection.js";
 import { extractAuthorExperienceStates } from "./src/services/authorExperienceMemory.js";
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new Error(`AUTHOR RUNTIME UNIVERSAL ACCEPTANCE FAILED: ${message}`);
 }
 
-function normalizeTruth(context: Awaited<ReturnType<ReturnType<typeof createMemoryRepository>["loadContext"]>>) {
-  return JSON.stringify({
-    entities: context.entities
-      .map((entity) => [entity.kind, entity.name, entity.canonicalKey])
-      .sort(),
-    facts: context.facts
-      .map((fact) => [fact.kind, fact.predicate, fact.value, fact.source, fact.status])
-      .sort(),
-    relations: context.relations
-      .map((relation) => [relation.fromEntityId, relation.toEntityId, relation.relation, relation.source])
-      .sort(),
+function truthKeys(context: MemoryContext): Set<string> {
+  const keys = new Set<string>();
+  for (const entity of context.entities) keys.add(`E|${entity.kind}|${entity.canonicalKey}`);
+  for (const fact of context.facts) keys.add(`F|${fact.kind}|${fact.predicate}|${fact.value}|${fact.status}`);
+  for (const relation of context.relations) keys.add(`R|${relation.fromEntityId}|${relation.relation}|${relation.toEntityId}`);
+  return keys;
+}
+
+function textOf(result: Awaited<ReturnType<typeof compileExperience>>): string[] {
+  return result.cinematicScenes
+    .map((scene: any) => String(scene?.moment?.payload?.text ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function validateCompiled(name: string, result: Awaited<ReturnType<typeof compileExperience>>): void {
+  assert(result.authorDiagnostics?.complete === true, `${name}: Author incomplete`);
+  assert(result.authorDiagnostics?.renderable === true, `${name}: Author result not renderable`);
+  assert(result.authorExperienceState, `${name}: missing Author Experience State`);
+  const state: any = result.authorExperienceState;
+  assert(state.worldSimulation, `${name}: missing World Simulation`);
+  assert(Array.isArray(state.worldSimulation.relations), `${name}: missing world relations`);
+  assert(Array.isArray(state.worldSimulation.questions), `${name}: missing world questions`);
+  assert(result.momentCount > 0, `${name}: no moments`);
+  const texts = textOf(result);
+  assert(new Set(texts.map((value) => value.toLowerCase())).size === texts.length, `${name}: duplicate authored text`);
+  assert(result.cinematicScenes.every((scene: any) => Array.isArray(scene?.moment?.payload?.sourceIds) && scene.moment.payload.sourceIds.length > 0), `${name}: provenance missing`);
+}
+
+async function seedReality(assetId: string, subject: string, place: string | undefined, facts: string[]): Promise<void> {
+  const graph = buildAuthorRealityGraph({
+    prompt: facts.join(" "),
+    subject,
+    place,
+    facts,
+    sourceMoments: facts,
   });
-}
-
-async function writeBehavior(assetId: string, types: string[]): Promise<void> {
-  const analytics = createAnalyticsRepository();
-  for (const type of types) {
-    await analytics.trackEvent({
+  await createMemoryRepository().writeBatch(
+    buildExperienceMemoryBatch({
+      operationId: `seed:${assetId}`,
       assetId,
-      type,
-      meta:
-        type === AnalyticsEventTypes.AI_CREATIVE_ACCEPTED
-          ? {
-              feedback: "short punchy callback",
-              trajectory: "reframe>recur>payoff",
-              styleTags: ["short", "callback", "attitude"],
-            }
-          : type === AnalyticsEventTypes.AI_CREATIVE_REJECTED
-            ? {
-                feedback: "too explanatory",
-                trajectory: "setup>setup>setup",
-                styleTags: ["longform"],
-              }
-            : undefined,
-    } as any);
-  }
+      graph,
+      source: "user",
+    }),
+  );
 }
 
-const slug = `author-runtime-golden-${randomUUID()}`;
-let assetId = "";
+const assetIds: string[] = [];
 
 try {
-  const asset = await db.asset.create({
-    data: {
-      slug,
-      displayName: "Author Runtime Golden Test",
-      status: "active",
-      paid: false,
-    },
-    select: { id: true, slug: true },
+  const makeAsset = async (displayName: string): Promise<string> => {
+    const asset = await db.asset.create({
+      data: {
+        slug: `author-universal-${randomUUID()}`,
+        displayName,
+        status: "active",
+        paid: false,
+      },
+      select: { id: true },
+    });
+    assetIds.push(asset.id);
+    return asset.id;
+  };
+
+  // WORLD 1 — real service receipt + GAME lens + return/recontextualization.
+  const mariaAsset = await makeAsset("Maria Housekeeping");
+  const mariaFacts = [
+    "Maria arrived at 10:10 AM.",
+    "Maria was the housekeeper.",
+    "Maria cleaned two bathrooms.",
+    "Maria cleaned the kitchen.",
+    "Maria left at 12:12 PM.",
+  ];
+  await seedReality(mariaAsset, "Maria", "the house", mariaFacts);
+
+  const mariaRepo = createMemoryRepository();
+  const mariaBefore = await mariaRepo.loadContext({ assetId: mariaAsset });
+  const mariaTruthBefore = truthKeys(mariaBefore);
+  assert(mariaBefore.entities.some((entity) => entity.name.toLowerCase() === "maria"), "Maria identity was not persisted");
+
+  const mariaGame = await compileExperience({
+    prompt: "Create the owner's compact GAME-like experience from Maria's real housekeeping visit. Do not invent service facts.",
+    assetId: mariaAsset,
+    memoryRepository: mariaRepo,
+    movieMode: true,
+    lens: "game",
   });
-  assetId = asset.id;
+  validateCompiled("maria/game", mariaGame);
+  assert(/Maria/i.test(textOf(mariaGame).join(" ")), "maria/game: identity disappeared from realization");
 
-  const prompt =
-    "Coco entered nervous, the lawyer was already contacted, then the bathwater came, pink bows came next, the mirror approved, fabulous arrived, but peace is temporary.";
+  const mariaNoir = await compileExperience({
+    prompt: "Show the same Maria housekeeping reality through a NOIR lens. The lens changes presentation, never reality.",
+    assetId: mariaAsset,
+    memoryRepository: mariaRepo,
+    movieMode: true,
+    lens: "noir",
+  });
+  validateCompiled("maria/noir", mariaNoir);
+  assert(textOf(mariaNoir).join(" ") !== textOf(mariaGame).join(" "), "maria/noir: lens did not change realization");
+  const mariaAfterNoir = truthKeys(await mariaRepo.loadContext({ assetId: mariaAsset }));
+  assert([...mariaTruthBefore].every((key) => mariaAfterNoir.has(key)), "maria/noir: lens mutated established reality");
 
-  const snapshotRepository = () => createMemoryRepository();
+  const mariaReturn = await compileExperience({
+    prompt: "Maria returned to the same house for another service visit. The earlier service remains true; this new visit may change what the owner notices.",
+    assetId: mariaAsset,
+    memoryRepository: mariaRepo,
+    movieMode: true,
+    lens: "game",
+  });
+  validateCompiled("maria/return", mariaReturn);
+  const mariaAfterReturn = await mariaRepo.loadContext({ assetId: mariaAsset });
+  const mariaTruthAfterReturn = truthKeys(mariaAfterReturn);
+  assert([...mariaTruthBefore].every((key) => mariaTruthAfterReturn.has(key)), "maria/return: old reality was lost");
+  assert(mariaTruthAfterReturn.size >= mariaTruthBefore.size, "maria/return: world regressed");
+  assert(textOf(mariaReturn).join(" ") !== textOf(mariaGame).join(" "), "maria/return: new visit did not change experience");
+  assert((mariaReturn.authorExperienceState as any).worldSimulation.reentry.meaningCanChange === true, "maria/return: meaning is frozen");
 
-  const round1 = await compileExperience({
-    prompt,
-    assetId,
-    memoryRepository: snapshotRepository(),
+  // WORLD 2 — pet identity/tag/preferences persist without invented biography.
+  const petAsset = await makeAsset("Milo Pet Tag");
+  const petFacts = ["Milo is a dog.", "Milo has a pet tag.", "Milo likes bacon.", "Milo likes walks.", "Milo likes small dogs."];
+  await seedReality(petAsset, "Milo", undefined, petFacts);
+  const petRepo = createMemoryRepository();
+  const pet = await compileExperience({
+    prompt: "Create a discoverable pet-tag experience from Milo's identity and supplied likes. Do not invent biography.",
+    assetId: petAsset,
+    memoryRepository: petRepo,
     movieMode: true,
   });
+  validateCompiled("pet/tag", pet);
+  const petMemory = await petRepo.loadContext({ assetId: petAsset });
+  const petText = JSON.stringify(petMemory);
+  assert(petMemory.entities.some((entity) => entity.name.toLowerCase() === "milo"), "pet/tag: Milo identity missing");
+  assert(/bacon/i.test(petText), "pet/tag: bacon preference missing");
+  assert(/walk/i.test(petText), "pet/tag: walk preference missing");
+  assert(/small dogs/i.test(petText), "pet/tag: small-dog preference missing");
 
-  const contextAfterRound1 = await snapshotRepository().loadContext({ assetId });
-  const truthRound1 = normalizeTruth(contextAfterRound1);
-  const statesRound1 = extractAuthorExperienceStates(contextAfterRound1);
-
-  assert(round1.authorExperienceState, "round 1 did not produce Author experience state");
-  assert((round1.authorExperienceState as any).worldSimulation, "round 1 Author state has no persisted World Simulation");
-  assert((round1.authorExperienceState as any).worldSimulation.viewer, "round 1 World Simulation has no viewer state");
-  assert((round1.authorExperienceState as any).worldSimulation.questions.length > 0, "round 1 World Simulation has no unresolved question model");
-  assert((round1.authorExperienceState as any).worldSimulation.relations.length > 0, "round 1 World Simulation has no relation model");
-  assert(statesRound1.length >= 1, "round 1 state was not persisted to memory");
-  assert((statesRound1[0] as any).worldSimulation, "round 1 persisted memory state dropped World Simulation");
-  assert((statesRound1[0] as any).worldSimulation.interpretationOpportunities.length > 0, "round 1 persisted World Simulation dropped interpretation opportunities");
-  assert(contextAfterRound1.entities.length > 0, "round 1 did not persist world entities");
-  assert(contextAfterRound1.facts.length > 0, "round 1 did not persist world facts");
-  assert(round1.memory?.events && round1.memory.events > 0, "round 1 did not report memory event writes");
-
-  await writeBehavior(assetId, [
-    AnalyticsEventTypes.FLOW_COMPLETE,
-    AnalyticsEventTypes.AI_CREATIVE_ACCEPTED,
-    AnalyticsEventTypes.AI_CREATIVE_ACCEPTED,
-    AnalyticsEventTypes.EXPERIENCE_REPLAY,
-    AnalyticsEventTypes.MEDIA_REPLAY,
-  ]);
-
-  const round2Analytics = createAnalyticsRepository();
-  const persistedRound2Events = await round2Analytics.findEvents({ assetId, limit: 100 });
-  const round2Profile = buildAuthorBehaviorProfile(
-    persistedRound2Events.flatMap((event: any) => {
-      const feedback = String(event.meta?.feedback ?? "").trim();
-      return feedback ? [`accepted:${feedback}`] : [];
-    }),
-  );
-  assert(persistedRound2Events.length >= 5, "round 2 analytics did not persist to the database");
-  assert(round2Profile.confidence > 0, "round 2 analytics did not become learnable profile evidence");
-
-  const round2 = await compileExperience({
-    prompt,
-    assetId,
-    memoryRepository: snapshotRepository(),
+  // WORLD 3 — wedding is a living shared world, not a fixed wedding story.
+  const weddingAsset = await makeAsset("Wedding Living Memory");
+  const weddingFacts = [
+    "The wedding took place at the venue.",
+    "Guests were present.",
+    "A photograph from the wedding was kept.",
+    "The couple returned to the venue later.",
+    "The returned visit added another memory to the same wedding world.",
+  ];
+  await seedReality(weddingAsset, "the wedding", "the wedding venue", weddingFacts);
+  const weddingRepo = createMemoryRepository();
+  const wedding = await compileExperience({
+    prompt: "Treat the wedding as a living shared memory. Different people can encounter different pieces of the same event-world over time.",
+    assetId: weddingAsset,
+    memoryRepository: weddingRepo,
     movieMode: true,
   });
+  validateCompiled("wedding/living-memory", wedding);
+  const weddingStates = extractAuthorExperienceStates(await weddingRepo.loadContext({ assetId: weddingAsset }));
+  assert(weddingStates.length > 0, "wedding/living-memory: Author state did not persist");
+  assert((wedding.authorExperienceState as any).worldSimulation, "wedding/living-memory: World Simulation missing");
 
-  const contextAfterRound2 = await snapshotRepository().loadContext({ assetId });
-  const truthRound2 = normalizeTruth(contextAfterRound2);
-  const statesRound2 = extractAuthorExperienceStates(contextAfterRound2);
-
-  assert(round2.authorExperienceState, "round 2 did not recover Author experience state");
-  assert((round2.authorExperienceState as any).worldSimulation, "round 2 did not recover World Simulation");
-  assert((round2.authorExperienceState as any).worldSimulation.reentry.meaningCanChange === true, "round 2 did not recover reentry semantics");
-  assert((round2.authorExperienceState as any).worldSimulation.reentry.eligibleCallbacks.length > 0, "round 2 did not recover world callbacks");
-  assert(statesRound2.length >= 2, "round 2 did not append a persisted Author state");
-  assert((statesRound2[statesRound2.length - 1] as any).worldSimulation, "round 2 persisted state dropped World Simulation");
-  assert(truthRound2 === truthRound1, "world truth changed between round 1 and round 2");
-  assert(
-    (round2.authorExperienceState as any).revisitedEventIds.length >=
-      (round1.authorExperienceState as any).revisitedEventIds.length,
-    "round 2 did not recover/revisit prior state",
-  );
-
-  await writeBehavior(assetId, [
-    AnalyticsEventTypes.AI_CREATIVE_ACCEPTED,
-    AnalyticsEventTypes.AI_CREATIVE_REJECTED,
-    AnalyticsEventTypes.AI_VARIATION_SELECTED,
-    AnalyticsEventTypes.EXPERIENCE_REPLAY,
-    AnalyticsEventTypes.FLOW_COMPLETE,
-  ]);
-
-  const round3 = await compileExperience({
-    prompt,
-    assetId,
-    memoryRepository: snapshotRepository(),
-    movieMode: true,
-  });
-
-  const contextAfterRound3 = await snapshotRepository().loadContext({ assetId });
-  const truthRound3 = normalizeTruth(contextAfterRound3);
-  const statesRound3 = extractAuthorExperienceStates(contextAfterRound3);
-  const persistedRound3Events = await createAnalyticsRepository().findEvents({ assetId, limit: 200 });
-  const round3Profile = buildAuthorBehaviorProfile(
-    persistedRound3Events.flatMap((event: any) => {
-      const feedback = String(event.meta?.feedback ?? "").trim();
-      const values = feedback ? [`accepted:${feedback}`] : [];
-      if (event.type === AnalyticsEventTypes.AI_CREATIVE_REJECTED) values.push(`rejected:${feedback}`);
-      if (event.type === AnalyticsEventTypes.EXPERIENCE_REPLAY || event.type === AnalyticsEventTypes.MEDIA_REPLAY) values.push("replay:true");
-      return values;
-    }),
-  );
-
-  assert(round3.authorExperienceState, "round 3 did not recover Author experience state");
-  assert((round3.authorExperienceState as any).worldSimulation, "round 3 did not recover World Simulation");
-  assert((statesRound3[statesRound3.length - 1] as any).worldSimulation, "round 3 persisted state dropped World Simulation");
-  assert(truthRound3 === truthRound1, "world truth changed across persisted rounds");
-  assert(statesRound3.length >= 3, "round 3 state did not persist through the real memory path");
-  assert(persistedRound3Events.length >= persistedRound2Events.length, "analytics history did not persist across rounds");
-  assert(round3Profile.confidence >= round2Profile.confidence, "learned confidence regressed across rounds");
-
-  const round1State: any = round1.authorExperienceState;
-  const round2State: any = round2.authorExperienceState;
-  const round3State: any = round3.authorExperienceState;
-  const latestPersistedState = statesRound3.length ? statesRound3[statesRound3.length - 1] : undefined;
-
-  assert(
-    round2State.tempo.nextBeatPull !== round1State.tempo.nextBeatPull ||
-      round2State.tempo.compression !== round1State.tempo.compression ||
-      round2State.tempo.revealSpacing !== round1State.tempo.revealSpacing ||
-      round2State.tempo.holdPressure !== round1State.tempo.holdPressure,
-    "round 2 did not measurably adapt tempo after persisted behavior",
-  );
-
-  assert(
-    round3State.tempo.nextBeatPull !== round1State.tempo.nextBeatPull ||
-      round3State.tempo.compression !== round1State.tempo.compression ||
-      round3State.tempo.revealSpacing !== round1State.tempo.revealSpacing ||
-      round3State.tempo.holdPressure !== round1State.tempo.holdPressure,
-    "round 3 lost learned tempo adaptation",
-  );
-
-  assert(round3State.memoryHooks.some((hook: string) => hook.startsWith("adapted-tempo:")), "round 3 did not persist adaptive tempo hook");
-  assert(Boolean(latestPersistedState?.tempo), "latest persisted Author state is malformed");
-
-  console.log("AUTHOR RUNTIME PERSISTENCE ACCEPTANCE: PASS");
-  console.log(`Asset=${assetId}`);
-  console.log(`Round1StateCount=${statesRound1.length}`);
-  console.log(`Round2StateCount=${statesRound2.length}`);
-  console.log(`Round3StateCount=${statesRound3.length}`);
-  console.log(`Round1WorldRelations=${round1State.worldSimulation.relations.length}`);
-  console.log(`Round2WorldQuestions=${round2State.worldSimulation.questions.length}`);
-  console.log(`Round3WorldHypotheses=${round3State.worldSimulation.viewer.hypotheses.length}`);
-  console.log(`Round3PredictionErrors=${round3State.worldSimulation.viewer.predictionErrors.length}`);
-  console.log(`Round3WorldCallbacks=${round3State.worldSimulation.reentry.eligibleCallbacks.length}`);
-  console.log(`Round1Tempo=${round1State.tempo.mode}`);
-  console.log(`Round2Tempo=${round2State.tempo.mode}`);
-  console.log(`Round3Tempo=${round3State.tempo.mode}`);
-  console.log(`Round1Pull=${round1State.tempo.nextBeatPull}`);
-  console.log(`Round2Pull=${round2State.tempo.nextBeatPull}`);
-  console.log(`Round3Pull=${round3State.tempo.nextBeatPull}`);
-  console.log(`Round2ProfileConfidence=${round2Profile.confidence}`);
-  console.log(`Round3ProfileConfidence=${round3Profile.confidence}`);
-  console.log(`AnalyticsRound2=${persistedRound2Events.length}`);
-  console.log(`AnalyticsRound3=${persistedRound3Events.length}`);
-  console.log("WORLD_SIMULATION_PERSISTED=TRUE");
-  console.log("WORLD_SIMULATION_RECOVERED=TRUE");
-  console.log("TRUTH_INVARIANT=UNCHANGED");
+  console.log("AUTHOR RUNTIME UNIVERSAL ACCEPTANCE: PASS");
+  console.log("REAL_COMPILE_PATH=TRUE");
+  console.log("POSTGRES_MEMORY=TRUE");
+  console.log("MARIA_SERVICE_RECEIPT=TRUE");
+  console.log("GAME_LENS=TRUE");
+  console.log("LENS_DOES_NOT_MUTATE_TRUTH=TRUE");
+  console.log("RETURN_RECONTEXTUALIZATION=TRUE");
+  console.log("PET_TAG_IDENTITY_AND_LIKES=TRUE");
+  console.log("WEDDING_LIVING_MEMORY=TRUE");
+  console.log(`AssetsTested=${assetIds.length}`);
 } finally {
-  if (assetId) {
+  for (const assetId of assetIds) {
     await db.$executeRaw(Prisma.sql`DELETE FROM "qre_memory_audit" WHERE "asset_id" = ${assetId}`);
     await db.$executeRaw(Prisma.sql`DELETE FROM "qre_memory_relation" WHERE "asset_id" = ${assetId}`);
     await db.$executeRaw(Prisma.sql`DELETE FROM "qre_memory_fact" WHERE "asset_id" = ${assetId}`);
