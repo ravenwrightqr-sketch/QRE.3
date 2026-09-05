@@ -19,7 +19,6 @@ const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
 const acceptance = "apps/api/author-acceptance.ts";
 const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
-const legacyMouth = "apps/api/src/services/authorMouthCandidateSearch.ts";
 const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
 const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
 const experienceRoute = "apps/api/src/routes/experience.ts";
@@ -34,6 +33,8 @@ const forbiddenFiles = [
   "apps/api/src/services/authorBrainMomentum.ts",
   "apps/api/src/services/authorBrainMomentumV2.ts",
   "apps/api/src/services/authorBrainMomentumV3.ts",
+  "apps/api/src/services/authorLatentStoryThesis.ts",
+  "apps/api/src/services/authorCreativeInterpretation.ts",
   "apps/api/src/services/authorFastCore.ts",
   "apps/api/src/services/creativeRelationOps.ts",
   "apps/api/author-acceptance-suite.ts",
@@ -84,7 +85,6 @@ for (const path of [
   cognition,
   acceptance,
   mouth,
-  legacyMouth,
   beam,
   interpretation,
   experienceRoute,
@@ -254,24 +254,6 @@ if (!/viewerState\?\.stateShift/.test(mouthSource)) {
   );
 }
 
-const legacyMouthSource = existsSync(join(root, legacyMouth))
-  ? read(legacyMouth)
-  : "";
-
-if (
-  legacyMouthSource &&
-  !/export\s+(?:async\s+)?function\s+buildMouthCandidateMessages/.test(
-    legacyMouthSource,
-  ) &&
-  !/export\s*\{[\s\S]*\bbuildMouthCandidateMessages\b[\s\S]*\}\s+from\s+["'][^"']*authorMouthCandidateSearchCanonical\.js["']/.test(
-    legacyMouthSource,
-  )
-) {
-  warn(
-    "Legacy Mouth search is present but its candidate-generation export could not be verified textually",
-  );
-}
-
 const interpretationSource = existsSync(join(root, interpretation))
   ? read(interpretation)
   : "";
@@ -374,7 +356,6 @@ console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
 console.log(`CANONICAL AUTHOR: ${canonical}`);
 console.log(`COGNITION: ${cognition}`);
 console.log(`MOUTH: ${mouth}`);
-console.log(`LEGACY MOUTH SEARCH: ${legacyMouth}`);
 console.log(`BEAM: ${beam}`);
 console.log(`INTERPRETATION: ${interpretation}`);
 console.log(`EXPERIENCE ROUTE: ${experienceRoute}`);

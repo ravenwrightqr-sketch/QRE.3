@@ -108,6 +108,12 @@ for (const testCase of cases) {
   assert(result.diagnostics.complete === true, "canonical Author result is incomplete");
   assert(output.length >= testCase.minimumCuts, `expected at least ${testCase.minimumCuts} cuts, got ${output.length}`);
   assert(result.sequence.cuts.length === output.length, "scene/cut counts diverged");
+  assert(
+  result.sequence.cuts.length > 0
+    ? result.diagnostics.modelCalls === 1
+    : result.diagnostics.modelCalls === 0,
+  "canonical Mouth must use exactly one model realization request when a sequence exists",
+);
   assert(result.sequence.cuts.every((cut) => cut.sourceIds.length > 0), "a cut lost source provenance");
 
   const expectedRealityUnits = new Set(testCase.facts.map(normalized)).size;

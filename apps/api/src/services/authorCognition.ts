@@ -11,7 +11,6 @@ import {
   buildAuthorExperienceState,
   summarizeAuthorExperienceState,
 } from "./authorExperienceState.js";
-import { deriveLatentStoryThesis } from "./authorLatentStoryThesis.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
 import {
   classifyLens,
@@ -161,68 +160,6 @@ function parsePriorExperienceStates(
 }
 
 /**
- * The movie trajectory already owns viewer-facing
- * descriptions of individual cuts.
- *
- * This helper deliberately does NOT manufacture
- * semantic meaning.
- *
- * A cut description such as:
- *
- *   "Another supplied part of the world enters: squirrels everywhere."
- *
- * remains a cut description.
- *
- * It is NOT a story thesis.
- */
-/**
- * Canonical movie enrichment boundary.
- *
- * Movie search owns candidate discovery.
- * Viewer reranking owns candidate ordering.
- * The latent story-thesis module owns semantic interpretation.
- *
- * Cognition does not reinterpret the trajectory and does not
- * synthesize a competing thesis.
- */
-function enrichMovieCandidate(
-  candidate: LatentMovieCandidate,
-  graph: RealityGraph | undefined,
-): LatentMovieCandidate {
-  if (
-    !graph ||
-    !candidate.trajectory.length
-  ) {
-    return candidate;
-  }
-
-  const storyThesis =
-    deriveLatentStoryThesis(
-      graph,
-      candidate,
-    );
-
-  return {
-    ...candidate,
-    storyThesis,
-    hypothesis: [
-      ...candidate.hypothesis,
-      ...(storyThesis.semanticTurn
-        ? [
-            `Semantic turn: ${storyThesis.semanticTurn}`,
-          ]
-        : [
-            "No graph-backed semantic turn was present; presentation movement remains distinct from semantic interpretation.",
-          ]),
-      "The realization may change status, attitude, implication, or framing, but may not create a new event.",
-    ].slice(
-      0,
-      8,
-    ),
-  };
-}
-
-/**
  * Auto lens selection is owned by the canonical character-lens engine.
  * Cognition supplies the canonical RealityEnvelope so there is one lens
  * registry and one opportunity-ranking implementation.
@@ -313,18 +250,9 @@ function movieFor(
       lens,
       limit: 10,
     });
-
-  const enriched =
-    searched.map((candidate) =>
-      enrichMovieCandidate(
-        candidate,
-        input.realityGraph,
-      ),
-    );
-
-  const differentiated =
+const differentiated =
     selectDistinctMovieCandidates(
-      enriched,
+      searched,
       6,
     );
 

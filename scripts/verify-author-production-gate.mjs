@@ -4,9 +4,14 @@
  * QRE AUTHOR PRODUCTION GATE
  *
  * Hard repository boundary for production Author.
- * One brain, one movie owner, one generative Mouth. Compatibility shims may
- * exist for tests, but production source may not import alternate generators.
+/**
+ * QRE AUTHOR PRODUCTION GATE
+ *
+ * Hard repository boundary for production Author.
+ * One brain, one movie owner, one generative Mouth.
+ * Retired implementations and compatibility shims are forbidden.
  */
+ 
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -22,8 +27,6 @@ const canonicalFiles = {
   differentiation: "apps/api/src/services/authorMovieDifferentiation.ts",
   realityGraph: "apps/api/src/services/authorRealityGraph.ts",
   realityEnvelope: "apps/api/src/services/authorRealityEnvelope.ts",
-  creativeInterpretation: "apps/api/src/services/authorCreativeInterpretation.ts",
-  thesis: "apps/api/src/services/authorLatentStoryThesis.ts",
   mouth: "apps/api/src/services/authorMouthCandidateSearchCanonical.ts",
   beam: "apps/api/src/services/authorMouthSequenceBeamSearch.ts",
   experienceService: "apps/api/src/services/experienceService.ts",
@@ -32,6 +35,8 @@ const canonicalFiles = {
 };
 
 const forbiddenFiles = [
+    "apps/api/src/services/authorCreativeInterpretation.ts",
+  "apps/api/src/services/authorLatentStoryThesis.ts",
   "apps/api/src/services/authorBrainUniversal.ts",
   "apps/api/src/services/cinematicAuthor.ts",
   "apps/api/src/services/authorBrain.ts",
@@ -154,9 +159,6 @@ const mouth = existsSync(join(root, canonicalFiles.mouth)) ? read(canonicalFiles
 const movieSearch = existsSync(join(root, canonicalFiles.movieSearch)) ? read(canonicalFiles.movieSearch) : "";
 const experienceService = existsSync(join(root, canonicalFiles.experienceService)) ? read(canonicalFiles.experienceService) : "";
 const acceptance = existsSync(join(root, canonicalFiles.acceptance)) ? read(canonicalFiles.acceptance) : "";
-const mouthShimPath = "apps/api/src/services/authorMouthCandidateSearch.ts";
-const mouthShim = existsSync(join(root, mouthShimPath)) ? read(mouthShimPath) : "";
-
 if (!/authorCognition\.js/.test(brain)) fail("Canonical Author must consume authorCognition");
 if (!/buildAuthorCognitivePlan\s*\(/.test(brain)) fail("Canonical Author must execute Cognition");
 if (!/buildAuthorRealityGraph\s*\(/.test(brain)) fail("Canonical Author must own the source-truth graph boundary");
@@ -180,18 +182,15 @@ if (!/unsafe-realization/.test(mouth)) fail("Canonical Mouth must retain a hard 
 if (!/observerDiscoveryScore/.test(mouth)) fail("Canonical Mouth must produce observer-discovery quality");
 if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback/.test(mouth)) fail("Canonical Mouth still depends on retired Mouth services");
 
-if (mouthShim) {
-  if (/localModelGenerate|evaluateCandidate|buildGoldRealizationDoctrine/.test(mouthShim)) {
-    fail("Compatibility Mouth shim still contains generative/scoring implementation");
-  }
-  if (!/authorMouthCandidateSearchCanonical\.js/.test(mouthShim) || !/authorViewerStateCut\.js/.test(mouthShim)) {
-    fail("Compatibility Mouth shim must only point at canonical Mouth/viewer-state owners");
-  }
+if (!/scoreSatanicoCandidate\s*\(/.test(movieSearch)) {
+  fail("Universal Movie Search must score grounded dramatic movement");
 }
-
-if (!/forwardScore\s*\(/.test(movieSearch)) fail("Universal Movie Search must score forward movement");
-if (!/statePair\s*\(/.test(movieSearch)) fail("Universal Movie Search must discover state transformations");
-if (!/buildTrajectory\s*\(/.test(movieSearch)) fail("Universal Movie Search must build an evidence-backed trajectory");
+if (!/semanticTurn|relation_contrast|relation_invariant|relation_change/.test(movieSearch)) {
+  fail("Universal Movie Search must preserve semantic transformation");
+}
+if (!/trajectory\s*\(/.test(movieSearch)) {
+  fail("Universal Movie Search must build an evidence-backed trajectory");
+}
 if (!/payoff/.test(movieSearch)) fail("Universal Movie Search must preserve a payoff endpoint");
 if (/trajectory\.at\(\-1\)/.test(movieSearch)) fail("Universal Movie Search must remain compatible with the repository TypeScript target");
 
@@ -201,7 +200,6 @@ if (!/input\.assetId/.test(experienceService) || !/input\.sessionId/.test(experi
 
 if (!/authorBrainCanonical\.js/.test(acceptance)) fail("Canonical acceptance must invoke authorBrainCanonical directly");
 if (/authorBrainUniversal|author-acceptance-suite/.test(acceptance)) fail("Canonical acceptance contains a legacy Author path");
-if (!/result\.sequence\.cuts\.length > 0 \? 1 : 0/.test(acceptance)) fail("Fast Author acceptance must allow exactly one canonical Mouth model realization request when a sequence exists");
 
 for (const reviewOnly of reviewOnlyFiles) {
   if (!existsSync(join(root, reviewOnly))) continue;

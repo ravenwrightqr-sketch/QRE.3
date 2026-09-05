@@ -47,11 +47,10 @@ Governed learning
 | Cognition | `apps/api/src/services/authorCognition.ts` | understanding, frame, movie authority |
 | Movie search | `apps/api/src/services/authorUniversalMovieSearch.ts` | deterministic grounded trajectories |
 | Viewer-state rerank | `apps/api/src/services/authorViewerState.ts` | viewer-dynamics score |
-| Mouth generation | `apps/api/src/services/authorMouthCandidateSearch.ts` | viewer-facing language realization |
+| Mouth generation | `apps/api/src/services/authorMouthCandidateSearchCanonical.ts` | viewer-facing language realization |
 | Mouth interpretation | `apps/api/src/services/authorMouthInterpretation.ts` | semantic / linguistic safety boundary |
-| Mouth quality | `apps/api/src/services/authorMouthQualityAdapter.ts` | downstream candidate quality adaptation |
 | Mouth beam | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` | sequence selection among authorized candidates |
-| Attention gate | `apps/api/src/services/authorMouthAttentionGate.ts` | cut-level attention diagnostics |
+| Attention editor | `apps/api/src/services/authorAttentionEditor.ts` | attention shaping across the sequence |
 | Sequence arc | `apps/api/src/services/authorSequenceArcGate.ts` | sequence-shape diagnostics |
 | Experience State | `apps/api/src/services/authorExperienceState.ts` | short-horizon continuity |
 | Behavior Profile | `apps/api/src/services/authorBehaviorProfile.ts` | bounded preference |

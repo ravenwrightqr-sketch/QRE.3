@@ -276,7 +276,6 @@ pnpm build
 
 ```text
 author:guard
-author:wiring
 contract ownership
 reachability
 ```

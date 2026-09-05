@@ -1,11 +1,15 @@
 import type {
   AuthorMetamorphicRelation,
   AuthorMetamorphicRelationSet,
+  LatentSemanticCreativeOpportunity,
+  LatentSemanticMechanism,
   LatentSemanticRealization,
+  LatentSemanticRealizationMove,
   ObserverExperienceObjective,
   RealityGraph,
   RealityPattern,
 } from "@qre/contracts";
+
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
@@ -36,26 +40,37 @@ function eventObjects(graph: RealityGraph, id: string): string[] {
   return unique([...(item?.objects ?? []), ...graph.events.find((event) => event.id === id)?.entities.slice(0, 6) ?? []]);
 }
 
-function semanticMechanism(type: AuthorMetamorphicRelation["type"]): LatentSemanticRealization["mechanism"] {
+function semanticMechanism(
+  type: AuthorMetamorphicRelation["type"],
+): LatentSemanticRealization["mechanism"] {
   if (type === "relation_preference_constellation") return "convergence";
   if (type === "relation_invariant") return "recurrence";
   if (type === "relation_origin") return "consequence";
   if (type === "relation_role") return "convergence";
   if (type === "relation_accumulation") return "convergence";
   if (type === "relation_contrast") return "contrast";
-  return "recontextualization";
+  return "expectation_shift";
 }
-
-function creativeOpportunity(type: AuthorMetamorphicRelation["type"]): LatentSemanticRealization["creativeOpportunity"] {
-  if (type === "relation_preference_constellation") return "recognition";
-  if (type === "relation_invariant") return "callback_recontextualization";
-  if (type === "relation_origin") return "consequence";
-  if (type === "relation_role") return "recognition";
-  if (type === "relation_accumulation") return "recognition";
-  if (type === "relation_contrast") return "contrast_reframe";
-  return "callback_recontextualization";
+function creativeOpportunity(
+  type: AuthorMetamorphicRelation["type"],
+): NonNullable<LatentSemanticRealization["creativeOpportunity"]> {
+  switch (type) {
+    case "relation_preference_constellation":
+      return "recognition";
+    case "relation_invariant":
+      return "callback_recontextualization";
+    case "relation_origin":
+      return "consequence";
+    case "relation_role":
+      return "recognition";
+    case "relation_accumulation":
+      return "recognition";
+    case "relation_contrast":
+      return "contrast_reframe";
+    default:
+      return "callback_recontextualization";
+  }
 }
-
 function observerObjective(statement: string, type: AuthorMetamorphicRelation["type"]): ObserverExperienceObjective {
   const mechanism = clean(type.replace(/^relation_/, ""));
   return {

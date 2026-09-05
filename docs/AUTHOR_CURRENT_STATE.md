@@ -1,8 +1,8 @@
 # QRE AUTHOR · CURRENT STATE
 
 **Status:** CANONICAL CURRENT-STATE REFERENCE  
-**Branch:** `observer-experience-objective`  
-**Updated:** 2026-09-01  
+**Branch:** `build/universal-author-local`
+**Updated:** `2026-09-05`
 **Purpose:** Single fast reference for the live Universal Author path.
 
 ## 1. LIVE PIPELINE
@@ -47,7 +47,6 @@ GOVERNED LEARNING
 | Viewer-state rerank | `apps/api/src/services/authorViewerState.ts` |
 | Master orchestration | `apps/api/src/services/authorBrainCanonical.ts` |
 | Canonical Mouth boundary | `apps/api/src/services/authorMouthCandidateSearchCanonical.ts` |
-| Mouth compatibility shim | `apps/api/src/services/authorMouthCandidateSearch.ts` |
 | Mouth interpretation / safety | `apps/api/src/services/authorMouthInterpretation.ts` |
 | Mouth sequence selection | `apps/api/src/services/authorMouthSequenceBeamSearch.ts` |
 | Sequence arc diagnostics | `apps/api/src/services/authorSequenceArcGate.ts` |
@@ -55,8 +54,7 @@ GOVERNED LEARNING
 | Behavior profile | `apps/api/src/services/authorBehaviorProfile.ts` |
 
 There is **one movie authority**: Cognition searches and selects. Canonical Author consumes that result and must not launch a second movie search.
-
-There is **one Mouth authority**: the canonical Mouth boundary owns candidate realization; the compatibility shim only forwards the canonical surface.
+There is **one Mouth authority**: `authorMouthCandidateSearchCanonical.ts` owns candidate realization. No compatibility Mouth implementation exists.
 
 ## 3. MOVIE LAW
 

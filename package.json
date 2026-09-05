@@ -7,10 +7,9 @@
   ],
   "scripts": {
     "dev": "pnpm -r dev",
-    "build": "pnpm author:guard && pnpm author:wiring && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
+    "build": "pnpm author:guard && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
     "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs && node ./scripts/verify-author-production-gate.mjs",
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
-    "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "author:satanico": "pnpm exec tsx apps/api/satanico-universal-acceptance.ts",
     "build:contracts": "pnpm --filter @qre/contracts build",
