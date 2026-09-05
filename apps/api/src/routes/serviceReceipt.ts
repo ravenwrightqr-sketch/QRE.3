@@ -51,6 +51,7 @@ function recipientFrom(value: string) {
 router.post("/create", requireAuth, async (req, res) => {
   try {
     const assetId = clean(req.body?.assetId);
+    const subject = clean(req.body?.subject);
     const recipient = clean(req.body?.recipient);
     const service = clean(req.body?.service);
     const facts = stringList(req.body?.facts, 12);
@@ -64,8 +65,8 @@ router.post("/create", requireAuth, async (req, res) => {
       : undefined;
     const userId = req.user?.userId;
 
-    if (!assetId || !recipient || !userId) {
-      return res.status(400).json({ success: false, error: "Asset, recipient, and authenticated user are required." });
+    if (!assetId || !subject || !recipient || !userId) {
+      return res.status(400).json({ success: false, error: "Asset, client/subject, recipient, and authenticated user are required." });
     }
 
     const accountIds = (await db.accountUser.findMany({
@@ -91,6 +92,7 @@ router.post("/create", requireAuth, async (req, res) => {
 
     const sessionId = randomUUID();
     const prompt = [
+      `Client/subject: ${subject}.`,
       service ? `Service: ${service}.` : "Service completed.",
       ...facts.map((value) => `Observed: ${value}.`),
       funny ? `Anything funny: ${funny}.` : "",
@@ -98,12 +100,13 @@ router.post("/create", requireAuth, async (req, res) => {
       different ? `Anything different: ${different}.` : "",
       notes ? `Additional notes: ${notes}.` : "",
       mediaUrls.length ? `Media attached by the service provider: ${mediaUrls.join(" | ")}.` : "",
-      "Create a short customer-facing cinematic service receipt film. Stay anchored to supplied reality. Discover the strongest memorable meaning without inventing concrete events.",
+      "Create a short customer-facing cinematic service receipt film. The client/subject is the star. The service provider and business are context/distribution unless explicitly supplied as the subject. Stay anchored to supplied reality. Discover the strongest memorable meaning without inventing concrete events.",
     ].filter(Boolean).join("\n");
 
     const experience = await compileExperience({
       assetId: asset.id,
       userId,
+      subject,
       prompt,
       sessionId,
       operationId: `service-receipt:${sessionId}`,
@@ -156,6 +159,7 @@ router.post("/create", requireAuth, async (req, res) => {
       success: true,
       sessionId,
       recipient,
+      subject,
       shareUrl: delivery.shareUrl,
       delivered: delivery.delivered,
       deliveryReason: delivery.reason,
