@@ -22,7 +22,7 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
-import { deriveViewerStateCut } from "./authorMouthCandidateSearch.js";
+import { deriveViewerStateCut } from "./authorViewerStateCut.js";
 import {
   classifyAuthorRealizationMode,
   type AuthorRealizationMode,
