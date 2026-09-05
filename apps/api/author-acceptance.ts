@@ -4,6 +4,8 @@
  * This suite tests behavior, not exact prose.
  * Reality must remain grounded; the frame may radically change attitude;
  * the Movie must discover a progression; the Mouth must deliver short felt cuts.
+ * Service media is client-centered: the business distributes; the client/subject is the star.
+ * Living memory is replay media: preserve what happened, make it worth feeling again.
  */
 import assert from "node:assert/strict";
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
@@ -36,7 +38,7 @@ const cases: Case[] = [
     ],
     prompt: "Coco / poodle / walks / summer / grass / small dogs / bacon / apples",
     required: [/Coco|bacon|walk|summer|grass|small dog|apple/i],
-    forbidden: [/groomer|bath|bow|lawyer|owner|stole|snatched|grabbed|entered/i],
+    forbidden: [/groomer|bath|bow|lawyer|owner|client|stole|snatched|grabbed|entered/i],
     minCreativeCuts: 2,
   },
   {
@@ -50,7 +52,7 @@ const cases: Case[] = [
     ],
     prompt: "Coco grooming visit. Make the supplied facts feel like something bigger without inventing what happened.",
     required: [/Coco|bow|bath|groomer|pickup/i],
-    forbidden: [/lawyer arrived|the lawyer spoke|the groomer hired|the phone camera|the owner shrugged/i],
+    forbidden: [/lawyer arrived|the lawyer spoke|the groomer hired|the groomer cooed|the phone camera|the owner shrugged|client watched|client saw|owner watched|groomer watched|Coco stole|Coco snatched|Coco grabbed/i],
     minCreativeCuts: 2,
   },
   {
@@ -65,7 +67,48 @@ const cases: Case[] = [
     prompt: "Maria / house reset / 9:04 AM / kitchen / two bathrooms / 11:47 AM",
     frame: /mission|speedrun|operation|round|takeover|restoration|boss/i,
     required: [/kitchen|bathroom|Maria|11:47|9:04/i],
-    forbidden: [/customer screamed|Maria fought|enemy attacked|weapon|police/i],
+    forbidden: [/customer screamed|client watched|owner watched|Maria fought|enemy attacked|weapon|police/i],
+    minCreativeCuts: 3,
+  },
+  {
+    name: "CAR WASH CLIENT MEDIA",
+    subject: "Jordan's car",
+    facts: [
+      "Jordan's car arrived dirty",
+      "the wash was completed",
+      "the car left clean",
+    ],
+    prompt: "Service receipt. The business wants something Jordan will watch and share because the car's transformation is fun to experience.",
+    required: [/Jordan|car|wash|clean|dirty/i],
+    forbidden: [/customer watched|client watched|manager smiled|employee cheered|owner arrived|the attendant said/i],
+    minCreativeCuts: 2,
+  },
+  {
+    name: "HOUSE MEMORY",
+    subject: "The house",
+    facts: [
+      "we moved into the house in 2018",
+      "Sunday dinners happened in the kitchen",
+      "the children grew up upstairs",
+      "we left the house in 2026",
+    ],
+    prompt: "A house memory. Make the house and what happened there feel worth revisiting later.",
+    required: [/house|2018|Sunday|kitchen|upstairs|2026/i],
+    forbidden: [/quest|mission|boss|game|achievement|XP|the realtor said|the neighbor waved/i],
+    minCreativeCuts: 3,
+  },
+  {
+    name: "PAUL LIVING MEMORY",
+    subject: "Paul",
+    facts: [
+      "Paul loved old records",
+      "Paul kept every birthday card",
+      "Paul played the same song every Sunday",
+      "Paul is gone",
+    ],
+    prompt: "Paul is gone. Create a living memory from what remains true about him. The experience should be something someone could return to and feel later.",
+    required: [/Paul|records|cards|Sunday|song/i],
+    forbidden: [/quest|mission|boss|game|achievement|XP|the funeral director|the priest said|the doctor said/i],
     minCreativeCuts: 3,
   },
   {
@@ -80,7 +123,7 @@ const cases: Case[] = [
     prompt: "Alex + Sam at Luigi's. Romance lens. The restaurant was closed, lights out, chairs on the ceiling, and somehow they were unaffected in their world.",
     lens: "ROMANCE",
     required: [/closed|lights|chairs|Alex|Sam/i],
-    forbidden: [/the restaurant opened|the waiter arrived|they ordered|the waiter spoke/i],
+    forbidden: [/the restaurant opened|the waiter arrived|they ordered|the waiter spoke|the waiter smiled/i],
     minCreativeCuts: 2,
   },
   {
