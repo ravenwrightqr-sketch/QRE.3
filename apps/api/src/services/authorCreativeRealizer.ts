@@ -1,14 +1,11 @@
 /*
-STATUS: CANONICAL
-ROLE: The single customer-facing creative realizer (QRE's Mouth).
-INPUT: One selected latent movie, immutable RealityGraph, selected lens, prior experience context.
-OUTPUT: One ranked set of human-facing scenes with event provenance and natural pacing.
-AUTHORITY: The selected Movie supplies semantic intent; RealityGraph supplies factual evidence.
-MUST NOT: Invent concrete events, participants, places, times, dialogue, reactions, chronology, or outcomes; expose compiler vocabulary; turn metaphor into world truth.
-UPSTREAM: Canonical Cognition.
-DOWNSTREAM: Canonical Author orchestration and runtime Moment projection.
-REPLACEMENT: Replaces the previous Mouth, Critic, Interpretation, Truth-Gate, sequence-search, and realization layers.
-*/
+ * QRE CANONICAL CREATIVE REALIZER
+ *
+ * One customer-facing creative realization path.
+ * Reality is immutable. The lens may radically change how supplied reality
+ * feels through metaphor, genre framing, personification, compression and
+ * implication, but it may not add factual world events.
+ */
 import type { AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
@@ -74,13 +71,13 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
   const uniqueSources = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size;
   const sourceCoverage = graph.events.length ? Math.min(1, uniqueSources / Math.max(1, Math.min(graph.events.length, 5))) : 1;
   const novelty = priorScenes.length ? Math.max(0, 1 - Math.max(...priorScenes.map((prior) => overlap(allText, prior)), 0)) : 1;
-  const rhythm = scenes.length === 1 ? 0.7 : scenes.length >= 3 ? 0.95 : 0.82;
-  const shortness = metric(scenes.reduce((sum, scene) => sum + words(scene.text).length, 0) / Math.max(1, scenes.length));
-  const compactness = shortness <= 10 ? 1 : shortness <= 16 ? 0.86 : shortness <= 24 ? 0.65 : 0.3;
-  const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.08 : 0;
-  const surprisingMove = /\b(?:apparently|anyway|finally|still|again|same|different|somehow|until|then|already|for now|temporary|like|seems)\b/i.test(allText) ? 0.08 : 0;
+  const rhythm = scenes.length === 1 ? 0.72 : scenes.length <= 5 ? 0.98 : scenes.length <= 8 ? 0.9 : 0.78;
+  const averageWords = scenes.reduce((sum, scene) => sum + words(scene.text).length, 0) / Math.max(1, scenes.length);
+  const compactness = averageWords <= 9 ? 1 : averageWords <= 14 ? 0.88 : averageWords <= 20 ? 0.62 : 0.34;
+  const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.1 : 0;
+  const feltMove = /\b(?:somehow|apparently|still|again|finally|anyway|meanwhile|didn't matter|didn't stand a chance|game over|round|tko|mission|case closed|lights out|wide open|quiet|louder|survived|won|lost)\b/i.test(allText) ? 0.1 : 0;
   const evidenceFit = metric(scenes.reduce((sum, scene) => sum + overlap(scene.text, evidence), 0) / Math.max(1, scenes.length));
-  return metric(sourceCoverage * 0.2 + evidenceFit * 0.22 + novelty * 0.16 + rhythm * 0.12 + compactness * 0.14 + lensBonus + surprisingMove + Math.max(0, 0.1 - repeatedStarts * 0.08));
+  return metric(sourceCoverage * 0.2 + evidenceFit * 0.2 + novelty * 0.14 + rhythm * 0.14 + compactness * 0.14 + lensBonus + feltMove + Math.max(0, 0.08 - repeatedStarts * 0.06));
 }
 
 export async function realizeAuthorExperience(input: {
@@ -95,8 +92,12 @@ export async function realizeAuthorExperience(input: {
 }): Promise<AuthorRealizationResult> {
   const eventTable = input.graph.events.map((event) => ({ id: event.id, label: event.label, place: event.place ?? null, time: event.time ?? null, entities: event.entities }));
   const context = {
-    prompt: clean(input.prompt), subject: clean(input.subject), lens: clean(input.lens) || "LET QRE DECIDE",
-    memory: (input.memoryContext ?? []).slice(0, 40), priorScenes: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 40),
+    prompt: clean(input.prompt),
+    subject: clean(input.subject),
+    lens: clean(input.lens) || "LET QRE DECIDE",
+    memory: (input.memoryContext ?? []).slice(0, 40),
+    priorScenes: (input.priorScenes ?? []).slice(-12),
+    creativeLearning: (input.creativeLearningContext ?? []).slice(0, 40),
     movie: {
       thesis: input.movie.hypothesis,
       payoff: input.movie.payoff,
@@ -117,20 +118,22 @@ export async function realizeAuthorExperience(input: {
       {
         role: "system",
         content: [
-          "You are QRE's ONE CREATIVE REALIZER. Perform the already-selected experience; do not redesign the world or the Movie.",
-          "SOURCE TRUTH IS ABSOLUTE. Every concrete statement must be supported by the supplied event IDs you cite.",
-          "Creative freedom is high in framing, attitude, implication, personification, status, irony, understatement, juxtaposition, callback, rhetorical questions and genre performance. Reality freedom is zero.",
-          "A figurative frame such as 'contacted legal counsel' may creatively frame an actual supplied event; it must not imply that a lawyer literally existed, arrived, spoke, or acted unless the event evidence says so.",
-          "Never invent a person, place, time, object, action, reaction, dialogue, chronology, result or physical event. Do not explain the meaning. FEEL IT. DO NOT EXPLAIN IT.",
-          "Never use compiler vocabulary or mention cognition, prompts, beats, candidates, trajectories, semantic turns, viewers, audiences, evidence IDs, planners, or narrative structure.",
-          "Do not force six acts. Produce a naturally sized set from 1 to 12 scenes. Vary sentence openings and grammatical focus. Do not repeat the subject in every sentence.",
-          "Search for the HOLY SHIT move: an unexpected interpretation, contrast, callback, escalation, emotional turn, status inversion or final image. Do not force one if unsupported.",
-          "For concrete reality, each scene must include at least one existing sourceEventId. For conceptual reality with an empty event graph, sourceEventIds may be empty.",
+          "You are QRE's ONE CREATIVE REALIZER. The Movie is already selected. Your job is to make the supplied reality FEEL like a short, sharp experience.",
+          "The supplied reality is the only world. Never add a factual event, person, place, object, action, reaction, dialogue, time, relationship, chronology, or outcome.",
+          "The subject/star is the focus. Keep the subject at the center. Context such as a house, restaurant, receipt, venue, service, weather, or location is the arena around the subject, not permission to invent people or events.",
+          "The lens is powerful. It may radically change tone and perceived meaning through genre framing, metaphor, personification, status language, juxtaposition, irony, exaggeration, surreal imagery, rhetorical questions, and cinematic compression.",
+          "Lens language may be fictional in FRAME but must not create a new factual event. 'Kitchen TKO', 'round 2', 'super power up', 'chairs on the ceiling', 'case closed', 'the house surrendered' are acceptable when they are clearly rhetorical/metaphorical readings of supplied reality. A literal new person or physical action is not.",
+          "A restaurant can feel haunted without inventing a ghost. A romance can make an impossible-looking room feel irrelevant to the people in it. A house can feel like an arena or battlefield. A pet can feel like the star of its own tiny universe. Do not turn the metaphor into literal world truth.",
+          "Do not explain. Do not summarize what the experience means. Write the feeling directly. Shortish cuts. Favor 2-10 words per line. Some one-word or fragment lines are excellent. Let silence and juxtaposition do work.",
+          "Do not force a six-act story. Find the latent story already in the material: the strongest relationship, contrast, recurring detail, status shift, irony, progression, sensory image, or emotional truth that the supplied reality earns.",
+          "The receipt itself may be the world. For service receipts, the house/place/work can be the arena; the worker or customer can be the star depending on the supplied subject. Never manufacture a customer, coworker, resident, or observer merely because the setting implies one.",
+          "Do not repeat the same sentence shape. Do not restate every fact. Select and compose. If five facts are supplied, you may use three if those three create the strongest experience.",
+          "For concrete reality, every scene must include at least one existing sourceEventId. Source IDs prove provenance; they do not authorize claims beyond the event's supplied content.",
           "Return JSON only: {sets:[{scenes:[{text,kind,sourceEventIds:[]}]}]} with 3 materially different complete sets. No prose outside JSON.",
         ].join("\n"),
       },
       { role: "user", content: JSON.stringify(context) },
-    ], "json", { numPredict: 5000, temperature: 0.86 });
+    ], "json", { numPredict: 5000, temperature: 0.92 });
     model = result.model;
     modelCalls = 1;
     parsed = parseJson(result.text);
