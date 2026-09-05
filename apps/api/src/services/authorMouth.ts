@@ -12,6 +12,11 @@ import { classifyLens } from "./authorCharacterLensEngine.js";
 import { evaluateRealizationBoundary } from "./authorRealizationBoundary.js";
 import { buildMouthRealizationAuthority } from "./authorMouthRealizationAuthority.js";
 import { buildCreativeLensBrief } from "./authorCreativeLensBrief.js";
+import {
+  buildSelectiveAuthorContext,
+  type AuthorMindState,
+} from "./authorMindControlPlane.js";
+
 /** ONE PRODUCTION MOUTH. Model writes language; QRE governs reality. */
 export type { MouthCandidateBeat } from "@qre/contracts";
 
@@ -22,6 +27,8 @@ export type MouthCandidateGenerationInput = {
   lens?: string;
   domainContext?: AuthorDomainContext;
    worldSimulation?: unknown;
+
+  mindState?: AuthorMindState;
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -395,7 +402,6 @@ function fragmentContinuationRisk(
 
   return 0;
 }
-
 function evaluateCandidate(
   text: string,
   beat: MouthCandidateBeat,
@@ -435,15 +441,15 @@ function evaluateCandidate(
         ),
       ) *
         0.08 +
-      semanticScore * 0.34,
+      semanticScore *
+        0.34,
   );
 
-  const fragment =
-    metric(
-      fragmentContinuationRisk(
-        value,
-      ),
-    );
+  const fragment = metric(
+    fragmentContinuationRisk(
+      value,
+    ),
+  );
 
   const generic =
     genericRisk(value);
@@ -482,17 +488,17 @@ function evaluateCandidate(
               ...priorTexts.map(
                 (prior) =>
                   overlap(
-                    meaningful(value),
-                    meaningful(prior),
+                    meaningful(
+                      value,
+                    ),
+                    meaningful(
+                      prior,
+                    ),
                   ),
               ),
               0,
             ),
         );
-
-  const compressed =
-    wordCount(value) >= 2 &&
-    wordCount(value) <= 10;
 
   /*
    * Explanation policy comes from the canonical
@@ -512,22 +518,8 @@ function evaluateCandidate(
   const explanationPenalty =
     explanationForbidden
       ? explanation
-      : explanation * 0.35;
-
-  const hasRelationalMove =
-    semanticApproved &&
-    (
-      lift >= 0.3 ||
-      semanticScore >= 0.05 ||
-      (
-        creativeEvidenceOverlap(
-          value,
-          beat,
-          envelope,
-        ) >= 0.2 &&
-        relationKind(beat).length > 0
-      )
-    );
+      : explanation *
+        0.35;
 
   const anchorPreserved =
     preservesRequiredAnchor(
@@ -556,49 +548,172 @@ function evaluateCandidate(
         ?.realizationDirection,
     );
 
-  const creative =
-    metric(
-      grounding * 0.18 +
-        lift * 0.22 +
-        (hasRelationalMove
-          ? 0.24
-          : 0) +
-        priorNovelty * 0.06 +
-        (compressed
-          ? 0.06
-          : 0) +
-        (feltAuthority
-          ? 0.12
-          : 0) +
-        (
-          explanationForbidden &&
-          explanation === 0
-            ? 0.05
-            : 0
-        ) +
-        (
-          anchorPreserved
-            ? 0.04
-            : -0.18
-        ) +
-        (
-          subjectAnchorPreserved
-            ? 0.03
-            : -0.25
-        ) -
-        explanationPenalty *
-          0.4 -
-        generic * 0.55 -
-        process * 0.55 -
-        fragment * 0.22 -
-        paraphrase * 0.34,
+  /*
+   * Semantic execution is a derived authorization signal.
+   * It may recognize the canonical semantic contract without
+   * requiring lexical repetition of the thesis.
+   *
+   * It never bypasses:
+   * - grounding
+   * - relationship authority
+   * - presentation safety
+   * - the realization boundary
+   */
+  const semanticExecution =
+    semanticApproved &&
+    relationKind(beat).length > 0 &&
+    feltAuthority &&
+    grounding >= 0.15 &&
+    generic === 0 &&
+    process === 0 &&
+    explanation === 0;
+
+  /*
+   * A relational move is the creative realization signal.
+   *
+   * A candidate can execute the supplied meaning through:
+   * - realization lift
+   * - semantic alignment
+   * - grounded relationship evidence
+   * - the canonical semantic execution contract
+   */
+  const hasRelationalMove =
+    semanticApproved &&
+    (
+      lift >= 0.3 ||
+      semanticScore >= 0.05 ||
+      (
+        creativeEvidenceOverlap(
+          value,
+          beat,
+          envelope,
+        ) >= 0.2 &&
+        relationKind(beat).length > 0
+      ) ||
+      semanticExecution
     );
 
+  /*
+   * Beat 1 has a different authorization shape.
+   *
+   * The opening does not need to execute the entire semantic
+   * thesis. It needs to:
+   * - remain truth-bound
+   * - remain grounded in supplied reality
+   * - identify the supplied subject
+   * - preserve required anchors
+   * - avoid generic/process/explanatory language
+   *
+   * Creativity may come from arrangement, emphasis,
+   * juxtaposition, rhythm, implication, or compression
+   * of supplied material.
+   */
+  const establishingCreative =
+    beat.order === 1 &&
+    !literal &&
+    grounding >= 0.15 &&
+    subjectAnchorPreserved &&
+    anchorPreserved &&
+    generic === 0 &&
+    process === 0 &&
+    explanation === 0 &&
+    fragment < 0.9;
+
+  /*
+   * Editorial compression is not a fixed word-count gate.
+   *
+   * A longer line can still be highly compressed when every
+   * word is carrying dramatic pressure.
+   */
+  const semanticPressure =
+    metric(
+      semanticApproved
+        ? Math.max(
+            semanticScore,
+            lift,
+            feltAuthority
+              ? 0.45
+              : 0,
+          )
+        : grounding,
+    );
+
+  const editorialCompression =
+    metric(
+      0.55 +
+        semanticPressure *
+          0.25 +
+        (wordCount(value) > 0
+          ? 0.1
+          : 0) +
+        (wordCount(value) <= 18
+          ? 0.1
+          : 0),
+    );
+
+  const creative =
+    metric(
+      grounding *
+        0.18 +
+      lift *
+        0.22 +
+      (
+        hasRelationalMove
+          ? 0.24
+          : 0
+      ) +
+      (
+        establishingCreative
+          ? 0.18
+          : 0
+      ) +
+      priorNovelty *
+        0.06 +
+      editorialCompression *
+        0.06 +
+      (
+        feltAuthority
+          ? 0.12
+          : 0
+      ) +
+      (
+        explanationForbidden &&
+        explanation === 0
+          ? 0.05
+          : 0
+      ) +
+      (
+        anchorPreserved
+          ? 0.04
+          : -0.18
+      ) +
+      (
+        subjectAnchorPreserved
+          ? 0.03
+          : -0.25
+      ) -
+      explanationPenalty *
+        0.4 -
+      generic *
+        0.55 -
+      process *
+        0.55 -
+      fragment *
+        0.22 -
+      paraphrase *
+        0.34,
+    );
+
+  /*
+   * Recovery is evidence-locked fallback, never an alternative
+   * creative author.
+   */
   const recoveryScore =
     recovery && literal
       ? metric(
           0.2 +
-            grounding * 0.25,
+            grounding *
+              0.25,
         )
       : 0;
 
@@ -612,8 +727,10 @@ function evaluateCandidate(
                   0.2 +
                     grounding *
                       0.2 -
-                    generic * 0.5 -
-                    process * 0.5,
+                    generic *
+                      0.5 -
+                    process *
+                      0.5,
                 )
               : 0
           )
@@ -662,6 +779,12 @@ function evaluateCandidate(
     );
   }
 
+  if (establishingCreative) {
+    reasons.push(
+      "establishing-creative-realization",
+    );
+  }
+
   if (lift >= 0.3) {
     reasons.push(
       "realization-lift",
@@ -686,9 +809,11 @@ function evaluateCandidate(
     );
   }
 
-  if (compressed) {
+  if (
+    editorialCompression >= 0.7
+  ) {
     reasons.push(
-      "compressed",
+      "editorially-compressed",
     );
   }
 
@@ -736,7 +861,9 @@ function evaluateCandidate(
 
   return {
     text: value,
-    beatOrder: beat.order,
+
+    beatOrder:
+      beat.order,
 
     supportedEventIds:
       grounding >= 0.15
@@ -804,7 +931,8 @@ function evaluateCandidate(
       hasRelationalMove
         ? metric(
             0.72 +
-              grounding * 0.28,
+              grounding *
+                0.28,
           )
         : literal
           ? 0.45
@@ -833,9 +961,12 @@ function evaluateCandidate(
     cohesionScore:
       metric(
         0.34 +
-          lift * 0.18 +
-          grounding * 0.1 +
-          priorNovelty * 0.07 +
+          lift *
+            0.18 +
+          grounding *
+            0.1 +
+          priorNovelty *
+            0.07 +
           (
             hasRelationalMove
               ? 0.18
@@ -853,21 +984,22 @@ function evaluateCandidate(
           ) -
           explanationPenalty *
             0.1 -
-          generic * 0.15,
+          generic *
+            0.15,
       ),
 
     noveltyScore:
       priorNovelty,
 
     compressionScore:
-      compressed
-        ? 0.98
-        : 0.55,
+      editorialCompression,
 
-    inventionRisk: 0,
+    inventionRisk:
+      0,
 
     repetitionRisk:
-      1 - priorNovelty,
+      1 -
+      priorNovelty,
 
     collageRisk:
       labels.length > 1 &&
@@ -880,9 +1012,12 @@ function evaluateCandidate(
         : 0,
 
     endpointExactness:
-      literal ? 1 : 0,
+      literal
+        ? 1
+        : 0,
 
     score,
+
     reasons,
   };
 }
@@ -903,6 +1038,8 @@ function buildSystemPrompt(): string {
     "Concrete reality is beat-scoped.",
     "The lens changes HOW the supplied reality lands, never WHAT happened.",
     "Use the supplied lens aggressively as framing. The lens changes HOW reality lands, never WHAT happened.",
+    "Lens nouns, mechanics, props, roles, vocabulary, or situations are figurative treatment unless explicitly supplied by reality.",
+    "Never turn a lens into a new world: a game lens cannot create scores, levels, opponents, rounds, game events, or rules unless supplied.",
     "Use implication, contrast, status, irony, understatement, metaphor, personification, juxtaposition, compression, callback, wordplay, and rhythm whenever earned.",
     "Novel language is welcome. New concrete facts are not.",
     "A new physical event, object, person, setting, chronology, reaction, sensory fact, dialogue, or outcome requires explicit supplied authorization.",
@@ -910,9 +1047,18 @@ function buildSystemPrompt(): string {
     "Do not mention viewers, audiences, beats, strategies, evidence, cognition, planning, movies, storytelling, or authorship mechanics.",
     "Do not write generic emotional summaries or trailer language.",
     "Each candidate is a standalone utterance. Do not continue grammar from another beat.",
-    "Opening: naturally name the supplied subject. Later cuts may omit it.",
-    "Payoff: land the supplied endpoint without appending another event.",
-    "Return exactly three materially different written lines for every beat. Never output labels, placeholders, A/B/C, or metadata.",
+     "OPENING: establish the supplied subject naturally and create the first point of attention.",
+    "The opening does not need to explain or complete the entire semantic meaning.",
+    "REVEAL CUTS: deepen or change the reading through supplied relationships.",
+    "PAYOFF: land the supplied endpoint without appending another event.",
+    "A dramatic beat may combine multiple supplied facts when their relationship is stronger together than separately.",
+    "A cut may be one short phrase, one sentence, or several connected sentences.",
+    "Do not shorten a line merely to make it short.",
+    "Compress language until further compression weakens the relationship, tension, anticipation, or rhythm.",
+    "Shorter is not automatically better; economical is better.",
+    "Use the minimum language that preserves the dramatic pressure of the cut.",
+    "Make connections felt through adjacency, timing, contrast, implication, rhythm, and selective detail.",
+    "Do not explain what the viewer should understand.",
   ].join(" ");
 }
 function creativeMaterialJob(
@@ -1078,20 +1224,41 @@ function creativeMaterialJob(
     },
 
     lens: {
-      label: clean(
-        brief.label,
-      ),
-      intensity:
-        brief.intensity,
-      framing:
-        brief.framingBias,
-      preferences:
-        brief.realizationPreferences,
-      treatmentMoves:
-        brief.treatmentMoves,
-      forbiddenRealityMoves:
-        brief.forbiddenRealityMoves,
-    },
+  label: clean(
+    brief.label,
+  ),
+  intensity:
+    brief.intensity,
+
+  /*
+   * Direction is the canonical treatment instruction.
+   * It explains HOW this lens should change perception
+   * without allowing the lens to create reality.
+   */
+  direction:
+    brief.direction,
+
+  framing:
+    brief.framingBias,
+
+  preferences:
+    brief.realizationPreferences,
+
+  treatmentMoves:
+    brief.treatmentMoves,
+
+  forbiddenRealityMoves:
+    brief.forbiddenRealityMoves,
+
+  supportedRelationshipKinds:
+    brief.supportedRelationshipKinds,
+
+  supportedSignals:
+    brief.supportedSignals,
+
+  realityInvariants:
+    brief.realityInvariants,
+},
 
     output:
       "Write three materially different standalone lines for this beat.",
@@ -1119,6 +1286,7 @@ export function buildMouthCandidateMessages(
       content: JSON.stringify(
         {
           task: "REALIZE_AUTHORIZED_MATERIAL",
+            authorMind: input.mindState ? buildSelectiveAuthorContext(input.mindState) : undefined,
           worldSimulation: input.worldSimulation,
           jobs,
         },
@@ -1198,19 +1366,127 @@ function annotateMouthRealizationBoundary(candidate: MouthCandidate, beat: Mouth
   reasons.push(boundary.inventionRisk >= 0.9 ? "realization-boundary-rejected" : "realization-boundary-approved");
   return { ...candidate, inventionRisk: boundary.inventionRisk, reasons };
 }
-
-export function isAuthorizedMouthCandidate(candidate: MouthCandidate): boolean {
+export function isAuthorizedMouthCandidate(
+  candidate: MouthCandidate,
+): boolean {
   const text = clean(candidate.text);
+
   if (!text) return false;
-  if (candidate.inventionRisk >= 0.9) return false;
-  if (candidate.reasons.includes("realization-boundary-rejected")) return false;
-  if (candidate.reasons.includes("generic-summary-risk") || candidate.reasons.includes("process-language-risk")) return false;
-  if (candidate.reasons.includes("explicit-explanation-risk") && candidate.forbiddenMoveRisk >= 0.9) return false;
-  if (candidate.reasons.includes("required-anchor-missing")) return false;
-  if (candidate.reasons.includes("subject-anchor-missing") && candidate.beatOrder === 1) return false;
-  if (candidate.endpointExactness >= 0.999 && candidate.beatOrder > 1 && !candidate.reasons.includes("recovery-source")) return false;
-  if (candidate.reasons.includes("recovery-source")) return true;
-  return candidate.reasons.includes("approved-semantic-realization") && candidate.reasons.includes("meaning-executed") && candidate.score >= 0.28;
+
+  /*
+   * Hard truth boundary. Nothing below this line may bypass it.
+   */
+  if (candidate.inventionRisk >= 0.9) {
+    return false;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "realization-boundary-rejected",
+    )
+  ) {
+    return false;
+  }
+
+  /*
+   * These are presentation failures, not authorized creative moves.
+   */
+  if (
+    candidate.reasons.includes(
+      "generic-summary-risk",
+    ) ||
+    candidate.reasons.includes(
+      "process-language-risk",
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "explicit-explanation-risk",
+    ) &&
+    candidate.forbiddenMoveRisk >= 0.9
+  ) {
+    return false;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "required-anchor-missing",
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "subject-anchor-missing",
+    ) &&
+    candidate.beatOrder === 1
+  ) {
+    return false;
+  }
+
+  /*
+   * Later cuts may not collapse into exact source restatement.
+   * Recovery is explicitly observable and allowed only as recovery.
+   */
+  if (
+    candidate.endpointExactness >= 0.999 &&
+    candidate.beatOrder > 1 &&
+    !candidate.reasons.includes(
+      "recovery-source",
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    candidate.reasons.includes(
+      "recovery-source",
+    )
+  ) {
+    return true;
+  }
+
+  /*
+   * NEW:
+   * Beat 1 can be an authorized creative establishing beat
+   * without already executing the complete semantic thesis.
+   *
+   * It still must have:
+   * - truth boundary approval
+   * - event grounding
+   * - subject identity
+   * - required anchors
+   * - no generic/process/explanation failures
+   */
+  if (
+    candidate.beatOrder === 1 &&
+    candidate.reasons.includes(
+      "establishing-creative-realization",
+    ) &&
+    candidate.reasons.includes(
+      "event-grounded",
+    ) &&
+    candidate.score >= 0.22
+  ) {
+    return true;
+  }
+
+  /*
+   * Normal later semantic realization.
+   */
+  return (
+    candidate.reasons.includes(
+      "approved-semantic-realization",
+    ) &&
+    candidate.reasons.includes(
+      "meaning-executed",
+    ) &&
+    candidate.score >= 0.28
+  );
 }
 function isIdentityRecoveryEligible(candidate: MouthCandidate): boolean {
   if (!candidate.text) return false;
@@ -1304,6 +1580,18 @@ export function completeMouthPools(
         (item) => item.order === beat.order,
       )?.variants ?? [];
 
+    /*
+     * The model's output is the primary authorship surface.
+     *
+     * Every generated variant is:
+     *   1. scored,
+     *   2. checked against the canonical realization boundary,
+     *   3. retained as-is.
+     *
+     * We do not silently replace failed authorship with source labels.
+     * A failed candidate remains visible to the canonical authorization
+     * and sequence diagnostics instead of becoming fake "success".
+     */
     const generatedCandidates = generated
       .map((text) =>
         scoreMouthCandidate({
@@ -1321,61 +1609,41 @@ export function completeMouthPools(
       );
 
     /*
-     * Opening identity recovery is a Mouth realization repair.
+     * Opening identity repair is allowed only as a presentation repair.
      *
-     * The model has already supplied the creative realization.
-     * When that realization is otherwise authorized but omitted
-     * the required opening subject, Mouth may attach the supplied
-     * subject as an identity anchor.
-     *
-     * This does NOT create a new fact, event, entity, setting,
-     * action, chronology, or outcome.
-     *
-     * Only candidates whose sole blocking condition is the
-     * sequence-level subject anchor are eligible.
+     * It may restore the supplied subject to an otherwise valid candidate.
+     * It may not create a new event, action, motive, chronology, location,
+     * object, reaction, or outcome.
      */
-    const identityRecoveryCandidates = generatedCandidates
-      .filter(isIdentityRecoveryEligible)
-      .map((candidate) => {
-        const recoveredText = identityRecoveryText(
-          candidate.text,
-          beat,
-          input.envelope,
-        );
-
-        return recoveredText
-          ? scoreMouthCandidate({
-              text: recoveredText,
+    const identityRecoveryCandidates =
+      generatedCandidates
+        .filter(
+          isIdentityRecoveryEligible,
+        )
+        .map((candidate) => {
+          const recoveredText =
+            identityRecoveryText(
+              candidate.text,
               beat,
-              envelope: input.envelope,
-              recovery: true,
-            })
-          : undefined;
-      })
-      .filter(
-        (candidate): candidate is MouthCandidate =>
-          Boolean(candidate),
-      )
-      .map((candidate) =>
-        annotateMouthRealizationBoundary(
-          candidate,
-          beat,
-          input.envelope,
-        ),
-      );
+              input.envelope,
+            );
 
-    const literalRecoveryCandidates =
-      deterministicCreativeFallback(
-        beat,
-        input.envelope,
-      )
-        .map((text) =>
-          scoreMouthCandidate({
-            text,
+          if (!recoveredText) {
+            return undefined;
+          }
+
+          return scoreMouthCandidate({
+            text: recoveredText,
             beat,
             envelope: input.envelope,
-            recovery: true,
-          }),
+            recovery: false,
+          });
+        })
+        .filter(
+          (
+            candidate,
+          ): candidate is MouthCandidate =>
+            Boolean(candidate),
         )
         .map((candidate) =>
           annotateMouthRealizationBoundary(
@@ -1385,16 +1653,60 @@ export function completeMouthPools(
           ),
         );
 
+    /*
+     * IMPORTANT:
+     *
+     * Deterministic source-label recovery is no longer inserted into the
+     * production candidate pool.
+     *
+     * Recovery was masking the real failure mode:
+     *
+     *   model authored language
+     *        ↓
+     *   authorization rejected it
+     *        ↓
+     *   literal source text substituted
+     *        ↓
+     *   pipeline appeared complete
+     *
+     * That is exactly what the universal Author acceptance must expose.
+     *
+     * Evidence-locked fallback remains available through
+     * deterministicCreativeFallback() for explicit diagnostics/tests,
+     * but it is not a normal production realization.
+     */
+
+    const candidates =
+      dedupe([
+        ...generatedCandidates,
+        ...identityRecoveryCandidates,
+      ]);
+
+    const authorizedCreative =
+      candidates.some(
+        isAuthorizedMouthCandidate,
+      );
+
+    if (
+      !authorizedCreative &&
+      generatedCandidates.length > 0
+    ) {
+      /*
+       * Preserve the generated candidates so downstream diagnostics can
+       * explain why authorship failed. Do not replace them with literals.
+       */
+    }
+
     return {
       order: beat.order,
       viewerState: beat.viewerState,
-      nextPromise: clean(beat.next),
-      frontier: clean(beat.frontier),
-      candidates: dedupe([
-        ...generatedCandidates,
-        ...identityRecoveryCandidates,
-        ...literalRecoveryCandidates,
-      ]),
+      nextPromise: clean(
+        beat.next,
+      ),
+      frontier: clean(
+        beat.frontier,
+      ),
+      candidates,
     };
   });
 }

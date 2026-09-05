@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QRE AUTHOR MIND CONTROL PLANE
  * One typed control surface over existing Author intelligence.
  * It selects and compresses existing signals; it never creates reality.
@@ -80,21 +80,21 @@ const clamp = (value: number): number => Number(Math.max(0, Math.min(1, Number.i
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 
 const DESCRIPTORS: Array<Pick<AuthorMindCapability, "id" | "authority" | "contribution">> = [
-  ["reality_graph", "truth", "canonical supplied evidence, structure, continuity and relationships"],
-  ["relationship_search", "meaning", "earned relationships between supplied events"],
-  ["creative_interpretation", "meaning", "metamorphic changes in how supplied details can be perceived together"],
-  ["story_thesis", "meaning", "one grounded semantic turn with before, carrier and after evidence"],
-  ["world_simulation", "meaning", "viewer uncertainty, questions, prediction errors and open possibilities"],
-  ["viewer_state", "structure", "attention, uncertainty, information seeking, momentum and next-cut pressure"],
-  ["memory", "meaning", "continuity, reentry, established callbacks and prior experience state"],
-  ["movie_search", "structure", "candidate experiences covering the strongest legitimate relationships"],
-  ["movie_differentiation", "structure", "avoid repeated experience shapes while preserving evidence"],
-  ["living_sequence", "meaning", "turn stable supplied continuity and preferences into playable experience"],
-  ["lens", "realization", "amplify supported perspective after discovery"],
-  ["mouth", "realization", "realize approved semantic material as language"],
-  ["truth_gate", "validation", "prevent unsupported concrete reality from becoming authored truth"],
-  ["realization_boundary", "validation", "reject invented concrete events, actors, objects, chronology, reactions and outcomes"],
-].map(([id, authority, contribution]) => ({ id, authority, contribution }));
+  { id: "reality_graph", authority: "truth", contribution: "canonical supplied evidence, structure, continuity and relationships" },
+  { id: "relationship_search", authority: "meaning", contribution: "earned relationships between supplied events" },
+  { id: "creative_interpretation", authority: "meaning", contribution: "metamorphic changes in how supplied details can be perceived together" },
+  { id: "story_thesis", authority: "meaning", contribution: "one grounded semantic turn with before, carrier and after evidence" },
+  { id: "world_simulation", authority: "meaning", contribution: "viewer uncertainty, questions, prediction errors and open possibilities" },
+  { id: "viewer_state", authority: "structure", contribution: "attention, uncertainty, information seeking, momentum and next-cut pressure" },
+  { id: "memory", authority: "meaning", contribution: "continuity, reentry, established callbacks and prior experience state" },
+  { id: "movie_search", authority: "structure", contribution: "candidate experiences covering the strongest legitimate relationships" },
+  { id: "movie_differentiation", authority: "structure", contribution: "avoid repeated experience shapes while preserving evidence" },
+  { id: "living_sequence", authority: "meaning", contribution: "turn stable supplied continuity and preferences into playable experience" },
+  { id: "lens", authority: "realization", contribution: "amplify supported perspective after discovery" },
+  { id: "mouth", authority: "realization", contribution: "realize approved semantic material as language" },
+  { id: "truth_gate", authority: "validation", contribution: "prevent unsupported concrete reality from becoming authored truth" },
+  { id: "realization_boundary", authority: "validation", contribution: "reject invented concrete events, actors, objects, chronology, reactions and outcomes" },
+];
 
 function semantic(movie: LatentMovieCandidate | undefined) {
   const thesis = movie?.storyThesis;
@@ -137,29 +137,61 @@ function relevance(
     case "realization_boundary": return { relevance: 1, available: true, evidence: ["hard-validation"] };
   }
 }
-
-function frontierFor(graph: RealityGraph, movie: LatentMovieCandidate | undefined, state: AuthorExperienceState | undefined): AuthorExperienceFrontier {
+function frontierFor(
+  graph: RealityGraph,
+  movie: LatentMovieCandidate | undefined,
+  state: AuthorExperienceState | undefined,
+): AuthorExperienceFrontier {
   const semanticRealization = movie?.storyThesis?.semanticRealization;
   const world = state?.worldSimulation;
+
   const unresolvedRelations = graph.relations
-    .filter((relation) => ["converges", "contrasts", "recontextualizes", "repeats", "changes", "causes"].includes(relation.kind))
-    .sort((a, b) => b.strength - a.strength)
+    .filter((relation) => relation.strength > 0)
+    .sort(
+      (a, b) =>
+        b.strength - a.strength ||
+        a.kind.localeCompare(b.kind) ||
+        a.from.localeCompare(b.from) ||
+        a.to.localeCompare(b.to),
+    )
     .slice(0, 8)
-    .map((relation) => ({ kind: relation.kind, fromEventId: relation.from, toEventId: relation.to, strength: clamp(relation.strength) }));
+    .map((relation) => ({
+      kind: relation.kind,
+      fromEventId: relation.from,
+      toEventId: relation.to,
+      strength: clamp(relation.strength),
+    }));
+
   const openQuestions = unique([
     ...(state?.unresolvedQuestions ?? []),
-    ...(world?.questions.slice(0, 5).map((question) => question.text) ?? []),
-    ...(movie?.storyThesis?.observerExperience?.curiosity ? [movie.storyThesis.observerExperience.curiosity] : []),
+    ...(world?.questions
+      .slice(0, 5)
+      .map((question) => question.text) ?? []),
+    ...(movie?.storyThesis?.observerExperience?.curiosity
+      ? [movie.storyThesis.observerExperience.curiosity]
+      : []),
   ]).slice(0, 8);
+
   const unresolvedTensions = unique([
     ...graph.unresolvedTensions,
-    ...(graph.patterns ?? []).filter((pattern) => pattern.kind === "tension" || pattern.kind === "anomaly").map((pattern) => pattern.label),
+    ...(graph.patterns ?? [])
+      .filter(
+        (pattern) =>
+          pattern.kind === "tension" ||
+          pattern.kind === "anomaly",
+      )
+      .map((pattern) => pattern.label),
   ]).slice(0, 8);
+
   const durableThreads = unique([
     ...(state?.memoryHooks ?? []),
-    ...(world?.durableThreads.slice(0, 6).map((thread) => thread.text) ?? []),
+    ...(world?.durableThreads
+      .slice(0, 6)
+      .map((thread) => thread.text) ?? []),
   ]).slice(0, 8);
+
   const primary = unresolvedRelations[0];
+
   return {
     unresolvedRelations,
     openQuestions,
@@ -169,13 +201,25 @@ function frontierFor(graph: RealityGraph, movie: LatentMovieCandidate | undefine
       ? `Let the supplied endpoint acquire its earned second reading: ${semanticRealization.after}`
       : primary
         ? `Reveal the supplied ${primary.kind} relationship without explaining it.`
-        : openQuestions[0] || "Expose the most specific supplied clue capable of changing the reading.",
-    noveltyPressure: clamp(0.45 + (state ? 0.2 : 0) + (world?.viewer.predictionErrors.length ?? 0) * 0.08),
-    uncertainty: clamp(world ? 0.35 + world.viewer.predictionErrors.length * 0.1 : 0.55),
-    continuationPotential: clamp((durableThreads.length ? 0.35 : 0) + (openQuestions.length ? 0.35 : 0) + (unresolvedRelations.length ? 0.3 : 0)),
+        : openQuestions[0] ||
+          "Expose the most specific supplied clue capable of changing the reading.",
+    noveltyPressure: clamp(
+      0.45 +
+        (state ? 0.2 : 0) +
+        (world?.viewer.predictionErrors.length ?? 0) * 0.08,
+    ),
+    uncertainty: clamp(
+      world
+        ? 0.35 + world.viewer.predictionErrors.length * 0.1
+        : 0.55,
+    ),
+    continuationPotential: clamp(
+      (durableThreads.length ? 0.35 : 0) +
+        (openQuestions.length ? 0.35 : 0) +
+        (unresolvedRelations.length ? 0.3 : 0),
+    ),
   };
 }
-
 export function buildAuthorMindState(input: {
   graph: RealityGraph;
   subject?: string;
@@ -192,13 +236,13 @@ export function buildAuthorMindState(input: {
   });
   const ranked = [...capabilities].filter((capability) => capability.available).sort((a, b) => b.relevance - a.relevance || (b.id === "truth_gate" ? 1 : 0) - (a.id === "truth_gate" ? 1 : 0));
   const semanticState = semantic(input.selectedMovie);
-  const selected = unique([
+  const selected: AuthorCapabilityId[] = Array.from(new Set<AuthorCapabilityId>([
     "reality_graph",
     ...ranked.slice(0, 7).map((item) => item.id),
     "truth_gate",
     "realization_boundary",
     ...(input.selectedMovie ? ["mouth"] : []),
-  ] as AuthorCapabilityId[]).slice(0, 11);
+  ] as AuthorCapabilityId[])).slice(0, 11);
   const primary: AuthorCapabilityId = semanticState.confidence >= 0.65
     ? semanticState.relationKinds.includes("consequence") ? "story_thesis" : "creative_interpretation"
     : ranked[0]?.id ?? "reality_graph";

@@ -157,5 +157,10 @@ jobs:
       - name: Realization zero-leakage acceptance
         run: pnpm exec tsx apps/api/author-realization-zero-leakage-acceptance.ts
 
+
       - name: Production gate
         run: pnpm author:production-gate
+
+
+      - name: Author Mind Control Plane Acceptance
+        run: pnpm exec tsx apps/api/author-mind-control-plane-acceptance.ts

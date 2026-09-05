@@ -113,6 +113,12 @@ import {
   classifyLens,
   rankLensOpportunities,
 } from "./authorCharacterLensEngine.js";
+import type { AuthorMindState } from "./authorMindControlPlane.js";
+import {
+  assertAuthorMindState,
+  buildAuthorMindState,
+} from "./authorMindControlPlane.js";
+
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -174,6 +180,8 @@ export type AuthorCognitivePlan = {
   graphSummary: string;
   movieSummary: string;
   frameSummary: string;
+
+  mindState: AuthorMindState;
 };
 
 const clean = (value: unknown): string =>
@@ -672,7 +680,27 @@ export function buildAuthorCognitivePlan(
         })
       : undefined;
 
-  const permanentTruths = uniq(
+    const mindState = buildAuthorMindState({
+    graph: input.realityGraph ?? {
+      evidence: [],
+      events: [],
+      relations: [],
+      unresolvedTensions: [],
+      recurringSignals: [],
+      sensorySignals: [],
+    },
+    subject: input.subject,
+    selectedLens,
+    round: input.round,
+    priorScenes: input.priorScenes,
+    movieCandidates: movie.latentMovieCandidates,
+    selectedMovie,
+    experienceState,
+  });
+
+  assertAuthorMindState(mindState);
+
+const permanentTruths = uniq(
     [...input.facts, ...(input.memoryContext ?? [])],
     30,
   );
@@ -835,5 +863,6 @@ export function buildAuthorCognitivePlan(
     graphSummary,
     movieSummary,
     frameSummary,
+    mindState
   };
 }
