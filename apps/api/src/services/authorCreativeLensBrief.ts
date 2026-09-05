@@ -214,11 +214,15 @@ export function composeCreativeLensBrief(
   const framingBias = unique(selected.flatMap((lens) => lens.framingBias)).slice(0, 18);
   const realizationPreferences = unique(selected.flatMap((lens) => lens.realizationPreferences)).slice(0, 18);
   const forbiddenRealityMoves = unique(selected.flatMap((lens) => lens.forbiddenRealityMoves)).slice(0, 24);
+  const label = labels.length ? labels.join(" + ") : "NONE";
+  const implicationStrategies = implicationStrategiesFor(label, relationships, signals);
+  const direction = directionFor(label, character, envelope);
   const treatmentMoves = unique([
     ...realizationPreferences,
     ...framingBias,
-  ]).slice(0, 20);
-  const implicationStrategies = implicationStrategiesFor(labelFor(selected), relationships, signals);
+    direction,
+    ...implicationStrategies,
+  ]).slice(0, 24);
   const intensity = metric(
     selected.reduce((sum, lens) => sum + lens.intensity, 0) / Math.max(1, selected.length),
   );
@@ -228,7 +232,6 @@ export function composeCreativeLensBrief(
       + Math.min(0.2, character.contradictions.length * 0.05)
       + Math.min(0.2, character.coreTraits.length * 0.03),
   );
-  const label = labels.length ? labels.join(" + ") : "NONE";
 
   return {
     label,
@@ -240,12 +243,7 @@ export function composeCreativeLensBrief(
     supportedSignals: signals,
     treatmentMoves,
     realityInvariants,
-    direction: `${directionFor(label, character, envelope)} Support=${support}.`,
-    implicationStrategies: implicationStrategiesFor(label, relationships, signals),
+    direction: `${direction} Support=${support}.`,
+    implicationStrategies,
   };
-}
-
-function labelFor(lenses: readonly AuthorLensProfile[]): string {
-  const labels = unique(lenses.map((lens) => lens.label));
-  return labels.length ? labels.join(" + ") : "NONE";
 }
