@@ -1,116 +1,58 @@
 # QRE AUTHOR · METAMORPHIC LENS DOCTRINE
 
-This is the canonical creative rule for universal Author realization.
-
 ## Core chain
 
 ```text
 REALITY
-  ↓
-AUTHOR DISCOVERS METAMORPHIC RELATION
-  ↓
-LENS APPLIES PRESSURE
-  ↓
-MOUTH REALIZES IT
+→ AUTHOR DISCOVERS METAMORPHIC RELATION
+→ LENS APPLIES PRESSURE
+→ MOUTH REALIZES IT
 ```
 
-Reality remains immutable. The Author may discover a new relationship, implication,
-contrast, status reading, ceremony, mischief, defiance, intimacy, absurdity, or other
-supported perception inside supplied reality. That discovery is not a new fact.
+Reality remains immutable. The Author may discover a supported relationship between supplied details and an established character, relationship, status, recurrence, contrast, object, or environment. That relationship is creative material, not a new fact.
 
-A lens is not a movie generator and not a story template. It selects pressure:
+The Lens changes perception: attitude, status, relationship framing, implication, distance, contrast, rhythm, emotional pressure, and treatment of the surrounding world. The Lens does not generate a new event, object, person, motive, chronology, outcome, or identity.
 
-- attitude
-- status
-- relationship framing
-- outer-world treatment
-- intimacy / distance
-- contrast
-- implication
-- rhythm
-- language pressure
-- emotional temperature
+The Mouth turns the selected perception into viewer-facing language. It should make the relationship felt through the cut rather than explain the relationship or report the source facts.
 
-Mouth turns that pressure into viewer-facing language.
+## Coco test
 
-## The metamorphic question
+Supplied reality may establish grooming, cleanliness, a red bow, and that Coco stole the bow. Coco's existing character can supply a grounded mischievous or self-possessed relationship to the detail.
 
-For each approved creative candidate, ask:
-
-> What does this detail become in the viewer's perception when placed against what we
-> already know about the subject and the other supplied details?
-
-A concrete detail can carry a new reading without becoming a new concrete event.
-
-Example:
+The Author can discover metamorphic material such as:
 
 ```text
-Coco's existing character
-→ STATUS INVERSION / MISCHIEF / CEREMONY / DEFIANCE
-→ bow
+character + bow → status inversion
+character + bow → mischief
+character + bow → ceremony
+character + bow → defiance
 ```
 
-Possible realizations:
+Desired realization:
+
+> Clean. Bowed. Already causing problems.
+
+> Freshly groomed. Professionally presented. Absolutely not under control.
+
+> They gave her a bow. Coco took that as a promotion.
+
+The final line is perception, not a new historical fact. Coco did not literally receive a promotion.
+
+The same supplied reality can support fierce, game, noir, romance, horror, heist, deadpan, ceremonial, or other grounded perceptions. Genre or frame is treatment, never permission to fabricate concrete reality.
+
+## Non-negotiable boundary
 
 ```text
-Clean. Bowed. Already causing problems.
-
-Freshly groomed. Professionally presented. Absolutely not under control.
-
-They gave her a bow. Coco took that as a promotion.
+THE THING STAYS THE THING.
+ITS MEANING MAY MOVE.
 ```
 
-The bow stays a bow. Coco does not literally become a queen, join the military,
-win a competition, or acquire an invented event merely because the framing resembles
-one of those worlds.
+Allowed: a bow reads like a promotion; a closed room feels intimate; an ordinary detail carries ominous pressure; a service detail becomes a status beat; the outer world mirrors an established relationship emotionally or rhetorically.
 
-## Lens behavior
+Forbidden: a metaphor becoming an event; a supplied bow becoming a trophy or medal; inventing a promotion, competition win, military role, employee motive, new object, new person, new physical action, new chronology, or new outcome.
 
-The same approved reality may yield different perceptions:
+## Universal requirement
 
-```text
-FIERCE      → status / defiance / self-possession
-GAME       → progression / upgrade / playful status
-NOIR       → implication / suspicion / quiet pressure
-ROMANCE    → intimacy / private significance / restraint
-HORROR     → ordinary wrongness / ominous implication
-HEIST      → acquisition / securing / disappearance / exit
-CEREMONY   → presentation / ritual / significance
-MISCHIEF   → contradiction / trouble / sly attitude
-```
+One reality must support many legitimate perceptions without separate creative engines for each domain. Pets, people, relationships, homes, services, restaurants, businesses, products, weddings, travel, memories, places, objects, and future domains use the same authoring chain.
 
-These are pressures, not permissions to fabricate corresponding events.
-
-## Acceptance boundary
-
-GOOD:
-
-```text
-Closed.
-Chairs upside down.
-Apparently, they left the whole room for us.
-```
-
-BAD:
-
-```text
-They closed the shop so we could be alone.
-```
-
-The first transforms perception. The second invents intent and action.
-
-## Universal rule
-
-```text
-ONE REALITY.
-MANY POSSIBLE PERCEPTIONS.
-
-Reality stays true.
-Meaning can move.
-The next cut changes the read.
-Mouth makes it hit.
-```
-
-Do not create domain-specific creative engines for pets, services, restaurants,
-products, people, places, or memories. The same universal Author discovers the
-relation; the lens supplies treatment pressure; Mouth realizes it.
+Every cut should change the viewer's read: attention, implication, status, relationship, question, anticipation, or payoff.
