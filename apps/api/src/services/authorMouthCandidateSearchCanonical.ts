@@ -84,28 +84,17 @@ function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat
   const value = clean(text);
   if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
   if (!GENERIC_CONCRETE_HEAD.test(value)) return 0;
-
   const labels = sourceLabels(beat, envelope);
   const evidence = worldEvidence(envelope);
   const candidate = meaningfulTokens(value);
-
   for (const source of [...labels, ...evidence]) {
     const sourceValue = clean(source);
     if (!sourceValue || GENERIC_CONCRETE_HEAD.test(sourceValue)) continue;
     if (!CONCRETE_WORD.test(sourceValue)) continue;
-
     const sourceTokens = meaningfulTokens(sourceValue);
     const shared = overlap(candidate, sourceTokens);
-
-    /*
-     * A generic head attached to any supplied concrete descriptor is a
-     * specificity downgrade: "blue bow" -> "blue thing". Even one shared
-     * supplied descriptor token is enough to establish that the candidate is
-     * talking about the same concrete reality while throwing away its identity.
-     */
     if (shared > 0 && sourceTokens.size >= 2) return 1;
   }
-
   return 0;
 }
 
@@ -163,13 +152,10 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
   if (DETERMINED_ROLE.test(value) && !roleIsActuallySupplied(value.replace(/^(?:the|a|an)\s+/i, ""), envelope)) return 1;
   if (isFrameOnly(value)) return 0;
-
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
   if (substitutionRisk >= 0.72) return 1;
-
   const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
   if (specificityRisk >= 0.9) return 1;
-
   const labels = sourceLabels(beat, envelope);
   const world = meaningfulTokens(worldEvidence(envelope).join(" "));
   const candidate = meaningfulTokens(value);
@@ -289,9 +275,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
   const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
   const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
-  const score = metric(
-    grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
-  );
+  const score = metric(grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16);
 
   const reasons: string[] = [];
   if (supportedEventIds.length) reasons.push("event-grounded");
@@ -349,6 +333,8 @@ function buildSystemPrompt(): string {
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
     "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
     "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
+    "A transformed cut must preserve the semantic participants of its source. Do not collapse a complete relationship or fact into only a generic category label. Preserve what the source relationship is about even when you change the wording, sentence shape, rhythm, or point of view.",
+    "Paraphrase is encouraged when the full meaning survives. 'He has a thing for the little ones' is valid only when the supplied reality establishes the corresponding preference and object; 'A preference' is too incomplete because it drops the participant that gives the preference its meaning.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat.",
