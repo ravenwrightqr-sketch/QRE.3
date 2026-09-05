@@ -56,6 +56,12 @@ jobs:
       - name: Build web
         run: pnpm build:web
 
+      - name: Author semantic gate unit acceptance
+        run: pnpm tsx apps/api/author-semantic-gate-acceptance.ts
+
+      - name: Author readout and semantic acceptance
+        run: pnpm tsx apps/api/author-readout-acceptance.ts
+
       - name: Universal Author acceptance
         run: pnpm tsx apps/api/author-acceptance.ts
 
