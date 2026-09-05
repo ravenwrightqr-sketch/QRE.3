@@ -174,7 +174,7 @@ function preferenceConstellations(graph: RealityGraph, subject?: string): Author
 function invariantRelations(graph: RealityGraph): AuthorMetamorphicRelation[] {
   const out: AuthorMetamorphicRelation[] = [];
   for (const continuity of graph.entityContinuity ?? []) {
-    if (continuity.eventIds.length < 3) continue;
+    if (continuity.eventIds.length < 2) continue;
     const ids = unique(continuity.eventIds);
     const first = ids[0]!;
     const last = ids[ids.length - 1]!;
