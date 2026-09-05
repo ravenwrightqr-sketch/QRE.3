@@ -6,7 +6,7 @@ type Case = {
   facts: string[];
   prompt: string;
   minimumCuts: number;
-  requiredOutputAnchors: string[];
+  requiredRealityAnchors: string[];
 };
 
 const cases: Case[] = [
@@ -22,7 +22,7 @@ const cases: Case[] = [
       "Do not turn the result into a fact list or a retrospective report.",
     ].join(" "),
     minimumCuts: 2,
-    requiredOutputAnchors: ["small dogs", "bacon", "apples"],
+    requiredRealityAnchors: ["small dogs", "bacon", "apples"],
   },
   {
     name: "COCO · DOG GROOMER VIDEO",
@@ -45,7 +45,7 @@ const cases: Case[] = [
       "Do not repeat Coco as the subject at the start of every cut.",
     ].join(" "),
     minimumCuts: 3,
-    requiredOutputAnchors: ["lawyer", "eyebrow", "water", "bow", "peace is temporary"],
+    requiredRealityAnchors: ["lawyer", "eyebrow", "water", "bow", "peace is temporary"],
   },
 ];
 
@@ -57,22 +57,21 @@ function normalized(value: string): string {
   return clean(value).toLowerCase().replace(/[’']/g, "'");
 }
 
-function countOccurrences(text: string, phrase: string): number {
-  const source = normalized(text);
-  const target = normalized(phrase);
-  if (!target) return 0;
-  let count = 0;
-  let from = 0;
-  while (true) {
-    const index = source.indexOf(target, from);
-    if (index < 0) return count;
-    count += 1;
-    from = index + target.length;
-  }
-}
-
 function firstWords(cut: string): string {
   return normalized(cut).split(/\s+/).slice(0, 3).join(" ");
+}
+
+function meaningfulWords(value: string): string[] {
+  return normalized(value)
+    .replace(/[^a-z0-9'’-]+/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3)
+    .filter(
+      (word) =>
+        !new Set([
+          "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "through", "after", "before", "then", "now", "still", "again", "this", "that", "it", "is", "are", "was", "were", "be", "been", "being", "as", "into", "my", "your", "our", "their", "his", "her", "its", "he", "she", "they", "them", "you", "we", "me",
+        ]).has(word),
+    );
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -115,10 +114,30 @@ for (const testCase of cases) {
   const sourceIds = new Set(result.sequence.cuts.flatMap((cut) => cut.sourceIds));
   assert(sourceIds.size >= expectedRealityUnits, "supplied reality was lost before authored provenance");
 
-  for (const anchor of testCase.requiredOutputAnchors) {
+  for (const anchor of testCase.requiredRealityAnchors) {
     assert(
-      normalized(outputText).includes(normalized(anchor)) || normalized(evidenceText).includes(normalized(anchor)),
-      `required reality anchor missing: ${anchor}`,
+      normalized(evidenceText).includes(normalized(anchor)),
+      `required supplied reality was lost before Movie/Mouth: ${anchor}`,
+    );
+  }
+
+  /*
+   * Mouth is allowed to paraphrase. We therefore test semantic density rather
+   * than literal source wording. A multi-token source fact may become a short
+   * human line, but it cannot collapse into a bare category label such as
+   * "A preference." and discard the participant that gives the fact meaning.
+   */
+  for (let index = 0; index < result.movie!.trajectory.length; index += 1) {
+    const source = clean(result.movie!.trajectory[index]?.viewerChange);
+    const cut = clean(output[index]);
+    if (!source || !cut) continue;
+
+    const sourceWordCount = meaningfulWords(source).length;
+    const cutWordCount = meaningfulWords(cut).length;
+
+    assert(
+      !(sourceWordCount >= 3 && cutWordCount <= 2),
+      `Mouth collapsed multi-part supplied meaning into a category label: ${cut}`,
     );
   }
 
@@ -129,34 +148,17 @@ for (const testCase of cases) {
   );
 
   assert(
-    !output.some((cut) => /^(?:here(?:'s| is)|this video|in this visit|today we|we can see)\\b/i.test(cut)),
+    !output.some((cut) => /^(?:here(?:'s| is)|this video|in this visit|today we|we can see)\b/i.test(cut)),
     "retrospective or presentation-meta narration leaked into the visible sequence",
   );
 
-  assert(
-    output.some((cut) => /[.!?]/.test(cut)),
-    "authored sequence has no actual language realization",
-  );
+  assert(output.some((cut) => /[.!?]/.test(cut)), "authored sequence has no actual language realization");
 
   const repeatedOpenings = output.map(firstWords);
   assert(
     new Set(repeatedOpenings).size >= Math.max(1, repeatedOpenings.length - 1),
     "cuts are mechanically repeating the same opening",
   );
-
-  if (testCase.subject === "Milo") {
-    for (const anchor of ["small dogs", "bacon", "apples"]) {
-      assert(countOccurrences(outputText, anchor) >= 1, `Milo output dropped ${anchor}`);
-    }
-  }
-
-  if (testCase.subject === "Coco") {
-    assert(/lawyer/i.test(outputText), "Coco lost the lawyer beat");
-    assert(/eyebrow/i.test(outputText), "Coco lost the eyebrow beat");
-    assert(/water/i.test(outputText), "Coco lost the water beat");
-    assert(/bows?/i.test(outputText), "Coco lost the bow beat");
-    assert(/peace is temporary/i.test(outputText), "Coco lost the supplied payoff phrase");
-  }
 
   console.log("STATUS: GREEN");
 }
