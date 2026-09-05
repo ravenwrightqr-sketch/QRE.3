@@ -126,12 +126,7 @@ function extractObjects(label: string, subject?: string): string[] {
 function semanticTags(label: string): string[] {
   return unique(SEMANTIC_TAGS.filter(([pattern]) => pattern.test(label)).map(([, tag]) => tag));
 }
-const IMPLICIT_SUBJECT_PREDICATE =
-  /^(?:likes?|loves?|hates?|prefers?|wants?|enjoys?|adores?)\b/i;
 
-function hasImplicitSubjectPredicate(label: string): boolean {
-  return IMPLICIT_SUBJECT_PREDICATE.test(clean(label));
-}
 /**
  * A global subject is the default referent only when the source event does
  * not explicitly introduce another grammatical actor/entity. This prevents
@@ -142,9 +137,7 @@ function subjectParticipates(label: string, subject?: string): boolean {
   const normalizedSubject = clean(subject);
   if (!normalizedSubject || !normalizedLabel) return false;
   if (normalizedLabel.toLowerCase().includes(normalizedSubject.toLowerCase())) return true;
-  if (hasImplicitSubjectPredicate(normalizedLabel)) {
-  return true;
-  }
+
   if (/^(?:the|a|an)\s+[A-Za-z][A-Za-z0-9'’-]*(?:\s+[A-Za-z][A-Za-z0-9'’-]*){0,2}\s+(?:arriv|return|came|come|left|leave|went|go|met|meet|talk|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|finished|finish|started|start|opened|closed|walk|ran|run|drove|drive|ate|eat|drank|drink|kiss|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|looked|felt|seemed|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked)\b/i.test(normalizedLabel)) {
     return false;
   }
@@ -223,327 +216,59 @@ function buildTemporalRelations(events: RealityEvent[], relations: RealityRelati
     }
   }
 }
-function buildStructuralRelations(
-  events: RealityEvent[],
-  subject: string | undefined,
-): RealityRelation[] {
-  const relations: RealityRelation[] = [];
 
+function buildStructuralRelations(events: RealityEvent[], subject: string | undefined): RealityRelation[] {
+  const relations: RealityRelation[] = [];
   for (let i = 0; i < events.length; i += 1) {
     const current = events[i]!;
-    const currentTokens = meaningfulContentTokens(
-      current.label,
-      subject,
-    );
+    const currentTokens = meaningfulContentTokens(current.label, subject);
     const currentSet = new Set(currentTokens);
-    const currentStates = extractStates(
-      current.label,
-    );
-    const currentActions = extractActions(
-      current.label,
-    );
-    const currentObjects = unique([
-      ...extractObjects(
-        current.label,
-        subject,
-      ),
-      ...objectPhrases(
-        current.label,
-        subject,
-      ),
-    ]);
-
-    const currentSubject =
-      implicitSubjectClue(
-        current.label,
-        subject,
-      );
-
-    const currentPreference =
-      hasImplicitSubjectPredicate(
-        current.label,
-      );
-
-    const currentIdentity =
-      looksLikeIdentityAssertion(
-        current.label,
-      );
-
-    for (
-      let j = i + 1;
-      j < events.length;
-      j += 1
-    ) {
+    const currentStates = extractStates(current.label);
+    const currentSubject = implicitSubjectClue(current.label, subject);
+    for (let j = i + 1; j < events.length; j += 1) {
       const other = events[j]!;
-
-      const otherTokens =
-        meaningfulContentTokens(
-          other.label,
-          subject,
-        );
-
-      const otherSet =
-        new Set(otherTokens);
-
-      const otherStates =
-        extractStates(
-          other.label,
-        );
-
-      const otherActions =
-        extractActions(
-          other.label,
-        );
-
-      const otherObjects =
-        unique([
-          ...extractObjects(
-            other.label,
-            subject,
-          ),
-          ...objectPhrases(
-            other.label,
-            subject,
-          ),
-        ]);
-
-      const otherSubject =
-        implicitSubjectClue(
-          other.label,
-          subject,
-        );
-
-      const otherPreference =
-        hasImplicitSubjectPredicate(
-          other.label,
-        );
-
-      const otherIdentity =
-        looksLikeIdentityAssertion(
-          other.label,
-        );
-
-      const shared =
-        currentTokens.filter(
-          (token) =>
-            otherSet.has(token),
-        );
-
-      const longShared =
-        shared.filter(
-          (token) =>
-            token.length >= 5,
-        );
-
-      /*
-       * Subject continuity is NOT convergence.
-       * It only establishes that two clues can belong
-       * to the same subject.
-       */
-      if (
-        currentSubject &&
-        otherSubject
-      ) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "involves",
-          0.8,
-        );
+      const otherTokens = meaningfulContentTokens(other.label, subject);
+      const otherSet = new Set(otherTokens);
+      const shared = currentTokens.filter((token) => otherSet.has(token));
+      const longShared = shared.filter((token) => token.length >= 5);
+      const otherSubject = implicitSubjectClue(other.label, subject);
+      if (longShared.length >= 1) {
+        addRelation(relations, current.id, other.id, "converges", Math.min(0.82, 0.42 + longShared.length * 0.12));
       }
 
-      /*
-       * Strong lexical convergence:
-       * the supplied clues genuinely share a
-       * distinctive concept.
-       */
-      if (
-        currentSubject &&
-        otherSubject &&
-        longShared.length >= 1
-      ) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "converges",
-          Math.min(
-            0.88,
-            0.5 +
-              longShared.length *
-                0.14,
-          ),
-        );
+      if (currentSubject && otherSubject) {
+        addRelation(relations, current.id, other.id, "involves", 0.8);
+
+        const currentActions = extractActions(current.label);
+        const otherActions = extractActions(other.label);
+        const currentObjects = unique([...extractObjects(current.label, subject), ...objectPhrases(current.label, subject)]);
+        const otherObjects = unique([...extractObjects(other.label, subject), ...objectPhrases(other.label, subject)]);
+        const distinctObjects = currentObjects.some((value) => !otherObjects.includes(value)) || otherObjects.some((value) => !currentObjects.includes(value));
+        const cluePair = currentTokens.length > 0 && otherTokens.length > 0 && (currentActions.length !== otherActions.length || currentStates.length !== extractStates(other.label).length || distinctObjects);
+        if (cluePair && (currentTokens.length <= 8 || otherTokens.length <= 8)) {
+          const novelty = 1 - Math.min(1, shared.length / Math.max(1, Math.min(currentTokens.length, otherTokens.length)));
+          addRelation(relations, current.id, other.id, "converges", 0.56 + Math.min(0.18, novelty * 0.18));
+        }
       }
 
-      /*
-       * Identity facts can legitimately connect:
-       *
-       * Coco is a dog
-       * Coco is a poodle
-       *
-       * without requiring lexical overlap.
-       */
-      if (
-        currentSubject &&
-        otherSubject &&
-        currentIdentity &&
-        otherIdentity &&
-        currentTokens.length > 0 &&
-        otherTokens.length > 0
-      ) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "converges",
-          0.76,
-        );
+      const otherStates = extractStates(other.label);
+      const contrast = OPPOSITES.some(([a, b]) =>
+        (currentStates.includes(a) && otherStates.includes(b)) ||
+        (currentStates.includes(b) && otherStates.includes(a)),
+      );
+      if (contrast) addRelation(relations, current.id, other.id, "contrasts", 0.9);
+
+      const recurrenceLanguage = RECURRENCE_WORDS.test(other.label);
+      const explicitIdentity = looksLikeIdentityAssertion(other.label) || /\b(?:same|remember(?:ed|s|ing)?)\b/i.test(other.label);
+      if (recurrenceLanguage && currentSet.size && otherTokens.some((token) => currentSet.has(token))) {
+        addRelation(relations, current.id, other.id, "repeats", explicitIdentity ? 0.97 : 0.88);
+        addRelation(relations, current.id, other.id, "recontextualizes", explicitIdentity ? 0.9 : 0.72);
       }
 
-      /*
-       * Preference clues become related when their
-       * supplied structure differs materially.
-       *
-       * Example:
-       *   loves walks
-       *   loves bacon
-       *
-       * But two arbitrary object-only preferences
-       * such as:
-       *   likes summer
-       *   likes apples
-       *
-       * do not automatically converge.
-       */
-      const distinctObjects =
-        currentObjects.some(
-          (value) =>
-            !otherObjects.includes(
-              value,
-            ),
-        ) ||
-        otherObjects.some(
-          (value) =>
-            !currentObjects.includes(
-              value,
-            ),
-        );
-
-      const structuralRoleChange =
-        currentActions.length !==
-          otherActions.length ||
-        currentStates.length !==
-          otherStates.length ||
-        distinctObjects &&
-          (
-            currentActions.length > 0 ||
-            otherActions.length > 0 ||
-            currentStates.length > 0 ||
-            otherStates.length > 0
-          );
-
-      if (
-        currentSubject &&
-        otherSubject &&
-        currentPreference &&
-        otherPreference &&
-        structuralRoleChange &&
-        currentTokens.length > 0 &&
-        otherTokens.length > 0
-      ) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "converges",
-          0.68,
-        );
-      }
-
-      const contrast =
-        OPPOSITES.some(
-          ([a, b]) =>
-            (
-              currentStates.includes(a) &&
-              otherStates.includes(b)
-            ) ||
-            (
-              currentStates.includes(b) &&
-              otherStates.includes(a)
-            ),
-        );
-
-      if (contrast) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "contrasts",
-          0.9,
-        );
-      }
-
-      const recurrenceLanguage =
-        RECURRENCE_WORDS.test(
-          other.label,
-        );
-
-      const explicitIdentity =
-        looksLikeIdentityAssertion(
-          other.label,
-        ) ||
-        /\b(?:same|remember(?:ed|s|ing)?)\b/i.test(
-          other.label,
-        );
-
-      if (
-        recurrenceLanguage &&
-        currentSet.size &&
-        otherTokens.some(
-          (token) =>
-            currentSet.has(token),
-        )
-      ) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "repeats",
-          explicitIdentity
-            ? 0.97
-            : 0.88,
-        );
-
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "recontextualizes",
-          explicitIdentity
-            ? 0.9
-            : 0.72,
-        );
-      }
-
-      const explicitCausal =
-        /\b(?:because|caused|causes|resulted in|led to|due to)\b/i.test(
-          `${current.label} ${other.label}`,
-        );
-
-      if (explicitCausal) {
-        addRelation(
-          relations,
-          current.id,
-          other.id,
-          "causes",
-          0.84,
-        );
-      }
+      const explicitCausal = /\b(?:because|caused|causes|resulted in|led to|due to)\b/i.test(`${current.label} ${other.label}`);
+      if (explicitCausal) addRelation(relations, current.id, other.id, "causes", 0.84);
     }
   }
-
   return relations;
 }
 
