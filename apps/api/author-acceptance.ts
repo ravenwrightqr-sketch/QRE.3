@@ -28,7 +28,6 @@ const cases: Case[] = [
     name: "COCO · DOG GROOMER VIDEO",
     subject: "Coco",
     facts: [
-      "dog groomer video",
       "walked in like a lawyer called",
       "eyebrow up",
       "water?",
