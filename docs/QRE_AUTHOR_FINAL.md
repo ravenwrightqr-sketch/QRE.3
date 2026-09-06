@@ -103,7 +103,7 @@ INTERPRETIVE ART: WIDE OPEN
 
 A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. Grounding and copying are separate properties: a concrete cut may reuse one supplied noun or fact-bearing term while still transforming the sentence, grammar, compression, ordering, or relationship. The judge must therefore detect literal source replay independently from ordinary semantic overlap used to establish grounding.
 
-The final cut may leave the source vocabulary and become a free artistic or emotional interpretation when the preceding material earns it.
+The Artist Device is the missing bridge between semantic cognition and visible language. It carries a grounded relationship mechanism plus a small set of universal formal affordances. Examples include compression, fragmentation, nominalization, juxtaposition, inversion, omission, callback, repetition-with-mutation, accumulation, collision, status flip, ellipsis, and unexpected selection. The device may recommend a subset according to the grounded relation, but it must never become a domain-specific author or a fixed literary template.
 
 For example:
 
@@ -116,6 +116,8 @@ Sudden ecstasy.
 This is a model of the desired artistic operation, not a mandatory script. The system must discover the corresponding artistic transformation from each world rather than reproduce this example everywhere.
 
 The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain, subject, or lens.
+
+The Mouth should produce materially competing realizations before selection. A single failed wording attempt must not terminate the semantic idea. Repair passes must receive the actual visible-art rejection reasons so the next attempt attacks the failure rather than merely paraphrasing it.
 
 ## Artist quality boundary
 
@@ -136,6 +138,8 @@ The Pure Visible-Art Judge evaluates:
 - resistance to caption-reel grammar
 
 A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct. Conversely, a short transformed phrase is not a copy merely because it retains a fact-bearing noun such as `apple`; the question is whether the visible language substantially replays the supplied wording or artistically changes its form.
+
+The final quality score at the canonical boundary comes from the realized visible-art judgment alone. Movie quality may decide which semantic idea reaches the Mouth, but it may not rescue a weak realization after the Mouth.
 
 ## Story and sequence
 
@@ -193,8 +197,8 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; multiple Mouth candidates; repair from actual rejection feedback; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
 
-The superintelligence lab must print the complete artifact before assertions so creative failures are inspectable. The lab is not allowed to lower thresholds to make a model pass; failures are evidence for improving the Artist Device.
+The superintelligence lab must print the complete artifact and the realized-film judgment before assertions so creative failures are inspectable at the exact final boundary. The lab is not allowed to lower thresholds to make a model pass; failures are evidence for improving the Artist Device.
