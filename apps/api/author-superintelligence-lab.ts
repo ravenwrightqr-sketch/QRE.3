@@ -18,15 +18,143 @@ const ARTIST_CHARTER = [
 ].join("\n");
 
 const cases: Case[] = [
-  { name:"COCO / GROOMING", subject:"Coco", prompt:"Make a tiny replayable film from what actually happened. Coco is framed here as fierce. Compare the supplied details and let an earned artistic interpretation land. Do not explain the meaning.", facts:["Coco came in for grooming","Coco hates the dryer","Coco stole an apple from the counter","Coco wore a blue bow home"] },
-  { name:"MARIA / HOUSE RESET", subject:"Maria", prompt:"Make the house reset watchable. Find the fun in the details. Gamify it, dramatize it, or make it funny when the reality earns it. Do not turn it into a checklist.", facts:["Maria started cleaning at 9:04 AM","Maria cleaned the kitchen","Maria cleaned bathroom one","Maria cleaned bathroom two","Maria finished at 11:47 AM"] },
-  { name:"RESTAURANT / SERVICE", subject:"the restaurant", prompt:"Find the most entertaining relationship in this shift. The interruption should alter what the viewer notices. The result can be funny, tense, absurd, elegant, or unexpectedly dramatic.", facts:["The restaurant opened at 5 PM","The first table ordered oysters","The fryer stopped working","The fryer returned before dessert service","Dessert service became the busiest part of the night"] },
-  { name:"PAUL / RADIOS", subject:"Paul", prompt:"Make a compact film about the supplied radio details. Let the relationship between repair, inheritance, repetition and the desk create something worth remembering.", facts:["Paul restores old radios","Paul repaired 17 radios this year","The first radio belonged to his grandfather","Paul keeps that radio on his desk"] },
-  { name:"OLD GAS STATION / RECONTEXT", subject:"the old gas station", prompt:"Use the supplied place transformation. Let the old sign change how the coffee shop is seen. Do not invent history.", facts:["The gas station was closed for twenty years","A coffee shop opened inside","The original gas station sign still hangs above the door"] },
-  { name:"RAVE / INTERRUPTION", subject:"the event", prompt:"Make the interruption itself matter. Find the relationship between silence, waiting and the restart without inventing crowd psychology. Humor, suspense, absurdity or weirdness are available.", facts:["Doors opened at 9 PM","The bass system failed at 11:20 PM","The crowd waited","The bass system returned","The DJ restarted exactly where the track had stopped"] },
-  { name:"TOOLBOX / GENERATIONS", subject:"the red toolbox", prompt:"Make the object feel accumulated rather than sentimental. Let the replaced handle and generational use change what the object is worth noticing for.", facts:["The red toolbox was bought in 1998","The toolbox was used by the user's father","The toolbox is now used by the user","The handle has been replaced twice"] },
-  { name:"DOG GROOMER / GROWTH", subject:"the dog groomer", prompt:"Make the business growth visible through concrete details. Find the tension between expansion and continuity. Do not invent employees or customers.", facts:["The dog groomer started with one table","There are now three tables","The same old metal scissors are still used from opening day"] },
-  { name:"TRAVEL / RETURN", subject:"the overlook", prompt:"This is a return visit. Find what is newly meaningful without replaying the first visit. The old bench must matter differently this time.", returning:true, memoryContext:["The overlook was visited once before at sunset","The old bench was already there"], facts:["The overlook was reached in fog this time","The old bench was still there","A new trail marker stood beside the bench","The fog lifted after the bench was passed"] },
+  {
+    name:"COCO / GROOMING",
+    subject:"Coco",
+    prompt:"Make a tiny replayable film from what actually happened. Coco is framed here as fierce. Compare the supplied details and let an earned artistic interpretation land. Do not explain the meaning.",
+    facts:[
+      "Coco arrived for a grooming appointment at 10 AM",
+      "Coco hates the dryer",
+      "The dryer had to be used after the bath",
+      "Coco stole an apple from the counter",
+      "The apple was taken before the groom was finished",
+      "Coco wore a blue bow home",
+      "Coco left after grooming was completed",
+      "The blue bow was still on when Coco left",
+    ],
+  },
+  {
+    name:"MARIA / HOUSE RESET",
+    subject:"Maria",
+    prompt:"Make the house reset watchable. Find the fun in the details. Gamify it, dramatize it, or make it funny when the reality earns it. Do not turn it into a checklist.",
+    facts:[
+      "Maria started cleaning at 9:04 AM",
+      "Maria cleared the kitchen counters",
+      "Maria cleaned the sink",
+      "Maria cleaned the stove",
+      "Maria cleaned bathroom one",
+      "Maria cleaned bathroom two",
+      "Maria changed the towels in both bathrooms",
+      "Maria emptied the kitchen trash",
+      "Maria vacuumed the main floor",
+      "Maria finished at 11:47 AM",
+    ],
+  },
+  {
+    name:"RESTAURANT / SERVICE",
+    subject:"the restaurant",
+    prompt:"Find the most entertaining relationship in this shift. The interruption should alter what the viewer notices. The result can be funny, tense, absurd, elegant, or unexpectedly dramatic.",
+    facts:[
+      "The restaurant opened at 5 PM",
+      "The first table ordered oysters",
+      "Two more tables arrived within ten minutes",
+      "The fryer stopped working",
+      "The kitchen switched to other dishes while the fryer was down",
+      "The fryer returned before dessert service",
+      "Dessert service began at 9 PM",
+      "Dessert service became the busiest part of the night",
+    ],
+  },
+  {
+    name:"PAUL / RADIOS",
+    subject:"Paul",
+    prompt:"Make a compact film about the supplied radio details. Let the relationship between repair, inheritance, repetition and the desk create something worth remembering.",
+    facts:[
+      "Paul restores old radios",
+      "Paul repaired 17 radios this year",
+      "The first radio belonged to his grandfather",
+      "The first radio still works",
+      "Paul keeps that radio on his desk",
+      "Paul repaired its tuning knob himself",
+      "The desk radio is the one radio Paul never sells",
+      "A newer radio sits beside it",
+    ],
+  },
+  {
+    name:"OLD GAS STATION / RECONTEXT",
+    subject:"the old gas station",
+    prompt:"Use the supplied place transformation. Let the old sign change how the coffee shop is seen. Do not invent history.",
+    facts:[
+      "The gas station was closed for twenty years",
+      "The pumps were removed",
+      "A coffee shop opened inside the old building",
+      "The original gas station sign still hangs above the door",
+      "The old concrete forecourt is still outside",
+      "Customers enter through the former service entrance",
+      "The coffee counter now occupies the former sales floor",
+    ],
+  },
+  {
+    name:"RAVE / INTERRUPTION",
+    subject:"the event",
+    prompt:"Make the interruption itself matter. Find the relationship between silence, waiting and the restart without inventing crowd psychology. Humor, suspense, absurdity or weirdness are available.",
+    facts:[
+      "Doors opened at 9 PM",
+      "The first set began at 10 PM",
+      "The bass system failed at 11:20 PM",
+      "The room went quiet",
+      "The crowd waited",
+      "The bass system returned at 11:34 PM",
+      "The DJ restarted exactly where the track had stopped",
+      "The next track began immediately after the restart",
+    ],
+  },
+  {
+    name:"TOOLBOX / GENERATIONS",
+    subject:"the red toolbox",
+    prompt:"Make the object feel accumulated rather than sentimental. Let the replaced handle and generational use change what the object is worth noticing for.",
+    facts:[
+      "The red toolbox was bought in 1998",
+      "The toolbox was used by the user's father",
+      "The toolbox is now used by the user",
+      "The handle has been replaced twice",
+      "The original latches are still attached",
+      "The toolbox is kept in the garage",
+      "A paint mark from the first owner is still on the lid",
+      "The toolbox is opened most Saturdays",
+    ],
+  },
+  {
+    name:"DOG GROOMER / GROWTH",
+    subject:"the dog groomer",
+    prompt:"Make the business growth visible through concrete details. Find the tension between expansion and continuity. Do not invent employees or customers.",
+    facts:[
+      "The dog groomer started with one table",
+      "The first table is still in the shop",
+      "There are now three tables",
+      "The shop moved into a larger space",
+      "The same old metal scissors are still used from opening day",
+      "A second dryer was added after the move",
+      "The original front sign was taken to the new space",
+      "The business still opens with the same first appointment ritual",
+    ],
+  },
+  {
+    name:"TRAVEL / RETURN",
+    subject:"the overlook",
+    prompt:"This is a return visit. Find what is newly meaningful without replaying the first visit. The old bench must matter differently this time.",
+    returning:true,
+    memoryContext:["The overlook was visited once before at sunset","The old bench was already there","The old trail had no marker at the bench"],
+    facts:[
+      "The overlook was reached in fog this time",
+      "The old bench was still there",
+      "A new trail marker stood beside the bench",
+      "The trail marker was not there on the earlier visit",
+      "The fog lifted after the bench was passed",
+      "The overlook appeared after the fog cleared",
+      "The bench remained visible from the overlook",
+    ],
+  },
 ];
 
 const INTERNAL = /\b(?:cognition|planner|candidate|trajectory|compiler|realizer|semantic turn|latent movie|creative opportunity|evidence id)\b/i;
@@ -43,6 +171,7 @@ for(const test of cases){
   const filmJudge=result.diagnostics.realizedFilmJudge;
 
   console.log(`\n================ ${test.name} ================`);
+  console.log(`FACT PALETTE: ${test.facts.length} supplied facts`);
   console.log("READOUT\n"+result.readout.text);
   console.log("\nWHAT QRE PICKED");
   console.log(`Movie: ${result.movie?.id??"NONE"}`);
