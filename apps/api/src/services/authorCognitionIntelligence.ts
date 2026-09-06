@@ -40,8 +40,8 @@ function relationMove(kind: string): AuthorCognitionIntelligence["candidateMoves
 }
 
 export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning = false): AuthorCognitionIntelligence {
-  const mediaCount = graph.evidence.filter((evidence) => Boolean((evidence as unknown as Record<string, unknown>).mediaId || (evidence as unknown as Record<string, unknown>).media)).length;
-  const geoCount = graph.events.filter((event) => Boolean(event.place || (event as unknown as Record<string, unknown>).geo)).length;
+  const mediaCount = 0;
+  const geoCount = graph.events.filter((event) => Boolean(event.place)).length;
   const timeCount = graph.events.filter((event) => Boolean(event.time)).length;
   const sensoryCount = graph.sensorySignals.length;
   const entityCount = unique(graph.events.flatMap((event) => event.entities)).length;
@@ -51,20 +51,19 @@ export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning 
       move: relationMove(relation.kind),
       eventIds: unique([relation.from, relation.to]),
       strength: Math.max(0, Math.min(1, relation.strength)),
-      reason: clean(relation.label || relation.kind),
+      reason: clean(relation.kind),
     }))
     .sort((a, b) => b.strength - a.strength)
     .slice(0, 10);
 
   const semanticSignals = unique([
     graph.relations.length ? `${graph.relations.length} grounded relationship(s) are available for semantic composition.` : "No strong pair relation is required; inspect event-level distinctiveness instead.",
-    graph.patterns.length ? `${graph.patterns.length} recurring or structural pattern signal(s) are present.` : "No recurring pattern is established.",
+    graph.patterns?.length ? `${graph.patterns.length} recurring or structural pattern signal(s) are present.` : "No recurring pattern is established.",
     graph.unresolvedTensions.length ? `${graph.unresolvedTensions.length} unresolved tension signal(s) are present.` : "No explicit unresolved tension is established.",
-    sensoryCount ? `${sensoryCount} sensory signal(s) can enrich realization without becoming separate story beats.` : "No sensory signal is available.",
-    mediaCount ? `${mediaCount} media evidence item(s) exist and should be treated as additive experience material.` : "No media evidence is present.",
-    geoCount ? `${geoCount} event(s) carry place/geo context; place can frame the experience without consuming semantic story capacity.` : "Place/geo is absent from event semantics.",
-    timeCount ? `${timeCount} event(s) carry time; chronology is supporting context unless time itself is meaningful.` : "Time is supporting metadata unless explicitly meaningful.",
-    returning ? "This is a return: prefer changed meaning, callback, continuation, or contrast over replaying the prior structure." : "This is a first encounter: establish the subject economically, then move toward the strongest unusual or consequential relationship.",
+    sensoryCount ? `${sensoryCount} sensory signal(s) are available as realization material.` : "No sensory signal is available.",
+    geoCount ? `${geoCount} event(s) carry place context; place can frame the experience without consuming semantic story capacity.` : "Place is supporting context unless the reality makes it meaningful.",
+    timeCount ? `${timeCount} event(s) carry time; time is supporting context unless the reality makes chronology itself meaningful.` : "Time is supporting context unless explicitly meaningful.",
+    returning ? "This is a return: prefer changed meaning, callback, continuation, or contrast over replaying prior structure." : "This is a first encounter: establish identity economically, then move toward the strongest unusual or consequential relationship.",
   ]);
 
   const compositionRules = [
@@ -81,7 +80,7 @@ export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning 
     "Maximize information density, not minimum word count.",
     "Prefer the supplied detail that changes how an earlier detail is understood.",
     "Preserve strong nouns, distinctive objects, concrete actions, and real relationships as anchors for the Mouth.",
-    "Use the end for the strongest landing available in the evidence, not a generic 'done' statement.",
+    "Use the ending for the strongest landing available in the evidence, not a generic 'done' statement.",
     ...(returning ? ["A return should make the remembered world feel updated, not merely revisited."] : []),
   ]);
 
