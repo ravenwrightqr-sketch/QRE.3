@@ -13,6 +13,8 @@
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "author:satanico": "pnpm exec tsx apps/api/satanico-universal-acceptance.ts",
     "author:war": "pnpm exec tsx apps/api/author-war-readiness-acceptance.ts",
+    "author:universal-cognition": "pnpm --filter @qre/api author:universal-cognition",
+    "author:superintelligence": "pnpm --filter @qre/api author:superintelligence",
     "build:contracts": "pnpm --filter @qre/contracts build",
     "build:db": "pnpm --filter @qre/db build",
     "build:engine": "pnpm --filter @qre/engine build",
