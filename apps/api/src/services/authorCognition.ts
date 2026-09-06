@@ -34,8 +34,28 @@ function relationKindForMechanism(mechanism: SatanicoMechanism): RealityRelation
   }
 }
 
+function cleanSubject(value: unknown): string {
+  return String(value ?? "the subject").replace(/\s+/g, " ").trim() || "the subject";
+}
+
 function relationCandidates(graph: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
-  return searchSatanicoRelations({ graph, subject, limit: 8 }).map((relation, index) => {
+  const discovered = searchSatanicoRelations({ graph, subject, limit: 8 });
+
+  // Relations are derived structure, never source facts. Persisting them on the
+  // local graph lets the independent Judge verify the same inferred relationship
+  // later without turning it into a source-reality event.
+  for (const relation of discovered) {
+    const kind = relationKindForMechanism(relation.mechanism);
+    const [from, to] = relation.eventIds;
+    const alreadyPresent = graph.relations.some((item) =>
+      item.from === from && item.to === to && item.kind === kind,
+    );
+    if (!alreadyPresent) {
+      graph.relations.push({ from, to, kind, strength: Math.max(0.35, Math.min(0.82, relation.score)) });
+    }
+  }
+
+  return discovered.map((relation, index) => {
     const [firstId, secondId] = relation.eventIds;
     const first = graph.events.find((event) => event.id === firstId)!;
     const second = graph.events.find((event) => event.id === secondId)!;
@@ -126,7 +146,7 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 10): Laten
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const modelPlan = await buildModelCognitivePlan(input);
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
-  const derived = relationCandidates(input.realityGraph, String(input.subject ?? "the subject").trim() || "the subject", returning);
+  const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
   const candidates = dedupeCandidates([...modelGrounded, ...derived], 10);
   const selectedMovie = candidates.find((candidate) => candidate.id === modelPlan.selectedMovie?.id) ?? candidates[0];
