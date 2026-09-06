@@ -3,6 +3,7 @@ import { db } from "@qre/db";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { aiConfigured, aiProviderName, analyzeImageForKnowledge } from "../services/aiProvider.js";
 import { recordCreativeFeedback } from "../services/creativeLearning.js";
+import { findNextInformation } from "../services/authorInformationFinder.js";
 
 const router = express.Router();
 
@@ -49,6 +50,22 @@ router.post("/vision", requireAuth, async (req: AuthRequest, res) => {
     return res.json({ facts });
   } catch (error) {
     return res.status(502).json({ error: error instanceof Error ? error.message : "Vision analysis failed." });
+  }
+});
+
+router.post("/finder", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+    if (!prompt) return res.status(400).json({ error: "Prompt is required." });
+    const accountType = req.body?.accountType === "business" ? "business" : "consumer";
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : undefined;
+    const knownQuestions = Array.isArray(req.body?.knownQuestions)
+      ? req.body.knownQuestions.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+    const result = await findNextInformation({ prompt, subject, accountType, knownQuestions });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Information finder failed." });
   }
 });
 
