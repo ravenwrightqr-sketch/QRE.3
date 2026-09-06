@@ -28,7 +28,7 @@ const cases: Case[] = [
   {
     name: "COCO / GROOMING",
     subject: "Coco",
-    prompt: "Make a tiny replayable film from what actually happened. Compare the supplied details and let an earned artistic interpretation land. Do not explain the meaning.",
+    prompt: "Make a tiny replayable film from what actually happened. Coco is framed here as fierce. Compare the supplied details and let an earned artistic interpretation land. Do not explain the meaning.",
     facts: ["Coco came in for grooming", "Coco hates the dryer", "Coco stole an apple from the counter", "Coco wore a blue bow home"],
   },
   {
@@ -84,7 +84,7 @@ const cases: Case[] = [
 ];
 
 const INTERNAL = /\b(?:cognition|planner|candidate|trajectory|viewer|audience|compiler|realizer|provenance|semantic turn|latent movie|creative opportunity|evidence id)\b/i;
-const EXPLANATION = /\b(?:this means|which means|the point is|the meaning is|in other words|this shows|which shows|because this)\b/i;
+const EXPLANATION = /\b(?:this means|which means|the point is|the meaning is|in other words|this shows|which shows|because this|the relationship between|changes what is worth noticing|let the supplied detail)\b/i;
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|worth noticing|it was meaningful|it was special)\.?$/i;
 const SUBJECT_LEAD = (text: string, subject: string): boolean => {
   const escaped = subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
@@ -129,6 +129,8 @@ for (const test of cases) {
   if (!result.diagnostics.complete || !result.diagnostics.renderable) fail(`${test.name}: not renderable`);
   if (!result.sequence.cuts.length) fail(`${test.name}: empty sequence`);
   if (result.sequence.cuts.some((cut) => cut.sourceIds.length === 0)) fail(`${test.name}: provenance lost`);
+  if (result.diagnostics.model === "fallback") fail(`${test.name}: no local model realization available; lab refuses deterministic fallback as gold`);
+  if (result.diagnostics.selectedScore < 0.5) fail(`${test.name}: experience quality score below gold floor (${result.diagnostics.selectedScore})`);
 
   const texts = result.scenes.map((scene) => scene.text);
   if (texts.some((text) => INTERNAL.test(text) || EXPLANATION.test(text) || GENERIC.test(text))) fail(`${test.name}: internal/explanatory/generic language leaked into visible creation`);
