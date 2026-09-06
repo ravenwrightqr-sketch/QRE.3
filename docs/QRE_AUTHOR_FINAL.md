@@ -60,6 +60,12 @@ PAYOFF
 
 The relationship must be earned from supplied reality. Lenses may intensify a grounded relationship but may not manufacture one. Sparse reality is valid; Cognition may choose a distinctive observation or another natural experience form instead of inventing plot.
 
+### Model Movie contract
+
+The local model may return a Movie as either canonical `trajectory[]` or compact `cuts[]`. Both are structural proposals only. QRE normalizes them against the RealityGraph, preserves only existing event IDs, and derives multi-event operations only from relationships already present in that graph. `selectedMovieId` is honored when the proposed Movie survives grounding; it is not silently discarded in favor of a deterministic fallback.
+
+A compact model Movie is therefore not a second semantic authority. It is a candidate structure entering the same grounded Movie competition as other candidates.
+
 ## Movie selection versus visible art
 
 The latent Movie is an internal semantic proposal, not the final customer-facing artifact.
@@ -161,7 +167,7 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture must model the real architecture: a relationship must exist in the RealityGraph before the independent realized-film judge can verify that a visible bridge is grounded.
 
