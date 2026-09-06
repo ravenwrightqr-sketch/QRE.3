@@ -284,7 +284,9 @@ export async function realizeAuthorExperience(input: {
     .map((item) => validateSet(item, input.graph, clean(input.subject)))
     .filter((set): set is RealizedScene[] => Boolean(set));
 
-  if (!sets.length) {
+  const groundedSets = sets.filter((set) => set.length < 3 || groundedSignalScore(set, input.graph) >= 0.3);
+
+  if (!groundedSets.length) {
     const fallbackSource = input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.";
     const fallbackText = stripSubjectLead(fallbackSource, clean(input.subject));
     const fallback: RealizedScene[] = [{
@@ -299,14 +301,14 @@ export async function realizeAuthorExperience(input: {
       model,
       modelCalls,
       rejectedSets: rawSets.length,
-      reason: "no valid model realization; used conservative subject-sparse fallback",
+      reason: "model realizations lacked sufficient grounded signal; used conservative subject-sparse fallback",
     };
   }
 
-  const scored = sets
+  const scored = groundedSets
     .map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject), input.domainContext) }))
     .sort((a, b) => b.score - a.score);
   const best = scored[0]!;
   best.scenes.forEach((scene) => { scene.score = best.score; });
-  return { scenes: best.scenes, score: best.score, model, modelCalls, rejectedSets: rawSets.length - sets.length };
+  return { scenes: best.scenes, score: best.score, model, modelCalls, rejectedSets: rawSets.length - groundedSets.length };
 }
