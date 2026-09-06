@@ -52,6 +52,10 @@ function leadingSubject(text: string, subject: string): boolean {
 function subjectLedRatio(scenes: readonly RealizedScene[], subject: string): number {
   return scenes.length ? scenes.filter((scene) => leadingSubject(scene.text, subject)).length / scenes.length : 1;
 }
+function relationExists(graph: RealityGraph, ids: readonly string[]): boolean {
+  const set = new Set(ids);
+  return graph.relations.some((relation) => set.has(relation.from) && set.has(relation.to));
+}
 function relationForMovie(graph: RealityGraph, movie: LatentMovieCandidate): { relationKind: string; sourceEventIds: string[] } {
   const preferred = new Set(movie.supportingRelationKinds.map(clean).filter(Boolean));
   for (const step of movie.trajectory) {
