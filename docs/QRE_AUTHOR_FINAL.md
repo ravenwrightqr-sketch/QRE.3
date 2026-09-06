@@ -1,9 +1,9 @@
 # QRE Universal Author — Final
 
 STATUS: CANONICAL
-ROLE: Final governance contract for the Universal Author compiler boundary.
+ROLE: Final governance contract for the Universal Author creative boundary.
 
-QRE is a universal entity-centric cognitive experience system. The Author is not a product vertical, story writer, or database. It is the creative compiler that finds the latent experience inside supplied world reality and projects that experience into the existing runtime.
+QRE is a universal entity-centric cognitive experience system. The Author is not a product vertical, story writer, or database. It is the creative device that finds the latent experience inside supplied world reality and projects it into the existing runtime.
 
 ## Single authority model
 
@@ -16,7 +16,11 @@ INPUT / MEDIA / GEO / MEMORY
           ↓
    ONE selected Movie
           ↓
-   Creative Realizer
+    Movie Judge
+          ↓
+     Creative Mouth
+          ↓
+ Realized Film Judge
           ↓
     Story / Sequence
           ↓
@@ -28,126 +32,123 @@ INPUT / MEDIA / GEO / MEMORY
           ↺
 ```
 
-There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Realizer/Mouth, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path is permitted.
+There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one realized-film judgment boundary, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation.
 
 ## Reality
 
 Reality consists of explicit entities, events, states, relations, places, times, evidence, media, provenance, confidence, and uncertainty. Derived interpretation never becomes factual merely because it is useful creatively.
 
-Source evidence outranks interpretation. A figurative realization may be imaginative while remaining anchored to supplied evidence. A new concrete person, place, action, reaction, event, result, dialogue, or chronology is forbidden unless supplied.
+Source evidence outranks interpretation. A figurative realization may be imaginative while remaining anchored to supplied evidence. New concrete people, places, actions, reactions, events, outcomes, dialogue, sensory facts, or chronology are forbidden unless supplied.
 
-Time, geo, photographs, video, receipts, links, and other contextual inputs are real evidence or presentation material. They remain available to the experience system, but they do not automatically become authored story beats.
+Time, geo, photographs, video, receipts, links, and other contextual inputs remain available as evidence or presentation material, but they do not automatically become story beats.
 
 ## Cognition
 
-Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches multiple possible Movies and selects exactly one. The downstream Author never re-ranks or replaces that Movie.
+Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches multiple possible Movies and selects exactly one.
 
-Sparse reality is valid. Cognition may produce an observation, preference constellation, callback, possibility, conceptual experience, or other natural form without forcing plot.
+The central semantic contract is:
 
-Cognition determines the story's justified semantic length from the supplied reality. It must never shorten, fragment, or otherwise deform the story to reserve capacity for photos, geo, timestamps, or other additions.
+```text
+FACT
+  ↓
+RELATIONSHIP
+  ↓
+CHANGE IN WHAT THE VIEWER NOTICES
+  ↓
+PAYOFF
+```
 
-## Story / sequence
+The relationship must be earned from supplied reality. Lenses may intensify a grounded relationship but may not manufacture one. Sparse reality is valid; Cognition may choose a distinctive observation or another natural experience form instead of inventing plot.
 
-The story is the primary authored experience. A fact can be true and still deserve zero authored language. A rich reality may justify many story beats. A thin reality may justify only a few. There is no universal beat count.
+## Movie selection versus visible art
 
-There is no mandatory `hook → develop → turn → payoff` template. Those are possible search shapes, not requirements. The sequence earns its length from meaningful semantic movement, not from an arbitrary duration target and not from the number of attached media items.
+The latent Movie is an internal semantic proposal, not the final customer-facing artifact.
 
-The Author must not become a caption generator, event checklist, timestamp reel, or receipt. Event-by-event coverage is acceptable only when that ordering itself is the meaningful experience.
+The Movie Judge decides whether that proposal is sufficiently grounded, specific, distinctive, non-generic, and semantically progressive to become visible.
+
+The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, and other artistic devices are allowed when they remain inside the reality boundary.
+
+A second independent Realized Film Judge examines the actual visible film after Mouth. A passing Movie is never sufficient evidence that the visible film is good.
+
+## Artist Device
+
+The Artist Device has one deliberate asymmetry:
+
+```text
+CONCRETE REALITY: HARD BOUNDARY
+INTERPRETIVE ART: WIDE OPEN
+```
+
+Every concrete pre-landing cut must visibly ground itself in supplied events, entities, places, or times. The final cut may leave source vocabulary and become a free artistic interpretation when the preceding material earns it.
+
+For example:
+
+```text
+Grooming. Then the apple.
+The counter. The bow. The theft.
+Playful defiance.
+```
+
+The final phrase is an artistic landing, not a factual assertion about hidden psychology.
+
+Invalid visible creation includes invented sensory filler, invented reactions, invented people, invented dialogue, invented actions, unsupported outcomes, or explanatory narration such as “this means…” or “the relationship between…”.
+
+The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain or lens.
+
+## Story and sequence
+
+A fact may be true and still deserve zero authored language. A rich reality may justify many beats. A thin reality may justify only a few. There is no universal beat count.
+
+There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by semantic value, not by an arbitrary duration target and not by the number of facts or media items.
+
+The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, or recap. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
 
 ## Experience additions are additive
 
-Photos, video, geo, timestamps, maps, receipts, links, attachments, actions, and similar materials are first-class experience additions. They may appear at the opening, closing, between story beats, attached to a story beat, or in another justified position.
+Photos, video, geo, timestamps, maps, receipts, links, attachments, actions, and similar materials are first-class experience additions. They may appear before, between, after, or alongside story material without consuming the story's semantic capacity.
 
-They do not consume or replace story beats. They do not establish a maximum story length. They do not cause Cognition to choose a shorter Movie.
+Presentation additions never cause Cognition to choose a shorter Movie. User-controlled reordering of additions must not mutate reality or the selected semantic Movie.
 
-Cognition may determine useful placement for media/context. The final experience may therefore look like:
+## Memory and learning
 
-```text
-GEO / ARRIVAL
-STORY BEAT
-STORY BEAT
-PHOTO
-STORY BEAT
-VIDEO
-STORY BEAT
-GEO / DEPARTURE
-```
+Memory is a world model, not stored creative prose. Persistent memory retains entities, facts, relationships, events, places, time, media, provenance, uncertainty, participation, and durable preferences.
 
-A business experience may naturally use geo or place context at the start and end. A before/after experience may place photos around a semantic change. A wedding or other media-rich experience may contain many media items without reducing the authored story to fit them.
+Return visits resolve remembered history before asking a human for information. New evidence changes the world; creative wording changes presentation only.
 
-The frontend may allow users to reorder experience additions without altering the underlying reality or semantic Movie. Author-created story beats remain grounded and distinct from movable presentation additions.
-
-## Creative realization
-
-The Realizer receives the selected Movie and performs it. Creative freedom is high in framing, attitude, implication, personification, status, irony, understatement, juxtaposition, callbacks, rhetorical questions, rhythm, and genre performance. Reality freedom is zero.
-
-Visible language must speak like a person, not a compiler. Internal terms such as cognition, trajectory, candidate, semantic turn, viewer state, evidence IDs, planner, and narrative structure must never reach the customer.
-
-Every concrete scene carries source-event provenance. Provenance is evidence of grounding, not an instruction to copy source wording.
-
-## Memory
-
-Memory is a world model, not stored prose. Persistent memory should retain entities, facts, relationships, events, places, time, media, provenance, uncertainty, participation, and durable preferences. Creative wording is ephemeral unless explicitly supplied as new reality.
-
-A return visit must resolve remembered history before asking a human for information. New evidence changes the world; creative output changes only the presentation.
-
-## Learning
-
-Learning may adapt creative preference, pacing, lens preference, novelty pressure, or other bounded performance choices. Learning must never mutate source reality or create domain-specific cognition.
+Learning may adapt creative preference, pacing, novelty pressure, lens preference, or other bounded performance choices. It must never mutate reality or create domain-specific cognition.
 
 ## Universal UX
 
-The dashboard should let a person start with whatever reality they know. The interface must not require a rigid five-field story form before QRE can understand the input.
+The dashboard should accept whatever reality the user knows. The interface must not require a rigid story form before QRE can understand the input.
 
-QRE may ask for one high-value missing concrete detail at a time. The user never needs to understand Movie, Frame, RealityGraph, Cognition, Lens, or Mouth.
+QRE may ask one high-value missing concrete detail at a time. Users never need to understand Movie, Frame, RealityGraph, Cognition, Lens, Mouth, or governance mechanics. Users should never be asked to invent the joke, ending, arc, tension, or artistic performance.
 
-Creative direction is optional:
+## Canonical file governance
 
-- LET QRE DECIDE
-- FUNNY
-- ROMANTIC
-- HORROR
-- WILD
-
-Never ask the user to invent the joke, ending, arc, tension, or creative performance.
-
-## Business and network loop
-
-A business supplies an event. QRE creates the experience. The recipient discovers the experience and may become a persistent QRE identity. Future businesses, people, places, products, events, and memories can connect to that identity through the same world model.
-
-```text
-BUSINESS
-   ↓
-EVENT / EXPERIENCE
-   ↓
-RECIPIENT DISCOVERS QRE
-   ↓
-IDENTITY / WORLD
-   ↓
-NEW BUSINESS / PERSON / PLACE / OBJECT
-   ↓
-NEW EVENT
-   ↓
-RICHER EXPERIENCE
-```
-
-This compounding network is a product objective, not a feature-specific story path.
-
-## File governance
-
-The canonical compiler implementation is exactly four files:
+The connected Author path is:
 
 ```text
 apps/api/src/services/authorRealityGraph.ts
 apps/api/src/services/authorCognition.ts
+apps/api/src/services/authorCognitionUniversal.ts
+apps/api/src/services/authorCognitionIntelligence.ts
+apps/api/src/services/authorMetamorphicSearch.ts
+apps/api/src/services/authorCreativeSpine.ts
 apps/api/src/services/authorCreativeRealizer.ts
+apps/api/src/services/authorRealizedFilmJudge.ts
+apps/api/src/services/authorExperienceJudge.ts
+apps/api/src/services/authorSemanticGate.ts
 apps/api/src/services/authorBrainCanonical.ts
 ```
 
-All prior Author-only services, creative seed planning, Author-specific acceptance paths, and obsolete Author governance are removed. Runtime, persistence, scan, delivery, and generic learning infrastructure remain outside the Author boundary.
+These are one connected system. Runtime, persistence, scan, delivery, generic learning, and compiler infrastructure remain outside the Author semantic authority and are consumed through governed interfaces.
+
+Legacy paths must never become alternate semantic authorities.
 
 ## Testing
 
-The primary acceptance question is not whether an expected phrase appears. It is whether arbitrary human reality becomes a compelling experience without factual loss.
+Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Tests must cover reality conservation, participant/place/time/relationship conservation, memory continuity, creative transformation, lens transformation, semantic movement, anti-caption behavior, no compiler leakage, adaptive reality questions, additive media/context handling, user-controlled addition ordering, and return continuation. Acceptance runs through the real canonical Author path.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+
+The realized-film acceptance fixture must model the real architecture: a relationship must exist in the RealityGraph before the independent realized-film judge can verify that a visible bridge is grounded.
