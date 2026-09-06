@@ -124,6 +124,24 @@ function parseJson(text: string): Record<string, unknown> | undefined {
     }
   }
 }
+
+function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
+  if (graph.events.length < 3 || scenes.length < 3) return 0;
+  const eventIds = new Set(graph.events.map((event) => event.id));
+  const usable = scenes.filter((scene) => scene.sourceEventIds.some((id) => eventIds.has(id)));
+  if (usable.length < 3) return 0;
+  const oneEvent = usable.filter((scene) => new Set(scene.sourceEventIds.filter((id) => eventIds.has(id))).size === 1).length / usable.length;
+  const bridge = usable.filter((scene) => new Set(scene.sourceEventIds.filter((id) => eventIds.has(id))).size >= 2).length / usable.length;
+  const direct = usable.reduce((sum, scene) => {
+    const ids = scene.sourceEventIds.filter((id) => eventIds.has(id));
+    if (ids.length !== 1) return sum;
+    const source = graph.events.find((event) => event.id === ids[0]);
+    return sum + Number(Boolean(source && overlap(scene.text, source.label) >= 0.58));
+  }, 0) / usable.length;
+  const operationLike = usable.filter((scene) => !/[,:;!?]|\b(?:but|yet|still|then|until|again|because|while|now|and)\b/i.test(scene.text)).length / usable.length;
+  return metric(oneEvent * 0.42 + direct * 0.38 + (1 - bridge) * 0.12 + operationLike * 0.08);
+}
+
 function validateSet(raw: unknown, graph: RealityGraph, subject: string): RealizedScene[] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const row = raw as RawSet;
@@ -144,8 +162,10 @@ function validateSet(raw: unknown, graph: RealityGraph, subject: string): Realiz
   }
   if (!scenes.length) return undefined;
   if (scenes.length >= 3 && contextRoleLoad(scenes, graph) > 0.75) return undefined;
+  if (captionReelRisk(scenes, graph) >= 0.82) return undefined;
   return scenes;
 }
+
 function eventAnchorCount(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   const byEvent = new Map(graph.events.map((event) => [event.id, scenes.filter((scene) => scene.sourceEventIds.includes(event.id)).map((scene) => scene.text).join(" ")]));
   return graph.events.reduce((count, event) => count + (overlap(byEvent.get(event.id) ?? "", event.label) >= 0.2 ? 1 : 0), 0);
@@ -167,7 +187,7 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
   const uniqueSources = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size;
   const sourceCoverage = graph.events.length ? Math.min(1, uniqueSources / Math.max(1, Math.min(graph.events.length, 5))) : 1;
   const novelty = priorScenes.length ? Math.max(0, 1 - Math.max(...priorScenes.map((prior) => overlap(allText, prior)), 0)) : 1;
-  const rhythm = scenes.length === 1 ? 0.72 : scenes.length <= 5 ? 0.98 : scenes.length <= 8 ? 0.9 : 0.78;
+  const rhythm = scenes.length === 1 ? 0.78 : scenes.length <= 5 ? 0.98 : scenes.length <= 8 ? 0.9 : 0.78;
   const averageWords = scenes.reduce((sum, scene) => sum + words(scene.text).length, 0) / Math.max(1, scenes.length);
   const compactness = averageWords <= 9 ? 1 : averageWords <= 14 ? 0.88 : averageWords <= 20 ? 0.62 : 0.34;
   const evidenceFit = metric(scenes.reduce((sum, scene) => sum + overlap(scene.text, evidence), 0) / Math.max(1, scenes.length));
@@ -178,7 +198,34 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
   const omissionBonus = 1 - subjectPenalty;
   const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.04 : 0;
   const contextPenalty = contextRoleLoad(scenes, graph);
-  return metric(sourceCoverage * 0.16 + evidenceFit * 0.16 + grounded * 0.22 + novelty * 0.11 + rhythm * 0.09 + compactness * 0.08 + thesisGrounding * 0.06 + omissionBonus * 0.10 + domainFit * 0.02 + lensBonus - repeatedStarts * 0.045 - subjectPenalty * 0.08 - contextPenalty * 0.12);
+  const reelPenalty = captionReelRisk(scenes, graph);
+  const semanticBridgeBonus = scenes.length >= 3 ? scenes.filter((scene) => new Set(scene.sourceEventIds).size >= 2).length / scenes.length * 0.06 : 0;
+  return metric(sourceCoverage * 0.15 + evidenceFit * 0.15 + grounded * 0.2 + novelty * 0.11 + rhythm * 0.08 + compactness * 0.07 + thesisGrounding * 0.06 + omissionBonus * 0.10 + domainFit * 0.02 + lensBonus + semanticBridgeBonus - repeatedStarts * 0.045 - subjectPenalty * 0.08 - contextPenalty * 0.12 - reelPenalty * 0.09);
+}
+
+function fallbackFromMovie(input: { movie: LatentMovieCandidate; graph: RealityGraph; subject: string }): RealizedScene[] {
+  const sourceIds = unique(input.movie.trajectory.flatMap((step) => step.eventIds));
+  const semanticLines = unique([
+    stripSubjectLead(clean(input.movie.hypothesis[0]), input.subject),
+    stripSubjectLead(clean(input.movie.payoff), input.subject),
+  ]).filter((text) => text && text.length <= 180 && !INTERNAL.test(text) && !EXPLANATION.test(text) && !GENERIC.test(text));
+
+  if (semanticLines.length) {
+    const scenes = semanticLines.map((text, index) => ({
+      text,
+      kind: index === 0 ? "hook" as const : "payoff" as const,
+      sourceEventIds: sourceIds.filter((id) => input.graph.events.some((event) => event.id === id)),
+      score: 0,
+    }));
+    if (captionReelRisk(scenes, input.graph) < 0.82) return scenes;
+  }
+
+  const strongest = input.graph.events
+    .slice()
+    .sort((a, b) => Number(Boolean(b.salient)) - Number(Boolean(a.salient)))[0];
+  return strongest
+    ? [{ text: stripSubjectLead(strongest.label, input.subject) || "Worth noticing.", kind: "hook", sourceEventIds: [strongest.id], score: 0 }]
+    : [{ text: "Worth noticing.", kind: "hook", sourceEventIds: [], score: 0 }];
 }
 
 export async function realizeAuthorExperience(input: {
@@ -202,7 +249,7 @@ export async function realizeAuthorExperience(input: {
     const result = await localModelGenerate([{ role: "system", content: [
       "You are QRE's ONE CREATIVE REALIZER. The Movie and frame are already selected. Do not redesign them.",
       "Readout is facts. Your job is to realize the selected semantic progression as customer-facing language.",
-      "UNIVERSALITY RULE: there is no default author voice for dogs, grooming, restaurants, memories, movies, places, products, weddings or any other domain. Let the supplied reality and supplied arena/context determine the vocabulary, rhythm, attitude and structure.",
+      "UNIVERSALITY RULE: there is no default author voice for dogs, grooming, restaurants, memories, places, products, weddings or any other domain. Let the supplied reality and supplied arena/context determine the vocabulary, rhythm, attitude and structure.",
       "CONNECT THE DOTS, DON'T EXPLAIN THEM: arrange supplied details so the viewer can recognize the relationship. Do not replace a concrete supplied detail with decorative poetry merely to sound creative.",
       "CONCRETE ANCHOR RULE: across the complete set, preserve multiple unmistakable anchors from the supplied events when those anchors carry the identity of the experience. A creative transformation may compress or rephrase a fact, but it must remain recognizable.",
       "STAR / ARENA: the supplied subject is the star. The house, service, receipt, restaurant, venue, city, object or event is the arena. Business/domain context tells you what kind of world you are in; it does not authorize invented events or employees.",
@@ -216,7 +263,10 @@ export async function realizeAuthorExperience(input: {
       "NONE is valid. Do not force a frame when the supplied facts already create the strongest effect.",
       "ONE SCREEN = ONE BEAT. Usually 2-10 words. Fragments are welcome. Shortness is rhythm, not a hard ceiling.",
       "Do not make every screen sound like poetry. Use the diction the subject, evidence, arena and frame naturally call for. Different domains should produce different structures.",
-      "NEVER OUTPUT AN ABSTRACT SET: for a factual event graph with 3 or more events, at least two scene texts must visibly preserve a concrete noun or distinctive phrase from different supplied events. Provenance IDs alone are not enough. 'Threshold / Beyond / Release' is invalid; 'Arrival / Bath / Blue bow / Pickup' is valid.",
+      "ANTI-CAPTION-REEL: do not map one screen to each supplied event. Multiple events may be compressed into one screen when their relationship matters. An event can remain evidence without becoming visible prose. Prefer semantic movement over coverage.",
+      "ANTI-METADATA-REEL: do not turn dates, locations, photos, receipts, GPS or other context into a checklist of screens. They are additive material unless the Movie makes one meaningful.",
+      "SEMANTIC-BRIDGE RULE: whenever the selected Movie contains a real relationship between multiple supplied events, let at least one screen carry language that makes those events interact, contrast, recur or recontextualize each other. Do not merely place their captions beside each other.",
+      "NEVER OUTPUT AN ABSTRACT SET: for a factual event graph with 3 or more events, at least two scene texts must visibly preserve a concrete noun or distinctive phrase from different supplied events when those anchors carry identity. Provenance IDs alone are not enough.",
       "Never write planning language, compiler language, analysis language, or explanations such as 'this means', 'the viewer sees', or 'the point is'.",
       "Return JSON only: {sets:[{scenes:[{text,kind,sourceEventIds:[]}]}]} with 3 materially different complete sets.",
     ].join("\n") }, { role: "user", content: JSON.stringify(context) }], "json", { numPredict: 3000, temperature: 0.96 });
@@ -231,10 +281,8 @@ export async function realizeAuthorExperience(input: {
     return groundedSignalScore(set, input.graph) >= 0.3 && anchorCount >= Math.min(2, input.graph.events.length);
   });
   if (!groundedSets.length) {
-    const fallbackEvents = input.graph.events.slice(0, 8);
-    const fallbackScenes: RealizedScene[] = fallbackEvents.map((event, index, events) => ({ text: stripSubjectLead(event.label, clean(input.subject)) || `Event ${index + 1}`, kind: index === 0 ? "hook" : index === events.length - 1 ? "payoff" : "line", sourceEventIds: [event.id], score: 0 }));
-    const fallback = fallbackScenes.length > 0 ? fallbackScenes : [{ text: stripSubjectLead(clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.", clean(input.subject)) || "Something worth remembering.", kind: "hook" as const, sourceEventIds: [], score: 0 }];
-    return { scenes: fallback, score: input.graph.events.length ? 0.25 : 0.55, model, modelCalls, rejectedSets: rawSets.length, reason: "model realizations lacked sufficient multi-event grounded signal; used deterministic event-grounded fallback" };
+    const fallback = fallbackFromMovie({ movie: input.movie, graph: input.graph, subject: clean(input.subject) });
+    return { scenes: fallback, score: input.graph.events.length ? 0.25 : 0.55, model, modelCalls, rejectedSets: rawSets.length, reason: "model realizations lacked sufficient semantic/grounded signal; used semantic Movie fallback without event-by-event caption coverage" };
   }
   const scored = groundedSets.map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject), input.domainContext) })).sort((a, b) => b.score - a.score);
   const best = scored[0]!; best.scenes.forEach((scene) => { scene.score = best.score; });
