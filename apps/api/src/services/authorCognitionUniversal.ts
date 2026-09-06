@@ -49,6 +49,41 @@ function score(c: LatentMovieCandidate, returning: boolean): number {
   return clamp(c.attentionPotential*.17+c.novelty*.12+c.specificity*.12+c.distinctiveness*.14+c.informationValue*.1+c.consequencePotential*.1+continuity*.08+movement*.1+(1-c.truthRisk)*.07-c.repetitionRisk*.1);
 }
 function observationCandidates(g: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
+  const candidates: LatentMovieCandidate[] = [];
+  for (const relation of g.relations.slice(0, 80)) {
+    const from=g.events.find(e=>e.id===relation.from); const to=g.events.find(e=>e.id===relation.to);
+    if(!from||!to)continue;
+    const operation=operationForRelationKind(relation.kind)??"reveal";
+    const c:LatentMovieCandidate={
+      id:`universal-observation-${relation.from}-${relation.to}-${relation.kind}`,
+      lens:"NONE",
+      anchorEventIds:[relation.from,relation.to],
+      supportingRelationKinds:[relation.kind],
+      trajectory:[
+        {order:1,operation:"establish",eventIds:[relation.from],viewerChange:"establish one supplied detail",nextQuestion:"What changes when its related detail enters?"},
+        {order:2,operation,eventIds:[relation.from,relation.to],viewerChange:`the supplied ${relation.kind} relationship changes the reading`,nextQuestion:"What lingers after that change?"},
+        {order:3,operation:"payoff",eventIds:[relation.to],viewerChange:"land on the supplied consequence of the relationship",nextQuestion:"What remains in the world after this moment?"},
+      ],
+      payoff:to.label,
+      unresolvedQuestion:"What deserves another look?",
+      evidence:[from.label,to.label],
+      hypothesis:[`${subject}: two supplied details become more interesting when their existing relationship is made visible.`],
+      truthRisk:0,
+      novelty:.62,
+      specificity:.95,
+      informationValue:.7,
+      uncertainty:.2,
+      attentionPotential:.78,
+      consequencePotential:relation.kind==="changes"||relation.kind==="causes"?.7:.4,
+      callbackPotential:returning?.78:.18,
+      compressionPotential:.88,
+      repetitionRisk:.04,
+      distinctiveness:.88,
+      score:0,
+    };
+    c.score=score(c,returning); candidates.push(c);
+  }
+  if(candidates.length)return dedupe(candidates,10);
   return g.events.slice().sort((a,b)=>Number(Boolean(b.salient))-Number(Boolean(a.salient))).slice(0,4).map((e,i)=>{
     const c:LatentMovieCandidate={
       id:`universal-observation-${e.id}`,
@@ -96,9 +131,7 @@ function deriveCutTrajectory(cuts: unknown[], g: RealityGraph): { ids:string[]; 
     const pair=current.find(id=>id!==previousIds[previousIds.length-1]) ?? current[0];
     const previous=previousIds[previousIds.length-1];
     if(!pair)continue;
-    const relation=g.relations.find(r=>
-      (r.from===previous&&r.to===pair)||(r.from===pair&&r.to===previous),
-    );
+    const relation=g.relations.find(r=>(r.from===previous&&r.to===pair)||(r.from===pair&&r.to===previous));
     if(relation){
       const operation=operationForRelationKind(relation.kind);
       if(operation){
@@ -109,6 +142,15 @@ function deriveCutTrajectory(cuts: unknown[], g: RealityGraph): { ids:string[]; 
       trajectory.push({order:trajectory.length+1,operation:"reveal",eventIds:[pair],viewerChange:"introduce another supplied detail",nextQuestion:"What does the combination make visible?"});
     }
     previousIds=unique([...previousIds,...current]);
+  }
+  if(!trajectory.some(step=>step.eventIds.length>=2)){
+    const relation=g.relations.find(r=>allIds.includes(r.from)&&allIds.includes(r.to));
+    if(relation){
+      relationKinds.push(relation.kind);
+      const operation=operationForRelationKind(relation.kind)??"reveal";
+      trajectory.push({order:trajectory.length+1,operation,eventIds:[relation.from,relation.to],viewerChange:`the supplied relationship ${relation.kind} changes the reading`,nextQuestion:"What remains after that change?"});
+      previousIds=unique([...previousIds,relation.from,relation.to]);
+    }
   }
   if(!trajectory.some(step=>step.eventIds.length>=2))return undefined;
   const last=previousIds.at(-1)!;
@@ -123,6 +165,7 @@ function operationForRelationKind(kind: string): LatentMovieTrajectoryStep["oper
     case "recontextualizes": return "reframe";
     case "repeats": return "recur";
     case "involves": return "reframe";
+    case "causes": return "consequence";
     default: return undefined;
   }
 }
@@ -141,25 +184,37 @@ function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentM
   return rows.slice(0,8).flatMap((x,i)=>{
     if(!x||typeof x!=="object")return[];
     const r=x as Record<string,unknown>;
-    const explicitIds=validIds(r.evidenceEventIds??r.evidenceIds??r.anchorEventIds,g);
+    const explicitIds=validIds(r.evidenceEventIds??r.evidenceIds??r.anchorEventIds??r.eventIds,g);
     const canonical=normalizeCanonicalTrajectory(r.trajectory,g);
     const cutDerived=canonical.length?undefined:deriveCutTrajectory(Array.isArray(r.cuts)?r.cuts:[],g);
     const ids=unique(explicitIds.concat(cutDerived?.ids??canonical.flatMap(s=>s.eventIds)));
-    const trajectory=canonical.length?canonical:(cutDerived?.trajectory??[]);
+    let trajectory=canonical.length?canonical:(cutDerived?.trajectory??[]);
+    const supporting=Array.isArray(r.supportingRelationKinds)?unique(r.supportingRelationKinds.filter((x):x is string=>typeof x==="string").map(clean)):[];
+    if(!trajectory.length&&ids.length>=2){
+      const pair=g.relations.find(rel=>ids.includes(rel.from)&&ids.includes(rel.to));
+      if(pair){
+        const operation=operationForRelationKind(pair.kind)??"reveal";
+        trajectory=[
+          {order:1,operation:"establish",eventIds:[pair.from],viewerChange:"establish the supplied opening detail",nextQuestion:"What changes when the related detail enters?"},
+          {order:2,operation,eventIds:[pair.from,pair.to],viewerChange:`the supplied relationship ${pair.kind} changes the reading`,nextQuestion:"What remains after that change?"},
+          {order:3,operation:"payoff",eventIds:[pair.to],viewerChange:"land without inventing a new event",nextQuestion:"What lingers?"},
+        ];
+        supporting.push(pair.kind);
+      }
+    }
     const thesis=clean(r.thesis??(Array.isArray(r.hypothesis)?r.hypothesis[0]:undefined));
     if(g.events.length&&(!ids.length||trajectory.length<2||!trajectory.some(step=>step.eventIds.length>=2)))return[];
     if(thesis&&(GENERIC.test(thesis)||PSYCH.test(thesis)||INTERNAL.test(thesis)))return[];
-    const safeKinds=Array.isArray(r.supportingRelationKinds)?unique(r.supportingRelationKinds.filter((x):x is string=>typeof x==="string").map(clean)):[];
     const c:LatentMovieCandidate={
       id:clean(r.id??r.movieId)||`model-movie-${i+1}`,
       lens:clean(r.lens??r.frame)||"NONE",
-      anchorEventIds:validIds(r.anchorEventIds??ids,g).slice(0,2),
-      supportingRelationKinds:unique(safeKinds.concat(cutDerived?.relationKinds??[])),
+      anchorEventIds:validIds(r.anchorEventIds??ids,g).slice(0,4),
+      supportingRelationKinds:unique(supporting),
       trajectory,
       payoff:clean(r.payoff??r.finalMeaning)||labels(g,[ids.at(-1)??""]).at(-1)||"supplied reality",
       unresolvedQuestion:clean(r.unresolvedQuestion??r.nextQuestion)||"What changes this reading?",
-      evidence:Array.isArray(r.evidence)?r.evidence.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,10):labels(g,ids),
-      hypothesis:Array.isArray(r.hypothesis)?r.hypothesis.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,6):[thesis||"Grounded structural reading of supplied details."],
+      evidence:Array.isArray(r.evidence)?r.evidence.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,24):labels(g,ids),
+      hypothesis:Array.isArray(r.hypothesis)?r.hypothesis.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,8):[thesis||"Grounded structural reading of supplied details."],
       truthRisk:clamp(r.truthRisk),
       novelty:clamp(r.novelty,.68),
       specificity:clamp(r.specificity,.84),
@@ -186,12 +241,13 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const returning=Boolean(input.returning||(input.visitNumber??1)>1), explicit=clean(input.lens); const intelligence=buildAuthorCognitionIntelligence(input.realityGraph,returning,input.creativeLearningContext??[]);
   const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time,entities:e.entities})),relations:input.realityGraph.relations.map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:input.realityGraph.patterns??[],tensions:input.realityGraph.unresolvedTensions??[],sensory:input.realityGraph.sensorySignals??[]};
   let parsed:Record<string,unknown>|undefined; let model="deterministic"; let modelCalls=0;
-  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:["You are QRE universal cognition, not a writer.","Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.","Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.","A movie is a sequence of supplied event IDs whose order or combination makes an existing relationship newly noticeable.","Prefer collision, contrast, recurrence, recontextualization, consequence, convergence, interruption, compression, delayed reveal, return or silence when the graph supports it.","Do not make one hypothesis per event. Do not treat a subject as narrator by default.","Every movie must contain at least two supplied events and at least one relationship between supplied events. Every concrete cut cites existing event IDs.","You may return compact structural movies as cuts:[{eventIds:[...],duration?}] OR canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].","Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.","Keep hypotheses diagnostic and non-psychological. No customer-facing prose.","Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol}})}],"json",{numPredict:1100,temperature:.86}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
+  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:["You are QRE universal cognition, not a writer.","Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.","Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.","A movie is a sequence of supplied event IDs whose order or combination makes an existing relationship newly noticeable.","Prefer collision, contrast, recurrence, recontextualization, consequence, convergence, interruption, compression, delayed reveal, return or silence when the graph supports it.","Do not make one hypothesis per event. Do not treat a subject as narrator by default.","A Movie must be grounded in supplied events. When multiple supplied events have a visible relation, prefer using that relationship. A rich reality graph may justify a materially longer structure; do not collapse it to three events just because a compact answer is easier.","Every concrete cut in downstream realization will be bound to supplied evidence. You may return movies using eventIds:[...] alone, cuts:[{eventIds:[...],duration?}], or canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].","Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.","Keep hypotheses diagnostic and non-psychological. No customer-facing prose.","Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
   const fr=frame(parsed,explicit,input.realityGraph), selectedLens=fr.mode==="frame"?fr.frame:"NONE";
   const modelCs=normalizeModel(parsed,input.realityGraph,returning);
   const observations=observationCandidates(input.realityGraph,clean(input.subject)||"the subject",returning);
   const candidates=dedupe(modelCs.length?modelCs:observations,10);
-  const chosenId=clean(parsed?.selectedMovieId);
+  const chosenRaw=parsed?.selectedMovieId;
+  const chosenId=clean(chosenRaw);
   const selectedMovie=candidates.find(c=>c.id===chosenId)||candidates[0];
   const ints=Array.isArray(parsed?.interpretations)?parsed.interpretations.slice(0,6).flatMap((x,i)=>{if(!x||typeof x!=="object")return[];const r=x as Record<string,unknown>;return [{id:clean(r.id)||`interpretation-${i+1}`,thesis:clean(r.thesis)||selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:clean(r.creativeOpportunity)||"semantic progression",rationale:clean(r.rationale)||"grounded in supplied evidence",evidenceEventIds:validIds(r.evidenceEventIds,input.realityGraph),confidence:clamp(r.confidence,.6)}];}):[];
   const qs=Array.isArray(parsed?.adaptiveQuestions)?parsed.adaptiveQuestions.filter((x):x is Record<string,unknown>=>Boolean(x&&typeof x==="object")).map(x=>({kind:clean(x.kind) as AuthorAdaptiveQuestion["kind"],question:clean(x.question),reason:clean(x.reason)})).filter(x=>x.question&&["who","where","when","event","detail"].includes(x.kind)&&!PSYCH.test(x.question)).slice(0,3):[];
