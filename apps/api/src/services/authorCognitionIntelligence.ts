@@ -21,6 +21,7 @@ export type AuthorCognitionIntelligence = {
   attention: string[];
   learnedPreferenceSignals: string[];
   decisionRules: string[];
+  competitionProtocol: string[];
   antiFailureChecks: string[];
 };
 
@@ -102,6 +103,16 @@ export function buildAuthorCognitionIntelligence(
     "Learn presentation preference from accepted/rejected work, never facts about the world from creative preference.",
   ];
 
+  const competitionProtocol = [
+    "Generate 4–6 materially different semantic hypotheses internally before selecting one.",
+    "Vary the mechanism: contrast, change, recurrence, consequence, convergence, recontextualization, continuation, or distinctive observation.",
+    "Attack every hypothesis for genericity, caption-reel risk, template dependence, unsupported inference, weak grounding, repetition, and fake escalation.",
+    "Prefer a surprising interpretation only when the supplied evidence can carry it without invention.",
+    "Treat candidate length as a consequence of semantic movement, never as a quality signal by itself.",
+    "The winner must beat the runner-up on meaningful information density and distinctiveness, not merely confidence language.",
+    "Rejected hypotheses are internal diagnostics only. Never leak alternatives, scoring, planner language, or selection mechanics to the Mouth.",
+  ];
+
   const antiFailureChecks = [
     "CAPTION_REEL: each story beat cannot merely paraphrase a different source event.",
     "CHECKLIST_RECAP: event count must not determine story length.",
@@ -131,6 +142,7 @@ export function buildAuthorCognitionIntelligence(
     attention,
     learnedPreferenceSignals,
     decisionRules,
+    competitionProtocol,
     antiFailureChecks,
   };
 }
