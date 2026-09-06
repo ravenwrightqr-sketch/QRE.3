@@ -5,6 +5,11 @@
  * explains why that material has artistic charge. The Mouth discovers how to embody it.
  * Reality owns concrete truth. The artist owns form and visible language.
  * QRE binds provenance after creation and independently observes the artifact.
+ *
+ * The rendered product is moving screen text. Each cut is one attention beat.
+ * Length is artistic, not mechanical: short is usually stronger, but a longer beat
+ * is valid when every added word increases the heat. Screenplay directions are not
+ * part of the medium and are rejected at the realization boundary.
  */
 import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -25,9 +30,13 @@ type ArtistDevice = { relationKind: string; mechanism: string; sourceEventIds: s
 const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent movie|creative opportunity|semantic turn|semanticRealization)\b/i;
 const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|let the supplied detail|the relationship between|changes what is worth noticing)\b/i;
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
+const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
+const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
+const UNSUPPORTED_PHYSICAL = /\b(?:tail twitch(?:es|ing)?|head tilt(?:s|ting)?|shrugs?|smiles?|grins?|laughs?|cries?|whines?|sighs?|gasps?|stares?|blinks?|walks?|runs?|jumps?|turns?|waves?|nods?|halfway out the door|shadow briefly obscures)\b/i;
 const WORDS = /\b\w+[’'-]*\w*\b/g;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
+const MAX_BEAT_CHARS = 140;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
@@ -91,10 +100,13 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMo
   for (const [index, item] of row.scenes.entries()) {
     if (!item || typeof item !== "object") return { reason: `cut ${index + 1} is not an object` };
     const scene = item as RawScene; const text = clean(scene.text);
-    if (!text) return { reason: `cut ${index + 1} is empty` }; if (text.length > 240) return { reason: `cut ${index + 1} exceeds 240 characters` };
+    if (!text) return { reason: `cut ${index + 1} is empty` };
+    if (text.length > MAX_BEAT_CHARS) return { reason: `cut ${index + 1} exceeds ${MAX_BEAT_CHARS} characters` };
     if (INTERNAL.test(text)) return { reason: `cut ${index + 1} leaks internal architecture` };
     if (EXPLANATION.test(text)) return { reason: `cut ${index + 1} explains instead of dramatizing` };
     if (GENERIC.test(text)) return { reason: `cut ${index + 1} is generic` };
+    if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `cut ${index + 1} contains screenplay direction` };
+    if (UNSUPPORTED_PHYSICAL.test(text)) return { reason: `cut ${index + 1} invents unsupported physical behavior` };
     scenes.push({ text, kind: ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line", sourceEventIds: bindProvenance(scene.sourceEventIds, index, input.movie, input.graph), score: 0 });
   }
   return { scenes };
@@ -120,26 +132,30 @@ function prompt(attempt: number, feedback: string): string {
   const attacks = ["Find the latent charge first. Then embody it. Do not announce the charge.", "Destroy the source wording and rebuild the film from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.", "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact."];
   return [
     "You are QRE's ONE CREATIVE REALIZER.",
-    "You are a filmmaker, poet, editor, comic writer and entertainment creator. You are creating a piece people should actually want to watch.",
+    "You are creating moving screen text, not a screenplay, article, treatment, caption, or shot list.",
     "The source facts are sacred. The source sentences are disposable.",
     "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
     "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
-    "Meaning Pressure explains why the selected relationship or grounded structure matters. Artist Device suggests possible tools. Neither is a cage. You may ignore both when another artistic move is clearly stronger and still truthful.",
-    "Ask yourself: what would make a human laugh, feel something, or remember this tiny piece later? Make THAT.",
-    "Search for the strongest sensory carrier and the strongest active mechanic before settling for abstract commentary. Sound can drive a film. Silence can drive a film. A bass return can drive a film. A repeated physical task can drive a film. A room, dish, car, house, machine, tool or object can carry the form as metaphorical character or opponent without becoming a falsely literal actor.",
-    "Do not explain the meaning. Make the relationship or structure felt through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, personification, callback, gamification or another device that feels earned.",
-    "Metaphor is encouraged. Concrete metaphorical language is allowed even when the pictured thing was not literally present. 'Forbidden fruit' is valid for a stolen apple. 'Boss battle' is valid for a brutal cleaning run. 'No survivors' can be a comic metaphor for an exhausting task. Food can feel alive. A car can feel like a contender. A house can feel like a level. A room can feel like an arena. A machine can feel like an opponent. CREATE LIKE AN ARTIST, not a compliance engine.",
-    "When supplied sensory reality is strong, do not downgrade it into adjectives. Build the cut around the sensation: impact, pulse, pressure, silence, darkness, heat, motion, texture, taste, sound, return, release. Figurative bodily language is welcome as artistic language; do not invent a literal bodily reaction and present it as fact.",
+    "Meaning Pressure explains why the selected relationship or grounded structure has artistic charge. Artist Device suggests possible tools. Neither is a cage.",
+    "The final output is a sequence of screen text beats. ONE BEAT = ONE SCREENFUL OF ATTENTION.",
+    "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when the separation creates the fire. The Artist chooses where the screen changes.",
+    "A beat can be one word, a fragment, a sentence, or several compressed clauses. Short is usually powerful. Longer is allowed when every extra word creates real artistic force. NEVER pad. NEVER shorten a line merely because of a number.",
+    "Think: WOULD THIS DESERVE ITS OWN SCREEN? WOULD COMBINING THESE WORDS MAKE THE HIT STRONGER? Every word must earn its screen.",
+    "The viewer sees ONLY the text. Do not describe how the film is being filmed.",
+    "NEVER write screenplay directions such as CLOSE ON, QUICK CUT, CUT TO, SOUND:, CAMERA:, WIDE SHOT, MEDIUM SHOT, FADE, ANGLE, MONTAGE, DISSOLVE, or SHOT OF.",
+    "Do not write camera directions, production notes, shot descriptions, sound-design instructions, SFX labels, voice-over labels, or director commentary.",
+    "Do not explain what the viewer feels. Do not explain the metaphor. Do not explain why a beat works. Make the viewer feel it.",
+    "Do not invent literal physical behavior, dialogue, bodily reactions, gestures, sounds, people, objects, locations, or events that the supplied reality does not support. Figurative language is welcome; fabricated literal facts are not.",
+    "Search for the strongest sensory carrier and strongest active mechanic before settling for abstract commentary. Sound can drive a film. Silence can drive a film. Bass return can drive a film. Repeated work can drive a film. A house can feel like an opponent. A room can feel like an arena. An object can feel like a character. These are artistic devices, not claims that the metaphor literally happened.",
+    "Do not force every fact into the film. Do not force a fixed beat count. Two brutal beats can beat ten dead beats. Rich reality may deserve more beats, but richness must come from new strong moments, not longer sentences.",
+    "Do not force every beat to have the same grammar, rhythm, or length. Let rhythm change when the film needs it. Repetition is allowed when repetition itself creates meaning.",
+    "Metaphor is encouraged. 'Forbidden fruit' can transform a stolen apple. 'Boss battle' can transform exhausting cleaning. 'No survivors' can be a comic metaphor for a finished task. Use such language only when the supplied reality earns it.",
     "You may be funny, strange, lyrical, stark, dark, tender, absurd, camp, dramatic, playful, deadpan, surreal, irreverent or understated. Artistic personality is a feature.",
-    "Do not force every fact into the film. Do not force a fixed number of beats. A 2-cut knockout is better than dead cuts. Rich reality may deserve a substantially richer film. Never stop at 3 cuts merely because three is convenient if the material clearly supports more.",
-    "The subject is not a required narrator. Use the subject name only when it creates artistic value.",
-    "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, sensory fact, bodily reaction or specific circumstance and present it as though it happened.",
-    "Abstract interpretation and figurative invention are welcome. The goal is entertainment media created from reality, not sanitized summaries of reality.",
-    "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
-    "Creative taste signals are preference, not reality. Use them to explore possibility, never to overwrite what happened.",
-    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are an exploration, not a competition against a scoring rubric. ORDER THEM FROM EARLY EXPLORATION TO YOUR STRONGEST FINAL CREATIVE CHOICE. Candidate four should be the piece you would actually ship if it remains truthful.",
-    "Candidate length is earned by the material. Two cuts can be perfect. Rich material can use 4, 6, 8, 12 or more cuts. Do not truncate a film merely to fit a tiny reel shape.",
-    "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-24 cuts per candidate. No commentary. No source IDs.",
+    "CREATE SOMETHING WORTH WATCHING. The goal is entertainment media made from reality, not sanitized summaries.",
+    "A transformed fact-bearing phrase is good. Exact source-sentence replay is not. A compressed collision of true facts can be excellent.",
+    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are exploration, not compliance variants. Candidate four should be the piece you would actually ship if it remains truthful.",
+    "Candidates may have any useful number of beats from 2 through 24. Do not pad, truncate, or standardize them.",
+    "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. No commentary. No source IDs. Each text value is the exact text shown on one moving screen beat.",
     `This is creative attack ${attempt + 1} of 3.`,
     feedback ? `Previous attempts did not land because: ${feedback}. Do NOT become safer. Become more inventive and more specific.` : "No prior failure. Explore the full artistic space.",
     attacks[Math.min(attempt, attacks.length - 1)],
