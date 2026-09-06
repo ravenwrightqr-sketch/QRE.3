@@ -1,19 +1,18 @@
 # QRE SEQUENCE PLAY MODEL
 
-**Status:** ACTIVE
-**Branch:** `elite-universal-rebuild-v10`
+**Status:** ACTIVE / CANONICAL
+**Date:** 2026-09-05
+**Branch:** `build/universal-author-local`
 
 ## The central idea
 
-QRE does not author isolated sentences.
+QRE does not author isolated sentences or force every reality into the same number of beats.
 
-QRE authors a **sequence that plays**.
+QRE authors a **primary story that plays**. The story owns the semantic experience. Photos, video, geo, time, maps, receipts, links, and other contextual material are additive experience elements and must never make Cognition shorten or weaken that story.
 
-The mouth is the final realization. The Brain must first decide what the viewer experiences from cut to cut.
+## Why event lists are insufficient
 
-## Why the current LatentMovie is insufficient
-
-The current event model is useful as a reality representation:
+An event model can represent:
 
 ```text
 fact
@@ -25,9 +24,7 @@ stateAfter
 order
 ```
 
-But that is not yet a movie model.
-
-A movie is not:
+But a movie is not:
 
 ```text
 thing happened
@@ -55,9 +52,7 @@ payoff lands
 
 ## The sequence layer
 
-QRE should add a domain-neutral **SequencePlay** layer between world cognition and language realization.
-
-Conceptually:
+QRE should maintain a domain-neutral `SequencePlay` layer between world cognition and language realization.
 
 ```text
 WORLD TRUTH
@@ -69,15 +64,45 @@ SIGNIFICANCE
 SEQUENCE PLAY
     ↓
 AUTHOR MOUTH
+    ↓
+EXPERIENCE COMPOSITION
 ```
 
-Sequence Play is not a screenplay template.
+Sequence Play is not a screenplay template. It is the internal model of what each **story cut** does to attention.
 
-It is the internal model of **what each cut does to attention**.
+## Story beats versus additions
 
-## What each cut needs to know
+A critical invariant:
 
-Each internal sequence step should be able to represent:
+```text
+STORY BEAT ≠ MEDIA ADDITION
+STORY BEAT ≠ GEO ADDITION
+STORY BEAT ≠ TIMESTAMP DISPLAY
+STORY BEAT ≠ MAP / RECEIPT / LINK
+```
+
+These additions may appear in the final ordered experience, but they do not consume story capacity.
+
+Example:
+
+```text
+GEO / ARRIVAL
+STORY
+STORY
+PHOTO
+STORY
+VIDEO
+STORY
+GEO / DEPARTURE
+```
+
+The story in this example has four story beats, even though the composed experience has eight ordered elements.
+
+Cognition must choose four story beats because four are justified by the story, not because two media items were reserved. It must also be free to choose six, ten, twenty, or more when the reality earns that length.
+
+## What each story cut needs to know
+
+Each internal story step should be able to represent:
 
 ```text
 knownBefore
@@ -95,7 +120,7 @@ payoffPotential
 continuationPressure
 ```
 
-Most of these are internal signals. They do not need to appear in the final text.
+Most of these are internal signals. They do not need to appear in final text.
 
 ## The critical distinction
 
@@ -105,11 +130,15 @@ Reality events answer:
 
 Sequence Play answers:
 
-> **Why should this be the next thing the viewer sees?**
+> **Why should this be the next story cut?**
 
 The author answers:
 
 > **What is the best way to express that cut?**
+
+Experience composition answers:
+
+> **What media, context, and actions should accompany the story without weakening it?**
 
 These are different jobs and must not collapse into one prompt.
 
@@ -148,7 +177,68 @@ short
 → short
 ```
 
-The rhythm comes from **information pressure**, not word count.
+The rhythm comes from information pressure, not word count and not media count.
+
+## Media-rich experiences
+
+A wedding, vacation, pet history, major event, or other rich input may contain dozens of photographs or other media items.
+
+Those items do not cause the story to become shorter.
+
+Launch tiers may limit:
+
+```text
+media count
+storage
+processing
+AI generation
+render complexity
+```
+
+Those are product-resource controls, not creative beat limits.
+
+## Before / after media
+
+Cognition may identify a meaningful semantic change and associate media with it.
+
+Example:
+
+```text
+BEFORE PHOTO
+STORY: supplied problem / state
+STORY: change
+AFTER PHOTO
+STORY: resulting meaning
+```
+
+The photographs support the story. They do not replace the story.
+
+## Contextual openings and endings
+
+A business or place experience may naturally use context as an opening or closing element:
+
+```text
+GEO / ARRIVAL
+STORY
+STORY
+STORY
+GEO / DEPARTURE
+```
+
+The geo elements are part of the final experience order, but they are not story beats.
+
+## User-controlled composition
+
+The frontend may expose an ordered experience timeline and allow the user to move additive elements.
+
+User reordering changes presentation order only. It must not alter:
+
+```text
+source reality
+provenance
+selected Movie
+story wording authority
+```
 
 ## Why two-word cuts can be powerful
 
@@ -158,9 +248,7 @@ The monster appeared.
 Pink bows everywhere.
 ```
 
-The second line does not merely continue the first.
-
-It **reframes it**.
+The second line does not merely continue the first. It reframes it.
 
 The viewer supplies part of the connection.
 
@@ -190,7 +278,7 @@ establish
 → pay
 ```
 
-The actual operations should be discovered from the world rather than hardcoded as a universal five-beat template.
+The actual operations must be discovered from the world rather than hardcoded as a universal five-beat template.
 
 ## Character continuity
 
@@ -244,50 +332,35 @@ invent a new physical event
 invent a new relationship
 ```
 
-## Sequence memory
-
-For returning experiences, Sequence Play should also know:
-
-```text
-what the viewer already saw
-what motif has been used
-what expectation the previous chapter created
-what can return with changed meaning
-what should be avoided as a repeated crutch
-```
-
-Therefore a returning chapter is not simply a longer event list.
-
-It is a **new attention trajectory built on an existing audience memory**.
-
 ## QRE definition of a successful sequence
 
 ```text
-CUT 1
+STORY CUT 1
 ↓
-viewer understands the world
+viewer understands something
 ↓
-CUT 2
+STORY CUT 2
 ↓
 viewer notices something unexpected
 ↓
-CUT 3
+STORY CUT 3
 ↓
-viewer wants to resolve or reinterpret it
+meaning shifts / tension rises / callback lands
 ↓
-CUT 4
+STORY CUT 4+
 ↓
-payoff changes the meaning of the earlier cuts
+payoff or earned continuation
 ```
 
-The sequence can end earlier when the experience is complete.
+Then optional experience additions enrich the presentation:
 
-It can continue when the unresolved state is strong enough to earn another cut.
+```text
++ photo
++ geo
++ video
++ map
++ timestamp
++ action
+```
 
-## Engineering consequence
-
-The next major architecture should not be another prose filter.
-
-It should be a **Sequence Play Engine** that takes a `LatentMovie` and produces a ranked attention trajectory before the author writes any words.
-
-That is the missing middle layer.
+The sequence can end earlier when the story is complete. It can continue when the reality earns another story cut.
