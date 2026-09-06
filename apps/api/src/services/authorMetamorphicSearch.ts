@@ -9,12 +9,12 @@ import type {
 } from "@qre/contracts";
 
 /**
- * UNIVERSAL METAMORPHIC RELATION SEARCH
+ * UNIVERSAL METAMORPHIC SEARCH
  *
- * Finds meaningful change, contrast, recurrence, consequence,
- * recontextualization, or distinctive observation already latent in supplied
- * reality. This is lens-blind and never creates events, actors, places,
- * chronology, outcomes, or facts.
+ * Discovers semantic leverage already present in supplied reality.
+ * Pair relations are preferred when grounded; high-information individual
+ * events remain valid observation opportunities when reality is sparse.
+ * This layer never invents facts, actors, places, chronology, or outcomes.
  */
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -104,9 +104,15 @@ function scorePair(graph: RealityGraph, leftId: string, rightId: string, rel: Re
   const recurrence = Math.max(left?.recurrenceScore ?? 0, right?.recurrenceScore ?? 0);
   const transition = Math.max(left?.transitionScore ?? 0, right?.transitionScore ?? 0);
   const salience = Math.max(left?.salienceScore ?? 0, right?.salienceScore ?? 0, leftEvent?.salient ? 1 : 0, rightEvent?.salient ? 1 : 0);
-  const relationStrength = rel?.strength ?? 0;
   return metric(
-    relationStrength * 0.42 + state * 0.15 + objects * 0.1 + actions * 0.07 + tags * 0.08 + recurrence * 0.08 + transition * 0.06 + salience * 0.04,
+    (rel?.strength ?? 0) * 0.42 +
+    state * 0.15 +
+    objects * 0.1 +
+    actions * 0.07 +
+    tags * 0.08 +
+    recurrence * 0.08 +
+    transition * 0.06 +
+    salience * 0.04,
   );
 }
 
@@ -114,14 +120,16 @@ function scoreEvent(graph: RealityGraph, id: string): number {
   const current = structure(graph, id);
   const item = event(graph, id);
   const entityRichness = Math.min(1, (item?.entities.length ?? 0) / 3);
-  const sensory = Math.min(1, (graph.sensorySignals?.filter((signal) => signal.eventIds.includes(id)).length ?? 0) / 2);
+  const sensory = item?.sourceIds.length && graph.sensorySignals.length
+    ? Math.min(1, graph.sensorySignals.length / 4)
+    : 0;
   return metric(
-    (current?.salienceScore ?? 0) * 0.36 +
-    (current?.transitionScore ?? 0) * 0.2 +
-    (current?.recurrenceScore ?? 0) * 0.16 +
-    entityRichness * 0.12 +
-    sensory * 0.1 +
-    (item?.salient ? 1 : 0) * 0.06,
+    (current?.salienceScore ?? 0) * 0.38 +
+    (current?.transitionScore ?? 0) * 0.22 +
+    (current?.recurrenceScore ?? 0) * 0.15 +
+    entityRichness * 0.1 +
+    sensory * 0.08 +
+    (item?.salient ? 1 : 0) * 0.07,
   );
 }
 
@@ -148,20 +156,25 @@ function narrativePair(graph: RealityGraph, ids: [string, string], rel: RealityR
 function eventOpportunity(graph: RealityGraph, id: string): AuthorMetamorphicRelation | undefined {
   const current = event(graph, id);
   if (!current) return undefined;
+  const currentStructure = structure(graph, id);
   const score = scoreEvent(graph, id);
-  if (score < 0.42) return undefined;
-  const label = clean(current.label);
-  const structureRow = structure(graph, id);
-  const sensoryCount = graph.sensorySignals?.filter((signal) => signal.eventIds.includes(id)).length ?? 0;
-  const reason = structureRow?.transitionScore && structureRow.transitionScore >= 0.65
-    ? "This event carries a real transition signal."
-    : structureRow?.recurrenceScore && structureRow.recurrenceScore >= 0.65
-      ? "This event carries a real recurrence signal."
-      : sensoryCount > 0
-        ? "This event has distinctive supplied sensory material."
-        : current.salient
-          ? "This event is explicitly salient in supplied reality."
-          : "This event is unusually information-rich compared with the rest of the supplied material.";
+  const isMeaningful =
+    Boolean(current.salient) ||
+    (currentStructure?.salienceScore ?? 0) >= 0.65 ||
+    (currentStructure?.transitionScore ?? 0) >= 0.65 ||
+    (currentStructure?.recurrenceScore ?? 0) >= 0.65 ||
+    current.entities.length >= 2;
+  if (!isMeaningful || score < 0.42) return undefined;
+
+  const reason = currentStructure?.transitionScore && currentStructure.transitionScore >= 0.65
+    ? "real transition signal"
+    : currentStructure?.recurrenceScore && currentStructure.recurrenceScore >= 0.65
+      ? "real recurrence signal"
+      : current.salient
+        ? "explicitly salient supplied event"
+        : current.entities.length >= 2
+          ? "unusually information-rich event"
+          : "high-information supplied detail";
 
   return {
     id: `metamorphic-event-${id}`,
@@ -170,8 +183,8 @@ function eventOpportunity(graph: RealityGraph, id: string): AuthorMetamorphicRel
     evidenceEventIds: [id],
     beforeEventIds: [id],
     afterEventIds: [],
-    before: label,
-    after: label,
+    before: clean(current.label),
+    after: clean(current.label),
     realizationMove: "recognize",
     creativeOpportunity: "recognition",
     feltEffect: "one supplied detail deserves focused attention without requiring an invented second event",
@@ -211,26 +224,22 @@ export function searchAuthorMetamorphicRelations(input: {
       if (!meaningfulSupport) continue;
 
       const ids: [string, string] = [left.id, right.id];
-      const mechanism = mechanismFor(rel?.kind);
-      const type = typeFor(rel?.kind);
-      const opportunity = opportunityFor(rel?.kind);
-      const realizationMove = moveFor(rel?.kind);
       const narrative = narrativePair(input.graph, ids, rel);
       const score = scorePair(input.graph, left.id, right.id, rel);
       if (score < 0.42) continue;
 
       candidates.push({
-        id: `metamorphic-${left.id}-${right.id}-${mechanism}`,
-        type,
-        mechanism,
+        id: `metamorphic-${left.id}-${right.id}-${mechanismFor(rel?.kind)}`,
+        type: typeFor(rel?.kind),
+        mechanism: mechanismFor(rel?.kind),
         evidenceEventIds: unique(ids),
         beforeEventIds: [left.id],
         afterEventIds: [right.id],
+        relation: rel ? { kind: rel.kind, fromEventId: rel.from, toEventId: rel.to } : undefined,
+        realizationMove: moveFor(rel?.kind),
+        creativeOpportunity: opportunityFor(rel?.kind),
         before: narrative.before,
         after: narrative.after,
-        relation: rel ? { kind: rel.kind, fromEventId: rel.from, toEventId: rel.to } : undefined,
-        realizationMove,
-        creativeOpportunity: opportunity,
         feltEffect: narrative.feltEffect,
         viewerShift: narrative.viewerShift,
         languageAim: narrative.languageAim,
@@ -240,8 +249,6 @@ export function searchAuthorMetamorphicRelations(input: {
     }
   }
 
-  // Sparse reality is not a failure. Promote high-information individual events
-  // into observation opportunities without pretending they are relationships.
   for (const item of events) {
     const opportunity = eventOpportunity(input.graph, item.id);
     if (opportunity) candidates.push(opportunity);
