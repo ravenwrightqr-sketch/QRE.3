@@ -13,6 +13,7 @@ const ARTIST_CHARTER = [
   "The film's form must be earned by this reality. Do not force the same opening, beat count, sentence shape, or ending shape across worlds.",
   "A tiny film may be 2 cuts. A richer reality may need more. Length is earned by the relationship, never by a template.",
   "Prefer compression over narration. Prefer concrete juxtaposition over commentary. Prefer a final image/phrase that changes the reading over a summary.",
+  "Semantic truth is immutable; client wording is not. Transform the language without changing what happened.",
 ].join("\n");
 
 const cases: Case[] = [
@@ -30,10 +31,7 @@ const cases: Case[] = [
 const INTERNAL = /\b(?:cognition|planner|candidate|trajectory|viewer|audience|compiler|realizer|provenance|semantic turn|latent movie|creative opportunity|evidence id)\b/i;
 const EXPLANATION = /\b(?:this means|which means|the point is|the meaning is|in other words|this shows|which shows|because this|the relationship between|changes what is worth noticing|let the supplied detail)\b/i;
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|worth noticing|it was meaningful|it was special)\.?$/i;
-const SUBJECT_LEAD = (text:string, subject:string):boolean => {
-  const escaped = subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
-  return new RegExp(`^(?:the|a|an)?\\s*${escaped}(?:\\b|:)`, "i").test(text.trim());
-};
+const SUBJECT_LEAD = (text:string, subject:string):boolean => { const escaped = subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"); return new RegExp(`^(?:the|a|an)?\\s*${escaped}(?:\\b|:)`, "i").test(text.trim()); };
 const tokens=(text:string):Set<string>=>new Set((text.toLowerCase().match(/\b[\w’'-]+\b/g)??[]).filter(t=>t.length>2));
 const overlap=(left:string,right:string):number=>{const a=tokens(left),b=tokens(right);if(!a.size||!b.size)return 0;let hits=0;for(const t of a)if(b.has(t))hits+=1;return hits/Math.max(1,a.size)};
 function words(text:string):number{return (text.match(/\b[\w’'-]+\b/g)??[]).length}
@@ -47,6 +45,7 @@ const rendered:string[]=[];
 for(const test of cases){
   const result=await authorBrainCanonical({prompt:`${ARTIST_CHARTER}\n\n${test.prompt}`,subject:test.subject,facts:test.facts,sourceMoments:test.facts,memoryContext:test.memoryContext??[],creativeLearningContext:[],returning:test.returning,lens:test.lens});
   const texts=result.scenes.map(scene=>scene.text);
+  const filmJudge=result.diagnostics.realizedFilmJudge;
 
   console.log(`\n================ ${test.name} ================`);
   console.log("READOUT\n"+result.readout.text);
@@ -55,13 +54,16 @@ for(const test of cases){
   console.log(`Lens: ${result.movie?.lens??"NONE"}`);
   console.log(`Candidates: ${result.diagnostics.candidateSequences}`);
   console.log(`Accepted candidates: ${result.diagnostics.acceptedCandidates}`);
-  console.log(`Decision score: ${result.diagnostics.selectedScore}`);
+  console.log(`Movie score: ${result.diagnostics.experienceJudge?.score??0}`);
+  console.log(`Visible-art score: ${filmJudge?.score??0}`);
   console.log(`Semantic gate: ${result.diagnostics.semanticGate?.accepted?"PASS":"FAIL"}`);
-  console.log(`Judge: ${result.diagnostics.experienceJudge?.accepted?"PASS":"FAIL"}`);
+  console.log(`Movie Judge: ${result.diagnostics.experienceJudge?.accepted?"PASS":"FAIL"}`);
+  console.log(`Visible-art Judge: ${filmJudge?.accepted?"PASS":"FAIL"}`);
   console.log(`Model: ${result.diagnostics.model}`);
   console.log(`Visible bridge: ${relationBridge(result)?"PASS":"FAIL"}`);
   console.log(`Earned artistic landing: ${earnedLanding(result,test.facts)?"PASS":"FAIL"}`);
   console.log(`Form variation: ${formVariation(result).toFixed(3)}`);
+  if(filmJudge) console.log("VISIBLE-ART DIMENSIONS\n"+JSON.stringify(filmJudge.dimensions,null,2));
   console.log("\nMOVIE THESIS");
   console.log(result.movie?.hypothesis?.join("\n")??"NONE");
   console.log("\nFINAL FILM");
@@ -77,7 +79,10 @@ for(const test of cases){
   if(!result.sequence.cuts.length)fail(`${test.name}: empty sequence`);
   if(result.sequence.cuts.some(cut=>cut.sourceIds.length===0))fail(`${test.name}: provenance lost`);
   if(result.diagnostics.model==="fallback")fail(`${test.name}: no local model realization available; lab refuses deterministic fallback as gold`);
-  if(result.diagnostics.selectedScore<0.5)fail(`${test.name}: experience quality score below gold floor (${result.diagnostics.selectedScore})`);
+  if(result.diagnostics.selectedScore<0.68)fail(`${test.name}: visible-art score below final gold floor (${result.diagnostics.selectedScore})`);
+  if(!filmJudge?.accepted)fail(`${test.name}: visible-art judge rejected the rendered film`);
+  if((filmJudge?.dimensions.artisticTransformation??0)<0.35)fail(`${test.name}: insufficient artistic transformation`);
+  if((filmJudge?.dimensions.sourceCopyRisk??1)>=0.5)fail(`${test.name}: source-copy risk too high`);
   if(texts.some(text=>INTERNAL.test(text)||EXPLANATION.test(text)||GENERIC.test(text)))fail(`${test.name}: internal/explanatory/generic language leaked into visible creation`);
   if(texts.some(text=>words(text)>24))fail(`${test.name}: Mouth cut exceeded 24 words`);
   if(texts.length>=2&&texts.every(text=>SUBJECT_LEAD(text,test.subject)))fail(`${test.name}: subject-led author template collapse`);
@@ -94,4 +99,4 @@ const uniqueOutputs=new Set(normalized).size;
 if(uniqueOutputs<Math.ceil(cases.length*0.8))fail(`cross-world collapse: ${uniqueOutputs}/${cases.length}`);
 console.log("\n============================================================");
 console.log(`SUPERINTELLIGENCE LAB: PASS (${cases.length} worlds, ${uniqueOutputs} materially unique outputs)`);
-console.log("REALITY → READOUT → UNDERSTAND → NOTICE → COMPETE → ATTACK → JUDGE → MOVIE → MOUTH → EXPERIENCE");
+console.log("REALITY → READOUT → UNDERSTAND → NOTICE → COMPETE → ATTACK → JUDGE → MOVIE → MOUTH → VISIBLE-ART JUDGE → EXPERIENCE");
