@@ -1,5 +1,7 @@
 import type { AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
+type RealizedScene = AuthorScene & { sourceEventIds: string[]; score?: number };
+
 /**
  * Independent judge for the VISIBLE film.
  *
@@ -38,27 +40,26 @@ function overlap(left: string, right: string): number {
 
 function relationExists(graph: RealityGraph, ids: readonly string[]): boolean {
   const set = new Set(ids);
-  for (const relation of graph.relations) {
-    if (set.has(relation.from) && set.has(relation.to)) return true;
-    if (set.has(relation.to) && set.has(relation.from)) return true;
-  }
-  return false;
+  return graph.relations.some((relation) =>
+    (set.has(relation.from) && set.has(relation.to)) ||
+    (set.has(relation.to) && set.has(relation.from)),
+  );
 }
 
 function eventCorpus(graph: RealityGraph): string {
   return graph.events.flatMap((event) => [event.label, ...event.entities, event.place, event.time]).filter(Boolean).join(" ");
 }
 
-function sceneGrounding(scene: AuthorScene, graph: RealityGraph): number {
+function sceneGrounding(scene: RealizedScene, graph: RealityGraph): number {
   const source = scene.sourceEventIds
-    .map((id) => graph.events.find((event) => event.id === id))
+    .map((id: string) => graph.events.find((event) => event.id === id))
     .filter((event): event is NonNullable<typeof event> => Boolean(event));
   if (!source.length) return 0;
   const sourceText = source.flatMap((event) => [event.label, ...event.entities, event.place, event.time]).filter(Boolean).join(" ");
   return overlap(scene.text, sourceText);
 }
 
-function concreteGrounding(scenes: readonly AuthorScene[], graph: RealityGraph): number {
+function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (!scenes.length || graph.events.length === 0) return 1;
   const nonFinal = scenes.slice(0, -1);
   if (!nonFinal.length) return 0;
@@ -67,13 +68,12 @@ function concreteGrounding(scenes: readonly AuthorScene[], graph: RealityGraph):
   return clamp((anchored / nonFinal.length) * 0.75 + (scores.reduce((sum, score) => sum + score, 0) / nonFinal.length) * 0.25);
 }
 
-function relationBridge(scenes: readonly AuthorScene[], graph: RealityGraph): number {
+function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (graph.events.length < 2) return 1;
-  const bridge = scenes.some((scene) => scene.sourceEventIds.length >= 2 && relationExists(graph, scene.sourceEventIds));
-  return bridge ? 1 : 0;
+  return scenes.some((scene) => scene.sourceEventIds.length >= 2 && relationExists(graph, scene.sourceEventIds)) ? 1 : 0;
 }
 
-function progression(scenes: readonly AuthorScene[], graph: RealityGraph): number {
+function progression(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (scenes.length < 2) return 0;
   const nonFinal = scenes.slice(0, -1);
   const grounded = nonFinal.map((scene) => sceneGrounding(scene, graph));
@@ -85,7 +85,7 @@ function progression(scenes: readonly AuthorScene[], graph: RealityGraph): numbe
   return clamp(bridgeBonus + sourceGain * 0.35 + anchorQuality * 0.3);
 }
 
-function landing(scenes: readonly AuthorScene[], graph: RealityGraph): number {
+function landing(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   const last = scenes.at(-1);
   if (!last || scenes.length < 2) return 0;
   const finalTokens = tokenSet(last.text);
@@ -101,16 +101,15 @@ function landing(scenes: readonly AuthorScene[], graph: RealityGraph): number {
   return clamp(compact * 0.28 + nonParaphrase * 0.25 + interpretive * 0.15 + multiSource * 0.32);
 }
 
-function formDiversity(scenes: readonly AuthorScene[]): number {
+function formDiversity(scenes: readonly RealizedScene[]): number {
   if (scenes.length < 3) return 0.55;
   const lengths = scenes.map((scene) => (scene.text.match(/\b[\w’'-]+\b/g) ?? []).length);
   const uniqueLengths = new Set(lengths).size;
-  const kinds = unique(scenes.map((scene) => scene.kind)).length;
+  const kinds = unique(scenes.map((scene) => scene.kind ?? "")).length;
   return clamp(Math.min(1, uniqueLengths / Math.min(4, scenes.length)) * 0.55 + Math.min(1, kinds / 3) * 0.45);
 }
 
-function inventionRisk(scenes: readonly AuthorScene[], graph: RealityGraph): number {
-  const corpus = eventCorpus(graph);
+function inventionRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   let unsupported = 0;
   let checked = 0;
   for (const [index, scene] of scenes.entries()) {
@@ -121,12 +120,12 @@ function inventionRisk(scenes: readonly AuthorScene[], graph: RealityGraph): num
   return checked ? clamp(unsupported / checked) : 0;
 }
 
-function explanationRisk(scenes: readonly AuthorScene[]): number {
+function explanationRisk(scenes: readonly RealizedScene[]): number {
   const explanation = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|the relationship|the viewer|the audience|changes what is worth noticing|because this)\b/i;
   return clamp(scenes.filter((scene) => explanation.test(scene.text)).length / Math.max(1, scenes.length));
 }
 
-function captionReelRisk(scenes: readonly AuthorScene[], graph: RealityGraph): number {
+function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (scenes.length < 3) return 0;
   const oneEvent = scenes.filter((scene) => scene.sourceEventIds.length === 1).length / scenes.length;
   const paraphrases = scenes.filter((scene) => scene.sourceEventIds.length === 1 && sceneGrounding(scene, graph) >= 0.58).length / scenes.length;
@@ -135,7 +134,7 @@ function captionReelRisk(scenes: readonly AuthorScene[], graph: RealityGraph): n
 }
 
 export function judgeRealizedFilm(input: {
-  scenes: readonly AuthorScene[];
+  scenes: readonly RealizedScene[];
   movie: LatentMovieCandidate;
   graph: RealityGraph;
 }): RealizedFilmJudgment {
@@ -170,10 +169,5 @@ export function judgeRealizedFilm(input: {
     (1 - dimensions.explanationRisk) * 0.02 +
     (1 - dimensions.captionReelRisk) * 0.02,
   );
-  return {
-    accepted: reasons.length === 0 && score >= 0.68,
-    score,
-    reasons,
-    dimensions,
-  };
+  return { accepted: reasons.length === 0 && score >= 0.68, score, reasons, dimensions };
 }
