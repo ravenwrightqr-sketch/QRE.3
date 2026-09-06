@@ -23,6 +23,7 @@ export type SemanticGateResult = {
     observerContract: number;
     summaryRisk: number;
     unsupportedInferenceRisk: number;
+    captionReelRisk: number;
   };
 };
 
@@ -38,9 +39,6 @@ function metric(value: number): number { return Number(Math.max(0, Math.min(1, N
 const MOVEMENT = new Set(["contrast", "reframe", "escalate", "converge", "reveal", "consequence", "payoff", "recur"]);
 const WEAK = new Set(["establish", "confirm"]);
 const SUMMARY_RE = /^(?:[a-z][^.!?]{0,100}\b(?:is|are|likes?|loves?|has|had|was|were|enjoys?|contains?|includes?)\b[^.!?]{0,100})[.!?]?$/i;
-// These are not automatically forbidden. They are risk signals only when the
-// candidate makes them the sole unsupported claim instead of using them as a
-// creative reading grounded by concrete event movement.
 const UNSUPPORTED_INFERENCE = /\b(?:lack of negative|consistently joyful|emotionally fulfilled|happy life|deeply|truly|definitely|obviously|clearly|always|never|perfectly|contentment|contented|happiness|happy|anxiety|anxious|joyful|purity|sheltered|fulfilling|fulfilled|simple pleasures|separation anxiety|emotional landscape|emotional journey|perfect scenario|vulnerability|bond|baseline of contentment)\b/i;
 const EXPLANATORY_TURN = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|because this|therefore)\b/i;
 const REALIZATION_MOVES = new Set(["feel_state_transition", "recognize_callback", "recontextualize_callback", "hold_contrast", "return_with_new_status", "land_consequence", "recognize"]);
@@ -57,6 +55,38 @@ function inferenceUnsupported(thesisCorpus: string, realityCorpus: string): bool
   const realityTokens = tokens(reality);
   const hits = phraseTokens.filter((token) => realityTokens.has(token)).length;
   return hits / phraseTokens.length < 0.5;
+}
+
+function captionReelRisk(movie: LatentMovieCandidate, graph: RealityGraph): number {
+  if (graph.events.length < 3 || movie.trajectory.length < 3) return 0;
+  const eventIds = new Set(graph.events.map((event) => event.id));
+  const usableSteps = movie.trajectory.filter((step) => step.eventIds.some((id) => eventIds.has(id)));
+  if (usableSteps.length < 3) return 0;
+
+  const oneEventSteps = usableSteps.filter((step) => new Set(step.eventIds.filter((id) => eventIds.has(id))).size === 1).length;
+  const oneToOne = oneEventSteps / usableSteps.length;
+  const distinctEvents = new Set(usableSteps.flatMap((step) => step.eventIds.filter((id) => eventIds.has(id)))).size;
+  const eventCoverage = distinctEvents / Math.max(1, Math.min(graph.events.length, usableSteps.length));
+  const bridgeSteps = usableSteps.filter((step) => new Set(step.eventIds.filter((id) => eventIds.has(id))).size >= 2).length;
+  const bridging = bridgeSteps / usableSteps.length;
+
+  let directParaphrases = 0;
+  for (const step of usableSteps) {
+    const ids = step.eventIds.filter((id) => eventIds.has(id));
+    if (ids.length !== 1) continue;
+    const source = graph.events.find((event) => event.id === ids[0]);
+    if (source && overlap(clean(step.viewerChange), source.label) >= 0.55) directParaphrases += 1;
+  }
+  const directParaphraseRatio = directParaphrases / Math.max(1, usableSteps.length);
+
+  const noMeaningfulShift = usableSteps.filter((step) => !MOVEMENT.has(step.operation)).length / usableSteps.length;
+  return metric(
+    oneToOne * 0.4 +
+    directParaphraseRatio * 0.35 +
+    Math.min(1, eventCoverage) * 0.1 +
+    (1 - bridging) * 0.1 +
+    noMeaningfulShift * 0.05,
+  );
 }
 
 export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityGraph): SemanticGateResult {
@@ -137,6 +167,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
           : 0.15;
   const unsupportedInferenceRisk = inferenceUnsupported(thesisCorpus, realityCorpus) ? 0.55 : 0.05;
   const explanatoryRisk = EXPLANATORY_TURN.test(clean(thesis?.semanticTurn)) ? 0.85 : 0;
+  const reelRisk = captionReelRisk(movie, graph);
 
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
   if (!meaningful.length) reasons.push("Movie contains no semantic movement");
@@ -144,6 +175,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (thesisGrounding < 0.2 && graph.events.length > 0 && meaningful.length === 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
   if (summaryRisk >= 0.9) reasons.push("Movie hypothesis reads as a factual summary rather than a semantic discovery");
   if (unsupportedInferenceRisk >= 0.9) reasons.push("Movie contains unsupported psychological/generalized inference");
+  if (reelRisk >= 0.82) reasons.push("Movie collapses into one-event-per-step caption coverage instead of semantic movement");
   if (graph.events.length > 0 && !thesis && meaningful.length === 0) reasons.push("rich LatentStoryThesis is missing on a Movie with no semantic movement");
   if (graph.events.length > 0 && !hasSemanticTurn) reasons.push("semantic turn is missing");
   if (graph.events.length > 0 && !hasRealization && meaningful.length === 0) reasons.push("semanticRealization mechanism/move is missing on a Movie with no semantic movement");
@@ -154,23 +186,25 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (explanatoryRisk >= 0.8) reasons.push("semantic turn is written as explanation instead of a turn");
 
   const score = metric(
-    evidenceCoverage * 0.2 +
-    semanticMovement * 0.22 +
-    progressionVariety * 0.1 +
+    evidenceCoverage * 0.18 +
+    semanticMovement * 0.2 +
+    progressionVariety * 0.09 +
     thesisGrounding * 0.12 +
-    semanticContractScore * 0.2 +
-    observerContract * 0.11 +
+    semanticContractScore * 0.19 +
+    observerContract * 0.1 +
     (1 - summaryRisk) * 0.03 +
-    (1 - unsupportedInferenceRisk) * 0.02,
+    (1 - unsupportedInferenceRisk) * 0.02 +
+    (1 - reelRisk) * 0.07,
   );
   const compatibilityScore = metric(
-    evidenceCoverage * 0.24 +
-    semanticMovement * 0.3 +
-    progressionVariety * 0.1 +
-    thesisGrounding * 0.16 +
-    semanticContractScore * 0.15 +
+    evidenceCoverage * 0.22 +
+    semanticMovement * 0.27 +
+    progressionVariety * 0.09 +
+    thesisGrounding * 0.15 +
+    semanticContractScore * 0.14 +
     (1 - summaryRisk) * 0.03 +
-    (1 - unsupportedInferenceRisk) * 0.02,
+    (1 - unsupportedInferenceRisk) * 0.02 +
+    (1 - reelRisk) * 0.08,
   );
 
   return {
@@ -186,6 +220,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
       observerContract,
       summaryRisk: metric(summaryRisk),
       unsupportedInferenceRisk: metric(Math.max(unsupportedInferenceRisk, explanatoryRisk)),
+      captionReelRisk: reelRisk,
     },
   };
 }
