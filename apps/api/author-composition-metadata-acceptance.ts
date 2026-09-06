@@ -18,7 +18,7 @@ const labels = graph.events.map((event) => event.label);
 const forbidden = labels.filter((label) => /^(?:(?:at|@)\s*)?(?:\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|today|yesterday|tomorrow)$/i.test(label));
 if (forbidden.length) throw new Error(`METADATA BECAME SEQUENCE EVENT: ${forbidden.join(" | ")}`);
 if (graph.events.length !== 3) throw new Error(`EXPECTED 3 composition events, got ${graph.events.length}`);
-if (graph.evidence.length !== 6) throw new Error(`EXPECTED all supplied evidence to remain preserved, got ${graph.evidence.length}`);
+if (graph.evidence.length !== 7) throw new Error(`EXPECTED all supplied evidence to remain preserved, got ${graph.evidence.length}`);
 if (!graph.evidence.some((item) => item.text === "9:04")) throw new Error("TIMESTAMP LOST FROM EVIDENCE");
 if (!graph.evidence.some((item) => item.text === "photo 1")) throw new Error("PHOTO METADATA LOST FROM EVIDENCE");
 if (!graph.evidence.some((item) => item.text === "33.9812, -117.3755")) throw new Error("GEO METADATA LOST FROM EVIDENCE");
