@@ -1,16 +1,17 @@
 /* QRE CANONICAL COGNITION ENTRYPOINT
  *
- * One universal cognition path. Model cognition may propose hypotheses, while
- * grounded relation discovery supplies evidence-backed alternatives. Lenses
- * never manufacture semantic meaning.
+ * One universal cognition path. Model cognition may propose hypotheses while
+ * grounded relation discovery supplies evidence-backed alternatives.
+ * Lenses never manufacture semantic meaning.
  */
 import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
 import { buildAuthorCognitivePlan as buildModelCognitivePlan } from "./authorCognitionUniversal.js";
 import { searchSatanicoRelations, type SatanicoMechanism } from "./authorSatanicoRelationSearch.js";
-
-export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
 import type { AuthorCognitionInput, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
+export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
 
+function clean(value: unknown): string { return String(value ?? "").replace(/\s+/g, " ").trim(); }
+function clamp(value: number): number { return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3)); }
 function operationForRelation(kind: RealityRelation["kind"]): LatentMovieTrajectoryStep["operation"] | undefined {
   switch (kind) {
     case "contrasts": return "contrast";
@@ -22,7 +23,6 @@ function operationForRelation(kind: RealityRelation["kind"]): LatentMovieTraject
     default: return undefined;
   }
 }
-
 function relationKindForMechanism(mechanism: SatanicoMechanism): RealityRelation["kind"] {
   switch (mechanism) {
     case "contrast": return "contrasts";
@@ -33,68 +33,69 @@ function relationKindForMechanism(mechanism: SatanicoMechanism): RealityRelation
     case "recontextualization": return "recontextualizes";
   }
 }
-
-function cleanSubject(value: unknown): string {
-  return String(value ?? "the subject").replace(/\s+/g, " ").trim() || "the subject";
+function cleanSubject(value: unknown): string { return clean(value) || "the subject"; }
+function discoveredScore(relationScore: number, evidenceCount: number, mechanism: SatanicoMechanism): number {
+  const evidence = Math.min(1, evidenceCount / 4);
+  const structuralBonus = mechanism === "contrast" || mechanism === "recontextualization" || mechanism === "convergence" ? 0.06 : 0;
+  return clamp(relationScore * 0.72 + evidence * 0.22 + structuralBonus);
 }
 
 function relationCandidates(graph: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
-  const discovered = searchSatanicoRelations({ graph, subject, limit: 8 });
+  const discovered = searchSatanicoRelations({ graph, subject, limit: 10 });
+  const out: LatentMovieCandidate[] = [];
 
-  // Relations are derived structure, never source facts. Persisting them on the
-  // local graph lets the independent Judge verify the same inferred relationship
-  // later without turning it into a source-reality event.
   for (const relation of discovered) {
     const kind = relationKindForMechanism(relation.mechanism);
-    const [from, to] = relation.eventIds;
-    const alreadyPresent = graph.relations.some((item) =>
-      item.from === from && item.to === to && item.kind === kind,
-    );
-    if (!alreadyPresent) {
-      graph.relations.push({ from, to, kind, strength: Math.max(0.35, Math.min(0.82, relation.score)) });
-    }
-  }
-
-  return discovered.map((relation, index) => {
     const [firstId, secondId] = relation.eventIds;
-    const first = graph.events.find((event) => event.id === firstId)!;
-    const second = graph.events.find((event) => event.id === secondId)!;
-    const operation = operationForRelation(relationKindForMechanism(relation.mechanism))!;
+    const first = graph.events.find((event) => event.id === firstId);
+    const second = graph.events.find((event) => event.id === secondId);
+    if (!first || !second) continue;
+
+    if (!graph.relations.some((item) => item.from === firstId && item.to === secondId && item.kind === kind)) {
+      graph.relations.push({ from: firstId, to: secondId, kind, strength: clamp(relation.score) });
+    }
+
+    const operation = operationForRelation(kind);
+    if (!operation) continue;
     const question = relation.mechanism === "contrast"
-      ? "What expectation changes when these facts meet?"
+      ? "What expectation changes when these details meet?"
       : relation.mechanism === "transformation"
-        ? "What is different after the supplied change?"
+        ? "What becomes newly noticeable after the change?"
         : relation.mechanism === "recurrence"
-          ? "What accumulates because this returns?"
-          : "What does seeing these facts together make newly noticeable?";
-    return {
-      id: `satanico-movie-${index + 1}`,
+          ? "What gains meaning because it returns?"
+          : "What becomes newly noticeable when these details are seen together?";
+
+    const trajectory: LatentMovieTrajectoryStep[] = [
+      { order: 1, operation: "establish", eventIds: [firstId], viewerChange: first.label, nextQuestion: question },
+      { order: 2, operation, eventIds: [firstId, secondId], viewerChange: relation.reason, nextQuestion: question },
+      { order: 3, operation: "payoff", eventIds: [secondId, firstId], viewerChange: returning ? "Land the changed reading." : second.label, nextQuestion: returning ? "What will feel different next time?" : "What remains after the relationship is noticed?" },
+    ];
+    const score = discoveredScore(relation.score, relation.evidence.length, relation.mechanism);
+    out.push({
+      id: `satanico-movie-${out.length + 1}`,
       lens: "NONE",
       anchorEventIds: [firstId, secondId],
-      supportingRelationKinds: [relationKindForMechanism(relation.mechanism)],
-      trajectory: [
-        { order: 1, operation: "establish", eventIds: [firstId], viewerChange: `Notice the supplied detail: ${first.label}`, nextQuestion: question },
-        { order: 2, operation, eventIds: [firstId, secondId], viewerChange: relation.reason, nextQuestion: question },
-        { order: 3, operation: "payoff", eventIds: [secondId, firstId], viewerChange: returning ? "Land the changed reading without adding a fact." : `Land the changed reading on the supplied detail: ${second.label}`, nextQuestion: returning ? "What will be different next time?" : "What remains after the reading changes?" },
-      ],
-      payoff: returning ? "Land the changed reading without invention." : `Let the supplied detail ${second.label} carry the changed reading.`,
+      supportingRelationKinds: [kind],
+      trajectory,
+      payoff: returning ? "Land the changed reading." : "Let the changed reading land.",
       unresolvedQuestion: question,
       evidence: [first.label, second.label, ...relation.evidence],
-      hypothesis: [`The relationship between ${first.label} and ${second.label} changes what is worth noticing.`, "Interpretation only; no new event is asserted."],
+      hypothesis: [`The relationship between ${first.label} and ${second.label} changes what is worth noticing.`],
       truthRisk: 0,
-      novelty: Math.min(1, 0.55 + relation.score * 0.4),
-      specificity: 0.94,
-      informationValue: Math.min(1, 0.64 + relation.score * 0.32),
-      uncertainty: Math.max(0.08, 0.48 - relation.score * 0.28),
-      attentionPotential: Math.min(1, 0.64 + relation.score * 0.32),
-      consequencePotential: relation.mechanism === "transformation" || relation.mechanism === "contrast" ? 0.84 : 0.7,
-      callbackPotential: relation.mechanism === "recurrence" || returning ? 0.8 : 0.18,
-      compressionPotential: 0.84,
-      repetitionRisk: 0.04,
-      distinctiveness: Math.min(1, 0.72 + relation.score * 0.25),
-      score: Math.max(0.6, Math.min(0.92, 0.62 + relation.score * 0.3)),
-    } satisfies LatentMovieCandidate;
-  });
+      novelty: clamp(0.45 + relation.score * 0.45),
+      specificity: clamp(0.7 + relation.score * 0.28),
+      informationValue: clamp(0.5 + relation.score * 0.4),
+      uncertainty: clamp(0.5 - relation.score * 0.25),
+      attentionPotential: clamp(0.55 + relation.score * 0.4),
+      consequencePotential: relation.mechanism === "transformation" || relation.mechanism === "contrast" ? 0.8 : 0.68,
+      callbackPotential: relation.mechanism === "recurrence" || returning ? 0.75 : 0.15,
+      compressionPotential: clamp(0.6 + relation.score * 0.35),
+      repetitionRisk: 0.05,
+      distinctiveness: clamp(0.55 + relation.score * 0.4),
+      score,
+    } satisfies LatentMovieCandidate);
+  }
+  return out;
 }
 
 function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate): boolean {
@@ -109,10 +110,7 @@ function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate)
           (item.from === step.eventIds[i] && item.to === step.eventIds[j]) ||
           (item.from === step.eventIds[j] && item.to === step.eventIds[i]),
         );
-        if (relation) {
-          const expected = operationForRelation(relation.kind);
-          if (expected === step.operation) return true;
-        }
+        if (relation && operationForRelation(relation.kind) === step.operation) return true;
       }
     }
     const expectedKinds: RealityRelation["kind"][] = step.operation === "contrast"
@@ -129,16 +127,13 @@ function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate)
     return expectedKinds.some((kind) => declaredKinds.has(kind));
   });
 }
-
-function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 10): LatentMovieCandidate[] {
+function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): LatentMovieCandidate[] {
   const out: LatentMovieCandidate[] = [];
   const seen = new Set<string>();
   for (const candidate of candidates.slice().sort((a, b) => b.score - a.score)) {
     const signature = `${candidate.trajectory.map((step) => step.operation).join(">")}|${candidate.trajectory.flatMap((step) => step.eventIds).sort().join(",")}`;
     if (seen.has(signature)) continue;
-    seen.add(signature);
-    out.push(candidate);
-    if (out.length >= limit) break;
+    seen.add(signature); out.push(candidate); if (out.length >= limit) break;
   }
   return out;
 }
@@ -148,8 +143,8 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
   const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
-  const candidates = dedupeCandidates([...modelGrounded, ...derived], 10);
-  const selectedMovie = candidates.find((candidate) => candidate.id === modelPlan.selectedMovie?.id) ?? candidates[0];
+  const candidates = dedupeCandidates([...modelGrounded, ...derived]);
+  const selectedMovie = candidates[0];
   return {
     ...modelPlan,
     latentMovieCandidates: candidates,
