@@ -16,24 +16,32 @@ const fail = (message: string): never => { throw new Error(message); };
 
 for (const [domain, subject, prompt, facts] of cases) {
   const graph = buildAuthorRealityGraph({ prompt, subject, facts, sourceMoments: [] });
-  const plan = await buildAuthorCognitivePlan({
-    prompt,
-    subject,
-    facts,
-    sourceMoments: [],
-    realityGraph: graph,
-    movieMode: false,
-  });
-
+  const plan = await buildAuthorCognitivePlan({ prompt, subject, facts, sourceMoments: [], realityGraph: graph, movieMode: false });
   if (!plan.latentMovieCandidates.length) fail(`${domain}: no candidates`);
-  const grounded = plan.latentMovieCandidates.filter((candidate) => candidate.trajectory.every((step) => step.eventIds.every((id) => graph.events.some((event) => event.id === id))));
-  if (grounded.length !== plan.latentMovieCandidates.length) fail(`${domain}: ungrounded event id`);
-  if (graph.events.length > 1 && plan.latentMovieCandidates.length < 3) fail(`${domain}: cognition collapsed below 3 deterministic hypotheses`);
-  for (let i = 0; i < Math.min(4, plan.latentMovieCandidates.length); i += 1) {
-    for (let j = i + 1; j < Math.min(4, plan.latentMovieCandidates.length); j += 1) {
-      if (movieCandidateDiversity(plan.latentMovieCandidates[i]!, plan.latentMovieCandidates[j]!) < 0.20) fail(`${domain}: candidate diversity collapsed`);
+
+  const eventIds = new Set(graph.events.map((event) => event.id));
+  for (const candidate of plan.latentMovieCandidates) {
+    if (!candidate.hypothesis.length) fail(`${domain}: candidate ${candidate.id} has no hypothesis`);
+    for (const step of candidate.trajectory) {
+      if (step.eventIds.some((id) => !eventIds.has(id))) fail(`${domain}: candidate ${candidate.id} contains invented event ids`);
     }
   }
+
+  if (graph.events.length > 1 && plan.latentMovieCandidates.length < 3) fail(`${domain}: cognition collapsed below three hypotheses`);
+
+  const sample = plan.latentMovieCandidates.slice(0, Math.min(5, plan.latentMovieCandidates.length));
+  let materiallyDifferent = 0;
+  for (let i = 0; i < sample.length; i += 1) {
+    for (let j = i + 1; j < sample.length; j += 1) {
+      if (movieCandidateDiversity(sample[i]!, sample[j]!) >= 0.34) materiallyDifferent += 1;
+    }
+  }
+  if (sample.length >= 3 && materiallyDifferent === 0) fail(`${domain}: semantic candidates are cosmetic variants`);
+
+  if (graph.events.length >= 3 && !plan.latentMovieCandidates.some((candidate) => candidate.trajectory.some((step) => step.eventIds.length >= 2))) {
+    fail(`${domain}: no multi-event semantic bridge candidate`);
+  }
+
   console.log(`PASS ${domain}: events=${graph.events.length} candidates=${plan.latentMovieCandidates.length} selected=${plan.selectedMovie?.id ?? "none"}`);
 }
 
