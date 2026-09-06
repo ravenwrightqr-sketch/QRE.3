@@ -38,22 +38,7 @@ const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const words = (text: string): string[] => clean(text).match(WORDS) ?? [];
-const tokens = (text: string): Set<string> => new Set(words(text).map((word) => word.toLowerCase()).filter((word) => word.length > 2));
 
-function subjectNames(subject: string): string[] {
-  return clean(subject).split(/\s*(?:\+|&|,|\/|\band\b)\s*/i).map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
-}
-function leadingSubject(text: string, subject: string): boolean {
-  const names = subjectNames(subject); if (!names.length) return false;
-  return names.some((name) => new RegExp(`^(?:the|a|an)?\\s*${name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}(?:\\b|:)`, "i").test(clean(text)));
-}
-function subjectLedRatio(scenes: readonly RealizedScene[], subject: string): number {
-  return scenes.length ? scenes.filter((scene) => leadingSubject(scene.text, subject)).length / scenes.length : 1;
-}
-function relationExists(graph: RealityGraph, ids: readonly string[]): boolean {
-  const set = new Set(ids);
-  return graph.relations.some((relation) => set.has(relation.from) && set.has(relation.to));
-}
 function relationForMovie(graph: RealityGraph, movie: LatentMovieCandidate): { relationKind: string; sourceEventIds: string[] } {
   const preferred = new Set(movie.supportingRelationKinds.map(clean).filter(Boolean));
   for (const step of movie.trajectory) {
@@ -85,14 +70,7 @@ function mechanismFor(relationKind: string): { mechanism: string; operation: str
 function buildArtistDevice(graph: RealityGraph, movie: LatentMovieCandidate): ArtistDevice {
   const relation = relationForMovie(graph, movie);
   const mechanism = mechanismFor(relation.relationKind);
-  return {
-    relationKind: relation.relationKind,
-    mechanism: mechanism.mechanism,
-    sourceEventIds: relation.sourceEventIds,
-    operation: mechanism.operation,
-    transformationModes: mechanism.modes,
-    languageAim: mechanism.languageAim,
-  };
+  return { relationKind: relation.relationKind, mechanism: mechanism.mechanism, sourceEventIds: relation.sourceEventIds, operation: mechanism.operation, transformationModes: mechanism.modes, languageAim: mechanism.languageAim };
 }
 function eventText(event: RealityGraph["events"][number]): string {
   return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" ");
@@ -128,53 +106,54 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
     const kind = ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line";
     scenes.push({ text, kind, sourceEventIds, score: 0 });
   }
-  const used = new Set(scenes.flatMap((scene) => scene.sourceEventIds));
-  if (input.graph.events.length >= 2 && !relationExists(input.graph, input.movie.anchorEventIds)) return { reason: "selected Movie has no grounded graph relation" };
-  if (input.graph.events.length >= 2 && used.size < 2) return { reason: "film uses fewer than two supplied events" };
   return { scenes };
 }
-function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph): number { return judgeRealizedFilm({ scenes, movie, graph }).score; }
 
 function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }, repairFeedback: string) {
-  const relevantIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
-  const relevantEvents = relevantIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
+  const spineIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
+  const spineEvents = spineIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
+  const availableReality = input.graph.events.map((event) => ({ id: event.id, text: eventText(event), entities: event.entities, place: event.place, time: event.time, onSelectedMovieSpine: spineIds.includes(event.id) }));
   const artistDevice = buildArtistDevice(input.graph, input.movie);
   const meaningPressure = deriveMeaningPressure({ graph: input.graph, movie: input.movie });
   return {
     creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
     memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-8), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
-    selectedStructure: { eventIds: relevantIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
-    sourceReality: relevantEvents,
+    selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
+    sourceReality: spineEvents,
+    availableReality,
     artistDevice,
     meaningPressure,
     repairFeedback: clean(repairFeedback),
-    creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
-    artistRule: "Preserve semantic truth, never the client's sentence. The visible film is an artistic transformation of supplied reality. Concrete additions are forbidden; interpretive language is welcome when it does not quietly assert a new concrete event, object, sensory fact, chronology, dialogue or hidden psychological fact as though it were supplied.",
+    creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
+    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to what was supplied. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
   };
 }
+
 function prompt(attempt: number, feedback: string): string {
   const attacks = [
     "Find the latent charge first. Then embody it. Do not announce the charge.",
-    "Destroy the source wording and rebuild the film from the meaning pressure. Be bold, economical, and materially different.",
-    "Make the third or fourth candidate the one you would actually remember. Take a creative risk in language while keeping reality exact.",
+    "Destroy the source wording and rebuild the film from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.",
+    "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact.",
   ];
   return [
     "You are QRE's ONE CREATIVE REALIZER.",
-    "You are a filmmaker/poet/editor creating visible language, not a reporter.",
+    "You are a filmmaker, poet, editor, comic writer and entertainment creator. You are creating a piece people should actually want to watch.",
     "The source facts are sacred. The source sentences are disposable.",
-    "Meaning Pressure is the reason this reality is interesting. Artist Device is only a set of possible tools. Do not mechanically follow either one.",
-    "Ask yourself: when these true details are placed together, what changes in what becomes noticeable? Make THAT change felt.",
-    "Do not write the answer as an explanation. Embody it through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, or another device that feels earned.",
-    "You may be funny, strange, lyrical, stark, dark, tender, absurd, or understated. Artistic personality is a feature, not a defect.",
-    "Do not force every fact into the film. Do not force a fixed number of beats. Let the strongest detail win.",
-    "The subject is not a required narrator or grammatical anchor. Use the subject name only when it creates artistic value.",
-    "Concrete reality is the hard boundary: never invent an object, person, action, place, time, dialogue, sensory detail, bodily reaction, or specific physical circumstance.",
-    "Abstract interpretation is allowed. It can express the felt charge of the real relationship without claiming hidden psychology as a fact.",
-    "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
-    "Generate four materially different film candidates. Change the structural idea, not merely the adjectives. One may be spare. One may be funny. One may be lyrical. One may be severe. Choose what the reality earns.",
+    "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
+    "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
+    "Meaning Pressure explains why the selected relationship matters. Artist Device suggests possible tools. Neither is a cage. You may ignore both when another artistic move is clearly stronger and still truthful.",
+    "Ask yourself: what would make a human laugh, feel something, or remember this tiny piece later? Make THAT.",
+    "Do not explain the meaning. Make the relationship felt through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, personification, callback, gamification or another device that feels earned.",
+    "Metaphor is encouraged. Concrete metaphorical language is allowed even when the pictured thing was not literally present. 'Forbidden fruit' is valid for a stolen apple. 'Boss battle' is valid for a brutal cleaning run. 'No survivors' can be a comic metaphor for an exhausting task. CREATE LIKE AN ARTIST, not a compliance engine.",
+    "You may be funny, strange, lyrical, stark, dark, tender, absurd, camp, dramatic, playful, deadpan, surreal, irreverent or understated. Artistic personality is a feature.",
+    "Do not force every fact into the film. Do not force a fixed number of beats. A 2-cut knockout is better than 6 dead cuts. A rich reality may justify more.",
+    "The subject is not a required narrator. Use the subject name only when it creates artistic value.",
+    "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, sensory fact, bodily reaction or specific circumstance and present it as though it happened.",
+    "Abstract interpretation and figurative invention are welcome. The goal is entertainment media created from reality, not sanitized summaries of reality.",
+    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. One can be spare, one funny, one lyrical, one wild. Let one candidate take the biggest artistic swing.",
     "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-10 cuts per candidate. No commentary. No source IDs.",
     `This is creative attack ${attempt + 1} of 3.`,
-    feedback ? `The last candidates failed here: ${feedback}. Attack those failures without becoming timid.` : "No prior failure. Explore the full artistic space.",
+    feedback ? `Previous attempts did not land because: ${feedback}. Do NOT become safer. Become more inventive and more specific.` : "No prior failure. Explore the full artistic space.",
     attacks[Math.min(attempt, attacks.length - 1)],
   ].join("\n");
 }
@@ -185,20 +164,21 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
     const feedback = rejectedReasons.slice(-4).join(" | ");
     const ctx = context(input, feedback);
     try {
-      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 3000, temperature: [0.98, 1.08, 1.0][attempt]! });
+      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 3000, temperature: [1.0, 1.12, 1.04][attempt]! });
       model = result.model; modelCalls += 1;
       const parsed = parseJson(result.text); const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : parsed ? [parsed] : [];
-      const judged: Array<{ scenes: RealizedScene[]; judgment: RealizedFilmJudgment }> = [];
+      const validSets: Array<{ scenes: RealizedScene[]; judgment: RealizedFilmJudgment }> = [];
       for (const raw of rawSets) {
         const validation = validateSet(raw, input);
         if (!validation.scenes) { rejectedSets += 1; if (validation.reason) rejectedReasons.push(validation.reason); continue; }
         const judgment = judgeRealizedFilm({ scenes: validation.scenes, movie: input.movie, graph: input.graph }); lastJudgment = judgment;
-        if (!judgment.accepted) { rejectedSets += 1; rejectedReasons.push(`film judge: ${judgment.reasons.join("; ")}`); continue; }
-        judged.push({ scenes: validation.scenes, judgment });
+        // Visible-art judgment is telemetry, not a creative veto. The Mouth
+        // must be allowed to take artistic risks and discover unexpected form.
+        validSets.push({ scenes: validation.scenes, judgment });
       }
-      if (judged.length) {
-        judged.sort((a, b) => b.judgment.score - a.judgment.score);
-        const winner = judged[0]!;
+      if (validSets.length) {
+        validSets.sort((a, b) => b.judgment.score - a.judgment.score);
+        const winner = validSets[0]!;
         return { scenes: winner.scenes, score: winner.judgment.score, model, modelCalls, rejectedSets, judgment: winner.judgment, reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined };
       }
     } catch (error) {
