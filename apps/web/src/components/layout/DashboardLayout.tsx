@@ -42,12 +42,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             QRE
           </Link>
-          <Link
-            to="/dashboard/service-receipt"
-            style={{ color: "#fff", textDecoration: "none", fontSize: 10, letterSpacing: 2, border: "1px solid rgba(185,255,241,.25)", borderRadius: 999, padding: "8px 12px", background: "rgba(185,255,241,.07)" }}
-          >
-            + SERVICE RECEIPT
-          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              to="/dashboard/finder"
+              style={{ color: "#eafffa", textDecoration: "none", fontSize: 10, letterSpacing: 2, border: "1px solid rgba(185,255,241,.22)", borderRadius: 999, padding: "8px 12px", background: "rgba(185,255,241,.06)" }}
+            >
+              + FIND REALITY
+            </Link>
+            <Link
+              to="/dashboard/service-receipt"
+              style={{ color: "#fff", textDecoration: "none", fontSize: 10, letterSpacing: 2, border: "1px solid rgba(185,255,241,.25)", borderRadius: 999, padding: "8px 12px", background: "rgba(185,255,241,.07)" }}
+            >
+              + SERVICE RECEIPT
+            </Link>
+          </div>
         </nav>
         {children}
       </div>
