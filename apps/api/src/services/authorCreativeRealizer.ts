@@ -8,7 +8,7 @@
  * ARENA = the place, service, receipt, house, event, object or context around the star.
  * REALIZATION = the felt semantic move between supplied facts.
  */
-import type { AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 export type RealizedScene = AuthorScene & { sourceEventIds: string[]; score: number };
@@ -30,6 +30,7 @@ const GENERIC = /^(?:something happened|something changed|everything changed|a m
 const CONTEXT_CHARACTER = /\b(?:groomer|owner|customer|client|waiter|server|bartender|barber|driver|agent|lawyer|doctor|nurse|manager|employee|staff|worker|photographer|dj|deejay|police|officer|cop|enemy|opponent|soldier|guard|host)\b/i;
 const ACTION_WORD = /\b(?:arrived?|came|left|went|met|talked?|spoke|said|gave?|got|found|lost|cleaned?|finished?|started?|opened|closed|walk(?:ed)?|ran|drove?|ate|drank|kiss(?:ed)?|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|stayed|waited|called|laughed|cried|looked|felt|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|reserved|approved|groomed|dyed|tailored|installed|stole|snatched|grabbed|grab|cooed|shrugged|screamed|attacked|fought|hired|watched|heard|sang|danced)\b/i;
 const REALIZATION_ACTION = /\b(?:cleared|handled|reset|down|up|survived|won|lost|surrendered|verdict|passed|failed|ready|complete|completed|done|booted|power\s*up|tko|round|mission|case|still\s+standing|stood|made\s+it|changed\s+everything|did(?:n't| not)\s+(?:matter|stand\s+a\s+chance))\b/i;
+const SAFE_TRANSITION = /\b(?:came\s+back|back\s+again|returned)\b/i;
 const WORDS = /\b\w+[’'-]*\w*\b/g;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 
@@ -80,6 +81,20 @@ function subjectNamePenalty(scenes: readonly RealizedScene[], subject: string): 
 function graphText(graph: RealityGraph): string {
   return graph.events.flatMap((event) => [event.label, ...event.entities, ...(event.place ? [event.place] : []), ...(event.time ? [event.time] : [])]).join(" ");
 }
+function domainText(context?: AuthorDomainContext): string {
+  if (!context) return "";
+  return [
+    context.category,
+    context.businessType,
+    context.businessName,
+    context.businessDescription,
+    context.serviceType,
+    context.serviceName,
+    context.subjectKind,
+    ...(context.knownCapabilities ?? []),
+    ...(context.contextualSignals ?? []),
+  ].map(clean).filter(Boolean).join(" ");
+}
 function leadingContextActor(text: string): string | undefined {
   const match = clean(text).match(new RegExp(`^(?:the|a|an)?\\s*(${CONTEXT_CHARACTER.source.replace(/^\\b|\\b$/g, "")})\\b(?:\\s+[^:]{0,40})?`, "i"));
   return match?.[1];
@@ -87,9 +102,10 @@ function leadingContextActor(text: string): string | undefined {
 function suppliedActionWords(graph: RealityGraph): Set<string> {
   return new Set([...graph.events.map((event) => event.label).join(" ").matchAll(new RegExp(ACTION_WORD.source, "gi"))].map((match) => match[0].toLowerCase()));
 }
-function unsupportedAction(text: string, graph: RealityGraph): boolean {
+function unsupportedAction(text: string, graph: RealityGraph, sourceEventIds: readonly string[]): boolean {
   const match = text.match(ACTION_WORD);
   if (!match || REALIZATION_ACTION.test(text)) return false;
+  if (SAFE_TRANSITION.test(text) && sourceEventIds.length >= 2) return false;
   return !suppliedActionWords(graph).has(match[0].toLowerCase());
 }
 function unsupportedContextActor(text: string, subject: string): boolean {
@@ -134,11 +150,11 @@ function validateSet(raw: unknown, graph: RealityGraph, subject: string): Realiz
     const scene = item as RawScene;
     const text = clean(scene.text);
     if (!text || text.length > 180 || INTERNAL.test(text) || EXPLANATION.test(text) || GENERIC.test(text)) return undefined;
-    if (!conceptual && (unsupportedContextActor(text, subject) || unsupportedAction(text, graph))) return undefined;
     const sourceEventIds = Array.isArray(scene.sourceEventIds)
       ? unique(scene.sourceEventIds.filter((id): id is string => typeof id === "string")).filter((id) => validIds.has(id))
       : [];
     if (!conceptual && !sourceEventIds.length) return undefined;
+    if (!conceptual && (unsupportedContextActor(text, subject) || unsupportedAction(text, graph, sourceEventIds))) return undefined;
     const kind = ALLOWED_KINDS.has(clean(scene.kind))
       ? clean(scene.kind) as AuthorScene["kind"]
       : scenes.length === 0 ? "hook" : scenes.length === row.scenes.length - 1 ? "payoff" : "line";
@@ -148,7 +164,16 @@ function validateSet(raw: unknown, graph: RealityGraph, subject: string): Realiz
   if (scenes.length >= 3 && contextRoleLoad(scenes, graph) > 0.75) return undefined;
   return scenes;
 }
-function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string[], subject: string): number {
+function groundedSignalScore(scenes: readonly RealizedScene[], graph: RealityGraph): number {
+  if (!graph.events.length) return 1;
+  const eventCorpus = graphText(graph);
+  const allText = scenes.map((scene) => scene.text).join(" ");
+  const lexical = overlap(allText, eventCorpus);
+  const sourceDiversity = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size / Math.max(1, Math.min(graph.events.length, 5));
+  const nonTrivial = scenes.filter((scene) => overlap(scene.text, eventCorpus) >= 0.18).length / Math.max(1, scenes.length);
+  return metric(lexical * 0.52 + Math.min(1, sourceDiversity) * 0.28 + nonTrivial * 0.2);
+}
+function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string[], subject: string, domainContext?: AuthorDomainContext): number {
   const evidence = movie.evidence.join(" ");
   const allText = scenes.map((scene) => scene.text).join(" ");
   const starts = scenes.map((scene) => words(scene.text).slice(0, 3).join(" ").toLowerCase()).filter(Boolean);
@@ -161,18 +186,22 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
   const compactness = averageWords <= 9 ? 1 : averageWords <= 14 ? 0.88 : averageWords <= 20 ? 0.62 : 0.34;
   const evidenceFit = metric(scenes.reduce((sum, scene) => sum + overlap(scene.text, evidence), 0) / Math.max(1, scenes.length));
   const thesisGrounding = movie.storyThesis ? metric((movie.storyThesis.semanticRealization?.evidenceEventIds?.length ?? 0) / Math.max(1, graph.events.length)) : 0;
+  const grounded = groundedSignalScore(scenes, graph);
+  const domainFit = domainContext ? metric(overlap(allText, domainText(domainContext))) : 0;
   const subjectPenalty = subjectNamePenalty(scenes, subject);
   const omissionBonus = 1 - subjectPenalty;
   const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.04 : 0;
   const contextPenalty = contextRoleLoad(scenes, graph);
   return metric(
-    sourceCoverage * 0.19 +
-    evidenceFit * 0.18 +
-    novelty * 0.13 +
-    rhythm * 0.11 +
-    compactness * 0.10 +
-    thesisGrounding * 0.09 +
-    omissionBonus * 0.14 +
+    sourceCoverage * 0.16 +
+    evidenceFit * 0.16 +
+    grounded * 0.22 +
+    novelty * 0.11 +
+    rhythm * 0.09 +
+    compactness * 0.08 +
+    thesisGrounding * 0.06 +
+    omissionBonus * 0.10 +
+    domainFit * 0.02 +
     lensBonus -
     repeatedStarts * 0.045 -
     subjectPenalty * 0.08 -
@@ -186,6 +215,7 @@ export async function realizeAuthorExperience(input: {
   lens: string;
   graph: RealityGraph;
   movie: LatentMovieCandidate;
+  domainContext?: AuthorDomainContext;
   memoryContext?: string[];
   priorScenes?: string[];
   creativeLearningContext?: string[];
@@ -195,6 +225,7 @@ export async function realizeAuthorExperience(input: {
     prompt: clean(input.prompt),
     subject: clean(input.subject),
     lens: clean(input.lens) || "LET QRE DECIDE",
+    domainContext: input.domainContext ?? {},
     memory: (input.memoryContext ?? []).slice(0, 40),
     priorScenes: (input.priorScenes ?? []).slice(-12),
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 40),
@@ -220,17 +251,21 @@ export async function realizeAuthorExperience(input: {
         role: "system",
         content: [
           "You are QRE's ONE CREATIVE REALIZER. The Movie and frame are already selected. Do not redesign them.",
-          "First principle: Readout is facts. QRE realization is what makes those facts FEEL like an experience.",
-          "Do not repeat the Readout sentence by sentence. Compress it, connect it, imply it, and let the selected semantic Movie change how the next beat is read.",
-          "STAR / ARENA: the supplied subject is the star. The house, service, receipt, restaurant, venue, city, object or event is the arena. The star can be present without being named.",
-          "SUBJECT NAME IS SCARCE: the subject name is already known from context. Prefer omission. Never begin consecutive screens with the name. Do not use the name merely to prove star-focus. Use it only when identity genuinely needs re-establishing or a deliberate return makes the name meaningful.",
+          "Readout is facts. Your job is to realize the selected semantic progression as customer-facing language.",
+          "UNIVERSALITY RULE: there is no default author voice for dogs, grooming, restaurants, memories, movies, places, products, weddings or any other domain. Let the supplied reality and supplied arena/context determine the vocabulary, rhythm, attitude and structure.",
+          "CONNECT THE DOTS, DON'T EXPLAIN THEM: arrange supplied details so the viewer can recognize the relationship. Do not replace a concrete supplied detail with decorative poetry merely to sound creative.",
+          "CONCRETE ANCHOR RULE: across the complete set, preserve multiple unmistakable anchors from the supplied events when those anchors carry the identity of the experience. A creative transformation may compress or rephrase a fact, but it must remain recognizable.",
+          "STAR / ARENA: the supplied subject is the star. The house, service, receipt, restaurant, venue, city, object or event is the arena. Business/domain context tells you what kind of world you are in; it does not authorize invented events or employees.",
+          "DOMAIN CONTEXT: use supplied business name, type, service, description, capabilities and contextual signals as vocabulary and arena knowledge. Example: if the arena is a grooming business and the supplied reality says the dog arrived dirty, had a bath, got a blue bow and was picked up, a transformation such as 'Came back looking expensive' can be earned. Do not invent grooming steps that were not supplied.",
+          "SUBJECT NAME IS SCARCE: the subject name is already known from context. Prefer omission. Never begin consecutive screens with the name. Use it only when identity genuinely needs re-establishing or a deliberate return makes the name meaningful.",
           "FELT OVER RECITED: prefer fragments, status, juxtaposition, callback, omission, rhythm, recontextualization and a clean landing. 'Kitchen cleared.' can feel more alive than 'Maria cleaned the kitchen.'",
-          "OBSERVER COMPLETION: do not explain every connection. Let adjacent details click together. Give the viewer enough evidence to recognize the pattern, then stop explaining it.",
-          "A creative line may change stance without changing reality. Metaphor, irony, personification, exaggeration and genre language are allowed when earned by the Movie. But never use stock mission/round/TKO/verdict language just to sound creative.",
-          "Every concrete event remains grounded in the cited source event. Do not invent people, dialogue, reactions, actions, motives, tools, movement, arrival, departure, romance, injury or outcomes.",
+          "OBSERVER COMPLETION: do not explain every connection. Give the viewer enough evidence to recognize the pattern, then stop. The punchline may be an implication, comparison, status shift or realization rather than an explanation.",
+          "CREATIVE LANGUAGE: metaphor, irony, personification, exaggeration and genre language are allowed when earned by the selected Movie and grounded by the supplied details. Words such as love, beautiful, expensive or wild are not forbidden merely because they are creative; they are allowed when the supplied reality or selected frame earns them. Unsupported psychological states, motives, reactions and factual actions remain forbidden.",
+          "Every concrete event remains grounded in cited source events. Do not invent people, dialogue, reactions, actions, motives, tools, movement, arrival, departure, romance, injury or outcomes. A status comparison or opinion can be creative; a new event is not.",
           "Context workers and roles are arena, not characters, unless the supplied reality explicitly makes them part of the subject of the experience.",
           "NONE is valid. Do not force a frame when the supplied facts already create the strongest effect.",
           "ONE SCREEN = ONE BEAT. Usually 2-10 words. Fragments are welcome. Shortness is rhythm, not a hard ceiling.",
+          "Do not make every screen sound like poetry. Use the diction the subject, evidence, arena and frame naturally call for. Different domains should produce different structures.",
           "Never write planning language, compiler language, analysis language, or explanations such as 'this means', 'the viewer sees', or 'the point is'.",
           "Return JSON only: {sets:[{scenes:[{text,kind,sourceEventIds:[]}]}]} with 3 materially different complete sets.",
         ].join("\n"),
@@ -269,7 +304,7 @@ export async function realizeAuthorExperience(input: {
   }
 
   const scored = sets
-    .map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject)) }))
+    .map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject), input.domainContext) }))
     .sort((a, b) => b.score - a.score);
   const best = scored[0]!;
   best.scenes.forEach((scene) => { scene.score = best.score; });
