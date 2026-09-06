@@ -101,7 +101,9 @@ CONCRETE REALITY: HARD BOUNDARY
 INTERPRETIVE ART: WIDE OPEN
 ```
 
-A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. The final cut may leave the source vocabulary and become a free artistic or emotional interpretation when the preceding material earns it.
+A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. Grounding and copying are separate properties: a concrete cut may reuse one supplied noun or fact-bearing term while still transforming the sentence, grammar, compression, ordering, or relationship. The judge must therefore detect literal source replay independently from ordinary semantic overlap used to establish grounding.
+
+The final cut may leave the source vocabulary and become a free artistic or emotional interpretation when the preceding material earns it.
 
 For example:
 
@@ -125,6 +127,7 @@ The Pure Visible-Art Judge evaluates:
 - visible relational bridge
 - change in attention
 - artistic transformation versus literal replay
+- separation of semantic grounding from lexical copy risk
 - form and rhythm
 - economy
 - interpretive landing
@@ -132,7 +135,7 @@ The Pure Visible-Art Judge evaluates:
 - absence of explanation
 - resistance to caption-reel grammar
 
-A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct.
+A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct. Conversely, a short transformed phrase is not a copy merely because it retains a fact-bearing noun such as `apple`; the question is whether the visible language substantially replays the supplied wording or artistically changes its form.
 
 ## Story and sequence
 
@@ -190,7 +193,7 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
 
