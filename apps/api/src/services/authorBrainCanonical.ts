@@ -13,6 +13,7 @@ import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { judgeAuthorExperience, type AuthorExperienceJudgment } from "./authorExperienceJudge.js";
 import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
 import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRealizer.js";
+import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
@@ -102,18 +103,10 @@ function briefFor(movie: LatentMovieCandidate, cognition: Awaited<ReturnType<typ
 
 type JudgedCandidate = { candidate: LatentMovieCandidate; judgment: AuthorExperienceJudgment };
 
-function judgeCandidates(
-  candidates: LatentMovieCandidate[],
-  world: ReturnType<typeof buildAuthorRealityGraph>,
-  returning: boolean,
-  priorTrajectory: string[] = [],
-): { selected?: JudgedCandidate; rejected: unknown[]; accepted: JudgedCandidate[] } {
+function judgeCandidates(candidates: LatentMovieCandidate[], world: ReturnType<typeof buildAuthorRealityGraph>, returning: boolean, priorTrajectory: string[] = []): { selected?: JudgedCandidate; rejected: unknown[]; accepted: JudgedCandidate[] } {
   const priorText = priorTrajectory.map(clean).filter(Boolean).join(" ").toLowerCase();
   const judged: JudgedCandidate[] = candidates.map((candidate) => {
-    const judgment = judgeAuthorExperience(candidate, world, {
-      returning,
-      priorSignatures: priorText ? [priorText] : [],
-    });
+    const judgment = judgeAuthorExperience(candidate, world, { returning, priorSignatures: priorText ? [priorText] : [] });
     return { candidate, judgment };
   });
   const accepted = judged.filter((item) => item.judgment.accepted).sort((a, b) => b.judgment.score - a.judgment.score);
@@ -131,15 +124,7 @@ function judgeCandidates(
     const challenger = item.judgment.score + evidenceDiversity * 0.035 + operationDiversity * 0.025;
     if (challenger > selected.judgment.score + 0.01) selected = item;
   }
-  const rejected = judged.filter((item) => !item.judgment.accepted).map(({ candidate, judgment }) => ({
-    movieId: candidate.id,
-    score: metric(candidate.score),
-    decisionScore: metric(judgment.score),
-    reason: "independent experience judge rejected",
-    reasons: judgment.reasons,
-    dimensions: judgment.dimensions,
-    semanticGate: judgment.gate,
-  }));
+  const rejected = judged.filter((item) => !item.judgment.accepted).map(({ candidate, judgment }) => ({ movieId: candidate.id, score: metric(candidate.score), decisionScore: metric(judgment.score), reason: "independent experience judge rejected", reasons: judgment.reasons, dimensions: judgment.dimensions, semanticGate: judgment.gate }));
   return { selected, rejected, accepted };
 }
 
@@ -227,7 +212,6 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       qualityStatus: complete && Boolean(realizedFilmJudge?.accepted) ? "ACCEPTED" : "REJECTED",
       renderable: complete && Boolean(realizedFilmJudge?.accepted),
       complete,
-      // The visible artifact owns the final quality score. Movie quality never rescues weak realization.
       selectedScore: metric(realizedFilmJudge?.score ?? 0),
       rejectedCandidates: [...judged.rejected, ...(realization.reason ? [{ reason: realization.reason, rejectedSets: realization.rejectedSets }] : [])],
       semanticGate: selectedJudgment.gate,
