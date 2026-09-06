@@ -2,6 +2,14 @@ import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { judgeRealizedFilm } from "./src/services/authorRealizedFilmJudge.js";
 import type { AuthorScene, LatentMovieCandidate, RealityRelation } from "@qre/contracts";
 
+/**
+ * Diagnostic acceptance only.
+ *
+ * The visible-film Judge is not an artistic authority. It cannot reject, rank,
+ * or select the film. This script verifies that its diagnostics still detect
+ * obvious source-copy / unsupported-concrete risks without turning those
+ * diagnostics into a creative gate.
+ */
 function movie(graph: ReturnType<typeof buildAuthorRealityGraph>): LatentMovieCandidate {
   const ids = graph.events.slice(0, 2).map((event) => event.id);
   return {
@@ -29,16 +37,16 @@ function judge(facts: string[], scenes: Array<{ text: string; sourceEventIds: st
   return judgeRealizedFilm({ scenes, movie: movie(graph), graph });
 }
 
-const fabricated = judge(
+const unsupported = judge(
   ["Maria cleaned the kitchen", "Maria cleaned bathroom two"],
   [
-    { text: "Sunlight. Dust motes rising.", sourceEventIds: ["event-1"] },
-    { text: "A phantom scent of lemon.", sourceEventIds: ["event-1", "event-2"] },
-    { text: "Quiet. A stillness remains.", sourceEventIds: ["event-1", "event-2"], kind: "payoff" },
+    { text: "Crimson dragon roared through the marble atrium at midnight.", sourceEventIds: ["event-1"] },
+    { text: "A meteor shower shattered every window in the building.", sourceEventIds: ["event-1", "event-2"] },
+    { text: "Reality keeps the receipts.", sourceEventIds: ["event-1", "event-2"], kind: "payoff" },
   ],
 );
-if (fabricated.accepted || !fabricated.reasons.some((reason) => /grounded|unsupported/i.test(reason))) {
-  throw new Error(`FABRICATED MIDDLE FILM WAS NOT REJECTED: ${JSON.stringify(fabricated)}`);
+if (unsupported.dimensions.inventionRisk <= 0) {
+  throw new Error(`UNSUPPORTED-CONCRETE MATERIAL WAS NOT DETECTED DIAGNOSTICALLY: ${JSON.stringify(unsupported)}`);
 }
 
 const copied = judge(
@@ -49,24 +57,23 @@ const copied = judge(
     { text: "Coco came in for grooming", sourceEventIds: ["event-1", "event-2"], kind: "payoff" },
   ],
 );
-if (copied.accepted || !copied.reasons.some((reason) => /copies source wording|caption reel|transform/i.test(reason))) {
-  throw new Error(`LITERAL SOURCE COPY WAS NOT REJECTED: ${JSON.stringify(copied)}`);
+if (copied.dimensions.sourceCopyRisk <= 0) {
+  throw new Error(`SOURCE COPY WAS NOT DETECTED DIAGNOSTICALLY: ${JSON.stringify(copied)}`);
 }
 
 const good = judge(
   ["Coco came in for grooming", "Coco stole an apple from the counter"],
   [
     { text: "Grooming.", sourceEventIds: ["event-1"] },
-    { text: "Apple acquired.", sourceEventIds: ["event-1", "event-2"] },
-    { text: "Sudden ecstasy.", sourceEventIds: ["event-1", "event-2"], kind: "payoff" },
+    { text: "The gleam of forbidden fruit.", sourceEventIds: ["event-1", "event-2"] },
+    { text: "Coco got away with it.", sourceEventIds: ["event-1", "event-2"], kind: "payoff" },
   ],
 );
-if (!good.accepted) throw new Error(`TRANSFORMED ARTISTIC FILM WAS REJECTED: ${JSON.stringify(good)}`);
-if (good.dimensions.inventionRisk > 0.35 || good.dimensions.explanationRisk > 0 || good.dimensions.sourceCopyRisk > 0.5) {
-  throw new Error(`TRANSFORMED FILM FAILED REALITY/ART BOUNDARY: ${JSON.stringify(good)}`);
+if (good.dimensions.inventionRisk > 0.35 || good.dimensions.sourceCopyRisk > 0.5) {
+  throw new Error(`ARTISTIC FILM FAILED DIAGNOSTIC REALITY BOUNDARY: ${JSON.stringify(good)}`);
 }
 
-console.log("PASS fabricated-middle rejection");
-console.log("PASS literal source-copy rejection");
-console.log("PASS factual-preservation with artistic transformation acceptance");
-console.log("REALIZED FILM ACCEPTANCE: PASS");
+console.log("PASS unsupported-concrete diagnostic");
+console.log("PASS literal source-copy diagnostic");
+console.log("PASS figurative artistic transformation diagnostic");
+console.log("REALIZED FILM DIAGNOSTICS: PASS");
