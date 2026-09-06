@@ -1,6 +1,6 @@
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { judgeRealizedFilm } from "./src/services/authorRealizedFilmJudge.js";
-import type { AuthorScene, LatentMovieCandidate } from "@qre/contracts";
+import type { AuthorScene, LatentMovieCandidate, RealityRelation } from "@qre/contracts";
 
 function movie(graph: ReturnType<typeof buildAuthorRealityGraph>): LatentMovieCandidate {
   const ids = graph.events.slice(0, 2).map((event) => event.id);
@@ -33,8 +33,26 @@ function movie(graph: ReturnType<typeof buildAuthorRealityGraph>): LatentMovieCa
   };
 }
 
+function withGroundedRelationship<T extends ReturnType<typeof buildAuthorRealityGraph>>(graph: T): T {
+  const [first, second] = graph.events;
+  if (first && second) {
+    const exists = graph.relations.some((relation) =>
+      relation.from === first.id && relation.to === second.id && relation.kind === "recontextualizes",
+    );
+    if (!exists) {
+      graph.relations.push({
+        from: first.id,
+        to: second.id,
+        kind: "recontextualizes",
+        strength: 0.8,
+      } satisfies RealityRelation);
+    }
+  }
+  return graph;
+}
+
 function judge(facts: string[], scenes: Array<{ text: string; sourceEventIds: string[]; kind?: AuthorScene["kind"] }>) {
-  const graph = buildAuthorRealityGraph({ prompt: facts.join(". "), subject: "the subject", facts, sourceMoments: facts });
+  const graph = withGroundedRelationship(buildAuthorRealityGraph({ prompt: facts.join(". "), subject: "the subject", facts, sourceMoments: facts }));
   return judgeRealizedFilm({ scenes, movie: movie(graph), graph });
 }
 
