@@ -20,7 +20,7 @@ INPUT / MEDIA / GEO / MEMORY
           ↓
      Creative Mouth
           ↓
- Realized Film Judge
+ Pure Visible-Art Judge
           ↓
     Story / Sequence
           ↓
@@ -32,7 +32,7 @@ INPUT / MEDIA / GEO / MEMORY
           ↺
 ```
 
-There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one realized-film judgment boundary, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation.
+There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one pure visible-art judgment boundary, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation.
 
 ## Reality
 
@@ -40,7 +40,15 @@ Reality consists of explicit entities, events, states, relations, places, times,
 
 Source evidence outranks interpretation. A figurative realization may be imaginative while remaining anchored to supplied evidence. New concrete people, places, actions, reactions, events, outcomes, dialogue, sensory facts, or chronology are forbidden unless supplied.
 
-Time, geo, photographs, video, receipts, links, and other contextual inputs remain available as evidence or presentation material, but they do not automatically become story beats.
+The permanent distinction is:
+
+```text
+FACTUAL TRUTH: IMMUTABLE
+CLIENT WORDING: NOT IMMUTABLE
+ARTISTIC WORDING: FREE WITHIN THE REALITY BOUNDARY
+```
+
+QRE protects what happened, not the exact sentence used to report it. A supplied fact such as `Coco stole an apple from the counter` may be artistically compressed to `Apple acquired.` The latter changes form without changing the fact. A final interpretive phrase such as `Sudden ecstasy.` may express an earned felt reading without becoming a new factual claim about the subject's hidden state.
 
 ## Cognition
 
@@ -55,7 +63,7 @@ RELATIONSHIP
   ↓
 CHANGE IN WHAT THE VIEWER NOTICES
   ↓
-PAYOFF
+PAYOFF / FELT LANDING
 ```
 
 The relationship must be earned from supplied reality. Lenses may intensify a grounded relationship but may not manufacture one. Sparse reality is valid; Cognition may choose a distinctive observation or another natural experience form instead of inventing plot.
@@ -72,15 +80,17 @@ The latent Movie is an internal semantic proposal, not the final customer-facing
 
 The Movie Judge decides whether that proposal is sufficiently grounded, specific, distinctive, non-generic, and semantically progressive to become visible.
 
-The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, and other artistic devices are allowed when they remain inside the reality boundary.
+The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, grammatical transformation, emotional abstraction, and other artistic devices are allowed when they remain inside the reality boundary.
 
-A second independent Realized Film Judge examines the actual visible film after Mouth. A passing Movie is never sufficient evidence that the visible film is good.
+The Pure Visible-Art Judge examines the actual visible film after Mouth. It judges the artifact itself. No latent Movie score, domain fit, prior-film novelty, subject preference, or other upstream score may rescue weak visible art at this boundary.
 
-### Cognition-to-Mouth boundary
+## Cognition-to-Mouth boundary
 
 Cognition may reason using internal prose, but that prose is not the artist's creative seed. The Mouth receives structured creative intent: supplied evidence, selected event IDs, grounded relationship kinds, and permissible structural operations. It must not receive cognition's explanatory hypothesis, payoff narration, viewer-change prose, or other internal commentary as wording authority.
 
-The artist owns visible language, rhythm, cuts, omissions, repetitions, collisions, and the final landing. The subject is a factual referent only, not a required grammatical anchor. A film may name the subject when reality genuinely calls for it, but subject identity must never become the universal narrative voice.
+The artist does not copy the client's sentence. The artist preserves the underlying fact while deciding the visible grammar. Source words are raw material, not a required script.
+
+The artist owns visible language, rhythm, cuts, omissions, repetitions, collisions, transformations, and the final landing. The subject is a factual referent only, not a required grammatical anchor. A film may name the subject when reality genuinely calls for it, but subject identity must never become the universal narrative voice.
 
 ## Artist Device
 
@@ -91,25 +101,38 @@ CONCRETE REALITY: HARD BOUNDARY
 INTERPRETIVE ART: WIDE OPEN
 ```
 
-Every concrete pre-landing cut must visibly ground itself in supplied events, entities, places, or times. The final cut may leave source vocabulary and become a free artistic interpretation when the preceding material earns it.
+A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. The final cut may leave the source vocabulary and become a free artistic or emotional interpretation when the preceding material earns it.
 
 For example:
 
 ```text
-Grooming. Then the apple.
-The counter. The bow. The theft.
-Playful defiance.
+Grooming.
+Apple acquired.
+Sudden ecstasy.
 ```
 
-The final phrase is an artistic landing, not a factual assertion about hidden psychology.
-
-The subject is a factual referent, not the default narrator. QRE must never turn every world into a person-report merely because a subject is present. The visible film may open on an object, place, time, action, fragment, absence, collision, callback, or other supplied carrier when that is the strongest form for the discovered relationship.
+This is a model of the desired artistic operation, not a mandatory script. The system must discover the corresponding artistic transformation from each world rather than reproduce this example everywhere.
 
 The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain, subject, or lens.
 
-## Reality boundary versus lexical policing
+## Artist quality boundary
 
-Concrete reality safety is established through source-event provenance, source grounding, grounded graph relationships, and the independent visible-film judge. Brittle word-level verb blocking is not the authority for reality conservation because legitimate artistic compression, tense shifts, and grammatical variation can otherwise be rejected even when the underlying source evidence is preserved.
+Grounded is necessary but insufficient. Literal transcription is also a failure mode.
+
+The Pure Visible-Art Judge evaluates:
+
+- concrete grounding without requiring source-sentence copying
+- visible relational bridge
+- change in attention
+- artistic transformation versus literal replay
+- form and rhythm
+- economy
+- interpretive landing
+- absence of unsupported concrete invention
+- absence of explanation
+- resistance to caption-reel grammar
+
+A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct.
 
 ## Story and sequence
 
@@ -117,9 +140,9 @@ A fact may be true and still deserve zero authored language. A rich reality may 
 
 There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by semantic value, not by an arbitrary duration target and not by the number of facts or media items.
 
-The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, or recap. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
+The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, recap, or source-text transcription. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
 
-A film is judged on what the viewer can actually experience: concrete grounding, visible relational bridge, change in attention, landing strength, formal variation, absence of invention, absence of explanation, and resistance to caption-reel grammar.
+A film should make the supplied reality newly interesting. The target is not explanation. The target is a felt experience in which a detail can suddenly become charged, strange, funny, ecstatic, tender, absurd, ominous, or otherwise resonant when the relationship earns it.
 
 ## Experience additions are additive
 
@@ -167,8 +190,8 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
-The realized-film acceptance fixture must model the real architecture: a relationship must exist in the RealityGraph before the independent realized-film judge can verify that a visible bridge is grounded.
+The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
 
 The superintelligence lab must print the complete artifact before assertions so creative failures are inspectable. The lab is not allowed to lower thresholds to make a model pass; failures are evidence for improving the Artist Device.
