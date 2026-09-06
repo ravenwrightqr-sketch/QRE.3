@@ -6,6 +6,7 @@ on:
       - main
       - cognitive-superstar-final
       - elite-universal-rebuild-v10
+      - build/universal-author-local
   pull_request:
 
 concurrency:
