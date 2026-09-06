@@ -14,6 +14,15 @@ type KnowledgeItem = {
   notes?: string;
   imageDataUrl?: string;
   confidence?: number;
+  sourceUrl?: string;
+  businessName?: string;
+  businessType?: string;
+  businessDescription?: string;
+  services?: string[];
+  differentiators?: string[];
+  signals?: string[];
+  subjectKinds?: string[];
+  importantFacts?: string[];
 };
 
 type KnowledgeResponse = {
@@ -35,6 +44,10 @@ export default function KnowledgeDashboard() {
   const [source, setSource] = useState("owner");
   const [notes, setNotes] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
+  const [website, setWebsite] = useState("");
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [learningWebsite, setLearningWebsite] = useState(false);
+  const [websiteResult, setWebsiteResult] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
@@ -70,6 +83,26 @@ export default function KnowledgeDashboard() {
     }
   }
 
+  async function learnWebsite() {
+    if (!website.trim()) return;
+    setLearningWebsite(true);
+    setWebsiteResult("");
+    setError("");
+    try {
+      const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/learn-website`, {
+        url: website.trim(),
+        ownerDescription: businessDescription.trim(),
+      });
+      const world = response.world ?? {};
+      setWebsiteResult(`Learned ${world.businessName || "this business"}${world.businessType ? ` · ${world.businessType}` : ""}${Array.isArray(world.services) && world.services.length ? ` · ${world.services.length} services` : ""}.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Website learning failed.");
+    } finally {
+      setLearningWebsite(false);
+    }
+  }
+
   async function save() {
     if (!label.trim() || !value.trim()) return;
     setSaving(true);
@@ -98,10 +131,27 @@ export default function KnowledgeDashboard() {
     <DashboardLayout>
       <main style={{ minHeight: "100vh", color: "#fff", padding: "42px 28px", maxWidth: 1180, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "flex-end", marginBottom: 30 }}>
-          <div><p style={{ opacity: .45, letterSpacing: 5, fontSize: 11, margin: 0 }}>QRE LIVING KNOWLEDGE</p><h1 style={{ margin: "8px 0 4px" }}>{data.asset.displayName || data.asset.slug}</h1><div style={{ opacity: .55 }}>Everything this QRE object knows, learns, and can accumulate.</div></div>
+          <div><p style={{ opacity: .45, letterSpacing: 5, fontSize: 11, margin: 0 }}>QRE LIVING KNOWLEDGE</p><h1 style={{ margin: "8px 0 4px" }}>{data.asset.displayName || data.asset.slug}</h1><div style={{ opacity: .55 }}>Teach QRE once. Let it accumulate context instead of rebuilding the world every time.</div></div>
           <Link to={`/dashboard/assets/${encodeURIComponent(slug)}`} style={{ color: "#fff", opacity: .7 }}>← Asset</Link>
         </div>
         {error && <div style={{ marginBottom: 18, padding: 14, borderRadius: 12, background: "rgba(255,80,80,.12)" }}>{error}</div>}
+        {websiteResult && <div style={{ marginBottom: 18, padding: 14, borderRadius: 12, background: "rgba(0,255,204,.10)", border: "1px solid rgba(0,255,204,.22)" }}>{websiteResult}</div>}
+
+        <section style={{ marginBottom: 28, background: "linear-gradient(135deg, rgba(0,255,204,.09), rgba(255,255,255,.04))", border: "1px solid rgba(0,255,204,.2)", borderRadius: 18, padding: 24 }}>
+          <div style={{ maxWidth: 760 }}>
+            <p style={{ opacity: .45, letterSpacing: 3, fontSize: 10, margin: 0 }}>TEACH QRE YOUR WORLD</p>
+            <h2 style={{ margin: "8px 0 6px" }}>Give QRE the business. QRE does the learning.</h2>
+            <p style={{ opacity: .6, marginTop: 0 }}>Paste the website. Add one sentence about what makes the business different. AI reads the source and saves the learned business world here for later Author work.</p>
+            <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+              <input style={inputStyle} placeholder="Business website — https://elmstdgrooming.com" value={website} onChange={(e) => setWebsite(e.target.value)} />
+              <textarea style={{ ...inputStyle, minHeight: 78, resize: "vertical" }} placeholder="What makes you different? e.g. We treat every dog like a celebrity." value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={learnWebsite} disabled={learningWebsite || !website.trim()} style={{ border: 0, borderRadius: 12, padding: "12px 18px", cursor: "pointer", fontWeight: 700 }}>{learningWebsite ? "QRE IS LEARNING…" : "LEARN THIS BUSINESS"}</button>
+                <span style={{ opacity: .45, fontSize: 12 }}>Stored as sourced business knowledge — not invented experience.</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 20, marginBottom: 28 }}>
           <div style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 22 }}>
@@ -124,11 +174,11 @@ export default function KnowledgeDashboard() {
           <div style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 18, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>What is accumulating</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}><Stat label="Knowledge items" value={data.knowledge.length} /><Stat label="Categories" value={data.categories.length} /><Stat label="Scans" value={Number(metrics.scans ?? metrics.totalScans ?? 0)} /><Stat label="Completions" value={Number(metrics.completions ?? 0)} /></div>
-            <p style={{ marginTop: 18, opacity: .55 }}>Analytics and knowledge accumulate beside the experience so the asset becomes more useful over time instead of resetting on every scan.</p>
+            <p style={{ marginTop: 18, opacity: .55 }}>Website knowledge, owner facts, vision observations, and experience memory accumulate beside the experience so the asset becomes more useful over time.</p>
           </div>
         </section>
 
-        {grouped.map(([group, items]) => <section key={group} style={{ marginBottom: 24 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><h2 style={{ margin: 0, textTransform: "capitalize" }}>{group}</h2><span style={{ opacity: .45 }}>{items.length}</span></div><div style={{ display: "grid", gap: 10 }}>{items.map((item) => <article key={item.id} style={{ display: "grid", gridTemplateColumns: item.imageDataUrl ? "92px 1fr auto" : "1fr auto", gap: 16, alignItems: "center", background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: 14 }}>{item.imageDataUrl && <img src={item.imageDataUrl} alt="Captured reference" style={{ width: 92, height: 72, objectFit: "cover", borderRadius: 10 }} />}<div><strong>{item.label}</strong><div style={{ marginTop: 4 }}>{item.value}</div><div style={{ marginTop: 5, opacity: .45, fontSize: 12 }}>{item.source} · {new Date(item.createdAt).toLocaleString()}</div>{item.notes && <div style={{ marginTop: 6, opacity: .65 }}>{item.notes}</div>}</div><button onClick={() => remove(item.id)} style={{ opacity: .55, background: "transparent", border: 0, color: "#fff", cursor: "pointer" }}>Remove</button></article>)}</div></section>)}
+        {grouped.map(([group, items]) => <section key={group} style={{ marginBottom: 24 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><h2 style={{ margin: 0, textTransform: "capitalize" }}>{group.replace(/_/g, " ")}</h2><span style={{ opacity: .45 }}>{items.length}</span></div><div style={{ display: "grid", gap: 10 }}>{items.map((item) => <article key={item.id} style={{ display: "grid", gridTemplateColumns: item.imageDataUrl ? "92px 1fr auto" : "1fr auto", gap: 16, alignItems: "center", background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 14, padding: 14 }}>{item.imageDataUrl && <img src={item.imageDataUrl} alt="Captured reference" style={{ width: 92, height: 72, objectFit: "cover", borderRadius: 10 }} />}<div><strong>{item.label}</strong><div style={{ marginTop: 4 }}>{item.value}</div>{item.category === "business_world" && <><div style={{ marginTop: 7, opacity: .72 }}>{item.businessDescription}</div><div style={{ marginTop: 6, opacity: .55, fontSize: 12 }}>Services: {(item.services ?? []).join(" · ") || "—"}</div><div style={{ marginTop: 4, opacity: .55, fontSize: 12 }}>Differentiators: {(item.differentiators ?? []).join(" · ") || "—"}</div></>}<div style={{ marginTop: 5, opacity: .45, fontSize: 12 }}>{item.source}{item.sourceUrl ? ` · ${item.sourceUrl}` : ""} · {new Date(item.createdAt).toLocaleString()}</div>{item.notes && <div style={{ marginTop: 6, opacity: .65 }}>{item.notes}</div>}</div><button onClick={() => remove(item.id)} style={{ opacity: .55, background: "transparent", border: 0, color: "#fff", cursor: "pointer" }}>Remove</button></article>)}</div></section>)}
       </main>
     </DashboardLayout>
   );
