@@ -73,6 +73,7 @@ const OPERATIONS = new Set<LatentMovieTrajectoryStep["operation"]>([
   "establish", "contrast", "recur", "reframe", "escalate", "converge", "reveal", "consequence", "payoff",
 ]);
 const FRAME_STOP = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "make", "something", "about"]);
+const LEADING_EMOTIONAL_QUESTION = /\b(?:feelings?|contentment|happiness?|anxiety|anxious|sadness|joy|what\s+does\s+this\s+reveal\s+about|what\s+does\s+this\s+say\s+about)\b/i;
 
 function parseObject(text: string): Record<string, unknown> | undefined {
   const cleaned = clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
@@ -110,22 +111,25 @@ function normalizeIds(row: Record<string, unknown>, graph: RealityGraph): string
   return validEventIds(row.eventIds ?? row.eventId ?? row.sourceEventIds, graph);
 }
 
-function normalizeTrajectory(value: unknown, graph: RealityGraph): LatentMovieTrajectoryStep[] {
+function normalizeTrajectory(value: unknown, graph: RealityGraph): LatentMovieTrajectoryStep[] | undefined {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 12).map((item, index) => {
+  const normalized: LatentMovieTrajectoryStep[] = [];
+  for (const item of value.slice(0, 12)) {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
-    const eventIds = normalizeIds(row, graph);
     const operation = clean(row.operation).toLowerCase() as LatentMovieTrajectoryStep["operation"];
+    if (!OPERATIONS.has(operation)) return undefined;
+    const eventIds = normalizeIds(row, graph);
     const viewerChange = clean(row.viewerChange) || clean(row.attentionMove) || "another supplied detail becomes newly meaningful";
     const nextQuestion = clean(row.nextQuestion) || clean(row.nextPromise) || "What does this make noticeable next?";
-    return {
-      order: index + 1,
-      operation: OPERATIONS.has(operation) ? operation : index === 0 ? "establish" : index === 1 ? "reveal" : "reframe",
+    normalized.push({
+      order: normalized.length + 1,
+      operation,
       eventIds,
       viewerChange,
       nextQuestion,
-    } satisfies LatentMovieTrajectoryStep;
-  }).filter((step) => graph.events.length === 0 || step.eventIds.length > 0);
+    } satisfies LatentMovieTrajectoryStep);
+  }
+  return normalized.filter((step) => graph.events.length === 0 || step.eventIds.length > 0);
 }
 
 function eventLabels(graph: RealityGraph, ids: readonly string[]): string[] {
@@ -137,9 +141,10 @@ function frameSelection(parsed: Record<string, unknown> | undefined, explicitLen
   const raw = parsed?.frame && typeof parsed.frame === "object" ? parsed.frame as Record<string, unknown> : {};
   const selected = clean(parsed?.selectedLens || raw.frame || explicitLens);
   const isExplicit = Boolean(explicitLens) && explicitLens.toLowerCase() !== "let qre decide";
-  const mode = isExplicit || (selected && !/^none$/i.test(selected)) ? "frame" : "none";
-  const frame = selected || "NONE";
   const evidenceEventIds = validEventIds(raw.evidenceEventIds ?? parsed?.frameEvidenceEventIds, graph);
+  const modelChoseFrame = Boolean(selected) && !/^none$/i.test(selected);
+  const mode = isExplicit ? "frame" : modelChoseFrame && evidenceEventIds.length > 0 ? "frame" : "none";
+  const frame = mode === "none" ? "NONE" : selected || "NONE";
   return {
     mode,
     frame,
@@ -172,6 +177,7 @@ function normalizeCandidate(raw: unknown, index: number, graph: RealityGraph, de
   if (!raw || typeof raw !== "object") return undefined;
   const row = raw as Record<string, unknown>;
   const trajectory = normalizeTrajectory(row.trajectory, graph);
+  if (!trajectory) return undefined;
   const trajectoryIds = trajectory.flatMap((step) => step.eventIds);
   const evidenceIds = validEventIds(row.evidenceEventIds ?? row.evidenceIds ?? trajectoryIds, graph);
   if (graph.events.length > 0 && (!trajectory.length || !evidenceIds.length)) return undefined;
@@ -352,13 +358,18 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
             "REALITY IS IMMUTABLE: use only events, entities, places, times, states, relationships, memories and details actually supplied in the input graph/context.",
             "STAR RULE: the explicit subject is the star unless the supplied reality clearly establishes another primary subject. The receipt, house, venue, service, object or place is the arena/context around that star.",
             "FIRST FIND WHAT IS INTERESTING: look for salient relationships, contrasts, state changes, repetitions, callbacks, surprising pairings, status shifts, consequences and emotional movement already supported by the evidence.",
+            "SEMANTIC DISCIPLINE: prefer structural and relational meaning over psychological explanation. Repetition, contrast, change, return, pairing, escalation, consequence, persistence, before/after and unusual combinations are evidence. A list of preferences is not by itself evidence of happiness, anxiety, contentment, personality, identity, motives or an emotional journey.",
+            "NO PSYCHOLOGICAL FILL-IN: never turn an absence of negative evidence, a preference, a routine or a coincidence into an asserted inner state. Only use a psychological state when the supplied reality explicitly supports it.",
+            "THESIS RULE: a good hypothesis connects supplied facts to each other. It should say what relationship becomes noticeable, not declare what kind of person the subject is. Prefer 'walks + bacon keep returning to the same pattern' over 'Coco is happy'.",
             "THEN SEARCH FOR A FRAME. A frame is a lens, not a story. It changes where you look and the attitude available to the Mouth. It does not dictate events or a stock sequence.",
             "Possible frames include romance, horror, funny, spy, mission, speedrun, tournament, courtroom, heist, investigation, backstage, transformation, race, restoration, expedition, quest, countdown, archive, etc. NONE is often better.",
-            "SELECT FRAME ONLY IF IT CREATES CREATIVE GAIN. For NONE, say what natural structure is stronger without a frame.",
+            "SELECT FRAME ONLY IF IT CREATES CREATIVE GAIN AND IS GROUNDED IN SUPPLIED EVIDENCE. For NONE, say what natural structure is stronger without a frame. When no frame evidence is supplied, prefer NONE.",
             "THEN DISCOVER THE MOVIE. The Movie is a semantic progression, not prose. It says what becomes meaningful next, not what physically happens next.",
+            "USE ONLY THESE TRAJECTORY OPERATIONS: establish, contrast, recur, reframe, escalate, converge, reveal, consequence, payoff. Never invent another operation name.",
             "DO NOT use sceneDescription, description, dialogue, camera directions, or imagined actions. Do not write the story.",
             "For every concrete trajectory step, cite existing event IDs. Never invent event IDs. A conceptual prompt with an empty graph may have zero event IDs.",
             "Return JSON only in this shape: {selectedLens, frame:{mode:'frame'|'none',frame,confidence,coreTension,creativeGain,templateRisk,evidenceEventIds:[]}, interpretations:[{id,thesis,creativeOpportunity,rationale,evidenceEventIds,confidence}], movies:[{movieId,lens,evidenceEventIds,anchorEventIds,supportingRelationKinds,trajectory:[{operation,eventIds,viewerChange,nextQuestion}],payoff,unresolvedQuestion,hypothesis,truthRisk,novelty,specificity,informationValue,uncertainty,attentionPotential,consequencePotential,callbackPotential,compressionPotential,repetitionRisk,distinctiveness}], selectedMovieId, adaptiveQuestions:[{kind,question,reason}], attentionStrategy, reasoningSummary}.",
+            "Adaptive questions may ask only for missing concrete reality that would materially change the experience: who/what, where, when, what happened, or a concrete detail. Do not ask leading questions about feelings, happiness, contentment, anxiety, motives, personality or what the facts 'say' about someone.",
             "Keep reasoningSummary diagnostic and compact. It is never customer-facing.",
           ].join("\n"),
         },
@@ -406,7 +417,7 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
     const kind = clean(row.kind) as AuthorAdaptiveQuestion["kind"];
     return { kind, question: clean(row.question), reason: clean(row.reason) };
-  }).filter((item) => item.question && ["who", "where", "when", "event", "detail"].includes(item.kind));
+  }).filter((item) => item.question && ["who", "where", "when", "event", "detail"].includes(item.kind) && !LEADING_EMOTIONAL_QUESTION.test(item.question));
   const localQuestions = adaptiveQuestions(input);
   const dedupQuestions = unique([...modelQuestions, ...localQuestions].map((question) => JSON.stringify(question))).map((value) => JSON.parse(value) as AuthorAdaptiveQuestion).slice(0, 4);
 
