@@ -20,14 +20,7 @@ export type AuthorRealizationResult = {
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
 type RawSet = { scenes?: unknown };
 type ValidationResult = { scenes?: RealizedScene[]; reason?: string };
-type ArtistDevice = {
-  relationKind: string;
-  mechanism: string;
-  sourceEventIds: string[];
-  operation: string;
-  transformationModes: string[];
-  languageAim: string;
-};
+type ArtistDevice = { relationKind: string; mechanism: string; sourceEventIds: string[]; operation: string; transformationModes: string[]; languageAim: string };
 
 const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent movie|creative opportunity|semantic turn|semanticRealization)\b/i;
 const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|let the supplied detail|the relationship between|changes what is worth noticing)\b/i;
@@ -72,15 +65,13 @@ function buildArtistDevice(graph: RealityGraph, movie: LatentMovieCandidate): Ar
   const mechanism = mechanismFor(relation.relationKind);
   return { relationKind: relation.relationKind, mechanism: mechanism.mechanism, sourceEventIds: relation.sourceEventIds, operation: mechanism.operation, transformationModes: mechanism.modes, languageAim: mechanism.languageAim };
 }
-function eventText(event: RealityGraph["events"][number]): string {
-  return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" ");
-}
+function eventText(event: RealityGraph["events"][number]): string { return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" "); }
 function parseJson(text: string): Record<string, unknown> | undefined {
   const cleaned = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try { const parsed = JSON.parse(cleaned); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; }
   catch { const start = cleaned.indexOf("{"); const end = cleaned.lastIndexOf("}"); if (start < 0 || end <= start) return undefined; try { const parsed = JSON.parse(cleaned.slice(start, end + 1)); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; } catch { return undefined; } }
 }
-function bindProvenance(rawIds: unknown, index: number, total: number, movie: LatentMovieCandidate, graph: RealityGraph): string[] {
+function bindProvenance(rawIds: unknown, index: number, movie: LatentMovieCandidate, graph: RealityGraph): string[] {
   const valid = new Set(graph.events.map((event) => event.id));
   const supplied = Array.isArray(rawIds) ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id)) : [];
   if (supplied.length) return supplied;
@@ -89,7 +80,7 @@ function bindProvenance(rawIds: unknown, index: number, total: number, movie: La
   const anchors = unique([...movie.anchorEventIds, ...movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => valid.has(id)));
   return anchors.slice(0, 1);
 }
-function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string; movie: LatentMovieCandidate }): ValidationResult {
+function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMovieCandidate }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "set is not an object" };
   const row = raw as RawSet; if (!Array.isArray(row.scenes)) return { reason: "set.scenes is missing" };
   if (row.scenes.length < 2) return { reason: "film needs at least 2 cuts" }; if (row.scenes.length > 10) return { reason: "film exceeds 10 cuts" };
@@ -101,14 +92,10 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
     if (INTERNAL.test(text)) return { reason: `cut ${index + 1} leaks internal architecture` };
     if (EXPLANATION.test(text)) return { reason: `cut ${index + 1} explains instead of dramatizing` };
     if (GENERIC.test(text)) return { reason: `cut ${index + 1} is generic` };
-    const sourceEventIds = bindProvenance(scene.sourceEventIds, index, row.scenes.length, input.movie, input.graph);
-    if (input.graph.events.length && !sourceEventIds.length) return { reason: `cut ${index + 1} lost provenance` };
-    const kind = ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line";
-    scenes.push({ text, kind, sourceEventIds, score: 0 });
+    scenes.push({ text, kind: ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line", sourceEventIds: bindProvenance(scene.sourceEventIds, index, input.movie, input.graph), score: 0 });
   }
   return { scenes };
 }
-
 function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }, repairFeedback: string) {
   const spineIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
   const spineEvents = spineIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
@@ -119,22 +106,13 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
     creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
     memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-8), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
-    sourceReality: spineEvents,
-    availableReality,
-    artistDevice,
-    meaningPressure,
-    repairFeedback: clean(repairFeedback),
+    sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, repairFeedback: clean(repairFeedback),
     creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
-    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to what was supplied. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
+    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
   };
 }
-
 function prompt(attempt: number, feedback: string): string {
-  const attacks = [
-    "Find the latent charge first. Then embody it. Do not announce the charge.",
-    "Destroy the source wording and rebuild the film from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.",
-    "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact.",
-  ];
+  const attacks = ["Find the latent charge first. Then embody it. Do not announce the charge.", "Destroy the source wording and rebuild the film from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.", "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact."];
   return [
     "You are QRE's ONE CREATIVE REALIZER.",
     "You are a filmmaker, poet, editor, comic writer and entertainment creator. You are creating a piece people should actually want to watch.",
@@ -150,7 +128,8 @@ function prompt(attempt: number, feedback: string): string {
     "The subject is not a required narrator. Use the subject name only when it creates artistic value.",
     "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, sensory fact, bodily reaction or specific circumstance and present it as though it happened.",
     "Abstract interpretation and figurative invention are welcome. The goal is entertainment media created from reality, not sanitized summaries of reality.",
-    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. One can be spare, one funny, one lyrical, one wild. Let one candidate take the biggest artistic swing.",
+    "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
+    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are an exploration, not a competition against a scoring rubric. ORDER THEM FROM EARLY EXPLORATION TO YOUR STRONGEST FINAL CREATIVE CHOICE. Candidate four should be the piece you would actually ship if it remains truthful.",
     "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-10 cuts per candidate. No commentary. No source IDs.",
     `This is creative attack ${attempt + 1} of 3.`,
     feedback ? `Previous attempts did not land because: ${feedback}. Do NOT become safer. Become more inventive and more specific.` : "No prior failure. Explore the full artistic space.",
@@ -172,13 +151,11 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
         const validation = validateSet(raw, input);
         if (!validation.scenes) { rejectedSets += 1; if (validation.reason) rejectedReasons.push(validation.reason); continue; }
         const judgment = judgeRealizedFilm({ scenes: validation.scenes, movie: input.movie, graph: input.graph }); lastJudgment = judgment;
-        // Visible-art judgment is telemetry, not a creative veto. The Mouth
-        // must be allowed to take artistic risks and discover unexpected form.
+        // Judgment records what happened to the artifact; it does not select it.
         validSets.push({ scenes: validation.scenes, judgment });
       }
       if (validSets.length) {
-        validSets.sort((a, b) => b.judgment.score - a.judgment.score);
-        const winner = validSets[0]!;
+        const winner = validSets[validSets.length - 1]!;
         return { scenes: winner.scenes, score: winner.judgment.score, model, modelCalls, rejectedSets, judgment: winner.judgment, reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined };
       }
     } catch (error) {
