@@ -32,7 +32,6 @@ const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the poin
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
 const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
 const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
-const UNSUPPORTED_PHYSICAL = /\b(?:tail twitch(?:es|ing)?|head tilt(?:s|ting)?|shrugs?|smiles?|grins?|laughs?|cries?|whines?|sighs?|gasps?|stares?|blinks?|walks?|runs?|jumps?|turns?|waves?|nods?|halfway out the door|shadow briefly obscures)\b/i;
 const WORDS = /\b\w+[’'-]*\w*\b/g;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
@@ -106,7 +105,6 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMo
     if (EXPLANATION.test(text)) return { reason: `cut ${index + 1} explains instead of dramatizing` };
     if (GENERIC.test(text)) return { reason: `cut ${index + 1} is generic` };
     if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `cut ${index + 1} contains screenplay direction` };
-    if (UNSUPPORTED_PHYSICAL.test(text)) return { reason: `cut ${index + 1} invents unsupported physical behavior` };
     scenes.push({ text, kind: ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line", sourceEventIds: bindProvenance(scene.sourceEventIds, index, input.movie, input.graph), score: 0 });
   }
   return { scenes };
@@ -138,14 +136,14 @@ function prompt(attempt: number, feedback: string): string {
     "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
     "Meaning Pressure explains why the selected relationship or grounded structure has artistic charge. Artist Device suggests possible tools. Neither is a cage.",
     "The final output is a sequence of screen text beats. ONE BEAT = ONE SCREENFUL OF ATTENTION.",
-    "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when the separation creates the fire. The Artist chooses where the screen changes.",
+    "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when separation creates the fire. The Artist chooses where the screen changes.",
     "A beat can be one word, a fragment, a sentence, or several compressed clauses. Short is usually powerful. Longer is allowed when every extra word creates real artistic force. NEVER pad. NEVER shorten a line merely because of a number.",
     "Think: WOULD THIS DESERVE ITS OWN SCREEN? WOULD COMBINING THESE WORDS MAKE THE HIT STRONGER? Every word must earn its screen.",
     "The viewer sees ONLY the text. Do not describe how the film is being filmed.",
     "NEVER write screenplay directions such as CLOSE ON, QUICK CUT, CUT TO, SOUND:, CAMERA:, WIDE SHOT, MEDIUM SHOT, FADE, ANGLE, MONTAGE, DISSOLVE, or SHOT OF.",
     "Do not write camera directions, production notes, shot descriptions, sound-design instructions, SFX labels, voice-over labels, or director commentary.",
     "Do not explain what the viewer feels. Do not explain the metaphor. Do not explain why a beat works. Make the viewer feel it.",
-    "Do not invent literal physical behavior, dialogue, bodily reactions, gestures, sounds, people, objects, locations, or events that the supplied reality does not support. Figurative language is welcome; fabricated literal facts are not.",
+    "Do not invent literal facts. Concrete truth remains the hard boundary: never invent a person, object, action, location, time, dialogue, sound, bodily reaction, gesture, or event and present it as though it happened. Figurative language is welcome when it is clearly artistic language.",
     "Search for the strongest sensory carrier and strongest active mechanic before settling for abstract commentary. Sound can drive a film. Silence can drive a film. Bass return can drive a film. Repeated work can drive a film. A house can feel like an opponent. A room can feel like an arena. An object can feel like a character. These are artistic devices, not claims that the metaphor literally happened.",
     "Do not force every fact into the film. Do not force a fixed beat count. Two brutal beats can beat ten dead beats. Rich reality may deserve more beats, but richness must come from new strong moments, not longer sentences.",
     "Do not force every beat to have the same grammar, rhythm, or length. Let rhythm change when the film needs it. Repetition is allowed when repetition itself creates meaning.",
