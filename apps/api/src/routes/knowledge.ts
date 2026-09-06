@@ -148,33 +148,63 @@ router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) =
     const currentData = current?.templateData && typeof current.templateData === "object" && !Array.isArray(current.templateData)
       ? current.templateData as Record<string, unknown>
       : {};
+
+    const templateData = JSON.parse(JSON.stringify({
+      ...currentData,
+      businessName:
+        world.businessName ||
+        (typeof currentData.businessName === "string" ? currentData.businessName : asset.displayName),
+      businessType:
+        world.businessType ||
+        (typeof currentData.businessType === "string" ? currentData.businessType : ""),
+      businessDescription:
+        world.description ||
+        (typeof currentData.businessDescription === "string" ? currentData.businessDescription : ownerDescription),
+      services:
+        world.services.length
+          ? world.services
+          : Array.isArray(currentData.services)
+            ? currentData.services.filter((v): v is string => typeof v === "string")
+            : [],
+      capabilities:
+        world.services.length
+          ? world.services
+          : Array.isArray(currentData.capabilities)
+            ? currentData.capabilities.filter((v): v is string => typeof v === "string")
+            : [],
+      contextualSignals: [
+        ...new Set([
+          ...(Array.isArray(currentData.contextualSignals)
+            ? currentData.contextualSignals.filter((v): v is string => typeof v === "string")
+            : []),
+          ...world.signals,
+          ...world.differentiators,
+        ]),
+      ].slice(0, 48),
+      subjectKinds:
+        world.subjectKinds.length
+          ? world.subjectKinds
+          : Array.isArray(currentData.subjectKinds)
+            ? currentData.subjectKinds.filter((v): v is string => typeof v === "string")
+            : [],
+      websiteKnowledge: {
+        sourceUrl: learned.url,
+        sourceTitle: learned.title || undefined,
+        businessName: world.businessName,
+        businessType: world.businessType,
+        description: world.description,
+        services: world.services,
+        differentiators: world.differentiators,
+        signals: world.signals,
+        subjectKinds: world.subjectKinds,
+        importantFacts: world.importantFacts,
+        learnedAt: new Date().toISOString(),
+      },
+    }));
+
     await db.asset.update({
       where: { id: asset.id },
-      data: {
-        templateData: {
-          ...currentData,
-          businessName: world.businessName || currentData.businessName || asset.displayName,
-          businessType: world.businessType || currentData.businessType,
-          businessDescription: world.description || currentData.businessDescription || ownerDescription,
-          services: world.services.length ? world.services : currentData.services,
-          capabilities: world.services.length ? world.services : currentData.capabilities,
-          contextualSignals: [...new Set([...(Array.isArray(currentData.contextualSignals) ? currentData.contextualSignals.filter((v): v is string => typeof v === "string") : []), ...world.signals, ...world.differentiators])].slice(0, 48),
-          subjectKinds: world.subjectKinds.length ? world.subjectKinds : currentData.subjectKinds,
-          websiteKnowledge: {
-            sourceUrl: learned.url,
-            sourceTitle: learned.title || undefined,
-            businessName: world.businessName,
-            businessType: world.businessType,
-            description: world.description,
-            services: world.services,
-            differentiators: world.differentiators,
-            signals: world.signals,
-            subjectKinds: world.subjectKinds,
-            importantFacts: world.importantFacts,
-            learnedAt: new Date().toISOString(),
-          },
-        },
-      },
+      data: { templateData },
     });
 
     await analyticsRepository.trackEvent({
