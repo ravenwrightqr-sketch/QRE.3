@@ -31,7 +31,7 @@ function parse(text: string): Record<string, unknown>|undefined {
 function validIds(v: unknown,g: RealityGraph): string[] {
   const known=new Set(g.events.map(e=>e.id));
   const raw=Array.isArray(v)?v.filter((x):x is string=>typeof x==="string"):typeof v==="string"?[v]:[];
-  return unique(raw.map(clean).filter(x=>known.has(x))).slice(0,12);
+  return unique(raw.map(clean).filter(x=>known.has(x)));
 }
 function labels(g: RealityGraph, ids: readonly string[]): string[] { const m=new Map(g.events.map(e=>[e.id,e.label])); return unique(ids.map(id=>m.get(id)).filter((x):x is string=>Boolean(x))); }
 function frame(parsed: Record<string,unknown>|undefined, explicit: string, g: RealityGraph): CreativeFrameSelection {
@@ -43,7 +43,6 @@ function frame(parsed: Record<string,unknown>|undefined, explicit: string, g: Re
   return { mode:chosen&&(explicit||ids.length)?"frame":"none", frame:chosen||"NONE", confidence:clamp(f.confidence??parsed?.frameConfidence,explicit?1:.4), coreTension:clean(f.coreTension??parsed?.coreTension), creativeGain:clean(f.creativeGain??parsed?.creativeGain), templateRisk:clean(f.templateRisk??parsed?.templateRisk), evidenceEventIds:ids };
 }
 function score(c: LatentMovieCandidate, returning: boolean): number {
-  const ops=unique(c.trajectory.map(s=>s.operation));
   const semanticSteps=c.trajectory.filter(s=>s.eventIds.length>=2).length;
   const movement=Math.min(1, semanticSteps/2);
   const continuity=returning?c.callbackPotential:c.novelty;
@@ -185,7 +184,7 @@ function questions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[]{
 }
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan>{
   const returning=Boolean(input.returning||(input.visitNumber??1)>1), explicit=clean(input.lens); const intelligence=buildAuthorCognitionIntelligence(input.realityGraph,returning,input.creativeLearningContext??[]);
-  const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.slice(0,10).map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time})),relations:input.realityGraph.relations.slice(0,20).map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:(input.realityGraph.patterns??[]).slice(0,12),tensions:(input.realityGraph.unresolvedTensions??[]).slice(0,8),sensory:(input.realityGraph.sensorySignals??[]).slice(0,12)};
+  const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time,entities:e.entities})),relations:input.realityGraph.relations.map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:input.realityGraph.patterns??[],tensions:input.realityGraph.unresolvedTensions??[],sensory:input.realityGraph.sensorySignals??[]};
   let parsed:Record<string,unknown>|undefined; let model="deterministic"; let modelCalls=0;
   if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:["You are QRE universal cognition, not a writer.","Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.","Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.","A movie is a sequence of supplied event IDs whose order or combination makes an existing relationship newly noticeable.","Prefer collision, contrast, recurrence, recontextualization, consequence, convergence, interruption, compression, delayed reveal, return or silence when the graph supports it.","Do not make one hypothesis per event. Do not treat a subject as narrator by default.","Every movie must contain at least two supplied events and at least one relationship between supplied events. Every concrete cut cites existing event IDs.","You may return compact structural movies as cuts:[{eventIds:[...],duration?}] OR canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].","Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.","Keep hypotheses diagnostic and non-psychological. No customer-facing prose.","Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol}})}],"json",{numPredict:1100,temperature:.86}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
   const fr=frame(parsed,explicit,input.realityGraph), selectedLens=fr.mode==="frame"?fr.frame:"NONE";
