@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { apiPost } from "../lib/api";
@@ -29,15 +29,16 @@ export default function InformationFinder() {
 
   const allQuestions = useMemo(() => question ? [question, ...moreQuestions.filter((item) => item.question !== question.question)] : moreQuestions, [question, moreQuestions]);
 
-  async function find() {
-    if (!clean(prompt) || busy) return;
+  async function find(nextPrompt = prompt, nextKnownQuestions = knownQuestions) {
+    const text = clean(nextPrompt);
+    if (!text || busy) return;
     setBusy(true); setError("");
     try {
       const result = await apiPost("/api/ai/finder", {
-        prompt: clean(prompt),
+        prompt: text,
         subject: clean(subject),
         accountType: mode,
-        knownQuestions,
+        knownQuestions: nextKnownQuestions,
       }) as FinderResponse;
       const questions = Array.isArray(result.questions) ? result.questions.filter((item) => item?.question) : [];
       setQuestion(questions[0] ?? null);
@@ -53,17 +54,15 @@ export default function InformationFinder() {
     const current = clean(answer);
     const active = question;
     if (!current || !active) return;
-    setPrompt((value) => `${value.trim()}\n${current}`.trim());
-    setKnownQuestions((values) => [...values.slice(-9), active.question]);
+    const nextPrompt = `${prompt.trim()}\n${current}`.trim();
+    const nextKnownQuestions = [...knownQuestions.slice(-9), active.question];
+    setPrompt(nextPrompt);
+    setKnownQuestions(nextKnownQuestions);
     setAnswer("");
     setMoreQuestions((values) => values.filter((item) => item.question !== active.question));
     setQuestion(null);
-    requestAnimationFrame(() => void find());
+    void find(nextPrompt, nextKnownQuestions);
   }
-
-  useEffect(() => {
-    if (!question && prompt.trim().length > 0 && knownQuestions.length === 0) return;
-  }, [question, prompt, knownQuestions.length]);
 
   return (
     <DashboardLayout>
@@ -95,9 +94,9 @@ export default function InformationFinder() {
             <p style={questionWhy}>{question.why}</p>
             <div style={answerRow}>
               <input autoFocus value={answer} onChange={(event) => setAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addAnswer(); } }} placeholder="Your answer…" style={answerInput} />
-              <button type="button" onClick={addAnswer} disabled={!answer.trim()} style={primary}>ADD</button>
+              <button type="button" onClick={addAnswer} disabled={!answer.trim() || busy} style={primary}>{busy ? "LEARNING…" : "ADD"}</button>
             </div>
-            {moreQuestions.length > 0 && <div style={alternates}><span style={hint}>Also useful:</span>{moreQuestions.map((item) => <button key={item.question} type="button" onClick={() => { setQuestion(item); setMoreQuestions((values) => values.filter((value) => value.question !== item.question)); }} style={alternate}>{item.question}</button>)}</div>}
+            {moreQuestions.length > 0 && <div style={alternates}><span style={hint}>Also useful:</span>{allQuestions.slice(1).map((item) => <button key={item.question} type="button" onClick={() => { setQuestion(item); setMoreQuestions((values) => values.filter((value) => value.question !== item.question)); }} style={alternate}>{item.question}</button>)}</div>}
           </section>
         )}
 
