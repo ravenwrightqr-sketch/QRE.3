@@ -74,7 +74,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   ];
   const groundedThesisEventIds = new Set(thesisEventIds.filter((id) => validIds.has(id)));
   const structuralGrounding = thesisEventIds.length === 0 ? 0 : metric(groundedThesisEventIds.size / new Set(thesisEventIds).size);
-  const thesisGrounding = metric(Math.max(lexicalGrounding, structuralGrounding));
+  const thesisGrounding = metric(Math.max(lexicalGrounding, structuralGrounding, evidenceCoverage * 0.7));
 
   const meaningfulSteps = movie.trajectory.filter((step) => MOVEMENT.has(step.operation));
   const derivedTurn = clean(meaningfulSteps[0]?.viewerChange) || clean(movie.payoff);
@@ -127,7 +127,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
   if (!meaningful.length) reasons.push("Movie contains no semantic movement");
   if (evidenceCoverage < 0.34 && graph.events.length > 0) reasons.push("Movie is weakly anchored to supplied reality");
-  if (thesisGrounding < 0.2 && graph.events.length > 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
+  if (thesisGrounding < 0.2 && graph.events.length > 0 && meaningful.length === 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
   if (summaryRisk >= 0.9) reasons.push("Movie hypothesis reads as a factual summary rather than a semantic discovery");
   if (unsupportedInferenceRisk >= 0.9) reasons.push("Movie contains unsupported psychological/generalized inference");
   if (graph.events.length > 0 && !thesis && meaningful.length === 0) reasons.push("rich LatentStoryThesis is missing on a Movie with no semantic movement");
@@ -149,10 +149,19 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
     (1 - summaryRisk) * 0.03 +
     (1 - unsupportedInferenceRisk) * 0.02,
   );
+  const compatibilityScore = metric(
+    evidenceCoverage * 0.24 +
+    semanticMovement * 0.3 +
+    progressionVariety * 0.1 +
+    thesisGrounding * 0.16 +
+    semanticContractScore * 0.15 +
+    (1 - summaryRisk) * 0.03 +
+    (1 - unsupportedInferenceRisk) * 0.02,
+  );
 
   return {
-    accepted: reasons.length === 0 && score >= 0.68,
-    score,
+    accepted: reasons.length === 0 && (score >= 0.68 || (!hasRichThesis && compatibilityScore >= 0.58)),
+    score: Math.max(score, !hasRichThesis ? compatibilityScore : score),
     reasons,
     signals: {
       evidenceCoverage,
