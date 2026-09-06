@@ -1,8 +1,9 @@
 /*
  * QRE CANONICAL COGNITION
  *
- * Cognition finds what is interesting in supplied reality, optionally selects
- * a creative frame, and selects one latent Movie. It never writes scenes.
+ * Cognition discovers the strongest grounded meaning inside supplied reality.
+ * It does not write customer-facing language and it does not force reality
+ * into a fixed story template.
  *
  * Reality is factual authority.
  * Frame is a perspective constraint.
@@ -17,6 +18,7 @@ import type {
   RealityGraph,
 } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { buildAuthorCognitionIntelligence } from "./authorCognitionIntelligence.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -74,6 +76,11 @@ const OPERATIONS = new Set<LatentMovieTrajectoryStep["operation"]>([
 ]);
 const FRAME_STOP = new Set(["the", "and", "for", "with", "from", "into", "this", "that", "make", "something", "about"]);
 const LEADING_EMOTIONAL_QUESTION = /\b(?:feelings?|contentment|happiness?|anxiety|anxious|sadness|joy|what\s+does\s+this\s+reveal\s+about|what\s+does\s+this\s+say\s+about)\b/i;
+const AUTO_FRAMES = new Set([
+  "comedy", "funny", "noir", "romance", "romantic", "horror", "heist", "game", "fierce", "courtroom", "military",
+  "documentary", "deadpan", "tender", "surreal", "wild", "spy", "mission", "speedrun", "tournament", "investigation",
+  "backstage", "transformation", "race", "restoration", "expedition", "quest", "countdown", "archive",
+]);
 
 function parseObject(text: string): Record<string, unknown> | undefined {
   const cleaned = clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
@@ -137,13 +144,19 @@ function eventLabels(graph: RealityGraph, ids: readonly string[]): string[] {
   return unique(ids.map((id) => byId.get(id)).filter((value): value is string => Boolean(value))).slice(0, 12);
 }
 
+function normalizeFrameToken(value: string): string {
+  const parts = clean(value).toLowerCase().split(/\s*(?:\+|>|\/|,|\band\b)\s*/i).map(clean).filter(Boolean);
+  return parts.map((part) => part.replace(/[^a-z0-9_-]/g, "")).filter(Boolean).filter((part) => AUTO_FRAMES.has(part)).slice(0, 2).join(" + ");
+}
+
 function frameSelection(parsed: Record<string, unknown> | undefined, explicitLens: string, graph: RealityGraph): CreativeFrameSelection {
   const raw = parsed?.frame && typeof parsed.frame === "object" ? parsed.frame as Record<string, unknown> : {};
-  const selected = clean(parsed?.selectedLens || raw.frame || explicitLens);
   const isExplicit = Boolean(explicitLens) && explicitLens.toLowerCase() !== "let qre decide";
+  const requested = clean(parsed?.selectedLens || raw.frame || explicitLens);
+  const selected = isExplicit ? requested : normalizeFrameToken(requested);
   const evidenceEventIds = validEventIds(raw.evidenceEventIds ?? parsed?.frameEvidenceEventIds, graph);
-  const modelChoseFrame = Boolean(selected) && !/^none$/i.test(selected);
-  const mode = isExplicit ? "frame" : modelChoseFrame && evidenceEventIds.length > 0 ? "frame" : "none";
+  const modelChoseFrame = Boolean(selected) && evidenceEventIds.length > 0 && selected.toLowerCase() !== "none";
+  const mode = isExplicit ? "frame" : modelChoseFrame ? "frame" : "none";
   const frame = mode === "none" ? "NONE" : selected || "NONE";
   return {
     mode,
@@ -157,19 +170,22 @@ function frameSelection(parsed: Record<string, unknown> | undefined, explicitLen
 }
 
 function candidateScore(candidate: LatentMovieCandidate, returning: boolean, frame: CreativeFrameSelection): number {
-  const relation = Math.min(1, candidate.supportingRelationKinds.length / 3) * 0.1;
-  const continuity = returning ? candidate.callbackPotential * 0.15 : candidate.novelty * 0.1;
-  const frameBonus = frame.mode === "frame" && frame.confidence >= 0.65 ? 0.06 : 0;
+  const relation = Math.min(1, candidate.supportingRelationKinds.length / 3) * 0.11;
+  const continuity = returning ? candidate.callbackPotential * 0.14 : candidate.novelty * 0.09;
+  const operationKinds = unique(candidate.trajectory.map((step) => step.operation));
+  const movement = candidate.trajectory.length > 1 ? Math.min(1, Math.max(0, operationKinds.length - 1) / 4) * 0.12 : 0.04;
+  const semanticDensity = Math.min(1, candidate.informationValue * 0.55 + candidate.attentionPotential * 0.45) * 0.12;
+  const frameBonus = frame.mode === "frame" && frame.confidence >= 0.65 ? 0.04 : 0;
   return metric(
-    candidate.attentionPotential * 0.2 +
-    candidate.novelty * 0.16 +
-    candidate.specificity * 0.12 +
-    candidate.distinctiveness * 0.12 +
+    candidate.attentionPotential * 0.17 +
+    candidate.novelty * 0.14 +
+    candidate.specificity * 0.11 +
+    candidate.distinctiveness * 0.11 +
     candidate.consequencePotential * 0.1 +
-    candidate.callbackPotential * 0.1 +
-    candidate.compressionPotential * 0.08 +
-    (1 - candidate.truthRisk) * 0.07 +
-    relation + continuity + frameBonus,
+    candidate.callbackPotential * 0.08 +
+    candidate.compressionPotential * 0.04 +
+    (1 - candidate.truthRisk) * 0.06 +
+    relation + continuity + movement + semanticDensity + frameBonus - candidate.repetitionRisk * 0.08,
   );
 }
 
@@ -252,38 +268,50 @@ function fallbackMovie(graph: RealityGraph, lens: string, returning: boolean): L
       score: 0.7,
     };
   }
-  const relations = graph.relations.slice().sort((a, b) => b.strength - a.strength).slice(0, 4);
-  const ids = relations.length
-    ? unique(relations.flatMap((relation) => [relation.from, relation.to])).slice(0, 6)
-    : graph.events.slice(0, Math.min(5, graph.events.length)).map((event) => event.id);
-  const trajectory = ids.map((id, index) => ({
-    order: index + 1,
-    operation: (index === 0 ? "establish" : index === ids.length - 1 ? "payoff" : relations[index - 1]?.kind === "recontextualizes" ? "reframe" : returning ? "recur" : "reveal") as LatentMovieTrajectoryStep["operation"],
-    eventIds: [id],
-    viewerChange: graph.events.find((event) => event.id === id)?.label ?? "new supplied detail",
-    nextQuestion: index === ids.length - 1 ? "What lands now?" : "What changes the reading next?",
-  }));
+
+  const relations = graph.relations.slice().sort((a, b) => b.strength - a.strength).slice(0, 3);
+  const strongest = relations[0];
+  const ids = strongest
+    ? unique([strongest.from, strongest.to]).slice(0, 2)
+    : [graph.events.slice().sort((a, b) => Number(Boolean(b.salient)) - Number(Boolean(a.salient)))[0]!.id];
+
+  const relationKind = strongest?.kind;
+  const operation: LatentMovieTrajectoryStep["operation"] =
+    relationKind === "changes" ? "reframe" :
+    relationKind === "contrasts" ? "contrast" :
+    relationKind === "repeats" ? "recur" :
+    relationKind === "causes" ? "consequence" :
+    relationKind === "recontextualizes" ? "reframe" :
+    relationKind === "converges" ? "converge" : "reveal";
+
+  const trajectory: LatentMovieTrajectoryStep[] = strongest
+    ? [
+      { order: 1, operation: "establish", eventIds: [strongest.from], viewerChange: "the first supplied detail becomes the reference point", nextQuestion: "What changes this reading?" },
+      { order: 2, operation, eventIds: [strongest.to], viewerChange: "a second supplied detail changes or completes the reading", nextQuestion: "What lands now?" },
+    ]
+    : [{ order: 1, operation: returning ? "recur" : "establish", eventIds: ids, viewerChange: "one distinctive supplied detail earns focused attention", nextQuestion: "What else becomes meaningful around it?" }];
+
   const candidate: LatentMovieCandidate = {
     id: returning ? "movie-return-fallback" : "movie-grounded-fallback",
     lens,
-    anchorEventIds: ids.slice(0, 2),
-    supportingRelationKinds: unique(relations.map((relation) => relation.kind)),
+    anchorEventIds: ids,
+    supportingRelationKinds: unique(relations.map((item) => item.kind)),
     trajectory,
-    payoff: graph.events.find((event) => event.id === ids.at(-1))?.label ?? "supplied reality",
-    unresolvedQuestion: returning ? "What is different this time?" : "What is becoming noticeable?",
+    payoff: strongest ? (graph.events.find((item) => item.id === strongest.to)?.label ?? "supplied reality") : (graph.events.find((item) => item.id === ids[0])?.label ?? "supplied reality"),
+    unresolvedQuestion: returning ? "What is different this time?" : strongest ? "What changes when these supplied details meet?" : "What deserves another look?",
     evidence: eventLabels(graph, ids),
-    hypothesis: [returning ? "Return to established material with a changed reading." : "Find the strongest connected meaning without inventing a plot."],
+    hypothesis: [returning ? "Return to established material with a changed reading." : strongest ? "A grounded relationship makes these details more meaningful together." : "A distinctive supplied detail can carry the experience without invented plot."],
     truthRisk: 0,
-    novelty: returning ? 0.68 : 0.58,
-    specificity: 0.82,
-    informationValue: Math.min(1, ids.length / 5),
-    uncertainty: 0.35,
-    attentionPotential: relations[0]?.strength ?? 0.55,
-    consequencePotential: relations.some((relation) => ["causes", "changes"].includes(relation.kind)) ? 0.75 : 0.4,
-    callbackPotential: returning || relations.some((relation) => ["repeats", "recontextualizes"].includes(relation.kind)) ? 0.82 : 0.18,
-    compressionPotential: 0.74,
-    repetitionRisk: 0.12,
-    distinctiveness: 0.62,
+    novelty: returning ? 0.72 : strongest ? 0.63 : 0.66,
+    specificity: 0.86,
+    informationValue: strongest ? 0.8 : 0.65,
+    uncertainty: 0.28,
+    attentionPotential: strongest?.strength ?? 0.62,
+    consequencePotential: strongest && ["causes", "changes"].includes(strongest.kind) ? 0.82 : 0.4,
+    callbackPotential: returning || strongest && ["repeats", "recontextualizes"].includes(strongest.kind) ? 0.84 : 0.18,
+    compressionPotential: 0.8,
+    repetitionRisk: 0.05,
+    distinctiveness: 0.72,
     score: 0,
   };
   candidate.score = candidateScore(candidate, returning, {
@@ -293,7 +321,7 @@ function fallbackMovie(graph: RealityGraph, lens: string, returning: boolean): L
     coreTension: "",
     creativeGain: "",
     templateRisk: "",
-    evidenceEventIds: ids.slice(0, 2),
+    evidenceEventIds: ids,
   });
   return candidate;
 }
@@ -319,6 +347,7 @@ function adaptiveQuestions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const explicitLens = clean(input.lens);
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
+  const intelligence = buildAuthorCognitionIntelligence(input.realityGraph, returning);
   const context = {
     prompt: clean(input.prompt),
     subject: clean(input.subject) || "unknown",
@@ -329,6 +358,7 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     memory: (input.memoryContext ?? []).slice(0, 60),
     trajectory: (input.trajectory ?? []).slice(0, 40),
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 60),
+    intelligence,
     domainContext: input.domainContext ?? {},
     reality: {
       evidence: input.realityGraph.evidence,
@@ -353,23 +383,28 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
         {
           role: "system",
           content: [
-            "You are QRE COGNITION. You discover latent meaning from supplied reality.",
-            "You are NOT the writer. Do not write customer-facing scenes, dialogue, cinematography, or invented actions.",
-            "REALITY IS IMMUTABLE: use only events, entities, places, times, states, relationships, memories and details actually supplied in the input graph/context.",
-            "STAR RULE: the explicit subject is the star unless the supplied reality clearly establishes another primary subject. The receipt, house, venue, service, object or place is the arena/context around that star.",
-            "FIRST FIND WHAT IS INTERESTING: look for salient relationships, contrasts, state changes, repetitions, callbacks, surprising pairings, status shifts, consequences and emotional movement already supported by the evidence.",
-            "SEMANTIC DISCIPLINE: prefer structural and relational meaning over psychological explanation. Repetition, contrast, change, return, pairing, escalation, consequence, persistence, before/after and unusual combinations are evidence. A list of preferences is not by itself evidence of happiness, anxiety, contentment, personality, identity, motives or an emotional journey.",
-            "NO PSYCHOLOGICAL FILL-IN: never turn an absence of negative evidence, a preference, a routine or a coincidence into an asserted inner state. Only use a psychological state when the supplied reality explicitly supports it.",
-            "THESIS RULE: a good hypothesis connects supplied facts to each other. It should say what relationship becomes noticeable, not declare what kind of person the subject is. Prefer 'walks + bacon keep returning to the same pattern' over 'Coco is happy'.",
-            "THEN SEARCH FOR A FRAME. A frame is a lens, not a story. It changes where you look and the attitude available to the Mouth. It does not dictate events or a stock sequence.",
-            "Possible frames include romance, horror, funny, spy, mission, speedrun, tournament, courtroom, heist, investigation, backstage, transformation, race, restoration, expedition, quest, countdown, archive, etc. NONE is often better.",
-            "SELECT FRAME ONLY IF IT CREATES CREATIVE GAIN AND IS GROUNDED IN SUPPLIED EVIDENCE. For NONE, say what natural structure is stronger without a frame. When no frame evidence is supplied, prefer NONE.",
-            "THEN DISCOVER THE MOVIE. The Movie is a semantic progression, not prose. It says what becomes meaningful next, not what physically happens next.",
-            "USE ONLY THESE TRAJECTORY OPERATIONS: establish, contrast, recur, reframe, escalate, converge, reveal, consequence, payoff. Never invent another operation name.",
-            "DO NOT use sceneDescription, description, dialogue, camera directions, or imagined actions. Do not write the story.",
-            "For every concrete trajectory step, cite existing event IDs. Never invent event IDs. A conceptual prompt with an empty graph may have zero event IDs.",
+            "You are QRE COGNITION. You discover the latent experience inside supplied reality.",
+            "You are NOT the writer. Never write customer-facing scenes, dialogue, cinematography, or invented actions.",
+            "REALITY IS IMMUTABLE: use only events, entities, places, times, states, relationships, memories and details actually supplied in the graph/context.",
+            "STAR RULE: the explicit subject is the star unless supplied reality clearly establishes another primary subject. A venue, service, receipt, object or place is the arena/context around that star.",
+            "USE THE INTELLIGENCE BRIEF: it is deterministic pre-analysis of evidence, semantic signals and composition constraints. Treat it as guidance derived from reality, never as extra facts.",
+            "FIRST FIND WHAT IS INTERESTING: inspect relationships, state change, recurrence, contrast, consequence, convergence, recontextualization, unusual pairings, persistence, before/after, and distinctive event-level details.",
+            "DO NOT ASSUME EVERY EVENT DESERVES A BEAT. A fact may be important evidence and still deserve zero authored language.",
+            "SEMANTIC QUALITY IS THE GOAL: do not equate compactness with quality. A rich reality may deserve a long sequence; sparse reality may deserve a short observation. The length must follow meaningful movement, not a fixed budget.",
+            "NO CAPTION REEL: never make one generic sentence per event merely to cover the source list. Combine events when their relationship creates meaning. Omit events from story language when they contribute no useful viewer-state change, while keeping them in evidence/provenance.",
+            "NO RECEIPT REEL: timestamps, GPS, place metadata, photos and other media/context are not automatic story beats. They remain available as additive experience material and may be arranged around or attached to the story later.",
+            "NO PSYCHOLOGICAL FILL-IN: never infer happiness, anxiety, contentment, motive, personality, identity, emotional journey or intent from a routine, preference or coincidence unless explicitly supported.",
+            "THESIS RULE: a hypothesis should connect supplied facts or express a grounded observation. Prefer a structural relationship over a diagnosis of the subject.",
+            "RETURN RULE: when returning, use memory to create a new reading, changed status, callback, continuation or contrast. Do not simply repeat the previous movie.",
+            "LENS RULE: when LET QRE DECIDE is active, only use an established QRE frame when it is grounded and creates genuine creative gain. Never invent a private genre such as 'microscopic' or 'temporal'. If no established frame earns selection, use NONE.",
+            "KNOWN QRE FRAMES may include comedy, funny, noir, romance, romantic, horror, heist, game, fierce, courtroom, military, documentary, deadpan, tender, surreal, wild, spy, mission, speedrun, tournament, investigation, backstage, transformation, race, restoration, expedition, quest, countdown, archive. These are treatments, not facts or templates.",
+            "MOVIE RULE: the Movie is semantic progression. It answers why the viewer should encounter this next, not simply what physical event happened next.",
+            "USE ONLY THESE TRAJECTORY OPERATIONS: establish, contrast, recur, reframe, escalate, converge, reveal, consequence, payoff.",
+            "A good sequence changes the viewer's understanding, expectation, attention or emotional interpretation. Do not force hook/develop/turn/payoff when the material does not support it.",
+            "When the strongest material is an observation rather than a relationship, use a one-step observation. When there is a real relation, use the relation to produce a two-or-more-step semantic progression.",
+            "For every concrete trajectory step, cite existing event IDs. Never invent IDs. Conceptual prompts may have zero event IDs.",
+            "ADAPTIVE QUESTIONS: ask only for missing concrete reality that would materially improve the experience: who/what, where, when, what happened, or a concrete distinctive detail. Never ask leading emotional or interpretive questions.",
             "Return JSON only in this shape: {selectedLens, frame:{mode:'frame'|'none',frame,confidence,coreTension,creativeGain,templateRisk,evidenceEventIds:[]}, interpretations:[{id,thesis,creativeOpportunity,rationale,evidenceEventIds,confidence}], movies:[{movieId,lens,evidenceEventIds,anchorEventIds,supportingRelationKinds,trajectory:[{operation,eventIds,viewerChange,nextQuestion}],payoff,unresolvedQuestion,hypothesis,truthRisk,novelty,specificity,informationValue,uncertainty,attentionPotential,consequencePotential,callbackPotential,compressionPotential,repetitionRisk,distinctiveness}], selectedMovieId, adaptiveQuestions:[{kind,question,reason}], attentionStrategy, reasoningSummary}.",
-            "Adaptive questions may ask only for missing concrete reality that would materially change the experience: who/what, where, when, what happened, or a concrete detail. Do not ask leading questions about feelings, happiness, contentment, anxiety, motives, personality or what the facts 'say' about someone.",
             "Keep reasoningSummary diagnostic and compact. It is never customer-facing.",
           ].join("\n"),
         },
@@ -433,7 +468,10 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     attentionStrategy: clean(parsed?.attentionStrategy) || (selectedMovie?.supportingRelationKinds[0] ? `notice ${selectedMovie.supportingRelationKinds[0]}` : "follow the strongest supplied relationship"),
     reasoningSummary: Array.isArray(parsed?.reasoningSummary)
       ? parsed.reasoningSummary.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean).slice(0, 12)
-      : ["Frame selection precedes semantic Movie selection.", "Cognition emits structure, not customer-facing prose.", "Reality remains the factual authority."],
+      : [
+        ...intelligence.semanticSignals.slice(0, 4),
+        ...intelligence.compositionRules.slice(0, 3),
+      ],
     model,
     modelCalls,
   };
