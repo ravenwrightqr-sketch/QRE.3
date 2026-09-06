@@ -1,7 +1,7 @@
 /*
  * QRE CANONICAL AUTHOR READOUT
  *
- * Readout is the boring factual projection between RealityGraph and creative
+ * Readout is the factual projection between RealityGraph and creative
  * cognition. It does not select a frame, discover a Movie, infer emotion, or
  * write customer-facing prose.
  */
@@ -19,25 +19,22 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 function subjectPrefixPattern(subject?: string): RegExp | undefined {
   const names = clean(subject)
     .split(/\s*(?:\+|&|,|\/|\band\b)\s*/i)
-    .map((value) => clean(value))
+    .map(clean)
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
     .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!names.length) return undefined;
-
-  if (names.length === 1) {
-    return new RegExp(`^${names[0]}(?:\\s+|[:,–—-]+\\s*)`, "i");
-  }
-
+  if (names.length === 1) return new RegExp(`^${names[0]}(?:\\s+|[:,–—-]+\\s*)`, "i");
   const pair = names.join("(?:\\s+(?:and|&)\\s+)?");
   return new RegExp(`^(?:${pair}|${names.join("\\s+(?:and|&)\\s+")})(?:\\s+|[:,–—-]+\\s*)`, "i");
 }
 
 function stripSubjectPrefix(label: string, subject?: string): string {
-  const text = clean(label);
   const pattern = subjectPrefixPattern(subject);
-  if (!pattern) return text;
-  return clean(text.replace(pattern, ""));
+  if (!pattern) return clean(label);
+  let result = clean(label).replace(pattern, "");
+  result = result.replace(/^(?:is|are|was|were)\s+/i, "");
+  return clean(result);
 }
 
 export function buildAuthorReadout(input: { graph: RealityGraph; subject?: string }): AuthorReadout {
