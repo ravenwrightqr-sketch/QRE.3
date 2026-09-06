@@ -63,6 +63,9 @@ jobs:
       - name: Author readout and semantic acceptance
         run: pnpm tsx apps/api/author-readout-acceptance.ts
 
+      - name: Author war-readiness acceptance
+        run: pnpm author:war
+
       - name: Universal Author acceptance
         run: pnpm tsx apps/api/author-acceptance.ts
 
