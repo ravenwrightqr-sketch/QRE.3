@@ -1,5 +1,9 @@
 # QRE Universal Author Creative Spine
 
+STATUS: CANONICAL
+DATE: 2026-09-05
+BRANCH: `build/universal-author-local`
+
 QRE is not a domain-specific story generator. It turns supplied reality into media that the subject, owner, or participant can want to experience again.
 
 ## Product boundary
@@ -54,17 +58,21 @@ REALIZATION
     |
     v
 MOUTH
-(short felt language; no internal cognition prose)
+(felt customer language; no internal cognition prose)
     |
     v
-SEQUENCEPLAY / MEDIA
+STORY / SEQUENCE
+    |
+    v
+EXPERIENCE COMPOSITION
+(story + additive media/context/actions)
 ```
 
 ## Authority rules
 
 Reality is immutable source truth.
 
-Metamorphic relations are derived scaffolding. They may explain why two or more supplied events become interesting together, but they cannot create a new event.
+Metamorphic relations are derived scaffolding. They may explain why supplied events become interesting together, but they cannot create a new event.
 
 Creative opportunities are ranked hypotheses, not facts.
 
@@ -72,9 +80,31 @@ Movie selection is semantic structure: it discovers progression and payoff from 
 
 Lens is pressure, not authorship. It may change tone, emphasis, rhythm, implication, contrast, intimacy, unease, status, or compression. It cannot introduce an actor, action, place, outcome, chronology, or event that is not supported.
 
-Realization converts the chosen semantic move into concrete viewer-facing cuts.
+Realization converts the chosen semantic move into concrete viewer-facing story cuts.
 
 Mouth is language only. It does not become a second semantic planner.
+
+## Story-first composition law
+
+The story is the primary authored experience.
+
+```text
+STORY CAPACITY
+      ↓
+determined by semantic richness
+      ↓
+NOT reduced for media
+```
+
+Photos, video, geo, timestamps, maps, receipts, links, and similar additions are separate experience material. They may be placed before, between, after, or alongside story cuts.
+
+They do not consume story beats and do not force Cognition to choose a shorter Movie.
+
+A business experience may naturally open with location/context and close with departure/context. A before/after experience may place photos around a meaningful change. A wedding may contain dozens of photos while still receiving as much authored story as the reality earns.
+
+Launch tiers may control media count, storage, processing, AI generation, or render complexity. Those controls must never become hidden creative limits.
+
+The frontend may allow the user to reorder additive elements. Reordering changes presentation only; it does not mutate reality, provenance, or the selected Movie.
 
 ## Composable lenses
 
@@ -114,27 +144,11 @@ Possible treatments include comedy, noir, heist, game, fierce, courtroom, milita
 
 ```text
 Maria
-9:04 AM -> kitchen -> bathroom one -> bathroom two -> 11:47 AM
+kitchen -> bathroom one -> bathroom two
+plus optional time / place / photos
 ```
 
-Possible realization:
-
-```text
-9:04.
-Reset begins.
-
-Kitchen: handled.
-
-Two bathrooms remain.
-
-One.
-Two.
-
-Done.
-
-11:47.
-House reset.
-```
+The authored story decides how much semantic movement the cleaning reality actually earns. Times and geo may appear as supporting context rather than consuming story beats.
 
 ### Restaurant / relationship
 
