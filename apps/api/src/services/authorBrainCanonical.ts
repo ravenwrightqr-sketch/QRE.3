@@ -14,6 +14,18 @@ import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
 import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRealizer.js";
 import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
 
+const ARTIST_DNA = [
+  "CREATIVE TASTE ONLY — never treat this as source reality.",
+  "Create something people would actually want to watch, not a polished receipt.",
+  "Search for kinetic energy, sensory impact, comedy, absurdity, drama, tenderness, menace, surprise, and visual/music language before defaulting to safe explanation.",
+  "Look for hidden mechanics: battles, races, missions, campaigns, rounds, boss rooms, speedruns, hunts, rescues, showdowns, transformations, interruptions, reversals, accumulations, countdowns, and status flips when the supplied reality can carry them.",
+  "Let ordinary things become extraordinary artistic subjects: food can feel alive, a car can feel like a contender, a house can feel like a level, a room can feel like an arena, a machine can feel like an opponent, a tool can feel like a weapon, and a sign can feel like a sentinel — all as clearly figurative or cinematic framing, never fabricated literal events.",
+  "Strong sensory language is valuable. When the source supplies sound, music, bass, silence, darkness, light, heat, cold, speed, texture, motion, taste, smell, or impact, make the viewer feel the supplied material rather than merely naming it.",
+  "An interruption followed by return can become impact → absence → return → release. A repeated action can become rhythm, attack, round, combo, ritual, or escalation. A final completion can become a landing or victory image without inventing a literal contest.",
+  "Prefer a memorable creative move over a generic cinematic adjective. Do not default to ghosts, dust, breath, melancholy, ritual, lonely songs, or vague atmosphere when a more alive form is available.",
+  "Do not force this taste onto every world. The Artist chooses. These are permission and creative pressure, not a template.",
+].join("\n");
+
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
@@ -107,7 +119,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const readout = buildAuthorReadout({ graph: world, subject });
   const creativeSpine = buildAuthorCreativeSpine({ graph: world, subject, returning: input.returning });
   const metamorphicContext = creativeSpine.opportunities.slice(0, 12).map((opportunity) => `DERIVED CREATIVE OPPORTUNITY: ${opportunity.opportunity}; evidence=${opportunity.evidenceEventIds.join(",")}; strength=${opportunity.strength}`);
-  const cognitionLearningContext = unique([...(input.creativeLearningContext ?? []), ...metamorphicContext]);
+  const cognitionLearningContext = unique([ARTIST_DNA, ...(input.creativeLearningContext ?? []), ...metamorphicContext]);
   const cognition = await buildAuthorCognitivePlan({ prompt, subject, place: clean(input.place), lens: clean(input.lens), facts, sourceMoments, realityGraph: world, domainContext: input.domainContext, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [], creativeLearningContext: cognitionLearningContext, returning, visitNumber: input.visitNumber, movieMode: input.movieMode });
   if (!cognition.latentMovieCandidates.length) {
     return { readout, scenes: [], sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] }, realizationMode: "collection", brief: { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Movie → Artist → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] }, diagnostics: { model: cognition.model, modelCalls: cognition.modelCalls, candidateSequences: 0, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: 0, rejectedCandidates: [{ reason: "no Movie candidates" }] }, adaptiveQuestions: cognition.adaptiveQuestions, world };
@@ -121,7 +133,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const lensSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: cognition.selectedLens, returning: input.returning });
   const lensStack = [lensSpine.lensTreatment.primary, lensSpine.lensTreatment.secondary].filter((value) => value && value !== "none").join(" + ") || cognition.selectedLens;
-  const realization = await realizeAuthorExperience({ prompt, subject, lens: lensStack, graph: world, movie, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: input.creativeLearningContext });
+  const realization = await realizeAuthorExperience({ prompt, subject, lens: lensStack, graph: world, movie, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: cognitionLearningContext });
   const scenes = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind } satisfies AuthorScene));
   const sequence = sequenceFor(subject, movie, realization.scenes);
   const complete = scenes.length > 0 && scenes.length === sequence.cuts.length;
