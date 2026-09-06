@@ -11,12 +11,10 @@ import type {
 /**
  * UNIVERSAL METAMORPHIC RELATION SEARCH
  *
- * Finds the meaningful change, contrast, recurrence, consequence, or
- * recontextualization already latent in supplied reality.
- *
- * This is deliberately lens-blind.
- * Lens treatment happens only after a relation/opportunity has been selected.
- * Nothing here creates events, facts, chronology, actors, or outcomes.
+ * Finds meaningful change, contrast, recurrence, consequence,
+ * recontextualization, or distinctive observation already latent in supplied
+ * reality. This is lens-blind and never creates events, actors, places,
+ * chronology, outcomes, or facts.
  */
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -108,14 +106,22 @@ function scorePair(graph: RealityGraph, leftId: string, rightId: string, rel: Re
   const salience = Math.max(left?.salienceScore ?? 0, right?.salienceScore ?? 0, leftEvent?.salient ? 1 : 0, rightEvent?.salient ? 1 : 0);
   const relationStrength = rel?.strength ?? 0;
   return metric(
-    relationStrength * 0.42 +
-    state * 0.15 +
-    objects * 0.1 +
-    actions * 0.07 +
-    tags * 0.08 +
-    recurrence * 0.08 +
-    transition * 0.06 +
-    salience * 0.04,
+    relationStrength * 0.42 + state * 0.15 + objects * 0.1 + actions * 0.07 + tags * 0.08 + recurrence * 0.08 + transition * 0.06 + salience * 0.04,
+  );
+}
+
+function scoreEvent(graph: RealityGraph, id: string): number {
+  const current = structure(graph, id);
+  const item = event(graph, id);
+  const entityRichness = Math.min(1, (item?.entities.length ?? 0) / 3);
+  const sensory = Math.min(1, (graph.sensorySignals?.filter((signal) => signal.eventIds.includes(id)).length ?? 0) / 2);
+  return metric(
+    (current?.salienceScore ?? 0) * 0.36 +
+    (current?.transitionScore ?? 0) * 0.2 +
+    (current?.recurrenceScore ?? 0) * 0.16 +
+    entityRichness * 0.12 +
+    sensory * 0.1 +
+    (item?.salient ? 1 : 0) * 0.06,
   );
 }
 
@@ -129,21 +135,53 @@ function narrativePair(graph: RealityGraph, ids: [string, string], rel: RealityR
   const left = clean(event(graph, ids[0])?.label);
   const right = clean(event(graph, ids[1])?.label);
   switch (rel?.kind) {
-    case "changes":
-      return { before: left, after: right, feltEffect: "a supplied state gives way to another", viewerShift: "recognize the change", languageAim: "make the changed status felt" };
-    case "contrasts":
-      return { before: left, after: right, feltEffect: "two supplied states pull against each other", viewerShift: "notice the contradiction", languageAim: "hold both truths in tension" };
-    case "repeats":
-      return { before: left, after: right, feltEffect: "a supplied detail returns with accumulated meaning", viewerShift: "recognize the callback", languageAim: "let repetition become recognition" };
-    case "causes":
-      return { before: left, after: right, feltEffect: "one supplied event gives consequence to another", viewerShift: "feel the consequence land", languageAim: "make the consequence immediate" };
-    case "recontextualizes":
-      return { before: left, after: right, feltEffect: "the second supplied detail changes the reading of the first", viewerShift: "see the earlier detail differently", languageAim: "reframe without adding facts" };
-    case "converges":
-      return { before: left, after: right, feltEffect: "separate supplied details meet around a shared meaning", viewerShift: "connect the dots", languageAim: "make the connection click" };
-    default:
-      return { before: left, after: right, feltEffect: "a later supplied detail creates a new reading", viewerShift: "notice what becomes meaningful next", languageAim: "create pull through implication" };
+    case "changes": return { before: left, after: right, feltEffect: "a supplied state gives way to another", viewerShift: "recognize the change", languageAim: "make the changed status felt" };
+    case "contrasts": return { before: left, after: right, feltEffect: "two supplied states pull against each other", viewerShift: "notice the contradiction", languageAim: "hold both truths in tension" };
+    case "repeats": return { before: left, after: right, feltEffect: "a supplied detail returns with accumulated meaning", viewerShift: "recognize the callback", languageAim: "let repetition become recognition" };
+    case "causes": return { before: left, after: right, feltEffect: "one supplied event gives consequence to another", viewerShift: "feel the consequence land", languageAim: "make the consequence immediate" };
+    case "recontextualizes": return { before: left, after: right, feltEffect: "the second supplied detail changes the reading of the first", viewerShift: "see the earlier detail differently", languageAim: "reframe without adding facts" };
+    case "converges": return { before: left, after: right, feltEffect: "separate supplied details meet around a shared meaning", viewerShift: "connect the dots", languageAim: "make the connection click" };
+    default: return { before: left, after: right, feltEffect: "a later supplied detail creates a new reading", viewerShift: "notice what becomes meaningful next", languageAim: "create pull through implication" };
   }
+}
+
+function eventOpportunity(graph: RealityGraph, id: string): AuthorMetamorphicRelation | undefined {
+  const current = event(graph, id);
+  if (!current) return undefined;
+  const score = scoreEvent(graph, id);
+  if (score < 0.42) return undefined;
+  const label = clean(current.label);
+  const structureRow = structure(graph, id);
+  const sensoryCount = graph.sensorySignals?.filter((signal) => signal.eventIds.includes(id)).length ?? 0;
+  const reason = structureRow?.transitionScore && structureRow.transitionScore >= 0.65
+    ? "This event carries a real transition signal."
+    : structureRow?.recurrenceScore && structureRow.recurrenceScore >= 0.65
+      ? "This event carries a real recurrence signal."
+      : sensoryCount > 0
+        ? "This event has distinctive supplied sensory material."
+        : current.salient
+          ? "This event is explicitly salient in supplied reality."
+          : "This event is unusually information-rich compared with the rest of the supplied material.";
+
+  return {
+    id: `metamorphic-event-${id}`,
+    type: "expectation_break",
+    mechanism: "continuation",
+    evidenceEventIds: [id],
+    beforeEventIds: [id],
+    afterEventIds: [],
+    before: label,
+    after: label,
+    realizationMove: "recognize",
+    creativeOpportunity: "recognition",
+    feltEffect: "one supplied detail deserves focused attention without requiring an invented second event",
+    viewerShift: "notice the distinctive detail",
+    languageAim: "make the concrete detail newly legible",
+    confidence: metric(0.5 + score * 0.45),
+    score: metric(score * 0.9),
+    relation: undefined,
+    metadata: { eventLevel: true, reason },
+  } as AuthorMetamorphicRelation;
 }
 
 export function searchAuthorMetamorphicRelations(input: {
@@ -171,7 +209,6 @@ export function searchAuthorMetamorphicRelations(input: {
         Boolean(input.graph.patterns?.some((pattern) => pattern.eventIds.includes(left.id) && pattern.eventIds.includes(right.id)));
 
       if (!meaningfulSupport) continue;
-      if (!rel && events.length > 2) continue;
 
       const ids: [string, string] = [left.id, right.id];
       const mechanism = mechanismFor(rel?.kind);
@@ -182,19 +219,16 @@ export function searchAuthorMetamorphicRelations(input: {
       const score = scorePair(input.graph, left.id, right.id, rel);
       if (score < 0.42) continue;
 
-      const evidenceEventIds = unique(ids);
       candidates.push({
         id: `metamorphic-${left.id}-${right.id}-${mechanism}`,
         type,
         mechanism,
-        evidenceEventIds,
+        evidenceEventIds: unique(ids),
         beforeEventIds: [left.id],
         afterEventIds: [right.id],
         before: narrative.before,
         after: narrative.after,
-        relation: rel
-          ? { kind: rel.kind, fromEventId: rel.from, toEventId: rel.to }
-          : undefined,
+        relation: rel ? { kind: rel.kind, fromEventId: rel.from, toEventId: rel.to } : undefined,
         realizationMove,
         creativeOpportunity: opportunity,
         feltEffect: narrative.feltEffect,
@@ -204,6 +238,13 @@ export function searchAuthorMetamorphicRelations(input: {
         score,
       });
     }
+  }
+
+  // Sparse reality is not a failure. Promote high-information individual events
+  // into observation opportunities without pretending they are relationships.
+  for (const item of events) {
+    const opportunity = eventOpportunity(input.graph, item.id);
+    if (opportunity) candidates.push(opportunity);
   }
 
   const sorted = candidates
@@ -220,6 +261,6 @@ export function searchAuthorMetamorphicRelations(input: {
     relations: sorted,
     strongestRelationId: sorted[0]?.id,
     relationCount: sorted.length,
-    evidenceClosed: sorted.every((relation) => relation.evidenceEventIds.every((id) => sourceEventIds.includes(id))),
+    evidenceClosed: sorted.every((candidate) => candidate.evidenceEventIds.every((id) => sourceEventIds.includes(id))),
   };
 }
