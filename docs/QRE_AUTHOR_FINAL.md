@@ -91,9 +91,9 @@ Playful defiance.
 
 The final phrase is an artistic landing, not a factual assertion about hidden psychology.
 
-Invalid visible creation includes invented sensory filler, invented reactions, invented people, invented dialogue, invented actions, unsupported outcomes, or explanatory narration such as “this means…” or “the relationship between…”.
+The subject is a factual referent, not the default narrator. QRE must never turn every world into a person-report merely because a subject is present. The visible film may open on an object, place, time, action, fragment, absence, collision, callback, or other supplied carrier when that is the strongest form for the discovered relationship.
 
-The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain or lens.
+The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain, subject, or lens.
 
 ## Story and sequence
 
@@ -102,6 +102,8 @@ A fact may be true and still deserve zero authored language. A rich reality may 
 There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by semantic value, not by an arbitrary duration target and not by the number of facts or media items.
 
 The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, or recap. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
+
+A film is judged on what the viewer can actually experience: concrete grounding, visible relational bridge, change in attention, landing strength, formal variation, absence of invention, absence of explanation, and resistance to caption-reel grammar.
 
 ## Experience additions are additive
 
@@ -149,6 +151,8 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; free artistic landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture must model the real architecture: a relationship must exist in the RealityGraph before the independent realized-film judge can verify that a visible bridge is grounded.
+
+The superintelligence lab must print the complete artifact before assertions so creative failures are inspectable. The lab is not allowed to lower thresholds to make a model pass; failures are evidence for improving the Artist Device.
