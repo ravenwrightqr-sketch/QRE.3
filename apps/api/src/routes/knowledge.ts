@@ -143,6 +143,40 @@ router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) =
     const row = await db.insight.create({
       data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: world.description || world.businessType || world.businessName || learned.title },
     });
+
+    const current = await db.asset.findUnique({ where: { id: asset.id }, select: { templateData: true } });
+    const currentData = current?.templateData && typeof current.templateData === "object" && !Array.isArray(current.templateData)
+      ? current.templateData as Record<string, unknown>
+      : {};
+    await db.asset.update({
+      where: { id: asset.id },
+      data: {
+        templateData: {
+          ...currentData,
+          businessName: world.businessName || currentData.businessName || asset.displayName,
+          businessType: world.businessType || currentData.businessType,
+          businessDescription: world.description || currentData.businessDescription || ownerDescription,
+          services: world.services.length ? world.services : currentData.services,
+          capabilities: world.services.length ? world.services : currentData.capabilities,
+          contextualSignals: [...new Set([...(Array.isArray(currentData.contextualSignals) ? currentData.contextualSignals.filter((v): v is string => typeof v === "string") : []), ...world.signals, ...world.differentiators])].slice(0, 48),
+          subjectKinds: world.subjectKinds.length ? world.subjectKinds : currentData.subjectKinds,
+          websiteKnowledge: {
+            sourceUrl: learned.url,
+            sourceTitle: learned.title || undefined,
+            businessName: world.businessName,
+            businessType: world.businessType,
+            description: world.description,
+            services: world.services,
+            differentiators: world.differentiators,
+            signals: world.signals,
+            subjectKinds: world.subjectKinds,
+            importantFacts: world.importantFacts,
+            learnedAt: new Date().toISOString(),
+          },
+        },
+      },
+    });
+
     await analyticsRepository.trackEvent({
       assetId: asset.id,
       type: "AI_MEMORY_LEARNED",
