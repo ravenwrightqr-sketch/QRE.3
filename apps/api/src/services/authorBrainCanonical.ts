@@ -11,6 +11,7 @@ REPLACEMENT: Replaces the previous multi-layer Author brain and all competing Au
 */
 import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorScene, LatentMovieCandidate, SequenceCut, SequencePlay, ViewerAttentionRole, ViewerState } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
+import { buildAuthorCreativeSpine } from "./authorCreativeSpine.js";
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { evaluateLatentMovie, type SemanticGateResult } from "./authorSemanticGate.js";
 import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
@@ -19,7 +20,6 @@ import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRea
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
-const emptyReadout = (subject: string): AuthorReadout => ({ subject, lines: [], text: "", eventIds: [] });
 
 function roleFor(kind: AuthorScene["kind"], index: number, total: number): ViewerAttentionRole {
   if (kind === "hook" || index === 0) return "hook";
@@ -60,11 +60,24 @@ function gateCandidates(candidates: LatentMovieCandidate[], world: ReturnType<ty
 }
 export type CanonicalAuthorResult = { readout: AuthorReadout; scenes: AuthorScene[]; sequence: SequencePlay; movie?: LatentMovieCandidate; realizationMode: "collection" | "state" | "sequence-film"; brief: AuthorCreativeBrief; diagnostics: { model: string; modelCalls: number; candidateSequences: number; acceptedCandidates: number; qualityStatus: "ACCEPTED" | "REJECTED"; renderable: boolean; complete: boolean; selectedScore: number; rejectedCandidates: unknown[]; semanticGate?: ReturnType<typeof evaluateLatentMovie> }; adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>; world: ReturnType<typeof buildAuthorRealityGraph> };
 export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<CanonicalAuthorResult> {
-  const subject = clean(input.subject) || "the subject"; const prompt = clean(input.prompt); const facts = unique(input.facts); const sourceMoments = unique(input.sourceMoments);
+  const subject = clean(input.subject) || "the subject";
+  const prompt = clean(input.prompt);
+  const facts = unique(input.facts);
+  const sourceMoments = unique(input.sourceMoments);
   const world = input.realityGraph ?? buildAuthorRealityGraph({ prompt, subject, place: clean(input.place), facts, sourceMoments, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [] });
   const readout = buildAuthorReadout({ graph: world, subject });
-  const cognition = await buildAuthorCognitivePlan({ prompt, subject, place: clean(input.place), lens: clean(input.lens), facts, sourceMoments, realityGraph: world, domainContext: input.domainContext, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [], creativeLearningContext: input.creativeLearningContext ?? [], returning: input.returning, visitNumber: input.visitNumber, movieMode: input.movieMode });
-  if (!cognition.latentMovieCandidates.length) return { readout, scenes: [], sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] }, realizationMode: "collection", brief: { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Movie → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] }, diagnostics: { model: cognition.model, modelCalls: cognition.modelCalls, candidateSequences: 0, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: 0, rejectedCandidates: [{ reason: "no Movie candidates" }] }, adaptiveQuestions: cognition.adaptiveQuestions, world };
+
+  // Universal creative discovery happens before any lens treatment. The result is
+  // derived scaffolding for Cognition only; it is never source reality and never
+  // reaches the customer-facing Mouth as internal prose.
+  const creativeSpine = buildAuthorCreativeSpine({ graph: world, subject, returning: input.returning });
+  const metamorphicContext = creativeSpine.opportunities.slice(0, 6).map((opportunity) =>
+    `DERIVED CREATIVE OPPORTUNITY: ${opportunity.opportunity}; evidence=${opportunity.evidenceEventIds.join(",")}; strength=${opportunity.strength}`,
+  );
+  const cognitionLearningContext = unique([...(input.creativeLearningContext ?? []), ...metamorphicContext]);
+
+  const cognition = await buildAuthorCognitivePlan({ prompt, subject, place: clean(input.place), lens: clean(input.lens), facts, sourceMoments, realityGraph: world, domainContext: input.domainContext, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [], creativeLearningContext: cognitionLearningContext, returning: input.returning, visitNumber: input.visitNumber, movieMode: input.movieMode });
+  if (!cognition.latentMovieCandidates.length) return { readout, scenes: [], sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] }, realizationMode: "collection", brief: { angle: cognition.selectedLens, engine: "Reality → World → Metamorphic Relation → Opportunity → Cognition → Movie → Lens → Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] }, diagnostics: { model: cognition.model, modelCalls: cognition.modelCalls, candidateSequences: 0, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: 0, rejectedCandidates: [{ reason: "no Movie candidates" }] }, adaptiveQuestions: cognition.adaptiveQuestions, world };
 
   const gated = gateCandidates(cognition.latentMovieCandidates, world);
   const movie = gated.selected;
@@ -75,14 +88,20 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       scenes: [],
       sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] },
       realizationMode: "collection",
-      brief: fallbackCandidate ? briefFor(fallbackCandidate, cognition, cognition.selectedLens) : { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Movie → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] },
+      brief: fallbackCandidate ? briefFor(fallbackCandidate, cognition, cognition.selectedLens) : { angle: cognition.selectedLens, engine: "Reality → World → Metamorphic Relation → Opportunity → Cognition → Movie → Lens → Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] },
       diagnostics: { model: cognition.model, modelCalls: cognition.modelCalls, candidateSequences: cognition.latentMovieCandidates.length, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: metric(fallbackCandidate?.score ?? 0), rejectedCandidates: gated.rejected, semanticGate: fallbackCandidate ? evaluateLatentMovie(fallbackCandidate, world) : undefined },
       adaptiveQuestions: cognition.adaptiveQuestions,
       world,
     };
   }
 
-  const realization = await realizeAuthorExperience({ prompt, subject, lens: cognition.selectedLens, graph: world, movie, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: input.creativeLearningContext });
-  const scenes = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind } satisfies AuthorScene)); const sequence = sequenceFor(subject, movie, realization.scenes); const complete = scenes.length > 0 && scenes.length === sequence.cuts.length;
-  return { readout, scenes, sequence, movie, realizationMode: scenes.length === 1 ? "state" : scenes.length > 1 ? "sequence-film" : "collection", brief: briefFor(movie, cognition, cognition.selectedLens), diagnostics: { model: cognition.model === "fallback" ? realization.model : cognition.model, modelCalls: cognition.modelCalls + realization.modelCalls, candidateSequences: cognition.latentMovieCandidates.length, acceptedCandidates: scenes.length, qualityStatus: complete ? "ACCEPTED" : "REJECTED", renderable: complete, complete, selectedScore: metric((gated.gate.score + realization.score) / 2), rejectedCandidates: [...gated.rejected, ...(realization.reason ? [{ reason: realization.reason, rejectedSets: realization.rejectedSets }] : [])], semanticGate: gated.gate }, adaptiveQuestions: cognition.adaptiveQuestions, world };
+  // Lens treatment happens only after the relation/opportunity and Movie exist.
+  // Multiple lenses are composable pressure, never additional factual authority.
+  const lensSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: cognition.selectedLens, returning: input.returning });
+  const lensStack = [lensSpine.lensTreatment.primary, lensSpine.lensTreatment.secondary].filter((value) => value && value !== "none").join(" + ") || cognition.selectedLens;
+  const realization = await realizeAuthorExperience({ prompt, subject, lens: lensStack, graph: world, movie, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: input.creativeLearningContext });
+  const scenes = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind } satisfies AuthorScene));
+  const sequence = sequenceFor(subject, movie, realization.scenes);
+  const complete = scenes.length > 0 && scenes.length === sequence.cuts.length;
+  return { readout, scenes, sequence, movie, realizationMode: scenes.length === 1 ? "state" : scenes.length > 1 ? "sequence-film" : "collection", brief: briefFor(movie, cognition, lensStack), diagnostics: { model: cognition.model === "fallback" ? realization.model : cognition.model, modelCalls: cognition.modelCalls + realization.modelCalls, candidateSequences: cognition.latentMovieCandidates.length, acceptedCandidates: scenes.length, qualityStatus: complete ? "ACCEPTED" : "REJECTED", renderable: complete, complete, selectedScore: metric((gated.gate.score + realization.score) / 2), rejectedCandidates: [...gated.rejected, ...(realization.reason ? [{ reason: realization.reason, rejectedSets: realization.rejectedSets }] : [])], semanticGate: gated.gate }, adaptiveQuestions: cognition.adaptiveQuestions, world };
 }
