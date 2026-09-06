@@ -80,7 +80,7 @@ The latent Movie is an internal semantic proposal, not the final customer-facing
 
 The Movie Judge decides whether that proposal is sufficiently grounded, specific, distinctive, non-generic, and semantically progressive to become visible.
 
-The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, grammatical transformation, emotional abstraction, and other artistic devices are allowed when they remain inside the reality boundary.
+The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, grammatical transformation, emotional abstraction, humor, absurdity, tenderness, menace, and other artistic devices are allowed when they remain inside the reality boundary.
 
 The Pure Visible-Art Judge examines the actual visible film after Mouth. It judges the artifact itself. No latent Movie score, domain fit, prior-film novelty, subject preference, or other upstream score may rescue weak visible art at this boundary.
 
@@ -91,6 +91,44 @@ Cognition may reason using internal prose, but that prose is not the artist's cr
 The artist does not copy the client's sentence. The artist preserves the underlying fact while deciding the visible grammar. Source words are raw material, not a required script.
 
 The artist owns visible language, rhythm, cuts, omissions, repetitions, collisions, transformations, and the final landing. The subject is a factual referent only, not a required grammatical anchor. A film may name the subject when reality genuinely calls for it, but subject identity must never become the universal narrative voice.
+
+## Meaning Pressure
+
+Meaning Pressure is the semantic charge that makes a grounded relationship worth expressing artistically.
+
+The system should not jump directly from:
+
+```text
+REALITY → RELATIONSHIP → ARTIST DEVICE → PRETTY WORDING
+```
+
+to a polished sentence. The canonical creative route is:
+
+```text
+REALITY
+  ↓
+GROUNDED RELATIONSHIP
+  ↓
+MEANING PRESSURE
+  ↓
+COMPETING ARTISTIC STRATEGIES
+  ↓
+MATERIALLY DIFFERENT REALIZATIONS
+  ↓
+ADVERSARIAL VISIBLE-ART JUDGMENT
+  ↓
+STRONGEST SURVIVING EXPRESSION
+```
+
+Meaning Pressure answers:
+
+> When these particular true details are held together, what changes in what becomes noticeable?
+
+It is not a second factual layer. It is not a hidden psychology claim. It is a compact artistic question generated from an already-grounded relationship. Typical pressures include order versus disruption, appearance versus behavior, ritual versus interruption, stability versus change, repetition versus difference, separation versus convergence, cause versus consequence, presence versus absence, and ordinary versus newly charged.
+
+The purpose of Meaning Pressure is to free the Mouth from literal paraphrase without forcing a specific literary device. The Mouth may express the same pressure through humor, understatement, irony, compression, metaphor, personification, silence, reversal, accumulation, collision, repetition, abstraction, or another form that the reality earns.
+
+Meaning Pressure must remain permissive. It is a creative search surface, not a cage. The system should prefer a surprising good film over a safe mediocre one whenever both preserve the supplied concrete reality.
 
 ## Artist Device
 
@@ -103,7 +141,7 @@ INTERPRETIVE ART: WIDE OPEN
 
 A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. Grounding and copying are separate properties: a concrete cut may reuse one supplied noun or fact-bearing term while still transforming the sentence, grammar, compression, ordering, or relationship. The judge must therefore detect literal source replay independently from ordinary semantic overlap used to establish grounding.
 
-The Artist Device is the missing bridge between semantic cognition and visible language. It carries a grounded relationship mechanism plus a small set of universal formal affordances. Examples include compression, fragmentation, nominalization, juxtaposition, inversion, omission, callback, repetition-with-mutation, accumulation, collision, status flip, ellipsis, and unexpected selection. The device may recommend a subset according to the grounded relation, but it must never become a domain-specific author or a fixed literary template.
+The Artist Device is the bridge between semantic cognition and visible language. It carries a grounded relationship mechanism plus a small set of universal formal affordances. Examples include compression, fragmentation, nominalization, juxtaposition, inversion, omission, callback, repetition-with-mutation, accumulation, collision, status flip, ellipsis, unexpected selection, understatement, irony, and metaphor. The device may recommend a subset according to the grounded relation, but it must never become a domain-specific author or a fixed literary template.
 
 For example:
 
@@ -140,6 +178,14 @@ The Pure Visible-Art Judge evaluates:
 A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct. Conversely, a short transformed phrase is not a copy merely because it retains a fact-bearing noun such as `apple`; the question is whether the visible language substantially replays the supplied wording or artistically changes its form.
 
 The final quality score at the canonical boundary comes from the realized visible-art judgment alone. Movie quality may decide which semantic idea reaches the Mouth, but it may not rescue a weak realization after the Mouth.
+
+### Scores are instruments, not the art
+
+Numeric dimensions are diagnostics for selection and regression detection. They are not definitions of creativity and must not become artificial creative ceilings.
+
+The implementation should use hard rejection only for genuine architectural violations: fabricated concrete reality, source-copy replay, explanation/internal leakage, loss of semantic bridge, loss of provenance, or a materially broken artifact. Soft metrics such as form diversity, lexical novelty, subject frequency, compression, and aggregate style scores should guide competition rather than force every valid film into the same numeric shape.
+
+A beautiful two-cut film must be allowed to beat a mediocre six-cut film. A subject-led film may be correct when the subject genuinely carries the scene. A metaphorical line may be valid even when it shares little vocabulary with the source. A sparse world may remain sparse. The system's job is to discover the best expression, not to satisfy a checklist.
 
 ## Story and sequence
 
@@ -182,6 +228,7 @@ apps/api/src/services/authorCognitionUniversal.ts
 apps/api/src/services/authorCognitionIntelligence.ts
 apps/api/src/services/authorMetamorphicSearch.ts
 apps/api/src/services/authorCreativeSpine.ts
+apps/api/src/services/authorMeaningPressure.ts
 apps/api/src/services/authorCreativeRealizer.ts
 apps/api/src/services/authorRealizedFilmJudge.ts
 apps/api/src/services/authorExperienceJudge.ts
@@ -197,8 +244,8 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact, not merely internal metadata.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse rejection; multiple Mouth candidates; repair from actual rejection feedback; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse detection; multiple Mouth candidates; repair from actual rejection feedback; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
 
-The superintelligence lab must print the complete artifact and the realized-film judgment before assertions so creative failures are inspectable at the exact final boundary. The lab is not allowed to lower thresholds to make a model pass; failures are evidence for improving the Artist Device.
+The superintelligence lab must print the complete artifact and the realized-film judgment before assertions so creative failures are inspectable at the exact final boundary. Numeric style metrics should be reported and monitored, but they are diagnostics rather than mandatory shape constraints. The lab must never lower genuine reality-safety or artifact-quality boundaries merely to make a model pass; failures are evidence for improving Meaning Pressure, the Artist Device, search diversity, or the Mouth.
