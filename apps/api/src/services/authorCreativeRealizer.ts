@@ -3,7 +3,6 @@
  *
  * Cognition discovers a grounded relationship. Gemma makes it felt.
  * QRE owns provenance and the hard reality boundary.
- * A visible film is not accepted merely because its latent Movie passed.
  */
 import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -19,7 +18,6 @@ export type AuthorRealizationResult = {
   judgment?: RealizedFilmJudgment;
   reason?: string;
 };
-
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
 type RawSet = { scenes?: unknown };
 
@@ -45,6 +43,16 @@ function overlap(left: string, right: string): number {
 function subjectNames(subject: string): string[] {
   return clean(subject).split(/\s*(?:\+|&|,|\/|\band\b)\s*/i).map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
 }
+function leadingSubject(text: string, subject: string): boolean {
+  const names = subjectNames(subject); if (!names.length) return false;
+  return names.some((name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+    return new RegExp(`^(?:the|a|an)?\\s*${escaped}(?:\\b|:)`, "i").test(clean(text));
+  });
+}
+function subjectLedRatio(scenes: readonly RealizedScene[], subject: string): number {
+  return scenes.length ? scenes.filter((scene) => leadingSubject(scene.text, subject)).length / scenes.length : 1;
+}
 function leadingContextActor(text: string): string | undefined {
   return clean(text).match(new RegExp(`^(?:the|a|an)?\\s*(${CONTEXT_CHARACTER.source.replace(/^\\b|\\b$/g, "")})\\b`, "i"))?.[1];
 }
@@ -59,26 +67,29 @@ function unsupportedAction(text: string, graph: RealityGraph): boolean {
   const match = text.match(ACTION_WORD); if (!match) return false;
   return !suppliedActions(graph).has(match[0].toLowerCase());
 }
-function graphCorpus(graph: RealityGraph): string {
-  return graph.events.flatMap((event) => [event.label, ...event.entities, event.place, event.time]).filter(Boolean).join(" ");
-}
 function relationExists(graph: RealityGraph, ids: readonly string[]): boolean {
   const set = new Set(ids);
   return graph.relations.some((relation) => set.has(relation.from) && set.has(relation.to));
 }
 function parseJson(text: string): Record<string, unknown> | undefined {
   const cleaned = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  try { const parsed = JSON.parse(cleaned); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; }
-  catch {
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+  } catch {
     const start = cleaned.indexOf("{"); const end = cleaned.lastIndexOf("}");
     if (start < 0 || end <= start) return undefined;
-    try { const parsed = JSON.parse(cleaned.slice(start, end + 1)); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; }
-    catch { return undefined; }
+    try {
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+    } catch { return undefined; }
   }
 }
 function bindProvenance(rawIds: unknown, index: number, total: number, movie: LatentMovieCandidate, graph: RealityGraph): string[] {
   const valid = new Set(graph.events.map((event) => event.id));
-  const supplied = Array.isArray(rawIds) ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id)) : [];
+  const supplied = Array.isArray(rawIds)
+    ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id))
+    : [];
   if (supplied.length) return supplied;
   const anchors = unique(movie.anchorEventIds.filter((id) => valid.has(id)));
   const trajectoryIds = movie.trajectory[index]?.eventIds?.filter((id) => valid.has(id)) ?? [];
@@ -100,10 +111,6 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
     if (input.graph.events.length && (unsupportedActor(text, input.subject) || unsupportedAction(text, input.graph))) return undefined;
     const sourceEventIds = bindProvenance(scene.sourceEventIds, index, row.scenes.length, input.movie, input.graph);
     if (input.graph.events.length && !sourceEventIds.length) return undefined;
-
-    // Only the final landing may be purely interpretive. Every earlier cut must
-    // visibly touch supplied reality; this blocks hallucinated "sunlight",
-    // "lemon", "vapor", invented reactions, and other decorative film filler.
     if (index < row.scenes.length - 1) {
       const sourceText = input.graph.events
         .filter((event) => sourceEventIds.includes(event.id))
@@ -111,30 +118,37 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
         .filter(Boolean).join(" ");
       if (overlap(text, sourceText) < 0.18) return undefined;
     }
-
-    const kind = ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line";
+    const kind = ALLOWED_KINDS.has(clean(scene.kind))
+      ? clean(scene.kind) as AuthorScene["kind"]
+      : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line";
     scenes.push({ text, kind, sourceEventIds, score: 0 });
   }
+  if (scenes.length >= 3 && subjectLedRatio(scenes, input.subject) > 0.5) return undefined;
   const anchors = new Set(scenes.flatMap((scene) => scene.sourceEventIds));
   if (input.graph.events.length >= 2 && !relationExists(input.graph, input.movie.anchorEventIds)) return undefined;
   if (input.graph.events.length >= 2 && anchors.size < 2) return undefined;
   if (input.graph.events.length >= 2 && !scenes.some((scene) => scene.sourceEventIds.length >= 2 && relationExists(input.graph, scene.sourceEventIds))) return undefined;
   return scenes;
 }
-
 function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, priorScenes: string[], subject: string, domainContext?: AuthorDomainContext): number {
   const judgment = judgeRealizedFilm({ scenes, movie, graph });
   const allText = scenes.map((scene) => scene.text).join(" ");
   const novelty = priorScenes.length ? Math.max(0, 1 - Math.max(...priorScenes.map((prior) => overlap(allText, prior)), 0)) : 1;
-  const subjectPenalty = scenes.filter((scene) => subjectNames(subject).some((name) => tokens(scene.text).has(name.toLowerCase()))).length / scenes.length;
+  const subjectPenalty = subjectLedRatio(scenes, subject);
   const domainFit = domainContext ? overlap(allText, [domainContext.category, domainContext.businessType, domainContext.businessName, domainContext.serviceType, domainContext.serviceName, ...(domainContext.knownCapabilities ?? [])].filter(Boolean).join(" ")) : 0;
   return metric(judgment.score * 0.7 + movie.distinctiveness * 0.08 + movie.specificity * 0.07 + novelty * 0.07 + domainFit * 0.02 + (1 - subjectPenalty) * 0.01 + (1 - judgment.dimensions.captionReelRisk) * 0.05);
 }
 function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }) {
   const ids = unique(input.movie.anchorEventIds.filter((id) => input.graph.events.some((event) => event.id === id)));
   return {
-    prompt: clean(input.prompt), subject: clean(input.subject), lens: clean(input.lens) || "NONE", domainContext: input.domainContext ?? {},
-    memory: (input.memoryContext ?? []).slice(0, 30), priorScenes: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 30),
+    prompt: clean(input.prompt),
+    subject: clean(input.subject),
+    subjectRole: "factual referent only; never a required grammatical or narrative anchor",
+    lens: clean(input.lens) || "NONE",
+    domainContext: input.domainContext ?? {},
+    memory: (input.memoryContext ?? []).slice(0, 30),
+    priorScenes: (input.priorScenes ?? []).slice(-12),
+    creativeLearning: (input.creativeLearningContext ?? []).slice(0, 30),
     selectedRelationship: {
       eventIds: ids,
       events: ids.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, label: event!.label, entities: event!.entities })),
@@ -147,49 +161,27 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
   };
 }
 function prompt(repair: boolean): string {
-  const lines = repair ? [
-    "You are repairing QRE's visible film after a strict reality check.",
-    "The film failed because one or more middle cuts drifted away from supplied reality.",
-    "Every cut before the final landing must contain concrete language drawn from the supplied events, entities, place or time.",
-    "Do not add decorative sensory facts. No sunlight, dust, lemon, vapor, rooms, objects, reactions or actions unless supplied.",
-    "The FINAL cut may be an abstract artistic landing earned by the selected relationship.",
-    "Never explain the meaning. Never mention the viewer, relationship, evidence, movie, planning or narrative.",
-    "The first and middle cuts should make the relationship felt through concrete juxtaposition, not commentary.",
-    "Return exactly {scenes:[{text,kind}]} with no commentary.",
-  ] : [
-    "You are QRE's ONE CREATIVE REALIZER.",
-    "Reality is factual authority. Cognition has already discovered the selected relationship. Your job is to make it FELT.",
-    "Do not manufacture a plot. Do not beautify reality with invented sensory details.",
-    "GOLD RULE: facts are evidence; relationship creates the reading; the final feeling is the art.",
-    "Every cut before the final landing MUST use concrete language grounded in the supplied reality. You may compress, reorder for meaning, collide, repeat, omit and juxtapose supplied details.",
-    "Only the final cut may leave source vocabulary and become an abstract artistic landing. That landing must be earned by what came immediately before it.",
-    "Do not add actions, people, objects, places, dialogue, motives, reactions, chronology or sensory details that were not supplied.",
-    "Do not explain. Never write 'this means', 'this shows', 'the relationship', 'the viewer', or any equivalent.",
-    "Avoid one-screen-per-fact caption reels. The evidence should interact. A single bridge cut may carry multiple facts.",
-    "Use radically different form when the world calls for it: collision, callback, interruption, reversal, compression, accumulation, silence, repetition, status flip, or a tiny realization. Do not force a named device.",
-    "Strong endings are often 1-5 words. 'Playful defiance.' is good when the preceding supplied details truly earn it.",
-    "Return JSON only: {sets:[{scenes:[{text,kind}]}]}. Produce 3 materially different complete films. Do not return source IDs; QRE binds provenance.",
-  ];
-  return lines.join("\n");
+  return [
+    repair ? "You are repairing QRE's visible film after a strict reality check." : "You are QRE's ONE CREATIVE REALIZER.",
+    repair ? "Preserve the strongest artistic idea while correcting the rejected form." : "Reality is factual authority. Cognition has already discovered the selected relationship. Your job is to make it FELT.",
+    "Reality is immutable. Do not manufacture plot, people, objects, actions, motives, reactions, chronology or sensory details.",
+    "Facts are evidence. The discovered relationship creates the reading. The final feeling is the art.",
+    "The subject is a factual referent, NOT the narrator and NOT a required grammatical anchor. Never begin every cut with the subject's name.",
+    "Do not organize the film as a person report. Choose the most revealing supplied element for each cut: object, place, time, action, fragment, omission, collision, callback or repetition.",
+    "Do not write one sentence per fact. Make the supplied details interact.",
+    "Change form when the reality earns it. The film may be two sharp cuts or a longer accumulation. Never force a fixed beat count, opening, rhythm, sentence shape or ending shape.",
+    "Prefer compression, juxtaposition and concrete specificity over narration or explanation.",
+    "Every cut before the final landing must contain concrete language grounded in supplied reality. The final cut may become abstract when the preceding relationship earns it.",
+    "Never explain the interpretation. Never mention the viewer, audience, narrative, relationship, evidence, planning or meaning.",
+    "Return JSON only: {sets:[{scenes:[{text,kind}]}]} on the first attempt. Produce 3 genuinely different films when the supplied reality permits it. Do not return source IDs; QRE binds provenance.",
+  ].join("\n");
 }
 
 export async function realizeAuthorExperience(input: {
-  prompt: string;
-  subject: string;
-  lens: string;
-  graph: RealityGraph;
-  movie: LatentMovieCandidate;
-  domainContext?: AuthorDomainContext;
-  memoryContext?: string[];
-  priorScenes?: string[];
-  creativeLearningContext?: string[];
+  prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[];
 }): Promise<AuthorRealizationResult> {
   const ctx = context(input);
-  let model = "fallback";
-  let modelCalls = 0;
-  let rejectedSets = 0;
-  let lastJudgment: RealizedFilmJudgment | undefined;
-
+  let model = "fallback"; let modelCalls = 0; let rejectedSets = 0; let lastJudgment: RealizedFilmJudgment | undefined;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const result = await localModelGenerate(
@@ -197,8 +189,7 @@ export async function realizeAuthorExperience(input: {
         "json",
         { numPredict: 3000, temperature: attempt === 0 ? 1.0 : 0.92 },
       );
-      model = result.model;
-      modelCalls += 1;
+      model = result.model; modelCalls += 1;
       const parsed = parseJson(result.text);
       const rawSets = attempt === 0 ? (Array.isArray(parsed?.sets) ? parsed.sets : []) : (parsed ? [parsed] : []);
       const validSets = rawSets.map((raw) => validateSet(raw, input)).filter((set): set is RealizedScene[] => Boolean(set));
@@ -216,8 +207,5 @@ export async function realizeAuthorExperience(input: {
       // Fail closed. Customer output must never fall back to cognition prose.
     }
   }
-  return {
-    scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment,
-    reason: "Mouth rejected: visible film failed the independent reality/progression/landing judge after two attempts",
-  };
+  return { scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment, reason: "Mouth rejected: visible film failed the independent reality/progression/landing judge after two attempts" };
 }
