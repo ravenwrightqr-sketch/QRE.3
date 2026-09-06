@@ -16,11 +16,11 @@ INPUT / MEDIA / GEO / MEMORY
           ↓
    ONE selected Movie
           ↓
-    Movie Judge
-          ↓
      Creative Mouth
           ↓
- Pure Visible-Art Judge
+   Artist chooses form
+          ↓
+ Reality-integrity check
           ↓
     Story / Sequence
           ↓
@@ -32,7 +32,7 @@ INPUT / MEDIA / GEO / MEMORY
           ↺
 ```
 
-There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one pure visible-art judgment boundary, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation.
+There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation. Deterministic diagnostics may inspect a creation, but they do not decide artistic taste or replace the Artist's selection.
 
 ## Reality
 
@@ -48,11 +48,11 @@ CLIENT WORDING: NOT IMMUTABLE
 ARTISTIC WORDING: FREE WITHIN THE REALITY BOUNDARY
 ```
 
-QRE protects what happened, not the exact sentence used to report it. A supplied fact such as `Coco stole an apple from the counter` may be artistically compressed to `Apple acquired.` The latter changes form without changing the fact. A final interpretive phrase such as `Sudden ecstasy.` may express an earned felt reading without becoming a new factual claim about the subject's hidden state.
+QRE protects what happened, not the exact sentence used to report it. A supplied fact such as `Coco stole an apple from the counter` may be artistically transformed into `The gleam of forbidden fruit.` The latter does not report a new literal event; it changes the charge of the supplied fact through artistic language.
 
 ## Cognition
 
-Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches multiple possible Movies and selects exactly one.
+Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches possible Movies and selects the semantic idea that should reach the Artist.
 
 The central semantic contract is:
 
@@ -61,48 +61,56 @@ FACT
   ↓
 RELATIONSHIP
   ↓
-CHANGE IN WHAT THE VIEWER NOTICES
+CHANGE IN WHAT BECOMES NOTICEABLE
   ↓
-PAYOFF / FELT LANDING
+CREATIVE POSSIBILITY
 ```
 
 The relationship must be earned from supplied reality. Lenses may intensify a grounded relationship but may not manufacture one. Sparse reality is valid; Cognition may choose a distinctive observation or another natural experience form instead of inventing plot.
 
 ### Model Movie contract
 
-The local model may return a Movie as either canonical `trajectory[]` or compact `cuts[]`. Both are structural proposals only. QRE normalizes them against the RealityGraph, preserves only existing event IDs, and derives multi-event operations only from relationships already present in that graph. `selectedMovieId` is honored when the proposed Movie survives grounding; it is not silently discarded in favor of a deterministic fallback.
+The local model may return a Movie as either canonical `trajectory[]` or compact `cuts[]`. Both are structural proposals only. QRE normalizes them against the RealityGraph, preserves only existing event IDs, and derives multi-event operations only from relationships already present in that graph.
 
-A compact model Movie is therefore not a second semantic authority. It is a candidate structure entering the same grounded Movie competition as other candidates.
+A compact model Movie is therefore not a second factual authority. It is a semantic proposal entering the same grounded Movie selection path as other hypotheses.
 
-## Movie selection versus visible art
+## Creative Mouth
 
-The latent Movie is an internal semantic proposal, not the final customer-facing artifact.
+The Creative Mouth is not a summarizer and not a scoring contestant.
 
-The Movie Judge decides whether that proposal is sufficiently grounded, specific, distinctive, non-generic, and semantically progressive to become visible.
+Its job is to **create**.
 
-The Creative Mouth performs the selected Movie. Artistic freedom is deliberately broad: compression, juxtaposition, implication, irony, understatement, status, rhythm, metaphor, personification, callback, reversal, interruption, omission, grammatical transformation, emotional abstraction, humor, absurdity, tenderness, menace, and other artistic devices are allowed when they remain inside the reality boundary.
+It receives the selected semantic Movie, Meaning Pressure, Artist Device, and the full supplied RealityGraph. The selected Movie is the semantic spine, not an inventory lock. Any supplied detail may become more important during realization when it creates a stronger joke, image, contrast, callback, metaphor, emotional beat, surprise, or payoff.
 
-The Pure Visible-Art Judge examines the actual visible film after Mouth. It judges the artifact itself. No latent Movie score, domain fit, prior-film novelty, subject preference, or other upstream score may rescue weak visible art at this boundary.
+The artist owns:
 
-## Cognition-to-Mouth boundary
+- visible language
+- rhythm
+- cuts
+- omissions
+- ordering
+- metaphor
+- personification
+- irony
+- understatement
+- absurdity
+- humor
+- gamification
+- emotional abstraction
+- reversals
+- callbacks
+- status shifts
+- the final landing
 
-Cognition may reason using internal prose, but that prose is not the artist's creative seed. The Mouth receives structured creative intent: supplied evidence, selected event IDs, grounded relationship kinds, and permissible structural operations. It must not receive cognition's explanatory hypothesis, payoff narration, viewer-change prose, or other internal commentary as wording authority.
+The Artist Device is a suggestion, not a commandment. Meaning Pressure is a creative question, not a template. The artist may ignore either when another move is clearly stronger and still faithful to reality.
 
-The artist does not copy the client's sentence. The artist preserves the underlying fact while deciding the visible grammar. Source words are raw material, not a required script.
+The goal is not to make boring facts sound literary. The goal is to turn real material into something a human would actually want to watch, remember, share, laugh at, feel, or replay.
 
-The artist owns visible language, rhythm, cuts, omissions, repetitions, collisions, transformations, and the final landing. The subject is a factual referent only, not a required grammatical anchor. A film may name the subject when reality genuinely calls for it, but subject identity must never become the universal narrative voice.
+A mundane service can become a game. A waiting room can become suspense. A small object can become an obsession. A stolen apple can become forbidden fruit. The reality stays fixed while the presentation becomes entertainment media.
 
 ## Meaning Pressure
 
 Meaning Pressure is the semantic charge that makes a grounded relationship worth expressing artistically.
-
-The system should not jump directly from:
-
-```text
-REALITY → RELATIONSHIP → ARTIST DEVICE → PRETTY WORDING
-```
-
-to a polished sentence. The canonical creative route is:
 
 ```text
 REALITY
@@ -111,95 +119,56 @@ GROUNDED RELATIONSHIP
   ↓
 MEANING PRESSURE
   ↓
-COMPETING ARTISTIC STRATEGIES
+ARTISTIC SEARCH
   ↓
 MATERIALLY DIFFERENT REALIZATIONS
   ↓
-ADVERSARIAL VISIBLE-ART JUDGMENT
-  ↓
-STRONGEST SURVIVING EXPRESSION
+ARTIST CHOOSES
 ```
 
 Meaning Pressure answers:
 
 > When these particular true details are held together, what changes in what becomes noticeable?
 
-It is not a second factual layer. It is not a hidden psychology claim. It is a compact artistic question generated from an already-grounded relationship. Typical pressures include order versus disruption, appearance versus behavior, ritual versus interruption, stability versus change, repetition versus difference, separation versus convergence, cause versus consequence, presence versus absence, and ordinary versus newly charged.
+It is not a second factual layer. It is not hidden psychology. It is a compact creative question generated from an already-grounded relationship.
 
-The purpose of Meaning Pressure is to free the Mouth from literal paraphrase without forcing a specific literary device. The Mouth may express the same pressure through humor, understatement, irony, compression, metaphor, personification, silence, reversal, accumulation, collision, repetition, abstraction, or another form that the reality earns.
+Typical pressure poles include order versus disruption, appearance versus behavior, ritual versus interruption, stability versus change, repetition versus difference, separation versus convergence, cause versus consequence, presence versus absence, and ordinary versus newly charged.
 
-Meaning Pressure must remain permissive. It is a creative search surface, not a cage. The system should prefer a surprising good film over a safe mediocre one whenever both preserve the supplied concrete reality.
+The pressure exists to unlock creativity, not to constrain it.
 
-## Artist Device
+## Artist selection
 
-The Artist Device has one deliberate asymmetry:
+The Mouth must produce genuinely competing realizations before choosing.
 
-```text
-CONCRETE REALITY: HARD BOUNDARY
-INTERPRETIVE ART: WIDE OPEN
-```
+The system must not sort artistic candidates by a deterministic quality score and call the result “the best art.” Artistic choice belongs to the Artist.
 
-A concrete pre-landing cut retains provenance to supplied reality, but its wording does not have to lexically repeat the source. Grounding and copying are separate properties: a concrete cut may reuse one supplied noun or fact-bearing term while still transforming the sentence, grammar, compression, ordering, or relationship. The judge must therefore detect literal source replay independently from ordinary semantic overlap used to establish grounding.
+The canonical implementation therefore presents the Artist with multiple materially different creative attacks and takes the Artist's declared strongest realization. In the current local implementation, candidate ordering is used as the Artist's explicit selection signal: the later candidate is instructed to be the strongest final creative choice.
 
-The Artist Device is the bridge between semantic cognition and visible language. It carries a grounded relationship mechanism plus a small set of universal formal affordances. Examples include compression, fragmentation, nominalization, juxtaposition, inversion, omission, callback, repetition-with-mutation, accumulation, collision, status flip, ellipsis, unexpected selection, understatement, irony, and metaphor. The device may recommend a subset according to the grounded relation, but it must never become a domain-specific author or a fixed literary template.
+A diagnostic judge may still calculate dimensions such as grounding, source-copy risk, invention risk, form, or landing. These are observability tools. They are not artistic authority and cannot veto a creation merely because it is strange, unconventional, metaphorical, sparse, subject-led, or unlike previous outputs.
 
-For example:
+## Reality-integrity boundary
 
-```text
-Grooming.
-Apple acquired.
-Sudden ecstasy.
-```
+Freedom ends only where factual corruption begins.
 
-This is a model of the desired artistic operation, not a mandatory script. The system must discover the corresponding artistic transformation from each world rather than reproduce this example everywhere.
+Hard failures are limited to actual system integrity problems such as malformed artifacts, lost provenance, internal architecture leakage into customer-facing text, or a literal fabricated concrete event/object/person/place/action/time/dialogue/sensory fact presented as though it happened.
 
-The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain, subject, or lens.
+Figurative language is not automatically factual fabrication. A metaphor may contain concrete imagery that was not literally present. `Forbidden fruit` is allowed for a stolen apple. `Boss battle` may describe a brutal cleaning run. `No survivors` may describe exhaustion as comic exaggeration. The implementation must distinguish figurative creative language from a new literal claim about the world.
 
-The Mouth should produce materially competing realizations before selection. A single failed wording attempt must not terminate the semantic idea. Repair passes must receive the actual visible-art rejection reasons so the next attempt attacks the failure rather than merely paraphrasing it.
-
-## Artist quality boundary
-
-Grounded is necessary but insufficient. Literal transcription is also a failure mode.
-
-The Pure Visible-Art Judge evaluates:
-
-- concrete grounding without requiring source-sentence copying
-- visible relational bridge
-- change in attention
-- artistic transformation versus literal replay
-- separation of semantic grounding from lexical copy risk
-- form and rhythm
-- economy
-- interpretive landing
-- absence of unsupported concrete invention
-- absence of explanation
-- resistance to caption-reel grammar
-
-A film that merely repeats supplied sentences is not Gold even when every sentence is factually correct. Conversely, a short transformed phrase is not a copy merely because it retains a fact-bearing noun such as `apple`; the question is whether the visible language substantially replays the supplied wording or artistically changes its form.
-
-The final quality score at the canonical boundary comes from the realized visible-art judgment alone. Movie quality may decide which semantic idea reaches the Mouth, but it may not rescue a weak realization after the Mouth.
-
-### Scores are instruments, not the art
-
-Numeric dimensions are diagnostics for selection and regression detection. They are not definitions of creativity and must not become artificial creative ceilings.
-
-The implementation should use hard rejection only for genuine architectural violations: fabricated concrete reality, source-copy replay, explanation/internal leakage, loss of semantic bridge, loss of provenance, or a materially broken artifact. Soft metrics such as form diversity, lexical novelty, subject frequency, compression, and aggregate style scores should guide competition rather than force every valid film into the same numeric shape.
-
-A beautiful two-cut film must be allowed to beat a mediocre six-cut film. A subject-led film may be correct when the subject genuinely carries the scene. A metaphorical line may be valid even when it shares little vocabulary with the source. A sparse world may remain sparse. The system's job is to discover the best expression, not to satisfy a checklist.
+The purpose of the integrity boundary is to keep the Artist free, not to turn creativity into a compliance checklist.
 
 ## Story and sequence
 
 A fact may be true and still deserve zero authored language. A rich reality may justify many beats. A thin reality may justify only a few. There is no universal beat count.
 
-There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by semantic value, not by an arbitrary duration target and not by the number of facts or media items.
+There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by the creative idea, not by an arbitrary duration target and not by the number of facts or media items.
 
 The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, recap, or source-text transcription. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
 
-A film should make the supplied reality newly interesting. The target is not explanation. The target is a felt experience in which a detail can suddenly become charged, strange, funny, ecstatic, tender, absurd, ominous, or otherwise resonant when the relationship earns it.
+A film should make supplied reality newly interesting. The target is not explanation. The target is an experience in which real details can suddenly become charged, strange, funny, ecstatic, tender, absurd, ominous, playful, or otherwise resonant.
 
 ## Experience additions are additive
 
-Photos, video, geo, timestamps, maps, receipts, links, attachments, actions, and similar materials are first-class experience additions. They may appear before, between, after, or alongside story material without consuming the story's semantic capacity.
+Photos, video, geo, timestamps, maps, receipts, links, attachments, actions, and similar materials are first-class experience additions. They may appear before, between, after, or alongside story material without consuming the story's creative capacity.
 
 Presentation additions never cause Cognition to choose a shorter Movie. User-controlled reordering of additions must not mutate reality or the selected semantic Movie.
 
@@ -230,11 +199,12 @@ apps/api/src/services/authorMetamorphicSearch.ts
 apps/api/src/services/authorCreativeSpine.ts
 apps/api/src/services/authorMeaningPressure.ts
 apps/api/src/services/authorCreativeRealizer.ts
-apps/api/src/services/authorRealizedFilmJudge.ts
 apps/api/src/services/authorExperienceJudge.ts
 apps/api/src/services/authorSemanticGate.ts
 apps/api/src/services/authorBrainCanonical.ts
 ```
+
+`authorRealizedFilmJudge.ts`, when present, is diagnostic/observability infrastructure only. It is not a creative authority.
 
 These are one connected system. Runtime, persistence, scan, delivery, generic learning, and compiler infrastructure remain outside the Author semantic authority and are consumed through governed interfaces.
 
@@ -242,10 +212,10 @@ Legacy paths must never become alternate semantic authorities.
 
 ## Testing
 
-Acceptance tests the actual visible artifact, not merely internal metadata.
+Acceptance tests the actual visible artifact and the reality boundary, not whether the artifact obeys a style score.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level judgment; visible-film grounding; visible relational bridging; attention progression; artistic transformation; semantic grounding versus lexical source-copy detection; literal source-copy rejection; free artistic/emotional landing; invented-middle rejection; explanation and compiler leakage rejection; caption-reel rejection; subject-as-narrator collapse detection; multiple Mouth candidates; repair from actual rejection feedback; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level semantic judgment; visible-film grounding; provenance; literal source-copy detection; free artistic/emotional/figurative landing; fabricated-literal detection; explanation and compiler leakage detection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
 
 The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
 
-The superintelligence lab must print the complete artifact and the realized-film judgment before assertions so creative failures are inspectable at the exact final boundary. Numeric style metrics should be reported and monitored, but they are diagnostics rather than mandatory shape constraints. The lab must never lower genuine reality-safety or artifact-quality boundaries merely to make a model pass; failures are evidence for improving Meaning Pressure, the Artist Device, search diversity, or the Mouth.
+The superintelligence lab must print the complete artifact and diagnostics before assertions so creative failures are inspectable. Numeric style metrics may be reported for learning and regression analysis, but no aesthetic score may determine whether the Artist is allowed to create. The purpose of the test suite is to protect reality while expanding artistic freedom.
