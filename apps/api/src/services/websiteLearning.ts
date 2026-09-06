@@ -43,15 +43,15 @@ function normalizeWorld(value: LearnedWebsiteWorld | null, fallbackName = ""): L
 
 function stripHtml(html: string): string {
   return html
-    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
-    .replace(/<noscript[\\s\\S]*?<\\/noscript>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -97,7 +97,7 @@ async function externalLearn(system: string, user: string): Promise<LearnedWebsi
   const output = typeof data?.output_text === "string"
     ? data.output_text
     : Array.isArray(data?.output)
-      ? data.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : []).map((part: any) => typeof part?.text === "string" ? part.text : "").filter(Boolean).join("\\n")
+      ? data.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : []).map((part: any) => typeof part?.text === "string" ? part.text : "").filter(Boolean).join("\n")
       : "";
   return normalizeWorld(parseJson<LearnedWebsiteWorld>(output));
 }
@@ -108,7 +108,7 @@ export async function learnWebsiteWorld(input: { url: string; ownerDescription?:
   world: LearnedWebsiteWorld;
   sourceExcerpt: string;
 }> {
-  if (!/^https?:\\/\\//i.test(input.url)) throw new Error("Website URL must start with http:// or https://");
+  if (!/^https?:\/\//i.test(input.url)) throw new Error("Website URL must start with http:// or https://");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   let response: Response;
@@ -124,7 +124,7 @@ export async function learnWebsiteWorld(input: { url: string; ownerDescription?:
   if (!response.ok) throw new Error(`Website returned HTTP ${response.status}`);
   const html = await response.text();
   const sourceExcerpt = stripHtml(html).slice(0, 30000);
-  const titleMatch = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleMatch ? stripHtml(titleMatch[1]) : "";
   if (!sourceExcerpt) throw new Error("No readable website content was found.");
   if (!aiEnabled()) throw new Error("AI learning is not configured.");
