@@ -1,8 +1,8 @@
 /*
  * QRE CANONICAL CREATIVE REALIZER
  *
- * Cognition discovers a grounded relationship. Meaning Pressure explains why
- * that relationship has artistic charge. The Mouth discovers how to embody it.
+ * Cognition discovers a grounded relationship or grounded form. Meaning Pressure
+ * explains why that material has artistic charge. The Mouth discovers how to embody it.
  * Reality owns concrete truth. The artist owns form and visible language.
  * QRE binds provenance after creation and independently observes the artifact.
  */
@@ -76,9 +76,11 @@ function bindProvenance(rawIds: unknown, index: number, movie: LatentMovieCandid
   const valid = new Set(graph.events.map((event) => event.id));
   const supplied = Array.isArray(rawIds) ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id)) : [];
   if (supplied.length) return supplied;
+  const trajectoryIds = unique(movie.trajectory.flatMap((step) => step.eventIds)).filter((id) => valid.has(id));
+  if (trajectoryIds.length) return [trajectoryIds[Math.min(index, trajectoryIds.length - 1)]!];
   const device = buildArtistDevice(graph, movie);
-  if (index > 0 && device.sourceEventIds.length >= 2) return device.sourceEventIds;
-  const anchors = unique([...movie.anchorEventIds, ...movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => valid.has(id)));
+  if (device.sourceEventIds.length) return device.sourceEventIds;
+  const anchors = unique(movie.anchorEventIds.filter((id) => valid.has(id)));
   return anchors.slice(0, 1);
 }
 function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMovieCandidate }): ValidationResult {
@@ -108,8 +110,10 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
     memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
     sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, repairFeedback: clean(repairFeedback),
-    creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
-    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
+    creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments, sensory intensity and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
+    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving, more kinetic, more visceral or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
+    sensoryRule: "When supplied reality contains sound, music, bass, silence, darkness, light, heat, cold, movement, texture, taste, smell or impact, treat that sensory material as primary creative substance. Do not flatten it into explanation. You may make the supplied sensation feel enormous through rhythm, compression, repetition, sound-language, image-language, or figurative bodily language, provided figurative intensity is not presented as an unsupported literal fact.",
+    creativeTasteRule: "Creative learning and ARTIST DNA are preference signals, never source facts. Favor alive, kinetic, embodied, irreverent and surprising expression when the world supports it, but do not force one style onto every world.",
   };
 }
 function prompt(attempt: number, feedback: string): string {
@@ -120,16 +124,19 @@ function prompt(attempt: number, feedback: string): string {
     "The source facts are sacred. The source sentences are disposable.",
     "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
     "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
-    "Meaning Pressure explains why the selected relationship matters. Artist Device suggests possible tools. Neither is a cage. You may ignore both when another artistic move is clearly stronger and still truthful.",
+    "Meaning Pressure explains why the selected relationship or grounded structure matters. Artist Device suggests possible tools. Neither is a cage. You may ignore both when another artistic move is clearly stronger and still truthful.",
     "Ask yourself: what would make a human laugh, feel something, or remember this tiny piece later? Make THAT.",
-    "Do not explain the meaning. Make the relationship felt through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, personification, callback, gamification or another device that feels earned.",
-    "Metaphor is encouraged. Concrete metaphorical language is allowed even when the pictured thing was not literally present. 'Forbidden fruit' is valid for a stolen apple. 'Boss battle' is valid for a brutal cleaning run. 'No survivors' can be a comic metaphor for an exhausting task. CREATE LIKE AN ARTIST, not a compliance engine.",
+    "Search for the strongest sensory carrier and the strongest active mechanic before settling for abstract commentary. Sound can drive a film. Silence can drive a film. A bass return can drive a film. A repeated physical task can drive a film. A room, dish, car, house, machine, tool or object can carry the form as metaphorical character or opponent without becoming a falsely literal actor.",
+    "Do not explain the meaning. Make the relationship or structure felt through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, personification, callback, gamification or another device that feels earned.",
+    "Metaphor is encouraged. Concrete metaphorical language is allowed even when the pictured thing was not literally present. 'Forbidden fruit' is valid for a stolen apple. 'Boss battle' is valid for a brutal cleaning run. 'No survivors' can be a comic metaphor for an exhausting task. Food can feel alive. A car can feel like a contender. A house can feel like a level. A room can feel like an arena. A machine can feel like an opponent. CREATE LIKE AN ARTIST, not a compliance engine.",
+    "When supplied sensory reality is strong, do not downgrade it into adjectives. Build the cut around the sensation: impact, pulse, pressure, silence, darkness, heat, motion, texture, taste, sound, return, release. Figurative bodily language is welcome as artistic language; do not invent a literal bodily reaction and present it as fact.",
     "You may be funny, strange, lyrical, stark, dark, tender, absurd, camp, dramatic, playful, deadpan, surreal, irreverent or understated. Artistic personality is a feature.",
     "Do not force every fact into the film. Do not force a fixed number of beats. A 2-cut knockout is better than dead cuts. Rich reality may deserve a substantially richer film. Never stop at 3 cuts merely because three is convenient if the material clearly supports more.",
     "The subject is not a required narrator. Use the subject name only when it creates artistic value.",
     "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, sensory fact, bodily reaction or specific circumstance and present it as though it happened.",
     "Abstract interpretation and figurative invention are welcome. The goal is entertainment media created from reality, not sanitized summaries of reality.",
     "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
+    "Creative taste signals are preference, not reality. Use them to explore possibility, never to overwrite what happened.",
     "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are an exploration, not a competition against a scoring rubric. ORDER THEM FROM EARLY EXPLORATION TO YOUR STRONGEST FINAL CREATIVE CHOICE. Candidate four should be the piece you would actually ship if it remains truthful.",
     "Candidate length is earned by the material. Two cuts can be perfect. Rich material can use 4, 6, 8, 12 or more cuts. Do not truncate a film merely to fit a tiny reel shape.",
     "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-24 cuts per candidate. No commentary. No source IDs.",
