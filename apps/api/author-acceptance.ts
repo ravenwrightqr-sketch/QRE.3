@@ -9,6 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
+import type { AuthorDomainContext } from "@qre/contracts";
 
 type Case = {
   name: string;
@@ -16,6 +17,7 @@ type Case = {
   subject?: string;
   facts: string[];
   lens?: string;
+  domainContext?: AuthorDomainContext;
   returning?: boolean;
   required?: RegExp[];
   forbidden?: RegExp[];
@@ -50,6 +52,17 @@ const cases: Case[] = [
       "blue bow",
       "pickup happened",
     ],
+    domainContext: {
+      category: "pet care",
+      businessType: "dog grooming",
+      businessName: "Elm St Grooming",
+      businessDescription: "A dog grooming business that turns ordinary appointments into polished take-home moments.",
+      serviceType: "grooming",
+      serviceName: "dog grooming",
+      subjectKind: "dog",
+      knownCapabilities: ["bath", "grooming", "pickup", "blue bows"],
+      contextualSignals: ["before and after", "freshly groomed", "polished", "pampered dogs"],
+    },
     prompt: "Coco grooming visit. Make the supplied facts feel like something bigger without inventing what happened.",
     required: [/Coco|bow|bath|groomer|pickup/i],
     forbidden: [/lawyer arrived|the lawyer spoke|the groomer hired|the groomer cooed|the phone camera|the owner shrugged|client watched|client saw|owner watched|groomer watched|Coco stole|Coco snatched|Coco grabbed/i],
@@ -78,6 +91,17 @@ const cases: Case[] = [
       "the wash was completed",
       "the car left clean",
     ],
+    domainContext: {
+      category: "automotive service",
+      businessType: "car wash",
+      businessName: "QRE Auto Wash",
+      businessDescription: "A car wash focused on visible before-and-after transformations.",
+      serviceType: "wash",
+      serviceName: "car wash",
+      subjectKind: "vehicle",
+      knownCapabilities: ["wash", "rinse", "clean", "before and after"],
+      contextualSignals: ["shine", "transformation", "clean finish"],
+    },
     prompt: "Service receipt. The business wants something Jordan will watch and share because the car's transformation is fun to experience.",
     required: [/Jordan|car|wash|clean|dirty/i],
     forbidden: [/customer watched|client watched|manager smiled|employee cheered|owner arrived|the attendant said/i],
@@ -226,6 +250,7 @@ for (const testCase of cases) {
     trajectory: [],
     creativeLearningContext: [],
     returning: testCase.returning,
+    domainContext: testCase.domainContext,
   });
 
   const output = result.scenes.map((scene) => clean(scene.text)).filter(Boolean);
