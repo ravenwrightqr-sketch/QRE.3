@@ -70,6 +70,12 @@ The Creative Mouth performs the selected Movie. Artistic freedom is deliberately
 
 A second independent Realized Film Judge examines the actual visible film after Mouth. A passing Movie is never sufficient evidence that the visible film is good.
 
+### Cognition-to-Mouth boundary
+
+Cognition may reason using internal prose, but that prose is not the artist's creative seed. The Mouth receives structured creative intent: supplied evidence, selected event IDs, grounded relationship kinds, and permissible structural operations. It must not receive cognition's explanatory hypothesis, payoff narration, viewer-change prose, or other internal commentary as wording authority.
+
+The artist owns visible language, rhythm, cuts, omissions, repetitions, collisions, and the final landing. The subject is a factual referent only, not a required grammatical anchor. A film may name the subject when reality genuinely calls for it, but subject identity must never become the universal narrative voice.
+
 ## Artist Device
 
 The Artist Device has one deliberate asymmetry:
@@ -94,6 +100,10 @@ The final phrase is an artistic landing, not a factual assertion about hidden ps
 The subject is a factual referent, not the default narrator. QRE must never turn every world into a person-report merely because a subject is present. The visible film may open on an object, place, time, action, fragment, absence, collision, callback, or other supplied carrier when that is the strongest form for the discovered relationship.
 
 The Artist Device must not use one fixed literary or cinematic template across domains. Different worlds may demand radically different structures. The mechanism is discovered from the supplied reality; it is not imposed by domain, subject, or lens.
+
+## Reality boundary versus lexical policing
+
+Concrete reality safety is established through source-event provenance, source grounding, grounded graph relationships, and the independent visible-film judge. Brittle word-level verb blocking is not the authority for reality conservation because legitimate artistic compression, tense shifts, and grammatical variation can otherwise be rejected even when the underlying source evidence is preserved.
 
 ## Story and sequence
 
