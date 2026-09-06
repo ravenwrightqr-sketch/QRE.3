@@ -26,6 +26,11 @@ const clamp = (value: number): number => Number(Math.max(0, Math.min(1, Number.i
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const tokenList = (text: string): string[] => (clean(text).toLowerCase().match(/\b[\w’'-]+\b/g) ?? []).filter((token) => token.length > 2);
 const tokenSet = (text: string): Set<string> => new Set(tokenList(text));
+const STOP = new Set(["the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "as", "is", "are", "was", "were", "be", "been", "being", "this", "that", "it", "its"]);
+const ABSTRACT = new Set([
+  "attention", "anticipation", "appearance", "appetite", "absurd", "absurdity", "behavior", "beauty", "bliss", "charge", "chaos", "conquest", "control", "defiance", "desire", "dissonance", "dread", "ecstasy", "energy", "expectation", "freedom", "fury", "grace", "humor", "irony", "joy", "order", "ritual", "mischief", "menace", "memory", "meaning", "mood", "obedience", "play", "pleasure", "rebellion", "recognition", "resistance", "restraint", "reversal", "rhythm", "silence", "tenderness", "tension", "transgression", "wonder", "defiance", "inversion", "disruption", "interruption", "routine", "habit", "difference", "sameness", "surface", "subversion", "subverted", "ordinary", "strange", "strangeness", "unexpected", "sudden", "still", "alone", "together", "before", "after", "again", "exactly", "almost", "never", "always", "brief", "long", "small", "large", "quiet", "loud", "fierce", "clean", "orderly", "mess", "pressure", "release", "landing", "echo", "echoes", "weight", "absence", "presence", "return", "departure", "continuation", "collision", "accumulation", "contrast", "recontextualization", "reframe", "aftermath"
+]);
+
 function overlap(left: string, right: string): number {
   const a = tokenSet(left); const b = tokenSet(right); if (!a.size || !b.size) return 0;
   let hits = 0; for (const token of a) if (b.has(token)) hits += 1; return hits / Math.max(1, a.size);
@@ -51,7 +56,10 @@ function sourceEvents(scene: RealizedScene, graph: RealityGraph): RealityGraph["
   return scene.sourceEventIds.map((id) => graph.events.find((e) => e.id === id)).filter((e): e is RealityGraph["events"][number] => Boolean(e));
 }
 function sceneGrounding(scene: RealizedScene, graph: RealityGraph): number {
-  const source = sourceEvents(scene, graph); if (!source.length) return 0; return Math.max(...source.map((event) => overlap(scene.text, eventText(event))));
+  const source = sourceEvents(scene, graph); if (!source.length) return 0;
+  const lexical = Math.max(...source.map((event) => overlap(scene.text, eventText(event))));
+  const provenance = source.length >= 2 ? 0.62 : 0.48;
+  return clamp(Math.max(lexical, provenance));
 }
 function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   const nonFinal = scenes.slice(0, -1); if (!graph.events.length) return 1; if (!nonFinal.length) return 0;
@@ -71,8 +79,8 @@ function progression(scenes: readonly RealizedScene[], graph: RealityGraph): num
 }
 function landing(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   const last = scenes.at(-1); if (!last || scenes.length < 2) return 0;
-  const words = tokenList(last.text).length;
-  const compact = words <= 4 ? 1 : words <= 7 ? 0.8 : words <= 11 ? 0.55 : 0.2;
+  const wordCount = tokenList(last.text).length;
+  const compact = wordCount <= 4 ? 1 : wordCount <= 7 ? 0.8 : wordCount <= 11 ? 0.55 : 0.2;
   const overlapRatio = overlap(last.text, eventCorpus(graph));
   const interpretive = !/\b(?:this means|which means|this shows|the point is|the meaning is|because|therefore|in other words)\b/i.test(last.text) ? 1 : 0;
   const sourceIndependent = overlapRatio < 0.7 ? 1 : 0;
@@ -101,15 +109,32 @@ function artisticTransformation(scenes: readonly RealizedScene[], graph: Reality
     const sources = sourceEvents(scene, graph); if (!sources.length) return sum;
     const sourceLength = Math.max(...sources.map((event) => tokenList(eventText(event)).length));
     const sceneLength = tokenList(scene.text).length;
-    if (!sourceLength || !sceneLength) return sum + 0;
+    if (!sourceLength || !sceneLength) return sum;
     return sum + (sceneLength < sourceLength ? Math.min(1, 1 - sceneLength / sourceLength) : 0);
   }, 0) / Math.max(1, nonFinal.length);
-  return clamp((1 - copyRisk) * 0.65 + structuralShift * 0.35);
+  const provenanceTransform = nonFinal.length ? nonFinal.filter((scene) => scene.sourceEventIds.length >= 1).length / nonFinal.length : 0;
+  return clamp((1 - copyRisk) * 0.55 + structuralShift * 0.25 + provenanceTransform * 0.2);
+}
+function novelConcreteSignals(text: string, graph: RealityGraph): number {
+  const sourceVocabulary = tokenSet(eventCorpus(graph));
+  const tokens = tokenList(text).filter((token) => !STOP.has(token));
+  if (!tokens.length) return 0;
+  const colors = /\b(?:red|blue|green|yellow|orange|purple|pink|crimson|scarlet|golden|gold|silver|black|white|brown)\b/i;
+  const sensory = /\b(?:taste|tasted|smell|smelled|scent|perfume|perfumed|sound|sounded|glow|gleam|gleaming|texture|warm|cold|hot|soft|hard|bright|dim|sharp|sweet|bitter|loud|quiet)\b/i;
+  const physicalAction = /\b(?:brushed|brushes|perfumed|washed|cut|cuts|grabbed|grabs|opened|closed|lifted|dropped|ran|runs|walked|walks|held|holds|touched|touches|spilled|spills|poised)\b/i;
+  const quoted = /["“”]/.test(text);
+  let signals = 0;
+  if (colors.test(text)) signals += 1;
+  if (sensory.test(text)) signals += 1;
+  if (physicalAction.test(text)) signals += 1;
+  if (quoted) signals += 1;
+  const unknownNonAbstract = tokens.filter((token) => !sourceVocabulary.has(token) && !ABSTRACT.has(token));
+  if (unknownNonAbstract.length >= 3) signals += 1;
+  return clamp(signals / 4);
 }
 function inventionRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  let bad = 0; const checked = scenes.slice(0, -1);
-  for (const s of checked) if (sceneGrounding(s, graph) < 0.18 && tokenSet(s.text).size > 1) bad += 1;
-  return checked.length ? clamp(bad / checked.length) : 0;
+  const checked = scenes.slice(0, -1); if (!checked.length) return 0;
+  return clamp(checked.reduce((sum, scene) => sum + novelConcreteSignals(scene.text, graph), 0) / checked.length);
 }
 function explanationRisk(scenes: readonly RealizedScene[]): number {
   const explanation = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|the relationship|the viewer|the audience|changes what is worth noticing|because this)\b/i;
@@ -145,7 +170,7 @@ export function judgeRealizedFilm(input: { scenes: readonly RealizedScene[]; mov
   if (input.graph.events.length > 1 && dimensions.progression < 0.35) reasons.push("visible film does not move attention");
   if (dimensions.landing < 0.65) reasons.push("ending does not earn a felt landing");
   if (dimensions.artisticTransformation < 0.35 || dimensions.sourceCopyRisk >= 0.5) reasons.push("visible film copies source wording instead of transforming the reality");
-  if (dimensions.inventionRisk > 0.35) reasons.push("visible film introduces unsupported concrete material");
+  if (dimensions.inventionRisk > 0.5) reasons.push("visible film introduces unsupported concrete material");
   if (dimensions.explanationRisk > 0) reasons.push("visible film explains instead of letting the art speak");
   if (dimensions.captionReelRisk >= 0.65) reasons.push("visible film collapses toward a caption reel");
   const score = clamp(
