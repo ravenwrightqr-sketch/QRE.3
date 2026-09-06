@@ -45,6 +45,20 @@ const EXPLANATORY_TURN = /\b(?:this means|which means|this shows|which shows|the
 const REALIZATION_MOVES = new Set(["feel_state_transition", "recognize_callback", "recontextualize_callback", "hold_contrast", "return_with_new_status", "land_consequence", "recognize"]);
 const MECHANISMS = new Set(["expectation_shift", "continuation", "state_change", "recurrence", "convergence", "contrast", "consequence"]);
 
+function inferenceUnsupported(thesisCorpus: string, realityCorpus: string): boolean {
+  const match = thesisCorpus.match(UNSUPPORTED_INFERENCE);
+  if (!match) return false;
+  const phrase = clean(match[0]).toLowerCase();
+  const reality = clean(realityCorpus).toLowerCase();
+  if (!reality) return true;
+  if (reality.includes(phrase)) return false;
+  const phraseTokens = [...tokens(phrase)];
+  if (!phraseTokens.length) return true;
+  const realityTokens = tokens(reality);
+  const hits = phraseTokens.filter((token) => realityTokens.has(token)).length;
+  return hits / phraseTokens.length < 0.5;
+}
+
 export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityGraph): SemanticGateResult {
   const reasons: string[] = [];
   const allIds = movie.trajectory.flatMap((step) => step.eventIds);
@@ -59,7 +73,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   const semanticMovement = metric(meaningful.length === 0 ? 0 : Math.min(1, 0.42 + meaningful.length * 0.11 + uniqueMeaningful.size * 0.09));
   const progressionVariety = metric(uniqueMeaningful.size / 3);
 
-  const realityCorpus = graph.events.map((event) => event.label).join(" ");
+  const realityCorpus = graph.events.map((event) => [event.label, ...event.entities].join(" ")).join(" ");
   const thesis = movie.storyThesis;
   const thesisCorpus = [movie.hypothesis.join(" "), movie.payoff, movie.unresolvedQuestion, thesis?.initialReading, thesis?.semanticTurn, ...(thesis?.beforeMeaning ?? []), ...(thesis?.afterMeaning ?? [])].map(clean).filter(Boolean).join(" ");
   const lexicalGrounding = overlap(thesisCorpus, realityCorpus);
@@ -121,7 +135,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
         : summaryShaped
           ? 0.2
           : 0.15;
-  const unsupportedInferenceRisk = UNSUPPORTED_INFERENCE.test(thesisCorpus) ? 0.9 : 0.05;
+  const unsupportedInferenceRisk = inferenceUnsupported(thesisCorpus, realityCorpus) ? 0.9 : 0.05;
   const explanatoryRisk = EXPLANATORY_TURN.test(clean(thesis?.semanticTurn)) ? 0.85 : 0;
 
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
