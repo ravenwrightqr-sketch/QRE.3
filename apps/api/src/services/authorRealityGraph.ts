@@ -8,6 +8,12 @@ MUST NOT: Invent events, participants, places, chronology, causality, outcomes, 
 UPSTREAM: Experience input, persistent memory, geo/presence context.
 DOWNSTREAM: Canonical Cognition and memory projection.
 REPLACEMENT: Replaces the previous Author-specific reality/parser stack.
+
+COMPOSITION BOUNDARY:
+- Evidence may contain timing, GPS/location, attachment, photo and other presentation metadata.
+- Metadata is preserved as evidence but is not promoted to a narrative event by itself.
+- A standalone timestamp must never consume a Movie beat.
+- Place/geo supplied separately is rendering/context enrichment, not a mandatory scene.
 */
 import type {
   RealityEntityContinuity,
@@ -33,6 +39,15 @@ const STATE = /\b(?:nervous|scared|happy|sad|angry|calm|excited|proud|confident|
 const TIME = /\b(?:today|yesterday|tomorrow|morning|afternoon|evening|night|later|earlier|first|again|second|third|last|next|until|before|after|weekly|daily|every|\d{1,2}:\d{2}|\d{4})\b/i;
 const RECURRENCE = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once more|weekly|daily|every|same|remembered|remember)\b/i;
 const TRANSITIONS: Array<[string, string]> = [["nervous", "confident"], ["nervous", "calm"], ["broken", "working"], ["broken", "fixed"], ["dirty", "clean"], ["old", "new"], ["lost", "found"], ["closed", "open"], ["sad", "happy"], ["scared", "safe"]];
+
+const STANDALONE_TIME = /^(?:(?:at|@)\s*)?(?:\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|(?:today|yesterday|tomorrow|morning|afternoon|evening|night))$/i;
+const STANDALONE_DATE = /^(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4})$/i;
+const STANDALONE_GEO = /^(?:(?:gps|geo|location|coordinates?|lat(?:itude)?|lon(?:gitude)?)\s*[:=-]?\s*)?[+-]?\d{1,3}(?:\.\d+)?\s*[,/]\s*[+-]?\d{1,3}(?:\.\d+)?$/i;
+const STANDALONE_PRESENTATION = /^(?:photo|photograph|image|picture|video|attachment|media)(?:\s*#?\d+)?(?:\s+(?:attached|uploaded))?$/i;
+function isCompositionMetadata(value: string): boolean {
+  const text = clean(value);
+  return Boolean(text) && (STANDALONE_TIME.test(text) || STANDALONE_DATE.test(text) || STANDALONE_GEO.test(text) || STANDALONE_PRESENTATION.test(text));
+}
 
 function fragments(values: readonly string[]): string[] {
   const out: string[] = [];
@@ -78,6 +93,7 @@ function eventStructure(label: string, eventId: string): RealityEventStructure {
       ...(RECURRENCE.test(label) ? ["recurrence"] : []),
       ...(TIME.test(label) ? ["time"] : []),
       ...(TRANSITIONS.some(([a, b]) => lower(label).includes(a) || lower(label).includes(b)) ? ["transition"] : []),
+      ...(isCompositionMetadata(label) ? ["presentation-metadata"] : []),
     ]),
     recurrenceScore: RECURRENCE.test(label) ? 0.8 : 0,
     transitionScore: TRANSITIONS.some(([a, b]) => lower(label).includes(a) || lower(label).includes(b)) ? 0.75 : 0,
@@ -88,10 +104,14 @@ function eventStructure(label: string, eventId: string): RealityEventStructure {
 
 function makeEvents(parts: string[], subject?: string, place?: string): { events: RealityEvent[]; structures: RealityEventStructure[]; evidence: RealityEvidence[] } {
   const evidenceList = parts.map((part, index) => evidence("fact", part, index));
-  const events = parts.map((part, index) => {
-    const id = `event-${index + 1}`;
+  const events: RealityEvent[] = [];
+  const structures: RealityEventStructure[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]!;
+    if (isCompositionMetadata(part)) continue;
+    const id = `event-${events.length + 1}`;
     const entities = explicitEntityNames(part, subject);
-    return {
+    const event = {
       id,
       label: part,
       sourceIds: [evidenceList[index]!.id],
@@ -101,8 +121,10 @@ function makeEvents(parts: string[], subject?: string, place?: string): { events
       salient: true,
       provenance: "explicit" as const,
     } satisfies RealityEvent;
-  });
-  return { events, structures: events.map((event) => eventStructure(event.label, event.id)), evidence: evidenceList };
+    events.push(event);
+    structures.push(eventStructure(event.label, event.id));
+  }
+  return { events, structures, evidence: evidenceList };
 }
 
 function buildRelations(events: RealityEvent[], structures: RealityEventStructure[]): RealityRelation[] {
