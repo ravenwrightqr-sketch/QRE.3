@@ -3,7 +3,7 @@ STATUS: CANONICAL
 ROLE: Sole Universal Author orchestrator. Wires reality, cognition, independent judgment, creative realization, and runtime projection.
 INPUT: AuthorBrainTruth assembled from user reality, persistent world memory, geo/presence, and governed creative learning.
 OUTPUT: One selected Movie realization projected into SequencePlay and AuthorScene objects with provenance, alongside a factual Readout.
-AUTHORITY: RealityGraph owns source evidence; Readout projects facts; Cognition owns interpretation/Movie candidates; Experience Judge owns deterministic Movie quality selection; Creative Realizer owns visible language; Pure Visible-Art Judge owns final artifact quality.
+AUTHORITY: RealityGraph owns source evidence; Readout projects facts; Cognition owns interpretation/Movie candidates; Experience Judge owns deterministic Movie quality selection; Creative Realizer owns visible language; Pure Visible-Art Judge observes final artifact quality.
 MUST NOT: Select a second semantic truth, persist memory, route scans, own payments, parse business domains, or expose compiler vocabulary.
 */
 import type { AuthorBrainTruth, AuthorCreativeBrief, AuthorScene, LatentMovieCandidate, SequenceCut, SequencePlay, ViewerAttentionRole, ViewerState } from "@qre/contracts";
@@ -209,8 +209,8 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       modelCalls: cognition.modelCalls + realization.modelCalls,
       candidateSequences: cognition.latentMovieCandidates.length,
       acceptedCandidates: judged.accepted.length,
-      qualityStatus: complete && Boolean(realizedFilmJudge?.accepted) ? "ACCEPTED" : "REJECTED",
-      renderable: complete && Boolean(realizedFilmJudge?.accepted),
+      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
+      renderable: complete,
       complete,
       selectedScore: metric(realizedFilmJudge?.score ?? 0),
       rejectedCandidates: [...judged.rejected, ...(realization.reason ? [{ reason: realization.reason, rejectedSets: realization.rejectedSets }] : [])],
