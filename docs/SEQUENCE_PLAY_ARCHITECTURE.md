@@ -1,44 +1,43 @@
 # QRE SEQUENCE PLAY ARCHITECTURE
 
 **Status:** CANONICAL DIRECTION
-**Date:** 2026-08-15
-**Branch:** `elite-universal-rebuild-v10`
+**Date:** 2026-09-05
+**Branch:** `build/universal-author-local`
 
 ## Why this exists
 
 QRE does not produce a list of events and then decorate them with prose.
 
-The experience is consumed as a sequence. Each cut changes what the viewer knows, expects, suspects, wants, or understands.
+The experience is consumed as an ordered composition. The primary authored story carries the semantic experience. Context and media enrich that experience without shrinking or fragmenting the story.
 
-The old `LatentMovie` concept was too event-centric:
+Each story cut should change what the viewer knows, expects, suspects, wants, or understands. A contextual or media addition can support that movement, but it does not count as an authored semantic beat merely because it exists.
 
-```text
-actor + action + object + stateAfter
-```
-
-That describes chronology. It does not describe how the show plays.
-
-## New separation
+## Separation
 
 ```text
 REALITY GRAPH
-  what exists / what happened / confidence
+  what exists / what happened / confidence / provenance / media / context
           ↓
 WORLD MEANING
   significance / relationship / history / continuity
           ↓
 SEQUENCE PLAY
-  viewer-state transitions across cuts
+  viewer-state transitions across the authored story
           ↓
 UNIVERSAL AUTHOR
   language realization
+          ↓
+EXPERIENCE COMPOSITION
+  story + additive media/context/actions in one ordered experience
           ↓
 CINEMATIC RUNTIME
 ```
 
 ### Reality is not sequence
 
-A fact can be true and still deserve zero screen time.
+A fact can be true and still deserve zero authored language.
+
+Time, GPS, place context, photographs, video, receipts, links, and similar material remain available to the experience. They do not automatically become story beats.
 
 ### Sequence is not a template
 
@@ -50,21 +49,21 @@ hook → develop → turn → payoff
 
 Those are possible roles, not mandatory beats.
 
-The Brain chooses the smallest sequence that creates meaningful forward motion.
+The story earns its own length from meaningful semantic movement. It is never shortened merely to make room for media or metadata.
 
 ## The new mental model
 
-A cut is valuable when it changes the viewer state.
+A story cut is valuable when it changes the viewer state.
 
 ```text
 VIEWER BEFORE
    ↓
-CUT
+STORY CUT
    ↓
 VIEWER AFTER
 ```
 
-The model should privately reason about:
+The system should privately reason about:
 
 - what is already known
 - what is expected
@@ -73,6 +72,8 @@ The model should privately reason about:
 - what just changed
 - what the next cut could make possible
 - whether the current device has become predictable
+
+These reasoning signals must not leak into customer-facing language.
 
 ## Attention trajectory
 
@@ -108,6 +109,49 @@ character → challenge → unexpected choice → consequence
 
 These are search shapes, not templates.
 
+## Story length
+
+There is no universal story beat count.
+
+A thin input may deserve three excellent cuts. A rich reality may deserve ten, twenty, or more. A wedding, travel record, major event, or other media-rich experience is not required to become short because it also contains many photographs.
+
+A product tier may limit media count, storage, processing, or other resource usage. Those limits must not become hidden creative constraints on the story.
+
+## Additive experience material
+
+Experience composition has separate additive material:
+
+```text
+STORY
+  ↓
++ GEO / PLACE
++ TIME / DATE
++ PHOTO / VIDEO
++ MAP
++ RECEIPT / LINK
++ ACTION
++ OTHER CONTEXT
+```
+
+Additions may be positioned before, between, after, or alongside story cuts.
+
+Example:
+
+```text
+GEO / ARRIVAL
+STORY
+STORY
+PHOTO
+STORY
+VIDEO
+STORY
+GEO / DEPARTURE
+```
+
+A business location may naturally open and close an experience. Before/after photos may surround a real semantic change. A photograph can live beside the beat whose meaning it supports. None of these additions consumes a story beat.
+
+The frontend may permit users to reorder additions. User ordering changes presentation order, not reality truth and not the selected Movie.
+
 ## Short cuts
 
 Short cuts are not inherently better.
@@ -120,6 +164,8 @@ Pink bows everywhere.
 ```
 
 The second line does not explain the first. It changes the viewer's model of the first.
+
+The same principle applies to long cuts: length is justified when it carries more semantic movement, not because QRE needs to fill a quota.
 
 ## Subject gravity
 
@@ -164,7 +210,7 @@ The author may not invent new reality merely because the sequence needs another 
 
 ## Quality model
 
-QRE evaluates the sequence at three layers:
+QRE evaluates the authored story at three layers:
 
 ```text
 TRUTH
@@ -177,38 +223,29 @@ CREATIVITY
 Was the change specific and hard to predict?
 ```
 
+Then QRE evaluates composition:
+
+```text
+STORY INTEGRITY
+Did additions enrich rather than replace the story?
+
+COMPOSITION
+Are media/context placed usefully without forcing story compression?
+```
+
 A sequence that is truthful but produces no movement is not good.
 
 A sequence with movement but invented facts is invalid.
 
 A valid sequence that is obvious is unfinished.
 
-## Current implementation target
+A rich experience with lots of media is not a better experience merely because it contains more media.
 
-The first production implementation uses `SequencePlay` from `@qre/contracts`.
+## Current implementation
 
-The contract is intentionally semantic and flexible:
+`SequencePlay` from `@qre/contracts` models the semantic attention trajectory before language realization. Experience composition then combines the authored story with additive materials.
 
-```text
-SequencePlay
-  → opening viewer state
-  → ordered cuts
-  → before/after viewer state
-  → attention delta
-  → next promise
-  → payoff connection
-  → continuity / anti-crutch / continuation
-```
-
-The model is free to use 2, 3, 4, or more cuts when justified. The sequence should earn its length.
-
-## Next engineering move
-
-1. Make universal cognition produce `SequencePlay` before prose.
-2. Make the author realize `SequencePlay` into cuts.
-3. Make the critic score viewer-state movement rather than phrase cleverness.
-4. Make memory store sequence history, not only factual history.
-5. Keep domain specialists outside the sequence logic.
+The model is free to use 2, 3, 4, or more story cuts when justified. The story should earn its length.
 
 ## Definition of success
 
@@ -220,8 +257,12 @@ Then:
 
 > **How should that movie play from cut to cut?**
 
-Only then:
+Then:
 
-> **What words should appear on each cut?**
+> **What words should appear on those cuts?**
 
-That is the core compiler direction.
+Then:
+
+> **What supporting media and context make the experience richer without taking anything away from the movie?**
+
+That is the current compiler direction.
