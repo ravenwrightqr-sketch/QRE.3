@@ -60,7 +60,19 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   const realityCorpus = graph.events.map((event) => event.label).join(" ");
   const thesis = movie.storyThesis;
   const thesisCorpus = [movie.hypothesis.join(" "), movie.payoff, movie.unresolvedQuestion, thesis?.initialReading, thesis?.semanticTurn, ...(thesis?.beforeMeaning ?? []), ...(thesis?.afterMeaning ?? [])].map(clean).filter(Boolean).join(" ");
-  const thesisGrounding = metric(overlap(thesisCorpus, realityCorpus));
+  const lexicalGrounding = overlap(thesisCorpus, realityCorpus);
+  const thesisEventIds = [
+    ...(thesis?.beforeEventIds ?? []),
+    ...(thesis?.afterEventIds ?? []),
+    ...(thesis?.carrierEventIds ?? []),
+    ...(thesis?.sealingEventIds ?? []),
+    ...(thesis?.semanticRealization?.evidenceEventIds ?? []),
+    ...(thesis?.semanticRealization?.beforeEventIds ?? []),
+    ...(thesis?.semanticRealization?.afterEventIds ?? []),
+  ];
+  const groundedThesisEventIds = new Set(thesisEventIds.filter((id) => validIds.has(id)));
+  const structuralGrounding = thesisEventIds.length === 0 ? 0 : metric(groundedThesisEventIds.size / new Set(thesisEventIds).size);
+  const thesisGrounding = metric(Math.max(lexicalGrounding, structuralGrounding));
 
   const hasSemanticTurn = Boolean(clean(thesis?.semanticTurn));
   const hasCarrierEvidence = Boolean(thesis?.carrierEventIds?.some((id) => validIds.has(id)));
@@ -91,7 +103,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
   if (!meaningful.length) reasons.push("Movie contains no semantic movement");
   if (evidenceCoverage < 0.34 && graph.events.length > 0) reasons.push("Movie is weakly anchored to supplied reality");
-  if (thesisGrounding < 0.2 && graph.events.length > 0) reasons.push("Movie thesis is not grounded in supplied event language");
+  if (thesisGrounding < 0.2 && graph.events.length > 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
   if (summaryRisk >= 0.9) reasons.push("Movie hypothesis reads as a factual summary rather than a semantic discovery");
   if (unsupportedInferenceRisk >= 0.9) reasons.push("Movie contains unsupported psychological/generalized inference");
   if (graph.events.length > 0 && !thesis) reasons.push("rich LatentStoryThesis is missing");
