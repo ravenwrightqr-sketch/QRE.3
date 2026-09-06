@@ -100,7 +100,6 @@ function relationCandidates(graph: RealityGraph, subject: string, returning: boo
 
 function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate): boolean {
   const validIds = new Set(graph.events.map((event) => event.id));
-  const declaredKinds = new Set(candidate.supportingRelationKinds);
   return candidate.trajectory.every((step) => {
     if (!step.eventIds.length || step.eventIds.some((id) => !validIds.has(id))) return false;
     if (step.eventIds.length < 2) return true;
@@ -110,21 +109,11 @@ function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate)
           (item.from === step.eventIds[i] && item.to === step.eventIds[j]) ||
           (item.from === step.eventIds[j] && item.to === step.eventIds[i]),
         );
-        if (relation && operationForRelation(relation.kind) === step.operation) return true;
+        if (!relation) return false;
+        if (operationForRelation(relation.kind) !== step.operation) return false;
       }
     }
-    const expectedKinds: RealityRelation["kind"][] = step.operation === "contrast"
-      ? ["contrasts"]
-      : step.operation === "consequence"
-        ? ["changes"]
-        : step.operation === "converge"
-          ? ["converges"]
-          : step.operation === "reframe"
-            ? ["recontextualizes", "involves"]
-            : step.operation === "recur"
-              ? ["repeats"]
-              : [];
-    return expectedKinds.some((kind) => declaredKinds.has(kind));
+    return true;
   });
 }
 function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): LatentMovieCandidate[] {
