@@ -80,7 +80,7 @@ function relationCandidates(graph: RealityGraph, subject: string, returning: boo
       payoff: returning ? "Land the changed reading." : "Let the changed reading land.",
       unresolvedQuestion: question,
       evidence: [first.label, second.label, ...relation.evidence],
-      hypothesis: [`The relationship between ${first.label} and ${second.label} changes what is worth noticing.`],
+      hypothesis: [relation.reason, `Interpretation grounded in the supplied relationship between ${first.label} and ${second.label}; no new event is asserted.`],
       truthRisk: 0,
       novelty: clamp(0.45 + relation.score * 0.45),
       specificity: clamp(0.7 + relation.score * 0.28),
