@@ -4,6 +4,17 @@ type Case = {
   name: string; subject: string; prompt: string; facts: string[]; lens?: string; returning?: boolean; memoryContext?: string[];
 };
 
+const ARTIST_CHARTER = [
+  "The subject is a factual referent, never a default narrator.",
+  "Do not begin every cut with the subject name. Grammar may center an object, place, time, action, fragment, collision, or omission when supplied reality supports it.",
+  "Do not write one sentence per fact. Make supplied details interact.",
+  "Do not explain an interpretation. Make the relationship visible, then let the final cut feel it.",
+  "Do not use generic cinematic filler or invented sensory detail.",
+  "The film's form must be earned by this reality. Do not force the same opening, beat count, sentence shape, or ending shape across worlds.",
+  "A tiny film may be 2 cuts. A richer reality may need more. Length is earned by the relationship, never by a template.",
+  "Prefer compression over narration. Prefer concrete juxtaposition over commentary. Prefer a final image/phrase that changes the reading over a summary.",
+].join("\n");
+
 const cases: Case[] = [
   { name:"COCO / GROOMING", subject:"Coco", prompt:"Make a tiny replayable film from what actually happened. Coco is framed here as fierce. Compare the supplied details and let an earned artistic interpretation land. Do not explain the meaning.", facts:["Coco came in for grooming","Coco hates the dryer","Coco stole an apple from the counter","Coco wore a blue bow home"] },
   { name:"MARIA / HOUSE RESET", subject:"Maria", prompt:"Make the house reset watchable. Find a relationship in the details and let the ending become a felt landing, not a checklist.", facts:["Maria started cleaning at 9:04 AM","Maria cleaned the kitchen","Maria cleaned bathroom one","Maria cleaned bathroom two","Maria finished at 11:47 AM"] },
@@ -21,7 +32,7 @@ const EXPLANATION = /\b(?:this means|which means|the point is|the meaning is|in 
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|worth noticing|it was meaningful|it was special)\.?$/i;
 const SUBJECT_LEAD = (text:string, subject:string):boolean => {
   const escaped = subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped}(?:\\b|:)`, "i").test(text.trim());
+  return new RegExp(`^(?:the|a|an)?\\s*${escaped}(?:\\b|:)`, "i").test(text.trim());
 };
 const tokens=(text:string):Set<string>=>new Set((text.toLowerCase().match(/\b[\w’'-]+\b/g)??[]).filter(t=>t.length>2));
 const overlap=(left:string,right:string):number=>{const a=tokens(left),b=tokens(right);if(!a.size||!b.size)return 0;let hits=0;for(const t of a)if(b.has(t))hits+=1;return hits/Math.max(1,a.size)};
@@ -29,15 +40,14 @@ function words(text:string):number{return (text.match(/\b[\w’'-]+\b/g)??[]).le
 function fail(message:string):never{throw new Error(`SUPERINTELLIGENCE LAB FAILED: ${message}`)}
 function relationBridge(result:Awaited<ReturnType<typeof authorBrainCanonical>>):boolean{return result.scenes.some((scene)=>new Set(result.sequence.cuts.find(c=>c.order===result.scenes.indexOf(scene)+1)?.sourceIds??[]).size>=2)}
 function earnedLanding(result:Awaited<ReturnType<typeof authorBrainCanonical>>,facts:string[]):boolean{const last=result.scenes.at(-1);if(!last||words(last.text)>7||EXPLANATION.test(last.text)||INTERNAL.test(last.text)||GENERIC.test(last.text))return false;if(result.scenes.length<2||result.world.events.length<2)return false;const finalIds=new Set(result.sequence.cuts.at(-1)?.sourceIds??[]);if(finalIds.size<2)return false;return overlap(last.text,facts.join(" "))<0.85}
+function formVariation(result:Awaited<ReturnType<typeof authorBrainCanonical>>):number{const texts=result.scenes.map(s=>s.text.trim());if(texts.length<3)return 1;const starts=new Set(texts.map(t=>t.split(/\s+/)[0]?.toLowerCase()).filter(Boolean));const lengths=new Set(texts.map(t=>words(t)));const kinds=new Set(result.scenes.map(s=>s.kind));return (Math.min(1,starts.size/texts.length)+Math.min(1,lengths.size/texts.length)+Math.min(1,kinds.size/texts.length))/3}
 
 const rendered:string[]=[];
 
 for(const test of cases){
-  const result=await authorBrainCanonical({prompt:test.prompt,subject:test.subject,facts:test.facts,sourceMoments:test.facts,memoryContext:test.memoryContext??[],creativeLearningContext:[],returning:test.returning,lens:test.lens});
+  const result=await authorBrainCanonical({prompt:`${ARTIST_CHARTER}\n\n${test.prompt}`,subject:test.subject,facts:test.facts,sourceMoments:test.facts,memoryContext:test.memoryContext??[],creativeLearningContext:[],returning:test.returning,lens:test.lens});
   const texts=result.scenes.map(scene=>scene.text);
 
-  // PRINT THE ARTIFACT BEFORE ANY ASSERTION. A failed gold test must expose the
-  // actual film that failed rather than hiding it behind an exception.
   console.log(`\n================ ${test.name} ================`);
   console.log("READOUT\n"+result.readout.text);
   console.log("\nWHAT QRE PICKED");
@@ -51,6 +61,7 @@ for(const test of cases){
   console.log(`Model: ${result.diagnostics.model}`);
   console.log(`Visible bridge: ${relationBridge(result)?"PASS":"FAIL"}`);
   console.log(`Earned artistic landing: ${earnedLanding(result,test.facts)?"PASS":"FAIL"}`);
+  console.log(`Form variation: ${formVariation(result).toFixed(3)}`);
   console.log("\nMOVIE THESIS");
   console.log(result.movie?.hypothesis?.join("\n")??"NONE");
   console.log("\nFINAL FILM");
@@ -70,6 +81,8 @@ for(const test of cases){
   if(texts.some(text=>INTERNAL.test(text)||EXPLANATION.test(text)||GENERIC.test(text)))fail(`${test.name}: internal/explanatory/generic language leaked into visible creation`);
   if(texts.some(text=>words(text)>24))fail(`${test.name}: Mouth cut exceeded 24 words`);
   if(texts.length>=2&&texts.every(text=>SUBJECT_LEAD(text,test.subject)))fail(`${test.name}: subject-led author template collapse`);
+  if(texts.length>=3&&texts.filter(text=>SUBJECT_LEAD(text,test.subject)).length/texts.length>0.5)fail(`${test.name}: subject dominates more than half the film`);
+  if(texts.length>=3&&formVariation(result)<0.45)fail(`${test.name}: visible form collapsed into repetitive cut grammar`);
   if(test.facts.length>=2&&!relationBridge(result))fail(`${test.name}: no visible scene bridges multiple supplied facts`);
   if(test.facts.length>=2&&!earnedLanding(result,test.facts))fail(`${test.name}: final scene is not an earned interpretive landing`);
 
