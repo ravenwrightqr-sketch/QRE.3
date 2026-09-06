@@ -20,52 +20,37 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('apps/api/src/services/authorCreativeRealizer.ts')
           s = p.read_text()
 
-          marker = 'const SUBJECT_SPARSE_POLICY = /\\b(?:subject|star)\\b/i;'
-          if marker not in s:
-              s = s.replace(
-                  'const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);',
-                  'const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);\nconst SUBJECT_SPARSE_POLICY = /\\b(?:subject|star)\\b/i;'
-              )
-
-          old = 'function subjectPresence(scenes: readonly RealizedScene[], subject: string): number { const tokens = tokenSet(subject); if (!tokens.size) return 0; return scenes.reduce((sum, scene) => sum + ([...tokens].some((token) => tokenSet(scene.text).has(token)) ? 1 : 0), 0) / Math.max(1, scenes.length); }\n'
-          new = '''function subjectNamePenalty(scenes: readonly RealizedScene[], subject: string): number {
+          s = s.replace(
+              'function subjectPresence(scenes: readonly RealizedScene[], subject: string): number { const tokens = tokenSet(subject); if (!tokens.size) return 0; return scenes.reduce((sum, scene) => sum + ([...tokens].some((token) => tokenSet(scene.text).has(token)) ? 1 : 0), 0) / Math.max(1, scenes.length); }',
+              '''function subjectNamePenalty(scenes: readonly RealizedScene[], subject: string): number {
             const names = [...tokenSet(subject)].filter((token) => token.length > 2);
             if (!names.length || !scenes.length) return 0;
-            const mentions = scenes.map((scene) => {
-              const sceneTokens = tokenSet(scene.text);
-              return names.some((name) => sceneTokens.has(name));
-            });
-            const adjacent = mentions.reduce((sum, value, index) => sum + Number(Boolean(value && mentions[index - 1])), 0);
-            const total = mentions.filter(Boolean).length / scenes.length;
-            return Math.min(1, total * 0.7 + (adjacent / Math.max(1, scenes.length - 1)) * 0.8);
+            const mentions = scenes.map((scene) => names.some((name) => tokenSet(scene.text).has(name)));
+            const adjacent = mentions.reduce((sum, value, index) => sum + int(value and bool(mentions[index - 1])), 0);
+            const total = sum(mentions) / len(scenes);
+            return min(1, total * 0.7 + (adjacent / max(1, len(scenes) - 1)) * 0.8);
           }
 
-          function stripSubjectLead(text: string, subject: string): string {
-            const names = clean(subject).split(/\\s*(?:\\+|&|,|\\/|\\band\\b)\\s*/i).map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
-            if (!names.length) return clean(text);
-            const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'));
-            const pattern = new RegExp(`^(?:${escaped.join('|')})(?:\\\\s+|[:,–—-]+\\\\s*)`, 'i');
-            let result = clean(text).replace(pattern, '').trim();
-            result = result.replace(/^(?:is|are|was|were)\\s+/i, '');
-            return clean(result);
-          }
+          def stripSubjectLead(text: str, subject: str) -> str:
+            names = sorted([x.strip() for x in re.split(r'\\s*(?:\\+|&|,|/|\\band\\b)\\s*', subject.strip(), flags=re.I) if x.strip()], key=len, reverse=True)
+            if not names:
+              return text.strip()
+            escaped = [re.escape(x) for x in names]
+            result = re.sub(r'^(' + '|'.join(escaped) + r')(?:\\s+|[:,–—-]+\\s*)', '', text.strip(), count=1, flags=re.I)
+            return re.sub(r'^(?:is|are|was|were)\\s+', '', result.strip(), count=1, flags=re.I).strip()
+          '''.replace('int(', 'Number(').replace('and', '&&').replace('bool(', 'Boolean(').replace('sum(mentions)', 'mentions.filter(Boolean).length').replace('len(', 'scenes.length').replace('min(', 'Math.min(').replace('max(', 'Math.max(').replace('def stripSubjectLead', 'function stripSubjectLead').replace('text: str, subject: str) -> str:', 'text: string, subject: string): string {').replace('if not names:', 'if (!names.length) {').replace('if not names:\n              return text.strip()', 'if (!names.length) return clean(text);').replace('return text.strip()', 'return clean(text)').replace('            escaped = [re.escape(x) for x in names]\n', '            const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&"));\n').replace('            result = re.sub(r\'^(' + "'\|'" + '|'.join(escaped) + r\')(?:\\\\s+|[:,–—-]+\\\\s*)\', \'\', text.strip(), count=1, flags=re.I)\n            return re.sub(r\'^(?:is|are|was|were)\\\\s+\', \'\', result.strip(), count=1, flags=re.I).strip()', '            let result = clean(text).replace(new RegExp(`^(?:${escaped.join("|")})(?:\\\\s+|[:,–—-]+\\\\s*)`, "i"), "");\n            result = result.replace(/^(?:is|are|was|were)\\\\s+/i, "");\n            return clean(result);\n          }'))
 
-          if old not in s:
-              raise SystemExit('subjectPresence function not found')
-          s = s.replace(old, new)
+          if 'subjectNamePenalty' not in s:
+              raise SystemExit('subject policy replacement failed')
 
-          old = '  const starLoad = subjectPresence(scenes, subject);\n  const roleLoad = contextRoleLoad(scenes, subject, graph);\n  if (scenes.length >= 3 && starLoad < 0.2 && roleLoad > 0.45) return undefined;'
-          new = '  const roleLoad = contextRoleLoad(scenes, subject, graph);\n  if (scenes.length >= 3 && roleLoad > 0.75) return undefined;'
-          if old not in s:
-              raise SystemExit('validateSet block not found')
-          s = s.replace(old, new)
+          s = s.replace('  const starLoad = subjectPresence(scenes, subject);\n  const roleLoad = contextRoleLoad(scenes, subject, graph);\n  if (scenes.length >= 3 && starLoad < 0.2 && roleLoad > 0.45) return undefined;', '  const roleLoad = contextRoleLoad(scenes, subject, graph);\n  if (scenes.length >= 3 && roleLoad > 0.75) return undefined;')
 
-          old = 'function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string[], subject: string): number { const evidence = movie.evidence.join(" "); const allText = scenes.map((scene) => scene.text).join(" "); const starts = scenes.map((scene) => words(scene.text).slice(0, 3).join(" ").toLowerCase()).filter(Boolean); const repeatedStarts = starts.length - new Set(starts).size; const uniqueSources = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size; const sourceCoverage = graph.events.length ? Math.min(1, uniqueSources / Math.max(1, Math.min(graph.events.length, 5))) : 1; const novelty = priorScenes.length ? Math.max(0, 1 - Math.max(...priorScenes.map((prior) => overlap(allText, prior)), 0)) : 1; const rhythm = scenes.length === 1 ? 0.72 : scenes.length <= 5 ? 0.98 : scenes.length <= 8 ? 0.9 : 0.78; const averageWords = scenes.reduce((sum, scene) => sum + words(scene.text).length, 0) / Math.max(1, scenes.length); const compactness = averageWords <= 9 ? 1 : averageWords <= 14 ? 0.88 : averageWords <= 20 ? 0.62 : 0.34; const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.07 : 0; const semanticLanguage = /\\b(?:somehow|apparently|still|again|finally|anyway|meanwhile|didn\'t matter|didn\'t stand a chance|round|tko|power up|mission|case|lights out|survived|won|lost|surrendered|verdict|approved|temporary)\\b/i.test(allText) ? 0.11 : 0; const evidenceFit = metric(scenes.reduce((sum, scene) => sum + overlap(scene.text, evidence), 0) / Math.max(1, scenes.length)); const star = subjectPresence(scenes, subject); const contextPenalty = contextRoleLoad(scenes, subject, graph); return metric(sourceCoverage * 0.17 + evidenceFit * 0.15 + novelty * 0.12 + rhythm * 0.12 + compactness * 0.11 + star * 0.17 + lensBonus + semanticLanguage - repeatedStarts * 0.045 - contextPenalty * 0.12); }'
-          new = '''function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string[], subject: string): number {
+          s = re.sub(r'function scoreSet\\(scenes: RealizedScene\\[\\], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string\\[\\], subject: string\\): number \\{.*?\\n\\nexport async function', r'''function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: RealityGraph, lens: string, priorScenes: string[], subject: string): number {
             const evidence = movie.evidence.join(" ");
             const allText = scenes.map((scene) => scene.text).join(" ");
             const starts = scenes.map((scene) => words(scene.text).slice(0, 3).join(" ").toLowerCase()).filter(Boolean);
@@ -80,31 +65,23 @@ jobs:
             const evidenceFit = metric(scenes.reduce((sum, scene) => sum + overlap(scene.text, evidence), 0) / Math.max(1, scenes.length));
             const subjectPenalty = subjectNamePenalty(scenes, subject);
             const semanticDensity = metric((movie.storyThesis?.semanticRealization?.evidenceEventIds?.length ?? 0) / Math.max(1, graph.events.length));
-            const omissionBonus = metric(scenes.filter((scene) => !tokenSet(subject).size || ![...tokenSet(subject)].some((token) => tokenSet(scene.text).has(token))).length / Math.max(1, scenes.length));
+            const subjectTokens = tokenSet(subject);
+            const omissionBonus = metric(scenes.filter((scene) => !subjectTokens.size || ![...subjectTokens].some((token) => tokenSet(scene.text).has(token))).length / Math.max(1, scenes.length));
             const contextPenalty = contextRoleLoad(scenes, subject, graph);
             return metric(sourceCoverage * 0.18 + evidenceFit * 0.17 + novelty * 0.13 + rhythm * 0.12 + compactness * 0.11 + lensBonus + semanticDensity * 0.08 + omissionBonus * 0.12 - repeatedStarts * 0.045 - subjectPenalty * 0.12 - contextPenalty * 0.12);
-          }'''
-          if old not in s:
-              raise SystemExit('scoreSet block not found')
-          s = s.replace(old, new)
+          }
 
-          s = s.replace('scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject))', 'scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject))')
-          old = 'const fallbackText = input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.";'
-          new = 'const fallbackText = stripSubjectLead(input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.", clean(input.subject));'
-          if old not in s:
-              raise SystemExit('fallback block not found')
-          s = s.replace(old, new)
+export async function''', s, count=1, flags=re.S)
 
-          s = s.replace('"Do not start every line with the subject\'s name. Star-centric does not mean repetitive naming: \'Kitchen cleared.\' is still Maria\'s world when Maria is the star.",', '"SUBJECT NAME IS SCARCE. The subject is already established in context. Prefer omission. Do not begin consecutive screens with the subject name. Across a sequence, use the name only when it materially clarifies identity or a deliberate return. Fragments such as \'Kitchen cleared.\', \'Still being watched.\' and \'Judgment confirmed.\' keep the subject present without reciting the subject. Repeating the name is a quality failure, not evidence of star-focus.",')
-          s = s.replace('"LENS FREEDOM: metaphor, irony, personification, status, exaggeration, juxtaposition, surreal framing and genre language are allowed when earned. \'Kitchen TKO\', \'round 2\', \'super power up\', \'the house surrendered\', \'mirror verdict: fabulous\', \'mission complete\' and \'somehow, none of that mattered\' are the kind of compressed language QRE may discover. They are readings, not literal new events.",', '"LENS FREEDOM: metaphor, irony, personification, status, exaggeration, juxtaposition, surreal framing and genre language are allowed when earned. Prefer the semantic move itself over stock genre vocabulary. Do not add a mission/round/TKO/verdict merely to sound creative. The frame must arise from the selected Movie and supplied reality.",')
+          s = s.replace('const fallbackText = input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.";', 'const fallbackText = stripSubjectLead(input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.", clean(input.subject));')
+          s = s.replace("Do not start every line with the subject's name. Star-centric does not mean repetitive naming: 'Kitchen cleared.' is still Maria's world when Maria is the star.", "SUBJECT NAME IS SCARCE. The subject is already established in context. Prefer omission. Do not begin consecutive screens with the subject name. Use the name only when it materially clarifies identity or a deliberate return. Repeating the name is a quality failure, not evidence of star-focus.")
+          s = s.replace("LENS FREEDOM: metaphor, irony, personification, status, exaggeration, juxtaposition, surreal framing and genre language are allowed when earned. 'Kitchen TKO', 'round 2', 'super power up', 'the house surrendered', 'mirror verdict: fabulous', 'mission complete' and 'somehow, none of that mattered' are the kind of compressed language QRE may discover. They are readings, not literal new events.", "LENS FREEDOM: metaphor, irony, personification, status, exaggeration, juxtaposition and genre language are allowed when earned. Prefer the semantic move over stock genre vocabulary. Never add mission/round/TKO/verdict merely to sound creative. The frame must arise from the selected Movie and supplied reality.")
           p.write_text(s)
 
           p = Path('apps/api/src/services/authorReadout.ts')
           s = p.read_text()
-          old = '  let result = clean(text.replace(pattern, ""));'
-          if old not in s:
-              raise SystemExit('readout strip line not found')
-          s = s.replace(old, '  let result = clean(text.replace(pattern, ""));\n  result = result.replace(/^(?:is|are|was|were)\\s+/i, "");')
+          if 'result = result.replace(/^(?:is|are|was|were)\\s+/i, "");' not in s:
+              s = s.replace('  let result = clean(text.replace(pattern, ""));', '  let result = clean(text.replace(pattern, ""));\n  result = result.replace(/^(?:is|are|was|were)\\s+/i, "");')
           p.write_text(s)
 
           p = Path('apps/api/author-readout-acceptance.ts')
