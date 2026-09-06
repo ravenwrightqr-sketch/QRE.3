@@ -14,13 +14,13 @@ INPUT / MEDIA / GEO / MEMORY
           ↓
       Cognition
           ↓
-   ONE selected Movie
+   Movie possibilities
           ↓
-     Creative Mouth
+     Creative Artist
           ↓
-   Artist chooses form
+   Creative Realizer
           ↓
- Reality-integrity check
+ Reality-integrity observation
           ↓
     Story / Sequence
           ↓
@@ -32,7 +32,7 @@ INPUT / MEDIA / GEO / MEMORY
           ↺
 ```
 
-There is one Reality authority, one Cognition authority, one Movie selection authority, one creative Mouth, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. No competing Author path may select a second semantic truth or emit a competing customer-facing creation. Deterministic diagnostics may inspect a creation, but they do not decide artistic taste or replace the Artist's selection.
+There is one Reality authority, one Cognition authority, one creative authority for visible language/form, one experience-composition boundary, one runtime projection boundary, and one persistent world-memory substrate. Deterministic diagnostics may inspect a creation, but they do not decide artistic taste, veto unconventional art, or replace the Artist's choice.
 
 ## Reality
 
@@ -50,9 +50,11 @@ ARTISTIC WORDING: FREE WITHIN THE REALITY BOUNDARY
 
 QRE protects what happened, not the exact sentence used to report it. A supplied fact such as `Coco stole an apple from the counter` may be artistically transformed into `The gleam of forbidden fruit.` The latter does not report a new literal event; it changes the charge of the supplied fact through artistic language.
 
+Every explicit user-supplied fact remains in the RealityGraph as source material unless it is standalone metadata that the contract explicitly defines as non-narrative metadata. Rich reality must never be silently truncated before Cognition or the Artist sees it.
+
 ## Cognition
 
-Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches possible Movies and selects the semantic idea that should reach the Artist.
+Cognition reasons over arbitrary domains. It discovers relationships, change, recurrence, temporal context, continuation, attention opportunities, significance, and creative hypotheses. It searches possible Movies and may identify the semantic idea most useful to hand to the Artist, but its output remains a creative proposal rather than an artistic veto.
 
 The central semantic contract is:
 
@@ -70,11 +72,11 @@ The relationship must be earned from supplied reality. Lenses may intensify a gr
 
 ### Model Movie contract
 
-The local model may return a Movie as either canonical `trajectory[]` or compact `cuts[]`. Both are structural proposals only. QRE normalizes them against the RealityGraph, preserves only existing event IDs, and derives multi-event operations only from relationships already present in that graph.
+The local model may return a Movie as canonical `trajectory[]`, compact `cuts[]`, or an event-id sequence. All are structural proposals. QRE normalizes them against the RealityGraph, preserves only existing event IDs, and derives multi-event operations only from relationships already present in the graph.
 
-A compact model Movie is therefore not a second factual authority. It is a semantic proposal entering the same grounded Movie selection path as other hypotheses.
+A malformed or unfamiliar model shape must not cause an otherwise grounded Movie to disappear merely because a more elaborate schema was expected.
 
-## Creative Mouth
+## Creative Artist / Mouth
 
 The Creative Mouth is not a summarizer and not a scoring contestant.
 
@@ -138,13 +140,11 @@ The pressure exists to unlock creativity, not to constrain it.
 
 ## Artist selection
 
-The Mouth must produce genuinely competing realizations before choosing.
+The system must explore materially different realizations before choosing the visible creation.
 
-The system must not sort artistic candidates by a deterministic quality score and call the result “the best art.” Artistic choice belongs to the Artist.
+The system must not sort artistic candidates by a deterministic quality score and call the result “the best art.” Artistic choice belongs to the Artist. Candidate ordering may be used as the explicit signal of the model-selected strongest realization, but no downstream quality judge may overrule that choice.
 
-The canonical implementation therefore presents the Artist with multiple materially different creative attacks and takes the Artist's declared strongest realization. In the current local implementation, candidate ordering is used as the Artist's explicit selection signal: the later candidate is instructed to be the strongest final creative choice.
-
-A diagnostic judge may still calculate dimensions such as grounding, source-copy risk, invention risk, form, or landing. These are observability tools. They are not artistic authority and cannot veto a creation merely because it is strange, unconventional, metaphorical, sparse, subject-led, or unlike previous outputs.
+Diagnostic judges may calculate dimensions such as grounding, source-copy risk, invention risk, form, or landing. These are observability tools. They are not artistic authority and cannot veto a creation merely because it is strange, unconventional, metaphorical, sparse, subject-led, or unlike previous outputs.
 
 ## Reality-integrity boundary
 
@@ -160,7 +160,7 @@ The purpose of the integrity boundary is to keep the Artist free, not to turn cr
 
 A fact may be true and still deserve zero authored language. A rich reality may justify many beats. A thin reality may justify only a few. There is no universal beat count.
 
-There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by the creative idea, not by an arbitrary duration target and not by the number of facts or media items.
+There is no mandatory `hook → develop → turn → payoff` template. Sequence length is earned by the creative idea and the supplied material, not by an arbitrary duration target and not by the number of facts or media items.
 
 The Author must not collapse into a caption generator, event checklist, timestamp reel, receipt, recap, or source-text transcription. Event-by-event coverage is acceptable only when the ordering itself is meaningful.
 
@@ -170,7 +170,7 @@ A film should make supplied reality newly interesting. The target is not explana
 
 Photos, video, geo, timestamps, maps, receipts, links, attachments, actions, and similar materials are first-class experience additions. They may appear before, between, after, or alongside story material without consuming the story's creative capacity.
 
-Presentation additions never cause Cognition to choose a shorter Movie. User-controlled reordering of additions must not mutate reality or the selected semantic Movie.
+Presentation additions never cause Cognition to choose a shorter Movie. User-controlled reordering of additions must not mutate reality or the semantic Movie.
 
 ## Memory and learning
 
@@ -184,7 +184,15 @@ Learning may adapt creative preference, pacing, novelty pressure, lens preferenc
 
 The dashboard should accept whatever reality the user knows. The interface must not require a rigid story form before QRE can understand the input.
 
-QRE may ask one high-value missing concrete detail at a time. Users never need to understand Movie, Frame, RealityGraph, Cognition, Lens, Mouth, or governance mechanics. Users should never be asked to invent the joke, ending, arc, tension, or artistic performance.
+A high-value intake prompt such as:
+
+> **Anything interesting happen?**
+>
+> Something unusual, unexpected, funny, beautiful, weird, awkward, or just oddly memorable?
+
+is a reality-capture affordance, not a style prompt. Users can supply the small details QRE could not otherwise know. Each answer becomes first-class reality available to Cognition and the Artist.
+
+Users never need to understand Movie, Frame, RealityGraph, Cognition, Lens, Mouth, or governance mechanics. Users should never be asked to invent the joke, ending, arc, tension, or artistic performance.
 
 ## Canonical file governance
 
@@ -199,12 +207,10 @@ apps/api/src/services/authorMetamorphicSearch.ts
 apps/api/src/services/authorCreativeSpine.ts
 apps/api/src/services/authorMeaningPressure.ts
 apps/api/src/services/authorCreativeRealizer.ts
-apps/api/src/services/authorExperienceJudge.ts
-apps/api/src/services/authorSemanticGate.ts
 apps/api/src/services/authorBrainCanonical.ts
 ```
 
-`authorRealizedFilmJudge.ts`, when present, is diagnostic/observability infrastructure only. It is not a creative authority.
+`authorRealizedFilmJudge.ts` is diagnostic/observability infrastructure only. `authorExperienceJudge.ts`, where retained for compatibility or telemetry, is not a creative authority and must not select or veto the Movie on taste grounds.
 
 These are one connected system. Runtime, persistence, scan, delivery, generic learning, and compiler infrastructure remain outside the Author semantic authority and are consumed through governed interfaces.
 
@@ -214,8 +220,8 @@ Legacy paths must never become alternate semantic authorities.
 
 Acceptance tests the actual visible artifact and the reality boundary, not whether the artifact obeys a style score.
 
-Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; competing Movie hypotheses; model `cuts[]` ingestion; Movie-level semantic judgment; visible-film grounding; provenance; literal source-copy detection; free artistic/emotional/figurative landing; fabricated-literal detection; explanation and compiler leakage detection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; and learning without reality mutation.
+Required coverage includes reality conservation; participant, place, time, and relationship conservation; grounded relationship discovery; multiple competing Movie hypotheses; model `eventIds`, `cuts[]`, and canonical `trajectory[]` ingestion; visible-film grounding; provenance; literal source-copy detection; free artistic/figurative landing; fabricated-literal diagnostics; explanation and compiler leakage detection; cross-domain structural diversity; memory continuity; return continuation; additive context handling; rich-reality preservation; and learning without reality mutation.
 
-The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation by rejecting literal source replay while accepting a grounded transformed film such as `Apple acquired.` followed by an earned interpretive landing.
+The realized-film acceptance fixture explicitly proves the distinction between factual preservation and artistic transformation. A transformed fact-bearing phrase such as `The gleam of forbidden fruit.` is valid when grounded in a supplied stolen-apple event even though the phrase is not the client's source sentence.
 
 The superintelligence lab must print the complete artifact and diagnostics before assertions so creative failures are inspectable. Numeric style metrics may be reported for learning and regression analysis, but no aesthetic score may determine whether the Artist is allowed to create. The purpose of the test suite is to protect reality while expanding artistic freedom.
