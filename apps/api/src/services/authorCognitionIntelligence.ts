@@ -20,6 +20,8 @@ export type AuthorCognitionIntelligence = {
   compositionRules: string[];
   attention: string[];
   learnedPreferenceSignals: string[];
+  decisionRules: string[];
+  antiFailureChecks: string[];
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -45,8 +47,6 @@ export function buildAuthorCognitionIntelligence(
   returning = false,
   creativeLearningContext: string[] = [],
 ): AuthorCognitionIntelligence {
-  // Media is deliberately not inferred as story events here. The current graph
-  // contract carries media elsewhere in the composition/runtime boundary.
   const mediaCount = 0;
   const geoCount = graph.events.filter((event) => Boolean(event.place)).length;
   const timeCount = graph.events.filter((event) => Boolean(event.time)).length;
@@ -89,6 +89,31 @@ export function buildAuthorCognitionIntelligence(
     .filter((line) => /(?:LEARNED_|AUTO_LEARNED_|RECENT_FEEDBACK|PREFERENCE|WEAKNESS|WINNER|AVOID|PREFERRED|LIKED)/i.test(line))
     .slice(0, 30);
 
+  const decisionRules = [
+    "First decide what the experience is actually about; never assume the input is a story just because multiple facts were supplied.",
+    "Prefer semantic relationships over event coverage. The best Movie may intentionally leave low-value facts out of customer-facing language.",
+    "A Movie step must justify its existence by changing attention, expectation, interpretation, status, curiosity, consequence, recognition, or emotional reading.",
+    "A sequence with one near-paraphrase per source event is a caption reel and must lose to a smaller sequence with stronger semantic movement.",
+    "A sequence that merely restates timestamps, locations, attachments, or completion status is metadata narration, not a Movie.",
+    "Prefer competing interpretations when several grounded readings exist; select for semantic gain, evidence coverage, novelty, and low repetition risk.",
+    "Do not reward length by itself. Do not reward shortness by itself. Reward meaningful information density.",
+    "When evidence supports only one meaningful observation, make that observation excellent instead of manufacturing escalation.",
+    "When prior experience is available, search for what changed in the world or in the reading before considering repetition.",
+    "Learn presentation preference from accepted/rejected work, never facts about the world from creative preference.",
+  ];
+
+  const antiFailureChecks = [
+    "CAPTION_REEL: each story beat cannot merely paraphrase a different source event.",
+    "CHECKLIST_RECAP: event count must not determine story length.",
+    "METADATA_NARRATION: time/geo/media do not become beats unless semantically necessary.",
+    "GENRE_TEMPLATE: lens cannot determine the Movie or manufacture plot.",
+    "PSYCHOLOGICAL_FILL_IN: preference/routine/coincidence does not prove inner state or motive.",
+    "RETURN_REPLAY: returning context cannot simply replay the previous structure with new adjectives.",
+    "SUBJECT_MISPLACEMENT: an arena, venue, service, object, or receipt cannot silently replace the explicit subject as protagonist.",
+    "MOUTH_LEAK: cognition may never emit customer-facing prose, scene direction, invented dialogue, or fake events.",
+    "TRUTH_DRIFT: learned taste and creative framing may never modify source evidence, chronology, actors, places, or outcomes.",
+  ];
+
   const attention = unique([
     "Maximize information density, not minimum word count.",
     "Prefer the supplied detail that changes how an earlier detail is understood.",
@@ -105,5 +130,7 @@ export function buildAuthorCognitionIntelligence(
     compositionRules,
     attention,
     learnedPreferenceSignals,
+    decisionRules,
+    antiFailureChecks,
   };
 }
