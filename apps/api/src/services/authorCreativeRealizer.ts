@@ -24,8 +24,6 @@ type RawSet = { scenes?: unknown };
 const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent movie|creative opportunity|semantic turn|semanticRealization)\b/i;
 const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|let the supplied detail|the relationship between|changes what is worth noticing)\b/i;
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
-const CONTEXT_CHARACTER = /\b(?:groomer|owner|customer|client|waiter|server|bartender|barber|driver|agent|lawyer|doctor|nurse|manager|employee|staff|worker|photographer|dj|deejay|police|officer|cop|enemy|opponent|soldier|guard|host)\b/i;
-const ACTION_WORD = /\b(?:arrived?|came|left|went|met|talked?|spoke|said|gave?|got|found|lost|cleaned?|finished?|started?|opened|closed|walk(?:ed)?|ran|drove?|ate|drank|kiss(?:ed)?|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|stayed|waited|called|laughed|cried|looked|felt|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|reserved|approved|groomed|dyed|tailored|installed|stole|snatched|grabbed|grab|cooed|shrugged|screamed|attacked|fought|hired|watched|heard|sang|danced|takes?|taking|submits?|submitted|submit)\b/i;
 const WORDS = /\b\w+[’'-]*\w*\b/g;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 
@@ -52,20 +50,6 @@ function leadingSubject(text: string, subject: string): boolean {
 }
 function subjectLedRatio(scenes: readonly RealizedScene[], subject: string): number {
   return scenes.length ? scenes.filter((scene) => leadingSubject(scene.text, subject)).length / scenes.length : 1;
-}
-function leadingContextActor(text: string): string | undefined {
-  return clean(text).match(new RegExp(`^(?:the|a|an)?\\s*(${CONTEXT_CHARACTER.source.replace(/^\\b|\\b$/g, "")})\\b`, "i"))?.[1];
-}
-function unsupportedActor(text: string, subject: string): boolean {
-  const actor = leadingContextActor(text); if (!actor) return false;
-  return !subjectNames(subject).some((name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}$`, "i").test(actor));
-}
-function suppliedActions(graph: RealityGraph): Set<string> {
-  return new Set((graph.events.map((event) => event.label).join(" ").match(new RegExp(ACTION_WORD.source, "gi")) ?? []).map((match) => match.toLowerCase()));
-}
-function unsupportedAction(text: string, graph: RealityGraph): boolean {
-  const match = text.match(ACTION_WORD); if (!match) return false;
-  return !suppliedActions(graph).has(match[0].toLowerCase());
 }
 function relationExists(graph: RealityGraph, ids: readonly string[]): boolean {
   const set = new Set(ids);
@@ -108,7 +92,6 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
     const scene = item as RawScene;
     const text = clean(scene.text);
     if (!text || text.length > 180 || INTERNAL.test(text) || EXPLANATION.test(text) || GENERIC.test(text)) return undefined;
-    if (input.graph.events.length && (unsupportedActor(text, input.subject) || unsupportedAction(text, input.graph))) return undefined;
     const sourceEventIds = bindProvenance(scene.sourceEventIds, index, row.scenes.length, input.movie, input.graph);
     if (input.graph.events.length && !sourceEventIds.length) return undefined;
     if (index < row.scenes.length - 1) {
@@ -141,13 +124,13 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
 function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }) {
   const ids = unique(input.movie.anchorEventIds.filter((id) => input.graph.events.some((event) => event.id === id)));
   return {
-    prompt: clean(input.prompt),
+    creativeTask: clean(input.prompt),
     subject: clean(input.subject),
     subjectRole: "factual referent only; never a required grammatical or narrative anchor",
-    lens: clean(input.lens) || "NONE",
+    frame: clean(input.lens) || "NONE",
     domainContext: input.domainContext ?? {},
     memory: (input.memoryContext ?? []).slice(0, 30),
-    priorScenes: (input.priorScenes ?? []).slice(-12),
+    priorFilms: (input.priorScenes ?? []).slice(-12),
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 30),
     selectedRelationship: {
       eventIds: ids,
