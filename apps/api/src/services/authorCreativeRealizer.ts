@@ -125,38 +125,36 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
   const ids = unique(input.movie.anchorEventIds.filter((id) => input.graph.events.some((event) => event.id === id)));
   return {
     creativeTask: clean(input.prompt),
-    subject: clean(input.subject),
+    subjectReference: clean(input.subject),
     subjectRole: "factual referent only; never a required grammatical or narrative anchor",
     frame: clean(input.lens) || "NONE",
     domainContext: input.domainContext ?? {},
     memory: (input.memoryContext ?? []).slice(0, 30),
     priorFilms: (input.priorScenes ?? []).slice(-12),
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 30),
-    selectedRelationship: {
+    selectedStructure: {
       eventIds: ids,
-      events: ids.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, label: event!.label, entities: event!.entities })),
       relationKinds: input.movie.supportingRelationKinds,
-      discoveredEvidence: input.movie.evidence,
-      semanticQuestion: input.movie.unresolvedQuestion,
+      operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })),
     },
-    movie: { hypothesis: input.movie.hypothesis, payoff: input.movie.payoff, trajectory: input.movie.trajectory },
+    suppliedEvidence: ids.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, label: event!.label, entities: event!.entities })),
     realityEvents: input.graph.events.map((event) => ({ id: event.id, label: event.label, place: event.place ?? null, time: event.time ?? null, entities: event.entities })),
   };
 }
 function prompt(repair: boolean): string {
   return [
     repair ? "You are repairing QRE's visible film after a strict reality check." : "You are QRE's ONE CREATIVE REALIZER.",
-    repair ? "Preserve the strongest artistic idea while correcting the rejected form." : "Reality is factual authority. Cognition has already discovered the selected relationship. Your job is to make it FELT.",
+    repair ? "Preserve the strongest artistic idea while correcting the rejected form." : "Cognition has already selected a grounded meaning-bearing structure. You are the artist who turns supplied reality into a felt experience.",
     "Reality is immutable. Do not manufacture plot, people, objects, actions, motives, reactions, chronology or sensory details.",
-    "Facts are evidence. The discovered relationship creates the reading. The final feeling is the art.",
-    "The subject is a factual referent, NOT the narrator and NOT a required grammatical anchor. Never begin every cut with the subject's name.",
-    "Do not organize the film as a person report. Choose the most revealing supplied element for each cut: object, place, time, action, fragment, omission, collision, callback or repetition.",
-    "Do not write one sentence per fact. Make the supplied details interact.",
-    "Change form when the reality earns it. The film may be two sharp cuts or a longer accumulation. Never force a fixed beat count, opening, rhythm, sentence shape or ending shape.",
-    "Prefer compression, juxtaposition and concrete specificity over narration or explanation.",
-    "Every cut before the final landing must contain concrete language grounded in supplied reality. The final cut may become abstract when the preceding relationship earns it.",
-    "Never explain the interpretation. Never mention the viewer, audience, narrative, relationship, evidence, planning or meaning.",
-    "Return JSON only: {sets:[{scenes:[{text,kind}]}]} on the first attempt. Produce 3 genuinely different films when the supplied reality permits it. Do not return source IDs; QRE binds provenance.",
+    "The subject is a reference handle, not a narrator. Never begin every cut with the subject name.",
+    "Do not write a person report, recap or one-sentence-per-fact checklist.",
+    "Use the actual supplied elements as materials. The selected structure tells you which details matter together; it does NOT dictate wording, sentence structure or a fixed sequence.",
+    "Make the relationship visible through composition: juxtaposition, compression, omission, repetition, interruption, callback, reversal, collision, silence, or another form that genuinely fits the supplied world.",
+    "Do not explain the interpretation. Never mention the viewer, audience, narrative, relationship, evidence, planning, meaning, movie, sequence or cognition.",
+    "Every pre-final cut must be concretely grounded in supplied reality. The final cut may become abstract when the preceding material earns it.",
+    "The artist may choose 2-10 cuts. Use exactly as many as the idea needs. Never default to three.",
+    "Produce 3 materially different complete films when the evidence permits it. They must differ in FORM, not merely synonyms.",
+    "Return JSON only: {sets:[{scenes:[{text,kind}]}]}. No commentary. No source IDs; QRE binds provenance.",
   ].join("\n");
 }
 
