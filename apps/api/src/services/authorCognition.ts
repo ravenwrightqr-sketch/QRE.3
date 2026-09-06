@@ -39,22 +39,18 @@ function discoveredScore(relationScore: number, evidenceCount: number, mechanism
   const structuralBonus = mechanism === "contrast" || mechanism === "recontextualization" || mechanism === "convergence" ? 0.06 : 0;
   return clamp(relationScore * 0.72 + evidence * 0.22 + structuralBonus);
 }
-
 function relationCandidates(graph: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
   const discovered = searchSatanicoRelations({ graph, subject, limit: 10 });
   const out: LatentMovieCandidate[] = [];
-
   for (const relation of discovered) {
     const kind = relationKindForMechanism(relation.mechanism);
     const [firstId, secondId] = relation.eventIds;
     const first = graph.events.find((event) => event.id === firstId);
     const second = graph.events.find((event) => event.id === secondId);
     if (!first || !second) continue;
-
     if (!graph.relations.some((item) => item.from === firstId && item.to === secondId && item.kind === kind)) {
       graph.relations.push({ from: firstId, to: secondId, kind, strength: clamp(relation.score) });
     }
-
     const operation = operationForRelation(kind);
     if (!operation) continue;
     const question = relation.mechanism === "contrast"
@@ -64,12 +60,27 @@ function relationCandidates(graph: RealityGraph, subject: string, returning: boo
         : relation.mechanism === "recurrence"
           ? "What gains meaning because it returns?"
           : "What becomes newly noticeable when these details are seen together?";
-
-    const trajectory: LatentMovieTrajectoryStep[] = [
+    const core: LatentMovieTrajectoryStep[] = [
       { order: 1, operation: "establish", eventIds: [firstId], viewerChange: first.label, nextQuestion: question },
       { order: 2, operation, eventIds: [firstId, secondId], viewerChange: relation.reason, nextQuestion: question },
-      { order: 3, operation: "payoff", eventIds: [secondId, firstId], viewerChange: returning ? "Land the changed reading." : second.label, nextQuestion: returning ? "What will feel different next time?" : "What remains after the relationship is noticed?" },
     ];
+    const trajectory = relation.mechanism === "convergence"
+      ? [
+          { order: 1, operation: "establish", eventIds: [firstId], viewerChange: first.label, nextQuestion: "What belongs beside it?" },
+          { order: 2, operation: "reveal", eventIds: [secondId], viewerChange: second.label, nextQuestion: "What changes when both are present?" },
+          { order: 3, operation, eventIds: [firstId, secondId], viewerChange: relation.reason, nextQuestion: "What remains after the convergence?" },
+          { order: 4, operation: "payoff", eventIds: [firstId, secondId], viewerChange: returning ? "Land the changed reading." : "Let the changed reading land.", nextQuestion: returning ? "What will feel different next time?" : "What remains after the relationship is noticed?" },
+        ] satisfies LatentMovieTrajectoryStep[]
+      : relation.mechanism === "transformation"
+        ? [
+            ...core,
+            { order: 3, operation: "reveal", eventIds: [secondId], viewerChange: second.label, nextQuestion: "What does the changed state make visible?" },
+            { order: 4, operation: "payoff", eventIds: [secondId], viewerChange: returning ? "Land the changed reading." : "Let the changed reading land.", nextQuestion: returning ? "What will feel different next time?" : "What remains after the relationship is noticed?" },
+          ] satisfies LatentMovieTrajectoryStep[]
+        : [
+            ...core,
+            { order: 3, operation: "payoff", eventIds: [secondId, firstId], viewerChange: returning ? "Land the changed reading." : second.label, nextQuestion: returning ? "What will feel different next time?" : "What remains after the relationship is noticed?" },
+          ] satisfies LatentMovieTrajectoryStep[];
     const score = discoveredScore(relation.score, relation.evidence.length, relation.mechanism);
     out.push({
       id: `satanico-movie-${out.length + 1}`,
@@ -97,21 +108,14 @@ function relationCandidates(graph: RealityGraph, subject: string, returning: boo
   }
   return out;
 }
-
 function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate): boolean {
   const validIds = new Set(graph.events.map((event) => event.id));
   return candidate.trajectory.every((step) => {
     if (!step.eventIds.length || step.eventIds.some((id) => !validIds.has(id))) return false;
     if (step.eventIds.length < 2) return true;
-    for (let i = 0; i < step.eventIds.length; i += 1) {
-      for (let j = i + 1; j < step.eventIds.length; j += 1) {
-        const relation = graph.relations.find((item) =>
-          (item.from === step.eventIds[i] && item.to === step.eventIds[j]) ||
-          (item.from === step.eventIds[j] && item.to === step.eventIds[i]),
-        );
-        if (!relation) return false;
-        if (operationForRelation(relation.kind) !== step.operation) return false;
-      }
+    for (let i = 0; i < step.eventIds.length; i += 1) for (let j = i + 1; j < step.eventIds.length; j += 1) {
+      const relation = graph.relations.find((item) => (item.from === step.eventIds[i] && item.to === step.eventIds[j]) || (item.from === step.eventIds[j] && item.to === step.eventIds[i]));
+      if (!relation || operationForRelation(relation.kind) !== step.operation) return false;
     }
     return true;
   });
@@ -120,7 +124,7 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): Laten
   const out: LatentMovieCandidate[] = [];
   const seen = new Set<string>();
   for (const candidate of candidates.slice().sort((a, b) => b.score - a.score)) {
-    const signature = `${candidate.trajectory.map((step) => step.operation).join(">")}|${candidate.trajectory.flatMap((step) => step.eventIds).sort().join(",")}`;
+    const signature = `${candidate.trajectory.map((step) => step.operation).join(">")}|${candidate.trajectory.map((step) => step.eventIds.slice().sort().join("+")).join("|")}`;
     if (seen.has(signature)) continue;
     seen.add(signature); out.push(candidate); if (out.length >= limit) break;
   }
@@ -128,12 +132,18 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): Laten
 }
 
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
-  const modelPlan = await buildModelCognitivePlan(input);
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
+  // Relation discovery happens before model cognition so the model can actually
+  // see the grounded semantic structure it is being asked to compete on.
   const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
+  const modelPlan = await buildModelCognitivePlan(input);
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
-  const candidates = dedupeCandidates([...modelGrounded, ...derived]);
-  const selectedMovie = candidates[0];
+  const candidates = dedupeCandidates([...modelGrounded, ...derived], 12);
+  const requestedMovieId = clean((input as AuthorCognitionInput & { selectedMovieId?: string }).selectedMovieId);
+  const modelSelectedId = modelPlan.selectedMovie?.id ?? requestedMovieId;
+  const selectedMovie = modelGrounded.find((candidate) => candidate.id === modelSelectedId)
+    ?? modelGrounded[0]
+    ?? candidates[0];
   return {
     ...modelPlan,
     latentMovieCandidates: candidates,
