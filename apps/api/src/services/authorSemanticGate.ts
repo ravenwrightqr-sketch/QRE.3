@@ -40,7 +40,7 @@ function metric(value: number): number { return Number(Math.max(0, Math.min(1, N
 const MOVEMENT = new Set(["contrast", "reframe", "escalate", "converge", "reveal", "consequence", "payoff", "recur"]);
 const WEAK = new Set(["establish", "confirm"]);
 const SUMMARY_RE = /^(?:[a-z][^.!?]{0,100}\b(?:is|are|likes?|loves?|has|had|was|were|enjoys?|contains?|includes?)\b[^.!?]{0,100})[.!?]?$/i;
-const UNSUPPORTED_INFERENCE = /\b(?:lack of negative|consistently joyful|emotionally fulfilled|happy life|deeply|truly|definitely|obviously|clearly|always|never|perfectly)\b/i;
+const UNSUPPORTED_INFERENCE = /\b(?:lack of negative|consistently joyful|emotionally fulfilled|happy life|deeply|truly|definitely|obviously|clearly|always|never|perfectly|contentment|contented|happiness|happy|anxiety|anxious|joyful|purity|sheltered|fulfilling|fulfilled|simple pleasures|separation anxiety|emotional landscape|emotional journey|perfect scenario|vulnerability|bond|baseline of contentment)\b/i;
 const EXPLANATORY_TURN = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|because this|therefore)\b/i;
 const REALIZATION_MOVES = new Set(["feel_state_transition", "recognize_callback", "recontextualize_callback", "hold_contrast", "return_with_new_status", "land_consequence", "recognize"]);
 const MECHANISMS = new Set(["expectation_shift", "continuation", "state_change", "recurrence", "convergence", "contrast", "consequence"]);
