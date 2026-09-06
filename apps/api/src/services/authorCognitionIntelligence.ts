@@ -19,6 +19,7 @@ export type AuthorCognitionIntelligence = {
   }>;
   compositionRules: string[];
   attention: string[];
+  learnedPreferenceSignals: string[];
 };
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -39,7 +40,13 @@ function relationMove(kind: string): AuthorCognitionIntelligence["candidateMoves
   }
 }
 
-export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning = false): AuthorCognitionIntelligence {
+export function buildAuthorCognitionIntelligence(
+  graph: RealityGraph,
+  returning = false,
+  creativeLearningContext: string[] = [],
+): AuthorCognitionIntelligence {
+  // Media is deliberately not inferred as story events here. The current graph
+  // contract carries media elsewhere in the composition/runtime boundary.
   const mediaCount = 0;
   const geoCount = graph.events.filter((event) => Boolean(event.place)).length;
   const timeCount = graph.events.filter((event) => Boolean(event.time)).length;
@@ -76,11 +83,18 @@ export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning 
     returning ? "Use prior experience only to create a new reading, not to repeat the same movie with different adjectives." : "Avoid defaulting to a generic routine, recap, or chronological montage.",
   ];
 
+  const learnedPreferenceSignals = unique(creativeLearningContext)
+    .map(clean)
+    .filter(Boolean)
+    .filter((line) => /(?:LEARNED_|AUTO_LEARNED_|RECENT_FEEDBACK|PREFERENCE|WEAKNESS|WINNER|AVOID|PREFERRED|LIKED)/i.test(line))
+    .slice(0, 30);
+
   const attention = unique([
     "Maximize information density, not minimum word count.",
     "Prefer the supplied detail that changes how an earlier detail is understood.",
     "Preserve strong nouns, distinctive objects, concrete actions, and real relationships as anchors for the Mouth.",
     "Use the ending for the strongest landing available in the evidence, not a generic 'done' statement.",
+    ...learnedPreferenceSignals.slice(0, 6).map((line) => `LEARNED TASTE: ${line}`),
     ...(returning ? ["A return should make the remembered world feel updated, not merely revisited."] : []),
   ]);
 
@@ -90,5 +104,6 @@ export function buildAuthorCognitionIntelligence(graph: RealityGraph, returning 
     candidateMoves,
     compositionRules,
     attention,
+    learnedPreferenceSignals,
   };
 }
