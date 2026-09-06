@@ -4,6 +4,7 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { analyzeImageForKnowledge } from "../services/aiProvider.js";
+import { learnWebsiteWorld } from "../services/websiteLearning.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
@@ -93,20 +94,65 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     };
 
     const row = await db.insight.create({ data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: finalValue } });
-   await analyticsRepository.trackEvent({
-  assetId: asset.id,
-  type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED",
-  meta: {
-    source: payload.source,
-    category: finalCategory,
-    label: finalLabel,
-    confidence: payload.confidence,
-  },
-});
+    await analyticsRepository.trackEvent({
+      assetId: asset.id,
+      type: generatedFacts.length ? "AI_MEMORY_LEARNED" : "MEMORY_CREATED",
+      meta: { source: payload.source, category: finalCategory, label: finalLabel, confidence: payload.confidence },
+    });
     return res.status(201).json({ success: true, item: { id: row.id, createdAt: row.createdAt, ...payload } });
   } catch (error) {
     console.error("Knowledge write failed:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Knowledge write failed." });
+  }
+});
+
+router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const userId = req.user?.userId;
+    const url = normalizeValue(req.body?.url);
+    const ownerDescription = normalizeValue(req.body?.ownerDescription);
+    if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
+    if (!url) return res.status(400).json({ error: "Website URL required." });
+    const asset = await resolveOwnedAsset(slug, userId);
+    if (!asset) return res.status(404).json({ error: "Asset not found." });
+
+    const learned = await learnWebsiteWorld({ url, ownerDescription });
+    const world = learned.world;
+    const payload = {
+      label: "Business world learned from website",
+      value: world.businessName || asset.displayName || "Business world",
+      category: "business_world",
+      source: "website",
+      sourceUrl: learned.url,
+      sourceTitle: learned.title || undefined,
+      confidence: 0.9,
+      ownerDescription: ownerDescription || undefined,
+      businessName: world.businessName || undefined,
+      businessType: world.businessType || undefined,
+      businessDescription: world.description || undefined,
+      services: world.services,
+      differentiators: world.differentiators,
+      signals: world.signals,
+      subjectKinds: world.subjectKinds,
+      importantFacts: world.importantFacts,
+      sourceExcerpt: learned.sourceExcerpt,
+      updatedBy: userId,
+    };
+
+    const row = await db.insight.create({
+      data: { assetId: asset.id, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: world.description || world.businessType || world.businessName || learned.title },
+    });
+    await analyticsRepository.trackEvent({
+      assetId: asset.id,
+      type: "AI_MEMORY_LEARNED",
+      meta: { source: "website", sourceUrl: learned.url, businessName: world.businessName, services: world.services.length, differentiators: world.differentiators.length },
+    });
+
+    return res.status(201).json({ success: true, item: { id: row.id, createdAt: row.createdAt, ...payload }, world });
+  } catch (error) {
+    console.error("Website learning failed:", error);
+    return res.status(502).json({ error: error instanceof Error ? error.message : "Website learning failed." });
   }
 });
 
@@ -119,14 +165,7 @@ router.delete("/:slug/:itemId", requireAuth, async (req: AuthRequest, res) => {
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
     await db.insight.deleteMany({ where: { id: itemId, assetId: asset.id, type: "KNOWLEDGE" } });
-    await analyticsRepository.trackEvent({
-    assetId: asset.id,
-    type: "MEMORY_UPDATED",
-     meta: {
-    source: "knowledge_delete",
-    itemId,
-  },
-  });
+    await analyticsRepository.trackEvent({ assetId: asset.id, type: "MEMORY_UPDATED", meta: { source: "knowledge_delete", itemId } });
     return res.json({ success: true });
   } catch (error) {
     console.error("Knowledge delete failed:", error);
