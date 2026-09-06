@@ -74,7 +74,17 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
     : 0;
   const thesisStructure = metric((Number(hasSemanticTurn) * 0.3) + (Number(hasCarrierEvidence) * 0.15) + (Number(hasSealingEvidence) * 0.15) + (Number(hasRealization) * 0.2) + (Number(hasRealizationEvidence) * 0.1) + (Number(Boolean(thesis?.beforeMeaning?.length)) * 0.05) + (Number(Boolean(thesis?.afterMeaning?.length)) * 0.05));
 
-  const summaryRisk = SUMMARY_RE.test(clean(movie.hypothesis[0] ?? "")) || weakOnly ? 0.95 : movie.hypothesis.length === 0 ? 0.8 : 0.15;
+  const hasRichThesis = Boolean(thesis && thesisStructure >= 0.7 && observerContract >= 0.6);
+  const summaryShaped = SUMMARY_RE.test(clean(movie.hypothesis[0] ?? ""));
+  const summaryRisk = weakOnly
+    ? 0.95
+    : summaryShaped && !hasRichThesis
+      ? 0.95
+      : movie.hypothesis.length === 0
+        ? 0.8
+        : summaryShaped
+          ? 0.2
+          : 0.15;
   const unsupportedInferenceRisk = UNSUPPORTED_INFERENCE.test(thesisCorpus) ? 0.9 : 0.05;
   const explanatoryRisk = EXPLANATORY_TURN.test(clean(thesis?.semanticTurn)) ? 0.85 : 0;
 
