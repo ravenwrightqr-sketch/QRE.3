@@ -1,14 +1,12 @@
 /*
  * QRE UNIVERSAL SEMANTIC QUALITY GATE
  *
- * Cognition is accepted only when the latent Movie actually carries a
- * grounded semantic turn. Renderability is never enough.
+ * Cognition is accepted only when the latent Movie carries grounded semantic
+ * movement. Creative interpretation is allowed; invented events are not.
  *
  * Reality remains immutable. A candidate is a hypothesis. Rich thesis data
- * strengthens the gate, but an older/simple model response must not be
- * rejected merely because it omitted optional rich-thesis fields. When the
- * trajectory itself proves grounded semantic movement, the gate evaluates
- * that evidence as the compatibility path.
+ * strengthens the gate, but an older/simple model response must not be rejected
+ * merely because it omitted optional rich-thesis fields.
  */
 import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
@@ -40,6 +38,9 @@ function metric(value: number): number { return Number(Math.max(0, Math.min(1, N
 const MOVEMENT = new Set(["contrast", "reframe", "escalate", "converge", "reveal", "consequence", "payoff", "recur"]);
 const WEAK = new Set(["establish", "confirm"]);
 const SUMMARY_RE = /^(?:[a-z][^.!?]{0,100}\b(?:is|are|likes?|loves?|has|had|was|were|enjoys?|contains?|includes?)\b[^.!?]{0,100})[.!?]?$/i;
+// These are not automatically forbidden. They are risk signals only when the
+// candidate makes them the sole unsupported claim instead of using them as a
+// creative reading grounded by concrete event movement.
 const UNSUPPORTED_INFERENCE = /\b(?:lack of negative|consistently joyful|emotionally fulfilled|happy life|deeply|truly|definitely|obviously|clearly|always|never|perfectly|contentment|contented|happiness|happy|anxiety|anxious|joyful|purity|sheltered|fulfilling|fulfilled|simple pleasures|separation anxiety|emotional landscape|emotional journey|perfect scenario|vulnerability|bond|baseline of contentment)\b/i;
 const EXPLANATORY_TURN = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|because this|therefore)\b/i;
 const REALIZATION_MOVES = new Set(["feel_state_transition", "recognize_callback", "recontextualize_callback", "hold_contrast", "return_with_new_status", "land_consequence", "recognize"]);
@@ -51,7 +52,6 @@ function inferenceUnsupported(thesisCorpus: string, realityCorpus: string): bool
   const phrase = clean(match[0]).toLowerCase();
   const reality = clean(realityCorpus).toLowerCase();
   if (!reality) return true;
-  if (reality.includes(phrase)) return false;
   const phraseTokens = [...tokens(phrase)];
   if (!phraseTokens.length) return true;
   const realityTokens = tokens(reality);
@@ -135,7 +135,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
         : summaryShaped
           ? 0.2
           : 0.15;
-  const unsupportedInferenceRisk = inferenceUnsupported(thesisCorpus, realityCorpus) ? 0.9 : 0.05;
+  const unsupportedInferenceRisk = inferenceUnsupported(thesisCorpus, realityCorpus) ? 0.55 : 0.05;
   const explanatoryRisk = EXPLANATORY_TURN.test(clean(thesis?.semanticTurn)) ? 0.85 : 0;
 
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
