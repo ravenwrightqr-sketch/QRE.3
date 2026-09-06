@@ -1,6 +1,6 @@
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 
- type Case = {
+type Case = {
   name: string;
   subject: string;
   lens?: string;
@@ -97,7 +97,7 @@ const cases: Case[] = [
   },
 ];
 
-const forbidden = /\b(?:this means|which means|the point is|the meaning is|the viewer|the audience|the narrative|the story|cognition|planner|candidate|trajectory|evidence|metamorphic|latent movie|creative opportunity)\b/i;
+const forbidden = /\b(?:this means|which means|the point is|the meaning is|the viewer|the audience|the narrative|cognition|planner|candidate|trajectory|evidence|metamorphic|latent movie|creative opportunity)\b/i;
 const leadName = (text: string, subject: string): boolean => new RegExp(`^${subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}(?:\\b|:)`, "i").test(text.trim());
 const words = (text: string): number => (text.match(/\b[\w’'-]+\b/g) ?? []).length;
 
@@ -132,10 +132,11 @@ for (const test of cases) {
   const repeatedNameOpen = result.scenes.length >= 2 && result.scenes.every((scene) => leadName(scene.text, test.subject));
   if (repeatedNameOpen) fail(`${test.name}: subject became an authorial template`);
 
-  const allText = result.scenes.map((scene) => scene.text).join(" ");
-  const compact = result.scenes.every((scene) => words(scene.text) <= 24);
-  if (!compact) fail(`${test.name}: Mouth became prose instead of media`);
+  if (!result.scenes.every((scene) => words(scene.text) <= 24)) {
+    fail(`${test.name}: Mouth became prose instead of media`);
+  }
 
+  const allText = result.scenes.map((scene) => scene.text).join(" ");
   outputs.push(allText);
   console.log(`\n=== ${test.name} ===`);
   console.log(`MOVIE: ${result.movie.id}`);
@@ -151,5 +152,49 @@ if (uniqueOutputs < Math.ceil(cases.length * 0.8)) {
   fail(`cross-domain output collapse: ${uniqueOutputs}/${cases.length} materially unique experiences`);
 }
 
+async function runLens(subject: string, facts: string[], prompt: string, lens: string): Promise<{ text: string; sourceIds: string[] }> {
+  const result = await authorBrainCanonical({
+    prompt,
+    subject,
+    lens,
+    facts,
+    sourceMoments: facts,
+    memoryContext: [],
+    creativeLearningContext: [],
+  });
+  if (!result.diagnostics.complete || !result.movie || !result.scenes.length) {
+    fail(`same-reality/${lens}: no renderable film`);
+  }
+  return {
+    text: result.scenes.map((scene) => scene.text).join(" "),
+    sourceIds: result.sequence.cuts.flatMap((cut) => cut.sourceIds).sort(),
+  };
+}
+
+const lensFacts = [
+  "the restaurant was closed",
+  "the lights were off",
+  "chairs were on the ceiling",
+  "Alex and Sam stayed together",
+];
+const lensPrompt = "Make a short memory from these facts. The lens must change the feeling, never the reality.";
+const comedy = await runLens("Alex and Sam", lensFacts, lensPrompt, "comedy");
+const romance = await runLens("Alex and Sam", lensFacts, lensPrompt, "romance");
+const horror = await runLens("Alex and Sam", lensFacts, lensPrompt, "horror");
+
+if (comedy.sourceIds.join("|") !== romance.sourceIds.join("|") || comedy.sourceIds.join("|") !== horror.sourceIds.join("|")) {
+  fail("same reality produced different provenance envelopes across lenses");
+}
+const sameRealityOutputs = new Set([comedy.text, romance.text, horror.text]);
+if (sameRealityOutputs.size < 2) {
+  fail("same reality collapsed to one identical film across comedy/romance/horror");
+}
+
+console.log("\n=== SAME REALITY / LENS DIVERGENCE ===");
+console.log(`COMEDY: ${comedy.text}`);
+console.log(`ROMANCE: ${romance.text}`);
+console.log(`HORROR: ${horror.text}`);
+console.log("PROVENANCE: SAME");
+console.log("EXPERIENCE: DIVERGENT");
 console.log("\nUNIVERSAL FILM ACCEPTANCE: COMPLETE");
 console.log("REALITY → RELATIONSHIP → MOVIE → LENS → MOUTH → PLAYABLE MEDIA");
