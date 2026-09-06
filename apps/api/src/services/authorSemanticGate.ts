@@ -4,6 +4,9 @@
  * Cognition is accepted only when the latent Movie carries grounded semantic
  * movement. Creative interpretation is allowed; invented events are not.
  *
+ * REAL CREATION CONTRACT:
+ *   FACT → RELATIONSHIP → CHANGE IN WHAT THE VIEWER NOTICES → PAYOFF
+ *
  * Reality remains immutable. A candidate is a hypothesis. Rich thesis data
  * strengthens the gate, but an older/simple model response must not be rejected
  * merely because it omitted optional rich-thesis fields.
@@ -37,7 +40,9 @@ function overlap(left: string, right: string): number {
 function metric(value: number): number { return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3)); }
 
 const MOVEMENT = new Set(["contrast", "reframe", "escalate", "converge", "reveal", "consequence", "payoff", "recur"]);
+const RELATIONAL = new Set(["contrast", "reframe", "escalate", "converge", "reveal", "consequence", "recur"]);
 const WEAK = new Set(["establish", "confirm"]);
+const PAYOFF = new Set(["payoff", "consequence", "reveal", "reframe", "converge", "recur"]);
 const SUMMARY_RE = /^(?:[a-z][^.!?]{0,100}\b(?:is|are|likes?|loves?|has|had|was|were|enjoys?|contains?|includes?)\b[^.!?]{0,100})[.!?]?$/i;
 const UNSUPPORTED_INFERENCE = /\b(?:lack of negative|consistently joyful|emotionally fulfilled|happy life|deeply|truly|definitely|obviously|clearly|always|never|perfectly|contentment|contented|happiness|happy|anxiety|anxious|joyful|purity|sheltered|fulfilling|fulfilled|simple pleasures|separation anxiety|emotional landscape|emotional journey|perfect scenario|vulnerability|bond|baseline of contentment)\b/i;
 const EXPLANATORY_TURN = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|because this|therefore)\b/i;
@@ -89,6 +94,40 @@ function captionReelRisk(movie: LatentMovieCandidate, graph: RealityGraph): numb
   );
 }
 
+function relationBackedStep(movie: LatentMovieCandidate, graph: RealityGraph, stepIndex: number): boolean {
+  const step = movie.trajectory[stepIndex];
+  if (!step || step.eventIds.length < 2 || !RELATIONAL.has(step.operation)) return false;
+  const ids = new Set(step.eventIds);
+  return graph.relations.some((relation) => ids.has(relation.from) && ids.has(relation.to));
+}
+
+function progressionContract(movie: LatentMovieCandidate, graph: RealityGraph): {
+  fact: boolean;
+  relationship: boolean;
+  noticeChange: boolean;
+  payoff: boolean;
+} {
+  const first = movie.trajectory[0];
+  const fact = Boolean(first?.eventIds.some((id) => graph.events.some((event) => event.id === id)));
+  const relationshipIndex = movie.trajectory.findIndex((_, index) => relationBackedStep(movie, graph, index));
+  const relationship = relationshipIndex >= 0;
+  if (!relationship) return { fact, relationship: false, noticeChange: false, payoff: false };
+
+  const relationshipStep = movie.trajectory[relationshipIndex];
+  const beforeText = clean(movie.trajectory.slice(0, relationshipIndex).map((step) => step.viewerChange).join(" "));
+  const relationshipText = clean(relationshipStep?.viewerChange);
+  const noticeChange = Boolean(
+    relationshipStep &&
+    relationshipStep.eventIds.length >= 2 &&
+    MOVEMENT.has(relationshipStep.operation) &&
+    relationshipText &&
+    relationshipText !== beforeText,
+  );
+
+  const payoff = movie.trajectory.some((step, index) => index > relationshipIndex && PAYOFF.has(step.operation));
+  return { fact, relationship, noticeChange, payoff };
+}
+
 export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityGraph): SemanticGateResult {
   const reasons: string[] = [];
   const allIds = movie.trajectory.flatMap((step) => step.eventIds);
@@ -102,6 +141,8 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   const weakOnly = operations.length > 0 && operations.every((operation) => WEAK.has(operation));
   const semanticMovement = metric(meaningful.length === 0 ? 0 : Math.min(1, 0.42 + meaningful.length * 0.11 + uniqueMeaningful.size * 0.09));
   const progressionVariety = metric(uniqueMeaningful.size / 3);
+
+  const contract = graph.events.length > 1 ? progressionContract(movie, graph) : { fact: true, relationship: true, noticeChange: true, payoff: true };
 
   const realityCorpus = graph.events.map((event) => [event.label, ...event.entities].join(" ")).join(" ");
   const thesis = movie.storyThesis;
@@ -172,6 +213,9 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (weakOnly) reasons.push("trajectory is establish/confirm-only; no semantic movement");
   if (!meaningful.length) reasons.push("Movie contains no semantic movement");
   if (evidenceCoverage < 0.34 && graph.events.length > 0) reasons.push("Movie is weakly anchored to supplied reality");
+  if (graph.events.length > 1 && !contract.relationship) reasons.push("Movie has no grounded relationship between supplied facts");
+  if (graph.events.length > 1 && contract.relationship && !contract.noticeChange) reasons.push("Movie does not change what the viewer notices after the relationship");
+  if (graph.events.length > 1 && contract.relationship && !contract.payoff) reasons.push("Movie has no payoff after its semantic relationship");
   if (thesisGrounding < 0.2 && graph.events.length > 0 && meaningful.length === 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
   if (summaryRisk >= 0.9) reasons.push("Movie hypothesis reads as a factual summary rather than a semantic discovery");
   if (unsupportedInferenceRisk >= 0.9) reasons.push("Movie contains unsupported psychological/generalized inference");
