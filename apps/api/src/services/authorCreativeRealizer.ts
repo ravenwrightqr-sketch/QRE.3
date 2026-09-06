@@ -48,11 +48,7 @@ function overlap(left: string, right: string): number {
   return hits / Math.max(1, a.size);
 }
 function subjectNames(subject: string): string[] {
-  return clean(subject)
-    .split(/\s*(?:\+|&|,|\/|\band\b)\s*/i)
-    .map(clean)
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
+  return clean(subject).split(/\s*(?:\+|&|,|\/|\band\b)\s*/i).map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
 }
 function subjectPattern(subject: string): RegExp | undefined {
   const names = subjectNames(subject).map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -83,17 +79,7 @@ function graphText(graph: RealityGraph): string {
 }
 function domainText(context?: AuthorDomainContext): string {
   if (!context) return "";
-  return [
-    context.category,
-    context.businessType,
-    context.businessName,
-    context.businessDescription,
-    context.serviceType,
-    context.serviceName,
-    context.subjectKind,
-    ...(context.knownCapabilities ?? []),
-    ...(context.contextualSignals ?? []),
-  ].map(clean).filter(Boolean).join(" ");
+  return [context.category, context.businessType, context.businessName, context.businessDescription, context.serviceType, context.serviceName, context.subjectKind, ...(context.knownCapabilities ?? []), ...(context.contextualSignals ?? [])].map(clean).filter(Boolean).join(" ");
 }
 function leadingContextActor(text: string): string | undefined {
   const match = clean(text).match(new RegExp(`^(?:the|a|an)?\\s*(${CONTEXT_CHARACTER.source.replace(/^\\b|\\b$/g, "")})\\b(?:\\s+[^:]{0,40})?`, "i"));
@@ -150,19 +136,19 @@ function validateSet(raw: unknown, graph: RealityGraph, subject: string): Realiz
     const scene = item as RawScene;
     const text = clean(scene.text);
     if (!text || text.length > 180 || INTERNAL.test(text) || EXPLANATION.test(text) || GENERIC.test(text)) return undefined;
-    const sourceEventIds = Array.isArray(scene.sourceEventIds)
-      ? unique(scene.sourceEventIds.filter((id): id is string => typeof id === "string")).filter((id) => validIds.has(id))
-      : [];
+    const sourceEventIds = Array.isArray(scene.sourceEventIds) ? unique(scene.sourceEventIds.filter((id): id is string => typeof id === "string")).filter((id) => validIds.has(id)) : [];
     if (!conceptual && !sourceEventIds.length) return undefined;
     if (!conceptual && (unsupportedContextActor(text, subject) || unsupportedAction(text, graph, sourceEventIds))) return undefined;
-    const kind = ALLOWED_KINDS.has(clean(scene.kind))
-      ? clean(scene.kind) as AuthorScene["kind"]
-      : scenes.length === 0 ? "hook" : scenes.length === row.scenes.length - 1 ? "payoff" : "line";
+    const kind = ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : scenes.length === 0 ? "hook" : scenes.length === row.scenes.length - 1 ? "payoff" : "line";
     scenes.push({ text, kind, sourceEventIds, score: 0 });
   }
   if (!scenes.length) return undefined;
   if (scenes.length >= 3 && contextRoleLoad(scenes, graph) > 0.75) return undefined;
   return scenes;
+}
+function eventAnchorCount(scenes: readonly RealizedScene[], graph: RealityGraph): number {
+  const byEvent = new Map(graph.events.map((event) => [event.id, scenes.filter((scene) => scene.sourceEventIds.includes(event.id)).map((scene) => scene.text).join(" ")]));
+  return graph.events.reduce((count, event) => count + (overlap(byEvent.get(event.id) ?? "", event.label) >= 0.2 ? 1 : 0), 0);
 }
 function groundedSignalScore(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (!graph.events.length) return 1;
@@ -192,21 +178,7 @@ function scoreSet(scenes: RealizedScene[], movie: LatentMovieCandidate, graph: R
   const omissionBonus = 1 - subjectPenalty;
   const lensBonus = lens && lens !== "LET QRE DECIDE" ? 0.04 : 0;
   const contextPenalty = contextRoleLoad(scenes, graph);
-  return metric(
-    sourceCoverage * 0.16 +
-    evidenceFit * 0.16 +
-    grounded * 0.22 +
-    novelty * 0.11 +
-    rhythm * 0.09 +
-    compactness * 0.08 +
-    thesisGrounding * 0.06 +
-    omissionBonus * 0.10 +
-    domainFit * 0.02 +
-    lensBonus -
-    repeatedStarts * 0.045 -
-    subjectPenalty * 0.08 -
-    contextPenalty * 0.12,
-  );
+  return metric(sourceCoverage * 0.16 + evidenceFit * 0.16 + grounded * 0.22 + novelty * 0.11 + rhythm * 0.09 + compactness * 0.08 + thesisGrounding * 0.06 + omissionBonus * 0.10 + domainFit * 0.02 + lensBonus - repeatedStarts * 0.045 - subjectPenalty * 0.08 - contextPenalty * 0.12);
 }
 
 export async function realizeAuthorExperience(input: {
@@ -222,93 +194,49 @@ export async function realizeAuthorExperience(input: {
 }): Promise<AuthorRealizationResult> {
   const eventTable = input.graph.events.map((event) => ({ id: event.id, label: event.label, place: event.place ?? null, time: event.time ?? null, entities: event.entities }));
   const context = {
-    prompt: clean(input.prompt),
-    subject: clean(input.subject),
-    lens: clean(input.lens) || "LET QRE DECIDE",
-    domainContext: input.domainContext ?? {},
-    memory: (input.memoryContext ?? []).slice(0, 40),
-    priorScenes: (input.priorScenes ?? []).slice(-12),
-    creativeLearning: (input.creativeLearningContext ?? []).slice(0, 40),
-    movie: {
-      thesis: input.movie.hypothesis,
-      storyThesis: input.movie.storyThesis,
-      payoff: input.movie.payoff,
-      question: input.movie.unresolvedQuestion,
-      trajectory: input.movie.trajectory,
-      evidence: input.movie.evidence,
-      supportingRelations: input.movie.supportingRelationKinds,
-      sourceEventIds: input.movie.trajectory.flatMap((step) => step.eventIds),
-    },
-    realityEvents: eventTable,
+    prompt: clean(input.prompt), subject: clean(input.subject), lens: clean(input.lens) || "LET QRE DECIDE", domainContext: input.domainContext ?? {}, memory: (input.memoryContext ?? []).slice(0, 40), priorScenes: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 40),
+    movie: { thesis: input.movie.hypothesis, storyThesis: input.movie.storyThesis, payoff: input.movie.payoff, question: input.movie.unresolvedQuestion, trajectory: input.movie.trajectory, evidence: input.movie.evidence, supportingRelations: input.movie.supportingRelationKinds, sourceEventIds: input.movie.trajectory.flatMap((step) => step.eventIds) }, realityEvents: eventTable,
   };
-
-  let model = "fallback";
-  let modelCalls = 0;
-  let parsed: Record<string, unknown> | undefined;
+  let model = "fallback"; let modelCalls = 0; let parsed: Record<string, unknown> | undefined;
   try {
-    const result = await localModelGenerate([
-      {
-        role: "system",
-        content: [
-          "You are QRE's ONE CREATIVE REALIZER. The Movie and frame are already selected. Do not redesign them.",
-          "Readout is facts. Your job is to realize the selected semantic progression as customer-facing language.",
-          "UNIVERSALITY RULE: there is no default author voice for dogs, grooming, restaurants, memories, movies, places, products, weddings or any other domain. Let the supplied reality and supplied arena/context determine the vocabulary, rhythm, attitude and structure.",
-          "CONNECT THE DOTS, DON'T EXPLAIN THEM: arrange supplied details so the viewer can recognize the relationship. Do not replace a concrete supplied detail with decorative poetry merely to sound creative.",
-          "CONCRETE ANCHOR RULE: across the complete set, preserve multiple unmistakable anchors from the supplied events when those anchors carry the identity of the experience. A creative transformation may compress or rephrase a fact, but it must remain recognizable.",
-          "STAR / ARENA: the supplied subject is the star. The house, service, receipt, restaurant, venue, city, object or event is the arena. Business/domain context tells you what kind of world you are in; it does not authorize invented events or employees.",
-          "DOMAIN CONTEXT: use supplied business name, type, service, description, capabilities and contextual signals as vocabulary and arena knowledge. Example: if the arena is a grooming business and the supplied reality says the dog arrived dirty, had a bath, got a blue bow and was picked up, a transformation such as 'Came back looking expensive' can be earned. Do not invent grooming steps that were not supplied.",
-          "SUBJECT NAME IS SCARCE: the subject name is already known from context. Prefer omission. Never begin consecutive screens with the name. Use it only when identity genuinely needs re-establishing or a deliberate return makes the name meaningful.",
-          "FELT OVER RECITED: prefer fragments, status, juxtaposition, callback, omission, rhythm, recontextualization and a clean landing. 'Kitchen cleared.' can feel more alive than 'Maria cleaned the kitchen.'",
-          "OBSERVER COMPLETION: do not explain every connection. Give the viewer enough evidence to recognize the pattern, then stop. The punchline may be an implication, comparison, status shift or realization rather than an explanation.",
-          "CREATIVE LANGUAGE: metaphor, irony, personification, exaggeration and genre language are allowed when earned by the selected Movie and grounded by the supplied details. Words such as love, beautiful, expensive or wild are not forbidden merely because they are creative; they are allowed when the supplied reality or selected frame earns them. Unsupported psychological states, motives, reactions and factual actions remain forbidden.",
-          "Every concrete event remains grounded in cited source events. Do not invent people, dialogue, reactions, actions, motives, tools, movement, arrival, departure, romance, injury or outcomes. A status comparison or opinion can be creative; a new event is not.",
-          "Context workers and roles are arena, not characters, unless the supplied reality explicitly makes them part of the subject of the experience.",
-          "NONE is valid. Do not force a frame when the supplied facts already create the strongest effect.",
-          "ONE SCREEN = ONE BEAT. Usually 2-10 words. Fragments are welcome. Shortness is rhythm, not a hard ceiling.",
-          "Do not make every screen sound like poetry. Use the diction the subject, evidence, arena and frame naturally call for. Different domains should produce different structures.",
-          "Never write planning language, compiler language, analysis language, or explanations such as 'this means', 'the viewer sees', or 'the point is'.",
-          "Return JSON only: {sets:[{scenes:[{text,kind,sourceEventIds:[]}]}]} with 3 materially different complete sets.",
-        ].join("\n"),
-      },
-      { role: "user", content: JSON.stringify(context) },
-    ], "json", { numPredict: 3000, temperature: 0.96 });
-    model = result.model;
-    modelCalls = 1;
-    parsed = parseJson(result.text);
-  } catch {
-    parsed = undefined;
-  }
-
+    const result = await localModelGenerate([{ role: "system", content: [
+      "You are QRE's ONE CREATIVE REALIZER. The Movie and frame are already selected. Do not redesign them.",
+      "Readout is facts. Your job is to realize the selected semantic progression as customer-facing language.",
+      "UNIVERSALITY RULE: there is no default author voice for dogs, grooming, restaurants, memories, movies, places, products, weddings or any other domain. Let the supplied reality and supplied arena/context determine the vocabulary, rhythm, attitude and structure.",
+      "CONNECT THE DOTS, DON'T EXPLAIN THEM: arrange supplied details so the viewer can recognize the relationship. Do not replace a concrete supplied detail with decorative poetry merely to sound creative.",
+      "CONCRETE ANCHOR RULE: across the complete set, preserve multiple unmistakable anchors from the supplied events when those anchors carry the identity of the experience. A creative transformation may compress or rephrase a fact, but it must remain recognizable.",
+      "STAR / ARENA: the supplied subject is the star. The house, service, receipt, restaurant, venue, city, object or event is the arena. Business/domain context tells you what kind of world you are in; it does not authorize invented events or employees.",
+      "DOMAIN CONTEXT: use supplied business name, type, service, description, capabilities and contextual signals as vocabulary and arena knowledge. Example: if the arena is a grooming business and the supplied reality says the dog arrived dirty, had a bath, got a blue bow and was picked up, a transformation such as 'Came back looking expensive' can be earned. Do not invent grooming steps that were not supplied.",
+      "SUBJECT NAME IS SCARCE: the subject name is already known from context. Prefer omission. Never begin consecutive screens with the name. Use it only when identity genuinely needs re-establishing or a deliberate return makes the name meaningful.",
+      "FELT OVER RECITED: prefer fragments, status, juxtaposition, callback, omission, rhythm, recontextualization and a clean landing. 'Kitchen cleared.' can feel more alive than 'Maria cleaned the kitchen.'",
+      "OBSERVER COMPLETION: do not explain every connection. Give the viewer enough evidence to recognize the pattern, then stop. The punchline may be an implication, comparison, status shift or realization rather than an explanation.",
+      "CREATIVE LANGUAGE: metaphor, irony, personification, exaggeration and genre language are allowed when earned by the selected Movie and grounded by the supplied details. Words such as love, beautiful, expensive or wild are not forbidden merely because they are creative; they are allowed when the supplied reality or selected frame earns them. Unsupported psychological states, motives, reactions and factual actions remain forbidden.",
+      "Every concrete event remains grounded in cited source events. Do not invent people, dialogue, reactions, actions, motives, tools, movement, arrival, departure, romance, injury or outcomes. A status comparison or opinion can be creative; a new event is not.",
+      "Context workers and roles are arena, not characters, unless the supplied reality explicitly makes them part of the subject of the experience.",
+      "NONE is valid. Do not force a frame when the supplied facts already create the strongest effect.",
+      "ONE SCREEN = ONE BEAT. Usually 2-10 words. Fragments are welcome. Shortness is rhythm, not a hard ceiling.",
+      "Do not make every screen sound like poetry. Use the diction the subject, evidence, arena and frame naturally call for. Different domains should produce different structures.",
+      "NEVER OUTPUT AN ABSTRACT SET: for a factual event graph with 3 or more events, at least two scene texts must visibly preserve a concrete noun or distinctive phrase from different supplied events. Provenance IDs alone are not enough. 'Threshold / Beyond / Release' is invalid; 'Arrival / Bath / Blue bow / Pickup' is valid.",
+      "Never write planning language, compiler language, analysis language, or explanations such as 'this means', 'the viewer sees', or 'the point is'.",
+      "Return JSON only: {sets:[{scenes:[{text,kind,sourceEventIds:[]}]}]} with 3 materially different complete sets.",
+    ].join("\n") }, { role: "user", content: JSON.stringify(context) }], "json", { numPredict: 3000, temperature: 0.96 });
+    model = result.model; modelCalls = 1; parsed = parseJson(result.text);
+  } catch { parsed = undefined; }
   const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : [];
-  const sets = rawSets
-    .map((item) => validateSet(item, input.graph, clean(input.subject)))
-    .filter((set): set is RealizedScene[] => Boolean(set));
-
-  const groundedSets = sets.filter((set) => set.length < 3 || groundedSignalScore(set, input.graph) >= 0.3);
-
+  const sets = rawSets.map((item) => validateSet(item, input.graph, clean(input.subject))).filter((set): set is RealizedScene[] => Boolean(set));
+  const groundedSets = sets.filter((set) => {
+    if (!input.graph.events.length) return true;
+    if (set.length < 3) return groundedSignalScore(set, input.graph) >= 0.3;
+    const anchorCount = eventAnchorCount(set, input.graph);
+    return groundedSignalScore(set, input.graph) >= 0.3 && anchorCount >= Math.min(2, input.graph.events.length);
+  });
   if (!groundedSets.length) {
-    const fallbackSource = input.graph.events[0]?.label || clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.";
-    const fallbackText = stripSubjectLead(fallbackSource, clean(input.subject));
-    const fallback: RealizedScene[] = [{
-      text: fallbackText || "Something worth remembering.",
-      kind: "hook",
-      sourceEventIds: input.graph.events[0] ? [input.graph.events[0].id] : [],
-      score: 0,
-    }];
-    return {
-      scenes: fallback,
-      score: input.graph.events.length ? 0.25 : 0.55,
-      model,
-      modelCalls,
-      rejectedSets: rawSets.length,
-      reason: "model realizations lacked sufficient grounded signal; used conservative subject-sparse fallback",
-    };
+    const fallbackEvents = input.graph.events.slice(0, 8);
+    const fallbackScenes: RealizedScene[] = fallbackEvents.map((event, index, events) => ({ text: stripSubjectLead(event.label, clean(input.subject)) || `Event ${index + 1}`, kind: index === 0 ? "hook" : index === events.length - 1 ? "payoff" : "line", sourceEventIds: [event.id], score: 0 }));
+    const fallback = fallbackScenes.length > 0 ? fallbackScenes : [{ text: stripSubjectLead(clean(input.movie.payoff) || clean(input.prompt) || "Something worth remembering.", clean(input.subject)) || "Something worth remembering.", kind: "hook" as const, sourceEventIds: [], score: 0 }];
+    return { scenes: fallback, score: input.graph.events.length ? 0.25 : 0.55, model, modelCalls, rejectedSets: rawSets.length, reason: "model realizations lacked sufficient multi-event grounded signal; used deterministic event-grounded fallback" };
   }
-
-  const scored = groundedSets
-    .map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject), input.domainContext) }))
-    .sort((a, b) => b.score - a.score);
-  const best = scored[0]!;
-  best.scenes.forEach((scene) => { scene.score = best.score; });
+  const scored = groundedSets.map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.lens, input.priorScenes ?? [], clean(input.subject), input.domainContext) })).sort((a, b) => b.score - a.score);
+  const best = scored[0]!; best.scenes.forEach((scene) => { scene.score = best.score; });
   return { scenes: best.scenes, score: best.score, model, modelCalls, rejectedSets: rawSets.length - groundedSets.length };
 }
