@@ -4,7 +4,7 @@
  * Cognition discovers a grounded relationship. Meaning Pressure explains why
  * that relationship has artistic charge. The Mouth discovers how to embody it.
  * Reality owns concrete truth. The artist owns form and visible language.
- * QRE binds provenance after creation and independently judges the film.
+ * QRE binds provenance after creation and independently observes the artifact.
  */
 import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -27,6 +27,7 @@ const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the poin
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
 const WORDS = /\b\w+[’'-]*\w*\b/g;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
+const MAX_CUTS = 24;
 
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
@@ -83,12 +84,12 @@ function bindProvenance(rawIds: unknown, index: number, movie: LatentMovieCandid
 function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMovieCandidate }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "set is not an object" };
   const row = raw as RawSet; if (!Array.isArray(row.scenes)) return { reason: "set.scenes is missing" };
-  if (row.scenes.length < 2) return { reason: "film needs at least 2 cuts" }; if (row.scenes.length > 10) return { reason: "film exceeds 10 cuts" };
+  if (row.scenes.length < 2) return { reason: "film needs at least 2 cuts" }; if (row.scenes.length > MAX_CUTS) return { reason: `film exceeds ${MAX_CUTS} cuts` };
   const scenes: RealizedScene[] = [];
   for (const [index, item] of row.scenes.entries()) {
     if (!item || typeof item !== "object") return { reason: `cut ${index + 1} is not an object` };
     const scene = item as RawScene; const text = clean(scene.text);
-    if (!text) return { reason: `cut ${index + 1} is empty` }; if (text.length > 180) return { reason: `cut ${index + 1} exceeds 180 characters` };
+    if (!text) return { reason: `cut ${index + 1} is empty` }; if (text.length > 240) return { reason: `cut ${index + 1} exceeds 240 characters` };
     if (INTERNAL.test(text)) return { reason: `cut ${index + 1} leaks internal architecture` };
     if (EXPLANATION.test(text)) return { reason: `cut ${index + 1} explains instead of dramatizing` };
     if (GENERIC.test(text)) return { reason: `cut ${index + 1} is generic` };
@@ -104,7 +105,7 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
   const meaningPressure = deriveMeaningPressure({ graph: input.graph, movie: input.movie });
   return {
     creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
-    memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-8), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
+    memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
     sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, repairFeedback: clean(repairFeedback),
     creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
@@ -124,13 +125,14 @@ function prompt(attempt: number, feedback: string): string {
     "Do not explain the meaning. Make the relationship felt through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, personification, callback, gamification or another device that feels earned.",
     "Metaphor is encouraged. Concrete metaphorical language is allowed even when the pictured thing was not literally present. 'Forbidden fruit' is valid for a stolen apple. 'Boss battle' is valid for a brutal cleaning run. 'No survivors' can be a comic metaphor for an exhausting task. CREATE LIKE AN ARTIST, not a compliance engine.",
     "You may be funny, strange, lyrical, stark, dark, tender, absurd, camp, dramatic, playful, deadpan, surreal, irreverent or understated. Artistic personality is a feature.",
-    "Do not force every fact into the film. Do not force a fixed number of beats. A 2-cut knockout is better than 6 dead cuts. A rich reality may justify more.",
+    "Do not force every fact into the film. Do not force a fixed number of beats. A 2-cut knockout is better than dead cuts. Rich reality may deserve a substantially richer film. Never stop at 3 cuts merely because three is convenient if the material clearly supports more.",
     "The subject is not a required narrator. Use the subject name only when it creates artistic value.",
     "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, sensory fact, bodily reaction or specific circumstance and present it as though it happened.",
     "Abstract interpretation and figurative invention are welcome. The goal is entertainment media created from reality, not sanitized summaries of reality.",
     "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
     "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are an exploration, not a competition against a scoring rubric. ORDER THEM FROM EARLY EXPLORATION TO YOUR STRONGEST FINAL CREATIVE CHOICE. Candidate four should be the piece you would actually ship if it remains truthful.",
-    "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-10 cuts per candidate. No commentary. No source IDs.",
+    "Candidate length is earned by the material. Two cuts can be perfect. Rich material can use 4, 6, 8, 12 or more cuts. Do not truncate a film merely to fit a tiny reel shape.",
+    "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-24 cuts per candidate. No commentary. No source IDs.",
     `This is creative attack ${attempt + 1} of 3.`,
     feedback ? `Previous attempts did not land because: ${feedback}. Do NOT become safer. Become more inventive and more specific.` : "No prior failure. Explore the full artistic space.",
     attacks[Math.min(attempt, attacks.length - 1)],
@@ -143,7 +145,7 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
     const feedback = rejectedReasons.slice(-4).join(" | ");
     const ctx = context(input, feedback);
     try {
-      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 3000, temperature: [1.0, 1.12, 1.04][attempt]! });
+      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 4200, temperature: [1.0, 1.12, 1.04][attempt]! });
       model = result.model; modelCalls += 1;
       const parsed = parseJson(result.text); const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : parsed ? [parsed] : [];
       const validSets: Array<{ scenes: RealizedScene[]; judgment: RealizedFilmJudgment }> = [];
@@ -151,7 +153,7 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
         const validation = validateSet(raw, input);
         if (!validation.scenes) { rejectedSets += 1; if (validation.reason) rejectedReasons.push(validation.reason); continue; }
         const judgment = judgeRealizedFilm({ scenes: validation.scenes, movie: input.movie, graph: input.graph }); lastJudgment = judgment;
-        // Judgment records what happened to the artifact; it does not select it.
+        // Artifact judgment is diagnostic. It never selects the artwork.
         validSets.push({ scenes: validation.scenes, judgment });
       }
       if (validSets.length) {
