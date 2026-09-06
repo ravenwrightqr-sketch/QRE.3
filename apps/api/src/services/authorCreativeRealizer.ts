@@ -1,12 +1,14 @@
 /*
  * QRE CANONICAL CREATIVE REALIZER
  *
- * Cognition discovers a grounded relationship. Gemma performs it.
+ * Cognition discovers a grounded relationship. Meaning Pressure explains why
+ * that relationship has artistic charge. The Mouth discovers how to embody it.
  * Reality owns concrete truth. The artist owns form and visible language.
  * QRE binds provenance after creation and independently judges the film.
  */
 import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { deriveMeaningPressure } from "./authorMeaningPressure.js";
 import { judgeRealizedFilm, type RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
 
 export type RealizedScene = AuthorScene & { sourceEventIds: string[]; score: number };
@@ -37,10 +39,6 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const words = (text: string): string[] => clean(text).match(WORDS) ?? [];
 const tokens = (text: string): Set<string> => new Set(words(text).map((word) => word.toLowerCase()).filter((word) => word.length > 2));
-const overlap = (left: string, right: string): number => {
-  const a = tokens(left); const b = tokens(right); if (!a.size || !b.size) return 0;
-  let hits = 0; for (const token of a) if (b.has(token)) hits += 1; return hits / Math.max(1, a.size);
-};
 
 function subjectNames(subject: string): string[] {
   return clean(subject).split(/\s*(?:\+|&|,|\/|\band\b)\s*/i).map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
@@ -109,7 +107,6 @@ function bindProvenance(rawIds: unknown, index: number, total: number, movie: La
   const supplied = Array.isArray(rawIds) ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id)) : [];
   if (supplied.length) return supplied;
   const device = buildArtistDevice(graph, movie);
-  if (index === total - 1 && device.sourceEventIds.length >= 2) return device.sourceEventIds;
   if (index > 0 && device.sourceEventIds.length >= 2) return device.sourceEventIds;
   const anchors = unique([...movie.anchorEventIds, ...movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => valid.has(id)));
   return anchors.slice(0, 1);
@@ -131,7 +128,6 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; subject: string
     const kind = ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line";
     scenes.push({ text, kind, sourceEventIds, score: 0 });
   }
-  if (scenes.length >= 3 && subjectLedRatio(scenes, input.subject) > 0.5) return { reason: "subject is dominating the film grammar" };
   const used = new Set(scenes.flatMap((scene) => scene.sourceEventIds));
   if (input.graph.events.length >= 2 && !relationExists(input.graph, input.movie.anchorEventIds)) return { reason: "selected Movie has no grounded graph relation" };
   if (input.graph.events.length >= 2 && used.size < 2) return { reason: "film uses fewer than two supplied events" };
@@ -143,42 +139,43 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
   const relevantIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
   const relevantEvents = relevantIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
   const artistDevice = buildArtistDevice(input.graph, input.movie);
+  const meaningPressure = deriveMeaningPressure({ graph: input.graph, movie: input.movie });
   return {
-    creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "referent only; never narrator; never a required grammatical anchor", frame: clean(input.lens) || "NONE",
+    creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
     memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-8), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: relevantIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
     sourceReality: relevantEvents,
     artistDevice,
+    meaningPressure,
     repairFeedback: clean(repairFeedback),
-    artistRule: "Preserve semantic truth, never the client's sentence. The visible film is an artistic transformation of supplied reality. Concrete additions are forbidden; new grammar, compression, nominalization, omission, juxtaposition, repetition, inversion, metaphor, status shift, abstract feeling and other interpretive language are allowed when they do not assert a new concrete fact.",
+    creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, compression, omission, fragments and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
+    artistRule: "Preserve semantic truth, never the client's sentence. The visible film is an artistic transformation of supplied reality. Concrete additions are forbidden; interpretive language is welcome when it does not quietly assert a new concrete event, object, sensory fact, chronology, dialogue or hidden psychological fact as though it were supplied.",
   };
 }
 function prompt(attempt: number, feedback: string): string {
-  const modes = [
-    "Treat the source as raw reality, not as copy text. Transform its grammar aggressively while conserving its factual meaning.",
-    "Attack the source language. Find a shorter, stranger, cleaner form for the same facts. Do not merely paraphrase the sentences.",
-    "Make the strongest visual-language version of the selected relationship. Use omission, compression, fragments, nominalization, inversion, collision, recurrence or silence according to the supplied Artist Device.",
+  const attacks = [
+    "Find the latent charge first. Then embody it. Do not announce the charge.",
+    "Destroy the source wording and rebuild the film from the meaning pressure. Be bold, economical, and materially different.",
+    "Make the third or fourth candidate the one you would actually remember. Take a creative risk in language while keeping reality exact.",
   ];
   return [
     "You are QRE's ONE CREATIVE REALIZER.",
-    "You are the artist, not a summarizer, reporter, caption writer or narrator.",
-    "Reality is absolute. Wording is not.",
-    "Preserve what happened, not the client's sentence structure.",
-    "The subject is only a referent. Never make the subject the default grammatical anchor of every cut.",
-    "The selected Artist Device tells you what relationship to realize and which formal transformations are available. Choose the form; do not mechanically use every mode.",
-    "At least one non-final cut should normally enter without the subject name when the supplied reality permits it.",
-    "Do not reproduce any supplied event sentence verbatim. A single fact-bearing noun may remain. A transformed phrase such as 'Apple acquired.' is valid.",
-    "Do not turn each supplied event into one sentence. Leave low-value facts out when the semantic move does not need them.",
-    "The final cut may be a compact artistic interpretation. It may use new abstract or emotional words. Do not turn interpretation into a new concrete event or claimed hidden psychology.",
-    "Never invent concrete objects, actions, people, places, chronology, dialogue, sensory details or bodily reactions.",
-    "No imagined cinematography. No explanation of the meaning. No planner language.",
-    "Generate four materially different film candidates. They should differ in rhythm, compression, ordering, grammar or structural device—not merely adjectives.",
-    "Candidate forms may include: object-first, action-fragment, nominalization, collision, inversion, repetition-with-mutation, accumulation, silence/ellipsis, callback, status-flip, or another form earned by the Artist Device.",
-    "Every candidate must still conserve the supplied reality. Artistic novelty is welcome; factual novelty is forbidden.",
+    "You are a filmmaker/poet/editor creating visible language, not a reporter.",
+    "The source facts are sacred. The source sentences are disposable.",
+    "Meaning Pressure is the reason this reality is interesting. Artist Device is only a set of possible tools. Do not mechanically follow either one.",
+    "Ask yourself: when these true details are placed together, what changes in what becomes noticeable? Make THAT change felt.",
+    "Do not write the answer as an explanation. Embody it through selection, order, rhythm, omission, implication, irony, metaphor, status, repetition, collision, reversal, abstraction, or another device that feels earned.",
+    "You may be funny, strange, lyrical, stark, dark, tender, absurd, or understated. Artistic personality is a feature, not a defect.",
+    "Do not force every fact into the film. Do not force a fixed number of beats. Let the strongest detail win.",
+    "The subject is not a required narrator or grammatical anchor. Use the subject name only when it creates artistic value.",
+    "Concrete reality is the hard boundary: never invent an object, person, action, place, time, dialogue, sensory detail, bodily reaction, or specific physical circumstance.",
+    "Abstract interpretation is allowed. It can express the felt charge of the real relationship without claiming hidden psychology as a fact.",
+    "A transformed fact-bearing phrase is good. Exact source-sentence replay is not.",
+    "Generate four materially different film candidates. Change the structural idea, not merely the adjectives. One may be spare. One may be funny. One may be lyrical. One may be severe. Choose what the reality earns.",
     "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. 2-10 cuts per candidate. No commentary. No source IDs.",
-    `This is artist attempt ${attempt + 1} of 3.`,
-    feedback ? `Previous rejection feedback: ${feedback}` : "No previous rejection; produce genuinely distinct first-pass candidates.",
-    modes[Math.min(attempt, modes.length - 1)],
+    `This is creative attack ${attempt + 1} of 3.`,
+    feedback ? `The last candidates failed here: ${feedback}. Attack those failures without becoming timid.` : "No prior failure. Explore the full artistic space.",
+    attacks[Math.min(attempt, attacks.length - 1)],
   ].join("\n");
 }
 
@@ -188,7 +185,7 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
     const feedback = rejectedReasons.slice(-4).join(" | ");
     const ctx = context(input, feedback);
     try {
-      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 3000, temperature: [0.96, 1.02, 0.9][attempt]! });
+      const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 3000, temperature: [0.98, 1.08, 1.0][attempt]! });
       model = result.model; modelCalls += 1;
       const parsed = parseJson(result.text); const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : parsed ? [parsed] : [];
       const judged: Array<{ scenes: RealizedScene[]; judgment: RealizedFilmJudgment }> = [];
