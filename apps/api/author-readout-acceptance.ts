@@ -3,22 +3,12 @@
  *
  * Readout is factual and boring by design.
  * Author/Mouth are downstream creative systems.
- * This suite exists to prevent "rendered" from being mistaken for "good".
+ * This suite prevents a test-only readout from masquerading as the production boundary.
  */
 import assert from "node:assert/strict";
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
+import { buildAuthorReadout } from "./src/services/authorReadout.js";
 import { evaluateLatentMovie } from "./src/services/authorSemanticGate.js";
-
-function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function factualReadout(result: Awaited<ReturnType<typeof authorBrainCanonical>>): string {
-  return result.world.events.map((event) => {
-    const parts = [event.time, event.label, event.place].map(clean).filter(Boolean);
-    return parts.join(" — ");
-  }).join("\n");
-}
 
 const cases = [
   {
@@ -70,15 +60,16 @@ for (const testCase of cases) {
     creativeLearningContext: [],
   });
 
-  const readout = factualReadout(result);
+  const readout = buildAuthorReadout({ graph: result.world, subject: testCase.subject });
   console.log(`\n=== ${testCase.name} ===`);
   console.log("READOUT:");
-  console.log(readout);
+  console.log(readout.text);
   console.log(`FRAME: ${result.brief.angle}`);
   console.log(`MOVIE: ${result.movie?.id ?? "none"}`);
 
-  assert.ok(readout.length > 0, "Readout must contain supplied reality");
-  assert.doesNotMatch(readout, /\b(?:mission|boss|speedrun|movie|story|plot|journey|the audience|the viewer|interesting|meaningful)\b/i, "Readout leaked creative interpretation");
+  assert.ok(readout.lines.length > 0, "Readout must contain supplied reality");
+  assert.deepEqual(readout.eventIds, result.world.events.map((event) => event.id), "Readout must preserve graph event identity");
+  assert.doesNotMatch(readout.text, /\b(?:mission|boss|speedrun|movie|story|plot|journey|the audience|the viewer|interesting|meaningful)\b/i, "Readout leaked creative interpretation");
   assert.ok(result.movie, "Cognition must produce a Movie for concrete supplied reality");
 
   const semantic = evaluateLatentMovie(result.movie!, result.world);
