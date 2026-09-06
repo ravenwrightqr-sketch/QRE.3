@@ -41,7 +41,7 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const modelPlan = await buildModelCognitivePlan(input);
   const search = searchLatentMovieCandidates({ graph: input.realityGraph, subject: input.subject, lens: input.lens, limit: 8 });
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedPair(input.realityGraph, candidate));
-  const candidates = dedupe([...modelGrounded, ...search], 10);
+  const candidates = dedupeCandidates([...modelGrounded, ...search], 10);
   const selectedMovie = candidates.find((candidate) => candidate.id === modelPlan.selectedMovie?.id) ?? candidates[0];
   return {
     ...modelPlan,
