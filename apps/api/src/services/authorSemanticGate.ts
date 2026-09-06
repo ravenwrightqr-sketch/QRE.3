@@ -1,12 +1,14 @@
 /*
  * QRE UNIVERSAL SEMANTIC QUALITY GATE
  *
- * Cognition is accepted only when the rich latent-movie contract actually
- * carries a grounded semantic turn. Renderability is never enough.
+ * Cognition is accepted only when the latent Movie actually carries a
+ * grounded semantic turn. Renderability is never enough.
  *
- * Reality remains immutable. A candidate is a hypothesis. The story thesis,
- * semantic realization, observer objective, callbacks and viewer dynamics are
- * creative cognition data; none of them manufacture facts.
+ * Reality remains immutable. A candidate is a hypothesis. Rich thesis data
+ * strengthens the gate, but an older/simple model response must not be
+ * rejected merely because it omitted optional rich-thesis fields. When the
+ * trajectory itself proves grounded semantic movement, the gate evaluates
+ * that evidence as the compatibility path.
  */
 import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 
@@ -74,23 +76,45 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   const structuralGrounding = thesisEventIds.length === 0 ? 0 : metric(groundedThesisEventIds.size / new Set(thesisEventIds).size);
   const thesisGrounding = metric(Math.max(lexicalGrounding, structuralGrounding));
 
-  const hasSemanticTurn = Boolean(clean(thesis?.semanticTurn));
-  const hasCarrierEvidence = Boolean(thesis?.carrierEventIds?.some((id) => validIds.has(id)));
-  const hasSealingEvidence = Boolean(thesis?.sealingEventIds?.some((id) => validIds.has(id)));
+  const meaningfulSteps = movie.trajectory.filter((step) => MOVEMENT.has(step.operation));
+  const derivedTurn = clean(meaningfulSteps[0]?.viewerChange) || clean(movie.payoff);
+  const derivedCarrier = meaningfulSteps[0]?.eventIds.find((id) => validIds.has(id));
+  const derivedSealing = meaningfulSteps.at(-1)?.eventIds.find((id) => validIds.has(id));
+  const hasSemanticTurn = Boolean(clean(thesis?.semanticTurn) || derivedTurn);
+  const hasCarrierEvidence = Boolean(thesis?.carrierEventIds?.some((id) => validIds.has(id)) || derivedCarrier);
+  const hasSealingEvidence = Boolean(thesis?.sealingEventIds?.some((id) => validIds.has(id)) || derivedSealing);
   const realization = thesis?.semanticRealization;
   const hasRealization = Boolean(realization && MECHANISMS.has(realization.mechanism) && REALIZATION_MOVES.has(realization.realizationMove));
-  const hasRealizationEvidence = Boolean(realization?.evidenceEventIds?.some((id) => validIds.has(id)));
+  const hasRealizationEvidence = Boolean(realization?.evidenceEventIds?.some((id) => validIds.has(id)) || meaningfulSteps.some((step) => step.eventIds.some((id) => validIds.has(id))));
   const observer = thesis?.observerExperience;
   const observerContract = observer
     ? metric((Number(Boolean(clean(observer.objective))) * 0.25) + (Number(Boolean(clean(observer.surprise))) * 0.15) + (Number(Boolean(clean(observer.curiosity))) * 0.15) + (Number(Array.isArray(observer.attention) && observer.attention.length > 0) * 0.15) + (Number(Boolean(clean(observer.landing))) * 0.15) + (Number(observer.explanationForbidden !== false) * 0.15))
-    : 0;
-  const thesisStructure = metric((Number(hasSemanticTurn) * 0.3) + (Number(hasCarrierEvidence) * 0.15) + (Number(hasSealingEvidence) * 0.15) + (Number(hasRealization) * 0.2) + (Number(hasRealizationEvidence) * 0.1) + (Number(Boolean(thesis?.beforeMeaning?.length)) * 0.05) + (Number(Boolean(thesis?.afterMeaning?.length)) * 0.05));
+    : meaningful.length > 0
+      ? metric(0.25 + 0.2 + 0.15 + (Number(Boolean(clean(movie.unresolvedQuestion))) * 0.15) + 0.15)
+      : 0;
+  const thesisStructure = metric(
+    (Number(hasSemanticTurn) * 0.3) +
+    (Number(hasCarrierEvidence) * 0.15) +
+    (Number(hasSealingEvidence) * 0.15) +
+    (Number(hasRealization) * 0.2) +
+    (Number(hasRealizationEvidence) * 0.1) +
+    (Number(Boolean(thesis?.beforeMeaning?.length)) * 0.05) +
+    (Number(Boolean(thesis?.afterMeaning?.length)) * 0.05),
+  );
 
   const hasRichThesis = Boolean(thesis && thesisStructure >= 0.7 && observerContract >= 0.6);
+  const compatibilityStructure = metric(
+    (Number(meaningful.length > 0) * 0.34) +
+    (Number(hasCarrierEvidence) * 0.2) +
+    (Number(hasSealingEvidence) * 0.16) +
+    (Number(hasRealizationEvidence) * 0.16) +
+    (Number(Boolean(clean(movie.unresolvedQuestion))) * 0.14),
+  );
+  const semanticContractScore = hasRichThesis ? thesisStructure : compatibilityStructure;
   const summaryShaped = SUMMARY_RE.test(clean(movie.hypothesis[0] ?? ""));
   const summaryRisk = weakOnly
     ? 0.95
-    : summaryShaped && !hasRichThesis
+    : summaryShaped && !hasRichThesis && meaningful.length === 0
       ? 0.95
       : movie.hypothesis.length === 0
         ? 0.8
@@ -106,12 +130,12 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
   if (thesisGrounding < 0.2 && graph.events.length > 0) reasons.push("Movie thesis is not grounded in supplied event language or event evidence");
   if (summaryRisk >= 0.9) reasons.push("Movie hypothesis reads as a factual summary rather than a semantic discovery");
   if (unsupportedInferenceRisk >= 0.9) reasons.push("Movie contains unsupported psychological/generalized inference");
-  if (graph.events.length > 0 && !thesis) reasons.push("rich LatentStoryThesis is missing");
-  if (graph.events.length > 0 && !hasSemanticTurn) reasons.push("semanticTurn is missing");
-  if (graph.events.length > 0 && !hasRealization) reasons.push("semanticRealization mechanism/move is missing or invalid");
-  if (graph.events.length > 0 && !hasRealizationEvidence) reasons.push("semanticRealization is not grounded to supplied event IDs");
-  if (graph.events.length > 0 && !hasCarrierEvidence) reasons.push("story thesis has no grounded carrier event");
-  if (graph.events.length > 0 && !hasSealingEvidence) reasons.push("story thesis has no grounded sealing event");
+  if (graph.events.length > 0 && !thesis && meaningful.length === 0) reasons.push("rich LatentStoryThesis is missing on a Movie with no semantic movement");
+  if (graph.events.length > 0 && !hasSemanticTurn) reasons.push("semantic turn is missing");
+  if (graph.events.length > 0 && !hasRealization && meaningful.length === 0) reasons.push("semanticRealization mechanism/move is missing on a Movie with no semantic movement");
+  if (graph.events.length > 0 && !hasRealizationEvidence) reasons.push("Movie semantic movement is not grounded to supplied event IDs");
+  if (graph.events.length > 0 && !hasCarrierEvidence) reasons.push("Movie has no grounded carrier event");
+  if (graph.events.length > 0 && !hasSealingEvidence) reasons.push("Movie has no grounded sealing event");
   if (observer && observer.explanationForbidden === false) reasons.push("observer contract permits explanation");
   if (explanatoryRisk >= 0.8) reasons.push("semantic turn is written as explanation instead of a turn");
 
@@ -120,7 +144,7 @@ export function evaluateLatentMovie(movie: LatentMovieCandidate, graph: RealityG
     semanticMovement * 0.22 +
     progressionVariety * 0.1 +
     thesisGrounding * 0.12 +
-    thesisStructure * 0.2 +
+    semanticContractScore * 0.2 +
     observerContract * 0.11 +
     (1 - summaryRisk) * 0.03 +
     (1 - unsupportedInferenceRisk) * 0.02,
