@@ -256,9 +256,12 @@ export async function realizeAuthorExperience(input: {
       const validSets = rawSets
         .map((item) => validateSet(item, input.graph, clean(input.subject)))
         .filter((set): set is RealizedScene[] => Boolean(set))
-        .filter((set) => concreteAnchorScore(set, input.graph) >= (input.graph.events.length > 2 ? 0.34 : 0.22));
+        .filter((set) => {
+          const landing = artisticLandingScore(set, input.graph);
+          const anchors = concreteAnchorScore(set, input.graph);
+          return anchors >= (input.graph.events.length > 2 ? 0.34 : 0.22) && landing >= 0.6;
+        });
       if (!validSets.length) continue;
-
       const scored = validSets
         .map((scenes) => ({ scenes, score: scoreSet(scenes, input.movie, input.graph, input.priorScenes ?? [], clean(input.subject), input.domainContext) }))
         .sort((a, b) => b.score - a.score);
@@ -267,7 +270,7 @@ export async function realizeAuthorExperience(input: {
       rejectedSets -= validSets.length;
       return { scenes: best.scenes, score: best.score, model, modelCalls, rejectedSets };
     } catch {
-      // Fail closed. A broken model call never becomes customer-facing cognition.
+      // Fail closed. Model failure never becomes customer-facing cognition.
     }
   }
 
