@@ -6,6 +6,7 @@ import KnowledgeDashboard from "./pages/KnowledgeDashboard";
 import LearningDashboard from "./pages/LearningDashboard";
 import CollaborationDashboard from "./pages/CollaborationDashboard";
 import QreInfo from "./pages/QreInfo";
+import InformationFinder from "./pages/InformationFinder";
 import ExperiencePreview from "./pages/ExperiencePreview";
 import ServiceReceipt from "./pages/ServiceReceipt";
 import SharedExperience from "./pages/SharedExperience";
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/login" element={isAuthed ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
         <Route path="/dashboard" element={gate(<Dashboard />)} />
+        <Route path="/dashboard/finder" element={gate(<InformationFinder />)} />
         <Route path="/dashboard/service-receipt" element={gate(<ServiceReceipt />)} />
         <Route path="/dashboard/info" element={gate(<QreInfo />)} />
         <Route path="/dashboard/assets/:slug" element={gate(<AssetDashboard />)} />
