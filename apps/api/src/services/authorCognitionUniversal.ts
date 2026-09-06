@@ -137,24 +137,17 @@ function deriveCutTrajectory(cuts: unknown[], g: RealityGraph): { ids:string[]; 
       if(operation){
         relationKinds.push(relation.kind);
         trajectory.push({order:trajectory.length+1,operation,eventIds:unique([previous,pair]),viewerChange:`the supplied relationship ${relation.kind} changes what is worth noticing`,nextQuestion:"What remains after that change?"});
+      } else {
+        trajectory.push({order:trajectory.length+1,operation:"reveal",eventIds:unique([previous,pair]),viewerChange:"the next supplied action changes the run",nextQuestion:"What becomes the next target?"});
       }
     } else {
-      trajectory.push({order:trajectory.length+1,operation:"reveal",eventIds:[pair],viewerChange:"introduce another supplied detail",nextQuestion:"What does the combination make visible?"});
+      trajectory.push({order:trajectory.length+1,operation:"reveal",eventIds:unique([previous,pair]),viewerChange:"the next supplied real-world action advances the run",nextQuestion:"What is the next target, room, task, or state to reach?"});
     }
     previousIds=unique([...previousIds,...current]);
   }
-  if(!trajectory.some(step=>step.eventIds.length>=2)){
-    const relation=g.relations.find(r=>allIds.includes(r.from)&&allIds.includes(r.to));
-    if(relation){
-      relationKinds.push(relation.kind);
-      const operation=operationForRelationKind(relation.kind)??"reveal";
-      trajectory.push({order:trajectory.length+1,operation,eventIds:[relation.from,relation.to],viewerChange:`the supplied relationship ${relation.kind} changes the reading`,nextQuestion:"What remains after that change?"});
-      previousIds=unique([...previousIds,relation.from,relation.to]);
-    }
-  }
-  if(!trajectory.some(step=>step.eventIds.length>=2))return undefined;
+  if(trajectory.length<2)return undefined;
   const last=previousIds.at(-1)!;
-  trajectory.push({order:trajectory.length+1,operation:"payoff",eventIds:[last],viewerChange:"land the changed reading without adding a new event",nextQuestion:"What lingers after the supplied details separate?"});
+  trajectory.push({order:trajectory.length+1,operation:"payoff",eventIds:[last],viewerChange:"land the completed or changed state without adding a new event",nextQuestion:"What lingers after the supplied run?"});
   return {ids:allIds,trajectory,relationKinds:unique(relationKinds)};
 }
 function operationForRelationKind(kind: string): LatentMovieTrajectoryStep["operation"]|undefined {
@@ -203,7 +196,7 @@ function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentM
       }
     }
     const thesis=clean(r.thesis??(Array.isArray(r.hypothesis)?r.hypothesis[0]:undefined));
-    if(g.events.length&&(!ids.length||trajectory.length<2||!trajectory.some(step=>step.eventIds.length>=2)))return[];
+    if(g.events.length&&(!ids.length||trajectory.length<2))return[];
     if(thesis&&(GENERIC.test(thesis)||PSYCH.test(thesis)||INTERNAL.test(thesis)))return[];
     const c:LatentMovieCandidate={
       id:clean(r.id??r.movieId)||`model-movie-${i+1}`,
@@ -241,7 +234,7 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const returning=Boolean(input.returning||(input.visitNumber??1)>1), explicit=clean(input.lens); const intelligence=buildAuthorCognitionIntelligence(input.realityGraph,returning,input.creativeLearningContext??[]);
   const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time,entities:e.entities})),relations:input.realityGraph.relations.map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:input.realityGraph.patterns??[],tensions:input.realityGraph.unresolvedTensions??[],sensory:input.realityGraph.sensorySignals??[]};
   let parsed:Record<string,unknown>|undefined; let model="deterministic"; let modelCalls=0;
-  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:["You are QRE universal cognition, not a writer.","Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.","Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.","A movie is a sequence of supplied event IDs whose order or combination makes an existing relationship newly noticeable.","Prefer collision, contrast, recurrence, recontextualization, consequence, convergence, interruption, compression, delayed reveal, return or silence when the graph supports it.","Do not make one hypothesis per event. Do not treat a subject as narrator by default.","A Movie must be grounded in supplied events. When multiple supplied events have a visible relation, prefer using that relationship. A rich reality graph may justify a materially longer structure; do not collapse it to three events just because a compact answer is easier.","Every concrete cut in downstream realization will be bound to supplied evidence. You may return movies using eventIds:[...] alone, cuts:[{eventIds:[...],duration?}], or canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].","Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.","Keep hypotheses diagnostic and non-psychological. No customer-facing prose.","Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
+  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:["You are QRE universal cognition, not a writer.","Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.","Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.","A Movie is a grounded sequence of supplied events whose combination, order, repetition, interruption, escalation, completion, contrast, or recontextualization creates a new way of seeing the supplied reality. It does NOT require an explicit graph relationship before you may discover a structure.","Prefer collision, contrast, recurrence, recontextualization, consequence, convergence, interruption, compression, delayed reveal, return or silence when the graph supports it. When the source is an ordered run of concrete actions, also test active structures such as mission, campaign, stages, rounds, territory, race, speedrun, countdown, accumulation, contest, hunt, showdown, transformation, repair, rescue, or status shift when the supplied sequence can carry that form.","Do not make one hypothesis per event. Do not treat a subject as narrator by default.","An ordered run of real tasks can itself be semantic material. A start time, ordered rooms or territories, repeated operations, an interruption, a constraint, a recovery, a final target, or a clear completion may create action pressure without any invented opponent, danger, deadline, failure, or consequence.","A Movie may be sparse when the reality is sparse. A rich reality graph may justify a materially longer structure; do not collapse it to three events just because a compact answer is easier.","Every concrete cut in downstream realization will be bound to supplied evidence. You may return movies using eventIds:[...] alone, cuts:[{eventIds:[...],duration?}], or canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].", "Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph. A creative structure can exist without naming a relationship kind.","Keep hypotheses diagnostic and non-psychological. No customer-facing prose.","Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
   const fr=frame(parsed,explicit,input.realityGraph), selectedLens=fr.mode==="frame"?fr.frame:"NONE";
   const modelCs=normalizeModel(parsed,input.realityGraph,returning);
   const observations=observationCandidates(input.realityGraph,clean(input.subject)||"the subject",returning);
