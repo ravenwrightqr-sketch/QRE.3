@@ -114,6 +114,7 @@ export async function compileExperience(input: {
   assetId?: string;
   userId?: string;
   sessionId?: string;
+  operationId?: string;
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
@@ -121,6 +122,7 @@ export async function compileExperience(input: {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("Experience prompt required");
 
+  const operationId = input.operationId ?? input.sessionId ?? `experience:${input.assetId ?? "unknown"}:${prompt}`;
   const warnings: string[] = [];
   let memoryContext: MemoryContext | undefined;
   if (input.assetId && input.memoryRepository) {
@@ -257,7 +259,13 @@ export async function compileExperience(input: {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({ assetId: input.assetId, userId: input.userId, world: compiled.world, source: "prompt" });
+      const batch = buildExperienceMemoryBatch({
+        operationId,
+        assetId: input.assetId,
+        userId: input.userId,
+        world: compiled.world,
+        source: "prompt",
+      });
       await input.memoryRepository.writeBatch(batch);
       return {
         ...result,
