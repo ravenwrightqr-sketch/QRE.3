@@ -12,6 +12,7 @@ import ServiceReceipt from "./pages/ServiceReceipt";
 import SharedExperience from "./pages/SharedExperience";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateAsset from "./pages/admin/CreateAsset";
+import SequencePreview from "./pages/admin/SequencePreview";
 import Checkout from "./pages/Checkout";
 import Scan from "./pages/scan";
 import Contribution from "./pages/Contribution";
@@ -27,7 +28,7 @@ export default function App() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#030509", color: "#00ffcc" }}>
-        LOADING QRE NODE...
+        LOADING QRE...
       </div>
     );
   }
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/share/:id" element={<SharedExperience />} />
         <Route path="/admin" element={gate(<AdminDashboard />)} />
         <Route path="/admin/create" element={gate(<CreateAsset />)} />
+        <Route path="/admin/sequence/preview" element={<SequencePreview />} />
         <Route path="/checkout/:slug" element={<Checkout />} />
         <Route path="/scan/:slug" element={<Scan />} />
         <Route path="/s/:slug" element={<Scan />} />
