@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 type Screen = {
   id: string;
@@ -14,7 +14,7 @@ type Sequence = {
 function readSequence(): Sequence {
   try {
     const raw = decodeURIComponent(window.location.hash.slice(1));
-    if (raw) return JSON.parse(atob(raw)) as Sequence;
+    if (raw) return JSON.parse(raw) as Sequence;
   } catch {}
 
   try {
@@ -66,13 +66,7 @@ export default function SequencePreview() {
 
         <div style={styles.progressRow}>
           {screens.map((screen, screenIndex) => (
-            <div
-              key={screen.id}
-              style={{
-                ...styles.progress,
-                opacity: screenIndex === index ? 1 : 0.22,
-              }}
-            />
+            <div key={screen.id} style={{ ...styles.progress, opacity: screenIndex === index ? 1 : 0.22 }} />
           ))}
         </div>
 
@@ -110,7 +104,7 @@ export default function SequencePreview() {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100dvh",
     background: "#050505",
@@ -163,7 +157,6 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     background: "#fff",
     borderRadius: 20,
-    transition: "opacity .2s ease",
   },
   bottom: {
     display: "flex",
