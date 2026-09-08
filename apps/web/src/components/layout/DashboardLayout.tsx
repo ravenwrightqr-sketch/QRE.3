@@ -1,63 +1,84 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AnimatedBackground from "../effects/AnimatedBackground";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isHome = location.pathname === "/dashboard";
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        position: "relative",
-        background: "#030509",
-        color: "#e8ffff",
-        overflow: "hidden",
-      }}
-    >
+    <div style={shell}>
       <AnimatedBackground />
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-          padding: "24px clamp(18px, 4vw, 40px) 40px",
-          maxWidth: 1400,
-          margin: "0 auto",
-          fontFamily: "'Courier New', monospace",
-          boxSizing: "border-box",
-        }}
-      >
-        <nav
-          aria-label="QRE dashboard"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            marginBottom: 18,
-            flexWrap: "wrap",
-          }}
-        >
-          <Link
-            to="/dashboard"
-            style={{ color: "rgba(255,255,255,.55)", textDecoration: "none", fontSize: 10, letterSpacing: 3 }}
-          >
+
+      <div style={content}>
+        <header style={header}>
+          <Link to="/dashboard" style={logo} aria-label="QRE home">
             QRE
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Link
-              style={{ color: "#eafffa", textDecoration: "none", fontSize: 10, letterSpacing: 2, border: "1px solid rgba(185,255,241,.22)", borderRadius: 999, padding: "8px 12px", background: "rgba(185,255,241,.06)" }}
-            >
-              + FIND REALITY
-            </Link>
-            <Link
-              to="/dashboard/service-receipt"
-              style={{ color: "#fff", textDecoration: "none", fontSize: 10, letterSpacing: 2, border: "1px solid rgba(185,255,241,.25)", borderRadius: 999, padding: "8px 12px", background: "rgba(185,255,241,.07)" }}
-            >
-              + SERVICE RECEIPT
-            </Link>
+          <div style={headerRight}>
+            {!isHome && (
+              <Link to="/dashboard" style={backLink}>
+                ← QRE
+              </Link>
+            )}
+            <span style={systemLabel}>YOUR WORLD</span>
           </div>
-        </nav>
+        </header>
+
         {children}
       </div>
     </div>
   );
 }
+
+const shell = {
+  minHeight: "100vh",
+  position: "relative" as const,
+  background: "#030509",
+  color: "#e8ffff",
+  overflow: "hidden" as const,
+};
+
+const content = {
+  position: "relative" as const,
+  zIndex: 2,
+  padding: "24px clamp(18px, 4vw, 40px) 40px",
+  maxWidth: 1400,
+  margin: "0 auto",
+  boxSizing: "border-box" as const,
+  fontFamily: "'Courier New', monospace",
+};
+
+const header = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  minHeight: 34,
+};
+
+const logo = {
+  color: "rgba(255,255,255,.62)",
+  textDecoration: "none",
+  fontSize: 11,
+  letterSpacing: 7,
+};
+
+const headerRight = {
+  display: "flex",
+  alignItems: "center",
+  gap: 16,
+};
+
+const systemLabel = {
+  fontSize: 8,
+  letterSpacing: 3,
+  opacity: .22,
+};
+
+const backLink = {
+  color: "rgba(255,255,255,.48)",
+  textDecoration: "none",
+  fontSize: 9,
+  letterSpacing: 2,
+};
