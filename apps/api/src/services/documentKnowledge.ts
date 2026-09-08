@@ -159,7 +159,11 @@ async function semanticFactsFromText(text: string, sourceType: string): Promise<
 
     const parsed = parseJsonArray(result.text);
     return parsed
-      .filter((fact): fact is ExtractedKnowledgeFact => Boolean(fact && typeof fact.label === "string" && typeof fact.value === "string"))
+      .filter((fact): fact is ExtractedKnowledgeFact =>
+        isRecord(fact) &&
+        typeof fact.label === "string" &&
+        typeof fact.value === "string"
+      )
       .map((fact) => ({
         label: fact.label.trim().slice(0, 240),
         value: fact.value.trim().slice(0, 6000),
@@ -183,6 +187,10 @@ function parseJsonArray(text: string): unknown[] {
   } catch {
     return [];
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function mergeFacts(base: ExtractedKnowledgeFact[], semantic: ExtractedKnowledgeFact[]): ExtractedKnowledgeFact[] {
