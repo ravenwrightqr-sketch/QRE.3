@@ -30,7 +30,6 @@ export default function Dashboard() {
         : Array.isArray(response.assets)
           ? response.assets
           : [];
-
       setObjects(assets);
       setActiveAsset((current) => current || assets[0]?.id || "");
     } catch (err) {
@@ -62,23 +61,26 @@ export default function Dashboard() {
             <div style={eyebrow}>YOUR WORLD</div>
           </div>
 
-          {objects.length > 0 && (
-            <div style={assetPickerShell}>
-              <span style={pickerLabel}>WORLD</span>
-              <select
-                value={activeObject?.id ?? ""}
-                onChange={(event) => setActiveAsset(event.target.value)}
-                style={assetPicker}
-                aria-label="Select QRE world"
-              >
-                {objects.map((object) => (
-                  <option key={object.id} value={object.id}>
-                    {object.displayName || object.slug}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div style={headerActions}>
+            <Link to="/admin" style={adminLink}>BUSINESSES + KNOWLEDGE</Link>
+            {objects.length > 0 && (
+              <div style={assetPickerShell}>
+                <span style={pickerLabel}>WORLD</span>
+                <select
+                  value={activeObject?.id ?? ""}
+                  onChange={(event) => setActiveAsset(event.target.value)}
+                  style={assetPicker}
+                  aria-label="Select QRE world"
+                >
+                  {objects.map((object) => (
+                    <option key={object.id} value={object.id}>
+                      {object.displayName || object.slug}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </header>
 
         <section style={heroStyle}>
@@ -87,10 +89,7 @@ export default function Dashboard() {
           <p style={subStyle}>Tell QRE. QRE figures out what it means.</p>
 
           {activeObject ? (
-            <UniversalKnowledgeIntake
-              slug={activeObject.slug}
-              onLearned={loadAssets}
-            />
+            <UniversalKnowledgeIntake slug={activeObject.slug} onLearned={loadAssets} />
           ) : (
             <div style={emptyStyle}>
               <div style={{ fontSize: 13, letterSpacing: 1.5 }}>CREATE YOUR FIRST QRE WORLD</div>
@@ -123,112 +122,37 @@ const headerStyle = {
   padding: "12px 4px 34px",
 };
 
-const brand = {
-  fontSize: 11,
-  letterSpacing: 10,
-  opacity: .5,
-};
-
-const eyebrow = {
-  marginTop: 8,
-  fontSize: 10,
-  letterSpacing: 4,
-  opacity: .28,
-};
-
-const assetPickerShell = {
+const headerActions = {
   display: "flex",
   alignItems: "center",
-  gap: 10,
-  border: "1px solid rgba(255,255,255,.1)",
-  borderRadius: 999,
-  padding: "8px 12px",
-  background: "rgba(255,255,255,.025)",
+  justifyContent: "flex-end",
+  gap: 8,
+  flexWrap: "wrap" as const,
 };
 
-const pickerLabel = {
-  fontSize: 8,
-  letterSpacing: 2,
-  opacity: .3,
-};
-
-const assetPicker = {
-  border: 0,
-  outline: 0,
-  background: "transparent",
-  color: "#fff",
-  font: "inherit",
-  fontSize: 11,
-  minWidth: 130,
-};
-
-const heroStyle = {
-  display: "grid",
-  justifyItems: "center",
-  gap: 0,
-};
-
-const headlineEyebrow = {
-  marginTop: 22,
-  fontSize: 10,
-  letterSpacing: 5,
-  opacity: .33,
-};
-
-const titleStyle = {
-  margin: "12px 0 0",
-  fontSize: "clamp(52px, 10vw, 100px)",
-  lineHeight: .92,
-  fontWeight: 500,
-  letterSpacing: "-5px",
-  textAlign: "center" as const,
-};
-
-const subStyle = {
-  margin: "20px 0 36px",
-  color: "rgba(255,255,255,.46)",
-  fontSize: 16,
-  textAlign: "center" as const,
-};
-
-const emptyStyle = {
-  width: "min(720px, 92vw)",
-  boxSizing: "border-box" as const,
-  padding: 32,
-  borderRadius: 22,
-  border: "1px solid rgba(255,255,255,.1)",
-  background: "rgba(255,255,255,.03)",
-  textAlign: "center" as const,
-};
-
-const primaryLink = {
-  display: "inline-block",
-  marginTop: 10,
-  borderRadius: 999,
-  padding: "12px 18px",
-  background: "#fff",
-  color: "#000",
+const adminLink = {
+  display: "inline-flex",
+  alignItems: "center",
   textDecoration: "none",
-  fontSize: 10,
-  fontWeight: 800,
-  letterSpacing: 1.5,
+  border: "1px solid rgba(0,255,210,.22)",
+  borderRadius: 999,
+  padding: "9px 12px",
+  background: "rgba(0,255,210,.06)",
+  color: "rgba(220,255,249,.86)",
+  fontSize: 8,
+  letterSpacing: 1.3,
 };
 
-const errorStyle = {
-  marginTop: 18,
-  width: "min(720px, 92vw)",
-  boxSizing: "border-box" as const,
-  borderRadius: 12,
-  padding: 14,
-  background: "rgba(255,80,80,.08)",
-  border: "1px solid rgba(255,100,100,.16)",
-  fontSize: 12,
-};
-
-const loadingStyle = {
-  minHeight: "100vh",
-  display: "grid",
-  placeItems: "center",
-  color: "rgba(255,255,255,.5)",
-  letterSpacing: 4,
-};
+const brand = { fontSize: 11, letterSpacing: 10, opacity: .5 };
+const eyebrow = { marginTop: 8, fontSize: 10, letterSpacing: 4, opacity: .28 };
+const assetPickerShell = { display: "flex", alignItems: "center", gap: 10, border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "8px 12px", background: "rgba(255,255,255,.025)" };
+const pickerLabel = { fontSize: 8, letterSpacing: 2, opacity: .3 };
+const assetPicker = { border: 0, outline: 0, background: "transparent", color: "#fff", font: "inherit", fontSize: 11, minWidth: 130 };
+const heroStyle = { display: "grid", justifyItems: "center", gap: 0 };
+const headlineEyebrow = { marginTop: 22, fontSize: 10, letterSpacing: 5, opacity: .33 };
+const titleStyle = { margin: "12px 0 0", fontSize: "clamp(52px, 10vw, 100px)", lineHeight: .92, fontWeight: 500, letterSpacing: "-5px", textAlign: "center" as const };
+const subStyle = { margin: "20px 0 36px", color: "rgba(255,255,255,.46)", fontSize: 16, textAlign: "center" as const };
+const emptyStyle = { width: "min(720px, 92vw)", boxSizing: "border-box" as const, padding: 32, borderRadius: 22, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.03)", textAlign: "center" as const };
+const primaryLink = { display: "inline-block", marginTop: 10, borderRadius: 999, padding: "12px 18px", background: "#fff", color: "#000", textDecoration: "none", fontSize: 10, fontWeight: 800, letterSpacing: 1.5 };
+const errorStyle = { marginTop: 18, width: "min(720px, 92vw)", boxSizing: "border-box" as const, borderRadius: 12, padding: 14, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,100,100,.16)", fontSize: 12 };
+const loadingStyle = { minHeight: "100vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)", letterSpacing: 4 };
