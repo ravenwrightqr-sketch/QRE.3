@@ -12,30 +12,17 @@ async function request(path: string, options: RequestInit = {}) {
     },
     body: options.body,
   });
-
   let data: any = {};
-  try {
-    data = await res.json();
-  } catch {
-    data = {};
-  }
-
+  try { data = await res.json(); } catch { data = {}; }
   if (res.status === 401) throw new Error(data.error || "Unauthorized");
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
 
 async function publicRequest(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+  const res = await fetch(`${API_BASE}${path}`, { method: "GET", headers: { "Content-Type": "application/json" } });
   let data: any = {};
-  try {
-    data = await res.json();
-  } catch {
-    data = {};
-  }
+  try { data = await res.json(); } catch { data = {}; }
   if (!res.ok) throw new Error(data.error || "Public request failed");
   return data;
 }
@@ -87,5 +74,17 @@ export type ServiceReceiptInput = {
   geo?: { latitude: number; longitude: number; label?: string; city?: string; region?: string; country?: string };
 };
 
-export const createServiceReceipt = (input: ServiceReceiptInput) => apiPost("/api/service-receipt/create", input) as Promise<any>;
-export const getSharedExperience = (id: string) => publicRequest(`/api/service-receipt/share/${encodeURIComponent(id)}`);
+export const createServiceReceipt = (input: ServiceReceiptInput) =>
+  apiPost("/api/service-receipt/create", input) as Promise<{
+    success: true;
+    sessionId: string;
+    recipient: string;
+    shareUrl: string;
+    delivered: boolean;
+    deliveryReason: string;
+    receipt?: any;
+    experience: any;
+  }>;
+
+export const getSharedExperience = (id: string) =>
+  publicRequest(`/api/service-receipt/share/${encodeURIComponent(id)}`);
