@@ -32,6 +32,7 @@ model Asset {
   merchantId        String?
   category          TemplateCategory?
   templateData      Json?
+  stateConfig       Json?
   ownerId           String?
   token             String            @unique @default(cuid())
   status            String            @default("active")
@@ -48,6 +49,7 @@ model Asset {
   totalUnlocks      Int               @default(0)
   displayName       String?
   accountId         String?
+
   analyticsEvents   AnalyticsEvent[]
   User              User?             @relation(fields: [ownerId], references: [id])
   account           Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -56,6 +58,11 @@ model Asset {
   claims            Claim[]
   experiences       Experience[]
   memorySnapshots   MemorySnapshot[]
+  catalogItems          CatalogItem[]
+  knowledgeEvidence     KnowledgeEvidence[]
+  knowledgeObservations KnowledgeObservation[]
+  knowledgePatterns     KnowledgePattern[]
+  intakeJobs            KnowledgeIntakeJob[]
   ownership         Ownership?
   scanEvents        ScanEvent[]
   sessions          ScanSession[]
@@ -448,7 +455,140 @@ model Experience {
   @@index([flowId])
   @@index([publishedFlowId])
 }
+model KnowledgeIntakeJob {
+  id           String    @id @default(cuid())
+  assetId      String
+  status       String    @default("queued")
+  sourceType   String
+  originalName String?
+  contentHash  String?
+  payload      Json?
+  result       Json?
+  error        String?
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
 
+  asset        Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  evidence     KnowledgeEvidence[]
+
+  @@index([assetId, createdAt])
+  @@index([status])
+  @@index([contentHash])
+}
+
+model KnowledgeEvidence {
+  id          String               @id @default(cuid())
+  assetId     String
+  intakeJobId String?
+  type        String
+  source      String
+  storageKey  String?
+  contentHash String?
+  text        String?
+  metadata    Json?
+  confidence  Float                @default(1)
+  createdAt   DateTime             @default(now())
+
+  asset       Asset                @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  intakeJob   KnowledgeIntakeJob?  @relation(fields: [intakeJobId], references: [id], onDelete: SetNull)
+  attributes  CatalogAttribute[]
+  observations KnowledgeObservation[]
+
+  @@index([assetId, createdAt])
+  @@index([intakeJobId])
+  @@index([contentHash])
+}
+
+model CatalogItem {
+  id             String             @id @default(cuid())
+  assetId        String
+  kind           String
+  name           String
+  normalizedName String
+  brand          String?
+  category       String?
+  description    String?
+  status         String             @default("active")
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  asset          Asset              @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  attributes     CatalogAttribute[]
+  observations   KnowledgeObservation[]
+  patterns       KnowledgePattern[]
+
+  @@index([assetId])
+  @@index([assetId, kind])
+  @@index([assetId, normalizedName])
+}
+
+model CatalogAttribute {
+  id           String              @id @default(cuid())
+  catalogItemId String
+  key          String
+  value        String
+  normalizedValue String?
+  unit         String?
+  confidence   Float               @default(1)
+  evidenceId   String?
+  createdAt    DateTime            @default(now())
+
+  catalogItem  CatalogItem         @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  evidence     KnowledgeEvidence?  @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([catalogItemId])
+  @@index([key])
+  @@index([evidenceId])
+}
+
+model KnowledgeObservation {
+  id           String              @id @default(cuid())
+  assetId      String
+  catalogItemId String?
+  evidenceId   String?
+  type         String
+  value        Json
+  source       String
+  confidence   Float               @default(1)
+  observedAt   DateTime            @default(now())
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+
+  asset        Asset               @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  catalogItem  CatalogItem?        @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  evidence     KnowledgeEvidence?  @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([assetId, observedAt])
+  @@index([catalogItemId, observedAt])
+  @@index([type])
+  @@index([evidenceId])
+}
+
+model KnowledgePattern {
+  id             String      @id @default(cuid())
+  assetId        String
+  catalogItemId  String?
+  type           String
+  statement      String
+  confidence     Float       @default(0)
+  strength       Float       @default(0)
+  evidenceIds    Json?
+  firstObservedAt DateTime?
+  lastObservedAt  DateTime?
+  metadata       Json?
+  status         String      @default("active")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  asset          Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  catalogItem    CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([assetId, type])
+  @@index([catalogItemId])
+  @@index([assetId, lastObservedAt])
+}
 enum TemplateCategory {
   PERSONAL
   GENERIC

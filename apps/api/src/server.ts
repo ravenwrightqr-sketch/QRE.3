@@ -63,7 +63,7 @@ app.use(cors({
 }));
 
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
-app.use(express.json({ limit: "4mb" }));
+app.use(express.json({ limit: "16mb" }));
 
 authRoutes(app);
 app.use("/api/assets", requireAuth, assetGenerateRouter);

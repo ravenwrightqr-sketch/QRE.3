@@ -6,7 +6,7 @@ import { createAnalyticsRepository } from "../repositories/analyticsRepository.j
 import { analyzeImageForKnowledge } from "../services/aiProvider.js";
 import { learnWebsiteWorld } from "../services/websiteLearning.js";
 import { safeStringParam } from "../lib/safeParam.js";
-
+import { enqueueKnowledgeIntake } from "../services/knowledgeIntake.js";
 const router = express.Router();
 const analyticsRepository = createAnalyticsRepository();
 
@@ -55,7 +55,100 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: "Knowledge load failed." });
   }
 });
+router.post("/:slug/intake", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const userId = req.user?.userId;
 
+    if (!slug || !userId) {
+      return res.status(400).json({ error: "Missing asset." });
+    }
+
+    const asset = await resolveOwnedAsset(slug, userId);
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    const sourceType = normalizeValue(req.body?.sourceType) || "upload";
+    const originalName = normalizeValue(req.body?.originalName) || undefined;
+    const mimeType = normalizeValue(req.body?.mimeType) || undefined;
+    const content = typeof req.body?.content === "string" ? req.body.content : undefined;
+    const imageDataUrl = typeof req.body?.imageDataUrl === "string"
+      ? req.body.imageDataUrl
+      : undefined;
+    const text = typeof req.body?.text === "string" ? req.body.text : undefined;
+
+    if (!content && !imageDataUrl && !text) {
+      return res.status(400).json({ error: "No intake content supplied." });
+    }
+
+    const queued = await enqueueKnowledgeIntake({
+      assetId: asset.id,
+      userId,
+      sourceType,
+      originalName,
+      mimeType,
+      content,
+      imageDataUrl,
+      text,
+    });
+
+    return res.status(202).json({
+      accepted: true,
+      duplicate: queued.duplicate,
+      jobId: queued.job.id,
+      status: queued.job.status,
+    });
+  } catch (error) {
+    console.error("Knowledge intake enqueue failed:", error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : "Knowledge intake failed.",
+    });
+  }
+});
+router.get("/:slug/intake/:jobId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const jobId = safeStringParam(req.params.jobId);
+    const userId = req.user?.userId;
+
+    if (!slug || !jobId || !userId) {
+      return res.status(400).json({ error: "Missing identifier." });
+    }
+
+    const asset = await resolveOwnedAsset(slug, userId);
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    const job = await db.knowledgeIntakeJob.findFirst({
+      where: {
+        id: jobId,
+        assetId: asset.id,
+      },
+      select: {
+        id: true,
+        status: true,
+        sourceType: true,
+        originalName: true,
+        result: true,
+        error: true,
+        createdAt: true,
+        startedAt: true,
+        completedAt: true,
+      },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: "Intake job not found." });
+    }
+
+    return res.json({ job });
+  } catch (error) {
+    console.error("Knowledge intake status failed:", error);
+    return res.status(500).json({ error: "Knowledge intake status failed." });
+  }
+});
 router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
   try {
     const slug = safeStringParam(req.params.slug);
