@@ -4,6 +4,7 @@ import cors from "cors";
 
 import userRouter from "./routes/user.js";
 import adminRouter from "./routes/admin.js";
+import adminAssetsRouter from "./routes/adminAssets.js";
 import analyticsRouter from "./routes/analytics.js";
 import checkoutRouter from "./routes/checkout.js";
 import scanRouter from "./routes/scan.index.js";
@@ -36,24 +37,14 @@ import { startKnowledgeIntakeWorker } from "./services/knowledgeIntake.js";
 const app = express();
 app.use((req, _res, next) => {
   if (req.method === "POST" && req.path === "/experience/create") {
-    console.log(
-      "[QRE][HTTP CREATE IN]",
-      {
-        pid: process.pid,
-        time: new Date().toISOString(),
-        method: req.method,
-        path: req.path,
-      },
-    );
+    console.log("[QRE][HTTP CREATE IN]", { pid: process.pid, time: new Date().toISOString(), method: req.method, path: req.path });
   }
   next();
 });
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+  .split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
@@ -71,6 +62,7 @@ authRoutes(app);
 app.use("/api/assets", requireAuth, assetGenerateRouter);
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/admin", adminAssetsRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/scan", scanRouter);
 app.use("/api/checkout", checkoutRouter);
@@ -94,19 +86,14 @@ app.use("/api/master-dashboard", masterDashboardRoutes);
 app.use("/api/stripe", stripeWebhookRouter);
 app.use("/api/stripe", stripeTestRouter);
 
-app.get("/", (_req: Request, res: Response) =>
-  res.json({
-    status: "ok",
-    service: "qre-api",
-    ai: aiConfigured(),
-    provider: aiConfigured() ? aiProviderName() : null,
-  }),
-);
+app.get("/", (_req: Request, res: Response) => res.json({
+  status: "ok",
+  service: "qre-api",
+  ai: aiConfigured(),
+  provider: aiConfigured() ? aiProviderName() : null,
+}));
 
 const PORT = Number(process.env.PORT || 3000);
 startAnalyticsSpineSubscriber();
 startKnowledgeIntakeWorker();
-
-app.listen(PORT, () => {
-  console.log(`⚡ QRE API running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));
