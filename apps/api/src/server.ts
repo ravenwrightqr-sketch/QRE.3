@@ -32,7 +32,20 @@ import { requireAuth } from "./middleware/requireAuth.js";
 import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 
 const app = express();
-
+app.use((req, _res, next) => {
+  if (req.method === "POST" && req.path === "/experience/create") {
+    console.log(
+      "[QRE][HTTP CREATE IN]",
+      {
+        pid: process.pid,
+        time: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+      },
+    );
+  }
+  next();
+});
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is missing");
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? process.env.WEB_ORIGIN ?? "http://localhost:5173")

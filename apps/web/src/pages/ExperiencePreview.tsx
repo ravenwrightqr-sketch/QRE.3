@@ -1,90 +1,34 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CinematicScanPlayer from "../components/scan/CinematicScanPlayer";
-import type { CinematicScene, Experience } from "@qre/contracts";
+import type { Experience } from "@qre/contracts";
 
-type PresentationPayload = {
-  sessionId?: unknown;
-  access?: unknown;
-  preview?: unknown;
-  asset?: unknown;
-  moments?: unknown;
-  cinematicScenes?: unknown;
-  geoStory?: unknown;
-  memorySnapshot?: unknown;
-  receipt?: unknown;
-  insights?: unknown;
+type PreviewState = {
+  experience?: Experience;
+  experienceId?: string;
+  flowId?: string | null;
+  assetId?: string;
+  sourcePrompt?: string;
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function toPresentationExperience(raw: unknown): Experience | null {
-  if (!isObject(raw)) return null;
-
-  const payload = raw as PresentationPayload;
-  if (!Array.isArray(payload.cinematicScenes)) return null;
-  if (!Array.isArray(payload.moments)) return null;
-
-  const scenes = payload.cinematicScenes
-    .filter(isObject)
-    .map((scene) => scene as unknown as CinematicScene)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-  if (!scenes.length || !scenes.some((scene) => String(scene.moment?.text ?? "").trim())) {
-    return null;
-  }
-
-  if (!isObject(payload.asset)) return null;
-
-  return {
-    sessionId: typeof payload.sessionId === "string" ? payload.sessionId : crypto.randomUUID(),
-    access: payload.access as Experience["access"],
-    preview: payload.preview !== false,
-    asset: payload.asset as Experience["asset"],
-    moments: payload.moments as Experience["moments"],
-    cinematicScenes: scenes,
-    geoStory: payload.geoStory ?? null,
-    memorySnapshot: payload.memorySnapshot ?? null,
-    receipt: payload.receipt ?? null,
-    insights: Array.isArray(payload.insights) ? payload.insights as Experience["insights"] : [],
-  };
-}
-
 export default function ExperiencePreview() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [experience, setExperience] = useState<Experience | null>(null);
-  const [invalid, setInvalid] = useState(false);
 
-  useEffect(() => {
-    const stored = sessionStorage.getItem("experiencePreview");
-    if (!stored) {
-      setInvalid(true);
-      return;
-    }
+  const state = (location.state ?? null) as PreviewState | null;
+  const experience = state?.experience ?? null;
 
-    try {
-      const parsed = JSON.parse(stored);
-      const presentation = toPresentationExperience(parsed);
-      if (!presentation) {
-        setInvalid(true);
-        return;
-      }
-      setExperience(presentation);
-    } catch (error) {
-      console.error("Invalid QRE experience payload", error);
-      setInvalid(true);
-    }
-  }, []);
-
-  if (!experience || invalid) {
+  if (!experience) {
     return (
       <main style={shellStyle}>
         <div style={emptyState}>
           <div style={eyebrow}>QRE</div>
           <h1 style={title}>Nothing ready to play.</h1>
-          <button type="button" onClick={() => navigate("/dashboard")} style={button}>
+
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            style={button}
+          >
             BACK
           </button>
         </div>
@@ -94,7 +38,9 @@ export default function ExperiencePreview() {
 
   return (
     <main style={playWorld}>
-      <CinematicScanPlayer data={experience} />
+      <CinematicScanPlayer
+        scenes={experience.cinematicScenes ?? []}
+      />
     </main>
   );
 }

@@ -3,7 +3,6 @@ import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
-
 export type AuthorDomainContext = {
   category?: string;
   businessType?: string;
@@ -14,6 +13,12 @@ export type AuthorDomainContext = {
   subjectKind?: string;
   knownCapabilities?: string[];
   contextualSignals?: string[];
+
+  creatorRole?: string;
+  audience?: string[];
+  objective?: string;
+  desiredAction?: string;
+  creativePreferences?: string[];
 };
 
 export type AuthorCreativeBrief = {

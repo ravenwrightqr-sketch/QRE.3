@@ -33,7 +33,7 @@ export default function QreInfo() {
         </div>
         <div style={{ display: "flex", gap: 14, marginTop: 30, flexWrap: "wrap" }}>
           <Link to="/dashboard" style={{ color: "#fff", padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,.08)", textDecoration: "none" }}>← Dashboard</Link>
-          <Link to="/experience/create" style={{ color: "#fff", padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,.08)", textDecoration: "none" }}>Create an experience →</Link>
+          <Link to="/dashboard" style={{ color: "#fff", padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,.08)", textDecoration: "none" }}>Create an experience →</Link>
         </div>
       </main>
     </DashboardLayout>

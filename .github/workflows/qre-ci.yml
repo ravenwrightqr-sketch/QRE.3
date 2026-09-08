@@ -83,3 +83,6 @@ jobs:
 
       - name: Runtime cognition acceptance
         run: pnpm --filter @qre/engine test:runtime-cognition
+
+      - name: Author lens acceptance
+        run: pnpm exec tsx apps/api/author-lens-acceptance.ts

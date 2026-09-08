@@ -95,31 +95,99 @@ function stringList(value: unknown): string[] {
     ? value.filter((item) => typeof item === "string").map(clean).filter(Boolean)
     : [];
 }
-
 function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
   if (!asset) return undefined;
+
   const data = asRecord(asset.templateData);
+
   const context: AuthorDomainContext = {
     category: clean(asset.category || data?.category),
-    businessType: clean(data?.businessType || asset.account?.type),
-    businessName: clean(data?.businessName || asset.account?.name || asset.displayName),
-    businessDescription: clean(data?.businessDescription || data?.description),
-    serviceType: clean(data?.serviceType || data?.service_type),
-    serviceName: clean(data?.serviceName || data?.service || data?.offering),
-    subjectKind: clean(data?.subjectKind || data?.subject_kind),
+
+    businessType: clean(
+      data?.businessType || asset.account?.type,
+    ),
+
+    businessName: clean(
+      data?.businessName ||
+      asset.account?.name ||
+      asset.displayName,
+    ),
+
+    businessDescription: clean(
+      data?.businessDescription ||
+      data?.description,
+    ),
+
+    serviceType: clean(
+      data?.serviceType ||
+      data?.service_type,
+    ),
+
+    serviceName: clean(
+      data?.serviceName ||
+      data?.service ||
+      data?.offering,
+    ),
+
+    subjectKind: clean(
+      data?.subjectKind ||
+      data?.subject_kind,
+    ),
+
     knownCapabilities: unique([
       ...stringList(data?.services),
       ...stringList(data?.capabilities),
       ...stringList(data?.offerings),
       ...stringList(data?.serviceNames),
     ]).slice(0, 24),
+
     contextualSignals: unique([
       ...stringList(data?.contextualSignals),
       ...stringList(data?.signals),
     ]).slice(0, 24),
+
+    creatorRole: clean(
+      data?.creatorRole ||
+      data?.role ||
+      data?.creator_role,
+    ),
+
+    audience: stringList(
+      data?.audience ||
+      data?.targetAudience ||
+      data?.target_audience,
+    ).slice(0, 24),
+
+    objective: clean(
+      data?.objective ||
+      data?.goal ||
+      data?.purpose,
+    ),
+
+    desiredAction: clean(
+      data?.desiredAction ||
+      data?.desired_action ||
+      data?.callToAction ||
+      data?.cta,
+    ),
+
+    creativePreferences: stringList(
+      data?.creativePreferences ||
+      data?.creative_preferences ||
+      data?.creativeTaste ||
+      data?.creative_taste,
+    ).slice(0, 24),
   };
-  return Object.values(context).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value)) ? context : undefined;
+
+  return Object.values(context).some((value) =>
+    Array.isArray(value)
+      ? value.length > 0
+      : Boolean(value),
+  )
+    ? context
+    : undefined;
 }
+
 
 function inferSubject(prompt: string, context?: MemoryContext): string {
   const normalizedPrompt = prompt.toLowerCase();
@@ -299,19 +367,17 @@ export async function compileExperience(input: {
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorExperienceStates.flatMap((state) => state.chapter.semanticTurns);
+// Intent remains intent.
+// Only explicitly supplied facts/events become source reality.
+// Memory and learning remain contextual inputs to cognition and must never
+// be promoted into current source reality without explicit verification.
+const sourceMoments = unique(
+  input.sourceMoments ?? [],
+).slice(0, 80);
 
-  // Intent stays in `prompt`. Only explicit facts/events and persisted memory
-  // become source material. This prevents the instruction itself becoming reality.
-  const sourceMoments = unique([
-    ...(input.sourceMoments ?? []),
-    ...(memoryContext?.events ?? []).map((event) => clean(event.summary)),
-  ]).slice(0, 80);
-  const facts = unique([
-    ...(input.facts ?? []),
-    ...(memoryContext?.facts ?? [])
-      .filter((fact) => fact.status === "active" && fact.confidence >= 0.7)
-      .map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`),
-  ]).slice(0, 100);
+const facts = unique(
+  input.facts ?? [],
+).slice(0, 100);
   const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
 

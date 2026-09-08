@@ -8,6 +8,7 @@ import { ENTITLEMENT_RULES, type AccountPlan } from "@qre/contracts";
 import { db } from "@qre/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { compileExperience, type GeoAnchorInput } from "../services/experienceService.js";
+import { createExperience } from "../services/experienceCreationServices.js";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
 import { loadEntityMemory } from "../services/entityMemoryService.js";
@@ -210,7 +211,76 @@ const experience = await compileExperience({
     });
   }
 });
+router.post("/create", requireAuth, async (req, res) => {
+  try {
+    const assetId =
+      typeof req.body?.assetId === "string"
+        ? req.body.assetId.trim()
+        : "";
 
+    const prompt =
+      typeof req.body?.prompt === "string"
+        ? req.body.prompt.trim()
+        : "";
+
+    const title =
+      typeof req.body?.title === "string"
+        ? req.body.title.trim()
+        : undefined;
+
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized.",
+      });
+    }
+
+    if (!assetId || !prompt) {
+      return res.status(400).json({
+        success: false,
+        error: "Asset and experience are required.",
+      });
+    }
+
+    const asset = await ownedAsset(assetId, userId);
+
+    if (!asset) {
+      return res.status(404).json({
+        success: false,
+        error: "QRE object not found.",
+      });
+    }
+
+    const created = await createExperience({
+      assetId: asset.id,
+      prompt,
+      title: title || undefined,
+      userId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      experienceId: created.experience.id,
+      flowId: created.flow.id,
+      experience: created.compiled,
+    });
+  } catch (error) {
+    console.error("Experience creation failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to create experience.",
+      details:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : error instanceof Error
+            ? error.message
+            : String(error),
+    });
+  }
+});
 router.get("/memory/:assetId", requireAuth, async (req, res) => {
   try {
     const assetId = String(req.params.assetId ?? "").trim();

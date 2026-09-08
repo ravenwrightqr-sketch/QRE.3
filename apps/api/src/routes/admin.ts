@@ -26,8 +26,20 @@ router.post(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { displayName, slug, prompt, priceCents } = req.body;
-
+       const {
+  displayName,
+  businessName,
+  businessType,
+  businessDescription,
+  services,
+  capabilities,
+  audience,
+  objective,
+  creativePreferences,
+  slug,
+  prompt,
+  priceCents,
+} = req.body;
       if (!slug || !prompt) {
         return res.status(400).json({ error: "slug and prompt required" });
       }
@@ -49,18 +61,63 @@ router.post(
       }
 
       const accountId = membership.accountId;
-
       const asset = await db.asset.create({
-        data: {
-          accountId,
-          displayName,
-          slug,
-          status: "active",
-          paid: false,
-          saleChannel: "ADMIN",
-          priceCents: priceCents ?? 999,
-        },
-      });
+    data: {
+    accountId,
+    displayName:
+     typeof displayName === "string" && displayName.trim()
+    ? displayName.trim()
+    : typeof businessName === "string"
+      ? businessName.trim()
+      : slug,
+    slug,
+    status: "active",
+    paid: false,
+    saleChannel: "ADMIN",
+    priceCents: priceCents ?? 999,
+    templateData: {
+  businessName: typeof businessName === "string"
+    ? businessName.trim()
+    : "",
+
+  businessType: typeof businessType === "string"
+    ? businessType.trim()
+    : "",
+
+  businessDescription: typeof businessDescription === "string"
+    ? businessDescription.trim()
+    : "",
+
+  services: Array.isArray(services)
+    ? services.filter((value: unknown): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+      )
+    : [],
+
+  capabilities: Array.isArray(capabilities)
+    ? capabilities.filter((value: unknown): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+      )
+    : [],
+
+  audience: Array.isArray(audience)
+    ? audience.filter((value: unknown): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+      )
+    : [],
+
+  objective: typeof objective === "string"
+    ? objective.trim()
+    : "",
+
+  creativePreferences: Array.isArray(creativePreferences)
+    ? creativePreferences.filter((value: unknown): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+      )
+    : [],
+},
+  },
+});
 
       const result = await createExperience({
         assetId: asset.id,

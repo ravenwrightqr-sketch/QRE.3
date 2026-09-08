@@ -43,10 +43,32 @@ function frame(parsed: Record<string,unknown>|undefined, explicit: string, g: Re
   return { mode:chosen&&(explicit||ids.length)?"frame":"none", frame:chosen||"NONE", confidence:clamp(f.confidence??parsed?.frameConfidence,explicit?1:.4), coreTension:clean(f.coreTension??parsed?.coreTension), creativeGain:clean(f.creativeGain??parsed?.creativeGain), templateRisk:clean(f.templateRisk??parsed?.templateRisk), evidenceEventIds:ids };
 }
 function score(c: LatentMovieCandidate, returning: boolean): number {
-  const semanticSteps=c.trajectory.filter(s=>s.eventIds.length>=2).length;
-  const movement=Math.min(1, semanticSteps/2);
-  const continuity=returning?c.callbackPotential:c.novelty;
-  return clamp(c.attentionPotential*.17+c.novelty*.12+c.specificity*.12+c.distinctiveness*.14+c.informationValue*.1+c.consequencePotential*.1+continuity*.08+movement*.1+(1-c.truthRisk)*.07-c.repetitionRisk*.1);
+  const semanticSteps = c.trajectory.filter((s) => s.eventIds.length >= 2).length;
+  const eventSpan = new Set(c.trajectory.flatMap((s) => s.eventIds)).size;
+  const trajectorySpan = c.trajectory.length;
+
+  const movement = Math.min(1, semanticSteps / 4);
+  const span = Math.min(1, eventSpan / 8);
+  const depth = Math.min(1, trajectorySpan / 6);
+
+  const continuity = returning
+    ? c.callbackPotential
+    : c.novelty;
+
+  return clamp(
+    c.attentionPotential * 0.15 +
+    c.novelty * 0.10 +
+    c.specificity * 0.11 +
+    c.distinctiveness * 0.12 +
+    c.informationValue * 0.09 +
+    c.consequencePotential * 0.10 +
+    continuity * 0.07 +
+    movement * 0.09 +
+    span * 0.10 +
+    depth * 0.04 +
+    (1 - c.truthRisk) * 0.07 -
+    c.repetitionRisk * 0.10,
+  );
 }
 function observationCandidates(g: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
   const candidates: LatentMovieCandidate[] = [];
@@ -230,37 +252,220 @@ function dedupe(cs: LatentMovieCandidate[],limit=10): LatentMovieCandidate[] { c
 function questions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[]{
   const out:AuthorAdaptiveQuestion[]=[]; if(!input.subject)out.push({kind:"who",question:"Who or what is this about?",reason:"The focal subject is missing."}); if(!input.place&&!input.realityGraph.events.some(e=>e.place))out.push({kind:"where",question:"Where did this happen?",reason:"Place may add meaningful context."}); if(!input.realityGraph.events.some(e=>e.time)&&!/(today|yesterday|tomorrow|morning|afternoon|evening|night|\d{1,2}:\d{2}|\d{4})/i.test(input.prompt))out.push({kind:"when",question:"When did this happen?",reason:"Time may establish useful continuity."}); return out.slice(0,3);
 }
-export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan>{
-  const returning=Boolean(input.returning||(input.visitNumber??1)>1), explicit=clean(input.lens); const intelligence=buildAuthorCognitionIntelligence(input.realityGraph,returning,input.creativeLearningContext??[]);
-  const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time,entities:e.entities})),relations:input.realityGraph.relations.map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:input.realityGraph.patterns??[],tensions:input.realityGraph.unresolvedTensions??[],sensory:input.realityGraph.sensorySignals??[]};
-  let parsed:Record<string,unknown>|undefined; let model="deterministic"; let modelCalls=0;
-  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:[
-    "You are QRE universal cognition, not a writer.",
-    "Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.",
-    "Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.",
-    "A Movie is a grounded creative structure made from supplied event IDs. It may emerge from explicit relationships OR from the structure of a real sequence of actions, objects, spaces, repetitions, interruptions, transformations, comparisons, returns or unusual details.",
-    "Do not require an explicit graph relation before recognizing form. Ordered work can contain stages; stages can become rounds; rooms can become territory; a sequence can become a run; completion can become a finish; a real interruption can become an obstacle; before/after can become transformation.",
-    "Search for active mechanics and material agency: mission, campaign, rounds, territory, race, speedrun, countdown, contest, hunt, showdown, boss room, elimination, rescue, repair, transformation, reversal, accumulation, status flip, object-as-character, food-as-character, car-as-contender, house-as-stage, room-as-arena, machine-as-opponent, tool-as-weapon, sign-as-sentinel or other metaphorical roles when supplied reality supports them.",
-    "Material agency is expressive, not literal. A dish may 'enter the stage' in the film without claiming the food literally walked, spoke or chose. A car may be framed as a contender without inventing a race. A house may feel like a boss room without inventing a monster.",
-    "Do not invent an opponent, danger, deadline, failure, victory, dialogue, motive, sensation or consequence merely to make something exciting. The energy must be extracted from real structure or clearly figurative language reserved for the Artist.",
-    "Do not make one hypothesis per event. Do not treat a subject as narrator by default.",
-    "A rich reality graph may justify a materially rich structure. A sparse graph may produce a compact structure. Do not collapse rich material merely because a compact answer is easier.",
-    "Every concrete cut in downstream realization will be bound to supplied evidence. You may return movies using eventIds:[...] alone, cuts:[{eventIds:[...],duration?}], or canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].",
-    "Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.",
-    "Keep hypotheses diagnostic and non-psychological. No customer-facing prose.",
-    "Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."
-  ].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol,attention:intelligence.attention,antiFailure:intelligence.antiFailureChecks}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
-  const fr=frame(parsed,explicit,input.realityGraph), selectedLens=fr.mode==="frame"?fr.frame:"NONE";
-  const modelCs=normalizeModel(parsed,input.realityGraph,returning);
-  const observations=observationCandidates(input.realityGraph,clean(input.subject)||"the subject",returning);
-  const candidates=dedupe(modelCs.length?modelCs:observations,10);
-  const chosenRaw=parsed?.selectedMovieId;
-  const chosenId=clean(chosenRaw);
-  const numericChosen=Number(chosenId);
-  const selectedMovie=candidates.find(c=>c.id===chosenId)
-    ||(Number.isInteger(numericChosen)&&numericChosen>=0?candidates[numericChosen]:undefined)
-    ||candidates[0];
-  const ints=Array.isArray(parsed?.interpretations)?parsed.interpretations.slice(0,6).flatMap((x,i)=>{if(!x||typeof x!=="object")return[];const r=x as Record<string,unknown>;return [{id:clean(r.id)||`interpretation-${i+1}`,thesis:clean(r.thesis)||selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:clean(r.creativeOpportunity)||"semantic progression",rationale:clean(r.rationale)||"grounded in supplied evidence",evidenceEventIds:validIds(r.evidenceEventIds,input.realityGraph),confidence:clamp(r.confidence,.6)}];}):[];
-  const qs=Array.isArray(parsed?.adaptiveQuestions)?parsed.adaptiveQuestions.filter((x):x is Record<string,unknown>=>Boolean(x&&typeof x==="object")).map(x=>({kind:clean(x.kind) as AuthorAdaptiveQuestion["kind"],question:clean(x.question),reason:clean(x.reason)})).filter(x=>x.question&&["who","where","when","event","detail"].includes(x.kind)&&!PSYCH.test(x.question)).slice(0,3):[];
-  return {selectedLens,frame:fr,interpretations:ints.length?ints:[{id:"interpretation-grounded",thesis:selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:"semantic progression",rationale:"derived from supplied evidence",evidenceEventIds:selectedMovie?.anchorEventIds??[],confidence:selectedMovie?.score??.2}],latentMovieCandidates:candidates,selectedMovie,adaptiveQuestions:unique([...qs,...questions(input)].map(x=>JSON.stringify(x))).map(x=>JSON.parse(x) as AuthorAdaptiveQuestion).slice(0,4),attentionStrategy:clean(parsed?.attentionStrategy)||"notice what changes the meaning of another supplied detail",reasoningSummary:Array.isArray(parsed?.reasoningSummary)?parsed.reasoningSummary.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,10):[...intelligence.semanticSignals.slice(0,3),...intelligence.competitionProtocol.slice(0,4)],model,modelCalls};
+export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
+  const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
+  const explicit = clean(input.lens);
+  const intelligence = buildAuthorCognitionIntelligence(
+    input.realityGraph,
+    returning,
+    input.creativeLearningContext ?? [],
+  );
+
+  const compact = {
+    subject: clean(input.subject) || "unknown",
+    place: clean(input.place) || "unknown",
+    prompt: clean(input.prompt),
+    creatorContext: input.domainContext ?? null,
+    returning,
+    memory: (input.memoryContext ?? []).slice(0, 20),
+    learning: (input.creativeLearningContext ?? []).slice(0, 20),
+    events: input.realityGraph.events.map(e => ({
+      id: e.id,
+      label: e.label,
+      salient: Boolean(e.salient),
+      place: e.place,
+      time: e.time,
+      entities: e.entities,
+    })),
+    relations: input.realityGraph.relations.map(r => ({
+      from: r.from,
+      to: r.to,
+      kind: r.kind,
+      strength: r.strength,
+    })),
+    patterns: input.realityGraph.patterns ?? [],
+    tensions: input.realityGraph.unresolvedTensions ?? [],
+    sensory: input.realityGraph.sensorySignals ?? [],
+  };
+
+  let parsed: Record<string, unknown> | undefined;
+  let model = "deterministic";
+  let modelCalls = 0;
+
+  if (input.movieMode !== false) {
+    try {
+      const r = await localModelGenerate(
+        [
+          {
+            role: "system",
+          content: [
+  "You are QRE universal cognition.",
+  "RealityGraph is authoritative. Never invent concrete facts, people, actions, outcomes, chronology, motives, emotions, capabilities, locations, or events.",
+  "Creator context is guidance only. It may influence emphasis and form but never creates reality.",
+  "Find grounded relationships, structures, and competing interpretations already present in the supplied evidence.",
+  "Use supplied event IDs as evidence for concrete claims.",
+  "Look for contrast, recurrence, convergence, state change, recontextualization, accumulation, persistence, progression, interruption, transformation, return, absence, and consequence.",
+  "An ordered sequence may be treated as a structure when the supplied events actually form that sequence.",
+  "Do not invent obstacles, opponents, deadlines, victories, failures, motives, emotions, or outcomes.",
+  "A Movie is a grounded creative possibility describing a relationship or latent reading that could become an experience. It is not a screenplay, story, fictional scenario, or beat list.",
+  "Do not merely restate events. Do not make one Movie per event. Prefer materially different grounded interpretations.",
+  "Every Movie must be traceable to supplied event IDs.",
+  "Use only these trajectory operations: establish, contrast, recur, reframe, escalate, converge, reveal, consequence, payoff.",
+  "Lens is selective pressure, not authorship. Never let a lens invent the underlying reality.",
+  "Return diagnostic cognition only. No customer-facing prose. No screenplay language. No planner language.",
+  "Return valid JSON with: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary.",
+  "Keep the response compact. Prefer concise strings, few interpretations, and only the strongest grounded Movie candidates.",
+  "Do not repeat the same evidence or explanation in multiple fields.",
+].join("\n"),
+          },
+          {
+            role: "user",
+         content: JSON.stringify({
+  reality: compact,
+  intelligence: {
+    signals: intelligence.semanticSignals.slice(0, 8),
+    moves: intelligence.candidateMoves.slice(0, 8),
+    rules: intelligence.decisionRules.slice(0, 8),
+    competition: intelligence.competitionProtocol.slice(0, 6),
+    attention: intelligence.attention.slice(0, 6),
+    antiFailure: intelligence.antiFailureChecks.slice(0, 6),
+  },
+}),
+          },
+        ],
+        "json",
+        {
+          numPredict: 900,
+          temperature: 0.88,
+        },
+      );
+
+      parsed = parse(r.text);
+      model = r.model;
+      modelCalls = 1;
+    } catch {}
+  }
+
+  const fr = frame(parsed, explicit, input.realityGraph);
+  const selectedLens = fr.mode === "frame" ? fr.frame : "NONE";
+
+  const modelCs = normalizeModel(parsed, input.realityGraph, returning);
+
+  const observations = observationCandidates(
+    input.realityGraph,
+    clean(input.subject) || "the subject",
+    returning,
+  );
+
+  const candidates = dedupe(
+    [...modelCs, ...observations],
+    10,
+  );
+
+  const chosenRaw = parsed?.selectedMovieId;
+  const chosenId = clean(chosenRaw);
+  const numericChosen = Number(chosenId);
+
+  const selectedMovie =
+    candidates.find(c => c.id === chosenId) ||
+    (Number.isInteger(numericChosen) && numericChosen >= 0
+      ? candidates[numericChosen]
+      : undefined) ||
+    candidates[0];
+
+  const ints = Array.isArray(parsed?.interpretations)
+    ? parsed.interpretations
+        .slice(0, 6)
+        .flatMap((x, i) => {
+          if (!x || typeof x !== "object") return [];
+
+          const r = x as Record<string, unknown>;
+
+          return [{
+            id: clean(r.id) || `interpretation-${i + 1}`,
+            thesis:
+              clean(r.thesis) ||
+              selectedMovie?.hypothesis[0] ||
+              "Find the strongest grounded reading.",
+            creativeOpportunity:
+              clean(r.creativeOpportunity) ||
+              "semantic progression",
+            rationale:
+              clean(r.rationale) ||
+              "grounded in supplied evidence",
+            evidenceEventIds: validIds(
+              r.evidenceEventIds,
+              input.realityGraph,
+            ),
+            confidence: clamp(r.confidence, 0.6),
+          }];
+        })
+    : [];
+
+  const qs = Array.isArray(parsed?.adaptiveQuestions)
+    ? parsed.adaptiveQuestions
+        .filter(
+          (x): x is Record<string, unknown> =>
+            Boolean(x && typeof x === "object"),
+        )
+        .map(x => ({
+          kind: clean(x.kind) as AuthorAdaptiveQuestion["kind"],
+          question: clean(x.question),
+          reason: clean(x.reason),
+        }))
+        .filter(
+          x =>
+            x.question &&
+            ["who", "where", "when", "event", "detail"].includes(x.kind) &&
+            !PSYCH.test(x.question),
+        )
+        .slice(0, 3)
+    : [];
+
+  return {
+    selectedLens,
+    frame: fr,
+    interpretations: ints.length
+      ? ints
+      : [{
+          id: "interpretation-grounded",
+          thesis:
+            selectedMovie?.hypothesis[0] ||
+            "Find the strongest grounded reading.",
+          creativeOpportunity: "semantic progression",
+          rationale: "derived from supplied evidence",
+          evidenceEventIds:
+            selectedMovie?.anchorEventIds ?? [],
+          confidence: selectedMovie?.score ?? 0.2,
+        }],
+    latentMovieCandidates: candidates,
+    selectedMovie,
+    adaptiveQuestions: unique(
+      [...qs, ...questions(input)].map(x => JSON.stringify(x)),
+    )
+      .map(
+        x =>
+          JSON.parse(x) as AuthorAdaptiveQuestion,
+      )
+      .slice(0, 4),
+    attentionStrategy:
+      clean(parsed?.attentionStrategy) ||
+      "notice what changes the meaning of another supplied detail",
+    reasoningSummary:
+      Array.isArray(parsed?.reasoningSummary)
+        ? parsed.reasoningSummary
+            .filter(
+              (x): x is string =>
+                typeof x === "string",
+            )
+            .map(clean)
+            .filter(Boolean)
+            .slice(0, 10)
+        : [
+            ...intelligence.semanticSignals.slice(0, 3),
+            ...intelligence.competitionProtocol.slice(0, 4),
+          ],
+    model,
+    modelCalls,
+  };
 }

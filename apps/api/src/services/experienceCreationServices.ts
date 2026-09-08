@@ -112,7 +112,7 @@ export async function createExperience(input: CreateExperienceInput) {
     authorDiagnostics.renderable !== true ||
     authorDiagnostics.complete !== true
   ) {
-    throw new Error("Canonical Author rejected the requested experience.");
+    console.error("[AUTHOR GATE DIAGNOSTICS]", JSON.stringify(authorDiagnostics, null, 2)); throw new Error("Canonical Author rejected the requested experience.");
   }
 
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
@@ -205,6 +205,16 @@ export async function createExperience(input: CreateExperienceInput) {
     data: { flow: { connect: { id: flow.id } } },
   });
 
+    await db.assetFlow.create({
+    data: {
+      assetId: input.assetId,
+      flowId: flow.id,
+      priority: 0,
+      active: true,
+      triggerType: "DEFAULT",
+    },
+  });
+  
   return {
     experience,
     flow,
