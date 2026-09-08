@@ -1,5 +1,6 @@
 import { PDFParse } from "pdf-parse";
 import * as XLSX from "@keep-lts/xlsx";
+import { localModelGenerate } from "./localModelRuntime.js";
 
 export type ExtractedKnowledgeFact = {
   label: string;
@@ -34,12 +35,16 @@ export async function extractPdfKnowledge(bytes: Buffer): Promise<ExtractedDocum
       throw new Error("This PDF has no extractable text. Scanned PDFs need OCR before QRE can learn them.");
     }
 
+    const deterministic = factsFromDocumentText(text);
+    const semantic = await semanticFactsFromText(text, "pdf");
+
     return {
       text: text.slice(0, 200_000),
-      facts: factsFromDocumentText(text),
+      facts: mergeFacts(deterministic, semantic),
       metadata: {
-        pageCount: result.pages?.length ?? undefined,
+        pageCount: Array.isArray(result.pages) ? result.pages.length : undefined,
         parser: "pdf-parse",
+        semanticExtraction: semantic.length > 0,
       },
     };
   } finally {
@@ -123,8 +128,76 @@ export function extractSpreadsheetKnowledge(bytes: Buffer, originalName?: string
       parser: "sheetjs-compatible-xlsx",
       sheets: workbook.SheetNames,
       rowCount: totalRows,
+      semanticExtraction: false,
     },
   };
+}
+
+async function semanticFactsFromText(text: string, sourceType: string): Promise<ExtractedKnowledgeFact[]> {
+  if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return [];
+
+  try {
+    const result = await localModelGenerate([
+      {
+        role: "system",
+        content: [
+          "You are QRE's source-grounded knowledge extractor.",
+          `The source came from a ${sourceType}.`,
+          "Extract durable facts that would help QRE understand the source later.",
+          "Only use information explicitly supported by the supplied source text.",
+          "Do not invent facts, names, prices, dates, services, locations, products, quantities, or relationships.",
+          "Prefer useful business, product, service, operational, customer, policy, schedule, and descriptive facts.",
+          "Return strict JSON array with objects: label, value, category, unit?, confidence, notes?.",
+          "Keep each fact concise. Avoid one giant summary when the source contains several distinct facts.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: text.slice(0, 70_000),
+      },
+    ], "json");
+
+    const parsed = parseJsonArray(result.text);
+    return parsed
+      .filter((fact): fact is ExtractedKnowledgeFact => Boolean(fact && typeof fact.label === "string" && typeof fact.value === "string"))
+      .map((fact) => ({
+        label: fact.label.trim().slice(0, 240),
+        value: fact.value.trim().slice(0, 6000),
+        category: typeof fact.category === "string" && fact.category.trim() ? fact.category.trim() : "document",
+        unit: typeof fact.unit === "string" ? fact.unit.trim() || undefined : undefined,
+        confidence: clamp(fact.confidence),
+        notes: typeof fact.notes === "string" ? fact.notes.trim().slice(0, 1000) || undefined : undefined,
+      }))
+      .slice(0, 250);
+  } catch (error) {
+    console.warn("[KnowledgeIntake] semantic document extraction unavailable", error);
+    return [];
+  }
+}
+
+function parseJsonArray(text: string): unknown[] {
+  const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function mergeFacts(base: ExtractedKnowledgeFact[], semantic: ExtractedKnowledgeFact[]): ExtractedKnowledgeFact[] {
+  const result = [...base];
+  const keys = new Set(base.map((fact) => `${fact.label.toLowerCase()}|${fact.value.toLowerCase().slice(0, 200)}`));
+
+  for (const fact of semantic) {
+    const key = `${fact.label.toLowerCase()}|${fact.value.toLowerCase().slice(0, 200)}`;
+    if (keys.has(key)) continue;
+    keys.add(key);
+    result.push(fact);
+    if (result.length >= 500) break;
+  }
+
+  return result;
 }
 
 function factsFromDocumentText(text: string): ExtractedKnowledgeFact[] {
@@ -200,4 +273,8 @@ function stringifyCell(value: unknown): string {
   if (value == null) return "";
   if (value instanceof Date) return value.toISOString();
   return String(value).trim();
+}
+
+function clamp(value: unknown): number {
+  return Math.max(0, Math.min(1, typeof value === "number" && Number.isFinite(value) ? value : 0.7));
 }
