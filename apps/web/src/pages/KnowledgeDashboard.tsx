@@ -54,7 +54,6 @@ type KnowledgeResponse = {
   knowledge: KnowledgeItem[];
   categories: string[];
   metrics?: Record<string, unknown> | null;
-  memory?: MemoryState;
 };
 
 type Tab = "recent" | "catalog" | "observations" | "patterns";
@@ -62,6 +61,7 @@ type Tab = "recent" | "catalog" | "observations" | "patterns";
 export default function KnowledgeDashboard() {
   const { slug = "" } = useParams();
   const [data, setData] = useState<KnowledgeResponse | null>(null);
+  const [memory, setMemory] = useState<MemoryState | null>(null);
   const [tab, setTab] = useState<Tab>("recent");
   const [error, setError] = useState("");
 
@@ -70,7 +70,12 @@ export default function KnowledgeDashboard() {
 
     try {
       setError("");
-      setData(await apiGet(`/api/knowledge/${encodeURIComponent(slug)}`));
+      const [knowledge, state] = await Promise.all([
+        apiGet(`/api/knowledge/${encodeURIComponent(slug)}`),
+        apiGet(`/api/knowledge/${encodeURIComponent(slug)}/state`),
+      ]);
+      setData(knowledge);
+      setMemory(state);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load QRE memory.");
     }
@@ -89,16 +94,9 @@ export default function KnowledgeDashboard() {
     return [...groups.entries()];
   }, [data]);
 
-  if (!data) {
+  if (!data || !memory) {
     return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
   }
-
-  const memory = data.memory ?? {
-    catalog: [],
-    observations: [],
-    patterns: [],
-    counts: { catalog: 0, observations: 0, patterns: 0, jobs: 0 },
-  };
 
   const metricScans = Number(data.metrics?.scans ?? data.metrics?.totalScans ?? 0);
 
