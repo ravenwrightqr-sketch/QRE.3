@@ -1,27 +1,8 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ChangeEvent,
-  type DragEvent,
-} from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import { apiGet, apiPost } from "../lib/api";
-
-type IntakeJob = {
-  id: string;
-  status: "queued" | "processing" | "completed" | "failed" | string;
-  sourceType: string;
-  originalName?: string | null;
-  result?: {
-    factCount?: number;
-    catalogIds?: string[];
-    observationIds?: string[];
-  } | null;
-  error?: string | null;
-};
+import { apiGet } from "../lib/api";
+import UniversalKnowledgeIntake from "../components/knowledge/UniversalKnowledgeIntake";
 
 type KnowledgeItem = {
   id: string;
@@ -33,41 +14,55 @@ type KnowledgeItem = {
   notes?: string;
 };
 
-type KnowledgeResponse = {
-  asset: {
-    slug: string;
-    displayName?: string | null;
+type MemoryState = {
+  catalog: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    category?: string | null;
+    brand?: string | null;
+    description?: string | null;
+    updatedAt: string;
+  }>;
+  observations: Array<{
+    id: string;
+    type: string;
+    value: unknown;
+    source: string;
+    confidence: number;
+    observedAt: string;
+  }>;
+  patterns: Array<{
+    id: string;
+    type: string;
+    statement: string;
+    confidence: number;
+    strength: number;
+    firstObservedAt?: string | null;
+    lastObservedAt?: string | null;
+  }>;
+  counts: {
+    catalog: number;
+    observations: number;
+    patterns: number;
+    jobs: number;
   };
+};
+
+type KnowledgeResponse = {
+  asset: { slug: string; displayName?: string | null };
   knowledge: KnowledgeItem[];
   categories: string[];
   metrics?: Record<string, unknown> | null;
+  memory?: MemoryState;
 };
 
-type IntakePayload = {
-  sourceType: string;
-  originalName?: string;
-  mimeType?: string;
-  imageDataUrl?: string;
-  content?: string;
-  text?: string;
-};
-
-const panel: CSSProperties = {
-  border: "1px solid rgba(255,255,255,.11)",
-  borderRadius: 20,
-  background: "rgba(255,255,255,.035)",
-};
+type Tab = "recent" | "catalog" | "observations" | "patterns";
 
 export default function KnowledgeDashboard() {
   const { slug = "" } = useParams();
-  const pickerRef = useRef<HTMLInputElement | null>(null);
-
   const [data, setData] = useState<KnowledgeResponse | null>(null);
-  const [jobs, setJobs] = useState<IntakeJob[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [pasteMode, setPasteMode] = useState(false);
-  const [text, setText] = useState("");
+  const [tab, setTab] = useState<Tab>("recent");
   const [error, setError] = useState("");
 
   async function load() {
@@ -75,18 +70,9 @@ export default function KnowledgeDashboard() {
 
     try {
       setError("");
-
-      const result = await apiGet(
-        `/api/knowledge/${encodeURIComponent(slug)}`,
-      );
-
-      setData(result);
+      setData(await apiGet(`/api/knowledge/${encodeURIComponent(slug)}`));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load QRE knowledge.",
-      );
+      setError(err instanceof Error ? err.message : "Could not load QRE memory.");
     }
   }
 
@@ -94,649 +80,200 @@ export default function KnowledgeDashboard() {
     void load();
   }, [slug]);
 
-  async function addFiles(files: File[]) {
-    if (!files.length || !slug) return;
-
-    setBusy(true);
-    setError("");
-
-    try {
-      const created: IntakeJob[] = [];
-
-      for (const file of files) {
-        const payload = await buildFilePayload(file);
-
-        const response = await apiPost(
-          `/api/knowledge/${encodeURIComponent(slug)}/intake`,
-          payload,
-        );
-
-        created.push({
-          id: String(response.jobId),
-          status: String(response.status ?? "queued"),
-          sourceType: payload.sourceType,
-          originalName: file.name,
-        });
-      }
-
-      setJobs((current) => [...created, ...current]);
-
-      for (const job of created) {
-        void watchJob(job.id);
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "QRE could not accept the upload.",
-      );
-    } finally {
-      setBusy(false);
+  const grouped = useMemo(() => {
+    const groups = new Map<string, KnowledgeItem[]>();
+    for (const item of data?.knowledge ?? []) {
+      const key = item.category || "general";
+      groups.set(key, [...(groups.get(key) ?? []), item]);
     }
+    return [...groups.entries()];
+  }, [data]);
+
+  if (!data) {
+    return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
   }
 
-  async function addText() {
-    const value = text.trim();
+  const memory = data.memory ?? {
+    catalog: [],
+    observations: [],
+    patterns: [],
+    counts: { catalog: 0, observations: 0, patterns: 0, jobs: 0 },
+  };
 
-    if (!value || !slug) return;
-
-    setBusy(true);
-    setError("");
-
-    try {
-      const response = await apiPost(
-        `/api/knowledge/${encodeURIComponent(slug)}/intake`,
-        {
-          sourceType: "text",
-          text: value,
-          content: value,
-        },
-      );
-
-      const job: IntakeJob = {
-        id: String(response.jobId),
-        status: String(response.status ?? "queued"),
-        sourceType: "text",
-        originalName: "Pasted text",
-      };
-
-      setJobs((current) => [job, ...current]);
-      setText("");
-      setPasteMode(false);
-
-      void watchJob(job.id);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "QRE could not accept the text.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function watchJob(jobId: string) {
-    try {
-      for (;;) {
-        const response = await apiGet(
-          `/api/knowledge/${encodeURIComponent(slug)}/intake/${encodeURIComponent(jobId)}`,
-        );
-
-        const next = response.job as IntakeJob;
-
-        setJobs((current) =>
-          current.map((job) =>
-            job.id === jobId
-              ? { ...job, ...next }
-              : job,
-          ),
-        );
-
-        if (
-          next.status === "completed" ||
-          next.status === "failed"
-        ) {
-          if (next.status === "completed") {
-            await load();
-          }
-
-          return;
-        }
-
-        await wait(1000);
-      }
-    } catch (err) {
-      setJobs((current) =>
-        current.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                status: "failed",
-                error:
-                  err instanceof Error
-                    ? err.message
-                    : "Processing failed.",
-              }
-            : job,
-        ),
-      );
-    }
-  }
-
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setDragging(false);
-
-    const files = Array.from(event.dataTransfer.files);
-
-    if (files.length) {
-      void addFiles(files);
-    }
-  }
-
-  function handlePicker(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-
-    if (files.length) {
-      void addFiles(files);
-    }
-
-    event.target.value = "";
-  }
-
-  const activeJobs = jobs.filter(
-    (job) =>
-      job.status === "queued" ||
-      job.status === "processing",
-  );
+  const metricScans = Number(data.metrics?.scans ?? data.metrics?.totalScans ?? 0);
 
   return (
     <DashboardLayout>
-      <main
-        style={{
-          minHeight: "100vh",
-          color: "#fff",
-          maxWidth: 1080,
-          margin: "0 auto",
-          padding: "44px 28px 80px",
-        }}
-      >
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: 30,
-            gap: 20,
-          }}
-        >
+      <main style={pageStyle}>
+        <header style={headerStyle}>
           <div>
-            <div
-              style={{
-                fontSize: 10,
-                letterSpacing: 5,
-                opacity: 0.42,
-              }}
-            >
-              QRE WORLD MEMORY
-            </div>
-
-            <h1
-              style={{
-                margin: "8px 0 5px",
-                fontSize: 36,
-                letterSpacing: -1,
-              }}
-            >
-              {data?.asset.displayName || slug}
-            </h1>
-
-            <div style={{ opacity: 0.5 }}>
-              Give QRE information. QRE organizes it.
-            </div>
+            <div style={eyebrow}>BUSINESS MEMORY</div>
+            <h1 style={titleStyle}>{data.asset.displayName || data.asset.slug}</h1>
+            <p style={subStyle}>Give QRE anything. This is where what it learns accumulates.</p>
           </div>
-
-          <Link
-            to={`/dashboard/assets/${encodeURIComponent(slug)}`}
-            style={{
-              color: "#fff",
-              opacity: 0.6,
-            }}
-          >
-            ← Asset
-          </Link>
+          <Link to="/dashboard" style={backLink}>← GIVE QRE SOMETHING</Link>
         </header>
 
-        {error && (
-          <div
-            style={{
-              ...panel,
-              marginBottom: 18,
-              padding: 16,
-              background: "rgba(255,60,60,.10)",
-            }}
-          >
-            {error}
-          </div>
-        )}
+        <UniversalKnowledgeIntake slug={slug} onLearned={load} />
 
-        <section style={{ marginBottom: 18 }}>
-          <div
-            onClick={() => pickerRef.current?.click()}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={(event) => {
-              event.preventDefault();
-              setDragging(false);
-            }}
-            onDrop={handleDrop}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                pickerRef.current?.click();
-              }
-            }}
-            style={{
-              ...panel,
-              minHeight: 330,
-              padding: 35,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "center",
-              textAlign: "center",
-              cursor: "pointer",
-              borderColor: dragging
-                ? "rgba(0,255,204,.7)"
-                : "rgba(255,255,255,.11)",
-              background: dragging
-                ? "rgba(0,255,204,.08)"
-                : "rgba(255,255,255,.035)",
-              transition: "all .18s ease",
-            }}
-          >
-            <input
-              ref={pickerRef}
-              type="file"
-              multiple
-              accept={[
-                "image/*",
-                "application/pdf",
-                "text/plain",
-                ".csv",
-                ".xls",
-                ".xlsx",
-              ].join(",")}
-              onChange={handlePicker}
-              style={{ display: "none" }}
-            />
+        {error && <div style={errorStyle}>{error}</div>}
 
-            <div
-              style={{
-                width: 76,
-                height: 76,
-                borderRadius: 22,
-                display: "grid",
-                placeItems: "center",
-                fontSize: 44,
-                background: "rgba(255,255,255,.06)",
-                border: "1px solid rgba(255,255,255,.10)",
-                marginBottom: 20,
-              }}
-            >
-              +
-            </div>
-
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 800,
-                letterSpacing: -0.8,
-              }}
-            >
-              {busy ? "ADDING TO QRE…" : "GIVE QRE ANYTHING"}
-            </div>
-
-            <div
-              style={{
-                marginTop: 11,
-                opacity: 0.52,
-                fontSize: 15,
-                maxWidth: 620,
-                lineHeight: 1.5,
-              }}
-            >
-              Drop photos, PDFs, spreadsheets, CSVs, or files.
-              QRE identifies what they contain and organizes the
-              information automatically.
-            </div>
-
-            <div
-              style={{
-                marginTop: 22,
-                padding: "10px 17px",
-                borderRadius: 11,
-                background: "rgba(255,255,255,.07)",
-                border: "1px solid rgba(255,255,255,.11)",
-                fontSize: 13,
-              }}
-            >
-              Click to choose files
-            </div>
-          </div>
+        <section style={statsGrid} aria-label="Knowledge totals">
+          <Stat label="Catalog" value={memory.counts.catalog} />
+          <Stat label="Observations" value={memory.counts.observations} />
+          <Stat label="Patterns" value={memory.counts.patterns} />
+          <Stat label="Scans" value={metricScans} />
         </section>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginBottom: 28,
-          }}
-        >
-          <button
-            onClick={() => setPasteMode((value) => !value)}
-            style={{
-              border: 0,
-              background: "transparent",
-              color: "#fff",
-              opacity: 0.6,
-              cursor: "pointer",
-              fontSize: 13,
-            }}
-          >
-            {pasteMode
-              ? "Close text input"
-              : "or paste information directly"}
-          </button>
-        </div>
+        <section style={{ marginTop: 34 }}>
+          <nav style={tabs} aria-label="Business memory">
+            {(["recent", "catalog", "observations", "patterns"] as Tab[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setTab(item)}
+                style={{ ...tabButton, ...(tab === item ? activeTabButton : {}) }}
+              >
+                {item === "recent" ? "Recent Knowledge" : item[0].toUpperCase() + item.slice(1)}
+              </button>
+            ))}
+          </nav>
 
-        {pasteMode && (
-          <section
-            style={{
-              ...panel,
-              padding: 20,
-              marginBottom: 28,
-            }}
-          >
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Paste anything about the person, business, product, place, event, service, project, or whatever QRE should learn…"
-              style={{
-                width: "100%",
-                minHeight: 150,
-                boxSizing: "border-box",
-                resize: "vertical",
-                borderRadius: 13,
-                border: "1px solid rgba(255,255,255,.10)",
-                background: "rgba(255,255,255,.035)",
-                color: "#fff",
-                padding: 15,
-                outline: "none",
-              }}
-            />
-
-            <button
-              onClick={() => void addText()}
-              disabled={busy || !text.trim()}
-              style={{
-                marginTop: 11,
-                border: 0,
-                borderRadius: 11,
-                padding: "11px 17px",
-                cursor: busy ? "default" : "pointer",
-                fontWeight: 700,
-              }}
-            >
-              {busy ? "ADDING…" : "GIVE TO QRE"}
-            </button>
-          </section>
-        )}
-
-        {jobs.length > 0 && (
-          <section
-            style={{
-              ...panel,
-              padding: 21,
-              marginBottom: 24,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 13,
-              }}
-            >
-              <h2 style={{ margin: 0 }}>
-                {activeJobs.length
-                  ? "QRE IS LEARNING"
-                  : "RECENTLY LEARNED"}
-              </h2>
-
-              {activeJobs.length > 0 && (
-                <span
-                  style={{
-                    opacity: 0.45,
-                    fontSize: 12,
-                  }}
-                >
-                  {activeJobs.length} active
-                </span>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: 8,
-              }}
-            >
-              {jobs.slice(0, 15).map((job) => (
-                <div
-                  key={job.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 15,
-                    padding: "12px 14px",
-                    borderRadius: 11,
-                    background: "rgba(255,255,255,.035)",
-                  }}
-                >
-                  <div
-                    style={{
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {job.originalName || job.sourceType}
-                    </div>
-
-                    {job.status === "completed" &&
-                      job.result?.factCount !== undefined && (
-                        <div
-                          style={{
-                            opacity: 0.42,
-                            fontSize: 11,
-                            marginTop: 3,
-                          }}
-                        >
-                          {job.result.factCount} facts extracted
+          {tab === "recent" && (
+            <div style={sectionStack}>
+              {grouped.length === 0 && <Empty text="QRE has not learned anything here yet." />}
+              {grouped.map(([group, items]) => (
+                <section key={group} style={sectionPanel}>
+                  <div style={sectionHeading}>
+                    <h2 style={sectionTitle}>{group.replace(/_/g, " ")}</h2>
+                    <span style={muted}>{items.length}</span>
+                  </div>
+                  <div style={itemStack}>
+                    {items.slice(0, 12).map((item) => (
+                      <article key={item.id} style={memoryRow}>
+                        <div>
+                          <strong>{item.label || "Knowledge"}</strong>
+                          <div style={valueText}>{item.value || "—"}</div>
+                          <div style={metaText}>{item.source || "source"} · {new Date(item.createdAt).toLocaleString()}</div>
+                          {item.notes && <div style={notesText}>{item.notes}</div>}
                         </div>
-                      )}
-
-                    {job.status === "failed" && (
-                      <div
-                        style={{
-                          opacity: 0.55,
-                          fontSize: 11,
-                          marginTop: 3,
-                        }}
-                      >
-                        {job.error || "Processing failed"}
-                      </div>
-                    )}
+                      </article>
+                    ))}
                   </div>
-
-                  <div
-                    style={{
-                      opacity: 0.55,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {job.status}
-                  </div>
-                </div>
+                </section>
               ))}
             </div>
-          </section>
-        )}
+          )}
 
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(3, minmax(0, 1fr))",
-            gap: 12,
-          }}
-        >
-          <Stat
-            label="Knowledge"
-            value={data?.knowledge.length ?? 0}
-          />
+          {tab === "catalog" && (
+            <section style={sectionPanel}>
+              <div style={sectionHeading}>
+                <h2 style={sectionTitle}>Catalog</h2>
+                <span style={muted}>{memory.counts.catalog}</span>
+              </div>
+              <div style={itemStack}>
+                {memory.catalog.length === 0 && <Empty text="Catalog items will appear as QRE identifies things in what you provide." />}
+                {memory.catalog.map((item) => (
+                  <article key={item.id} style={memoryRow}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong>{item.name}</strong>
+                      <div style={valueText}>{[item.brand, item.category, item.kind].filter(Boolean).join(" · ") || "item"}</div>
+                      {item.description && <div style={notesText}>{item.description}</div>}
+                    </div>
+                    <div style={metaText}>{new Date(item.updatedAt).toLocaleString()}</div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
-          <Stat
-            label="Categories"
-            value={data?.categories.length ?? 0}
-          />
+          {tab === "observations" && (
+            <section style={sectionPanel}>
+              <div style={sectionHeading}>
+                <h2 style={sectionTitle}>Observations</h2>
+                <span style={muted}>{memory.counts.observations}</span>
+              </div>
+              <div style={itemStack}>
+                {memory.observations.length === 0 && <Empty text="Observations appear here as QRE sees and records reality." />}
+                {memory.observations.map((observation) => (
+                  <article key={observation.id} style={memoryRow}>
+                    <div>
+                      <strong>{observation.type}</strong>
+                      <div style={valueText}>{formatValue(observation.value)}</div>
+                      <div style={metaText}>{observation.source} · confidence {Math.round(observation.confidence * 100)}% · {new Date(observation.observedAt).toLocaleString()}</div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
-          <Stat
-            label="Learning"
-            value={activeJobs.length}
-          />
+          {tab === "patterns" && (
+            <section style={sectionPanel}>
+              <div style={sectionHeading}>
+                <h2 style={sectionTitle}>Patterns</h2>
+                <span style={muted}>{memory.counts.patterns}</span>
+              </div>
+              <div style={itemStack}>
+                {memory.patterns.length === 0 && <Empty text="Patterns emerge as observations repeat over time." />}
+                {memory.patterns.map((pattern) => (
+                  <article key={pattern.id} style={memoryRow}>
+                    <div>
+                      <strong>{pattern.statement}</strong>
+                      <div style={valueText}>{pattern.type}</div>
+                      <div style={metaText}>strength {Math.round(pattern.strength * 100)}% · confidence {Math.round(pattern.confidence * 100)}%</div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </section>
       </main>
     </DashboardLayout>
   );
 }
 
-function Stat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div style={{ ...panel, padding: 18 }}>
-      <div
-        style={{
-          fontSize: 30,
-          fontWeight: 800,
-        }}
-      >
-        {value}
-      </div>
-
-      <div
-        style={{
-          opacity: 0.42,
-          fontSize: 11,
-          marginTop: 3,
-        }}
-      >
-        {label}
-      </div>
+    <div style={statStyle}>
+      <div style={statValue}>{value.toLocaleString()}</div>
+      <div style={statLabel}>{label}</div>
     </div>
   );
 }
 
-async function buildFilePayload(
-  file: File,
-): Promise<IntakePayload> {
-  const dataUrl = await readAsDataUrl(file);
-
-  if (file.type.startsWith("image/")) {
-    return {
-      sourceType: "photo",
-      originalName: file.name,
-      mimeType: file.type,
-      imageDataUrl: dataUrl,
-    };
-  }
-
-  if (file.type === "application/pdf") {
-    return {
-      sourceType: "pdf",
-      originalName: file.name,
-      mimeType: file.type,
-      content: dataUrl,
-    };
-  }
-
-  if (
-    file.type.includes("spreadsheet") ||
-    file.type.includes("excel") ||
-    /\.(xlsx|xls|csv)$/i.test(file.name)
-  ) {
-    return {
-      sourceType: "spreadsheet",
-      originalName: file.name,
-      mimeType: file.type,
-      content: dataUrl,
-    };
-  }
-
-  return {
-    sourceType: "file",
-    originalName: file.name,
-    mimeType: file.type,
-    content: dataUrl,
-  };
+function Empty({ text }: { text: string }) {
+  return <div style={{ padding: 20, opacity: .38, fontSize: 12 }}>{text}</div>;
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Could not read file."));
-        return;
-      }
-
-      resolve(reader.result);
-    };
-
-    reader.onerror = () => {
-      reject(new Error("Could not read file."));
-    };
-
-    reader.readAsDataURL(file);
-  });
+function formatValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  try { return JSON.stringify(value); } catch { return String(value); }
 }
 
-function wait(ms: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+const pageStyle: CSSProperties = { minHeight: "100vh", color: "#fff", padding: "38px 0 80px" };
+const headerStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, marginBottom: 28, flexWrap: "wrap" };
+const eyebrow: CSSProperties = { margin: 0, opacity: .3, letterSpacing: 4, fontSize: 9 };
+const titleStyle: CSSProperties = { margin: "8px 0 4px", fontSize: "clamp(30px, 5vw, 52px)", fontWeight: 500, letterSpacing: "-2px" };
+const subStyle: CSSProperties = { margin: 0, opacity: .45, maxWidth: 640, fontSize: 13, lineHeight: 1.6 };
+const backLink: CSSProperties = { color: "rgba(255,255,255,.52)", textDecoration: "none", fontSize: 9, letterSpacing: 1.8 };
+const statsGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10, marginTop: 20 };
+const statStyle: CSSProperties = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 16, padding: 16, background: "rgba(255,255,255,.025)" };
+const statValue: CSSProperties = { fontSize: 25, fontWeight: 700 };
+const statLabel: CSSProperties = { marginTop: 4, fontSize: 9, letterSpacing: 2, opacity: .34 };
+const tabs: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", borderBottom: "1px solid rgba(255,255,255,.07)", paddingBottom: 8 };
+const tabButton: CSSProperties = { border: "1px solid transparent", borderRadius: 999, background: "transparent", color: "rgba(255,255,255,.42)", padding: "8px 11px", cursor: "pointer", font: "inherit", fontSize: 9, letterSpacing: 1.3 };
+const activeTabButton: CSSProperties = { color: "#fff", borderColor: "rgba(185,255,241,.22)", background: "rgba(185,255,241,.055)" };
+const sectionStack: CSSProperties = { display: "grid", gap: 14, marginTop: 16 };
+const sectionPanel: CSSProperties = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 18, background: "rgba(255,255,255,.025)", padding: 18 };
+const sectionHeading: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 };
+const sectionTitle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 500, textTransform: "capitalize" };
+const muted: CSSProperties = { opacity: .32, fontSize: 10 };
+const itemStack: CSSProperties = { display: "grid", gap: 8 };
+const memoryRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(255,255,255,.055)" };
+const valueText: CSSProperties = { marginTop: 4, opacity: .76, fontSize: 13, lineHeight: 1.45 };
+const metaText: CSSProperties = { marginTop: 5, opacity: .34, fontSize: 10 };
+const notesText: CSSProperties = { marginTop: 7, opacity: .52, fontSize: 11, lineHeight: 1.5 };
+const errorStyle: CSSProperties = { marginTop: 18, borderRadius: 12, padding: 14, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,100,100,.16)", fontSize: 12 };
+const loadingStyle: CSSProperties = { minHeight: "70vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.45)", letterSpacing: 3 };
