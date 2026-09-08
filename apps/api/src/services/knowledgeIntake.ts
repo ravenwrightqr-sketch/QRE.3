@@ -2,6 +2,11 @@ import crypto from "node:crypto";
 import { db } from "@qre/db";
 import { analyzeImageForKnowledge } from "./aiProvider.js";
 import { learnWebsiteWorld } from "./websiteLearning.js";
+import {
+  decodeDataUrl,
+  extractPdfKnowledge,
+  extractSpreadsheetKnowledge,
+} from "./documentKnowledge.js";
 
 const WORKER_POLL_MS = 1200;
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
@@ -58,12 +63,6 @@ function parseStoredPayload(job: { assetId: string; sourceType: string; original
     imageDataUrl: typeof payload.imageDataUrl === "string" ? payload.imageDataUrl : undefined,
     text: typeof payload.text === "string" ? payload.text : undefined,
   };
-}
-
-function decodeDataUrl(value: string): { mimeType: string; bytes: Buffer } | null {
-  const match = value.match(/^data:([^;,]+)?(?:;[^;,]+)*;base64,(.*)$/s);
-  if (!match) return null;
-  return { mimeType: match[1] || "application/octet-stream", bytes: Buffer.from(match[2], "base64") };
 }
 
 function textFromInput(input: StoredPayload): string | undefined {
@@ -199,7 +198,7 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
       const strength = Math.min(.99, repeated / (repeated + 2));
 
       if (existingPattern) {
-        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date() } });
+        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date(), evidenceIds: { push: evidenceId } as never } });
       } else {
         await db.knowledgePattern.create({ data: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION", statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: new Date(), lastObservedAt: new Date() } });
       }
@@ -230,6 +229,18 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
       result = await learnWebsite(input, evidence.id);
     } else if (input.imageDataUrl?.startsWith("data:image/")) {
       result = await persistFacts(input, evidence.id, await analyzeImageForKnowledge(input.imageDataUrl));
+    } else if (input.sourceType === "pdf") {
+      const decoded = decodeDataUrl(input.content || "");
+      if (!decoded) throw new Error("PDF upload is not a valid data URL.");
+      const extracted = await extractPdfKnowledge(decoded.bytes);
+      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } } });
+      result = await persistFacts(input, evidence.id, extracted.facts);
+    } else if (input.sourceType === "spreadsheet") {
+      const decoded = decodeDataUrl(input.content || "");
+      if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL.");
+      const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName);
+      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } } });
+      result = await persistFacts(input, evidence.id, extracted.facts);
     } else {
       const text = textFromInput(input);
       result = text
