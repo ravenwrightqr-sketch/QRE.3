@@ -198,7 +198,7 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
       const strength = Math.min(.99, repeated / (repeated + 2));
 
       if (existingPattern) {
-        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date(), evidenceIds: { push: evidenceId } as never } });
+        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date() } });
       } else {
         await db.knowledgePattern.create({ data: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION", statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: new Date(), lastObservedAt: new Date() } });
       }
