@@ -82,15 +82,22 @@ export default function Dashboard() {
 
         <section style={heroStyle}>
           <div style={heroEyebrow}>QRE · YOUR WORLD</div>
-          <h1 style={titleStyle}>Give QRE<br />anything.</h1>
-          <p style={subStyle}>QRE figures out what it means, remembers it, and connects it to your world.</p>
+          <h1 style={titleStyle}>
+            Tell QRE<br />what you want.
+          </h1>
+          <p style={subStyle}>
+            Show QRE what exists. QRE figures out what it means, remembers it,
+            and connects it to your world.
+          </p>
 
           {activeObject ? (
             <UniversalKnowledgeIntake slug={activeObject.slug} onLearned={loadAssets} />
           ) : (
             <div style={emptyStyle}>
               <div style={emptyTitle}>START YOUR WORLD</div>
-              <p style={emptyText}>Create a business, place, person, product, event, or other QRE world to begin.</p>
+              <p style={emptyText}>
+                Create a business, place, person, product, event, or other QRE world to begin.
+              </p>
               <Link to="/admin/create" style={primaryLink}>CREATE WORLD</Link>
             </div>
           )}
@@ -202,7 +209,7 @@ const titleStyle = {
 
 const subStyle = {
   margin: "26px 0 52px",
-  maxWidth: 660,
+  maxWidth: 700,
   color: "rgba(255,255,255,.48)",
   fontSize: 16,
   lineHeight: 1.6,
