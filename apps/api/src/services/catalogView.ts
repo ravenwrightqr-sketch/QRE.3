@@ -46,66 +46,49 @@ function normalize(value: string): string {
 }
 
 export function normalizeCatalogView(input: unknown): CatalogViewConfig {
-  const raw = input && typeof input === "object" && !Array.isArray(input)
-    ? input as Record<string, unknown>
-    : {};
-  const scopeRaw = raw.scope && typeof raw.scope === "object" && !Array.isArray(raw.scope)
-    ? raw.scope as Record<string, unknown>
-    : {};
-
-  const nameMode = raw.nameMode === "brand_item" || raw.nameMode === "attribute" ? raw.nameMode : "item";
-  const groupBy = raw.groupBy === "brand" || raw.groupBy === "category" || raw.groupBy === "attribute" ? raw.groupBy : "none";
-  const scopeKind = scopeRaw.kind === "brand" || scopeRaw.kind === "category" || scopeRaw.kind === "attribute" ? scopeRaw.kind : "all";
-  const sortBy = raw.sortBy === "brand" || raw.sortBy === "newest" || raw.sortBy === "merchant" ? raw.sortBy : "name";
-
-  const config: CatalogViewConfig = {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
+  const scopeRaw = raw.scope && typeof raw.scope === "object" && !Array.isArray(raw.scope) ? raw.scope as Record<string, unknown> : {};
+  const view: CatalogViewConfig = {
     version: 1,
     title: cleanString(raw.title),
-    nameMode,
+    nameMode: raw.nameMode === "brand_item" || raw.nameMode === "attribute" ? raw.nameMode : "item",
     nameAttributeKey: cleanString(raw.nameAttributeKey),
     showBrand: raw.showBrand !== false,
     showCategory: raw.showCategory === true,
     showDescription: raw.showDescription === true,
-    groupBy,
+    groupBy: raw.groupBy === "brand" || raw.groupBy === "category" || raw.groupBy === "attribute" ? raw.groupBy : "none",
     groupAttributeKey: cleanString(raw.groupAttributeKey),
     scope: {
-      kind: scopeKind,
+      kind: scopeRaw.kind === "brand" || scopeRaw.kind === "category" || scopeRaw.kind === "attribute" ? scopeRaw.kind : "all",
       key: cleanString(scopeRaw.key),
       value: cleanString(scopeRaw.value),
     },
-    sortBy,
+    sortBy: raw.sortBy === "brand" || raw.sortBy === "newest" || raw.sortBy === "merchant" ? raw.sortBy : "name",
   };
-
-  if (config.nameMode === "attribute" && !config.nameAttributeKey) config.nameMode = "item";
-  if (config.groupBy === "attribute" && !config.groupAttributeKey) config.groupBy = "none";
-  if (config.scope.kind === "attribute" && (!config.scope.key || !config.scope.value)) config.scope = { kind: "all" };
-  if ((config.scope.kind === "brand" || config.scope.kind === "category") && !config.scope.value) config.scope = { kind: "all" };
-
-  return config;
+  if (view.nameMode === "attribute" && !view.nameAttributeKey) view.nameMode = "item";
+  if (view.groupBy === "attribute" && !view.groupAttributeKey) view.groupBy = "none";
+  if (view.scope.kind === "attribute" && (!view.scope.key || !view.scope.value)) view.scope = { kind: "all" };
+  if ((view.scope.kind === "brand" || view.scope.kind === "category") && !view.scope.value) view.scope = { kind: "all" };
+  return view;
 }
 
-function templateDataWithView(templateData: unknown, view: CatalogViewConfig) {
-  const base = templateData && typeof templateData === "object" && !Array.isArray(templateData)
-    ? templateData as Record<string, unknown>
-    : {};
+function mergeView(templateData: unknown, view: CatalogViewConfig) {
+  const base = templateData && typeof templateData === "object" && !Array.isArray(templateData) ? templateData as Record<string, unknown> : {};
   return { ...base, catalogView: view };
 }
 
 export async function getCatalogView(assetId: string): Promise<CatalogViewConfig> {
   const asset = await db.asset.findUnique({ where: { id: assetId }, select: { templateData: true } });
-  return normalizeCatalogView((asset?.templateData as Record<string, unknown> | null | undefined)?.catalogView);
+  if (!asset) throw new Error("Asset not found.");
+  const templateData = asset.templateData && typeof asset.templateData === "object" && !Array.isArray(asset.templateData) ? asset.templateData as Record<string, unknown> : {};
+  return normalizeCatalogView(templateData.catalogView);
 }
 
 export async function setCatalogView(assetId: string, input: unknown): Promise<CatalogViewConfig> {
   const view = normalizeCatalogView(input);
   const asset = await db.asset.findUnique({ where: { id: assetId }, select: { templateData: true } });
   if (!asset) throw new Error("Asset not found.");
-
-  await db.asset.update({
-    where: { id: assetId },
-    data: { templateData: templateDataWithView(asset.templateData, view) },
-  });
-
+  await db.asset.update({ where: { id: assetId }, data: { templateData: mergeView(asset.templateData, view) } });
   return view;
 }
 
@@ -114,15 +97,8 @@ async function readCatalogItems(assetId: string) {
     where: { assetId },
     orderBy: { name: "asc" },
     include: {
-      attributes: {
-        orderBy: { createdAt: "desc" },
-        select: { key: true, value: true, normalizedValue: true, createdAt: true },
-      },
-      observations: {
-        orderBy: { observedAt: "desc" },
-        take: 1,
-        select: { value: true, observedAt: true },
-      },
+      attributes: { orderBy: { createdAt: "desc" }, select: { key: true, value: true, normalizedValue: true, createdAt: true } },
+      observations: { orderBy: { observedAt: "desc" }, take: 1, select: { value: true } },
     },
   });
 }
@@ -137,12 +113,10 @@ function latestAttributes(attributes: Array<{ key: string; value: string; normal
   return result;
 }
 
-function availability(item: { observations: Array<{ value: unknown }> }): "available" | "unavailable" | "observed" {
+function availability(item: { observations: Array<{ value: unknown }> }) {
   const raw = item.observations[0]?.value;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "observed";
-  const value = typeof (raw as Record<string, unknown>).value === "string"
-    ? String((raw as Record<string, unknown>).value).trim().toLowerCase()
-    : "";
+  const value = typeof (raw as Record<string, unknown>).value === "string" ? String((raw as Record<string, unknown>).value).trim().toLowerCase() : "";
   if (value === "unavailable" || value.includes("sold")) return "unavailable";
   if (value === "available") return "available";
   return "observed";
@@ -153,14 +127,9 @@ export async function getCatalogViewFacets(assetId: string): Promise<CatalogView
   const brands = new Set<string>();
   const categories = new Set<string>();
   const attributes = new Map<string, Set<string>>();
-
   for (const item of items) {
     if (item.brand?.trim()) brands.add(item.brand.trim());
     if (item.category?.trim() && item.category.trim().toLowerCase() !== "text") categories.add(item.category.trim());
-    for (const attribute of latestAttributes(item.attributes).values()) {
-      // handled below through the keyed map; this first pass intentionally stays generic.
-      void attribute;
-    }
     for (const attribute of item.attributes) {
       const key = attribute.key.trim();
       const value = attribute.value.trim();
@@ -169,20 +138,14 @@ export async function getCatalogViewFacets(assetId: string): Promise<CatalogView
       attributes.get(key.toLowerCase())!.add(value);
     }
   }
-
   return {
     brands: [...brands].sort((a, b) => a.localeCompare(b)),
     categories: [...categories].sort((a, b) => a.localeCompare(b)),
-    attributes: [...attributes.entries()]
-      .map(([key, values]) => ({ key, values: [...values].sort((a, b) => a.localeCompare(b)) }))
-      .sort((a, b) => a.key.localeCompare(b.key)),
+    attributes: [...attributes.entries()].map(([key, values]) => ({ key, values: [...values].sort((a, b) => a.localeCompare(b)) })).sort((a, b) => a.key.localeCompare(b.key)),
   };
 }
 
-function matchesScope(
-  item: { brand: string | null; category: string | null; attributes: Array<{ key: string; value: string; normalizedValue: string | null; createdAt: Date }> },
-  scope: CatalogViewConfig["scope"],
-): boolean {
+function matchesScope(item: { brand: string | null; category: string | null; attributes: Array<{ key: string; value: string; normalizedValue: string | null; createdAt: Date }> }, scope: CatalogViewConfig["scope"]): boolean {
   if (scope.kind === "all") return true;
   const target = normalize(scope.value ?? "");
   if (!target) return true;
@@ -195,25 +158,13 @@ function matchesScope(
 export async function applyCatalogView(assetId: string, input?: unknown) {
   const view = input === undefined ? await getCatalogView(assetId) : normalizeCatalogView(input);
   const items = await readCatalogItems(assetId);
-
-  const available = items
-    .filter((item) => availability(item) !== "unavailable")
-    .filter((item) => matchesScope(item, view.scope));
-
-  const rendered = available.map((item) => {
+  const visible = items.filter((item) => availability(item) !== "unavailable").filter((item) => matchesScope(item, view.scope));
+  const rendered = visible.map((item) => {
     const attributes = latestAttributes(item.attributes);
     const attributeValue = view.nameAttributeKey ? attributes.get(normalize(view.nameAttributeKey))?.value : undefined;
-    const name = view.nameMode === "attribute" && attributeValue
-      ? attributeValue
-      : view.nameMode === "brand_item" && item.brand
-        ? `${item.brand} — ${item.name}`
-        : item.name;
-
-    const merchantOrderRaw = item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
-      ? (item.metadata as Record<string, unknown>).merchantOrder
-      : undefined;
+    const name = view.nameMode === "attribute" && attributeValue ? attributeValue : view.nameMode === "brand_item" && item.brand ? `${item.brand} — ${item.name}` : item.name;
+    const merchantOrderRaw = item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? (item.metadata as Record<string, unknown>).merchantOrder : undefined;
     const merchantOrder = typeof merchantOrderRaw === "number" ? merchantOrderRaw : Number.MAX_SAFE_INTEGER;
-
     return {
       id: item.id,
       kind: item.kind,
@@ -221,18 +172,13 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
       brand: view.showBrand ? item.brand : null,
       category: view.showCategory ? item.category : null,
       description: view.showDescription ? item.description : null,
-      groupValue:
-        view.groupBy === "brand" ? item.brand ?? ""
-        : view.groupBy === "category" ? item.category ?? ""
-        : view.groupBy === "attribute" ? attributes.get(normalize(view.groupAttributeKey ?? ""))?.value ?? ""
-        : null,
+      groupValue: view.groupBy === "brand" ? item.brand ?? "" : view.groupBy === "category" ? item.category ?? "" : view.groupBy === "attribute" ? attributes.get(normalize(view.groupAttributeKey ?? ""))?.value ?? "" : null,
       _name: item.name,
       _brand: item.brand ?? "",
       _createdAt: item.createdAt.getTime(),
       _merchantOrder: merchantOrder,
     };
   });
-
   rendered.sort((a, b) => {
     if (view.groupBy !== "none") {
       const groupCompare = (a.groupValue ?? "").localeCompare(b.groupValue ?? "");
@@ -243,7 +189,6 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
     if (view.sortBy === "merchant") return a._merchantOrder - b._merchantOrder || a._name.localeCompare(b._name);
     return a._name.localeCompare(b._name);
   });
-
   return {
     view,
     products: rendered.map(({ _name: _n, _brand: _b, _createdAt: _c, _merchantOrder: _m, ...product }) => product),
