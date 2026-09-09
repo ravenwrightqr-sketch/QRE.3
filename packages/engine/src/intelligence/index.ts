@@ -44,3 +44,23 @@ export type {
   ScenarioInput,
   ScenarioResult,
 } from "./patternForecast.js";
+
+export {
+  resolveLearningEntity,
+  detectLearningContradictions,
+  analyzeTemporalLearning,
+  deriveLearningSignals,
+  deriveLearningRecommendations,
+} from "./universalLearningBrain.js";
+
+export type {
+  LearningEvidence,
+  LearningEntity,
+  EntityCandidate,
+  EntityResolution,
+  LearningObservation,
+  Contradiction,
+  TemporalLearning,
+  LearningSignal,
+  LearningRecommendation,
+} from "./universalLearningBrain.js";
