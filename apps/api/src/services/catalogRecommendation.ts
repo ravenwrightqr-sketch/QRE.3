@@ -8,6 +8,8 @@ const STOP_WORDS = new Set([
   "nicotine", "salt", "edition", "series", "new", "the", "and", "with", "for", "of", "x",
 ]);
 
+const NON_SEMANTIC_CATEGORIES = new Set(["text"]);
+
 export type CatalogRecommendationReason = {
   relation: "shared_concept" | "same_category" | "same_brand";
   concept?: string;
@@ -73,6 +75,12 @@ function availabilityFromObservation(value: unknown): CatalogNode["availability"
   return "observed";
 }
 
+function meaningfulCategory(category: string | null): string | null {
+  if (!category) return null;
+  const normalized = category.trim().toLowerCase();
+  return normalized && !NON_SEMANTIC_CATEGORIES.has(normalized) ? normalized : null;
+}
+
 async function readCatalogNodes(assetId: string): Promise<CatalogNode[]> {
   const items = await db.catalogItem.findMany({
     where: { assetId },
@@ -92,7 +100,7 @@ async function readCatalogNodes(assetId: string): Promise<CatalogNode[]> {
       id: item.id,
       name: item.name,
       brand: item.brand,
-      category: item.category,
+      category: meaningfulCategory(item.category),
       description: item.description,
       availability: availabilityFromObservation(latest?.value),
       evidenceIds: latest?.evidenceId ? [latest.evidenceId] : [],
@@ -191,14 +199,16 @@ export async function deriveCatalogRecommendations(input: {
       }
     }
 
-    if (favorite.category && candidate.category && favorite.category.toLowerCase() === candidate.category.toLowerCase()) {
+    const favoriteCategory = meaningfulCategory(favorite.category);
+    const candidateCategory = meaningfulCategory(candidate.category);
+    if (favoriteCategory && candidateCategory && favoriteCategory === candidateCategory) {
       score += 1;
       reasons.push({
         relation: "same_category",
         source: "catalog_category",
         confidence: 0.95,
         evidenceIds: [...new Set([...favorite.evidenceIds, ...candidate.evidenceIds])],
-        explanation: `share the catalog category "${candidate.category}"`,
+        explanation: `share the catalog category "${candidateCategory}"`,
       });
     }
 
@@ -222,16 +232,22 @@ export async function deriveCatalogRecommendations(input: {
     };
     candidates.push(recommendation);
 
-    // Relationship truth is independent from customer-facing availability
-    // and presentation. QRE remembers every supported relationship.
+    // Relationship truth is independent from customer-facing ranking and
+    // availability. Store every supported relationship so QRE remembers it
+    // even when the item is unavailable or falls outside the current top-K.
     await persistRelationship(input.assetId, favorite, candidate, reasons, score);
   }
 
   candidates.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-  const selected = candidates.filter((candidate) => {
-    const node = nodes.find((item) => item.id === candidate.item.id);
-    return node?.availability !== "unavailable";
-  });
+  const selected = candidates
+    .filter((candidate) => {
+      const node = nodes.find((item) => item.id === candidate.item.id);
+      return node?.availability !== "unavailable";
+    });
+
+  const visibleRecommendations = input.limit === undefined
+    ? selected
+    : selected.slice(0, Math.max(1, Math.min(50, input.limit)));
 
   return {
     favorite: {
@@ -239,13 +255,13 @@ export async function deriveCatalogRecommendations(input: {
       name: favorite.name,
       concepts: [...favoriteConcepts].sort(),
     },
-    recommendations: selected,
+    recommendations: visibleRecommendations,
     model: {
       version: "catalog-relations-v1",
       explainable: true,
       availabilityFiltered: true,
       relationshipsPersistedIndependentlyOfRanking: true,
-      returnsAllEligibleRelationships: true,
+      recommendationLimitApplied: input.limit !== undefined,
     },
   };
 }
