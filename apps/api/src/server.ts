@@ -27,12 +27,14 @@ import knowledgeRouter from "./routes/knowledge.js";
 import knowledgeStateRouter from "./routes/knowledgeState.js";
 import learningRouter from "./routes/learning.js";
 import aiRouter from "./routes/ai.js";
+import catalogRouter from "./routes/catalog.js";
 import { aiConfigured, aiProviderName } from "./services/aiProvider.js";
 import { authRoutes } from "./routes/auth.js";
 import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 import { startKnowledgeIntakeWorker } from "./services/knowledgeIntake.js";
+import { startRealityIntakeWorker } from "./services/realityIntakeWorker.js";
 
 const app = express();
 app.use((req, _res, next) => {
@@ -78,6 +80,7 @@ app.use("/api/quick-experience", quickExperienceRouter);
 app.use("/api/rewards", rewardsRouter);
 app.use("/api/knowledge", knowledgeStateRouter);
 app.use("/api/knowledge", knowledgeRouter);
+app.use("/api/catalog", catalogRouter);
 app.use("/api/learning", learningRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/dashboard", dashboardRoutes);
@@ -96,4 +99,5 @@ app.get("/", (_req: Request, res: Response) => res.json({
 const PORT = Number(process.env.PORT || 3000);
 startAnalyticsSpineSubscriber();
 startKnowledgeIntakeWorker();
+startRealityIntakeWorker();
 app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));
