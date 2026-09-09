@@ -12,24 +12,35 @@ function configured(name: string, fallback: string): string {
   return value || fallback;
 }
 
+const DEFAULT_MODEL = "qwen2.5vl:7b";
+
 export function modelForCapability(capability: ModelCapability): string {
   switch (capability) {
     case "author":
       return configured(
         "QRE_AUTHOR_FAST_MODEL",
-        configured("QRE_AUTHOR_MODEL", configured("QRE_LOCAL_MODEL", "qwen2.5vl:7b")),
+        configured("QRE_AUTHOR_MODEL", configured("QRE_LOCAL_MODEL", DEFAULT_MODEL)),
       );
     case "vision":
-      return configured(
-        "QRE_VISION_MODEL",
-        configured("QRE_LOCAL_VISION_MODEL", "qwen2.5vl:7b"),
-      );
+      return configured("QRE_VISION_MODEL", configured("QRE_LOCAL_VISION_MODEL", DEFAULT_MODEL));
     case "document":
-      return configured(
-        "QRE_DOCUMENT_MODEL",
-        configured("QRE_LOCAL_DOCUMENT_MODEL", "qwen2.5vl:7b"),
-      );
+      return configured("QRE_DOCUMENT_MODEL", configured("QRE_LOCAL_DOCUMENT_MODEL", DEFAULT_MODEL));
   }
+}
+
+export function fallbackModelForCapability(
+  capability: ModelCapability,
+  primaryModel?: string,
+): string | undefined {
+  const configuredFallback = capability === "author"
+    ? process.env.QRE_AUTHOR_FALLBACK_MODEL
+    : capability === "vision"
+      ? process.env.QRE_VISION_FALLBACK_MODEL
+      : process.env.QRE_DOCUMENT_FALLBACK_MODEL;
+  const fallback = configuredFallback?.trim();
+  if (!fallback) return undefined;
+  const primary = primaryModel || modelForCapability(capability);
+  return fallback === primary ? undefined : fallback;
 }
 
 export function capabilityConfig() {
