@@ -20,16 +20,9 @@ export default function CustomerCatalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [favoriteId, setFavoriteId] = useState("");
-  const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [feedbackIds, setFeedbackIds] = useState<Record<string, "positive" | "negative">>({});
   const [error, setError] = useState("");
   const visitorId = useMemo(() => (slug ? getVisitorId(slug) : ""), [slug]);
-
-  async function loadRecommendations(itemId: string) {
-    if (!slug || !visitorId) return;
-    const result = await getCatalogRecommendations(slug, itemId, visitorId);
-    setRecommendations((result.recommendations ?? []).map((entry: any) => entry.item));
-  }
 
   useEffect(() => {
     if (!slug) return;
@@ -50,7 +43,7 @@ export default function CustomerCatalog() {
     setError("");
     try {
       await favoriteCatalogItem(slug, product.id, visitorId);
-      await loadRecommendations(product.id);
+      await getCatalogRecommendations(slug, product.id, visitorId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
     }
@@ -62,9 +55,12 @@ export default function CustomerCatalog() {
     setFeedbackIds((current) => ({ ...current, [product.id]: reaction }));
     try {
       await recordCatalogTryFeedback(slug, product.id, visitorId, reaction);
-      await loadRecommendations(favoriteId || product.id);
     } catch (err) {
-      setFeedbackIds((current) => ({ ...current, [product.id]: undefined as never }));
+      setFeedbackIds((current) => {
+        const next = { ...current };
+        delete next[product.id];
+        return next;
+      });
       setError(err instanceof Error ? err.message : "Could not save that reaction.");
     }
   }
@@ -77,19 +73,6 @@ export default function CustomerCatalog() {
       </header>
 
       {error && <p style={errorStyle}>{error}</p>}
-
-      {recommendations.length > 0 && (
-        <section style={recommendationSection} aria-label="You might like">
-          <div style={sectionLabel}>YOU MIGHT LIKE</div>
-          <div style={recommendationList}>
-            {recommendations.slice(0, 5).map((product) => (
-              <button key={product.id} type="button" style={recommendationButton} onClick={() => void chooseFavorite(product)}>
-                {displayName(product.name)}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section aria-label="Available products" style={productList}>
         {visibleProducts.map((product) => {
@@ -118,10 +101,6 @@ const pageStyle: React.CSSProperties = { minHeight: "100svh", background: "#0505
 const headerStyle: React.CSSProperties = { position: "sticky", top: 0, zIndex: 10, width: "100%", maxWidth: 680, margin: "0 auto", padding: "10px 0 18px", background: "#050505" };
 const titleStyle: React.CSSProperties = { margin: "0 0 16px", fontSize: "clamp(30px, 9vw, 44px)", lineHeight: 0.95, fontWeight: 800 };
 const searchStyle: React.CSSProperties = { width: "100%", minHeight: 48, boxSizing: "border-box", padding: "10px 0", border: "none", borderBottom: "1px solid #444", background: "transparent", color: "white", outline: "none", fontSize: 18, borderRadius: 0 };
-const recommendationSection: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "8px auto 30px", padding: "0 0 22px", borderBottom: "1px solid #252525" };
-const sectionLabel: React.CSSProperties = { fontSize: 11, letterSpacing: "0.16em", opacity: 0.5, marginBottom: 10 };
-const recommendationList: React.CSSProperties = { display: "grid" };
-const recommendationButton: React.CSSProperties = { minHeight: 46, padding: "8px 0", border: 0, borderBottom: "1px solid #151515", background: "transparent", color: "#8cff00", fontSize: 18, textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent" };
 const productList: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto" };
 const rowStyle: React.CSSProperties = { padding: "7px 0", borderBottom: "1px solid #171717" };
 const productLine: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 8 };
