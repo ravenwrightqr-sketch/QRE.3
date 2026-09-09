@@ -32,14 +32,8 @@ function StringField({
   return (
     <div style={styles.field}>
       <label style={styles.label}>{label}</label>
-
       {hint ? <div style={styles.hint}>{hint}</div> : null}
-
-      {multiline ? (
-        <textarea {...commonProps} rows={rows} />
-      ) : (
-        <input {...commonProps} />
-      )}
+      {multiline ? <textarea {...commonProps} rows={rows} /> : <input {...commonProps} />}
     </div>
   );
 }
@@ -72,7 +66,7 @@ export default function CreateAsset() {
    * BUSINESS TRUTH
    *
    * This is persistent context for the Asset.
-   * It is NOT the current creative request.
+   * It is NOT a current creative request.
    */
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState("");
@@ -84,7 +78,10 @@ export default function CreateAsset() {
   const [creativePreferences, setCreativePreferences] = useState("");
 
   /*
-   * ASSET / CURRENT EXPERIENCE
+   * OPTIONAL FIRST EXPERIENCE
+   *
+   * The business/world can be created without inventing an experience.
+   * This stays available while we refine the eventual explanation/UX.
    */
   const [slug, setSlug] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -93,49 +90,21 @@ export default function CreateAsset() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const suggestedSlug = useMemo(
-    () => makeSlug(businessName),
-    [businessName],
-  );
-
-  const finalSlug = useMemo(
-    () => makeSlug(slug) || suggestedSlug,
-    [slug, suggestedSlug],
-  );
+  const suggestedSlug = useMemo(() => makeSlug(businessName), [businessName]);
+  const finalSlug = useMemo(() => makeSlug(slug) || suggestedSlug, [slug, suggestedSlug]);
 
   function validate(): string | undefined {
-    if (!cleanText(businessName)) {
-      return "Business name required.";
-    }
-
-    if (!cleanText(businessType)) {
-      return "Tell us what kind of business this is.";
-    }
-
-    if (!cleanText(businessDescription)) {
-      return "Give QRE a short description of the business.";
-    }
-
-    if (!cleanText(prompt)) {
-      return "Tell QRE what happened or what you want to create first.";
-    }
-
-    if (!finalSlug) {
-      return "A valid business slug could not be created.";
-    }
-
-    if (!Number.isFinite(priceCents) || priceCents < 0) {
-      return "Unlock price must be zero or greater.";
-    }
-
+    if (!cleanText(businessName)) return "Business name required.";
+    if (!cleanText(businessType)) return "Tell us what kind of business this is.";
+    if (!cleanText(businessDescription)) return "Give QRE a short description of the business.";
+    if (!finalSlug) return "A valid business slug could not be created.";
+    if (!Number.isFinite(priceCents) || priceCents < 0) return "Unlock price must be zero or greater.";
     return undefined;
   }
 
   async function create() {
     setError("");
-
     const validationError = validate();
-
     if (validationError) {
       setError(validationError);
       return;
@@ -144,41 +113,26 @@ export default function CreateAsset() {
     try {
       setLoading(true);
 
-      const result = await apiPost(
-        "/admin/assets/create-experience",
-        {
-          displayName: cleanText(businessName),
-          businessName: cleanText(businessName),
-          businessType: cleanText(businessType),
-          businessDescription: cleanText(businessDescription),
-
-          services: splitList(services),
-          capabilities: splitList(capabilities),
-          audience: splitList(audience),
-
-          objective: cleanText(objective),
-
-          creativePreferences: splitList(
-            creativePreferences,
-          ),
-
-          slug: finalSlug,
-          priceCents: Math.round(priceCents),
-          prompt: cleanText(prompt),
-        },
-      );
+      const result = await apiPost("/admin/assets/create-experience", {
+        displayName: cleanText(businessName),
+        businessName: cleanText(businessName),
+        businessType: cleanText(businessType),
+        businessDescription: cleanText(businessDescription),
+        services: splitList(services),
+        capabilities: splitList(capabilities),
+        audience: splitList(audience),
+        objective: cleanText(objective),
+        creativePreferences: splitList(creativePreferences),
+        slug: finalSlug,
+        priceCents: Math.round(priceCents),
+        prompt: cleanText(prompt),
+      });
 
       console.log("QRE BUSINESS CREATED", result);
-
       navigate("/admin");
     } catch (err: unknown) {
       console.error("QRE BUSINESS CREATION FAILED", err);
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed creating QRE experience.";
-
+      const message = err instanceof Error ? err.message : "Failed creating QRE business.";
       setError(message);
     } finally {
       setLoading(false);
@@ -190,24 +144,17 @@ export default function CreateAsset() {
       <div style={styles.container}>
         <div style={styles.header}>
           <div style={styles.kicker}>QRE BUSINESS SETUP</div>
-
-          <h1 style={styles.title}>
-            Create your business
-          </h1>
-
+          <h1 style={styles.title}>Create your business</h1>
           <p style={styles.subtitle}>
-            Tell QRE about the business once. QRE keeps that context and
-            uses it whenever you create something new.
+            Tell QRE about the business once. QRE keeps that context and uses it whenever you
+            create something new.
           </p>
         </div>
 
         <section style={styles.section}>
           <div style={styles.sectionHeader}>
             <div>
-              <h2 style={styles.sectionTitle}>
-                About the business
-              </h2>
-
+              <h2 style={styles.sectionTitle}>About the business</h2>
               <p style={styles.sectionDescription}>
                 This becomes persistent business context in QRE.
               </p>
@@ -285,21 +232,17 @@ export default function CreateAsset() {
         <section style={styles.section}>
           <div style={styles.sectionHeader}>
             <div>
-              <h2 style={styles.sectionTitle}>
-                First experience
-              </h2>
-
+              <h2 style={styles.sectionTitle}>First experience <span style={styles.optional}>(optional)</span></h2>
               <p style={styles.sectionDescription}>
-                This is what is happening now. It changes from experience
-                to experience.
+                Leave this empty. You can teach QRE what happened later, after the business exists.
               </p>
             </div>
           </div>
 
           <StringField
             label="What happened?"
-            hint="Say it naturally. Don't worry about formatting."
-            placeholder="Coco came in to get groomed and went home with two red bows."
+            hint="Only use this when you already have a specific experience you want QRE to create."
+            placeholder="Optional for now"
             value={prompt}
             onChange={setPrompt}
             multiline
@@ -310,48 +253,26 @@ export default function CreateAsset() {
         <section style={styles.section}>
           <div style={styles.sectionHeader}>
             <div>
-              <h2 style={styles.sectionTitle}>
-                Asset
-              </h2>
-
-              <p style={styles.sectionDescription}>
-                The technical details stay simple.
-              </p>
+              <h2 style={styles.sectionTitle}>Asset</h2>
+              <p style={styles.sectionDescription}>The technical details stay simple.</p>
             </div>
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>
-              Custom slug
-            </label>
-
-            <div style={styles.hint}>
-              Optional. Leave it blank and QRE will use the business name.
-            </div>
-
+            <label style={styles.label}>Custom slug</label>
+            <div style={styles.hint}>Optional. Leave it blank and QRE will use the business name.</div>
             <input
               placeholder={suggestedSlug || "elm-st-dog-grooming"}
               value={slug}
               onChange={(event) => setSlug(event.target.value)}
               style={styles.input}
             />
-
-            {finalSlug ? (
-              <div style={styles.slugPreview}>
-                qre.com/{finalSlug}
-              </div>
-            ) : null}
+            {finalSlug ? <div style={styles.slugPreview}>qre.com/{finalSlug}</div> : null}
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>
-              Unlock price
-            </label>
-
-            <div style={styles.hint}>
-              Amount in cents.
-            </div>
-
+            <label style={styles.label}>Unlock price</label>
+            <div style={styles.hint}>Amount in cents.</div>
             <input
               type="number"
               min={0}
@@ -359,39 +280,28 @@ export default function CreateAsset() {
               value={priceCents}
               onChange={(event) => {
                 const next = Number(event.target.value);
-                setPriceCents(
-                  Number.isFinite(next) ? next : 0,
-                );
+                setPriceCents(Number.isFinite(next) ? next : 0);
               }}
               style={styles.input}
             />
           </div>
         </section>
 
-        {error ? (
-          <div style={styles.error}>
-            {error}
-          </div>
-        ) : null}
+        {error ? <div style={styles.error}>{error}</div> : null}
 
         <div style={styles.footer}>
           <button
             type="button"
             onClick={create}
             disabled={loading}
-            style={{
-              ...styles.button,
-              ...(loading ? styles.buttonDisabled : {}),
-            }}
+            style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
           >
-            {loading
-              ? "Building your experience..."
-              : "⚡ Create QRE Experience"}
+            {loading ? "Creating business..." : prompt.trim() ? "⚡ Create QRE Experience" : "Create QRE Business"}
           </button>
 
           <div style={styles.footerNote}>
-            Your business context is saved with the asset and used for
-            future creations.
+            You can add the first experience later. The business itself can exist before QRE has a
+            specific event to create.
           </div>
         </div>
       </div>
@@ -400,21 +310,9 @@ export default function CreateAsset() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100%",
-    padding: "48px 24px 80px",
-    background: "#f7f7f5",
-  },
-
-  container: {
-    maxWidth: 760,
-    margin: "0 auto",
-  },
-
-  header: {
-    marginBottom: 40,
-  },
-
+  page: { minHeight: "100%", padding: "48px 24px 80px", background: "#f7f7f5" },
+  container: { maxWidth: 760, margin: "0 auto" },
+  header: { marginBottom: 40 },
   kicker: {
     marginBottom: 10,
     fontSize: 12,
@@ -423,23 +321,8 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
     opacity: 0.5,
   },
-
-  title: {
-    margin: 0,
-    fontSize: 40,
-    lineHeight: 1.08,
-    fontWeight: 800,
-    letterSpacing: "-0.03em",
-  },
-
-  subtitle: {
-    maxWidth: 660,
-    margin: "14px 0 0",
-    fontSize: 17,
-    lineHeight: 1.55,
-    opacity: 0.68,
-  },
-
+  title: { margin: 0, fontSize: 40, lineHeight: 1.08, fontWeight: 800, letterSpacing: "-0.03em" },
+  subtitle: { maxWidth: 660, margin: "14px 0 0", fontSize: 17, lineHeight: 1.55, opacity: 0.68 },
   section: {
     marginBottom: 24,
     padding: 28,
@@ -448,43 +331,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 20,
     boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
   },
-
-  sectionHeader: {
-    marginBottom: 24,
-  },
-
-  sectionTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 750,
-    letterSpacing: "-0.02em",
-  },
-
-  sectionDescription: {
-    margin: "6px 0 0",
-    fontSize: 14,
-    lineHeight: 1.45,
-    opacity: 0.58,
-  },
-
-  field: {
-    marginBottom: 22,
-  },
-
-  label: {
-    display: "block",
-    marginBottom: 6,
-    fontSize: 14,
-    fontWeight: 700,
-  },
-
-  hint: {
-    marginBottom: 8,
-    fontSize: 12,
-    lineHeight: 1.45,
-    opacity: 0.55,
-  },
-
+  sectionHeader: { marginBottom: 24 },
+  sectionTitle: { margin: 0, fontSize: 22, fontWeight: 750, letterSpacing: "-0.02em" },
+  sectionDescription: { margin: "6px 0 0", fontSize: 14, lineHeight: 1.45, opacity: 0.58 },
+  optional: { fontSize: 13, fontWeight: 600, opacity: 0.45 },
+  field: { marginBottom: 22 },
+  label: { display: "block", marginBottom: 6, fontSize: 14, fontWeight: 700 },
+  hint: { marginBottom: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.55 },
   input: {
     boxSizing: "border-box",
     width: "100%",
@@ -499,13 +352,7 @@ const styles: Record<string, React.CSSProperties> = {
     outline: "none",
     resize: "vertical",
   },
-
-  slugPreview: {
-    marginTop: 8,
-    fontSize: 12,
-    opacity: 0.5,
-  },
-
+  slugPreview: { marginTop: 8, fontSize: 12, opacity: 0.5 },
   error: {
     marginBottom: 18,
     padding: "12px 14px",
@@ -515,11 +362,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.45,
   },
-
-  footer: {
-    marginTop: 28,
-  },
-
+  footer: { marginTop: 28 },
   button: {
     width: "100%",
     minHeight: 56,
@@ -533,17 +376,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
-
-  buttonDisabled: {
-    opacity: 0.55,
-    cursor: "wait",
-  },
-
-  footerNote: {
-    marginTop: 10,
-    textAlign: "center",
-    fontSize: 12,
-    lineHeight: 1.45,
-    opacity: 0.5,
-  },
+  buttonDisabled: { opacity: 0.55, cursor: "wait" },
+  footerNote: { marginTop: 10, textAlign: "center", fontSize: 12, lineHeight: 1.45, opacity: 0.5 },
 };
