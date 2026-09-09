@@ -18,8 +18,6 @@ function getVisitorId(slug: string) {
   return id;
 }
 
-function displayName(name: string) { return name.replace(/^Fogger\s+—\s+/i, ""); }
-
 export default function CustomerCatalog() {
   const { slug = "" } = useParams();
   const [businessName, setBusinessName] = useState("");
@@ -91,11 +89,11 @@ export default function CustomerCatalog() {
             <div key={product.id} style={rowStyle}>
               <div style={productLine}>
                 <button type="button" onClick={() => void chooseFavorite(product)} aria-pressed={selected} style={{ ...nameButton, ...(selected ? selectedNameButton : {}) }}>
-                  {displayName(product.name)}
+                  {product.name}
                 </button>
-                <div style={reactionButtons} aria-label={`Rate ${displayName(product.name)}`}>
-                  <button type="button" onClick={() => void react(product, "positive")} aria-label={`Like ${displayName(product.name)}`} aria-pressed={reaction === "positive"} style={{ ...heartButton, ...(reaction === "positive" ? heartSelected : {}) }}>♥</button>
-                  <button type="button" onClick={() => void react(product, "negative")} aria-label={`Nope ${displayName(product.name)}`} aria-pressed={reaction === "negative"} style={{ ...xButton, ...(reaction === "negative" ? xSelected : {}) }}>×</button>
+                <div style={reactionButtons} aria-label={`Rate ${product.name}`}>
+                  <button type="button" onClick={() => void react(product, "positive")} aria-label={`Like ${product.name}`} aria-pressed={reaction === "positive"} style={{ ...heartButton, ...(reaction === "positive" ? heartSelected : {}) }}>♥</button>
+                  <button type="button" onClick={() => void react(product, "negative")} aria-label={`Nope ${product.name}`} aria-pressed={reaction === "negative"} style={{ ...xButton, ...(reaction === "negative" ? xSelected : {}) }}>×</button>
                 </div>
               </div>
             </div>
