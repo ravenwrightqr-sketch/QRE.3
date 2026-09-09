@@ -18,6 +18,22 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+type CatalogState = {
+  id: string;
+  name: string;
+  availability: "available" | "unavailable" | "observed";
+};
+
+function availabilityFromValue(value: unknown): CatalogState["availability"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "observed";
+  const raw = typeof (value as Record<string, unknown>).value === "string"
+    ? String((value as Record<string, unknown>).value).toLowerCase().trim()
+    : "";
+  if (raw === "unavailable" || raw.includes("sold")) return "unavailable";
+  if (raw === "available") return "available";
+  return "observed";
+}
+
 async function main() {
   const asset = await db.asset.findUnique({
     where: { slug },
@@ -27,13 +43,33 @@ async function main() {
 
   const items = await db.catalogItem.findMany({
     where: { assetId: asset.id },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      observations: {
+        orderBy: { observedAt: "desc" },
+        take: 1,
+        select: { value: true },
+      },
+    },
   });
 
   if (items.length < 50) fail(`Expected at least 50 catalog items; found ${items.length}.`);
 
-  const favorite = items.find((item) => item.name === favoriteName);
+  const states: CatalogState[] = items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    availability: availabilityFromValue(item.observations[0]?.value),
+  }));
+
+  const favorite = states.find((item) => item.name === favoriteName);
   if (!favorite) fail(`Favorite item not found: ${favoriteName}`);
+
+  const expectedStates = expectedRelatedNames.map((name) => {
+    const item = states.find((candidate) => candidate.name === name);
+    if (!item) fail(`Expected related product missing from catalog: ${name}`);
+    return item;
+  });
 
   const visitorId = `catalog-recommendation-acceptance-${Date.now()}`;
   await recordCatalogFavorite({
@@ -57,9 +93,17 @@ async function main() {
   if (result.recommendations.length === 0) fail("No recommendations were produced.");
 
   const recommendationNames = new Set(result.recommendations.map((recommendation) => recommendation.item.name));
-  for (const name of expectedRelatedNames) {
-    if (!recommendationNames.has(name)) {
-      fail(`Expected related product was not recommended: ${name}`);
+
+  // Related and recommendable are distinct. A related product can be known
+  // to QRE while being excluded from the current recommendation set because
+  // the shop has marked it unavailable.
+  for (const item of expectedStates) {
+    if (item.availability === "unavailable") {
+      if (recommendationNames.has(item.name)) {
+        fail(`Unavailable related product was recommended: ${item.name}`);
+      }
+    } else if (!recommendationNames.has(item.name)) {
+      fail(`Expected eligible related product was not recommended: ${item.name}`);
     }
   }
 
@@ -92,7 +136,7 @@ async function main() {
       catalogItemId: favorite.id,
     },
     orderBy: { updatedAt: "desc" },
-    take: 20,
+    take: 50,
     select: {
       statement: true,
       confidence: true,
@@ -120,6 +164,7 @@ async function main() {
       visitorId,
       persisted: true,
     },
+    expectedRelated: expectedStates.map((item) => ({ name: item.name, availability: item.availability })),
     recommendations: result.recommendations.map((recommendation) => ({
       name: recommendation.item.name,
       score: recommendation.score,
