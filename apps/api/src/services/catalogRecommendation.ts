@@ -222,19 +222,16 @@ export async function deriveCatalogRecommendations(input: {
     };
     candidates.push(recommendation);
 
-    // Relationship truth is independent from customer-facing ranking and
-    // availability. Store every supported relationship so QRE remembers it
-    // even when the item is unavailable or falls outside the current top-K.
+    // Relationship truth is independent from customer-facing availability
+    // and presentation. QRE remembers every supported relationship.
     await persistRelationship(input.assetId, favorite, candidate, reasons, score);
   }
 
   candidates.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-  const selected = candidates
-    .filter((candidate) => {
-      const node = nodes.find((item) => item.id === candidate.item.id);
-      return node?.availability !== "unavailable";
-    })
-    .slice(0, Math.max(1, Math.min(10, input.limit ?? 3)));
+  const selected = candidates.filter((candidate) => {
+    const node = nodes.find((item) => item.id === candidate.item.id);
+    return node?.availability !== "unavailable";
+  });
 
   return {
     favorite: {
@@ -248,6 +245,7 @@ export async function deriveCatalogRecommendations(input: {
       explainable: true,
       availabilityFiltered: true,
       relationshipsPersistedIndependentlyOfRanking: true,
+      returnsAllEligibleRelationships: true,
     },
   };
 }
