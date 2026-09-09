@@ -46,7 +46,15 @@ async function readCatalog(assetId: string) {
     const value = latest?.value && typeof latest.value === "object" && !Array.isArray(latest.value)
       ? latest.value as Record<string, unknown>
       : {};
-    const rawAvailability = typeof value.value === "string" ? value.value.toLowerCase() : "";
+    const rawAvailability = typeof value.value === "string" ? value.value.toLowerCase().trim() : "";
+
+    // Check the negative state first: "unavailable" contains the substring
+    // "available", so checking for availability first misclassified MARK OUT.
+    const availability = rawAvailability === "unavailable" || rawAvailability.includes("sold")
+      ? "unavailable"
+      : rawAvailability === "available"
+        ? "available"
+        : "observed";
 
     return {
       id: item.id,
@@ -56,7 +64,7 @@ async function readCatalog(assetId: string) {
       brand: item.brand,
       description: item.description,
       status: item.status,
-      availability: rawAvailability.includes("available") ? "available" : rawAvailability.includes("sold") || rawAvailability.includes("unavailable") ? "unavailable" : "observed",
+      availability,
       confidence: latest?.confidence ?? 0,
       source: latest?.source ?? null,
       observedAt: latest?.observedAt ?? null,
@@ -105,13 +113,12 @@ router.put("/:slug/:itemId/availability", requireAuth, async (req: AuthRequest, 
     const item = await db.catalogItem.findFirst({ where: { id: itemId, assetId: asset.id }, select: { id: true, name: true } });
     if (!item) return res.status(404).json({ error: "Catalog item not found." });
 
-    const value = requested;
     const observation = await db.knowledgeObservation.create({
       data: {
         assetId: asset.id,
         catalogItemId: item.id,
         type: "AVAILABILITY_UPDATE",
-        value: { label: item.name, value, updatedBy: userId },
+        value: { label: item.name, value: requested, updatedBy: userId },
         source: "merchant",
         confidence: 1,
         observedAt: new Date(),
@@ -122,8 +129,8 @@ router.put("/:slug/:itemId/availability", requireAuth, async (req: AuthRequest, 
       data: {
         catalogItemId: item.id,
         key: "availability",
-        value,
-        normalizedValue: value,
+        value: requested,
+        normalizedValue: requested,
         confidence: 1,
         evidenceId: undefined,
       },
