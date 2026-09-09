@@ -19,8 +19,12 @@ async function request(path: string, options: RequestInit = {}) {
   return data;
 }
 
-async function publicRequest(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { method: "GET", headers: { "Content-Type": "application/json" } });
+async function publicRequest(path: string, options: RequestInit = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: options.method || "GET",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    body: options.body,
+  });
   let data: any = {};
   try { data = await res.json(); } catch { data = {}; }
   if (!res.ok) throw new Error(data.error || "Public request failed");
@@ -59,6 +63,18 @@ export const getScan = (slug: string, geo?: { lat: number; lng: number; accuracy
 };
 
 export const getCatalog = (slug: string) => publicRequest(`/api/catalog/${encodeURIComponent(slug)}`);
+export const getCustomerCatalog = (slug: string) => publicRequest(`/api/catalog/${encodeURIComponent(slug)}/customer`);
+export const favoriteCatalogItem = (slug: string, itemId: string, visitorId: string) =>
+  publicRequest(`/api/catalog/${encodeURIComponent(slug)}/favorite`, {
+    method: "POST",
+    body: JSON.stringify({ itemId, visitorId }),
+  });
+export const getCatalogRecommendations = (slug: string, favoriteItemId?: string, visitorId?: string) => {
+  const params = new URLSearchParams();
+  if (favoriteItemId) params.set("favoriteItemId", favoriteItemId);
+  if (visitorId) params.set("visitorId", visitorId);
+  return publicRequest(`/api/catalog/${encodeURIComponent(slug)}/recommendations?${params.toString()}`);
+};
 export const setCatalogAvailability = (slug: string, itemId: string, availability: "available" | "unavailable") =>
   apiPut(`/api/catalog/${encodeURIComponent(slug)}/${encodeURIComponent(itemId)}/availability`, { availability });
 
