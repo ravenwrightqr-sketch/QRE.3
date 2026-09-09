@@ -11,6 +11,8 @@ import {
 const WORKER_POLL_MS = 1200;
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
 
+type IntakeStage = "queued" | "evidence" | "website" | "vision" | "extracting" | "persisting" | "complete" | "failed";
+
 type IntakeInput = {
   assetId: string;
   userId: string;
@@ -88,6 +90,10 @@ function simpleFactsFromText(text: string) {
 
   if (!facts.length) facts.push({ label: "Owner-provided knowledge", value: text.slice(0, 12000), category: "text", confidence: 0.92 });
   return facts.slice(0, 50);
+}
+
+async function setStage(jobId: string, stage: IntakeStage) {
+  await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { result: { stage } } });
 }
 
 async function learnWebsite(input: StoredPayload, evidenceId: string) {
@@ -209,50 +215,74 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
 }
 
 async function processIntake(jobId: string, input: StoredPayload): Promise<void> {
+  let evidenceId: string | undefined;
   try {
+    await setStage(jobId, "evidence");
+    const raw = input.imageDataUrl || input.text || input.content || "";
+    const decodedImage = input.imageDataUrl?.startsWith("data:") ? decodeDataUrl(input.imageDataUrl) : undefined;
     const evidence = await db.knowledgeEvidence.create({
       data: {
         assetId: input.assetId,
         intakeJobId: jobId,
         type: input.mimeType || input.sourceType,
         source: input.sourceType,
-        contentHash: sha256(input.imageDataUrl || input.text || input.content || ""),
+        storageKey: `intake-job:${jobId}`,
+        contentHash: sha256(raw),
         text: textFromInput(input),
-        metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId },
+        metadata: {
+          originalName: input.originalName,
+          mimeType: input.mimeType,
+          userId: input.userId,
+          storage: "knowledge_intake_job.payload",
+          hasRawPayload: Boolean(input.imageDataUrl || input.content || input.text),
+          byteLength: decodedImage?.bytes.length,
+        },
         confidence: 1,
       },
     });
+    evidenceId = evidence.id;
 
     let result: { factCount: number; catalogIds: string[]; observationIds: string[] };
 
     if (input.sourceType === "website") {
+      await setStage(jobId, "website");
       result = await learnWebsite(input, evidence.id);
     } else if (input.imageDataUrl?.startsWith("data:image/")) {
-      result = await persistFacts(input, evidence.id, await analyzeImageForKnowledge(input.imageDataUrl));
+      await setStage(jobId, "vision");
+      const facts = await analyzeImageForKnowledge(input.imageDataUrl);
+      await setStage(jobId, "persisting");
+      result = await persistFacts(input, evidence.id, facts);
     } else if (input.sourceType === "pdf") {
+      await setStage(jobId, "extracting");
       const decoded = decodeDataUrl(input.content || "");
       if (!decoded) throw new Error("PDF upload is not a valid data URL.");
       const extracted = await extractPdfKnowledge(decoded.bytes);
-      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } } });
+      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, storage: "knowledge_intake_job.payload", ...extracted.metadata } } });
+      await setStage(jobId, "persisting");
       result = await persistFacts(input, evidence.id, extracted.facts);
     } else if (input.sourceType === "spreadsheet") {
+      await setStage(jobId, "extracting");
       const decoded = decodeDataUrl(input.content || "");
       if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL.");
       const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName);
-      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } } });
+      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, storage: "knowledge_intake_job.payload", ...extracted.metadata } } });
+      await setStage(jobId, "persisting");
       result = await persistFacts(input, evidence.id, extracted.facts);
     } else {
+      await setStage(jobId, "extracting");
       const text = textFromInput(input);
+      await setStage(jobId, "persisting");
       result = text
         ? await persistFacts(input, evidence.id, simpleFactsFromText(text))
         : { factCount: 0, catalogIds: [], observationIds: [] };
     }
 
-    await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", result: { evidenceId: evidence.id, ...result }, completedAt: new Date() } });
+    await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", result: { stage: "complete", evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } });
   } catch (error) {
-    console.error("[KnowledgeIntake] failed", jobId, error);
+    const message = error instanceof Error ? error.message : "Knowledge intake failed";
+    console.error("[KnowledgeIntake] failed", jobId, message, error);
     try {
-      await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "failed", error: error instanceof Error ? error.message : "Knowledge intake failed", completedAt: new Date() } });
+      await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "failed", result: { stage: "failed", evidenceId }, error: message, completedAt: new Date() } });
     } catch (updateError) {
       console.error("[KnowledgeIntake] could not record failure", jobId, updateError);
     }
@@ -268,7 +298,7 @@ async function claimQueuedJob() {
   const candidate = await db.knowledgeIntakeJob.findFirst({ where: { status: "queued" }, orderBy: { createdAt: "asc" } });
   if (!candidate) return null;
 
-  const claimed = await db.knowledgeIntakeJob.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", startedAt: new Date() } });
+  const claimed = await db.knowledgeIntakeJob.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", startedAt: new Date(), result: { stage: "evidence" }, error: null } });
   if (claimed.count !== 1) return null;
 
   return db.knowledgeIntakeJob.findUnique({ where: { id: candidate.id }, select: { id: true, assetId: true, sourceType: true, originalName: true, payload: true } });
