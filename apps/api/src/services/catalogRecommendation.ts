@@ -133,7 +133,7 @@ async function persistRelationship(assetId: string, source: CatalogNode, target:
   if (existing) {
     await db.knowledgePattern.update({
       where: { id: existing.id },
-      data: { confidence, strength, evidenceIds, lastObservedAt: now },
+      data: { confidence, strength, evidenceIds, lastObservedAt: now, status: "active" },
     });
     return existing.id;
   }
@@ -168,7 +168,7 @@ export async function deriveCatalogRecommendations(input: {
   const candidates: CatalogRecommendation[] = [];
 
   for (const candidate of nodes) {
-    if (candidate.id === favorite.id || candidate.availability === "unavailable") continue;
+    if (candidate.id === favorite.id) continue;
 
     const sharedConcepts = intersect(favoriteConcepts, conceptsFor(candidate));
     const reasons: CatalogRecommendationReason[] = [];
@@ -215,22 +215,26 @@ export async function deriveCatalogRecommendations(input: {
 
     if (!reasons.length) continue;
 
-    candidates.push({
+    const recommendation: CatalogRecommendation = {
       item: { id: candidate.id, name: candidate.name, brand: candidate.brand, category: candidate.category },
       score,
       reasons,
-    });
+    };
+    candidates.push(recommendation);
+
+    // Relationship truth is independent from customer-facing ranking and
+    // availability. Store every supported relationship so QRE remembers it
+    // even when the item is unavailable or falls outside the current top-K.
+    await persistRelationship(input.assetId, favorite, candidate, reasons, score);
   }
 
   candidates.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-  const selected = candidates.slice(0, Math.max(1, Math.min(10, input.limit ?? 3)));
-
-  for (const recommendation of selected) {
-    const target = nodes.find((item) => item.id === recommendation.item.id);
-    if (target) {
-      await persistRelationship(input.assetId, favorite, target, recommendation.reasons, recommendation.score);
-    }
-  }
+  const selected = candidates
+    .filter((candidate) => {
+      const node = nodes.find((item) => item.id === candidate.item.id);
+      return node?.availability !== "unavailable";
+    })
+    .slice(0, Math.max(1, Math.min(10, input.limit ?? 3)));
 
   return {
     favorite: {
@@ -243,6 +247,7 @@ export async function deriveCatalogRecommendations(input: {
       version: "catalog-relations-v1",
       explainable: true,
       availabilityFiltered: true,
+      relationshipsPersistedIndependentlyOfRanking: true,
     },
   };
 }
