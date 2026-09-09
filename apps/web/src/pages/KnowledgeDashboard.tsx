@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import { apiGet } from "../lib/api";
+import { apiGet, setCatalogAvailability } from "../lib/api";
 import UniversalKnowledgeIntake from "../components/knowledge/UniversalKnowledgeIntake";
 
 type KnowledgeItem = {
@@ -14,16 +14,18 @@ type KnowledgeItem = {
   notes?: string;
 };
 
+type MemoryCatalogItem = {
+  id: string;
+  name: string;
+  kind: string;
+  category?: string | null;
+  brand?: string | null;
+  description?: string | null;
+  updatedAt: string;
+};
+
 type MemoryState = {
-  catalog: Array<{
-    id: string;
-    name: string;
-    kind: string;
-    category?: string | null;
-    brand?: string | null;
-    description?: string | null;
-    updatedAt: string;
-  }>;
+  catalog: MemoryCatalogItem[];
   observations: Array<{
     id: string;
     type: string;
@@ -49,6 +51,18 @@ type MemoryState = {
   };
 };
 
+type CatalogResponse = {
+  products: Array<MemoryCatalogItem & {
+    status: string;
+    availability: "available" | "unavailable" | "observed";
+    confidence: number;
+    source: string | null;
+    observedAt: string | null;
+  }>;
+  count: number;
+  availableCount: number;
+};
+
 type KnowledgeResponse = {
   asset: { slug: string; displayName?: string | null };
   knowledge: KnowledgeItem[];
@@ -58,11 +72,17 @@ type KnowledgeResponse = {
 
 type Tab = "recent" | "catalog" | "observations" | "patterns";
 
+type CatalogFilter = "all" | "available" | "unavailable";
+
 export default function KnowledgeDashboard() {
   const { slug = "" } = useParams();
   const [data, setData] = useState<KnowledgeResponse | null>(null);
   const [memory, setMemory] = useState<MemoryState | null>(null);
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [tab, setTab] = useState<Tab>("recent");
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("available");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [updatingId, setUpdatingId] = useState("");
   const [error, setError] = useState("");
 
   async function load() {
@@ -70,12 +90,14 @@ export default function KnowledgeDashboard() {
 
     try {
       setError("");
-      const [knowledge, state] = await Promise.all([
+      const [knowledge, state, catalogState] = await Promise.all([
         apiGet(`/api/knowledge/${encodeURIComponent(slug)}`),
         apiGet(`/api/knowledge/${encodeURIComponent(slug)}/state`),
+        apiGet(`/api/catalog/${encodeURIComponent(slug)}`),
       ]);
       setData(knowledge);
       setMemory(state);
+      setCatalog(catalogState);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load QRE memory.");
     }
@@ -94,7 +116,30 @@ export default function KnowledgeDashboard() {
     return [...groups.entries()];
   }, [data]);
 
-  if (!data || !memory) {
+  const visibleCatalog = useMemo(() => {
+    const query = catalogSearch.trim().toLowerCase();
+    return (catalog?.products ?? []).filter((item) => {
+      const matchesFilter = catalogFilter === "all" || item.availability === catalogFilter;
+      const haystack = [item.name, item.brand, item.category, item.description].filter(Boolean).join(" ").toLowerCase();
+      return matchesFilter && (!query || haystack.includes(query));
+    });
+  }, [catalog, catalogFilter, catalogSearch]);
+
+  async function updateAvailability(itemId: string, availability: "available" | "unavailable") {
+    if (!slug) return;
+    setUpdatingId(itemId);
+    setError("");
+    try {
+      await setCatalogAvailability(slug, itemId, availability);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update catalog availability.");
+    } finally {
+      setUpdatingId("");
+    }
+  }
+
+  if (!data || !memory || !catalog) {
     return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
   }
 
@@ -117,9 +162,9 @@ export default function KnowledgeDashboard() {
         {error && <div style={errorStyle}>{error}</div>}
 
         <section style={statsGrid} aria-label="Knowledge totals">
-          <Stat label="Catalog" value={memory.counts.catalog} />
+          <Stat label="Catalog" value={catalog.count} />
+          <Stat label="Available" value={catalog.availableCount} />
           <Stat label="Observations" value={memory.counts.observations} />
-          <Stat label="Patterns" value={memory.counts.patterns} />
           <Stat label="Scans" value={metricScans} />
         </section>
 
@@ -166,19 +211,61 @@ export default function KnowledgeDashboard() {
           {tab === "catalog" && (
             <section style={sectionPanel}>
               <div style={sectionHeading}>
-                <h2 style={sectionTitle}>Catalog</h2>
-                <span style={muted}>{memory.counts.catalog}</span>
+                <div>
+                  <h2 style={sectionTitle}>Store Catalog</h2>
+                  <div style={metaText}>{catalog.availableCount} available · {catalog.count} total</div>
+                </div>
+                <span style={muted}>live</span>
               </div>
+
+              <div style={catalogToolbar}>
+                <input
+                  value={catalogSearch}
+                  onChange={(event) => setCatalogSearch(event.target.value)}
+                  placeholder="Search products"
+                  style={searchInput}
+                />
+                <div style={filterGroup}>
+                  {(["available", "unavailable", "all"] as CatalogFilter[]).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setCatalogFilter(filter)}
+                      style={{ ...filterButton, ...(catalogFilter === filter ? activeFilterButton : {}) }}
+                    >
+                      {filter === "all" ? "All" : filter === "available" ? "Available" : "Unavailable"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div style={itemStack}>
-                {memory.catalog.length === 0 && <Empty text="Catalog items will appear as QRE identifies things in what you provide." />}
-                {memory.catalog.map((item) => (
-                  <article key={item.id} style={memoryRow}>
+                {visibleCatalog.length === 0 && <Empty text={catalog.count ? "No catalog items match this view." : "Catalog items will appear as QRE identifies things in what you provide."} />}
+                {visibleCatalog.map((item) => (
+                  <article key={item.id} style={catalogRow}>
                     <div style={{ minWidth: 0 }}>
-                      <strong>{item.name}</strong>
-                      <div style={valueText}>{[item.brand, item.category, item.kind].filter(Boolean).join(" · ") || "item"}</div>
-                      {item.description && <div style={notesText}>{item.description}</div>}
+                      <strong>{displayCatalogName(item.name)}</strong>
+                      <div style={valueText}>{[item.brand, item.category].filter(Boolean).join(" · ") || "product"}</div>
+                      <div style={metaText}>
+                        {item.source || "source"} · confidence {Math.round(item.confidence * 100)}%
+                        {item.observedAt ? ` · ${new Date(item.observedAt).toLocaleString()}` : ""}
+                      </div>
                     </div>
-                    <div style={metaText}>{new Date(item.updatedAt).toLocaleString()}</div>
+                    <div style={catalogActions}>
+                      <span style={{ ...availabilityBadge, ...(item.availability === "available" ? availableBadge : unavailableBadge) }}>
+                        {item.availability === "available" ? "AVAILABLE" : item.availability === "unavailable" ? "UNAVAILABLE" : "OBSERVED"}
+                      </span>
+                      {item.availability !== "available" && (
+                        <button type="button" onClick={() => void updateAvailability(item.id, "available")} disabled={updatingId === item.id} style={actionButton}>
+                          {updatingId === item.id ? "…" : "MARK AVAILABLE"}
+                        </button>
+                      )}
+                      {item.availability === "available" && (
+                        <button type="button" onClick={() => void updateAvailability(item.id, "unavailable")} disabled={updatingId === item.id} style={secondaryActionButton}>
+                          {updatingId === item.id ? "…" : "MARK OUT"}
+                        </button>
+                      )}
+                    </div>
                   </article>
                 ))}
               </div>
@@ -232,6 +319,10 @@ export default function KnowledgeDashboard() {
   );
 }
 
+function displayCatalogName(name: string): string {
+  return name.replace(/^Fogger\s*—\s*/i, "");
+}
+
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div style={statStyle}>
@@ -270,8 +361,20 @@ const sectionTitle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 500, 
 const muted: CSSProperties = { opacity: .32, fontSize: 10 };
 const itemStack: CSSProperties = { display: "grid", gap: 8 };
 const memoryRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(255,255,255,.055)" };
+const catalogRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(255,255,255,.055)" };
 const valueText: CSSProperties = { marginTop: 4, opacity: .76, fontSize: 13, lineHeight: 1.45 };
 const metaText: CSSProperties = { marginTop: 5, opacity: .34, fontSize: 10 };
 const notesText: CSSProperties = { marginTop: 7, opacity: .52, fontSize: 11, lineHeight: 1.5 };
+const catalogToolbar: CSSProperties = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "14px 0 4px" };
+const searchInput: CSSProperties = { flex: "1 1 220px", minWidth: 180, border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, background: "rgba(0,0,0,.22)", color: "#fff", padding: "10px 12px", font: "inherit", fontSize: 12, outline: "none" };
+const filterGroup: CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap" };
+const filterButton: CSSProperties = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 999, background: "rgba(255,255,255,.02)", color: "rgba(255,255,255,.45)", padding: "8px 10px", cursor: "pointer", font: "inherit", fontSize: 9, letterSpacing: 1 };
+const activeFilterButton: CSSProperties = { color: "#fff", borderColor: "rgba(185,255,241,.25)", background: "rgba(185,255,241,.06)" };
+const catalogActions: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" };
+const availabilityBadge: CSSProperties = { borderRadius: 999, padding: "6px 8px", fontSize: 8, letterSpacing: 1.2, border: "1px solid rgba(255,255,255,.08)" };
+const availableBadge: CSSProperties = { color: "rgba(185,255,241,.9)", background: "rgba(185,255,241,.055)" };
+const unavailableBadge: CSSProperties = { color: "rgba(255,150,150,.85)", background: "rgba(255,80,80,.045)" };
+const actionButton: CSSProperties = { border: "1px solid rgba(185,255,241,.2)", borderRadius: 10, background: "rgba(185,255,241,.06)", color: "#fff", padding: "8px 10px", cursor: "pointer", font: "inherit", fontSize: 8, letterSpacing: 1 };
+const secondaryActionButton: CSSProperties = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 10, background: "transparent", color: "rgba(255,255,255,.45)", padding: "8px 10px", cursor: "pointer", font: "inherit", fontSize: 8, letterSpacing: 1 };
 const errorStyle: CSSProperties = { marginTop: 18, borderRadius: 12, padding: 14, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,100,100,.16)", fontSize: 12 };
 const loadingStyle: CSSProperties = { minHeight: "70vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.45)", letterSpacing: 3 };
