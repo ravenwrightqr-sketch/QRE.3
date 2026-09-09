@@ -33,6 +33,7 @@ import { flowRouter } from "./routes/flow.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 import { startAnalyticsSpineSubscriber } from "./services/analyticsSpineSubscriber.js";
 import { startKnowledgeIntakeWorker } from "./services/knowledgeIntake.js";
+import { startRealityIntakeWorker } from "./services/realityIntakeWorker.js";
 
 const app = express();
 app.use((req, _res, next) => {
@@ -96,4 +97,5 @@ app.get("/", (_req: Request, res: Response) => res.json({
 const PORT = Number(process.env.PORT || 3000);
 startAnalyticsSpineSubscriber();
 startKnowledgeIntakeWorker();
+startRealityIntakeWorker();
 app.listen(PORT, () => console.log(`⚡ QRE API running on port ${PORT}`));
