@@ -4,74 +4,13 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import { apiGet, setCatalogAvailability } from "../lib/api";
 import UniversalKnowledgeIntake from "../components/knowledge/UniversalKnowledgeIntake";
 
-type KnowledgeItem = {
-  id: string;
-  createdAt: string;
-  label?: string;
-  value?: string;
-  category?: string;
-  source?: string;
-  notes?: string;
-};
-
-type MemoryCatalogItem = {
-  id: string;
-  name: string;
-  kind: string;
-  category?: string | null;
-  brand?: string | null;
-  description?: string | null;
-  updatedAt: string;
-};
-
-type MemoryState = {
-  catalog: MemoryCatalogItem[];
-  observations: Array<{
-    id: string;
-    type: string;
-    value: unknown;
-    source: string;
-    confidence: number;
-    observedAt: string;
-  }>;
-  patterns: Array<{
-    id: string;
-    type: string;
-    statement: string;
-    confidence: number;
-    strength: number;
-    firstObservedAt?: string | null;
-    lastObservedAt?: string | null;
-  }>;
-  counts: {
-    catalog: number;
-    observations: number;
-    patterns: number;
-    jobs: number;
-  };
-};
-
-type CatalogResponse = {
-  products: Array<MemoryCatalogItem & {
-    status: string;
-    availability: "available" | "unavailable" | "observed";
-    confidence: number;
-    source: string | null;
-    observedAt: string | null;
-  }>;
-  count: number;
-  availableCount: number;
-};
-
-type KnowledgeResponse = {
-  asset: { slug: string; displayName?: string | null };
-  knowledge: KnowledgeItem[];
-  categories: string[];
-  metrics?: Record<string, unknown> | null;
-};
-
+type KnowledgeItem = { id: string; createdAt: string; label?: string; value?: string; category?: string; source?: string; notes?: string };
+type MemoryCatalogItem = { id: string; name: string; kind: string; category?: string | null; brand?: string | null; description?: string | null; updatedAt: string };
+type MemoryObservation = { id: string; type: string; value: unknown; source: string; confidence: number; observedAt: string };
+type MemoryState = { catalog: MemoryCatalogItem[]; observations: MemoryObservation[]; patterns: Array<{ id: string; type: string; statement: string; confidence: number; strength: number; firstObservedAt?: string | null; lastObservedAt?: string | null }>; counts: { catalog: number; observations: number; patterns: number; jobs: number } };
+type CatalogResponse = { products: Array<MemoryCatalogItem & { status: string; availability: "available" | "unavailable" | "observed"; confidence: number; source: string | null; observedAt: string | null }>; count: number; availableCount: number };
+type KnowledgeResponse = { asset: { slug: string; displayName?: string | null }; knowledge: KnowledgeItem[]; categories: string[]; metrics?: Record<string, unknown> | null };
 type Tab = "recent" | "catalog" | "observations" | "patterns";
-
 type CatalogFilter = "all" | "available" | "unavailable";
 
 export default function KnowledgeDashboard() {
@@ -87,7 +26,6 @@ export default function KnowledgeDashboard() {
 
   async function load() {
     if (!slug) return;
-
     try {
       setError("");
       const [knowledge, state, catalogState] = await Promise.all([
@@ -103,18 +41,9 @@ export default function KnowledgeDashboard() {
     }
   }
 
-  useEffect(() => {
-    void load();
-  }, [slug]);
+  useEffect(() => { void load(); }, [slug]);
 
-  const grouped = useMemo(() => {
-    const groups = new Map<string, KnowledgeItem[]>();
-    for (const item of data?.knowledge ?? []) {
-      const key = item.category || "general";
-      groups.set(key, [...(groups.get(key) ?? []), item]);
-    }
-    return [...groups.entries()];
-  }, [data]);
+  const recentObservations = useMemo(() => [...(memory?.observations ?? [])].sort((a, b) => new Date(b.observedAt).getTime() - new Date(a.observedAt).getTime()).slice(0, 24), [memory]);
 
   const visibleCatalog = useMemo(() => {
     const query = catalogSearch.trim().toLowerCase();
@@ -127,219 +56,45 @@ export default function KnowledgeDashboard() {
 
   async function updateAvailability(itemId: string, availability: "available" | "unavailable") {
     if (!slug) return;
-    setUpdatingId(itemId);
-    setError("");
-    try {
-      await setCatalogAvailability(slug, itemId, availability);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update catalog availability.");
-    } finally {
-      setUpdatingId("");
-    }
+    setUpdatingId(itemId); setError("");
+    try { await setCatalogAvailability(slug, itemId, availability); await load(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not update catalog availability."); }
+    finally { setUpdatingId(""); }
   }
 
-  if (!data || !memory || !catalog) {
-    return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
-  }
-
+  if (!data || !memory || !catalog) return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
   const metricScans = Number(data.metrics?.scans ?? data.metrics?.totalScans ?? 0);
 
   return (
     <DashboardLayout>
       <main style={pageStyle}>
         <header style={headerStyle}>
-          <div>
-            <div style={eyebrow}>BUSINESS MEMORY</div>
-            <h1 style={titleStyle}>{data.asset.displayName || data.asset.slug}</h1>
-            <p style={subStyle}>Give QRE anything. This is where what it learns accumulates.</p>
-          </div>
+          <div><div style={eyebrow}>BUSINESS MEMORY</div><h1 style={titleStyle}>{data.asset.displayName || data.asset.slug}</h1><p style={subStyle}>Give QRE anything. This is where what it learns accumulates.</p></div>
           <Link to="/dashboard" style={backLink}>← GIVE QRE SOMETHING</Link>
         </header>
-
         <UniversalKnowledgeIntake slug={slug} onLearned={load} />
-
         {error && <div style={errorStyle}>{error}</div>}
-
-        <section style={statsGrid} aria-label="Knowledge totals">
-          <Stat label="Catalog" value={catalog.count} />
-          <Stat label="Available" value={catalog.availableCount} />
-          <Stat label="Observations" value={memory.counts.observations} />
-          <Stat label="Scans" value={metricScans} />
-        </section>
-
+        <section style={statsGrid} aria-label="Knowledge totals"><Stat label="Catalog" value={catalog.count} /><Stat label="Available" value={catalog.availableCount} /><Stat label="Observations" value={memory.counts.observations} /><Stat label="Scans" value={metricScans} /></section>
         <section style={{ marginTop: 34 }}>
-          <nav style={tabs} aria-label="Business memory">
-            {(["recent", "catalog", "observations", "patterns"] as Tab[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setTab(item)}
-                style={{ ...tabButton, ...(tab === item ? activeTabButton : {}) }}
-              >
-                {item === "recent" ? "Recent Knowledge" : item[0].toUpperCase() + item.slice(1)}
-              </button>
-            ))}
-          </nav>
+          <nav style={tabs} aria-label="Business memory">{(["recent", "catalog", "observations", "patterns"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} style={{ ...tabButton, ...(tab === item ? activeTabButton : {}) }}>{item === "recent" ? "Recent Knowledge" : item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
 
-          {tab === "recent" && (
-            <div style={sectionStack}>
-              {grouped.length === 0 && <Empty text="QRE has not learned anything here yet." />}
-              {grouped.map(([group, items]) => (
-                <section key={group} style={sectionPanel}>
-                  <div style={sectionHeading}>
-                    <h2 style={sectionTitle}>{group.replace(/_/g, " ")}</h2>
-                    <span style={muted}>{items.length}</span>
-                  </div>
-                  <div style={itemStack}>
-                    {items.slice(0, 12).map((item) => (
-                      <article key={item.id} style={memoryRow}>
-                        <div>
-                          <strong>{item.label || "Knowledge"}</strong>
-                          <div style={valueText}>{item.value || "—"}</div>
-                          <div style={metaText}>{item.source || "source"} · {new Date(item.createdAt).toLocaleString()}</div>
-                          {item.notes && <div style={notesText}>{item.notes}</div>}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
+          {tab === "recent" && <section style={{ ...sectionPanel, marginTop: 16 }}><div style={sectionHeading}><div><h2 style={sectionTitle}>Recent Knowledge</h2><div style={metaText}>Latest things QRE actually recorded about this business.</div></div><span style={muted}>{memory.counts.observations}</span></div><div style={itemStack}>{recentObservations.length === 0 && <Empty text="QRE has not learned anything here yet." />}{recentObservations.map((observation) => <article key={observation.id} style={memoryRow}><div><strong>{observation.type.replace(/_/g, " ")}</strong><div style={valueText}>{formatValue(observation.value)}</div><div style={metaText}>{observation.source || "source"} · confidence {Math.round(observation.confidence * 100)}% · {new Date(observation.observedAt).toLocaleString()}</div></div></article>)}</div></section>}
 
-          {tab === "catalog" && (
-            <section style={sectionPanel}>
-              <div style={sectionHeading}>
-                <div>
-                  <h2 style={sectionTitle}>Store Catalog</h2>
-                  <div style={metaText}>{catalog.availableCount} available · {catalog.count} total</div>
-                </div>
-                <span style={muted}>live</span>
-              </div>
+          {tab === "catalog" && <section style={sectionPanel}><div style={sectionHeading}><div><h2 style={sectionTitle}>Store Catalog</h2><div style={metaText}>{catalog.availableCount} available · {catalog.count} total</div></div><span style={muted}>live</span></div><div style={catalogToolbar}><input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Search products" style={searchInput} /><div style={filterGroup}>{(["available", "unavailable", "all"] as CatalogFilter[]).map((filter) => <button key={filter} type="button" onClick={() => setCatalogFilter(filter)} style={{ ...filterButton, ...(catalogFilter === filter ? activeFilterButton : {}) }}>{filter === "all" ? "All" : filter === "available" ? "Available" : "Unavailable"}</button>)}</div></div><div style={itemStack}>{visibleCatalog.length === 0 && <Empty text={catalog.count ? "No catalog items match this view." : "Catalog items will appear as QRE identifies things in what you provide."} />}{visibleCatalog.map((item) => <article key={item.id} style={catalogRow}><div style={{ minWidth: 0 }}><strong>{displayCatalogName(item.name)}</strong><div style={valueText}>{[item.brand, item.category].filter(Boolean).join(" · ") || "product"}</div><div style={metaText}>{item.source || "source"} · confidence {Math.round(item.confidence * 100)}%{item.observedAt ? ` · ${new Date(item.observedAt).toLocaleString()}` : ""}</div></div><div style={catalogActions}><span style={{ ...availabilityBadge, ...(item.availability === "available" ? availableBadge : unavailableBadge) }}>{item.availability === "available" ? "AVAILABLE" : item.availability === "unavailable" ? "UNAVAILABLE" : "OBSERVED"}</span>{item.availability !== "available" && <button type="button" onClick={() => void updateAvailability(item.id, "available")} disabled={updatingId === item.id} style={actionButton}>{updatingId === item.id ? "…" : "MARK AVAILABLE"}</button>}{item.availability === "available" && <button type="button" onClick={() => void updateAvailability(item.id, "unavailable")} disabled={updatingId === item.id} style={secondaryActionButton}>{updatingId === item.id ? "…" : "MARK OUT"}</button>}</div></article>)}</div></section>}
 
-              <div style={catalogToolbar}>
-                <input
-                  value={catalogSearch}
-                  onChange={(event) => setCatalogSearch(event.target.value)}
-                  placeholder="Search products"
-                  style={searchInput}
-                />
-                <div style={filterGroup}>
-                  {(["available", "unavailable", "all"] as CatalogFilter[]).map((filter) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      onClick={() => setCatalogFilter(filter)}
-                      style={{ ...filterButton, ...(catalogFilter === filter ? activeFilterButton : {}) }}
-                    >
-                      {filter === "all" ? "All" : filter === "available" ? "Available" : "Unavailable"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {tab === "observations" && <section style={sectionPanel}><div style={sectionHeading}><h2 style={sectionTitle}>Observations</h2><span style={muted}>{memory.counts.observations}</span></div><div style={itemStack}>{memory.observations.length === 0 && <Empty text="Observations appear here as QRE sees and records reality." />}{memory.observations.map((observation) => <article key={observation.id} style={memoryRow}><div><strong>{observation.type}</strong><div style={valueText}>{formatValue(observation.value)}</div><div style={metaText}>{observation.source} · confidence {Math.round(observation.confidence * 100)}% · {new Date(observation.observedAt).toLocaleString()}</div></div></article>)}</div></section>}
 
-              <div style={itemStack}>
-                {visibleCatalog.length === 0 && <Empty text={catalog.count ? "No catalog items match this view." : "Catalog items will appear as QRE identifies things in what you provide."} />}
-                {visibleCatalog.map((item) => (
-                  <article key={item.id} style={catalogRow}>
-                    <div style={{ minWidth: 0 }}>
-                      <strong>{displayCatalogName(item.name)}</strong>
-                      <div style={valueText}>{[item.brand, item.category].filter(Boolean).join(" · ") || "product"}</div>
-                      <div style={metaText}>
-                        {item.source || "source"} · confidence {Math.round(item.confidence * 100)}%
-                        {item.observedAt ? ` · ${new Date(item.observedAt).toLocaleString()}` : ""}
-                      </div>
-                    </div>
-                    <div style={catalogActions}>
-                      <span style={{ ...availabilityBadge, ...(item.availability === "available" ? availableBadge : unavailableBadge) }}>
-                        {item.availability === "available" ? "AVAILABLE" : item.availability === "unavailable" ? "UNAVAILABLE" : "OBSERVED"}
-                      </span>
-                      {item.availability !== "available" && (
-                        <button type="button" onClick={() => void updateAvailability(item.id, "available")} disabled={updatingId === item.id} style={actionButton}>
-                          {updatingId === item.id ? "…" : "MARK AVAILABLE"}
-                        </button>
-                      )}
-                      {item.availability === "available" && (
-                        <button type="button" onClick={() => void updateAvailability(item.id, "unavailable")} disabled={updatingId === item.id} style={secondaryActionButton}>
-                          {updatingId === item.id ? "…" : "MARK OUT"}
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {tab === "observations" && (
-            <section style={sectionPanel}>
-              <div style={sectionHeading}>
-                <h2 style={sectionTitle}>Observations</h2>
-                <span style={muted}>{memory.counts.observations}</span>
-              </div>
-              <div style={itemStack}>
-                {memory.observations.length === 0 && <Empty text="Observations appear here as QRE sees and records reality." />}
-                {memory.observations.map((observation) => (
-                  <article key={observation.id} style={memoryRow}>
-                    <div>
-                      <strong>{observation.type}</strong>
-                      <div style={valueText}>{formatValue(observation.value)}</div>
-                      <div style={metaText}>{observation.source} · confidence {Math.round(observation.confidence * 100)}% · {new Date(observation.observedAt).toLocaleString()}</div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {tab === "patterns" && (
-            <section style={sectionPanel}>
-              <div style={sectionHeading}>
-                <h2 style={sectionTitle}>Patterns</h2>
-                <span style={muted}>{memory.counts.patterns}</span>
-              </div>
-              <div style={itemStack}>
-                {memory.patterns.length === 0 && <Empty text="Patterns emerge as observations repeat over time." />}
-                {memory.patterns.map((pattern) => (
-                  <article key={pattern.id} style={memoryRow}>
-                    <div>
-                      <strong>{pattern.statement}</strong>
-                      <div style={valueText}>{pattern.type}</div>
-                      <div style={metaText}>strength {Math.round(pattern.strength * 100)}% · confidence {Math.round(pattern.confidence * 100)}%</div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
+          {tab === "patterns" && <section style={sectionPanel}><div style={sectionHeading}><h2 style={sectionTitle}>Patterns</h2><span style={muted}>{memory.counts.patterns}</span></div><div style={itemStack}>{memory.patterns.length === 0 && <Empty text="Patterns emerge as observations repeat over time." />}{memory.patterns.map((pattern) => <article key={pattern.id} style={memoryRow}><div><strong>{pattern.statement}</strong><div style={valueText}>{pattern.type}</div><div style={metaText}>strength {Math.round(pattern.strength * 100)}% · confidence {Math.round(pattern.confidence * 100)}%</div></div></article>)}</div></section>}
         </section>
       </main>
     </DashboardLayout>
   );
 }
 
-function displayCatalogName(name: string): string {
-  return name.replace(/^Fogger\s*—\s*/i, "");
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={statStyle}>
-      <div style={statValue}>{value.toLocaleString()}</div>
-      <div style={statLabel}>{label}</div>
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return <div style={{ padding: 20, opacity: .38, fontSize: 12 }}>{text}</div>;
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  try { return JSON.stringify(value); } catch { return String(value); }
-}
+function displayCatalogName(name: string): string { return name.replace(/^Fogger\s*—\s*/i, ""); }
+function Stat({ label, value }: { label: string; value: number }) { return <div style={statStyle}><div style={statValue}>{value.toLocaleString()}</div><div style={statLabel}>{label}</div></div>; }
+function Empty({ text }: { text: string }) { return <div style={{ padding: 20, opacity: .38, fontSize: 12 }}>{text}</div>; }
+function formatValue(value: unknown): string { if (typeof value === "string") return value; try { return JSON.stringify(value); } catch { return String(value); } }
 
 const pageStyle: CSSProperties = { minHeight: "100vh", color: "#fff", padding: "38px 0 80px" };
 const headerStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, marginBottom: 28, flexWrap: "wrap" };
@@ -364,7 +119,6 @@ const memoryRow: CSSProperties = { display: "flex", justifyContent: "space-betwe
 const catalogRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(255,255,255,.055)" };
 const valueText: CSSProperties = { marginTop: 4, opacity: .76, fontSize: 13, lineHeight: 1.45 };
 const metaText: CSSProperties = { marginTop: 5, opacity: .34, fontSize: 10 };
-const notesText: CSSProperties = { marginTop: 7, opacity: .52, fontSize: 11, lineHeight: 1.5 };
 const catalogToolbar: CSSProperties = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "14px 0 4px" };
 const searchInput: CSSProperties = { flex: "1 1 220px", minWidth: 180, border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, background: "rgba(0,0,0,.22)", color: "#fff", padding: "10px 12px", font: "inherit", fontSize: 12, outline: "none" };
 const filterGroup: CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap" };
