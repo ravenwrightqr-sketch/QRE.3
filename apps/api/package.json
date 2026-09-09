@@ -14,7 +14,8 @@
     "author:universal-cognition": "tsx ./author-universal-cognition-acceptance.ts",
     "author:realized-film": "tsx ./author-realized-film-acceptance.ts",
     "catalog:recommendation-acceptance": "tsx ./catalogRecommendationAcceptance.ts",
-    "catalog:view-acceptance": "tsx ./catalogViewAcceptance.ts"
+    "catalog:view-acceptance": "tsx ./catalogViewAcceptance.ts",
+    "catalog:universal-fixture": "tsx ./catalogUniversalFixture.ts"
   },
   "dependencies": {
     "@keep-lts/xlsx": "^0.18.6",
