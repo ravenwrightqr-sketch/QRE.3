@@ -69,6 +69,11 @@ export const favoriteCatalogItem = (slug: string, itemId: string, visitorId: str
     method: "POST",
     body: JSON.stringify({ itemId, visitorId }),
   });
+export const recordCatalogTryFeedback = (slug: string, itemId: string, visitorId: string, reaction: "positive" | "negative") =>
+  publicRequest(`/api/catalog/${encodeURIComponent(slug)}/try-feedback`, {
+    method: "POST",
+    body: JSON.stringify({ itemId, visitorId, reaction }),
+  });
 export const getCatalogRecommendations = (slug: string, favoriteItemId?: string, visitorId?: string) => {
   const params = new URLSearchParams();
   if (favoriteItemId) params.set("favoriteItemId", favoriteItemId);
