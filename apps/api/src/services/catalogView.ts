@@ -3,6 +3,7 @@ import { db } from "@qre/db";
 export type CatalogViewConfig = {
   version: 1;
   title?: string;
+  query?: string;
   nameMode: "item" | "brand_item" | "attribute";
   nameAttributeKey?: string;
   showBrand: boolean;
@@ -51,6 +52,7 @@ export function normalizeCatalogView(input: unknown): CatalogViewConfig {
   const view: CatalogViewConfig = {
     version: 1,
     title: cleanString(raw.title),
+    query: cleanString(raw.query),
     nameMode: raw.nameMode === "brand_item" || raw.nameMode === "attribute" ? raw.nameMode : "item",
     nameAttributeKey: cleanString(raw.nameAttributeKey),
     showBrand: raw.showBrand !== false,
@@ -181,7 +183,8 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
       _merchantOrder: merchantOrder,
     };
   });
-  rendered.sort((a, b) => {
+  const searched = view.query ? rendered.filter((product) => product.searchText.includes(normalize(view.query!))) : rendered;
+  searched.sort((a, b) => {
     if (view.groupBy !== "none") {
       const groupCompare = (a.groupValue ?? "").localeCompare(b.groupValue ?? "");
       if (groupCompare !== 0) return groupCompare;
@@ -193,7 +196,7 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
   });
   return {
     view,
-    products: rendered.map(({ _name: _n, _brand: _b, _createdAt: _c, _merchantOrder: _m, ...product }) => product),
-    count: rendered.length,
+    products: searched.map(({ _name: _n, _brand: _b, _createdAt: _c, _merchantOrder: _m, ...product }) => product),
+    count: searched.length,
   };
 }
