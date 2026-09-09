@@ -22,6 +22,7 @@
     "build:api": "pnpm --filter @qre/api build",
     "build:web": "pnpm --filter @qre/web build",
     "db:migrate": "pnpm --filter @qre/db prisma:deploy",
+    "test:seed-vape": "pnpm exec tsx apps/api/vapeInventoryTestFixture.ts",
     "verify:experience-media-boundary": "node scripts/verify-experience-media-boundary.mjs",
     "clean": "pnpm -r clean"
   },
