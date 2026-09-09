@@ -135,16 +135,21 @@ function normalizeEntity(value: unknown, index: number): RealityEntity | null {
 }
 
 function normalizeGraph(parsed: RawRealityResponse | null): RealityGraph {
-  const regions = Array.isArray(parsed?.regions)
-    ? parsed.regions.map((value, index) => {
-        if (!value || typeof value !== "object") return null;
-        const item = value as Record<string, unknown>;
-        const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `region_${index + 1}`;
-        const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : `Region ${index + 1}`;
-        const kind = typeof item.kind === "string" && item.kind.trim() ? item.kind.trim() : "region";
-        return { id, name, kind, bbox: bbox(item.bbox), confidence: clamp(item.confidence) } satisfies RealityRegion;
-      }).filter((value): value is RealityRegion => Boolean(value)).slice(0, 64)
-    : [];
+  const regions: RealityRegion[] = [];
+  if (Array.isArray(parsed?.regions)) {
+    for (let index = 0; index < parsed.regions.length && regions.length < 64; index += 1) {
+      const value = parsed.regions[index];
+      if (!value || typeof value !== "object") continue;
+      const item = value as Record<string, unknown>;
+      const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `region_${index + 1}`;
+      const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : `Region ${index + 1}`;
+      const kind = typeof item.kind === "string" && item.kind.trim() ? item.kind.trim() : "region";
+      const region: RealityRegion = { id, name, kind, confidence: clamp(item.confidence) };
+      const regionBox = bbox(item.bbox);
+      if (regionBox) region.bbox = regionBox;
+      regions.push(region);
+    }
+  }
 
   const entities = Array.isArray(parsed?.entities)
     ? parsed.entities.map(normalizeEntity).filter((value): value is RealityEntity => Boolean(value)).slice(0, 500)
@@ -165,15 +170,20 @@ function normalizeGraph(parsed: RawRealityResponse | null): RealityGraph {
       }).filter((value): value is RealityRelation => Boolean(value)).slice(0, 1500)
     : [];
 
-  const text = Array.isArray(parsed?.text)
-    ? parsed.text.map((value) => {
-        if (!value || typeof value !== "object") return null;
-        const item = value as Record<string, unknown>;
-        const textValue = typeof item.text === "string" ? item.text.trim() : "";
-        if (!textValue) return null;
-        return { text: textValue.slice(0, 500), bbox: bbox(item.bbox), confidence: clamp(item.confidence) } satisfies RealityText;
-      }).filter((value): value is RealityText => Boolean(value)).slice(0, 500)
-    : [];
+  const text: RealityText[] = [];
+  if (Array.isArray(parsed?.text)) {
+    for (const value of parsed.text) {
+      if (text.length >= 500) break;
+      if (!value || typeof value !== "object") continue;
+      const item = value as Record<string, unknown>;
+      const textValue = typeof item.text === "string" ? item.text.trim() : "";
+      if (!textValue) continue;
+      const entry: RealityText = { text: textValue.slice(0, 500), confidence: clamp(item.confidence) };
+      const textBox = bbox(item.bbox);
+      if (textBox) entry.bbox = textBox;
+      text.push(entry);
+    }
+  }
 
   const unknowns = Array.isArray(parsed?.unknowns)
     ? parsed.unknowns.map((value) => {
@@ -186,7 +196,7 @@ function normalizeGraph(parsed: RawRealityResponse | null): RealityGraph {
       }).filter((value): value is RealityUnknown => Boolean(value)).slice(0, 100)
     : [];
 
-  const scene = parsed?.scene ?? {};
+  const scene: Partial<RealityGraph["scene"]> = parsed?.scene ?? {};
   return {
     schemaVersion: 1,
     scene: {
