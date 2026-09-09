@@ -58,6 +58,10 @@ export const getScan = (slug: string, geo?: { lat: number; lng: number; accuracy
   return publicRequest(`/api/scan/${slug}${query ? `?${query}` : ""}`);
 };
 
+export const getCatalog = (slug: string) => publicRequest(`/api/catalog/${encodeURIComponent(slug)}`);
+export const setCatalogAvailability = (slug: string, itemId: string, availability: "available" | "unavailable") =>
+  apiPut(`/api/catalog/${encodeURIComponent(slug)}/${encodeURIComponent(itemId)}/availability`, { availability });
+
 export const scanLiveUrl = (slug: string) => `${API_BASE}/api/scan/${slug}`;
 export const checkout = (slug: string) => apiPost("/api/checkout", { slug });
 
