@@ -28,6 +28,10 @@ function getVisitorId(slug: string) {
   return id;
 }
 
+function displayName(name: string) {
+  return name.replace(/^Fogger\s+—\s+/i, "");
+}
+
 export default function CustomerCatalog() {
   const { slug = "" } = useParams();
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,7 +47,7 @@ export default function CustomerCatalog() {
   async function loadRecommendations(itemId: string) {
     if (!slug || !visitorId) return;
     const result = await getCatalogRecommendations(slug, itemId, visitorId);
-    setRecommendations(result.recommendations.map((entry: any) => entry.item));
+    setRecommendations((result.recommendations ?? []).map((entry: any) => entry.item));
   }
 
   useEffect(() => {
@@ -73,7 +77,6 @@ export default function CustomerCatalog() {
     try {
       await favoriteCatalogItem(slug, product.id, visitorId);
       await loadRecommendations(product.id);
-      setMessage(`You picked ${product.name}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
     }
@@ -86,7 +89,6 @@ export default function CustomerCatalog() {
       await recordCatalogTryFeedback(slug, product.id, visitorId, reaction);
       setFeedbackIds((current) => ({ ...current, [product.id]: reaction }));
       await loadRecommendations(favoriteId || product.id);
-      setMessage(reaction === "positive" ? "Got it. We’ll lean toward things like that." : "Got it. We’ll back away from things like that.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that reaction.");
     }
@@ -95,11 +97,7 @@ export default function CustomerCatalog() {
   return (
     <main style={pageStyle}>
       <header style={headerStyle}>
-        <div>
-          <div style={eyebrow}>QRE CATALOG</div>
-          <h1 style={titleStyle}>What’s here</h1>
-          <div style={countStyle}>{products.length} products</div>
-        </div>
+        <h1 style={titleStyle}>What’s here</h1>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -113,10 +111,10 @@ export default function CustomerCatalog() {
       {message && <p style={messageStyle}>{message}</p>}
 
       {recommendations.length > 0 && (
-        <section style={recommendationSection}>
+        <section style={recommendationSection} aria-label="You might like">
           <div style={sectionLabel}>YOU MIGHT LIKE</div>
           <div style={recommendationList}>
-            {recommendations.slice(0, 8).map((product) => (
+            {recommendations.map((product) => (
               <button key={product.id} type="button" style={recommendationButton} onClick={() => void chooseFavorite(product)}>
                 {displayName(product.name)}
               </button>
@@ -125,27 +123,43 @@ export default function CustomerCatalog() {
         </section>
       )}
 
-      <section aria-label="Available products">
+      <section aria-label="Available products" style={productList}>
         {visibleProducts.map((product) => {
           const reaction = feedbackIds[product.id];
+          const selected = favoriteId === product.id;
           return (
-            <article key={product.id} style={rowStyle}>
+            <div key={product.id} style={rowStyle}>
               <button
                 type="button"
                 onClick={() => void chooseFavorite(product)}
-                style={{ ...nameButton, ...(favoriteId === product.id ? selectedNameButton : {}) }}
+                aria-pressed={selected}
+                style={{ ...nameButton, ...(selected ? selectedNameButton : {}) }}
               >
                 {displayName(product.name)}
               </button>
-              <div style={detailLine}>{[product.brand, product.category].filter(Boolean).join(" · ")}</div>
-              {favoriteId === product.id && (
+
+              {selected && (
                 <div style={feedbackRow} aria-label="Tell QRE what you thought">
                   <span style={feedbackPrompt}>Tried it?</span>
-                  <button type="button" onClick={() => void react(product, "positive")} style={feedbackButton} aria-pressed={reaction === "positive"}>LIKE</button>
-                  <button type="button" onClick={() => void react(product, "negative")} style={feedbackButton} aria-pressed={reaction === "negative"}>NOPE</button>
+                  <button
+                    type="button"
+                    onClick={() => void react(product, "positive")}
+                    aria-pressed={reaction === "positive"}
+                    style={{ ...feedbackButton, ...(reaction === "positive" ? likeSelected : {}) }}
+                  >
+                    LIKE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void react(product, "negative")}
+                    aria-pressed={reaction === "negative"}
+                    style={{ ...feedbackButton, ...(reaction === "negative" ? nopeSelected : {}) }}
+                  >
+                    NOPE
+                  </button>
                 </div>
               )}
-            </article>
+            </div>
           );
         })}
       </section>
@@ -153,32 +167,37 @@ export default function CustomerCatalog() {
   );
 }
 
-function displayName(name: string) {
-  return name.replace(/^Fogger\s+—\s+/i, "");
-}
-
-const pageStyle = {
-  minHeight: "100vh",
+const pageStyle: React.CSSProperties = {
+  minHeight: "100svh",
   background: "#050505",
   color: "#f5f5f5",
-  padding: "28px 20px 80px",
+  padding: "max(18px, env(safe-area-inset-top)) 18px calc(48px + env(safe-area-inset-bottom))",
   fontFamily: "Inter, system-ui, sans-serif",
 };
-const headerStyle = { maxWidth: 760, margin: "0 auto 30px", display: "flex", justifyContent: "space-between", alignItems: "end", gap: 20, flexWrap: "wrap" as const };
-const eyebrow = { fontSize: 11, letterSpacing: "0.18em", opacity: 0.55 };
-const titleStyle = { margin: "7px 0 3px", fontSize: 36, lineHeight: 1, fontWeight: 700 };
-const countStyle = { fontSize: 13, opacity: 0.5 };
-const searchStyle = { width: 220, maxWidth: "100%", padding: "11px 0", border: "none", borderBottom: "1px solid #555", background: "transparent", color: "white", outline: "none" };
-const recommendationSection = { maxWidth: 760, margin: "0 auto 34px", paddingBottom: 24, borderBottom: "1px solid #252525" };
-const sectionLabel = { fontSize: 11, letterSpacing: "0.16em", opacity: 0.5, marginBottom: 12 };
-const recommendationList = { display: "grid", gap: 5 };
-const recommendationButton = { textAlign: "left" as const, border: "none", background: "transparent", color: "#8cff00", padding: "4px 0", fontSize: 17, cursor: "pointer" };
-const rowStyle = { maxWidth: 760, margin: "0 auto", padding: "12px 0 15px", borderBottom: "1px solid #171717" };
-const nameButton = { border: "none", background: "transparent", color: "white", padding: 0, fontSize: 18, fontWeight: 650, cursor: "pointer", textAlign: "left" as const };
-const selectedNameButton = { color: "#8cff00" };
-const detailLine = { marginTop: 3, fontSize: 12, opacity: 0.45 };
-const feedbackRow = { display: "flex", alignItems: "center", gap: 8, marginTop: 10 };
-const feedbackPrompt = { fontSize: 12, opacity: 0.55, marginRight: 4 };
-const feedbackButton = { border: "none", borderBottom: "1px solid #555", background: "transparent", color: "white", padding: "3px 7px", fontSize: 11, letterSpacing: "0.1em", cursor: "pointer" };
-const errorStyle = { maxWidth: 760, margin: "0 auto 16px", color: "#ff7676", fontSize: 13 };
-const messageStyle = { maxWidth: 760, margin: "0 auto 16px", color: "#8cff00", fontSize: 13 };
+const headerStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 10,
+  width: "100%",
+  maxWidth: 680,
+  margin: "0 auto",
+  padding: "10px 0 18px",
+  background: "#050505",
+};
+const titleStyle: React.CSSProperties = { margin: "0 0 16px", fontSize: "clamp(30px, 9vw, 44px)", lineHeight: 0.95, fontWeight: 800 };
+const searchStyle: React.CSSProperties = { width: "100%", minHeight: 48, boxSizing: "border-box", padding: "10px 0", border: "none", borderBottom: "1px solid #444", background: "transparent", color: "white", outline: "none", fontSize: 18, borderRadius: 0 };
+const recommendationSection: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "8px auto 30px", padding: "0 0 22px", borderBottom: "1px solid #252525" };
+const sectionLabel: React.CSSProperties = { fontSize: 11, letterSpacing: "0.16em", opacity: 0.5, marginBottom: 10 };
+const recommendationList: React.CSSProperties = { display: "grid" };
+const recommendationButton: React.CSSProperties = { minHeight: 46, padding: "8px 0", border: 0, borderBottom: "1px solid #151515", background: "transparent", color: "#8cff00", fontSize: 18, textAlign: "left", cursor: "pointer" };
+const productList: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto" };
+const rowStyle: React.CSSProperties = { padding: "14px 0 16px", borderBottom: "1px solid #1b1b1b" };
+const nameButton: React.CSSProperties = { width: "100%", minHeight: 44, border: 0, background: "transparent", color: "white", padding: 0, fontSize: "clamp(18px, 5vw, 21px)", fontWeight: 650, cursor: "pointer", textAlign: "left" };
+const selectedNameButton: React.CSSProperties = { color: "#8cff00" };
+const feedbackRow: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(88px, 1fr) minmax(88px, 1fr)", gap: 8, alignItems: "center", marginTop: 10 };
+const feedbackPrompt: React.CSSProperties = { fontSize: 13, opacity: 0.55 };
+const feedbackButton: React.CSSProperties = { minHeight: 48, border: "1px solid #444", background: "#0b0b0b", color: "white", fontSize: 13, letterSpacing: "0.12em", fontWeight: 800, cursor: "pointer", WebkitTapHighlightColor: "transparent" };
+const likeSelected: React.CSSProperties = { background: "#8cff00", color: "#000", borderColor: "#8cff00" };
+const nopeSelected: React.CSSProperties = { background: "#2b1515", color: "#ff8a8a", borderColor: "#ff8a8a" };
+const errorStyle: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto 14px", color: "#ff7676", fontSize: 13 };
+const messageStyle: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto 14px", color: "#8cff00", fontSize: 13 };
