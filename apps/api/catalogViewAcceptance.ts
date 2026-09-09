@@ -24,11 +24,11 @@ async function main() {
   const firstAttribute = facets.attributes.find((entry) => entry.key.toLowerCase() !== "availability" && entry.values.length > 0);
 
   try {
-    await setCatalogView(asset.id, { ...original, nameMode: "item", showBrand: true, showCategory: false, showDescription: false, groupBy: "none", scope: { kind: "all" }, sortBy: "name" });
+    await setCatalogView(asset.id, { ...original, query: undefined, nameMode: "item", showBrand: true, showCategory: false, showDescription: false, groupBy: "none", scope: { kind: "all" }, sortBy: "name" });
     const all = await applyCatalogView(asset.id);
     if (all.count < 2) fail("Default all-items view lost catalog items.");
 
-    await setCatalogView(asset.id, { ...original, showBrand: false, scope: { kind: "all" } });
+    await setCatalogView(asset.id, { ...original, query: undefined, showBrand: false, scope: { kind: "all" } });
     const hiddenBrand = await applyCatalogView(asset.id);
     if (hiddenBrand.products.some((product) => product.brand !== null)) fail("Brand presentation was not removed from the visible product payload.");
     const originalBrandItem = items.find((item) => item.brand);
@@ -37,19 +37,19 @@ async function main() {
       if (!hidden?.searchText?.toLowerCase().includes(originalBrandItem.brand!.toLowerCase())) fail("Hidden brand remained unsearchable after presentation removal.");
     }
 
-    await setCatalogView(asset.id, { ...original, showBrand: true, nameMode: "brand_item", scope: { kind: "all" } });
+    await setCatalogView(asset.id, { ...original, query: undefined, showBrand: true, nameMode: "brand_item", scope: { kind: "all" } });
     const brandedNames = await applyCatalogView(asset.id);
     if (firstBrand && !brandedNames.products.some((product) => product.name.startsWith(`${firstBrand} — `))) fail("Brand + item naming mode failed.");
 
     if (firstBrand) {
-      await setCatalogView(asset.id, { ...original, showBrand: false, scope: { kind: "brand", value: firstBrand } });
+      await setCatalogView(asset.id, { ...original, query: undefined, showBrand: false, scope: { kind: "brand", value: firstBrand } });
       const oneBrand = await applyCatalogView(asset.id);
       if (oneBrand.count === 0) fail(`Brand scope produced no items for ${firstBrand}.`);
       if (oneBrand.products.some((product) => !product.searchText?.toLowerCase().includes(firstBrand.toLowerCase()))) fail("Brand scope returned an item outside the selected brand.");
     }
 
     if (firstCategory) {
-      await setCatalogView(asset.id, { ...original, showBrand: false, showCategory: true, groupBy: "category", scope: { kind: "category", value: firstCategory } });
+      await setCatalogView(asset.id, { ...original, query: undefined, showBrand: false, showCategory: true, groupBy: "category", scope: { kind: "category", value: firstCategory } });
       const oneCategory = await applyCatalogView(asset.id);
       if (oneCategory.count === 0) fail(`Category scope produced no items for ${firstCategory}.`);
       if (oneCategory.products.some((product) => product.category !== firstCategory)) fail("Category scope returned an item outside the selected category.");
@@ -57,17 +57,35 @@ async function main() {
 
     if (firstAttribute) {
       const attributeValue = firstAttribute.values[0];
-      await setCatalogView(asset.id, { ...original, nameMode: "attribute", nameAttributeKey: firstAttribute.key, groupBy: "attribute", groupAttributeKey: firstAttribute.key, scope: { kind: "attribute", key: firstAttribute.key, value: attributeValue } });
+      await setCatalogView(asset.id, { ...original, query: undefined, nameMode: "attribute", nameAttributeKey: firstAttribute.key, groupBy: "attribute", groupAttributeKey: firstAttribute.key, scope: { kind: "attribute", key: firstAttribute.key, value: attributeValue } });
       const oneAttribute = await applyCatalogView(asset.id);
       if (oneAttribute.count === 0) fail(`Attribute scope produced no items for ${firstAttribute.key}=${attributeValue}.`);
       if (oneAttribute.products.some((product) => product.groupValue !== attributeValue)) fail("Attribute grouping/scope did not stay on the selected value.");
       if (oneAttribute.products.some((product) => product.name !== attributeValue)) fail("Attribute naming mode did not render the selected attribute.");
     }
 
-    const reset = await setCatalogView(asset.id, { ...original, scope: { kind: "all" }, groupBy: "none" });
+    await setCatalogView(asset.id, { ...original, query: "strawberry", scope: { kind: "all" } });
+    const strawberry = await applyCatalogView(asset.id);
+    if (strawberry.count < 2) fail("Universal search did not find multiple strawberry results.");
+    if (strawberry.products.some((product) => !product.searchText.includes("strawberry"))) fail("Universal search returned a non-matching result.");
+    const strawberryBrands = new Set(items.filter((item) => strawberry.products.some((product) => product.id === item.id)).map((item) => item.brand).filter(Boolean));
+    if (strawberryBrands.size < 2) fail("Universal flavor search did not cross brands.");
+    const persistedSearch = await getCatalogView(asset.id);
+    if (persistedSearch.query !== "strawberry") fail("Search query did not persist as part of the view.");
+
+    await setCatalogView(asset.id, { ...original, query: "king size", scope: { kind: "all" } });
+    const kingSize = await applyCatalogView(asset.id);
+    if (kingSize.count < 2) fail("Attribute search did not find king-size items.");
+    if (kingSize.products.some((product) => !product.searchText.includes("king size"))) fail("Attribute search returned a non-matching result.");
+
+    await setCatalogView(asset.id, { ...original, query: "peach ass ravenbar", scope: { kind: "all" } });
+    const weirdEntity = await applyCatalogView(asset.id);
+    if (weirdEntity.count !== 1 || weirdEntity.products[0]?.name !== "Peach Ass Ravenbar") fail("Search did not find the arbitrary/weird entity.");
+
+    const reset = await setCatalogView(asset.id, { ...original, query: undefined, scope: { kind: "all" }, groupBy: "none" });
     const resetResult = await applyCatalogView(asset.id);
     if (resetResult.count !== all.count) fail("Resetting the view did not restore the original catalog count.");
-    if (reset.nameMode !== original.nameMode || reset.scope.kind !== "all") fail("Reset configuration did not persist cleanly.");
+    if (reset.nameMode !== original.nameMode || reset.scope.kind !== "all" || reset.query !== original.query) fail("Reset configuration did not persist cleanly.");
 
     console.log(JSON.stringify({
       pass: true,
@@ -83,6 +101,10 @@ async function main() {
         singleBrandScope: Boolean(firstBrand),
         categoryScope: Boolean(firstCategory),
         arbitraryAttributeScope: Boolean(firstAttribute),
+        universalCrossBrandSearch: true,
+        arbitraryAttributeSearch: true,
+        weirdEntitySearch: true,
+        savedSearchPersistence: true,
         resetToAll: true,
       },
       view: reset,
