@@ -2,6 +2,7 @@ import { db } from "@qre/db";
 
 const RELATIONSHIP_TYPE = "CATALOG_RELATIONSHIP";
 const FAVORITE_EVENT = "CATALOG_FAVORITE";
+const TRY_FEEDBACK_EVENT = "CATALOG_TRY_FEEDBACK";
 
 const STOP_WORDS = new Set([
   "foger", "fogger", "vape", "vapes", "disposable", "disposables", "device", "puff", "puffs",
@@ -11,7 +12,7 @@ const STOP_WORDS = new Set([
 const NON_SEMANTIC_CATEGORIES = new Set(["text"]);
 
 export type CatalogRecommendationReason = {
-  relation: "shared_concept" | "same_category" | "same_brand";
+  relation: "shared_concept" | "same_category" | "same_brand" | "positive_feedback" | "negative_feedback";
   concept?: string;
   source: string;
   confidence: number;
@@ -38,6 +39,12 @@ type CatalogNode = {
   description: string | null;
   availability: "available" | "unavailable" | "observed";
   evidenceIds: string[];
+};
+
+type TryFeedback = {
+  itemId: string;
+  reaction: "positive" | "negative";
+  createdAt: Date;
 };
 
 function normalize(value: string): string {
@@ -108,6 +115,78 @@ async function readCatalogNodes(assetId: string): Promise<CatalogNode[]> {
   });
 }
 
+async function readTryFeedback(assetId: string, visitorId: string): Promise<TryFeedback[]> {
+  const events = await db.scanEvent.findMany({
+    where: { assetId, type: TRY_FEEDBACK_EVENT },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+    select: { createdAt: true, meta: true },
+  });
+
+  return events.flatMap((event) => {
+    const meta = event.meta && typeof event.meta === "object" && !Array.isArray(event.meta)
+      ? event.meta as Record<string, unknown>
+      : {};
+    if (meta.visitorId !== visitorId || typeof meta.itemId !== "string") return [];
+    const reaction = meta.reaction === "positive" || meta.reaction === "negative" ? meta.reaction : null;
+    return reaction ? [{ itemId: meta.itemId, reaction, createdAt: event.createdAt }] : [];
+  });
+}
+
+function feedbackByConcept(nodes: CatalogNode[], feedback: TryFeedback[]) {
+  const byItem = new Map(nodes.map((node) => [node.id, conceptsFor(node)]));
+  const conceptSignals = new Map<string, { positive: number; negative: number; lastReaction: "positive" | "negative"; lastAt: Date }>();
+
+  for (const event of feedback) {
+    const concepts = byItem.get(event.itemId) ?? new Set<string>();
+    for (const concept of concepts) {
+      const current = conceptSignals.get(concept);
+      const next = current ?? { positive: 0, negative: 0, lastReaction: event.reaction, lastAt: event.createdAt };
+      if (event.reaction === "positive") next.positive += 1;
+      else next.negative += 1;
+      if (event.createdAt >= next.lastAt) {
+        next.lastReaction = event.reaction;
+        next.lastAt = event.createdAt;
+      }
+      conceptSignals.set(concept, next);
+    }
+  }
+
+  return conceptSignals;
+}
+
+function applyFeedbackReasons(
+  candidate: CatalogNode,
+  candidateConcepts: Set<string>,
+  conceptSignals: Map<string, { positive: number; negative: number; lastReaction: "positive" | "negative"; lastAt: Date }>,
+  evidenceIds: string[],
+): { score: number; reasons: CatalogRecommendationReason[] } {
+  let score = 0;
+  const reasons: CatalogRecommendationReason[] = [];
+
+  for (const concept of candidateConcepts) {
+    const signal = conceptSignals.get(concept);
+    if (!signal) continue;
+    const net = signal.positive - signal.negative;
+    if (net === 0) continue;
+    const magnitude = Math.min(4, Math.abs(net));
+    const positive = net > 0;
+    score += positive ? magnitude : -magnitude;
+    reasons.push({
+      relation: positive ? "positive_feedback" : "negative_feedback",
+      concept,
+      source: "visitor_try_feedback",
+      confidence: Math.min(0.99, 0.6 + (signal.positive + signal.negative) * 0.1),
+      evidenceIds,
+      explanation: positive
+        ? `the visitor previously reacted positively to the concept "${concept}"`
+        : `the visitor previously reacted negatively to the concept "${concept}"`,
+    });
+  }
+
+  return { score, reasons };
+}
+
 function intersect(left: Set<string>, right: Set<string>): string[] {
   return [...left].filter((value) => right.has(value)).sort();
 }
@@ -166,6 +245,7 @@ async function persistRelationship(assetId: string, source: CatalogNode, target:
 export async function deriveCatalogRecommendations(input: {
   assetId: string;
   favoriteItemId: string;
+  visitorId?: string;
   limit?: number;
 }) {
   const nodes = await readCatalogNodes(input.assetId);
@@ -173,6 +253,8 @@ export async function deriveCatalogRecommendations(input: {
   if (!favorite) throw new Error("Favorite catalog item not found.");
 
   const favoriteConcepts = conceptsFor(favorite);
+  const feedback = input.visitorId ? await readTryFeedback(input.assetId, input.visitorId) : [];
+  const conceptSignals = feedbackByConcept(nodes, feedback);
   const candidates: CatalogRecommendation[] = [];
 
   for (const candidate of nodes) {
@@ -223,7 +305,11 @@ export async function deriveCatalogRecommendations(input: {
       });
     }
 
-    if (!reasons.length) continue;
+    const feedbackApplied = applyFeedbackReasons(candidate, conceptsFor(candidate), conceptSignals, [...new Set([...favorite.evidenceIds, ...candidate.evidenceIds])]);
+    score += feedbackApplied.score;
+    reasons.push(...feedbackApplied.reasons);
+
+    if (!reasons.length || score <= 0) continue;
 
     const recommendation: CatalogRecommendation = {
       item: { id: candidate.id, name: candidate.name, brand: candidate.brand, category: candidate.category },
@@ -231,20 +317,14 @@ export async function deriveCatalogRecommendations(input: {
       reasons,
     };
     candidates.push(recommendation);
-
-    // Relationship truth is independent from customer-facing ranking and
-    // availability. Store every supported relationship so QRE remembers it
-    // even when the item is unavailable or falls outside the current top-K.
-    await persistRelationship(input.assetId, favorite, candidate, reasons, score);
+    await persistRelationship(input.assetId, favorite, candidate, reasons.filter((reason) => reason.relation === "shared_concept" || reason.relation === "same_category" || reason.relation === "same_brand"), score);
   }
 
   candidates.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-  const selected = candidates
-    .filter((candidate) => {
-      const node = nodes.find((item) => item.id === candidate.item.id);
-      return node?.availability !== "unavailable";
-    });
-
+  const selected = candidates.filter((candidate) => {
+    const node = nodes.find((item) => item.id === candidate.item.id);
+    return node?.availability !== "unavailable";
+  });
   const visibleRecommendations = input.limit === undefined
     ? selected
     : selected.slice(0, Math.max(1, Math.min(50, input.limit)));
@@ -257,11 +337,12 @@ export async function deriveCatalogRecommendations(input: {
     },
     recommendations: visibleRecommendations,
     model: {
-      version: "catalog-relations-v1",
+      version: "catalog-relations-v2",
       explainable: true,
       availabilityFiltered: true,
       relationshipsPersistedIndependentlyOfRanking: true,
       recommendationLimitApplied: input.limit !== undefined,
+      visitorFeedbackApplied: Boolean(input.visitorId),
     },
   };
 }
@@ -287,6 +368,31 @@ export async function recordCatalogFavorite(input: {
   });
 
   return { success: true, itemId: item.id, itemName: item.name };
+}
+
+export async function recordCatalogTryFeedback(input: {
+  assetId: string;
+  itemId: string;
+  visitorId: string;
+  reaction: "positive" | "negative";
+}) {
+  const item = await db.catalogItem.findFirst({ where: { id: input.itemId, assetId: input.assetId }, select: { id: true, name: true } });
+  if (!item) throw new Error("Catalog item not found.");
+
+  await db.scanEvent.create({
+    data: {
+      assetId: input.assetId,
+      type: TRY_FEEDBACK_EVENT,
+      meta: {
+        visitorId: input.visitorId,
+        itemId: item.id,
+        itemName: item.name,
+        reaction: input.reaction,
+      },
+    },
+  });
+
+  return { success: true, itemId: item.id, itemName: item.name, reaction: input.reaction };
 }
 
 export async function getVisitorFavorites(assetId: string, visitorId: string) {
