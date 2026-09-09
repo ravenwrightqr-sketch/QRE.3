@@ -7,9 +7,10 @@
   ],
   "scripts": {
     "dev": "pnpm -r dev",
-    "build": "pnpm author:guard && pnpm capability:acceptance && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
+    "build": "pnpm author:guard && pnpm capability:acceptance && pnpm knowledge:acceptance && pnpm build:contracts && pnpm build:db && pnpm build:engine && pnpm build:api && pnpm build:web",
     "author:guard": "node ./scripts/verify-author-architecture.mjs && node ./scripts/verify-author-reachability.mjs && node ./scripts/verify-contract-ownership.mjs && node ./scripts/verify-no-legacy-engine-cognition.mjs && node ./scripts/verify-author-production-gate.mjs",
     "capability:acceptance": "pnpm exec tsx apps/api/capability-boundary-acceptance.ts",
+    "knowledge:acceptance": "pnpm exec tsx apps/api/knowledge-intelligence-acceptance.ts",
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",
     "author:satanico": "pnpm exec tsx apps/api/satanico-universal-acceptance.ts",
@@ -36,7 +37,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
+    "@types/jsonwebtoken": "^10.0.0",
     "@types/node": "20",
     "prisma": "6.19.3",
     "tsx": "^4.22.4",
