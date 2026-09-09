@@ -50,7 +50,7 @@ function clampConfidence(value: unknown): number {
 
 function parseStoredPayload(job: { assetId: string; sourceType: string; originalName: string | null; payload: unknown }): StoredPayload {
   const payload = job.payload && typeof job.payload === "object" && !Array.isArray(job.payload)
-    ? job.payload as Record<string, unknown>
+    ? payloadRecord(job.payload)
     : {};
 
   return {
@@ -63,6 +63,10 @@ function parseStoredPayload(job: { assetId: string; sourceType: string; original
     imageDataUrl: typeof payload.imageDataUrl === "string" ? payload.imageDataUrl : undefined,
     text: typeof payload.text === "string" ? payload.text : undefined,
   };
+}
+
+function payloadRecord(value: object): Record<string, unknown> {
+  return value as Record<string, unknown>;
 }
 
 function textFromInput(input: StoredPayload): string | undefined {
@@ -122,7 +126,7 @@ async function learnWebsite(input: StoredPayload, evidenceId: string) {
   const row = await db.insight.create({ data: { assetId: input.assetId, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: world.description || world.businessType || world.businessName || learned.title } });
 
   const currentData = asset?.templateData && typeof asset.templateData === "object" && !Array.isArray(asset.templateData)
-    ? asset.templateData as Record<string, unknown>
+    ? payloadRecord(asset.templateData)
     : {};
 
   const templateData = JSON.parse(JSON.stringify({
@@ -157,55 +161,67 @@ async function learnWebsite(input: StoredPayload, evidenceId: string) {
   return { row, factCount: 1, catalogIds: [], observationIds: [] };
 }
 
-async function persistFacts(input: StoredPayload, evidenceId: string, facts: Array<{ label: string; value: string; category?: string; unit?: string; notes?: string; confidence?: number }>) {
-  const catalogIds: string[] = [];
-  const observationIds: string[] = [];
+async function persistFacts(
+  input: StoredPayload,
+  evidenceId: string,
+  facts: Array<{ label: string; value: string; category?: string; unit?: string; notes?: string; confidence?: number }>,
+) {
+  return db.$transaction(async (tx) => {
+    const catalogIds: string[] = [];
+    const observationIds: string[] = [];
+    let factCount = 0;
 
-  for (const fact of facts) {
-    const normalizedName = normalizeName(fact.label || fact.value);
-    if (!normalizedName) continue;
+    for (const fact of facts) {
+      const normalizedName = normalizeName(fact.label || fact.value);
+      if (!normalizedName) continue;
 
-    const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
-    const item = existing
-      ? await db.catalogItem.update({ where: { id: existing.id }, data: { category: fact.category || existing.category || undefined, description: existing.description || fact.notes || undefined } })
-      : await db.catalogItem.create({ data: { assetId: input.assetId, kind: fact.category || "item", name: fact.label || fact.value, normalizedName, category: fact.category || undefined, description: fact.notes || undefined } });
+      const existing = await tx.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
+      const item = existing
+        ? await tx.catalogItem.update({ where: { id: existing.id }, data: { category: fact.category || existing.category || undefined, description: existing.description || fact.notes || undefined } })
+        : await tx.catalogItem.create({ data: { assetId: input.assetId, kind: fact.category || "item", name: fact.label || fact.value, normalizedName, category: fact.category || undefined, description: fact.notes || undefined } });
 
-    catalogIds.push(item.id);
+      catalogIds.push(item.id);
 
-    await db.catalogAttribute.create({ data: { catalogItemId: item.id, key: "value", value: fact.value, unit: fact.unit || undefined, confidence: clampConfidence(fact.confidence), evidenceId } });
+      await tx.catalogAttribute.create({ data: { catalogItemId: item.id, key: "value", value: fact.value, unit: fact.unit || undefined, confidence: clampConfidence(fact.confidence), evidenceId } });
 
-    const observation = await db.knowledgeObservation.create({
-      data: {
-        assetId: input.assetId,
-        catalogItemId: item.id,
-        evidenceId,
-        type: "OBSERVED",
-        value: { label: fact.label, value: fact.value, category: fact.category, unit: fact.unit, notes: fact.notes },
-        source: input.sourceType,
-        confidence: clampConfidence(fact.confidence),
-        observedAt: new Date(),
-      },
-    });
+      const observation = await tx.knowledgeObservation.create({
+        data: {
+          assetId: input.assetId,
+          catalogItemId: item.id,
+          evidenceId,
+          type: "OBSERVED",
+          value: { label: fact.label, value: fact.value, category: fact.category, unit: fact.unit, notes: fact.notes },
+          source: input.sourceType,
+          confidence: clampConfidence(fact.confidence),
+          observedAt: new Date(),
+        },
+      });
 
-    observationIds.push(observation.id);
+      observationIds.push(observation.id);
+      factCount += 1;
 
-    const repeated = await db.knowledgeObservation.count({ where: { assetId: input.assetId, catalogItemId: item.id } });
+      const repeated = await tx.knowledgeObservation.count({ where: { assetId: input.assetId, catalogItemId: item.id } });
 
-    if (repeated >= 2) {
-      const existingPattern = await db.knowledgePattern.findFirst({ where: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION" }, orderBy: { updatedAt: "desc" } });
-      const confidence = Math.min(.99, .55 + Math.log10(repeated + 1) * .45);
-      const statement = `${item.name} has been observed repeatedly (${repeated} observations).`;
-      const strength = Math.min(.99, repeated / (repeated + 2));
+      if (repeated >= 2) {
+        const existingPattern = await tx.knowledgePattern.findFirst({ where: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION" }, orderBy: { updatedAt: "desc" } });
+        const confidence = Math.min(.99, .55 + Math.log10(repeated + 1) * .45);
+        const statement = `${item.name} has been observed repeatedly (${repeated} observations).`;
+        const strength = Math.min(.99, repeated / (repeated + 2));
 
-      if (existingPattern) {
-        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date() } });
-      } else {
-        await db.knowledgePattern.create({ data: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION", statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: new Date(), lastObservedAt: new Date() } });
+        if (existingPattern) {
+          const priorEvidenceIds = Array.isArray(existingPattern.evidenceIds)
+            ? existingPattern.evidenceIds.filter((value): value is string => typeof value === "string")
+            : [];
+          const evidenceIds = [...new Set([...priorEvidenceIds, evidenceId])];
+          await tx.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, evidenceIds, lastObservedAt: new Date() } });
+        } else {
+          await tx.knowledgePattern.create({ data: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION", statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: new Date(), lastObservedAt: new Date() } });
+        }
       }
     }
-  }
 
-  return { catalogIds, observationIds, factCount: facts.length };
+    return { catalogIds, observationIds, factCount };
+  }, { timeout: 120000 });
 }
 
 async function processIntake(jobId: string, input: StoredPayload): Promise<void> {
@@ -239,7 +255,7 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
       const decoded = decodeDataUrl(input.content || "");
       if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL.");
       const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName);
-      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } } });
+      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, ...extracted.metadata } });
       result = await persistFacts(input, evidence.id, extracted.facts);
     } else {
       const text = textFromInput(input);
@@ -248,7 +264,7 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
         : { factCount: 0, catalogIds: [], observationIds: [] };
     }
 
-    await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", result: { evidenceId: evidence.id, ...result }, completedAt: new Date() } });
+    await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", result: { evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } });
   } catch (error) {
     console.error("[KnowledgeIntake] failed", jobId, error);
     try {
@@ -306,7 +322,14 @@ export async function enqueueKnowledgeIntake(input: IntakeInput) {
   const contentHash = rawContent ? sha256(rawContent) : undefined;
 
   if (contentHash) {
-    const existing = await db.knowledgeIntakeJob.findFirst({ where: { assetId: input.assetId, contentHash }, orderBy: { createdAt: "desc" } });
+    const existing = await db.knowledgeIntakeJob.findFirst({
+      where: {
+        assetId: input.assetId,
+        contentHash,
+        status: { in: ["queued", "processing", "completed"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
     if (existing) return { job: existing, duplicate: true };
   }
 
@@ -322,4 +345,21 @@ export async function enqueueKnowledgeIntake(input: IntakeInput) {
   });
 
   return { job, duplicate: false };
+}
+
+export async function retryKnowledgeIntake(jobId: string, assetId: string) {
+  const job = await db.knowledgeIntakeJob.findFirst({ where: { id: jobId, assetId } });
+  if (!job) return null;
+  if (job.status !== "failed") return job;
+
+  return db.knowledgeIntakeJob.update({
+    where: { id: job.id },
+    data: {
+      status: "queued",
+      error: null,
+      result: null,
+      startedAt: null,
+      completedAt: null,
+    },
+  });
 }
