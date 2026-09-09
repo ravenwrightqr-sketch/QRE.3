@@ -2,7 +2,6 @@ export {
   analyzeExperienceValue,
 } from "./valueEngine.js";
 
-
 export type {
   ValueSignal,
   ValueInsight,
@@ -11,7 +10,6 @@ export type {
 export {
   analyzeCustomerRelationship,
 } from "./customerIntelligence.js";
-
 
 export type {
   CustomerSignal,
@@ -23,9 +21,26 @@ export {
   analyzeGrowth,
 } from "./growthIntelligence.js";
 
-
 export type {
   GrowthSignal,
   GrowthPriority,
   GrowthRecommendation,
 } from "./growthIntelligence.js";
+
+export {
+  analyzePattern,
+  calculateRecurrence,
+  detectPatternAnomaly,
+  forecastPattern,
+  projectScenario,
+} from "./patternForecast.js";
+
+export type {
+  PatternObservation,
+  PatternSignalKind,
+  PatternSignal,
+  PatternForecast,
+  PatternAnalysis,
+  ScenarioInput,
+  ScenarioResult,
+} from "./patternForecast.js";
