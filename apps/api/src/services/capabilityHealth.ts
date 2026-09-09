@@ -1,10 +1,9 @@
-import { qreModelFor } from "./modelSelection.js";
+import { capabilityConfig } from "./modelCapabilities.js";
 
 export function capabilityHealth() {
+  const config = capabilityConfig();
   return {
-    author: qreModelFor("author"),
-    vision: qreModelFor("vision"),
-    document: qreModelFor("document"),
-    isolated: qreModelFor("vision") !== qreModelFor("author") || !process.env.QRE_AUTHOR_FAST_MODEL,
+    ...config,
+    isolated: config.vision !== config.author || !process.env.QRE_AUTHOR_FAST_MODEL,
   };
 }
