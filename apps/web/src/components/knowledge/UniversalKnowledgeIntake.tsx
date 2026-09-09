@@ -213,7 +213,7 @@ async function fileToPayloads(file: File): Promise<Payload[]> {
   const sourceType = classifyFile(file);
   if (!file.type.startsWith("image/")) {
     const dataUrl = await fileToDataUrl(file);
-    return [{ sourceType, originalName: file.name, mimeType: file.type || undefined, imageDataUrl: undefined, content: dataUrl }];
+    return [{ sourceType, originalName: file.name, mimeType: file.type || undefined, content: dataUrl }];
   }
 
   const dataUrl = await fileToDataUrl(file);
@@ -225,12 +225,7 @@ async function fileToPayloads(file: File): Promise<Payload[]> {
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       const crop = cropImage(image, column, row, columns, rows);
-      payloads.push({
-        sourceType: "photo",
-        originalName: `${file.name} · detail ${row * columns + column + 1}/9`,
-        mimeType: "image/jpeg",
-        imageDataUrl: crop,
-      });
+      payloads.push({ sourceType: "photo", originalName: `${file.name} · detail ${row * columns + column + 1}/9`, mimeType: "image/jpeg", imageDataUrl: crop });
     }
   }
   return payloads;
@@ -239,17 +234,24 @@ async function fileToPayloads(file: File): Promise<Payload[]> {
 function cropImage(image: HTMLImageElement, column: number, row: number, columns: number, rows: number): string {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
-  const sx = Math.floor(sourceWidth * column / columns);
-  const sy = Math.floor(sourceHeight * row / rows);
-  const sw = Math.floor(sourceWidth / columns) + (column === columns - 1 ? sourceWidth % columns : 0);
-  const sh = Math.floor(sourceHeight / rows) + (row === rows - 1 ? sourceHeight % rows : 0);
-  const maxSide = 1800;
-  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const overlap = 0.18;
+  const tileWidth = Math.ceil(sourceWidth / columns + sourceWidth * overlap);
+  const tileHeight = Math.ceil(sourceHeight / rows + sourceHeight * overlap);
+  const maxX = Math.max(0, sourceWidth - tileWidth);
+  const maxY = Math.max(0, sourceHeight - tileHeight);
+  const sx = Math.min(maxX, Math.max(0, Math.round((maxX / Math.max(1, columns - 1)) * column)));
+  const sy = Math.min(maxY, Math.max(0, Math.round((maxY / Math.max(1, rows - 1)) * row)));
+  const sw = Math.min(tileWidth, sourceWidth - sx);
+  const sh = Math.min(tileHeight, sourceHeight - sy);
+  const targetMaxSide = 2200;
+  const scale = Math.min(4, Math.max(1, targetMaxSide / Math.max(sw, sh)));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(sw * scale));
   canvas.height = Math.max(1, Math.round(sh * scale));
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Browser could not prepare the photo detail pass.");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
   context.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.94);
 }
