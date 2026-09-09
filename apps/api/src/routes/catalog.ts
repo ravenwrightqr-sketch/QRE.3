@@ -1,6 +1,7 @@
 import express from "express";
 import { db } from "@qre/db";
 import { recordCatalogFavorite, deriveCatalogRecommendations, getVisitorFavorites, recordCatalogTryFeedback } from "../services/catalogRecommendation.js";
+import { applyCatalogView, getCatalogView, getCatalogViewFacets, setCatalogView } from "../services/catalogView.js";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
@@ -43,12 +44,33 @@ router.get("/:slug", async (req, res) => {
   } catch (error) { console.error("Catalog load failed:", error); return res.status(500).json({ error: "Catalog load failed." }); }
 });
 
+router.get("/:slug/view", async (req, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug); if (!slug) return res.status(400).json({ error: "Missing asset." });
+    const asset = await resolveAssetBySlug(slug); if (!asset) return res.status(404).json({ error: "Catalog not found." });
+    const view = await getCatalogView(asset.id);
+    const facets = await getCatalogViewFacets(asset.id);
+    return res.json({ asset, view, facets });
+  } catch (error) { console.error("Catalog view load failed:", error); return res.status(500).json({ error: "Catalog view load failed." }); }
+});
+
+router.put("/:slug/view", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug); const userId = req.user?.userId;
+    if (!slug || !userId) return res.status(400).json({ error: "Missing identifier." });
+    const asset = await resolveOwnedAsset(slug, userId); if (!asset) return res.status(404).json({ error: "Asset not found." });
+    const view = await setCatalogView(asset.id, req.body);
+    const facets = await getCatalogViewFacets(asset.id);
+    return res.json({ success: true, view, facets });
+  } catch (error) { console.error("Catalog view update failed:", error); return res.status(400).json({ error: error instanceof Error ? error.message : "Catalog view update failed." }); }
+});
+
 router.get("/:slug/customer", async (req, res) => {
   try {
     const slug = safeStringParam(req.params.slug); if (!slug) return res.status(400).json({ error: "Missing asset." });
     const asset = await resolveAssetBySlug(slug); if (!asset) return res.status(404).json({ error: "Catalog not found." });
-    const products = (await readCatalog(asset.id)).filter((product) => product.availability === "available").map(({ availability: _availability, ...product }) => product);
-    return res.json({ asset, products, count: products.length });
+    const result = await applyCatalogView(asset.id);
+    return res.json({ asset, view: { version: result.view.version, title: result.view.title }, products: result.products, count: result.count });
   } catch (error) { console.error("Customer catalog load failed:", error); return res.status(500).json({ error: "Customer catalog load failed." }); }
 });
 
