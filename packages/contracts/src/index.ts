@@ -24,3 +24,4 @@ export * from "./movie/index.js";
 export * from "./world/index.js";
 export * from "./presence/index.js";
 export * from "./factory/index.js";
+export * from "./recognition/index.js";
