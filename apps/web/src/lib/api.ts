@@ -64,6 +64,8 @@ export const getScan = (slug: string, geo?: { lat: number; lng: number; accuracy
 
 export const getCatalog = (slug: string) => publicRequest(`/api/catalog/${encodeURIComponent(slug)}`);
 export const getCustomerCatalog = (slug: string) => publicRequest(`/api/catalog/${encodeURIComponent(slug)}/customer`);
+export const getCatalogView = (slug: string) => apiGet(`/api/catalog/${encodeURIComponent(slug)}/view`);
+export const setCatalogView = (slug: string, view: CatalogViewConfig) => apiPut(`/api/catalog/${encodeURIComponent(slug)}/view`, view);
 export const favoriteCatalogItem = (slug: string, itemId: string, visitorId: string) =>
   publicRequest(`/api/catalog/${encodeURIComponent(slug)}/favorite`, {
     method: "POST",
@@ -82,6 +84,20 @@ export const getCatalogRecommendations = (slug: string, favoriteItemId?: string,
 };
 export const setCatalogAvailability = (slug: string, itemId: string, availability: "available" | "unavailable") =>
   apiPut(`/api/catalog/${encodeURIComponent(slug)}/${encodeURIComponent(itemId)}/availability`, { availability });
+
+export type CatalogViewConfig = {
+  version: 1;
+  title?: string;
+  nameMode: "item" | "brand_item" | "attribute";
+  nameAttributeKey?: string;
+  showBrand: boolean;
+  showCategory: boolean;
+  showDescription: boolean;
+  groupBy: "none" | "brand" | "category" | "attribute";
+  groupAttributeKey?: string;
+  scope: { kind: "all" | "brand" | "category" | "attribute"; key?: string; value?: string };
+  sortBy: "name" | "brand" | "newest" | "merchant";
+};
 
 export const scanLiveUrl = (slug: string) => `${API_BASE}/api/scan/${slug}`;
 export const checkout = (slug: string) => apiPost("/api/checkout", { slug });
