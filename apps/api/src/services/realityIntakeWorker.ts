@@ -4,6 +4,7 @@ import { decodeDataUrl } from "./documentKnowledge.js";
 
 const POLL_MS = 1800;
 const PAGE_SIZE = 8;
+const MAX_REALITY_ATTEMPTS = 3;
 let started = false;
 let busy = false;
 
@@ -28,9 +29,13 @@ function resultRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-async function recentSceneObservations(assetId: string, limit = 12) {
+async function recentSceneObservations(assetId: string, limit = 12, excludeEvidenceId?: string) {
   return db.knowledgeObservation.findMany({
-    where: { assetId, type: "REALITY_SCENE" },
+    where: {
+      assetId,
+      type: "REALITY_SCENE",
+      ...(excludeEvidenceId ? { evidenceId: { not: excludeEvidenceId } } : {}),
+    },
     orderBy: { observedAt: "desc" },
     take: limit,
     select: { id: true, value: true, evidenceId: true, observedAt: true },
@@ -121,7 +126,7 @@ async function upsertPattern(args: {
 }
 
 async function learnPatterns(assetId: string, current: RealityGraph, evidenceId: string, observedAt: Date) {
-  const history = await recentSceneObservations(assetId, 12);
+  const history = await recentSceneObservations(assetId, 12, evidenceId);
   const priorGraphs = history.map((row) => graphFromObservation(row.value)).filter((value): value is RealityGraph => Boolean(value));
   const previous = priorGraphs[0];
 
@@ -392,15 +397,24 @@ async function tick() {
       if (result.realityEngineVersion === "1") continue;
       if (!storedImage(job)) continue;
 
+      const attempts = typeof result.realityAttempts === "number" ? result.realityAttempts : 0;
+      if (attempts >= MAX_REALITY_ATTEMPTS) continue;
+
       try {
         await processJob(job);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Reality learning failed";
-        console.error("[QRE][RealityWorker] failed", job.id, message, error);
+        const nextAttempts = attempts + 1;
+        console.error("[QRE][RealityWorker] failed", job.id, `attempt=${nextAttempts}`, message, error);
         await db.knowledgeIntakeJob.update({
           where: { id: job.id },
           data: {
-            result: { ...result, realityEngineVersion: "1", realityStage: "failed" },
+            result: {
+              ...result,
+              realityAttempts: nextAttempts,
+              realityStage: nextAttempts >= MAX_REALITY_ATTEMPTS ? "failed" : "retryable",
+              ...(nextAttempts >= MAX_REALITY_ATTEMPTS ? { realityEngineVersion: "1" } : {}),
+            },
             error: `Reality engine: ${message}`,
           },
         });
