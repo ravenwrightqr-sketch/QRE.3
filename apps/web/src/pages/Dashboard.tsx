@@ -56,20 +56,16 @@ export default function Dashboard() {
     <DashboardLayout>
       <main style={pageStyle}>
         <header style={headerStyle}>
-          <div>
-            <div style={brand}>QRE</div>
-            <div style={eyebrow}>YOUR WORLD</div>
-          </div>
+          <Link to="/dashboard" style={brandLink} aria-label="QRE home">QRE</Link>
 
-          <div style={headerActions}>
-            <Link to="/admin" style={adminLink}>BUSINESSES + KNOWLEDGE</Link>
-            {objects.length > 0 && (
-              <div style={assetPickerShell}>
-                <span style={pickerLabel}>WORLD</span>
+          <div style={headerRight}>
+            {objects.length > 0 ? (
+              <label style={worldControl}>
+                <span style={worldLabel}>WORLD</span>
                 <select
                   value={activeObject?.id ?? ""}
                   onChange={(event) => setActiveAsset(event.target.value)}
-                  style={assetPicker}
+                  style={worldSelect}
                   aria-label="Select QRE world"
                 >
                   {objects.map((object) => (
@@ -78,30 +74,42 @@ export default function Dashboard() {
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
+              </label>
+            ) : null}
+            <Link to="/admin" style={adminLink}>ADMIN</Link>
           </div>
         </header>
 
         <section style={heroStyle}>
-          <div style={headlineEyebrow}>GIVE QRE INFORMATION</div>
-          <h1 style={titleStyle}>What happened?</h1>
-          <p style={subStyle}>Tell QRE. QRE figures out what it means.</p>
+          <div style={heroEyebrow}>QRE · YOUR WORLD</div>
+          <h1 style={titleStyle}>Give QRE<br />anything.</h1>
+          <p style={subStyle}>QRE figures out what it means, remembers it, and connects it to your world.</p>
 
           {activeObject ? (
             <UniversalKnowledgeIntake slug={activeObject.slug} onLearned={loadAssets} />
           ) : (
             <div style={emptyStyle}>
-              <div style={{ fontSize: 13, letterSpacing: 1.5 }}>CREATE YOUR FIRST QRE WORLD</div>
-              <p style={{ opacity: .48, lineHeight: 1.6, maxWidth: 480 }}>
-                QRE needs a business, place, person, or object to learn into before it can build memory.
-              </p>
-              <Link to="/admin/create" style={primaryLink}>CREATE QRE</Link>
+              <div style={emptyTitle}>START YOUR WORLD</div>
+              <p style={emptyText}>Create a business, place, person, product, event, or other QRE world to begin.</p>
+              <Link to="/admin/create" style={primaryLink}>CREATE WORLD</Link>
             </div>
           )}
 
           {error && <div style={errorStyle}>{error}</div>}
         </section>
+
+        {activeObject ? (
+          <section style={worldSummary}>
+            <div>
+              <div style={summaryEyebrow}>CURRENT WORLD</div>
+              <div style={summaryTitle}>{activeObject.displayName || activeObject.slug}</div>
+            </div>
+            <div style={summaryMeta}>
+              <span>{activeObject.status}</span>
+              <Link to={`/dashboard/assets/${encodeURIComponent(activeObject.slug)}/knowledge`} style={summaryLink}>View memory →</Link>
+            </div>
+          </section>
+        ) : null}
       </main>
     </DashboardLayout>
   );
@@ -110,49 +118,187 @@ export default function Dashboard() {
 const pageStyle = {
   minHeight: "calc(100vh - 1px)",
   color: "#f7f7f7",
-  background: "radial-gradient(circle at 50% 35%, rgba(80,255,220,.065), transparent 34%), #050608",
-  paddingBottom: 80,
+  background: "#050608",
+  paddingBottom: 72,
 };
 
 const headerStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: 18,
-  padding: "12px 4px 34px",
+  gap: 24,
+  padding: "18px 8px 54px",
 };
 
-const headerActions = {
+const brandLink = {
+  color: "#fff",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 800,
+  letterSpacing: 7,
+};
+
+const headerRight = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "flex-end",
-  gap: 8,
-  flexWrap: "wrap" as const,
+  gap: 24,
+};
+
+const worldControl = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const worldLabel = {
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: 2.2,
+  color: "rgba(255,255,255,.34)",
+};
+
+const worldSelect = {
+  border: 0,
+  outline: 0,
+  background: "transparent",
+  color: "#fff",
+  font: "inherit",
+  fontSize: 13,
+  fontWeight: 700,
+  minWidth: 145,
+  cursor: "pointer",
 };
 
 const adminLink = {
-  display: "inline-flex",
-  alignItems: "center",
+  color: "rgba(255,255,255,.46)",
   textDecoration: "none",
-  border: "1px solid rgba(0,255,210,.22)",
-  borderRadius: 999,
-  padding: "9px 12px",
-  background: "rgba(0,255,210,.06)",
-  color: "rgba(220,255,249,.86)",
-  fontSize: 8,
-  letterSpacing: 1.3,
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: 2,
 };
 
-const brand = { fontSize: 11, letterSpacing: 10, opacity: .5 };
-const eyebrow = { marginTop: 8, fontSize: 10, letterSpacing: 4, opacity: .28 };
-const assetPickerShell = { display: "flex", alignItems: "center", gap: 10, border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "8px 12px", background: "rgba(255,255,255,.025)" };
-const pickerLabel = { fontSize: 8, letterSpacing: 2, opacity: .3 };
-const assetPicker = { border: 0, outline: 0, background: "transparent", color: "#fff", font: "inherit", fontSize: 11, minWidth: 130 };
-const heroStyle = { display: "grid", justifyItems: "center", gap: 0 };
-const headlineEyebrow = { marginTop: 22, fontSize: 10, letterSpacing: 5, opacity: .33 };
-const titleStyle = { margin: "12px 0 0", fontSize: "clamp(52px, 10vw, 100px)", lineHeight: .92, fontWeight: 500, letterSpacing: "-5px", textAlign: "center" as const };
-const subStyle = { margin: "20px 0 36px", color: "rgba(255,255,255,.46)", fontSize: 16, textAlign: "center" as const };
-const emptyStyle = { width: "min(720px, 92vw)", boxSizing: "border-box" as const, padding: 32, borderRadius: 22, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.03)", textAlign: "center" as const };
-const primaryLink = { display: "inline-block", marginTop: 10, borderRadius: 999, padding: "12px 18px", background: "#fff", color: "#000", textDecoration: "none", fontSize: 10, fontWeight: 800, letterSpacing: 1.5 };
-const errorStyle = { marginTop: 18, width: "min(720px, 92vw)", boxSizing: "border-box" as const, borderRadius: 12, padding: 14, background: "rgba(255,80,80,.08)", border: "1px solid rgba(255,100,100,.16)", fontSize: 12 };
-const loadingStyle = { minHeight: "100vh", display: "grid", placeItems: "center", color: "rgba(255,255,255,.5)", letterSpacing: 4 };
+const heroStyle = {
+  display: "grid",
+  justifyItems: "center",
+  textAlign: "center" as const,
+};
+
+const heroEyebrow = {
+  marginTop: 12,
+  color: "rgba(255,255,255,.34)",
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: 4,
+};
+
+const titleStyle = {
+  margin: "18px 0 0",
+  maxWidth: 960,
+  fontSize: "clamp(62px, 11vw, 136px)",
+  lineHeight: .86,
+  fontWeight: 800,
+  letterSpacing: "-7px",
+};
+
+const subStyle = {
+  margin: "26px 0 52px",
+  maxWidth: 660,
+  color: "rgba(255,255,255,.48)",
+  fontSize: 16,
+  lineHeight: 1.6,
+};
+
+const emptyStyle = {
+  width: "min(720px, 92vw)",
+  padding: "8px 0 20px",
+};
+
+const emptyTitle = {
+  fontSize: 14,
+  fontWeight: 800,
+  letterSpacing: 2.5,
+};
+
+const emptyText = {
+  margin: "14px auto 22px",
+  maxWidth: 520,
+  color: "rgba(255,255,255,.44)",
+  fontSize: 14,
+  lineHeight: 1.6,
+};
+
+const primaryLink = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "13px 18px",
+  borderRadius: 999,
+  background: "#fff",
+  color: "#050608",
+  textDecoration: "none",
+  fontSize: 10,
+  fontWeight: 900,
+  letterSpacing: 1.8,
+};
+
+const errorStyle = {
+  marginTop: 18,
+  width: "min(720px, 92vw)",
+  color: "rgba(255,210,210,.9)",
+  fontSize: 12,
+};
+
+const worldSummary = {
+  width: "min(1120px, 92vw)",
+  margin: "76px auto 0",
+  paddingTop: 20,
+  borderTop: "1px solid rgba(255,255,255,.08)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "end",
+  gap: 24,
+};
+
+const summaryEyebrow = {
+  color: "rgba(255,255,255,.3)",
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: 2.5,
+};
+
+const summaryTitle = {
+  marginTop: 8,
+  fontSize: 22,
+  fontWeight: 800,
+  letterSpacing: "-.5px",
+};
+
+const summaryMeta = {
+  display: "flex",
+  alignItems: "center",
+  gap: 22,
+  color: "rgba(255,255,255,.36)",
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 1.4,
+  textTransform: "uppercase" as const,
+};
+
+const summaryLink = {
+  color: "#fff",
+  textDecoration: "none",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: 0,
+  textTransform: "none" as const,
+};
+
+const loadingStyle = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  background: "#050608",
+  color: "rgba(255,255,255,.5)",
+  letterSpacing: 4,
+  fontWeight: 700,
+};
