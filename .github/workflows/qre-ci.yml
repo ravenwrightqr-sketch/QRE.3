@@ -54,6 +54,9 @@ jobs:
       - name: Build API
         run: pnpm build:api
 
+      - name: Capability boundary acceptance
+        run: pnpm exec tsx apps/api/capability-boundary-acceptance.ts
+
       - name: Build web
         run: pnpm build:web
 
