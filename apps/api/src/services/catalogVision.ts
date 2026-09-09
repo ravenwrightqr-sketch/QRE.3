@@ -1,4 +1,6 @@
-import { analyzeImageForExactInventory } from "./exactIntake.js";
+import { db } from "@qre/db";
+import { buildRecognitionBrief } from "./recognition/recognitionVocabulary.js";
+import { recognizeImage } from "./recognition/recognitionEngine.js";
 
 export type CatalogVisionAttribute = { key: string; value: string };
 export type CatalogVisionItem = {
@@ -11,34 +13,59 @@ export type CatalogVisionItem = {
   notes?: string;
 };
 
-export async function analyzeImageForCatalog(imageDataUrl: string): Promise<CatalogVisionItem[]> {
-  const items = await analyzeImageForExactInventory(imageDataUrl);
-  return items.map((item) => {
-    const attributes: CatalogVisionAttribute[] = [];
-    const coreKeys = new Set(["brand", "product", "flavor", "variant", "model", "size", "category", "description", "printedText", "placement", "labels", "name", "notes", "confidence"]);
+export async function analyzeImageForCatalog(assetId: string, imageDataUrl: string): Promise<CatalogVisionItem[]> {
+  const [asset, catalogItems] = await Promise.all([
+    db.asset.findUnique({ where: { id: assetId }, select: { displayName: true, templateData: true } }),
+    db.catalogItem.findMany({
+      where: { assetId },
+      select: { id: true, name: true, brand: true, category: true, description: true },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
+    }),
+  ]);
 
-    for (const [key, value] of Object.entries(item)) {
-      if (coreKeys.has(key) || value === undefined || value === null || value === "") continue;
-      if (typeof value === "string" || typeof value === "number") attributes.push({ key, value: String(value).trim().slice(0, 1000) });
-    }
+  const brief = buildRecognitionBrief({
+    purpose: "catalog",
+    task: "Identify distinct physical products visible in this business image and preserve exact visible product evidence for the catalog.",
+    businessName: asset?.displayName || undefined,
+    templateData: asset?.templateData,
+    knownEntities: catalogItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      brand: item.brand || undefined,
+      category: item.category || undefined,
+      attributes: item.description ? { description: item.description } : undefined,
+    })),
+  });
 
-    for (const label of item.labels ?? []) attributes.push({ key: "label", value: label.slice(0, 1000) });
-    if (item.printedText) attributes.push({ key: "printed_text", value: item.printedText.slice(0, 4000) });
-    if (item.placement) {
-      for (const [key, value] of Object.entries(item.placement)) {
-        if (value) attributes.push({ key: `placement.${key}`, value: String(value).trim().slice(0, 500) });
+  const result = await recognizeImage({ imageDataUrl, brief });
+  return result.observations
+    .filter((item) => item.candidate.state !== "rejected")
+    .map((item) => {
+      const candidate = item.candidate;
+      const attributes: CatalogVisionAttribute[] = [];
+      for (const [key, value] of Object.entries(candidate.attributes ?? {})) {
+        if (value.trim()) attributes.push({ key, value: value.trim().slice(0, 1000) });
       }
-    }
-
-    const deduped = [...new Map(attributes.map((attribute) => [`${attribute.key}\u0000${attribute.value}`, attribute])).values()].slice(0, 96);
-    return {
-      name: item.name.slice(0, 240),
-      brand: item.brand?.slice(0, 160),
-      category: item.category?.slice(0, 160),
-      description: item.description?.slice(0, 1000),
-      attributes: deduped,
-      confidence: Math.max(0, Math.min(1, item.confidence)),
-      notes: item.notes?.slice(0, 1000),
-    };
-  }).slice(0, 500);
-}
+      for (const evidence of candidate.evidence) {
+        if ((evidence.kind === "printed_text" || evidence.kind === "logo") && evidence.value?.trim()) {
+          attributes.push({ key: evidence.kind, value: evidence.value.trim().slice(0, 4000) });
+        }
+      }
+      if (item.location) {
+        for (const [key, value] of Object.entries(item.location)) {
+          if (value) attributes.push({ key: `placement.${key}`, value: String(value).trim().slice(0, 500) });
+        }
+      }
+      const deduped = [...new Map(attributes.map((attribute) => [`${attribute.key}\u0000${attribute.value}`, attribute])).values()].slice(0, 96);
+      return {
+        name: (candidate.name || candidate.product || "Unresolved visual item").slice(0, 240),
+        brand: candidate.brand?.slice(0, 160),
+        category: candidate.category?.slice(0, 160),
+        description: undefined,
+        attributes: deduped,
+        confidence: Math.max(0, Math.min(1, candidate.confidence)),
+        notes: [candidate.state, ...result.warnings].filter(Boolean).join("; ").slice(0, 1000) || undefined,
+      };
+    })
+    .slice(0, 500);
