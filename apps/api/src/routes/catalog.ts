@@ -1,5 +1,6 @@
 import express from "express";
 import { db } from "@qre/db";
+import { recordCatalogFavorite, deriveCatalogRecommendations, getVisitorFavorites } from "../services/catalogRecommendation.js";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
@@ -72,15 +73,19 @@ async function readCatalog(assetId: string) {
   });
 }
 
+async function resolveAssetBySlug(slug: string) {
+  return db.asset.findUnique({
+    where: { slug },
+    select: { id: true, slug: true, displayName: true },
+  });
+}
+
 router.get("/:slug", async (req, res) => {
   try {
     const slug = safeStringParam(req.params.slug);
     if (!slug) return res.status(400).json({ error: "Missing asset." });
 
-    const asset = await db.asset.findUnique({
-      where: { slug },
-      select: { id: true, slug: true, displayName: true },
-    });
+    const asset = await resolveAssetBySlug(slug);
     if (!asset) return res.status(404).json({ error: "Catalog not found." });
 
     const products = await readCatalog(asset.id);
@@ -94,6 +99,77 @@ router.get("/:slug", async (req, res) => {
   } catch (error) {
     console.error("Catalog load failed:", error);
     return res.status(500).json({ error: "Catalog load failed." });
+  }
+});
+
+// Customer view: unavailable items are omitted entirely. Internal availability
+// state never leaks into the customer-facing catalog response.
+router.get("/:slug/customer", async (req, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    if (!slug) return res.status(400).json({ error: "Missing asset." });
+
+    const asset = await resolveAssetBySlug(slug);
+    if (!asset) return res.status(404).json({ error: "Catalog not found." });
+
+    const products = (await readCatalog(asset.id))
+      .filter((product) => product.availability === "available")
+      .map(({ availability: _availability, ...product }) => product);
+
+    return res.json({
+      asset,
+      products,
+      count: products.length,
+    });
+  } catch (error) {
+    console.error("Customer catalog load failed:", error);
+    return res.status(500).json({ error: "Customer catalog load failed." });
+  }
+});
+
+router.post("/:slug/favorite", async (req, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const itemId = typeof req.body?.itemId === "string" ? req.body.itemId.trim() : "";
+    const visitorId = typeof req.body?.visitorId === "string" ? req.body.visitorId.trim() : "";
+
+    if (!slug || !itemId || !visitorId) return res.status(400).json({ error: "slug, itemId, and visitorId are required." });
+    if (visitorId.length > 128) return res.status(400).json({ error: "visitorId is too long." });
+
+    const asset = await resolveAssetBySlug(slug);
+    if (!asset) return res.status(404).json({ error: "Catalog not found." });
+
+    const result = await recordCatalogFavorite({ assetId: asset.id, itemId, visitorId });
+    return res.json(result);
+  } catch (error) {
+    console.error("Catalog favorite failed:", error);
+    return res.status(400).json({ error: error instanceof Error ? error.message : "Catalog favorite failed." });
+  }
+});
+
+router.get("/:slug/recommendations", async (req, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const favoriteItemId = typeof req.query.favoriteItemId === "string" ? req.query.favoriteItemId.trim() : "";
+    const visitorId = typeof req.query.visitorId === "string" ? req.query.visitorId.trim() : "";
+
+    if (!slug) return res.status(400).json({ error: "Missing asset." });
+
+    const asset = await resolveAssetBySlug(slug);
+    if (!asset) return res.status(404).json({ error: "Catalog not found." });
+
+    let resolvedFavoriteId = favoriteItemId;
+    if (!resolvedFavoriteId && visitorId) {
+      const favorites = await getVisitorFavorites(asset.id, visitorId);
+      resolvedFavoriteId = favorites[0]?.itemId ?? "";
+    }
+    if (!resolvedFavoriteId) return res.status(400).json({ error: "favoriteItemId or visitorId is required." });
+
+    const result = await deriveCatalogRecommendations({ assetId: asset.id, favoriteItemId: resolvedFavoriteId, limit: 3 });
+    return res.json(result);
+  } catch (error) {
+    console.error("Catalog recommendation failed:", error);
+    return res.status(400).json({ error: error instanceof Error ? error.message : "Catalog recommendation failed." });
   }
 });
 
