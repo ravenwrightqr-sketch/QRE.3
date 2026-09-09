@@ -21,7 +21,7 @@ async function main() {
   const facets = await getCatalogViewFacets(asset.id);
   const firstBrand = facets.brands[0];
   const firstCategory = facets.categories[0];
-  const firstAttribute = facets.attributes.find((entry) => entry.values.length > 0);
+  const firstAttribute = facets.attributes.find((entry) => entry.key.toLowerCase() !== "availability" && entry.values.length > 0);
 
   try {
     await setCatalogView(asset.id, { ...original, nameMode: "item", showBrand: true, showCategory: false, showDescription: false, groupBy: "none", scope: { kind: "all" }, sortBy: "name" });
@@ -34,7 +34,7 @@ async function main() {
     const originalBrandItem = items.find((item) => item.brand);
     if (originalBrandItem) {
       const hidden = hiddenBrand.products.find((product) => product.id === originalBrandItem.id);
-      if (!hidden?.searchText?.includes(originalBrandItem.brand!.toLowerCase())) fail("Hidden brand remained unsearchable after presentation removal.");
+      if (!hidden?.searchText?.toLowerCase().includes(originalBrandItem.brand!.toLowerCase())) fail("Hidden brand remained unsearchable after presentation removal.");
     }
 
     await setCatalogView(asset.id, { ...original, showBrand: true, nameMode: "brand_item", scope: { kind: "all" } });
@@ -45,7 +45,7 @@ async function main() {
       await setCatalogView(asset.id, { ...original, showBrand: false, scope: { kind: "brand", value: firstBrand } });
       const oneBrand = await applyCatalogView(asset.id);
       if (oneBrand.count === 0) fail(`Brand scope produced no items for ${firstBrand}.`);
-      if (oneBrand.products.some((product) => !product.searchText?.includes(firstBrand.toLowerCase()))) fail("Brand scope returned an item outside the selected brand.");
+      if (oneBrand.products.some((product) => !product.searchText?.toLowerCase().includes(firstBrand.toLowerCase()))) fail("Brand scope returned an item outside the selected brand.");
     }
 
     if (firstCategory) {
