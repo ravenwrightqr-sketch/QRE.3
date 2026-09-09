@@ -13,7 +13,16 @@ export type CatalogVisionItem = {
   notes?: string;
 };
 
-export async function analyzeImageForCatalog(assetId: string, imageDataUrl: string): Promise<CatalogVisionItem[]> {
+type RecognitionContext = {
+  assetId?: string;
+  businessName?: string;
+  businessType?: string;
+  templateData?: unknown;
+  knownItems?: Array<{ id: string; name: string; brand?: string | null; category?: string | null; description?: string | null }>;
+};
+
+async function loadContext(assetId?: string): Promise<RecognitionContext> {
+  if (!assetId) return {};
   const [asset, catalogItems] = await Promise.all([
     db.asset.findUnique({ where: { id: assetId }, select: { displayName: true, templateData: true } }),
     db.catalogItem.findMany({
@@ -23,13 +32,23 @@ export async function analyzeImageForCatalog(assetId: string, imageDataUrl: stri
       take: 1000,
     }),
   ]);
+  return {
+    assetId,
+    businessName: asset?.displayName || undefined,
+    templateData: asset?.templateData,
+    knownItems: catalogItems,
+  };
+}
 
+export async function analyzeImageForCatalog(imageDataUrl: string, assetId?: string): Promise<CatalogVisionItem[]> {
+  const context = await loadContext(assetId);
   const brief = buildRecognitionBrief({
     purpose: "catalog",
     task: "Identify distinct physical products visible in this business image and preserve exact visible product evidence for the catalog.",
-    businessName: asset?.displayName || undefined,
-    templateData: asset?.templateData,
-    knownEntities: catalogItems.map((item) => ({
+    businessName: context.businessName,
+    businessType: context.businessType,
+    templateData: context.templateData,
+    knownEntities: context.knownItems?.map((item) => ({
       id: item.id,
       name: item.name,
       brand: item.brand || undefined,
@@ -69,3 +88,4 @@ export async function analyzeImageForCatalog(assetId: string, imageDataUrl: stri
       };
     })
     .slice(0, 500);
+}
