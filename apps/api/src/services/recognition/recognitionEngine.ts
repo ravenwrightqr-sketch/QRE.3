@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { localModelGenerate } from "../localModelRuntime.js";
 import type {
   RecognitionBrief,
   RecognitionCandidate,
@@ -6,127 +6,178 @@ import type {
   RecognitionObservation,
   RecognitionResult,
 } from "@qre/contracts";
-import { localModelGenerate } from "../localModelRuntime.js";
-import { buildRecognitionPrompt } from "./recognitionPrompt.js";
 import { reconcileRecognitionResult } from "./recognitionReconciler.js";
+
+function localEnabled(): boolean {
+  return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED !== "true";
+}
+
+function externalEnabled(): boolean {
+  return process.env.QRE_AI_ENABLED === "true" && process.env.QRE_EXTERNAL_AI_ENABLED === "true" && Boolean(process.env.OPENAI_API_KEY);
+}
 
 function jsonFromText<T>(text: string): T | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
     return JSON.parse(cleaned) as T;
   } catch {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try { return JSON.parse(cleaned.slice(start, end + 1)) as T; } catch { return null; }
-    }
     return null;
   }
 }
 
-function clamp(value: unknown, fallback = 0): number {
-  const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
-  return Math.max(0, Math.min(1, number));
+function boundedConfidence(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 }
 
-function text(value: unknown): string | undefined {
+function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function evidence(value: unknown): RecognitionEvidence | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const kind = stringValue(record.kind);
+  const confidence = boundedConfidence(record.confidence);
+  if (!kind) return null;
+  return {
+    kind: kind as RecognitionEvidence["kind"],
+    value: stringValue(record.value),
+    confidence,
+    source: stringValue(record.source),
+  };
 }
 
 function candidate(value: unknown): RecognitionCandidate | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  const rawEvidence = Array.isArray(record.evidence) ? record.evidence : [];
-  const evidence: RecognitionEvidence[] = rawEvidence.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const evidenceRecord = item as Record<string, unknown>;
-    const kind = text(evidenceRecord.kind);
-    const allowed = new Set(["printed_text", "logo", "shape", "package", "position", "catalog_match", "provided_context", "unknown"]);
-    if (!kind || !allowed.has(kind)) return [];
-    return [{
-      kind: kind as RecognitionEvidence["kind"],
-      value: text(evidenceRecord.value),
-      confidence: clamp(evidenceRecord.confidence),
-      source: text(evidenceRecord.source),
-    }];
-  }).slice(0, 64);
-  const rawState = text(record.state);
-  const states = new Set(["matched", "new", "ambiguous", "unreadable", "rejected"]);
-  const state = rawState && states.has(rawState) ? rawState as RecognitionCandidate["state"] : "ambiguous";
+  const state = stringValue(record.state);
+  if (!state) return null;
+  const attributes = record.attributes && typeof record.attributes === "object" && !Array.isArray(record.attributes)
+    ? Object.fromEntries(
+        Object.entries(record.attributes)
+          .filter(([, attributeValue]) => typeof attributeValue === "string" && attributeValue.trim())
+          .map(([key, attributeValue]) => [key, String(attributeValue).trim()]),
+      )
+    : undefined;
+  const evidenceItems = Array.isArray(record.evidence)
+    ? record.evidence.map(evidence).filter((item): item is RecognitionEvidence => Boolean(item))
+    : [];
+
   return {
-    state,
-    name: text(record.name),
-    brand: text(record.brand),
-    product: text(record.product),
-    variant: text(record.variant),
-    category: text(record.category),
-    attributes: record.attributes && typeof record.attributes === "object" && !Array.isArray(record.attributes)
-      ? Object.fromEntries(Object.entries(record.attributes).filter(([, value]) => typeof value === "string" && value.trim()).map(([key, value]) => [key, String(value).trim().slice(0, 1000)]))
-      : undefined,
-    evidence,
-    confidence: clamp(record.confidence),
+    state: state as RecognitionCandidate["state"],
+    name: stringValue(record.name),
+    brand: stringValue(record.brand),
+    product: stringValue(record.product),
+    variant: stringValue(record.variant),
+    category: stringValue(record.category),
+    attributes,
+    evidence: evidenceItems,
+    confidence: boundedConfidence(record.confidence),
   };
 }
 
 function observation(value: unknown): RecognitionObservation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  const parsedCandidate = candidate(record.candidate);
-  if (!parsedCandidate) return null;
+  const observationId = stringValue(record.observationId);
+  const candidateValue = candidate(record.candidate);
+  if (!observationId || !candidateValue) return null;
+
   const rawLocation = record.location;
   const location = rawLocation && typeof rawLocation === "object" && !Array.isArray(rawLocation)
-    ? {
-        section: text((rawLocation as Record<string, unknown>).section),
-        shelf: text((rawLocation as Record<string, unknown>).shelf),
-        row: text((rawLocation as Record<string, unknown>).row),
-        position: text((rawLocation as Record<string, unknown>).position),
-      }
+    ? (() => {
+        const locationRecord = rawLocation as Record<string, unknown>;
+        return {
+          section: stringValue(locationRecord.section),
+          shelf: stringValue(locationRecord.shelf),
+          row: stringValue(locationRecord.row),
+          position: stringValue(locationRecord.position),
+          bbox: Array.isArray(locationRecord.bbox) && locationRecord.bbox.length === 4
+            ? [
+                Number(locationRecord.bbox[0]),
+                Number(locationRecord.bbox[1]),
+                Number(locationRecord.bbox[2]),
+                Number(locationRecord.bbox[3]),
+              ] as [number, number, number, number]
+            : undefined,
+        };
+      })()
     : undefined;
+
   return {
-    observationId: text(record.observationId) || randomUUID(),
-    candidate: parsedCandidate,
+    observationId,
+    candidate: candidateValue,
     location,
-    sourceId: text(record.sourceId),
+    sourceId: stringValue(record.sourceId),
   };
 }
 
-export async function recognizeImage(input: {
-  imageDataUrl: string;
-  brief: RecognitionBrief;
-}): Promise<RecognitionResult> {
-  const fallback: RecognitionResult = {
-    purpose: input.brief.purpose,
+function fallback(brief: RecognitionBrief): RecognitionResult {
+  return {
+    purpose: brief.purpose,
     observations: [],
-    warnings: ["Visual recognition is unavailable because the local model is disabled."],
+    warnings: ["Recognition model is unavailable."],
   };
-  if (process.env.QRE_AI_ENABLED !== "true" || process.env.QRE_EXTERNAL_AI_ENABLED === "true") return fallback;
+}
 
-  const result = await localModelGenerate([
-    {
-      role: "system",
-      content: buildRecognitionPrompt(input.brief),
-    },
-    {
-      role: "user",
-      content: "Inspect this image using the recognition brief. Return only the requested JSON.",
-      images: [input.imageDataUrl],
-    },
-  ], "json", { numPredict: 2400, temperature: 0.1 });
+function promptFor(brief: RecognitionBrief): string {
+  return [
+    "QRE UNIVERSAL VISUAL RECOGNITION.",
+    `PURPOSE: ${brief.purpose}`,
+    `TASK: ${brief.task}`,
+    brief.businessName ? `BUSINESS NAME: ${brief.businessName}` : "",
+    brief.businessType ? `BUSINESS TYPE: ${brief.businessType}` : "",
+    "Use the business context to narrow recognition, but never manufacture evidence.",
+    "Known entities are candidates, not truth. Match them only when visible evidence supports the match.",
+    "Visible printed text has priority over visual resemblance.",
+    "If an item is not supported strongly enough, return an ambiguous or unreadable candidate rather than guessing.",
+    brief.allowNewEntities ? "New entities are allowed when the image supports an item not present in the known entities." : "Do not create new entities; unresolved items must remain unresolved.",
+    brief.allowOpenWorld ? "Open-world discovery is allowed, but unsupported specifics must remain unknown." : "Stay within the supplied business world whenever possible.",
+    "Do not treat shelves, rows, signs, or scenes as products unless the task explicitly asks for them.",
+    "Return strict JSON with keys observations and warnings.",
+    "Each observation must contain observationId, candidate, and optional location/sourceId.",
+    "Each candidate must contain state, evidence, confidence, and any supported name/brand/product/variant/category/attributes.",
+    "Evidence kinds should describe actual support such as printed_text, logo, shape, package, position, catalog_match, provided_context, or unknown.",
+    JSON.stringify({ knownVocabulary: brief.knownVocabulary ?? {}, knownEntities: brief.knownEntities ?? [] }),
+  ].filter(Boolean).join(" ");
+}
 
-  const parsed = jsonFromText<{ observations?: unknown[]; warnings?: unknown[] }>(result.text);
-  if (!parsed) return { ...fallback, model: { provider: result.provider, model: result.model }, warnings: ["Recognition model returned unreadable JSON."] };
+export async function recognizeImage(input: { imageDataUrl: string; brief: RecognitionBrief }): Promise<RecognitionResult> {
+  const base = fallback(input.brief);
+  if (!localEnabled() && !externalEnabled()) return base;
 
-  const observations = (Array.isArray(parsed.observations) ? parsed.observations : [])
-    .map(observation)
-    .filter((value): value is RecognitionObservation => Boolean(value));
-  const warnings = (Array.isArray(parsed.warnings) ? parsed.warnings : [])
-    .filter((value): value is string => typeof value === "string" && value.trim())
-    .map((value) => value.trim());
+  if (localEnabled()) {
+    const result = await localModelGenerate([
+      { role: "system", content: promptFor(input.brief) },
+      {
+        role: "user",
+        content: "Inspect the supplied image. Identify distinct visible objects and their evidence. Never infer unreadable text.",
+        images: [input.imageDataUrl],
+      },
+    ], "json");
+    const parsed = jsonFromText<{ observations?: unknown[]; warnings?: unknown[] }>(result.text);
+    if (!parsed) {
+      return {
+        ...base,
+        model: { provider: result.provider, model: result.model },
+        warnings: ["Recognition model returned unreadable JSON."],
+      };
+    }
 
-  return reconcileRecognitionResult({
-    purpose: input.brief.purpose,
-    observations,
-    warnings,
-    model: { provider: result.provider, model: result.model },
-  });
+    const observations = (Array.isArray(parsed.observations) ? parsed.observations : [])
+      .map(observation)
+      .filter((value): value is RecognitionObservation => Boolean(value));
+    const warnings = (Array.isArray(parsed.warnings) ? parsed.warnings : [])
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
+
+    return reconcileRecognitionResult({
+      purpose: input.brief.purpose,
+      observations,
+      warnings,
+      model: { provider: result.provider, model: result.model },
+    });
+  }
+
+  return base;
 }
