@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { favoriteCatalogItem, getCatalogRecommendations, getCustomerCatalog, recordCatalogTryFeedback } from "../lib/api";
+import { favoriteCatalogItem, getCustomerCatalog, recordCatalogTryFeedback } from "../lib/api";
 
 type Product = { id: string; name: string; brand?: string | null; category?: string | null; description?: string | null };
+
+type CatalogResponse = {
+  asset?: { displayName?: string | null };
+  products?: Product[];
+};
 
 function getVisitorId(slug: string) {
   const key = `qre-visitor:${slug}`;
@@ -17,6 +22,7 @@ function displayName(name: string) { return name.replace(/^Fogger\s+—\s+/i, ""
 
 export default function CustomerCatalog() {
   const { slug = "" } = useParams();
+  const [businessName, setBusinessName] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [favoriteId, setFavoriteId] = useState("");
@@ -27,7 +33,10 @@ export default function CustomerCatalog() {
   useEffect(() => {
     if (!slug) return;
     getCustomerCatalog(slug)
-      .then((result) => setProducts(result.products ?? []))
+      .then((result: CatalogResponse) => {
+        setBusinessName(result.asset?.displayName?.trim() || "");
+        setProducts(result.products ?? []);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load catalog."));
   }, [slug]);
 
@@ -43,7 +52,6 @@ export default function CustomerCatalog() {
     setError("");
     try {
       await favoriteCatalogItem(slug, product.id, visitorId);
-      await getCatalogRecommendations(slug, product.id, visitorId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your choice.");
     }
@@ -68,6 +76,7 @@ export default function CustomerCatalog() {
   return (
     <main style={pageStyle}>
       <header style={headerStyle}>
+        {businessName && <p style={businessNameStyle}>{businessName}</p>}
         <h1 style={titleStyle}>What’s here</h1>
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label="Search products" style={searchStyle} />
       </header>
@@ -99,6 +108,7 @@ export default function CustomerCatalog() {
 
 const pageStyle: React.CSSProperties = { minHeight: "100svh", background: "#050505", color: "#f5f5f5", padding: "max(16px, env(safe-area-inset-top)) 18px calc(44px + env(safe-area-inset-bottom))", fontFamily: "Inter, system-ui, sans-serif" };
 const headerStyle: React.CSSProperties = { position: "sticky", top: 0, zIndex: 10, width: "100%", maxWidth: 680, margin: "0 auto", padding: "10px 0 18px", background: "#050505" };
+const businessNameStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "clamp(17px, 4.5vw, 21px)", lineHeight: 1.1, fontWeight: 700, color: "#8cff00" };
 const titleStyle: React.CSSProperties = { margin: "0 0 16px", fontSize: "clamp(30px, 9vw, 44px)", lineHeight: 0.95, fontWeight: 800 };
 const searchStyle: React.CSSProperties = { width: "100%", minHeight: 48, boxSizing: "border-box", padding: "10px 0", border: "none", borderBottom: "1px solid #444", background: "transparent", color: "white", outline: "none", fontSize: 18, borderRadius: 0 };
 const productList: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto" };
