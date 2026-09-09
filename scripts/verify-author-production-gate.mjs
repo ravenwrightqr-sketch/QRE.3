@@ -83,12 +83,13 @@ const forbiddenLegacyImportBasenames = new Set([
 /**
  * Direct local-model callers are intentionally allowlisted at real boundaries.
  * Cognition may ask the model for hypotheses; the Artist may ask it for visible
- * language; intake/learning adapters may use the model to interpret supplied
+ * language; perception/learning adapters may use the model to interpret supplied
  * artifacts. The gate blocks every other production caller.
  */
 const allowedDirectModelCallers = new Set([
   "apps/api/src/services/aiProvider.ts",
   "apps/api/src/services/localModelRuntime.ts",
+  "apps/api/src/services/realityEngine.ts",
   "apps/api/src/services/authorBeatTruthGate.ts",
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/authorCognitionUniversal.ts",
