@@ -59,16 +59,50 @@ const flavors = [
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function resolveIntakeUser(asset: {
+  ownerId: string | null;
+  accountId: string | null;
+  ownership: { userId: string | null; accountId: string | null } | null;
+}) {
+  if (asset.ownerId) return asset.ownerId;
+  if (asset.ownership?.userId) return asset.ownership.userId;
+
+  const accountId = asset.accountId ?? asset.ownership?.accountId;
+  if (!accountId) return null;
+
+  const membership = await db.accountUser.findFirst({
+    where: { accountId },
+    orderBy: { role: "asc" },
+    select: { userId: true },
+  });
+
+  return membership?.userId ?? null;
+}
+
 async function main() {
-  const asset = await db.asset.findUnique({ where: { slug }, select: { id: true, slug: true, displayName: true, ownerId: true } });
+  const asset = await db.asset.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      slug: true,
+      displayName: true,
+      ownerId: true,
+      accountId: true,
+      ownership: { select: { userId: true, accountId: true } },
+    },
+  });
   if (!asset) throw new Error(`Asset not found: ${slug}`);
-  if (!asset.ownerId) throw new Error(`Asset has no owner: ${slug}`);
+
+  const intakeUserId = await resolveIntakeUser(asset);
+  if (!intakeUserId) {
+    throw new Error(`No user membership/ownership found for asset: ${slug}`);
+  }
 
   const text = flavors.map((flavor) => `Fogger — ${flavor}: available`).join("\n");
 
   const queued = await enqueueKnowledgeIntake({
     assetId: asset.id,
-    userId: asset.ownerId,
+    userId: intakeUserId,
     sourceType: "text",
     originalName: "House of Vape & Smoke — handwritten inventory test",
     mimeType: "text/plain",
