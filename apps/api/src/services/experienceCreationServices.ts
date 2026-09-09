@@ -112,7 +112,8 @@ export async function createExperience(input: CreateExperienceInput) {
     authorDiagnostics.renderable !== true ||
     authorDiagnostics.complete !== true
   ) {
-    console.error("[AUTHOR GATE DIAGNOSTICS]", JSON.stringify(authorDiagnostics, null, 2)); throw new Error("Canonical Author rejected the requested experience.");
+    console.error("[AUTHOR GATE DIAGNOSTICS]", JSON.stringify(authorDiagnostics, null, 2));
+    throw new Error("Canonical Author rejected the requested experience.");
   }
 
   const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
@@ -169,52 +170,56 @@ export async function createExperience(input: CreateExperienceInput) {
     memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
   } as Prisma.InputJsonValue;
 
-  const experience = await db.experience.create({
-    data: {
-      assetId: input.assetId,
-      title: input.title ?? compiled.title,
-      blueprint,
-    },
-  });
-
-  const flow = await db.flow.create({
-    data: {
-      name: experience.title ?? "Experience",
-      version: 1,
-      actions: {
-        category: String((compiled.blueprint as Record<string, unknown>).type ?? "experience"),
-        sourcePrompt: input.prompt.trim(),
-        sponsor,
-        cinematicSequence,
-        learningAware: true,
-        learningProfile,
-      } as Prisma.InputJsonValue,
-      steps: {
-        create: compiled.flowSteps.map((step) => ({
-          order: Number(step.order ?? 0),
-          type: String(step.type ?? "message"),
-          payload: (step.payload ?? {}) as Prisma.InputJsonValue,
-        })),
+  const { experience, flow } = await db.$transaction(async (tx) => {
+    const experience = await tx.experience.create({
+      data: {
+        assetId: input.assetId,
+        title: input.title ?? compiled.title,
+        blueprint,
       },
-    },
-    include: { steps: true },
+    });
+
+    const flow = await tx.flow.create({
+      data: {
+        name: experience.title ?? "Experience",
+        version: 1,
+        actions: {
+          category: String((compiled.blueprint as Record<string, unknown>).type ?? "experience"),
+          sourcePrompt: input.prompt.trim(),
+          sponsor,
+          cinematicSequence,
+          learningAware: true,
+          learningProfile,
+        } as Prisma.InputJsonValue,
+        steps: {
+          create: compiled.flowSteps.map((step) => ({
+            order: Number(step.order ?? 0),
+            type: String(step.type ?? "message"),
+            payload: (step.payload ?? {}) as Prisma.InputJsonValue,
+          })),
+        },
+      },
+      include: { steps: true },
+    });
+
+    await tx.experience.update({
+      where: { id: experience.id },
+      data: { flow: { connect: { id: flow.id } } },
+    });
+
+    await tx.assetFlow.create({
+      data: {
+        assetId: input.assetId,
+        flowId: flow.id,
+        priority: 0,
+        active: true,
+        triggerType: "DEFAULT",
+      },
+    });
+
+    return { experience, flow };
   });
 
-  await db.experience.update({
-    where: { id: experience.id },
-    data: { flow: { connect: { id: flow.id } } },
-  });
-
-    await db.assetFlow.create({
-    data: {
-      assetId: input.assetId,
-      flowId: flow.id,
-      priority: 0,
-      active: true,
-      triggerType: "DEFAULT",
-    },
-  });
-  
   return {
     experience,
     flow,
