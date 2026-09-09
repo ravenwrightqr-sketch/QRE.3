@@ -43,6 +43,15 @@ function entityMap(graph: RealityGraph): Map<string, RealityEntity> {
   return map;
 }
 
+function entityCounts(graph: RealityGraph): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entity of graph.entities) {
+    const key = fingerprint(entity);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function graphFromObservation(value: unknown): RealityGraph | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -76,6 +85,7 @@ async function upsertPattern(args: {
   if (existing) {
     const previousEvidenceIds = Array.isArray(existing.evidenceIds) ? existing.evidenceIds.filter((value): value is string => typeof value === "string") : [];
     const evidenceIds = [...new Set([...previousEvidenceIds, ...args.evidenceIds])].slice(-64);
+    const metadata = args.metadata ?? resultRecord(existing.metadata);
     await db.knowledgePattern.update({
       where: { id: existing.id },
       data: {
@@ -85,7 +95,7 @@ async function upsertPattern(args: {
         evidenceIds,
         firstObservedAt: existing.firstObservedAt ?? args.firstObservedAt,
         lastObservedAt: args.lastObservedAt ?? new Date(),
-        metadata: args.metadata as object | undefined,
+        metadata: metadata as object,
         status: "active",
       },
     });
@@ -121,7 +131,7 @@ async function learnPatterns(assetId: string, current: RealityGraph, evidenceId:
   const previousKeys = new Set(previousEntities.keys());
 
   for (const key of currentKeys) {
-    const sightings = priorGraphs.slice(1).reduce((count, graph) => count + (entityMap(graph).has(key) ? 1 : 0), 0) + (previousEntities.has(key) ? 1 : 0);
+    const sightings = priorGraphs.reduce((count, graph) => count + (entityMap(graph).has(key) ? 1 : 0), 0);
     if (sightings >= 1) {
       const total = sightings + 1;
       const entity = currentEntities.get(key)!;
@@ -134,7 +144,7 @@ async function learnPatterns(assetId: string, current: RealityGraph, evidenceId:
         evidenceIds: [evidenceId],
         firstObservedAt: observedAt,
         lastObservedAt: observedAt,
-        metadata: { fingerprint: key, kind: entity.kind, visibility: entity.visibility },
+        metadata: { fingerprint: key, kind: entity.kind, visibility: entity.visibility, sampleSize: total },
       });
     }
   }
@@ -187,6 +197,63 @@ async function learnPatterns(assetId: string, current: RealityGraph, evidenceId:
           lastObservedAt: observedAt,
           metadata: { fingerprint: key, fromRegion: before.regionId, toRegion: after.regionId, interpretation: "movement_candidate" },
         });
+      }
+    }
+  }
+
+  if (priorGraphs.length >= 3) {
+    const allKeys = new Set<string>();
+    for (const graph of [current, ...priorGraphs]) for (const key of entityMap(graph).keys()) allKeys.add(key);
+
+    for (const key of allKeys) {
+      const presenceCount = priorGraphs.reduce((count, graph) => count + (entityMap(graph).has(key) ? 1 : 0), 0) + (currentEntities.has(key) ? 1 : 0);
+      const sampleSize = priorGraphs.length + 1;
+      const presenceRate = presenceCount / sampleSize;
+      const counts = [current, ...priorGraphs].map((graph) => entityCounts(graph).get(key) ?? 0);
+      const nonZero = counts.filter((count) => count > 0);
+      if (!nonZero.length) continue;
+
+      if (presenceRate >= 0.7) {
+        const entity = currentEntities.get(key) ?? previousEntities.get(key);
+        const label = entity?.name || entity?.label || entity?.kind || key;
+        await upsertPattern({
+          assetId,
+          type: "REALITY_EXPECTED_PRESENCE",
+          statement: `${label} is usually visible in comparable observations (${Math.round(presenceRate * 100)}% of ${sampleSize}).`,
+          confidence: Math.min(0.98, presenceRate * 0.95),
+          strength: Math.min(0.98, sampleSize / (sampleSize + 2)),
+          evidenceIds: [evidenceId],
+          lastObservedAt: observedAt,
+          metadata: {
+            fingerprint: key,
+            sampleSize,
+            presenceCount,
+            presenceRate,
+            prediction: { type: "next_observation_presence", probability: presenceRate },
+          },
+        });
+      }
+
+      if (nonZero.length >= 3) {
+        const min = Math.min(...nonZero);
+        const max = Math.max(...nonZero);
+        const latest = counts[0];
+        const previousCount = counts[1];
+        if (max > min && latest !== previousCount) {
+          const direction = latest > previousCount ? "increased" : "decreased";
+          const entity = currentEntities.get(key) ?? previousEntities.get(key);
+          const label = entity?.name || entity?.label || entity?.kind || key;
+          await upsertPattern({
+            assetId,
+            type: "REALITY_COUNT_TREND",
+            statement: `${label} count ${direction} from ${previousCount} to ${latest}; observed range is ${min}-${max}.`,
+            confidence: Math.min(0.95, 0.55 + nonZero.length * 0.06),
+            strength: Math.min(0.95, sampleSize / (sampleSize + 3)),
+            evidenceIds: [evidenceId],
+            lastObservedAt: observedAt,
+            metadata: { fingerprint: key, counts, direction, min, max, latest, previousCount, sampleSize },
+          });
+        }
       }
     }
   }
